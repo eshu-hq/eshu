@@ -172,7 +172,7 @@ func TestTagHistoryHandlerTruncationAndCursor(t *testing.T) {
 	if !ok {
 		t.Fatalf("next_cursor = %#v, want an opaque token string", data["next_cursor"])
 	}
-	key, err := taghistory.DecodeCursor(tagHistoryTestCursorKeyring, token, tagHistoryTestImageRef)
+	key, err := taghistory.DecodeCursor(tagHistoryTestCursorKeyring, token, tagHistoryTestImageRef, tagHistoryUnscopedAudience())
 	if err != nil {
 		t.Fatalf("taghistory.DecodeCursor() error = %v, want the token this page issued to decode", err)
 	}

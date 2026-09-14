@@ -12,10 +12,12 @@
 // grant-filtered page to `limit` VISIBLE rows out of FIXED MaxLimit-sized raw
 // windows, and the SEALED keyset continuation cursor that replaced the raw row
 // offset. The cursor names a row key, not a row position, and it is encrypted
-// with the deployment DEK, so a caller can neither read where a page stopped nor
-// choose where the next one starts; the residue that leaves is counts only, on
-// Cursor's doc comment, and it is disclosed on every caller-facing surface
-// rather than only here.
+// with the deployment DEK under an AAD that also binds the caller's grant set
+// (Audience), so a caller can neither read where a page stopped, nor choose
+// where the next one starts, nor be handed a start by a caller in another
+// authorization context; the residue that leaves is counts only, on Cursor's
+// doc comment, and it is disclosed on every caller-facing surface rather than
+// only here.
 //
 // It imports only the standard library and querycontract (GraphQuery,
 // RepositoryAccessFilter, StringVal/BoolVal), never the query root or

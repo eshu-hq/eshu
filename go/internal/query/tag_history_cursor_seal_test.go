@@ -74,9 +74,9 @@ func tagHistoryTruthReason(t *testing.T, w *httptest.ResponseRecorder) string {
 // if it does not open under the test keyring. Tests assert on the KEY rather
 // than on a decoded payload map, because the payload is no longer readable from
 // the wire -- which is the point.
-func openTagHistoryCursor(t *testing.T, token string) taghistory.Key {
+func openTagHistoryCursor(t *testing.T, token string, audience taghistory.Audience) taghistory.Key {
 	t.Helper()
-	key, err := taghistory.DecodeCursor(tagHistoryTestCursorKeyring, token, tagHistoryTestImageRef)
+	key, err := taghistory.DecodeCursor(tagHistoryTestCursorKeyring, token, tagHistoryTestImageRef, audience)
 	if err != nil {
 		t.Fatalf("next_cursor %q did not open under the serving deployment's key: %v", token, err)
 	}
@@ -173,7 +173,7 @@ func TestTagHistoryServerIssuedCursorRoundTrips(t *testing.T) {
 	if !strings.HasPrefix(token, "ESK1.") {
 		t.Fatalf("next_cursor = %q, want the sealed ESK1 envelope shape", token)
 	}
-	if got, want := openTagHistoryCursor(t, token).UID, "uid-sha256:d01"; got != want {
+	if got, want := openTagHistoryCursor(t, token, tagHistoryScopedAudience("repo-granted")).UID, "uid-sha256:d01"; got != want {
 		t.Fatalf("sealed cursor uid = %q, want %q (the last row this page returned)", got, want)
 	}
 }
@@ -187,15 +187,16 @@ func TestTagHistoryCursorFromAnotherDeploymentIsRefused(t *testing.T) {
 	t.Parallel()
 
 	key := taghistory.Key{At: seededTagHistoryObservedAt(1), UID: "uid-sha256:d01"}
-	rotated, err := taghistory.EncodeCursor(tagHistoryRotatedCursorKeyring, tagHistoryTestImageRef, key)
+	audience := tagHistoryScopedAudience("repo-granted")
+	rotated, err := taghistory.EncodeCursor(tagHistoryRotatedCursorKeyring, tagHistoryTestImageRef, audience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
-	foreign, err := taghistory.EncodeCursor(tagHistoryTestCursorKeyring, "ghcr.io/eshu-hq/other:1.0.0", key)
+	foreign, err := taghistory.EncodeCursor(tagHistoryTestCursorKeyring, "ghcr.io/eshu-hq/other:1.0.0", audience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
-	valid, err := taghistory.EncodeCursor(tagHistoryTestCursorKeyring, tagHistoryTestImageRef, key)
+	valid, err := taghistory.EncodeCursor(tagHistoryTestCursorKeyring, tagHistoryTestImageRef, audience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
@@ -277,7 +278,7 @@ func TestTagHistoryScopedPagingFailsClosedWithoutASealingKey(t *testing.T) {
 		t.Parallel()
 
 		key := taghistory.Key{At: seededTagHistoryObservedAt(1), UID: "uid-sha256:d01"}
-		token, err := taghistory.EncodeCursor(tagHistoryTestCursorKeyring, tagHistoryTestImageRef, key)
+		token, err := taghistory.EncodeCursor(tagHistoryTestCursorKeyring, tagHistoryTestImageRef, tagHistoryScopedAudience("repo-granted"), key)
 		if err != nil {
 			t.Fatalf("EncodeCursor() error = %v", err)
 		}
@@ -363,4 +364,91 @@ func TestTagHistorySealedCursorWalksEveryTimestampState(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestTagHistoryCursorFromAnotherAudienceIsRefused is the end-to-end form of
+// the audience binding (#6564 review finding, taghistory/cursor.go).
+//
+// Sealing alone bounded the reachable starts to tokens THIS SERVER issued, but
+// said nothing about WHO they were issued to, so a token minted in one
+// authorization context opened cleanly in another. That matters most for an
+// unscoped caller, which keeps the offset parameter: it can ask for offset=N,
+// read the next_cursor back, and so mint a token at essentially any raw
+// position in the history. Handing one to a scoped caller restored exactly the
+// caller-chosen start the seal exists to remove, and falsified the design
+// comment's claim that such a caller "cannot choose where such a span starts".
+//
+// Each subtest carries its own control, because a 400 proves nothing on its own
+// -- the same token must be accepted by the audience it was issued to, or the
+// refusal could be any other cursor defect.
+func TestTagHistoryCursorFromAnotherAudienceIsRefused(t *testing.T) {
+	t.Parallel()
+
+	newGraph := func() GraphQuery {
+		return newSeededTagHistoryGraph("granted", "granted", "granted", "granted", "granted")
+	}
+	issue := func(t *testing.T, auth *AuthContext) string {
+		t.Helper()
+		w := serveTagHistoryAs(t, newGraph(), auth, tagHistoryGrantTarget+"&limit=2")
+		if got, want := w.Code, http.StatusOK; got != want {
+			t.Fatalf("issuing page status = %d, want %d; body = %s", got, want, w.Body.String())
+		}
+		return tagHistoryCursorString(t, decodeTagHistoryBody(t, w))
+	}
+	replay := func(t *testing.T, auth *AuthContext, token string) int {
+		t.Helper()
+		return serveTagHistoryAs(
+			t, newGraph(), auth,
+			tagHistoryGrantTarget+"&limit=2&cursor="+url.QueryEscape(token),
+		).Code
+	}
+
+	t.Run("an unscoped caller's cursor is refused for a scoped caller", func(t *testing.T) {
+		t.Parallel()
+
+		token := issue(t, nil)
+		if got, want := replay(t, scopedTagHistoryAuth("repo-granted"), token), http.StatusBadRequest; got != want {
+			t.Fatalf("status = %d, want %d: an unscoped caller can aim a cursor with offset, so a scoped caller must not be able to replay one", got, want)
+		}
+		if got, want := replay(t, nil, token), http.StatusOK; got != want {
+			t.Fatalf("control status = %d, want %d: the issuing audience must still be able to continue", got, want)
+		}
+	})
+
+	t.Run("another tenant's cursor is refused", func(t *testing.T) {
+		t.Parallel()
+
+		token := issue(t, scopedTagHistoryAuth("repo-granted"))
+		if got, want := replay(t, scopedTagHistoryAuth("repo-other"), token), http.StatusBadRequest; got != want {
+			t.Fatalf("status = %d, want %d: a cursor must not start a differently-granted caller mid-history", got, want)
+		}
+		if got, want := replay(t, scopedTagHistoryAuth("repo-granted"), token), http.StatusOK; got != want {
+			t.Fatalf("control status = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("a grant change mid-walk stops the cursor", func(t *testing.T) {
+		t.Parallel()
+
+		// The accepted cost of binding to the grant SET rather than to the
+		// credential: widening a grant between two pages ends the walk and the
+		// client restarts from page one. That is correct -- the filter's answer
+		// changed underneath it -- and it is the same deploy boundary a key
+		// rotation and a version bump already carry.
+		token := issue(t, scopedTagHistoryAuth("repo-granted"))
+		if got, want := replay(t, scopedTagHistoryAuth("repo-granted", "repo-extra"), token), http.StatusBadRequest; got != want {
+			t.Fatalf("status = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("a reordered grant set keeps paging", func(t *testing.T) {
+		t.Parallel()
+
+		// The other side of that cost, and the one that would be a real bug:
+		// the SAME grants arriving in a different order must not end the walk.
+		token := issue(t, scopedTagHistoryAuth("repo-granted", "repo-extra"))
+		if got, want := replay(t, scopedTagHistoryAuth("repo-extra", "repo-granted"), token), http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d: grant order is not part of the audience", got, want)
+		}
+	})
 }

@@ -518,7 +518,7 @@ func TestTagHistoryRefillHonoursReadCap(t *testing.T) {
 	if got := data["truncated"]; got != true {
 		t.Fatalf("truncated = %#v, want true: a capped page is not a complete page", got)
 	}
-	key, err := taghistory.DecodeCursor(tagHistoryTestCursorKeyring, tagHistoryCursorString(t, data), tagHistoryTestImageRef)
+	key, err := taghistory.DecodeCursor(tagHistoryTestCursorKeyring, tagHistoryCursorString(t, data), tagHistoryTestImageRef, tagHistoryScopedAudience("repo-granted"))
 	if err != nil {
 		t.Fatalf("taghistory.DecodeCursor() error = %v", err)
 	}

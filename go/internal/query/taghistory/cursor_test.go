@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 )
 
@@ -25,6 +26,16 @@ var _ Sealer = (*secretcrypto.Keyring)(nil)
 // so two keyrings differ the way a rotation makes them differ (KeyringFromEnv
 // fingerprints the key material into the id) unless a test deliberately reuses
 // an id.
+// testAudience is the authorization audience every token in this file is
+// sealed for and opened against, so these tests keep exercising the image_ref,
+// version and key-state bindings rather than incidentally failing on the
+// audience one. TestCursorDoesNotOpenForAnotherAudience proves the audience
+// binding itself.
+var testAudience = AudienceOf(querycontract.RepositoryAccessFilter{
+	AllowedRepositoryIDs: []string{"repository:r_payments"},
+	Allowed:              map[string]struct{}{"repository:r_payments": {}},
+})
+
 func testKeyring(t *testing.T, id string, fill byte) *secretcrypto.Keyring {
 	t.Helper()
 	key := make([]byte, 32)
@@ -53,14 +64,14 @@ func TestSealedCursorRoundTripsEveryKeyState(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			token, err := EncodeCursor(sealer, testImageRef, key)
+			token, err := EncodeCursor(sealer, testImageRef, testAudience, key)
 			if err != nil {
 				t.Fatalf("EncodeCursor() error = %v", err)
 			}
 			if !strings.HasPrefix(token, "ESK1.") {
 				t.Fatalf("token = %q, want an ESK1 AEAD envelope", token)
 			}
-			got, err := DecodeCursor(sealer, token, testImageRef)
+			got, err := DecodeCursor(sealer, token, testImageRef, testAudience)
 			if err != nil {
 				t.Fatalf("DecodeCursor() error = %v", err)
 			}
@@ -78,7 +89,7 @@ func TestSealedCursorRoundTripsEveryKeyState(t *testing.T) {
 func TestSealedCursorIsNotReadable(t *testing.T) {
 	t.Parallel()
 
-	token, err := EncodeCursor(testKeyring(t, "k1", 0x11), testImageRef, Key{At: "1760000000042", UID: "uid-secret"})
+	token, err := EncodeCursor(testKeyring(t, "k1", 0x11), testImageRef, testAudience, Key{At: "1760000000042", UID: "uid-secret"})
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
@@ -102,11 +113,11 @@ func TestDecodeCursorRefusesEveryUnopenableToken(t *testing.T) {
 
 	sealer := testKeyring(t, "k1", 0x11)
 	key := Key{At: "1760000000042", UID: "uid-sha256:d42"}
-	valid, err := EncodeCursor(sealer, testImageRef, key)
+	valid, err := EncodeCursor(sealer, testImageRef, testAudience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
-	foreign, err := EncodeCursor(sealer, "ghcr.io/eshu-hq/other:1.0.0", key)
+	foreign, err := EncodeCursor(sealer, "ghcr.io/eshu-hq/other:1.0.0", testAudience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
@@ -117,7 +128,7 @@ func TestDecodeCursorRefusesEveryUnopenableToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)
 	}
-	unsealed, err := EncodeCursor(nil, testImageRef, key)
+	unsealed, err := EncodeCursor(nil, testImageRef, testAudience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
@@ -137,10 +148,102 @@ func TestDecodeCursorRefusesEveryUnopenableToken(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := DecodeCursor(sealer, token, testImageRef); err == nil {
+			if _, err := DecodeCursor(sealer, token, testImageRef, testAudience); err == nil {
 				t.Fatalf("DecodeCursor(%q) error = nil, want a refusal", token)
 			}
 		})
+	}
+}
+
+// TestCursorDoesNotOpenForAnotherAudience is the audience half of the AAD
+// binding (#6564 review finding, cursor.go). A sealed cursor carries no scope,
+// grant or principal in its plaintext, so nothing after the envelope opens can
+// tell that a token was minted in a different authorization context: only the
+// AEAD binding can refuse it. Dropping audience from cursorAAD makes this test
+// accept the token.
+//
+// It matters because the design claims a scoped caller "cannot choose where
+// such a span starts". Without this binding an unscoped caller -- which keeps
+// the offset parameter and can therefore mint a token at an arbitrary raw
+// position -- could hand one over and put a scoped caller at a start it never
+// paged to.
+func TestCursorDoesNotOpenForAnotherAudience(t *testing.T) {
+	t.Parallel()
+
+	sealer := testKeyring(t, "k1", 0x11)
+	key := Key{At: "1760000000042", UID: "uid-sha256:d42"}
+	other := AudienceOf(querycontract.RepositoryAccessFilter{
+		AllowedRepositoryIDs: []string{"repository:r_other"},
+		Allowed:              map[string]struct{}{"repository:r_other": {}},
+	})
+	if other == testAudience {
+		t.Fatal("the two fixtures share an audience; this test would pass vacuously")
+	}
+
+	token, err := EncodeCursor(sealer, testImageRef, other, key)
+	if err != nil {
+		t.Fatalf("EncodeCursor() error = %v", err)
+	}
+	if _, err := DecodeCursor(sealer, token, testImageRef, testAudience); err == nil {
+		t.Fatal("DecodeCursor() error = nil; a cursor minted for another grant set must not open")
+	}
+	// Control: the same token opens for the audience it was sealed for, so the
+	// refusal above is the binding and not a broken seal.
+	if _, err := DecodeCursor(sealer, token, testImageRef, other); err != nil {
+		t.Fatalf("control DecodeCursor() error = %v", err)
+	}
+
+	// An unscoped caller is its own audience, and that is the separation the
+	// exposure actually turned on.
+	unscoped := AudienceOf(querycontract.RepositoryAccessFilter{AllScopes: true})
+	if unscoped == testAudience {
+		t.Fatal("unscoped and scoped callers share an audience")
+	}
+	unscopedToken, err := EncodeCursor(sealer, testImageRef, unscoped, key)
+	if err != nil {
+		t.Fatalf("EncodeCursor() error = %v", err)
+	}
+	if _, err := DecodeCursor(sealer, unscopedToken, testImageRef, testAudience); err == nil {
+		t.Fatal("DecodeCursor() error = nil; a scoped caller must not open an unscoped caller's cursor")
+	}
+}
+
+// TestAudienceOfIsCanonical proves the derivation cannot refuse a caller its
+// own cursor over an accident of encoding: the same grants in a different
+// order, or listed twice, must produce the same audience, or a client would see
+// its in-flight page 400 at random. Different grants must not.
+func TestAudienceOfIsCanonical(t *testing.T) {
+	t.Parallel()
+
+	base := AudienceOf(querycontract.RepositoryAccessFilter{
+		AllowedRepositoryIDs: []string{"repository:r_a", "repository:r_b"},
+		AllowedScopeIDs:      []string{"git-repository-scope:repository:r_c"},
+	})
+	shuffled := AudienceOf(querycontract.RepositoryAccessFilter{
+		AllowedRepositoryIDs: []string{"repository:r_b", "repository:r_a", "repository:r_a"},
+		AllowedScopeIDs:      []string{"git-repository-scope:repository:r_c"},
+	})
+	if base != shuffled {
+		t.Fatalf("AudienceOf() = %q for reordered, duplicated grants, want %q", shuffled, base)
+	}
+
+	fewer := AudienceOf(querycontract.RepositoryAccessFilter{
+		AllowedRepositoryIDs: []string{"repository:r_a"},
+	})
+	if fewer == base {
+		t.Fatal("a smaller grant set produced the same audience; a grant change must invalidate the walk")
+	}
+
+	// A repository id and a scope id that spell the same string are different
+	// grants, so tagging by kind has to survive the hash.
+	asRepository := AudienceOf(querycontract.RepositoryAccessFilter{
+		AllowedRepositoryIDs: []string{"repository:r_a"},
+	})
+	asScope := AudienceOf(querycontract.RepositoryAccessFilter{
+		AllowedScopeIDs: []string{"repository:r_a"},
+	})
+	if asRepository == asScope {
+		t.Fatal("a repository grant and a scope grant with the same id collided")
 	}
 }
 
@@ -155,20 +258,20 @@ func TestCursorAADBindsTheImageRef(t *testing.T) {
 
 	sealer := testKeyring(t, "k1", 0x11)
 	key := Key{At: "1760000000042", UID: "uid-sha256:d42"}
-	token, err := sealer.Seal(marshalCursor(CursorVersion, testImageRef, key), cursorAAD("ghcr.io/eshu-hq/other:1.0.0"))
+	token, err := sealer.Seal(marshalCursor(CursorVersion, testImageRef, key), cursorAAD("ghcr.io/eshu-hq/other:1.0.0", testAudience))
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)
 	}
-	if _, err := DecodeCursor(sealer, token, testImageRef); err == nil {
+	if _, err := DecodeCursor(sealer, token, testImageRef, testAudience); err == nil {
 		t.Fatal("DecodeCursor() error = nil; the AAD must bind the image_ref, not only the plaintext")
 	}
 	// Control: the same plaintext under the RIGHT AAD opens, so the refusal
 	// above is the binding and not a broken seal.
-	control, err := sealer.Seal(marshalCursor(CursorVersion, testImageRef, key), cursorAAD(testImageRef))
+	control, err := sealer.Seal(marshalCursor(CursorVersion, testImageRef, key), cursorAAD(testImageRef, testAudience))
 	if err != nil {
 		t.Fatalf("Seal() error = %v", err)
 	}
-	if _, err := DecodeCursor(sealer, control, testImageRef); err != nil {
+	if _, err := DecodeCursor(sealer, control, testImageRef, testAudience); err != nil {
 		t.Fatalf("control DecodeCursor() error = %v", err)
 	}
 }
@@ -192,11 +295,11 @@ func TestDecodeCursorRefusesAMalformedSealedPlaintext(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			token, err := sealer.Seal([]byte(plaintext), cursorAAD(testImageRef))
+			token, err := sealer.Seal([]byte(plaintext), cursorAAD(testImageRef, testAudience))
 			if err != nil {
 				t.Fatalf("Seal() error = %v", err)
 			}
-			if _, err := DecodeCursor(sealer, token, testImageRef); err == nil {
+			if _, err := DecodeCursor(sealer, token, testImageRef, testAudience); err == nil {
 				t.Fatalf("DecodeCursor() error = nil, want a refusal for %s", name)
 			}
 		})
@@ -212,11 +315,11 @@ func TestUnsealedCursorIsOnlyUsableWithoutAKey(t *testing.T) {
 	t.Parallel()
 
 	key := Key{At: "1760000000042", UID: "uid-sha256:d42"}
-	unsealed, err := EncodeCursor(nil, testImageRef, key)
+	unsealed, err := EncodeCursor(nil, testImageRef, testAudience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
-	got, err := DecodeCursor(nil, unsealed, testImageRef)
+	got, err := DecodeCursor(nil, unsealed, testImageRef, testAudience)
 	if err != nil {
 		t.Fatalf("DecodeCursor() error = %v, want the unsealed token to round-trip without a key", err)
 	}
@@ -225,14 +328,14 @@ func TestUnsealedCursorIsOnlyUsableWithoutAKey(t *testing.T) {
 	}
 
 	sealer := testKeyring(t, "k1", 0x11)
-	sealed, err := EncodeCursor(sealer, testImageRef, key)
+	sealed, err := EncodeCursor(sealer, testImageRef, testAudience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
-	if _, err := DecodeCursor(nil, sealed, testImageRef); err == nil {
+	if _, err := DecodeCursor(nil, sealed, testImageRef, testAudience); err == nil {
 		t.Fatal("DecodeCursor(nil sealer, sealed token) error = nil, want a refusal")
 	}
-	if _, err := DecodeCursor(sealer, unsealed, testImageRef); err == nil {
+	if _, err := DecodeCursor(sealer, unsealed, testImageRef, testAudience); err == nil {
 		t.Fatal("DecodeCursor(sealer, unsealed token) error = nil, want a refusal")
 	}
 }
@@ -245,11 +348,11 @@ func TestSealedCursorsDifferPerCall(t *testing.T) {
 
 	sealer := testKeyring(t, "k1", 0x11)
 	key := Key{At: "1760000000042", UID: "uid-sha256:d42"}
-	first, err := EncodeCursor(sealer, testImageRef, key)
+	first, err := EncodeCursor(sealer, testImageRef, testAudience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
-	second, err := EncodeCursor(sealer, testImageRef, key)
+	second, err := EncodeCursor(sealer, testImageRef, testAudience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}
@@ -260,7 +363,7 @@ func TestSealedCursorsDifferPerCall(t *testing.T) {
 
 func mustEncode(t *testing.T, sealer Sealer, key Key) string {
 	t.Helper()
-	token, err := EncodeCursor(sealer, testImageRef, key)
+	token, err := EncodeCursor(sealer, testImageRef, testAudience, key)
 	if err != nil {
 		t.Fatalf("EncodeCursor() error = %v", err)
 	}

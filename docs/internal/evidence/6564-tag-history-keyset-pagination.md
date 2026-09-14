@@ -216,17 +216,33 @@ for provider secrets, TOTP and the bootstrap credential.
 | Same key id, different material | 400 on the AEAD tag rather than on an unknown key id |
 | Token sealed for another `image_ref`, or by another feature | 400: the AAD differs, so `Open` fails rather than a post-decrypt string compare |
 | Truncated, edited or garbage token | 400, one opaque message; the refusal never says which part was wrong |
+| Token issued to another authorization audience, or to this caller before its grants changed | 400: the AAD carries the grant set, so `Open` fails the tag |
 | Second replica / standalone MCP server | Must hold the same DEK. `cmd/mcp-server` dispatches this tool in-process and now loads `KeyringFromEnv` too; without the key it behaves as the "No DEK" rows above |
 
 There is no `iat` or expiry: the key carries no state, and a stale key simply
 reads the rows after it. A retracted anchor row stays harmless -- the predicate
 is on values, not on that row still existing.
 
+### Binding The Audience (review finding)
+
+Sealing bounded the reachable starts to `{page one} U {tokens this server
+issued}` but said nothing about who a token was issued TO, and the plaintext
+holds no scope or principal for anything downstream to check. It bit hardest for
+unscoped callers, which keep `offset` and can mint a token at any raw position:
+handing one over restored the aimed start, falsifying the claim that a scoped
+caller "cannot choose where such a span starts". `AudienceOf` folds the grant
+set into the AAD, narrowing that set to `{page one} U {tokens issued against
+these same grants}` -- and any holder of those grants sees these same rows.
+
+It binds the grant SET, not the credential or principal, so a rotation with the
+same grants keeps paging and an API-issued cursor still opens on the standalone
+MCP server. A grant change mid-walk ends it with a 400, correctly; see `Audience`.
+
 ## Residue This Does NOT Close
 
-Disclosed on the OpenAPI operation, the `cursor` parameter, the `next_cursor` and
-`grant_filtered` properties, `docs/public/reference/http-api.md`, the MCP tool
-description and input schema, the MCP contract matrix row, and
+Disclosed on the OpenAPI operation, the `cursor`/`next_cursor`/`grant_filtered`
+schema entries, `docs/public/reference/http-api.md`, the MCP tool description
+and input schema, the MCP contract matrix row, and
 `taghistory.ScopedTruthReason` -- not only here.
 
 1. **Counts, not identities.** On a page that reached the read cap holding `k`
@@ -405,6 +421,7 @@ worktree, so no production file was edited and `git status` stayed clean.
 | M2: use `limit` instead of `MaxLimit` as the refill window size | `TestTagHistoryRefillWindowIsFixedNotLimitSized` | KILLED |
 | M3: drop the `lastRaw` fallback on a cap-reached empty page | `TestTagHistoryCapReachedEmptyPageAdvances` | KILLED |
 | M4: always report `NullAt: false` in `windowRowFromGraph` | `TestTagHistoryKeysetPagesTheNullTail` | KILLED |
+| M5: drop `audience` from `cursorAAD` | `TestCursorDoesNotOpenForAnotherAudience`; `TestTagHistoryCursorFromAnotherAudienceIsRefused` | KILLED -- unscoped-to-scoped replay returned 200 |
 
 **M1 survived the first time, and that was a real coverage gap worth recording.**
 `seededTagHistoryGraph` evaluates the statement's predicate, which is what makes

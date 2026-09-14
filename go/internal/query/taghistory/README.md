@@ -15,7 +15,7 @@ bounds derived from them, and the join that enforces the grant live together.
 | `page.go` | The four statements — `FirstPageCypher`, `AfterKeyCypher`, `NullTailCypher` and the unscoped `OffsetCypher` — plus `Key`, `Row`, `WindowRow`, `ReadWindow` and `ReadOffsetWindow`. |
 | `refill.go` | `RefillScopedPage`, `ScopedPage` and `MaxRefillReads` — the refill loop, its fixed window size and its read cap. |
 | `builtfrom.go` | `BuiltFromCypher` (RETURNs `DISTINCT`), `LookupBuiltFromRepositories`, the enforced key/fan-out bounds, `GrantCounts`, and the per-row grant decision. |
-| `cursor.go` | The keyset continuation token: `Cursor`, `EncodeCursor`, `DecodeCursor`. SEALED with the deployment DEK under a route-specific AAD, and it carries no row position. |
+| `cursor.go` | The keyset continuation token: `Cursor`, `EncodeCursor`, `DecodeCursor`, and `Audience`/`AudienceOf`. SEALED with the deployment DEK under an AAD binding the route, the version, the `image_ref` and the caller's grant set, and it carries no row position. |
 
 ## Why the join runs in Go
 
@@ -59,6 +59,27 @@ the reachable start set `{page one} ∪ {tokens this server issued}`. Do not
 paging fails closed (`ErrCursorSealingUnavailable`) rather than downgrading.
 The residue left is counts only, on `Cursor`'s doc comment and on every
 caller-facing surface.
+
+**Why the AAD carries an audience.** `{tokens this server issued}` was still too
+wide a start set, because it said nothing about who a token was issued TO. A
+sealed cursor's plaintext carries no scope, grant or principal, so once the
+envelope opens nothing downstream can tell it came from somewhere else — only
+the AEAD binding can refuse it. That mattered most for unscoped callers, who
+keep the `offset` parameter and can therefore mint a token at an arbitrary raw
+position; handing one to a scoped caller put it at a start it never paged to.
+`AudienceOf` folds the caller's grant set into the AAD, narrowing the set to
+`{page one} ∪ {tokens issued against these same grants}` — and any caller
+holding those grants sees the same rows, so nothing in that set discloses
+anything.
+
+Operationally this behaves like the key rotation above: a grant change between
+two pages ends the walk with a 400 and the client restarts from page one. That
+is the intended answer rather than a rough edge, since the filter's output
+changed mid-walk and splicing two visibilities into one result would be worse.
+It is bound to the grant SET and deliberately not to the credential or the
+principal, so a token rotation for an unchanged grant set keeps paging and a
+cursor the API issued still opens on the standalone MCP server holding the same
+DEK.
 
 **The `DISTINCT` in `BuiltFromCypher`.** BUILT_FROM edge identity is
 `{scope_id, evidence_source}`, so one image↔repository pair carries one edge per

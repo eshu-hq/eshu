@@ -49,7 +49,7 @@ func TestTagHistoryCursorCarriesNoRowPosition(t *testing.T) {
 	}
 	// taghistory.Key has no position-shaped field at all, so opening the token
 	// is the whole assertion: what comes out is a row key or nothing.
-	if got, want := openTagHistoryCursor(t, token).UID, "uid-sha256:d01"; got != want {
+	if got, want := openTagHistoryCursor(t, token, tagHistoryScopedAudience("repo-granted")).UID, "uid-sha256:d01"; got != want {
 		t.Fatalf("cursor uid = %q, want %q (the last row the caller was shown)", got, want)
 	}
 
@@ -83,7 +83,7 @@ func TestTagHistoryCursorNamesARowTheCallerWasShown(t *testing.T) {
 	if got, want := tagHistoryResultTags(t, data), []string{"t00", "t02"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("tags = %v, want %v", got, want)
 	}
-	key := openTagHistoryCursor(t, tagHistoryCursorString(t, data))
+	key := openTagHistoryCursor(t, tagHistoryCursorString(t, data), tagHistoryScopedAudience("repo-granted"))
 	// newSeededTagHistoryGraph mints uid-<resolved_digest> per row, and t02
 	// resolves sha256:d02.
 	if got, want := key.UID, "uid-sha256:d02"; got != want {
@@ -216,7 +216,7 @@ func TestTagHistoryCapReachedEmptyPageAdvances(t *testing.T) {
 	if got := data["truncated"]; got != true {
 		t.Fatalf("truncated = %#v, want true on a capped page", got)
 	}
-	key := openTagHistoryCursor(t, tagHistoryCursorString(t, data))
+	key := openTagHistoryCursor(t, tagHistoryCursorString(t, data), tagHistoryScopedAudience("repo-granted"))
 	lastRaw := fmt.Sprintf("uid-sha256:d%02d", 4*taghistory.MaxLimit-1)
 	if key.UID != lastRaw {
 		t.Fatalf("cursor uid = %q, want %q (the last RAW row scanned, so the walk can advance)", key.UID, lastRaw)
@@ -256,7 +256,7 @@ func TestTagHistoryKeysetPagesTheNullTail(t *testing.T) {
 	// The cursor issued from inside the tail must declare it, so the next read
 	// uses the null-tail statement rather than a string comparison against "".
 	w := serveTagHistoryAs(t, graph, scopedTagHistoryAuth("repo-granted"), tagHistoryGrantTarget+"&limit=3")
-	key := openTagHistoryCursor(t, tagHistoryCursorString(t, decodeTagHistoryBody(t, w)))
+	key := openTagHistoryCursor(t, tagHistoryCursorString(t, decodeTagHistoryBody(t, w)), tagHistoryScopedAudience("repo-granted"))
 	if !key.NullAt {
 		t.Fatalf("cursor NullAt = false, want true for a key inside the null tail: %#v", key)
 	}
@@ -303,6 +303,7 @@ func TestTagHistoryKeysetAheadOfHistoryIsAnEmptyPage(t *testing.T) {
 	ahead, err := taghistory.EncodeCursor(
 		tagHistoryTestCursorKeyring,
 		tagHistoryTestImageRef,
+		tagHistoryScopedAudience("repo-granted"),
 		taghistory.Key{At: "2999-01-01T00:00:00Z", UID: "uid-zzz"},
 	)
 	if err != nil {
@@ -346,7 +347,7 @@ func TestTagHistoryUnscopedCallerEmitsTheSameTokenFormat(t *testing.T) {
 	if !strings.HasPrefix(token, "ESK1.") {
 		t.Fatalf("unscoped next_cursor = %q, want the same sealed envelope a scoped caller gets", token)
 	}
-	if got, want := openTagHistoryCursor(t, token).UID, "uid-sha256:d02"; got != want {
+	if got, want := openTagHistoryCursor(t, token, tagHistoryUnscopedAudience()).UID, "uid-sha256:d02"; got != want {
 		t.Fatalf("cursor uid = %q, want %q (the last row this page returned)", got, want)
 	}
 	// And the token continues the walk for that caller too.

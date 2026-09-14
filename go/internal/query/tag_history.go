@@ -140,8 +140,11 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 	// This is settled before the page selectors are parsed because it decides
 	// whether a raw offset is accepted at all (tagHistoryBounds).
 	access := repositoryAccessFilterFromContext(r.Context()).WithCanonicalScopeRepositories()
+	// The cursor is sealed against the caller's grant set, so a token minted in
+	// one authorization context cannot be opened in another (taghistory.Audience).
+	audience := taghistory.AudienceOf(access)
 
-	limit, after, offset, refusal := h.tagHistoryBounds(w, r, imageRef, access.Scoped())
+	limit, after, offset, refusal := h.tagHistoryBounds(w, r, imageRef, audience, access.Scoped())
 	if refusal != "" {
 		recordTagHistoryError(r.Context(), refusal)
 		recordTagHistoryDuration(r.Context(), start, refusal)
@@ -170,6 +173,7 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 		imageRef:     imageRef,
 		repositoryID: repositoryID,
 		tag:          tag,
+		audience:     audience,
 	}
 
 	page.grantFiltered = access.Scoped()
@@ -223,14 +227,18 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 // keyset position the read stopped on, nil when the history ended; it reaches
 // the wire only as the cursor token (taghistory.EncodeCursor).
 type tagHistoryPage struct {
-	history       []TagHistoryRow
-	limit         int
-	offset        int
-	nextKey       *taghistory.Key
-	truncated     bool
-	imageRef      string
-	repositoryID  string
-	tag           string
+	history      []TagHistoryRow
+	limit        int
+	offset       int
+	nextKey      *taghistory.Key
+	truncated    bool
+	imageRef     string
+	repositoryID string
+	tag          string
+	// audience is the authorization context the continuation is sealed
+	// against, so the token this page issues cannot be replayed by a caller
+	// holding different grants (taghistory.Audience).
+	audience      taghistory.Audience
 	grantFiltered bool
 }
 
@@ -283,7 +291,7 @@ func (h *TagHistoryHandler) tagHistoryContinuation(page tagHistoryPage) (token s
 	if page.grantFiltered && h.Cursors == nil {
 		return "", true, nil
 	}
-	token, err = taghistory.EncodeCursor(h.Cursors, page.imageRef, *page.nextKey)
+	token, err = taghistory.EncodeCursor(h.Cursors, page.imageRef, page.audience, *page.nextKey)
 	if err != nil {
 		return "", false, err
 	}
@@ -374,7 +382,10 @@ func writeTagHistoryReadError(w http.ResponseWriter, r *http.Request, start time
 // silently opening an unsealed token.
 //
 // cursor is the continuation every caller should follow, and the ONLY one a
-// grant-filtered caller may use. A scoped caller supplying a non-zero raw
+// grant-filtered caller may use. It is opened against the caller's own
+// audience, so a token issued to a different grant set is refused as
+// unopenable rather than honoured as a start this caller never paged to.
+// A scoped caller supplying a non-zero raw
 // offset is refused: that parameter is the PRE-FILTER row position, so
 // accepting it would hand back through a documented parameter exactly the
 // position-addressing the keyset cursor removed. offset=0 stays legal for
@@ -386,6 +397,7 @@ func (h *TagHistoryHandler) tagHistoryBounds(
 	w http.ResponseWriter,
 	r *http.Request,
 	imageRef string,
+	audience taghistory.Audience,
 	scoped bool,
 ) (limit int, after *taghistory.Key, offset int, refusal string) {
 	raw := QueryParam(r, "limit")
@@ -429,7 +441,7 @@ func (h *TagHistoryHandler) tagHistoryBounds(
 			)
 			return 0, nil, 0, tagHistoryOutcomeCursorUnavailable
 		}
-		key, err := taghistory.DecodeCursor(h.Cursors, rawCursor, imageRef)
+		key, err := taghistory.DecodeCursor(h.Cursors, rawCursor, imageRef, audience)
 		if err != nil {
 			// The detail is safe to echo: on a sealed token every refusal
 			// before this point is secretcrypto's single opaque ErrDecrypt, and

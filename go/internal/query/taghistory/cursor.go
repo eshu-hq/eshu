@@ -4,10 +4,16 @@
 package taghistory
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strconv"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // CursorVersion is the plaintext version inside a SEALED tag-history cursor,
@@ -51,11 +57,83 @@ type Sealer interface {
 }
 
 // cursorAADPrefix binds a sealed cursor to this route and this cursor version.
-// It is concatenated with the image_ref, so an envelope sealed for another
-// feature (a provider secret, a TOTP secret, the bootstrap credential) or for
-// another image_ref fails Open rather than a post-decrypt string compare, and
-// a version bump cannot be replayed across.
+// It is concatenated with the image_ref and the caller's Audience, so an
+// envelope sealed for another feature (a provider secret, a TOTP secret, the
+// bootstrap credential), for another image_ref, or for another authorization
+// audience fails Open rather than a post-decrypt string compare, and a version
+// bump cannot be replayed across.
 const cursorAADPrefix = "eshu/query/tag-history/cursor/v3\x00"
+
+// unscopedAudience is the Audience of every caller that sees the whole history:
+// unauthenticated, all-scopes, and legacy shared-token mode. It is a literal
+// rather than a digest because there is nothing to distinguish -- such callers
+// are interchangeable by construction, they all see every row.
+//
+// Its real work is separating them from scoped callers, and that is the half of
+// the audience binding that closes the actual exposure. Unscoped callers keep
+// the offset parameter, so an unscoped caller can mint a cursor at ESSENTIALLY
+// ANY raw position by asking for offset=N and reading the next_cursor back.
+// Handing such a token to a scoped caller would have restored exactly the
+// caller-chosen start the seal exists to remove.
+const unscopedAudience = "all-scopes"
+
+// Audience is the authorization context a sealed cursor is bound to. It enters
+// the AEAD as additional data, never the wire token, so it is not a value a
+// caller can read, edit or present.
+//
+// What it binds to is the caller's GRANT SET, deliberately not its credential
+// and not its principal identity, and each exclusion is load-bearing:
+//
+//   - Not the credential. A scoped token rotated for the same user carries the
+//     same grants, and invalidating an in-flight page on a rotation would break
+//     legitimate paging for no security gain.
+//   - Not the principal. cmd/api and the standalone cmd/mcp-server can resolve
+//     one human through different credential paths, and this design already
+//     promises that a cursor the API issued opens on any replica holding the
+//     same DEK. A principal-bound cursor would silently break that.
+//   - The grant set, because it is what actually decides which rows the caller
+//     sees. Two callers with the same grants see the same page, so a token
+//     passing between them discloses nothing.
+//
+// The cost is a grant change mid-walk: the in-flight cursor stops opening and
+// the client restarts from page one. That is correct rather than regrettable --
+// the filter's answer changed underneath the walk, so continuing it would splice
+// two different visibilities into one result -- and it is the same deploy-
+// boundary contract key rotation and a version bump already carry, over a walk
+// that lasts seconds to minutes.
+//
+// The derivation is a pure function of the token's own grant lists (see
+// RepositoryAccessFilterFromContext and WithCanonicalScopeRepositories, which
+// is string rewriting with no graph read), so it cannot drift under ingestion
+// and it evaluates identically in every process holding the same DEK.
+type Audience string
+
+// AudienceOf derives the cursor audience for one caller's access filter.
+//
+// The encoding is canonical, so two requests carrying the same grants in a
+// different order, or with duplicates, produce the same audience and page
+// together: ids are tagged by kind, sorted, deduplicated, and length-prefixed
+// before hashing, so no concatenation of one grant set can collide with
+// another. The digest is over grant ids only and never leaves the process.
+func AudienceOf(access querycontract.RepositoryAccessFilter) Audience {
+	if !access.Scoped() {
+		return unscopedAudience
+	}
+	ids := make([]string, 0, len(access.AllowedRepositoryIDs)+len(access.AllowedScopeIDs))
+	for _, id := range access.AllowedRepositoryIDs {
+		ids = append(ids, "r\x00"+id)
+	}
+	for _, id := range access.AllowedScopeIDs {
+		ids = append(ids, "s\x00"+id)
+	}
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	digest := sha256.New()
+	for _, id := range ids {
+		_, _ = digest.Write([]byte(strconv.Itoa(len(id)) + "\x00" + id))
+	}
+	return Audience(hex.EncodeToString(digest.Sum(nil)))
+}
 
 // ErrCursorRequiresUID and the other plaintext errors below are the shape
 // checks DecodeCursor applies AFTER the envelope opens. On a sealed token they
@@ -92,9 +170,21 @@ var ErrCursorSealingUnavailable = errors.New(
 //     the start, and binary search on the timestamp recovers every withheld
 //     row's (first_observed_at, uid) in about forty requests each. Refusing to
 //     advance would not have closed it either -- with a caller-chosen start the
-//     empty/non-empty distinction is itself that step function. Sealing makes
-//     the reachable start set exactly {page one} U {tokens this server issued},
-//     and none of those is caller-steerable.
+//     empty/non-empty distinction is itself that step function.
+//   - Bound to its AUDIENCE, not only to the route and the image_ref (#6564
+//     review finding, cursor.go). Sealing alone made the reachable start set
+//     {page one} U {tokens THIS SERVER issued to ANY caller}, and the second
+//     half of that was still too wide: a token minted in one authorization
+//     context opened cleanly in another, so a scoped caller handed one started
+//     mid-history at a position it had not paged to. It mattered most for
+//     unscoped callers, who keep the offset parameter and can therefore mint a
+//     token at an arbitrary raw position -- handing one over restored the
+//     caller-chosen start outright. With the grant set in the AAD (Audience)
+//     the reachable set is {page one} U {tokens issued to a caller holding
+//     these same grants}, and any such caller sees the same rows this one does,
+//     so nothing in that set discloses anything. THAT is what makes the
+//     "cannot choose where such a span starts" claim below true rather than
+//     merely likely.
 //
 // Three properties follow from the key rather than from a check:
 //
@@ -116,8 +206,9 @@ var ErrCursorSealingUnavailable = errors.New(
 // KeyringFromEnv keyring holds one primary, so rotating it makes in-flight
 // cursors 400 and the client restarts from page one. Paging is seconds to
 // minutes long, so that is the same boundary the v1->v2->v3 bumps already
-// carry. There is no iat or expiry: the key carries no state, and a stale key
-// simply reads the rows after it.
+// carry. A grant change mid-walk lands on that same boundary, by the same
+// mechanism, for the reason Audience documents. There is no iat or expiry: the
+// key carries no state, and a stale key simply reads the rows after it.
 //
 // NullAt is needed because the store holds THREE timestamp states with three
 // sort positions: a stored empty string (a zero ObservedAt, written by
@@ -135,9 +226,12 @@ var ErrCursorSealingUnavailable = errors.New(
 // below the requested limit, a scoped caller learns that 800-k of the 800 raw
 // observations after its own last-shown row (or after the sealed frontier of
 // its previous capped page) are ones it may not see. It cannot choose where
-// such a span starts, cannot read the frontier, and never learns a withheld
-// observation's first_observed_at, uid or digest. That is a strict subset of
-// the honest count:0 signal already disclosed, so sealing concedes nothing new.
+// such a span starts -- the seal bounds the reachable starts to tokens this
+// server issued, and the Audience binding narrows those to tokens issued
+// against this same grant set, whose holder sees exactly these rows -- cannot
+// read the frontier, and never learns a withheld observation's
+// first_observed_at, uid or digest. That is a strict subset of the honest
+// count:0 signal already disclosed, so sealing concedes nothing new.
 type Cursor struct {
 	Version  int    `json:"v"`
 	ImageRef string `json:"ref"`
@@ -157,11 +251,11 @@ type Cursor struct {
 // is legal only for a caller whose page is not grant-filtered; the handler
 // checks that before calling (see tagHistoryCursorUnavailable in
 // go/internal/query/tag_history.go).
-func EncodeCursor(sealer Sealer, imageRef string, key Key) (string, error) {
+func EncodeCursor(sealer Sealer, imageRef string, audience Audience, key Key) (string, error) {
 	if sealer == nil {
 		return base64.RawURLEncoding.EncodeToString(marshalCursor(UnsealedCursorVersion, imageRef, key)), nil
 	}
-	sealed, err := sealer.Seal(marshalCursor(CursorVersion, imageRef, key), cursorAAD(imageRef))
+	sealed, err := sealer.Seal(marshalCursor(CursorVersion, imageRef, key), cursorAAD(imageRef, audience))
 	if err != nil {
 		return "", fmt.Errorf("seal cursor: %w", err)
 	}
@@ -188,8 +282,8 @@ func EncodeCursor(sealer Sealer, imageRef string, key Key) (string, error) {
 // not on that row still existing, so the next page is simply the rows after
 // that position. A key beyond the end of the history yields an empty,
 // untruncated page.
-func DecodeCursor(sealer Sealer, raw, imageRef string) (Key, error) {
-	plaintext, wantVersion, err := openCursorPayload(sealer, raw, imageRef)
+func DecodeCursor(sealer Sealer, raw, imageRef string, audience Audience) (Key, error) {
+	plaintext, wantVersion, err := openCursorPayload(sealer, raw, imageRef, audience)
 	if err != nil {
 		return Key{}, err
 	}
@@ -212,12 +306,19 @@ func DecodeCursor(sealer Sealer, raw, imageRef string) (Key, error) {
 	return Key{At: cursor.At, NullAt: cursor.NullAt, UID: cursor.UID}, nil
 }
 
-// cursorAAD binds a sealed cursor to this route, this cursor version and this
-// image_ref. It is additional data, not ciphertext: Open must be handed the
-// identical bytes, which is what makes a cursor for another image_ref fail the
-// AEAD tag rather than a string compare after decryption.
-func cursorAAD(imageRef string) []byte {
-	return []byte(cursorAADPrefix + imageRef)
+// cursorAAD binds a sealed cursor to this route, this cursor version, this
+// image_ref and this authorization audience. It is additional data, not
+// ciphertext: Open must be handed the identical bytes, which is what makes a
+// cursor for another image_ref or another audience fail the AEAD tag rather
+// than a string compare after decryption.
+//
+// The image_ref is length-prefixed so the two variable-width components cannot
+// be shifted against each other. A caller controls image_ref through
+// repository_id and tag, and a query value may carry any byte including NUL, so
+// a bare separator would let one (image_ref, audience) pair be re-read as
+// another.
+func cursorAAD(imageRef string, audience Audience) []byte {
+	return []byte(cursorAADPrefix + strconv.Itoa(len(imageRef)) + "\x00" + imageRef + string(audience))
 }
 
 // openCursorPayload returns one token's plaintext and the plaintext version
@@ -225,7 +326,7 @@ func cursorAAD(imageRef string) []byte {
 // sealed envelope handed to an unsealed-mode server fails base64 on the
 // envelope's dots, and an unsealed token handed to a sealing server fails the
 // AEAD tag.
-func openCursorPayload(sealer Sealer, raw, imageRef string) ([]byte, int, error) {
+func openCursorPayload(sealer Sealer, raw, imageRef string, audience Audience) ([]byte, int, error) {
 	if sealer == nil {
 		plaintext, err := base64.RawURLEncoding.DecodeString(raw)
 		if err != nil {
@@ -233,7 +334,7 @@ func openCursorPayload(sealer Sealer, raw, imageRef string) ([]byte, int, error)
 		}
 		return plaintext, UnsealedCursorVersion, nil
 	}
-	plaintext, err := sealer.Open(raw, cursorAAD(imageRef))
+	plaintext, err := sealer.Open(raw, cursorAAD(imageRef, audience))
 	if err != nil {
 		return nil, 0, fmt.Errorf("cursor did not open: %w", err)
 	}
@@ -270,7 +371,8 @@ const ScopedTruthReason = "resolved from bounded container image tag-observation
 	"next_cursor, an encrypted token naming one row's first_observed_at and uid rather than a row position, so paging is " +
 	"forward-only and an observation inserted behind that point on a later page is not returned; replay it exactly as " +
 	"issued and keep following it until truncated is false, because a token this server did not issue cannot be opened " +
-	"and is refused; what a cap-reached page discloses, stated here rather than hidden, is a count and never an identity: " +
+	"and is refused, and neither can one issued under repository grants other than the ones you hold now -- if your " +
+	"grants change mid-walk the token stops opening and you restart from page one; what a cap-reached page discloses, stated here rather than hidden, is a count and never an identity: " +
 	"with count below limit and truncated true, the remainder of the 800 raw observations after the row you were last " +
 	"shown, or after the frontier of your previous capped page, are ones you may not see -- you cannot choose where that " +
 	"span starts, cannot read the frontier, and never learn a withheld observation's first_observed_at, uid or digest"

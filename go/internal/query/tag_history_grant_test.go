@@ -112,6 +112,23 @@ func scopedTagHistoryAuth(repositoryIDs ...string) *AuthContext {
 	}
 }
 
+// tagHistoryScopedAudience is the cursor audience the handler derives for a
+// caller scoped to repositoryIDs, and tagHistoryUnscopedAudience the one it
+// derives for a caller with no scope.
+//
+// Both run the SAME two steps listTagHistory runs -- build the access filter
+// from an auth context, then AudienceOf -- rather than reconstructing the
+// digest, so a change to either step cannot leave these helpers agreeing with
+// a handler that has moved on.
+func tagHistoryScopedAudience(repositoryIDs ...string) taghistory.Audience {
+	ctx := ContextWithAuthContext(context.Background(), *scopedTagHistoryAuth(repositoryIDs...))
+	return taghistory.AudienceOf(repositoryAccessFilterFromContext(ctx).WithCanonicalScopeRepositories())
+}
+
+func tagHistoryUnscopedAudience() taghistory.Audience {
+	return taghistory.AudienceOf(repositoryAccessFilterFromContext(context.Background()).WithCanonicalScopeRepositories())
+}
+
 func tagHistoryResultTags(t *testing.T, data map[string]any) []string {
 	t.Helper()
 	history, ok := data["tag_history"].([]any)
