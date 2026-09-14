@@ -24,8 +24,20 @@ package reaches it only through the `querycontract.ContentStore` and
 
 ## Layout
 
-- `handler.go` -- `Handler`, `Mount`, `handleLanguageQuery` and its per-branch
-  dispatch, and the route capability and reason constants.
+- `handler.go` -- `Handler`, `Mount`, `handleLanguageQuery` and its
+  entity-type-family dispatch (graph-backed, graph-first-content, content-only),
+  the three `queryByLanguage*` / `queryGraphFirstContentByLanguage*` entry
+  points, and the route capability and reason constants. The graph-backed
+  branch's single build-and-run now calls `languageQueryGraphRows` in
+  `directory.go` rather than building the statement here.
+- `directory.go` -- the graph half of one language query
+  (`languageQueryGraphRows`, which routes the `Directory` label away from the
+  shared build-and-run) and everything the `Directory` branch needs that its
+  statement can no longer supply on its own (#6541): the repository-id list the
+  statement UNWINDs (`directoryRepositoryIDsForGrant`, `allRepositoryIDs`), the
+  read that fills `repo_name` (`directoryRepositoryNames`), the whole-result
+  re-sort and truncate (`sortAndTruncateDirectoryRows`), and the read's debug
+  log (`logDirectoryRead`).
 - `handler_tracing.go` -- the route's own span seam (`languageHandlerTracer`,
   `startQueryHandlerSpan`), the same shape the other leaves keep in their
   `handler_tracing.go`.
@@ -35,7 +47,10 @@ package reaches it only through the `querycontract.ContentStore` and
   `buildDirectoryCypher`, `buildFileCypher`,
   `buildEntityCypherWithSemanticFilter`) and their dispatcher
   (`BuildCypherWithSemanticFilter`), plus `SupportedLanguages` and
-  `SupportedEntityTypes`.
+  `SupportedEntityTypes`. `buildDirectoryCypher` is the one builder that binds
+  no `Repository`; the contract its exported dispatcher carries for a caller
+  that must supply the resolved repository-id list is on
+  `BuildCypherWithSemanticFilter`'s doc comment.
 - `entities.go` -- `buildLanguageResult` (graph row to response shape),
   the three entity-type-family maps, and the unsupported-entity-type response
   writer.

@@ -21,6 +21,15 @@
 // answered without reaching any backend. A scoped caller with no repository
 // grants gets an empty result set without reaching either backend.
 //
+// The Directory branch of the graph-backed dispatch is not a single
+// build-and-run like the other three labels. Its statement seeks each granted
+// repository's directories by an indexed repo_id and binds no Repository at
+// all (#6541), so the branch resolves the repository-id list first, then runs
+// the statement, then re-sorts and truncates the whole result, then fills
+// repo_name from a second bounded read keyed on the surviving page. The
+// measurements that force each of those steps are on buildDirectoryCypher and
+// sortAndTruncateDirectoryRows; directory.go owns the branch.
+//
 // This package imports codequery (the repository-selector and language-query
 // grant helpers), codequery/relationships/story (the entity-search dispatch
 // its own tests cross-check against), entitysemantics (semantic-summary

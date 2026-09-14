@@ -42,6 +42,21 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // the only production caller; a scoped or repository-anchored caller's list IS
 // derived here, so only the unscoped case depends on the argument.
 //
+// Contract, for label "Directory" only: a caller whose access is unscoped and
+// whose repoID is empty MUST supply directoryRepoIDs. That is the one caller
+// class this function cannot resolve, and passing nil for it renders a
+// well-formed statement that binds an empty $repo_ids and therefore MATCHES
+// NOTHING -- zero rows, no error, indistinguishable at the call site from a
+// graph that holds no directories in the requested language. It is not a bug
+// in the statement; it is this signature's cost, and it is why production does
+// not reach this branch at all (Handler.languageQueryGraphRows routes Directory
+// to Handler.directoryRowsByLanguage, which resolves the list first and
+// short-circuits an empty one without a backend call). Every other caller class
+// may pass nil safely. TestBuildDirectoryCypherWithoutResolvedIDsMatchesNothing
+// pins this, so the behaviour is stated and asserted rather than discovered.
+// A caller that cannot honour the contract must use Handler.languageQueryGraphRows
+// instead of this builder.
+//
 // The Repository binding is non-optional in all four patterns, so the condition
 // decides row membership rather than nulling a projection (the OPTIONAL MATCH
 // trap #5167 batch 1 hit on complexityListAnchor).

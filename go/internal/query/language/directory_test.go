@@ -242,3 +242,32 @@ func TestBuildDirectoryCypherOrdersOnTheHandlersTotalOrder(t *testing.T) {
 		t.Fatalf("ORDER BY must precede LIMIT:\n%s", cypher)
 	}
 }
+
+// TestBuildDirectoryCypherWithoutResolvedIDsMatchesNothing pins the exported
+// dispatcher's stated contract (#6541 review F3): an unscoped caller that names
+// no repository and supplies no resolved id list gets a statement that matches
+// nothing, not every repository. It is the one caller class the pure builder
+// cannot resolve, and the behaviour is documented on
+// BuildCypherWithSemanticFilter rather than left to be discovered.
+//
+// Production never reaches it: Handler.languageQueryGraphRows routes Directory
+// to Handler.directoryRowsByLanguage, which reads the ids first.
+func TestBuildDirectoryCypherWithoutResolvedIDsMatchesNothing(t *testing.T) {
+	t.Parallel()
+
+	cypher, params := BuildCypherWithSemanticFilter(
+		"go", "Directory", "", "", 50, "", "",
+		querycontract.RepositoryAccessFilter{AllScopes: true}, nil,
+	)
+
+	ids, ok := params["repo_ids"].([]string)
+	if ok && len(ids) != 0 {
+		t.Fatalf("params[repo_ids] = %#v, want an empty list; an unresolved unscoped caller must not widen to every repository", ids)
+	}
+	if params["repo_ids"] == nil && !ok {
+		t.Fatalf("params[repo_ids] missing entirely: %#v; the statement UNWINDs it, so it must be bound", params)
+	}
+	if !strings.Contains(cypher, "UNWIND $repo_ids AS rid") {
+		t.Fatalf("Directory statement does not UNWIND the id list, so the empty-list contract above says nothing:\n%s", cypher)
+	}
+}

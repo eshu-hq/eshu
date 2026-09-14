@@ -5,8 +5,11 @@ Scope: `go/internal/query/language/` (package `language`).
 ## Ownership
 
 This leaf owns the language-specific entity query route (#6642):
-`handler.go` (`Handler`, `Mount`, dispatch), `handler_tracing.go` (the span
-seam), `handler_write.go` (the response writers), `cypher.go` (the four Cypher
+`handler.go` (`Handler`, `Mount`, entity-type-family dispatch),
+`directory.go` (`languageQueryGraphRows` and the whole `Directory` branch:
+id-list resolution, the `repo_name` read, the re-sort and truncate, the debug
+log), `handler_tracing.go` (the span seam), `handler_write.go` (the response
+writers), `cypher.go` (the four Cypher
 builders and `BuildCypherWithSemanticFilter`), `entities.go`
 (`buildLanguageResult`, the entity-type-family maps), `metadata.go`
 (`EntitySearch`, the content-metadata enrichment merge,
