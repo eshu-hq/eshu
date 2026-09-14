@@ -34,9 +34,14 @@ var schemaPerformanceIndexes = []string{
 	// this index entry, and a full projection writes one Directory per
 	// directory per repository. The trade was taken because repo_id is
 	// effectively immutable per node -- a Directory belongs to one repository
-	// for its whole life, so after the first write the entry is re-set to the
-	// same value rather than moved -- and because the read it serves was
-	// measured at 34.5s to 2m01s without it. What is NOT measured is the
+	// for its whole life, so every write after the first writes the value the
+	// node already holds -- and because the read it serves was measured at
+	// 34.5s to 2m01s without it. The immutability half is established (#6541
+	// verified d.repo_id == Repository.id, and that one Directory belongs to
+	// one repository). Whether NornicDB charges a same-value SET less index
+	// maintenance than a value-changing one is NOT verified: that is a claim
+	// about the backend's index implementation with no measurement behind it,
+	// and nothing above rests on it. What is NOT measured either is the
 	// projection-side delta at corpus scale; it is listed as an open item on
 	// docs/internal/evidence/6541-directory-query-s2.md and belongs to the
 	// remote run, not to a local timing on a contended machine. Read "the

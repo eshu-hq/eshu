@@ -78,8 +78,12 @@ file so that every row ties, at limit 4: the page came back `a01,a02,a03,a07` on
 different pages from the same statement on the same data, neither of them the
 first four names. Adding the caller's tie-break keys to the statement,
 `ORDER BY file_count DESC, repo_id ASC, name ASC`, makes each group's retained
-set determined, and both builds then return `a01,a02,a03,a04`. Write those keys
-as the `RETURN` aliases, not as `d.repo_id`/`d.name` -- see the next entry.
+set determined for every pair of rows those keys separate, and both builds then
+return `a01,a02,a03,a04`. Rows that tie on EVERY key in the statement's
+`ORDER BY` are still the backend's choice, so confirm the key list is jointly
+unique over the rows the statement can return -- or name the residual in
+writing -- before calling the page reproducible. Write those keys as the
+`RETURN` aliases, not as `d.repo_id`/`d.name` -- see the next entry.
 
 With the two orders aligned the caller-side half is correct on both backends
 rather than a workaround for one: the union of the per-group top-L sets contains
@@ -132,11 +136,22 @@ what the first repository's group retained:
 | `file_count DESC, d.repo_id ASC, d.name ASC` | `a5,a3,a2,a1` | `a5,a1,a2,a4` |
 | `file_count DESC, repo_id ASC, name ASC` | `a1,a2,a3,a4` | `a1,a2,a3,a4` |
 
-The property form is accepted -- no error, no warning -- and served as though
-the trailing keys were not written at all. Nothing about the statement looks
-wrong: `d` is still bound after `WITH d, count(f) AS file_count`, and the same
-clause is valid Cypher on Neo4j. Only the rows say so, and only when a tie
-exists to expose it. The `RETURN`-alias form orders correctly on both builds.
+The property form is accepted -- no error, no warning -- and the trailing keys
+are not honoured as an ORDERING: the retained set is not the total order's
+top-L, which is the only reason to write them. They are NOT ignored either. The
+v1.3.1 column above shows the property form and the count-only form retaining
+DIFFERENT rows from the same data (`a5,a1,a2,a4` against `a1,a2,a4,a3`), and a
+separate v1.3.1 probe over an all-tied fixture found a third spelling,
+`file_count DESC, d.name ASC`, retaining a third set again -- each form stable
+across repeated runs. So the property keys change WHICH rows survive the
+per-group bound without putting them in the requested order. "Served as though
+the keys were not written at all" is the wrong model: it predicts the property
+form and the count-only form agree, and on v1.3.1 they do not.
+
+Nothing about the statement looks wrong: `d` is still bound after
+`WITH d, count(f) AS file_count`, and the same clause is valid Cypher on Neo4j.
+Only the rows say so, and only when a tie exists to expose it. The
+`RETURN`-alias form orders correctly on both builds.
 
 ### Rule
 

@@ -323,8 +323,10 @@ func seedLiveGrantGraph(ctx context.Context, t *testing.T, driver neo4jdriver.Dr
 // one file under a prefix that sorts last.
 //
 // Each out-of-grant directory holds two files so it outranks the granted
-// directory under buildDirectoryCypher's ORDER BY file_count DESC; the granted
-// directory holds its single file.
+// directory under buildDirectoryCypher's
+// `ORDER BY file_count DESC, repo_id ASC, name ASC`; the granted directory
+// holds its single file. Two files against one, so the primary key decides the
+// whole comparison and the repo_id/name tie-breaks never fire here.
 func liveGrantRepositoryStatements(repoID, dirPrefix, marker string, fileCount int) []string {
 	repoPath := "/live/" + marker
 	statements := []string{

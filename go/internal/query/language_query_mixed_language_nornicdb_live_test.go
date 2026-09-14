@@ -43,8 +43,10 @@
 // out-of-grant repository; this repository's relative paths start with
 // `zz-mixed`, so under ORDER BY relative_path they sort after that
 // repository's `a-src-*` paths, and its single directory holds exactly one
-// Python file, so under ORDER BY file_count DESC it never outranks the
-// out-of-grant directories that hold two.
+// Python file, so under buildDirectoryCypher's
+// `ORDER BY file_count DESC, repo_id ASC, name ASC` it never outranks the
+// out-of-grant directories that hold two -- one file against two, so the
+// primary key decides and the repo_id/name tie-breaks never fire.
 //
 // Run with the recipe in language_query_grant_nornicdb_live_test.go.
 package query

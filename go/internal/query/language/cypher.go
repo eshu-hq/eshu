@@ -235,6 +235,15 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 // L-1 rows before it globally and therefore at most L-1 before it inside its
 // own group.
 //
+// "Determined" is exact only for rows those three keys separate. `d.name` is
+// path.Base of the directory path while the Directory MERGE key is `path`, so
+// two directories in ONE repository can share a name and, if they also tie on
+// file_count, tie on all three keys -- which one a group keeps is the backend's
+// choice. That is invisible on the wire only because entity_id and file_path
+// are null for every Directory row (see below), so two such rows serialize
+// identically. `d.path` would disambiguate fully; it needs a new RETURN alias
+// and moves the statement pins, so it is not done here.
+//
 // The keys MUST be the RETURN aliases. Written as
 // `ORDER BY file_count DESC, d.repo_id ASC, d.name ASC` the trailing keys are
 // not honoured on either build -- the retained set stays arbitrary -- while the

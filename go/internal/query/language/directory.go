@@ -241,8 +241,24 @@ func (h *Handler) directoryRepositoryNames(ctx context.Context, repoIDs []string
 // membership would be backend-arbitrary whenever ties straddle the bound. The
 // replaced statement ordered on file_count alone and had exactly that defect.
 //
-// With both orders aligned the page is a function of the data: the rows are the
-// total order's top-L and the order within the page is that same total order.
+// With both orders aligned the page is a function of the data wherever the
+// three keys separate the rows: the rows are the total order's top-L and the
+// order within the page is that same total order.
+//
+// The three keys do NOT separate every pair. `d.name` is path.Base of the
+// directory path (internal/projector, canonical_builder.go) while the Directory
+// MERGE key is `path`, so two directories in ONE repository can share a name --
+// `internal`, `testdata`, `v1` -- and if they also tie on file_count they tie
+// on all three keys; which of them a group keeps is then the backend's choice,
+// exactly as before for that pair. The wire response is nevertheless
+// byte-identical today, but only because entity_id and file_path serialize
+// null for every Directory row (the canonical projector writes neither `d.id`
+// nor `d.relative_path` -- an unfixed gap this change documents rather than
+// closes), so two rows tied on all three keys serialize identically. `d.path`,
+// the MERGE key, is fully disambiguating and is what would fix this properly;
+// it needs a new RETURN alias and moves the statement pins, so it is
+// deliberately not done here. The day entity_id and file_path stop being null,
+// this residual becomes observable and has to be closed with them.
 func sortAndTruncateDirectoryRows(rows []map[string]any, limit int) []map[string]any {
 	sort.SliceStable(rows, func(i, j int) bool {
 		left, right := rows[i], rows[j]

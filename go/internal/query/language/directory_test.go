@@ -230,8 +230,9 @@ func TestBuildDirectoryCypherOrdersOnTheHandlersTotalOrder(t *testing.T) {
 		t.Fatalf("Directory statement does not carry %q; a per-group bound on file_count alone drops tied rows arbitrarily:\n%s",
 			wantOrder, cypher)
 	}
-	// The property spelling is served as if the trailing keys were absent on
-	// both pinned builds, so it must never come back.
+	// Neither pinned build honours the property spelling as an ordering, and it
+	// is not a no-op either -- it changes which tied rows survive the per-group
+	// bound -- so it must never come back.
 	if strings.Contains(cypher, "d.repo_id ASC") || strings.Contains(cypher, "d.name ASC") {
 		t.Fatalf("Directory statement orders on d.<property>, which neither pinned build honours:\n%s", cypher)
 	}

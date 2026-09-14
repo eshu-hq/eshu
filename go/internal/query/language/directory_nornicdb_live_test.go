@@ -284,7 +284,8 @@ func TestLiveNornicDBDirectoryLanguageQueryCountsNestedDirectories(t *testing.T)
 	}
 
 	if got := querycontract.StringVal(rows[0], "name"); got != "lib" {
-		t.Fatalf("first row = %q, want \"lib\" (ORDER BY file_count DESC)", got)
+		t.Fatalf("first row = %q, want \"lib\" (ORDER BY file_count DESC, repo_id ASC, name ASC;"+
+			" lib holds 4 go files, more than any other, so the primary key decides)", got)
 	}
 	for _, row := range rows {
 		wantName := live6541AlphaName
