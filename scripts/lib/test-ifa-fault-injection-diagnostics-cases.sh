@@ -241,7 +241,7 @@ STUB
 )
 
 test_ifa_fault_compose_diagnostics_capture_safe_backend_state() (
-	local case_dir fake_bin
+	local artifact case_dir fake_bin
 	case_dir="$(mktemp -d -t ifa-fault-compose-success.XXXXXX)"
 	trap 'rm -rf "${case_dir}"' EXIT
 	fake_bin="${case_dir}/bin"
@@ -255,6 +255,31 @@ test_ifa_fault_compose_diagnostics_capture_safe_backend_state() (
 	source "${diagnostics_lib}"
 	PATH="${fake_bin}:${PATH}" ifa_fault_capture_failure_diagnostics \
 		"${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn
+	jq -e '
+		.services == {
+			nornicdb: {
+				image: "timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440",
+				platform: "linux/amd64"
+			}
+		}
+	' "${case_dir}/backend-compose-config.json" >/dev/null \
+		|| fail "backend Compose artifact is not limited to the safe provenance fields"
+	if rg --fixed-strings --quiet -- 'compose-secret' "${case_dir}/backend-compose-config.json" \
+		|| rg --fixed-strings --quiet -- '/private/compose/path' "${case_dir}/backend-compose-config.json"; then
+		fail "backend Compose artifact retained an interpolated secret or host path"
+	fi
+	for artifact in \
+		"${case_dir}/backend-compose-config.json" \
+		"${case_dir}/backend-container.json" \
+		"${case_dir}/backend-runtime-image.json" \
+		"${case_dir}/backend-provenance.json" \
+		"${case_dir}/nornicdb-environment.txt" \
+		"${case_dir}/logs/compose-services.log"; do
+		if rg --fixed-strings --quiet -- 'compose-secret' "${artifact}" \
+			|| rg --fixed-strings --quiet -- '/private/compose/path' "${artifact}"; then
+			fail "uploaded diagnostic artifact ${artifact##*/} retained a Compose secret or host path"
+		fi
+	done
 	jq -e '.restart_count == 1 and .mounts[0].name == "data-volume" and (.mounts[0] | has("source") | not)' \
 		"${case_dir}/backend-container.json" >/dev/null \
 		|| fail "backend container artifact omits required state or leaks the host mount source"
@@ -363,7 +388,6 @@ test_ifa_fault_failure_artifact_contract() {
 		'/tmp/ifa-fault-injection.*/backend-image.txt' \
 		'/tmp/ifa-fault-injection.*/backend-compose-config.json' \
 		'/tmp/ifa-fault-injection.*/backend-container.json' \
-		'/tmp/ifa-fault-injection.*/backend-expected-platform-image.json' \
 		'/tmp/ifa-fault-injection.*/backend-runtime-image.json' \
 		'/tmp/ifa-fault-injection.*/backend-provenance.json' \
 		'/tmp/ifa-fault-injection.*/nornicdb-environment.txt' \

@@ -14,9 +14,8 @@ container_config_image="${IFA_TEST_CONTAINER_CONFIG_IMAGE:-${rendered_image}}"
 runtime_repository_digest="${IFA_TEST_RUNTIME_REPO_DIGEST:-${default_repository}@${default_child_digest}}"
 runtime_os="${IFA_TEST_RUNTIME_OS:-linux}"
 runtime_architecture="${IFA_TEST_RUNTIME_ARCHITECTURE:-amd64}"
-expected_platform_digest="${IFA_TEST_EXPECTED_PLATFORM_DIGEST:-${default_child_digest}}"
 if [[ "$1" == compose && "$*" == *" config --format json" ]]; then
-	printf '{"services":{"nornicdb":{"image":"%s","platform":"%s"}}}\n' \
+	printf '{"services":{"nornicdb":{"image":"%s","platform":"%s","environment":{"NORNICDB_ADMIN_TOKEN":"compose-secret"},"volumes":[{"source":"/private/compose/path","target":"/data"}]},"postgres":{"environment":{"POSTGRES_PASSWORD":"compose-secret"}}}}\n' \
 		"${rendered_image}" "${rendered_platform}"
 elif [[ "$1" == compose && "$*" == *" ps -q nornicdb" ]]; then
 	printf 'container-1\n'
@@ -29,9 +28,8 @@ elif [[ "$1" == compose && "$*" == *" exec -T postgres psql"* ]]; then
 elif [[ "$1" == image && "$2" == inspect ]]; then
 	[[ "${IFA_TEST_IMAGE_INSPECT_FAIL:-0}" -eq 0 ]] || exit 1
 	if [[ "$*" == *" --platform "* ]]; then
-		printf '[{"Id":"%s","RepoDigests":["%s@%s"],"Descriptor":{"digest":"%s"},"Os":"linux","Architecture":"amd64"}]\n' \
-			"${expected_platform_digest}" "${default_repository}" "${expected_platform_digest}" \
-			"${expected_platform_digest}"
+		printf 'unknown flag: --platform\n' >&2
+		exit 64
 	elif [[ "${IFA_TEST_EMPTY_REPO_DIGESTS:-0}" -eq 1 ]]; then
 		printf '[{"Id":"%s","RepoDigests":[],"Os":"%s","Architecture":"%s"}]\n' \
 			"${runtime_image_id}" "${runtime_os}" "${runtime_architecture}"
