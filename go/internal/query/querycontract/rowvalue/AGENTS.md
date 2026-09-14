@@ -17,14 +17,28 @@ a nil, or an unexpected type. Callers rely on that to degrade one field rather
 than fail a request.
 
 Changing what any of these returns is not a local edit, and the surface is
-bigger than a file listing suggests. Over `go/`,
-`git grep -o 'querycontract.StringVal('` counts **2057** qualified calls and
-`git grep -l` the same pattern **235 files**; across all five names it is
-**2705** calls in **272 files** (305 files if you count any receiver, not just
-`querycontract`). Unchanged between the base `514534567` and this head, because
-the move touched no caller. Budget an audit against the call count, not the file
-count. Adding a case to `IntVal` or `FloatVal` is usually safe; changing an
-existing case's result is not, and needs the call sites audited.
+bigger than a file listing suggests. Measured at the base `514534567`:
+
+```
+git grep -o  'querycontract\.StringVal('                          -> 2057 calls
+git grep -l  'querycontract\.StringVal('                          ->  235 files
+git grep -oE 'querycontract\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\(' -> 2705 calls
+git grep -lE  (same pattern)                                      ->  272 files
+```
+
+each with the pathspec `-- 'go/**/*.go'`. Dropping the receiver
+(`git grep -lE '\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\('`)
+reaches 303 files at that base, and 305 at this head -- the two extra are the
+new `rowvalue` forwarder file and its test, not new callers.
+
+The four qualified figures are identical at the base and at this head, because
+the move touched no caller. Keep the `*.go` pathspec: without it, the prose that
+documents the measurement is counted by it.
+
+Budget an audit against the **call** count, not the file count -- 235 and 272
+are files, and the call count is about 9x larger. Adding a case to `IntVal` or
+`FloatVal` is usually safe; changing an existing case's result is not, and needs
+the call sites audited.
 
 `StringVal` renders a present non-string with `%v` while the others discard.
 That asymmetry is intentional — see the README. Do not "fix" it for symmetry.
