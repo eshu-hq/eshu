@@ -89,14 +89,33 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // the evidence doc carries: they are #6541's 2026-09-05 measurements of the
 // CANDIDATE shapes on a 50-repository corpus, not measurements of the
 // implementation below, which adds a second bounded read and a Go-side sort the
-// candidates did not include. What is measured on this implementation today is
-// correctness only, on a two-repository fixture against two NornicDB builds; do
-// not cite the four figures as a measured speedup for this code.
+// candidates did not include. They are not this code's speedup; the paragraph
+// below carries the figures that are, and correctness on two NornicDB builds
+// is proven separately on a two-repository fixture.
 //
-// Corpus-scale timing of this implementation: PENDING the remote run. The
-// recipe it runs is in docs/internal/evidence/6541-directory-query-s2.md, and
-// its numbers land there and are quoted back here when it reports. Its
-// correctness proof on two NornicDB builds is in the same document.
+// Corpus-scale timing of this implementation, measured on the remote host at
+// 50 repositories / 20,000 directories / 200,000 files on NornicDB v1.3.1
+// (digest sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962),
+// BEFORE origin/main at bb5f00671 against AFTER daf9f5222, with
+// directory_repo_id present: 15.722s -> 0.074s at a grant of one repository
+// and limit 50, 33.964s -> 8.534s at a grant of fifty, 12.484s -> 7.465s
+// unscoped, and the unscoped 10s reader deadline moves from DEADLINE_FAILED at
+// 10.000s to 8.325s inside it. Two things that measurement says which the four
+// figures above do not. First, the index is a PRECONDITION, not an
+// enhancement: without directory_repo_id this shape is SLOWER than the
+// statement it replaced at the unscoped cell (15.384s against 12.484s), so
+// dropping the index does not merely cost the win, it costs more than the old
+// statement did. Second, 8.325s against a 10s budget is ~17% headroom on an
+// idle 16-CPU box at fifty repositories, and unscoped cost is close to linear
+// in grant width, so a hundred-repository deployment would not clear that
+// deadline. The run is NOT the accepted 896-repository reference profile
+// (absolute_target_applicable: false), so every figure is a same-machine
+// relative comparison. The ORDER BY tie-break keys were priced separately at
+// most ~0.5s (~6%) on the two widest cells, point estimate ~0.25-0.30s;
+// they are bounded, not free. Full record:
+// docs/internal/evidence/6541-directory-query-s2-corpus-timing.md, summarised
+// with the correctness proof on two NornicDB builds in
+// docs/internal/evidence/6541-directory-query-s2.md.
 // Observability Evidence: the span this route emits (SpanQueryLanguageQuery)
 // and its route/capability attributes are unchanged (see handler.go), and the
 // Directory branch adds Handler.logDirectoryRead, which records the grant

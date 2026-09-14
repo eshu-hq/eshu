@@ -137,16 +137,20 @@ what the first repository's group retained:
 | `file_count DESC, repo_id ASC, name ASC` | `a1,a2,a3,a4` | `a1,a2,a3,a4` |
 
 The property form is accepted -- no error, no warning -- and the trailing keys
-are not honoured as an ORDERING: the retained set is not the total order's
-top-L, which is the only reason to write them. They are NOT ignored either. The
-v1.3.1 column above shows the property form and the count-only form retaining
-DIFFERENT rows from the same data (`a5,a1,a2,a4` against `a1,a2,a4,a3`), and a
-separate v1.3.1 probe over an all-tied fixture found a third spelling,
-`file_count DESC, d.name ASC`, retaining a third set again -- each form stable
-across repeated runs. So the property keys change WHICH rows survive the
-per-group bound without putting them in the requested order. "Served as though
-the keys were not written at all" is the wrong model: it predicts the property
-form and the count-only form agree, and on v1.3.1 they do not.
+are not honoured as an ORDERING on either build: the retained set is not the
+total order's top-L, which is the only reason to write them. They are not
+ignored either, at least on v1.3.1: the v1.3.1 column above shows the property
+form and the count-only form retaining DIFFERENT rows from the same data
+(`a5,a1,a2,a4` against `a1,a2,a4,a3`), and a separate v1.3.1 probe over an
+all-tied fixture found a third spelling, `file_count DESC, d.name ASC`,
+retaining a third set again -- each form stable across repeated runs. So on
+v1.3.1 the property keys change WHICH rows survive the per-group bound without
+putting them in the requested order. "Served as though the keys were not written
+at all" is the wrong model there: it predicts the property form and the
+count-only form agree, and on v1.3.1 they do not. On 1.2.1 they DO agree, set
+and order, so that build gives no evidence against the old model -- the
+disproof is scoped to v1.3.1, and what holds on both builds is that the property
+spelling buys no ordering.
 
 Nothing about the statement looks wrong: `d` is still bound after
 `WITH d, count(f) AS file_count`, and the same clause is valid Cypher on Neo4j.

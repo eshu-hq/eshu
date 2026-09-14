@@ -3,8 +3,9 @@
 What this records: the shape the directory branch of
 `POST /api/v0/code/language-query` now runs, the live correctness proof behind
 it on two NornicDB builds, and three backend defects measured while choosing
-it. Corpus-scale timing is NOT in this document yet; see
-[Corpus timing: pending remote run](#corpus-timing-pending-remote-run).
+it. Corpus-scale timing was measured on the remote host and is summarised in
+[Corpus timing](#corpus-timing-measured-on-the-remote-host); the full run record
+is in [6541 corpus timing](6541-directory-query-s2-corpus-timing.md).
 
 ## The change
 
@@ -325,8 +326,8 @@ it is evidence of nothing in either direction. What IS available:
   `QP-LANGUAGE-DIRECTORY` names `directory_repo_id` in `required_schema`, which
   is what makes the gate create it before profiling, and the variant family
   rejects `AllNodesScan`.
-- On NornicDB the seek-versus-WHERE contrast is corpus-scale timing, which
-  belongs to the remote run below.
+- On NornicDB the seek-versus-WHERE contrast is corpus-scale timing, which the
+  remote run below now carries.
 
 The schema bump is additive in the sense the compatibility contract means: the
 index moves no MERGE or MATCH identity, so a writer on the previous fingerprint
@@ -336,94 +337,108 @@ It is NOT free on the write side, and this document should not be read as saying
 so. `d.repo_id` is written by every Directory MERGE and SET the canonical
 projector emits (`canonicalNodeDirectoryNodeCypher`), so each of those now also
 maintains an index entry, one per directory per repository on a full projection
-— 20,000 entries on the corpus below. The trade was taken because `repo_id` is
-effectively immutable per node (a Directory belongs to one repository for its
-whole life, so after the first write the entry is re-set to the same value
-rather than moved) and because the read it serves cost 34.5s to 2m01s without
-it. The projection-side delta at corpus scale is NOT measured: it is an open
-item for the remote run, listed below.
+— 20,000 entries on the corpus below. The trade was taken because the read it
+serves was measured at 15.987s without the index against 8.534s with it, at a
+grant of fifty repositories on that corpus. `repo_id` being effectively
+immutable per node (a Directory belongs to one repository for its whole life, so
+after the first write the entry is re-set to the same value rather than moved)
+is a secondary comfort whose cost benefit is unverified: whether this backend
+charges a same-value SET less index maintenance than a value-changing one was
+never measured. The projection-side delta at corpus scale is NOT measured
+either; it is still open, and the corpus section below says so.
 
-## Corpus timing: pending remote run
+## Corpus timing: measured on the remote host
 
-Not run here. Per the owner's rule, performance measurement happens on the
-remote host; this machine is shared and contended, and a local figure would be
-invalid. The recipe:
+Measured, not pending. The run happened on the remote Linux host per the owner's
+rule; this machine is shared and contended, and a local figure would not be
+evidence. The full record — identity, protocol, every cell, the cold runs, and
+the caveats — is in
+[6541 corpus timing](6541-directory-query-s2-corpus-timing.md). What must not be
+lost from it:
 
-**Corpus.** 50 repositories; 20,000 Directory nodes (400 per repository, nesting
-depth 0-8); 200,000 File nodes (10 per directory, so every correct `file_count`
-is 10 at a grant of one repository). Seed through the projector's own write
-shapes in `go/internal/storage/cypher/canonical_node_cypher.go`:
-`canonicalNodeRepositoryUpsertCypher`, then `canonicalNodeDirectoryNodeCypher`,
-then the depth-0 and depth-N directory edge phases (committed after the node
-phase), then `canonicalNodeFileFirstGenerationMergeCypher`, which writes both
-`REPO_CONTAINS` and `CONTAINS`. Batch 500 rows per UNWIND. No generator is
-committed; the issue's 2026-09-05 corpus was seeded ad hoc the same way.
+- **Frame.** Remote Linux x86_64, 16 logical CPUs, 123 GiB RAM, Go 1.26.2;
+  NornicDB `timothyswt/nornicdb-cpu-bge:v1.3.1` at manifest digest
+  `sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962`;
+  50 repositories / 20,000 directories / 200,000 files seeded through the
+  canonical projector's own write shapes. BEFORE is `origin/main` at the
+  merge-base `bb5f00671`, AFTER is `daf9f5222`, both driven through the
+  production builder and the production reader.
+  **`absolute_target_applicable: false`** — this is NOT the accepted
+  896-repository reference profile, so no absolute target applies and every
+  figure is a same-machine relative comparison.
+- **The win, index present, warm timed run:** 15.722s -> 0.074s at grant-1/50
+  (212x), 16.228s -> 0.922s at grant-5/50 (17.6x), 33.964s -> 8.534s at
+  grant-50/50 (4.0x), 12.484s -> 7.465s at unscoped/50 (1.7x), with the
+  limit-200 row of each cell within a second of its limit-50 row.
+- **The index is a precondition, not an enhancement.** Without
+  `directory_repo_id` the new shape is SLOWER than the shipped statement at the
+  unscoped cell — 15.384s against 12.484s at limit 50, 15.446s against 12.664s
+  at limit 200. The rewrite is not a win on its own at that width.
+- **The 10s reader deadline is cleared for this corpus, not in general.**
+  Unscoped at limit 50: BEFORE DEADLINE_FAILED at 10.000s / 0 rows, AFTER with
+  the index absent DEADLINE_FAILED at 10.010s / 0 rows, AFTER with it present
+  INSIDE_10S_DEADLINE at 8.325s / 50 rows. That is ~17% headroom on an idle
+  16-CPU box at 50 repositories, and unscoped cost is close to linear in grant
+  width, so a 100-repository deployment would not clear it.
+- **The tie-break keys are priced, not free.** The tables were measured at
+  `daf9f5222`, before `ORDER BY file_count DESC, repo_id ASC, name ASC` landed.
+  A paired re-measure at the shipped statement `34a46500a` (same store, one
+  session, 2 reps per head per cell) gives unscoped/200 7.451s -> 7.754s
+  (+0.303s, +4.1%) and grant-50/200 7.746s -> 7.988s (+0.242s, +3.1%). Both
+  deltas are smaller than the 0.614s-0.988s within-head spread, so at n=2 they
+  are not resolvable from run-to-run variance — but the newer head was slower in
+  4 of 4 paired runs and in both cold pairs. The result is a bound, not a null:
+  at these two cells the keys cost at most ~0.5s (~6%), point estimate
+  ~0.25-0.30s (~3-4%).
+- **Correctness held:** `all_file_counts_10=true`, `within_limit=true`, and
+  `repo_name_filled` equal to the row count, in every timed and every cold cell
+  of both runs.
+- **The per-unwound-id bound, measured:** unscoped at limit 200 returns 10,000
+  raw rows (50 ids x limit 200) before `sortAndTruncateDirectoryRows` cuts them
+  to 200 — direct evidence that the Go-side re-sort and truncate is load-bearing
+  on this build rather than defensive decoration.
+- **F4 is closed** by the two side reads the run was asked to report separately:
+  `directoryRepositoryNames` at this corpus's worst case of 50 distinct
+  repositories on one page costs 0.005s with 50/50 named, and `allRepositoryIDs`
+  costs 0.000s for 50 ids. Both are negligible; the unscoped cell's 7.465s is
+  essentially all statement. A contrast the recipe would not have surfaced: a
+  scoped caller holding no grants at all runs BEFORE 15.730s / 0 rows against
+  AFTER 0.000s / 0 rows, because the branch short-circuits before touching the
+  backend where the shipped statement burns a full scan.
+- **Two caveats travel with the numbers.** The grant-50 raw-row probe's 0.045s
+  is a result-cache hit, not a measurement — its row count and count assertion
+  are valid, its time is not. And the issue's 2026-09-05 grant-1/50 figure of
+  34.510s did not reproduce here (15.722s): the two are not a controlled pair
+  (different machine, different ad-hoc seeding), while grant-50 did reproduce
+  closely and everything in the tables above is a controlled pair.
+- **Still unmeasured:** the index's write-side cost at projection scale. This
+  run timed reads, not writes.
 
-**Schema first.** Apply the graph schema before the timed reads
-(`eshu-bootstrap-data-plane`, or `graph.SchemaStatementsForBackend`), so
-`directory_repo_id` exists.
-
-**Protocol.** The build answers an identical repeated query from a last-result
-cache in about 1ms, so vary `$limit` between consecutive timed runs. Its latency
-and memory drift upward over a container's life, so restart the container
-between cells. Run the production builder through the production reader, with
-the deadline lifted for measurement and one run at the real 10s deadline for the
-unscoped case.
-
-**Cells.** grant-1, grant-5, grant-50 and unscoped, at limits 50 and 200, one
-discarded warm-up then one warm run each. Record rows, wall time, and a
-correctness check that every `file_count` is 10.
-
-**Two contrasts worth including.** The same cells with `directory_repo_id`
-dropped, which is the only way to show the index is load-bearing on NornicDB
-given the missing plan and counters; and the handler's second read, to confirm
-the name lookup stays near the 135ms the issue measured.
-
-### Open, unmeasured, and named on purpose
-
-Three costs this change introduces have no measurement yet. None of them is
-hidden behind a claim elsewhere in this document; all three belong to the remote
-run, and a local figure on a shared machine would not be evidence.
-
-1. **The unscoped-admin repository read.** `Handler.allRepositoryIDs` runs
-   `MATCH (r:Repository) RETURN r.id` on every unscoped directory query,
-   uncached, and bounded by the number of repositories rather than by the
-   route's `limit`. It is classified `label_inventory` with `max_results:
-   100000` in the query-source coverage manifest, which is honest about what it
-   is, but it was never timed — the rejected alternative (a Directory-label
-   anchor) was, at 8.658s. The unscoped cells above time the handler path and so
-   will include it; report it as its own number rather than folding it into the
-   route total. This is #6541 review finding F4, left open deliberately.
-2. **The index's write-side cost.** Every Directory MERGE and SET now maintains
-   a `directory_repo_id` entry (see the index section above). Not measured at
-   projection scale.
-3. **This implementation's own read latency.** Everything quoted from the issue
-   measures the CANDIDATE shapes, not this code, which adds a second bounded
-   read and a Go-side sort on top of them.
-
-Baseline to beat, from the issue's measurement of the replaced statement:
-34.510s at grant-1/50, 2m01.437s at grant-50/50, and a 10.005s deadline failure
-unscoped. S2's own measured figures there were 53ms at grant-1 and 5.728s at
-grant-50, before the handler's extra read.
-
-Performance Evidence: pending the remote corpus run described above. What is
-measured today is correctness only, on two fixtures — the
-2-repository/8-directory/17-file nesting fixture and the 2-repository/16-tied-
-directory tie fixture — on both NornicDB builds (tables above). The corpus
-figures quoted in this document are the issue's 2026-09-05 measurements of the
-candidate shapes, not measurements of this implementation, which adds one
-bounded read and a Go-side sort the issue's numbers do not include. The same
-caveat is now carried by the `Performance Evidence:` marker in
-`go/internal/query/language/cypher.go`, which previously recited the four
-figures without it (#6541 review finding F6).
+Performance Evidence: corpus-scale, remote Linux host, NornicDB v1.3.1 at digest
+`sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962`, 50
+repositories / 20,000 directories / 200,000 files, BEFORE `bb5f00671` against
+AFTER `daf9f5222`, `absolute_target_applicable: false` — a same-machine relative
+comparison, not the 896-repository reference profile. With `directory_repo_id`
+present: 15.722s -> 0.074s at grant-1/50 (212x), 33.964s -> 8.534s at
+grant-50/50 (4.0x), 12.484s -> 7.465s at unscoped/50 (1.7x), and the unscoped
+10s reader deadline moves from DEADLINE_FAILED at 10.000s to INSIDE_10S_DEADLINE
+at 8.325s — ~17% headroom that shrinks as repository count grows. Without the
+index the new shape is SLOWER than the shipped one unscoped (15.384s against
+12.484s), so the index is a precondition of the claim rather than an
+optimisation on top of it. The shipped tie-break keys cost at most ~0.5s (~6%)
+at unscoped/200 and grant-50/200, point estimate ~0.25-0.30s (~3-4%), slower in
+4 of 4 paired runs. Correctness (`all_file_counts_10`, `within_limit`,
+`repo_name_filled`) held in every cell, and the index's write-side cost at
+projection scale is still unmeasured. Full record:
+docs/internal/evidence/6541-directory-query-s2-corpus-timing.md.
 
 Observability Evidence: `language.Handler.logDirectoryRead` records
 `repositories`, `rows_returned`, `rows_kept` and `repositories_named` for every
 directory read, so an operator can separate a wide grant from a backend
 returning far more rows than the page needs (`rows_returned` against
-`rows_kept`, which is how the per-unwound-id row bound shows up in production),
-and can attribute a missing `repo_name` to the second read rather than to the
-statement.
+`rows_kept`, which is how the per-unwound-id row bound shows up in production —
+10,000 against 200 at the unscoped corpus cell above), and can attribute a
+missing `repo_name` to the second read rather than to the statement.
 
 ## Noted, not changed here
 

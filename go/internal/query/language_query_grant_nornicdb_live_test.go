@@ -325,8 +325,14 @@ func seedLiveGrantGraph(ctx context.Context, t *testing.T, driver neo4jdriver.Dr
 // Each out-of-grant directory holds two files so it outranks the granted
 // directory under buildDirectoryCypher's
 // `ORDER BY file_count DESC, repo_id ASC, name ASC`; the granted directory
-// holds its single file. Two files against one, so the primary key decides the
-// whole comparison and the repo_id/name tie-breaks never fire here.
+// holds its single file. Two files against one, so the primary key alone
+// decides granted against out-of-grant. The tie-breaks DO fire inside the
+// out-of-grant repository: liveGrantOutOfGrantRows = 6 seeds three directories
+// holding two files each (fileCount/2 directories, files spread by
+// index%directories), so all three tie on file_count and share one repo_id, and
+// `name ASC` is what orders a-src-0, a-src-1, a-src-2 -- and therefore what
+// decides which of them a page bounded at two or three rows keeps. Before the
+// tie-break landed that membership was backend-arbitrary.
 func liveGrantRepositoryStatements(repoID, dirPrefix, marker string, fileCount int) []string {
 	repoPath := "/live/" + marker
 	statements := []string{

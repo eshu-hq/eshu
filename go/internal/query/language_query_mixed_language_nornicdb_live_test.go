@@ -46,7 +46,10 @@
 // Python file, so under buildDirectoryCypher's
 // `ORDER BY file_count DESC, repo_id ASC, name ASC` it never outranks the
 // out-of-grant directories that hold two -- one file against two, so the
-// primary key decides and the repo_id/name tie-breaks never fire.
+// primary key alone decides this repository against that one. The tie-breaks
+// still fire among those three out-of-grant directories, which all hold two
+// files: `name ASC` is what orders them, and it is why the grant proof's
+// two- and three-row pages are reproducible at all.
 //
 // Run with the recipe in language_query_grant_nornicdb_live_test.go.
 package query

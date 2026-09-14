@@ -32,19 +32,22 @@ var schemaPerformanceIndexes = []string{
 	// every Directory MERGE and SET the canonical projector emits
 	// (canonicalNodeDirectoryNodeCypher), so each of those now also maintains
 	// this index entry, and a full projection writes one Directory per
-	// directory per repository. The trade was taken because repo_id is
-	// effectively immutable per node -- a Directory belongs to one repository
-	// for its whole life, so every write after the first writes the value the
-	// node already holds -- and because the read it serves was measured at
-	// 34.5s to 2m01s without it. The immutability half is established (#6541
+	// directory per repository. The trade rests on the measured read win
+	// alone: the corpus run timed this statement at 15.987s with the index
+	// absent against 8.534s with it present, at a grant of fifty repositories,
+	// and with it absent the statement is slower unscoped (15.384s) than the
+	// one it replaced (12.484s). repo_id being effectively immutable per node
+	// -- a Directory belongs to one repository for its whole life, so every
+	// write after the first writes the value the node already holds -- is a
+	// secondary comfort, and only the immutability itself is established (#6541
 	// verified d.repo_id == Repository.id, and that one Directory belongs to
 	// one repository). Whether NornicDB charges a same-value SET less index
 	// maintenance than a value-changing one is NOT verified: that is a claim
 	// about the backend's index implementation with no measurement behind it,
-	// and nothing above rests on it. What is NOT measured either is the
-	// projection-side delta at corpus scale; it is listed as an open item on
-	// docs/internal/evidence/6541-directory-query-s2.md and belongs to the
-	// remote run, not to a local timing on a contended machine. Read "the
+	// which is why the trade is not rested on it. The projection-side delta at
+	// corpus scale is NOT measured either -- the corpus run timed reads, not
+	// writes -- so it stays an open item on
+	// docs/internal/evidence/6541-directory-query-s2.md. Read "the
 	// index changes reads only" in the schema-compatibility note
 	// (schema_application.go) as "it moves no MERGE or MATCH identity, so a
 	// writer on the previous fingerprint writes the identical graph" -- which
