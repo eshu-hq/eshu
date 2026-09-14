@@ -57,9 +57,12 @@ already caught:
 7. Bind the audience to the GRANT SET, never to the credential or the principal.
    A rotated token carrying the same grants must keep paging, and a cursor the
    API issued must still open on a replica or the standalone MCP server holding
-   the same DEK. Both break if the binding narrows to an identity. The accepted
-   cost is that a grant change mid-walk ends the walk; that is correct, because
-   the filter's answer changed underneath it.
+   the same DEK. Both break if the binding narrows to an identity. Portability
+   across those two surfaces now needs them to RESOLVE the same grant set for a
+   token as well as to hold the same DEK: mismatched `ESHU_SCOPED_TOKENS_FILE`
+   registries derive different audiences and the cursor is refused 400. The
+   accepted cost is that a grant change mid-walk ends the walk; that is
+   correct, because the filter's answer changed underneath it.
 
 `MaxRefillReads` bounds per-request cost and is justified from measured lookup
 latency in the evidence doc. Raising it multiplies the worst case — re-measure

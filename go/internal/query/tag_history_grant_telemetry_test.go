@@ -6,10 +6,12 @@ package query
 import (
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
@@ -102,6 +104,113 @@ func TestTagHistoryUnscopedCallerRecordsNoScopedPages(t *testing.T) {
 	}
 }
 
+// tagHistoryPublicMetricSurface is the COMPLETE inventory of instruments the
+// tag-history route may export to the unauthenticated /metrics scrape, mapped
+// to the COMPLETE set of attribute keys each one may label a datapoint with.
+//
+// It is an allowlist, so the guard below fails CLOSED: a new instrument, or a
+// new label on an existing one, fails the test until somebody adds it here
+// deliberately -- whatever the instrument is named and whatever the label says.
+// That is the property this side channel actually needs. Banning the literal
+// "withheld" bans a WORD, not a disclosure: the same two numbers re-exported on
+// the scoped-pages counter under disposition="ungranted" and
+// disposition="unattributed" restore the exposure in full and spell no banned
+// word anywhere.
+var tagHistoryPublicMetricSurface = map[string][]string{
+	"eshu_dp_query_container_image_tag_history_duration_seconds":   {"outcome", "service.namespace"},
+	"eshu_dp_query_container_image_tag_history_errors_total":       {"reason", "service.namespace"},
+	"eshu_dp_query_container_image_tag_history_scoped_pages_total": {"outcome", "service.namespace"},
+}
+
+// tagHistoryExportedPoint is one exported datapoint reduced to everything a
+// scoped caller scraping /metrics can read off it: which series it belongs to,
+// and the single number it carries.
+//
+// For a counter that number is the sum. For the latency histogram it is the
+// OBSERVATION COUNT and deliberately not the latency sum or the bucket layout:
+// those are wall clock, they differ run to run, and no number derived from the
+// page's contents reaches them. Everything else about the histogram -- that it
+// exists, under which name, under which label keys and values -- is compared.
+type tagHistoryExportedPoint struct {
+	Metric string
+	Attrs  string
+	Value  int64
+}
+
+// tagHistoryAttrKey renders one datapoint's attributes as a canonical
+// "key=value,key=value" string, failing the test when the datapoint carries an
+// attribute key its metric's allowlist does not permit.
+func tagHistoryAttrKey(t *testing.T, metricName string, set attribute.Set, allowedKeys []string) string {
+	t.Helper()
+	pairs := make([]string, 0, set.Len())
+	iter := set.Iter()
+	for iter.Next() {
+		kv := iter.Attribute()
+		if !slices.Contains(allowedKeys, string(kv.Key)) {
+			t.Fatalf(
+				"exported metric %q carries attribute key %q, which is not one of %v; an unreviewed label on an unauthenticated series is exactly how the withheld counts get back onto /metrics",
+				metricName, kv.Key, allowedKeys,
+			)
+		}
+		pairs = append(pairs, string(kv.Key)+"="+kv.Value.String())
+	}
+	slices.Sort(pairs)
+	return strings.Join(pairs, ",")
+}
+
+// tagHistoryExportedSurface reduces one collection to the sorted list of points
+// a /metrics scrape would publish.
+//
+// It fails the test on any instrument tagHistoryPublicMetricSurface does not
+// name, on any attribute key it does not permit, and on any datapoint kind this
+// reduction cannot read -- a new aggregation would otherwise be summarised as
+// nothing at all, which is the vacuity the whole guard exists to avoid.
+func tagHistoryExportedSurface(t *testing.T, rm metricdata.ResourceMetrics) []tagHistoryExportedPoint {
+	t.Helper()
+	points := []tagHistoryExportedPoint{}
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			allowedKeys, ok := tagHistoryPublicMetricSurface[m.Name]
+			if !ok {
+				t.Fatalf(
+					"exported metric %q is not in tagHistoryPublicMetricSurface; /metrics is unauthenticated, so a new tag-history instrument must be reviewed for what a scoped caller can derive from it before it ships",
+					m.Name,
+				)
+			}
+			switch data := m.Data.(type) {
+			case metricdata.Sum[int64]:
+				for _, dp := range data.DataPoints {
+					points = append(points, tagHistoryExportedPoint{
+						Metric: m.Name,
+						Attrs:  tagHistoryAttrKey(t, m.Name, dp.Attributes, allowedKeys),
+						Value:  dp.Value,
+					})
+				}
+			case metricdata.Histogram[float64]:
+				for _, dp := range data.DataPoints {
+					points = append(points, tagHistoryExportedPoint{
+						Metric: m.Name,
+						Attrs:  tagHistoryAttrKey(t, m.Name, dp.Attributes, allowedKeys),
+						Value:  int64(dp.Count),
+					})
+				}
+			default:
+				t.Fatalf(
+					"exported metric %q has data type %T, which this guard cannot read; teach tagHistoryExportedSurface to read it rather than letting an unauthenticated series go unchecked",
+					m.Name, m.Data,
+				)
+			}
+		}
+	}
+	slices.SortFunc(points, func(a, b tagHistoryExportedPoint) int {
+		if a.Metric != b.Metric {
+			return strings.Compare(a.Metric, b.Metric)
+		}
+		return strings.Compare(a.Attrs, b.Attrs)
+	})
+	return points
+}
+
 // TestTagHistoryMetricsDiscloseNoWithheldCounts is the side-channel guard.
 //
 // /metrics bypasses authentication -- it is a literal entry in publicHTTPPaths
@@ -111,11 +220,20 @@ func TestTagHistoryUnscopedCallerRecordsNoScopedPages(t *testing.T) {
 // caller, via a before/after scrape on a quiet deployment, the number its own
 // response body declines to give it.
 //
-// The served request withholds two of four rows (the #6564 grant matrix), so if
-// any exported datapoint carried a withheld count it would be visible below.
-// The assertion is deliberately on the whole exported metric set and not on one
-// metric name: renaming the counter, or folding the same numbers into a
-// different instrument, must not make this pass.
+// The served request withholds two of four rows (the #6564 grant matrix), so a
+// withheld count exported anywhere would be visible below. The assertion is the
+// WHOLE exported surface pinned to an exact expected set -- every instrument,
+// every label key, every label value and every number -- and deliberately not a
+// search for a forbidden word. A vocabulary ban is the wrong shape: it stops a
+// series called withheld_ungranted and waves through the identical numbers
+// re-exported as disposition="ungranted". Pinning the surface instead means a
+// new instrument, a new label, a new label value or a moved number all fail
+// here, whatever they are called, until somebody widens
+// tagHistoryPublicMetricSurface and this expectation on purpose.
+//
+// TestTagHistoryMetricsDoNotVaryWithWithheldCounts is the other half: this test
+// pins ONE page's surface, that one proves no number on the surface MOVES with
+// the withheld counts.
 func TestTagHistoryMetricsDiscloseNoWithheldCounts(t *testing.T) {
 	reader := withTagHistoryMetricReader(t)
 
@@ -124,29 +242,87 @@ func TestTagHistoryMetricsDiscloseNoWithheldCounts(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	rm := collectTagHistoryMetrics(t, reader)
-	for _, sm := range rm.ScopeMetrics {
-		for _, m := range sm.Metrics {
-			if strings.Contains(m.Name, "withheld") {
-				t.Fatalf("exported metric %q names a withheld count; /metrics is unauthenticated", m.Name)
-			}
-			sum, ok := m.Data.(metricdata.Sum[int64])
-			if !ok {
-				continue
-			}
-			for _, dp := range sum.DataPoints {
-				iter := dp.Attributes.Iter()
-				for iter.Next() {
-					kv := iter.Attribute()
-					if strings.Contains(kv.Value.AsString(), "withheld") {
-						t.Fatalf(
-							"exported metric %q carries attribute %s=%q; a scoped caller can scrape /metrics and recover its own page's withheld count",
-							m.Name, kv.Key, kv.Value.AsString(),
-						)
-					}
-				}
-			}
-		}
+	namespace := ",service.namespace=" + telemetry.DefaultServiceNamespace
+	want := []tagHistoryExportedPoint{
+		{
+			Metric: "eshu_dp_query_container_image_tag_history_duration_seconds",
+			Attrs:  "outcome=ok" + namespace,
+			Value:  1,
+		},
+		{
+			Metric: "eshu_dp_query_container_image_tag_history_scoped_pages_total",
+			Attrs:  "outcome=" + tagHistoryScopedPageComplete + namespace,
+			Value:  1,
+		},
+	}
+	got := tagHistoryExportedSurface(t, collectTagHistoryMetrics(t, reader))
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf(
+			"exported metric surface = %v, want %v; /metrics is unauthenticated, so every number on it has to be one the caller already holds",
+			got, want,
+		)
+	}
+}
+
+// tagHistoryScopedPageSurface serves one grant-filtered page over the seeded
+// specs and returns the metric surface that page exported, together with the
+// page's (raw rows read, rows kept) -- whose difference is how many rows the
+// page withheld, and which is the vacuity control for the differential below.
+//
+// Each call installs its own manual reader, so two pages' surfaces are directly
+// comparable rather than cumulative. The withheld count is taken from the fake
+// graph and the response body rather than from the handler span, deliberately:
+// queryHandlerTracer (handler_tracing.go) is seeded once at package init from
+// the OTel global proxy, and that proxy binds a cached tracer to the FIRST
+// provider installed in the process and never rebinds it, so a span recorder
+// installed here would both record nothing for the second page and silently
+// blind TestTagHistoryScopedSpanCarriesWithheldCounts below.
+func tagHistoryScopedPageSurface(t *testing.T, specs ...string) ([]tagHistoryExportedPoint, [2]int) {
+	t.Helper()
+	reader := withTagHistoryMetricReader(t)
+
+	graph := newSeededTagHistoryGraph(specs...)
+	w := serveTagHistoryAs(t, graph, scopedTagHistoryAuth("repo-granted"), tagHistoryGrantTarget)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	kept := len(tagHistoryResultTags(t, decodeTagHistoryBody(t, w)))
+	surface := tagHistoryExportedSurface(t, collectTagHistoryMetrics(t, reader))
+	return surface, [2]int{graph.rawRowsRead, kept}
+}
+
+// TestTagHistoryMetricsDoNotVaryWithWithheldCounts proves the property the
+// allowlist cannot: that no number on the unauthenticated surface MOVES with
+// the withheld counts.
+//
+// Two pages are served whose grant counts differ in every component -- the
+// first reads 4 rows and keeps 2, the second reads 7 and keeps 1 -- and their
+// exported surfaces must be identical. An edit that folds a withheld count into
+// an ALREADY ALLOWED series under an ALREADY ALLOWED label key satisfies
+// tagHistoryPublicMetricSurface and fails here, which is the residue an
+// allowlist on shape alone leaves open.
+//
+// The (read, kept) assertion is the vacuity control. Without it, two pages that
+// happened to withhold the same number of rows would pass the comparison while
+// proving nothing at all.
+func TestTagHistoryMetricsDoNotVaryWithWithheldCounts(t *testing.T) {
+	few, fewRows := tagHistoryScopedPageSurface(t, "granted", "granted", "other", "none")
+	many, manyRows := tagHistoryScopedPageSurface(
+		t, "granted", "other", "other", "other", "none", "none", "none",
+	)
+
+	got := [2][2]int{fewRows, manyRows}
+	if want := [2][2]int{{4, 2}, {7, 1}}; got != want {
+		t.Fatalf(
+			"per-page (raw rows read, rows kept) = %v, want %v; the two pages must withhold 2 and 6 rows respectively or the comparison below is vacuous",
+			got, want,
+		)
+	}
+	if !reflect.DeepEqual(few, many) {
+		t.Fatalf(
+			"exported metric surface differs with the withheld counts:\n  4 read / 2 kept: %v\n  7 read / 1 kept: %v\na scoped caller scrapes /metrics, so any number that moves with what was withheld from it is the side channel reopened",
+			few, many,
+		)
 	}
 }
 

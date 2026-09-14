@@ -81,6 +81,15 @@ principal, so a token rotation for an unchanged grant set keeps paging and a
 cursor the API issued still opens on the standalone MCP server holding the same
 DEK.
 
+That portability carries a SECOND deployment obligation beside the shared DEK:
+the two surfaces must also RESOLVE the same grant set for the same token. A
+deployment whose `ESHU_SCOPED_TOKENS_FILE` registries disagree between the API
+host and the MCP host derives a different audience on each, so a cursor minted
+on one is refused 400 on the other and the client restarts from page one. Such a
+deployment was already inconsistent in a worse way -- the two surfaces show
+different rows -- so a cursor that stops transferring is a symptom of that,
+not a cursor bug.
+
 **The `DISTINCT` in `BuiltFromCypher`.** BUILT_FROM edge identity is
 `{scope_id, evidence_source}`, so one image↔repository pair carries one edge per
 scope and evidence source. Without `DISTINCT` the statement returned one row per
