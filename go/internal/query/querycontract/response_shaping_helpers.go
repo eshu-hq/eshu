@@ -3,7 +3,11 @@
 
 package querycontract
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract/rowvalue"
+)
 
 // AppendReason appends reason to reasons, trimmed, deduplicated, and skipped
 // entirely when blank. The implementation moved from root's answer_packet.go
@@ -56,4 +60,59 @@ func FilterNullRelationships(v any) []map[string]any {
 	default:
 		return nil
 	}
+}
+
+// StringVal, BoolVal, IntVal, StringSliceVal and FloatVal forward to the
+// rowvalue subpackage. The implementations moved there for #6597: this
+// directory carries a //nolint:dirgate past the 40-file cap, and these helpers
+// were the one file in it that named no identifier declared anywhere else in
+// the package. The compiler is the proof of that, not a symbol census:
+// rowvalue compiles as a leaf whose only import is "fmt". Moving them first
+// makes the later family extractions legal, because a subpackage can import
+// rowvalue without reaching back through this package.
+//
+// These wrappers keep the original names. Every existing caller compiles
+// unchanged, which matters at this scale: at this head and at origin/main
+// d3d4c2d3e, over go/**/*.go, a querycontract-qualified StringVal call appears
+// 2174 times in 246 files, and the five names together 2856 times in 283
+// files -- 246 and 283 are file counts, not call counts. At the older base
+// 514534567 they read 2057 / 235 / 2705 / 272. The search patterns are in
+// rowvalue/AGENTS.md; a literal copy here would count itself. Package
+// query's own forwarders in neo4j.go cover four of the five and continue to
+// work through these; it has no exported FloatVal and reaches this one through
+// two unexported wrappers instead, floatVal in compare.go and
+// relationshipFloatVal in repository_compat.go.
+//
+// Each wrapper below is a pass-through with no behavior of its own, so the
+// contract -- including the edge cases -- is documented on the rowvalue
+// function it calls rather than restated here.
+
+// StringVal forwards to [rowvalue.StringVal]. See that function for the
+// contract, including why a present non-string is rendered with %v rather than
+// discarded.
+func StringVal(row map[string]any, key string) string {
+	return rowvalue.StringVal(row, key)
+}
+
+// BoolVal forwards to [rowvalue.BoolVal]. See that function for the contract.
+func BoolVal(row map[string]any, key string) bool {
+	return rowvalue.BoolVal(row, key)
+}
+
+// IntVal forwards to [rowvalue.IntVal]. See that function for the contract,
+// including the numeric shapes it accepts.
+func IntVal(row map[string]any, key string) int {
+	return rowvalue.IntVal(row, key)
+}
+
+// StringSliceVal forwards to [rowvalue.StringSliceVal]. See that function for
+// the contract, including how it treats a non-string element of a list column.
+func StringSliceVal(row map[string]any, key string) []string {
+	return rowvalue.StringSliceVal(row, key)
+}
+
+// FloatVal forwards to [rowvalue.FloatVal]. See that function for the contract,
+// including the numeric shapes it coerces.
+func FloatVal(row map[string]any, key string) float64 {
+	return rowvalue.FloatVal(row, key)
 }

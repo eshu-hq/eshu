@@ -16,12 +16,13 @@ import (
 // story_collection_helpers.go.
 //
 // They live here rather than in package query for the same reason the row
-// decoders in rowvalue.go do: a family subpackage cannot import the root
-// package back without an import cycle, because root names family symbols in
-// its compatibility aliases. These helpers carry no dependency on anything
-// beyond the standard library -- no driver type, no handler, no store -- so
-// they move without behavior change. Package query keeps forwarding wrappers
-// under the original names, so its own callers compile unchanged.
+// decoders in querycontract/rowvalue do: a family subpackage cannot import
+// the root package back without an import cycle, because root names family
+// symbols in its compatibility aliases. These helpers carry no dependency on
+// anything beyond the standard library -- no driver type, no handler, no
+// store -- so they move without behavior change. Package query keeps
+// forwarding wrappers under the original names, so its own callers compile
+// unchanged.
 
 // ServiceStoryItemLimit bounds relationship and instance fan-out attached to
 // service workload context/story payloads so a single prompt-ready read stays

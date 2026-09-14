@@ -97,49 +97,113 @@ This package emits no metrics, spans, or logs. Handlers and storage adapters
 retain their existing telemetry.
 
 No-Observability-Change: moving these contracts does not change the handler or
-adapter call paths that emit telemetry. The graph row-value decoders are pure
-functions with no instrumentation, before the move and after it.
+adapter call paths that emit telemetry. The row-value decoders this package now
+forwards to are pure functions with no instrumentation, in their old home and
+in their new one.
 
 ## Performance
 
-Moving the row-value decoders here put a forwarding wrapper in front of five
-functions the query read paths call constantly. Counted by walking the AST for
-call expressions, so a name appearing in a comment does not inflate the figure,
-`StringVal` was called from 202 of the 880 non-test root files when the first
-four moved, `IntVal` from 89, `StringSliceVal` from 74, and `BoolVal` from 43.
-`FloatVal` arrived later and is the small one: 11 call sites across 8 root
-files, every one of them reaching it through the unexported
-`relationshipFloatVal` rather than an exported wrapper. Those first four counts
-are the snapshot from when they moved and are deliberately not refreshed; the
-comment in `rowvalue.go` carries the same StringVal metric measured later
-(195 of 866), and the gap between the two is families leaving root, which is
-what this epic is for. The question that
-raises is whether the extra call frame costs anything on a hot row-decode loop.
+The row-value decoders no longer live here. #6597 moved them down into the
+`querycontract/rowvalue` leaf, and this package kept `StringVal`, `BoolVal`,
+`IntVal`, `StringSliceVal` and `FloatVal` as forwarders so its callers compile
+unchanged. That put a *second* forwarding wrapper in front of five functions the
+query read paths call constantly: a root call site now reads
+`query.X -> querycontract.X -> rowvalue.X`, where before #6597 it stopped at
+`querycontract.X`. `FloatVal` has no exported root wrapper; root reaches it
+through two unexported ones, `floatVal` in `compare.go` and
+`relationshipFloatVal` in `repository_compat.go`, so its chain is the same three
+hops deep.
 
-It does not: the compiler removes it entirely.
+Counted by walking the AST for call expressions, so a name appearing in a
+comment does not inflate the figure, `StringVal` was called from 202 of the 880
+non-test root files when the first four moved to this package, `IntVal` from 89,
+`StringSliceVal` from 74, and `BoolVal` from 43. Those four counts are the
+snapshot from when they moved and are deliberately not refreshed; the header
+comment in `rowvalue/decode.go` -- a free-floating block after the imports, not
+the package comment, which lives in `rowvalue/doc.go` -- carries the same
+`StringVal` metric measured later (195 of 866), and the gap between the two is
+families leaving root, which is what this epic is for. `FloatVal` is the small one: 11 call sites across 3
+root files, 10 of them through `floatVal` and 1 through `relationshipFloatVal`.
 
-No-Regression Evidence: `cd go && go build -gcflags='-m' ./internal/query/`
-reports `can inline StringVal`, `can inline BoolVal`, `can inline IntVal` and
-`can inline StringSliceVal` for the four root wrappers; `inlining call to
-querycontract.BoolVal`, `... IntVal` and `... StringSliceVal` where each wrapper
-calls into this package; and `inlining call to StringVal` at each caller
-(`neo4j.go:307,309,311,313,317` among others). Both hops collapse at compile
-time, so a decode site emits the same code it did before the move. No benchmark
-is cited because there is no runtime delta to measure -- the indirection does not
-survive compilation.
+The question that raises is whether the *extra* call frame costs anything on a
+hot row-decode loop. For four of the five it does not. For `StringVal` the
+answer is more specific than the old two-hop text claimed, and it is written out
+below rather than smoothed over.
 
-The same run covers `FloatVal`: `can inline relationshipFloatVal`, then both
-`inlining call to relationshipFloatVal` and `inlining call to
-querycontract.FloatVal` at all 11 call sites (`story_limits.go:64`
-shows each hop twice, once per call on that line). The two-hop shape is
-identical to the other four, and it collapses the same way.
+No-Regression Evidence: `cd go && go build -gcflags='-m'
+./internal/query/querycontract/... ./internal/query/` at this head, re-run with
+`-gcflags='-m=2'` for the costs. Every *forwarder* hop inlines, and each adds
+exactly 5 to the inlined cost against the inliner's budget of 80 -- that holds
+for all four hops of the collapsing helpers and for `StringVal`'s two forwarder
+hops (62 -> 67). The leaf `StringVal` itself is the exception, the first row
+below, and is explained after the table:
 
-No-Observability-Change: the five decoders emit no metric, span, or log, before
-this move and after it -- they are pure functions over a map. The handlers that
-call them keep their existing `eshu_dp_api_request_duration_seconds` timing and
-their `query.*` spans, and because both wrapper hops inline away, no span
-boundary, attribute, or log line moves. An operator sees exactly the signals
-they saw before.
+| helper | `rowvalue` leaf | `querycontract` forwarder | root forwarder |
+| --- | --- | --- | --- |
+| `StringVal` | **cost 95 — cannot inline** (`rowvalue/decode.go:64`) | cost 62 (`response_shaping_helpers.go:93`) | cost 67 (`neo4j.go:103`) |
+| `BoolVal` | cost 33 (`rowvalue/decode.go:78`) | cost 38 (`response_shaping_helpers.go:98`) | cost 43 (`neo4j.go:108`) |
+| `IntVal` | cost 40 (`rowvalue/decode.go:94`) | cost 45 (`response_shaping_helpers.go:104`) | cost 50 (`neo4j.go:113`) |
+| `StringSliceVal` | cost 65 (`rowvalue/decode.go:115`) | cost 70 (`response_shaping_helpers.go:110`) | cost 75 (`neo4j.go:118`) |
+| `FloatVal` | cost 46 (`rowvalue/decode.go:140`) | cost 51 (`response_shaping_helpers.go:116`) | cost 56 (`compare.go:403`, `repository_compat.go:31`) |
+
+For `BoolVal`, `IntVal`, `StringSliceVal` and `FloatVal` all three hops collapse.
+The `-m` run reports `inlining call to rowvalue.BoolVal` at
+`response_shaping_helpers.go:99:25` and the same for `IntVal` (`:105:24`),
+`StringSliceVal` (`:111:32`) and `FloatVal` (`:117:26`) — the new hop; then
+`inlining call to querycontract.BoolVal` at `neo4j.go:109:30`, `IntVal` at
+`neo4j.go:114:29`, `StringSliceVal` at `neo4j.go:119:37` and `FloatVal` at
+`compare.go:404:31` and `repository_compat.go:32:31` — the old hop; then the
+root wrapper itself at each caller (16 sites for `BoolVal`, 43 for `IntVal`, 42
+for `StringSliceVal`, 10 for `floatVal` and 1 for `relationshipFloatVal`). A
+decode site for those four emits the same code it did before the move.
+
+Every call-site count in this section is bound to the head that measured it and
+to the two packages that command builds. They fell when this branch rebased onto
+`d3d4c2d3e`: `inlining call to StringVal` went from 391 sites to 282,
+`querycontract.StringVal` from 323 to 214, `BoolVal` from 21 to 16, `IntVal`
+from 52 to 43, `StringSliceVal` from 60 to 42, `floatVal` from 12 to 10 and
+`relationshipFloatVal` from 2 to 1, and the whole `-m` run from 25702 lines to
+20134. No caller was deleted: #6060 moved those families out of root into their
+own subpackages, which the documented command does not build. Every cost in the
+table above -- what the no-regression argument actually rests on -- is unchanged.
+
+`StringVal` does not fully collapse, and it did not before this move either.
+`rowvalue.StringVal` reports `cannot inline StringVal: function too complex:
+cost 95 exceeds budget 80` — the `fmt.Sprintf` fallback that renders a present
+non-string is what pushes it over. One real call frame therefore survives at
+every `StringVal` decode site. That is not a regression, because the move
+changed no code. Re-measured at this head, `git diff -M 514534567 HEAD --
+go/internal/query/querycontract/rowvalue.go
+go/internal/query/querycontract/rowvalue/decode.go` reports `similarity index
+62%` over two hunks: the `package querycontract` -> `package rowvalue` clause,
+and a rewrite of the file's header comment block. Both are comments and a
+package clause -- **no statement or expression changed**, which is the property
+this argument needs, because gc computes inline cost from the function body. The
+identical body cost 95 and was equally uninlinable when it lived in this
+package. (The 62% and the second hunk are lower than a bare move would give
+because the fix commits rewrote that header comment; the filename differs from
+the old text because #6597's own rename commit moved `rowvalue.go` to
+`decode.go` for naming rule 2.) What #6597 added is the `querycontract.StringVal`
+forwarder, and that one *does* inline (cost 62), as does the root wrapper at
+`neo4j.go:103` (cost 67): `inlining call to StringVal` fires at 282 sites and
+`inlining call to querycontract.StringVal` at 214. Before and after, a caller
+emits exactly one call to the decoder and no wrapper frames.
+
+The number to watch is `StringSliceVal`'s root wrapper at cost 75. Five points
+of headroom is one more forwarder hop; a third wrapper in that chain would stop
+inlining and add a real frame. The other root wrappers have 13 to 37 points of
+room, `StringVal`'s at `neo4j.go:103` being the next tightest.
+
+No benchmark is cited because there is no runtime delta to measure: the two
+forwarder hops that #6597 and #6060 added disappear at compile time, and the
+one frame that survives survived before them.
+
+No-Observability-Change: the five decoders emit no metric, span, or log, in this
+package's forwarders or in the `rowvalue` leaf they call -- they are pure
+functions over a map. The handlers that call them keep their existing
+`eshu_dp_api_request_duration_seconds` timing and their `query.*` spans, and
+because every wrapper hop inlines away, no span boundary, attribute, or log line
+moves. An operator sees exactly the signals they saw before.
 
 ## Collector-list readiness
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querycontract
+package rowvalue
 
 import "fmt"
 
@@ -19,13 +19,43 @@ import "fmt"
 // subpackage, and a subpackage cannot import the root package back without an
 // import cycle, because root names family symbols in its compatibility
 // aliases. A call to StringVal alone appeared in 195 of the 866 non-test root
-// files when this comment was written, so leaving these in root would block
-// every family move. Package query keeps forwarding wrappers under the original
-// names, so its own callers and the 28 files outside it that call StringVal,
-// BoolVal, IntVal or StringSliceVal -- 5 non-test and 23 test -- all compile
-// unchanged. FloatVal is newer and has no exported forwarder of its own:
-// package query reaches it through the unexported relationshipFloatVal, which
-// eleven call sites in eight root files already named.
+// files when this comment was written -- a frozen snapshot of root, unrelated
+// to the test-file count below -- so leaving these in root would block every
+// family move. Package querycontract and package query both keep forwarding
+// wrappers under the original names, so every call site outside keeps its
+// shape: the 437 .go files outside go/internal/query/querycontract that name
+// StringVal, BoolVal, IntVal or StringSliceVal -- 242 non-test and 195 test --
+// all compile unchanged. Both counts below are run from the repo root, because
+// the go path argument is cwd-relative: the same commands from go/ match
+// nothing and wc prints 0. The 437 is
+//
+//	rg -l '\b(StringVal|BoolVal|IntVal|StringSliceVal)\(' \
+//		-g '*.go' -g '!go/internal/query/querycontract/**' go | wc -l
+//
+// measured at this head. It is a superset of the population this argument is
+// about: the pattern counts any receiver, the declarations themselves and any
+// mention inside a comment. Of those files, 28 -- 5 non-test and 23 test --
+// reach these helpers through package query's exported wrappers,
+//
+//	rg -l '\bquery\.(StringVal|BoolVal|IntVal|StringSliceVal)\(' \
+//		-g '*.go' go | wc -l
+//
+// and that 28/5/23 split is identical at 514534567, at origin/main d3d4c2d3e
+// and at this head. The 437 likewise returns the identical file list at
+// d3d4c2d3e, which is the frame this argument needs: the move touched no
+// caller. At the older base 514534567 it read 435 -- 241 non-test, 194 test --
+// a gap that is #6060's rename churn on main, not callers this branch added.
+// The \b is load-bearing: unanchored, the pattern also counts cStringVal,
+// cppStringVal and compareStringVal, each of which exists in this tree. It
+// replaces the [^[:alnum:]_] an ERE tool needs in its place, POSIX ERE having
+// no \b; the two select the same 437 files here, differing only on a match at
+// the start of a line, which this tree has none of. Re-measuring either count
+// at one of the commits named above is the one search that stays on git grep,
+// because rg cannot read a commit -- see AGENTS.md in this directory.
+// FloatVal is the exception: package query has no exported wrapper for it and
+// reaches it through two unexported ones instead, floatVal in compare.go and
+// relationshipFloatVal in repository_compat.go, named by 11 call sites across
+// 3 root files.
 
 // StringVal safely extracts a string from a map value. A missing key or a nil
 // yields "". A present value of some other type is rendered with %v rather
