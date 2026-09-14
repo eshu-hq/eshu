@@ -73,7 +73,12 @@ var wantPaths = map[string]string{
 // a request builder fail the exact comparison below instead of passing on a
 // shared value. unused_decoy must never reach a query.
 var populatedArguments = routecontract.Arguments{
-	"after_identity_id":    "container-image-identity-1",
+	"after_identity_id": "container-image-identity-1",
+	// Opaque to this layer: the route forwards cursor verbatim, so any string
+	// exercises the path. This is NOT a currently-valid token (v1 offset shape,
+	// base64 of {"v":1,"ref":...,"l":25,"o":7}); the build accepts only sealed v3
+	// and unsealed v2, so copying it into a live request gets a 400. It is kept
+	// deliberately: a retired shape proves the selector never decodes the value.
 	"cursor":               "eyJ2IjoxLCJyZWYiOiJnaGNyLmlvL2VzaHUtaHEvYXBpOjEuMi4zIiwibCI6MjUsIm8iOjd9",
 	"digest":               "sha256:0f1e2d3c4b5a69788796a5b4c3d2e1f00112233445566778899aabbccddeeff0",
 	"group_by":             "identity_strength",
