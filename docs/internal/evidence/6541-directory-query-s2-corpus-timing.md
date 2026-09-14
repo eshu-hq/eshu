@@ -153,11 +153,16 @@ nothing; the branch short-circuits before touching the backend.
    the same 50 ids at the same limit, so the second probe re-issued a statement
    identical to the first within one container life. Its row count (10,000) and
    its count assertion are valid; its time is not, and it is not a 180x speedup.
-2. The issue's 2026-09-05 grant-1/50 figure of 34.510s did **not** reproduce
-   here (15.722s). The two are not a controlled pair: different machine,
-   different ad-hoc seeding. The remote run reports the grant-50 cell
-   reproducing closely. Everything in the tables above IS a controlled pair —
-   one seeded store, one container, one machine, one session.
+2. **Neither** of the issue's 2026-09-05 figures for the replaced statement
+   reproduced here: grant-1/50 34.510s there against 15.722s here (2.20x),
+   grant-50/50 121.437s (2m01.437s) there against 33.964s here (3.58x). That
+   measurement and this one are not a controlled pair: different machine,
+   different ad-hoc seeding. `report-remote6541.md` §1 closes by reporting the
+   grant-50 cell as reproducing closely; that is wrong and is not carried here
+   — it matches 33.964s (grant-50 measured here) against 34.510s (the issue's
+   **grant-1** figure), two different cells that agree to 1.6% by coincidence.
+   Everything in the tables above IS a controlled pair — one seeded store, one
+   container, one machine, one session.
 3. **The index's write-side cost is still unmeasured.** Every Directory MERGE
    and SET now maintains a `directory_repo_id` entry, 20,000 entries on this
    corpus at full projection. This run timed reads, not writes, so the

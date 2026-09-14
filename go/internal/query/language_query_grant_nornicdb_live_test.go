@@ -330,9 +330,14 @@ func seedLiveGrantGraph(ctx context.Context, t *testing.T, driver neo4jdriver.Dr
 // out-of-grant repository: liveGrantOutOfGrantRows = 6 seeds three directories
 // holding two files each (fileCount/2 directories, files spread by
 // index%directories), so all three tie on file_count and share one repo_id, and
-// `name ASC` is what orders a-src-0, a-src-1, a-src-2 -- and therefore what
-// decides which of them a page bounded at two or three rows keeps. Before the
-// tie-break landed that membership was backend-arbitrary.
+// `name ASC` is what orders a-src-0, a-src-1, a-src-2, where before the
+// tie-break landed that order was backend-arbitrary. No bound in THIS suite
+// depends on it: Directory has had no case here since #6541, and the two
+// Directory reads that remain are the shipped-shape probe in
+// language_query_grant_nornicdb_live_backend_test.go, scoped by
+// liveGrantAccess() to the granted repository so a-src-* cannot appear, and the
+// impossible-language negative control, which asserts zero rows. The ordering
+// is a property of the fixture, not a page this file bounds.
 func liveGrantRepositoryStatements(repoID, dirPrefix, marker string, fileCount int) []string {
 	repoPath := "/live/" + marker
 	statements := []string{

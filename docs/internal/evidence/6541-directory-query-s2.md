@@ -369,7 +369,9 @@ lost from it:
 - **The win, index present, warm timed run:** 15.722s -> 0.074s at grant-1/50
   (212x), 16.228s -> 0.922s at grant-5/50 (17.6x), 33.964s -> 8.534s at
   grant-50/50 (4.0x), 12.484s -> 7.465s at unscoped/50 (1.7x), with the
-  limit-200 row of each cell within a second of its limit-50 row.
+  limit-200 row of each cell within a second of its limit-50 row except
+  grant-50 with the index present, which is 1.269s FASTER at limit 200 (7.265s
+  against 8.534s). Largest gap among the other eleven pairs: 0.618s.
 - **The index is a precondition, not an enhancement.** Without
   `directory_repo_id` the new shape is SLOWER than the shipped statement at the
   unscoped cell — 15.384s against 12.484s at limit 50, 15.446s against 12.664s
@@ -407,10 +409,14 @@ lost from it:
   backend where the shipped statement burns a full scan.
 - **Two caveats travel with the numbers.** The grant-50 raw-row probe's 0.045s
   is a result-cache hit, not a measurement — its row count and count assertion
-  are valid, its time is not. And the issue's 2026-09-05 grant-1/50 figure of
-  34.510s did not reproduce here (15.722s): the two are not a controlled pair
-  (different machine, different ad-hoc seeding), while grant-50 did reproduce
-  closely and everything in the tables above is a controlled pair.
+  are valid, its time is not. And NEITHER of the issue's 2026-09-05 figures for
+  the replaced statement reproduced here: 34.510s at grant-1/50 there against
+  15.722s here (2.20x), 121.437s (2m01.437s) at grant-50/50 there against
+  33.964s here (3.58x). That measurement and this one are not a controlled pair
+  — different machine, different ad-hoc seeding — so neither ratio is a result,
+  and the grant-50 cell misses by more than the grant-1 cell, not less.
+  Everything in the tables above IS a controlled pair: one seeded store, one
+  container, one machine, one session.
 - **Still unmeasured:** the index's write-side cost at projection scale. This
   run timed reads, not writes.
 
