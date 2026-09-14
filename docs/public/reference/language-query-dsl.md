@@ -173,6 +173,73 @@ still-deferred follow-up. See [Flux Parser](../languages/flux.md).
 `guard` is a semantic filter over `function` entities and returns
 guard-classified functions only.
 
+### The `directory` entity type
+
+`directory` is graph-only -- it has no content-store fallback, so a graphless
+profile answers it with `501 unsupported_capability` rather than an empty page
+-- and since #6541 it is the one entity type this route does not serve with a
+single self-sufficient graph statement. What a caller sees differs from the
+other entity types in four ways.
+
+**Ordering and page membership are now a function of the data.** Directory rows
+come back ordered by `file_count` descending, then `repo_id` ascending, then
+`name` ascending. The route used to order on `file_count` alone, which decided
+the ORDER of the page but not its MEMBERSHIP: whenever equal-`file_count` rows
+straddled the `limit` boundary, which of them survived was the backend's
+choice, and the two pinned NornicDB builds returned different pages from the
+same fixture. The three-key order is applied both in the graph statement and
+again over the whole result before truncation, so the page is the top `limit`
+rows of that total order on either backend. One residual is NOT closed: `name`
+is the directory path's last segment, so two directories in the same repository
+can share it (`internal`, `testdata`, `v1`), and a pair that also ties on
+`file_count` ties on all three keys. Which of that pair is kept is still the
+backend's choice. It is unobservable today only because of the next point.
+
+**`entity_id` and `file_path` are null on every directory row.** The canonical
+projector writes neither `id` nor `relative_path` onto a Directory node, so a
+directory result carries `name`, `labels`, `repo_id`, `repo_name` and
+`file_count` and nulls the other two. That predates #6541 and is not fixed by
+it; it is stated here because it is also what makes the tie residual above
+invisible on the wire -- two rows tied on all three keys serialize identically.
+
+**`repo_name` comes from a second lookup, and can be absent.** The main
+statement no longer binds a Repository node at all; it seeks each granted
+repository's directories directly by the indexed `repo_id` the Directory node
+carries, which is what makes the read fast. `repo_name` is filled afterwards by
+a bounded name lookup over just the repository ids left on the truncated page.
+A directory whose repository node cannot be resolved therefore arrives with
+`repo_name` absent, where the earlier repository-joined statement would have
+dropped the row from the answer entirely. `repo_id` is always present.
+
+**Unscoped callers pay one extra graph read.** A scoped token's repository list
+is derived from its grant, and a request naming `repo_id` uses that repository
+alone; either way a list that resolves to nothing answers `200` with an empty
+`results` list without reading directories. An unscoped admin, shared, or local
+token that names no `repo_id` has no such list, so the handler enumerates
+repository ids from the graph first and seeks within them. Cost grows with the
+number of repositories the caller may read.
+
+Operators get a `language query directory read` debug log per request carrying
+`repositories` (the grant width actually seeked), `rows_returned` (what the
+backend sent), `rows_kept` (what survived truncation) and
+`repositories_named` (how many the name lookup resolved), which is what
+separates a slow wide grant from a backend returning far more rows than the
+page needs.
+
+#### Deployment requirement
+
+This entity type depends on the `directory_repo_id` index over
+`Directory.repo_id` (declared in `go/internal/graph/schema_tables_indexes.go`
+and applied by `eshu-bootstrap-data-plane`). The index is a precondition, not
+an enhancement: measured on a 50-repository corpus, the current shape without
+that index is slower than the statement it replaced, so a deployment that skips
+it is worse off than before rather than merely un-optimised. The queryplan
+manifest entry `QP-LANGUAGE-DIRECTORY` names it in `required_schema`, and the
+live planner gate profiles the statement against Neo4j with the index present
+and rejects any plan that is not anchored on it. The measurements are in
+`docs/internal/evidence/6541-directory-query-s2.md` and
+`docs/internal/evidence/6541-directory-query-s2-corpus-timing.md`.
+
 ## Capability Mapping
 
 Selected semantic filters answer symbol-graph capabilities from the
