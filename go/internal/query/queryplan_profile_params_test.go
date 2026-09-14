@@ -5,10 +5,12 @@ package query
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/language"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -124,6 +126,71 @@ func TestQueryplanProfileParamsCoverKubernetesRuntimeProbe(t *testing.T) {
 	}
 }
 
+// TestQueryplanProfileParamsCoverEveryProfiledStatement closes the hole that let
+// the #6541 Directory statement reach the live Neo4j PROFILE gate with an
+// unbound parameter.
+//
+// Every statement that gate profiles -- both manifest entries and the safe
+// production variants -- is run with the one shared queryplanProfileParams()
+// map. Neo4j refuses a statement whose parameters are not all supplied BEFORE
+// it plans it, so a builder that starts binding a new name fails the gate with
+// Neo.ClientError.Statement.ParameterMissing and no plan at all, which says
+// nothing about whether the query is anchored. Only the three tests above
+// checked that closure, each for one hand-listed entry, and the Directory
+// language query was the first profiled statement to bind $languages: nothing
+// caught it until a Neo4j container did. This test needs no backend.
+func TestQueryplanProfileParamsCoverEveryProfiledStatement(t *testing.T) {
+	profileParams := queryplanProfileParams()
+	statements := make(map[string]string)
+	for id, cypher := range handlerQueryplanProductionCypher() {
+		statements["handler/"+id] = cypher
+	}
+	for id, cypher := range legacyQueryplanProductionCypher(t) {
+		statements["legacy/"+id] = cypher
+	}
+	for name, cypher := range handlerQueryplanSafeCypherVariants() {
+		statements["production-variant/"+name] = cypher
+	}
+	if len(statements) == 0 {
+		t.Fatal("collected no profiled statements; this test would assert nothing")
+	}
+	for name, cypher := range statements {
+		for _, match := range queryplanCypherParameterPattern.FindAllStringSubmatch(cypher, -1) {
+			if _, ok := profileParams[match[1]]; ok {
+				continue
+			}
+			t.Errorf("profiled statement %s binds $%s, which queryplanProfileParams() does not supply; "+
+				"the live PROFILE gate fails such a statement with ParameterMissing before it plans it", name, match[1])
+		}
+	}
+}
+
+// TestQueryplanProfileParamsBindTheDirectoryLanguageSpellings keeps the shared
+// $languages value equal to what the production Directory builder binds for the
+// language the profiled variants are built with, so the gate plans the
+// statement against the value shape production uses rather than a
+// plausible-looking stand-in. graphLanguageSpellings is unexported, so the
+// expected list is read back out of the builder's own params rather than
+// restated here; TestGraphLanguageSpellings in package language pins the list
+// itself.
+func TestQueryplanProfileParamsBindTheDirectoryLanguageSpellings(t *testing.T) {
+	_, production := language.BuildCypherWithSemanticFilter(
+		"go", "Directory", "", "", 10, "", "",
+		repositoryAccessFilter{AllScopes: true}, []string{"proof-repository"},
+	)
+	want, ok := production["languages"].([]string)
+	if !ok {
+		t.Fatalf("production Directory params languages = %#v, want []string", production["languages"])
+	}
+	got, ok := queryplanProfileParams()["languages"].([]string)
+	if !ok {
+		t.Fatalf("profile params languages = %#v, want []string", queryplanProfileParams()["languages"])
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("profile params languages = %v, want the production binding %v", got, want)
+	}
+}
+
 func queryplanProfileParamMatchesType(value any, wantType string) bool {
 	switch wantType {
 	case "string":
@@ -168,6 +235,7 @@ func queryplanProfileParams() map[string]any {
 		"instance_ids":           []string{"proof-instance"},
 		"ids":                    []string{"proof-id"},
 		"language":               "go",
+		"languages":              []string{"go", "Go"},
 		"limit":                  10,
 		"name":                   "proof",
 		"offset":                 0,
