@@ -1,0 +1,19 @@
+docs/internal/evidence/6162-nornicdb-v132-alignment.md
+  s_20be138600ef1b::t_4e41390a3b7e80 98-101,111-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "30d9593a4f9affdee207879496429b30e62b9eb0",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "unknown"
+      },
+      "human_author": "Test <test@example.test>"
+    }
+  }
+}
