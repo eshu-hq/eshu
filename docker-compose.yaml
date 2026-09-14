@@ -1,10 +1,10 @@
 services:
   nornicdb:
-    # The default is the immutable multi-architecture NornicDB v1.3.1 image
+    # The default is the immutable multi-architecture NornicDB v1.3.2 image
     # proven by Eshu's restart fault and graph-truth gate. The digest
     # makes the cached artifact stable; `missing` avoids a registry dependency
     # after the first pull. Controlled comparisons may override both variables.
-    image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962}
+    image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440}
     pull_policy: ${NORNICDB_PULL_POLICY:-missing}
     platform: ${NORNICDB_PLATFORM:-linux/amd64}
     ports:
@@ -26,7 +26,7 @@ services:
       NORNICDB_SEARCH_VECTOR_WARMING: lazy
       NORNICDB_PERSIST_SEARCH_INDEXES: "false"
     volumes:
-      - nornicdb_v131_data:/data
+      - nornicdb_v132_data:/data
     healthcheck:
       test: ["CMD-SHELL", "wget --spider -q http://localhost:7474/health || exit 1"]
       interval: 5s
@@ -673,6 +673,6 @@ services:
         condition: service_completed_successfully
 
 volumes:
-  nornicdb_v131_data:
+  nornicdb_v132_data:
   postgres_data:
   eshu_data:

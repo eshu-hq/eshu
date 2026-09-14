@@ -508,7 +508,7 @@ app.kubernetes.io/component: vault-live-collector
 {{- end -}}
 
 {{- define "eshu.nornicdbManagedClaimName" -}}
-{{- printf "%s-v131-data" (include "eshu.nornicdbFullname" .) -}}
+{{- printf "%s-v132-data" (include "eshu.nornicdbFullname" .) -}}
 {{- end -}}
 
 {{- define "eshu.nornicdbClaimName" -}}

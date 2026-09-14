@@ -142,6 +142,6 @@ services:
 
 
 volumes:
-  nornicdb_v131_data:
+  nornicdb_v132_data:
   postgres_data:
   eshu_data:

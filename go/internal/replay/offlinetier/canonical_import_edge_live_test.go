@@ -11,7 +11,7 @@ package offlinetier_test
 // It is backend-required rather than a Cypher string assertion because the
 // projector's fold — one edge per (file, module), with a per-symbol property
 // carried only when every entry agrees — is a deliberate Eshu contract rather
-// than a backend workaround. NornicDB v1.3.1 supports property-bearing
+// than a backend workaround. The pinned NornicDB v1.3.2 artifact supports property-bearing
 // relationship MERGE identity, but this projection must continue to produce
 // the same module-level row set. Only a real backend can hold that line.
 //

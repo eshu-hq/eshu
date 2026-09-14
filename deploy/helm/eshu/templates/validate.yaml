@@ -39,7 +39,7 @@
 {{- fail "ESHU_GRAPH_BACKEND=nornicdb requires a backend that preserves relationship MERGE identity properties; verify the selected external or bundled endpoint uses orneryd/NornicDB#290 or a later compatible build, then set nornicdb.capabilities.relationshipMergePropertyIdentity=true" -}}
 {{- end -}}
 {{- if and .Values.nornicdb.enabled .Values.nornicdb.persistence.enabled (eq .Values.nornicdb.persistence.existingClaim (include "eshu.nornicdbLegacyClaimName" .)) -}}
-{{- fail "nornicdb.persistence.existingClaim cannot reuse the pre-v1.3.1 NornicDB PVC; stop NornicDB, snapshot or back up the graph, use a fresh v1.3.1-compatible claim, and rebuild the graph from Postgres facts" -}}
+{{- fail "nornicdb.persistence.existingClaim cannot reuse the pre-v1.3.2 NornicDB PVC; stop NornicDB, snapshot or back up the graph, use a fresh v1.3.2-compatible claim, and rebuild the graph from Postgres facts" -}}
 {{- end -}}
 {{- $generationRetentionDisabled := false -}}
 {{- $generationRetentionEnvMaps := list (default (dict) .Values.env) (default (dict) .Values.resolutionEngine.env) -}}

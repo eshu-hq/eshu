@@ -54,7 +54,7 @@ func TestHelmBundledNornicDBUsesGraphOnlySearchControls(t *testing.T) {
 	}
 }
 
-func TestHelmBundledNornicDBDefaultsToFreshV131StorageAndAmd64(t *testing.T) {
+func TestHelmBundledNornicDBDefaultsToFreshV132StorageAndAmd64(t *testing.T) {
 	t.Parallel()
 
 	manifests := renderHelmChart(
@@ -78,13 +78,13 @@ func TestHelmBundledNornicDBDefaultsToFreshV131StorageAndAmd64(t *testing.T) {
 
 	volume := requireHelmNamedVolume(t, podSpec, "data")
 	claim := helmMap(volume["persistentVolumeClaim"])
-	if got, want := claim["claimName"], "eshu-nornicdb-v131-data"; got != want {
+	if got, want := claim["claimName"], "eshu-nornicdb-v132-data"; got != want {
 		t.Fatalf("nornicdb data claim = %#v, want %q", got, want)
 	}
-	pvc := requireHelmManifest(t, manifests, "PersistentVolumeClaim", "eshu-nornicdb-v131-data")
+	pvc := requireHelmManifest(t, manifests, "PersistentVolumeClaim", "eshu-nornicdb-v132-data")
 	annotations := helmMap(helmMap(pvc["metadata"])["annotations"])
 	if got, want := annotations["helm.sh/resource-policy"], "keep"; got != want {
-		t.Fatalf("v1.3.1 PVC resource policy = %#v, want %q", got, want)
+		t.Fatalf("v1.3.2 PVC resource policy = %#v, want %q", got, want)
 	}
 	if helmManifestExists(manifests, "PersistentVolumeClaim", "eshu-nornicdb-data") {
 		t.Fatal("fresh install rendered the legacy NornicDB PVC")
@@ -98,15 +98,15 @@ func TestHelmBundledNornicDBExistingClaimIsExplicit(t *testing.T) {
 		t,
 		"--set", "nornicdb.enabled=true",
 		"--set", "nornicdb.capabilities.relationshipMergePropertyIdentity=true",
-		"--set", "nornicdb.persistence.existingClaim=operator-v131-data",
+		"--set", "nornicdb.persistence.existingClaim=operator-v132-data",
 		"--set", "schemaBootstrap.useHelmHooks=false",
 	)
 	podSpec := helmPodSpec(t, requireHelmManifest(t, manifests, "Deployment", "eshu-nornicdb"))
 	claim := helmMap(requireHelmNamedVolume(t, podSpec, "data")["persistentVolumeClaim"])
-	if got, want := claim["claimName"], "operator-v131-data"; got != want {
+	if got, want := claim["claimName"], "operator-v132-data"; got != want {
 		t.Fatalf("nornicdb existing claim = %#v, want %q", got, want)
 	}
-	if helmManifestExists(manifests, "PersistentVolumeClaim", "eshu-nornicdb-v131-data") {
+	if helmManifestExists(manifests, "PersistentVolumeClaim", "eshu-nornicdb-v132-data") {
 		t.Fatal("chart rendered a managed PVC while existingClaim is set")
 	}
 }
@@ -121,7 +121,7 @@ func TestHelmBundledNornicDBRejectsLegacyExistingClaim(t *testing.T) {
 		"--set", "nornicdb.persistence.existingClaim=eshu-nornicdb-data",
 		"--set", "schemaBootstrap.useHelmHooks=false",
 	)
-	if !strings.Contains(output, "cannot reuse the pre-v1.3.1 NornicDB PVC") {
+	if !strings.Contains(output, "cannot reuse the pre-v1.3.2 NornicDB PVC") {
 		t.Fatalf("legacy PVC rejection = %q, want storage compatibility error", output)
 	}
 }
@@ -141,7 +141,7 @@ func TestHelmBundledNornicDBEphemeralModeUsesEmptyDir(t *testing.T) {
 	if _, ok := volume["emptyDir"]; !ok {
 		t.Fatalf("ephemeral nornicdb data volume = %#v, want emptyDir", volume)
 	}
-	if helmManifestExists(manifests, "PersistentVolumeClaim", "eshu-nornicdb-v131-data") {
+	if helmManifestExists(manifests, "PersistentVolumeClaim", "eshu-nornicdb-v132-data") {
 		t.Fatal("ephemeral NornicDB rendered a managed PVC")
 	}
 }
@@ -157,14 +157,14 @@ func TestHelmBundledNornicDBManagedClaimUsesConfiguredStorage(t *testing.T) {
 		"--set", "nornicdb.persistence.size=20Gi",
 		"--set", "schemaBootstrap.useHelmHooks=false",
 	)
-	pvc := requireHelmManifest(t, manifests, "PersistentVolumeClaim", "eshu-nornicdb-v131-data")
+	pvc := requireHelmManifest(t, manifests, "PersistentVolumeClaim", "eshu-nornicdb-v132-data")
 	spec := helmMap(pvc["spec"])
 	if got, want := spec["storageClassName"], "fast-graph"; got != want {
-		t.Fatalf("managed v1.3.1 PVC storage class = %#v, want %q", got, want)
+		t.Fatalf("managed v1.3.2 PVC storage class = %#v, want %q", got, want)
 	}
 	requests := helmMap(helmMap(spec["resources"])["requests"])
 	if got, want := requests["storage"], "20Gi"; got != want {
-		t.Fatalf("managed v1.3.1 PVC size = %#v, want %q", got, want)
+		t.Fatalf("managed v1.3.2 PVC size = %#v, want %q", got, want)
 	}
 }
 

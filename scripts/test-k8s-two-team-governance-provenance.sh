@@ -7,8 +7,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 helper="${repo_root}/scripts/lib/k8s-two-team-governance-provenance.sh"
 driver="${repo_root}/scripts/run-k8s-two-team-governance-proof.sh"
-expected_image="timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962"
-expected_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:c0b5f73c55bd56a6764d1833665252b98a30b332248f0233f5f4eab4dc0d2ca1"
+expected_image="timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
+expected_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"
 
 die() {
 	printf 'test-k8s-two-team-governance-provenance: %s\n' "$*" >&2
@@ -30,6 +30,7 @@ run_capture() (
 	local artifacts_dir="$2"
 	local requested_image="${3:-${expected_image}}"
 	local fail_publish="${4:-false}"
+	local fail_read="${5:-}"
 
 	die() {
 		printf 'fake cluster: %s\n' "$*" >&2
@@ -37,6 +38,9 @@ run_capture() (
 	}
 	kc() {
 		local joined="$*"
+		if [[ -n "${fail_read}" && "${joined}" == *"${fail_read}"* ]]; then
+			return 1
+		fi
 		case "${joined}" in
 			'get pods -l app.kubernetes.io/component=nornicdb '*) printf 'nornicdb-pod' ;;
 			*'.spec.nodeName}'*) printf 'worker-a' ;;
@@ -94,8 +98,8 @@ shopt -u nullglob
 
 for case_name in tag-only wrong-digest missing-container; do
 	case "${case_name}" in
-		tag-only) configured_image='timothyswt/nornicdb-cpu-bge:v1.3.1' ;;
-		wrong-digest) configured_image='timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
+		tag-only) configured_image='timothyswt/nornicdb-cpu-bge:v1.3.2' ;;
+		wrong-digest) configured_image='timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
 		missing-container) configured_image='' ;;
 	esac
 	case_dir="${tmp_root}/${case_name}"
@@ -105,5 +109,15 @@ for case_name in tag-only wrong-digest missing-container; do
 	[[ ! -f "${case_dir}/provenance.json" ]] \
 		|| die "capture wrote accepted provenance for ${case_name} Pod image"
 done
+
+read_failure_dir="${tmp_root}/read-failure"
+read_failure_output=""
+if read_failure_output="$(run_capture "${expected_image}" "${read_failure_dir}" \
+	"${expected_image}" false 'get pod nornicdb-pod' 2>&1)"; then
+	die "capture accepted a failed NornicDB pod read"
+fi
+rg --fixed-strings --quiet 'fake cluster: cannot query NornicDB pod node assignment' \
+	<<<"${read_failure_output}" \
+	|| die "failed NornicDB pod read did not emit its bounded diagnostic"
 
 printf 'Kubernetes governance provenance capture self-test passed\n'

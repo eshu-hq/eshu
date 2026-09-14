@@ -1,7 +1,7 @@
 {{- $legacyClaimName := include "eshu.nornicdbLegacyClaimName" . -}}
 {{- $legacyClaim := lookup "v1" "PersistentVolumeClaim" .Release.Namespace $legacyClaimName -}}
 {{- if and $legacyClaim (not .Values.nornicdb.persistence.allowFreshVolumeMigration) -}}
-{{- fail (printf "legacy NornicDB PVC %s exists; stop NornicDB, snapshot or back up the graph, then set nornicdb.persistence.allowFreshVolumeMigration=true to create fresh v1.3.1 storage and rebuild the graph from Postgres facts" $legacyClaimName) -}}
+{{- fail (printf "legacy NornicDB PVC %s exists; stop NornicDB, snapshot or back up the graph, then set nornicdb.persistence.allowFreshVolumeMigration=true to create fresh v1.3.2 storage and rebuild the graph from Postgres facts" $legacyClaimName) -}}
 {{- end -}}
 {{- if $legacyClaim }}
 {{- $liveAccessModes := dig "spec" "accessModes" (list) $legacyClaim -}}

@@ -169,10 +169,10 @@ classes. Provider-backed profiles additionally report redacted provider profile
 status. Compose adds no raw prompt, credential, endpoint, provider body, path,
 or document id to logs or metric labels.
 
-### Immutable NornicDB v1.3.1 default
+### Immutable NornicDB v1.3.2 default
 
 The default Compose NornicDB service uses the published multi-architecture image
-`timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962`.
+`timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440`.
 That exact artifact passes Eshu's restart fault cell without the cross-scope
 relationship corruption observed on the previous source-built backend. The
 default pull policy `missing` downloads the immutable artifact once and reuses
@@ -186,7 +186,7 @@ stanza; build a local comparison image separately, then select it with
 `NORNICDB_IMAGE=<local-tag> NORNICDB_PULL_POLICY=never`.
 
 The default pins `NORNICDB_PLATFORM=linux/amd64`, the only platform with live
-v1.3.1 proof. Use a separate Compose project and fresh graph volume for unsupported arm64 experiments.
+v1.3.2 proof. Use a separate Compose project and fresh graph volume for unsupported arm64 experiments.
 
 Normal `docker compose up --build` builds the Eshu services and pulls NornicDB
 only when its immutable image is absent. To cache the backend before starting:
@@ -200,28 +200,28 @@ Confirm the configured digest and the backend's reported version before treating
 the stack as evidence:
 
 ```bash
-docker compose config --images | rg 'nornicdb-cpu-bge:v1.3.1@sha256:ac524899'
+docker compose config --images | rg 'nornicdb-cpu-bge:v1.3.2@sha256:a47ae7ead'
 docker compose exec nornicdb /app/nornicdb version
 ```
 
-The version command must report `NornicDB v1.3.1`. The official image does not
-publish an OCI source-revision label, so absence of that optional metadata is
-not a provenance failure; the immutable image digest is the artifact identity.
+The version command reports `NornicDB v1.3.1` because upstream's v1.3.2 tag retains a stale embedded VERSION file. Verify the v1.3.2 tag and immutable
+digest above; the binary string alone cannot identify this release. The official image also omits an OCI source-revision label, so the tag plus digest,
+selected platform child, and honest binary self-report form the provenance contract.
 
 ### Existing graph volumes
 
 Changing the default image does not make an existing graph volume safe to
 reuse automatically. For an upgrade, stop every Eshu graph writer, preserve a
-snapshot or copy of the old `nornicdb_data` volume; v1.3.1 creates
-`nornicdb_v131_data`, leaving the legacy volume untouched. Follow [Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md)
+snapshot or copy of the old `nornicdb_data` volume; v1.3.2 creates
+`nornicdb_v132_data`, leaving the legacy volume untouched. Follow [Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md)
 using the preserved Postgres fact store. Verify terminal queues and the
 required API/MCP graph truth before cutting traffic over.
 
 Roll back by restoring the preserved old volume or by rebuilding another fresh
 graph from Postgres facts. Never start an older NornicDB binary on a volume
-modified by v1.3.1 unless that exact reverse transition has separate storage
+modified by v1.3.2 unless that exact reverse transition has separate storage
 compatibility proof. Operators that choose an in-place volume upgrade must
-first prove the exact old-image-to-v1.3.1 transition, restart/readback, and
+first prove the exact old-image-to-v1.3.2 transition, restart/readback, and
 rollback against a disposable copy of their own volume.
 
 Eshu Compose sets these NornicDB graph-lane controls:

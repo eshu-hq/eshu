@@ -17,10 +17,10 @@ NornicDB source before patching.
 The same scoping note applies as on the companion page: entries below name
 `nornicdb-cpu-bge:v1.1.11` (`sha256:51b6174a…`) or a `NornicDB-New` fork
 checkout, measured when v1.1.11 was what `deploy/helm/eshu/values.yaml`
-shipped. The chart now pins `v1.3.1@sha256:ac524899…`; most historical
-behaviors below have not been re-measured on it. Treat an entry as a reason to
-check the digest you actually run, not as a
-statement about it.
+shipped. The chart now pins `v1.3.2@sha256:a47ae7ea…`; most historical
+behaviors below have not been re-measured on it. The artifact reports
+`NornicDB v1.3.1` because upstream retained a stale embedded `VERSION` file, so
+identify it by digest and check the digest you actually run.
 
 ## How To Use This Page
 
@@ -934,11 +934,11 @@ implementation began at upstream commit
 `883065cd744b835237f0a26bce0fd41883cd2b64` and was completed by
 `e4b84afef25282ee8747c66c8fddb8fdff836d28`; both are ancestors of NornicDB
 v1.2.3 commit `d9b76ae82334e6b23b847156eb81931781546b85`. Eshu's replay tier now pins
-the published v1.3.1 multi-architecture image by digest and requires evaluated
+the published v1.3.2 multi-architecture image by digest and requires evaluated
 `type(rel)`, `coalesce(...)`, and relationship-seeded chained second-hop
 property results.
 
-The node-only compound path remains unfixed in v1.3.1: when a primary node `MATCH`
+The node-only compound path remains unfixed in the v1.3.2 artifact: when a primary node `MATCH`
 is followed by two chained `OPTIONAL MATCH` clauses, the second-hop property
 still returns its literal expression (`sourceRepo.id` → `"sourceRepo.id"`).
 The replay tier retains this as a negative control, including an explicit null
@@ -987,7 +987,7 @@ for the historical before/after and the isolated executor characterization.
 The replay-tier tests
 `TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch` and
 `TestNornicDBChainedOptionalMatchPreservesExecutorBoundary` exercise the
-measured boundary directly against v1.3.1. They require evaluated values for
+measured boundary directly against v1.3.2. They require evaluated values for
 the relationship-seeded shapes and require the exact literal-placeholder
 negative control, never a missing or null column, for the node-only compound
 path.
@@ -1004,7 +1004,7 @@ Measured against the former PR #261 build while proving issue #5694:
 | two chained, read the SECOND one's variable | `r.id` — a plain property read | **`"r.id"`** |
 | two chained, no relationship bound anywhere | `r.id` | **`"r.id"`** |
 
-The v1.3.1 boundary separates the executor paths: relationship-seeded traversal
+The v1.3.2 replay confirms the same executor boundary: relationship-seeded traversal
 now evaluates both the function projections and the second chained property,
 while the node-only compound path still corrupts the second chained property.
 The function-call symptom above was therefore the narrower historical case;
@@ -1013,7 +1013,7 @@ plain property reads remain affected only on the measured node-only path.
 `go/internal/query/code_relationship_story_nornicdb.go` still pairs every
 second-hop column with its historical literal placeholder through
 `nornicDBStoryProjection`. Its production relationship-seeded query sees
-evaluated values on v1.3.1, so the guard is a no-op there; older or custom
+evaluated values on v1.3.2, so the guard is a no-op there; older or custom
 backends still fail closed instead of serving expression text. Removing that
 compatibility guard belongs with any measured query-shape consolidation, not
 with the backend-proof update.
@@ -1095,8 +1095,8 @@ it under-reports rather than empties.
 
 ### Fixed default and deployment order
 
-The default `docker-compose.yaml` image is now the published NornicDB v1.3.1
-multi-architecture index pinned at `sha256:ac524899…`. The prior source-built proof
+The default `docker-compose.yaml` image is now the published NornicDB v1.3.2
+multi-architecture index pinned at `sha256:a47ae7ea…`. The prior source-built proof
 used merged revision `3722b483c02c38a8e046d198f8768f200f31023c`. The corrected backend includes
 pattern properties in relationship `MERGE` identity for plain, batched, and
 explicit-transaction paths. The #5827 live proof starts with one legacy
@@ -1113,7 +1113,7 @@ would preserve the silent collapse.
 
 Endpoint modeling remains useful when the distinguishing value is a domain
 entity in its own right. It is no longer required as a backend workaround on
-the corrected v1.3.1 build.
+the corrected v1.3.2 artifact.
 
 ### Historical impact on two shipped writers
 

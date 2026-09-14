@@ -19,7 +19,7 @@ At the time of this measurement, the deployed topology used the 1.2.x line:
 `timothyswt/nornicdb-cpu-bge:v1.2.3`, and `docker-compose.yaml` defaulted to
 `eshu-nornicdb-pr290:3722b483c02c` (1.2.1). **Both filtered correctly** --
 measured, see below. Those pins are historical; the current bundled paths use the
-v1.3.1 digest recorded in `6162-nornicdb-v131-alignment.md`.
+v1.3.2 digest recorded in `6162-nornicdb-v132-alignment.md`.
 
 So this is a local-profile correctness bug, **not a production tenancy
 exposure**. An earlier draft called 1.0.0 "the shipped build" and implied the

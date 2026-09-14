@@ -38,7 +38,7 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.
 image_repo="${K8S_GOV_IMAGE_REPO:-eshu}"
 image_tag="${K8S_GOV_IMAGE_TAG:-local}"
 seed_image="${K8S_GOV_SEED_IMAGE:-eshu-gov-seed:local}"
-nornicdb_image="timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962"
+nornicdb_image="timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
 release="${K8S_GOV_RELEASE:-eshu}"
 ns_suffix="$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom 2>/dev/null | head -c 6 || echo "$$")"
 namespace="${K8S_GOV_NAMESPACE:-eshu-gov-proof-${ns_suffix}}"

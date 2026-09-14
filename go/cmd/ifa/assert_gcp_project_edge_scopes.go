@@ -62,6 +62,8 @@ func ifaGCPProjectScopeExpectations(seed, projects, resources int) (map[string]g
 		scopeID := fmt.Sprintf("gcp:project:%s:seed:%d", projectID, seed)
 		expected[scopeID] = graphdump.GCPProjectScopeExpectation{ProjectID: projectID, EdgeCount: resources - 1}
 	}
+	// The committed GCP cassette has 123 supported relationship facts and one
+	// partial firebase_project_default_bucket fact that is not materialized.
 	expected["gcp:project:supply-chain-demo-project"] = graphdump.GCPProjectScopeExpectation{
 		ProjectID: "supply-chain-demo-project",
 		EdgeCount: 123,
