@@ -43,13 +43,14 @@ family, not here.
 ## Compatibility
 
 `querycontract` keeps forwarding wrappers for all five names, so existing
-callers compile unchanged. That surface is large: at the base `514534567`,
-`StringVal` alone is called 2057 times across 235 files, and the five together
-2705 times across 272 files. The exact commands are in
+callers compile unchanged. That surface is large: at this head, `StringVal`
+alone is called 2174 times across 246 files, and the five together 2856 times
+across 283 files. The exact commands are in
 [AGENTS.md](AGENTS.md#changing-a-helpers-contract-is-a-wide-change). The move
-changed no caller, so the same commands give the same numbers at this head --
-excluding the prose that documents them, which a `go/**/*.go` pathspec keeps
-out of the Go files and a Markdown file cannot be counted by at all.
+changed no caller, so those commands give the same numbers at `origin/main`
+`d3d4c2d3e` -- excluding the prose that documents them, which a `go/**/*.go`
+pathspec keeps out of the Go files and a Markdown file cannot be counted by at
+all.
 
 Package `query` forwards only four of them — `StringVal`, `BoolVal`, `IntVal`
 and `StringSliceVal`, in `neo4j.go`. It has no exported `FloatVal`; it reaches

@@ -17,25 +17,29 @@ a nil, or an unexpected type. Callers rely on that to degrade one field rather
 than fail a request.
 
 Changing what any of these returns is not a local edit, and the surface is
-bigger than a file listing suggests. Measured at the base `514534567`:
+bigger than a file listing suggests. Measured at this head:
 
 ```
-git grep -o  'querycontract\.StringVal('                          -> 2057 calls
-git grep -l  'querycontract\.StringVal('                          ->  235 files
-git grep -oE 'querycontract\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\(' -> 2705 calls
-git grep -lE  (same pattern)                                      ->  272 files
+git grep -o  'querycontract\.StringVal('                          -> 2174 calls
+git grep -l  'querycontract\.StringVal('                          ->  246 files
+git grep -oE 'querycontract\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\(' -> 2856 calls
+git grep -lE  (same pattern)                                      ->  283 files
 ```
 
-each with the pathspec `-- 'go/**/*.go'`. Dropping the receiver
+each with the pathspec `-- 'go/**/*.go'`. All four are identical at
+`origin/main` `d3d4c2d3e`, because the move touched no caller. At the older base
+`514534567` they read 2057 / 235 / 2705 / 272; that growth is #6060 families
+qualifying calls they used to make in-package as they leave root, not new
+callers. Dropping the receiver
 (`git grep -lE '\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\('`)
-reaches 303 files at that base, and 305 at this head -- the two extra are the
-new `rowvalue` forwarder file and its test, not new callers.
+reaches 314 files at `origin/main` and 316 at this head -- the two extra are
+`querycontract/response_shaping_helpers.go`, whose forwarders now name the five
+on the `rowvalue` receiver, and its test; not new callers.
 
-The four qualified figures are identical at the base and at this head, because
-the move touched no caller. Keep the `*.go` pathspec: without it, the prose that
-documents the measurement is counted by it.
+Keep the `*.go` pathspec: without it, the prose that documents the measurement
+is counted by it.
 
-Budget an audit against the **call** count, not the file count -- 235 and 272
+Budget an audit against the **call** count, not the file count -- 246 and 283
 are files, and the call count is about 9x larger. Adding a case to `IntVal` or
 `FloatVal` is usually safe; changing an existing case's result is not, and needs
 the call sites audited.
@@ -49,9 +53,9 @@ Two packages forward into here, and they do not forward the same set.
 `querycontract/response_shaping_helpers.go` forwards all five names.
 `query/neo4j.go` forwards only four — `StringVal`, `BoolVal`, `IntVal` and
 `StringSliceVal`. Package `query` has no exported `FloatVal`: it reaches this
-one through two unexported wrappers, `floatVal` in `compare.go` (12 call sites
-in 3 files) and `relationshipFloatVal` in `repository_compat.go` (2 call sites
-in 2 files).
+one through two unexported wrappers, `floatVal` in `compare.go` (10 call sites
+in 2 files) and `relationshipFloatVal` in `repository_compat.go` (1 call site
+in 1 file).
 
 If you add a helper here, decide deliberately whether it also needs a forwarder,
 and in which of those two packages; a new name with no existing callers needs

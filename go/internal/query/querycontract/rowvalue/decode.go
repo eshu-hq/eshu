@@ -26,7 +26,7 @@ import "fmt"
 // 5 non-test and 23 test -- all compile unchanged. FloatVal is the exception:
 // package query has no exported wrapper for it and reaches it through two
 // unexported ones instead, floatVal in compare.go and relationshipFloatVal in
-// repository_compat.go, named by 14 call sites across 5 root files.
+// repository_compat.go, named by 11 call sites across 3 root files.
 
 // StringVal safely extracts a string from a map value. A missing key or a nil
 // yields "". A present value of some other type is rendered with %v rather

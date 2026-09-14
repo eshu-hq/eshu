@@ -122,8 +122,8 @@ snapshot from when they moved and are deliberately not refreshed; the header
 comment in `rowvalue/decode.go` -- a free-floating block after the imports, not
 the package comment, which lives in `rowvalue/doc.go` -- carries the same
 `StringVal` metric measured later (195 of 866), and the gap between the two is
-families leaving root, which is what this epic is for. `FloatVal` is the small one: 14 call sites across 5
-root files, 12 of them through `floatVal` and 2 through `relationshipFloatVal`.
+families leaving root, which is what this epic is for. `FloatVal` is the small one: 11 call sites across 3
+root files, 10 of them through `floatVal` and 1 through `relationshipFloatVal`.
 
 The question that raises is whether the *extra* call frame costs anything on a
 hot row-decode loop. For four of the five it does not. For `StringVal` the
@@ -153,9 +153,19 @@ The `-m` run reports `inlining call to rowvalue.BoolVal` at
 `inlining call to querycontract.BoolVal` at `neo4j.go:109:30`, `IntVal` at
 `neo4j.go:114:29`, `StringSliceVal` at `neo4j.go:119:37` and `FloatVal` at
 `compare.go:404:31` and `repository_compat.go:32:31` — the old hop; then the
-root wrapper itself at each caller (21 sites for `BoolVal`, 52 for `IntVal`, 60
-for `StringSliceVal`, 12 for `floatVal` and 2 for `relationshipFloatVal`). A
+root wrapper itself at each caller (16 sites for `BoolVal`, 43 for `IntVal`, 42
+for `StringSliceVal`, 10 for `floatVal` and 1 for `relationshipFloatVal`). A
 decode site for those four emits the same code it did before the move.
+
+Every call-site count in this section is bound to the head that measured it and
+to the two packages that command builds. They fell when this branch rebased onto
+`d3d4c2d3e`: `inlining call to StringVal` went from 391 sites to 282,
+`querycontract.StringVal` from 323 to 214, `BoolVal` from 21 to 16, `IntVal`
+from 52 to 43, `StringSliceVal` from 60 to 42, `floatVal` from 12 to 10 and
+`relationshipFloatVal` from 2 to 1, and the whole `-m` run from 25702 lines to
+20134. No caller was deleted: #6060 moved those families out of root into their
+own subpackages, which the documented command does not build. Every cost in the
+table above -- what the no-regression argument actually rests on -- is unchanged.
 
 `StringVal` does not fully collapse, and it did not before this move either.
 `rowvalue.StringVal` reports `cannot inline StringVal: function too complex:
@@ -175,8 +185,8 @@ because the fix commits rewrote that header comment; the filename differs from
 the old text because #6597's own rename commit moved `rowvalue.go` to
 `decode.go` for naming rule 2.) What #6597 added is the `querycontract.StringVal`
 forwarder, and that one *does* inline (cost 62), as does the root wrapper at
-`neo4j.go:103` (cost 67): `inlining call to StringVal` fires at 391 sites and
-`inlining call to querycontract.StringVal` at 323. Before and after, a caller
+`neo4j.go:103` (cost 67): `inlining call to StringVal` fires at 282 sites and
+`inlining call to querycontract.StringVal` at 214. Before and after, a caller
 emits exactly one call to the decoder and no wrapper frames.
 
 The number to watch is `StringSliceVal`'s root wrapper at cost 75. Five points
