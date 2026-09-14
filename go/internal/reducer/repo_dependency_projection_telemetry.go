@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -59,6 +60,99 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycle(
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)
 	}
+}
+
+// startLeaseHeartbeat renews the source-repo lane lease while graph writes are
+// in flight so slow backend calls cannot make active work appear abandoned.
+func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context) (context.Context, func() error) {
+	interval := repoDependencyLeaseHeartbeatInterval(r.Config.leaseTTL())
+	if interval <= 0 {
+		return ctx, func() error { return nil }
+	}
+	heartbeatCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	var failureMu sync.Mutex
+	var failure error
+	var once sync.Once
+	recordFailure := func(err error) {
+		failureMu.Lock()
+		if failure != nil {
+			failureMu.Unlock()
+			return
+		}
+		failure = fmt.Errorf("repo dependency lease heartbeat failed: %w", err)
+		failureMu.Unlock()
+		if r.Logger != nil {
+			r.Logger.WarnContext(
+				heartbeatCtx,
+				"repo dependency lease heartbeat failed",
+				log.Domain(DomainRepoDependency),
+				telemetry.PhaseAttr(telemetry.PhaseReduction),
+				log.Err(err),
+			)
+		}
+		cancel()
+	}
+	go func() {
+		defer close(stopped)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-heartbeatCtx.Done():
+				return
+			case <-done:
+				return
+			case <-ticker.C:
+				claimed, err := r.LeaseManager.ClaimPartitionLease(
+					heartbeatCtx,
+					DomainRepoDependency,
+					r.Config.partitionID(),
+					r.Config.partitionCount(),
+					r.Config.leaseOwner(),
+					r.Config.leaseTTL(),
+				)
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						return
+					}
+					recordFailure(err)
+					return
+				}
+				if !claimed {
+					recordFailure(errors.New("repo dependency lease heartbeat lost ownership"))
+					return
+				}
+			}
+		}
+	}()
+	var stopErr error
+	return heartbeatCtx, func() error {
+		once.Do(func() {
+			close(done)
+			cancel()
+			<-stopped
+			failureMu.Lock()
+			stopErr = failure
+			failureMu.Unlock()
+		})
+		return stopErr
+	}
+}
+
+func repoDependencyLeaseHeartbeatInterval(leaseTTL time.Duration) time.Duration {
+	if leaseTTL <= 0 {
+		return 0
+	}
+	interval := leaseTTL / 3
+	if interval <= 0 {
+		return leaseTTL
+	}
+	if interval > time.Minute {
+		return time.Minute
+	}
+	return interval
 }
 
 // recordRepoDependencyQuiescenceBlocked leaves operator-visible evidence for

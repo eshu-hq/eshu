@@ -6,7 +6,7 @@ domain-specific edge semantics here.
 
 ## Runner contract
 
-`SharedProjectionRunner` (`shared_projection_runner.go:95`) iterates all
+The shared worker `Runner` (`intents/shared/worker/runner.go`) iterates all
 shared-projection domains and all partitions each cycle, calling
 `ProcessPartitionOnce` for each domain/partition pair. Domains processed:
 `platform_infra`, `workload_dependency`, `inheritance_edges`,
@@ -17,7 +17,8 @@ The runner uses exponential back-off, doubling each empty cycle and capped at
 intents are blocked on a readiness phase (`BlockedReadiness > 0`), it
 re-polls at the base interval without backing off.
 
-`CodeCallProjectionRunner` owns the `code_calls` domain separately because it
+The code-call projection `Runner` (`code/call/projection/runner.go`) owns the
+`code_calls` domain separately because it
 rewrites accepted repo/run units while preserving repo-wide retraction
 semantics. By default it runs one partition and one worker. When configured
 with multiple code-call partitions and workers, it may process distinct

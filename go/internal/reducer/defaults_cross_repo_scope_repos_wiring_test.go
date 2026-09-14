@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -66,7 +67,7 @@ func TestDeploymentMappingRegistrationCarriesScopeRepos(t *testing.T) {
 		ScopeRepos:                 repos,
 	})
 
-	var resolver CrossRepoRelationshipResolver
+	var resolver platformfam.CrossRepoRelationshipResolver
 	found := false
 	for _, definition := range definitions {
 		if definition.Domain != DomainDeploymentMapping {

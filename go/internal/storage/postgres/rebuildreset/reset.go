@@ -124,11 +124,13 @@ WHERE (scope_id, generation_id) IN (%s)
 // ack dedupes the re-emitted intent. The polite half — a bounded drain wait —
 // lives in the caller's RefinalizeScopeProjections; this guard closes the
 // poll-to-commit window atomically, in the same statement as the retirement.
-// The live-lease predicate mirrors the claim system: claim_until > now() means
+// The live-lease predicate mirrors the claim system: claim_until >
+// clock_timestamp() means
 // a worker is (or may still be) executing, while NULL or expired means the row
 // is reclaimable and whoever reclaims it resolves post-retirement, which is
-// the legitimate re-projection direction. now() is the transaction start, so
-// the guard sees the same lease clock as the drain wait in its transaction.
+// the legitimate re-projection direction. clock_timestamp() advances inside
+// the transaction, matching the drain wait and allowing a crashed worker's
+// lease to expire while recovery polls.
 // The subquery re-unnests the caller's $1/$2 arrays, so the guard fences
 // exactly the set the outer IN retires, with no new bind arguments.
 const retireResolutionGenerationsTemplate = `
@@ -141,7 +143,7 @@ WHERE status = 'active'
     FROM fact_work_items AS w
     WHERE w.stage = 'reducer'
       AND w.status IN ('claimed', 'running')
-      AND w.claim_until > now()
+      AND w.claim_until > clock_timestamp()
       AND (w.scope_id, w.generation_id) IN (
         SELECT * FROM unnest($1::text[], $2::text[]) AS fenced(scope_id, generation_id)
       )

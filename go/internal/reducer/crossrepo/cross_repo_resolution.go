@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package crossrepo //nolint:filelength // 509 lines: cross-repo resolution logic. Consolidating the cross-repo identifier hydration and resolution graph reads in one file keeps the deterministic ordering and dedup rules reviewable.
+package crossrepo
 
 import (
 	"context"
@@ -91,15 +91,6 @@ type RepoDependencyIntentWriter interface {
 	UpsertIntents(ctx context.Context, rows []sharedintent.Row) error
 }
 
-// ScopeRepositoryReader lists the git repository IDs whose facts belong to a
-// scope generation. The resolver uses it to attribute each resolved edge to
-// the scope that owns its source repository (see partitionResolvedOwnership).
-// Nil disables the partition (legacy emit-all); unit tests that construct the
-// handler directly leave it nil.
-type ScopeRepositoryReader interface {
-	ListScopeRepositoryIDs(ctx context.Context, scopeID, generationID string) ([]string, error)
-}
-
 // CrossRepoRelationshipHandler resolves cross-repository relationships from
 // persisted evidence facts and emits durable repo-dependency projection intents.
 //
@@ -123,102 +114,6 @@ type CrossRepoRelationshipHandler struct {
 	ScopeRepos        ScopeRepositoryReader
 	Tracer            trace.Tracer
 	Instruments       *telemetry.Instruments
-}
-
-// partitionResolvedOwnership splits resolved edges into the ones this scope
-// owns (source repository belongs to one of its own repository facts) and
-// foreign ones owned by another scope. Every resolving scope sees the union
-// of its own and backward evidence, so without this partition two scopes
-// routinely resolve the same logical edge; both rows reach the graph writer,
-// which MERGEs by edge identity and lets the generation stamp be
-// last-writer-wins. Worker-count scheduling then decides the stamp and the
-// byte-exact graph digest diverges across the determinism matrix (#6184: the
-// same multi-source→multi-target DEPENDS_ON edge landed stamped
-// multi-source in N=1 and multi-target in N=4).
-//
-// Ownership is single-writer by construction: the source scope's resolver
-// always emits (its deployment_mapping item exists by production parity —
-// every repo snapshot emits the follow-up), so dropping the foreign copy
-// loses no edge. Scopes the reader cannot classify (nil reader, lookup
-// error is fatal, empty repository set) keep the legacy emit-all behavior
-// rather than silently dropping edges.
-// resolveOwnership loads this scope's own repository IDs for the ownership
-// partition. It returns enforce=false (legacy emit-all) when no reader is
-// wired or the scope holds no git repository facts and therefore cannot be
-// classified; a lookup failure is fatal rather than guessed.
-func (h *CrossRepoRelationshipHandler) resolveOwnership(
-	ctx context.Context,
-	scopeID string,
-	generationID string,
-) (map[string]struct{}, bool, error) {
-	if h.ScopeRepos == nil {
-		return nil, false, nil
-	}
-	repoIDs, err := h.ScopeRepos.ListScopeRepositoryIDs(ctx, scopeID, generationID)
-	if err != nil {
-		return nil, false, err
-	}
-	own := make(map[string]struct{}, len(repoIDs))
-	for _, repoID := range repoIDs {
-		if normalized := normalizeReducerRepositoryID(repoID); normalized != "" {
-			own[normalized] = struct{}{}
-		}
-	}
-	if len(own) == 0 {
-		return nil, false, nil
-	}
-	return own, true, nil
-}
-
-// filterEvidenceFactsBySourceRepos restricts evidence to this scope's own
-// repositories so retraction covers only repos this scope may rewrite. With
-// enforce=false the input is returned unchanged (legacy behavior).
-func filterEvidenceFactsBySourceRepos(
-	facts []relationships.EvidenceFact,
-	ownRepos map[string]struct{},
-	enforce bool,
-) []relationships.EvidenceFact {
-	if !enforce {
-		return facts
-	}
-	// Allocated, not filtered in place: the caller retains facts for its own
-	// logging, and an in-place facts[:0] filter would clobber the backing
-	// array out from under it.
-	kept := make([]relationships.EvidenceFact, 0, len(facts))
-	for _, fact := range facts {
-		source := normalizeReducerRepositoryID(fact.SourceRepoID)
-		if source == "" {
-			kept = append(kept, fact)
-			continue
-		}
-		if _, ok := ownRepos[source]; ok {
-			kept = append(kept, fact)
-		}
-	}
-	return kept
-}
-
-func partitionResolvedOwnership(
-	resolved []relationships.ResolvedRelationship,
-	ownRepos map[string]struct{},
-	enforce bool,
-) (owned, dropped []relationships.ResolvedRelationship) {
-	if !enforce {
-		return resolved, nil
-	}
-	for _, relationship := range resolved {
-		source := normalizeReducerRepositoryID(relationship.SourceRepoID)
-		if source == "" {
-			owned = append(owned, relationship)
-			continue
-		}
-		if _, ok := ownRepos[source]; ok {
-			owned = append(owned, relationship)
-			continue
-		}
-		dropped = append(dropped, relationship)
-	}
-	return owned, dropped
 }
 
 // Resolve executes the cross-repo relationship resolution pipeline for one
@@ -376,6 +271,7 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	ownedResolved, droppedResolved := partitionResolvedOwnership(resolved, ownRepos, enforceOwnership)
 	ownEvidenceFacts := filterEvidenceFactsBySourceRepos(evidenceFacts, ownRepos, enforceOwnership)
 	if len(droppedResolved) > 0 {
+		h.recordCrossRepoEdgeOutcomes(ctx, droppedResolved, crossRepoEdgeOutcomeForeignOwnedDropped)
 		slog.InfoContext(
 			ctx, "cross-repo resolution dropped foreign-owned edges",
 			log.ScopeID(scopeID),
@@ -459,6 +355,7 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 				ctx, int64(count),
 				metric.WithAttributes(
 					attribute.String("relationship_type", relationshipType),
+					telemetry.AttrOutcome(crossRepoEdgeOutcomeOwnedRouted),
 				),
 			)
 		}

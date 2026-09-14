@@ -3,7 +3,10 @@
 
 package reducer
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 const (
 	defaultRepoDependencyProjectionLeaseTTL     = 5 * time.Minute
@@ -11,6 +14,12 @@ const (
 	defaultRepoDependencyGraphQuiescenceBudget  = 2 * time.Minute
 	repoDependencyProjectionLeaseSafetyMargin   = 30 * time.Second
 )
+
+// CanonicalCodeQuiescenceChecker reports whether any active code generation
+// still lacks its canonical-nodes phase.
+type CanonicalCodeQuiescenceChecker interface {
+	HasUncommittedCanonicalCodeScopes(ctx context.Context) (bool, error)
+}
 
 // RepoDependencyProjectionRunnerConfig configures the controlled repo-dependency lane.
 type RepoDependencyProjectionRunnerConfig struct {

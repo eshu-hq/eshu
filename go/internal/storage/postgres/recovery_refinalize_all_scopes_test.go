@@ -182,7 +182,7 @@ func assertRefinalizeBindsOneGenerationSet(
 		t.Fatalf("query count = %d, want 3 (generation read, drain poll, enqueue)", len(db.queries))
 	}
 	poll := db.queries[1]
-	if !strings.Contains(poll.query, "fact_work_items") || !strings.Contains(poll.query, "claim_until > now()") {
+	if !strings.Contains(poll.query, "fact_work_items") || !strings.Contains(poll.query, "claim_until > clock_timestamp()") {
 		t.Fatalf("the drain poll is not the live-lease count, so the fence watches something "+
 			"other than in-flight reducers: %s", poll.query)
 	}

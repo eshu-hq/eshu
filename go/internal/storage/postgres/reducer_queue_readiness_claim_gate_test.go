@@ -199,7 +199,8 @@ var readinessClassOwningDomain = map[string]string{
 	// #6184: deployable-unit correlation defers until the scope's own
 	// relationship generation activates. Placed on its handler's domain
 	// explicitly for the same naming reason.
-	reducer.DeployableUnitCorrelationResolutionNotReadyFailureClass: string(reducer.DomainDeployableUnitCorrelation),
+	reducer.DeployableUnitCorrelationResolutionNotReadyFailureClass:     string(reducer.DomainDeployableUnitCorrelation),
+	reducer.DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass: string(reducer.DomainDeployableUnitCorrelation),
 	// #6184: workload projection inputs defer on the same fence inside the
 	// workload materialization input loader. Placed on that domain explicitly
 	// for the same naming reason.

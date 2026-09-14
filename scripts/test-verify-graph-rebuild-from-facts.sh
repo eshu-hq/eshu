@@ -127,5 +127,42 @@ File|src/main.go||src/main.go|repo-1|
 ' 'TerraformResource|null_resource.network_placeholder|network_placeholder|main.tf|repo-1|||DECLARED_IN||File|src/main.go||src/main.go|repo-1|
 ')"
 
+# The interrupted pass must kill workers while both graph output and queued
+# work exist. A fixed sleep can land before projection begins or after it
+# finishes, turning the recovery proof into a vacuous restart. Stub the live
+# probes with two samples: the helper must ignore the zero-node sample and
+# capture the first genuinely in-progress state.
+interrupt_mock_dir="$(mktemp -d)"
+printf '0\n' >"${interrupt_mock_dir}/graph-calls"
+printf '0\n' >"${interrupt_mock_dir}/queue-calls"
+graph_scalar() {
+	local calls
+	calls="$(<"${interrupt_mock_dir}/graph-calls")"
+	printf '%s\n' "$((calls + 1))" >"${interrupt_mock_dir}/graph-calls"
+	if [[ "${calls}" -eq 0 ]]; then printf '0\n'; else printf '7\n'; fi
+}
+queue_active_count() {
+	local calls
+	calls="$(<"${interrupt_mock_dir}/queue-calls")"
+	printf '%s\n' "$((calls + 1))" >"${interrupt_mock_dir}/queue-calls"
+	if [[ "${calls}" -eq 0 ]]; then printf '5\n'; else printf '3\n'; fi
+}
+sleep() { :; }
+
+INTERRUPT_NODES=0
+REMAINING=0
+wait_for_interrupt_point 2 >/dev/null 2>&1
+interrupt_status=$?
+if [[ "${interrupt_status}" -ne 0 ]]; then
+	record_fail "interrupted rebuild waits for a real in-progress checkpoint" \
+		"wait_for_interrupt_point returned ${interrupt_status}"
+elif [[ "${INTERRUPT_NODES}" != "7" || "${REMAINING}" != "3" ]]; then
+	record_fail "interrupted rebuild waits for a real in-progress checkpoint" \
+		"captured nodes=${INTERRUPT_NODES} work=${REMAINING}, want nodes=7 work=3"
+else
+	record_pass "interrupted rebuild waits for a real in-progress checkpoint"
+fi
+rm -rf "${interrupt_mock_dir}"
+
 printf '\n%d passed, %d failed\n' "${pass_count}" "${fail_count}"
 [[ "${fail_count}" -eq 0 ]]

@@ -38,6 +38,8 @@ type DeployableUnitCorrelationHandler struct {
 	// This is the shared relationship-generation fence also backing the
 	// repo-dependency lane, so main.go wires the same lookup value here.
 	ResolutionActiveLookup maintenance.RelationshipGenerationActiveLookup
+	// CanonicalQuiescence keeps graph writes behind repository projection.
+	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 }
 
 // Handle executes the deployable-unit correlation reduction path.
@@ -80,17 +82,16 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	// review).
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
-	// Fail closed before the resolved-relationship read. Both feeds of that
-	// read (the generation-pinned own-scope load and the by-repos load over
-	// active generations) are partial while the scope's own resolution has
-	// not activated, and a success on that partial input is never
-	// reopened (#6184). Defer instead; the non-counting retry class keeps the
-	// budget intact while the intent waits on its upstream activation.
+	// Fail closed before the resolved-relationship read: both feeds are partial
+	// until the scope's own resolution activates, and success is never reopened.
 	if !ownResolutionGenerationReady(h.ResolutionActiveLookup, intent, candidates) {
 		return Result{}, deployableUnitCorrelationResolutionNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
+	}
+	if err := deployableUnitCanonicalReposReady(ctx, h.CanonicalQuiescence, intent, len(candidates) > 0); err != nil {
+		return Result{}, err
 	}
 
 	var resolved []relationships.ResolvedRelationship
