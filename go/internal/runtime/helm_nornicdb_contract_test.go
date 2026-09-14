@@ -91,6 +91,22 @@ func TestHelmBundledNornicDBDefaultsToFreshV132StorageAndAmd64(t *testing.T) {
 	}
 }
 
+func TestHelmNornicDBTemplatesStayUnderAgentLineCap(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{
+		"deploy/helm/eshu/templates/_data_plane_helpers.tpl",
+		"deploy/helm/eshu/templates/_helpers.tpl",
+		"deploy/helm/eshu/templates/_validation_core.tpl",
+		"deploy/helm/eshu/templates/validate.yaml",
+	} {
+		lines := countRepositoryFileLines(t, path)
+		if lines > 500 {
+			t.Fatalf("%s has %d lines, want <= 500", path, lines)
+		}
+	}
+}
+
 func TestHelmBundledNornicDBExistingClaimIsExplicit(t *testing.T) {
 	t.Parallel()
 

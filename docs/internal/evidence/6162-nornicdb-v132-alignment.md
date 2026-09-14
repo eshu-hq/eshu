@@ -43,6 +43,7 @@ and isolated per-worktree Go caches.
 | Contract | Command | Result |
 | --- | --- | --- |
 | Runtime defaults and storage contracts | `go test ./internal/runtime -run '^(TestComposeNornicDBImage|TestHelmNornicDB)' -count=1` | pass |
+| Helm template split | `go test ./internal/runtime -count=1`, `helm lint deploy/helm/eshu`, and default `helm template` before/after SHA-256 | pass; rendered output remained `b09dee50f548b25a24a31de2a050e66045f6b85c04a770d6339b43b280a7e8bd`, the legacy-PVC rejection remained active, and all four touched template files are below 500 lines |
 | Snapshot-conflict classifier regression | `go test ./internal/storage/cypher -run '^(TestClassifyTransientNeo4jErrorPrioritizesNornicDBWriteConflict|TestClassifyTransientNeo4jErrorRejectsV131ConflictNearMisses|TestRetryingExecutorV131WriteConflictUsesBoundedMetricReason)$' -count=1` | pass |
 | Shell verifier mirrors | `bash scripts/test-verify-replay-tier.sh`, `bash scripts/test-verify-k8s-two-team-governance-proof.sh`, and `bash scripts/test-k8s-two-team-governance-provenance.sh` | pass |
 | Required live backend conformance | `bash scripts/verify_backend_conformance_live.sh` against the exact v1.3.2 amd64 artifact | pass; supported corpus, write-conflict retry, stale-attribute removal, and heterogeneous CloudResource batch contracts |
