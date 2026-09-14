@@ -6,6 +6,8 @@
 
 ifa_fault_sources_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+# shellcheck source=scripts/lib/ifa_fault_injection_diagnostics.sh
+source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_diagnostics.sh"
 # shellcheck source=scripts/lib/ifa_fault_injection_driver.sh
 source "${ifa_fault_sources_root}/scripts/lib/ifa_fault_injection_driver.sh"
 # shellcheck source=scripts/lib/ifa_fault_shard.sh

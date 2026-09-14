@@ -34,7 +34,11 @@ than there are entries here.
 5. restart-backend-between-phase-groups    -- the same tagged reducer
    with a fault script that pauses after the first completed graph-write
    group; this gate restarts the nornicdb Compose service while the
-   reducer is blocked on that pause, then releases it.
+   reducer is blocked on that pause, then releases it. The decorator writes
+   the exact group whose executor call returned success to
+   `<sentinel>.trigger.json` before exposing
+   the sentinel, so a retained failure artifact identifies the operation,
+   Cypher, parameters, and prepared rows at the restart boundary.
 6. kill-worker-after-claim-sql (#5555)     -- mirrors cell 2, but
    wait_for_claimed is scoped to domain=sql_relationship_materialization
    specifically, provably targeting SQL work instead of whichever domain

@@ -16,8 +16,8 @@
 # through a FRESH Postgres + NornicDB Compose stack per cell (`down -v` between every cell,
 # mirroring every sibling verify-ifa-*.sh script), then injects one scripted fault per cell into the
 # real eshu-reducer binary and asserts that, after the fault and a full
-# drain, the canonicalized graph (`ifa graph-dump -digest`) is
-# BYTE-IDENTICAL to the fault-free baseline and fact_work_items carries ZERO
+# drain, the SHA-256 of the retained canonical graph dump is BYTE-IDENTICAL
+# to the fault-free baseline and fact_work_items carries ZERO
 # durable dead_letter rows -- Layer 4's unchanged acceptance clause: "still
 # correct" is the same digest comparison Layers 1-2 already define, applied
 # along the failure axis instead of the scheduling axis.
@@ -227,6 +227,13 @@ cleanup() {
 	local status=$?
 	local barrier_cleanup_rc=0
 	if [[ "${status}" -ne 0 && -d "${log_dir}" ]]; then
+		if [[ "${keep}" -eq 1 ]]; then
+			if ifa_fault_capture_failure_preserving_status "${status}" \
+				"${work_dir}" "${log_dir}" "${FAULT_COMPOSE_PROJECT:-}" "${compose_file:-}" \
+				"${use_compose:-0}" "${ESHU_POSTGRES_DSN:-}" "${bin_dir:-}"; then
+				:
+			fi
+		fi
 		# A dead-lettered row's failure_message exists ONLY in Postgres, and the
 		# tail below is routinely flooded by INFO chatter (one real CI failure
 		# spent all 60 of its lines on "drift finding admitted"), so a red cell

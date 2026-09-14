@@ -76,8 +76,7 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 		t.Fatalf("stat %s: %v; every failure below tells the operator to edit that file, so it has to be there", directMaterializedEdgeFamilyTableFile, err)
 	}
 
-	ports := scanReducerInterfacePorts(t, filepath.Join(repoRoot, "go", "internal", "reducer"))
-	src := parseCypherPackage(t, filepath.Join(repoRoot, "go", "internal", "storage", "cypher"))
+	src, ports := parseCypherPackageWithReducerPorts(t, filepath.Join(repoRoot, "go"))
 	classified := classifyCypherPorts(src, ports)
 	if len(classified) == 0 {
 		t.Fatal("no reducer interface port resolved to a cypher implementation; the scan went vacuous and would pass no matter how many families are blind")
@@ -103,6 +102,11 @@ func TestDirectMaterializedEdgePortsMatchTheExecutedCypher(t *testing.T) {
 	seen := map[string]struct{}{}
 	for _, row := range classified {
 		seen[row.Port] = struct{}{}
+		if len(row.UnknownRefs) > 0 {
+			t.Errorf("%s cannot be classified because its reachable call graph has unresolved package-local boundaries:\n  %s",
+				row.Port, strings.Join(row.UnknownRefs, "\n  "))
+			continue
+		}
 		edgeFamily, isEdge := reducer.DirectMaterializedEdgeFamilyForPort(row.Port)
 		if isEdge && strings.TrimSpace(edgeFamily) == "" {
 			t.Errorf("%s is declared a direct materialized-edge port but maps to a blank family in %s; a blank family names no ledger row and would report as covered by nothing",

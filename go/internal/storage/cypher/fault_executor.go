@@ -9,21 +9,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
 )
-
-// ifaFaultSentinelPollInterval is how often the restart-backend-between-
-// phase-groups fault polls for the sentinel file's removal while blocked.
-// This is a poll, not a wall-clock trigger for the fault itself: the fault
-// FIRES on an observed phase-group ordinal (deterministic); only the wait
-// for the harness's external restart-and-release action is time-based, and
-// that wait is bounded by ctx, never open-ended (see maybeRestartAfterGroup).
-const ifaFaultSentinelPollInterval = 200 * time.Millisecond
 
 var (
 	// errFaultingExecutorInnerNoGroup is returned by ExecuteGroup when the
@@ -273,7 +263,12 @@ func (fe *FaultingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement)
 	if err := ge.ExecuteGroup(armedCtx, stmts); err != nil {
 		return err
 	}
-	return fe.maybeRestartAfterGroup(ctx, int(fe.groupOrdinal.Add(1)))
+	return fe.maybeRestartAfterGroup(
+		ctx,
+		int(fe.groupOrdinal.Add(1)),
+		restartSurfaceExecuteGroup,
+		stmts,
+	)
 }
 
 // ExecutePhaseGroup mirrors ExecuteGroup for the narrower PhaseGroupExecutor
@@ -292,7 +287,12 @@ func (fe *FaultingExecutor) ExecutePhaseGroup(ctx context.Context, stmts []State
 	if err := pge.ExecutePhaseGroup(armedCtx, stmts); err != nil {
 		return err
 	}
-	return fe.maybeRestartAfterGroup(ctx, int(fe.groupOrdinal.Add(1)))
+	return fe.maybeRestartAfterGroup(
+		ctx,
+		int(fe.groupOrdinal.Add(1)),
+		restartSurfaceExecutePhase,
+		stmts,
+	)
 }
 
 // ExecuteProbe forwards a read-only probe to inner unconditionally: none of
@@ -366,43 +366,6 @@ func (fe *FaultingExecutor) maybeFailOnce(
 func (fe *FaultingExecutor) onceMatches(ordinal int, stmts []Statement) bool {
 	_, ok := fe.onceMatchedStatement(ordinal, stmts)
 	return ok
-}
-
-// maybeRestartAfterGroup fires the scripted restart-backend-between-phase-
-// groups fault the first time groupOrdinal reaches the scripted threshold,
-// AFTER the just-completed phase group's write has already landed against
-// inner. It writes a sentinel file, then blocks -- polling for the
-// sentinel's removal -- until the file disappears or ctx is done. The
-// (deferred, out of this slice's scope) Docker gate script is expected to
-// restart the graph backend while this call is blocked, then delete the
-// sentinel file to release it. ctx.Done() always wins over an unremoved
-// sentinel, so this can never deadlock a caller that supplies a bounded
-// context.
-func (fe *FaultingExecutor) maybeRestartAfterGroup(ctx context.Context, groupOrdinal int) error {
-	if fe.restartAfterGroups == 0 || groupOrdinal != fe.restartAfterGroups {
-		return nil
-	}
-	if !fe.restartFired.CompareAndSwap(false, true) {
-		return nil
-	}
-	// #nosec G306 -- sentinel is a local/CI fault-injection coordination flag
-	// file for the (deferred) Docker gate script, not user or request data;
-	// 0o644 lets the operator/gate script read and remove it.
-	if err := os.WriteFile(fe.sentinelPath, []byte("waiting-for-backend-restart\n"), 0o644); err != nil {
-		return fmt.Errorf("ifa fault: %s: write sentinel %q: %w", faultreplay.KindRestartBackendBetweenPhaseGroups, fe.sentinelPath, err)
-	}
-	ticker := time.NewTicker(ifaFaultSentinelPollInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("ifa fault: %s: canceled waiting for sentinel %q removal: %w", faultreplay.KindRestartBackendBetweenPhaseGroups, fe.sentinelPath, ctx.Err())
-		case <-ticker.C:
-			if _, err := os.Stat(fe.sentinelPath); os.IsNotExist(err) {
-				return nil
-			}
-		}
-	}
 }
 
 // ifaFaultQueueRetryError is returned once for the queue-retry lane of a
