@@ -34,8 +34,8 @@ directory instead of collecting this retained artifact set.
 ## Performance and observability
 
 No-Regression Evidence (#6162): baseline
-`5145345672acb83717fd268961827761637524e2` and implementation commit
-`a75ae9b4be258f96046160ef937bdf8a42bc58c6` both select
+`48e77c61ecb6df06c7dcd4cbce3d37cb19ece5f5` and implementation commit
+`c4b7485522a32e2858a9cb539cee6747e54404dc` both select
 `fault_executor_off.go` in default builds. The recorder and restart sentinel
 path are absent, so this change adds no production graph call, work item,
 queue row, or request-path work. No runtime timing was measured or is claimed.
