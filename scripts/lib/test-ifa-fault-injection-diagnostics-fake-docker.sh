@@ -15,15 +15,27 @@ runtime_repository_digest="${IFA_TEST_RUNTIME_REPO_DIGEST:-${default_repository}
 runtime_os="${IFA_TEST_RUNTIME_OS:-linux}"
 runtime_architecture="${IFA_TEST_RUNTIME_ARCHITECTURE:-amd64}"
 if [[ "$1" == compose && "$*" == *" config --format json" ]]; then
+	if [[ "${IFA_TEST_COMPOSE_CONFIG_FAIL:-0}" -eq 1 ]]; then
+		printf 'compose failed for private-registry.internal at /private/compose/path\n' >&2
+		exit 1
+	fi
 	printf '{"services":{"nornicdb":{"image":"%s","platform":"%s","environment":{"NORNICDB_ADMIN_TOKEN":"compose-secret"},"volumes":[{"source":"/private/compose/path","target":"/data"}]},"postgres":{"environment":{"POSTGRES_PASSWORD":"compose-secret"}}}}\n' \
 		"${rendered_image}" "${rendered_platform}"
 elif [[ "$1" == compose && "$*" == *" ps -q nornicdb" ]]; then
 	printf 'container-1\n'
 elif [[ "$1" == compose && "$*" == *" logs --no-color" ]]; then
+	if [[ "${IFA_TEST_COMPOSE_LOGS_PRIVATE:-0}" -eq 1 ]]; then
+		printf 'startup used private-registry.internal from /private/compose/path\n'
+		exit 0
+	fi
 	printf 'synthetic compose log\n'
 elif [[ "$1" == compose && "$*" == *" images nornicdb" ]]; then
 	printf 'nornicdb fixture-image sha256:image\n'
 elif [[ "$1" == compose && "$*" == *" exec -T postgres psql"* ]]; then
+	if [[ "${IFA_TEST_COMPOSE_EXEC_FAIL:-0}" -eq 1 ]]; then
+		printf 'exec failed for private-registry.internal at /private/compose/path\n' >&2
+		exit 1
+	fi
 	printf 'fixture database row\n'
 elif [[ "$1" == image && "$2" == inspect ]]; then
 	[[ "${IFA_TEST_IMAGE_INSPECT_FAIL:-0}" -eq 0 ]] || exit 1

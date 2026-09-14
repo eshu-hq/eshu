@@ -433,8 +433,8 @@ test_ifa_fault_failure_artifact_contract() {
 		|| fail "failure diagnostics do not retain the durable GCP fact inputs"
 	rg --fixed-strings --quiet -- 'backend_source_revision: "unavailable"' "${diagnostics_lib}" \
 		|| fail "failure diagnostics do not record unavailable backend source revision honestly"
-	rg --fixed-strings --quiet -- '@sha256:[0-9a-f]{64}$' "${diagnostics_lib}" \
-		|| fail "failure diagnostics do not require an immutable backend index digest"
+	rg --fixed-strings --quiet -- 'v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440' "${diagnostics_lib}" \
+		|| fail "failure diagnostics do not require the proven immutable backend index"
 	rg --fixed-strings --quiet -- 'config --format json' "${diagnostics_lib}" \
 		|| fail "diagnostics do not derive backend provenance from rendered Compose config"
 	rg --fixed-strings --quiet -- 'NORNICDB_(NO_AUTH|DATA_DIR|HTTP_PORT|BOLT_PORT|ASYNC_WRITES_ENABLED|' "${diagnostics_lib}" \

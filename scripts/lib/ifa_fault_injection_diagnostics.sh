@@ -68,15 +68,15 @@ ifa_fault_run_bounded() {
 	fi
 }
 
-# ifa_fault_backend_selection reads the exact immutable image and supported
-# platform from rendered Compose. Tag-only images and non-amd64 proof runs fail
-# closed because this gate has live evidence only for linux/amd64.
+# ifa_fault_backend_selection accepts only the exact public immutable image and
+# platform this proof lane validates. Alternative registries need their own
+# public-safe proof mapping before their failure artifacts may be retained.
 ifa_fault_backend_selection() {
 	local compose_config="$1"
 	ifa_fault_run_bounded jq -er '
 		.services.nornicdb
 		| select(
-			(.image | type == "string" and test("@sha256:[0-9a-f]{64}$"))
+			.image == "timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
 			and .platform == "linux/amd64"
 		)
 		| [.image, .platform]
@@ -87,8 +87,8 @@ ifa_fault_backend_selection() {
 # ifa_fault_write_backend_provenance binds the immutable rendered index and
 # platform to the container's configured reference and locally resolved image.
 # Docker 28.0 lacks `image inspect --platform`, so the official v1.3.2 amd64
-# child is an explicit proof mapping. Controlled overrides must expose the
-# configured index itself in RepoDigests.
+# child is an explicit proof mapping. Unmapped image overrides fail before
+# identity artifacts are written, keeping private registry references out.
 ifa_fault_write_backend_provenance() {
 	local compose_config="$1" container_json="$2" runtime_image_json="$3"
 	local output="$4" temporary="${4}.tmp"
@@ -277,32 +277,29 @@ ifa_fault_capture_failure_diagnostics() {
 		complete=0
 	fi
 	ifa_fault_validate_cell_artifacts "${manifest}" "${work_root}" "${current_cell}" || complete=0
-
-	work_items_sql="COPY (SELECT work_item_id, stage, domain, scope_id, generation_id, status, attempt_count, failure_class, failure_message FROM fact_work_items ORDER BY stage, domain, scope_id, generation_id, work_item_id) TO STDOUT WITH (FORMAT csv, HEADER true);"
-	gcp_facts_sql="SELECT jsonb_build_object('fact_id', fact_id, 'scope_id', scope_id, 'generation_id', generation_id, 'fact_kind', fact_kind, 'stable_fact_key', stable_fact_key, 'schema_version', schema_version, 'collector_kind', collector_kind, 'fencing_token', fencing_token, 'source_confidence', source_confidence, 'source_system', source_system, 'source_fact_key', source_fact_key, 'source_uri', source_uri, 'source_record_id', source_record_id, 'observed_at', observed_at, 'ingested_at', ingested_at, 'is_tombstone', is_tombstone, 'payload', payload) FROM fact_records WHERE fact_kind IN ('gcp_cloud_resource', 'gcp_cloud_relationship') ORDER BY scope_id, generation_id, observed_at, fact_id;"
-	if [[ "${use_compose}" -eq 1 ]]; then
-		ifa_fault_capture_command "${manifest}" work-items "${work_root}/work-items.csv" \
-			docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \
-			psql -U eshu -d eshu -tA -c "${work_items_sql}" || complete=0
-		ifa_fault_capture_command "${manifest}" gcp-facts "${work_root}/gcp-facts.jsonl" \
-			docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \
-			psql -U eshu -d eshu -tA -c "${gcp_facts_sql}" || complete=0
-	else
-		ifa_fault_capture_command "${manifest}" work-items "${work_root}/work-items.csv" \
-			psql "${postgres_dsn}" -tA -c "${work_items_sql}" || complete=0
-		ifa_fault_capture_command "${manifest}" gcp-facts "${work_root}/gcp-facts.jsonl" \
-			psql "${postgres_dsn}" -tA -c "${gcp_facts_sql}" || complete=0
-	fi
+	rm -f "${work_root}/work-items.csv" "${work_root}/work-items.csv.error" \
+		"${work_root}/gcp-facts.jsonl" "${work_root}/gcp-facts.jsonl.error"
 
 	if [[ "${use_compose}" -eq 1 ]]; then
-		rm -f "${work_root}/backend-compose-config.json" \
+		rm -f "${logs}/compose-services.log" \
+			"${logs}/compose-services.log.error" \
+			"${work_root}/backend-image.txt" \
+			"${work_root}/backend-image.txt.error" \
+			"${work_root}/backend-compose-config.json" \
+			"${work_root}/backend-compose-config.json.error" \
+			"${work_root}/backend-container.json" \
+			"${work_root}/backend-container.json.error" \
 			"${work_root}/backend-expected-platform-image.json" \
+			"${work_root}/backend-expected-platform-image.json.error" \
 			"${work_root}/backend-runtime-image.json" \
-			"${work_root}/backend-provenance.json"
+			"${work_root}/backend-runtime-image.json.error" \
+			"${work_root}/backend-provenance.json" \
+			"${work_root}/nornicdb-environment.txt" \
+			"${work_root}/nornicdb-environment.txt.error"
 		if ifa_fault_capture_command "${manifest}" backend-compose-config \
 			"${work_root}/backend-compose-config.json" \
 			bash -o pipefail -c \
-			'docker compose -p "$1" -f "$2" config --format json | jq '\''{services: {nornicdb: {image: .services.nornicdb.image, platform: .services.nornicdb.platform}}}'\''' \
+			'docker compose -p "$1" -f "$2" config --format json 2>/dev/null | jq -e '\''{services: {nornicdb: {image: .services.nornicdb.image, platform: .services.nornicdb.platform}}} | select(.services.nornicdb.image == "timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440" and .services.nornicdb.platform == "linux/amd64")'\''' \
 			_ "${compose_project}" "${compose_file}"; then
 			backend_selection="$(ifa_fault_backend_selection \
 				"${work_root}/backend-compose-config.json")" || true
@@ -317,13 +314,38 @@ ifa_fault_capture_failure_diagnostics() {
 		else
 			complete=0
 		fi
-		ifa_fault_capture_command "${manifest}" compose-logs "${logs}/compose-services.log" \
-			docker compose -p "${compose_project}" -f "${compose_file}" logs --no-color || complete=0
-		ifa_fault_capture_command "${manifest}" backend-image "${work_root}/backend-image.txt" \
-			docker compose -p "${compose_project}" -f "${compose_file}" images nornicdb || complete=0
-		container_id="$(ifa_fault_run_bounded \
-			docker compose -p "${compose_project}" -f "${compose_file}" ps -q nornicdb 2>/dev/null)" || true
-		if [[ -n "${container_id}" ]]; then
+	fi
+
+	work_items_sql="COPY (SELECT work_item_id, stage, domain, scope_id, generation_id, status, attempt_count, failure_class, failure_message FROM fact_work_items ORDER BY stage, domain, scope_id, generation_id, work_item_id) TO STDOUT WITH (FORMAT csv, HEADER true);"
+	gcp_facts_sql="SELECT jsonb_build_object('fact_id', fact_id, 'scope_id', scope_id, 'generation_id', generation_id, 'fact_kind', fact_kind, 'stable_fact_key', stable_fact_key, 'schema_version', schema_version, 'collector_kind', collector_kind, 'fencing_token', fencing_token, 'source_confidence', source_confidence, 'source_system', source_system, 'source_fact_key', source_fact_key, 'source_uri', source_uri, 'source_record_id', source_record_id, 'observed_at', observed_at, 'ingested_at', ingested_at, 'is_tombstone', is_tombstone, 'payload', payload) FROM fact_records WHERE fact_kind IN ('gcp_cloud_resource', 'gcp_cloud_relationship') ORDER BY scope_id, generation_id, observed_at, fact_id;"
+	if [[ "${use_compose}" -eq 1 && -n "${backend_selection}" ]]; then
+		ifa_fault_capture_command "${manifest}" work-items "${work_root}/work-items.csv" \
+			docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \
+			psql -U eshu -d eshu -tA -c "${work_items_sql}" || complete=0
+		ifa_fault_capture_command "${manifest}" gcp-facts "${work_root}/gcp-facts.jsonl" \
+			docker compose -p "${compose_project}" -f "${compose_file}" exec -T postgres \
+			psql -U eshu -d eshu -tA -c "${gcp_facts_sql}" || complete=0
+	elif [[ "${use_compose}" -eq 0 ]]; then
+		ifa_fault_capture_command "${manifest}" work-items "${work_root}/work-items.csv" \
+			psql "${postgres_dsn}" -tA -c "${work_items_sql}" || complete=0
+		ifa_fault_capture_command "${manifest}" gcp-facts "${work_root}/gcp-facts.jsonl" \
+			psql "${postgres_dsn}" -tA -c "${gcp_facts_sql}" || complete=0
+	else
+		ifa_fault_record_diagnostic_status "${manifest}" work-items skipped untrusted-backend-selection
+		ifa_fault_record_diagnostic_status "${manifest}" gcp-facts skipped untrusted-backend-selection
+		complete=0
+	fi
+
+	if [[ "${use_compose}" -eq 1 ]]; then
+		if [[ -n "${backend_selection}" ]]; then
+			ifa_fault_capture_command "${manifest}" compose-logs "${logs}/compose-services.log" \
+				docker compose -p "${compose_project}" -f "${compose_file}" logs --no-color || complete=0
+			ifa_fault_capture_command "${manifest}" backend-image "${work_root}/backend-image.txt" \
+				docker compose -p "${compose_project}" -f "${compose_file}" images nornicdb || complete=0
+			container_id="$(ifa_fault_run_bounded \
+				docker compose -p "${compose_project}" -f "${compose_file}" ps -q nornicdb 2>/dev/null)" || true
+		fi
+		if [[ -n "${backend_selection}" && -n "${container_id}" ]]; then
 			ifa_fault_capture_command "${manifest}" backend-container "${work_root}/backend-container.json" \
 				bash -c 'docker inspect "$1" | jq ".[0] | {image_id: .Image, config_image: .Config.Image, restart_count: .RestartCount, state: {status: .State.Status, running: .State.Running, started_at: .State.StartedAt, finished_at: .State.FinishedAt, exit_code: .State.ExitCode}, mounts: [.Mounts[] | {type: .Type, name: .Name, destination: .Destination, rw: .RW}]}"' _ "${container_id}" || complete=0
 			runtime_image_id="$(ifa_fault_run_bounded jq -er \
@@ -356,9 +378,11 @@ ifa_fault_capture_failure_diagnostics() {
 			fi
 			ifa_fault_capture_command "${manifest}" nornicdb-environment "${work_root}/nornicdb-environment.txt" \
 				bash -c 'docker inspect "$1" | jq -r '\''.[0].Config.Env[] | select(test("^(NORNICDB_(NO_AUTH|DATA_DIR|HTTP_PORT|BOLT_PORT|ASYNC_WRITES_ENABLED|HEIMDALL_ENABLED|QDRANT_GRPC_ENABLED|EMBEDDING_ENABLED|EMBEDDING_PROVIDER|SEARCH_BM25_ENABLED|SEARCH_VECTOR_ENABLED|SEARCH_BM25_WARMING|SEARCH_VECTOR_WARMING|PERSIST_SEARCH_INDEXES)=)"))'\'' | LC_ALL=C sort' _ "${container_id}" || complete=0
-		else
+		elif [[ -n "${backend_selection}" ]]; then
 			ifa_fault_record_diagnostic_status "${manifest}" backend-container failed container-id-unavailable
 			complete=0
+		else
+			ifa_fault_record_diagnostic_status "${manifest}" backend-identity skipped untrusted-backend-selection
 		fi
 	fi
 

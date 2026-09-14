@@ -51,8 +51,8 @@ test_ifa_fault_backend_digest_mismatch_retains_evidence() (
 		|| fail "digest mismatch published diagnostics-complete"
 )
 
-test_ifa_fault_backend_requires_pinned_override() (
-	local case_dir fake_bin rc override_digest
+test_ifa_fault_backend_requires_official_proof_image() (
+	local artifact case_dir fake_bin rc override_digest
 	case_dir="$(mktemp -d -t ifa-fault-image-override.XXXXXX)"
 	trap 'rm -rf "${case_dir}"' EXIT
 	fake_bin="${case_dir}/bin"
@@ -71,13 +71,65 @@ test_ifa_fault_backend_requires_pinned_override() (
 
 	override_digest="sha256:3333333333333333333333333333333333333333333333333333333333333333"
 	rm -f "${case_dir}/diagnostics-complete"
+	for artifact in backend-image.txt.error backend-container.json.error \
+		backend-runtime-image.json.error nornicdb-environment.txt.error; do
+		printf 'stale private-registry.internal evidence\n' >"${case_dir}/${artifact}"
+	done
+	set +e
 	PATH="${fake_bin}:${PATH}" \
-		NORNICDB_IMAGE="registry.example/nornicdb:test@${override_digest}" \
-		IFA_TEST_RUNTIME_REPO_DIGEST="registry.example/nornicdb@${override_digest}" \
+		NORNICDB_IMAGE="private-registry.internal/nornicdb:test@${override_digest}" \
+		IFA_TEST_RUNTIME_REPO_DIGEST="private-registry.internal/nornicdb@${override_digest}" \
+		IFA_TEST_COMPOSE_LOGS_PRIVATE=1 \
 		ifa_fault_capture_failure_diagnostics \
-		"${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn
-	[[ -s "${case_dir}/diagnostics-complete" ]] \
-		|| fail "digest-pinned backend image override did not prove its configured artifact"
+		"${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn \
+		2>/dev/null
+	rc=$?
+	set -e
+	[[ "${rc}" -ne 0 ]] || fail "unmapped digest-pinned backend image override succeeded"
+	[[ ! -e "${case_dir}/diagnostics-complete" ]] \
+		|| fail "unmapped backend image override published diagnostics-complete"
+	for artifact in "${case_dir}"/backend-*; do
+		[[ -e "${artifact}" ]] || continue
+		if rg --fixed-strings --quiet -- 'private-registry.internal' "${artifact}"; then
+			fail "backend image override leaked a private registry in ${artifact##*/}"
+		fi
+	done
+	[[ ! -e "${case_dir}/nornicdb-environment.txt.error" ]] \
+		|| fail "unmapped backend override retained stale environment diagnostics"
+	if [[ -e "${case_dir}/logs/compose-services.log" ]] \
+		&& rg --quiet 'private-registry\.internal|/private/compose/path' \
+			"${case_dir}/logs/compose-services.log"; then
+		fail "unmapped backend override retained untrusted Compose logs"
+	fi
+)
+
+test_ifa_fault_compose_config_stderr_is_not_retained() (
+	local case_dir fake_bin rc
+	case_dir="$(mktemp -d -t ifa-fault-compose-stderr.XXXXXX)"
+	trap 'rm -rf "${case_dir}"' EXIT
+	fake_bin="${case_dir}/bin"
+	test_ifa_fault_prepare_provenance_case "${case_dir}"
+	source "${diagnostics_lib}"
+	set +e
+	PATH="${fake_bin}:${PATH}" IFA_TEST_COMPOSE_CONFIG_FAIL=1 \
+		IFA_TEST_COMPOSE_EXEC_FAIL=1 \
+		ifa_fault_capture_failure_diagnostics \
+		"${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn \
+		2>/dev/null
+	rc=$?
+	set -e
+	[[ "${rc}" -ne 0 ]] || fail "failed Compose rendering published complete diagnostics"
+	if [[ -e "${case_dir}/backend-compose-config.json.error" ]] \
+		&& rg --quiet 'private-registry\.internal|/private/compose/path' \
+			"${case_dir}/backend-compose-config.json.error"; then
+		fail "Compose rendering stderr retained a private registry or host path"
+	fi
+	for artifact in "${case_dir}/work-items.csv.error" "${case_dir}/gcp-facts.jsonl.error"; do
+		if [[ -e "${artifact}" ]] \
+			&& rg --quiet 'private-registry\.internal|/private/compose/path' "${artifact}"; then
+			fail "untrusted pre-selection Compose exec stderr leaked through ${artifact##*/}"
+		fi
+	done
 )
 
 test_ifa_fault_backend_rejects_incomplete_or_wrong_runtime_identity() (
@@ -151,7 +203,8 @@ test_ifa_fault_invalid_timeout_fails_before_collection() (
 run_ifa_fault_injection_diagnostics_hardening_cases() {
 	test_ifa_fault_backend_accepts_index_repository_digest
 	test_ifa_fault_backend_digest_mismatch_retains_evidence
-	test_ifa_fault_backend_requires_pinned_override
+	test_ifa_fault_backend_requires_official_proof_image
+	test_ifa_fault_compose_config_stderr_is_not_retained
 	test_ifa_fault_backend_rejects_incomplete_or_wrong_runtime_identity
 	test_ifa_fault_invalid_timeout_fails_before_collection
 }
