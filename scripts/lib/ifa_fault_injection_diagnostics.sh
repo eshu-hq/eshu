@@ -289,8 +289,6 @@ ifa_fault_capture_failure_diagnostics() {
 			"${work_root}/backend-compose-config.json.error" \
 			"${work_root}/backend-container.json" \
 			"${work_root}/backend-container.json.error" \
-			"${work_root}/backend-expected-platform-image.json" \
-			"${work_root}/backend-expected-platform-image.json.error" \
 			"${work_root}/backend-runtime-image.json" \
 			"${work_root}/backend-runtime-image.json.error" \
 			"${work_root}/backend-provenance.json" \

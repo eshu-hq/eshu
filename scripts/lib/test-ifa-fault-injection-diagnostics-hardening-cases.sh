@@ -165,19 +165,35 @@ test_ifa_fault_backend_rejects_incomplete_or_wrong_runtime_identity() (
 				;;
 			wrong-platform)
 				PATH="${fake_bin}:${PATH}" IFA_TEST_RUNTIME_ARCHITECTURE=arm64 \
-					IFA_TEST_RUNTIME_REPO_DIGEST=timothyswt/nornicdb-cpu-bge@sha256:e443f176095d4b7b647fec73f75527c5d634c414dd5645ea36a206187aacab02 \
 					ifa_fault_capture_failure_diagnostics "${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn 2>/dev/null
 				;;
 		esac
 		rc=$?
 		set -e
 		[[ "${rc}" -ne 0 ]] || fail "${test_case} backend identity did not fail closed"
+		if [[ "${test_case}" == wrong-platform ]]; then
+			jq -e '
+				.rendered_platform == "linux/amd64"
+				and .runtime_platform == "linux/arm64"
+				and .expected_platform_digest == "sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"
+				and .runtime_repo_digests == ["timothyswt/nornicdb-cpu-bge@sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"]
+				and .provenance_match == false
+			' "${case_dir}/backend-provenance.json" >/dev/null \
+				|| fail "wrong-platform case did not isolate the platform mismatch"
+		fi
 		[[ ! -e "${case_dir}/diagnostics-complete" ]] \
 			|| fail "${test_case} backend identity published diagnostics-complete"
 		rm -rf "${case_dir}"
 		trap - EXIT
 	done
 )
+
+test_ifa_fault_cleanup_names_only_produced_artifacts() {
+	if rg --fixed-strings --quiet -- \
+		'backend-expected-platform-image.json' "${diagnostics_lib}"; then
+		fail "failure cleanup names an artifact the diagnostics never produce"
+	fi
+}
 
 test_ifa_fault_invalid_timeout_fails_before_collection() (
 	local case_dir timeout_value rc
@@ -201,6 +217,7 @@ test_ifa_fault_invalid_timeout_fails_before_collection() (
 )
 
 run_ifa_fault_injection_diagnostics_hardening_cases() {
+	test_ifa_fault_cleanup_names_only_produced_artifacts
 	test_ifa_fault_backend_accepts_index_repository_digest
 	test_ifa_fault_backend_digest_mismatch_retains_evidence
 	test_ifa_fault_backend_requires_official_proof_image
