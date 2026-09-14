@@ -95,9 +95,10 @@ Both produced the canonical digest:
 ## Live Kubernetes proof
 
 `bash scripts/run-k8s-two-team-governance-proof.sh --artifacts <temporary-dir>`
-ran on a disposable single-node `linux/amd64` Minikube v1.39.0 / Kubernetes
-v1.37.0 cluster. The chart used the immutable v1.3.2 index, and provenance
-recorded its honest `NornicDB v1.3.1` banner. The verifier passed:
+rebuilt the Eshu chart and seed images from implementation commit `390901945`,
+then ran on a disposable single-node `linux/amd64` Minikube v1.39.0 /
+Kubernetes v1.37.0 cluster. Provenance recorded that commit, the immutable
+v1.3.2 index, and its honest `NornicDB v1.3.1` banner. The verifier passed:
 
 - unauthenticated API and MCP rejection;
 - admin visibility of both seeded repositories;
@@ -107,9 +108,17 @@ recorded its honest `NornicDB v1.3.1` banner. The verifier passed:
 - four applied NetworkPolicy objects with restricted egress; and
 - exact backend index and `linux/amd64` platform identity.
 
-The six public-safe JSON artifacts, normalized with `jq -S` in fixed filename
-order, had checksum
-`sha256:c6fc6220400420b20fe0a7fb176c76849ae456d42359926526805718abbba1b2`.
+The six public-safe JSON artifacts were normalized and hashed in this fixed
+order:
+
+```bash
+for file in admin.json team-a.json team-b.json unauth.json network-policy.json provenance.json; do
+  jq -S . "${artifacts_dir}/${file}"
+done | sha256sum
+```
+
+The checksum was
+`sha256:60c77bfa586cbc386264fa7c4a1522f18032578571890480fd8fa231ebb2d4b5`.
 The proof cleaned up its Helm release and namespace. It is local single-node
 evidence, not a managed-cluster, multi-node, arm64-runtime, or hostile
 packet-flow claim.
