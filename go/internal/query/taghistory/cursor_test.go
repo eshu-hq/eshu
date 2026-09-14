@@ -144,6 +144,35 @@ func TestDecodeCursorRefusesEveryUnopenableToken(t *testing.T) {
 	}
 }
 
+// TestCursorAADBindsTheImageRef kills the mutation the plaintext ref check
+// would otherwise hide. The plaintext carries ref as belt and braces, so a
+// cursor sealed for another image_ref is refused twice over; this test seals a
+// plaintext whose ref is CORRECT under an AAD for a different image_ref, so
+// only the AEAD binding can refuse it. Dropping image_ref from cursorAAD makes
+// this test accept the token.
+func TestCursorAADBindsTheImageRef(t *testing.T) {
+	t.Parallel()
+
+	sealer := testKeyring(t, "k1", 0x11)
+	key := Key{At: "1760000000042", UID: "uid-sha256:d42"}
+	token, err := sealer.Seal(marshalCursor(CursorVersion, testImageRef, key), cursorAAD("ghcr.io/eshu-hq/other:1.0.0"))
+	if err != nil {
+		t.Fatalf("Seal() error = %v", err)
+	}
+	if _, err := DecodeCursor(sealer, token, testImageRef); err == nil {
+		t.Fatal("DecodeCursor() error = nil; the AAD must bind the image_ref, not only the plaintext")
+	}
+	// Control: the same plaintext under the RIGHT AAD opens, so the refusal
+	// above is the binding and not a broken seal.
+	control, err := sealer.Seal(marshalCursor(CursorVersion, testImageRef, key), cursorAAD(testImageRef))
+	if err != nil {
+		t.Fatalf("Seal() error = %v", err)
+	}
+	if _, err := DecodeCursor(sealer, control, testImageRef); err != nil {
+		t.Fatalf("control DecodeCursor() error = %v", err)
+	}
+}
+
 // TestDecodeCursorRefusesAMalformedSealedPlaintext covers the checks that can
 // only fire on a payload this server itself sealed -- a server bug, not a
 // forgery. They are kept because a partially-trusted key is worse than a
