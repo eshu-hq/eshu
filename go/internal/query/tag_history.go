@@ -210,9 +210,11 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 	page.history = scoped.Rows
 	page.truncated = scoped.Truncated
 	page.nextKey = scoped.NextKey
+	// The per-row grant counts go on the span only; the public counter carries
+	// the page outcome (#6564). recordTagHistoryScopedPage documents why.
 	annotateTagHistoryGrantCounts(span, scoped.Counts)
 	annotateTagHistoryRefill(span, scoped.Reads, scoped.CapReached)
-	recordTagHistoryScopedRows(r.Context(), scoped.Counts)
+	recordTagHistoryScopedPage(r.Context(), scoped.CapReached)
 
 	h.completeTagHistoryPage(w, r, start, page)
 }

@@ -48,17 +48,24 @@ func annotateTagHistoryRefill(span trace.Span, reads int, capReached bool) {
 	)
 }
 
-// Bounded disposition values for the scoped-rows counter
-// (eshu_dp_query_container_image_tag_history_scoped_rows_total).
+// Bounded outcome values for the scoped-pages counter
+// (eshu_dp_query_container_image_tag_history_scoped_pages_total). They describe
+// one PAGE, never its rows: see recordTagHistoryScopedPage for why the per-row
+// withheld counts stay off this public surface.
 const (
-	tagHistoryDispositionKept                  = "kept"
-	tagHistoryDispositionWithheldUngranted     = "withheld_ungranted"
-	tagHistoryDispositionWithheldUnattributed  = "withheld_unattributed"
-	tagHistoryDispositionPreviousDigestBlanked = "previous_digest_blanked"
+	tagHistoryScopedPageComplete       = "complete"
+	tagHistoryScopedPageReadCapReached = "read_cap_reached"
 )
 
 // annotateTagHistoryGrantCounts writes the bounded filter counts one scoped
 // page's grant filter produced (taghistory.GrantCounts) onto the handler span.
+//
+// The span is the ONLY place the two withheld counts are published, and that is
+// deliberate (#6564). It reaches an operator through the OTLP trace exporter,
+// not through the unauthenticated /metrics scrape a scoped caller can also
+// reach, and it carries the per-request context -- which image_ref, how many
+// refill windows -- that a fleet-wide counter could never attribute. See
+// recordTagHistoryScopedPage for the side channel this split exists to close.
 func annotateTagHistoryGrantCounts(span trace.Span, counts taghistory.GrantCounts) {
 	if span == nil {
 		return
@@ -97,7 +104,7 @@ var (
 	tagHistoryQueryInstrumentsOnce sync.Once
 	tagHistoryDuration             metric.Float64Histogram
 	tagHistoryErrors               metric.Int64Counter
-	tagHistoryScopedRows           metric.Int64Counter
+	tagHistoryScopedPages          metric.Int64Counter
 )
 
 // tagHistoryBuckets bound the tag-history handler latency histogram. The read
@@ -143,48 +150,60 @@ func initTagHistoryQueryInstruments() {
 		if err != nil {
 			tagHistoryErrors = nil
 		}
-		tagHistoryScopedRows, err = meter.Int64Counter(
-			"eshu_dp_query_container_image_tag_history_scoped_rows_total",
-			metric.WithDescription("Container image tag history rows a scoped caller's BUILT_FROM grant filter kept, withheld, or blanked, by disposition"),
+		tagHistoryScopedPages, err = meter.Int64Counter(
+			"eshu_dp_query_container_image_tag_history_scoped_pages_total",
+			metric.WithDescription("Container image tag history pages served to a grant-filtered caller, by whether the refill loop reached its per-request read cap"),
 		)
 		if err != nil {
-			tagHistoryScopedRows = nil
+			tagHistoryScopedPages = nil
 		}
 	})
 }
 
-// recordTagHistoryScopedRows adds one scoped page's grant-filter outcome to the
-// scoped-rows counter. The disposition label is bounded to kept,
-// withheld_ungranted, withheld_unattributed, and previous_digest_blanked, so an
-// operator can separate rows another tenant owns from rows no BUILT_FROM edge
-// attributes to anyone -- the coverage cost of binding tag history through
-// BUILT_FROM (#6564). Zero counts are skipped rather than recorded as zero
-// increments.
-func recordTagHistoryScopedRows(ctx context.Context, counts taghistory.GrantCounts) {
+// recordTagHistoryScopedPage counts one grant-filtered page by whether its
+// refill loop ran out of read budget (#6564).
+//
+// It publishes a PAGE outcome and deliberately NOT the per-row withheld counts
+// the grant filter produced. /metrics is unauthenticated -- a literal entry in
+// publicHTTPPaths (auth.go), which the middleware honours before any token
+// handling -- and it is mounted on the same admin mux the API surface is served
+// through, so a scoped caller can scrape it. A counter carrying
+// withheld_ungranted and withheld_unattributed increments, labelled only by
+// disposition and service.namespace, would let that caller recover its own
+// page's withheld count from a before/after scrape on a quiet deployment. On a
+// filled page that count is precisely what the response body declines to state,
+// so publishing it here would re-disclose one surface over exactly what the body
+// was built to withhold.
+//
+// Both outcomes below are already in the caller's hands. Every scoped caller
+// reads grant_filtered: true in its own body, and read_cap_reached is derivable
+// from that same body: taghistory.RefillScopedPage sets CapReached exactly when
+// it returns a truncated page holding fewer than limit rows, and
+// taghistory.ScopedTruthReason spells that residue out in the truth envelope.
+// So the series answers the 3 AM question -- what share of scoped tag-history
+// pages are exhausting the refill budget, which is the signal that a caller's
+// grant covers a thin slice of a busy tag rather than that the route is slow --
+// without carrying a number anyone learns something new from.
+//
+// The denominator is pages that actually ran the filter. A scoped caller with
+// no grants at all is answered without a graph read and is not counted here;
+// its page withheld nothing because nothing was read.
+func recordTagHistoryScopedPage(ctx context.Context, capReached bool) {
 	initTagHistoryQueryInstruments()
-	if tagHistoryScopedRows == nil {
+	if tagHistoryScopedPages == nil {
 		return
 	}
-	for _, entry := range []struct {
-		disposition string
-		value       int
-	}{
-		{tagHistoryDispositionKept, counts.Kept},
-		{tagHistoryDispositionWithheldUngranted, counts.WithheldUngranted},
-		{tagHistoryDispositionWithheldUnattributed, counts.WithheldUnattributed},
-		{tagHistoryDispositionPreviousDigestBlanked, counts.PreviousDigestBlanked},
-	} {
-		if entry.value == 0 {
-			continue
-		}
-		tagHistoryScopedRows.Add(
-			ctx, int64(entry.value),
-			metric.WithAttributes(
-				attribute.String("disposition", entry.disposition),
-				attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
-			),
-		)
+	outcome := tagHistoryScopedPageComplete
+	if capReached {
+		outcome = tagHistoryScopedPageReadCapReached
 	}
+	tagHistoryScopedPages.Add(
+		ctx, 1,
+		metric.WithAttributes(
+			attribute.String("outcome", outcome),
+			attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
+		),
+	)
 }
 
 // recordTagHistoryDuration observes one tag-history handler invocation. The

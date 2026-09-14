@@ -10,10 +10,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 // resetTagHistoryInstrumentsForTest rebinds the lazily registered tag-history
@@ -24,7 +28,7 @@ func resetTagHistoryInstrumentsForTest() {
 	tagHistoryQueryInstrumentsOnce = sync.Once{}
 	tagHistoryDuration = nil
 	tagHistoryErrors = nil
-	tagHistoryScopedRows = nil
+	tagHistoryScopedPages = nil
 }
 
 // withTagHistoryMetricReader installs a process-global manual-reader meter
@@ -161,4 +165,46 @@ func TestTagHistoryHandlerGraphReadErrorRecordsBackendUnavailableOutcome(t *test
 	if got, want := tagHistoryDurationOutcomeCount(t, rm, "backend_unavailable"), uint64(1); got != want {
 		t.Fatalf("duration histogram outcome=backend_unavailable count = %d, want %d", got, want)
 	}
+}
+
+// withTagHistorySpanRecorder installs a process-global tracer provider backed
+// by an in-memory span recorder for the duration of one test, restoring the
+// previous provider afterwards.
+//
+// The tag-history handler resolves its tracer from the global provider on every
+// request (startQueryHandlerSpan), not from a package-level cached tracer, so
+// installing the provider before the request is enough and no reset hook is
+// needed -- unlike the lazily registered metric instruments, which cache their
+// meter inside a sync.Once and do need resetTagHistoryInstrumentsForTest.
+func withTagHistorySpanRecorder(t *testing.T) *tracetest.SpanRecorder {
+	t.Helper()
+	recorder := tracetest.NewSpanRecorder()
+	previous := otel.GetTracerProvider()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previous)
+		_ = provider.Shutdown(context.Background())
+	})
+	return recorder
+}
+
+// tagHistorySpanAttributes returns the attributes of the recorded
+// container-image tag-history handler span, keyed by attribute name. It fails
+// the test when no such span was recorded, so a handler that stopped creating
+// the span cannot pass as a handler that simply set no attributes.
+func tagHistorySpanAttributes(t *testing.T, recorder *tracetest.SpanRecorder) map[string]attribute.Value {
+	t.Helper()
+	for _, span := range recorder.Ended() {
+		if span.Name() != telemetry.SpanQueryContainerImageTagHistory {
+			continue
+		}
+		attrs := make(map[string]attribute.Value, len(span.Attributes()))
+		for _, kv := range span.Attributes() {
+			attrs[string(kv.Key)] = kv.Value
+		}
+		return attrs
+	}
+	t.Fatalf("no %q span recorded", telemetry.SpanQueryContainerImageTagHistory)
+	return nil
 }

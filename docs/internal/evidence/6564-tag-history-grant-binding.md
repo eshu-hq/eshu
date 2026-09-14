@@ -189,9 +189,11 @@ packages exit 0, and `gofmt -l` on the touched files printed nothing. The
 handler tests cover these cases: positive, negative, no edge, multi-source,
 `previous_digest` blanked and kept, unscoped (no auth and all-scope) staying on
 one statement, an empty page (no second read), an empty grant (no read), and a
-second-read error. `TestTagHistoryScopedFilterRecordsDispositionCounts` proves
-the counter records kept=2, withheld_ungranted=1, withheld_unattributed=1, and
-previous_digest_blanked=1.
+second-read error. `TestTagHistoryScopedSpanCarriesWithheldCounts` proves the
+span records kept=2, withheld_ungranted=1, withheld_unattributed=1, and
+previous_digest_blanked=1, and
+`TestTagHistoryScopedPageRecordsCompleteOutcome` proves the public counter
+records the page outcome for the same request.
 
 ## Review Findings Closed
 
@@ -445,11 +447,33 @@ stopped on the cap rather than on a full page or the end of the history). Those
 two are what separate "this caller's grant covers a thin slice of a busy tag"
 from "the route is slow" at 3 AM, since a capped page is also the page that pays
 the most BUILT_FROM lookups. All are bounded scalars, never digests or
-repository ids. The new counter is
-`eshu_dp_query_container_image_tag_history_scoped_rows_total{disposition}`,
-with `disposition` bounded to kept, withheld_ungranted, withheld_unattributed,
-and previous_digest_blanked. It records scoped callers only; an unscoped caller
-records nothing (`TestTagHistoryUnscopedCallerRecordsNoScopedRows`). Scoped
+repository ids. Those five counts live on the span and NOWHERE ELSE -- a
+review finding this branch closed, not a design it started with. The first
+implementation also published withheld_ungranted and withheld_unattributed as
+`/metrics` increments labelled only by `disposition` and `service.namespace`.
+`/metrics` bypasses authentication (a literal `publicHTTPPaths` entry in
+`go/internal/query/auth.go`, honoured before any token handling) and is mounted
+on the same admin mux as the API, so on a quiet deployment a scoped caller
+could recover its own page's withheld count from a before/after scrape.
+`TestTagHistoryMetricsDiscloseNoWithheldCounts` is the regression, asserting
+over the WHOLE exported metric set rather than one name so the same numbers
+cannot return under a different instrument. It was RED against the first
+implementation, on `..._scoped_rows_total` carrying
+`disposition="withheld_ungranted"`.
+
+The public counter is now
+`eshu_dp_query_container_image_tag_history_scoped_pages_total{outcome}`,
+`outcome` bounded to complete and read_cap_reached: one datapoint per
+grant-filtered page, carrying nothing the caller does not already hold.
+`grant_filtered: true` is in its own body, and read_cap_reached is derivable
+from it, because `RefillScopedPage` sets `CapReached` exactly when it returns a
+truncated page holding fewer than `limit` rows -- a residue
+`ScopedTruthReason` already discloses in full. It is also the signal an
+operator is paged for, so the route stays diagnosable at 3 AM without running
+the side channel. Accepted cost: a deployment with no
+`OTEL_EXPORTER_OTLP_ENDPOINT` exports no traces and sees no withheld counts.
+It records scoped callers only; an unscoped caller records nothing
+(`TestTagHistoryUnscopedCallerRecordsNoScopedPages`). Scoped
 latency, including the lookup above, shows in the existing
 `eshu_dp_query_container_image_tag_history_duration_seconds`. A second-read
 failure records `eshu_dp_query_container_image_tag_history_errors_total`, with
