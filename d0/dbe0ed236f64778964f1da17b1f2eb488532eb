@@ -1,0 +1,28 @@
+deploy/helm/eshu/templates/validate.yaml
+  s_20be138600ef1b::t_61fc367a1207b4 1
+go/internal/runtime/helm_nornicdb_contract_test.go
+  s_20be138600ef1b::t_ca78090854603f 98,100
+  s_20be138600ef1b::t_638a1a2aec3570 94-97,99,101-109
+deploy/helm/eshu/templates/_data_plane_helpers.tpl
+  s_20be138600ef1b::t_f73c7bc931c148 1-125
+deploy/helm/eshu/templates/_validation_core.tpl
+  s_20be138600ef1b::t_61fc367a1207b4 1-110
+docs/internal/evidence/6162-nornicdb-v132-alignment.md
+  s_20be138600ef1b::t_ce8426305af793 46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d0dbe0ed236f64778964f1da17b1f2eb488532eb",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Test <test@example.test>"
+    }
+  }
+}
