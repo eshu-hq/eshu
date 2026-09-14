@@ -697,7 +697,10 @@ wraps a concrete driver executor with `TimeoutExecutor` â†’ `RetryingExecutor` â
 
 `RetryingExecutor` detects transient Neo4j and driver connectivity errors,
 NornicDB MERGE unique conflicts, and relationship snapshot conflicts. Raw legacy
-errors require bounded `conflict:`; typed v1.3.1 errors require `conflict detected:`, an edge or node identity, and the transaction-age suffix. A driver `ConnectivityError`
+errors require bounded `conflict:`; typed NornicDB conflicts require
+`conflict detected:`, an edge or node identity, and the transaction-age suffix,
+or an exact relationship create-failure shape naming a non-empty missing start
+or end node. A driver `ConnectivityError`
 wrapping `CommitFailedDeadError` is not retried in place because its commit
 outcome is unknown. Durable callers may later replay still-pending idempotent
 work after backoff. The same exponential-backoff loop covers `Execute` and
