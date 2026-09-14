@@ -41,9 +41,9 @@ Verified on the current base, not inferred:
 
 - `storage/cypher/canonical_code_call_edges.go:68-70`: MATCH-only write. A
   row whose target uid has no node writes nothing and raises nothing.
-- `reducer/code_call_projection_runner.go`: `MarkIntentsCompleted`
+- `go/internal/reducer/code/call/projection/runner.go`: `MarkIntentsCompleted`
   unconditional after the write.
-- `reducer/code_call_projection_selection.go`: readiness key built from the
+- `go/internal/reducer/code/call/projection/selection.go`: readiness key built from the
   intent's own `AcceptanceKey()` (caller's repo) only. No key is ever
   constructed for the callee's repository.
 
@@ -71,15 +71,15 @@ projector republishes phases unconditionally on re-run
 (`projector/runtime_stages.go: writeCanonicalProjection` publishes on both
 the empty and written paths), so during a rebuild code calls drain last and
 land cross-repo edges in a single pass. The gate helper lives in
-`code_call_projection_work.go` (`projectionLaneBlocked`) to keep the runner
-under the file cap.
+`go/internal/reducer/code/call/projection/quiescence.go`
+(`projectionLaneBlocked`) to keep the runner under the file cap.
 
 Regression:
 
 ```bash
 go test ./internal/storage/postgres/ -run TestReducerGraphDrain -count=1  # ok
-go test ./internal/reducer/ -run TestCodeCallProjectionRunnerWaitsFor -count=1  # ok
-go test -race ./internal/reducer/ -run TestCodeCallProjection -count=1  # ok
+go test ./internal/reducer/code/call/projection -run TestCodeCallProjectionRunnerWaitsFor -count=1  # ok
+go test -race ./internal/reducer/code/call/projection -run TestCodeCallProjection -count=1  # ok
 go test ./internal/reducer/ ./internal/relationships/ -count=1  # ok
 go test ./internal/storage/postgres/ -count=1  # ok
 go test ./internal/query/ ./internal/reducer/crossrepo/ ./internal/cli/compparity/ -count=1  # ok

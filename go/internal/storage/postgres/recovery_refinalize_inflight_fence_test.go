@@ -105,6 +105,41 @@ func TestRefinalizeProceedsOnceReducersDrain(t *testing.T) {
 	}
 }
 
+// TestRefinalizeProceedsOnceReducerLeaseExpires proves the drain wait observes
+// wall-clock lease expiry while its transaction remains open. A worker killed
+// mid-rebuild cannot clear its claimed row; recovery must proceed once the
+// claim_until deadline passes instead of timing out against the transaction's
+// frozen start timestamp.
+func TestRefinalizeProceedsOnceReducerLeaseExpires(t *testing.T) {
+	db, ctx := refinalizeRebuildResetLiveDB(t)
+	suffix := testSuffix(t)
+	scopeID, activeGeneration, _ := refinalizeResetScope(t, ctx, db, suffix)
+
+	claimed := seedRefinalizeResetReducerWork(
+		t, ctx, db, scopeID, activeGeneration, "fence-expiring", "claimed",
+	)
+	armLiveLease(t, ctx, db, claimed, 250*time.Millisecond)
+	seedActiveRelationshipGeneration(t, ctx, db, activeGeneration, scopeID)
+
+	store := NewRecoveryStore(SQLDB{DB: db},
+		WithRefinalizeDrainTimeout(2*time.Second),
+		WithRefinalizeDrainPollInterval(25*time.Millisecond),
+	)
+	result, err := store.RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{
+		ScopeIDs: []string{scopeID},
+	}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("RefinalizeScopeProjections() error = %v, want nil: the crashed "+
+			"worker's lease expired during the drain wait", err)
+	}
+	if got := relationshipGenerationStatus(t, ctx, db, activeGeneration); got != "superseded" {
+		t.Fatalf("relationship generation status = %q, want %q", got, "superseded")
+	}
+	if result.GenerationsRetired != 1 {
+		t.Fatalf("result.GenerationsRetired = %d, want 1", result.GenerationsRetired)
+	}
+}
+
 // TestRefinalizeIgnoresExpiredReducerLeases proves the fence keys on live
 // leases, not on claimed status alone: a crashed worker's expired lease is
 // reclaimable, and whoever reclaims it resolves post-retirement, so holding

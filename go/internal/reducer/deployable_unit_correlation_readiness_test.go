@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
 // stubResolutionActiveLookup reports generation activation from a fixed map.
@@ -108,6 +109,117 @@ func TestDeployableUnitCorrelationHandleGateOpenWithoutLookup(t *testing.T) {
 	}
 	if got.Status != ResultStatusSucceeded {
 		t.Fatalf("Handle().Status = %q, want %q", got.Status, ResultStatusSucceeded)
+	}
+}
+
+func TestDeployableUnitCorrelationHandleDefersWhileCanonicalReposRebuild(t *testing.T) {
+	t.Parallel()
+
+	resolvedLoader := &stubDeployableUnitResolvedLoader{
+		resolved: []relationships.ResolvedRelationship{
+			{
+				SourceRepoID:     "repo-deployments",
+				TargetRepoID:     "repo-edge-api",
+				RelationshipType: relationships.RelDeploysFrom,
+				Confidence:       0.94,
+			},
+		},
+	}
+	writer := &recordingDeployableUnitEdgeWriter{}
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         resolvedLoader,
+		PhasePublisher:         publisher,
+		EdgeWriter:             writer,
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		CanonicalQuiescence:    staticReducerGraphDrain{uncommittedCanonical: true},
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err == nil {
+		t.Fatal("Handle() error = nil, want canonical-nodes-not-ready deferral")
+	}
+	var deferral deployableUnitCorrelationCanonicalNodesNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("Handle() error type = %T, want deployableUnitCorrelationCanonicalNodesNotReadyError", err)
+	}
+	if !deferral.Retryable() {
+		t.Fatal("deferral Retryable() = false, want true so the queue re-runs after projector convergence")
+	}
+	if got, want := deferral.FailureClass(), DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass; got != want {
+		t.Fatalf("deferral FailureClass() = %q, want %q", got, want)
+	}
+	if deferral.scopeID != "repository:test-scope" || deferral.generationID != "generation-1" {
+		t.Fatalf("deferral scope/generation = %q/%q, want repository:test-scope/generation-1",
+			deferral.scopeID, deferral.generationID)
+	}
+	if resolvedLoader.calls != 0 {
+		t.Fatalf("resolved loader calls = %d, want 0 before canonical repository quiescence", resolvedLoader.calls)
+	}
+	if len(writer.retractCalls) != 0 || len(writer.writeCalls) != 0 {
+		t.Fatalf("edge calls while projector can detach Repository nodes = retract:%d write:%d, want 0/0",
+			len(writer.retractCalls), len(writer.writeCalls))
+	}
+	if len(publisher.calls) != 0 {
+		t.Fatalf("phase publisher calls = %d, want 0 before canonical repository quiescence", len(publisher.calls))
+	}
+}
+
+func TestDeployableUnitCorrelationHandleWritesAfterCanonicalReposQuiesce(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingDeployableUnitEdgeWriter{}
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader: &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader: &stubDeployableUnitResolvedLoader{
+			resolved: []relationships.ResolvedRelationship{
+				{
+					SourceRepoID:     "repo-deployments",
+					TargetRepoID:     "repo-edge-api",
+					RelationshipType: relationships.RelDeploysFrom,
+					Confidence:       0.94,
+					Details: map[string]any{
+						"evidence_kinds": []string{string(relationships.EvidenceKindArgoCDAppSource)},
+					},
+				},
+			},
+		},
+		PhasePublisher:         &recordingGraphProjectionPhasePublisher{},
+		EdgeWriter:             writer,
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		CanonicalQuiescence:    staticReducerGraphDrain{},
+	}
+
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil after canonical repository quiescence", err)
+	}
+	if got.CanonicalWrites != 1 || len(writer.retractCalls) != 1 || len(writer.writeCalls) != 1 {
+		t.Fatalf("post-quiescence writes = canonical:%d retract:%d write:%d, want 1/1/1",
+			got.CanonicalWrites, len(writer.retractCalls), len(writer.writeCalls))
+	}
+}
+
+func TestDeployableUnitCorrelationHandleFailsClosedOnCanonicalQuiescenceError(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingDeployableUnitEdgeWriter{}
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         &stubDeployableUnitResolvedLoader{},
+		EdgeWriter:             writer,
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		CanonicalQuiescence:    staticReducerGraphDrain{err: errors.New("quiescence unavailable")},
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err == nil || !strings.Contains(err.Error(), "check canonical repository quiescence") {
+		t.Fatalf("Handle() error = %v, want canonical repository quiescence failure", err)
+	}
+	if len(writer.retractCalls) != 0 || len(writer.writeCalls) != 0 {
+		t.Fatalf("edge calls after quiescence error = retract:%d write:%d, want 0/0",
+			len(writer.retractCalls), len(writer.writeCalls))
 	}
 }
 

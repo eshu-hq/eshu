@@ -46,6 +46,9 @@ func quiescencePerRepoLiveDB(t *testing.T) (*sql.DB, context.Context) {
 //
 // Run with:
 //
+// Requires an otherwise-quiet database: the probe is global, so any other
+// uncommitted scope makes the release assertions fail.
+//
 //	ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:<port>/eshu \
 //	  go test ./internal/storage/postgres -run ReducerGraphDrainQuiescenceIsPerRepository -count=1 -v
 func TestReducerGraphDrainQuiescenceIsPerRepository(t *testing.T) {

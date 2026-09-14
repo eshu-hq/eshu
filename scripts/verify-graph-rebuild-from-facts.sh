@@ -29,12 +29,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=scripts/lib/graph_rebuild_runtime.sh
+source "${SCRIPT_DIR}/lib/graph_rebuild_runtime.sh"
 
 COMPOSE_PROJECT="${ESHU_DR_COMPOSE_PROJECT:-eshu-dr-rebuild}"
 KEEP_STACK="${ESHU_KEEP_COMPOSE_STACK:-false}"
 SKIP_INTERRUPT="${ESHU_DR_SKIP_INTERRUPT:-false}"
 BOOTSTRAP_TIMEOUT="${ESHU_DR_BOOTSTRAP_TIMEOUT:-1800}"
 DRAIN_TIMEOUT="${ESHU_DR_DRAIN_TIMEOUT:-1800}"
+INTERRUPT_TIMEOUT="${ESHU_DR_INTERRUPT_TIMEOUT:-120}"
 
 # assert_identity_snapshot_sane refuses to compare a snapshot whose identities
 # cannot tell anything apart. A file of interchangeable keys diffs clean against
@@ -577,14 +580,11 @@ reapply_graph_schema
 start_services
 
 request_rebuild "dr-rebuild-pass2a-$$" >/dev/null
-echo "Rebuild started; letting it make partial progress..."
-sleep 20
-
-INTERRUPT_NODES="$(graph_scalar 'MATCH (n) RETURN count(n) AS c')"
+echo "Rebuild started; waiting for a real in-progress checkpoint..."
+wait_for_interrupt_point "$INTERRUPT_TIMEOUT"
 echo "Killing the projection workers mid-drain (graph holds $INTERRUPT_NODES nodes)."
 "${COMPOSE_CMD[@]}" kill ingester projector resolution-engine >/dev/null
 
-REMAINING="$(psql_scalar "SELECT count(*) FROM fact_work_items WHERE status IN ('pending','claimed','running');")"
 echo "Work left in flight at the kill: $REMAINING items."
 
 echo "Restarting workers and re-issuing the rebuild..."

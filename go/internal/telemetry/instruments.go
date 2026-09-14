@@ -1437,7 +1437,9 @@ type Instruments struct {
 	// Cross-repo resolution metrics
 	CrossRepoResolutionDuration metric.Float64Histogram
 	CrossRepoEvidenceLoaded     metric.Int64Counter
-	CrossRepoEdgesResolved      metric.Int64Counter
+	// CrossRepoEdgesResolved counts resolved edge ownership outcomes. Labels:
+	// relationship_type and outcome (owned_routed, foreign_owned_dropped).
+	CrossRepoEdgesResolved metric.Int64Counter
 	// CrossRepoActivationFenced counts generations whose publish (generation
 	// activation) was withheld because the durable graph-acceptance intents
 	// failed to commit, leaving the generation un-published so no stranded
@@ -4636,7 +4638,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.CrossRepoEdgesResolved, err = meter.Int64Counter(
 		"eshu_dp_cross_repo_edges_resolved_total",
-		metric.WithDescription("Total dependency edges resolved from cross-repo evidence"),
+		metric.WithDescription("Total cross-repo edge ownership outcomes by relationship type and outcome"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossRepoEdgesResolved counter: %w", err)

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//nolint:filelength // The #6184 quiescence gate threads through runSerial/processOnce control flow, which cannot leave this file without restructuring the hot loop; the structural runner split is tracked by #6061.
 package reducer
 
 import (
@@ -11,7 +10,6 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -19,7 +17,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -249,101 +246,6 @@ func (r *RepoDependencyProjectionRunner) quarantineLease(err error) error {
 		return nil
 	}
 	return &repoDependencyLeaseQuarantineError{delay: r.Config.leaseTTL(), cause: err}
-}
-
-// startLeaseHeartbeat renews the source-repo lane lease while graph writes are
-// in flight so slow backend calls cannot make active work appear abandoned.
-func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context) (context.Context, func() error) {
-	interval := repoDependencyLeaseHeartbeatInterval(r.Config.leaseTTL())
-	if interval <= 0 {
-		return ctx, func() error { return nil }
-	}
-	heartbeatCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	stopped := make(chan struct{})
-	var failureMu sync.Mutex
-	var failure error
-	var once sync.Once
-	recordFailure := func(err error) {
-		failureMu.Lock()
-		if failure != nil {
-			failureMu.Unlock()
-			return
-		}
-		failure = fmt.Errorf("repo dependency lease heartbeat failed: %w", err)
-		failureMu.Unlock()
-		if r.Logger != nil {
-			r.Logger.WarnContext(
-				heartbeatCtx,
-				"repo dependency lease heartbeat failed",
-				log.Domain(DomainRepoDependency),
-				telemetry.PhaseAttr(telemetry.PhaseReduction),
-				log.Err(err),
-			)
-		}
-		cancel()
-	}
-	go func() {
-		defer close(stopped)
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-heartbeatCtx.Done():
-				return
-			case <-done:
-				return
-			case <-ticker.C:
-				claimed, err := r.LeaseManager.ClaimPartitionLease(
-					heartbeatCtx,
-					DomainRepoDependency,
-					r.Config.partitionID(),
-					r.Config.partitionCount(),
-					r.Config.leaseOwner(),
-					r.Config.leaseTTL(),
-				)
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						return
-					}
-					recordFailure(err)
-					return
-				}
-				if !claimed {
-					recordFailure(errors.New("repo dependency lease heartbeat lost ownership"))
-					return
-				}
-			}
-		}
-	}()
-	var stopErr error
-	return heartbeatCtx, func() error {
-		once.Do(func() {
-			close(done)
-			cancel()
-			<-stopped
-			failureMu.Lock()
-			stopErr = failure
-			failureMu.Unlock()
-		})
-		return stopErr
-	}
-}
-
-// repoDependencyLeaseHeartbeatInterval renews before the lease reaches its
-// deadline while capping idle wakeups for unusually long lease settings.
-func repoDependencyLeaseHeartbeatInterval(leaseTTL time.Duration) time.Duration {
-	if leaseTTL <= 0 {
-		return 0
-	}
-	interval := leaseTTL / 3
-	if interval <= 0 {
-		return leaseTTL
-	}
-	if interval > time.Minute {
-		return time.Minute
-	}
-	return interval
 }
 
 func repoDependencyNeedsRetract(rows []SharedProjectionIntentRow, staleIDs []string) bool {

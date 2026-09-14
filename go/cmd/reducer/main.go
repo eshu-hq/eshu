@@ -223,6 +223,7 @@ func buildReducerService(
 			EdgeWriter:              edgeWriterForHandlers,
 			AdmissionDecisionWriter: admissionDecisionWriter,
 			ResolutionActiveLookup:  relationshipGenerationActive,
+			CanonicalQuiescence:     postgres.NewReducerGraphDrain(database),
 		},
 		WorkloadProjectionInputLoader: reducer.CorrelatedWorkloadProjectionInputLoader{
 			FactLoader:             factStore,

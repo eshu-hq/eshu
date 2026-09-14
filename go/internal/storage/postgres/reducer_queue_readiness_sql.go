@@ -106,6 +106,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// relationship generation activates. Evaluating on the partial
 	// resolved set instead succeeds reduced and is never reopened.
 	reducer.DeployableUnitCorrelationResolutionNotReadyFailureClass,
+	reducer.DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass,
 	// #6184: workload projection inputs deferred on the same fence. Without
 	// it the loader merges the pinned own-scope read with an empty by-repos
 	// read while the generation is retired-or-pending and workload

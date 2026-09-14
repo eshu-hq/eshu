@@ -115,17 +115,18 @@ RETURNING scope_id
 
 // refinalizeInflightReducersQuery counts reducer work items holding a live
 // lease on the refinalized pairs. The live-lease predicate mirrors the claim
-// system: claim_until > now() means a worker is, or may still be, executing,
+// system: claim_until > clock_timestamp() means a worker is, or may still be, executing,
 // while NULL or expired means the row is reclaimable and whoever reclaims it
-// resolves post-retirement. now() is the transaction start, so every poll in
-// one refinalize sees the same lease clock as the retirement statement's
-// atomic guard in reset.go.
+// resolves post-retirement. clock_timestamp() advances while this transaction
+// polls, so a crashed worker's lease can expire without another writer having
+// to clear the row. The retirement statement uses the same moving-clock
+// predicate in its atomic guard.
 const refinalizeInflightReducersQuery = `
 SELECT COUNT(*)
 FROM fact_work_items AS w
 WHERE w.stage = 'reducer'
   AND w.status IN ('claimed', 'running')
-  AND w.claim_until > now()
+  AND w.claim_until > clock_timestamp()
   AND (w.scope_id, w.generation_id) IN (
     SELECT * FROM unnest($1::text[], $2::text[]) AS affected(scope_id, generation_id)
   )
@@ -139,7 +140,7 @@ SELECT w.scope_id, w.generation_id, COUNT(*)
 FROM fact_work_items AS w
 WHERE w.stage = 'reducer'
   AND w.status IN ('claimed', 'running')
-  AND w.claim_until > now()
+  AND w.claim_until > clock_timestamp()
   AND (w.scope_id, w.generation_id) IN (
     SELECT * FROM unnest($1::text[], $2::text[]) AS affected(scope_id, generation_id)
   )
@@ -365,7 +366,7 @@ func newInflightReducersError(
 // countInflightReducers counts reducer rows holding live leases on the
 // refinalized pairs. It shares its predicate with the retirement statement's
 // atomic guard by construction: both filter stage, live-lease statuses,
-// claim_until against the transaction clock, and the same generation arrays.
+// claim_until against the wall clock, and the same generation arrays.
 func countInflightReducers(
 	ctx context.Context,
 	q Queryer,

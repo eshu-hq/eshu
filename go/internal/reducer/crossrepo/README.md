@@ -58,13 +58,18 @@ Every blocker the move surfaced was of the first kind described in `AGENTS.md`
 |---|---|
 | `eshu_dp_cross_repo_resolution_duration_seconds` | once per generation, on each **successful** exit path -- an error return skips it, so the histogram counts completed resolutions only |
 | `eshu_dp_cross_repo_evidence_loaded_total` | after the loaded evidence facts are deduped |
-| `eshu_dp_cross_repo_edges_resolved_total` | once the resolved edges are counted |
+| `eshu_dp_cross_repo_edges_resolved_total` | once per resolved edge ownership outcome, labeled by `relationship_type` and bounded `outcome` (`owned_routed` or `foreign_owned_dropped`) |
 | `eshu_dp_cross_repo_activation_fenced_total` | when durable acceptance intents fail to commit and generation activation is fenced |
 
 `eshu_dp_cross_repo_activation_fenced_total` is the one to look at first when
 resolved edges stop appearing in the graph while resolution itself looks
 healthy: the edges resolved, the intents did not commit, and activation was
 withheld on purpose.
+
+`eshu_dp_cross_repo_edges_resolved_total{outcome="foreign_owned_dropped"}`
+records the edges discarded by the single-writer ownership partition. A rise
+means the expected foreign copy was observed; a change in its relationship-type
+distribution helps expose attribution drift without relying on log search.
 
 Every `Instruments` access is nil-guarded, so a handler constructed without
 telemetry resolves normally and reports nothing -- which is also why an empty

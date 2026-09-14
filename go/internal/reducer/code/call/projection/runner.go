@@ -106,18 +106,6 @@ type RefreshFenceLookup interface {
 	) (bool, error)
 }
 
-// ReducerGraphDrain reports whether reducer graph-writing domains are still
-// active, letting local single-backend runners avoid graph write contention.
-// It also reports whether any code scope's active generation is still missing
-// its canonical-nodes phase, which is the cross-repository half of the
-// code-call readiness gate (#6184): the per-intent gate only covers the
-// caller's acceptance unit, so without the fleet-wide check an edge drained
-// before the callee repository commits MATCHes nothing and is lost silently.
-type ReducerGraphDrain interface {
-	HasActiveReducerGraphWork(ctx context.Context) (bool, error)
-	HasUncommittedCanonicalCodeScopes(ctx context.Context) (bool, error)
-}
-
 // RunnerConfig configures the controlled code-calls lane.
 type RunnerConfig struct {
 	LeaseOwner          string

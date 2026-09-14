@@ -44,6 +44,10 @@ func loadResolvedRelationshipsForIntent(
 // scope that the succeeded-only reopen path would never reopen.
 const DeployableUnitCorrelationResolutionNotReadyFailureClass = "deployable_unit_correlation_resolution_not_ready"
 
+// DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass classifies a
+// deferral while a code repository can still be detached and re-projected.
+const DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass = "deployable_unit_correlation_canonical_nodes_not_ready"
+
 // deployableUnitCorrelationResolutionNotReadyError defers the intent until its
 // own relationship generation activates.
 type deployableUnitCorrelationResolutionNotReadyError struct {
@@ -63,6 +67,51 @@ func (deployableUnitCorrelationResolutionNotReadyError) Retryable() bool { retur
 
 func (deployableUnitCorrelationResolutionNotReadyError) FailureClass() string {
 	return DeployableUnitCorrelationResolutionNotReadyFailureClass
+}
+
+// deployableUnitCorrelationCanonicalNodesNotReadyError holds an edge-producing
+// intent until repository projection has committed for every active code repo.
+type deployableUnitCorrelationCanonicalNodesNotReadyError struct {
+	scopeID      string
+	generationID string
+}
+
+func (e deployableUnitCorrelationCanonicalNodesNotReadyError) Error() string {
+	return fmt.Sprintf(
+		"canonical repository projection is not quiescent for scope %s generation %s; deferring deployable unit correlation before graph writes",
+		e.scopeID,
+		e.generationID,
+	)
+}
+
+func (deployableUnitCorrelationCanonicalNodesNotReadyError) Retryable() bool { return true }
+
+func (deployableUnitCorrelationCanonicalNodesNotReadyError) FailureClass() string {
+	return DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass
+}
+
+// deployableUnitCanonicalReposReady holds edge-producing work until no active
+// code repository can run canonical Repository cleanup after the edge write.
+func deployableUnitCanonicalReposReady(
+	ctx context.Context,
+	checker CanonicalCodeQuiescenceChecker,
+	intent Intent,
+	hasCandidates bool,
+) error {
+	if checker == nil || !hasCandidates {
+		return nil
+	}
+	uncommitted, err := checker.HasUncommittedCanonicalCodeScopes(ctx)
+	if err != nil {
+		return fmt.Errorf("check canonical repository quiescence: %w", err)
+	}
+	if !uncommitted {
+		return nil
+	}
+	return deployableUnitCorrelationCanonicalNodesNotReadyError{
+		scopeID:      intent.ScopeID,
+		generationID: intent.GenerationID,
+	}
 }
 
 // resolutionGenerationReady reports whether the relationship generation has

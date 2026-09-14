@@ -274,7 +274,7 @@ func TestResetRetirementGuardsAgainstLiveReducerLeases(t *testing.T) {
 		"stage = 'reducer'",
 		"'claimed'",
 		"'running'",
-		"claim_until > now()",
+		"claim_until > clock_timestamp()",
 		"unnest($1::text[], $2::text[])",
 	} {
 		if !strings.Contains(retire, want) {
