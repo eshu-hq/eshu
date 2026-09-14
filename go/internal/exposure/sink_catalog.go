@@ -127,7 +127,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "CloudResource",
 		BaselineSeverity: SeverityCritical,
 		GraphBacked:      true,
-		Provenance:       "reducer/iam_escalation_materialization.go (principal -[:CAN_ESCALATE_TO]-> target :CloudResource)",
+		Provenance:       "reducer/iamescalation/iam_escalation_materialization.go (principal -[:CAN_ESCALATE_TO]-> target :CloudResource)",
 	},
 	{
 		Kind:             SinkIAMPrivilegedAction,
@@ -159,7 +159,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "SqlTable",
 		BaselineSeverity: SeverityMedium,
 		GraphBacked:      true,
-		Provenance:       "reducer/sql_relationship_materialization.go and storage/cypher/edge_writer_sql.go (Function-[:QUERIES_TABLE]->SqlTable)",
+		Provenance:       "reducer/sqlrelationship/sql_relationship_embedded_query.go and storage/cypher/edge_writer_sql.go (Function-[:QUERIES_TABLE]->SqlTable)",
 	},
 	// Internet-exposed endpoint sink: a security-group rule that reaches the public
 	// internet (0.0.0.0/0 or ::/0), captured by the is_internet flag on the CIDR
@@ -172,7 +172,7 @@ var sinkCatalog = []SinkSpec{
 		TargetPredicates: []SinkPredicate{{Key: "is_internet", Value: "true"}},
 		BaselineSeverity: SeverityHigh,
 		GraphBacked:      true,
-		Provenance:       "reducer/security_group_reachability.go (:SecurityGroupRule -[:TO]-> :CidrBlock{is_internet:true})",
+		Provenance:       "reducer/secgroup/security_group_reachability.go (:SecurityGroupRule -[:TO]-> :CidrBlock{is_internet:true})",
 	},
 	// Shell-exec sink: a function that constructs a command through a recognized
 	// Go, Python, or Node command-execution API. The materializer records
@@ -184,7 +184,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "ShellCommand",
 		BaselineSeverity: SeverityCritical,
 		GraphBacked:      true,
-		Provenance:       "reducer/shell_exec_materialization.go and storage/cypher/edge_writer_shell_exec.go (Function-[:EXECUTES_SHELL]->ShellCommand)",
+		Provenance:       "reducer/code/shell/handler.go and storage/cypher/edge_writer_shell_exec.go (Function-[:EXECUTES_SHELL]->ShellCommand)",
 	},
 	// Config/IaC sinks are closed-vocabulary #3191 fixtures but intentionally
 	// non-GraphBacked for now. The current value-flow fixpoint graph loader only
@@ -288,13 +288,19 @@ func predicatesSatisfied(predicates []SinkPredicate, props map[string]string) bo
 // catalog. The well-formedness test fails when the catalog changes without a
 // deliberate update to this constant, implementing the taintModelVersion
 // discipline: a curated edit trips downstream re-evaluation.
-const sinkCatalogVersionGolden = "6db744b6723ff2943dd78c5ceeb095f9479b489f921708dd7c4bfd94191a6ed3"
+//
+// #6547 bumped it from 6db744b6723ff2943dd78c5ceeb095f9479b489f921708dd7c4bfd94191a6ed3
+// by repointing four Provenance paths stranded by the #6061 reducer moves.
+const sinkCatalogVersionGolden = "91a71ebd48ef65ff372bda82c38c62d12525192ac9bffbf9ac82c2d0dcdd970e"
 
 // SinkCatalogVersion returns a deterministic content hash over the curated
-// cloud-sink catalog. Any change to the catalog (added, removed, or edited spec)
-// changes this value so cached reachability findings can be invalidated and
-// re-evaluated. The value is stable across process runs and independent of Go
-// map iteration order.
+// cloud-sink catalog. Any change to the catalog (added, removed, or edited spec,
+// including a Provenance-only edit) changes this value so a consumer that caches
+// reachability findings against it can invalidate and re-evaluate them. No
+// runtime consumer keys on it yet: nothing persists it or returns it over the
+// API or MCP, so today a bump changes only sinkCatalogVersionGolden (#6547).
+// The value is stable across process runs and independent of Go map iteration
+// order.
 func SinkCatalogVersion() string {
 	return hashSinkSpecs(sinkCatalog)
 }

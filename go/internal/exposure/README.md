@@ -61,10 +61,18 @@ can prove a finding rather than silently returning zero findings.
 ### Content-hash discipline
 
 `SinkCatalogVersion()` returns a deterministic SHA-256 over the catalog. Any
-field change produces a new value so cached reachability findings invalidate.
+field change, including a `Provenance`-only edit, produces a new value, so a
+consumer that caches reachability findings against it can invalidate them.
 `sinkCatalogVersionGolden` pins the current value; the well-formedness test fails
 on an undeliberate edit, forcing a conscious version bump (the
 `taintModelVersion` discipline borrowed from GitNexus).
+
+No runtime consumer keys on the version today. Nothing persists it, and no
+API or MCP field returns it, so a bump invalidates nothing at runtime and
+changes only the pinned golden. The last bump was #6547, which repointed four
+`Provenance` paths stranded by the #6061 reducer package moves.
+`TestSinkCatalogProvenancePathsExist` now fails when a cited `.go` file does
+not exist, so the next move surfaces here rather than going stale silently.
 
 ## Taint source catalog (#2725)
 
