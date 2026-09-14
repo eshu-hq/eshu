@@ -158,7 +158,7 @@ func collectReducerPortSignatures(
 			iface.Complete()
 			for index := 0; index < iface.NumMethods(); index++ {
 				method := iface.Method(index)
-				if !hasContextFirstParameter(method) {
+				if !method.Exported() || isReducerNonPortTaxonomyMethod(method) {
 					continue
 				}
 				signature := receiverlessSignature(method)
@@ -169,14 +169,23 @@ func collectReducerPortSignatures(
 	return ports
 }
 
-func hasContextFirstParameter(function *types.Func) bool {
-	signature := function.Type().(*types.Signature)
-	if signature.Params().Len() == 0 {
+func isReducerNonPortTaxonomyMethod(method *types.Func) bool {
+	signature := method.Type().(*types.Signature)
+	if signature.Params().Len() != 0 || signature.Results().Len() != 1 {
 		return false
 	}
-	named, ok := types.Unalias(signature.Params().At(0).Type()).(*types.Named)
-	return ok && named.Obj().Name() == "Context" &&
-		named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == "context"
+	result, ok := types.Unalias(signature.Results().At(0).Type()).(*types.Basic)
+	if !ok {
+		return false
+	}
+	switch method.Name() {
+	case "Error", "FailureClass":
+		return result.Kind() == types.String
+	case "Retryable":
+		return result.Kind() == types.Bool
+	default:
+		return false
+	}
 }
 
 func appendDistinctSignature(
