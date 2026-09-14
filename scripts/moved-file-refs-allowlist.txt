@@ -124,3 +124,12 @@ docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.m
 docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md:go/internal/query/iac_resources.go
 testdata/golden/e2e-20repo-snapshot.json:go/internal/query/iac_inventory_postgres.go
 testdata/golden/e2e-20repo-snapshot.json:go/internal/query/iac_resources.go
+
+# Not a pointer: the vacated path is the OLD-side argument of a recorded
+# `git diff -M 514534567 HEAD -- <old> <new>` invocation whose output the README
+# quotes beside it. That argument is what lets git's rename detection report the
+# `similarity index 62%` and the two hunks the section's no-regression argument
+# rests on. Repointing it leaves `git diff -M` comparing decode.go with itself,
+# which reports a new file and no similarity index at all, so the command would
+# no longer produce the output printed next to it.
+go/internal/query/querycontract/README.md:go/internal/query/querycontract/rowvalue.go
