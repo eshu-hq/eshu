@@ -10,25 +10,27 @@ caller was not granted?
 Three things were established from the projector source.
 
 **A File carries its own owning reference.** `f.repo_id` is written by all six
-canonical File statements (`canonical_node_cypher.go:166-259`), so an
+canonical File statements -- the `canonicalNodeFile*` and
+`canonicalNodeRootFile*` constants in
+`go/internal/storage/cypher/canonical_node_cypher.go` -- so an
 `f.repo_id = rid` re-check is available with no schema change.
 
 **`Directory.repo_id` is not write-once.** Directory identity is `path` alone --
 `MERGE (d:Directory {path: row.path}) SET d.repo_id = row.repo_id`
-(`canonical_node_cypher.go:144`) -- so `repo_id` is a mutable property on a node
-any projection whose file paths reach that directory may re-point.
+(`canonicalNodeDirectoryNodeCypher`) -- so `repo_id` is a mutable property on a
+node any projection whose file paths reach that directory may re-point.
 
-**The phases do commit separately.** `buildPhases` orders `directories` ->
-`directory_edges` -> `files` (`canonical_node_writer.go:309-311`), and the
-production phase-group executor runs one `ExecutePhaseGroup` per phase
-(`canonical_node_writer.go:175-210`), which is the path
-`canonical_node_cypher.go:122-143` names as the production projector's. Only the
+**The phases do commit separately.** `buildPhases`
+(`go/internal/storage/cypher/canonical_node_writer.go`) orders `directories` ->
+`directory_edges` -> `files`, and the production phase-group executor runs one
+`ExecutePhaseGroup` per phase in the `PhaseGroupExecutor` branch of
+`(*CanonicalNodeWriter).Write`, which is the path the `Phase C: Directory Cypher`
+note in `canonical_node_cypher.go` names as the production projector's. Only the
 atomic `GroupExecutor` path puts all node phases in one transaction. So a reader
 can see a committed new `repo_id` on a directory still holding the previous
 generation's CONTAINS edges: the prune that clears them
-(`canonicalNodeRefreshCurrentDirectoryFileEdgesCypher`,
-`canonical_node_cypher.go:82`) is keyed on the CURRENT generation's file paths
-only. The review's phase-ordering claim is correct.
+(`canonicalNodeRefreshCurrentDirectoryFileEdgesCypher`) is keyed on the CURRENT
+generation's file paths only. The review's phase-ordering claim is correct.
 
 **What that does and does not allow.** It cannot disclose a file: the statement
 returns Directory rows plus `count(f)`, never a File's id, name or path. It can
@@ -48,8 +50,8 @@ chain with it: `qualifyPath` only concatenates while `path.Dir` cleans, so
 directories stamped with `repo-alpha` and linked `repo-alpha`'s file to them.
 Both halves break a grant: the sibling's directory is re-pointed away from the
 caller granted it and counted for the caller granted alpha.
-`isRepositoryLocalRelativePath` (`canonical_codegraph_extract.go`) now skips such
-a row, matching the existing empty-`relative_path` skip. Production discovery
+`isRepositoryLocalRelativePath` (`canonical_codegraph_extract.go`) now rejects
+such a row and quarantines the fact. Production discovery
 cannot emit such a path -- every `relative_path` it writes comes from
 `filepath.Rel` against the repository root
 (`go/internal/collector/discovery/filesystem_walk.go`) -- so this is a guard on a
@@ -58,7 +60,7 @@ malformed or hostile fact, not a reproduction of an observed run.
 RED then GREEN, `go/internal/projector`:
 
 ```
-go test ./internal/projector -run 'TestCanonicalDirectoryChainStaysInsideTheRepositoryRoot|TestCanonicalFileRowsShareTheirDirectoryRowsRepositoryID' -count=1
+go test ./internal/projector -run 'TestCanonicalDirectoryChainStaysInsideTheRepositoryRoot|TestCanonicalFileRowsShareTheirDirectoryRowsRepositoryID|TestCanonicalEscapingRelativePathIsQuarantinedNotSilentlyDropped' -count=1
 ```
 
 Before the guard: `--- FAIL: TestCanonicalDirectoryChainStaysInsideTheRepositoryRoot`,
@@ -73,11 +75,26 @@ No-Regression Evidence: no Cypher text, anchor, index dependency, parameter or
 fan-out changed for this finding. `buildDirectoryCypher`'s statement is
 byte-identical (`cypher_shipped_text_test.go` frozen baselines pass unchanged),
 and the queryplan `source_sha256` for it does not move because
-`manifestSymbolSource` parses without `parser.ParseComments`
-(`go/internal/queryplan/source_validation.go:92-119`), so a doc comment is
-outside the digest. The projector guard is one `path.Clean` prefix test per file
-fact on a path the same loop already walks with `path.Dir`.
-Observability Evidence: unchanged. The route's span (`SpanQueryLanguageQuery`)
-and `Handler.logDirectoryRead` are untouched; a skipped file fact leaves no new
-signal because it is skipped on the same branch as an empty `relative_path`,
-which has never been logged either.
+`manifestSymbolSource` (`go/internal/queryplan/source_validation.go`) parses
+without `parser.ParseComments`, so a doc comment is outside the digest. The
+projector guard is one `path.Clean` prefix test per file fact on a path the same
+loop already walks with `path.Dir`.
+Observability Evidence: a fact this guard rejects is a fact that would have
+produced Directory and File rows, so it is routed through the package's existing
+visible dead-letter rather than dropped: `extractFilesWithQuarantine` returns it
+as a `quarantinedFact` carrying `field: relative_path` and
+`classification: input_invalid`, and `recordProjectorQuarantinedFacts`
+(called from `runtime.go` for every extractor's quarantined facts) increments
+`eshu_dp_projector_input_invalid_facts_total` at
+`stage=codegraph_canonical, fact_kind=file` and logs one structured error naming
+the fact id and the field. No new metric, stage label or log event is
+introduced -- the `file` fact-kind prefix already routes to
+`codegraphCanonicalStage` -- so the telemetry contract and
+`docs/public/observability/telemetry-coverage.md` are unchanged.
+`TestCanonicalEscapingRelativePathIsQuarantinedNotSilentlyDropped` is the
+regression: it failed with `quarantined = []` before the change and asserts the
+fact id, field, classification and resolved stage after it. The empty
+`relative_path` skip beside the guard stays silent and is out of scope: it
+materializes no row either way, so there is no missing graph row for an operator
+to explain. The route's span (`SpanQueryLanguageQuery`) and
+`Handler.logDirectoryRead` are untouched.

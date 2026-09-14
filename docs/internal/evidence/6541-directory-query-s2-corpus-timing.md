@@ -151,7 +151,11 @@ nothing; the branch short-circuits before touching the backend.
 The run above timed reads, not writes. A separate remote run
 (`6541-directory-write-cost-20260914T122238Z`) closes that gap.
 
-**Design.** Six reps per arm, run alternating (absent 1, present 1, absent 2,
+**Design.** Eshu head `5a1292b7392345eba129b2ae53603dce58aff1dd`, one commit
+behind the head this section ships on; the harness copies the canonical Cypher
+constants verbatim and never runs the projector Go path, and the intervening
+commit changes only Go, so the write shapes measured are the shipped ones. Six
+reps per arm, run alternating (absent 1, present 1, absent 2,
 present 2, …) so machine drift cannot land on one arm; a fresh container and a
 fresh volume per rep; the only difference between the two arms is dropping the
 one DDL statement containing `directory_repo_id`. Same corpus recipe and the
@@ -175,8 +179,9 @@ Whole projection, mean of 6: absent **49.442s**, present **49.422s**.
 
 ### It does not resolve
 
-The point estimate is negative in five of six phases, which is what noise looks
-like, not what a cost looks like. So the honest figure is the **upper 95% CI
+The point estimate is negative in four of the five measured phases and in the
+total (only `files`, at +0.009s, is positive), which is what noise looks like,
+not what a cost looks like. So the honest figure is the **upper 95% CI
 limit**, read as a bound — the most the index could be costing and still be
 consistent with these samples:
 
@@ -211,8 +216,18 @@ canonical directory-node phase ran 1.525s with the index present against 1.537s
 absent, and whole projection 49.422s against 49.442s; the delta does not
 resolve against the ±0.05s within-arm spread, so the cost is reported as a
 bound — at most +0.52 µs per directory write, at most +0.67% of that phase, at
-most +0.80% of corpus projection. Against that bounded write cost, the same
-index moves the scoped directory language query from 15.7s to 0.074s.
+most +0.80% of corpus projection. What that bounded write cost buys on the read
+side is the index-ABSENT to index-PRESENT step of the table above, not the
+BEFORE→AFTER total: 4.5x at grant-1/50 (0.333s -> 0.074s), 1.6x at grant-5/50
+(1.498s -> 0.922s), 1.9x at grant-50/50 (15.987s -> 8.534s), 2.1x at
+unscoped/50 (15.384s -> 7.465s) and 2.0x at unscoped/200 (15.446s -> 7.603s) —
+a read-side saving of roughly 0.26s to 7.9s depending on grant width, against a
+write-side bound of at most +396 ms on a 49.4s projection. At the unscoped cell
+the index is not an optimisation on top of the rewrite: it is what brings the
+statement inside the 10s deadline at all (index absent DEADLINE_FAILED at
+10.010s, index present 8.325s with 50 rows). The 15.722s -> 0.074s pair at
+grant-1/50 is the rewrite-plus-index total against `origin/main`'s shipped
+statement, not the index's share of it.
 
 ## Caveats
 

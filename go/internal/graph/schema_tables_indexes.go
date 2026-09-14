@@ -55,7 +55,8 @@ var schemaPerformanceIndexes = []string{
 	// that writes `d.repo_id` -- took a mean 1.525s (1.494-1.544s, stdev 0.017s)
 	// with the index present against 1.537s (1.519-1.559s, stdev 0.018s) absent;
 	// whole projection 49.422s against 49.442s. It does not resolve: the point
-	// estimate is negative in five of six phases, so the honest figure is the
+	// estimate is negative in four of the five measured phases and in the total
+	// (only files, at +0.009s, is positive), so the honest figure is the
 	// upper 95% CI limit read as a bound -- at most +10.3 ms across 20,000
 	// Directory MERGE/SET rows, at most +0.52 µs per directory write, at most
 	// +0.67% of the phase; whole projection at most +396 ms on 49.4s, at most
@@ -66,9 +67,19 @@ var schemaPerformanceIndexes = []string{
 	// index, total drift under 0.5 ms -- so maintenance is not degrading as the
 	// index fills; the files phase's +3.4e-5 s/batch slope is identical to six
 	// significant figures in both arms, which makes it the graph growing under
-	// 200,000 File MERGEs rather than this index. That bounded write cost is
-	// what buys the read side: the same index moves the scoped directory
-	// language query from 15.7s to 0.074s. Full record:
+	// 200,000 File MERGEs rather than this index. What that bounded write cost
+	// buys is the index-ABSENT to index-PRESENT step, not the BEFORE->AFTER
+	// total of the rewrite: 4.5x at grant-1/50 (0.333s -> 0.074s), 1.6x at
+	// grant-5/50 (1.498s -> 0.922s), 1.9x at grant-50/50 (15.987s -> 8.534s),
+	// 2.1x unscoped/50 (15.384s -> 7.465s) and 2.0x unscoped/200 (15.446s ->
+	// 7.603s) -- a read-side saving of roughly 0.26s to 7.9s depending on grant
+	// width against a write-side bound of at most +396 ms on a 49.4s
+	// projection. Unscoped the index is not an optimisation on top of the
+	// rewrite but what brings the statement inside the 10s deadline at all
+	// (absent DEADLINE_FAILED at 10.010s, present 8.325s with 50 rows). The
+	// 15.722s -> 0.074s pair quoted for grant-1/50 elsewhere is the
+	// rewrite-plus-index total against origin/main, not this index's share of
+	// it. Full record:
 	// docs/internal/evidence/6541-directory-query-s2-corpus-timing.md. Read "the
 	// index changes reads only" in the schema-compatibility note
 	// (schema_application.go) as "it moves no MERGE or MATCH identity, so a

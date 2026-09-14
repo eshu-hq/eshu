@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // The #6541 directory language query decides grant membership from the
@@ -125,10 +126,77 @@ func TestCanonicalDirectoryChainStaysInsideTheRepositoryRoot(t *testing.T) {
 	}
 }
 
-// TestCanonicalFileRowsShareTheirDirectoryRowsRepositoryID pins the invariant
-// the directory query reads: every File the projector CONTAINS-links to a
-// Directory carries that Directory's repo_id, so counting files under a
-// Directory admitted by repo_id counts only that repository's files.
+// TestCanonicalEscapingRelativePathIsQuarantinedNotSilentlyDropped is the
+// failing regression for the missing operator signal on the guard above.
+//
+// isRepositoryLocalRelativePath discards a file fact that WOULD have produced
+// graph rows. Dropped with no counter and no log, that fact is
+// indistinguishable at 3 AM from one the collector never emitted: "this file is
+// missing from the graph" has no evidence behind it either way. The package
+// already owns the visible dead-letter for a fact an extractor refuses --
+// quarantinedFact carried out of buildCanonicalMaterialization and recorded by
+// recordProjectorQuarantinedFacts as the eshu_dp_projector_input_invalid_facts_total
+// increment plus a structured error log -- so this asserts the escaping fact
+// takes that established path rather than a bare continue.
+func TestCanonicalEscapingRelativePathIsQuarantinedNotSilentlyDropped(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		ownershipRepositoryFact(),
+		ownershipFileFact("f-ok", "src/api/handler.go"),
+		ownershipFileFact("f-escape", "../beta/src/leak.go"),
+	}
+
+	mat, quarantined := buildCanonicalMaterialization(ownershipScope(), ownershipGeneration(), envelopes)
+
+	if len(mat.Files) != 1 {
+		t.Fatalf("len(mat.Files) = %d, want 1: the escaping fact must still be dropped", len(mat.Files))
+	}
+
+	var escaped *quarantinedFact
+	for i := range quarantined {
+		if quarantined[i].factID == "f-ok" {
+			t.Errorf("valid fact f-ok was quarantined: %+v", quarantined[i])
+		}
+		if quarantined[i].factID == "f-escape" {
+			escaped = &quarantined[i]
+		}
+	}
+	if escaped == nil {
+		t.Fatalf(
+			"file fact f-escape was dropped with no quarantinedFact (quarantined = %+v); "+
+				"recordProjectorQuarantinedFacts emits no counter and no log for it, so an "+
+				"operator cannot tell a dropped file from one never emitted",
+			quarantined,
+		)
+	}
+	if escaped.field != "relative_path" {
+		t.Errorf("quarantined field = %q, want %q: the log must name the field that was invalid", escaped.field, "relative_path")
+	}
+	if escaped.classification != factschema.ClassificationInputInvalid {
+		t.Errorf(
+			"quarantined classification = %q, want %q: recordProjectorQuarantinedFacts labels the counter by it",
+			escaped.classification, factschema.ClassificationInputInvalid,
+		)
+	}
+	if stage := quarantinedFactStage(escaped.factKind); stage != codegraphCanonicalStage {
+		t.Errorf(
+			"quarantinedFactStage(%q) = %q, want %q: the dead-letter must be attributed to the extractor that dropped it",
+			escaped.factKind, stage, codegraphCanonicalStage,
+		)
+	}
+}
+
+// TestCanonicalFileRowsShareTheirDirectoryRowsRepositoryID is the positive pin
+// for the guard above: every File the projector emits names a Directory this
+// same projection materialized, so no file is left pointing at a directory row
+// that was rejected or never written.
+//
+// The load-bearing assertion is the `ok` lookup. The repo_id comparison after
+// it cannot fail within one materialization -- buildDirectoryChain and
+// extractFilesWithQuarantine are handed the same repoID value -- so it does not
+// today prove the directory query's grant premise; it pins the invariant
+// against a future change that derives the two repo_ids from different sources.
 func TestCanonicalFileRowsShareTheirDirectoryRowsRepositoryID(t *testing.T) {
 	t.Parallel()
 

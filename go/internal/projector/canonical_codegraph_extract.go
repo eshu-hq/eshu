@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // extractRepository builds a RepositoryRow from the first RepositoryObserved
@@ -137,6 +138,19 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 			continue
 		}
 		if !isRepositoryLocalRelativePath(relativePath) {
+			// A fact that would have produced graph rows is being discarded,
+			// so it takes the package's visible dead-letter path rather than a
+			// bare skip: recordProjectorQuarantinedFacts turns this into the
+			// eshu_dp_projector_input_invalid_facts_total increment plus a
+			// structured error log naming the fact and relative_path. Without
+			// it, a file absent from the graph is indistinguishable from one
+			// the collector never emitted.
+			quarantined = append(quarantined, quarantinedFact{
+				factID:         fileFacts[i].FactID,
+				factKind:       fileFacts[i].FactKind,
+				field:          "relative_path",
+				classification: factschema.ClassificationInputInvalid,
+			})
 			continue
 		}
 
@@ -187,8 +201,13 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 // Production discovery cannot emit such a path: every relative_path it writes
 // comes from filepath.Rel against the repository root
 // (go/internal/collector/discovery/filesystem_walk.go). This is a guard on a
-// malformed or hostile fact, which is why the row is skipped rather than
-// quarantined, matching the empty-relative_path skip above.
+// malformed or hostile fact, so a rejected row is QUARANTINED rather than
+// skipped: it would otherwise have produced Directory and File rows, and an
+// operator needs to tell a fact this guard dropped from one that was never
+// emitted. The caller routes it through recordProjectorQuarantinedFacts on the
+// input_invalid counter and log, the same visible dead-letter a decode failure
+// takes. The empty-relative_path skip beside it stays silent: it materializes
+// nothing either way, so there is no missing row to explain.
 func isRepositoryLocalRelativePath(relativePath string) bool {
 	if path.IsAbs(relativePath) {
 		return false

@@ -216,9 +216,9 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 // repository and its files' repository from ONE value: buildCanonicalMaterialization
 // stamps mat.RepoID onto every FileRow through extractFilesWithQuarantine and
 // onto every DirectoryRow through buildDirectoryChain, which walks those same
-// file paths (go/internal/projector/canonical_builder.go:65-70). Within one
-// projection no `(d)-[:CONTAINS]->(f)` edge can cross repositories, so counting
-// files under a directory admitted by repo_id counts only granted files.
+// file paths (all three in go/internal/projector/canonical_builder.go). Within
+// one projection no `(d)-[:CONTAINS]->(f)` edge can cross repositories, so
+// counting files under a directory admitted by repo_id counts only granted files.
 // isRepositoryLocalRelativePath keeps that true for a file fact whose
 // relative_path climbs out of the repository root, which used to walk the
 // directory chain into a SIBLING repository's paths and stamp them with this
@@ -227,22 +227,23 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 //
 // What the graph does NOT enforce, and what a future projector change would
 // break. Directory identity is `path` alone -- `MERGE (d:Directory {path:
-// row.path}) SET d.repo_id = row.repo_id`, canonical_node_cypher.go:144 -- so
-// repo_id is a mutable property, and the production phase-group executor
+// row.path}) SET d.repo_id = row.repo_id`, canonicalNodeDirectoryNodeCypher --
+// so repo_id is a mutable property, and the production phase-group executor
 // commits the `directories` phase in its OWN transaction ahead of the
 // `directory_edges` and `files` phases that write this statement's CONTAINS
-// edges (buildPhases, canonical_node_writer.go:309-311; one ExecutePhaseGroup
-// per phase, canonical_node_writer.go:175-210). A reader can therefore see a
-// new repo_id on a directory still holding the previous generation's edges,
-// because the prune that clears them is keyed on the CURRENT generation's file
-// paths only (canonicalNodeRefreshCurrentDirectoryFileEdgesCypher,
-// canonical_node_cypher.go:82). That window cannot disclose a file -- this
-// statement returns Directory rows and an aggregate, never a File's id, name or
-// path -- and the statement it replaced reached the same files through the same
-// File-to-Directory CONTAINS hop, so it is not introduced here. It can inflate
-// file_count. Closing it needs `f.repo_id`, which the projector writes on every
-// File (canonical_node_cypher.go:166-259), as a second predicate; that is a
-// change to a measured hot-path statement and belongs with its own plan profile
+// edges (buildPhases in go/internal/storage/cypher/canonical_node_writer.go;
+// one ExecutePhaseGroup per phase in the PhaseGroupExecutor branch of
+// CanonicalNodeWriter.Write). A reader can therefore see a new repo_id on a
+// directory still holding the previous generation's edges, because the prune
+// that clears them is keyed on the CURRENT generation's file paths only
+// (canonicalNodeRefreshCurrentDirectoryFileEdgesCypher). That window cannot
+// disclose a file -- this statement returns Directory rows and an aggregate,
+// never a File's id, name or path -- and the statement it replaced reached the
+// same files through the same File-to-Directory CONTAINS hop, so it is not
+// introduced here. It can inflate file_count. Closing it needs `f.repo_id`,
+// which the projector writes on every File (the canonicalNodeFile* and
+// canonicalNodeRootFile* statements), as a second predicate; that is a change
+// to a measured hot-path statement and belongs with its own plan profile
 // and corpus measurement rather than in this PR. If the projector ever stops
 // making one directory path belong to one repository, this statement stops
 // enforcing the grant and must move to that predicate.
