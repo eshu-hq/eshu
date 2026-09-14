@@ -16,10 +16,15 @@ Every function is total: no error return, no panic, zero value on a missing key,
 a nil, or an unexpected type. Callers rely on that to degrade one field rather
 than fail a request.
 
-Changing what any of these returns is not a local edit. At the time of the
-extraction `StringVal` had 235 qualified call sites and the five helpers were
-named in 285 files. Adding a case to `IntVal` or `FloatVal` is usually safe;
-changing an existing case's result is not, and needs the call sites audited.
+Changing what any of these returns is not a local edit, and the surface is
+bigger than a file listing suggests. Over `go/`,
+`git grep -o 'querycontract.StringVal('` counts **2057** qualified calls and
+`git grep -l` the same pattern **235 files**; across all five names it is
+**2705** calls in **272 files** (305 files if you count any receiver, not just
+`querycontract`). Unchanged between the base `514534567` and this head, because
+the move touched no caller. Budget an audit against the call count, not the file
+count. Adding a case to `IntVal` or `FloatVal` is usually safe; changing an
+existing case's result is not, and needs the call sites audited.
 
 `StringVal` renders a present non-string with `%v` while the others discard.
 That asymmetry is intentional — see the README. Do not "fix" it for symmetry.

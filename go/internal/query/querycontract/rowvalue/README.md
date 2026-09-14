@@ -43,8 +43,11 @@ family, not here.
 ## Compatibility
 
 `querycontract` keeps forwarding wrappers for all five names, so existing
-callers compile unchanged. At the time of the move `StringVal` alone had 235
-qualified call sites and the five helpers were named in 285 files.
+callers compile unchanged. That surface is large. Counting qualified calls over
+`go/` with `git grep -o 'querycontract.StringVal('` for occurrences and
+`git grep -l` for files -- the same numbers at the base `514534567` and after
+the move, because no caller changed -- `StringVal` alone is called 2057 times
+across 235 files, and the five together 2705 times across 272 files.
 
 Package `query` forwards only four of them — `StringVal`, `BoolVal`, `IntVal`
 and `StringSliceVal`, in `neo4j.go`. It has no exported `FloatVal`; it reaches

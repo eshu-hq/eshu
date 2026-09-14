@@ -72,8 +72,11 @@ func FilterNullRelationships(v any) []map[string]any {
 // rowvalue without reaching back through this package.
 //
 // These wrappers keep the original names. Every existing caller compiles
-// unchanged, which matters at this scale: StringVal alone has 235 qualified
-// call sites, and the five helpers together are named in 285 files. Package
+// unchanged, which matters at this scale. Measured over go/ with
+// git grep -o 'querycontract.StringVal(' (occurrences) and git grep -l (files),
+// identical at the base 514534567 and at this head: StringVal alone is called
+// 2057 times across 235 files, and the five helpers together 2705 times across
+// 272 files. 235 and 272 are file counts, not call-site counts. Package
 // query's own forwarders in neo4j.go cover four of the five and continue to
 // work through these; it has no exported FloatVal and reaches this one through
 // two unexported wrappers instead, floatVal in compare.go and
