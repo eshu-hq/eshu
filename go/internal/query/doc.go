@@ -465,9 +465,9 @@
 // with no BUILT_FROM edge. Such a page is REFILLED across further windows
 // until it holds limit visible rows, the history ends, or a small per-request
 // read cap is reached, so count below limit no longer measures what the filter
-// withheld, and next_cursor is an opaque token bound to the image_ref and
-// limit it was issued for rather than a raw row offset. offset paging stays
-// for unscoped and all-scope callers only.
+// withheld, and next_cursor is an opaque token bound to the image_ref it was
+// issued for rather than a raw row offset, valid at any page size. offset
+// paging stays for unscoped and all-scope callers only.
 //
 // CodeownersOwnershipHandler serves GET /api/v0/codeowners/ownership (issue
 // #5419 Phase 4): a bounded, keyset-paginated read of one repository's Phase 3

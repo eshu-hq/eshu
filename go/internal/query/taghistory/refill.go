@@ -84,8 +84,13 @@ type ScopedPage struct {
 //     CALLER RECEIVED. It discloses nothing -- the caller holds that row.
 //   - Cap reached with at least one visible row: NextKey is the last visible
 //     row's key, again a row the caller holds. The next request re-scans the
-//     withheld rows after it, which costs at most one window and returns no
-//     duplicate, because no visible row sits in that span.
+//     withheld rows after it and returns no duplicate, because no visible row
+//     sits in that span. That re-scan costs UP TO MaxRefillReads windows, not
+//     one: the last visible row can sit anywhere in the scan, including the
+//     first window, so the withheld run after it can span every remaining
+//     window and the next request re-reads all of it. The walk still advances
+//     -- a request that sees no visible row at all resumes from the last RAW
+//     row instead (next case), so the frontier always moves forward.
 //   - Cap reached with ZERO visible rows: NextKey MUST be the last RAW row
 //     scanned. A key at the last visible row would re-scan the same 800 rows
 //     forever and the walk could never advance. That row may be withheld, which

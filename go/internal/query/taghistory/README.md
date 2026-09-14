@@ -15,7 +15,7 @@ bounds derived from them, and the join that enforces the grant live together.
 | `page.go` | The four statements — `FirstPageCypher`, `AfterKeyCypher`, `NullTailCypher` and the unscoped `OffsetCypher` — plus `Key`, `Row`, `WindowRow`, `ReadWindow` and `ReadOffsetWindow`. |
 | `refill.go` | `RefillScopedPage`, `ScopedPage` and `MaxRefillReads` — the refill loop, its fixed window size and its read cap. |
 | `builtfrom.go` | `BuiltFromCypher` (RETURNs `DISTINCT`), `LookupBuiltFromRepositories`, the enforced key/fan-out bounds, `GrantCounts`, and the per-row grant decision. |
-| `cursor.go` | The keyset continuation token: `Cursor`, `EncodeCursor`, `DecodeCursor`. Unsealed by design, and it carries no row position. |
+| `cursor.go` | The keyset continuation token: `Cursor`, `EncodeCursor`, `DecodeCursor`. SEALED with the deployment DEK under a route-specific AAD, and it carries no row position. |
 
 ## Why the join runs in Go
 
