@@ -76,7 +76,7 @@ func FilterNullRelationships(v any) []map[string]any {
 // d3d4c2d3e, over go/**/*.go, a querycontract-qualified StringVal call appears
 // 2174 times in 246 files, and the five names together 2856 times in 283
 // files -- 246 and 283 are file counts, not call counts. At the older base
-// 514534567 they read 2057 / 235 / 2705 / 272. The git grep patterns are in
+// 514534567 they read 2057 / 235 / 2705 / 272. The search patterns are in
 // rowvalue/AGENTS.md; a literal copy here would count itself. Package
 // query's own forwarders in neo4j.go cover four of the five and continue to
 // work through these; it has no exported FloatVal and reaches this one through

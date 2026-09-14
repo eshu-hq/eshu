@@ -48,8 +48,8 @@ alone is called 2174 times across 246 files, and the five together 2856 times
 across 283 files. The exact commands are in
 [AGENTS.md](AGENTS.md#changing-a-helpers-contract-is-a-wide-change). The move
 changed no caller, so those commands give the same numbers at `origin/main`
-`d3d4c2d3e` -- excluding the prose that documents them, which a `go/**/*.go`
-pathspec keeps out of the Go files and a Markdown file cannot be counted by at
+`d3d4c2d3e` -- excluding the prose that documents them, which their `*.go`
+filter keeps out of the Go files and a Markdown file cannot be counted by at
 all.
 
 Package `query` forwards only four of them — `StringVal`, `BoolVal`, `IntVal`

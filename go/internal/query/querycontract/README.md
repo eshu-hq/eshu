@@ -140,11 +140,11 @@ below, and is explained after the table:
 
 | helper | `rowvalue` leaf | `querycontract` forwarder | root forwarder |
 | --- | --- | --- | --- |
-| `StringVal` | **cost 95 — cannot inline** (`rowvalue/decode.go:61`) | cost 62 (`response_shaping_helpers.go:93`) | cost 67 (`neo4j.go:103`) |
-| `BoolVal` | cost 33 (`rowvalue/decode.go:75`) | cost 38 (`response_shaping_helpers.go:98`) | cost 43 (`neo4j.go:108`) |
-| `IntVal` | cost 40 (`rowvalue/decode.go:91`) | cost 45 (`response_shaping_helpers.go:104`) | cost 50 (`neo4j.go:113`) |
-| `StringSliceVal` | cost 65 (`rowvalue/decode.go:112`) | cost 70 (`response_shaping_helpers.go:110`) | cost 75 (`neo4j.go:118`) |
-| `FloatVal` | cost 46 (`rowvalue/decode.go:137`) | cost 51 (`response_shaping_helpers.go:116`) | cost 56 (`compare.go:403`, `repository_compat.go:31`) |
+| `StringVal` | **cost 95 — cannot inline** (`rowvalue/decode.go:64`) | cost 62 (`response_shaping_helpers.go:93`) | cost 67 (`neo4j.go:103`) |
+| `BoolVal` | cost 33 (`rowvalue/decode.go:78`) | cost 38 (`response_shaping_helpers.go:98`) | cost 43 (`neo4j.go:108`) |
+| `IntVal` | cost 40 (`rowvalue/decode.go:94`) | cost 45 (`response_shaping_helpers.go:104`) | cost 50 (`neo4j.go:113`) |
+| `StringSliceVal` | cost 65 (`rowvalue/decode.go:115`) | cost 70 (`response_shaping_helpers.go:110`) | cost 75 (`neo4j.go:118`) |
+| `FloatVal` | cost 46 (`rowvalue/decode.go:140`) | cost 51 (`response_shaping_helpers.go:116`) | cost 56 (`compare.go:403`, `repository_compat.go:31`) |
 
 For `BoolVal`, `IntVal`, `StringSliceVal` and `FloatVal` all three hops collapse.
 The `-m` run reports `inlining call to rowvalue.BoolVal` at

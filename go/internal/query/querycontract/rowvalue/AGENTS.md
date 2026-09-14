@@ -17,27 +17,52 @@ a nil, or an unexpected type. Callers rely on that to degrade one field rather
 than fail a request.
 
 Changing what any of these returns is not a local edit, and the surface is
-bigger than a file listing suggests. Measured at this head:
+bigger than a file listing suggests. Measured at this head, run from the repo
+root:
 
 ```
-git grep -o  'querycontract\.StringVal('                          -> 2174 calls
-git grep -l  'querycontract\.StringVal('                          ->  246 files
-git grep -oE 'querycontract\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\(' -> 2856 calls
-git grep -lE  (same pattern)                                      ->  283 files
+rg -o 'querycontract\.StringVal\(' -g '*.go' go | wc -l  -> 2174 calls
+rg -l 'querycontract\.StringVal\(' -g '*.go' go | wc -l  ->  246 files
+rg -o 'querycontract\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\(' \
+	-g '*.go' go | wc -l                             -> 2856 calls
+rg -l  (same pattern, same flags)                        ->  283 files
 ```
 
-each with the pathspec `-- 'go/**/*.go'`. All four are identical at
-`origin/main` `d3d4c2d3e`, because the move touched no caller. At the older base
-`514534567` they read 2057 / 235 / 2705 / 272; that growth is #6060 families
-qualifying calls they used to make in-package as they leave root, not new
-callers. Dropping the receiver
-(`git grep -lE '\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\('`)
-reaches 314 files at `origin/main` and 316 at this head -- the two extra are
+Escape the paren: `rg` reads Rust regex, where a bare `(` opens a group instead
+of matching one. All four are identical at `origin/main` `d3d4c2d3e`, because
+the move touched no caller. At the older base `514534567` they read
+2057 / 235 / 2705 / 272; that growth is #6060 families qualifying calls they
+used to make in-package as they leave root, not new callers. Dropping the
+receiver
+(`rg -l '\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\(' -g '*.go' go`)
+reaches 316 files at this head and 314 at `origin/main` -- the two extra are
 `querycontract/response_shaping_helpers.go`, whose forwarders now name the five
 on the `rowvalue` receiver, and its test; not new callers.
 
-Keep the `*.go` pathspec: without it, the prose that documents the measurement
-is counted by it.
+Keep the `-g '*.go'` filter and the `go` path argument: without them, the prose
+that documents the measurement is counted by it. The receiver-dropping command
+reaches 317 files unfiltered, and the extra one is this file.
+
+### Re-measuring a figure at an older commit
+
+Every command above searches the working tree, so `rg` is the tool, as the root
+`AGENTS.md` requires. The figures quoted at `d3d4c2d3e` and `514534567` are a
+different job: `rg` searches a working tree and cannot read a commit, so
+checking one needs `git grep` with a commit argument.
+
+```
+git grep -lE \
+	'querycontract\.(StringVal|BoolVal|IntVal|StringSliceVal|FloatVal)\(' \
+	d3d4c2d3e -- 'go/**/*.go' | wc -l                ->  283 files
+```
+
+That is a deliberate exception, not an oversight, and it is confined to
+searching a named commit. The `rg`-only alternative is to `git worktree add` a
+throwaway checkout at each commit and search that; it returns the same number
+for the cost of a full checkout per commit compared, which is not worth paying
+to re-check a figure. Translate carefully in either direction: `git grep -E` is
+POSIX ERE, which has no `\b`, so a `\b`-anchored pattern silently matches
+nothing there and reports zero rather than failing.
 
 Budget an audit against the **call** count, not the file count -- 246 and 283
 are files, and the call count is about 9x larger. Adding a case to `IntVal` or
