@@ -196,7 +196,7 @@ Details a reviewer would otherwise have to rediscover:
   that contains it, at the branch base. Rewording a row therefore turns every
   other `file.go:N` on that row into new debt, even when the cited file still
   exists. Each raw suffix on an edited row became a file anchor, and the
-  post-rebase `-update` removed 128 LINE rows (34 from 4784, 93 from 4786, 1
+  post-rebase `-update` removed 157 LINE rows (34 from 4784, 122 from 4786, 1
   from 5385) and added none.
 - **Split files were followed to the content, not the filename.**
   `packages/correlation/writer.go` (a 67% rename) holds the three payload
@@ -249,9 +249,12 @@ Historical or intentional references left in the measured set:
 - Fixtures and the two allowlisted entries are deliberate, as described above.
 - Before the current rebase refresh, seven distinct non-reducer paths on the
   edited 4784/4786 rows no longer resolved after the Lane B `query/` and
-  `projector/` moves. The current matrix repoints all seven and also corrects
-  Kubernetes, OCI-image, and security-alert consumer ownership on those edited
-  rows.
+  `projector/` moves. The current matrix repoints those seven plus ten inherited
+  dead collector, projector, and query paths found by the final review. It also
+  corrects Kubernetes, OCI-image, and security-alert consumer ownership on
+  those edited rows. The live follow-up review additionally verified that the
+  observability-coverage and workload-identity query anchors name files that
+  actually read their respective reducer-derived fact kinds.
 
 ## Gate cost, measured
 
