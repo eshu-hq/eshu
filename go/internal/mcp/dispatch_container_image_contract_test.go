@@ -44,6 +44,7 @@ var containerImageDispatchQueryKeys = map[string][]string{
 		"source_repository_id",
 	},
 	"list_container_image_tag_history": {
+		"cursor",
 		"limit",
 		"offset",
 		"repository_id",

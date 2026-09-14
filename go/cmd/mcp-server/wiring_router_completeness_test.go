@@ -210,6 +210,7 @@ var routerFieldsNotWiredByNewMCPQueryRouter = map[string]string{
 	// against go/cmd/mcp-server/wiring.go's use of
 	// newCodeHybridRanker/newContentHybridRanker/newSemanticSearchHybrid,
 	// which mirror cmd/api's semantic_search_vector_wiring.go behavior.
+	"TagHistory.Cursors":               "wired later by wireAPI once secretcrypto.KeyringFromEnv resolves a DEK (#6564); nil is the documented no-DEK deployment, where grant-filtered paging fails closed and unscoped paging is unaffected",
 	"Code.HybridRanker":                "config-gated: newCodeHybridRanker returns nil unless semantic search embedding is enabled; nil is the documented default, falling back to lexical order",
 	"Content.HybridRanker":             "config-gated: newContentHybridRanker returns nil unless semantic search embedding is enabled; nil is the documented default, falling back to lexical order",
 	"Impact.CodeSurface":               "injection seam: nil is the documented default, falling back to impact.DefaultCodeSurface (see codeSurface in go/internal/query/impact/handler.go); production always uses the package default",

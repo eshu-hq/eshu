@@ -217,6 +217,9 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	if scopedContainerImageIdentityRoute(r) {
 		return true
 	}
+	if scopedContainerImageTagHistoryRoute(r) {
+		return true
+	}
 	if scopedComponentExtensionRoute(r) {
 		return true
 	}

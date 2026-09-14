@@ -253,15 +253,62 @@ source_coverage:
           source_sha256: 9fc660f9781e465a29e7f6181520ee9d71bcc4b7225d535cfdc3b7d7c15fd229
           label: ContainerImage
           max_results: 201
-  - file: tag_history.go
+  - file: taghistory/page.go
     calls:
-      - symbol: "(*TagHistoryHandler).listTagHistory"
+      # The image_ref-anchored tag read, in its KEYSET form (#6564 re-review
+      # finding 1). One symbol runs one of three statements chosen in Go --
+      # first page, after a timestamped key, or inside the null tail -- because
+      # the single guarded statement those would otherwise collapse into needs
+      # an empty-string-guarded OR disjunct, which the pinned build
+      # mis-evaluates to zero rows. All three are the same single-key,
+      # limit+1-bounded, single-clause read; only the WHERE differs, so one
+      # registration covers them.
+      #
+      # max_results stays 201 = MaxLimit+1: the scoped refill loop always reads
+      # MaxLimit-sized windows regardless of the caller's limit, and reads up to
+      # taghistory.MaxRefillReads of them per request.
+      - symbol: "ReadWindow"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: "df54140253a6bb42f6e2607bf49e8b8c5a0563f5a097c03a91c8ef911621309c"
+          source_sha256: "05c7f49031c94b2540e7a44baca61c195fd3404bee7fc4f0456b51e0944abe5a"
           key_bound: single_key
           max_results: 201
+      # The SKIP form, reachable only by an unscoped or all-scope caller that
+      # pages with the offset parameter (their pre-existing contract; a scoped
+      # caller is refused a non-zero offset). Same anchor, same limit+1
+      # sentinel, same bound.
+      - symbol: "ReadOffsetWindow"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: "b71fdc3d6c95b267217421f4a510e598edfec608947ee7fbea0c05f956956d5f"
+          key_bound: single_key
+          max_results: 201
+  - file: taghistory/builtfrom.go
+    calls:
+      # max_results is the FAN-OUT bound, not the key count. The statement
+      # RETURNs DISTINCT (#6564 re-review finding 2), so a row is one distinct
+      # (digest, repository) pair and 1200 means up to three distinct source
+      # repositories per keyed digest -- the same 3x ratio the peer entry
+      # fetchOCIImagesByDigest registers (250 keys / 750 results), with large
+      # headroom over the 1.1x distinct-repository fan-out measured on the seed.
+      # The DISTINCT is what makes that derivation hold: BUILT_FROM edge
+      # identity is {scope_id, evidence_source}, so without it the row set
+      # scaled with scope and evidence-source multiplicity instead and a
+      # two-source, two-scope deployment's full page produced ~1600 rows, a 500
+      # for the scoped caller alone. Both numbers are ENFORCED in Go by
+      # taghistory.BuiltFromMaxKeys and taghistory.BuiltFromMaxRows, which fail
+      # the read closed on overflow rather than adding a Cypher LIMIT that would
+      # drop granted edges.
+      - symbol: "LookupBuiltFromRepositories"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: "3288f7cf3bac0a9a9d747fb4139beb705641e155b377a496d9a6ebf76eca8efa"
+          key_bound: bounded_key_batch
+          max_keys: 400
+          max_results: 1200
   - file: impact/handler.go
     calls:
       - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: 3c3efdeafb018a235d55ed2b2cabf6959f484d8d7972beae169e70be1543d803, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}

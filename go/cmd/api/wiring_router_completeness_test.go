@@ -193,6 +193,7 @@ var routerFieldsNotWiredByNewRouter = map[string]string{
 	"Impact.PathProbe":           "injection seam: nil is the documented default, falling back to impact.DefaultPathProbe (see pathProbe in go/internal/query/impact/handler.go); production always uses the package default",
 	"SemanticSearch.LocalHybrid": "config-gated: newSemanticSearchHybrid returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go)",
 	"LocalIdentity.SignInPolicy": "wired later by wireAPI (router.LocalIdentity.SignInPolicy = router.SignInPolicyReads.Store, built after this constructor returns); LocalIdentityHandler documents nil SignInPolicy as fail-open",
+	"TagHistory.Cursors":         "wired later by wireAPI once providerSecretKeyring exists (router.TagHistory.Cursors = providerSecretKeyring, #6564); nil is the documented no-DEK deployment, where grant-filtered paging fails closed and unscoped paging is unaffected",
 }
 
 // assertRouterFieldsWired fails the test for:

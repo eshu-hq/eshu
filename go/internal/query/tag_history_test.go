@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
 )
 
 // fakeTagHistoryGraphReader records the last query and returns canned rows so
@@ -148,7 +150,7 @@ func TestTagHistoryHandlerTruncationAndCursor(t *testing.T) {
 		tagHistoryRowMap("1.0.0", "sha256:aaa", "", "2026-06-25T00:00:00Z", false),
 		tagHistoryRowMap("1.0.0", "sha256:bbb", "sha256:aaa", "2026-06-26T00:00:00Z", true),
 	}}
-	handler := &TagHistoryHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	handler := &TagHistoryHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative, Cursors: tagHistoryTestCursorKeyring}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -166,12 +168,20 @@ func TestTagHistoryHandlerTruncationAndCursor(t *testing.T) {
 	if got := data["truncated"]; got != true {
 		t.Fatalf("truncated = %#v, want true", got)
 	}
-	cursor, ok := data["next_cursor"].(map[string]any)
+	token, ok := data["next_cursor"].(string)
 	if !ok {
-		t.Fatalf("next_cursor = %#v, want object", data["next_cursor"])
+		t.Fatalf("next_cursor = %#v, want an opaque token string", data["next_cursor"])
 	}
-	if got, want := cursor["offset"], float64(11); got != want {
-		t.Fatalf("next_cursor.offset = %#v, want %#v", got, want)
+	key, err := taghistory.DecodeCursor(tagHistoryTestCursorKeyring, token, tagHistoryTestImageRef, tagHistoryUnscopedAudience())
+	if err != nil {
+		t.Fatalf("taghistory.DecodeCursor() error = %v, want the token this page issued to decode", err)
+	}
+	// The old assertion here was "offset 11", the raw position after a
+	// limit=1 page at offset=10. A keyset token names the last row this page
+	// actually returned instead, which is the row the caller just read.
+	want := taghistory.Key{At: "2026-06-25T00:00:00Z", UID: "uid-sha256:aaa"}
+	if key != want {
+		t.Fatalf("cursor key = %#v, want %#v (the last row this page returned)", key, want)
 	}
 }
 

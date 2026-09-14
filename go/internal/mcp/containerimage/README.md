@@ -49,11 +49,19 @@ handler-scoped duration and error datapoints in `internal/query`.
   reads like tidying and selects a path the query mux does not serve.
 - The four key sets are deliberately unequal. The listing carries
   `after_identity_id`, `digest`, `image_ref`, `limit`, `outcome`,
-  `repository_id`, and `source_repository_id`. Tag history carries `limit`,
-  `offset`, `repository_id`, and `tag`. The count carries the five filters
-  `digest`, `image_ref`, `source_repository_id`, `repository_id`, and
+  `repository_id`, and `source_repository_id`. Tag history carries `cursor`,
+  `limit`, `offset`, `repository_id`, and `tag`. The count carries the five
+  filters `digest`, `image_ref`, `source_repository_id`, `repository_id`, and
   `outcome`. The inventory carries those five plus `group_by`, `limit`, and
   `offset`.
+- Tag history is the only route here with two continuations, and they are not
+  interchangeable (#6564). `cursor` is an opaque sealed keyset token the query
+  layer issues and the only continuation a grant-filtered caller may send;
+  `offset` is a raw row position that stays available to unscoped and
+  shared-key callers. Both are forwarded verbatim — this package never decodes,
+  validates, or mints a cursor. An empty `cursor` key is inert, because the
+  handler reads it only when non-empty, so sending the key unconditionally
+  costs nothing and keeps the query map shape stable.
 - The count route has no paging key. Adding one for symmetry with its three
   siblings would not bound anything, because the handler never reads it; the key
   would be inert and would advertise a bound the endpoint does not honor.
@@ -64,16 +72,22 @@ handler-scoped duration and error datapoints in `internal/query`.
   `source_repository_id`, `repository_id`, `outcome` — so losing either returns
   400, except that a scoped token with no grants is answered with an empty page
   before the anchor is checked; losing `after_identity_id` breaks keyset paging
-  silently and re-serves page one. On tag history, `repository_id` and `tag` are both required and
-  compose the anchoring `image_ref`, so losing either returns 400, while
-  `limit` and `offset` are optional at the handler. On the two aggregates
+  silently and re-serves page one. On tag history, `repository_id` and `tag`
+  are both required and compose the anchoring `image_ref`, so losing either
+  returns 400, while `limit` and `offset` are optional at the handler; losing
+  `cursor` is the silent one, and it hurts exactly the caller it should not — a
+  grant-filtered caller has no other continuation, so it re-serves page one
+  indefinitely. On the two aggregates
   nothing is required, so a lost filter returns 200 over a wider scope and
   drops that key from the `scope` block the response echoes back.
 - `limit` defaults to 50 on the listing and on tag history, and to 100 on the
   inventory. `offset` defaults to 0 on tag history and the inventory. These are
   the dispatcher's historical defaults; the handlers still enforce their own
   bounds (1-200 for the listing and tag history, 1-500 and a 10000 offset
-  ceiling for the inventory).
+  ceiling for the inventory). On tag history the `offset` default of 0 also
+  carries authorization weight: the handler refuses a non-zero offset from a
+  grant-filtered caller, so 0 is what keeps a scoped page-one call working
+  through a route that always sends the key.
 - The `group_by` fallback to `outcome` is not what makes an omitted dimension
   work: `containerImageIdentityInventory` independently defaults an empty
   `group_by` to `outcome`. The fallback keeps the selected wire value stable,

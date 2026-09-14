@@ -297,6 +297,14 @@ func wireAPI(
 		adapter.setTOTPSecretKeyring(providerSecretKeyring)
 	}
 
+	// Tag-history cursor sealing (#6564): the same DEK under its own AAD
+	// scheme, so a nil keyring is not fatal -- grant-filtered paging fails
+	// closed and unscoped callers are unaffected. The guard is required, not
+	// defensive: a nil *Keyring in the Sealer field is a NON-nil Sealer.
+	if providerSecretKeyring != nil {
+		router.TagHistory.Cursors = providerSecretKeyring
+	}
+
 	// First-run setup wizard (#4965). Reuses providerSecretKeyring — the same
 	// ESHU_AUTH_SECRET_ENC_KEY(_FILE) material seed_initial_admin.go sealed
 	// the bootstrap credential envelope with — so a nil keyring here (DEK

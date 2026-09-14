@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
+	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
@@ -78,6 +80,38 @@ func wireAPI(
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("resolve scoped token registry: %w", err)
 	}
 	governanceStatus := query.GovernanceStatusConfigFromEnv(getenv, apiKey != "")
+
+	// Tag-history continuation tokens are sealed with the deployment DEK
+	// (#6564). This server dispatches list_container_image_tag_history
+	// IN-PROCESS, so without the same ESHU_AUTH_SECRET_ENC_KEY(_FILE) the API
+	// holds it cannot open a cursor the API issued, and a scoped caller's paging
+	// fails closed here. ErrKeyNotConfigured is non-fatal at boot for the same
+	// reason it is in cmd/api: an unscoped deployment never needs the key. Any
+	// OTHER error is fatal -- a malformed DEK must not degrade to "no sealing".
+	//
+	// This is resolved HERE, with the pool-config check below under the same
+	// validation-before-datastore invariant, rather than beside the router it
+	// feeds. Parsed late it sat AFTER
+	// BackfillCloudResourceOwnerLedger, so a malformed DEK aborted a boot that
+	// had already mutated the graph -- and the abort leaked the Postgres and
+	// graph handles, because at that point there were handles to leak. Moving
+	// the parse ahead of every dial removes both: nothing is open to leak, and
+	// nothing is written before the key is known good. The resolved keyring is
+	// wired onto the router further down, behind the nil guard its Sealer field
+	// requires.
+	cursorKeyring, err := secretcrypto.KeyringFromEnv(getenv)
+	if err != nil {
+		if !errors.Is(err, secretcrypto.ErrKeyNotConfigured) {
+			return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("configure tag-history cursor keyring: %w", err)
+		}
+		cursorKeyring = nil
+		if logger != nil {
+			logger.Info(
+				"tag-history cursor sealing key not configured; grant-filtered tag-history paging will fail closed until ESHU_AUTH_SECRET_ENC_KEY(_FILE) is set",
+				telemetry.EventAttr("query.tag_history.cursor_keyring_unconfigured"),
+			)
+		}
+	}
 
 	// Validate the Postgres pool config before dialing any datastore, so an invalid
 	// ESHU_POSTGRES_MAX_OPEN_CONNS/idle/lifetime is reported regardless of graph
@@ -244,6 +278,14 @@ func wireAPI(
 		governanceAudit,
 		readImpactFromWinners,
 	)
+
+	// Wire the tag-history cursor sealer resolved in the pre-datastore
+	// validation block above (#6564). The nil guard is required, not defensive:
+	// a nil *Keyring assigned to the interface field would be a NON-nil Sealer
+	// that panics on the first Seal.
+	if cursorKeyring != nil {
+		router.TagHistory.Cursors = cursorKeyring
+	}
 
 	mux := http.NewServeMux()
 	router.Mount(mux)

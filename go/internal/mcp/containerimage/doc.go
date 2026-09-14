@@ -17,11 +17,19 @@
 // under /api/v0/supply-chain/container-images/identities; tag history is
 // mounted at /api/v0/images/tag-history, a different prefix that must not be
 // normalized onto the other. The identity listing pages by the
-// after_identity_id cursor with a limit defaulting to 50; tag history pages by
-// offset with the same limit default; the inventory pages by offset with a
-// limit defaulting to 100 and a group_by falling back to outcome; and the
-// count route carries no paging key at all, because the handler reads none:
-// a limit sent there would be inert, not enforced.
+// after_identity_id cursor with a limit defaulting to 50; tag history carries
+// two continuations at the same limit default, the opaque cursor token every
+// caller should follow and the offset a grant-filtered caller may not send;
+// the inventory pages by offset with a limit defaulting to 100 and a group_by
+// falling back to outcome; and the count route carries no paging key at all,
+// because the handler reads none: a limit sent there would be inert, not
+// enforced.
+//
+// Both tag-history continuations are forwarded verbatim and neither is decoded
+// here. The cursor is a sealed keyset token issued by the query layer, so this
+// package cannot construct or validate one; the offset default of 0 names the
+// start of the history, which is the value a grant-filtered caller is allowed
+// to send.
 //
 // Required keys differ per route and the handlers enforce them. The identity
 // listing 400s without limit and without at least one of digest, image_ref,

@@ -154,7 +154,9 @@ api:
   # ESHU_SCOPED_TOKENS_FILE at the mounted path. The same convention covers
   # bootstrap identity seeding's ESHU_AUTH_SECRET_ENC_KEY_FILE and
   # ESHU_ADMIN_USERNAME/ESHU_ADMIN_PASSWORD_FILE (epic #4962/#4963,
-  # eshu-initial-admin Secret) — see README.md.
+  # eshu-initial-admin Secret) — see README.md. The same DEK also seals the
+  # tag-history continuation cursor (#6564), so mount it on mcpServer too when
+  # scoped tokens page that route.
   extraVolumes: []
   extraVolumeMounts: []
   connectionTuning:
@@ -184,7 +186,10 @@ mcpServer:
   revisionHistoryLimit: 3
   env: {}
   # extraVolumes / extraVolumeMounts mirror the API hooks so the MCP server can
-  # mount the same operator-managed scoped-token registry Secret read-only.
+  # mount the same operator-managed scoped-token registry Secret read-only —
+  # and, since #6564, the same ESHU_AUTH_SECRET_ENC_KEY(_FILE) DEK Secret the
+  # API holds: this process seals the tag-history continuation cursor with it,
+  # so a scoped caller cannot page that route here without it. See README.md.
   extraVolumes: []
   extraVolumeMounts: []
   connectionTuning:

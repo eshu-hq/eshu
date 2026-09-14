@@ -457,7 +457,17 @@
 // out-of-order re-projection. A tag that flips back to a previously observed
 // digest collapses onto the same observation node, so the returned history is
 // bounded by the distinct-digest set observed for the tag, not a full
-// chronological event log of every transition.
+// chronological event log of every transition. A scoped caller's page is bound
+// to its repository grant through ContainerImage-[:BUILT_FROM]->Repository
+// (#6564): one extra single-clause read keyed by the page's digests and a Go
+// join keep a row only when its resolved_digest's image is built from a granted
+// repository, blank an ungranted previous_digest, and withhold observations
+// with no BUILT_FROM edge. Such a page is REFILLED across further windows
+// until it holds limit visible rows, the history ends, or a small per-request
+// read cap is reached, so count below limit no longer measures what the filter
+// withheld, and next_cursor is an opaque token bound to the image_ref it was
+// issued for rather than a raw row offset, valid at any page size. offset
+// paging stays for unscoped and all-scope callers only.
 //
 // CodeownersOwnershipHandler serves GET /api/v0/codeowners/ownership (issue
 // #5419 Phase 4): a bounded, keyset-paginated read of one repository's Phase 3

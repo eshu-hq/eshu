@@ -27,7 +27,7 @@
     `after_identity_id`, `digest`, `image_ref`, `limit`, `outcome`,
     `repository_id`, `source_repository_id`.
   - `list_container_image_tag_history` — `GET` `/api/v0/images/tag-history`
-    with `limit`, `offset`, `repository_id`, `tag`.
+    with `cursor`, `limit`, `offset`, `repository_id`, `tag`.
   - `count_container_image_identities` — `GET`
     `.../container-images/identities/count` with `digest`, `image_ref`,
     `source_repository_id`, `repository_id`, `outcome`.
@@ -37,6 +37,17 @@
 - Keep tag history on `/api/v0/images/tag-history`. It is the only tool here
   that does not share the supply-chain prefix, and `TagHistoryHandler.Mount`
   registers nothing else.
+- Keep BOTH tag-history continuations (#6564). `cursor` is the sealed keyset
+  token every caller should follow and the ONLY one a grant-filtered caller may
+  use; `offset` stays for unscoped and shared-key callers. Forwarding one
+  without the other is not a simplification — dropping `cursor` leaves a scoped
+  caller with no continuation at all, and dropping `offset` breaks the contract
+  unscoped callers already have.
+- Keep the tag-history `offset` default of `0`. It is load-bearing rather than
+  cosmetic: the handler refuses a non-zero offset from a grant-filtered caller,
+  and `0` names the start of the history for everyone, so this default is what
+  keeps a scoped page-one call working while a forwarded non-zero offset
+  correctly 400s.
 - Keep the count route free of `limit` and `offset`. It answers whole-scope
   totals.
 - Keep every key a route owns present even when the caller omitted it, so the
@@ -53,10 +64,11 @@
   parity test, the shared HTTP contract, and applicable golden-corpus proof.
 - Change a `limit` default only with the matching handler's own bound check,
   because a mismatch silently changes a client-visible page size.
-- Change the identity cursor only with the query layer's keyset predicate.
-  The listing pages through `after_identity_id`; tag history and the inventory
-  page by `offset`, and the inventory's offset is capped at 10000 by the
-  handler.
+- Change a continuation key only with the query layer's matching predicate.
+  The listing pages through `after_identity_id`; tag history pages through the
+  sealed `cursor` token, whose payload, version and AAD live in
+  `internal/query/taghistory`, and keeps `offset` for unscoped callers; the
+  inventory pages by `offset`, capped at 10000 by the handler.
 - Add a tool here only after confirming the root repository switch no longer
   answers it, so the two never both claim a name.
 
@@ -69,8 +81,12 @@
   loudly. On the listing, `limit` is required and a scope anchor is required,
   so losing either 400s — though a scoped token with no grants is answered with
   an empty page before the anchor is checked; losing `after_identity_id` breaks
-  keyset paging and re-serves page one. On tag history, `repository_id` and `tag` are both
-  required and compose the anchoring `image_ref`, so losing either 400s. On the
+  keyset paging and re-serves page one. On tag history, `repository_id` and
+  `tag` are both required and compose the anchoring `image_ref`, so losing
+  either 400s, while
+  losing `cursor` fails silently in the worst direction: a grant-filtered caller
+  re-serves page one forever, because `cursor` is the only continuation that
+  caller is allowed to send. On the
   count and the inventory nothing is required, so a lost filter returns 200
   over a wider scope and quietly drops that key from the `scope` block the
   response echoes back. The per-key child and dispatch assertions exist because

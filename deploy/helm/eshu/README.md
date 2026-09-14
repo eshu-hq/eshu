@@ -67,10 +67,22 @@ guidance belong in the public Kubernetes docs.
     #4962 PR-1): mount an operator-managed Secret (for example
     `eshu-auth-secret-enc-key`) read-only via `extraVolumes`/
     `extraVolumeMounts` and point `ESHU_AUTH_SECRET_ENC_KEY_FILE` at the
-    mounted path via `api.env`. Required only when
+    mounted path via `api.env`. Required when
     `ESHU_AUTH_BOOTSTRAP_MODE=generated` (the default); `sso-only` and
-    `disabled` never need it, and neither does an `ESHU_ADMIN_USERNAME`/
-    `ESHU_ADMIN_PASSWORD`-seeded deployment unless a later reset needs it.
+    `disabled` never need it for bootstrap, and neither does an
+    `ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD`-seeded deployment unless a
+    later reset needs it.
+    **Also required by `mcpServer` (#6564), on any deployment serving scoped
+    tokens.** The same DEK seals the `GET /api/v0/images/tag-history`
+    continuation cursor, and the standalone MCP server dispatches
+    `list_container_image_tag_history` in-process, so mount the same Secret on
+    `mcpServer.extraVolumes`/`extraVolumeMounts` and set the same
+    `ESHU_AUTH_SECRET_ENC_KEY_FILE` via `mcpServer.env`. Every replica of both
+    services must hold the SAME key, or a cursor one issued will not open on
+    another. Without it that route still serves correct pages to every caller,
+    but a grant-filtered caller cannot page: `next_cursor` is omitted from a
+    truncated page (`truth.reason` says so) and a request carrying a cursor is
+    refused with a 503. Unscoped and all-scope callers are unaffected.
   - The bootstrap admin's own credential: for
     `ESHU_ADMIN_USERNAME`/`ESHU_ADMIN_PASSWORD` env-seeding, create a Secret
     named `eshu-initial-admin` holding the username and password, mount it
