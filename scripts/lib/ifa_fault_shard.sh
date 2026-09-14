@@ -2,7 +2,8 @@
 # shellcheck disable=SC2154,SC2034
 # Globals this file's functions read are either owned by
 # scripts/verify-ifa-fault-injection.sh (use_compose, keep -- the gate reads
-# them after ifa_fault_shard_parse_args returns) or are assigned by this
+# them after ifa_fault_shard_parse_args returns; work_dir receives the durable
+# current-cell marker before each selected cell runs) or are assigned by this
 # file's own ifa_fault_shard_parse_args (list_cells, shard_spec, shard_k,
 # shard_n, ifa_fault_shard_selected) and then read by a sibling function in
 # the SAME sourced shell process -- the same cross-function global pattern
@@ -333,6 +334,7 @@ ifa_fault_shard_run() {
 		printf '%s: skipped (not assigned to shard %s/%s)\n' "${cell}" "${shard_k}" "${shard_n}"
 		return 0
 	fi
+	printf '%s\n' "${cell}" >"${work_dir}/current-cell"
 	"${cell}"
 }
 
