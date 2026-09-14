@@ -72,10 +72,11 @@ func FilterNullRelationships(v any) []map[string]any {
 // rowvalue without reaching back through this package.
 //
 // These wrappers keep the original names. Every existing caller compiles
-// unchanged, which matters at this scale: at the base 514534567, over
-// go/**/*.go, a querycontract-qualified StringVal call appears 2057 times in
-// 235 files, and the five names together 2705 times in 272 files -- 235 and
-// 272 are file counts, not call counts. The git grep patterns are in
+// unchanged, which matters at this scale: at this head and at origin/main
+// d3d4c2d3e, over go/**/*.go, a querycontract-qualified StringVal call appears
+// 2174 times in 246 files, and the five names together 2856 times in 283
+// files -- 246 and 283 are file counts, not call counts. At the older base
+// 514534567 they read 2057 / 235 / 2705 / 272. The git grep patterns are in
 // rowvalue/AGENTS.md; a literal copy here would count itself. Package
 // query's own forwarders in neo4j.go cover four of the five and continue to
 // work through these; it has no exported FloatVal and reaches this one through
