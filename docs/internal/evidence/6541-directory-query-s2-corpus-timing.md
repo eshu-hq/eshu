@@ -151,10 +151,24 @@ nothing; the branch short-circuits before touching the backend.
 The run above timed reads, not writes. A separate remote run
 (`6541-directory-write-cost-20260914T122238Z`) closes that gap.
 
-**Design.** Eshu head `5a1292b7392345eba129b2ae53603dce58aff1dd`, one commit
-behind the head this section ships on; the harness copies the canonical Cypher
-constants verbatim and never runs the projector Go path, and the intervening
-commit changes only Go, so the write shapes measured are the shipped ones. Six
+**Design.** The run was taken at Eshu head
+`5a1292b7392345eba129b2ae53603dce58aff1dd`. The harness copies the canonical
+Cypher constants verbatim from
+`go/internal/storage/cypher/canonical_node_cypher.go` and never runs the
+projector Go path, so what it measures is fixed by those constants and by the
+one index DDL statement the two arms differ in; nothing else in the tree moves
+the write shapes it timed. These figures therefore describe shipped behaviour
+under a condition a reader can test at any head, rather than under a commit
+distance that every later commit invalidates. The condition: that constants
+file must still be the blob it was at the measured head,
+`01bd07e32c2f0e45ca7437d052bf222edad6a574`, and the single `CREATE INDEX`
+statement naming `directory_repo_id` in
+`go/internal/graph/schema_tables_indexes.go` must still be the statement the
+index-present arm applied. Test the first with `git rev-parse
+HEAD:go/internal/storage/cypher/canonical_node_cypher.go`, and the second with
+`git diff 5a1292b7392345eba129b2ae53603dce58aff1dd..HEAD --
+go/internal/graph/schema_tables_indexes.go`, whose hunks must be comment lines
+only. Both held when this paragraph was written. Six
 reps per arm, run alternating (absent 1, present 1, absent 2,
 present 2, …) so machine drift cannot land on one arm; a fresh container and a
 fresh volume per rep; the only difference between the two arms is dropping the
