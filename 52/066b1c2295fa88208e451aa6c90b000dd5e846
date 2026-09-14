@@ -1,0 +1,127 @@
+scripts/test-verify-replay-tier.sh
+  s_20be138600ef1b::t_2dc52d38e2fdd4 104,107,109,250-251,337,340,342
+tests/fixtures/governance_k8s_two_team_proof/good/provenance.json
+  s_20be138600ef1b::t_afdb24e32426a8 4,6
+scripts/verify-graph-rebuild-from-facts.sh
+  s_20be138600ef1b::t_4e8d08da2eb537 394,495
+deploy/helm/eshu/values.schema.json
+  s_20be138600ef1b::t_b610fb6cb9aa8c 1488,1492
+deploy/helm/eshu/templates/_helpers.tpl
+  s_20be138600ef1b::t_b610fb6cb9aa8c 511
+docs/public/deploy/kubernetes/helm-routing-and-storage-values.md
+  s_20be138600ef1b::t_6389239630089a 42,65-69
+docs/internal/design/430-nornicdb-graph-search-split.md
+  s_20be138600ef1b::t_8f275480fea51f 9,55,59,61-62,64-65,77-78,341,347
+docs/public/operate/graph-rebuild-from-facts.md
+  s_20be138600ef1b::t_4e8d08da2eb537 62,104
+tests/fixtures/governance_k8s_two_team_proof/bad_selector_open/provenance.json
+  s_20be138600ef1b::t_afdb24e32426a8 4,6
+docker-compose.yaml
+  s_20be138600ef1b::t_b610fb6cb9aa8c 3,7,29,676
+tests/fixtures/governance_k8s_two_team_proof/bad_parity/provenance.json
+  s_20be138600ef1b::t_afdb24e32426a8 4,6
+go/internal/replay/offlinetier/canonical_import_edge_live_test.go
+  s_20be138600ef1b::t_8f5904938c28c5 14
+go/internal/runtime/helm_nornicdb_contract_test.go
+  s_20be138600ef1b::t_2dc52d38e2fdd4 57,81,84,87,101,106,109,124,144,160,163,167
+deploy/helm/eshu/README.md
+  s_20be138600ef1b::t_6389239630089a 44,48,52
+go/internal/query/codequery/relationships/enrich.go
+  s_20be138600ef1b::t_8f5904938c28c5 26
+go/internal/runtime/compose_nornicdb_image_test.go
+  s_20be138600ef1b::t_2dc52d38e2fdd4 14,16,21-22,48,50-51,59,63,80,85-87,90,213,243,271-272
+scripts/lib/k8s-two-team-governance-provenance.sh
+  s_20be138600ef1b::t_ba289c8f254adf 21-22,24-25,27-28,30-31,35-36,38-39
+  s_20be138600ef1b::t_b610fb6cb9aa8c 40-42,44
+tests/fixtures/governance_k8s_two_team_proof/bad_unauth_open/provenance.json
+  s_20be138600ef1b::t_afdb24e32426a8 4,6
+docker-compose.demo.corpus.yaml
+  s_20be138600ef1b::t_4e8d08da2eb537 258
+tests/fixtures/governance_k8s_two_team_proof/bad_netpol_absent/provenance.json
+  s_20be138600ef1b::t_afdb24e32426a8 4,6
+go/internal/runtime/README.md
+  s_20be138600ef1b::t_6389239630089a 277
+scripts/run-k8s-two-team-governance-proof.sh
+  s_20be138600ef1b::t_b610fb6cb9aa8c 41
+tests/fixtures/governance_k8s_two_team_proof/bad_cross_scope_leak/provenance.json
+  s_20be138600ef1b::t_afdb24e32426a8 4,6
+tests/fixtures/governance_k8s_two_team_proof/bad_not_kubernetes/provenance.json
+  s_20be138600ef1b::t_afdb24e32426a8 4,6
+docs/public/reference/nornicdb-query-pitfalls.md
+  s_20be138600ef1b::t_a686b481e4ff8c 19
+  s_20be138600ef1b::t_e7d301b6f2f088 631
+  s_20be138600ef1b::t_8f275480fea51f 175,180,187
+  s_20be138600ef1b::t_491c83e0f905bf 23
+docs/internal/evidence/live-grant-negative-control.md
+  s_20be138600ef1b::t_c3d3465be1498c 22
+specs/capability-matrix.v1.yaml
+  s_20be138600ef1b::t_8f5904938c28c5 133
+deploy/helm/eshu/templates/pvc-nornicdb.yaml
+  s_20be138600ef1b::t_b610fb6cb9aa8c 4
+go/cmd/ifa/assert_gcp_project_edge_scopes.go
+  s_20be138600ef1b::t_ba289c8f254adf 65-66
+docs/public/run-locally/docker-compose.md
+  s_20be138600ef1b::t_6389239630089a 172,175,189,203,215-216,222,224
+  s_20be138600ef1b::t_e7d301b6f2f088 207-209
+go/internal/query/language_query_grant_nornicdb_negative_control_live_test.go
+  s_20be138600ef1b::t_8f5904938c28c5 115,119
+docs/public/reference/environment-ingestion-queues.md
+  s_20be138600ef1b::t_6389239630089a 204-205
+tests/fixtures/governance_k8s_two_team_proof/bad_leak/provenance.json
+  s_20be138600ef1b::t_afdb24e32426a8 4,6
+docs/public/deploy/kubernetes/storage.md
+  s_20be138600ef1b::t_6389239630089a 81,88,97-98,102,104,110
+go/internal/replay/offlinetier/nornicdb_function_projection_live_test.go
+  s_20be138600ef1b::t_c3d3465be1498c 79,152
+  s_20be138600ef1b::t_491c83e0f905bf 223,226,229
+deploy/helm/eshu/Chart.yaml
+  s_20be138600ef1b::t_4e8d08da2eb537 5
+deploy/helm/eshu/values.yaml
+  s_20be138600ef1b::t_b610fb6cb9aa8c 1103,1105,1133-1134
+specs/replay-coverage-manifest.v1.yaml
+  s_20be138600ef1b::t_6389239630089a 546
+deploy/helm/eshu/templates/validate.yaml
+  s_20be138600ef1b::t_b610fb6cb9aa8c 42
+scripts/test-k8s-two-team-governance-provenance.sh
+  s_20be138600ef1b::t_2dc52d38e2fdd4 10-11,101-102
+  s_20be138600ef1b::t_a93328a6ec938e 33,41-43,113-121
+  s_20be138600ef1b::t_74ad3ecbcbe42a 122
+scripts/verify-k8s-two-team-governance-proof.sh
+  s_20be138600ef1b::t_b610fb6cb9aa8c 30-32,200-202,213
+scripts/test-verify-k8s-two-team-governance-proof.sh
+  s_20be138600ef1b::t_2dc52d38e2fdd4 17-20,122-123
+docker-compose.e2e.yaml
+  s_20be138600ef1b::t_4e8d08da2eb537 343
+deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml
+  s_20be138600ef1b::t_b610fb6cb9aa8c 27
+go/internal/replay/offlinetier/README.md
+  s_20be138600ef1b::t_6389239630089a 50
+docs/public/reference/nornicdb-pitfalls.md
+  s_20be138600ef1b::t_489cee9c6b42b9 20-23,937,941,990,1007,1016,1098-1099
+  s_20be138600ef1b::t_c3d3465be1498c 1116
+docs/internal/evidence/6162-nornicdb-v132-alignment.md
+  s_20be138600ef1b::t_a74c735b67ae80 1-49,52-76,141-143,148-155
+  s_20be138600ef1b::t_f294c1d599b2c2 50-51,77-140,144-147
+docker-compose.remote-e2e.foundation.yaml
+  s_20be138600ef1b::t_4e8d08da2eb537 145
+scripts/verify-replay-tier.sh
+  s_20be138600ef1b::t_b610fb6cb9aa8c 24
+docs/public/deploy/kubernetes/upgrades-rollbacks.md
+  s_20be138600ef1b::t_6389239630089a 22,25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "52066b1c2295fa88208e451aa6c90b000dd5e846",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Test <test@example.test>"
+    }
+  }
+}
