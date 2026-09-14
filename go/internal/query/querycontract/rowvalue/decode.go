@@ -46,9 +46,9 @@ import "fmt"
 // d3d4c2d3e, which is the frame this argument needs: the move touched no
 // caller. At the older base 514534567 it read 435 -- 241 non-test, 194 test --
 // a gap that is #6060's rename churn on main, not callers this branch added.
-// The leading character class is load-bearing:
-// POSIX ERE has no \b, so a \b-anchored pattern matches nothing at all, and an
-// unanchored one also counts cStringVal, cppStringVal and compareStringVal.
+// The leading character class is load-bearing: POSIX ERE has no \b, so a
+// \b-anchored pattern matches nothing at all, and an unanchored one also
+// counts cStringVal, cppStringVal and compareStringVal.
 // FloatVal is the exception: package query has no exported wrapper for it and
 // reaches it through two unexported ones instead, floatVal in compare.go and
 // relationshipFloatVal in repository_compat.go, named by 11 call sites across

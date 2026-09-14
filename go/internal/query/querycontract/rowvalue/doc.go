@@ -14,7 +14,8 @@
 //
 // [IntVal] and [FloatVal] accept the several numeric shapes a driver actually
 // returns -- int64 over Bolt, int from an in-process fake, float64 after a JSON
-// round trip -- rather than only the one the schema nominally declares.
+// round trip, plus float32 in [FloatVal] -- rather than only the one the schema
+// nominally declares.
 //
 // The package is deliberately a leaf: it imports nothing from the query family
 // and names no driver type, handler or store. That is what lets a handler-family
