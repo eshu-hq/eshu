@@ -68,28 +68,82 @@ ifa_fault_run_bounded() {
 	fi
 }
 
-# The default gate derives its expected revision from rendered Compose. An
-# explicit NORNICDB_IMAGE must pair with IFA_FAULT_EXPECTED_NORNICDB_REVISION so
-# failure evidence never silently compares an alternate image to the default.
-ifa_fault_expected_backend_revision() {
-	local compose_project="$1" compose_file="$2" rendered_config expected_revision
-	if [[ -n "${NORNICDB_IMAGE:-}" ]]; then
-		expected_revision="${IFA_FAULT_EXPECTED_NORNICDB_REVISION:-}"
-		if [[ ! "${expected_revision}" =~ ^[0-9a-f]{40}$ ]]; then
-			printf 'ifa fault diagnostics: NORNICDB_IMAGE requires a 40-character lowercase IFA_FAULT_EXPECTED_NORNICDB_REVISION\n' >&2
-			return 1
-		fi
-		printf '%s\n' "${expected_revision}"
-		return 0
-	fi
-	rendered_config="$(ifa_fault_run_bounded \
-		docker compose -p "${compose_project}" -f "${compose_file}" config --format json)" \
-		|| return 1
-	expected_revision="$(ifa_fault_run_bounded jq -er '
-		.services.nornicdb.build.labels["org.opencontainers.image.revision"]
-		| select(type == "string" and test("^[0-9a-f]{40}$"))
-	' <<<"${rendered_config}")" || return 1
-	printf '%s\n' "${expected_revision}"
+# ifa_fault_backend_selection reads the exact immutable image and supported
+# platform from rendered Compose. Tag-only images and non-amd64 proof runs fail
+# closed because this gate has live evidence only for linux/amd64.
+ifa_fault_backend_selection() {
+	local compose_config="$1"
+	ifa_fault_run_bounded jq -er '
+		.services.nornicdb
+		| select(
+			(.image | type == "string" and test("@sha256:[0-9a-f]{64}$"))
+			and .platform == "linux/amd64"
+		)
+		| [.image, .platform]
+		| @tsv
+	' "${compose_config}"
+}
+
+# ifa_fault_write_backend_provenance binds the immutable rendered index and
+# platform to the container's configured reference and locally resolved image.
+# Docker may expose either the index or selected child in RepoDigests, so both
+# exact digests resolved from the configured image are accepted.
+ifa_fault_write_backend_provenance() {
+	local compose_config="$1" container_json="$2" expected_platform_json="$3"
+	local runtime_image_json="$4" output="$5" temporary="${5}.tmp"
+	rm -f "${temporary}"
+	ifa_fault_run_bounded jq -n \
+		--slurpfile compose "${compose_config}" \
+		--slurpfile container "${container_json}" \
+		--slurpfile expected "${expected_platform_json}" \
+		--slurpfile runtime "${runtime_image_json}" '
+		def repository_from_image:
+			split("@")[0]
+			| split("/") as $parts
+			| ($parts[-1] | sub(":[^:]+$"; "")) as $leaf
+			| (($parts[0:-1] + [$leaf]) | join("/"));
+		($compose[0].services.nornicdb.image // "") as $rendered_image
+		| ($compose[0].services.nornicdb.platform // "") as $rendered_platform
+		| (try ($rendered_image | capture("@(?<digest>sha256:[0-9a-f]{64})$").digest) catch "") as $index_digest
+		| (if $rendered_image == "" then "" else ($rendered_image | repository_from_image) end) as $repository
+		| ($expected[0].descriptor_digest // "") as $platform_digest
+		| ($container[0].image_id // "") as $container_image_id
+		| ($container[0].config_image // "") as $container_config_image
+		| ($runtime[0].id // "") as $runtime_image_id
+		| ($runtime[0].repo_digests // []) as $runtime_repo_digests
+		| (($runtime[0].os // "") + "/" + ($runtime[0].architecture // "")) as $runtime_platform
+		| [$repository + "@" + $index_digest, $repository + "@" + $platform_digest] as $accepted_digests
+		| ([$runtime_repo_digests[] as $digest | select($accepted_digests | index($digest)) | $digest] | unique) as $matches
+		| (
+			$index_digest != ""
+			and ($platform_digest | test("^sha256:[0-9a-f]{64}$"))
+			and $rendered_platform == "linux/amd64"
+			and (($expected[0].os // "") + "/" + ($expected[0].architecture // "")) == $rendered_platform
+			and $container_config_image == $rendered_image
+			and $container_image_id == $runtime_image_id
+			and $runtime_platform == $rendered_platform
+			and ($matches | length) > 0
+		) as $provenance_match
+		| {
+			rendered_image: $rendered_image,
+			expected_repository: $repository,
+			expected_index_digest: $index_digest,
+			rendered_platform: $rendered_platform,
+			expected_platform_digest: $platform_digest,
+			container_config_image: $container_config_image,
+			runtime_image_id: $runtime_image_id,
+			runtime_repo_digests: $runtime_repo_digests,
+			runtime_platform: $runtime_platform,
+			accepted_runtime_repo_digest: ($matches[0] // null),
+			backend_source_revision: "unavailable",
+			provenance_match: $provenance_match
+		}
+	' >"${temporary}" || {
+		rm -f "${temporary}"
+		return 1
+	}
+	mv "${temporary}" "${output}"
+	ifa_fault_run_bounded jq -e '.provenance_match == true' "${output}" >/dev/null
 }
 
 # ifa_fault_capture_command runs one external diagnostic under a hard deadline,
@@ -196,8 +250,8 @@ ifa_fault_capture_failure_diagnostics() {
 	local work_root="$1" logs="$2" compose_project="$3" compose_file="$4"
 	local use_compose="$5" postgres_dsn="$6" ifa_bin_dir="${7:-}"
 	local manifest="${work_root}/diagnostics-manifest.tsv" container_id="" complete=1
-	local current_cell="" expected_revision="" actual_revision=""
-	local expected_revision_source="rendered-compose-config"
+	local current_cell="" expected_image="" expected_platform="" runtime_image_id=""
+	local backend_selection=""
 	local work_items_sql gcp_facts_sql
 	ifa_fault_validate_diagnostic_timeout || return $?
 	mkdir -p "${logs}"
@@ -236,17 +290,25 @@ ifa_fault_capture_failure_diagnostics() {
 	fi
 
 	if [[ "${use_compose}" -eq 1 ]]; then
-		rm -f "${work_root}/backend-expected-revision.txt"
-		if [[ -n "${NORNICDB_IMAGE:-}" ]]; then
-			expected_revision_source="explicit-image-override"
-		fi
-		if expected_revision="$(ifa_fault_expected_backend_revision "${compose_project}" "${compose_file}")"; then
-			printf '%s\n' "${expected_revision}" >"${work_root}/backend-expected-revision.txt"
-			ifa_fault_record_diagnostic_status \
-				"${manifest}" backend-expected-revision complete "${expected_revision_source}"
+		rm -f "${work_root}/backend-compose-config.json" \
+			"${work_root}/backend-expected-platform-image.json" \
+			"${work_root}/backend-runtime-image.json" \
+			"${work_root}/backend-provenance.json"
+		if ifa_fault_capture_command "${manifest}" backend-compose-config \
+			"${work_root}/backend-compose-config.json" \
+			docker compose -p "${compose_project}" -f "${compose_file}" config --format json; then
+			backend_selection="$(ifa_fault_backend_selection \
+				"${work_root}/backend-compose-config.json")" || true
+			if [[ -n "${backend_selection}" ]]; then
+				IFS=$'\t' read -r expected_image expected_platform <<<"${backend_selection}"
+				ifa_fault_record_diagnostic_status \
+					"${manifest}" backend-selection complete immutable-linux-amd64
+			else
+				ifa_fault_record_diagnostic_status \
+					"${manifest}" backend-selection failed unpinned-or-unsupported-platform
+				complete=0
+			fi
 		else
-			ifa_fault_record_diagnostic_status \
-				"${manifest}" backend-expected-revision failed unavailable-or-invalid
 			complete=0
 		fi
 		ifa_fault_capture_command "${manifest}" compose-logs "${logs}/compose-services.log" \
@@ -256,25 +318,42 @@ ifa_fault_capture_failure_diagnostics() {
 		container_id="$(ifa_fault_run_bounded \
 			docker compose -p "${compose_project}" -f "${compose_file}" ps -q nornicdb 2>/dev/null)" || true
 		if [[ -n "${container_id}" ]]; then
-			ifa_fault_capture_command "${manifest}" backend-labels "${work_root}/backend-labels.json" \
-				docker inspect --format '{{json .Config.Labels}}' "${container_id}" || complete=0
 			ifa_fault_capture_command "${manifest}" backend-container "${work_root}/backend-container.json" \
-				bash -c 'docker inspect "$1" | jq ".[0] | {image: .Image, restart_count: .RestartCount, state: {status: .State.Status, running: .State.Running, started_at: .State.StartedAt, finished_at: .State.FinishedAt, exit_code: .State.ExitCode}, mounts: [.Mounts[] | {type: .Type, name: .Name, destination: .Destination, rw: .RW}]}"' _ "${container_id}" || complete=0
-			ifa_fault_capture_command \
-				"${manifest}" backend-actual-revision "${work_root}/backend-actual-revision.txt" \
-				jq -er --arg revision_key org.opencontainers.image.revision \
-				'.[$revision_key] | select(type == "string" and test("^[0-9a-f]{40}$"))' \
-				"${work_root}/backend-labels.json" || complete=0
-			if [[ -s "${work_root}/backend-actual-revision.txt" ]]; then
-				IFS= read -r actual_revision <"${work_root}/backend-actual-revision.txt" || complete=0
+				bash -c 'docker inspect "$1" | jq ".[0] | {image_id: .Image, config_image: .Config.Image, restart_count: .RestartCount, state: {status: .State.Status, running: .State.Running, started_at: .State.StartedAt, finished_at: .State.FinishedAt, exit_code: .State.ExitCode}, mounts: [.Mounts[] | {type: .Type, name: .Name, destination: .Destination, rw: .RW}]}"' _ "${container_id}" || complete=0
+			runtime_image_id="$(ifa_fault_run_bounded jq -er \
+				'.image_id | select(type == "string" and test("^sha256:[0-9a-f]{64}$"))' \
+				"${work_root}/backend-container.json" 2>/dev/null)" || true
+			if [[ -n "${expected_image}" && -n "${expected_platform}" ]]; then
+				ifa_fault_capture_command "${manifest}" backend-expected-platform-image \
+					"${work_root}/backend-expected-platform-image.json" \
+					bash -c 'docker image inspect --platform "$1" "$2" | jq ".[0] | {id: .Id, repo_digests: (.RepoDigests // []), descriptor_digest: (.Descriptor.digest // null), os: .Os, architecture: .Architecture}"' \
+					_ "${expected_platform}" "${expected_image}" || complete=0
 			fi
-			if [[ -n "${expected_revision}" && -n "${actual_revision}" \
-				&& "${actual_revision}" == "${expected_revision}" ]]; then
-				ifa_fault_record_diagnostic_status \
-					"${manifest}" backend-revision-match complete expected-equals-actual
+			if [[ -n "${runtime_image_id}" ]]; then
+				ifa_fault_capture_command "${manifest}" backend-runtime-image \
+					"${work_root}/backend-runtime-image.json" \
+					bash -c 'docker image inspect "$1" | jq ".[0] | {id: .Id, repo_digests: (.RepoDigests // []), os: .Os, architecture: .Architecture}"' \
+					_ "${runtime_image_id}" || complete=0
 			else
 				ifa_fault_record_diagnostic_status \
-					"${manifest}" backend-revision-match failed expected-does-not-equal-actual
+					"${manifest}" backend-runtime-image failed image-id-unavailable
+				complete=0
+			fi
+			if [[ -s "${work_root}/backend-compose-config.json" \
+				&& -s "${work_root}/backend-container.json" \
+				&& -s "${work_root}/backend-expected-platform-image.json" \
+				&& -s "${work_root}/backend-runtime-image.json" ]] \
+				&& ifa_fault_write_backend_provenance \
+					"${work_root}/backend-compose-config.json" \
+					"${work_root}/backend-container.json" \
+					"${work_root}/backend-expected-platform-image.json" \
+					"${work_root}/backend-runtime-image.json" \
+					"${work_root}/backend-provenance.json"; then
+				ifa_fault_record_diagnostic_status \
+					"${manifest}" backend-provenance-match complete expected-equals-runtime
+			else
+				ifa_fault_record_diagnostic_status \
+					"${manifest}" backend-provenance-match failed expected-does-not-equal-runtime
 				complete=0
 			fi
 			ifa_fault_capture_command "${manifest}" nornicdb-environment "${work_root}/nornicdb-environment.txt" \

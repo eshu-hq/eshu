@@ -263,10 +263,15 @@ test_ifa_fault_compose_diagnostics_capture_safe_backend_state() (
 	if rg --fixed-strings --quiet -- 'NORNICDB_ADMIN_TOKEN' "${case_dir}/nornicdb-environment.txt"; then
 		fail "backend environment captured a non-allowlisted secret"
 	fi
-	[[ "$(cat "${case_dir}/backend-expected-revision.txt")" == 1111111111111111111111111111111111111111 ]] \
-		|| fail "backend expected revision was not derived from rendered Compose config"
-	[[ "$(cat "${case_dir}/backend-actual-revision.txt")" == 1111111111111111111111111111111111111111 ]] \
-		|| fail "running backend revision was not retained independently"
+	jq -e '
+		.rendered_image == "timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
+		and .expected_index_digest == "sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
+		and .rendered_platform == "linux/amd64"
+		and .runtime_platform == "linux/amd64"
+		and .accepted_runtime_repo_digest == "timothyswt/nornicdb-cpu-bge@sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"
+		and .backend_source_revision == "unavailable"
+	' "${case_dir}/backend-provenance.json" >/dev/null \
+		|| fail "backend provenance did not bind the rendered v1.3.2 image to its amd64 artifact"
 )
 
 test_ifa_fault_restart_completeness_requires_each_boundary_artifact() (
@@ -356,10 +361,11 @@ test_ifa_fault_failure_artifact_contract() {
 		'/tmp/ifa-fault-injection.*/restart-watch-result' \
 		'/tmp/ifa-fault-injection.*/fault-restart-backend.json.restart-sentinel.trigger.json' \
 		'/tmp/ifa-fault-injection.*/backend-image.txt' \
-		'/tmp/ifa-fault-injection.*/backend-labels.json' \
+		'/tmp/ifa-fault-injection.*/backend-compose-config.json' \
 		'/tmp/ifa-fault-injection.*/backend-container.json' \
-		'/tmp/ifa-fault-injection.*/backend-expected-revision.txt' \
-		'/tmp/ifa-fault-injection.*/backend-actual-revision.txt' \
+		'/tmp/ifa-fault-injection.*/backend-expected-platform-image.json' \
+		'/tmp/ifa-fault-injection.*/backend-runtime-image.json' \
+		'/tmp/ifa-fault-injection.*/backend-provenance.json' \
 		'/tmp/ifa-fault-injection.*/nornicdb-environment.txt' \
 		'/tmp/ifa-fault-injection.*/diagnostics-manifest.tsv' \
 		'/tmp/ifa-fault-injection.*/diagnostics-complete' \
@@ -401,10 +407,12 @@ test_ifa_fault_failure_artifact_contract() {
 	done
 	rg --fixed-strings --quiet -- "fact_kind IN ('gcp_cloud_resource', 'gcp_cloud_relationship')" "${diagnostics_lib}" \
 		|| fail "failure diagnostics do not retain the durable GCP fact inputs"
-	rg --fixed-strings --quiet -- "org.opencontainers.image.revision" "${diagnostics_lib}" \
-		|| fail "failure diagnostics do not retain the backend source revision label"
+	rg --fixed-strings --quiet -- 'backend_source_revision: "unavailable"' "${diagnostics_lib}" \
+		|| fail "failure diagnostics do not record unavailable backend source revision honestly"
+	rg --fixed-strings --quiet -- '@sha256:[0-9a-f]{64}$' "${diagnostics_lib}" \
+		|| fail "failure diagnostics do not require an immutable backend index digest"
 	rg --fixed-strings --quiet -- 'config --format json' "${diagnostics_lib}" \
-		|| fail "diagnostics do not derive the backend revision from rendered Compose config"
+		|| fail "diagnostics do not derive backend provenance from rendered Compose config"
 	rg --fixed-strings --quiet -- 'NORNICDB_(NO_AUTH|DATA_DIR|HTTP_PORT|BOLT_PORT|ASYNC_WRITES_ENABLED|' "${diagnostics_lib}" \
 		|| fail "NornicDB environment capture is not an explicit allowlist"
 	rg --fixed-strings --quiet -- 'command -v gtimeout' "${diagnostics_lib}" \

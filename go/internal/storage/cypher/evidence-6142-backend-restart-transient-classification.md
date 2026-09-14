@@ -30,8 +30,9 @@ watcher fired. This is the end-node branch of the same interrupted
 `CreateEdge` path as the already-classified start-node error, not lost node
 durability after restart.
 
-At the repository's pinned NornicDB revision
-`3722b483c02c38a8e046d198f8768f200f31023c`,
+At the former source-built NornicDB revision
+`3722b483c02c38a8e046d198f8768f200f31023c`, and still at upstream v1.3.2 tag
+commit `d2c8a9b47d67887506fb112a30144115caea77ed`,
 `pkg/storage/badger_transaction.go` checks `edge.StartNode` and `edge.EndNode`
 in adjacent branches and emits the same `node <id> does not exist` suffix for
 either. The Eshu classifier matched only the start-node prefix. The fix below
@@ -242,7 +243,8 @@ cd go && go vet ./internal/storage/cypher/...                 # exit 0
 bash scripts/verify-performance-evidence.sh                   # exit 0
 ```
 
-No-Regression Evidence: backend NornicDB `eshu-nornicdb-pr290:3722b483c02c` over
+Historical No-Regression Evidence: backend NornicDB
+`eshu-nornicdb-pr290:3722b483c02c` over
 the shared Cypher/Bolt contract; input shape = the fault-injection gate's six
 driven cassettes, 13 `fact_work_items`, `ESHU_REDUCER_WORKERS=4`; conflict domain
 = per-scope canonical `uid` MERGE under concurrent reducer workers. The change

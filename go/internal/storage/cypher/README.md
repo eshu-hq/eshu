@@ -695,12 +695,9 @@ The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
 `InstrumentedExecutor`.
 
-`RetryingExecutor` detects transient Neo4j and driver connectivity errors,
-NornicDB MERGE unique conflicts, and relationship snapshot conflicts. Raw legacy
-errors require bounded `conflict:`; typed NornicDB conflicts require
-`conflict detected:`, an edge or node identity, and the transaction-age suffix,
-or an exact relationship create-failure shape naming a non-empty missing start
-or end node. A driver `ConnectivityError`
+`RetryingExecutor` detects transient Neo4j and driver connectivity errors, NornicDB MERGE unique conflicts, and relationship snapshot conflicts.
+Raw legacy errors require bounded `conflict:`; typed NornicDB conflicts require `conflict detected:` with an edge or node identity and transaction-age suffix, or
+an exact relationship create failure naming a non-empty missing start/end node. A driver `ConnectivityError`
 wrapping `CommitFailedDeadError` is not retried in place because its commit
 outcome is unknown. Durable callers may later replay still-pending idempotent
 work after backoff. The same exponential-backoff loop covers `Execute` and
@@ -709,8 +706,8 @@ message-derived conflicts require all statements to be replay-safe, including `M
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
 'TestClassifyTransientNeo4jErrorPrioritizesNornicDBWriteConflict|TestRetryingExecutorV131WriteConflictUsesBoundedMetricReason|TestRetryingExecutor(RetriesDriverConnectivityError|ConnectivityErrorExhaustionRemainsQueueRetryable)|TestWrapRetryableNeo4jError'
--count=1` proves the exact v1.3.1 classifier and metric reason plus typed driver
-connectivity retries and queue-retryable local-budget exhaustion.
+-count=1` proves the typed classifier retained by v1.3.2, its bounded metric
+reason, driver connectivity retries, and queue-retryable local-budget exhaustion.
 
 Observability Evidence: no new metric name was needed. Existing
 `neo4j transient error, retrying` structured logs,
@@ -720,7 +717,7 @@ bounded retry classes, exhausted retry errors, and dead-letter prevention.
 The counter name is legacy and tracks this package's broader transient graph
 write retry class. Its closed `reason` enum is `connectivity_error`,
 `transient_error`, `write_conflict`, or `commit_unique_conflict`; the exact
-v1.3.1 snapshot conflict selects the existing `write_conflict` value. Raw errors,
+typed snapshot conflict selects the existing `write_conflict` value. Raw errors,
 repository ids, node ids, and statements stay out of metric labels.
 
 ## Exported surface
@@ -1600,8 +1597,8 @@ committed zero nodes.
   wrapping and the v1.0.45+ `commit failed: constraint violation:...` /
   `TransactionCommitFailed` wrapping so the classifier stays current
   across pinned binaries (`retrying_executor.go:227`).
-- No-Regression Evidence (#6003 follow-up): the baseline workload determinism
-  run on pinned NornicDB image revision `3722b483c02c` dead-lettered one losing
+- Historical No-Regression Evidence (#6003 follow-up): the baseline workload determinism
+  run on former source-built NornicDB revision `3722b483c02c` dead-lettered one losing
   Platform batch and retained one nonterminal fact row. After the classifier
   change, the opt-in live contract executes two production-sized 500-row
   implicit batches that share one `Platform.id` and observes the exact typed

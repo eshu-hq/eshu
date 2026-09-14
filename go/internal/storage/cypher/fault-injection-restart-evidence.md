@@ -16,10 +16,14 @@ request at the restart boundary. It does not prove backend durability,
 reconstruct every submitted group, or distinguish projection, scheduling, and
 backend causes by itself.
 
-The fault gate derives the expected backend revision from rendered Compose. For
-this test-only fault gate, a `NORNICDB_IMAGE` override must also set
-`IFA_FAULT_EXPECTED_NORNICDB_REVISION`; diagnostics retain the expected and
-running revisions and remain incomplete when they differ.
+The fault gate derives the backend's digest-pinned image and `linux/amd64`
+platform from rendered Compose. Diagnostics resolve the selected platform from
+that exact image, compare the running container reference and local image ID,
+and require its repository digests to contain either the configured index or
+the resolved amd64 child. The public v1.3.2 image has no source-revision label,
+so the retained provenance reports that field as `unavailable` instead of
+inventing it. Tag-only overrides, platform mismatches, missing image metadata,
+and digest mismatches leave the diagnostic set incomplete.
 
 On a CI failure, the workflow's `--keep` mode retains the normal
 `graph-restartbackend.dump` when the post-drain capture was reached. If the
@@ -50,11 +54,29 @@ typed retry guard covered only NornicDB's adjacent `start node` branch. It now
 accepts either exact endpoint role with a non-empty id under the existing
 MERGE-shaped single-statement or all-statements-replay-safe group gate;
 malformed queries and broader missing-node errors remain terminal.
-The run used the Compose-resolved revision
-`3722b483c02c38a8e046d198f8768f200f31023c`. It is not evidence for the
-separately deployed NornicDB v1.3.1 environment.
+The run used the former source-built image at revision
+`3722b483c02c38a8e046d198f8768f200f31023c`; it is historical reproduction
+evidence, not evidence for the current v1.3.2 default. The upstream v1.3.2 tag
+at `d2c8a9b47d67887506fb112a30144115caea77ed` retains the adjacent start- and
+end-node checks and their distinct missing-endpoint messages.
 
 ## Performance and observability
+
+The rebased v1.3.2 proof on 2026-09-14 used the immutable index
+`sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440`
+and resolved its `linux/amd64` child as
+`sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc`.
+A disposable container provenance probe matched the rendered reference, index,
+child, runtime image ID, repository digest, and platform while recording the
+source revision as `unavailable`. The real `--shard 4/21` fault slice then ran
+only the shared baseline and restart cell. Both reached zero dead letters,
+checked 627 GCP relationships with zero cross-scope edges, and produced digest
+`280a882458096e6813cb4f3d7c6552b92860c5b4c2a6e597ee5cc69c462f8052`.
+Baseline completed in 15 seconds and restart in 20 seconds. The sentinel fired
+during the drain. R-5 completed its offline replay tier in 108 seconds and its
+SQL branch proof in 30 seconds. B-7 completed in 132 seconds with 562 passes,
+zero required failures, and zero advisory warnings. The required hosted
+four-shard matrix remains the final cross-cell check on the pushed head.
 
 No-Regression Evidence (diagnostics, #6162): baseline
 `48e77c61ecb6df06c7dcd4cbce3d37cb19ece5f5` and implementation commit
@@ -69,11 +91,11 @@ sentinel and is not overwritten. The shell fixture proves failure capture
 performs exactly one bounded graph read when the regular restart dump is
 absent, no extra read when it exists, preserves the original exit status,
 rejects timeout values outside 1--30 seconds before collection, and fails
-completeness on missing artifacts or backend-revision mismatch. These local
+completeness on missing artifacts or backend-provenance mismatch. These local
 fixtures use neither Postgres nor a live graph backend, so backend version and
 terminal queue counts are not applicable locally. Before merge, the hosted
 shard must provide its existing drain, dead-letter, and digest result against
-the Compose-resolved NornicDB revision; this note does not claim that result.
+the Compose-resolved v1.3.2 artifact; this note does not claim that result.
 
 No-Regression Evidence (classifier): successful graph writes do not enter the
 error classifier. The new branch performs no graph call and adds no success-path

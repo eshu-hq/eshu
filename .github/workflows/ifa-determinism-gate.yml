@@ -728,10 +728,11 @@ jobs:
             /tmp/ifa-fault-injection.*/restart-watch-result
             /tmp/ifa-fault-injection.*/fault-restart-backend.json.restart-sentinel.trigger.json
             /tmp/ifa-fault-injection.*/backend-image.txt
-            /tmp/ifa-fault-injection.*/backend-labels.json
+            /tmp/ifa-fault-injection.*/backend-compose-config.json
             /tmp/ifa-fault-injection.*/backend-container.json
-            /tmp/ifa-fault-injection.*/backend-expected-revision.txt
-            /tmp/ifa-fault-injection.*/backend-actual-revision.txt
+            /tmp/ifa-fault-injection.*/backend-expected-platform-image.json
+            /tmp/ifa-fault-injection.*/backend-runtime-image.json
+            /tmp/ifa-fault-injection.*/backend-provenance.json
             /tmp/ifa-fault-injection.*/nornicdb-environment.txt
             /tmp/ifa-fault-injection.*/diagnostics-manifest.tsv
             /tmp/ifa-fault-injection.*/diagnostics-complete
