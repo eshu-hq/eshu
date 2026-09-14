@@ -102,7 +102,7 @@ func tagHistoryDurationOutcomeCount(t *testing.T, rm metricdata.ResourceMetrics,
 
 // TestTagHistoryHandlerNilBackendRecordsBackendUnavailableOutcome pins the
 // outcome="backend_unavailable" metric-label contract on the h.Neo4j == nil
-// guard branch (tag_history.go:145-147): the handler never reaches
+// guard branch in TagHistoryHandler.listTagHistory: the handler never reaches
 // h.Neo4j.Run at all, so the fake reader is never wired and lastCypher stays
 // empty. A future refactor that reverts this branch to a generic outcome
 // (e.g. "error") must fail this test.
@@ -131,7 +131,7 @@ func TestTagHistoryHandlerNilBackendRecordsBackendUnavailableOutcome(t *testing.
 
 // TestTagHistoryHandlerGraphReadErrorRecordsBackendUnavailableOutcome pins
 // the outcome="backend_unavailable" metric-label contract on the
-// WriteGraphReadError guard branch (tag_history.go:175-177), distinct from
+// WriteGraphReadError guard branch in writeTagHistoryReadError, distinct from
 // the nil-backend branch above: this one actually invokes h.Neo4j.Run (a
 // configured reader) and only trips because that call returned
 // ErrGraphUnavailable. Asserting fakeReader.lastCypher is non-empty proves

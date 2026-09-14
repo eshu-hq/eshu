@@ -255,9 +255,11 @@ on the real tree and fails under that exact deletion; the mutation run is
 recorded in the Mutation Proof section below.
 
 **P3 -- stale telemetry anchor.** `docs/public/observability/telemetry-coverage.md`
-cited `tag_history.go:102`, which now lands inside `Mount`. Repointed to
-`tag_history.go:120 (listTagHistory)` and named the symbol so the next line
-shift is visible rather than silent.
+cited `tag_history.go:102`, which had slid into `Mount`. Repointed to the symbol
+anchor ``tag_history.go (`TagHistoryHandler.listTagHistory`)``: a bare line
+number is rejected by `scripts/verify-doc-citations.sh` as an unstable LINE
+citation, and the symbol survives the next line shift rather than sliding
+silently.
 
 **P3 -- `mutated` survives a blanked `previous_digest`.** A scoped caller whose
 `previous_digest` was blanked can still read `mutated: true` and conclude some
