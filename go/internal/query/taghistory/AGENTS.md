@@ -34,6 +34,16 @@ already caught:
    cap-reached page that kept nothing it names the last RAW row scanned — that
    is deliberate, it is the only way the walk can advance, and it is disclosed
    on the caller-facing surfaces. Do not "fix" it by dropping the cursor.
+5. The cursor is SEALED with the deployment DEK (`Sealer`, AES-256-GCM, AAD
+   `"eshu/query/tag-history/cursor/v3\0" + image_ref`). This is not belt and
+   braces: an unsealed key lets the caller choose where the scanned span starts,
+   and a fully-withheld capped page then answers with the key 800 raw rows after
+   that start — a step function a caller binary-searches to recover every
+   withheld row's key. Do not remove the seal, do not add a plaintext fallback
+   for a caller who has rows withheld from them, and do not widen the AAD.
+   Without a DEK, grant-filtered paging fails closed with
+   `ErrCursorSealingUnavailable`; unscoped callers keep the unsealed token,
+   because nothing is withheld from them for an aimed start to reach.
 
 `MaxRefillReads` bounds per-request cost and is justified from measured lookup
 latency in the evidence doc. Raising it multiplies the worst case — re-measure

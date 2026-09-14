@@ -3,8 +3,9 @@
 Companion to
 [6564-tag-history-grant-binding.md](6564-tag-history-grant-binding.md), which
 owns the grant binding itself. This file owns the pagination redesign that closed
-the re-review's P1: `GET /api/v0/images/tag-history` (MCP
-`list_container_image_tag_history`) now continues by ROW KEY, not by row offset.
+the re-review's P1 and the round-3 P1 after it: `GET /api/v0/images/tag-history`
+(MCP `list_container_image_tag_history`) continues by ROW KEY rather than row
+offset, and that key leaves the wire SEALED with the deployment DEK.
 
 ## The Defect, Reproduced
 
@@ -35,21 +36,27 @@ RED_EXIT=1
 `DecodeCursor` and returned exactly the rows at raw positions 4 and 5. The four
 rows the grant filter withheld were addressable by index.
 
-Why the first implementation did not simply sign it, for the record: no shared
-server-side key exists for a query handler to sign with
-(`ESHU_AUTH_SECRET_ENC_KEY` is `cmd/api`'s provider-config DEK), and a
-process-local key breaks paging across a restart or a second replica. A signature
-would also have left the honest cap-reached channel untouched. Keyset needs no
-secret and removes the offset from existence, which is why it was chosen over a
-MAC, an AEAD, or a server-side cursor table.
+Why the first implementation did not simply sign it, for the record: it argued
+that no shared server-side key existed for a query handler to sign with
+(`ESHU_AUTH_SECRET_ENC_KEY` was read as `cmd/api`'s provider-config DEK alone),
+that a process-local key breaks paging across a restart or a second replica, and
+that a keyset cursor needs no secret because a forged key can only ask for the
+forger's own visible rows.
+
+**The first clause was wrong and the third was incomplete.** The DEK is a
+deployment key, not a `cmd/api` key -- `cmd/mcp-server` can load the same
+`ESHU_AUTH_SECRET_ENC_KEY(_FILE)` and now does. And a forged key does not only
+ask for the forger's own rows: it also chooses where the scan STARTS, which is
+the oracle the round-3 review found and this file records under "Sealing The
+Cursor". The keyset design is kept; it is now sealed.
 
 ## The Design
 
-### Cursor v2
+### Cursor v3, sealed
 
 ```go
 type Cursor struct {
-    Version  int    `json:"v"`             // 2
+    Version  int    `json:"v"`             // 3
     ImageRef string `json:"ref"`
     At       string `json:"at,omitempty"`  // "" is a real stored value
     NullAt   bool   `json:"nt,omitempty"`  // key row had NO first_observed_at
@@ -57,12 +64,19 @@ type Cursor struct {
 }
 ```
 
-`DecodeCursor` refuses malformed base64 or JSON, a version other than 2 (which
-includes every v1 offset token, so a client across the deploy boundary restarts
-from page one), a foreign `image_ref`, an empty `uid`, and `nt: true` alongside a
-non-empty `at`. None of those is a tamper detection, and no surface claims one:
-the token carries no MAC. With a keyset payload that no longer matters, because a
-forged key can only ask for the forger's OWN visible rows after it.
+That plaintext never reaches the wire. `EncodeCursor` seals it with
+`secretcrypto.Keyring` (AES-256-GCM, the deployment DEK from
+`ESHU_AUTH_SECRET_ENC_KEY(_FILE)`) under
+`AAD = "eshu/query/tag-history/cursor/v3\0" + image_ref`, so the token is an
+`ESK1.<key_id>.<nonce>.<ciphertext>` envelope of about 180 characters.
+`DecodeCursor` opens it and gets `secretcrypto`'s single opaque `ErrDecrypt` for
+every failure -- forged, edited, truncated, foreign `image_ref`, sealed by
+another feature under its own AAD, or sealed under a key a rotation retired.
+
+The plaintext checks that follow (version 3, a foreign `ref`, an empty `uid`,
+`nt: true` alongside a non-empty `at`) are kept, but their job changed: on a
+sealed token they can only fire on a payload this server itself sealed, so they
+guard against a server bug rather than a forger. The AEAD tag does the rest.
 
 The `Limit` binding was DROPPED. It existed only to stop an offset token being
 re-aimed at `limit=1`; a key has no position to re-aim, so a caller may change
@@ -112,8 +126,9 @@ behaviour that varies by anchor shape on this build and is changing upstream.
 Only the parameters the chosen statement names are bound.
 
 `OffsetCypher`, the `SKIP` form, is retained for unscoped and all-scope callers
-who page by the `offset` parameter. They still receive a v2 keyset
-`next_cursor`, so there is ONE token format on the wire.
+who page by the `offset` parameter. They still receive the same sealed
+`next_cursor`, so wherever a sealing key exists there is ONE token format on the
+wire.
 
 ### Fixed refill windows
 
@@ -133,7 +148,9 @@ rows here are not yours". It costs a `limit=1` scoped caller the 200-row read a
 - Cap reached with at least one visible row: the last visible row. The next
   request re-scans the withheld rows after it, which returns no duplicate
   because no visible row sits in that span.
-- Cap reached with ZERO visible rows: the last RAW row scanned. See Residue.
+- Cap reached with ZERO visible rows: the last RAW row scanned. That row may be
+  withheld, which is why the token carrying it is SEALED -- the caller replays a
+  frontier it cannot read. See Residue.
 - History ended: no cursor, `truncated: false`.
 
 Termination and no-duplicate: each window starts strictly after the last raw row
@@ -142,24 +159,94 @@ window is re-read inside a request and no visible row is returned twice across
 requests. A key whose row was since retracted is harmless -- the predicate is on
 values, not on that row still existing.
 
+## Sealing The Cursor (round 3)
+
+The round-3 review found that the keyset redesign above narrowed the disclosure
+without closing it, for a reason the design had not considered: the failure is
+not "a raw key is emitted", it is **the caller chooses where the span starts**.
+
+A scoped caller mints `{"v":2,"ref":"<its own image_ref>","at":"<any>","uid":"zzz"}`
+-- every check the unsealed `DecodeCursor` applied passes -- and a fully-withheld
+capped page answers with the key of the 800th raw row after that chosen start. So
+`f(start)` is a monotone step function evaluated one request at a time, and
+binary search on `at` (about forty requests for a millisecond timestamp, plus a
+`uid` bisection for a shared millisecond) recovers EVERY withheld row's
+`(first_observed_at, uid)` -- not one key per 800-row span, which is what six
+caller-facing surfaces claimed.
+
+Refusing to advance would not have closed it either: with a caller-chosen start,
+the empty/non-empty distinction is itself that step function, so the flip at
+`start = V-800` still names the key of the row 800 positions before each visible
+row. Only removing the caller's choice of start closes it.
+
+### RED, at `ffee873e2`
+
+```
+$ go test ./internal/query/ -run TestTagHistoryForgedCursorIsRefused -count=1 -v
+    forged start 0:  status = 200, want 400; next_cursor -> at 1760000000800 uid uid-sha256:d800
+    forged start 1:  status = 200, want 400; next_cursor -> at 1760000000801 uid uid-sha256:d801
+    forged start 50: status = 200, want 400; next_cursor -> at 1760000000850 uid uid-sha256:d850
+--- FAIL: TestTagHistoryForgedCursorIsRefused
+RED_EXIT=1
+```
+
+1000 withheld rows, `limit=1`, `count: 0` on every page. Sliding the forged start
+by one row slides the disclosed withheld key by exactly one row: the step
+function, reproduced against the real handler. GREEN after sealing, with
+`tagReads == 0` on the refusal -- the token never reaches the graph.
+
+### Why AEAD and not an HMAC
+
+An HMAC closes the chosen start too, and would have made the old published
+quantifier ("one withheld key per fully-withheld span") true for the first time.
+AEAD was chosen because the repo already has the primitive wired with rotation
+bookkeeping, it costs the same to integrate, and it additionally hides the
+frontier's CONTENTS -- which is what turns the residue from "one withheld key
+per span" into counts only. No new secret: the same DEK the API already loads
+for provider secrets, TOTP and the bootstrap credential.
+
+### Failure modes, and what each does
+
+| Mode | Behaviour |
+| --- | --- |
+| No DEK, scoped caller, truncated page | Page served and honestly truncated; `next_cursor` OMITTED, `truth.reason` names `ESHU_AUTH_SECRET_ENC_KEY(_FILE)`, request records `outcome=cursor_unavailable` |
+| No DEK, scoped caller, request carries a cursor | 503 `capability_degraded` naming the variable; no graph read |
+| No DEK, unscoped/all-scope caller | UNAFFECTED: still issues and accepts the unsealed v2 token, which buys a caller with nothing withheld nothing the `offset` parameter does not already give it |
+| Rotated key (new id) | In-flight tokens 400; client restarts from page one. A multi-key keyring would open them, but `KeyringFromEnv` loads one primary, so this is a deploy boundary and is documented as one, not engineered around |
+| Same key id, different material | 400 on the AEAD tag rather than on an unknown key id |
+| Token sealed for another `image_ref`, or by another feature | 400: the AAD differs, so `Open` fails rather than a post-decrypt string compare |
+| Truncated, edited or garbage token | 400, one opaque message; the refusal never says which part was wrong |
+| Second replica / standalone MCP server | Must hold the same DEK. `cmd/mcp-server` dispatches this tool in-process and now loads `KeyringFromEnv` too; without the key it behaves as the "No DEK" rows above |
+
+There is no `iat` or expiry: the key carries no state, and a stale key simply
+reads the rows after it. A retracted anchor row stays harmless -- the predicate
+is on values, not on that row still existing.
+
 ## Residue This Does NOT Close
 
 Disclosed on the OpenAPI operation, the `cursor` parameter, the `next_cursor` and
 `grant_filtered` properties, `docs/public/reference/http-api.md`, the MCP tool
 description and input schema, the MCP contract matrix row, and
-`tagHistoryScopedTruthReason` -- not only here.
+`taghistory.ScopedTruthReason` -- not only here.
 
-1. **The fully-withheld capped page.** When 4 fixed windows (800 raw rows) yield
-   ZERO visible rows, the cursor must name the last RAW row scanned or the caller
-   re-reads the same 800 rows forever. That row may be withheld, so such a page
-   carries one withheld observation's `first_observed_at` and `uid` per 800-row
-   fully-withheld span. `uid` is
+1. **Counts, not identities.** On a page that reached the read cap holding `k`
+   rows below the requested `limit`, a scoped caller learns that `800-k` of the
+   800 raw observations after its own last-shown row -- or after the sealed
+   frontier of its previous capped page -- are ones it may not see. It cannot
+   choose where such a span starts, cannot read the frontier, and never learns a
+   withheld observation's `first_observed_at`, `uid` or digest.
+
+   The reachable starts are exactly: the start of the history, any row the
+   caller was shown (choose `limit` to stop on it), and the sealed frontier a
+   previous capped page issued. Replaying any of them at any `limit` yields the
+   caller's own rows in that fixed span, or `count: 0`.
+
+   This is a strict subset of the `count: 0` signal in item 2, which was already
+   disclosed, so sealing concedes nothing new. It also retires the
+   `uid`-confirmation channel the unsealed design carried: `uid` is
    `facts.StableID("OCIRegistryCanonicalNode", {kind:"tag_observation",
-   repository_id, tag, resolved_digest})` -- a hash, not readable, but a caller
-   already holding a candidate digest can confirm it by recomputing the hash: one
-   guess per cap event. A forger can therefore still map withheld history at
-   granularity 800 rows and one request per 800 withheld rows, versus granularity
-   1 before this change.
+   repository_id, tag, resolved_digest})`, a hash a caller holding a candidate
+   digest could recompute -- but no withheld `uid` is on the wire any more.
 2. **`count: 0` itself** still says "the next 800 raw rows hold nothing you may
    see". Fixed windows make it 800 regardless of `limit`; nothing short of not
    refilling removes it.

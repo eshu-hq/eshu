@@ -301,6 +301,13 @@ services:
       ESHU_MCP_ADDR: ":8080"
       ESHU_API_KEY: ${ESHU_API_KEY:-}
       ESHU_AUTO_GENERATE_API_KEY: "true"
+      # Same DEK the api service gets, and the same all-zero placeholder. The
+      # MCP server dispatches list_container_image_tag_history in-process and
+      # seals that route's continuation cursor with this key (#6564), so a
+      # cursor the API issued opens here only when both hold the same value.
+      # Without it, a scoped caller's tag-history paging fails closed here
+      # while unscoped paging is unaffected.
+      ESHU_AUTH_SECRET_ENC_KEY: ${ESHU_AUTH_SECRET_ENC_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
       ESHU_DEPLOYMENT_ENVIRONMENT: local-compose
       ESHU_SEMANTIC_PROVIDER_PROFILES_JSON: ${ESHU_SEMANTIC_PROVIDER_PROFILES_JSON:-}
       ESHU_SEMANTIC_EXTRACTION_POLICY_JSON: ${ESHU_SEMANTIC_EXTRACTION_POLICY_JSON:-}

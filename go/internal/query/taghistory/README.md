@@ -44,16 +44,21 @@ of the caller's `limit`, and that is the second half of the same fix: with
 someone else's". Fixed windows make it a constant 800 raw rows. Do not
 reintroduce a `limit`-sized window as an optimisation.
 
-**The cursor token.** `next_cursor` is a KEYSET token naming one row's
-`(first_observed_at, uid)`, not a row position. The offset it replaced was a
+**The cursor token, and its seal.** `next_cursor` is a KEYSET token naming one
+row's `(first_observed_at, uid)`, not a row position, and it is SEALED with the
+deployment DEK (AES-256-GCM under a route-specific AAD). Both halves are
+load-bearing and each closed a separate P1. The offset it replaced was a
 position in the pre-filter history, so decoding a token read the frontier the
-filter had advanced past and re-encoding an edited offset walked another
-tenant's history one row at a time. A key closes both without a secret: a forged
-key can only ask for the forger's own visible rows after it. The token is still
-unsealed — it carries no MAC — so never describe an edit as detected; with a
-keyset payload that no longer matters, which is why no MAC was added. The one
-residue is the fully-withheld capped page, on `Cursor`'s doc comment and on
-every caller-facing surface.
+filter had advanced past. The unsealed key that replaced it was worse than it
+looked: a caller could mint one naming any start, and a fully-withheld capped
+page answers with the key 800 raw rows later, so the answer was a step function
+a caller could binary-search to recover every withheld row's key. Sealing makes
+the reachable start set `{page one} ∪ {tokens this server issued}`. Do not
+"simplify" the seal away, and do not describe the token as opaque by convention
+— it is opaque by construction now. Where no DEK is configured, grant-filtered
+paging fails closed (`ErrCursorSealingUnavailable`) rather than downgrading.
+The residue left is counts only, on `Cursor`'s doc comment and on every
+caller-facing surface.
 
 **The `DISTINCT` in `BuiltFromCypher`.** BUILT_FROM edge identity is
 `{scope_id, evidence_source}`, so one image↔repository pair carries one edge per

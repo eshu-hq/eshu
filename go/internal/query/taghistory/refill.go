@@ -88,11 +88,10 @@ type ScopedPage struct {
 //     duplicate, because no visible row sits in that span.
 //   - Cap reached with ZERO visible rows: NextKey MUST be the last RAW row
 //     scanned. A key at the last visible row would re-scan the same 800 rows
-//     forever and the walk could never advance. That row may be withheld, so
-//     such a page discloses one withheld observation's first_observed_at and
-//     uid per fully-withheld span. This is the residue the design does not
-//     close, and it is stated on every caller-facing surface rather than only
-//     here (see Cursor).
+//     forever and the walk could never advance. That row may be withheld, which
+//     is exactly why the token carrying it leaves the wire SEALED (see Cursor):
+//     the caller can replay the frontier but cannot read it and cannot choose
+//     one, so what such a page leaves behind is a count and never an identity.
 //   - History ended: NextKey is nil and Truncated is false.
 //
 // # Why the walk terminates and never repeats a row

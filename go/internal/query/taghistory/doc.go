@@ -10,16 +10,18 @@
 // ContainerImage-[:BUILT_FROM]->Repository lookup that binds a scoped caller's
 // page to its repository grant -- plus the refill loop that fills a
 // grant-filtered page to `limit` VISIBLE rows out of FIXED MaxLimit-sized raw
-// windows, and the keyset continuation cursor that replaced the raw row offset.
-// The cursor names a row key, not a row position, so there is nothing
-// position-shaped for a caller to read or forge; the one residue that leaves is
-// on Cursor's doc comment, and it is disclosed on every caller-facing surface
+// windows, and the SEALED keyset continuation cursor that replaced the raw row
+// offset. The cursor names a row key, not a row position, and it is encrypted
+// with the deployment DEK, so a caller can neither read where a page stopped nor
+// choose where the next one starts; the residue that leaves is counts only, on
+// Cursor's doc comment, and it is disclosed on every caller-facing surface
 // rather than only here.
 //
 // It imports only the standard library and querycontract (GraphQuery,
-// RepositoryAccessFilter, StringVal/BoolVal), never the query root. The query
-// root keeps the HTTP handler: capability gating, selector parsing, the
-// response envelope, and telemetry.
+// RepositoryAccessFilter, StringVal/BoolVal), never the query root or
+// secretcrypto: the DEK arrives through the Sealer interface, which
+// *secretcrypto.Keyring satisfies. The query root keeps the HTTP handler:
+// capability gating, selector parsing, the response envelope, and telemetry.
 //
 // Why the join runs in Go rather than in Cypher: a two-MATCH grant join
 // returned zero rows on the pinned NornicDB build and on upstream v1.3.1 for a

@@ -9,6 +9,11 @@ client secrets and SAML signing keys (#4966). It is the only place in the
 codebase that seals or opens AES-256-GCM envelopes for these secrets; every
 consumer imports this package rather than reimplementing the primitive.
 
+One consumer is not a secret at rest: the tag-history continuation cursor
+(#6564) is sealed in flight so a scoped caller cannot choose where its next
+page starts. It reaches the `query` package through an interface rather than
+an import, and it makes `cmd/mcp-server` a DEK consumer alongside `cmd/api`.
+
 Before this package, `go/internal` had no reversible encryption at all.
 `bcrypt` (one-way password hashing) and `go/internal/redact` (irreversible
 SHA-256/HMAC masking) cover the existing secret-handling surface, but neither
@@ -83,6 +88,8 @@ defense):
   `eshu:onetime-admin:v1|<tenant>|<workspace>`
 - Provider config secret (#4966):
   `eshu:provider-secret:v1|<provider_config_id>|<revision_id>`
+- Tag-history continuation cursor (#6564):
+  `eshu/query/tag-history/cursor/v3\0<image_ref>`
 
 Passing the wrong AAD to `Open` is indistinguishable from any other
 decryption failure: it also returns `ErrDecrypt`.
