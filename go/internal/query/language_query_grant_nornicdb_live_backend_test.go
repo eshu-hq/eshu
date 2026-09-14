@@ -23,11 +23,12 @@ import (
 
 // TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing is the
 // negative control for the backend defect buildDirectoryCypher was rewritten
-// around. What returns nothing here is the two-MATCH SHAPE the builder used to
-// have, not the shipped builder: that emits one MATCH clause now, answers on
-// this build, and is asserted first below and again in
-// TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder alongside the other
-// three.
+// around. What returns nothing here is the two-MATCH SHAPE the builder had
+// before #5167 batch 2a, not the shipped builder: that one seeks
+// `(d:Directory {repo_id: rid})` per unwound grant id since #6541, answers on
+// this build, and is asserted first below and end to end in
+// TestLiveNornicDBDirectoryLanguageQueryCountsNestedDirectories
+// (internal/query/language).
 //
 // On the pinned build a read with two MATCH clauses followed by a
 // `WITH <node>, <node>, count(...)` aggregation drops every row as soon as the
@@ -52,7 +53,7 @@ func TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing(t *testi
 	// The shipped builder, which must now answer. If this ever returns nothing
 	// again, the rewrite has been undone or the backend has changed under it.
 	cypher, params := language.BuildCypherWithSemanticFilter(
-		liveGrantLanguage, "Directory", "", "", 3, "", "", liveGrantAccess(),
+		liveGrantLanguage, "Directory", "", "", 3, "", "", liveGrantAccess(), nil,
 	)
 	rows := runLiveGrantStatement(ctx, t, driver, "buildDirectoryCypher shipped", cypher, params)
 	if len(rows) == 0 {
@@ -128,7 +129,7 @@ func TestLiveNornicDBGrantPlanShapeIsNotReportable(t *testing.T) {
 	seedLiveGrantGraph(ctx, t, driver)
 
 	cypher, params := language.BuildCypherWithSemanticFilter(
-		liveGrantLanguage, "File", "", "", 2, "", "", liveGrantAccess(),
+		liveGrantLanguage, "File", "", "", 2, "", "", liveGrantAccess(), nil,
 	)
 	plain := runLiveGrantStatement(ctx, t, driver, "plan probe plain", cypher, params)
 	if len(plain) == 0 {
@@ -136,7 +137,7 @@ func TestLiveNornicDBGrantPlanShapeIsNotReportable(t *testing.T) {
 	}
 	for _, prefix := range []string{"EXPLAIN", "PROFILE"} {
 		_, prefixParams := language.BuildCypherWithSemanticFilter(
-			liveGrantLanguage, "File", "", "", 2, "", "", liveGrantAccess(),
+			liveGrantLanguage, "File", "", "", 2, "", "", liveGrantAccess(), nil,
 		)
 		rows := runLiveGrantStatement(ctx, t, driver, "plan probe "+prefix, prefix+" "+cypher, prefixParams)
 		if len(rows) != 0 {

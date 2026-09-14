@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/language"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -20,7 +21,7 @@ const (
 	// additions to allInfraLabels and the resource-investigation selector
 	// labels, and the CrossplaneClaim/#5478 removal from both, once this file
 	// lands on main.
-	handlerQueryplanSafeVariantFamilySHA256       = "33ad55b7d0dada45d921c686a85a119c8e77f12461d0502998ada1dd4705bb8d"
+	handlerQueryplanSafeVariantFamilySHA256       = "1c7c8a1993f41ee4fcbe6e4266dbafb84ef367c12a3fa10b7b079a2ff714be45"
 	cloudResourcePageQueryplanFamilySHA256        = "712236c6413a22d03897649a0ac0a58115531537557d9bb3fed5604acd23f2b2"
 	entityNameSearchQueryplanVariantFamilySHA256  = "4d4f47c1555b8a42caa91d20a5971902fc19b6ef65d3c77440f9be5df4333ef5"
 	entityNameSearchQueryplanBuilderSourceSHA256  = "8b5d6874aae2a204979eb9a0a784059ffb99ca624cc4a1fd350af0e71f38fb44"
@@ -37,7 +38,9 @@ func TestHandlerQueryplanProductionVariantFamiliesStayExplicit(t *testing.T) {
 	t.Parallel()
 
 	safe := handlerQueryplanSafeCypherVariants()
-	wantSafe := 13 + len(allInfraLabels)*10 + importDependencyQueryplanExpectedVariantCount + resourceSelectorQueryplanExpectedVariantCount
+	// 17 = the 13 standalone handler variants plus the four #6541 directory
+	// language-query variants (two caller classes x filtered/unfiltered).
+	wantSafe := 17 + len(allInfraLabels)*10 + importDependencyQueryplanExpectedVariantCount + resourceSelectorQueryplanExpectedVariantCount
 	if got := len(safe); got != wantSafe {
 		t.Fatalf("safe production variant count = %d, want %d", got, wantSafe)
 	}
@@ -246,7 +249,7 @@ func cloudResourceListQueryplanVariants() map[string]string {
 func handlerQueryplanSafeCypherVariants() map[string]string {
 	allAccess := repositoryAccessFilter{AllScopes: true}
 	scopedAccess := queryplanScopedRepositoryAccess()
-	variants := make(map[string]string, 13+len(allInfraLabels)*10+importDependencyQueryplanExpectedVariantCount+resourceSelectorQueryplanExpectedVariantCount)
+	variants := make(map[string]string, 17+len(allInfraLabels)*10+importDependencyQueryplanExpectedVariantCount+resourceSelectorQueryplanExpectedVariantCount)
 
 	for name, cypher := range importDependencyQueryplanVariants() {
 		variants[name] = cypher
@@ -297,6 +300,32 @@ func handlerQueryplanSafeCypherVariants() map[string]string {
 		property, relationship, _ := buildResolveWorkloadQueries("proof", "", 10, access.filter)
 		variants["workload/"+access.name+"/property"] = property
 		variants["workload/"+access.name+"/relationship"] = relationship
+	}
+	// The directory language-query statement (#6541). Both caller classes are
+	// enumerated because they render the same text but are reached differently:
+	// a scoped caller's repository-id list is derived from its grant, and an
+	// unscoped caller's is read from the graph and passed in. The name filter
+	// is the only optional clause the builder splices.
+	for _, access := range []struct {
+		name   string
+		filter repositoryAccessFilter
+		ids    []string
+	}{
+		{name: "all", filter: allAccess, ids: []string{"proof-repository"}},
+		{name: "scoped", filter: scopedAccess},
+	} {
+		for _, nameQuery := range []struct {
+			name  string
+			query string
+		}{
+			{name: "unfiltered"},
+			{name: "name-query", query: "proof"},
+		} {
+			cypher, _ := language.BuildCypherWithSemanticFilter(
+				"go", "Directory", nameQuery.query, "", 10, "", "", access.filter, access.ids,
+			)
+			variants["language-directory/"+access.name+"/"+nameQuery.name] = cypher
+		}
 	}
 	for _, label := range allInfraLabels {
 		for _, withARN := range []bool{false, true} {

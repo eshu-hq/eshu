@@ -346,18 +346,10 @@ func (h *Handler) queryByLanguageWithSemanticFilter(
 		return results, querycontract.TruthBasisContentIndex, nil
 	}
 
-	cypher, params := BuildCypherWithSemanticFilter(
-		language,
-		label,
-		query,
-		repoID,
-		limit,
-		semanticFilterKey,
-		semanticFilterValue,
-		grant.Access,
+	rows, err := h.languageQueryGraphRows(
+		ctx, language, label, query, repoID, limit,
+		semanticFilterKey, semanticFilterValue, grant,
 	)
-
-	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, "", err
 	}

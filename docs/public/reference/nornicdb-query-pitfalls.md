@@ -865,8 +865,8 @@ A comma-separated pattern (`MATCH a, b`) behaves like two clauses here and is
 (`go/internal/query/language/cypher.go`) emitted the broken shape, so
 `entity_type: "directory"` on `POST /api/v0/code/language-query` answered an
 empty `results` list on NornicDB for every caller, silently. **Fixed** in the
-#5167 batch 2a change: `buildDirectoryCypher` is now the single File-anchored
-clause above.
+#5167 batch 2a change; #6541 then replaced that shape too, so the builder now
+UNWINDs the grant and seeks `(d:Directory {repo_id: rid})`, binding no Repository.
 
 Do not "fix" a future instance by dropping the computed projection: the
 response contract carries `labels`, and a string literal that happens to work

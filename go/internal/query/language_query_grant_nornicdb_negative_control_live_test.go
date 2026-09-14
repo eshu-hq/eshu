@@ -92,6 +92,11 @@ func TestLiveNornicDBLanguageQueryImpossibleLanguageReturnsNoRows(t *testing.T) 
 			cypher, params := language.BuildCypherWithSemanticFilter(
 				liveGrantImpossibleLanguage, label, "", "",
 				liveGrantNegativeControlLimit, "", "", liveGrantUnscopedAccess(),
+				// The Directory branch takes its repository list from the
+				// caller when unscoped (#6541). Naming both seeded
+				// repositories keeps this control meaningful: an empty list
+				// would return zero rows whatever the language predicate did.
+				liveGrantEveryRepositoryID(),
 			)
 			rows := runLiveGrantStatement(ctx, t, driver, label+" impossible-language", cypher, params)
 			if len(rows) != 0 {
@@ -136,6 +141,7 @@ func TestLiveNornicDBLanguageQueryImpossibleGrantReturnsNoRows(t *testing.T) {
 			cypher, params := language.BuildCypherWithSemanticFilter(
 				liveGrantLanguage, label, "", "",
 				liveGrantNegativeControlLimit, "", "", liveGrantImpossibleAccess(),
+				nil,
 			)
 			rows := runLiveGrantStatement(ctx, t, driver, label+" impossible-grant", cypher, params)
 			if len(rows) != 0 {

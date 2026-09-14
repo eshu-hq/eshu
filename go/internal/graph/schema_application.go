@@ -76,8 +76,19 @@ const (
 	// The DDL itself is byte-identical to the pre-cutover schema recorded in
 	// graphSchemaNeo4jPreModuleIdentityFingerprint below, so bootstrap applies
 	// exactly the same statements it did before.
-	graphSchemaNeo4jFingerprint    = "fb55804c8e91a393be08c56f4c637fe1171d8c82e23fa24135eb543c92c19838"
-	graphSchemaNornicDBFingerprint = "27e278562803233a078fc381d92c27223f940325cc5770cfd303fa852cff8a3f"
+	// The current values carry the #6541 directory_repo_id index. That bump IS
+	// additive and lists its predecessor as compatible: the index backs the
+	// directory language-query route's seek and changes no MERGE or MATCH
+	// identity, so a writer on the previous schema writes exactly the same
+	// graph -- it merely reads that one route more slowly.
+	graphSchemaNeo4jFingerprint    = "5483f897a164b79bae02246b237351a3924481b86a3bb35ddaee5b0d673cc5f0"
+	graphSchemaNornicDBFingerprint = "5ca5fcafda58ff9bc825e5bbf4196834282cff318919fabdd18eb625ebeaea0d"
+
+	// graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint and its NornicDB peer
+	// are the digests immediately before that index was added, which is the
+	// #6102 Module identity cutover tip.
+	graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint    = "fb55804c8e91a393be08c56f4c637fe1171d8c82e23fa24135eb543c92c19838"
+	graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint = "27e278562803233a078fc381d92c27223f940325cc5770cfd303fa852cff8a3f"
 
 	// graphSchemaNeo4jPreModuleIdentityFingerprint and its NornicDB peer are the
 	// digests an older writer computes: the same DDL, hashed before the
@@ -346,7 +357,9 @@ var graphSchemaPreModuleIdentityFingerprints = map[SchemaBackend]string{
 // real admission decision with it.
 var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 	SchemaBackendNeo4j: {
-		graphSchemaNeo4jFingerprint: {},
+		graphSchemaNeo4jFingerprint: {
+			graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint,
+		},
 		graphSchemaNeo4jPreModuleIdentityFingerprint: {
 			graphSchemaNeo4jPreRegistryEventFingerprint,
 			graphSchemaNeo4jPreArtifactFingerprint,
@@ -368,7 +381,9 @@ var graphSchemaCompatibleFingerprints = map[SchemaBackend]map[string][]string{
 		},
 	},
 	SchemaBackendNornicDB: {
-		graphSchemaNornicDBFingerprint: {},
+		graphSchemaNornicDBFingerprint: {
+			graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint,
+		},
 		graphSchemaNornicDBPreModuleIdentityFingerprint: {
 			graphSchemaNornicDBPreRegistryEventFingerprint,
 			graphSchemaNornicDBPreArtifactFingerprint,

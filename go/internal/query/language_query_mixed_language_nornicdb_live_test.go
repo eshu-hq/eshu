@@ -38,13 +38,23 @@
 // as true the way ENDS WITH did.
 //
 // The fixture is shaped to stay out of the grant proof's way, since both run
-// under one build tag against one store. The grant proof's unscoped controls
-// take a page of two or three rows and require every row to belong to the
+// under one build tag against one store. That proof's unscoped File and entity
+// controls take a page of two rows and require every row to belong to the
 // out-of-grant repository; this repository's relative paths start with
 // `zz-mixed`, so under ORDER BY relative_path they sort after that
-// repository's `a-src-*` paths, and its single directory holds exactly one
-// Python file, so under ORDER BY file_count DESC it never outranks the
-// out-of-grant directories that hold two.
+// repository's `a-src-*` paths. Directory is not one of those controls -- it
+// has had no case in TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder since
+// #6541 -- so no Directory page there is at risk from this repository, and the
+// Directory read below is scoped to `zz-mixed` and expects the one seeded
+// directory. Belt and braces anyway: that directory holds exactly one Python
+// file, so under buildDirectoryCypher's
+// `ORDER BY file_count DESC, repo_id ASC, name ASC` it could never outrank the
+// out-of-grant directories that hold two -- one file against two, so the
+// primary key alone decides this repository against that one. The tie-breaks
+// still fire among those three out-of-grant directories, which all hold two
+// files: `name ASC` is what orders them, so which of them a short Directory
+// page over that fixture would keep is deterministic now, where it was
+// backend-arbitrary before.
 //
 // Run with the recipe in language_query_grant_nornicdb_live_test.go.
 package query
@@ -129,7 +139,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 		name := testCase.label + " " + testCase.language
 		t.Run(name, func(t *testing.T) {
 			cypher, params := language.BuildCypherWithSemanticFilter(
-				testCase.language, testCase.label, "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
+				testCase.language, testCase.label, "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(), nil,
 			)
 			rows := runLiveGrantStatement(ctx, t, driver, name, cypher, params)
 			got := liveMixedFileNames(rows)
@@ -152,7 +162,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 		name := "Repository " + testCase.language
 		t.Run(name, func(t *testing.T) {
 			cypher, params := language.BuildCypherWithSemanticFilter(
-				testCase.language, "Repository", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
+				testCase.language, "Repository", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(), nil,
 			)
 			rows := runLiveGrantStatement(ctx, t, driver, name, cypher, params)
 			if len(rows) != 1 {
@@ -166,7 +176,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 
 	t.Run("Directory go", func(t *testing.T) {
 		cypher, params := language.BuildCypherWithSemanticFilter(
-			"go", "Directory", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
+			"go", "Directory", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(), nil,
 		)
 		rows := runLiveGrantStatement(ctx, t, driver, "Directory go", cypher, params)
 		if len(rows) != 1 {
@@ -185,7 +195,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 	t.Run("Function python reaches the untagged function through its file", func(t *testing.T) {
 		name := "Function " + liveMixedUntaggedLanguage
 		cypher, params := language.BuildCypherWithSemanticFilter(
-			liveMixedUntaggedLanguage, "Function", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
+			liveMixedUntaggedLanguage, "Function", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(), nil,
 		)
 		rows := runLiveGrantStatement(ctx, t, driver, name, cypher, params)
 		if got, want := liveMixedEntityNames(rows), []string{"mixed_" + liveMixedUntaggedLanguage, liveMixedUntaggedName}; !slices.Equal(got, want) {
@@ -205,7 +215,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 	})
 	t.Run("Function go excludes the untagged function", func(t *testing.T) {
 		cypher, params := language.BuildCypherWithSemanticFilter(
-			"go", "Function", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
+			"go", "Function", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(), nil,
 		)
 		rows := runLiveGrantStatement(ctx, t, driver, "Function go", cypher, params)
 		for _, row := range rows {

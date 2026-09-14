@@ -17,6 +17,75 @@ var schemaPerformanceIndexes = []string{
 	// instead of scanning every code-entity label in large corpora.
 	"CREATE INDEX function_repo_id IF NOT EXISTS FOR (f:Function) ON (f.repo_id)",
 	"CREATE INDEX function_path IF NOT EXISTS FOR (f:Function) ON (f.path)",
+	// The directory language-query route (#6541) seeks a granted repository's
+	// directories by `(d:Directory {repo_id: rid})` instead of walking a
+	// variable-length CONTAINS chain to a Repository node. On the pinned
+	// NornicDB build an inline property inside a MATCH pattern is served by an
+	// index seek while the identical predicate in a WHERE is not, so this
+	// index is what makes that anchor a seek rather than a Directory label
+	// scan: the same aggregation measured 53ms as a seek against 4.964s
+	// through a WHERE at a grant of one repository. It is declared for both
+	// backends because the query-plan gate profiles the statement on Neo4j,
+	// where the anchor must plan as NodeIndexSeek.
+	//
+	// The write-side cost is real and is not zero: `d.repo_id` is written by
+	// every Directory MERGE and SET the canonical projector emits
+	// (canonicalNodeDirectoryNodeCypher), so each of those now also maintains
+	// this index entry, and a full projection writes one Directory per
+	// directory per repository. The trade is taken on the measured read win:
+	// the corpus run timed this statement at 15.987s with the index
+	// absent against 8.534s with it present, at a grant of fifty repositories,
+	// and with it absent the statement is slower unscoped (15.384s) than the
+	// one it replaced (12.484s). repo_id being effectively immutable per node
+	// -- a Directory belongs to one repository for its whole life, so every
+	// write after the first writes the value the node already holds -- is a
+	// secondary comfort, and only the immutability itself is established (#6541
+	// verified d.repo_id == Repository.id, and that one Directory belongs to
+	// one repository). Whether NornicDB charges a same-value SET less index
+	// maintenance than a value-changing one is NOT verified: that is a claim
+	// about the backend's index implementation with no measurement behind it,
+	// which is why the trade is not rested on it. The projection-side delta at
+	// corpus scale IS now measured, and it is a bound rather than a null: six
+	// reps per arm, alternating absent/present so machine drift cannot land on
+	// one arm, a fresh container and a fresh volume per rep, the arms differing
+	// only in whether the one DDL statement containing `directory_repo_id` is
+	// applied, over the same corpus recipe and the same backend image digest as
+	// the read-side run (50 repositories / 20,000 directories / 200,000 files,
+	// absolute_target_applicable: false). The directory-node phase -- the phase
+	// that writes `d.repo_id` -- took a mean 1.525s (1.494-1.544s, stdev 0.017s)
+	// with the index present against 1.537s (1.519-1.559s, stdev 0.018s) absent;
+	// whole projection 49.422s against 49.442s. It does not resolve: the point
+	// estimate is negative in four of the five measured phases and in the total
+	// (only files, at +0.009s, is positive), so the honest figure is the
+	// upper 95% CI limit read as a bound -- at most +10.3 ms across 20,000
+	// Directory MERGE/SET rows, at most +0.52 µs per directory write, at most
+	// +0.67% of the phase; whole projection at most +396 ms on 49.4s, at most
+	// +0.80%. Resolving the directory-node delta would need ~33 reps per arm,
+	// the whole-projection delta ~4,200. Per-batch time with the index present
+	// is flat -- -1.1e-5 s/batch across 40 batches, so the 40th batch of 500
+	// directories is no slower than the first with 19,500 entries already in the
+	// index, total drift under 0.5 ms -- so maintenance is not degrading as the
+	// index fills; the files phase's +3.4e-5 s/batch slope is identical to six
+	// significant figures in both arms, which makes it the graph growing under
+	// 200,000 File MERGEs rather than this index. What that bounded write cost
+	// buys is the index-ABSENT to index-PRESENT step, not the BEFORE->AFTER
+	// total of the rewrite: 4.5x at grant-1/50 (0.333s -> 0.074s), 1.6x at
+	// grant-5/50 (1.498s -> 0.922s), 1.9x at grant-50/50 (15.987s -> 8.534s),
+	// 2.1x unscoped/50 (15.384s -> 7.465s) and 2.0x unscoped/200 (15.446s ->
+	// 7.603s) -- a read-side saving of roughly 0.26s to 7.9s depending on grant
+	// width against a write-side bound of at most +396 ms on a 49.4s
+	// projection. Unscoped the index is not an optimisation on top of the
+	// rewrite but what brings the statement inside the 10s deadline at all
+	// (absent DEADLINE_FAILED at 10.010s, present 8.325s with 50 rows). The
+	// 15.722s -> 0.074s pair quoted for grant-1/50 elsewhere is the
+	// rewrite-plus-index total against origin/main, not this index's share of
+	// it. Full record:
+	// docs/internal/evidence/6541-directory-query-s2-corpus-timing.md. Read "the
+	// index changes reads only" in the schema-compatibility note
+	// (schema_application.go) as "it moves no MERGE or MATCH identity, so a
+	// writer on the previous fingerprint writes the identical graph" -- which
+	// is what that note is about -- and not as "it costs writes nothing".
+	"CREATE INDEX directory_repo_id IF NOT EXISTS FOR (d:Directory) ON (d.repo_id)",
 	"CREATE INDEX shell_command_repo_id IF NOT EXISTS FOR (s:ShellCommand) ON (s.repo_id)",
 	"CREATE INDEX shell_command_path IF NOT EXISTS FOR (s:ShellCommand) ON (s.path)",
 	"CREATE INDEX class_repo_id IF NOT EXISTS FOR (c:Class) ON (c.repo_id)",

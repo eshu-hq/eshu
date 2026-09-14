@@ -374,14 +374,42 @@ source_coverage:
       - {symbol: "(GraphInfraResourceAggregateStore).CountInfraResources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(GraphInfraResourceAggregateStore).InfraResourceInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(GraphInfraResourceAggregateStore).fillBuckets", count: 1, source_sha256: 1461164d77a8cb60bf9544641e88dab27a1215ba40e578550fd78a4fc7790d15, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
-  - file: language/handler.go
+  - file: language/directory.go
     calls:
-      - symbol: "(*Handler).queryByLanguageWithSemanticFilter"
+      # The directory branch's own statement, promoted to the plan gate by
+      # #6541. It is the only hot entry of this route.
+      - symbol: "(*Handler).directoryRowsByLanguage"
+        count: 1
+        source_sha256: 672cb88b9393b9474ba15f115a9b0c30246242495a93ded36f826fd2952fef38
+        entry_ids: [QP-LANGUAGE-DIRECTORY]
+      # Every repository id, for an unscoped admin caller that named none. It
+      # is a Repository label inventory bounded by the repository count, not by
+      # a row limit, and it is never reached by a scoped caller.
+      - symbol: "(*Handler).allRepositoryIDs"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 932e8ca9b473ca3f63d970657e55067a91ba641babd7a319763ea16cdfcfdb2a
-          label: "Repository|Directory|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Annotation|Component|ImplBlock|Protocol|ProtocolImplementation|Variable|TerraformBackend|TerraformCheck|TerraformImport|TerraformLockProvider|TerraformModule|TerraformMovedBlock|TerraformRemovedBlock|TerragruntConfig|TerragruntDependency|SqlColumn|SqlFunction|SqlIndex|SqlMigration|SqlTable|SqlTrigger|SqlView|TypeAlias|Typedef"
+          source_sha256: 796482bb78012fbfbff17b63a5bb3e4311fc319912b81579a14a14ce4e2d9974
+          label: "Repository"
+          max_results: 100000
+      # repo_id -> repo_name for the repositories on one already-truncated
+      # page, so the key count is bounded by the route's own limit ceiling.
+      - symbol: "(*Handler).directoryRepositoryNames"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: b417ff2278ce1e99ecc574374bd7089dc92f650b86cecd2f16e85c166f118d12
+          key_bound: bounded_key_batch
+          max_keys: 200
+          max_results: 200
+      # The other three labels' single build-and-run, moved here from
+      # queryByLanguageWithSemanticFilter when the directory branch split off.
+      - symbol: "(*Handler).languageQueryGraphRows"
+        count: 1
+        non_hot:
+          class: label_inventory
+          source_sha256: 42a1b8fc06e30ee763e64410e321700c13432c2e9a2561cfdd7d1e5b2336fa59
+          label: "Repository|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Annotation|Component|ImplBlock|Protocol|ProtocolImplementation|Variable|TerraformBackend|TerraformCheck|TerraformImport|TerraformLockProvider|TerraformModule|TerraformMovedBlock|TerraformRemovedBlock|TerragruntConfig|TerragruntDependency|SqlColumn|SqlFunction|SqlIndex|SqlMigration|SqlTable|SqlTrigger|SqlView|TypeAlias|Typedef"
           max_results: 200
   - file: neo4j.go
     calls:

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // extractRepository builds a RepositoryRow from the first RepositoryObserved
@@ -136,6 +137,22 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 		if relativePath == "" {
 			continue
 		}
+		if !isRepositoryLocalRelativePath(relativePath) {
+			// A fact that would have produced graph rows is being discarded,
+			// so it takes the package's visible dead-letter path rather than a
+			// bare skip: recordProjectorQuarantinedFacts turns this into the
+			// eshu_dp_projector_input_invalid_facts_total increment plus a
+			// structured error log naming the fact and relative_path. Without
+			// it, a file absent from the graph is indistinguishable from one
+			// the collector never emitted.
+			quarantined = append(quarantined, quarantinedFact{
+				factID:         fileFacts[i].FactID,
+				factKind:       fileFacts[i].FactKind,
+				field:          "relative_path",
+				classification: factschema.ClassificationInputInvalid,
+			})
+			continue
+		}
 
 		fullPath := qualifyPath(repoPath, relativePath)
 		name := path.Base(relativePath)
@@ -160,4 +177,41 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 	}
 
 	return rows, parsed, quarantined
+}
+
+// isRepositoryLocalRelativePath reports whether a file fact's relative_path
+// stays inside the repository it was collected from.
+//
+// It exists because the canonical graph derives a file's directory from this
+// string and nothing downstream re-checks it. qualifyPath only concatenates,
+// while path.Dir cleans, so "../beta/src/leak.go" under /repos/alpha yields the
+// directory /repos/beta/src -- a SIBLING repository's path. buildDirectoryChain
+// then walks that chain out of the repository and stamps every directory it
+// creates, including the sibling's, with THIS repository's repo_id, and the
+// canonical file phase links this repository's file to it.
+//
+// Both halves break a grant. The #6541 directory language query admits rows by
+// `d.repo_id` and counts the files CONTAINS-linked to the directory without
+// re-checking any file (buildDirectoryCypher, go/internal/query/language/cypher.go),
+// so a re-pointed directory disappears for the caller granted the sibling and
+// is counted for the caller granted this repository. Rejecting the path here
+// keeps that query's premise -- one directory, one repository -- true by
+// construction rather than by convention.
+//
+// Production discovery cannot emit such a path: every relative_path it writes
+// comes from filepath.Rel against the repository root
+// (go/internal/collector/discovery/filesystem_walk.go). This is a guard on a
+// malformed or hostile fact, so a rejected row is QUARANTINED rather than
+// skipped: it would otherwise have produced Directory and File rows, and an
+// operator needs to tell a fact this guard dropped from one that was never
+// emitted. The caller routes it through recordProjectorQuarantinedFacts on the
+// input_invalid counter and log, the same visible dead-letter a decode failure
+// takes. The empty-relative_path skip beside it stays silent: it materializes
+// nothing either way, so there is no missing row to explain.
+func isRepositoryLocalRelativePath(relativePath string) bool {
+	if path.IsAbs(relativePath) {
+		return false
+	}
+	cleaned := path.Clean(relativePath)
+	return cleaned != ".." && !strings.HasPrefix(cleaned, "../")
 }

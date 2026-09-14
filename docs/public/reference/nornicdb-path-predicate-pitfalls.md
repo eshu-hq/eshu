@@ -1,15 +1,211 @@
 # NornicDB Path-Predicate Pitfalls
 
-Two measured behaviours of the pinned NornicDB build that decide how a
-variable-length traversal can be bounded. Split out of
+Measured behaviours of pinned NornicDB builds that decide how a read can be
+bounded and filtered. It began as the two entries that decide how a
+variable-length traversal is bounded, split out of
 [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md) because both are
-long enough to read on their own, and both are load-bearing for the code-family
-routes that traverse `CALLS` and `INHERITS`.
+long enough to read on their own and both are load-bearing for the code-family
+routes that traverse `CALLS` and `INHERITS`. New entries land here rather than
+on that page because it is pinned at its current length in
+`scripts/lib/markdown-line-cap-grandfather.tsv` and may not grow.
 
-Everything here was measured against the then-pinned
+Unless an entry says otherwise, it was measured against the then-pinned
 `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`. A different build may
 behave differently, and the live tests named in each section are what would say
 so.
+
+The first three entries (the #6541 set) are measured on **two** builds and name
+both. They describe CURRENT behaviour on every released build. For the first and
+third, upstream fixes landed on `orneryd/NornicDB` `main` on 2026-09-13, after
+the v1.3.2 tag (`d2c8a9b4`, 2026-09-11) and after the newest published image, and
+no v1.3.3 tag, release or image exists -- so v1.3.1 and v1.3.2 both still carry
+them, and nothing here may be marked "fixed in v1.3.2". The second entry (the
+ignored `ORDER BY` key) has no upstream fix identified either way: it was
+measured during the #6541 review on both builds and no `main` commit has been
+matched to it, so treat it as open on every build until a probe says otherwise.
+
+Read every entry as "observed on the builds it names" all the same. When the pin
+moves to a build cut after those fixes, re-run the entry's live test against the
+digest actually deployed and add a "fixed in" line then — do not assume a newer
+tag carries a fix that is only on unreleased `main`.
+
+## Pitfall: `ORDER BY` And `LIMIT` After `UNWIND` Apply Once Per Unwound Row
+
+### Observed shape
+
+Measured on BOTH `eshu-nornicdb-pr290:3722b483c02c` (self-reports 1.2.1) and
+`timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac524899…` (self-reports 1.3.1), over
+Bolt and over HTTP, on a two-repository fixture holding eight directories:
+
+```cypher
+UNWIND $repo_ids AS rid
+MATCH (d:Directory {repo_id: rid})-[:CONTAINS]->(f:File)
+WHERE f.language IN $languages
+WITH d, count(f) AS file_count
+RETURN d.name AS name, d.repo_id AS repo_id, file_count
+ORDER BY file_count DESC
+LIMIT $limit
+```
+
+With `$repo_ids` naming two repositories and `$limit` 2, this returns **four**
+rows, not two: the two largest directories of the first repository followed by
+the two largest of the second. Each group is correctly ordered and correctly
+cut to the limit; what never happens is the ordering and cut across the whole
+result. A single-element `$repo_ids` returns 2, which is why the defect hides
+on a one-repository fixture.
+
+The counts and the grouping are correct. Only the row bound is wrong, and it is
+wrong in the safe direction — too many rows, never too few.
+
+### Consequence
+
+A statement that UNWINDs a list cannot rely on its own `ORDER BY ... LIMIT` to
+produce a page. A caller that trusts it serves up to `limit x len(list)` rows.
+
+### Rule
+
+Order the statement on the caller's WHOLE total order, then re-sort and truncate
+in the caller. Both halves are needed and the first one is easy to miss.
+
+Because the bound is applied per group, the statement's own `ORDER BY` is what
+decides which rows each group KEEPS, and a row a group dropped is gone -- no
+caller-side re-sort returns a row the backend never sent. On `ORDER BY
+file_count DESC` alone, ties are broken arbitrarily inside each group, so page
+MEMBERSHIP is backend-arbitrary whenever ties straddle the bound. Measured on
+two repositories of eight directories each, every directory holding exactly one
+file so that every row ties, at limit 4: the page came back `a01,a02,a03,a07` on
+`eshu-nornicdb-pr290:3722b483c02c` and `a02,a03,a06,a07` on v1.3.1 -- two
+different pages from the same statement on the same data, neither of them the
+first four names. Adding the caller's tie-break keys to the statement,
+`ORDER BY file_count DESC, repo_id ASC, name ASC`, makes each group's retained
+set determined for every pair of rows those keys separate, and both builds then
+return `a01,a02,a03,a04`. Rows that tie on EVERY key in the statement's
+`ORDER BY` are still the backend's choice, so confirm the key list is jointly
+unique over the rows the statement can return -- or name the residual in
+writing -- before calling the page reproducible. Write those keys as the
+`RETURN` aliases, not as `d.repo_id`/`d.name` -- see the next entry.
+
+With the two orders aligned the caller-side half is correct on both backends
+rather than a workaround for one: the union of the per-group top-L sets contains
+the whole result's top-L under that order, because a row inside the global top-L
+has at most L-1 rows before it globally and therefore at most L-1 before it
+inside its own group. A backend with a global `LIMIT` (Neo4j, and any NornicDB
+build where this is fixed) has already returned that top-L, in that order, so
+the re-sort is a genuine no-op there; a build with the per-id bound returns a
+superset and the re-sort is the step that produces the page. Keep the
+`ORDER BY ... LIMIT` in the statement too, since it is what bounds each group.
+
+What the caller-side half can and cannot do, stated plainly: it fixes the row
+COUNT and the ORDER of the page under either build. It cannot fix MEMBERSHIP on
+its own -- that is what the statement's own tie-break keys are for -- and
+without them the page is a valid top-L by `file_count` (the count multiset is
+right) whose tied rows are whichever ones the backend chose.
+
+Because the caller-side half is a no-op on a build that bounds globally, this
+rule needs no revisiting if a newer build fixes the behaviour: it stays correct
+either way.
+
+Upstream status: a fix for this clause-pipeline behaviour is on unreleased
+`orneryd/NornicDB` `main` (`4393e7e6416a`, "restore clause pipeline and
+aggregation semantics", and `0c2766bfc9e4`, "filter aggregated WITH rows after
+chained MATCH"). It is in NO published image, so every build Eshu can pin today
+still behaves as recorded above. Re-probe with the live test when a build cut
+after those commits is published.
+
+`buildDirectoryCypher` (`go/internal/query/language/cypher.go`) is shaped
+this way, and `sortAndTruncateDirectoryRows` is the caller's half. Live pins:
+`TestLiveNornicDBDirectoryLanguageQueryTruncatesToTheGlobalTopN` for the row
+count (`go/internal/query/language/directory_nornicdb_live_test.go`) and
+`TestLiveNornicDBDirectoryLanguageQueryBreaksTiesDeterministically` for the
+membership half (`go/internal/query/language/directory_tie_nornicdb_live_test.go`),
+both under build tag `live_nornicdb_language_imports_grant`. Measurements:
+`docs/internal/evidence/6541-directory-query-s2.md`.
+
+## Pitfall: An `ORDER BY` Key Written As `<variable>.<property>` After An Aggregating `WITH` Is Ignored
+
+### Observed shape
+
+On both builds named above, running the first entry's statement over two
+repositories of five directories each, every directory holding exactly one go
+file so that every row ties on `file_count`, at `$limit` 4. The rows below are
+what the first repository's group retained:
+
+| `ORDER BY` clause | 1.2.1 (`pr290`) | v1.3.1 |
+| --- | --- | --- |
+| `file_count DESC` | `a5,a3,a2,a1` | `a1,a2,a4,a3` |
+| `file_count DESC, d.repo_id ASC, d.name ASC` | `a5,a3,a2,a1` | `a5,a1,a2,a4` |
+| `file_count DESC, repo_id ASC, name ASC` | `a1,a2,a3,a4` | `a1,a2,a3,a4` |
+
+The property form is accepted -- no error, no warning -- and the trailing keys
+are not honoured as an ORDERING on either build: the retained set is not the
+total order's top-L, which is the only reason to write them. They are not
+ignored either, at least on v1.3.1: the v1.3.1 column above shows the property
+form and the count-only form retaining DIFFERENT rows from the same data
+(`a5,a1,a2,a4` against `a1,a2,a4,a3`), and a separate v1.3.1 probe over an
+all-tied fixture found a third spelling, `file_count DESC, d.name ASC`,
+retaining a third set again -- each form stable across repeated runs. So on
+v1.3.1 the property keys change WHICH rows survive the per-group bound without
+putting them in the requested order. "Served as though the keys were not written
+at all" is the wrong model there: it predicts the property form and the
+count-only form agree, and on v1.3.1 they do not. On 1.2.1 they DO agree, set
+and order, so that build gives no evidence against the old model -- the
+disproof is scoped to v1.3.1, and what holds on both builds is that the property
+spelling buys no ordering.
+
+Nothing about the statement looks wrong: `d` is still bound after
+`WITH d, count(f) AS file_count`, and the same clause is valid Cypher on Neo4j.
+Only the rows say so, and only when a tie exists to expose it. The
+`RETURN`-alias form orders correctly on both builds.
+
+### Rule
+
+After an aggregating `WITH`, write every `ORDER BY` key as its `RETURN` alias,
+never as `<variable>.<property>`. This does not conflict with the entry below on
+alias collisions: the aliases to sort on are the `RETURN` aliases, and what that
+entry forbids is reusing the `UNWIND` VARIABLE's name as one of them.
+
+A statement whose determinism rests on a secondary sort key must be checked
+against the backend with a fixture that actually ties, because the failure is a
+silently different set of rows rather than an error. `buildDirectoryCypher`
+sorts on `file_count DESC, repo_id ASC, name ASC` for this reason; the live pin
+is `TestLiveNornicDBDirectoryLanguageQueryBreaksTiesDeterministically`.
+
+## Pitfall: An `UNWIND` Variable And A `RETURN` Alias Of The Same Name Collide
+
+### Observed shape
+
+On both builds named above:
+
+```cypher
+UNWIND $repo_ids AS id
+MATCH (r:Repository {id: id})
+RETURN r.id AS id, r.name AS name
+```
+
+The `name` column is correct. The `id` column comes back keyed by the FIRST
+bound literal instead of by `id` — a driver reading the row by the alias it
+asked for finds nothing under it. Renaming the loop variable fixes it:
+
+```cypher
+UNWIND $repo_ids AS rid
+MATCH (r:Repository {id: rid})
+RETURN r.id AS repo_id, r.name AS repo_name
+```
+
+That form returns both columns correctly on both builds, and an empty
+`$repo_ids` returns zero rows rather than every repository.
+
+### Rule
+
+Do not reuse an `UNWIND` variable name as a `RETURN` alias. The failure is a
+wrongly-named column rather than an error, so it reaches the caller as a missing
+value rather than as a failure. `directoryRepositoryNames`
+(`go/internal/query/language/directory.go`) uses the second form.
+
+Distinct names cost nothing and are clearer anyway, so keep this convention even
+on a build where the collision is fixed. It reproduces on every released build
+today — the upstream fixes named in the previous entry are on unreleased `main`
+only — and the reproducer above is what settles it on any future build.
 
 ## Correction: The Pre-Bound-Endpoint `shortestPath` Shape Does Not Parse
 
