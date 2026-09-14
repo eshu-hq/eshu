@@ -202,13 +202,20 @@ func tagHistoryExportedSurface(t *testing.T, rm metricdata.ResourceMetrics) []ta
 			}
 		}
 	}
-	slices.SortFunc(points, func(a, b tagHistoryExportedPoint) int {
-		if a.Metric != b.Metric {
-			return strings.Compare(a.Metric, b.Metric)
-		}
-		return strings.Compare(a.Attrs, b.Attrs)
-	})
+	slices.SortFunc(points, tagHistoryPointOrder)
 	return points
+}
+
+// tagHistoryPointOrder is the canonical order of an exported surface: by
+// metric name, then by rendered attributes. A collected surface and an
+// expectation assembled by hand are both sorted with it, so a DeepEqual
+// between them compares contents rather than the order they happen to be
+// written in.
+func tagHistoryPointOrder(a, b tagHistoryExportedPoint) int {
+	if a.Metric != b.Metric {
+		return strings.Compare(a.Metric, b.Metric)
+	}
+	return strings.Compare(a.Attrs, b.Attrs)
 }
 
 // TestTagHistoryMetricsDiscloseNoWithheldCounts is the side-channel guard.
@@ -226,14 +233,23 @@ func tagHistoryExportedSurface(t *testing.T, rm metricdata.ResourceMetrics) []ta
 // every label key, every label value and every number -- and deliberately not a
 // search for a forbidden word. A vocabulary ban is the wrong shape: it stops a
 // series called withheld_ungranted and waves through the identical numbers
-// re-exported as disposition="ungranted". Pinning the surface instead means a
-// new instrument, a new label, a new label value or a moved number all fail
-// here, whatever they are called, until somebody widens
-// tagHistoryPublicMetricSurface and this expectation on purpose.
+// re-exported as disposition="ungranted".
 //
-// TestTagHistoryMetricsDoNotVaryWithWithheldCounts is the other half: this test
-// pins ONE page's surface, that one proves no number on the surface MOVES with
-// the withheld counts.
+// Pinning the surface instead means a new instrument, a new label key, a
+// changed label value or a moved number fails here, whatever it is called,
+// until somebody widens tagHistoryPublicMetricSurface and this expectation on
+// purpose. The scope of that promise is exactly what this test SERVES: one
+// successful scoped page. A label value only an error path emits reaches no
+// assertion here and never did -- the request is answered 200, so the error
+// counter contributes no datapoint for a DeepEqual to notice. Pinning those
+// values is TestTagHistoryRefusalMetricsPinEveryErrorReason's job, in
+// tag_history_telemetry_test.go.
+//
+// Two siblings carry the rest of the guard.
+// TestTagHistoryMetricsDoNotVaryWithWithheldCounts proves no number on this
+// surface MOVES with the withheld counts, where this test pins ONE page's
+// surface, and the refusal test covers the reason values no successful page
+// produces.
 func TestTagHistoryMetricsDiscloseNoWithheldCounts(t *testing.T) {
 	reader := withTagHistoryMetricReader(t)
 

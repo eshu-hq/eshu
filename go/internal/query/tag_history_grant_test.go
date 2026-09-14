@@ -91,7 +91,42 @@ func serveTagHistoryWithSealer(
 	target string,
 ) *httptest.ResponseRecorder {
 	t.Helper()
-	handler := &TagHistoryHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative, Cursors: sealer}
+	return serveTagHistoryHandler(
+		t,
+		&TagHistoryHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative, Cursors: sealer},
+		auth,
+		target,
+	)
+}
+
+// serveTagHistoryWithProfile is serveTagHistoryAs against a handler running
+// profile, so a test can reach the capability refusal every other helper here
+// is deliberately wired to avoid.
+func serveTagHistoryWithProfile(
+	t *testing.T,
+	profile QueryProfile,
+	graph GraphQuery,
+	auth *AuthContext,
+	target string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	return serveTagHistoryHandler(
+		t,
+		&TagHistoryHandler{Neo4j: graph, Profile: profile, Cursors: tagHistoryTestCursorKeyring},
+		auth,
+		target,
+	)
+}
+
+// serveTagHistoryHandler mounts handler on a fresh mux and serves one request
+// as auth -- the part every serve helper above shares.
+func serveTagHistoryHandler(
+	t *testing.T,
+	handler *TagHistoryHandler,
+	auth *AuthContext,
+	target string,
+) *httptest.ResponseRecorder {
+	t.Helper()
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	req := newTagHistoryRequest(target)
