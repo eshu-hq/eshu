@@ -27,6 +27,23 @@ var schemaPerformanceIndexes = []string{
 	// through a WHERE at a grant of one repository. It is declared for both
 	// backends because the query-plan gate profiles the statement on Neo4j,
 	// where the anchor must plan as NodeIndexSeek.
+	//
+	// The write-side cost is real and is not zero: `d.repo_id` is written by
+	// every Directory MERGE and SET the canonical projector emits
+	// (canonicalNodeDirectoryNodeCypher), so each of those now also maintains
+	// this index entry, and a full projection writes one Directory per
+	// directory per repository. The trade was taken because repo_id is
+	// effectively immutable per node -- a Directory belongs to one repository
+	// for its whole life, so after the first write the entry is re-set to the
+	// same value rather than moved -- and because the read it serves was
+	// measured at 34.5s to 2m01s without it. What is NOT measured is the
+	// projection-side delta at corpus scale; it is listed as an open item on
+	// docs/internal/evidence/6541-directory-query-s2.md and belongs to the
+	// remote run, not to a local timing on a contended machine. Read "the
+	// index changes reads only" in the schema-compatibility note
+	// (schema_application.go) as "it moves no MERGE or MATCH identity, so a
+	// writer on the previous fingerprint writes the identical graph" -- which
+	// is what that note is about -- and not as "it costs writes nothing".
 	"CREATE INDEX directory_repo_id IF NOT EXISTS FOR (d:Directory) ON (d.repo_id)",
 	"CREATE INDEX shell_command_repo_id IF NOT EXISTS FOR (s:ShellCommand) ON (s.repo_id)",
 	"CREATE INDEX shell_command_path IF NOT EXISTS FOR (s:ShellCommand) ON (s.path)",

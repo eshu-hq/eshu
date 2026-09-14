@@ -328,8 +328,20 @@ it is evidence of nothing in either direction. What IS available:
 - On NornicDB the seek-versus-WHERE contrast is corpus-scale timing, which
   belongs to the remote run below.
 
-The schema bump is additive: the index changes reads only, no MERGE or MATCH
-identity moves, so the previous fingerprint stays a compatible predecessor.
+The schema bump is additive in the sense the compatibility contract means: the
+index moves no MERGE or MATCH identity, so a writer on the previous fingerprint
+writes the identical graph and that fingerprint stays a compatible predecessor.
+
+It is NOT free on the write side, and this document should not be read as saying
+so. `d.repo_id` is written by every Directory MERGE and SET the canonical
+projector emits (`canonicalNodeDirectoryNodeCypher`), so each of those now also
+maintains an index entry, one per directory per repository on a full projection
+— 20,000 entries on the corpus below. The trade was taken because `repo_id` is
+effectively immutable per node (a Directory belongs to one repository for its
+whole life, so after the first write the entry is re-set to the same value
+rather than moved) and because the read it serves cost 34.5s to 2m01s without
+it. The projection-side delta at corpus scale is NOT measured: it is an open
+item for the remote run, listed below.
 
 ## Corpus timing: pending remote run
 
@@ -367,6 +379,28 @@ dropped, which is the only way to show the index is load-bearing on NornicDB
 given the missing plan and counters; and the handler's second read, to confirm
 the name lookup stays near the 135ms the issue measured.
 
+### Open, unmeasured, and named on purpose
+
+Three costs this change introduces have no measurement yet. None of them is
+hidden behind a claim elsewhere in this document; all three belong to the remote
+run, and a local figure on a shared machine would not be evidence.
+
+1. **The unscoped-admin repository read.** `Handler.allRepositoryIDs` runs
+   `MATCH (r:Repository) RETURN r.id` on every unscoped directory query,
+   uncached, and bounded by the number of repositories rather than by the
+   route's `limit`. It is classified `label_inventory` with `max_results:
+   100000` in the query-source coverage manifest, which is honest about what it
+   is, but it was never timed — the rejected alternative (a Directory-label
+   anchor) was, at 8.658s. The unscoped cells above time the handler path and so
+   will include it; report it as its own number rather than folding it into the
+   route total. This is #6541 review finding F4, left open deliberately.
+2. **The index's write-side cost.** Every Directory MERGE and SET now maintains
+   a `directory_repo_id` entry (see the index section above). Not measured at
+   projection scale.
+3. **This implementation's own read latency.** Everything quoted from the issue
+   measures the CANDIDATE shapes, not this code, which adds a second bounded
+   read and a Go-side sort on top of them.
+
 Baseline to beat, from the issue's measurement of the replaced statement:
 34.510s at grant-1/50, 2m01.437s at grant-50/50, and a 10.005s deadline failure
 unscoped. S2's own measured figures there were 53ms at grant-1 and 5.728s at
@@ -378,7 +412,10 @@ measured today is correctness only, on two fixtures — the
 directory tie fixture — on both NornicDB builds (tables above). The corpus
 figures quoted in this document are the issue's 2026-09-05 measurements of the
 candidate shapes, not measurements of this implementation, which adds one
-bounded read and a Go-side sort the issue's numbers do not include.
+bounded read and a Go-side sort the issue's numbers do not include. The same
+caveat is now carried by the `Performance Evidence:` marker in
+`go/internal/query/language/cypher.go`, which previously recited the four
+figures without it (#6541 review finding F6).
 
 Observability Evidence: `language.Handler.logDirectoryRead` records
 `repositories`, `rows_returned`, `rows_kept` and `repositories_named` for every
@@ -387,3 +424,13 @@ returning far more rows than the page needs (`rows_returned` against
 `rows_kept`, which is how the per-unwound-id row bound shows up in production),
 and can attribute a missing `repo_name` to the second read rather than to the
 statement.
+
+## Noted, not changed here
+
+`go/internal/graph/schema_application.go` stands at 491 lines of the repo's
+500-line cap after this change (#6541 review finding F7). It is not split in
+this PR: a split would move the schema fingerprint constants and their
+compatibility contract into a new file in a change whose subject is a query
+shape, and the constants are exactly what a reviewer of this PR needs to read in
+one place. The next change that adds a fingerprint to that file has to split it
+first.

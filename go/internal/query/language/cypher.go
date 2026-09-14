@@ -85,9 +85,18 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // `<-[:REPO_CONTAINS|CONTAINS*]-` walk, measured at 34.5s for a caller granted
 // one repository and 2m01s for one granted fifty on a 50-repository corpus,
 // with an indexed repo_id seek measured at 53ms against 4.964s for the same
-// aggregation reached through a WHERE. Its correctness proof on two NornicDB
-// builds and the corpus-timing recipe are in
-// docs/internal/evidence/6541-directory-query-s2.md.
+// aggregation reached through a WHERE. Read those four figures with the caveat
+// the evidence doc carries: they are #6541's 2026-09-05 measurements of the
+// CANDIDATE shapes on a 50-repository corpus, not measurements of the
+// implementation below, which adds a second bounded read and a Go-side sort the
+// candidates did not include. What is measured on this implementation today is
+// correctness only, on a two-repository fixture against two NornicDB builds; do
+// not cite the four figures as a measured speedup for this code.
+//
+// Corpus-scale timing of this implementation: PENDING the remote run. The
+// recipe it runs is in docs/internal/evidence/6541-directory-query-s2.md, and
+// its numbers land there and are quoted back here when it reports. Its
+// correctness proof on two NornicDB builds is in the same document.
 // Observability Evidence: the span this route emits (SpanQueryLanguageQuery)
 // and its route/capability attributes are unchanged (see handler.go), and the
 // Directory branch adds Handler.logDirectoryRead, which records the grant
