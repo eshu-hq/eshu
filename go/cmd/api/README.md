@@ -38,7 +38,7 @@ flowchart TB
   J --> K["wrapAPIAuth\nshared/scoped/browser-session auth"]
   K --> L["http.Server on ESHU_API_ADDR\nwrapped in otelhttp"]
   L --> M["srv.ListenAndServe"]
-  M -- SIGINT/SIGTERM --> N["srv.Shutdown (5s timeout)\ncleanup() closes Postgres + driver"]
+  M -- SIGINT/SIGTERM --> N["srv.Shutdown (30s default)\ncleanup() closes Postgres + driver"]
 ```
 
 ## Lifecycle / workflow
@@ -89,9 +89,13 @@ disabled, `wireAPI` also mounts a backend Authorization Code login flow that
 validates provider ID tokens, maps hashed external groups to Eshu role grants,
 and then issues the same browser-session cookies.
 
-The HTTP server listens on `ESHU_API_ADDR` (default `:8080`) with a
-10 s read-header timeout, 60 s write timeout, and 120 s idle timeout. On
-shutdown it waits up to 5 s for in-flight requests before exiting.
+The HTTP server listens on `ESHU_API_ADDR` (default `:8080`) with a 10-second
+read-header timeout, six-minute write timeout, and 120-second idle timeout. The
+write window deliberately exceeds the recovery transaction's five-minute
+reducer-drain fence so a crash-recovery request can return its result after an
+abandoned lease expires. On shutdown it waits up to 30 seconds by default for
+in-flight requests before exiting; `ESHU_API_SHUTDOWN_TIMEOUT` overrides that
+window.
 
 ## Exported surface
 
@@ -272,9 +276,10 @@ See `doc.go` for the full godoc contract.
   fails fast on malformed collector JSON or unresolved referenced secret envs.
 - `ESHU_DISABLE_NEO4J=true` with `ESHU_QUERY_PROFILE=local_lightweight` skips graph
   driver initialization; the API then serves Postgres-only content queries.
-- Graceful shutdown waits at most 5 s; in-flight graph or content reads that
-  exceed this window are interrupted. Check write-timeout settings if clients
-  report disconnects under load.
+- Graceful shutdown waits 30 seconds by default; in-flight graph or content
+  reads that exceed the configured `ESHU_API_SHUTDOWN_TIMEOUT` are interrupted.
+  The six-minute HTTP write budget is separate and preserves bounded generation
+  recovery responses.
 
 ## Extension points
 
