@@ -6,8 +6,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 )
 
 // TestParseGraphDumpFlagsDefaults proves the zero-flag case: -out empty
@@ -105,5 +109,40 @@ func TestWriteGraphDumpToStdout(t *testing.T) {
 	}
 	if got := stdout.String(); got != "canonical-bytes\n" {
 		t.Errorf("stdout = %q, want %q", got, "canonical-bytes\n")
+	}
+}
+
+// TestGraphDumpOutputPreservesCanonicalBytesAndDigest pins the non-digest CLI
+// output to graphdump's canonical byte contract. Canonicalize already supplies
+// its one terminal line feed; the command wrapper must not append another.
+func TestGraphDumpOutputPreservesCanonicalBytesAndDigest(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	reader := fakeEdgeReader{edges: []graphdump.Edge{
+		sqlEdge("DEPENDS_ON", "repo-1", "package-1"),
+	}}
+	canonical, err := graphdump.Canonicalize(ctx, reader)
+	if err != nil {
+		t.Fatalf("Canonicalize: %v", err)
+	}
+	output, err := graphDumpOutput(ctx, reader, false)
+	if err != nil {
+		t.Fatalf("graphDumpOutput: %v", err)
+	}
+	if !bytes.Equal(output, canonical) {
+		t.Fatalf("graphDumpOutput bytes differ from Canonicalize:\noutput=%q\ncanonical=%q", output, canonical)
+	}
+	if trailing := len(output) - len(bytes.TrimRight(output, "\n")); trailing != 1 {
+		t.Fatalf("graphDumpOutput has %d terminal line feeds, want exactly 1", trailing)
+	}
+
+	wantDigest, err := graphdump.Digest(ctx, reader)
+	if err != nil {
+		t.Fatalf("Digest: %v", err)
+	}
+	sum := sha256.Sum256(output)
+	if gotDigest := hex.EncodeToString(sum[:]); gotDigest != wantDigest {
+		t.Fatalf("sha256(graphDumpOutput) = %s, want graphdump.Digest %s", gotDigest, wantDigest)
 	}
 }

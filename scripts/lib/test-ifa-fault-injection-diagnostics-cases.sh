@@ -49,13 +49,16 @@ STUB
 )
 
 test_ifa_fault_graph_manifest_describes_retained_bytes() (
-	local case_dir digest row dump_name bytes nodes edges gcp_edges
+	local case_dir digest header row dump_name bytes nodes edges gcp_edges
 	case_dir="$(mktemp -d -t ifa-fault-manifest.XXXXXX)"
 	trap 'rm -rf "${case_dir}"' EXIT
 	printf '{"edges":[{"type":"GCP_TEST"},{"type":"OTHER"}],"nodes":[{},{}]}\n' \
 		>"${case_dir}/graph-restartbackend.dump"
 	source "${diagnostics_lib}"
 	ifa_fault_write_graph_manifest "${case_dir}"
+	header="$(sed -n '1p' "${case_dir}/graph-manifest.tsv")"
+	[[ "${header}" == $'dump\tartifact_sha256\tbytes\tnodes\tedges\tgcp_edges' ]] \
+		|| fail "graph manifest header is ${header}, want artifact_sha256 to name the retained-byte hashing"
 	row="$(sed -n '2p' "${case_dir}/graph-manifest.tsv")"
 	IFS=$'\t' read -r dump_name digest bytes nodes edges gcp_edges <<<"${row}"
 	[[ "${dump_name}" == "graph-restartbackend.dump" ]] || fail "graph manifest named ${dump_name}"

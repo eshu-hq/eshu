@@ -20,7 +20,7 @@ ifa_fault_sha256_file() {
 ifa_fault_write_graph_manifest() {
 	local work_root="$1" manifest="${1}/graph-manifest.tsv"
 	local graph_dump digest bytes nodes edges gcp_edges count=0
-	printf 'dump\tsha256\tbytes\tnodes\tedges\tgcp_edges\n' >"${manifest}"
+	printf 'dump\tartifact_sha256\tbytes\tnodes\tedges\tgcp_edges\n' >"${manifest}"
 	while IFS= read -r graph_dump; do
 		[[ -f "${graph_dump}" ]] || continue
 		digest="$(ifa_fault_sha256_file "${graph_dump}")" || return 1

@@ -73,9 +73,8 @@ func runGraphDumpCommand(ctx context.Context, args []string, stdout, stderr io.W
 }
 
 // graphDumpOutput returns the bytes runGraphDumpCommand writes out: the
-// canonical graph document, or (with digest=true) its sha256 hex digest
-// followed by a trailing newline so either form is a well-formed line-based
-// CLI output.
+// canonical graph document (including Canonicalize's terminal newline), or
+// with digest=true its sha256 hex digest followed by a trailing newline.
 func graphDumpOutput(ctx context.Context, reader graphdump.Reader, digest bool) ([]byte, error) {
 	if digest {
 		d, err := graphdump.Digest(ctx, reader)
@@ -88,7 +87,7 @@ func graphDumpOutput(ctx context.Context, reader graphdump.Reader, digest bool) 
 	if err != nil {
 		return nil, fmt.Errorf("canonicalize graph: %w", err)
 	}
-	return append(bs, '\n'), nil
+	return bs, nil
 }
 
 // writeGraphDump writes data to path, or to stdout when path is empty.
