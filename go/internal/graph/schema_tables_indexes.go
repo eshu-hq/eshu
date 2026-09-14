@@ -32,8 +32,8 @@ var schemaPerformanceIndexes = []string{
 	// every Directory MERGE and SET the canonical projector emits
 	// (canonicalNodeDirectoryNodeCypher), so each of those now also maintains
 	// this index entry, and a full projection writes one Directory per
-	// directory per repository. The trade rests on the measured read win
-	// alone: the corpus run timed this statement at 15.987s with the index
+	// directory per repository. The trade is taken on the measured read win:
+	// the corpus run timed this statement at 15.987s with the index
 	// absent against 8.534s with it present, at a grant of fifty repositories,
 	// and with it absent the statement is slower unscoped (15.384s) than the
 	// one it replaced (12.484s). repo_id being effectively immutable per node
@@ -45,9 +45,31 @@ var schemaPerformanceIndexes = []string{
 	// maintenance than a value-changing one is NOT verified: that is a claim
 	// about the backend's index implementation with no measurement behind it,
 	// which is why the trade is not rested on it. The projection-side delta at
-	// corpus scale is NOT measured either -- the corpus run timed reads, not
-	// writes -- so it stays an open item on
-	// docs/internal/evidence/6541-directory-query-s2.md. Read "the
+	// corpus scale IS now measured, and it is a bound rather than a null: six
+	// reps per arm, alternating absent/present so machine drift cannot land on
+	// one arm, a fresh container and a fresh volume per rep, the arms differing
+	// only in whether the one DDL statement containing `directory_repo_id` is
+	// applied, over the same corpus recipe and the same backend image digest as
+	// the read-side run (50 repositories / 20,000 directories / 200,000 files,
+	// absolute_target_applicable: false). The directory-node phase -- the phase
+	// that writes `d.repo_id` -- took a mean 1.525s (1.494-1.544s, stdev 0.017s)
+	// with the index present against 1.537s (1.519-1.559s, stdev 0.018s) absent;
+	// whole projection 49.422s against 49.442s. It does not resolve: the point
+	// estimate is negative in five of six phases, so the honest figure is the
+	// upper 95% CI limit read as a bound -- at most +10.3 ms across 20,000
+	// Directory MERGE/SET rows, at most +0.52 µs per directory write, at most
+	// +0.67% of the phase; whole projection at most +396 ms on 49.4s, at most
+	// +0.80%. Resolving the directory-node delta would need ~33 reps per arm,
+	// the whole-projection delta ~4,200. Per-batch time with the index present
+	// is flat -- -1.1e-5 s/batch across 40 batches, so the 40th batch of 500
+	// directories is no slower than the first with 19,500 entries already in the
+	// index, total drift under 0.5 ms -- so maintenance is not degrading as the
+	// index fills; the files phase's +3.4e-5 s/batch slope is identical to six
+	// significant figures in both arms, which makes it the graph growing under
+	// 200,000 File MERGEs rather than this index. That bounded write cost is
+	// what buys the read side: the same index moves the scoped directory
+	// language query from 15.7s to 0.074s. Full record:
+	// docs/internal/evidence/6541-directory-query-s2-corpus-timing.md. Read "the
 	// index changes reads only" in the schema-compatibility note
 	// (schema_application.go) as "it moves no MERGE or MATCH identity, so a
 	// writer on the previous fingerprint writes the identical graph" -- which

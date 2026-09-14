@@ -346,8 +346,12 @@ immutable per node (a Directory belongs to one repository for its whole life, so
 after the first write the entry is re-set to the same value rather than moved)
 is a secondary comfort whose cost benefit is unverified: whether this backend
 charges a same-value SET less index maintenance than a value-changing one was
-never measured. The projection-side delta at corpus scale is NOT measured
-either; it is still open, and the corpus section below says so.
+never measured. The projection-side delta at corpus scale IS now measured, and
+it is a bound rather than a null: over 6 reps per arm the canonical
+directory-node phase ran 1.525s with the index present against 1.537s absent
+(whole projection 49.422s against 49.442s), the delta does not resolve, and the
+upper 95% CI limit bounds the cost at +0.52 µs per directory write and +0.80%
+of corpus projection, at most. The corpus-timing page carries the figures.
 
 ## Corpus timing: measured on the remote host
 
@@ -419,8 +423,11 @@ lost from it:
   and the grant-50 cell misses by more than the grant-1 cell, not less.
   Everything in the tables above IS a controlled pair: one seeded store, one
   container, one machine, one session.
-- **Still unmeasured:** the index's write-side cost at projection scale. This
-  run timed reads, not writes.
+- **Write-side cost is bounded, not null.** This run timed reads, not writes; a
+  separate 6-reps-per-arm run did time the writes, and its delta does not
+  resolve, so the index costs at most +0.52 µs per directory write, at most
+  +0.67% of the canonical directory-node phase and at most +0.80% of corpus
+  projection. A bound — not "free".
 
 Performance Evidence: corpus-scale, remote Linux host, NornicDB v1.3.1 at digest
 `sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962`, 50
@@ -436,8 +443,12 @@ index the new shape is SLOWER than the shipped one unscoped (15.384s against
 optimisation on top of it. The shipped tie-break keys cost at most ~0.5s (~6%)
 at unscoped/200 and grant-50/200, point estimate ~0.25-0.30s (~3-4%), slower in
 4 of 4 paired runs. Correctness (`all_file_counts_10`, `within_limit`,
-`repo_name_filled`) held in every cell, and the index's write-side cost at
-projection scale is still unmeasured. Full record:
+`repo_name_filled`) held in every cell. The index's write-side cost is measured
+separately, and reported as a bound because the delta does not resolve:
+canonical directory-node phase 1.525s with the index present against 1.537s
+absent, whole projection 49.422s against 49.442s, 6 reps per arm on a fresh
+store each — at most +0.52 µs per directory write, at most +0.67% of that phase,
+at most +0.80% of corpus projection. Full record:
 docs/internal/evidence/6541-directory-query-s2-corpus-timing.md.
 
 Observability Evidence: `language.Handler.logDirectoryRead` records

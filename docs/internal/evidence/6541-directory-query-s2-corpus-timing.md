@@ -146,7 +146,75 @@ grants at all runs BEFORE 15.730s / 0 rows against AFTER **0.000s** / 0 rows.
 The shipped statement burns a full scan to prove a caller with no grants gets
 nothing; the branch short-circuits before touching the backend.
 
-## Caveats, and what is still unmeasured
+## The index's write-side cost, measured — a bound, not a null
+
+The run above timed reads, not writes. A separate remote run
+(`6541-directory-write-cost-20260914T122238Z`) closes that gap.
+
+**Design.** Six reps per arm, run alternating (absent 1, present 1, absent 2,
+present 2, …) so machine drift cannot land on one arm; a fresh container and a
+fresh volume per rep; the only difference between the two arms is dropping the
+one DDL statement containing `directory_repo_id`. Same corpus recipe and the
+same backend image digest as the read-side run above — 50 repositories /
+20,000 directories / 200,000 files, seeded through the canonical projector's
+own write shapes in phase order, 500 rows per UNWIND. The index is created
+**before** the writes it is charged for, so this measures steady-state
+maintenance, not a backfill. **`absolute_target_applicable: false`** — not the
+accepted 896-repository reference profile, so every figure is a same-machine
+relative comparison.
+
+### Directory-node phase — the phase that writes `d.repo_id`
+
+| | index absent | index present |
+| --- | --- | --- |
+| mean of 6 reps | **1.537s** | **1.525s** |
+| min–max | 1.519–1.559s | 1.494–1.544s |
+| stdev | 0.018s | 0.017s |
+
+Whole projection, mean of 6: absent **49.442s**, present **49.422s**.
+
+### It does not resolve
+
+The point estimate is negative in five of six phases, which is what noise looks
+like, not what a cost looks like. So the honest figure is the **upper 95% CI
+limit**, read as a bound — the most the index could be costing and still be
+consistent with these samples:
+
+- **Directory-node phase: at most +10.3 ms across 20,000 Directory MERGE/SET
+  rows — at most +0.52 µs per directory write, at most +0.67% of the phase.**
+- **Whole projection: at most +396 ms on 49.4s — at most +0.80%.**
+
+Resolving the directory-node delta would need ~33 reps per arm, the
+whole-projection delta ~4,200. Neither is worth running: the bound is already
+an order of magnitude tighter than any decision that rests on it. This is a
+bound and not a null, and nothing here licenses reading it as "no measurable
+cost" or as "free".
+
+### Per-batch slope — maintenance is not degrading as the index fills
+
+With the index present the directory-node per-batch slope is **−1.1e-5 s/batch
+across 40 batches**: the 40th batch of 500 directories is no slower than the
+first even though 19,500 entries are already in the index by then, and total
+drift across the phase is under 0.5 ms. The `files` phase does carry a small
+positive slope, +3.4e-5 s/batch — but it is identical to six significant
+figures in both arms, so that is the graph growing under 200,000 File MERGEs,
+not this index.
+
+### The trade
+
+Performance Evidence: write-side cost of `directory_repo_id` at corpus scale,
+remote Linux host, NornicDB `v1.3.1` at digest
+`sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962`, 50
+repositories / 20,000 directories / 200,000 files, 6 reps per arm with a fresh
+container and a fresh volume per rep, `absolute_target_applicable: false`. The
+canonical directory-node phase ran 1.525s with the index present against 1.537s
+absent, and whole projection 49.422s against 49.442s; the delta does not
+resolve against the ±0.05s within-arm spread, so the cost is reported as a
+bound — at most +0.52 µs per directory write, at most +0.67% of that phase, at
+most +0.80% of corpus projection. Against that bounded write cost, the same
+index moves the scoped directory language query from 15.7s to 0.074s.
+
+## Caveats
 
 1. The grant-50 raw-row probe on `34a46500a` reported 0.045s. That is a
    **result-cache hit, not a measurement** — grant-50 and unscoped resolve to
@@ -163,11 +231,12 @@ nothing; the branch short-circuits before touching the backend.
    **grant-1** figure), two different cells that agree to 1.6% by coincidence.
    Everything in the tables above IS a controlled pair — one seeded store, one
    container, one machine, one session.
-3. **The index's write-side cost is still unmeasured.** Every Directory MERGE
-   and SET now maintains a `directory_repo_id` entry, 20,000 entries on this
-   corpus at full projection. This run timed reads, not writes, so the
-   projection-side delta at corpus scale remains open — named here rather than
-   hidden behind a claim elsewhere.
+3. **The index's write-side cost is measured, but as a bound.** Every Directory
+   MERGE and SET maintains a `directory_repo_id` entry, 20,000 entries on this
+   corpus at full projection. The run above did not time those writes; the
+   separate write-cost run in the section before these caveats does, and its
+   delta does not resolve — so the cost stands as "at most +0.52 µs per
+   directory write", never as zero.
 4. Within a cell the BEFORE and AFTER arms share one container restart per arm,
    not one per run. The two arms run textually different statements, so the
    build's last-result cache cannot serve one arm from the other.
