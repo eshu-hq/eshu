@@ -14,11 +14,12 @@ wrong.** The defect is on the **embedded** library
 available in this Eshu build" otherwise -- so it is reachable in local developer
 profiles, **not** in the deployed topology.
 
-What the deployed topology actually runs is the 1.2.x line:
-`scripts/verify-replay-tier.sh:24` pins
-`timothyswt/nornicdb-cpu-bge:v1.2.3`, and `docker-compose.yaml` defaults to
-`eshu-nornicdb-pr290:3722b483c02c` (1.2.1). **Both filter correctly** -- measured,
-see below.
+At the time of this measurement, the deployed topology used the 1.2.x line:
+`scripts/verify-replay-tier.sh:24` pinned
+`timothyswt/nornicdb-cpu-bge:v1.2.3`, and `docker-compose.yaml` defaulted to
+`eshu-nornicdb-pr290:3722b483c02c` (1.2.1). **Both filtered correctly** --
+measured, see below. Those pins are historical; the current bundled paths use the
+v1.3.2 digest recorded in `6162-nornicdb-v132-alignment.md`.
 
 So this is a local-profile correctness bug, **not a production tenancy
 exposure**. An earlier draft called 1.0.0 "the shipped build" and implied the
@@ -42,7 +43,8 @@ exist nowhere: the single-node form returned 0 rows, the two-node form returned
 **The 1.2.x control, measured on this box.** The same impossible-grant probe
 against the 1.2.1 container (`dbms.components()` -> `["NornicDB",["1.2.1"]]`)
 returned **0 rows at one, two and three nodes**, with an `=` control and the
-`any(...)` form all clean. That is the version the gates and Compose run.
+`any(...)` form all clean. Those were the gate and Compose artifacts when this
+control was recorded.
 
 ## Why the existing suite could not fail
 

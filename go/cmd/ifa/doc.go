@@ -61,6 +61,10 @@
 // catch a family silently empty in every cell, an absolute expected set can.
 // Read-only: no schema DDL, no write.
 //
+// `ifa assert-gcp-project-edge-scopes` streams the fixed Ifa project fixture's
+// GCP relationships and verifies its exact per-scope counts and endpoint
+// ownership. It does not define organization-, folder-, or custom-scope rules.
+//
 // `ifa synth-cassette -seed N [-projects K] [-resources R] -out FILE` (issue
 // #4396 slice 6b) wraps go/internal/synth/gcp.GenerateMultiScope, generating a
 // deterministic, seeded cassette with K independent GCP project scopes and

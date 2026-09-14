@@ -1,7 +1,7 @@
 {{- if .Values.nornicdb.enabled }}
 apiVersion: apps/v1
 kind: Deployment
-{{- $nornicdbNodeSelector := .Values.nornicdb.nodeSelector | default .Values.nodeSelector }}
+{{- $nornicdbNodeSelector := mergeOverwrite (deepCopy (default (dict) .Values.nodeSelector)) (default (dict) .Values.nornicdb.nodeSelector) }}
 {{- $nornicdbAffinity := .Values.nornicdb.affinity | default .Values.affinity }}
 {{- $nornicdbTolerations := .Values.nornicdb.tolerations | default .Values.tolerations }}
 metadata:
@@ -94,7 +94,7 @@ spec:
         {{- if .Values.nornicdb.persistence.enabled }}
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "eshu.nornicdbFullname" . }}-data
+            claimName: {{ include "eshu.nornicdbClaimName" . }}
         {{- else }}
         - name: data
           emptyDir: {}

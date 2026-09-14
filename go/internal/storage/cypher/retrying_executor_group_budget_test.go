@@ -164,6 +164,44 @@ func TestRetryingExecutorRetryMetricUsesBoundedReason(t *testing.T) {
 	}
 }
 
+func TestRetryingExecutorV131WriteConflictUsesBoundedMetricReason(t *testing.T) {
+	t.Parallel()
+
+	reader := metric.NewManualReader()
+	provider := metric.NewMeterProvider(metric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("v131-write-conflict-reason-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	inner := &relationshipSnapshotConflictExecutor{
+		groupFailures: 1,
+		err: &neo4jdriver.Neo4jError{
+			Code: nornicDBTransactionOutdatedCode,
+			Msg:  observedNornicDBV131WriteConflict,
+		},
+	}
+	retrying := &RetryingExecutor{
+		Inner:       inner,
+		MaxRetries:  1,
+		BaseDelay:   time.Nanosecond,
+		Instruments: instruments,
+	}
+
+	if err := retrying.ExecuteGroup(
+		context.Background(),
+		[]Statement{relationshipMergeStatement("scope-v131")},
+	); err != nil {
+		t.Fatalf("ExecuteGroup() error = %v, want nil after retry", err)
+	}
+	if got, want := inner.groupCalls.Load(), int32(2); got != want {
+		t.Fatalf("ExecuteGroup() calls = %d, want %d", got, want)
+	}
+	attrs := retryCounterAttributes(t, reader)
+	if got, want := attrs[telemetry.MetricDimensionReason], graphWriteRetryReasonWriteConflict; got != want {
+		t.Fatalf("retry reason = %q, want bounded %q", got, want)
+	}
+}
+
 func retryCounterAttributes(t *testing.T, reader *metric.ManualReader) map[string]string {
 	t.Helper()
 	var rm metricdata.ResourceMetrics

@@ -695,29 +695,29 @@ The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
 `InstrumentedExecutor`.
 
-`RetryingExecutor` detects transient Neo4j errors (deadlock, lock timeout,
-retryable driver `ConnectivityError`), NornicDB MERGE unique conflicts, and
-typed NornicDB relationship snapshot conflicts and retries with exponential
-backoff and jitter. A driver `ConnectivityError`
+`RetryingExecutor` detects transient Neo4j and driver connectivity errors,
+NornicDB MERGE unique conflicts, and relationship snapshot conflicts. Raw legacy
+errors require bounded `conflict:`; typed v1.3.1 errors require `conflict detected:`, an edge or node identity, and the transaction-age suffix. A driver `ConnectivityError`
 wrapping `CommitFailedDeadError` is not retried in place because its commit
 outcome is unknown. Durable callers may later replay still-pending idempotent
-work after backoff. The same loop covers `Execute` and `ExecuteGroup`; group retries stay
-limited to safe driver-level transient failures or all-MERGE NornicDB commit
-conflicts so re-execution remains idempotent.
+work after backoff. The same exponential-backoff loop covers `Execute` and
+`ExecuteGroup`. Typed driver transients replay the managed transaction body;
+message-derived conflicts require all statements to be replay-safe, including `MERGE` and bounded retracts.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestRetryingExecutor(RetriesDriverConnectivityError|ConnectivityErrorExhaustionRemainsQueueRetryable)|TestWrapRetryableNeo4jError'
--count=1` proves typed Neo4j driver connectivity failures retry locally and
-remain reducer-queue retryable after the local retry budget is exhausted.
+'TestClassifyTransientNeo4jErrorPrioritizesNornicDBWriteConflict|TestRetryingExecutorV131WriteConflictUsesBoundedMetricReason|TestRetryingExecutor(RetriesDriverConnectivityError|ConnectivityErrorExhaustionRemainsQueueRetryable)|TestWrapRetryableNeo4jError'
+-count=1` proves the exact v1.3.1 classifier and metric reason plus typed driver
+connectivity retries and queue-retryable local-budget exhaustion.
 
 Observability Evidence: no new metric name was needed. Existing
 `neo4j transient error, retrying` structured logs,
 `eshu_dp_neo4j_deadlock_retries_total{write_phase,reason}`, graph query spans,
 and queue `failure_class` rows expose retry attempts, operation labels,
 bounded retry classes, exhausted retry errors, and dead-letter prevention.
-The counter name is legacy and now tracks this package's broader transient
-graph-write retry class. Its closed `reason` enum is `connectivity_error`,
-`transient_error`, `write_conflict`, or `commit_unique_conflict`; raw errors,
+The counter name is legacy and tracks this package's broader transient graph
+write retry class. Its closed `reason` enum is `connectivity_error`,
+`transient_error`, `write_conflict`, or `commit_unique_conflict`; the exact
+v1.3.1 snapshot conflict selects the existing `write_conflict` value. Raw errors,
 repository ids, node ids, and statements stay out of metric labels.
 
 ## Exported surface

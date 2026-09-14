@@ -18,6 +18,14 @@ schema, graph schema, and worker behavior move together.
 6. Write an upgrade-state declaration for durable Postgres state, queue state,
    graph rebuild assumptions, and preserved volumes.
 
+When the release has the legacy `<release>-nornicdb-data` PVC, stop graph
+writers and protect that volume before rendering the v1.3.2 upgrade. The chart
+fails the live upgrade until
+`nornicdb.persistence.allowFreshVolumeMigration=true` acknowledges the fresh
+`<release>-nornicdb-v132-data` claim and graph rebuild. It keeps both managed
+claims so rollback never depends on reusing one binary's graph files with the
+other binary.
+
 ```bash
 helm template eshu ./deploy/helm/eshu \
   --namespace eshu \

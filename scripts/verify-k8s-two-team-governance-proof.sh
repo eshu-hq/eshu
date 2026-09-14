@@ -8,9 +8,11 @@ set -euo pipefail
 #
 #   - unauthenticated reads are rejected (401),
 #   - an admin (all-scopes) token sees every seeded repository,
-#   - each team's scoped token reads ONLY its own repository (allowed in-scope),
+#   - each team's scoped token lists only its own repository and its selector
+#     resolves that exact repository (allowed in-scope),
 #   - each team's scoped token CANNOT see the other team's repository, and the
-#     other team's single-repository selector fails closed (403),
+#     other team's single-repository selector fails closed without disclosing
+#     existence (403 or 404),
 #   - API and MCP readbacks agree per team (parity),
 #   - the rendered NetworkPolicies are actually applied in-cluster (api + mcp
 #     present, restricted egress) (cluster-specific), and
@@ -25,6 +27,9 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 list_only=false
 artifacts_dir=""
+readonly expected_backend_image="timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
+readonly expected_index_digest="sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
+readonly expected_amd64_digest="sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"
 
 usage() {
 	# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc
@@ -43,7 +48,7 @@ usage() {
 		'  team-b.json          team-B scoped allowed/denied reads (API + MCP)' \
 		'  unauth.json          unauthenticated rejection states' \
 		'  network-policy.json  in-cluster NetworkPolicy applied state' \
-		'  provenance.json      eshu commit, backend, platform, kubernetes version' \
+		'  provenance.json      eshu commit, exact backend identity, platform, kubernetes version' \
 		'' \
 		'The artifacts directory is produced by running the live K8s governance driver' \
 		'(scripts/run-k8s-two-team-governance-proof.sh) against a deployed Eshu Helm' \
@@ -90,13 +95,13 @@ print_checks() {
 		'live K8s two-team governance cross-scope denial proof checks:' \
 		'  1. unauthenticated: API and MCP repository reads return 401' \
 		'  2. admin: all-scopes token enumerates at least two repositories' \
-		'  3. team-a allowed: team-A scoped token API+MCP list includes only its own repo (count==1)' \
-		"  4. team-a denied: team-A list excludes team-B's repo; selector for it returns 403" \
-		'  5. team-b allowed: team-B scoped token API+MCP list includes only its own repo (count==1)' \
-		"  6. team-b denied: team-B list excludes team-A's repo; selector for it returns 403" \
+		'  3. team-a allowed: API+MCP list only its own repo and its selector returns that repo (200)' \
+			"  4. team-a denied: team-A list excludes team-B's repo; selector returns non-disclosing 403 permission_denied or 404 not_found" \
+		'  5. team-b allowed: API+MCP list only its own repo and its selector returns that repo (200)' \
+			"  6. team-b denied: team-B list excludes team-A's repo; selector returns non-disclosing 403 permission_denied or 404 not_found" \
 		'  7. parity: API and MCP scoped readbacks agree per team' \
 		'  8. network policy: api + mcp NetworkPolicies applied in-cluster with restricted egress' \
-		'  9. provenance: platform=kubernetes, non-empty kubernetes_version, eshu_commit, backend, token count' \
+		'  9. provenance: platform=kubernetes, exact NornicDB index/platform digest and version, eshu_commit, token count' \
 		' 10. redaction canary: no bearer tokens, token hashes, host paths, DSNs, keys, or raw IPs'
 }
 
@@ -128,6 +133,13 @@ require_eq() {
 	local got="$1" want="$2" what="$3"
 	[[ "${got}" == "${want}" ]] || die "${what}: got '${got}', want '${want}'"
 }
+require_non_disclosing_selector_status() {
+	local got="$1" what="$2"
+	case "${got}" in
+		403|404) ;;
+		*) die "${what}: got '${got}', want non-disclosing 403 or 404" ;;
+	esac
+}
 
 # 1. Unauthenticated rejection.
 require_eq "$(json_num "${unauth}" api_status)" "401" "unauth API repository read status"
@@ -141,19 +153,28 @@ admin_count="$(json_num "${admin}" repository_count)"
 # 3-7. Per-team allowed/denied/parity.
 check_team() {
 	local file="$1" label="$2"
+	local expected_own
+	expected_own="$(json_str "${file}" own_repo)"
+	[[ -n "${expected_own}" ]] || die "${label} artifact missing own_repo"
 	for surface in api mcp; do
-		local count own other sel
+		local count own own_sel own_sel_id other other_sel
 		count="$(json_num "${file}" "${surface}_repository_count")"
 		own="$(json_str "${file}" "${surface}_own_repo_present")"
+		own_sel="$(json_num "${file}" "${surface}_own_repo_selector_status")"
+		own_sel_id="$(json_str "${file}" "${surface}_own_repo_selector_repository_id")"
 		other="$(json_str "${file}" "${surface}_other_repo_present")"
-		sel="$(json_num "${file}" "${surface}_other_repo_selector_status")"
+		other_sel="$(json_num "${file}" "${surface}_other_repo_selector_status")"
 		require_eq "${own}" "true" "${label} ${surface} own repository present"
 		require_eq "${count}" "1" "${label} ${surface} scoped repository count"
+		require_eq "${own_sel}" "200" "${label} ${surface} own selector status"
+		require_eq "${own_sel_id}" "${expected_own}" "${label} ${surface} own selector repository id"
 		require_eq "${other}" "false" "${label} ${surface} cross-scope repository leaked"
-		require_eq "${sel}" "403" "${label} ${surface} cross-scope selector status"
+		require_non_disclosing_selector_status "${other_sel}" "${label} ${surface} cross-scope selector status"
 	done
 	require_eq "$(json_num "${file}" api_repository_count)" "$(json_num "${file}" mcp_repository_count)" "${label} API/MCP count parity"
 	require_eq "$(json_str "${file}" api_own_repo_present)" "$(json_str "${file}" mcp_own_repo_present)" "${label} API/MCP own-repo parity"
+	require_eq "$(json_num "${file}" api_own_repo_selector_status)" "$(json_num "${file}" mcp_own_repo_selector_status)" "${label} API/MCP own-selector status parity"
+	require_eq "$(json_str "${file}" api_own_repo_selector_repository_id)" "$(json_str "${file}" mcp_own_repo_selector_repository_id)" "${label} API/MCP own-selector identity parity"
 	require_eq "$(json_str "${file}" api_other_repo_present)" "$(json_str "${file}" mcp_other_repo_present)" "${label} API/MCP cross-scope parity"
 	require_eq "$(json_num "${file}" api_other_repo_selector_status)" "$(json_num "${file}" mcp_other_repo_selector_status)" "${label} API/MCP selector parity"
 }
@@ -168,11 +189,29 @@ np_count="$(json_num "${netpol}" applied_count)"
 [[ -n "${np_count}" && "${np_count}" -ge 2 ]] || die "network-policy applied_count=${np_count:-missing}; expected >=2"
 
 # 9. Provenance: cluster-specific fields.
-for field in eshu_commit backend platform kubernetes_version metrics_handle; do
+for field in eshu_commit backend backend_image backend_platform backend_runtime_image_id \
+	backend_version backend_source_revision platform kubernetes_version metrics_handle; do
 	rg --quiet "\"${field}\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" "${provenance}" \
 		|| die "provenance missing or empty field: ${field}"
 done
 require_eq "$(json_str "${provenance}" platform)" "kubernetes" "provenance platform"
+require_eq "$(json_str "${provenance}" backend)" "nornicdb" "provenance backend"
+require_eq "$(json_str "${provenance}" backend_image)" "${expected_backend_image}" "provenance configured backend image"
+# Upstream tagged and published v1.3.2 without updating its embedded VERSION
+# file. The immutable image identity above proves the release artifact; this
+# field records the binary's honest self-report instead of inventing v1.3.2.
+require_eq "$(json_str "${provenance}" backend_version)" "NornicDB v1.3.1" "provenance backend version"
+require_eq "$(json_str "${provenance}" backend_source_revision)" "unavailable" "official image source revision status"
+
+backend_platform="$(json_str "${provenance}" backend_platform)"
+require_eq "${backend_platform}" "linux/amd64" "live-proven NornicDB platform"
+backend_runtime_image_id="$(json_str "${provenance}" backend_runtime_image_id)"
+[[ "${backend_runtime_image_id}" == *"timothyswt/nornicdb-cpu-bge@"* ]] \
+	|| die "provenance backend_runtime_image_id '${backend_runtime_image_id}' is not the expected repository"
+case "${backend_runtime_image_id}" in
+	*@"${expected_amd64_digest}"|*@"${expected_index_digest}") ;;
+	*) die "provenance backend_runtime_image_id '${backend_runtime_image_id}' matches neither the immutable v1.3.2 index nor linux/amd64 digest ${expected_amd64_digest}" ;;
+esac
 rg --quiet '"eshu_commit"[[:space:]]*:[[:space:]]*"unknown"' "${provenance}" \
 	&& die "provenance eshu_commit is unknown (capture ran outside a checkout)"
 rg --quiet '"kubernetes_version"[[:space:]]*:[[:space:]]*"unknown"' "${provenance}" \
@@ -189,4 +228,5 @@ for artifact in "${admin}" "${team_a}" "${team_b}" "${unauth}" "${netpol}" "${pr
 	done
 done
 
-printf 'live K8s two-team governance cross-scope denial proof artifacts verified (admin repos=%s, network policies=%s)\n' "${admin_count}" "${np_count}"
+printf 'live K8s two-team governance cross-scope denial proof artifacts verified (admin repos=%s, network policies=%s, backend=%s, platform=%s)\n' \
+	"${admin_count}" "${np_count}" "${expected_backend_image}" "${backend_platform}"

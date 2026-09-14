@@ -18,6 +18,29 @@ die() {
 	exit 1
 }
 
+# replace_first_literal copies source to destination with exactly the first
+# literal occurrence of needle replaced. It fails closed when the fixture no
+# longer contains the mutation target.
+replace_first_literal() {
+	local source="$1" destination="$2" needle="$3" replacement="$4"
+	if ! awk -v needle="${needle}" -v replacement="${replacement}" '
+		BEGIN { replaced = 0 }
+		{
+			if (!replaced) {
+				position = index($0, needle)
+				if (position != 0) {
+					$0 = substr($0, 1, position - 1) replacement substr($0, position + length(needle))
+					replaced = 1
+				}
+			}
+			print
+		}
+		END { exit !replaced }
+	' "${source}" >"${destination}"; then
+		die "fixture mutation target is absent: ${needle}"
+	fi
+}
+
 [[ -f "${verifier}" ]] || die "missing verifier: ${verifier}"
 bash -n "${verifier}" || die "verifier failed bash syntax check"
 
@@ -29,9 +52,58 @@ for needle in "unauthenticated:" "admin:" "team-a allowed:" "team-a denied:" \
 		|| die "--list output missing ${needle}"
 done
 
-# Good artifacts pass.
+# Good artifacts prove the current handler's non-disclosing 404 selector result.
 bash "${verifier}" --artifacts "${fixtures}/good" >/dev/null \
 	|| die "verifier rejected the good proof artifacts"
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "${tmp_dir}"' EXIT
+
+# A middleware-level 403 is also non-disclosing, but API and MCP must agree.
+selector_403_dir="${tmp_dir}/selector-403"
+cp -R "${fixtures}/good" "${selector_403_dir}"
+for team in team-a team-b; do
+	sed 's/_other_repo_selector_status": 404/_other_repo_selector_status": 403/g' \
+		"${fixtures}/good/${team}.json" >"${selector_403_dir}/${team}.json"
+done
+bash "${verifier}" --artifacts "${selector_403_dir}" >/dev/null \
+	|| die "verifier rejected non-disclosing 403 selector results"
+
+mixed_selector_dir="${tmp_dir}/mixed-selector"
+cp -R "${fixtures}/good" "${mixed_selector_dir}"
+replace_first_literal "${fixtures}/good/team-a.json" "${mixed_selector_dir}/team-a.json" \
+	'_other_repo_selector_status": 404' '_other_repo_selector_status": 403'
+if bash "${verifier}" --artifacts "${mixed_selector_dir}" >/dev/null 2>&1; then
+	die "verifier accepted API/MCP selector-status divergence"
+fi
+
+for surface in api mcp; do
+	missing_own_status_dir="${tmp_dir}/missing-${surface}-own-status"
+	cp -R "${fixtures}/good" "${missing_own_status_dir}"
+	sed "/${surface}_own_repo_selector_status/d" \
+		"${fixtures}/good/team-a.json" >"${missing_own_status_dir}/team-a.json"
+	if bash "${verifier}" --artifacts "${missing_own_status_dir}" >/dev/null 2>&1; then
+		die "verifier accepted missing ${surface} own-repository selector status"
+	fi
+
+	for status in 0 204 403 404 500; do
+		bad_own_status_dir="${tmp_dir}/bad-${surface}-own-status-${status}"
+		cp -R "${fixtures}/good" "${bad_own_status_dir}"
+		replace_first_literal "${fixtures}/good/team-a.json" "${bad_own_status_dir}/team-a.json" \
+			"${surface}_own_repo_selector_status\": 200" "${surface}_own_repo_selector_status\": ${status}"
+		if bash "${verifier}" --artifacts "${bad_own_status_dir}" >/dev/null 2>&1; then
+			die "verifier accepted ${surface} own-repository selector status ${status}"
+		fi
+	done
+done
+
+wrong_own_id_dir="${tmp_dir}/wrong-own-id"
+cp -R "${fixtures}/good" "${wrong_own_id_dir}"
+replace_first_literal "${fixtures}/good/team-a.json" "${wrong_own_id_dir}/team-a.json" \
+	'api_own_repo_selector_repository_id": "repo-alpha"' 'api_own_repo_selector_repository_id": "repo-beta"'
+if bash "${verifier}" --artifacts "${wrong_own_id_dir}" >/dev/null 2>&1; then
+	die "verifier accepted the wrong own-repository selector identity"
+fi
 
 # Each bad artifact set must fail closed.
 for bad in bad_cross_scope_leak bad_selector_open bad_parity bad_unauth_open bad_leak; do

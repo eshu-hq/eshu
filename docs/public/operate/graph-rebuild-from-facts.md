@@ -59,8 +59,8 @@ and every query counts them.
 So: wipe when the graph may hold state your restored Postgres cannot account
 for. Skip the wipe only when the graph is already gone or already empty.
 
-Wiping means recreating the graph's storage — the `nornicdb_data` Compose volume
-or the NornicDB PVC — not issuing a delete query. Recreating the volume is faster
+Wiping means recreating the graph's storage — the active `nornicdb_v132_data`
+Compose volume or the NornicDB PVC — not issuing a delete query. Recreating the volume is faster
 than deleting several million nodes in batches, and it is more complete: it
 clears indexes and constraints too, which a delete sweep leaves behind. It also
 keeps the destructive step where an operator can see it, rather than behind an
@@ -101,7 +101,7 @@ If the graph is what failed and Postgres was never touched, skip this step.
 ```bash
 docker compose rm -sf nornicdb
 docker volume rm "$(docker compose config --format json \
-  | jq -r '.name')_nornicdb_data"
+  | jq -r '.name')_nornicdb_v132_data"
 docker compose up -d nornicdb
 ```
 

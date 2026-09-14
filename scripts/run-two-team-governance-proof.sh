@@ -9,7 +9,8 @@ set -euo pipefail
 #
 #   - team-A's token reads only team-A's repository and CANNOT see team-B's,
 #   - team-B's token reads only team-B's repository and CANNOT see team-A's,
-#   - the single-repository selector for an out-of-grant repo fails closed (404),
+#   - the out-of-grant selector returns a non-disclosing 403 permission_denied or
+#     404 not_found,
 #   - an admin (all-scopes) token sees every repository,
 #   - unauthenticated reads are rejected (401), and
 #   - the API and MCP readbacks agree (parity).
@@ -61,6 +62,7 @@ done
 command -v docker >/dev/null 2>&1 || die "docker is required"
 command -v rg >/dev/null 2>&1 || die "rg is required"
 command -v curl >/dev/null 2>&1 || die "curl is required"
+command -v jq >/dev/null 2>&1 || die "jq is required"
 sha256_cmd=""
 if command -v shasum >/dev/null 2>&1; then
 	sha256_cmd="shasum -a 256"
@@ -235,8 +237,8 @@ contains_id() {
 }
 
 # capture_team writes a normalized team artifact (counts + presence booleans +
-# selector status, per surface). own/other repo presence is derived from the
-# live id lists; the selector status is the HTTP code for the OTHER team's repo.
+# selector status and selected own-repository identity, per surface). The
+# response bodies remain temporary and are never copied into proof artifacts.
 capture_team() {
 	local file="$1" token="$2" own="$3" other="$4"
 
@@ -256,14 +258,24 @@ capture_team() {
 	printf '%s\n' "${mcp_ids}" | contains_id "${own}"   && mcp_own=true   || true
 	printf '%s\n' "${mcp_ids}" | contains_id "${other}" && mcp_other=true || true
 
-	# Single-repository context selector for the OTHER team's repo. This route is
-	# not in the scoped-read allowlist, so it fails closed with 403
-	# permission_denied for any scoped token (defense in depth: scoped tokens
-	# cannot reach the richer single-repository surface at all). The captured
-	# status is whatever the live server returns; the verifier asserts 403.
-	local api_sel mcp_sel
-	api_sel="$(http_status -H "Authorization: Bearer ${token}" "${api_base}/api/v0/repositories/${other}/context")"
-	mcp_sel="$(http_status -H "Authorization: Bearer ${token}" "${mcp_base}/api/v0/repositories/${other}/context")"
+	# Prove the selector route itself works by resolving the team's own repo and
+	# verifying the exact returned identity. Then probe the OTHER team's repo.
+	local api_own_body mcp_own_body api_own_sel mcp_own_sel api_own_sel_id mcp_own_sel_id
+	api_own_body="${work_dir}/$(basename "${file}").api-own.json"
+	mcp_own_body="${work_dir}/$(basename "${file}").mcp-own.json"
+	api_own_sel="$(curl -sS -o "${api_own_body}" -w '%{http_code}' -H "Authorization: Bearer ${token}" "${api_base}/api/v0/repositories/${own}/context")"
+	mcp_own_sel="$(curl -sS -o "${mcp_own_body}" -w '%{http_code}' -H "Authorization: Bearer ${token}" "${mcp_base}/api/v0/repositories/${own}/context")"
+	api_own_sel_id="$(jq -er '.repository.id | strings | select(length > 0)' "${api_own_body}")" || die "API own selector did not return repository.id"
+	mcp_own_sel_id="$(jq -er '.repository.id | strings | select(length > 0)' "${mcp_own_body}")" || die "MCP own selector did not return repository.id"
+	rm -f "${api_own_body}" "${mcp_own_body}"
+
+	# Depending on which authorization boundary rejects the cross-scope read,
+	# the live server returns a
+	# non-disclosing 403 permission_denied or 404 not_found. The verifier requires
+	# both surfaces to agree and rejects every other status.
+	local api_other_sel mcp_other_sel
+	api_other_sel="$(http_status -H "Authorization: Bearer ${token}" "${api_base}/api/v0/repositories/${other}/context")"
+	mcp_other_sel="$(http_status -H "Authorization: Bearer ${token}" "${mcp_base}/api/v0/repositories/${other}/context")"
 
 	cat >"${file}" <<JSON
 {
@@ -271,12 +283,16 @@ capture_team() {
   "other_repo": "${other}",
   "api_repository_count": ${api_count},
   "api_own_repo_present": "${api_own}",
+  "api_own_repo_selector_status": ${api_own_sel},
+  "api_own_repo_selector_repository_id": "${api_own_sel_id}",
   "api_other_repo_present": "${api_other}",
-  "api_other_repo_selector_status": ${api_sel},
+  "api_other_repo_selector_status": ${api_other_sel},
   "mcp_repository_count": ${mcp_count},
   "mcp_own_repo_present": "${mcp_own}",
+  "mcp_own_repo_selector_status": ${mcp_own_sel},
+  "mcp_own_repo_selector_repository_id": "${mcp_own_sel_id}",
   "mcp_other_repo_present": "${mcp_other}",
-  "mcp_other_repo_selector_status": ${mcp_sel}
+  "mcp_other_repo_selector_status": ${mcp_other_sel}
 }
 JSON
 }

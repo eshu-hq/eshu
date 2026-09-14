@@ -78,17 +78,37 @@ schemaBootstrap:
   useHelmHooks: false
 ```
 
-The chart's default bundled image (`timothyswt/nornicdb-cpu-bge:v1.2.3`, pinned
-by digest) is still rejected when enabled, because nobody has measured whether
-it preserves the relationship identity properties the provenance writers need.
-The version it replaced, `v1.1.11`, was measured and did not. Replace the
-example repository, tag, and digest with an immutable build containing
-orneryd/NornicDB#290 (or a later verified equivalent), or measure the default,
-before setting the capability acknowledgement to `true`.
+The chart's default bundled image (`timothyswt/nornicdb-cpu-bge:v1.3.2`, pinned
+by digest) is the verified default. The capability acknowledgement still stays
+explicit because it also covers operator-selected external endpoints the chart
+cannot identify. Confirm the selected endpoint uses the verified digest, or
+independently prove an override, before setting it to `true`.
+
+The bundled backend defaults to `kubernetes.io/arch: amd64`, the platform with
+live v1.3.2 proof. Global `nodeSelector` values are merged with
+`nornicdb.nodeSelector`, and the component value wins on duplicate keys. Do not
+select arm64 for production evidence until that image child passes the same
+live backend contract.
 
 Replace `password` with your own strong password (min 12 chars, mixed case +
 digit) or set `neo4j.auth.secretName` to an existing Kubernetes Secret instead;
 the chart requires one or the other and fails the render otherwise.
+
+Managed v1.3.2 installs use the versioned
+`<release>-nornicdb-v132-data` PVC and annotate it for Helm retention. A live
+upgrade that finds the legacy `<release>-nornicdb-data` PVC fails closed until
+the operator stops graph writers, snapshots or backs up that PVC, and sets
+`nornicdb.persistence.allowFreshVolumeMigration=true`. The chart then keeps the
+legacy PVC while mounting fresh v1.3.2 storage. Use
+`nornicdb.persistence.existingClaim` only for an operator-provisioned,
+v1.3.2-compatible PVC; the chart rejects the legacy claim name.
+
+After the fresh volume is mounted, follow
+[Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md) from
+the preserved Postgres store. Cut over only after queues are terminal and
+required API/MCP graph truth passes. Roll back with the preserved old PVC or a
+fresh rebuild; never attach an older binary to a PVC modified by v1.3.2 without
+proof for that exact reverse transition.
 
 Do not use Helm hooks for schema bootstrap in this shape. Hooks run before the
 bundled NornicDB Service exists.

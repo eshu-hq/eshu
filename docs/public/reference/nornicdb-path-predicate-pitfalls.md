@@ -6,7 +6,7 @@ variable-length traversal can be bounded. Split out of
 long enough to read on their own, and both are load-bearing for the code-family
 routes that traverse `CALLS` and `INHERITS`.
 
-Everything here was measured against
+Everything here was measured against the then-pinned
 `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`. A different build may
 behave differently, and the live tests named in each section are what would say
 so.
@@ -16,7 +16,7 @@ so.
 [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md) records, under its
 variable-length anchoring entry, that a path whose BOTH endpoints are pre-bound
 in their own `MATCH` clauses works without a label on the path pattern. That was
-measured on v1.1.11 and is not true on the current pin, where the exact
+measured on v1.1.11 and was not true on the v1.2.3 pin, where the exact
 `buildNornicDBCallChainCypher` statement does not parse at all:
 
 ```text
@@ -38,7 +38,7 @@ as "check before relying on it", not as a safe shape. Live pin:
 
 ### Observed shape
 
-Measured on the pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
+Measured on the then-pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
 (#5167 batch 2b), against one three-node `CALLS` chain whose middle hop is in a
 different repository from its two endpoints. A bound that works returns 0 rows;
 an inert one returns the chain.
@@ -116,7 +116,7 @@ build that changes any of them is seen rather than silently absorbed.
 
 ### Observed shape
 
-Measured on the pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
+Measured on the then-pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
 (#6546) against a 180-file corpus, 105 of them `.go`. A `STARTS WITH` or
 `ENDS WITH` term is evaluated correctly when the `MATCH` binds one node and
 evaluates as `true` for every row when it binds two or more. `CONTAINS` and a

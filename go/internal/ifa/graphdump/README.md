@@ -254,6 +254,15 @@ Evidence:` / `No-Observability-Change:`.)
         deleted after this analysis — no synth cassette or dump is ever
         checked into `testdata/`.
 
+## GCP scope integrity
+
+`ValidateGCPProjectEdgeScopes` uses the same streaming `Reader` as
+canonicalization to verify a caller-supplied, project-scoped fixture contract:
+exact per-scope edge counts and `CloudResource` endpoint ownership. The caller
+must supply every expected scope; unexpected GCP scopes fail closed. This does
+not impose project-local ownership on valid organization, folder, or custom
+collector scopes.
+
 ## Verification
 
 ```bash

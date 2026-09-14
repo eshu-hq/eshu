@@ -227,13 +227,13 @@ func classifyTransientNeo4jError(err error) string {
 	if isNornicDBRestartTransactionStartFailure(err) {
 		return graphWriteRetryReasonConnectivity
 	}
-	msg := err.Error()
 	// NornicDB reports relationship snapshot conflicts with a transient code.
 	// Classify the narrow conflict shape before the generic TransientError
 	// fallback so retry telemetry preserves the actionable reason.
-	if isNornicDBWriteConflict(msg) {
+	if isNornicDBWriteConflict(err) {
 		return graphWriteRetryReasonWriteConflict
 	}
+	msg := err.Error()
 	if strings.Contains(msg, "TransientError") ||
 		strings.Contains(msg, "DeadlockDetected") ||
 		strings.Contains(msg, "LockClient") ||
@@ -319,11 +319,6 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 		return graphWriteRetryReasonUniqueConflict
 	}
 	return ""
-}
-
-func isNornicDBWriteConflict(msg string) bool {
-	return strings.Contains(msg, "conflict:") &&
-		strings.Contains(msg, "changed after transaction start")
 }
 
 // isNornicDBMergeRelationshipSnapshotConflict recognizes the pinned

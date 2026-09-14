@@ -27,8 +27,8 @@ name: Value Flow Conformance Expectation
 #
 # The control runs FIRST. A failing step skips the rest of the job, so putting
 # NornicDB first would mean the one run that most needs its control never got
-# one. This order also skips the expensive NornicDB build when the control has
-# already said the fixture is broken.
+# one. This order also skips the NornicDB lane when the control has already
+# said the fixture is broken.
 
 on:
   push:
@@ -73,14 +73,9 @@ jobs:
   expectation:
     name: Value flow conformance expectation
     runs-on: ubuntu-latest
-    # The NornicDB service builds from a pinned upstream commit rather than
-    # pulling a released image, which is the bulk of this budget. The two
-    # conformance runs themselves take seconds.
+    # The two conformance runs themselves take seconds; the remaining budget
+    # covers cold image pulls and backend startup on a clean runner.
     timeout-minutes: 45
-    # That source build skips its UI stage headless (#6505 — upstream
-    # npm-ci-fallback flake; nothing here serves the UI).
-    env:
-      NORNICDB_HEADLESS: "true"
 
     steps:
       - name: Check out code
@@ -130,8 +125,8 @@ jobs:
 
       # Same budget for NornicDB, for the same reason. Its healthcheck does
       # carry a start_period and it came up healthy in seconds locally, but the
-      # image builds from a pinned upstream commit on a clean runner, and there
-      # is nothing to gain from the two services disagreeing about how long
+      # image may need to be pulled on a clean runner, and there is nothing to
+      # gain from the two services disagreeing about how long
       # "starting" is allowed to take.
       - name: Start NornicDB
         run: |
