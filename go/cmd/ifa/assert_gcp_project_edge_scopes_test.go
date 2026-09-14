@@ -6,6 +6,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -66,6 +68,48 @@ func TestIFAGCPProjectScopeExpectationsFollowFixtureOverrides(t *testing.T) {
 		if got := expected[scopeID]; got.ProjectID != projectID || got.EdgeCount != 4 {
 			t.Fatalf("expectation %q = %+v, want project %q with 4 edges", scopeID, got, projectID)
 		}
+	}
+}
+
+func TestIFAGCPProjectScopeExpectationsUseSupplyChainDemoFixtureCount(t *testing.T) {
+	t.Parallel()
+
+	fixture, err := os.ReadFile("../../../testdata/cassettes/gcpcloud/supply-chain-demo.json")
+	if err != nil {
+		t.Fatalf("read supply-chain demo cassette: %v", err)
+	}
+	var cassette struct {
+		Scopes []struct {
+			Facts []struct {
+				FactKind string `json:"fact_kind"`
+				Payload  struct {
+					SupportState string `json:"support_state"`
+				} `json:"payload"`
+			} `json:"facts"`
+		} `json:"scopes"`
+	}
+	if err := json.Unmarshal(fixture, &cassette); err != nil {
+		t.Fatalf("decode supply-chain demo cassette: %v", err)
+	}
+	supportedRelationships := 0
+	for _, scope := range cassette.Scopes {
+		for _, fact := range scope.Facts {
+			if fact.FactKind == "gcp_cloud_relationship" && fact.Payload.SupportState == "supported" {
+				supportedRelationships++
+			}
+		}
+	}
+	if supportedRelationships != supplyChainDemoProjectEdgeCount {
+		t.Fatalf("supported relationship facts = %d, want %d", supportedRelationships, supplyChainDemoProjectEdgeCount)
+	}
+
+	expected, err := ifaGCPProjectScopeExpectations(7, 1, 2)
+	if err != nil {
+		t.Fatalf("ifaGCPProjectScopeExpectations: %v", err)
+	}
+	got := expected["gcp:project:supply-chain-demo-project"]
+	if got.EdgeCount != supplyChainDemoProjectEdgeCount {
+		t.Fatalf("supply-chain demo edge count = %d, want %d", got.EdgeCount, supplyChainDemoProjectEdgeCount)
 	}
 }
 

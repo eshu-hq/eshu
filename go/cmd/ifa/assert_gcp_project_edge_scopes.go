@@ -13,6 +13,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 )
 
+// supplyChainDemoProjectEdgeCount is the supported GCP relationship count
+// produced from testdata/cassettes/gcpcloud/supply-chain-demo.json. The
+// cassette also contains one partial relationship fact that is not materialized.
+const supplyChainDemoProjectEdgeCount = 123
+
 var openAssertGCPProjectEdgeScopesReader = func(ctx context.Context) (graphdump.Reader, func(), error) {
 	return openBoltGraphReader(ctx, os.Getenv)
 }
@@ -62,11 +67,9 @@ func ifaGCPProjectScopeExpectations(seed, projects, resources int) (map[string]g
 		scopeID := fmt.Sprintf("gcp:project:%s:seed:%d", projectID, seed)
 		expected[scopeID] = graphdump.GCPProjectScopeExpectation{ProjectID: projectID, EdgeCount: resources - 1}
 	}
-	// The committed GCP cassette has 123 supported relationship facts and one
-	// partial firebase_project_default_bucket fact that is not materialized.
 	expected["gcp:project:supply-chain-demo-project"] = graphdump.GCPProjectScopeExpectation{
 		ProjectID: "supply-chain-demo-project",
-		EdgeCount: 123,
+		EdgeCount: supplyChainDemoProjectEdgeCount,
 	}
 	return expected, nil
 }
