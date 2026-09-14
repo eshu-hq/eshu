@@ -372,7 +372,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/query/request_m
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/request_metrics.go:75
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/setup_handler.go:1
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/sign_in_policy_mutations.go:159
-LINE docs/public/observability/telemetry-coverage.md go/internal/query/tag_history.go:102
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/factdecode/quarantine_record.go:64
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/gcp_materialization_observability.go:22
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/incident/incident_repository_correlation.go:278
