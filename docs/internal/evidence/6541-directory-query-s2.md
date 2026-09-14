@@ -42,10 +42,12 @@ them in this statement (measured below):
 2. The page is re-sorted on `file_count DESC, repo_id, name` and truncated to
    `limit`.
 
-The projected columns are unchanged. `entity_id` and `file_path` are still
-null on every directory row: the canonical projector writes neither `d.id` nor
-`d.relative_path`. That predates this change, is asserted as a known gap by the
-live test, and is NOT fixed here.
+The projected columns are unchanged. `entity_id` and `file_path` still carry no
+value on any directory row: the canonical projector writes neither `d.id` nor
+`d.relative_path`, so the driver yields nil for both aliases and
+`buildLanguageResult` serializes `entity_id` as `""` and omits `file_path` from
+the object -- neither comes back as JSON `null`. That predates this change, is
+asserted as a known gap by the live test, and is NOT fixed here.
 
 ### Where the repository-id list comes from
 

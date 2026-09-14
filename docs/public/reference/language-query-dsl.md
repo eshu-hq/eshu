@@ -195,12 +195,19 @@ can share it (`internal`, `testdata`, `v1`), and a pair that also ties on
 `file_count` ties on all three keys. Which of that pair is kept is still the
 backend's choice. It is unobservable today only because of the next point.
 
-**`entity_id` and `file_path` are null on every directory row.** The canonical
-projector writes neither `id` nor `relative_path` onto a Directory node, so a
-directory result carries `name`, `labels`, `repo_id`, `repo_name` and
-`file_count` and nulls the other two. That predates #6541 and is not fixed by
-it; it is stated here because it is also what makes the tie residual above
-invisible on the wire -- two rows tied on all three keys serialize identically.
+**`entity_id` comes back as an empty string and `file_path` is absent on every
+directory row.** The canonical projector writes neither `id` nor
+`relative_path` onto a Directory node, and the response builder renders those
+two missing values differently: `entity_id` is always emitted and carries `""`,
+while `file_path` is dropped from the object entirely. Neither is JSON `null`,
+so an integrator must test `entity_id == ""` and treat `file_path` as an
+optional key rather than comparing either against `null`. A directory result
+therefore carries `entity_id` (empty), `name`, `labels`, `repo_id`,
+`file_count`, and `repo_name` when the name lookup resolved. That predates
+#6541 and is not fixed by it; it is stated here because it is also what makes
+the tie residual above invisible on the wire -- two rows tied on all three keys
+serialize identically, both carrying `entity_id: ""` and neither carrying
+`file_path`.
 
 **`repo_name` comes from a second lookup, and can be absent.** The main
 statement no longer binds a Repository node at all; it seeks each granted
@@ -231,9 +238,14 @@ page needs.
 This entity type depends on the `directory_repo_id` index over
 `Directory.repo_id` (declared in `go/internal/graph/schema_tables_indexes.go`
 and applied by `eshu-bootstrap-data-plane`). The index is a precondition, not
-an enhancement: measured on a 50-repository corpus, the current shape without
-that index is slower than the statement it replaced, so a deployment that skips
-it is worse off than before rather than merely un-optimised. The queryplan
+an enhancement, and what skipping it costs depends on who calls. Measured on a
+50-repository corpus at limit 50: without the index the current shape is slower
+than the statement it replaced *for unscoped callers* -- 15.384s against
+12.484s -- so an unscoped deployment that skips it is worse off than before
+rather than merely un-optimised. Scoped callers are still faster without the
+index than they were before it (grant-1 0.333s against 15.722s, grant-5 1.498s
+against 16.228s, grant-50 15.987s against 33.964s), but far slower than with it
+(grant-50 8.534s against 15.987s). The queryplan
 manifest entry `QP-LANGUAGE-DIRECTORY` names it in `required_schema`, and the
 live planner gate profiles the statement against Neo4j with the index present
 and rejects any plan that is not anchored on it. The measurements are in

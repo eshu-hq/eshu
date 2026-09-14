@@ -251,14 +251,17 @@ func (h *Handler) directoryRepositoryNames(ctx context.Context, repoIDs []string
 // `internal`, `testdata`, `v1` -- and if they also tie on file_count they tie
 // on all three keys; which of them a group keeps is then the backend's choice,
 // exactly as before for that pair. The wire response is nevertheless
-// byte-identical today, but only because entity_id and file_path serialize
-// null for every Directory row (the canonical projector writes neither `d.id`
-// nor `d.relative_path` -- an unfixed gap this change documents rather than
-// closes), so two rows tied on all three keys serialize identically. `d.path`,
-// the MERGE key, is fully disambiguating and is what would fix this properly;
-// it needs a new RETURN alias and moves the statement pins, so it is
-// deliberately not done here. The day entity_id and file_path stop being null,
-// this residual becomes observable and has to be closed with them.
+// byte-identical today, but only because entity_id and file_path carry no
+// distinguishing value on a Directory row: the canonical projector writes
+// neither `d.id` nor `d.relative_path`, so the driver yields nil for both
+// RETURN aliases and buildLanguageResult emits entity_id as "" and omits
+// file_path entirely -- neither is JSON null -- an unfixed gap this change
+// documents rather than closes. Two rows tied on all three keys therefore
+// serialize identically. `d.path`, the MERGE key, is fully disambiguating and
+// is what would fix this properly; it needs a new RETURN alias and moves the
+// statement pins, so it is deliberately not done here. The day the projector
+// starts writing either property, this residual becomes observable and has to
+// be closed with it.
 func sortAndTruncateDirectoryRows(rows []map[string]any, limit int) []map[string]any {
 	sort.SliceStable(rows, func(i, j int) bool {
 		left, right := rows[i], rows[j]

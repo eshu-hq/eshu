@@ -259,7 +259,8 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 // two directories in ONE repository can share a name and, if they also tie on
 // file_count, tie on all three keys -- which one a group keeps is the backend's
 // choice. That is invisible on the wire only because entity_id and file_path
-// are null for every Directory row (see below), so two such rows serialize
+// carry no distinguishing value on a Directory row (see below): every row
+// serializes entity_id as "" and omits file_path, so two such rows serialize
 // identically. `d.path` would disambiguate fully; it needs a new RETURN alias
 // and moves the statement pins, so it is not done here.
 //
@@ -274,9 +275,11 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 // returns the same directory TWICE with its file_count intact, because
 // everything after the UNWIND runs once per id; a backend that aggregates the
 // whole result at once would instead count that directory's files twice. Either
-// way the page is wrong. entity_id and file_path stay null for every row,
-// because the canonical projector writes neither `d.id` nor `d.relative_path`;
-// that predates this change and is not fixed here.
+// way the page is wrong. entity_id and file_path stay valueless on every row,
+// because the canonical projector writes neither `d.id` nor `d.relative_path`:
+// the driver yields nil for both aliases, and buildLanguageResult turns that
+// into entity_id "" plus an omitted file_path, not into JSON null. That
+// predates this change and is not fixed here.
 func buildDirectoryCypher(language, query string, repoIDs []string, params map[string]any) (string, map[string]any) {
 	params["languages"] = graphLanguageSpellings(language)
 	params["repo_ids"] = repoIDs
