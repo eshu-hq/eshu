@@ -123,8 +123,14 @@ GREEN, after the repoint and re-pin:
 - `go test ./internal/exposure/... -count=1`: exit 0.
 - The two new tests plus `TestSinkCatalogVersionIsStableAndChangeSensitive`,
   run with `-v`: exit 0, all three `PASS`.
-- `go test ./internal/reducer/valueflow ./internal/query/impact -count=1`:
-  exit 0. These are the two `MatchSink` / `GraphBackedSinkSpecs` callers.
+- `go test ./internal/reducer/code/value ./internal/query/impact -count=1`:
+  exit 0 (`ok .../reducer/code/value 0.266s`, `ok .../query/impact 0.673s`).
+  These are the two `MatchSink` / `GraphBackedSinkSpecs` callers at this head:
+  `query/impact/exposure_path_mapping.go:87` and
+  `reducer/code/value/cloud_sink_loader.go:129`. An earlier revision of this
+  note recorded the same run against `reducer/valueflow`, which does not exist
+  in the tree — the value-flow family moved to `reducer/code/value`. The
+  command as written could not have passed; it has been re-run as above.
 - `go vet ./internal/exposure/...`: exit 0.
 - `gofmt -l internal/exposure`: exit 0, no files listed.
 
@@ -139,7 +145,7 @@ copy, `cmp` against the backup exited 0, the bogus string left zero hits, and
 No-Regression Evidence: this change edits four `Provenance` string literals and
 the pinned `sinkCatalogVersionGolden` constant. Recognition fields are
 unchanged, so `MatchSink` and `GraphBackedSinkSpecs` return the same matches.
-The exposure suite and both caller packages (`reducer/valueflow`,
+The exposure suite and both caller packages (`reducer/code/value`,
 `query/impact`) pass unchanged. No query, graph write, SQL statement, queue
 path, or hot loop is touched, so there is no performance surface to measure.
 
