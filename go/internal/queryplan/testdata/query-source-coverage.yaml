@@ -318,9 +318,9 @@ source_coverage:
         non_hot: {class: keyed_support, source_sha256: ca7405c98d34a314c9adedfd341f37654883bdda17e8ecdfd56c57ba6fca9a6d, key_bound: single_key, max_results: 51}
   - file: impact/trace_deployment_oci.go
     calls:
-      - {symbol: "fetchOCIImageTagRows", count: 1, non_hot: {class: keyed_support, source_sha256: b696666d7b9f461c79eb99405b9c774fcd2065fe392a856554f80e262f6a2235, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
-      - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot: {class: keyed_support, source_sha256: 8fa07c65fe87f03fc96c2f5618e1b43030786ea2bb9f5488beca8c012d2cfe96, key_bound: bounded_key_batch, max_keys: 250, max_results: 750}}
-      - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: d9aae7aec06912474f3f17100dbf4cccd048e576761d352c82a0a8c35fc9747e, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
+      - {symbol: "fetchOCIImageTagRows", count: 1, non_hot: {class: keyed_support, source_sha256: 47ec44864fc2e260161cef608d97dac5b3e1b9ef0a6c102cb7146f34305ddd9d, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
+      - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot: {class: keyed_support, source_sha256: c1ff7b0177c42a1654ab071ef2e13e8a971ec893216882aa1b1048b3f77bc739, key_bound: bounded_key_batch, max_keys: 250, max_results: 750}}
+      - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: 112caca2d19c87a17a7f34799ba61e7c303d8f58feede1eac0d96fc11ae10d33, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
   - file: impact/trace_deployment_resources.go
     calls:
       - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 9dd90cb74928ac0f21d817744349736e7e0c38a52f5faa7cbd619eda95ab9337, key_bound: single_key, max_results: 2501}}
