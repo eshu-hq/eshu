@@ -1,0 +1,54 @@
+docs/public/observability/telemetry-coverage.md
+  s_20be138600ef1b::t_0d5d961a45f6bd 81,348
+go/internal/storage/postgres/repo_dependency_acceptance_gate_expiry_test.go
+  s_20be138600ef1b::t_11ad79b6dfaba7 9,285-286,303-304
+  s_20be138600ef1b::t_c6742f32f990b7 16-17,19,163-212,215-224,230-237,240-251,255-256,264-268,281-284,307-313,320-339,348-352,356-357
+  s_20be138600ef1b::t_35fffc07b34c0f 261-262,314-319,340-347,353-355
+  s_20be138600ef1b::t_4348a542399848 263,270
+  s_20be138600ef1b::t_52e5c822591d10 213-214,238-239,252-254,257-260,269,271-280
+  s_20be138600ef1b::t_fbe609754c012b 226-228,288-291,293-295
+  s_20be138600ef1b::t_15e22c44c5db56 225,229,287,292,296-302,305-306
+scripts/lib/dirgate-grandfather.tsv
+  s_20be138600ef1b::t_038cdb0ef93a5b 88,90-91
+docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md
+  s_20be138600ef1b::t_ff402c62954aad 308-312
+  s_20be138600ef1b::t_46e9bdb1fdeb23 337-345,355
+  s_20be138600ef1b::t_541b408995cd22 336
+  s_20be138600ef1b::t_bdfc06dfe1c914 361,363
+go/internal/reducer/workload_materialization_repo_phase.go
+  s_20be138600ef1b::t_04d3abde7440e3 289-336
+go/internal/reducer/repo_dependency_projection_workload_readiness_test.go
+  s_20be138600ef1b::t_ff402c62954aad 166-169
+go/internal/reducer/deployable_unit_correlation_edges.go
+  s_20be138600ef1b::t_541b408995cd22 22-26,33-34,54-55,99-100,113-115
+  s_20be138600ef1b::t_3f08b6e0c19649 126
+  s_20be138600ef1b::t_04d3abde7440e3 17,21,27-32,35-53,56-98,101-112,116-125
+go/internal/storage/postgres/relationship_store_resolved.go
+  s_20be138600ef1b::t_052b34b791d942 135
+  s_20be138600ef1b::t_04d3abde7440e3 12,14,101-102,106-134
+  s_20be138600ef1b::t_541b408995cd22 103-105
+go/internal/reducer/correlated_workload_projection_input_loader.go
+  s_20be138600ef1b::t_04d3abde7440e3 18-19,23-37
+  s_20be138600ef1b::t_541b408995cd22 20-22
+go/internal/storage/cypher/canonical_relationships.go
+  s_20be138600ef1b::t_04d3abde7440e3 463-465,469-478
+  s_20be138600ef1b::t_541b408995cd22 466-468
+tools/golangci-lint-dirgate/grandfather.go
+  s_20be138600ef1b::t_4e02666231ed90 34,36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6269356ac4ba157c6a08110ca564d588c9a586e4",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
