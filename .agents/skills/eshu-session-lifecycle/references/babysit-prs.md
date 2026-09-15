@@ -10,8 +10,12 @@ Triggers: a PR you created is open; review bots are running; CI is in flight;
 
 1. **Arm one watcher over all your open PRs, not one per PR.** A per-PR watcher
    misses the interesting case, which is two of your PRs colliding on the same
-   path. Poll on an interval of 30 seconds or less, and act on the first signal
-   rather than waiting for the full check set to finish.
+   path. Poll about every 60 seconds — the same cadence as
+   [monitoring.md](../../eshu-issue-driver/references/monitoring.md) and
+   [sustained-drives.md](../../eshu-issue-driver/references/sustained-drives.md),
+   so a drive that both drives issues and babysits PRs is not asked to hold two
+   cadences at once — and act on the first signal rather than waiting for the
+   full check set to finish.
 
 2. **Scope "yours" correctly.** The GitHub account is shared by concurrent
    agents, so `--author` is not ownership. A PR is yours when you can point at
