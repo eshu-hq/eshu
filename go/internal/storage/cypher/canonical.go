@@ -178,13 +178,6 @@ SET rel.confidence = 0.9,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = row.evidence_source`
 
-const batchCanonicalWorkloadDependencyLegacyIdentityCleanupCypher = `UNWIND $rows AS row
-MATCH (source:Workload {id: row.workload_id})
-MATCH (target:Workload {id: row.target_workload_id})
-MATCH (source)-[rel:DEPENDS_ON]->(target)
-WHERE rel.identity_key IS NULL
-DELETE rel`
-
 // --- Batched UNWIND Cypher (SQL relationship edges) ---
 
 const batchCanonicalSQLQueriesTableUpsertCypher = `UNWIND $rows AS row

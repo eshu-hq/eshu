@@ -349,17 +349,20 @@ shared workload-replay recorder used by the multi-worker proof. The exact test
 reproduced the race locally before the recorder gained a mutex, then passed ten
 consecutive executions under the race detector.
 
-The next Ifá fault run exposed a separate production race: concurrent source-
+Root-Cause Evidence: the next Ifá fault run exposed a separate production race:
+two concurrently successful writer logs showed source- and target-scope
+workload passes committing the same logical edge, and that run's graph check
+reported `graph=2, expected=1`. Concurrent source-
 and target-scope workload passes both committed the same propertyless
 Workload-to-Workload `DEPENDS_ON`, leaving two edges where the expected set
 contained one. A live overlap regression held one writer before commit and
 proved the second could commit independently; the unkeyed shape failed with
 `graph=2, expected=1`. Keying the relationship MERGE with
 `identity_key='canonical'` passed ten identical overlap trials without reducing
-worker concurrency. The production route now removes propertyless legacy edges
-and performs the keyed MERGE in one graph transaction. Live tests also prove
-mixed legacy duplicates converge to one keyed edge and that a failed keyed
-write rolls the cleanup back. The exact live set passed three race-enabled
+worker concurrency. The hot production route now performs only the keyed MERGE;
+the existing workload-dependency retract-then-replay boundary owns replacement of propertyless legacy edges during the required post-upgrade graph rebuild.
+This avoids adding a relationship-set scan to every steady-state write batch.
+A live rebuild-boundary regression proves two propertyless legacy edges retract to zero before replay writes one keyed edge. The exact live set passed three
 executions, while both Ifá structural suites passed with the updated identity
 fixture and graph-fault anchor.
 
@@ -441,10 +444,25 @@ The complete shard exited zero.
   timeout now derives from the five-minute drain bound plus a one-minute margin;
   the successful immediate-recovery result above is the runtime proof.
 - Runtime cost: the readiness gates add index-served `EXISTS` probes over
-  scope-count row sets. A keyed `RUNS_ON` or workload `DEPENDS_ON` batch adds
-  one cleanup statement; deterministic identity preserves writer concurrency.
-  A
-  matching pre-upgrade edge adds one bounded cleanup statement per batch.
+  scope-count row sets. Deterministic workload `DEPENDS_ON` identity preserves writer concurrency without adding a cleanup statement to the hot path.
+  Propertyless workload-edge replacement stays at the existing domain retract-then-replay boundary required by the upgrade procedure.
+  Same-host, fresh-volume NornicDB v1.3.2 proof used the pinned image digest
+  below, applied only the production `Workload.id` uniqueness constraint before
+  data, and timed five alternating trials over 500 distinct dependency pairs
+  (1,000 Workload anchors). The old one-statement propertyless MERGE measured
+  `137.819ms`, `123.873ms`, `124.085ms`, `124.753ms`, and `126.926ms`
+  (median `124.753ms`). The final one-statement keyed MERGE measured
+  `133.978ms`, `140.759ms`, `122.266ms`, `128.773ms`, and `129.150ms`
+  (median `129.150ms`). The added median cost is `4.397ms` at the maximum
+  500-row edge batch, 0.015% of the default 30-second NornicDB graph-write
+  budget; every trial preserved exactly 500 relationships. Timings cover only
+  the graph transaction; node seed, cardinality readback, and fixture teardown
+  were outside the interval. Statement summaries were old: one indexed
+  `MATCH`/`MATCH` plus propertyless `MERGE`; final: the same indexed
+  `MATCH`/`MATCH` with a keyed `MERGE`. The live command was
+  `ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:<isolated-port> go test
+  ./internal/storage/cypher -run '^TestBoltWorkloadDependencyBatchShapeTiming$'
+  -count=1 -v`; it exited zero.
   Exact claim-token predicates add comparisons on the
   already-selected queue row and do not change batch sizes or worker counts.
   The relation-wide `EXCLUSIVE` lock is recovery-only, acquired after the queue
