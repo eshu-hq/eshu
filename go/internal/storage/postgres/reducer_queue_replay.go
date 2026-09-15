@@ -117,6 +117,17 @@ WHERE work_item_id = $2
   AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
 `
 
+// workloadMaterializationReplayScheduledQuery resolves the concurrent-insert
+// case after enqueue's ON CONFLICT DO NOTHING reports zero affected rows. The
+// follow-up statement runs with a fresh Read Committed snapshot, so it can see
+// the winner after PostgreSQL finishes conflict arbitration.
+const workloadMaterializationReplayScheduledQuery = `
+SELECT status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
+FROM fact_work_items
+WHERE work_item_id = $1
+  AND stage = 'reducer'
+`
+
 const countInFlightReducerWorkByDomainQuery = `
 SELECT COUNT(*)
 FROM fact_work_items
@@ -204,6 +215,9 @@ func (q ReducerQueue) ReplayDomain(
 
 // ReplayWorkloadMaterialization replays the canonical workload materialization
 // intent(s) for one scope generation after stronger deployment evidence lands.
+// It returns false only when neither this caller nor a concurrent caller has
+// scheduled replayable work, including when the stable work-item identity
+// already names a dead-lettered row.
 func (q ReducerQueue) ReplayWorkloadMaterialization(
 	ctx context.Context,
 	scopeID string,
@@ -241,11 +255,41 @@ func (q ReducerQueue) ReplayWorkloadMaterialization(
 	if matched > 0 {
 		return true, nil
 	}
-	if _, err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now()); err != nil {
+	inserted, err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now())
+	if err != nil {
 		return false, fmt.Errorf("schedule workload materialization replay: %w", err)
 	}
+	if inserted > 0 {
+		return true, nil
+	}
 
-	return true, nil
+	return q.workloadMaterializationReplayScheduled(ctx, workItemID)
+}
+
+func (q ReducerQueue) workloadMaterializationReplayScheduled(
+	ctx context.Context,
+	workItemID string,
+) (bool, error) {
+	rows, err := q.db.QueryContext(ctx, workloadMaterializationReplayScheduledQuery, workItemID)
+	if err != nil {
+		return false, fmt.Errorf("check workload materialization replay after enqueue conflict: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return false, fmt.Errorf("iterate workload materialization replay after enqueue conflict: %w", err)
+		}
+		return false, nil
+	}
+	var scheduled bool
+	if err := rows.Scan(&scheduled); err != nil {
+		return false, fmt.Errorf("scan workload materialization replay after enqueue conflict: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("iterate workload materialization replay after enqueue conflict: %w", err)
+	}
+	return scheduled, nil
 }
 
 // ReplayCrossplaneSatisfiedByMaterialization re-drives one target Claim

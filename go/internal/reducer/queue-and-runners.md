@@ -91,6 +91,22 @@ contract does not globally serialize repo-dependency work. Changing the worker
 count does not weaken acceptance-unit atomicity and does not inherit the main
 reducer's `ESHU_REDUCER_WORKERS` value.
 
+An acceptance unit containing `RUNS_ON` waits for an exact token-scoped
+`workload_materialization` phase before any repo-dependency retract, upsert, or
+completion. The token hashes the sorted RUNS_ON intent identities and their
+current acceptance epochs. A missing token phase durably replays workload
+materialization with that token in the queue payload and leaves the entire
+repository unit pending; a legacy same-generation phase cannot satisfy it.
+Replaying an older active claim sets the existing cross-scope dirty bit without
+stealing its lease, so its ACK returns the token-bearing work to pending. The
+workload handler publishes the token phase only after graph writes commit.
+Unrelated repository shards continue concurrently. A replay that cannot be
+scheduled, including conflict with a dead-lettered workload item, fails the
+cycle and quarantines its partition lease instead of polling a permanently
+closed gate. The readiness block is logged with the acceptance-unit identity
+and remains visible through `BlockedReadiness` plus shared-intent queue
+age/depth.
+
 ## Graph projection phase coordination
 
 `graph_projection_phase_state` is the durable readiness coordination table.

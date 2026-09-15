@@ -291,6 +291,73 @@ This adds no storage call, graph statement, worker, retry, or serialization.
 It performs an in-memory identity check over the already loaded repository
 facts and strictly narrows empty-result retraction rows.
 
+## Defect 7 — repo-dependency RUNS_ON completed before its workload endpoint
+
+The Ifá `killworker_repo_dependency` cell failed twice on PR #6634 with six of
+seven expected relationships. The only missing edge was the canonical
+`RUNS_ON` from the source workload instance to its Kubernetes platform. The
+post-recovery logs showed repo-dependency writing all seven intents before
+three later workload-materialization passes committed. The repo-dependency
+writer uses `MATCH` for the existing `WorkloadInstance`, so the early write
+affected zero graph rows without returning an error; the runner then completed
+the intent and never revisited it.
+
+The repo-dependency acceptance unit now computes a deterministic SHA-256 fence
+over each active `RUNS_ON` input set and checks the exact token-scoped
+`workload_materialization` phase while holding the repository acceptance gate.
+The fence includes the durable intent identity and its acceptance `created_at`,
+so another resolution of an otherwise identical relationship set still creates
+a new causal token. Missing readiness schedules a durable workload replay that
+carries the token in the existing queue payload and returns `BlockedReadiness`
+before any repository retract, upsert, or intent completion. The workload pass
+publishes that exact token phase only after its graph writes commit. An old
+phase, or an old in-flight pass that publishes after the new acceptance, cannot
+open the gate; the queue's replay bit returns the stale claim to pending first.
+The full repository unit retries after the token-bearing endpoint pass commits,
+preserving snapshot replacement atomicity without reducing worker count or
+serializing unrelated repositories.
+
+Both readiness dependencies are mandatory runner wiring, including fenced
+replay support. The queue preserves an active lease, dirties it only when its
+token changes, and retries its status-aware update after losing a concurrent
+first insert. An unfenced replay that loses the same insert race performs a
+fresh status read; under PostgreSQL Read Committed that read observes the
+committed winner. A genuinely unschedulable replay, including an existing
+dead-lettered workload item, becomes a quarantined cycle error instead of a
+permanent readiness polling loop.
+
+The mixed-unit regression was written before the gate. It failed because the
+runner wrote and completed `RUNS_ON` while readiness was absent. It now proves
+that a legacy phase does not satisfy the new token, zero retracts, writes, and
+completions occur while blocked, and the entire unit completes only after the
+token phase appears. Token tests prove input ordering does not change the fence
+while either a changed input set or a new acceptance epoch does. Workload tests
+cover both zero- and nonzero-candidate token publication. Live PostgreSQL tests
+prove concurrent first schedulers both report success, an old claim is dirtied
+by a new token, an equal-token poll does not dirty the current claim, and a
+newer token supersedes it without stealing the lease.
+
+```bash
+go test ./internal/reducer ./internal/storage/postgres ./cmd/reducer \
+  -run 'RepoDependency|ReplayWorkloadMaterialization|RunsOn|DefaultRuntime|Wiring' \
+  -count=1
+go test -race ./internal/reducer \
+  -run 'TestRepoDependencyProjectionRunner(DefersRunsOnUntilWorkloadReady|RejectsUnschedulableRunsOnReplay)$' \
+  -count=1
+ESHU_POSTGRES_DSN="$TEST_DSN" go test ./internal/storage/postgres \
+  -run 'TestWorkload(ReplayConcurrentFirstScheduleReportsSuccess|FencedReplaySupersedesOnlyOlderInFlightToken)$' \
+  -count=1
+bash scripts/verify-ifa-fault-injection.sh --shard 17/17
+```
+
+The focused Ifá shard ran only the common baseline and the atomic
+repo-dependency family. `baseline_repo_dependency` (82 s),
+`killworker_repo_dependency` (143 s), and
+`failgraphwrite_repo_dependency` (85 s) each reached terminal zero with no dead
+letters, matched all seven expected repo-dependency edges, and produced the
+same digest `b1fd95c655187e502fc71b6664283f3d7ccde1f8b31872c6072625cacf0a9c0f`.
+The complete shard exited zero.
+
 ## No-Regression Evidence:
 
 - Baseline: #4594 evidence — 341 s rebuild on the Compose fixture corpus

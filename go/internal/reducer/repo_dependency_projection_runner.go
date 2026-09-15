@@ -42,8 +42,11 @@ type RepoDependencyProjectionRunner struct {
 	AcceptanceUnitGate              RepoDependencyAcceptanceUnitGate
 	EdgeWriter                      SharedProjectionEdgeWriter
 	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
-	AcceptedGen                     AcceptedGenerationLookup
-	AcceptedGenPrefetch             AcceptedGenerationPrefetch
+	// WorkloadReadinessPrefetch reports whether RUNS_ON endpoint materialization
+	// committed before the repo-dependency acceptance unit may write its edges.
+	WorkloadReadinessPrefetch GraphProjectionReadinessPrefetch
+	AcceptedGen               AcceptedGenerationLookup
+	AcceptedGenPrefetch       AcceptedGenerationPrefetch
 	// CanonicalQuiescence holds the lane until every code scope's active
 	// generation has committed canonical nodes (#6184). The lane's artifact
 	// and edge writes MATCH Repository nodes from both the source and

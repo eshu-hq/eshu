@@ -455,6 +455,7 @@ func buildReducerService(
 		RepoDependencyProjectionRunner: newRepoDependencyProjectionRunner(
 			intentStore, database, edgeWriter, workQueue,
 			relationshipGenerationActive, acceptedGenerationPrefetch,
+			graphProjectionReadinessPrefetch,
 			repoDependencyCfg, tracer, instruments, logger,
 		),
 		CodeReachabilityProjectionRunner: codeReachabilityProjectionRunnerFor(database, sharedCfg, workers, logger),

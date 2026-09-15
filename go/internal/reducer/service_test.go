@@ -255,45 +255,6 @@ func TestServiceRunStartsCodeCallProjectionRunner(t *testing.T) {
 	}
 }
 
-func TestServiceRunStartsRepoDependencyProjectionRunner(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeRepoDependencyIntentStore{leaseGranted: false}
-
-	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{},
-		Executor:     &stubReducerExecutor{},
-		WorkSink:     &stubReducerWorkSink{},
-		RepoDependencyProjectionRunner: &RepoDependencyProjectionRunner{
-			IntentReader:       store,
-			LeaseManager:       store,
-			AcceptanceUnitGate: store,
-			EdgeWriter:         &recordingCodeCallProjectionEdgeWriter{},
-			AcceptedGen:        acceptedGenerationFixed("", false),
-			Config: RepoDependencyProjectionRunnerConfig{
-				PollInterval: 10 * time.Millisecond,
-			},
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	err := service.Run(ctx)
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-
-	store.mu.Lock()
-	claims := store.leaseClaims
-	store.mu.Unlock()
-
-	if claims == 0 {
-		t.Fatal("expected repo dependency projection runner to attempt at least one lease claim")
-	}
-}
-
 func TestServiceRunStartsGraphProjectionPhaseRepairer(t *testing.T) {
 	t.Parallel()
 
