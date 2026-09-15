@@ -159,4 +159,29 @@ else
 fi
 
 # LAST line on purpose -- see the sibling companions.
+
+# ── revoke matched by command prefix only (#6714 review) ─────────────────────
+# A one-line goal whose OBJECTIVE mentions revoke-consent must start the new
+# goal with its grant, not strip the existing goal's consent.
+rvw="${work}/oneline-revoke-word"
+mkdir -p "${rvw}/.claude"
+rvsid="onelinerevoke-$$"
+rvgoal="${rvw}/.claude/active-goal.${rvsid}"
+rm -f "${rvgoal}"
+submit "${rvsid}" '/goal consent merge -- Old objective.' "${rvw}" >/dev/null
+submit "${rvsid}" '/goal consent push -- Repair the revoke-consent command.' "${rvw}" >/dev/null
+if rg -q 'Repair the revoke-consent command\.' "${rvgoal}" 2>/dev/null \
+	&& rg -q '^CONSENT: push$' "${rvgoal}" 2>/dev/null \
+	&& ! rg -q 'Old objective' "${rvgoal}" 2>/dev/null; then
+	ok "REVOKE WORD: a goal mentioning revoke-consent starts the new goal with its grant"
+else
+	no "REVOKE WORD: a goal mentioning revoke-consent starts the new goal with its grant (got: $(tr '\n' '|' < "${rvgoal}" 2>/dev/null))"
+fi
+submit "${rvsid}" '/goal revoke-consent' "${rvw}" >/dev/null
+if ! rg -q '^CONSENT:' "${rvgoal}" 2>/dev/null && rg -q 'Repair the revoke-consent command\.' "${rvgoal}" 2>/dev/null; then
+	ok "REVOKE WORD: the real /goal revoke-consent command still clears the grant"
+else
+	no "REVOKE WORD: the real /goal revoke-consent command still clears the grant"
+fi
+
 goal_refresh_oneline_consent_cases_loaded=1

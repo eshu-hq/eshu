@@ -308,8 +308,10 @@ try:
 except Exception:
     pass
 '
+		# Revoke by command prefix only: a one-line goal whose objective says
+		# "revoke-consent" must not strip the existing grant (#6714 review).
 		case "${prompt}" in
-			*revoke-consent*)
+			'/goal revoke-consent'|'/goal revoke-consent '*|'GOAL: revoke-consent'|'GOAL: revoke-consent '*)
 				target="${goal_file:-}"
 				writable_goal_target "${target}" consent || exit 0
 				ACTS="" TARGET="${target}" python3 -c "${consent_edit_py}" 2>/dev/null || true
