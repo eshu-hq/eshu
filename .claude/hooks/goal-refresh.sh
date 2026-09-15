@@ -266,16 +266,15 @@ case "${prompt}" in
 		# Every rejection below says so on stderr. A consent that silently goes
 		# nowhere is the exact loop this feature exists to close -- the owner
 		# types it, nothing records it, the next Stop asks again.
-		target="${goal_file:-}"
-		writable_goal_target "${target}" consent || exit 0
-		case "${prompt}" in
-			*revoke-consent*) acts="" ;;
-			*)
-				acts="${prompt#*consent}"
-				acts="${acts# }"
-				;;
-		esac
-		ACTS="${acts}" TARGET="${target}" python3 -c '
+		#
+		# One-line form: `/goal consent <acts> -- <goal text>` starts a NEW goal
+		# with the grant already attached, so an unattended launch never sits in
+		# the window between a bare `/goal <text>` and a follow-up `/goal
+		# consent` for the owner to fill. Split on the FIRST ` -- ` only -- a
+		# goal that discusses consent, or contains a later ` -- `, stays
+		# objective text. The dash check pads with a trailing space first so
+		# `push --` (acts with no text) is caught the same as `push -- text`.
+		consent_edit_py='
 import os, sys
 target = os.environ["TARGET"]
 acts = os.environ["ACTS"].strip()
@@ -308,8 +307,52 @@ try:
     os.replace(target + ".tmp", target)
 except Exception:
     pass
-' 2>/dev/null || true
-		exit 0
+'
+		# Revoke by command prefix only: a one-line goal whose objective says
+		# "revoke-consent" must not strip the existing grant (#6714 review).
+		case "${prompt}" in
+			'/goal revoke-consent'|'/goal revoke-consent '*|'GOAL: revoke-consent'|'GOAL: revoke-consent '*)
+				target="${goal_file:-}"
+				writable_goal_target "${target}" consent || exit 0
+				ACTS="" TARGET="${target}" python3 -c "${consent_edit_py}" 2>/dev/null || true
+				exit 0
+				;;
+		esac
+		remainder="${prompt#*consent}"
+		padded="${remainder} "
+		case "${padded}" in
+			*' -- '*)
+				oneline_acts="${padded%%' -- '*}"
+				oneline_acts="${oneline_acts#"${oneline_acts%%[![:space:]]*}"}"
+				oneline_acts="${oneline_acts%"${oneline_acts##*[![:space:]]}"}"
+				oneline_text="${padded#*' -- '}"
+				oneline_text="${oneline_text#"${oneline_text%%[![:space:]]*}"}"
+				oneline_text="${oneline_text%"${oneline_text##*[![:space:]]}"}"
+				if [ -z "${oneline_acts}" ] || [ -z "${oneline_text}" ]; then
+					printf 'goal-refresh: /goal consent <acts> -- <goal text> needs a non-empty acts list and a non-empty goal; nothing written.\n' >&2
+					exit 0
+				fi
+				# Same target/permission rule as the plain `/goal <text>` producer
+				# below: have_cwd or CLAUDE_GOAL_FILE, never
+				# writable_goal_target's must-already-exist rule -- this form's
+				# whole point is starting a goal that does not exist yet.
+				[ "${have_cwd}" = "1" ] || [ -n "${CLAUDE_GOAL_FILE:-}" ] || exit 0
+				mkdir -p "$(dirname "${goal_write}")" 2>/dev/null || exit 0
+				{
+					printf 'SESSION: %s\n' "${session_id}"
+					printf 'CONSENT: %s\n' "${oneline_acts}"
+					printf '%s\n' "${oneline_text}"
+				} > "${goal_write}" 2>/dev/null || exit 0
+				goal_file="${goal_write}"
+				;;
+			*)
+				target="${goal_file:-}"
+				writable_goal_target "${target}" consent || exit 0
+				acts="${remainder# }"
+				ACTS="${acts}" TARGET="${target}" python3 -c "${consent_edit_py}" 2>/dev/null || true
+				exit 0
+				;;
+		esac
 		;;
 	'/goal '*|'GOAL: '*)
 		# Writing is what needs a cwd; without one there is no worktree to
