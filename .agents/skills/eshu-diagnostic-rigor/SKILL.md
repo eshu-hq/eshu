@@ -1,6 +1,6 @@
 ---
 name: eshu-diagnostic-rigor
-description: Establish causes of Eshu runtime failures, queue stalls, backend slowness, or intermittent proof failures before changing behavior.
+description: Use when establishing the cause of an unexplained Eshu runtime failure, queue stall, backend slowness, intermittent test/gate failure, or wrong API/MCP result, before changing behavior. Covers runtime attribution, gate contention, and API/MCP validation. Not for proving a speed claim once the cause is known, use eshu-performance-rigor.
 ---
 
 # Eshu Diagnostic Rigor

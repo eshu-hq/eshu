@@ -1,12 +1,15 @@
 ---
 name: concurrency-deadlock-rigor
-description: Design or verify Eshu concurrent workers, queues, leases, retries, and shared-state coordination.
+description: Use when designing or verifying Eshu concurrent workers, queues, leases, retries, claim/lock ordering, or shared-state coordination whose correctness depends on interleaving. Covers the replay/retry matrix and required contention proof. Not for a pure speed claim on already-safe concurrency, use eshu-performance-rigor.
 ---
 
 # Concurrency And Deadlock Rigor
 
 Use this skill when correctness depends on ordering, isolation, coordination, or
-shared-state access. Do not change concurrent behavior from intuition.
+shared-state access. Do not change concurrent behavior from intuition. A
+queue/lease/claim change is in scope for root
+[Prove-The-Theory-First](../../../CLAUDE.md#mandatory-prove-the-theory-first):
+prove the theory with the cheapest shim before implementing or dispatching it.
 
 Add `eshu-performance-rigor` when changing concurrency to improve throughput,
 queue drain, bootstrap wall time, or resource use.
@@ -42,8 +45,11 @@ Before proposing or implementing a non-trivial change, MUST identify:
    ownership separation, conflict-domain partitioning, durable coordination, or
    explicit sequencing.
 7. Preserve useful concurrency. Lower worker counts, smaller batches, longer
-   timeouts, and more retries are diagnostics or temporary mitigations unless
-   evidence proves they are the right architecture.
+   timeouts, and more retries are diagnostics or temporary mitigations, never a
+   shipped fix for a non-idempotent write, `MERGE` race, or uniqueness
+   conflict — see root
+   [Serialization Is Not A Fix](../../../CLAUDE.md#serialization-is-not-a-fix)
+   for the accepted exceptions and their proof bar.
 
 ## Replay And Retry Matrix
 

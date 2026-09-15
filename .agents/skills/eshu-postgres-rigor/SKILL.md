@@ -1,6 +1,6 @@
 ---
 name: eshu-postgres-rigor
-description: Design, debug, or review Eshu Postgres SQL, schema, transactions, queue claims, and relational performance.
+description: Use when designing, debugging, or reviewing Eshu Postgres SQL, schema, transactions, locks, or queue claims (fact_work_items, leases, retries, dead-letter). Covers symptom classification, EXPLAIN/pg_stat evidence, and index doctrine. Not for Cypher/graph work, use cypher-query-rigor; not for an unmeasured latency claim, use eshu-performance-rigor.
 ---
 
 # Eshu Postgres Rigor
@@ -68,8 +68,9 @@ For `fact_work_items`, reducer/shared projection queues, and liveness queries:
 - distinguish source-local projection completion from downstream shared backlog
 - prevent recovery loops from consuming attempt budgets while a recovery row is
   already pending, claimed, running, retrying, or successfully completed
-- never serialize workers or reduce batch size as the fix without repo-scale
-  proof and a tracked design reason
+- never serialize workers or reduce batch size as the fix; see root
+  [Serialization Is Not A Fix](../../../CLAUDE.md#serialization-is-not-a-fix)
+  for the only accepted exceptions and their proof bar
 
 ## Postgres Versus Graph Time
 
