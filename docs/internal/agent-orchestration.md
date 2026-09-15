@@ -160,6 +160,23 @@ performance/debug model and record the substitution in the handoff. Long waits,
 build polling, and GitHub bookkeeping remain coordinator or script work, not
 frontier-model work.
 
+Commit before dispatching any subagent. A subagent scoped as read-only has
+still reverted a production fix while probing whether a test was tautological
+— the reviewer's own tools were not the boundary that mattered, and a
+committed HEAD was the only reason the fix was recoverable. Never hand a
+subagent a working tree the dispatcher cannot restore.
+
+Re-verify a subagent's findings before acting on them, and before relaying
+them to another agent as verified. A subagent's report is a claim, not
+evidence: the dispatcher checks it against the source, the diff, or a rerun
+before treating it as settled, and never forwards it as "confirmed" on the
+strength of the subagent's own confidence.
+
+While a dispatched agent is in flight, check its liveness at most every 60
+seconds. Liveness means its process is still running, it has produced new
+commits, or the harness reports it active — never a file's mtime, which a
+thinking agent leaves untouched for long stretches while still working.
+
 ## The gate floor
 
 The floor is **strong**: the following dimensions are enforced by a blocking CI
