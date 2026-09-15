@@ -37,8 +37,8 @@ See `doc.go` for the full godoc contract.
 
 ## Related docs
 
-- `docs/docs/<page>.md`
-- ADR: `docs/docs/adrs/<file>.md`
+- `docs/public/<page>.md`
+- Design rationale (if one exists): `docs/internal/design/<file>.md`
 ```
 
 ## doc.go template
@@ -106,8 +106,8 @@ See `doc.go` for the full contract.
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md`
-- `docs/docs/reference/local-testing.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/local-testing.md`
 ```
 
 `doc.go`:
@@ -174,8 +174,8 @@ See `doc.go` for the contract.
 
 ## Related docs
 
-- `docs/docs/architecture.md` (graph backend section)
-- `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
+- `docs/public/architecture.md` (see "Keep backend differences behind the seam")
+- `docs/public/reference/graph-backend-installation.md`
 ```
 
 `doc.go`:
@@ -235,7 +235,7 @@ inherit its span.
 
 ## Related docs
 
-- `docs/docs/reference/http-api.md` (explain endpoint)
+- `docs/public/reference/http-api.md` (explain endpoint)
 ```
 
 `doc.go`:
