@@ -311,25 +311,50 @@ separately is what let this through.
 strip loop in `goal-continue.sh` and its mirror in `goal-refresh.sh` both stop
 treating lines as metadata at the first ordinary line. A `CONSENT:` line
 placed after the objective is body text, never a grant: neither hook reads
-it, so the stop reason is never lifted. Grant a mid-drive consent with its own
-`/goal consent <acts>` command — which writes a leading `CONSENT:` line —
-never a trailing line appended to the goal text. See
+it, so the stop reason is never lifted. See
 [sustained-drives.md](../../.agents/skills/eshu-issue-driver/references/sustained-drives.md)
 for the per-harness template that avoids this.
 
-That command is for extending a drive already in flight, though, not for the
-initial grant: `/goal <text>` and `/goal consent <acts>` are two chat turns,
-and `goal-continue.sh`'s Stop hook exists to keep a drive working once the
-first one lands — an unattended launch has no guaranteed window to send the
-second before the first push (codex#4018964359). `CLAUDE_GOAL_CONSENT`, set
-by the launcher before the session's first prompt, is what makes the initial
-grant atomic with starting the drive: both hooks read it directly from the
-environment (`goal-continue.sh:262-264`; `goal-refresh.sh` via `CONSENT_ENV`
-into `lib/goal-refresh-note.py:37-39`), independently of anything in the goal
-file, so it is already in force for the very first Stop and there is no
-second command to race. `scripts/test-goal-refresh-hook-atomic-consent-cases.sh`
+Two forms grant it correctly instead, and they cover different moments.
+
+**Setting the goal and consenting to it in one prompt.**
+`/goal consent <acts> -- <goal text>` (also matched with the `GOAL:` prefix)
+is the producer's consent arm reading a ` -- ` (space, two dashes, space) in
+what follows `consent`: everything before the FIRST one becomes the `CONSENT:`
+line, everything after becomes the objective, and `goal-refresh.sh` writes a
+fresh goal file — `SESSION:`, then `CONSENT:`, then the text — through the
+same `have_cwd`/`CLAUDE_GOAL_FILE` and `goal_write` target the plain `/goal
+<text>` producer uses, not `writable_goal_target`'s must-already-exist rule,
+because this form's entire point is starting a goal that does not exist yet.
+Splitting on the first ` -- ` only means a goal that itself discusses consent,
+or contains a later ` -- `, stays objective text (`/goal consented users --
+need a path` does not even reach this arm — see the word-boundary note above).
+Empty acts (`/goal consent -- text`) or empty goal text (`/goal consent push
+--`) are rejected on stderr with nothing written, the same way the arm's other
+rejections are. This closes the same race as `CLAUDE_GOAL_CONSENT` below, for
+a plain chat turn with no launcher in the loop: one command, so there is
+nothing to race. `scripts/test-goal-refresh-hook-oneline-consent-cases.sh`
+proves it end to end against both hooks.
+
+**Granting consent from a launcher, before the first prompt.** `/goal <text>`
+and `/goal consent <acts>` (without ` -- <goal text>`, which only edits the
+`CONSENT:` line of a goal that already exists) are two chat turns, and
+`goal-continue.sh`'s Stop hook exists to keep a drive working once the first
+one lands — an unattended launch controlled by a script, not a person typing,
+has no guaranteed window to send the second before the first push
+(codex#4018964359). `CLAUDE_GOAL_CONSENT`, set by the launcher before the
+session's first prompt, is what makes the initial grant atomic with starting
+the drive in that case: both hooks read it directly from the environment
+(`goal-continue.sh:262-264`; `goal-refresh.sh` via `CONSENT_ENV` into
+`lib/goal-refresh-note.py:37-39`), independently of anything in the goal file,
+so it is already in force for the very first Stop and there is no second
+command to race. `scripts/test-goal-refresh-hook-atomic-consent-cases.sh`
 proves this end to end against both hooks, alongside the negative case: a
 goal body that merely mentions "consent" in prose grants nothing.
+
+`/goal consent <acts>` by itself remains correct for a grant made *after* the
+drive is already running — extending it mid-flight, or covering an act
+neither the one-line form nor the launcher anticipated.
 
 ### The skill nudge inside the goal restatement
 
