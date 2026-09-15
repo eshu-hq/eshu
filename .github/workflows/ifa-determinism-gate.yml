@@ -323,6 +323,13 @@ on:
       # The fault job installs ripgrep through this before running the gate,
       # and the gate's preconditions shell out to rg.
       - 'scripts/ci/install-apt-packages.sh'
+      # #6162: every Go-building job (determinism-matrix, dead-letter-matrix,
+      # fault-injection) pre-warms modules through this shared retry helper
+      # before its first build/test step. verify-ci-gates-registry.sh checks
+      # every job's `run:` line against its gate's registry triggers, so this
+      # row keeps a PR editing only the helper from selecting no gate locally
+      # and failing first in CI.
+      - 'scripts/ci/go-mod-download-retry.sh'
       - 'scripts/test-verify-ifa-fault-injection.sh'
       # #5351 materialized-edge exhaustiveness gate: the SQL relationship family
       # cassette is driven into every determinism cell (with a per-cell
@@ -556,6 +563,11 @@ jobs:
     name: determinism-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # --keep below skips the script's own compose teardown, and the script
+    # otherwise names its project with a PID suffix this workflow cannot
+    # guess; pin it so the log-dump and teardown steps address the real stack.
+    env:
+      DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
@@ -566,26 +578,58 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
+      # Pre-warm modules with retries so a dropped proxy stream fails HERE,
+      # named for what it is, instead of surfacing as a determinism-matrix
+      # red that never ran a cell (#6075 follow-up; runs 34627429845,
+      # 34007134864, 33551099795, 34370706054).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       # No retry-to-green: this platform's flake policy (design doc P4)
       # forbids normalizing a real divergence away by retrying or lowering N.
+      # --keep: without it the script's own EXIT trap deletes the work dir
+      # (every N's canonical graph dump, rationale-delta dump, and host binary
+      # logs) before the failure-artifact upload below can run (#6162).
       - name: Run Ifa graph-determinism matrix (N=1,2,4; demo-org + synth-multiscope, Tier 2)
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
-        run: bash scripts/verify-ifa-determinism.sh
+        run: bash scripts/verify-ifa-determinism.sh --keep
 
       - name: Dump service logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yaml logs --tail=200 || true
+        run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
+
+      # #6162: upload the kept (--keep) work dir's per-N canonical graph
+      # dumps, rationale-delta dumps, and host binary logs, not just the
+      # backend container log tail above. A mismatch (e.g. a rationale
+      # non-convergence, run 33788992677) needs the actual bytes, not just the
+      # printed digest, to diagnose.
+      - name: Upload determinism-matrix diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ifa-determinism-matrix-attempt-${{ github.run_attempt }}-failure
+          path: |
+            /tmp/ifa-determinism.*/graph-n*.dump
+            /tmp/ifa-determinism.*/rationale-delta-n*.dump
+            /tmp/ifa-determinism.*/logs/*.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Tear down Docker services
         if: always()
-        run: docker compose -f docker-compose.yaml down -v || true
+        run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
 
   dead-letter-matrix:
     name: dead-letter-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # --keep below skips the script's own compose teardown, and the script
+    # otherwise names its project with a PID suffix this workflow cannot
+    # guess; pin it so the log-dump and teardown steps address the real stack.
+    env:
+      DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
@@ -596,19 +640,41 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
+      # Pre-warm modules with retries so a dropped proxy stream fails HERE,
+      # named for what it is, instead of surfacing as a dead-letter-matrix red
+      # that never ran a cell (#6075 follow-up).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
+      # --keep: without it the script's own EXIT trap deletes the mutated
+      # cassette and host binary logs before the failure-artifact upload below
+      # can run (#6162).
       - name: Run Ifa dead-letter-set determinism matrix (N=1,2,4)
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
-        run: bash scripts/verify-ifa-dead-letter-matrix.sh
+        run: bash scripts/verify-ifa-dead-letter-matrix.sh --keep
 
       - name: Dump service logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yaml logs --tail=200 || true
+        run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
+
+      # #6162: upload the kept (--keep) work dir's mutated cassette and
+      # host binary logs, not just the backend container log tail above.
+      - name: Upload dead-letter-matrix diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ifa-dead-letter-matrix-attempt-${{ github.run_attempt }}-failure
+          path: |
+            /tmp/ifa-deadletter-matrix.*/mutated.json
+            /tmp/ifa-deadletter-matrix.*/logs/*.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Tear down Docker services
         if: always()
-        run: docker compose -f docker-compose.yaml down -v || true
+        run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
 
   # Sharded across four parallel runners. The matrix ran serially until the
   # cell count outgrew the 30-minute ceiling: a measured 21m2s for 18 cells
@@ -677,6 +743,13 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
+      # Pre-warm modules with retries so a dropped proxy stream fails HERE,
+      # named for what it is, instead of surfacing as a fault- or
+      # race-shaped red that never ran anything (#6075 follow-up; runs
+      # 34627429845, 34007134864, 33551099795, 34370706054).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       # The gate's own preconditions shell out to rg (the repo forbids grep), and
       # the fault-injection job did not install it -- #6173's first CI run failed
       # both codeowners-carrying shards with "rg: command not found" reported as
@@ -717,10 +790,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure
+          # graph-*.dump (#6162), not the two prior literal names: every cell
+          # calls capture_digest <cell>, writing graph-<cell>.dump, so a
+          # literal list only ever retained baseline/restartbackend and
+          # silently dropped every other cell's dump (e.g. cell_expirelease in
+          # run 34068313913).
           path: |
-            /tmp/ifa-fault-injection.*/graph-baseline.dump
-            /tmp/ifa-fault-injection.*/graph-restartbackend.dump
-            /tmp/ifa-fault-injection.*/graph-restartbackend-failure.dump
+            /tmp/ifa-fault-injection.*/graph-*.dump
             /tmp/ifa-fault-injection.*/graph-manifest.tsv
             /tmp/ifa-fault-injection.*/work-items.csv
             /tmp/ifa-fault-injection.*/gcp-facts.jsonl
