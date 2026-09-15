@@ -384,7 +384,7 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	// Coordination (read once, drain-wait, enqueue, fence check) lives in
 	// rebuildreset; the drain wait runs after the authoritative read and
 	// before any write so a resolver that claimed first cannot get its
-	// generation retired mid-flight (Codex #6184 P1).
+	// generation retired mid-flight (#6184 P1 review).
 	rq := rebuildresetQueryer{Transaction: tx}
 
 	generations, err := rebuildreset.ReadAffectedGenerations(ctx, rq, filter)
@@ -393,6 +393,9 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	}
 
 	if err := rebuildreset.WaitForReducerDrain(ctx, rq, generations, s.refinalizeDrainTimeout, s.refinalizeDrainPoll); err != nil {
+		return recovery.RefinalizeResult{}, err
+	}
+	if err := rebuildreset.AcquireReducerClaimFence(ctx, rq, generations); err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 
@@ -406,7 +409,7 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		return recovery.RefinalizeResult{}, err
 	}
 
-	// Zero retired with live leases outstanding means the atomic guard
+	// Zero retired with live leases outstanding means the retirement guard
 	// tripped; zero with none is the convergent re-run. See
 	// rebuildreset.AssertRetirementFenced.
 	if err := rebuildreset.AssertRetirementFenced(ctx, rq, generations, counts.GenerationsRetired); err != nil {

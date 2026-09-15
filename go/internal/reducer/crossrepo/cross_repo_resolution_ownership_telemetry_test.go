@@ -40,33 +40,39 @@ func TestCrossRepoResolutionRecordsDroppedForeignOwnedEdges(t *testing.T) {
 	if err := reader.Collect(context.Background(), &resources); err != nil {
 		t.Fatalf("Collect() error = %v", err)
 	}
-	if !crossRepoEdgeOutcomeHasPoint(
+	if !crossRepoMetricHasPoint(
 		resources,
+		"eshu_dp_cross_repo_edges_dropped_total",
 		string(relationships.RelDependsOn),
-		"foreign_owned_dropped",
+		"reason",
+		"foreign_owned",
 		1,
 	) {
-		t.Fatal("dropped foreign-owned edge left no recorded metric outcome")
+		t.Fatal("dropped foreign-owned edge left no dedicated metric point")
 	}
-	if !crossRepoEdgeOutcomeHasPoint(
+	if !crossRepoMetricHasPoint(
 		resources,
+		"eshu_dp_cross_repo_edges_resolved_total",
 		string(relationships.RelDependsOn),
-		"owned_routed",
+		"outcome",
+		"",
 		1,
 	) {
-		t.Fatal("owned routed edge left no recorded metric outcome")
+		t.Fatal("resolved counter did not preserve its routed-only, outcome-free point")
 	}
 }
 
-func crossRepoEdgeOutcomeHasPoint(
+func crossRepoMetricHasPoint(
 	resources metricdata.ResourceMetrics,
+	metricName string,
 	relationshipType string,
-	outcome string,
+	optionalAttribute string,
+	attributeValue string,
 	want int64,
 ) bool {
 	for _, scope := range resources.ScopeMetrics {
 		for _, candidate := range scope.Metrics {
-			if candidate.Name != "eshu_dp_cross_repo_edges_resolved_total" {
+			if candidate.Name != metricName {
 				continue
 			}
 			sum, ok := candidate.Data.(metricdata.Sum[int64])
@@ -75,9 +81,12 @@ func crossRepoEdgeOutcomeHasPoint(
 			}
 			for _, point := range sum.DataPoints {
 				gotType, typeOK := point.Attributes.Value(attribute.Key("relationship_type"))
-				gotOutcome, outcomeOK := point.Attributes.Value(attribute.Key("outcome"))
-				if typeOK && outcomeOK && gotType.AsString() == relationshipType &&
-					gotOutcome.AsString() == outcome && point.Value == want {
+				gotAttribute, attributeOK := point.Attributes.Value(attribute.Key(optionalAttribute))
+				attributeMatches := attributeValue == "" && !attributeOK
+				attributeMatches = attributeMatches ||
+					(attributeOK && gotAttribute.AsString() == attributeValue)
+				if typeOK && gotType.AsString() == relationshipType &&
+					attributeMatches && point.Value == want {
 					return true
 				}
 			}

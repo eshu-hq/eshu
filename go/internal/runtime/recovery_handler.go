@@ -134,7 +134,7 @@ type refinalizeRequest struct {
 }
 
 // refinalizeResponse reports the re-enqueue plus the dedup state the refinalize
-// cleared for those scopes. The three reset counts matter here as much as on the
+// cleared for those scopes. The four reset counts matter here as much as on the
 // disaster-recovery route: re-projecting a wedged scope without re-driving its
 // reducer domains rebuilds only the source-local half of what that scope owns.
 type refinalizeResponse struct {

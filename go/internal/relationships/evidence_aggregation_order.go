@@ -48,7 +48,7 @@ func sortEvidenceFactsForAggregation(facts []EvidenceFact) []EvidenceFact {
 			// unknown confidence must not outrank a measured one -- while a
 			// NaN/NaN pair counts as tied here so Details, rationale, and
 			// repo IDs below still decide, keeping the key total.
-			// (Codex #6184 P2.)
+			// (#6184 P2 review.)
 			if math.IsNaN(ri) != math.IsNaN(rj) {
 				return math.IsNaN(rj)
 			}

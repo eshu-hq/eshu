@@ -32,11 +32,12 @@
 // path, in the same transaction as the projector re-enqueue.
 //
 // Apply is the entry point; Counts reports what it cleared. The ordered
-// coordination around it — ReadAffectedGenerations, EnqueueProjectorWork,
-// WaitForReducerDrain, AssertRetirementFenced in refinalize.go — is part of the
-// same contract: the caller runs the prelude in its transaction before Apply,
-// so every statement binds the one generation set read first, and retirement
-// never commits under a resolver holding a live lease (Codex #6184 P1).
+// coordination around it — ReadAffectedGenerations, WaitForReducerDrain,
+// AcquireReducerClaimFence, EnqueueProjectorWork, and AssertRetirementFenced in
+// refinalize.go — is part of the same contract: the caller runs the sequence in
+// its transaction around Apply, so every statement binds the one generation set
+// read first and no reducer can claim into the retirement-to-commit window
+// (#6184 P1 review).
 //
 // A refinalize transaction runs at Postgres's default READ COMMITTED
 // isolation, so a statement that re-derived the generation set would get its

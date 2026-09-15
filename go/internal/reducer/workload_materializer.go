@@ -219,7 +219,10 @@ func (m *WorkloadMaterializer) Materialize(
 			return result, fmt.Errorf("write runtime platforms: %w", err)
 		}
 		if err := m.executeBatched(ctx, batchRuntimePlatformRunsOnEdgeUpsertCypher, rows); err != nil {
-			return result, fmt.Errorf("write runtime platform edges: %w", err)
+			return result, fmt.Errorf("ensure runtime platform edges: %w", err)
+		}
+		if err := m.executeBatched(ctx, batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher, rows); err != nil {
+			return result, fmt.Errorf("write owned runtime platform edge properties: %w", err)
 		}
 		result.RuntimePlatformDuration = time.Since(stageStarted)
 		result.RuntimePlatformsWritten = len(nodeRows)
@@ -407,30 +410,29 @@ SET p.type = 'platform',
     p.region = row.platform_region,
     p.locator = row.platform_locator`
 
-	// batchRuntimePlatformRunsOnEdgeUpsertCypher never overwrites a foreign
-	// stamp. The identical (WorkloadInstance)-[:RUNS_ON]->(Platform) identity
-	// is also written by the cross-repo resolver for repo_dependency (stamped
-	// CrossRepoEvidenceSource), and the family's exact-set gate plus its retract
-	// both key on that stamp. An unconditional evidence_source SET here made
-	// the family's edge last-writer-wins: whenever workload materialization
-	// cycled after the repo lane, it restamped the family's edge and the gate
-	// reported it missing. Precedence is therefore deterministic: the stamp is
-	// assigned only ON CREATE, so the cross-repo write always wins when the
-	// repo lane writes, while a lane-first workload edge keeps this lane's
-	// stamp. Confidence and reason still refresh unconditionally (Go-precomputed
-	// values, no Cypher CASE per this file's convention); the family gate
-	// compares edge identity, not those properties. (#6184 live-cell wedge in
-	// killworker_repo_dependency: six repo edges present with RUNS_ON restamped
-	// to the workloads source.)
+	// RUNS_ON has two writers. This first statement only establishes the shared
+	// edge identity; the second statement stamps or refreshes the complete
+	// workload-owned property tuple. Keeping the ownership predicate in a
+	// separate MATCH is required on pinned NornicDB: relationship properties
+	// read from the same MERGE statement do not reliably expose the preexisting
+	// tuple. The split also closes every interleaving. If cross-repo writes
+	// between these statements, the ownership predicate preserves its tuple; if
+	// it writes later, its unconditional full-tuple SET wins. A failure after
+	// the MERGE leaves an unstamped edge that the next retry safely adopts.
 	batchRuntimePlatformRunsOnEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (i:WorkloadInstance {id: row.instance_id})
 MATCH (p:Platform {id: row.platform_id})
-MERGE (i)-[rel:RUNS_ON]->(p)
-ON CREATE SET rel.confidence = row.platform_confidence,
+MERGE (i)-[rel:RUNS_ON]->(p)`
+
+	batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher = `UNWIND $rows AS row
+MATCH (i:WorkloadInstance {id: row.instance_id})
+MATCH (p:Platform {id: row.platform_id})
+MATCH (i)-[rel:RUNS_ON]->(p)
+WHERE rel.evidence_source IS NULL OR rel.evidence_source = row.evidence_source
+SET rel.confidence = row.platform_confidence,
     rel.reason = 'Workload instance runs on inferred platform',
-    rel.evidence_source = row.evidence_source
-ON MATCH SET rel.confidence = row.platform_confidence,
-    rel.reason = 'Workload instance runs on inferred platform'`
+    rel.evidence_source = row.evidence_source,
+    rel.source_tool = null`
 
 	batchRepoDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (source_repo:Repository {id: row.repo_id})
