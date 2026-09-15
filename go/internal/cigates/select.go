@@ -15,6 +15,13 @@ type Selection struct {
 	Selected bool
 	// Reason is a human-readable explanation of the selection decision.
 	Reason string
+	// Deferred is true when FilterPrePush unselected this gate specifically
+	// because it is registered `local.pre_push: deferred` -- distinct from
+	// every other reason a gate can be unselected (tier ceiling, category
+	// filter, no matching trigger, --blocking-only). A caller uses this to
+	// print "DEFER-CI" instead of a generic "SKIP", so a deferral is never
+	// silent: it was triggered here, but moved to CI on purpose.
+	Deferred bool
 }
 
 // Select evaluates each gate in registry order against the provided changed
@@ -150,6 +157,37 @@ func FilterByCategory(sels []Selection, categories []Category) []Selection {
 				s.Selected = false
 				s.Reason = fmt.Sprintf("category %s not in requested set", s.Gate.Category)
 			}
+		}
+		out[i] = s
+	}
+	return out
+}
+
+// FilterPrePush marks any currently-selected gate whose registry entry
+// declares `local.pre_push: deferred` as not-selected, carrying its
+// pre_push_reason and Deferred=true. It is the `--pre-push` counterpart of
+// FilterByCategory, applied by `ci-gates run --pre-push`
+// (scripts/dev/pre-push.sh, the fast local floor run before every push) to
+// skip the handful of registry gates measured slow enough to defer to
+// `make pre-pr` and CI. prePush=false is a no-op: every Selection passes
+// through unchanged, Deferred always false.
+//
+// A gate that was already unselected for any other reason (tier, category,
+// no matching trigger, --blocking-only) is left exactly as it was: Deferred
+// only ever becomes true for a gate that WOULD have run here. That is the
+// "never skip silently" contract -- a deferral always means "this was
+// triggered, and moved to CI on purpose", never "this existed in the
+// registry".
+func FilterPrePush(sels []Selection, prePush bool) []Selection {
+	if !prePush {
+		return sels
+	}
+	out := make([]Selection, len(sels))
+	for i, s := range sels {
+		if s.Selected && s.Gate.Local != nil && s.Gate.Local.PrePushDeferred {
+			s.Selected = false
+			s.Deferred = true
+			s.Reason = s.Gate.Local.PrePushReason
 		}
 		out[i] = s
 	}

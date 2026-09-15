@@ -98,6 +98,16 @@ type Local struct {
 	Command string
 	// TestCommand is the optional self-test mirror run after Command locally.
 	TestCommand string
+	// PrePushDeferred is true when this gate is deferred out of the fast
+	// `ci-gates run --pre-push` selection lane (`scripts/dev/pre-push.sh`,
+	// the floor run before every push). It still runs via `make pre-pr` /
+	// `make pre-pr-full` and unconditionally in CI: deferring moves a gate's
+	// enforcement to CI, it never removes it. See PrePushReason.
+	PrePushDeferred bool
+	// PrePushReason explains why this gate is deferred from `--pre-push`,
+	// normally citing the measured cost. Required when PrePushDeferred is
+	// true; empty otherwise.
+	PrePushReason string
 }
 
 // CI holds the CI execution config for a gate.
@@ -318,58 +328,21 @@ func Load(path string) (*Registry, error) {
 
 		var local *Local
 		if gf.Local != nil {
+			prePushDeferred, prePushReason, err := parsePrePush(path, id, gf)
+			if err != nil {
+				return nil, err
+			}
 			local = &Local{
-				Command:     strings.TrimSpace(gf.Local.Command),
-				TestCommand: strings.TrimSpace(gf.Local.TestCommand),
+				Command:         strings.TrimSpace(gf.Local.Command),
+				TestCommand:     strings.TrimSpace(gf.Local.TestCommand),
+				PrePushDeferred: prePushDeferred,
+				PrePushReason:   prePushReason,
 			}
 		}
 
-		ciOnlyReason := strings.TrimSpace(gf.CIOnlyReason)
-		if local == nil && ciOnlyReason == "" {
-			return nil, fmt.Errorf("ci-gates registry %s: gate %q has local==null but empty ci_only_reason (required when local is absent)", path, id)
-		}
-		// A local block with neither field is representable but meaningless:
-		// executeGates (go/cmd/ci-gates/execute.go) runs zero steps for it and
-		// still prints "PASS <gate>", indistinguishable from a gate that
-		// actually ran and passed. A gate with nothing to run locally should
-		// declare local==null (and a ci_only_reason) instead -- this is not
-		// that shape, since local is non-nil, just empty inside. Reject at
-		// load time so the shape is unrepresentable rather than merely
-		// unreachable from the current registry (#6149 follow-up item 8
-		// review, P1).
-		if local != nil && local.Command == "" && local.TestCommand == "" {
-			return nil, fmt.Errorf(
-				"ci-gates registry %s: gate %q declares a local block with neither command nor test_command -- either give it one, or declare local==null with a ci_only_reason instead",
-				path, id,
-			)
-		}
-		if len(selfTestTriggers) > 0 && (local == nil || local.TestCommand == "" || local.TestCommand == local.Command) {
-			return nil, fmt.Errorf("ci-gates registry %s: gate %q declares self_test_triggers without a distinct test_command", path, id)
-		}
-		localOnlyReason := strings.TrimSpace(gf.LocalOnlyReason)
-		ciWorkflow := strings.TrimSpace(gf.CI.Workflow)
-		ciJob := strings.TrimSpace(gf.CI.Job)
-		// A blocking:false gate with no CI backstop at all (ci.workflow AND
-		// ci.job both empty) runs ONLY through a developer's local
-		// `make pre-pr` -- unlike every other gate, a skip here is not
-		// harmless, because nothing else ever runs the check. That gap is
-		// fine as a deliberate, temporary staging decision (three real gates
-		// use exactly this shape while a burn-down baseline goes clean
-		// before CI enforcement), but it must be DECLARED, not merely
-		// possible: root-cause-evidence carried this exact shape with no
-		// declaration and had never run against any evidence doc until it
-		// was run by hand (#6149 follow-up item 5). Mirrors the
-		// ci_only_reason-required-when-local-is-nil rule above exactly. A
-		// blocking gate is exempt: blocking:true with no CI backstop is a
-		// different, likely-worse defect this rule does not attempt to
-		// characterize -- it would fail CI itself with an empty ci.workflow
-		// wherever the required-status manifest expects one, which is a
-		// different check's signal, not this one's.
-		if !gf.Blocking && ciWorkflow == "" && ciJob == "" && localOnlyReason == "" {
-			return nil, fmt.Errorf(
-				"ci-gates registry %s: gate %q is blocking:false with no CI backstop (ci.workflow and ci.job both empty) but has empty local_only_reason (required when a gate has no CI backstop at all -- state why, and what would close the gap)",
-				path, id,
-			)
+		ciOnlyReason, localOnlyReason, err := validateLocalAndCIBackstop(path, id, gf, local, selfTestTriggers)
+		if err != nil {
+			return nil, err
 		}
 
 		reg.Gates = append(reg.Gates, Gate{

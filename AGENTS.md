@@ -43,13 +43,14 @@ P2s require a linked issue, the owner's agreement quoted in the PR, and their
 severity-table category. P3s do not block. The authoritative bar is
 [merge-bar.md](.agents/skills/eshu-code-review/references/merge-bar.md).
 
-After focused proof and a clean preliminary review, capture a
-`ci-gates review-attest` receipt and run `make pre-pr` when ready to push.
-Verify the receipt after preflight: a match replaces a second full semantic
-review. Changed base, commit, tree, worktree, submodule, PR claims, packet, or
-verdict invalidates the receipt and requires affected proof and full review
-again. Make no edits between verified attestation and push. Never publish an
-unreviewed diff.
+The order is: (1) focused local proof; (2) a clean preliminary
+`eshu-code-review` plus a captured `ci-gates review-attest` receipt; (3)
+`make pre-push` (the fast local floor); (4) `ci-gates review-attest verify`;
+(5) push. Verify the receipt after `make pre-push`: a match replaces a second
+full semantic review. Changed base, commit, tree, worktree, submodule, PR
+claims, packet, or verdict invalidates the receipt and requires affected proof
+and full review again. Make no edits between verified attestation and push.
+Never publish an unreviewed diff.
 
 ## Mandatory Pre-PR Local Proof
 
@@ -67,10 +68,11 @@ authorized task without a separate approval at each step. This does not grant
 access to production data or authorize external mutations.
 
 The order is focused local proof, clean preliminary review, one late
-`make pre-pr`, attestation verification (or a new full review if invalidated),
-then push and PR creation/update. CI must not be the first test of an unproven
-change. If local proof is blocked, report the command and cause before
-publishing; do not open a speculative PR to discover whether the change works.
+`make pre-push`, attestation verification (or a new full review if
+invalidated), then push and PR creation/update. CI must not be the first test
+of an unproven change. If local proof is blocked, report the command and cause
+before publishing; do not open a speculative PR to discover whether the change
+works.
 
 ## Mandatory Prove-The-Theory-First
 
@@ -150,8 +152,11 @@ procedure and the incident behind each rule below.
 - MUST NOT add AI attribution to commits, PRs, or docs.
 - MUST NOT push to `main` or `master`.
 - MUST install the repo's pre-commit hooks once per clone
-  (`scripts/dev/bootstrap-hooks.sh`) and MUST NOT `--no-verify`. `make pre-pr`
-  writes a per-SHA stamp the push requires; a rebase or amend invalidates it.
+  (`scripts/dev/bootstrap-hooks.sh`) and MUST NOT `--no-verify`. MUST run
+  `make pre-push` before every push (the fast local floor); it writes no
+  stamp. CI's `required-gates-complete` aggregate is the blocking,
+  non-bypassable authority for Ifá/Odù contracts, performance, and end-to-end
+  behavior — see [Verification Defaults](#verification-defaults).
 - MUST create git worktrees before executing plans or PRDs, and MUST verify
   `pwd` is that worktree before any Edit or Write.
 - MUST run any tracked-file-mutating command (regenerators, formatters,
@@ -393,15 +398,32 @@ MUST use [Local Testing](docs/public/reference/local-testing.md) as the source
 of truth for gates.
 
 After focused local proof and a preliminary full `eshu-code-review` with zero
-P0/P1/P2-blocking findings, run `make pre-pr` once, immediately before the intended push
-or PR update. It is the one-command local promotion preflight that selects and
-runs the credential-free gates required by changed paths; it is not an early
-discovery loop. Exactness and race gates are blocking. Use `make pre-pr-full`,
-`make frontend-preflight`, and `make security-preflight` for the heavier lanes.
-Verify the preliminary review receipt against the exact post-preflight inputs
-before push. If verification fails, run a new full `eshu-code-review`. CI stays
-authoritative, but MUST NOT be the first place a credential-free failure
-appears.
+P0/P1/P2-blocking findings, run `make pre-push` once, immediately before the
+intended push or PR update. It is the fast local floor: changed-package
+`go test`, the 500-line file cap, changed-package gofumpt/lint/build/vet, the
+registry-selected blocking exactness/telemetry/hygiene/docs gates for changed
+paths, and the advisory docs-contradiction gate (no CI counterpart, so this is
+its only enforcement). It has no race lane, no live Docker/NornicDB/Postgres
+lane, and writes no stamp. `make pre-pr` and `make pre-pr-full` remain
+available as deeper, RECOMMENDED (not required) preflights before pushing a
+risky change: queue/lease/claim, schema DDL, hot-path Cypher or graph writes,
+reducer projection/materialization, or a package move (prefer `pre-pr-full`
+for moves — build tags can hide files from `./...`, so only its whole-module
+race lane exercises them). Verify the preliminary review receipt against the
+exact post-`pre-push` inputs before push. If verification fails, run a new
+full `eshu-code-review`. CI stays authoritative, but MUST NOT be the first
+place a credential-free failure appears.
+
+The Ifá/Odù protection for contracts, performance, and end-to-end behavior
+lives in CI, not in any local command: the `required-gates-complete` aggregate
+(`.github/workflows/required-gates.yml`, alongside `go-core-complete` and
+`go-race-complete`) collects every Ifá/Odù gate (fault injection, dead-letter
+matrix, load saturation, replay drive, contract-layer, materialized-edge
+coverage, determinism) plus every other `blocking: true` registry row for the
+changed paths, and a merge requires it green. `make pre-pr`'s own Ifá/Odù rows
+are static mirrors only — the live cells need Docker/NornicDB/Postgres and
+never ran locally even before `make pre-push` existed — so dropping the old
+push stamp does not reduce that protection; CI was always where it was proven.
 
 Common checks:
 
@@ -427,11 +449,12 @@ naming `tools/golangci-lint-filelength/filelength.so` or
 with `cd tools/golangci-lint-filelength && make build` and
 `cd tools/golangci-lint-dirgate && make build` (the `.so` files are
 gitignored, so this is a per-checkout step, not a one-time repo action).
-`scripts/dev/precommit-go.sh lint`/`lint-all` (what `make pre-pr` actually
-runs) avoid this entirely by running against a config copy with both plugins
-stripped -- see that script's own header for why, and prefer it over the bare
-command when you only need the day-to-day check, not a `plugin.Open`
-diagnosis.
+`scripts/dev/precommit-go.sh lint`/`lint-all` (`lint` scoped to changed
+packages is what `make pre-push` runs; `lint-all`, whole-module, is what
+`make pre-pr` runs) avoid this entirely by running against a config copy with
+both plugins stripped -- see that script's own header for why, and prefer it
+over the bare command when you only need the day-to-day check, not a
+`plugin.Open` diagnosis.
 
 ## Orchestration, PR, And CI Discipline
 
@@ -441,10 +464,12 @@ diagnosis.
   [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools).
   A subagent never downgrades its own model. Leaf agents (executor, debugger,
   reviewer, performance engineer) may not dispatch.
-- Only the **orchestrator** runs `make pre-pr`, exactly once, immediately before
-  the intended push. Subagents MUST NOT each run it — the full gate is expensive
-  and per-agent runs are wasted CPU. They run focused verification only and paste
-  it in the handoff. The live gate binds fixed host ports and holds a cross-worktree mutex:
+- Only the **orchestrator** runs `make pre-push`, exactly once, immediately
+  before the intended push (and `make pre-pr`/`make pre-pr-full` when the
+  change warrants that deeper, optional preflight). Subagents MUST NOT each
+  run these — running the floor N times per branch is wasted CPU. They run
+  focused verification only and paste it in the handoff. The live gate binds
+  fixed host ports and holds a cross-worktree mutex:
   [serialization and contention](docs/internal/agent-guide.md#live-gate-serialization-and-contention).
 - MUST check open PRs and recent commits for the same root cause before starting
   a newly filed issue, and MUST isolate formatter drift into its own commit:

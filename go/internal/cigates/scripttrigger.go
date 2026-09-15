@@ -352,30 +352,30 @@ func anyTriggerMatches(triggers []string, path string) bool {
 // hygiene_hooks entry is a bare id+reason pair (specs/ci-gates.v1.yaml's
 // `hygiene_hooks:` list) -- it declares no ci.workflow, no ci.job, no
 // local.command, nothing this check (or checkScriptTriggerCoverage) could
-// walk a script from. That is why this check could not have caught
-// prepr-stamp-verify's own self-test going unwired (#6149 follow-up item 8
-// review, P1): the orphaned file was test-prepr-stamp-verify.sh, reachable
-// from no gate's local.command/local.test_command and no CI job either, and
-// hygiene_hooks is where prepr-stamp-verify already lived at the time,
-// outside every walk in this file. Extending this check (or
-// checkScriptTriggerCoverage) into hygiene_hooks would need those entries to
-// name a script to walk from in the first place, which the schema does not
-// carry today -- a real gap, left open rather than silently narrowed further,
-// since closing it changes the hygiene_hooks schema, not this function's
-// walk.
+// walk a script from. That is why this check could not have caught a
+// pure-hygiene-hook guard's own self-test going unwired (#6149 follow-up item
+// 8 review, P1): the orphaned self-test file was reachable from no gate's
+// local.command/local.test_command and no CI job either, and hygiene_hooks is
+// where the guard hook already lived at the time, outside every walk in this
+// file. Extending this check (or checkScriptTriggerCoverage) into
+// hygiene_hooks would need those entries to name a script to walk from in the
+// first place, which the schema does not carry today -- a real gap, left open
+// rather than silently narrowed further, since closing it changes the
+// hygiene_hooks schema, not this function's walk.
 //
 // The remedy that does not need a schema change: a hygiene hook that grows a
-// testable script -- its own local.command, or a self-test like
-// test-prepr-stamp-verify.sh -- should become a gate, not stay a hook. This
-// is not hypothetical; it is what this same PR did four commits earlier --
-// see prepr-stamp-verify-selftest (specs/ci-gates.v1.yaml). The underlying
-// git pre-push hook (prepr-stamp-verify) correctly stays a hygiene_hooks
-// entry -- it still has no testable local.command shape, the chicken-and-egg
-// problem prepr-stamp-verify-selftest's own local_only_reason explains -- but
-// its self-test did have a testable script and gained a real gate instead of
-// staying invisible, which is why this check now sees it. A hygiene_hooks
-// entry with nothing to test (a staged-file variant, a commit-msg-stage
-// alias) has no remedy and stays a hook; one whose script gains a test does.
+// testable script -- its own local.command, or a self-test -- should become a
+// gate, not stay a hook. This is not hypothetical; it is what this same PR
+// did four commits earlier, registering the guard's self-test as its own
+// local-only gate (a `local.command: ""`, `local.test_command: <the
+// self-test>` shape) while the underlying git pre-push hook itself correctly
+// stayed a hygiene_hooks entry -- it still has no testable local.command
+// shape, the chicken-and-egg problem that gate's own local_only_reason
+// explained -- but its self-test did have a testable script and gained a real
+// gate instead of staying invisible, which is why this check now sees it. A
+// hygiene_hooks entry with nothing to test (a staged-file variant, a
+// commit-msg-stage alias) has no remedy and stays a hook; one whose script
+// gains a test does.
 //
 // Silent, until CIScriptTriggerCoverageSummary: the ONLY visible signal this
 // check emits on success is DriftCheck's empty []error, so a clean run reads

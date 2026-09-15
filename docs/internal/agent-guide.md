@@ -126,21 +126,18 @@ PRs land via squash-merge, so a merged PR's commits are not ancestors of a
 sibling branch that shares files with it. When PR A merges and sibling PR B
 still touches some of the same files, rebase B onto fresh `origin/main`:
 
-1. `git fetch origin main` first. Worktrees here are often shallow clones; a
-   stale or shallow `origin/main` can make `git rebase` explode into hundreds of
-   spurious conflicts (empty merge-base). If that happens, abort, confirm the
-   real divergence (`git log --oneline origin/main..HEAD`, or a `gh` compare),
-   `git fetch --deepen=25`, then rebase.
+1. `git fetch origin main` first. A stale/shallow `origin/main` can make
+   `git rebase` explode into spurious conflicts (empty merge-base); if so,
+   abort, `git fetch --deepen=25`, and confirm real divergence before rebasing.
 2. `git rebase origin/main`. The true merge-base stays clean, so conflicts
    appear only in files BOTH PRs edited — resolve them keeping **both** sides
    (e.g. PR A's new flag AND PR B's new flag), then `git rebase --continue`.
 3. Validate the COMBINED result — run the relevant gate before pushing. The
    rebase merged two independent changes that were each only proven alone, so a
    green result on either branch in isolation does not prove the merge.
-4. Force-push the rebased branch. When pushing through an ad-hoc credential-helper
-   URL (no configured remote, so no remote-tracking ref) `--force-with-lease`
-   fails with "stale info"; confirm the remote tip with
-   `git ls-remote <url> <branch>` first, then push with plain `--force`.
+4. Force-push the rebased branch. Through an ad-hoc credential-helper URL (no
+   remote-tracking ref) `--force-with-lease` fails "stale info"; confirm the
+   tip with `git ls-remote <url> <branch>` first, then use plain `--force`.
 
 ## Performance And Evidence
 
@@ -225,10 +222,9 @@ written, and the fix does nothing because the cause was never established.
 
 Rules:
 
-- State a cause only alongside the observation that establishes it. "The node is
-  present in all four runs and the edge is absent in three" is an observation.
-  "The two stages race" is a conclusion, and without the observation it is a
-  guess.
+- State a cause only alongside the observation that establishes it. "Present in
+  all four runs, absent in three" is an observation; "the two stages race" is a
+  conclusion, and without the observation it is a guess.
 - Label an unproven cause as unproven in the sentence itself, not in a caveat
   further down. A reader cannot recover the difference from confident phrasing.
 - Do NOT put an unproven hypothesis into a subagent's prompt. A dispatched agent
@@ -257,11 +253,10 @@ the substance; the gate is the part a script can reach.
 Do not reason about a failure using state captured from a different run, even on
 the same commit. A run that succeeded proves nothing about the one that failed.
 
-Investigating an intermittent golden-corpus assertion (#5717), three observations
-— edge present, assertion passes by hand, every work item succeeded — all came
-from stacks belonging to runs that had NOT failed; the failing runs were torn
-down on exit with their evidence. An hour of confident reasoning followed, and
-its conclusion was unsupported.
+Investigating an intermittent golden-corpus assertion (#5717), three
+observations — edge present, assertion passes by hand, work item succeeded —
+all came from runs that had NOT failed; failing runs were torn down on exit
+with their evidence. An hour of confident reasoning followed, unsupported.
 
 When a harness destroys state on exit, capture what you need DURING the failing
 run (`--keep`, a poller, a dump) or accept that you have none. Before citing an
@@ -295,9 +290,8 @@ the real mechanism — which worked only because the framing was labelled a gues
 ### Test Filters Fail Silently
 
 `-run` and its equivalents are case-sensitive and match zero tests on a typo,
-which reads exactly like a pass. `-run 'IacInventory'` matched nothing where the
-test was `IaCInventory`, and "tests pass" was reported on an empty run. Count the
-tests that ran.
+reading exactly like a pass (`-run 'IacInventory'` vs `IaCInventory` matched
+nothing, and "tests pass" was reported on an empty run). Count tests that ran.
 
 ### Diff-Scoped Gates Default To HEAD~1
 
@@ -306,8 +300,7 @@ a multi-commit branch shows only its last commit. Export
 `ESHU_{PARSER_RELATIONSHIP_KIT,PERFORMANCE_EVIDENCE,MEASUREMENT_CITATIONS}_BASE=origin/main` before `make pre-pr`.
 
 These fail in different directions: `parser-relationship-kit` false-FAILS
-loudly; `verify-performance-evidence` and `verify-measurement-citations`
-false-PASS silently, examining nothing. Assume other members exist.
+loudly; the other two false-PASS silently, examining nothing.
 
 ### Evidence Capture Pitfalls
 
@@ -340,7 +333,7 @@ and Docker I/O and another Docker-heavy gate starves it even on different
 ports, and a second clone of the repo has its own lock. When dispatching a
 fleet, serialize the live gates and hand the machine over explicitly rather
 than letting agents self-schedule — this is why subagents/teams MUST NOT each
-run `make pre-pr`.
+run `make pre-push`, `make pre-pr`, or `make pre-pr-full`.
 
 Before declaring an intermittent gate failure a flake, MUST rule out resource
 contention first: check the load average and what else is running
@@ -350,6 +343,14 @@ nothing, while one that passed under load is usually trustworthy (the
 exception being an assertion whose own timing budget the load inflated).
 Re-running without changing the conditions is not evidence.
 
+CI's `required-gates-complete` aggregate is the blocking, non-bypassable
+authority for every Ifá/Odù, contract, performance, and end-to-end gate the
+registry marks `blocking: true` — alongside `go-core-complete` and
+`go-race-complete`. `make pre-pr`'s own Ifá/Odù rows are static mirrors only
+(the live cells need Docker/NornicDB/Postgres and never ran locally), so
+`make pre-push` carries none of that protection and does not need to: a merge
+still requires `required-gates-complete` green regardless.
+
 ### Duplicate-Work And Formatter-Drift Guards
 
 Before starting work on a newly filed issue, MUST check whether it is already
@@ -358,13 +359,12 @@ cause. An entire dependency migration was rebuilt in this repo while an
 equivalent fix was already in flight.
 
 When a change touches files carrying **pre-existing formatter drift**, isolate
-the reformat in its own commit. The staged-file format hooks only inspect what
-is staged, so old drift stays invisible until an unrelated change touches those
-files — and then a one-line-per-file edit arrives as thousands of reformatted
-lines. Do NOT run the formatter across the whole changed set and commit it as
-one blob; commit the pure reformat first (stating that it is formatting-only
-and verifiable with `--list-different`), then the real change on top. That
-keeps the reviewable diff reviewable. Never `--no-verify` past a format hook.
+the reformat in its own commit. Staged-file format hooks only inspect what is
+staged, so old drift stays invisible until an unrelated change touches those
+files, and a one-line edit then arrives as thousands of reformatted lines. Do
+NOT reformat the whole changed set in one commit; commit the pure reformat
+first (formatting-only, verifiable with `--list-different`), then the real
+change on top. Never `--no-verify` past a format hook.
 
 ## Measurement Ledger
 

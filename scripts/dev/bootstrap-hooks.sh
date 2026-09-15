@@ -26,6 +26,6 @@ pre-commit install --hook-type pre-push
 pre-commit install --hook-type commit-msg
 
 printf 'bootstrap-hooks: hooks installed for this clone (commit, pre-push, commit-msg).\n'
-printf 'bootstrap-hooks: NEVER --no-verify a commit or a push. The pre-push gate is a fast\n'
-printf 'bootstrap-hooks: pre-pr stamp check: run `make pre-pr` (it stamps the SHA on success),\n'
-printf 'bootstrap-hooks: then push. Sanctioned bypass only: ESHU_ALLOW_UNSTAMPED_PUSH=1.\n'
+printf 'bootstrap-hooks: NEVER --no-verify a commit or a push. Before every push, run\n'
+printf 'bootstrap-hooks: `make pre-push` (the fast local floor); CI required-gates-complete\n'
+printf 'bootstrap-hooks: stays the blocking, non-bypassable authority.\n'

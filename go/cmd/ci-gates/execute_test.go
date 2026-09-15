@@ -229,8 +229,9 @@ func TestExecuteGatesAdvisoryTestCommandFailureDoesNotFailRun(t *testing.T) {
 
 // TestExecuteGatesEmptyCommandNotReportedAsRun proves a gate with an
 // intentionally empty local.command (a permanently local-only gate whose
-// enforcement mechanism cannot be a command at all -- prepr-stamp-verify-selftest
-// is the real one) does not get an "RUN <gate>: " line with nothing after the
+// enforcement mechanism cannot be a command at all -- a chicken-and-egg shape
+// where the guard's own command would need the very output its run is
+// producing) does not get an "RUN <gate>: " line with nothing after the
 // colon. Before this test, localGateCommands unconditionally included the
 // empty command as a step: runShellCommand executed an empty shell command,
 // which always succeeds, so the output showed a RUN line that looked like

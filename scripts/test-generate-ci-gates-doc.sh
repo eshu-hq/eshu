@@ -140,7 +140,7 @@ fi
 
 # Case 11 (regression): a non_gate_workflows `  - file:` entry carries its own
 # `reason:`. It must NOT bleed into the last gate/alias record (which stays open
-# because no `  - id:` follows it). Regression for the prepr-stamp-verify row
+# because no `  - id:` follows it). Regression for a local-only self-test row
 # rendering refresh-cassettes.yml's "scheduled/manual cassette refresh" reason.
 leak_registry="${tmp_root}/leak-registry.yaml"
 printf 'version: v1\ngates:\n  - id: g1\n    name: G1\n    category: hygiene\n    tier: pre-commit\n    blocking: true\n    local:\n      command: "echo hi"\nhygiene_hooks:\n  - id: alias-last\n    reason: "ALIAS_OWN_REASON"\nnon_gate_workflows:\n  - file: some.yml\n    reason: "FILE_LEAK_REASON"\n' >"${leak_registry}"
@@ -223,8 +223,8 @@ fi
 
 # Case 14: a gate with a real self-test but NO primary local.command and no
 # ci_only_reason (a permanently local-only gate whose enforcement mechanism
-# cannot be a `local.command` at all -- prepr-stamp-verify-selftest, whose
-# guard reads the stamp of the commit about to be pushed, so running it as
+# cannot be a `local.command` at all -- a chicken-and-egg guard whose own
+# command would need the very output its run is producing, so running it as
 # this gate's own command inside `make pre-pr` would fail every time) must
 # still surface the test_command in the command cell. Before this case, the
 # parser's three documented record shapes (full local+CI, CI-only via

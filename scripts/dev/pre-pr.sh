@@ -42,6 +42,8 @@ source "${repo_root}/scripts/lib/pre-pr-lane.sh"
 source "${repo_root}/scripts/lib/pre-pr-fixture-consumers.sh"
 # shellcheck source=../lib/pre-pr-test-selection.sh
 source "${repo_root}/scripts/lib/pre-pr-test-selection.sh"
+# shellcheck source=../lib/pre-pr-go-paths.sh
+source "${repo_root}/scripts/lib/pre-pr-go-paths.sh"
 # Root the classifier's path-existence check at the repo, so a deleted
 # allowlisted file is recognized as deleted rather than as merely changed.
 # shellcheck disable=SC2034  # read by the sourced classifier, not by this file.
@@ -60,25 +62,10 @@ trap '[[ -n "${pre_pr_state_dir}" ]] && rm -rf "${pre_pr_state_dir}"' EXIT
 pre_pr_gate_report="${pre_pr_state_dir}/selected-gates.json"
 pre_pr_whole_module_args=()
 
-# changed_go_files: the Go files under go/ among those paths.
-changed_go_files() {
-	collect_changed_paths | sort -u | rg '^go/.*\.go$' || true
-}
-
-# changed_go_dirs: ./-relative package dirs (under go/) for the changed files.
-# Directories that no longer exist on disk are dropped: a fully deleted package
-# still appears in `git diff --name-only` (as removed files), so its dir would
-# otherwise be handed to `go test`, which errors with "directory not found
-# [setup failed]". CI's authoritative whole-module `go test ./...` skips absent
-# dirs naturally; this focused selector must do the same.
-changed_go_dirs() {
-	local f d
-	changed_go_files | while IFS= read -r f; do
-		printf './%s\n' "$(dirname "${f#go/}")"
-	done | sort -u | while IFS= read -r d; do
-		[[ -d "${go_dir}/${d#./}" ]] && printf '%s\n' "${d}"
-	done
-}
+# changed_go_files and changed_go_dirs now live in
+# scripts/lib/pre-pr-go-paths.sh (sourced above), shared with
+# scripts/dev/pre-push.sh so the two drivers select the same changed-package
+# targets from one implementation.
 
 # lane_input_paths: what the LANE decision looks at — everything above, plus
 # untracked-but-not-ignored files. Only the lane reads them; every other gate
@@ -379,24 +366,15 @@ for r in "${results[@]}"; do printf '%s\n' "${r}"; done
 if [[ ${overall} -ne 0 ]]; then
 	printf '\n\033[31mpre-pr: failures above — fix before pushing (CI runs the same gates).\033[0m\n'
 else
-	# Stamp this exact HEAD for the pre-push hook and retain the command-level
-	# timing report beside it. Both records are keyed by SHA, so rebases and
-	# amends invalidate them without cross-worktree collisions.
-	head_sha="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || true)"
-	common_dir="$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-	if [[ -n "${head_sha}" && -n "${common_dir}" ]]; then
-		stamp_dir="${common_dir}/eshu-prepr-stamp"
-		mkdir -p "${stamp_dir}"
-		install -m 0600 "${pre_pr_gate_report}" "${stamp_dir}/${head_sha}.gates.json" || exit 1
-		printf 'sha=%s\nlive_lane_deferred=%s\nfast_path_skipped=%s\n' \
-			"${head_sha}" "${live_deferred[*]:-}" "${fast_path_skipped[*]:-}" > "${stamp_dir}/${head_sha}"
-		printf 'gate_report=%s.gates.json\n' "${head_sha}" >> "${stamp_dir}/${head_sha}"
-		printf '\n\033[32mpre-pr: all local gates passed — stamped %s' "${head_sha:0:12}"
-		[[ ${#live_deferred[@]} -gt 0 ]] && printf ' (deferred to CI: %s)' "${live_deferred[*]}"
-		[[ ${#fast_path_skipped[@]} -gt 0 ]] && printf ' (fast-path skipped: %s)' "${fast_path_skipped[*]}"
-		printf '.\033[0m\n'
-	else
-		printf '\n\033[32mpre-pr: all local gates passed.\033[0m\n'
-	fi
+	# No per-SHA push stamp is written any more (removed: a rebase or amend
+	# always invalidated it, and GitHub's main ruleset does not require
+	# up-to-date branches, so the rebase-and-rerun loop it forced was
+	# self-imposed). scripts/dev/pre-push.sh is the fast local floor every push
+	# now runs instead; CI's required-gates-complete aggregate stays the
+	# blocking authority for everything this local run cannot reach.
+	printf '\n\033[32mpre-pr: all local gates passed'
+	[[ ${#live_deferred[@]} -gt 0 ]] && printf ' (deferred to CI: %s)' "${live_deferred[*]}"
+	[[ ${#fast_path_skipped[@]} -gt 0 ]] && printf ' (fast-path skipped: %s)' "${fast_path_skipped[*]}"
+	printf '.\033[0m\n'
 fi
 exit ${overall}

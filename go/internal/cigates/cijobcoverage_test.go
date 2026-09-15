@@ -80,9 +80,10 @@ func TestCIScriptTriggerCoverageSummary_SharedPairSkipped(t *testing.T) {
 }
 
 // TestCIScriptTriggerCoverageSummary_NoCIJobExcluded proves a gate with no
-// CI job at all (local-only, e.g. prepr-stamp-verify-selftest) is neither
-// attributable nor skipped -- it is outside this summary's universe, the
-// same as it is outside checkCIScriptTriggerCoverage's walk.
+// CI job at all (a permanently local-only guard whose enforcement has no CI
+// counterpart) is neither attributable nor skipped -- it is outside this
+// summary's universe, the same as it is outside
+// checkCIScriptTriggerCoverage's walk.
 func TestCIScriptTriggerCoverageSummary_NoCIJobExcluded(t *testing.T) {
 	t.Parallel()
 

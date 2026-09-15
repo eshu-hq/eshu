@@ -967,6 +967,8 @@ gates:
     local:
       command: "bash scripts/verify-parser-relationship-kit.sh"
       test_command: "bash scripts/test-verify-parser-relationship-kit.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 45s, ~6% of total selected-gates time. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (required-gates-complete)."
     ci:
       workflow: static-contract-gates.yml
       job: "Verify parser relationship kit gate"
@@ -1029,6 +1031,8 @@ gates:
     local:
       command: "bash scripts/verify-query-plan-regression.sh"
       test_command: "bash scripts/test-verify-query-plan-regression.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 30s (Docker), ~8% of total selected-gates time. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via test.yml's verify-contracts job (required-gates-complete). Run `make pre-pr` before a hot-path Cypher or graph-write change: this is the gate that proves the query plan did not regress."
     ci:
       workflow: test.yml
       job: "verify-contracts"
@@ -1434,6 +1438,8 @@ gates:
     local:
       command: "bash scripts/verify-docs-cli-env-refs.sh"
       test_command: "bash scripts/test-verify-docs-cli-env-refs.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 62s, ~7% of total selected-gates time. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (required-gates-complete)."
     ci:
       workflow: static-contract-gates.yml
       job: "Verify docs CLI/env refs gate"
@@ -1499,6 +1505,8 @@ gates:
     local:
       command: "bash scripts/verify-doc-citations.sh && bash scripts/test-verify-doc-citations.sh --repository-only"
       test_command: "bash scripts/test-verify-doc-citations.sh --fixtures-only"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 70s, ~18% of total selected-gates time -- the single largest local contributor. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (required-gates-complete)."
     ci:
       workflow: static-contract-gates.yml
       job: "Verify doc-citations gate"
@@ -2115,6 +2123,8 @@ gates:
     local:
       command: "bash scripts/test-verify-golden-corpus-gate.sh"
       test_command: ""
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 74s (this is the static mirror; the live golden-corpus cell never ran locally at all -- it is path-triggered and Docker-only). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via golden-corpus-gate.yml (required-gates-complete)."
     ci:
       workflow: "golden-corpus-gate.yml"
       job: "static mirror"
@@ -3017,6 +3027,8 @@ gates:
     local:
       command: "bash scripts/test-verify-ifa-determinism.sh"
       test_command: "bash scripts/test-verify-ifa-determinism.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 53s (this is the static mirror; the live determinism cells never ran locally at all). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via ifa-determinism-gate.yml (required-gates-complete)."
     ci:
       workflow: ifa-determinism-gate.yml
       job: "determinism-matrix"
@@ -3080,6 +3092,8 @@ gates:
     local:
       command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
       test_command: "bash scripts/test-verify-ifa-dead-letter-matrix.sh"
+      pre_push: deferred
+      pre_push_reason: "This is the static mirror; the live dead-letter-matrix cells never ran locally at all. Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via ifa-determinism-gate.yml (required-gates-complete)."
     ci:
       workflow: ifa-determinism-gate.yml
       job: "dead-letter-matrix"
@@ -3567,6 +3581,8 @@ gates:
     local:
       command: "bash scripts/test-verify-ifa-fault-injection.sh"
       test_command: "bash scripts/test-verify-ifa-fault-injection.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 81s (this is the static mirror; the live fault-injection cells never ran locally at all). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via ifa-determinism-gate.yml (required-gates-complete)."
     ci:
       workflow: ifa-determinism-gate.yml
       job: "fault-injection"
@@ -3744,6 +3760,8 @@ gates:
     local:
       command: "bash scripts/generate-code-coverage-report.sh"
       test_command: "bash scripts/test-generate-code-coverage-report.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 111s. Advisory (blocking: false) -- never part of required-gates-complete, so deferring it removes no required merge protection. It keeps running via its own code-coverage-report.yml workflow and via `make pre-pr`/`make pre-pr-full`."
     ci:
       workflow: code-coverage-report.yml
       job: "Generate Go code coverage report"
@@ -3988,11 +4006,14 @@ gates:
       - "scripts/verify-tagged-builds.sh"
       - "scripts/test-verify-tagged-builds.sh"
       - "scripts/dev/pre-pr.sh"
+      - "scripts/dev/pre-push.sh"
       - "specs/ci-gates.v1.yaml"
       - ".github/workflows/static-contract-gates.yml"
     local:
       command: "bash scripts/verify-tagged-builds.sh --all"
       test_command: "bash scripts/test-verify-tagged-builds.sh"
+      pre_push: deferred
+      pre_push_reason: "Measured across 67 local pre-pr gate reports: median 19s but spiky (~10% of total selected-gates time on a bad run). Still runs in `make pre-pr`/`make pre-pr-full` and blocks merge via static-contract-gates.yml (required-gates-complete). Run `make pre-pr-full` before a package move: build tags can hide files from `./...`, and this gate's whole-module vet sweep is what actually exercises them."
     ci:
       workflow: static-contract-gates.yml
       job: "Verify tagged-builds gate"
@@ -4139,6 +4160,10 @@ gates:
       - "go/cmd/ci-gates/**"
       - ".pre-commit-config.yaml"
       - "scripts/dev/pre-pr.sh"
+      - "scripts/dev/pre-push.sh"
+      - "scripts/test-pre-push.sh"
+      - "scripts/test-no-prepr-stamp-references.sh"
+      - "scripts/lib/pre-pr-go-paths.sh"
       - "Makefile"
       - "scripts/dev/precommit-go.sh"
       - "scripts/dev/trivy-fs-local.sh"
@@ -4182,6 +4207,10 @@ gates:
       - "go/internal/cigates/**"
       - "go/cmd/ci-gates/**"
       - "scripts/dev/pre-pr.sh"
+      - "scripts/dev/pre-push.sh"
+      - "scripts/test-pre-push.sh"
+      - "scripts/test-no-prepr-stamp-references.sh"
+      - "scripts/lib/pre-pr-go-paths.sh"
       - "Makefile"
       - "scripts/dev/precommit-go.sh"
       - "scripts/test-verify-ci-gates-registry.sh"
@@ -4219,7 +4248,7 @@ gates:
       - "scripts/test-resolve-required-gates-pr.sh"
     local:
       command: "bash scripts/verify-ci-gates-registry.sh --drift"
-      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh && bash scripts/test-resolve-required-gates-pr.sh && (cd go && go test ./internal/cigates -count=1)"
+      test_command: "bash scripts/test-verify-ci-gates-registry.sh && bash scripts/test-pre-pr-whole-module-gates.sh && bash scripts/test-pre-push.sh && bash scripts/test-no-prepr-stamp-references.sh && bash scripts/test-generate-ci-gates-doc.sh && bash scripts/test-verify-live-required-status-checks.sh && bash scripts/test-resolve-required-gates-pr.sh && (cd go && go test ./internal/cigates -count=1)"
     ci:
       workflow: verify-ci-gate-registry.yml
       job: "Verify ci-gate registry + drift"
@@ -4227,38 +4256,6 @@ gates:
       - go
     ci_only_reason: ""
     hook_id: gate-registry-drift
-
-  - id: prepr-stamp-verify-selftest
-    name: pre-pr stamp verify guard self-test
-    category: hygiene
-    tier: pre-pr
-    # Advisory, not blocking (mirrors docs-prose-quality/docs-contradiction):
-    # a blocking gate with no CI backstop fails ValidateRequiredStatusChecks
-    # (TestValidateRequiredStatusChecks_RejectsBlockingGateWithoutCIReachability),
-    # because nothing in CI could ever satisfy it. This gate has no CI
-    # counterpart by design -- see local_only_reason below -- so it stays
-    # advisory the same way those two do.
-    blocking: false
-    triggers:
-      - "scripts/dev/prepr-stamp-verify.sh"
-      - "scripts/dev/test-prepr-stamp-verify.sh"
-      - "specs/ci-gates.v1.yaml"
-    local:
-      # command is deliberately empty, not a no-op filler: prepr-stamp-verify.sh
-      # reads the stamp of the commit about to be pushed, so running the real
-      # guard as this gate's own local.command inside `make pre-pr` would fail
-      # every time -- that stamp does not exist until `make pre-pr` finishes.
-      # Only the hermetic self-test is meaningful to run from this registry
-      # path; the real guard's enforcement stays the pre-commit pre-push stage
-      # (hygiene_hooks entry below), which this gate does not duplicate.
-      command: ""
-      test_command: "bash scripts/dev/test-prepr-stamp-verify.sh"
-    ci:
-      workflow: ""
-      job: ""
-    requirements: []
-    ci_only_reason: ""
-    local_only_reason: "prepr-stamp-verify.sh is a git pre-push hook (stages: [pre-push] in .pre-commit-config.yaml); CI never runs git push, so it has no CI job to point at, and the chicken-and-egg problem above rules out a meaningful local.command too. Before this gate existed, test-prepr-stamp-verify.sh (148 lines, added as \"the first behavioural test for prepr-stamp-verify.sh\") was reachable from nothing -- not pre-pr.sh, not a gate, not a workflow, not a Makefile target -- and never ran (#6149 follow-up item 8 review, P1). This gate closes that: `make pre-pr` now runs the self-test whenever the guard or its test changes. Unlike docs-prose-quality/docs-contradiction, this is a permanent local-only shape, not a staging one waiting on a CI job -- CI cannot exercise a pre-push hook, ever, so there is nothing here that would close by adding one."
 
 # ─── HYGIENE HOOKS ───────────────────────────────────────────────────────────
 # Local pre-commit hook ids that are basic hygiene or self-tests, intentionally
@@ -4276,8 +4273,6 @@ hygiene_hooks:
     reason: "self-test of the docs-build verifier + hook wiring"
   - id: console-e2e-verifier-tests
     reason: "self-test of the console-e2e pre-push helper routing"
-  - id: prepr-stamp-verify
-    reason: "local-only pre-push guard: blocks pushing a commit make pre-pr did not stamp; no CI counterpart (CI re-runs the gates regardless)"
 
 # ─── NON-GATE WORKFLOWS ──────────────────────────────────────────────────────
 # .github/workflows/*.yml files that are deliberately NOT PR gates (deploy,

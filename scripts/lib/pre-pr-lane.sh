@@ -191,12 +191,11 @@ git_untracked_names() {
 # when every suite passed.
 #
 # The classifier decides which gates the current run is allowed to skip, and
-# nothing downstream re-checks a FAST verdict: `make pre-pr` writes a per-SHA
-# stamp and scripts/dev/prepr-stamp-verify.sh lets the push through on it. Both
-# suites are self-contained -- no Go toolchain, no network, and no dependency on
-# the developer's git config -- and add a couple of seconds to a run that
-# otherwise costs minutes, so running them every time is cheaper than any of the
-# outcomes of not running them.
+# nothing downstream re-checks a FAST verdict: `make pre-pr`'s own exit status
+# is the only signal a caller gets. Both suites are self-contained -- no Go
+# toolchain, no network, and no dependency on the developer's git config -- and
+# add a couple of seconds to a run that otherwise costs minutes, so running
+# them every time is cheaper than any of the outcomes of not running them.
 pre_pr_run_classifier_selfcheck() {
 	local repo_root="$1" rc=0 suite
 	printf '\n\033[1m==> docs fast-path classifier self-check\033[0m\n'

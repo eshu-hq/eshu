@@ -18,54 +18,54 @@ for that platform's own commands and layers.
 
 Use this fixed promotion order before opening or updating a PR:
 
-1. Complete TDD and the focused proof for every touched surface, including any
-   applicable frontend, security, runtime, or Ifa gates.
-2. Run a preliminary full `eshu-code-review` of the rebased diff. If it reports
-   any P0, P1, or blocking P2 finding, fix it, rerun affected focused proof,
-   and repeat the full review. Do **not** run `make pre-pr` while a blocking
-   finding remains.
-3. Once the preliminary verdict is `P0=0, P1=0, P2-blocking=0` — every
-   deferred P2 tracked in a linked issue with the owner's agreement quoted in
-   the PR and named there with its severity-table category, per
-   `.agents/skills/eshu-code-review/references/merge-bar.md` — capture a
-   `ci-gates review-attest` receipt with the clean preliminary review and exact
-   proposed PR claims.
-4. With the branch otherwise ready to push, run `make pre-pr` exactly once as
-   the late promotion gate. Use `make pre-pr-full` instead when the risk tier
-   requires the whole-module race lane, then verify the review receipt. A
-   matching receipt replaces the second full semantic review because every
-   reviewed input is unchanged. If verification fails, repeat the affected
-   proof and full review. Make no edits before push.
+1. Complete TDD and focused proof for every touched surface, including applicable frontend, security, runtime, or Ifa gates.
+2. Run a preliminary full `eshu-code-review` of the rebased diff; fix any P0, P1, or blocking P2 finding, rerun affected proof, and repeat the review. Do **not** run `make pre-push` while a blocking finding remains.
+3. Once clean (`P0=0, P1=0, P2-blocking=0`; every deferred P2 handled per
+   `.agents/skills/eshu-code-review/references/merge-bar.md`), capture a receipt.
+4. Run `make pre-push` once as the late gate, verify the receipt (a match replaces the second full review), and make no edits before push.
 
-`make pre-pr` is the blocking local promotion path for credential-free CI
-gates. It catches format, exactness, race, contract, docs, and Go security
-failures before a branch enters the hosted queue:
+`make pre-push` is the fast local floor run before every push, scoped to
+changed packages/paths: `go test`, the file cap, gofumpt/lint/build/vet, the
+registry-selected blocking exactness/telemetry/hygiene/docs gates, and the
+advisory docs-contradiction gate. No race/live lane, no push stamp (removed —
+see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)).
+A handful of the slowest registry gates (median 19-111s each) carry
+`local.pre_push: deferred` in `specs/ci-gates.v1.yaml` and are skipped here —
+printed `DEFER-CI <gate>: <reason>`, never silently — since each is either
+blocking with a real CI destination (`required-gates.yml` aggregates it
+automatically) or advisory (never required for merge); `pre-pr` still runs
+them all. `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
+preflights for queue/lease/claim, schema DDL, hot-Cypher/graph-write, or
+reducer/package-move changes (`pre-pr-full` for moves: build tags hide files
+from `./...`):
 
 ```bash
+make pre-push          # or: bash scripts/dev/pre-push.sh
 make pre-pr            # or: bash scripts/dev/pre-pr.sh
 make pre-pr-full       # adds advisory registry gates and whole-module race
 ```
 
-CI remains the authoritative, non-bypassable source of truth — but it should
-rarely be the *first* place you learn about a credential-free failure. Two
-expectations are firm:
+CI remains authoritative and should rarely be the *first* place a
+credential-free failure appears. Race gates block on Go changes, but
+`make pre-push` runs none — `make pre-pr` runs the scoped lane, `pre-pr-full`
+the whole-module `go test ./... -race`, CI the authoritative full gate.
 
-- **Exactness gates are blocking** when matching code, spec, fixture, cassette,
-  or generated-contract inputs change. `make pre-pr` selects and runs them.
-- **Race gates are blocking** when Go implementation code changes. `make pre-pr`
-  runs the targeted/scoped race lane; `make pre-pr-full` adds the whole-module
-  `go test ./... -race`, and CI runs the authoritative full race gate.
+**Where Ifá/Odù protection lives:** neither `make pre-push` nor a bare
+`make pre-pr` runs a live Ifá/Odù cell (Docker/NornicDB/Postgres-only, CI or
+explicit local request). CI's `required-gates-complete` aggregate (alongside
+`go-core-complete`/`go-race-complete`) is the blocking authority, collecting
+every Ifá/Odù gate plus every other `blocking: true` row the changed paths
+select; a merge requires it green.
 
 ### Local and hosted ownership
 
-The local and hosted layers have different jobs. Do not remove one because the
-other runs a similar command.
+The local and hosted layers have different jobs; do not remove one because the other runs a similar command.
 
 | Proof | Mandatory locally | Mandatory in GitHub Actions |
 | --- | --- | --- |
-| TDD reproduction and focused touched-surface tests | Before review and before `make pre-pr` | Re-run when selected; CI is not the first proof attempt |
-| Credential-free promotion checks | `make pre-pr` once on the final reviewed diff; use `make pre-pr-full` only when the proof tier requires it | Re-run independently on the exact PR head |
-| Advisory analysis | Outside the default promotion path; run with `make pre-pr-full` or its focused command when useful | May publish evidence but does not block the local promotion stamp |
+| TDD reproduction and focused touched-surface tests | Before review and before `make pre-push` | Re-run when selected; CI is not the first proof attempt |
+| Credential-free promotion checks | `make pre-push` once on the final reviewed diff; use `make pre-pr`/`make pre-pr-full` when the risk tier warrants that deeper, optional preflight | Re-run independently on the exact PR head |
+| Advisory analysis | Outside the default promotion path; run with `make pre-pr-full` or its focused command when useful | May publish evidence but does not block the local promotion floor |
 | Frontend and security-heavy checks | Run the matching preflight when those surfaces change | Blocking path-selected jobs remain authoritative |
 | OS-, credential-, service-, or artifact-dependent checks | Run locally or on the dedicated remote validation host when the change contract requires that proof | Mandatory hosted owner; a local or remote pass does not create a GitHub required status |
 | Required merge decision | No local command can satisfy it | `go-core-complete`, `go-race-complete`, and `required-gates-complete` must pass |
@@ -157,12 +157,12 @@ go -C go run ./cmd/ci-gates review-attest capture \
   --receipt "$review_receipt"
 ```
 
-Run the same command with `verify` after `make pre-pr`. A pass means the base,
-head, diff, worktree, submodules, claims, packet, and verdict are byte-for-byte
-the reviewed inputs. A failure names the changed binding and requires another
-full review. This receipt is local proof for the agent workflow; it does not
-replace GitHub review or a required hosted check, and `make pre-pr` does not
-require community contributors to create one.
+Run the same command with `verify` after `make pre-push`. A pass means the
+base, head, diff, worktree, submodules, claims, packet, and verdict are
+byte-for-byte the reviewed inputs. A failure names the changed binding and
+requires another full review. This receipt is local proof for the agent
+workflow; it does not replace GitHub review or a required hosted check, and
+`make pre-push` does not require community contributors to create one.
 
 For frontend changes, a separate focused preflight mirrors `.github/workflows/frontend.yml`
 (#4216) — root-site and console typecheck/test/build, console a11y (critical +
