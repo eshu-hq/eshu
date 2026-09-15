@@ -25,12 +25,27 @@ Do not introduce a second plan approval after the user has authorized the work.
 Check open PRs and recent commits for the same root cause before claiming a leaf.
 Respect existing ownership; do not take over an active peer PR without assignment.
 
+Post a claim comment on the issue naming the files or families this drive owns
+before the first edit. Read sibling claim comments live at each push, not only
+once at the start — a peer's claim posted after this drive began still owns
+what it names.
+
+Sweep every acceptance criterion against current `origin/main` before
+implementing, not against the issue text alone. On an older issue, later work
+often already satisfies some criteria; implementing an already-met one
+duplicates work and can reintroduce a fixed defect.
+
 Create a worktree per leaf and verify its path before editing. Load the minimum
 project skills covering its touched surfaces using root skill routing. Preserve
 TDD for code, package ownership, graph/query truth, performance and concurrency
 proof, private-data boundaries, and the prohibition on shared-worktree stashes.
 Delegate independent work when available and authorized; executors run focused
-proof and only the orchestrator runs the promotion gate.
+proof and only the orchestrator runs the promotion gate. Commit before
+dispatching any subagent — a "read-only" reviewer once reverted a production
+fix while probing a test tautology, and there was nothing to recover but the
+commit. Re-verify a subagent's findings yourself before acting on them, and
+before passing them to an executor as verified; a finding is what the subagent
+believes, not what you have confirmed.
 
 ## Implement And Promote Each PR
 

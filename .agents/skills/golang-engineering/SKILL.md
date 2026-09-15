@@ -52,6 +52,24 @@ never creates a new one (see `go/internal/reducer/compat_correlation.go` and
 its sibling `compat_*.go` files). Delete each aliased entry once its last
 caller has moved.
 
+Package-move mechanics, in order:
+
+- Use `git mv` for every relocated file, so history follows the move instead
+  of showing a delete plus an unrelated add.
+- Census what actually moves by symbol, never by filename prefix: a filename
+  prefix both over- and under-states real package membership. Use `go/types`
+  or a trial compile with `-gcflags=-e` to enumerate the exported and
+  cross-file-referenced symbols a file depends on before deciding it belongs
+  in the move.
+- Use recursive `./pkg/...` test paths for both the old and new locations, not
+  a bare package path — a non-recursive path silently skips subpackages a
+  move touched.
+- Prove repointed tests still run, not merely still compile: `go test -list
+  '.*' ./pkg/...` against the moved package confirms the test names the move
+  was supposed to carry are still discovered, catching a test file left
+  behind under a build tag or an old package name that compiles clean but
+  registers nothing.
+
 `go build/vet/test ./...` silently skips any file behind a `//go:build` tag
 that no workflow, Makefile target, or script ever passes — a moved or renamed
 build-tagged file can look green on the default checks while it never compiles
