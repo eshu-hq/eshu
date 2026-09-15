@@ -21,9 +21,8 @@ import (
 
 const deployableUnitCorrelationFallbackThreshold = 0.90
 
-// DeployableUnitCorrelationHandler reduces one correlation intent into
-// evidence-backed candidate evaluation and materializes admitted exact
-// deployable-unit correlation edges when an edge writer is wired.
+// DeployableUnitCorrelationHandler reduces one intent into evidence-backed
+// candidate evaluation and admitted exact deployable-unit correlation edges.
 type DeployableUnitCorrelationHandler struct {
 	FactLoader              FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader
@@ -57,10 +56,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, fmt.Errorf("deployable unit correlation fact loader is required")
 	}
 
-	// Fail fast before the FactLoader is called. ExtractDeployableUnitCorrelationRows
-	// re-derives entityKeys itself; the repeat is cheap and keeps that seam
-	// self-contained for its other caller (#5993).
-	if _, err := deployableUnitCorrelationEntityKeys(intent); err != nil {
+	// Fail fast and retain the ownership key used by empty-result retraction.
+	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
+	if err != nil {
 		return Result{}, err
 	}
 
@@ -118,7 +116,10 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, err
 	}
 	if len(evaluation.Results) == 0 {
-		if err := h.retractDeployableUnitEdges(ctx, deployableUnitRetractRowsFromFacts(intent, envelopes)); err != nil {
+		if err := h.retractDeployableUnitEdges(
+			ctx,
+			deployableUnitRetractRowsFromFacts(intent, envelopes, entityKeys),
+		); err != nil {
 			return Result{}, err
 		}
 		if err := publishIntentGraphPhase(

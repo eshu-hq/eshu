@@ -45,7 +45,7 @@ SELECT EXISTS (
 			if !hasWorkFK {
 				t.Fatal("fixture lacks validated audit-to-work FK required for KEY SHARE proof")
 			}
-			now := time.Now().UTC()
+			now := time.Now().UTC().Truncate(time.Microsecond)
 			const scope, generation, id = "repository:6488-fk", "generation:6488-fk", "work:6488-fk"
 			seedContainerImageIdentityAckScope(t, ctx, db, scope)
 			seedContainerImageIdentityAckGeneration(t, ctx, db, scope, generation)
@@ -53,7 +53,7 @@ SELECT EXISTS (
 				t.Fatal(err)
 			}
 			insertCrossScopeCompletionBaseConsumer(t, ctx, db, id, scope, generation, variant.domain, now)
-			if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running',lease_owner='fk-ack',claim_until=$1,container_image_identity_claim_epoch=1 WHERE work_item_id=$2`, now.Add(time.Hour), id); err != nil {
+			if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running',lease_owner='fk-ack',claim_until=$1,last_attempt_at=$2,container_image_identity_claim_epoch=1 WHERE work_item_id=$3`, now.Add(time.Hour), now, id); err != nil {
 				t.Fatal(err)
 			}
 			audit, err := db.BeginTx(ctx, nil)
@@ -82,7 +82,7 @@ SELECT EXISTS (
 				assertCrossScopeConsumerState(t, ctx, db, id, "running", true)
 			} else {
 				queue := ReducerQueue{db: worker, LeaseOwner: "fk-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
-				if err := queue.AckBatch(ctx, []reducer.Intent{{IntentID: id, Domain: variant.domain, ClaimEpoch: 1}}, nil); err != nil {
+				if err := queue.AckBatch(ctx, []reducer.Intent{{IntentID: id, Domain: variant.domain, ClaimEpoch: 1, ClaimedAt: &now}}, nil); err != nil {
 					t.Fatalf("ACK blocked by audit FK KEY SHARE: %v", err)
 				}
 				assertCrossScopeConsumerState(t, ctx, db, id, "succeeded", false)

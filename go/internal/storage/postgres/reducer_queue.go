@@ -197,7 +197,10 @@ type ReducerQueue struct {
 
 // ErrReducerClaimRejected means the claimed reducer work item no longer belongs
 // to the current lease owner, so heartbeat/ack/fail must stop.
-var ErrReducerClaimRejected = errors.New("reducer work claim rejected")
+var ErrReducerClaimRejected = fmt.Errorf(
+	"reducer work claim rejected: %w",
+	reducer.ErrExecutionClaimRejected,
+)
 
 // NewReducerQueue constructs a Postgres-backed reducer work queue.
 func NewReducerQueue(

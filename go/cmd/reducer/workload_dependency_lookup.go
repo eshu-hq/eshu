@@ -22,14 +22,20 @@ func (l neo4jWorkloadDependencyLookup) ListRepoDependencyEdges(
 		return nil, nil
 	}
 
+	// NornicDB can discard later top-level UNION branches when the first branch
+	// is empty. Keep both anchored directions inside a CALL subquery so a target
+	// with incoming-only dependencies still returns its source edges.
 	rows, err := l.reader.Run(ctx, `
-		UNWIND $repo_ids AS repo_id
-		MATCH (source:Repository {id: repo_id})-[:DEPENDS_ON]->(target:Repository)
-		RETURN DISTINCT source.id AS source_repo_id, target.id AS target_repo_id
-		UNION
-		UNWIND $repo_ids AS repo_id
-		MATCH (source:Repository)-[:DEPENDS_ON]->(target:Repository {id: repo_id})
-		RETURN DISTINCT source.id AS source_repo_id, target.id AS target_repo_id
+		CALL {
+			UNWIND $repo_ids AS repo_id
+			MATCH (source:Repository {id: repo_id})-[:DEPENDS_ON]->(target:Repository)
+			RETURN DISTINCT source.id AS source_repo_id, target.id AS target_repo_id
+			UNION
+			UNWIND $repo_ids AS repo_id
+			MATCH (source:Repository)-[:DEPENDS_ON]->(target:Repository {id: repo_id})
+			RETURN DISTINCT source.id AS source_repo_id, target.id AS target_repo_id
+		}
+		RETURN source_repo_id, target_repo_id
 	`, map[string]any{"repo_ids": repoIDs})
 	if err != nil {
 		return nil, err
