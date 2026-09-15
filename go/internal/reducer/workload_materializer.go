@@ -450,7 +450,7 @@ SET rel.confidence = $edge_confidence,
 	batchWorkloadDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Workload {id: row.workload_id})
 MATCH (target:Workload {id: row.target_workload_id})
-MERGE (source)-[rel:DEPENDS_ON]->(target)
+MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)
 SET rel.confidence = $edge_confidence,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = row.evidence_source`

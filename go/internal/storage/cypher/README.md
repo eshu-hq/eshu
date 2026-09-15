@@ -740,14 +740,14 @@ repository ids, node ids, and statements stay out of metric labels.
   constraints is matched by type alone, never by nothing.
 - `MaterializedEdgeIdentityProperties` - the relationship properties, beyond a
   type's two endpoint nodes, that participate in its MERGE identity, keyed by
-  relationship type. Eleven of the fourteen families MERGE on endpoints alone;
+  relationship type. Ten of the fourteen families MERGE on endpoints alone;
   `codeowners_ownership_edges`
   (`DECLARES_CODEOWNER`: `pattern`, `source_path`) and `submodule_pin_edges`
   (`PINS_SUBMODULE`: `path`) fold a property into their MERGE key because two
   distinct source rows can otherwise collide onto the same (source, target)
-  relationship pattern. `repo_dependency` declares `RUNS_ON.identity_key` so
-  its two writers converge on one edge. Fails closed on an unregistered family
-  and returns a defensive copy. `TestSingleTypeFamilyIdentityMatchesWriteCypher`
+  relationship pattern. `workload_dependency` declares `DEPENDS_ON.identity_key`;
+  `repo_dependency` declares `RUNS_ON.identity_key`. Concurrent writers converge.
+  Unknown families fail closed; reads return copies. The identity drift test
   (`materialized_edge_families_test.go`) holds each single-type family's real
   write-path Cypher const by reference and extracts its MERGE property map
   from it, so a declared identity can never drift from what the writer

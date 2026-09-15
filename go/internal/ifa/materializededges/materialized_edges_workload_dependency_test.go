@@ -225,7 +225,10 @@ func TestMissingWorkloadDependencyExpectedTypesCatchesGap(t *testing.T) {
 
 	registry := map[string]struct{}{"DEPENDS_ON": {}}
 	complete := []ExpectedEdge{
-		{RelationshipType: "DEPENDS_ON", SourceEntityID: "workload:a", TargetEntityID: "workload:b"},
+		{
+			RelationshipType: "DEPENDS_ON", SourceEntityID: "workload:a", TargetEntityID: "workload:b",
+			Identity: map[string]string{"identity_key": "canonical"},
+		},
 	}
 	if missing := missingWorkloadDependencyExpectedTypes(complete, registry); len(missing) != 0 {
 		t.Fatalf("missingWorkloadDependencyExpectedTypes(complete) = %v, want none", missing)
@@ -243,7 +246,10 @@ func TestCompareWorkloadDependencyExpectedEdgesCatchesExtraAndMissing(t *testing
 	t.Parallel()
 
 	expected := []ExpectedEdge{
-		{RelationshipType: "DEPENDS_ON", SourceEntityID: "workload:a", TargetEntityID: "workload:b"},
+		{
+			RelationshipType: "DEPENDS_ON", SourceEntityID: "workload:a", TargetEntityID: "workload:b",
+			Identity: map[string]string{"identity_key": "canonical"},
+		},
 	}
 
 	if detail := compareWorkloadDependencyExpectedEdges("odu:test", expected, expected); detail != "" {
@@ -252,6 +258,7 @@ func TestCompareWorkloadDependencyExpectedEdgesCatchesExtraAndMissing(t *testing
 
 	extra := append(append([]ExpectedEdge{}, expected...), ExpectedEdge{
 		RelationshipType: "DEPENDS_ON", SourceEntityID: "workload:a", TargetEntityID: "workload:c",
+		Identity: map[string]string{"identity_key": "canonical"},
 	})
 	if detail := compareWorkloadDependencyExpectedEdges("odu:test", expected, extra); detail == "" {
 		t.Fatal("compareWorkloadDependencyExpectedEdges(spurious extra edge) = \"\", want a non-empty failure detail")
@@ -270,22 +277,25 @@ func writeWorkloadDependencyExpectedEdgesFixture(t *testing.T, path string, edge
 	fixture := struct {
 		Odu   string `json:"odu"`
 		Edges []struct {
-			RelationshipType string `json:"relationship_type"`
-			SourceEntityID   string `json:"source_entity_id"`
-			TargetEntityID   string `json:"target_entity_id"`
+			RelationshipType string            `json:"relationship_type"`
+			SourceEntityID   string            `json:"source_entity_id"`
+			TargetEntityID   string            `json:"target_entity_id"`
+			Identity         map[string]string `json:"identity"`
 		} `json:"edges"`
 	}{
 		Odu: ifa.WorkloadDependencyFamilyOduName,
 	}
 	for _, edge := range edges {
 		fixture.Edges = append(fixture.Edges, struct {
-			RelationshipType string `json:"relationship_type"`
-			SourceEntityID   string `json:"source_entity_id"`
-			TargetEntityID   string `json:"target_entity_id"`
+			RelationshipType string            `json:"relationship_type"`
+			SourceEntityID   string            `json:"source_entity_id"`
+			TargetEntityID   string            `json:"target_entity_id"`
+			Identity         map[string]string `json:"identity"`
 		}{
 			RelationshipType: edge["relationship_type"],
 			SourceEntityID:   edge["source_entity_id"],
 			TargetEntityID:   edge["target_entity_id"],
+			Identity:         map[string]string{"identity_key": "canonical"},
 		})
 	}
 	raw, err := json.Marshal(fixture)

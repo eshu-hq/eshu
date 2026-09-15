@@ -42,12 +42,13 @@ scripts/verify-hosted-helm-rollout-proof.sh \
 
 ## Upgrade
 
-### RUNS_ON identity cutover
+### Relationship identity cutover
 
-The release that introduces the keyed `RUNS_ON.identity_key` relationship is a
-non-rolling reducer upgrade. Old reducers write a propertyless relationship,
-while new reducers write the keyed identity. Do not let those revisions overlap,
-including across separately configured resolution-engine lanes.
+The release that introduces keyed `RUNS_ON.identity_key` and workload
+`DEPENDS_ON.identity_key` relationships is a non-rolling reducer upgrade. Old
+reducers write propertyless relationships, while new reducers write keyed
+identities. Do not let those revisions overlap, including across separately
+configured resolution-engine lanes.
 
 Before the Helm upgrade, let reducer queues drain, scale every
 resolution-engine Deployment to zero, and wait until every old reducer pod is
@@ -71,9 +72,9 @@ psql "$ESHU_POSTGRES_DSN" -v ON_ERROR_STOP=1 -c \
 
 Proceed only when that query returns zero. A normal `helm upgrade` then starts
 only new reducer binaries. Run the graph rebuild procedure after the upgrade;
-its full replay replaces duplicate or propertyless legacy `RUNS_ON` edges with
-one keyed identity. This coordinated stop applies to every lane Deployment;
-changing one lane at a time is unsafe.
+its full replay replaces duplicate or propertyless legacy `RUNS_ON` and workload
+`DEPENDS_ON` edges with one keyed identity per endpoint pair. This coordinated
+stop applies to every lane Deployment; changing one lane at a time is unsafe.
 
 ```bash
 helm upgrade eshu ./deploy/helm/eshu \

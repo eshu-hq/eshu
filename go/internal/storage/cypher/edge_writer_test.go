@@ -78,7 +78,7 @@ func TestEdgeWriterWriteEdgesRepoDependencyDispatch(t *testing.T) {
 func TestEdgeWriterWriteEdgesWorkloadDependencyDispatch(t *testing.T) {
 	t.Parallel()
 
-	executor := &recordingExecutor{}
+	executor := &recordingGroupExecutor{}
 	writer := NewEdgeWriter(executor, 0)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -96,14 +96,22 @@ func TestEdgeWriterWriteEdgesWorkloadDependencyDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 1; got != want {
-		t.Fatalf("executor calls = %d, want %d", got, want)
+	if got, want := len(executor.groupCalls), 1; got != want {
+		t.Fatalf("executor group calls = %d, want %d", got, want)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "DEPENDS_ON") {
-		t.Fatalf("cypher missing DEPENDS_ON: %s", executor.calls[0].Cypher)
+	group := executor.groupCalls[0]
+	if got, want := len(group), 2; got != want {
+		t.Fatalf("group statements = %d, want %d", got, want)
 	}
-	if !strings.Contains(executor.calls[0].Cypher, "source:Workload") {
-		t.Fatalf("cypher missing Workload match: %s", executor.calls[0].Cypher)
+	if !strings.Contains(group[0].Cypher, "WHERE rel.identity_key IS NULL") ||
+		!strings.Contains(group[0].Cypher, "DELETE rel") {
+		t.Fatalf("first statement is not legacy identity cleanup: %s", group[0].Cypher)
+	}
+	if !strings.Contains(group[1].Cypher, "MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)") {
+		t.Fatalf("second statement missing keyed workload DEPENDS_ON MERGE: %s", group[1].Cypher)
+	}
+	if len(executor.executeCalls) != 0 {
+		t.Fatalf("non-atomic Execute calls = %d, want 0", len(executor.executeCalls))
 	}
 }
 

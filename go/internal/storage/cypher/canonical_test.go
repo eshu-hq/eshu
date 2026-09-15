@@ -257,7 +257,7 @@ func TestBuildCanonicalWorkloadDependencyUpsertStatement(t *testing.T) {
 	if stmt.Operation != OperationCanonicalUpsert {
 		t.Fatalf("Operation = %q, want %q", stmt.Operation, OperationCanonicalUpsert)
 	}
-	if !strings.Contains(stmt.Cypher, "MERGE (source)-[rel:DEPENDS_ON]->(target)") {
+	if !strings.Contains(stmt.Cypher, "MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)") {
 		t.Fatalf("Cypher missing workload DEPENDS_ON edge: %s", stmt.Cypher)
 	}
 	if stmt.Parameters["workload_id"] != "wl-a" {

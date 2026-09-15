@@ -4,7 +4,7 @@
 # automatic replay converged the exact workload edge set, then deliberately
 # reopens the source workload_materialization row for the fault probe.
 
-workload_dependency_edge_operation_match='MERGE (source)-[rel:DEPENDS_ON]->(target)'
+workload_dependency_edge_operation_match="MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)"
 
 ifa_workload_dependency_fault_prepare() {
 	local cell="$1" projector_pid reducer_pid

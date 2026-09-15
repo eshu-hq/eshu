@@ -349,6 +349,20 @@ shared workload-replay recorder used by the multi-worker proof. The exact test
 reproduced the race locally before the recorder gained a mutex, then passed ten
 consecutive executions under the race detector.
 
+The next Ifá fault run exposed a separate production race: concurrent source-
+and target-scope workload passes both committed the same propertyless
+Workload-to-Workload `DEPENDS_ON`, leaving two edges where the expected set
+contained one. A live overlap regression held one writer before commit and
+proved the second could commit independently; the unkeyed shape failed with
+`graph=2, expected=1`. Keying the relationship MERGE with
+`identity_key='canonical'` passed ten identical overlap trials without reducing
+worker concurrency. The production route now removes propertyless legacy edges
+and performs the keyed MERGE in one graph transaction. Live tests also prove
+mixed legacy duplicates converge to one keyed edge and that a failed keyed
+write rolls the cleanup back. The exact live set passed three race-enabled
+executions, while both Ifá structural suites passed with the updated identity
+fixture and graph-fault anchor.
+
 ```bash
 go test ./internal/reducer ./internal/storage/postgres ./cmd/reducer \
   -run 'RepoDependency|ReplayWorkloadMaterialization|RunsOn|DefaultRuntime|Wiring' \
@@ -359,6 +373,8 @@ go test -race ./internal/reducer \
 go test -race ./internal/reducer \
   -run '^TestIfaRepoDependencyProofWorkersOverlapDistinctAcceptanceUnits$' \
   -count=10
+ESHU_CYPHER_BOLT_DSN="$NORNIC_DSN" go test -race ./internal/storage/cypher \
+  -run '^TestBoltWorkloadDependency' -count=3
 ESHU_POSTGRES_DSN="$TEST_DSN" go test ./internal/storage/postgres \
   -run 'TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive|TestWorkload(ReplayConcurrentFirstScheduleReportsSuccess|FencedReplaySupersedesOnlyOlderInFlightToken)$' \
   -count=1
@@ -425,8 +441,8 @@ The complete shard exited zero.
   timeout now derives from the five-minute drain bound plus a one-minute margin;
   the successful immediate-recovery result above is the runtime proof.
 - Runtime cost: the readiness gates add index-served `EXISTS` probes over
-  scope-count row sets. A workload `RUNS_ON` batch adds one graph statement;
-  the shared deterministic relationship identity preserves writer concurrency.
+  scope-count row sets. A keyed `RUNS_ON` or workload `DEPENDS_ON` batch adds
+  one cleanup statement; deterministic identity preserves writer concurrency.
   A
   matching pre-upgrade edge adds one bounded cleanup statement per batch.
   Exact claim-token predicates add comparisons on the

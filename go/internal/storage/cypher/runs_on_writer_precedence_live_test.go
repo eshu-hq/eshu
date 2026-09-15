@@ -24,6 +24,7 @@ type runsOnBoltExecutor struct {
 type runsOnGroupGate struct {
 	started        chan<- struct{}
 	afterStatement int
+	cypherContains string
 	reached        chan<- struct{}
 	release        <-chan struct{}
 }
@@ -56,7 +57,12 @@ func (e runsOnBoltExecutor) ExecuteCypherGroup(
 }
 
 func (e runsOnBoltExecutor) ExecuteGroup(ctx context.Context, statements []Statement) error {
-	return executeRunsOnGroup(ctx, e.runner, statements, e.groupGate)
+	group := make([]Statement, len(statements))
+	copy(group, statements)
+	if e.forceInvalidFinal && len(group) > 0 {
+		group[len(group)-1].Cypher = "THIS IS NOT VALID CYPHER"
+	}
+	return executeRunsOnGroup(ctx, e.runner, group, e.groupGate)
 }
 
 func executeRunsOnGroup(
@@ -82,7 +88,11 @@ func executeRunsOnGroup(
 			if _, consumeErr := result.Consume(ctx); consumeErr != nil {
 				return nil, consumeErr
 			}
-			if gate != nil && gate.afterStatement == index {
+			shouldGate := gate != nil && gate.afterStatement == index
+			if gate != nil && gate.cypherContains != "" {
+				shouldGate = strings.Contains(statement.Cypher, gate.cypherContains)
+			}
+			if shouldGate {
 				notifyRunsOnGate(gate.reached)
 				if gate.release != nil {
 					select {

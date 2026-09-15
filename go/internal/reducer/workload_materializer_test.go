@@ -559,7 +559,7 @@ func TestWorkloadMaterializerWritesWorkloadDependencies(t *testing.T) {
 	if result.WorkloadDependenciesWritten != 1 {
 		t.Fatalf("WorkloadDependenciesWritten = %d, want 1", result.WorkloadDependenciesWritten)
 	}
-	if !containsCypher(executor.calls, "MERGE (source)-[rel:DEPENDS_ON]->(target)") {
+	if !containsCypher(executor.calls, "MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)") {
 		t.Fatal("missing workload DEPENDS_ON MERGE cypher")
 	}
 }
