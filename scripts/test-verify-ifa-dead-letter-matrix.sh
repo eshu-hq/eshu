@@ -177,9 +177,9 @@ done
 # container logs -- the host-side canonical dumps, rationale deltas, and
 # per-N binary logs that would show WHAT diverged were deleted by each
 # script's own EXIT trap the moment the job ended, --keep or not, because
-# neither job passed --keep and neither had an upload-artifact step. Runs
-# 34068313913 (cell_expirelease digest mismatch) and 33788992677
-# (determinism-matrix rationale non-convergence) left nothing to inspect.
+# neither job passed --keep and neither had an upload-artifact step. Run
+# 33788992677 (determinism-matrix rationale non-convergence) left nothing to
+# inspect.
 workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 
@@ -234,6 +234,26 @@ for needle in \
 	rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
 		|| fail "matrix workflow does not preserve diagnostic artifact: ${needle}"
 done
+
+# --keep also skips each script's own `docker compose -p <project> down -v`,
+# and the scripts default that project to a PID-suffixed name the workflow
+# cannot guess. Each matrix job must therefore pin the project at job level
+# and name it in both its log-dump and teardown steps; a bare
+# `docker compose -f docker-compose.yaml ...` addresses a different project,
+# dumps no logs, and tears nothing down.
+for needle in \
+	'DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}' \
+	'run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true' \
+	'run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true' \
+	'DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}' \
+	'run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true' \
+	'run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true'; do
+	rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
+		|| fail "matrix workflow does not address the kept compose project: ${needle}"
+done
+if rg --fixed-strings --quiet -- 'run: docker compose -f docker-compose.yaml' "${workflow}"; then
+	fail "a workflow step runs docker compose without -p; it addresses a project no gate script starts"
+fi
 
 # Every pin helper above must BIND CODE. Run last, so `compgen -A function`
 # sees them all. This is what stops #6161 from being reintroduced: a helper

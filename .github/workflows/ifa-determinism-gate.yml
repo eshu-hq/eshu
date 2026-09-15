@@ -563,6 +563,11 @@ jobs:
     name: determinism-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # --keep below skips the script's own compose teardown, and the script
+    # otherwise names its project with a PID suffix this workflow cannot
+    # guess; pin it so the log-dump and teardown steps address the real stack.
+    env:
+      DETERMINISM_COMPOSE_PROJECT: eshu-ifa-determinism-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
@@ -593,9 +598,9 @@ jobs:
 
       - name: Dump service logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yaml logs --tail=200 || true
+        run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
 
-      # #6162: retain the retained (--keep) work dir's per-N canonical graph
+      # #6162: upload the kept (--keep) work dir's per-N canonical graph
       # dumps, rationale-delta dumps, and host binary logs, not just the
       # backend container log tail above. A mismatch (e.g. a rationale
       # non-convergence, run 33788992677) needs the actual bytes, not just the
@@ -614,12 +619,17 @@ jobs:
 
       - name: Tear down Docker services
         if: always()
-        run: docker compose -f docker-compose.yaml down -v || true
+        run: docker compose -p "${DETERMINISM_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
 
   dead-letter-matrix:
     name: dead-letter-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # --keep below skips the script's own compose teardown, and the script
+    # otherwise names its project with a PID suffix this workflow cannot
+    # guess; pin it so the log-dump and teardown steps address the real stack.
+    env:
+      DEADLETTER_MATRIX_COMPOSE_PROJECT: eshu-ifa-deadletter-matrix-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
@@ -647,9 +657,9 @@ jobs:
 
       - name: Dump service logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yaml logs --tail=200 || true
+        run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
 
-      # #6162: retain the retained (--keep) work dir's mutated cassette and
+      # #6162: upload the kept (--keep) work dir's mutated cassette and
       # host binary logs, not just the backend container log tail above.
       - name: Upload dead-letter-matrix diagnostics
         if: failure()
@@ -664,7 +674,7 @@ jobs:
 
       - name: Tear down Docker services
         if: always()
-        run: docker compose -f docker-compose.yaml down -v || true
+        run: docker compose -p "${DEADLETTER_MATRIX_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
 
   # Sharded across four parallel runners. The matrix ran serially until the
   # cell count outgrew the 30-minute ceiling: a measured 21m2s for 18 cells
@@ -783,8 +793,8 @@ jobs:
           # graph-*.dump (#6162), not the two prior literal names: every cell
           # calls capture_digest <cell>, writing graph-<cell>.dump, so a
           # literal list only ever retained baseline/restartbackend and
-          # silently dropped every other cell's dump (e.g. cell_expirelease,
-          # runs 34068313913 and 34513181888).
+          # silently dropped every other cell's dump (e.g. cell_expirelease in
+          # run 34068313913).
           path: |
             /tmp/ifa-fault-injection.*/graph-*.dump
             /tmp/ifa-fault-injection.*/graph-manifest.tsv
