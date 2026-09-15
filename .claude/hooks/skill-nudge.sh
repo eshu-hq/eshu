@@ -27,16 +27,12 @@ INPUT=$(cat)
 # machine -- and blocking an edit in someone else's Go project over an Eshu
 # skill would be indefensible. Walk up from the edited file looking for a marker
 # only Eshu has; works from the main checkout and from any worktree.
-eshu_root() {
-  local d="${1:-}"
-  [ -n "$d" ] || return 1
-  [ -d "$d" ] || d="$(dirname "$d")"
-  while [ -n "$d" ] && [ "$d" != "/" ] && [ "$d" != "." ]; do
-    [ -e "$d/.agents/skills/eshu-code-review" ] && return 0
-    d="$(dirname "$d")"
-  done
-  return 1
-}
+#
+# eshu_root is shared with goal-refresh.sh's skill nudge, which needs the
+# resolved root path rather than just this boolean gate -- see
+# lib/skill-nudge-lib.sh for why keeping one implementation matters here.
+# shellcheck source=.claude/hooks/lib/skill-nudge-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/skill-nudge-lib.sh"
 
 command -v python3 >/dev/null 2>&1 || exit 0
 

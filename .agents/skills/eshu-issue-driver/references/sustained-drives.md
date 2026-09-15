@@ -22,15 +22,33 @@ changes.
 
 ## Per-harness rendering
 
-**Claude Code** — two commands, the goal and the grant kept separate:
+**Claude Code** — one `/goal` prompt, with any consent granted through the
+launcher, not a second chat command:
 
+```
+CLAUDE_GOAL_CONSENT="push, pr-open" <launch command>
+```
 ```
 /goal endpoint: issues <list> closed per eshu-issue-driver Completion Evidence.
 lane: <what this drive owns, or "per the claim comments on #N">.
 decision pointers: <comment ids or a design doc>.
 machine constraints: <e.g. worktree X only, checked before verify-golden-corpus-gate>.
-/goal consent push, pr-open
 ```
+
+`CLAUDE_GOAL_CONSENT` is an environment variable, read directly by both hooks
+(`goal-continue.sh` and, via `CONSENT_ENV`, `goal-refresh.sh`) independently of
+anything written to the goal file. Set before the session's first prompt, it
+is already in effect for the very first Stop -- there is no second command to
+race against, because there is no second command at all. `/goal consent
+push, pr-open` still exists and is the right tool for granting consent
+*mid-drive*, after the goal is already running; it is not the initial-grant
+form, because the two commands land as separate turns and
+`goal-continue.sh`'s Stop hook keeps a running drive working before the
+owner's chat has a reliable chance to send the second one. See
+[the consent bug this contract fixes](#the-consent-bug-this-contract-fixes)
+below for the failure mode a launcher-side grant avoids, and
+`scripts/test-goal-refresh-hook-atomic-consent-cases.sh` for the end-to-end
+proof against both hooks.
 
 **Codex** — the same five-slot text, plus an inline stop line, because Codex
 has no `goal-continue.sh` Stop hook to enforce it:
@@ -76,6 +94,33 @@ structural, not cosmetic: always grant consent with its own `/goal consent
 <acts>` command (or the Codex/Muse inline "Consent: ..." line, which is
 prose read by the model rather than parsed by a hook), never as a trailing
 line inside the goal text.
+
+## The initial-grant race this contract also fixes
+
+codex#4018964359 found the next layer of the same problem: even the correct
+two-command form — `/goal <text>` then `/goal consent push, pr-open` — is two
+separate chat turns, and `goal-continue.sh`'s Stop hook exists specifically to
+keep a drive working once the first one lands. An unattended launch has no
+guaranteed window to send the second command before the drive reaches its
+first push, so the grant can arrive after the act it was meant to cover.
+
+`CLAUDE_GOAL_CONSENT` was already the answer, just not documented as the
+default: it is an environment variable, read directly by `goal-continue.sh`
+(`.claude/hooks/goal-continue.sh:262-264`) and by `goal-refresh.sh` via
+`CONSENT_ENV` into `lib/goal-refresh-note.py:37-39`, independently of
+anything written to the goal file. Set by the launcher before the session's
+first prompt, it is already in effect for the very first Stop that first
+`/goal` produces — there is no second command, so there is nothing to race.
+`scripts/test-goal-refresh-hook-atomic-consent-cases.sh` proves this against
+both hooks end to end, and proves the negative alongside it: a goal body that
+merely mentions "consent" in prose (no `CONSENT:` line, no env var) grants
+nothing, exactly as leading-block parsing already requires.
+
+`/goal consent <acts>` remains correct for a grant made *after* the drive is
+already running — extending it mid-flight, or covering an act the launcher
+did not anticipate. It is the initial-grant form that changed: use the
+launcher env var to start a drive with consent already in force, not a second
+`/goal` command raced against the first.
 
 ## Polling and liveness
 

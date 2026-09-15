@@ -311,11 +311,25 @@ separately is what let this through.
 strip loop in `goal-continue.sh` and its mirror in `goal-refresh.sh` both stop
 treating lines as metadata at the first ordinary line. A `CONSENT:` line
 placed after the objective is body text, never a grant: neither hook reads
-it, so the stop reason is never lifted. Always grant with its own
+it, so the stop reason is never lifted. Grant a mid-drive consent with its own
 `/goal consent <acts>` command — which writes a leading `CONSENT:` line —
 never a trailing line appended to the goal text. See
 [sustained-drives.md](../../.agents/skills/eshu-issue-driver/references/sustained-drives.md)
 for the per-harness template that avoids this.
+
+That command is for extending a drive already in flight, though, not for the
+initial grant: `/goal <text>` and `/goal consent <acts>` are two chat turns,
+and `goal-continue.sh`'s Stop hook exists to keep a drive working once the
+first one lands — an unattended launch has no guaranteed window to send the
+second before the first push (codex#4018964359). `CLAUDE_GOAL_CONSENT`, set
+by the launcher before the session's first prompt, is what makes the initial
+grant atomic with starting the drive: both hooks read it directly from the
+environment (`goal-continue.sh:262-264`; `goal-refresh.sh` via `CONSENT_ENV`
+into `lib/goal-refresh-note.py:37-39`), independently of anything in the goal
+file, so it is already in force for the very first Stop and there is no
+second command to race. `scripts/test-goal-refresh-hook-atomic-consent-cases.sh`
+proves this end to end against both hooks, alongside the negative case: a
+goal body that merely mentions "consent" in prose grants nothing.
 
 ### The skill nudge inside the goal restatement
 

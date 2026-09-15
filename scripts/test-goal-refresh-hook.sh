@@ -227,6 +227,8 @@ fi
 . "${repo_root}/scripts/test-goal-refresh-hook-parity-cases.sh"
 # shellcheck source=scripts/test-goal-refresh-hook-skill-nudge-cases.sh
 . "${repo_root}/scripts/test-goal-refresh-hook-skill-nudge-cases.sh"
+# shellcheck source=scripts/test-goal-refresh-hook-atomic-consent-cases.sh
+. "${repo_root}/scripts/test-goal-refresh-hook-atomic-consent-cases.sh"
 if [[ "${goal_refresh_cases_loaded:-0}" == "1" ]]; then
 	ok "the sourced case file loaded"
 else
@@ -246,6 +248,11 @@ if [[ "${goal_refresh_skill_nudge_cases_loaded:-0}" == "1" ]]; then
 	ok "the sourced skill-nudge-case file loaded"
 else
 	no "the sourced skill-nudge-case file did NOT load -- the skill-nudge cases did not run"
+fi
+if [[ "${goal_refresh_atomic_consent_cases_loaded:-0}" == "1" ]]; then
+	ok "the sourced atomic-consent-case file loaded"
+else
+	no "the sourced atomic-consent-case file did NOT load -- the atomic-consent cases did not run"
 fi
 
 printf '\ngoal-refresh hook mirror: %s passed, %s failed\n' "${passed}" "${failed}"

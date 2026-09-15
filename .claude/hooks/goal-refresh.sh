@@ -423,8 +423,29 @@ esac
 # A named, unloaded project skill gets a nudge too -- see lib/skill-nudge-lib.sh.
 # shellcheck source=.claude/hooks/lib/skill-nudge-lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/skill-nudge-lib.sh"
-nudge_skills="$(goal_refresh_missing_skill_nudges "${goal}" \
-	"${cwd_prefix}/.agents/skills" "$(printf '%s' "${session_id}" | cut -c1-12)")"
+
+# The nudge scan needs the Eshu PROJECT ROOT's .agents/skills, not
+# "${cwd_prefix}/.agents/skills" directly -- that directory only exists at the
+# root. A cwd one level down (e.g. "<repo>/go") or any deeper worktree
+# subdirectory has no .agents/skills of its own, so the scan silently found
+# nothing and no nudge ever fired outside the repo root. eshu_root_path is the
+# same walk-up skill-nudge.sh already does to find the marker only an Eshu
+# checkout has; sharing it is what keeps the two from drifting apart again.
+#
+# Deliberately silent, not an error, when a root cannot be resolved: the
+# cwd-less path this hook supports (no "cwd" in the payload, have_cwd=0) has
+# nothing to walk up from, and a fixture or worktree that is not an Eshu
+# checkout at all has no marker to find. Both are legitimate "nothing to nudge
+# here" outcomes, not failures.
+skills_root=""
+if [ "${have_cwd}" = "1" ]; then
+	skills_root="$(eshu_root_path "${cwd_prefix}" 2>/dev/null)" || skills_root=""
+fi
+nudge_skills=""
+if [ -n "${skills_root}" ]; then
+	nudge_skills="$(goal_refresh_missing_skill_nudges "${goal}" \
+		"${skills_root}/.agents/skills" "$(printf '%s' "${session_id}" | cut -c1-12)")"
+fi
 
 # The restatement, consent bookkeeping, and skill-nudge text assembly live in
 # lib/goal-refresh-note.py -- kept out of this heredoc so the file fits under
