@@ -1,0 +1,253 @@
+go/internal/storage/postgres/README.md
+  s_20be138600ef1b::t_6beda4d03441da 2490
+go/internal/storage/postgres/recovery.go
+  s_20be138600ef1b::t_bd61be89fc8cfb 387-389
+  s_20be138600ef1b::t_dfc82268f30be8 409-413
+go/internal/storage/postgres/recovery_refinalize_all_scopes_test.go
+  s_20be138600ef1b::t_856f1d0d795eea 220
+go/internal/storage/postgres/recovery_refinalize_claim_fence_live_test.go
+  s_20be138600ef1b::t_34d0b113fb5345 24,35,38,74,105-132,134-142,144,159,161,176,186,199-233,243-244,252
+go/internal/reducer/workload_instance_retraction_live_test.go
+  s_20be138600ef1b::t_b88444becec486 107-130
+go/internal/storage/postgres/recovery_claim_token_fence_live_test.go
+  s_20be138600ef1b::t_eacda02188fd29 1-249,251-374,376-396,398-477
+  s_20be138600ef1b::t_b5c5ff60cd4be8 375,397
+  s_20be138600ef1b::t_79c73b91da5f2d 250
+go/cmd/golden-corpus-gate/drains.go
+  s_20be138600ef1b::t_c49200d547b836 243-246
+go/internal/storage/postgres/reducer_queue_ack_fanout_plan_test.go
+  s_20be138600ef1b::t_6f82a6649d4115 21-22,24-25,27,38
+go/internal/reducer/workload_materializer_group.go
+  s_20be138600ef1b::t_2a5131ad89aa31 22,27
+  s_20be138600ef1b::t_1f4ae42d46ad52 23-26,28
+  s_20be138600ef1b::t_b44b45d321a0e7 1-21,29-57
+go/cmd/golden-corpus-gate/drains_pre_maintenance_test.go
+  s_20be138600ef1b::t_3cf5a896faf0bd 142-155
+go/internal/storage/cypher/runs_on_writer_precedence_live_test.go
+  s_20be138600ef1b::t_44c2ce6f488f1a 68
+  s_20be138600ef1b::t_9fe41ce4b9659a 50
+  s_20be138600ef1b::t_b843f78d7cabcf 309-310,340-342
+  s_20be138600ef1b::t_ee62e74644f149 9-10,22,24-28,46-49,51-66,70,74-77,84-93,99-110,117,140,148-149,152,164,166-167,185,195-199,201-202,206-209,211-220,244-308,311-339,343-372
+  s_20be138600ef1b::t_7d0bf4a1dfa2d2 15,43-45,67,69,71-73,78-83,94-98
+  s_20be138600ef1b::t_8c53fb0d20dc54 19-21,203-205
+  s_20be138600ef1b::t_945f6ff4cf614b 200,210
+  s_20be138600ef1b::t_8ea07c1a2aa874 221-229,231-243
+  s_20be138600ef1b::t_e45ca9de3b52f9 230
+  s_20be138600ef1b::t_12551bd2ed3cb6 23,373
+go/internal/storage/postgres/reducer_queue_helpers.go
+  s_20be138600ef1b::t_3b21f166d528bc 117-123,279-284,318-323
+  s_20be138600ef1b::t_81e39aa9fa22f5 274,313
+  s_20be138600ef1b::t_779ae844112459 171,189
+  s_20be138600ef1b::t_7756e3271971f0 134,147
+go/internal/storage/postgres/reducer_queue_batch_query.go
+  s_20be138600ef1b::t_7756e3271971f0 305-308,322,335
+go/internal/storage/postgres/reducer_queue_conflict.go
+  s_20be138600ef1b::t_3b3af34a0118d5 142,149-153
+go/internal/storage/cypher/edge_writer_runs_on_identity.go
+  s_20be138600ef1b::t_1f4ae42d46ad52 1-5,11-15,17-20
+  s_20be138600ef1b::t_2a5131ad89aa31 6-10,16
+go/internal/storage/postgres/rebuildreset/README.md
+  s_20be138600ef1b::t_baa2a725efc789 45-46,66-70,84-86
+  s_20be138600ef1b::t_bd61be89fc8cfb 51-52,74,127-129
+  s_20be138600ef1b::t_946742a821810e 43-44,48,71-73,79-83
+go/internal/storage/cypher/edge_writer_cross_repo_resolution_integration_test.go
+  s_20be138600ef1b::t_cef1f65279901e 107
+  s_20be138600ef1b::t_741fa0ae4eaf04 116,171
+go/internal/graphbackpressure/materializer_backpressure.go
+  s_20be138600ef1b::t_7d0bf4a1dfa2d2 8,41-55
+  s_20be138600ef1b::t_445da3c69e7505 56-57
+go/internal/storage/postgres/rebuildreset/doc.go
+  s_20be138600ef1b::t_946742a821810e 34-35,37,40-42
+docs/public/deploy/kubernetes/upgrades-rollbacks.md
+  s_20be138600ef1b::t_2deb0e9fb431f4 45-77
+go/internal/storage/cypher/README.md
+  s_20be138600ef1b::t_eba48c945da121 743-744,749-750
+  s_20be138600ef1b::t_24f753d02f6166 1958-1962
+  s_20be138600ef1b::t_992636126fc638 748
+go/internal/storage/postgres/reducer_queue.go
+  s_20be138600ef1b::t_81e39aa9fa22f5 426
+  s_20be138600ef1b::t_08149e5799c83a 43
+  s_20be138600ef1b::t_3b21f166d528bc 44,63-64,92-93,112-113,141-142,392,431-436
+go/internal/reducer/workload_materialization_handler_test.go
+  s_20be138600ef1b::t_b88444becec486 935-946
+scripts/lib/markdown-line-cap-grandfather.tsv
+  s_20be138600ef1b::t_5ffa90a9530b9a 88
+go/internal/reducer/crossrepo/cross_repo_resolution_claim.go
+  s_20be138600ef1b::t_53697cedd13cbe 1-18,29-65
+  s_20be138600ef1b::t_7b9269d2b4b2f7 19-28
+go/internal/storage/postgres/reducer_queue_batch_test.go
+  s_20be138600ef1b::t_6f82a6649d4115 65
+go/internal/storage/postgres/container_image_identity_ack_capability_test.go
+  s_20be138600ef1b::t_fdb5159532479e 8,242
+  s_20be138600ef1b::t_56e6c8e0d804a6 19,33,43,49-51,83,151-164,197-198,201,221-223,240-241
+  s_20be138600ef1b::t_efab5e74ed41f5 243,249,251
+go/internal/storage/cypher/runs_on_writer_concurrency_live_test.go
+  s_20be138600ef1b::t_7f3d35ee43eefa 14-15,19,36,45,52,66,75,82,116,131-145
+  s_20be138600ef1b::t_22f1c05b7588d8 34,64,109,115,124,130
+  s_20be138600ef1b::t_39493ab97fbd92 1-13,20-33,37-38,40-44,51,54-63,67-68,70-74,81,84-108,110-114,117-123,125-129,146-156,169-178
+  s_20be138600ef1b::t_ddeef1e8ec71f0 16-18
+  s_20be138600ef1b::t_945f6ff4cf614b 35,46-47,49-50,53,65,76-77,79-80,83,157-168
+  s_20be138600ef1b::t_9fe41ce4b9659a 39,48,69,78
+go/internal/storage/cypher/canonical_test.go
+  s_20be138600ef1b::t_741fa0ae4eaf04 88,184
+go/internal/storage/cypher/materialized_edge_property_keyed_inventory_test.go
+  s_20be138600ef1b::t_992636126fc638 51-52
+  s_20be138600ef1b::t_cef1f65279901e 61,94
+  s_20be138600ef1b::t_eba48c945da121 63-65
+go/internal/ifa/materializededges/materialized_edges_repo_dependency.go
+  s_20be138600ef1b::t_992636126fc638 157,170-178
+  s_20be138600ef1b::t_1971452375d3e7 179-180
+go/internal/storage/cypher/runs_on_legacy_identity_live_test.go
+  s_20be138600ef1b::t_a8eb60546d6f9c 1-88
+go/internal/storage/cypher/edge_writer_typed_relationship_test.go
+  s_20be138600ef1b::t_cef1f65279901e 306,309
+  s_20be138600ef1b::t_741fa0ae4eaf04 313
+go/internal/reducer/intent.go
+  s_20be138600ef1b::t_1bffbb0353247e 8-12
+go/internal/reducer/crossrepo/cross_repo_resolution.go
+  s_20be138600ef1b::t_8c32f26304138b 88-99,131,135,226,353
+go/internal/storage/postgres/rebuildreset/reset.go
+  s_20be138600ef1b::t_dfc82268f30be8 229,239,241,271-289
+  s_20be138600ef1b::t_2ede8c3e23f3cd 290
+go/internal/storage/cypher/canonical_relationships.go
+  s_20be138600ef1b::t_1f4ae42d46ad52 330,335-339
+  s_20be138600ef1b::t_2a5131ad89aa31 334,340
+  s_20be138600ef1b::t_da7e6f0dbcf72c 326
+  s_20be138600ef1b::t_5898bbc67e3dfc 341
+go/internal/storage/cypher/source_tool_edge_test.go
+  s_20be138600ef1b::t_741fa0ae4eaf04 107
+  s_20be138600ef1b::t_52cd15f3b30f74 105-106
+go/internal/ifa/testdata/repodependency/ifa-repo-dependency-family-expected-edges.json
+  s_20be138600ef1b::t_992636126fc638 3,38-41
+go/internal/storage/postgres/reducer_queue_workload_replay_live_test.go
+  s_20be138600ef1b::t_9c9138cd8683f3 7-8,82-94,97-143,147-158,162-211,213-226,228-245,249-276
+  s_20be138600ef1b::t_01e101ac74784c 1-6,9-81,277-278
+  s_20be138600ef1b::t_b843f78d7cabcf 146,159-161,227,246-248
+  s_20be138600ef1b::t_50c405fc951425 95-96,144-145,212
+go/internal/reducer/workload_platform_runs_on_precedence_test.go
+  s_20be138600ef1b::t_5a247e523e665c 7
+  s_20be138600ef1b::t_b52466ad71a283 12-36
+  s_20be138600ef1b::t_741fa0ae4eaf04 61,72
+go/internal/storage/cypher/edge_writer.go
+  s_20be138600ef1b::t_1f4ae42d46ad52 233
+go/internal/storage/cypher/canonical.go
+  s_20be138600ef1b::t_741fa0ae4eaf04 82
+go/internal/storage/postgres/relationship_store_claim.go
+  s_20be138600ef1b::t_53697cedd13cbe 1-47
+go/internal/storage/postgres/relationship_store_test.go
+  s_20be138600ef1b::t_1bffbb0353247e 10,17
+  s_20be138600ef1b::t_a8b42b2b191f0d 236-265
+scripts/lib/dirgate-grandfather.tsv
+  s_20be138600ef1b::t_31cf38ab31eb75 88,90-91
+go/internal/storage/postgres/reducer_queue_heartbeat_test.go
+  s_20be138600ef1b::t_b52466ad71a283 42
+docs/public/operate/graph-rebuild-from-facts.md
+  s_20be138600ef1b::t_2deb0e9fb431f4 23-24,293
+  s_20be138600ef1b::t_4d70036962384d 327-333
+  s_20be138600ef1b::t_085a81e8640d33 25-27,294-298,319-326
+go/internal/storage/postgres/proof_domain_support_test.go
+  s_20be138600ef1b::t_56e6c8e0d804a6 39-41
+go/internal/reducer/platformfam/platform_materialization_test.go
+  s_20be138600ef1b::t_40af239aeaa13d 313-339,523-527,554
+  s_20be138600ef1b::t_5e0478d96d55d2 9
+  s_20be138600ef1b::t_80cc3ebc9b6e85 263,276,296-298,532,544-552
+  s_20be138600ef1b::t_b79b5508b807d0 528
+  s_20be138600ef1b::t_dce0efcd9d3ab0 553
+  s_20be138600ef1b::t_d2571d0517b130 555
+go/internal/reducer/service.go
+  s_20be138600ef1b::t_1bffbb0353247e 384,386-387
+  s_20be138600ef1b::t_ab501b6903c716 385,488-493
+docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md
+  s_20be138600ef1b::t_6beda4d03441da 198-201,229-230,293,297
+  s_20be138600ef1b::t_d633122516dd70 148-173,177,191-197,208,226-228,298-299
+  s_20be138600ef1b::t_ddeef1e8ec71f0 202-207,231,294-295
+  s_20be138600ef1b::t_c8b19c6846d264 178
+  s_20be138600ef1b::t_2deb0e9fb431f4 209-216,235,239,296
+  s_20be138600ef1b::t_d4762f30aaa33e 217-222,237-238
+  s_20be138600ef1b::t_ebb712b292686d 236,240,255-269,300-304
+go/internal/reducer/service_batch_test.go
+  s_20be138600ef1b::t_40af239aeaa13d 74-102
+go/internal/ifa/materializededges/materialized_edges_repo_dependency_test.go
+  s_20be138600ef1b::t_6669a446beb1bc 87-89,255-258,265-268,273
+go/internal/storage/postgres/relationship_schema.go
+  s_20be138600ef1b::t_ab501b6903c716 198-200
+  s_20be138600ef1b::t_1bffbb0353247e 192-197,201-219
+go/internal/storage/cypher/materialized_edge_families_test.go
+  s_20be138600ef1b::t_d9325c7c62c0a1 464-465,468,477
+go/internal/reducer/workload_materializer_test.go
+  s_20be138600ef1b::t_7d0bf4a1dfa2d2 33-36,38-45
+  s_20be138600ef1b::t_cef1f65279901e 298-299,305-306,309-310,314-315,319,461-462
+  s_20be138600ef1b::t_741fa0ae4eaf04 292,363
+  s_20be138600ef1b::t_e45ca9de3b52f9 308,311
+  s_20be138600ef1b::t_cc3c3e6a5b730e 313,318
+  s_20be138600ef1b::t_c198e0126f8813 15,37,300-304,307,312,316
+go/internal/reducer/service_batch.go
+  s_20be138600ef1b::t_1bffbb0353247e 295,298
+  s_20be138600ef1b::t_ab501b6903c716 296-297
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  s_20be138600ef1b::t_eba48c945da121 194-199
+go/internal/storage/postgres/rebuildreset/refinalize.go
+  s_20be138600ef1b::t_dfc82268f30be8 51-52,58-61,65,328-329
+  s_20be138600ef1b::t_bd61be89fc8cfb 9
+  s_20be138600ef1b::t_baa2a725efc789 62-63,330-332
+go/internal/storage/postgres/reducer_queue_replay.go
+  s_20be138600ef1b::t_deb970784394d5 77-119,213-215,233,237-241
+go/internal/storage/cypher/materialized_edge_repo_dependency.go
+  s_20be138600ef1b::t_d4762f30aaa33e 36
+  s_20be138600ef1b::t_992636126fc638 37-38
+  s_20be138600ef1b::t_53697cedd13cbe 39-43
+go/internal/storage/cypher/materialized_edge_families.go
+  s_20be138600ef1b::t_64adf3414d0413 217-220,235,268-273
+  s_20be138600ef1b::t_eba48c945da121 221,227,231-233
+go/cmd/reducer/reducer_executor_adapters.go
+  s_20be138600ef1b::t_7d0bf4a1dfa2d2 123-138
+  s_20be138600ef1b::t_5e0478d96d55d2 13
+go/internal/reducer/service_test.go
+  s_20be138600ef1b::t_a8b42b2b191f0d 112-141
+go/internal/storage/postgres/reducer_queue_claim_query.go
+  s_20be138600ef1b::t_7756e3271971f0 132-135,149,162
+go/internal/storage/postgres/reducer_queue_batch.go
+  s_20be138600ef1b::t_b1df72af171fcf 89,108,128-129,134-135,137-138,141,143-144,151-157,160,177-178,200-206,212-216,218-220,224-226,228-233,236-237,239,241-243,245,248,261,313,323,326,333,335-336,349-350,391-392,395-401,404-406,410,426
+  s_20be138600ef1b::t_629db1f02691ae 402
+go/internal/reducer/contract/intent.go
+  s_20be138600ef1b::t_1bffbb0353247e 14-19
+go/internal/storage/postgres/reducer_queue_ack_eligible_epq_postgres_live_test.go
+  s_20be138600ef1b::t_6f82a6649d4115 106
+go/internal/reducer/workload_materializer.go
+  s_20be138600ef1b::t_da7e6f0dbcf72c 430,435
+  s_20be138600ef1b::t_b44b45d321a0e7 201-203,224,226-229,420-421,423-426
+  s_20be138600ef1b::t_2a5131ad89aa31 225
+go/internal/storage/postgres/work_queue_lifecycle_test.go
+  s_20be138600ef1b::t_4fc593b60d62e7 351-358
+go/internal/storage/postgres/reducer_queue_basic_test.go
+  s_20be138600ef1b::t_08149e5799c83a 91-93
+go/internal/storage/postgres/proof_domain_harness_test.go
+  s_20be138600ef1b::t_015ce6d4c6ad6c 121-122,126-127,131-132
+go/internal/storage/postgres/reducer_queue_workload_replay_test.go
+  s_20be138600ef1b::t_1a54379b077f48 1-48
+go/internal/reducer/platformfam/platform_materialization.go
+  s_20be138600ef1b::t_d97b584e5d8eef 63-69,142-143,147-148,150
+  s_20be138600ef1b::t_5bd4db3ce96211 144-146,149
+go/internal/storage/postgres/reducer_queue_ack.go
+  s_20be138600ef1b::t_3b21f166d528bc 16-17,39-40,65,81-82,107
+go/internal/storage/postgres/reducer_queue_ack_fanout_contention_probe_test.go
+  s_20be138600ef1b::t_6f82a6649d4115 46,57
+tools/golangci-lint-dirgate/grandfather.go
+  s_20be138600ef1b::t_78da5f39981d54 34,36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eb5cd8c2a3c4771936420ce701b5876820f5e096",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
