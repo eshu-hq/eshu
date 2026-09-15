@@ -547,11 +547,22 @@ jobs:
   static-mirror:
     name: static mirror
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+      # The validators below run `go run ./cmd/ci-gates` (registry lockstep
+      # cases), so this job needs the same toolchain and module pre-warm as the
+      # matrix jobs; without it a cold runner fetches modules un-retried inside
+      # a validator (#6706 review).
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
       - name: Validate determinism matrix mirror
         run: bash scripts/test-verify-ifa-determinism.sh
       - name: Validate dead-letter matrix mirror
@@ -591,6 +602,7 @@ jobs:
       # (every N's canonical graph dump, rationale-delta dump, and host binary
       # logs) before the failure-artifact upload below can run (#6162).
       - name: Run Ifa graph-determinism matrix (N=1,2,4; demo-org + synth-multiscope, Tier 2)
+        id: determinism_matrix
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
@@ -606,7 +618,7 @@ jobs:
       # non-convergence, run 33788992677) needs the actual bytes, not just the
       # printed digest, to diagnose.
       - name: Upload determinism-matrix diagnostics
-        if: failure()
+        if: failure() && steps.determinism_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: ifa-determinism-matrix-attempt-${{ github.run_attempt }}-failure
@@ -650,6 +662,7 @@ jobs:
       # cassette and host binary logs before the failure-artifact upload below
       # can run (#6162).
       - name: Run Ifa dead-letter-set determinism matrix (N=1,2,4)
+        id: dead_letter_matrix
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
@@ -662,7 +675,7 @@ jobs:
       # #6162: upload the kept (--keep) work dir's mutated cassette and
       # host binary logs, not just the backend container log tail above.
       - name: Upload dead-letter-matrix diagnostics
-        if: failure()
+        if: failure() && steps.dead_letter_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: ifa-dead-letter-matrix-attempt-${{ github.run_attempt }}-failure
@@ -772,21 +785,25 @@ jobs:
       # digest that diverges from the fault-free baseline is a real recovery
       # defect, never normalized away by retrying or lowering worker count.
       - name: Run Ifa fault-injection matrix shard (fresh stack per cell)
+        id: fault_matrix
         env:
           ESHU_NEO4J_PASSWORD: change-me
           ESHU_POSTGRES_PASSWORD: change-me
           IFA_FAULT_SHARD: ${{ matrix.shard }}
         run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/4"
 
+      # Keyed on the matrix step's own outcome: a pre-warm or tagged unit test
+      # failure stops the job before any work dir exists, and a bare failure()
+      # would add two misleading diagnostic failures on top (#6706 review).
       - name: Verify fault-injection diagnostic completeness
-        if: failure()
+        if: failure() && steps.fault_matrix.outcome == 'failure'
         run: |
           shopt -s nullglob
           completeness=(/tmp/ifa-fault-injection.*/diagnostics-complete)
           [[ ${#completeness[@]} -eq 1 && -s "${completeness[0]}" ]]
 
       - name: Upload fault-injection diagnostics
-        if: failure()
+        if: failure() && steps.fault_matrix.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure

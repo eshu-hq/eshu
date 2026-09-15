@@ -1,6 +1,6 @@
 ---
 name: eshu-correlation-truth
-description: Verify agreement between source evidence, projected graph truth, and query results for Eshu correlation changes.
+description: Use when reducer, projector, or query changes turn evidence into graph truth -- workload/service materialization, admission, or deployment tracing. Requires positive/negative/ambiguous proof and direct graph checks.
 ---
 
 # Eshu Correlation Truth
@@ -13,7 +13,8 @@ the query surfaces say the same thing."
 
 ## When to Use
 
-- Reducer changes in `go/internal/reducer`
+- Reducer changes in `go/internal/reducer` (cross-domain materialization, admission)
+- Projector changes in `go/internal/projector` (canonical graph write, phase publication)
 - Query truth changes in `go/internal/query`
 - Graph write or relationship projection changes
 - Workload classification, admission, or materialization changes
@@ -24,15 +25,15 @@ Do not use this skill for ordinary CRUD or isolated UI work.
 
 ## Required Thinking Order
 
-1. MUST trace the full path: raw evidence -> candidate -> admission ->
+1. Trace the full path: raw evidence -> candidate -> admission ->
    materialization -> graph write -> query surface.
-2. MUST name the invariants before editing. Example: "deployment repos must remain
+2. Name the invariants before editing. Example: "deployment repos must remain
    provenance-only" or "controller-only repos must not materialize as services."
-3. MUST list the edge classes that could falsify the change before writing code.
+3. List the edge classes that could falsify the change before writing code.
 
 ## Mandatory Proof Matrix
 
-Every non-trivial correlation change MUST cover all of these:
+Every non-trivial correlation change covers all of these:
 
 - Positive case: the intended service or deployment story materializes.
 - Negative case: provenance-only or utility evidence stays non-materialized.
@@ -99,6 +100,27 @@ Required layers:
 If tests pass but the graph is wrong, the change is not done.
 If the graph is right but the query surface lies, the change is not done.
 If repo context and service context disagree, the change is not done.
+
+## CI Gates That Enforce This
+
+These are blocking gates in `specs/ci-gates.v1.yaml`. They are part of what
+`required-gates-complete` (plus `go-core-complete`/`go-race-complete`) waits
+on in CI, and each has a `local.command` you can run directly to reproduce a
+red result:
+
+- `ifa-materialized-edge-coverage` -- materialized-edge family exhaustiveness
+  across `go/internal/ifa/materializededges`, `go/internal/reducer/...`, and
+  `go/internal/storage/cypher/...`.
+- `ifa-determinism` -- the graph-determinism matrix; a non-idempotent write
+  that only shows up on retry fails this, not a one-shot test.
+- `ifa-contract-layer` -- reducer contract-layer coverage
+  (`go/internal/ifa`, `go/internal/reducer/...`).
+- `golden-corpus-gate` (B-7) -- end-to-end replay proving collector fact
+  emission, graph write, and query/MCP response shape agree; see
+  `eshu-golden-corpus-rigor` for cassette/snapshot mechanics.
+
+Do not guess a gate's script name -- look up its `local.command` (and
+`test_command`) by `id` in `specs/ci-gates.v1.yaml` before running it.
 
 ## Direct Graph Truth Checks
 

@@ -106,6 +106,10 @@ package and file in the repo, per [Naming](../../../../docs/internal/naming.md):
   (`http_server.go` inside `gateway/`).
 - When moving code, rename touched paths to these rules — do not carry a
   glued or stuttering name into its new home.
+- Do not name a package the same as a standard-library package it sits
+  alongside (`sort`, `context`, `errors`, `log`, ...): callers importing both
+  need an alias, and the alias hides which one they meant. Nest it under a
+  more specific directory or pick a name that says what it adds.
 
 ## Interfaces
 

@@ -172,7 +172,7 @@ fact-kind registry plus the B-12 snapshot; you never hand-write a want-list.
 
 1. **Declare the input.** Either drop a **v1 cassette** under
    `testdata/cassettes/` (the format is fail-closed — a non-v1 cassette is
-   rejected, `go/internal/replay/format.go`) or add a `LoadFacts`/synth
+   rejected, `go/internal/replay/cassette/format.go`) or add a `LoadFacts`/synth
    descriptor that produces the Odù's `facts.Envelope` set (see
    `demoOrgRoundtripOdu` and the `synth/gcp` generator for the two existing
    patterns).

@@ -51,11 +51,12 @@ turn after context compaction.
    proof. Re-run affected checks when those no longer match or the evidence is
    only a claim. Attribute inherited proof honestly.
 
-6. **Verify promotion state.** Any rebase or amend invalidates the per-SHA push
-   stamp and review receipt. Before the next push, use the current
-   `eshu-code-review` promotion sequence and `make pre-pr`; an inherited summary
-   cannot replace either gate. If HEAD did not change, inspect the actual stamp
-   and receipt rather than assuming they are absent or valid.
+6. **Verify promotion state.** Any rebase or amend invalidates the review
+   receipt. Before the next push, use the current `eshu-code-review` promotion
+   sequence and run `make pre-push` (the required floor; add `make pre-pr`/
+   `make pre-pr-full` only for a risky change) — an inherited summary cannot
+   replace either. If HEAD did not change, inspect the actual receipt rather
+   than assuming it is absent or valid.
 
 7. **Verify each acceptance criterion against HEAD before implementing
    anything.** On aged work most criteria are already satisfied by changes that
@@ -79,7 +80,7 @@ Your report must contain:
 | Trap | Why it bites |
 |---|---|
 | Diffing against local `origin/main` without fetching | The main checkout is routinely many commits behind; the diff is fiction |
-| Trusting an inherited green gate | A rebase invalidated the stamp, and the run predates the final edit |
+| Trusting an inherited green gate | The run predates the final edit or a rebase |
 | Editing the main checkout because the worktree is "just for the last task" | Main must stay a clean fast-forward of `origin/main` |
 | Judging a sibling worktree abandoned by file mtime | A thinking agent writes nothing; see Liveness in `SKILL.md` |
 | Re-invoking no skills after a compaction | Reload applicable instructions missing from context; a summary is not the skill |

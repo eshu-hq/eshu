@@ -1,6 +1,6 @@
 ---
 name: eshu-contract-rigor
-description: Change Eshu fact kinds, payload schemas, SDK contracts, registry entries, or contract fixture packs.
+description: Use when a fact kind, payload shape, sdk/go/factschema, sdk/go/collector, or specs/fact-kind-registry.v1.yaml changes. Covers major/minor/patch classification and the factschema-diff and payload-usage-manifest gates.
 ---
 
 # eshu-contract-rigor
@@ -79,27 +79,47 @@ Classify every payload schema change against this policy (design doc section
   made tolerant.
 - **Patch** — docs only.
 
-Name the gates a payload change must clear when you touch this surface. These
-are **design rules from Contract System v1**, not all live as CI today — state
-each one as a design requirement unless you have confirmed it exists as a gate
-on `main`:
+These gates are live on `main` today (`specs/ci-gates.v1.yaml`, all `tier:
+pre-pr`/blocking, so part of what `required-gates-complete` waits on):
 
-- **Schema-diff gate** (`#4569`, contracts CI) — diffs generated JSON Schemas
-  against the last tag; a removed, renamed, or narrowed field without a major
-  bump must fail the build. Confirm current status before asserting it blocks
-  anything.
-- **Conformance payload validation** — `sdk/go/collector/conformance` validates
-  fixture payloads against the checked-in JSON Schemas, not only kind, version,
-  and confidence (design doc section 3.5). Extending it to payload-shape
-  validation is part of this epic's scope, not necessarily landed.
-- **Payload-usage manifest** (`#4573`, core CI) — generated from the typed
-  decode calls; lists which payload fields each reducer domain reads, and
-  diffs the reverse break (a handler starting to require a field no schema
-  declares). Treat as a design rule unless confirmed present on `main`.
-- **Registry regeneration** — `specs/fact-kind-registry.v1.yaml` gains
-  `payload_schema:`, `deprecated_in:`, and `removed_in:` fields as an additive
-  minor bump of the registry's own `version:` field (design doc section 3.1),
-  not a new registry file or a registry major.
+- **`factschema-diff`** (issue #4569) — `bash scripts/verify-factschema-diff.sh`
+  diffs generated JSON Schemas under `sdk/go/factschema/schema/` against the
+  merge-base with `origin/main` (no `factschema-*` release tag exists yet, so
+  the baseline is the branch point, not a tag); a removed/renamed/narrowed
+  field, a widened or newly-added required set, or a deleted schema file
+  without a major bump fails the build. See
+  `go/cmd/factschema-diff/README.md`.
+- **Conformance payload validation** — `sdk/go/collector/conformance` (see
+  `payload_validate.go`, `payload_schema_test.go`) validates fixture payloads
+  against the checked-in JSON Schemas, not only kind, version, and confidence
+  (design doc section 3.5). This is landed, not pending: a fixture whose
+  payload is missing a required field fails closed with the offending field
+  named. `scorecard-example-conformance` runs this for the out-of-tree
+  example collector (`examples/collector-extensions/scorecard`,
+  `fixturepack_pin_test.go` — see that package's README "Pinning story") so
+  external-collector conformance is a real running gate, not a manual step.
+- **`payload-usage-manifest`** (issue #4573) —
+  `bash scripts/verify-payload-usage-manifest.sh` derives, from the typed
+  `factschema.Decode*` seams across reducer/projector/query/loader/
+  relationships/replay, which declared payload fields typed-decode handlers
+  actually read, and fails when a handler reads a field no checked-in JSON
+  Schema declares. This is the reverse direction from `factschema-diff` (a
+  consumer starting to require a field no schema promises). See
+  `go/internal/payloadusage/README.md` and
+  `go/internal/reducer/payload_usage_manifest_test.go`
+  (`TestPayloadUsageManifest`).
+- **`fact-kind-registry`** — `bash scripts/verify-fact-kind-registry.sh`
+  validates `specs/fact-kind-registry.v1.yaml` (currently `version: "1.1.0"`)
+  and regenerates `go/internal/facts/fact_kind_registry.generated.go` and
+  `FACT_KIND_REGISTRIES.md`. The registry already carries the additive
+  `payload_schema:`, `deprecated_in:`, and `removed_in:` fields from the
+  v1.1.0 bump (a handful of AWS kinds set `payload_schema:` today); see the
+  registry file's own header comment and
+  `docs/public/reference/fact-schema-versioning.md`.
+- **`contract-source-of-truth`** — `bash scripts/verify-contracttest.sh`
+  regenerates and diffs the contract test fixtures under
+  `go/internal/collector/contracttest/` against
+  `specs/fact-kind-registry.v1.yaml` / `specs/collector_fact_contract.v1.yaml`.
 
 ## Fixture packs and Odù
 
@@ -109,7 +129,9 @@ fixture-pack version and prove in its own CI that it emits exactly the shapes
 the target reducer release consumes (design doc section 3.5). Keep fixture
 packs in lockstep with the contracts release they describe — a fixture pack
 that outlives the schema version it was cut from is stale evidence, not a
-fixture.
+fixture. `examples/collector-extensions/scorecard` is the reference
+implementation of this pinning story, proved by the
+`scorecard-example-conformance` gate above.
 
 When a fixture pack change also touches a cassette or the B-12 snapshot
 (`testdata/golden/e2e-20repo-snapshot.json`), load `eshu-golden-corpus-rigor`

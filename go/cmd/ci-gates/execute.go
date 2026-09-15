@@ -79,6 +79,16 @@ func executeGatesWithOptions(
 			continue
 		}
 		if !selection.Selected {
+			if selection.Deferred && options.blockingOnly && !selection.Gate.Blocking {
+				_, _ = fmt.Fprintf(w, "ADVISORY-SKIP %s: outside the blocking promotion path\n", selection.Gate.ID)
+				report.addSkipped(selection.Gate, "gate", "advisory gate excluded by --blocking-only")
+				continue
+			}
+			if selection.Deferred {
+				_, _ = fmt.Fprintf(w, "DEFER-CI %s: %s\n", selection.Gate.ID, selection.Reason)
+				report.addSkipped(selection.Gate, "gate", "deferred to CI for --pre-push: "+selection.Reason)
+				continue
+			}
 			_, _ = fmt.Fprintf(w, "SKIP     %s: %s\n", selection.Gate.ID, selection.Reason)
 			continue
 		}
@@ -179,9 +189,9 @@ func sharedCommandKey(gate cigates.Gate, role, command string) (sharedGateComman
 // localGateCommands returns the shell commands this gate actually runs, in
 // order. local.Command is intentionally OMITTED when it is the empty string,
 // rather than run as an empty shell command -- a permanently local-only gate
-// whose enforcement cannot be a command at all (prepr-stamp-verify-selftest:
-// its guard reads the stamp of the commit about to be pushed, so running it
-// here would fail every time) leaves local.command blank on purpose. An
+// whose enforcement cannot be a command at all (a chicken-and-egg guard whose
+// own command would need the very output its run is producing) leaves
+// local.command blank on purpose. An
 // empty shell command always succeeds and used to print a "RUN <gate>: "
 // line with nothing after the colon -- a reporting false-green: it read
 // exactly like every other command line in the log but never ran anything

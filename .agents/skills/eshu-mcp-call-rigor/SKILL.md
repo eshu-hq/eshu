@@ -1,6 +1,6 @@
 ---
 name: eshu-mcp-call-rigor
-description: Call Eshu MCP/API tools or change their bounded scope, pagination, timeout, and response contracts.
+description: "Use before calling or changing an Eshu MCP/API tool: scope, limit, ordering, timeout, and the {data, truth, error} envelope over tools/call at POST /mcp/message."
 ---
 
 # eshu-mcp-call-rigor
@@ -11,7 +11,7 @@ a call shape that is bounded, scoped, and diagnosable.
 
 ## Call Contract
 
-Every list or search tool MUST have:
+Every list or search tool has:
 
 - canonical scope such as `repo_id`, `workload_id`, `service_id`,
   `environment`, or an explicit `scope`
@@ -22,7 +22,7 @@ Every list or search tool MUST have:
 - structured envelope metadata: `truth.level`, `truth.profile`,
   `truth.freshness.state`, and `error`
 
-Prefer summary/count/handle calls before payload-heavy drilldowns. MUST NOT fetch
+Prefer summary/count/handle calls before payload-heavy drilldowns. Don't fetch
 large source bodies, relationship expansions, or whole-graph result sets until a
 cheap first call proves they are needed.
 
@@ -45,8 +45,8 @@ session is required; `handleHTTPMessage` returns the response synchronously, so 
 plain HTTP client can `tools/call` directly. A tool registered in `tools/list`
 can still fail with an `isError` result wrapping `HTTP 404` when its route is not
 mounted on the MCP server's router — advertised is not the same as servable. Fix
-the route (mirror `cmd/api/wiring.go` in `cmd/mcp-server/wiring.go`); do not
-assume a registered tool works. Tools that need a selector take it in
+the route (mirror `go/cmd/api/wiring.go` in `go/cmd/mcp-server/wiring.go`); do
+not assume a registered tool works. Tools that need a selector take it in
 `arguments` (`get_repo_summary` → `repo_name`/`repo_id`;
 `list_kubernetes_correlations` → `cluster_id`/`scope_id`/...).
 
@@ -95,9 +95,21 @@ Do not retry the same unbounded call and hope for a better result.
 
 ## Evidence Gate For New Tools
 
+Any change under `go/internal/mcp/**` selects the blocking `mcp-schema-drift`
+gate (`specs/ci-gates.v1.yaml`), which diffs the capability/tool surface
+against `specs/capability-catalog.v1.yaml`, `specs/capability-matrix.v1.yaml`,
+and `specs/surface-inventory.v1.yaml`:
+
+```bash
+bash scripts/dev/precommit-go.sh surface
+```
+
+A new or renamed tool, or a changed argument/response shape, must update the
+matching spec in the same change or this gate fails closed.
+
 When adding or changing an MCP/API tool that introduces graph Cypher, a
 graph-backed query handler, broad traversal, queue-backed materialization, or a
-new runtime stage, run:
+new runtime stage, also run:
 
 ```bash
 scripts/test-verify-performance-evidence.sh

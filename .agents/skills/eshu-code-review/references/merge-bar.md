@@ -4,6 +4,13 @@
 an unqualified "fix every P2 before push" has no terminator and has repeatedly
 stalled ready work.
 
+Contents: [The failure this exists to stop](#the-failure-this-exists-to-stop),
+[The bar](#the-bar),
+[Findings introduced by review fixes](#findings-introduced-by-review-fixes),
+[Sweeping rule text](#sweeping-rule-text), [Repeat findings](#repeat-findings),
+[Final exact-diff attestation](#final-exact-diff-attestation),
+[Stating it](#stating-it).
+
 ## The failure this exists to stop
 
 A full review of a non-trivial diff can nearly always produce another P2. Worse,
@@ -125,10 +132,13 @@ underneath it.
 
 ## Final exact-diff attestation
 
-One clean full semantic review is required before `make pre-pr`. Capture its
-inputs with `ci-gates review-attest capture`. After preflight, a matching
-`review-attest verify` receipt replaces a duplicate full semantic pass; it does
-not weaken the finding bar above. The receipt binds the base and head, merge
+One clean full semantic review is required before push. Capture its inputs
+with `ci-gates review-attest capture`. `make pre-push` is the required floor
+before every push; `make pre-pr` (`make pre-pr-full` for a package move) stays
+recommended, not required, for queue/lease/claim code, schema DDL, hot-path
+Cypher or graph writes, reducer projection/materialization, or a move. After
+preflight, a matching `review-attest verify` receipt replaces a duplicate full
+semantic pass; it does not weaken the finding bar above. The receipt binds the base and head, merge
 base, diff and commit range, clean worktree and submodules, exact PR claims,
 review packet, and verdict.
 

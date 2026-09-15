@@ -1,6 +1,6 @@
 ---
 name: eshu-release
-description: Release Eshu or reconcile CLI, image, Helm chart, and GitHub Release versions.
+description: "Use when cutting an Eshu release: bumping deploy/helm/eshu/Chart.yaml, tagging vX.Y.Z or an sdk/go module, and verifying the image, attestations, Helm OCI package, and GitHub Release."
 ---
 
 # Eshu Release And Deployment Pipeline

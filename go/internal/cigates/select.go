@@ -15,6 +15,13 @@ type Selection struct {
 	Selected bool
 	// Reason is a human-readable explanation of the selection decision.
 	Reason string
+	// Deferred is true when FilterPrePush unselected this gate specifically
+	// because it is registered `local.pre_push: deferred` -- distinct from
+	// every other reason a gate can be unselected (tier ceiling, category
+	// filter, no matching trigger, --blocking-only). A caller uses this to
+	// print "DEFER-CI" instead of a generic "SKIP", so a deferral is never
+	// silent: it was triggered here, but moved to CI on purpose.
+	Deferred bool
 }
 
 // Select evaluates each gate in registry order against the provided changed
@@ -149,6 +156,75 @@ func FilterByCategory(sels []Selection, categories []Category) []Selection {
 			if _, ok := want[s.Gate.Category]; !ok {
 				s.Selected = false
 				s.Reason = fmt.Sprintf("category %s not in requested set", s.Gate.Category)
+			}
+		}
+		out[i] = s
+	}
+	return out
+}
+
+// prePushBlockingDeferReason is the default reason for a triggered blocking
+// gate deferred out of the pre-push floor. Every blocking gate is guaranteed
+// a ci.workflow/ci.job destination -- ValidateRequiredStatusChecks rejects a
+// blocking gate without one, and RequiredGates errors if one matches changed
+// paths without reaching a required status context -- so "blocks merge in
+// CI" is true for every gate this reason is printed for.
+const prePushBlockingDeferReason = "not in the pre-push floor; still runs in make pre-pr and blocks merge in CI"
+
+// prePushAdvisoryDeferReason is the default reason for a triggered
+// advisory (blocking:false) gate deferred out of the pre-push floor that
+// still has a CI destination: it runs in CI, but a failure there does not
+// block merge.
+const prePushAdvisoryDeferReason = "not in the pre-push floor; still runs in make pre-pr; advisory in CI, not merge-blocking"
+
+// prePushLocalOnlyDeferReason is the default reason for a triggered gate
+// deferred out of the pre-push floor that has no CI workflow at all (both
+// ci.workflow and ci.job empty). Nothing in CI ever runs it, so it must not
+// claim CI coverage: make pre-pr is its only remaining enforcement.
+const prePushLocalOnlyDeferReason = "not in the pre-push floor; no CI workflow -- local-only, run it via make pre-pr"
+
+// defaultPrePushDeferReason picks the truthful default reason for a gate
+// deferred out of the pre-push floor with no gate-specific pre_push_reason,
+// based on the gate's own Blocking and CI fields rather than assuming every
+// deferred gate blocks merge in CI (false for advisory gates and for gates
+// with no CI workflow at all, e.g. docs-contradiction).
+func defaultPrePushDeferReason(g Gate) string {
+	switch {
+	case g.Blocking:
+		return prePushBlockingDeferReason
+	case g.CI.Workflow == "" && g.CI.Job == "":
+		return prePushLocalOnlyDeferReason
+	default:
+		return prePushAdvisoryDeferReason
+	}
+}
+
+// FilterPrePush applies the `ci-gates run --pre-push` lane used by
+// scripts/dev/pre-push.sh. The floor is an allowlist: a selected gate keeps
+// running only when its registry entry declares `local.pre_push: floor`.
+// Every other selected gate is unselected with Deferred=true and a reason
+// (its own pre_push_reason, or defaultPrePushDeferReason's per-gate default),
+// so the caller prints
+// DEFER-CI instead of skipping silently. The allowlist exists because a
+// denylist of slow gates still ran for more than 15 minutes on a one-line Go
+// change: most registry gates trigger on go/**.
+//
+// A gate that was already unselected for another reason (tier, category, no
+// matching trigger) is left unchanged. --blocking-only is applied later by the
+// executor, which reports a deferred advisory gate as ADVISORY-SKIP rather
+// than DEFER-CI. prePush=false is a no-op.
+func FilterPrePush(sels []Selection, prePush bool) []Selection {
+	if !prePush {
+		return sels
+	}
+	out := make([]Selection, len(sels))
+	for i, s := range sels {
+		if s.Selected && (s.Gate.Local == nil || !s.Gate.Local.PrePushFloor) {
+			s.Selected = false
+			s.Deferred = true
+			s.Reason = defaultPrePushDeferReason(s.Gate)
+			if s.Gate.Local != nil && s.Gate.Local.PrePushReason != "" {
+				s.Reason = s.Gate.Local.PrePushReason
 			}
 		}
 		out[i] = s

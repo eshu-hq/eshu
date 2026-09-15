@@ -37,6 +37,33 @@ else
   ok "agent-canon fails when the two files drift"
 fi
 
+# Skill frontmatter must stay valid YAML. An unquoted description containing
+# ": " is a mapping error; six skills shipped that shape once and no gate
+# noticed, so a strict loader could drop them.
+make_skill_fixture() {
+  local root="$1" desc="$2"
+  mkdir -p "$root/.agents/skills/demo-skill" "$root/.claude/skills" "$root/.codex/skills"
+  printf 'canon\n' >"$root/AGENTS.md"
+  printf 'canon\n' >"$root/CLAUDE.md"
+  printf -- '---\nname: demo-skill\ndescription: %s\n---\n\n# Demo\n' "$desc" >"$root/.agents/skills/demo-skill/SKILL.md"
+  ln -s ../../.agents/skills/demo-skill "$root/.claude/skills/demo-skill"
+  ln -s ../../.agents/skills/demo-skill "$root/.codex/skills/demo-skill"
+}
+make_skill_fixture "$tmp/fm-bad" 'Use when the cause is unknown: a queue stall.'
+ESHU_AGENT_CANON_REPO_ROOT="$tmp/fm-bad" "$canon" >"$tmp/fm-bad.out" 2>&1 || true
+if rg -q 'invalid skill frontmatter' "$tmp/fm-bad.out"; then
+  ok "agent-canon flags an unquoted skill description containing ': '"
+else
+  no "agent-canon should flag an unquoted skill description containing ': '"
+fi
+make_skill_fixture "$tmp/fm-good" '"Use when the cause is unknown: a queue stall."'
+ESHU_AGENT_CANON_REPO_ROOT="$tmp/fm-good" "$canon" >"$tmp/fm-good.out" 2>&1 || true
+if rg -q 'invalid skill frontmatter' "$tmp/fm-good.out"; then
+  no "agent-canon should accept a quoted skill description containing ': '"
+else
+  ok "agent-canon accepts a quoted skill description containing ': '"
+fi
+
 # Retired review-bar phrasing. Both live escapes were LINE-WRAPPED, at different
 # points, and a per-line sweep reported them clean twice, so the wrapped shapes
 # are the cases that matter -- a mirror that only checks the single-line form
@@ -133,6 +160,10 @@ printf '%s\n' '---' 'name: example' 'description: example' '---' \
 ln -s ../../.agents/skills/example "$tmp/skill-links/.claude/skills/example"
 ln -s ../../.agents/skills/example "$tmp/skill-links/.codex/skills/example"
 cat >"$tmp/skill-links/.agents/skills/eshu-performance-rigor/SKILL.md" <<'LINK_PERF_SKILL'
+---
+name: eshu-performance-rigor
+description: perf fixture
+---
 ## Target Contribution Budget
 required_saving_seconds maximum_recoverable_seconds expected_saving_seconds
 ## Resource-Qualified Claims
@@ -303,6 +334,10 @@ mkdir -p "$tmp/nudge/.agents/skills/eshu-performance-rigor/references" \
 printf 'shared canon\n' >"$tmp/nudge/AGENTS.md"
 printf 'shared canon\n' >"$tmp/nudge/CLAUDE.md"
 cat >"$tmp/nudge/.agents/skills/eshu-performance-rigor/SKILL.md" <<'NUDGE_PERF_SKILL'
+---
+name: eshu-performance-rigor
+description: perf fixture
+---
 ## Target Contribution Budget
 required_saving_seconds maximum_recoverable_seconds expected_saving_seconds
 ## Resource-Qualified Claims

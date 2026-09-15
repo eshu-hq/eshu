@@ -6,6 +6,9 @@ work with no code review behind it, so the gates below are the review.
 Triggers: disk pressure, `git worktree list` grown long, trees that look
 abandoned, or the user asking to clean up.
 
+Contents: [Steps](#steps), [Reply](#reply),
+[Red flags: stop and ask](#red-flags-stop-and-ask), [Never](#never).
+
 ## Steps
 
 1. **Snapshot before touching anything.**

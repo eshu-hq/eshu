@@ -393,7 +393,7 @@ test_ifa_fault_failure_artifact_contract() {
 		'/tmp/ifa-fault-injection.*/diagnostics-complete' \
 		'/tmp/ifa-fault-injection.*/current-cell' \
 		'/tmp/ifa-fault-injection.*/logs/*.log' \
-		'if: failure()' \
+		"if: failure() && steps.fault_matrix.outcome == 'failure'" \
 		'if-no-files-found: error' \
 		'retention-days: 7'; do
 		rg --fixed-strings --quiet -- "${needle}" "${workflow}" \

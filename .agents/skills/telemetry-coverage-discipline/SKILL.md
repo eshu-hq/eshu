@@ -1,6 +1,6 @@
 ---
 name: telemetry-coverage-discipline
-description: Maintain Eshu telemetry contracts and dashboards when adding signals or pipeline stages, or investigating missing metrics.
+description: Use when adding a metric, span, log key, or pipeline stage, or chasing a missing operator signal, in go/internal/telemetry and the telemetry-coverage doc/gate.
 ---
 
 # Telemetry coverage discipline
@@ -12,8 +12,8 @@ the repository root.
 | --- | --- |
 | Coverage doc | `docs/public/observability/telemetry-coverage.md`: each stage names a real signal or a justified marker. |
 | Verifier | `scripts/verify-telemetry-coverage.sh` and its test mirror compare docs, registrations, and added stage-owner files. |
-| CI gate | The telemetry entry in `.github/workflows/static-contract-gates.yml` enforces the verifier. |
-| Dashboard | `docs/public/observability/dashboards/eshu-operator-overview.json` and its generator expose operator-facing signals. |
+| CI gate | `telemetry-coverage` (blocking, `specs/ci-gates.v1.yaml`), job "Verify telemetry coverage gate" in `.github/workflows/static-contract-gates.yml`, enforces the verifier. |
+| Dashboard | `docs/public/observability/dashboards/eshu-operator-overview.json` and its generator expose operator-facing signals, gated by the separate blocking `operator-dashboard` id in the same workflow. |
 
 Metrics are registered in `go/internal/telemetry/instruments.go`. Dimensions,
 span names, and log keys live in `contract.go` and `contract_*.go` there. Keep

@@ -16,9 +16,9 @@
 # happens.
 #
 # Four record shapes exist in the registry (validated against the live file
-# before this parser was written; shape 4 added when
-# prepr-stamp-verify-selftest exposed it as a real, non-synthetic case rather
-# than a hypothetical one):
+# before this parser was written; shape 4 added when a permanently
+# local-only gate exposed it as a real, non-synthetic case rather than a
+# hypothetical one):
 #
 #   1. A full local+CI gate: id, name, category, tier, blocking, a
 #      local.command, an optional local.test_command, a ci.workflow/ci.job
@@ -33,13 +33,14 @@
 #      command). Rendered as its own row shape rather than guessing values
 #      that were never in the registry.
 #   4. A local-only gate with a real self-test but an intentionally empty
-#      local.command (1 in the live registry: prepr-stamp-verify-selftest,
-#      whose guard reads the stamp of the commit about to be pushed, so
-#      running it as this gate's own command inside `make pre-pr` would fail
-#      every time). Falling through to shape 2's ci_only_reason fallback would
-#      render a bare "—" here, silently hiding that `make pre-pr` genuinely
-#      runs the self-test — command_cell surfaces test_command explicitly
-#      instead.
+#      local.command -- the shape a permanently local-only guard whose own
+#      enforcement cannot run as a command at all takes (e.g. a
+#      chicken-and-egg guard whose command would need the very output its run
+#      is producing, so running it as its own command inside `make pre-pr`
+#      would fail every time). Falling through to shape 2's ci_only_reason
+#      fallback would render a bare "—" here, silently hiding that
+#      `make pre-pr` genuinely runs the self-test — command_cell surfaces
+#      test_command explicitly instead.
 #
 # Fail-closed: a record whose id is empty, or a file with zero records, is a
 # parser or registry bug, not a silent empty table.
@@ -154,9 +155,9 @@ function render_row() {
 # each carries its own `reason:`. Without this rule those reason lines keep
 # matching `/^    reason: / && have_record` and overwrite the reason of the LAST
 # gate/alias record — which is still open because no new `  - id:` follows it —
-# so that record renders with a non_gate_workflows reason (the prepr-stamp-verify
-# / refresh-cassettes leak). Flush the pending record and stop field capture at
-# the first `  - file:` so nothing past the gate/alias records bleeds in.
+# so that record renders with a non_gate_workflows reason (the refresh-cassettes
+# leak). Flush the pending record and stop field capture at the first
+# `  - file:` so nothing past the gate/alias records bleeds in.
 /^  - file: / {
 	if (have_record) {
 		render_row()

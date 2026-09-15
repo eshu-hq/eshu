@@ -7,31 +7,48 @@ you only need once you know it applies.
 
 Each rule here exists because the failure below actually happened.
 
-## Pre-commit hooks and the pre-pr stamp
+## Pre-commit hooks and the pre-push floor
 
 Install the repo's hooks once per clone: `scripts/dev/bootstrap-hooks.sh`. It is
 idempotent and shared across worktrees.
 
-Never `--no-verify` a commit or a push. Commit-stage gates are fast. The push is
-fronted by a per-SHA stamp: `make pre-pr` writes one on success, and
-`scripts/dev/prepr-stamp-verify.sh` blocks the push unless the stamp exists.
+Never `--no-verify` a commit or a push. Commit-stage gates are fast. Before
+every push, run `make pre-push` (`scripts/dev/pre-push.sh`): the fast local
+floor of changed-package `go test`, the 500-line file cap, changed-package
+gofumpt/lint/build/vet, the allowlisted fast registry gates
+(`local.pre_push: floor`; other triggered gates print `DEFER-CI` and still run in
+`make pre-pr` and CI), and the advisory docs-contradiction gate. It has no race
+lane, no live Docker/NornicDB/Postgres lane, and writes no push stamp.
 
-Be precise about what it checks, because the looser reading gives false comfort:
-it validates the **tip SHA of each non-delete ref being pushed**, one per ref —
-not every commit in the range. Intermediate commits on a branch are never
-stamped and are not expected to be. A green local gate on the tip is therefore a
-hard push-time requirement; it is not a per-commit guarantee. The slower
-pre-push hooks still run after the stamp check passes.
+There used to be a per-SHA push stamp here: `make pre-pr` wrote one on success
+and a pre-push hook refused to push a commit without it. It is removed. The
+measured problem was structural, not a one-off: `make pre-pr` takes roughly 20
+minutes, every rebase changes the SHA and voids the stamp, and GitHub's `main`
+ruleset does not require up-to-date branches — so the rebase-and-rerun loop the
+stamp forced was entirely self-imposed, and PRs sat for days waiting on it
+while CI's own PR failure rate stayed under 1% over a 30-day window.
 
-A rebase or amend after `make pre-pr` invalidates the stamp — re-run it before
-pushing. This bites most often when a coverage or generated artifact is committed
-after the gate: regenerate BEFORE the promotion run, not after.
+This does **not** weaken the Ifá/Odù protection for contracts, performance, or
+end-to-end behavior. That protection was never fully local to begin with: the
+live Ifá/Odù cells (fault injection, determinism and dead-letter matrices,
+golden-corpus, e2e) need Docker/NornicDB/Postgres and only ever ran in CI, or
+locally on explicit request. The hermetic Ifá rows (load saturation,
+contract-layer, materialized-edge coverage) run in `make pre-pr`; `make
+pre-push` defers them, so run `make pre-pr` for changes under `go/internal/ifa`
+or reducer materialization.
+The blocking, non-bypassable authority for all of it is CI's
+`required-gates-complete` aggregate (alongside `go-core-complete` and
+`go-race-complete`), which `.github/workflows/required-gates.yml` computes from
+every Ifá/Odù, contract, performance, and end-to-end gate the registry marks
+`blocking: true`. A merge still requires it green; dropping the local stamp
+only changes when a developer or agent *pushes*, not what *merges*.
 
-The transport exposes `ESHU_ALLOW_UNSTAMPED_PUSH=1` for an explicit owner
-exception. Its availability is not authorization: agents must not select it to
-skip local proof or promotion. Report the blocked gate and obtain a specific
-owner decision before any exception; normal PR requests retain the root proof
-requirements. CI still re-checks the required gates.
+`make pre-pr` and `make pre-pr-full` still exist as deeper, optional
+preflights. They are recommended, not required, before pushing a change to
+queue/lease/claim code, schema DDL, hot-path Cypher or graph writes, reducer
+projection/materialization, or a package move (prefer `make pre-pr-full` for
+moves: build tags can hide files from `./...`, so only the whole-module race
+lane actually exercises them).
 
 ## Verify `pwd` before any edit
 

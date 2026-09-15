@@ -1,6 +1,6 @@
 ---
 name: eshu-folder-doc-keeper
-description: Update Eshu Go package docs when contracts change, docs drift, or stale markers identify affected packages.
+description: Use when a Go package's doc.go, README.md, or scoped AGENTS.md is missing, stale, or failing the package-docs gate after a contract change or package move.
 ---
 
 # Eshu folder doc keeper

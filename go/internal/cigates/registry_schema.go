@@ -30,8 +30,10 @@ type gateFile struct {
 }
 
 type localFile struct {
-	Command     string `yaml:"command"`
-	TestCommand string `yaml:"test_command"`
+	Command       string `yaml:"command"`
+	TestCommand   string `yaml:"test_command"`
+	PrePush       string `yaml:"pre_push"`
+	PrePushReason string `yaml:"pre_push_reason"`
 }
 
 type ciFile struct {

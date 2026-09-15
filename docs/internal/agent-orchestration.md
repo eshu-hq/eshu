@@ -169,14 +169,11 @@ discipline.
 - Go unit tests, the **race detector**, `golangci-lint` (incl. the custom
   500-line file-cap plugin), and `gofumpt` formatting (`test.yml`,
   `race-graph-writes.yml`).
-- Structural drift gates: OpenAPI ↔ handler (`verify-openapi.yml`), MCP schema
-  + capability inventory (`mcp-schema-drift.yml`), telemetry coverage
-  (`verify-telemetry-coverage.yml`), route coverage
-  (`verify-route-coverage.yml`), golden-corpus correlation edges
-  (`golden-corpus-gate.yml`), contract source-of-truth
-  (`contract-source-of-truth.yml`), operator dashboard
-  (`generate-operator-dashboard.yml`), skill roundtrip
-  (`verify-skill-roundtrip.yml`).
+- Structural drift gates: OpenAPI ↔ handler, telemetry coverage, route
+  coverage, contract source-of-truth, operator dashboard, and skill roundtrip
+  now run as dynamic path-filtered gates inside `static-contract-gates.yml`,
+  alongside MCP schema + capability inventory (`mcp-schema-drift.yml`) and
+  golden-corpus correlation edges (`golden-corpus-gate.yml`).
 - Security: trivy (fs), gosec, govulncheck, nancy (`security-scan.yml`).
 - Docs build `mkdocs --strict`, license headers, whitespace hygiene
   (`test.yml`).
@@ -224,7 +221,8 @@ for a branch that has already survived design review. The order is:
    issue with the owner's agreement quoted in the PR, and named there with its
    severity-table category.
 3. Capture a `ci-gates review-attest` receipt for the clean preliminary review.
-4. Only when the branch is otherwise ready to push, run `make pre-pr` once.
+4. Only when the branch is otherwise ready to push, run `make pre-push` once
+   (add `make pre-pr` for the risky change classes in CLAUDE.md).
 5. Verify the receipt against the exact post-preflight inputs. A match replaces
    a duplicate full semantic review. Any changed base, diff, worktree, claims,
    packet, or verdict invalidates it and restarts the affected proof and review.

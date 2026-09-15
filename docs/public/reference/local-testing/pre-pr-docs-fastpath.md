@@ -134,7 +134,7 @@ them sees a file that was never `git add`ed. That gap was harmless while
 untracked `.go` file like any other — and it stopped being harmless the moment a
 lane could skip the build. Without the fourth command, someone who writes a new
 package, forgets `git add`, and has an otherwise docs-only diff gets a green
-FAST stamp on a tree that does not compile.
+FAST verdict on a tree that does not compile.
 
 So untracked paths join that list, and the allowlist judges them like any other
 path: an untracked `.go` file is not fast-path-safe, so it forces FULL.
@@ -153,10 +153,11 @@ compilation of it is the anomaly — but if you keep scratch Go code somewhere
 ignored, that is why FULL can fail on a file FAST does not mention.
 
 The fourth command feeds the lane decision **only**. Every other gate keeps
-reasoning about tracked content: the pre-pr stamp gates a push, an untracked
-file is not being pushed, and CI will never see it. The file cap, the
-package-docs gate, the focused `go test` selection, and the path-triggered live
-lane are unchanged.
+reasoning about tracked content: `make pre-push` (the fast local floor run
+before every push) and CI both only ever see pushed, tracked content, so an
+untracked file is invisible to them regardless of what `make pre-pr` did with
+it locally. The file cap, the package-docs gate, the focused `go test`
+selection, and the path-triggered live lane are unchanged.
 
 ### The classifier checks itself before it is trusted
 
@@ -165,13 +166,13 @@ lane are unchanged.
 resolver, `scripts/lib/test-pre-pr-lane.sh` for the wiring — the state channel,
 the git wrappers, the status precedence, and the whole decision end to end.
 
-Nothing downstream re-checks a FAST verdict: the per-SHA stamp is written and
-`scripts/dev/prepr-stamp-verify.sh` lets the push through on it. Those two
-suites are the only thing watching this decision. Both are self-contained — no
-Go toolchain, no network, and no dependency on your git config — and add a
-couple of seconds to a run that otherwise costs minutes, so running them on
-every `make pre-pr` is cheaper than any outcome of not running them. A failing
-self-check fails the run and forces the FULL lane.
+Nothing downstream re-checks a FAST verdict: `make pre-pr`'s exit status is the
+only thing anyone reads afterward. Those two suites are the only thing
+watching this decision. Both are self-contained — no Go toolchain, no network,
+and no dependency on your git config — and add a couple of seconds to a run
+that otherwise costs minutes, so running them on every `make pre-pr` is
+cheaper than any outcome of not running them. A failing self-check fails the
+run and forces the FULL lane.
 
 ## What still runs on the fast path
 

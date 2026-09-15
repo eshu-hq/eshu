@@ -189,7 +189,7 @@ reject "wait-time duration accounting" 'SECONDS - starts[i]'
 # The lane decision is the ONLY consumer of untracked paths: the FULL lane's
 # `go build ./...` compiles a file nobody ran `git add` on, and the FAST lane
 # skips that build. Drop either collector and a forgotten `git add` takes a
-# green docs-only stamp on a tree that does not compile.
+# green docs-only run on a tree that does not compile.
 # shellcheck disable=SC2016 # The needles must stay literal shell source.
 require_block "untracked paths in the lane input" 'lane_input_paths() {
 	{
@@ -204,8 +204,9 @@ require "lane decision delegated to the tested function" \
 # decision function can see it because the decision function is never called.
 reject "hardcoded lane verdict" 'PRE_PR_FASTPATH_LANE=fast'
 
-# A self-check that failed has to fail the RUN, not just print a FAIL line: the
-# run's exit status is what withholds the per-SHA stamp the push requires.
+# A self-check that failed has to fail the RUN, not just print a FAIL line:
+# the run's exit status is the only signal `make pre-push` (the fast local
+# floor run before every push) and CI have that this run was clean.
 # shellcheck disable=SC2016
 require_block "a red self-check fails the run" \
 	'	results+=("FAIL  docs fast-path classifier self-check (${PRE_PR_LANE_SELFCHECK_SECONDS}s)")
@@ -213,8 +214,8 @@ require_block "a red self-check fails the run" \
 
 # All Go-lane checks ask whether the lane is NOT "fast". Asking whether it IS
 # "full" instead means any third value would skip the Go lanes while the banner
-# said FULL and the run still stamped the SHA. Inverting either one swaps the
-# lanes outright -- FULL skipping the gates, FAST running them.
+# said FULL and the run still exited 0. Inverting either one swaps the lanes
+# outright -- FULL skipping the gates, FAST running them.
 # shellcheck disable=SC2016
 require_block "module gates gated on a non-fast lane" \
 	'if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
@@ -392,7 +393,7 @@ assert_fast_runner_parser_tree fast
 # Execute the unchanged driver, with only external gate work replaced, so
 # Bash 3.2 nounset failures and driver reachability cannot hide behind text pins.
 assert_driver_lane() {
-	local shell_path="$1" lane="$2" gate_status="$3" fixture log status=0 stamp head
+	local shell_path="$1" lane="$2" gate_status="$3" fixture log status=0 stamp_dir head
 	fixture="${temp_root}/driver-${lane}-${gate_status}-${shell_path##*/}"
 	rm -rf "${fixture}"
 	mkdir -p "${fixture}/scripts/dev" "${fixture}/scripts/lib" "${fixture}/go" "${fixture}/bin"
@@ -430,7 +431,7 @@ GATE
 	: > "${fixture}.args"
 	DRIVER_ARGS_LOG="${fixture}.args" DRIVER_GATE_STATUS="${gate_status}" \
 		PATH="${fixture}/bin:${PATH}" "${shell_path}" "${fixture}/scripts/dev/pre-pr.sh" > "${log}" 2>&1 || status=$?
-	stamp="${fixture}/.git/eshu-prepr-stamp/${head}"
+	stamp_dir="${fixture}/.git/eshu-prepr-stamp"
 	if ! rg -q -- '--self-tests' "${fixture}.args"; then
 		cat "${log}" >&2
 		fail "${shell_path} ${lane}: driver never reached selected exactness gates"
@@ -442,14 +443,19 @@ GATE
 	else
 		rg -q -- '--pre-pr-whole-module' "${fixture}.args" || fail "${shell_path}: full lane omitted core work"
 	fi
+	# No per-SHA push stamp is written any more (removed: make pre-push is the
+	# fast local floor now, and CI's required-gates-complete aggregate is the
+	# non-bypassable authority) -- assert the exit status alone, and that the
+	# removed stamp directory is never recreated on either outcome.
 	if [[ "${gate_status}" == 0 ]]; then
-		[[ "${status}" == 0 && -s "${stamp}" && -s "${stamp}.gates.json" ]] || {
+		[[ "${status}" == 0 ]] || {
 			cat "${log}" >&2
-			fail "${shell_path} ${lane}: successful driver did not retain its stamp/report"
+			fail "${shell_path} ${lane}: successful driver exited non-zero"
 		}
 	else
-		[[ "${status}" != 0 && ! -e "${stamp}" ]] || fail "${shell_path}: failed gates wrote a success stamp"
+		[[ "${status}" != 0 ]] || fail "${shell_path}: failed gates reported success"
 	fi
+	[[ ! -e "${stamp_dir}" ]] || fail "${shell_path} ${lane}: pre-pr.sh must never write a push stamp"
 	printf 'PASS: actual pre-pr driver %s lane, gate exit %s, shell %s\n' "${lane}" "${gate_status}" "${shell_path}"
 }
 

@@ -7,9 +7,12 @@ Triggers: "run until done", "going to bed", "keep going", "don't stop", a
 
 The other four playbooks in this skill are about stopping well. This one is
 about not stopping. It does not loosen a single gate: everything in
-Prove-The-Theory-First, the evidence rules, and the pre-PR ladder still applies
-at full strength. Autonomy is about who answers the question, not about whether
-the proof gets run.
+Prove-The-Theory-First, the evidence rules, and the promotion ladder still
+applies at full strength. Autonomy is about who answers the question, not
+about whether the proof gets run.
+
+Contents: [Steps](#steps), [Reply](#reply),
+[What still stops you](#what-still-stops-you).
 
 ## Steps
 
@@ -33,7 +36,7 @@ the proof gets run.
    architecture question is a research task, and settled intent admitting two
    defensible implementations means dispatch an adjudicator rather than park the
    work — see
-   [Delegate An Undecided Design](../../../docs/internal/agent-guide.md#delegate-an-undecided-design-do-not-escalate-it).
+   [Delegate An Undecided Design](../../../../docs/internal/agent-guide.md#delegate-an-undecided-design-do-not-escalate-it).
    Hand it the symptom and raw observations, labelled as a guess, never your
    hypothesis as fact.
 
@@ -135,6 +138,7 @@ Your report must contain:
 ## What still stops you
 
 Autonomy is not a proof exemption. A run that ends with the predicate met but
-the gates unrun has not met the predicate. The pre-PR ladder in particular is
-untouched: local proof, then a clean review, then `make pre-pr`, then a final
-review, and the push itself is still bucket three.
+the gates unrun has not met the predicate. The promotion ladder in particular
+is untouched: local proof, then a clean review, then `make pre-push` (plus
+`make pre-pr`/`make pre-pr-full` for a risky change), then `review-attest
+verify`, and the push itself is still bucket three.

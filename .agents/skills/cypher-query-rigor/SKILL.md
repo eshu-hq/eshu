@@ -1,6 +1,6 @@
 ---
 name: cypher-query-rigor
-description: Write, debug, or review Eshu Cypher queries, graph schema, and backend-specific query behavior.
+description: Use when writing or reviewing Eshu Cypher reads, graph writes, indexes, or NornicDB/Neo4j dialect behavior. Covers anchor and index choice, write idempotency, and when to patch NornicDB. Postgres SQL belongs to eshu-postgres-rigor.
 ---
 
 # Cypher Query Rigor
@@ -19,40 +19,30 @@ scaled replay, or before/after latency or throughput claim.
 
 Before designing or merging a Cypher statement that lives in a hot path
 (canonical writer, reducer projection, query handler, materialization job),
-both of these must be answered explicitly:
+answer both of these explicitly:
 
 1. **Research first.** Read the relevant backend behavior in source before
-   writing the query. For Neo4j: the Cypher manual for the pinned version
-   and the changelog up to the latest release. For NornicDB: the relevant
-   files under `pkg/cypher/` and `pkg/storage/` in the current NornicDB checkout
-   named by repo docs, user-local configuration, or the user. Do not guess a
-   sibling directory or reuse an older checkout. Always read
-   `docs/public/reference/nornicdb-pitfalls.md` for known traps. If your
-   query uses a pattern you haven't validated against the pinned binary,
-   that's research debt — close it with a focused test or `curl`-against-
-   Bolt-HTTP probe in an isolated, uniquely-named Compose stack.
+   writing the query — see
+   [Cypher Performance: Research The Pinned Backend](../../../docs/public/reference/cypher-performance.md#1-research-the-pinned-backend)
+   for Neo4j and NornicDB source locations, and always check
+   [NornicDB Pitfalls](../../../docs/public/reference/nornicdb-pitfalls.md) for
+   known traps. If your query uses a pattern you haven't validated against the
+   pinned binary, that's research debt — close it with a focused test or
+   `curl`-against-Bolt-HTTP probe in an isolated, uniquely-named Compose stack.
 
 2. **Benchmark first.** Capture a baseline before and an after measurement
-   against the pinned backend binary on the same inputs. Preferred shapes:
-   focused Go benchmark (`*_bench_test.go` against the writer), Compose
-   stage timing (structured-log `duration_seconds` from small/medium/large
-   fixtures), or a manual reproducer with wall time and result-row count.
-   Record backend+version, schema state (`eshu-bootstrap-data-plane` MUST
-   precede indexing for production-profile evidence), input cardinality at
-   every anchor, index/constraint state, and plan or statement summary.
-   Unmeasured Cypher in a hot path is a regression-shaped surprise.
+   against the pinned backend binary on the same inputs, per
+   [Cypher Performance: Measure The Same Shape](../../../docs/public/reference/cypher-performance.md#2-measure-the-same-shape-before-and-after).
+   Unmeasured Cypher in a hot path is a regression-shaped surprise. Pure
+   correctness fixes can trade a full bench for a "no measurable regression"
+   check on the same input shape, but must state that decision explicitly in
+   the PR.
 
 3. **Prove setup before query blame.** For remote or Compose NornicDB proof,
    record the Eshu commit, NornicDB commit or image tag, effective container
    environment, schema/bootstrap state, embeddings state, pprof state, worker
-   knobs, clean-volume state, and terminal queue counts before deciding a Cypher
-   shape is the bottleneck.
-
-For the long-form workflow, backend research locations, anti-patterns, and
-the measurement protocol, see
-`docs/public/reference/cypher-performance.md`. Pure correctness fixes can
-trade a full bench for a "no measurable regression" check on the same input
-shape, but must state that decision explicitly in the PR.
+   knobs, clean-volume state, and terminal queue counts before deciding a
+   Cypher shape is the bottleneck.
 
 CI enforces this for the repo. Any PR that changes hot-path Cypher, graph
 writer code, schema, reducer/projector graph work, or a new collector package
@@ -63,23 +53,23 @@ scripts/test-verify-performance-evidence.sh
 scripts/verify-performance-evidence.sh
 ```
 
-Add the evidence to a tracked docs/ADR/package file changed in the PR. Use one
-benchmark marker (`Performance Evidence:`, `Benchmark Evidence:`, or
-`No-Regression Evidence:`) and one observability marker (`Observability
-Evidence:` or `No-Observability-Change:`). Name the exact query shape, backend,
-input cardinality, index/constraint state, before/after timing, and metrics or
-logs that prove the path can be diagnosed.
+The gate is **content-based, not only path-based** (a file that *contains*
+`MATCH`/`MERGE`/`UNWIND` is flagged even for a comment-only diff), diffs
+`HEAD~1` locally but `origin/$GITHUB_BASE_REF` in CI, and requires a tracked
+docs/ADR/package note (not PR text) with one benchmark marker
+(`Performance Evidence:`, `Benchmark Evidence:`, or `No-Regression Evidence:`)
+plus one observability marker (`Observability Evidence:` or
+`No-Observability-Change:`) naming the exact query shape, backend, input
+cardinality, index/constraint state, and before/after timing. Reproduce the CI
+diff window locally before pushing:
 
-The verifier is **content-based, not only path-based**: a file that *contains*
-Cypher (`MATCH`/`MERGE`/`UNWIND`/...) is flagged even when your diff only touched
-a comment or a non-query line. Add an `evidence-*.md`
-(`No-Regression Evidence:` + `No-Observability-Change:` is correct when nothing
-perf/telemetry actually changed) rather than fighting the flag. It diffs `HEAD~1`
-**locally** but `origin/$GITHUB_BASE_REF` **in CI**, so a multi-commit PR whose
-last commit is innocuous can pass locally and fail in CI — reproduce the CI
-result with
-`ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main scripts/verify-performance-evidence.sh`
-before pushing.
+```bash
+ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main scripts/verify-performance-evidence.sh
+```
+
+Full detail on the gate, the query-plan-regression fixture contract, and
+worked good/bad evidence text is in
+[Cypher Performance: CI Evidence Gate](../../../docs/public/reference/cypher-performance.md#ci-evidence-gate).
 
 ## Workflow
 
@@ -99,7 +89,7 @@ before pushing.
    Define conflict domains before using `MERGE`. Use stable keys, batch with `UNWIND`, keep transactions bounded, avoid huge cross-products, and separate independent write phases when a single statement would create lock contention or retry amplification.
 
 6. Compare backend behavior.
-   For Neo4j, inspect planner output with `EXPLAIN` or `PROFILE` when possible. For NornicDB, check whether the statement matches supported hot-path templates and verify uncertain behavior against NornicDB docs or source before adding a workaround.
+   For Neo4j, inspect planner output with `EXPLAIN` or `PROFILE` when possible. For NornicDB, check whether the statement matches supported hot-path templates and verify uncertain behavior against NornicDB docs or source before adding a workaround. See [backend-notes.md](references/backend-notes.md).
 
 7. Add verification and observability.
    Capture plans or statement summaries where possible, timings, row counts, db hits or equivalent counters, batch sizes, errors, and retry behavior. Measure phase-by-phase timing and duration slope across chunks before blaming the largest label or raising timeouts. Add tests for positive, negative, empty, high-cardinality, duplicate, and ambiguous inputs when query behavior affects correctness.
@@ -121,149 +111,16 @@ before pushing.
 - Split `MERGE` identity from `SET` mutable properties.
 - Batch rows with `UNWIND $rows AS row`; keep batch size tied to transaction and lock behavior.
 - Watch chunk duration slope as the graph grows. Stable batch size with rising duration often means lookup or relationship-existence checks are scanning despite an indexed-looking Cypher shape.
-- Make retries safe through idempotent keys and deterministic relationship identity.
+- Make retries safe through idempotent keys and deterministic relationship identity — see root
+  [Serialization Is Not A Fix](../../../CLAUDE.md#serialization-is-not-a-fix)
+  before reaching for fewer workers or smaller batches.
 - Avoid writing from a broad read result unless the read side is bounded and measured.
 - Verify duplicate input rows do not create duplicate relationships or excess writes.
 - Track rows attempted, rows written, batches committed, duration, and failure reason.
 
-## Good And Bad Patterns
-
-Bad: unlabelled scan plus late filter.
-
-```cypher
-MATCH (n)
-WHERE n.id = $id
-RETURN n
-```
-
-Good: indexed label-property anchor.
-
-```cypher
-MATCH (s:Service {id: $id})
-RETURN s
-```
-
-Bad: broad expansion before limiting.
-
-```cypher
-MATCH (r:Repository)-[:CONTAINS*]->(n)
-RETURN n
-LIMIT 25
-```
-
-Good: anchor, bound, filter, then limit.
-
-```cypher
-MATCH (r:Repository {id: $repo_id})-[:CONTAINS*1..3]->(n:File)
-WHERE n.language = $language
-RETURN n.path
-ORDER BY n.path
-LIMIT 25
-```
-
-Bad: wide mutable `MERGE` identity.
-
-```cypher
-UNWIND $rows AS row
-MERGE (s:Service {id: row.id, name: row.name, owner: row.owner})
-```
-
-Good: stable identity plus mutable updates.
-
-```cypher
-UNWIND $rows AS row
-MERGE (s:Service {id: row.id})
-SET s.name = row.name,
-    s.owner = row.owner,
-    s.updated_at = row.updated_at
-```
-
-Bad: independent matches that can create a cartesian write multiplier.
-
-```cypher
-MATCH (s:Service {id: $service_id})
-MATCH (e:Environment)
-MERGE (s)-[:RUNS_IN]->(e)
-```
-
-Good: constrain both sides.
-
-```cypher
-MATCH (s:Service {id: $service_id})
-MATCH (e:Environment {name: $environment})
-MERGE (s)-[:RUNS_IN]->(e)
-```
-
-## Neo4j Notes
-
-- Use `EXPLAIN` before changing production query shape; use `PROFILE` on safe datasets or test environments to verify actual rows and db hits.
-- Constraints create backing indexes in Neo4j, but still write portable, selective query shapes rather than relying on planner magic.
-- Watch for planner regressions from `OR`, `coalesce()`, function-wrapped properties, mixed label patterns, and optional expansions before filters.
-- Prefer explicit uniqueness constraints for `MERGE` identities that must be globally unique.
-
-## Eshu Graph Backend Lessons
-
-- Eshu graph performance proofs are invalid unless the graph schema is applied
-  before indexing. For production-profile Neo4j or NornicDB runs, execute
-  `eshu-bootstrap-data-plane` before `eshu-bootstrap-index`; otherwise missing
-  indexes or constraints can make shared Cypher look falsely slow.
-- Treat NornicDB tuning wins as shared-Cypher wins first. Prefer improving the
-  backend-neutral writer/query shape in Eshu before adding backend-specific
-  branches.
-- Neo4j and NornicDB must use Eshu's shared raw Cypher/Bolt contract wherever
-  possible. Backend-specific code belongs only in narrow seams such as schema
-  DDL, connection/runtime settings, retry classification, query builders, or
-  measured dialect adapters.
-- When a backend appears much slower, prove the setup first: schema applied,
-  expected indexes present, same corpus, rebuilt binaries, same queue terminal
-  state, effective runtime knobs, embeddings state, pprof state, and API/MCP
-  truth checks against the completed graph.
-
-## NornicDB Notes
-
-- Hot path eligibility matters. A logically equivalent Cypher shape may be much slower if it misses a supported template.
-- Indexed-looking anchors are not proof. Verify the exact statement shape uses schema/index lookup and does not fall back to label scans, all-node scans, or relationship fanout scans.
-- `UNWIND $rows AS row MERGE ...` or staged `WITH $rows AS rows UNWIND rows AS row` can be better than an `UNWIND ... MATCH` fallback when writing batches.
-- For high-cardinality writes, compare earlier phases before blaming entity labels. File or directory upsert chunks can degrade first and make later entity containment appear guilty.
-- Uniqueness constraints can still be a write-time cost center. On NornicDB, verify that constraint validation uses direct unique-value lookup rather than scanning the label population on every create.
-- Relationship `MERGE` can be dominated by existence checks on the start node's outgoing fanout. If `(start)-[:TYPE]->(end)` is hot, look for a direct `(startID,type,endID)` lookup path or backend support before only shrinking batches.
-- Explicit property indexes may be needed for hot graph-backed APIs and materialization jobs.
-- Treat `IF NOT EXISTS` as syntax, not idempotency evidence. For NornicDB index
-  or constraint DDL, inspect the pinned executor's already-exists path and prove
-  identical reapplication on an isolated populated store. Compare index-backed
-  query set/order and index-entry cardinality where observable; graph node/edge
-  counts alone are insufficient.
-- Multi-label and unlabelled node matches can be risky; prefer one clear label plus indexed property anchors.
-- Verify uncertain behavior against NornicDB docs or source before assuming Neo4j planner behavior applies.
-
-## Patching NornicDB: Support The Shape, Never Fail Loud
-
-NornicDB's goal is drop-in Neo4j compatibility, and the maintainer has rejected
-fail-loud patches twice for the same reason. When you fix a NornicDB Cypher
-executor bug, the contract is:
-
-- **Support every valid shape by mirroring Neo4j's actual semantics.** Do not
-  fail loud, reject, or error on a shape Neo4j executes. Rejecting a valid query
-  is not better than corrupting it — both break compatibility.
-- **Reference the Neo4j source.** The Cypher runtime lives in the Neo4j
-  monorepo under `community/cypher/`. Look for a checkout at `~/os-repos/neo4j`;
-  if it is absent, clone it (`git clone --filter=blob:none --sparse
-  https://github.com/neo4j/neo4j ~/os-repos/neo4j` then `git sparse-checkout set
-  community/cypher`). Map the
-  logical operator that governs the shape — for OPTIONAL MATCH that is
-  `OptionalPipe` / `ApplyPipe` / `OptionalExpandAllPipe` (per left row, run the
-  inner pattern; no match means keep the row and null the new variables); for
-  aggregation it is `EagerAggregationPipe` plus the front-end `isolateAggregation`
-  rewrite. Cite the Neo4j file you mirrored.
-- **Keep only genuine parse errors** — the ones Neo4j itself raises at parse
-  time (for example `count()` with no argument). If you are unsure whether Neo4j
-  accepts a shape, assume it does and support it.
-- **Route to the real evaluator, not a string-slicing fallback.** A guard that
-  fires before the pipeline handoff freezes valid queries out of the good
-  executor. Teach the executor the shape rather than gating it.
-
-See `docs/public/reference/nornicdb-pitfalls.md` ("When To Patch NornicDB") for
-the same rule and the patch-and-repin process.
+Worked good/bad examples for both checklists: [patterns.md](references/patterns.md).
+Backend-specific dialect notes, Eshu graph-backend lessons, and the NornicDB
+patching contract: [backend-notes.md](references/backend-notes.md).
 
 ## Response Discipline
 

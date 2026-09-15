@@ -1,6 +1,6 @@
 ---
 name: eshu-humanizer
-description: Polish Eshu PRs, reviews, issue updates, and documentation for clear prose and accurate evidence claims.
+description: Polishes the prose of an Eshu PR body/title, review reply, issue update, or doc edit before it publishes — concrete lead, no AI-sounding filler, verbatim evidence, measured confidence.
 ---
 
 # Eshu humanizer

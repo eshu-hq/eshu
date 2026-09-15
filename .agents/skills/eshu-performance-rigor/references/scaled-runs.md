@@ -194,5 +194,5 @@ An expensive remote result may carry forward across a base-only rebase only
 when the old and new commits have identical stable patch IDs and the incoming
 base diff does not touch the measured runtime, schema, topology, fixtures, or
 proof harness. Record both commits and the patch ID. This does not waive
-`make pre-pr`, review/attestation under `eshu-code-review`, or targeted local
+`make pre-push`, review/attestation under `eshu-code-review`, or targeted local
 proof on the rebased head.

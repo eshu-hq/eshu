@@ -139,10 +139,10 @@ gates:
 
 // TestLoad_LocalBlockWithOnlyTestCommandAccepted proves the new rule does not
 // reject the real, committed shape it must coexist with: a gate whose
-// command is intentionally empty but whose test_command is real
-// (prepr-stamp-verify-selftest's exact shape -- its guard cannot run as a
-// local.command at all, see specs/ci-gates.v1.yaml's own local_only_reason
-// for why).
+// command is intentionally empty but whose test_command is real -- the shape
+// a permanently local-only guard whose enforcement cannot run as a
+// local.command at all takes in the registry, with its own local_only_reason
+// explaining why (see specs/ci-gates.v1.yaml).
 func TestLoad_LocalBlockWithOnlyTestCommandAccepted(t *testing.T) {
 	t.Parallel()
 	yaml := `version: v1

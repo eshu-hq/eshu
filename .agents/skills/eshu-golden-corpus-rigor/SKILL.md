@@ -1,6 +1,6 @@
 ---
 name: eshu-golden-corpus-rigor
-description: Update or debug Eshu golden replay contracts when facts, projected truth, query shapes, cassettes, or snapshots change.
+description: Use when collector fact emission, reducer/projector graph writes, or query/MCP response shapes change and must pass the B-7 golden-corpus gate. Update testdata/cassettes/ and the B-12 snapshot together.
 ---
 
 # eshu-golden-corpus-rigor
@@ -39,7 +39,7 @@ Ask this before you finish any change to these surfaces:
   property → add or adjust the snapshot's `required_correlations` / `node_counts`
   / `edge_counts` / required-node-property assertions.
 - **Query or MCP tool response shape** (`go/internal/query/*`,
-  `go/internal/mcp/*`, `cmd/api`/`cmd/mcp-server` wiring): new/renamed response
+  `go/internal/mcp/*`, `go/cmd/api`/`go/cmd/mcp-server` wiring): new/renamed response
   field, a new tool, or a new mounted route → update `query_shapes.http` /
   `query_shapes.mcp`.
 - **A new verb/ecosystem** (parser + collector + correlation): add a fixture
@@ -93,8 +93,9 @@ fixture.
 - **MCP query shapes** are asserted live: the gate unwraps the MCP truth envelope
   `{data, truth, error}` and checks the payload under `data`. A tool whose route
   is not mounted on the MCP server returns `isError`/`HTTP 404` even though it is
-  advertised — mount the route (mirror `cmd/api/wiring.go`), do not drop the
-  shape. See `eshu-mcp-call-rigor`.
+  advertised — mount the route (mirror `go/cmd/api/wiring.go` in
+  `go/cmd/mcp-server/wiring.go`), do not drop the shape. See
+  `eshu-mcp-call-rigor`.
 - **Governance-gated families assert `max: 0`.** The SecretsIAM graph projection
   is OFF by default (`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, ADR
   #1314); never enable a governed feature just to satisfy a count.
@@ -102,10 +103,11 @@ fixture.
 ## Validate
 
 ```bash
-# unit + static contract (fast, no Docker)
+# unit + static contract (fast, no Docker) -- gate id: golden-corpus-mirror
 cd go && go test ./cmd/golden-corpus-gate/ -count=1
 bash scripts/test-verify-golden-corpus-gate.sh
 # full live run (Docker): bootstrap + replay cassettes + drain + diff snapshot
+# -- gate id: golden-corpus-gate (B-7), tier ci-heavy, blocking on required-gates-complete
 bash scripts/verify-golden-corpus-gate.sh
 ```
 
@@ -121,3 +123,11 @@ pipeline change done until the gate is green with your fixture update. Never
 - Cassette replay internals: see `go/internal/replay/cassette/AGENTS.md`.
 - Hot-path Cypher/perf evidence on graph writes: add `cypher-query-rigor`.
 - Correlation/materialization truth: add `eshu-correlation-truth`.
+- Whether every compiled Go package the gate depends on is still in its own
+  CI path filter: that is `golden-corpus-filter-exhaustive`, a separate
+  self-checking gate over `.github/workflows/golden-corpus-gate.yml` and
+  `scripts/lib/golden-corpus-filter-exclusions.txt`, not this skill's job.
+- Offline cassette replay against a real NornicDB build (as opposed to the
+  live Docker corpus run above) is the separate `replay-tier` gate
+  (`scripts/verify-replay-tier.sh`, `testdata/cassettes/replayoffline/`,
+  `testdata/cassettes/replaydelta/`).

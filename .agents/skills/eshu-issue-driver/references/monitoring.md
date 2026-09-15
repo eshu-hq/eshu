@@ -23,8 +23,9 @@ Keep outward-facing comments and review requests within user authorization.
   force-push, so both of its "stable" reads can honestly describe a head that no
   longer exists. A read whose SHA is not the current head is stale — discard it.
   Before merging, confirm local `HEAD` equals the PR's `headRefOid`.
-  Only the orchestrator runs the late
-  `make pre-pr`; dispatched executors run focused proof only (see
+  Only the orchestrator runs `make pre-push` before every push and, for a
+  risky change only, the late `make pre-pr`/`make pre-pr-full`; dispatched
+  executors run focused proof only (see
   [Orchestration, PR, And CI Discipline](../../../../CLAUDE.md)).
 - **Cancelled is not failed, but a cancelled BLOCKING gate is not self-healing.**
   A cancelled job does not re-run itself — only a new push or an explicit rerun
@@ -35,16 +36,18 @@ Keep outward-facing comments and review requests within user authorization.
   children says nothing about the diff: read the failing job's steps before
   concluding, since a hung setup step — a package install stalling until the
   runner kills it — presents identically to a real failure.
-- **Keep the machine quiet for the live lanes.** They bind fixed host ports and
-  saturate CPU, so a build, a second gate, or another worktree's `make pre-pr`
-  running alongside produces a RED that is starvation, not a defect. One session
-  lost a 936s run this way and drew two wrong conclusions from it before a quiet
-  re-run passed the identical diff in 451s; the same gate takes 139s unloaded.
-  Serialize gate runs, and before treating any live-lane failure as real, check
-  what else was running during it. Detect a live run by the lock in
-  `scripts/lib/live-gate-lock.sh`, by `pgrep -f verify-golden-corpus-gate`, or
-  by port 15432 being bound — `pgrep -f "make pre-pr"` has failed to match a
-  running gate and been misread as the process having died.
+- **Keep the machine quiet when running a live lane (`make pre-pr`/
+  `make pre-pr-full`, now reserved for risky changes).** They bind fixed host
+  ports and saturate CPU, so a build, a second gate, or another worktree's
+  live-lane run alongside produces a RED that is starvation, not a defect. One
+  session lost a 936s run this way and drew two wrong conclusions from it
+  before a quiet re-run passed the identical diff in 451s; the same gate takes
+  139s unloaded. Serialize live-lane runs, and before treating any live-lane
+  failure as real, check what else was running during it. Detect a live run by
+  the lock in `scripts/lib/live-gate-lock.sh`, by
+  `pgrep -f verify-golden-corpus-gate`, or by port 15432 being bound —
+  `pgrep -f "make pre-pr"` has failed to match a running gate and been misread
+  as the process having died.
 - Fetch ALL inline + bot review comments:
   `gh api repos/eshu-hq/eshu/pulls/<n>/comments`. Treat every reviewer
   uniformly — **codex (`chatgpt-codex-connector[bot]`), GitHub Copilot

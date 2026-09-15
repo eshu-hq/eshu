@@ -1,6 +1,6 @@
 ---
 name: eshu-code-review
-description: Review Eshu diffs for correctness, proof sufficiency, and delivery readiness before push, PR creation, or merge.
+description: Produces the push/PR/merge review verdict on an Eshu diff — proof-tier selection, the five review passes, severity findings, merge-bar readiness. Not for closing GitHub threads (resolve-review-threads).
 ---
 
 # Eshu Code Review
@@ -50,19 +50,30 @@ external-review replacement has additional independence requirements in
 
 ## Promotion And Evidence Reuse
 
-After focused proof, complete a preliminary full review before `make pre-pr`.
-Do not begin promotion with any P0, P1, or blocking P2 finding. Fix those, rerun
+After focused proof, complete a preliminary full review before push. Do not
+begin promotion with any P0, P1, or blocking P2 finding. Fix those, rerun
 affected proof, and repeat the full review. Deferred P2 findings need the linked
 issue and owner agreement required by the merge bar; P3 does not restart the loop.
 
 Capture the clean verdict's exact inputs with `ci-gates review-attest capture`.
-Only the orchestrator runs the serialized `make pre-pr`, when otherwise ready
-for the intended push. After preflight, `ci-gates review-attest verify` replaces
-a second full semantic review only when the receipt matches. Any changed base,
-commit, tree, worktree, submodule, PR claim, review packet, or verdict invalidates
-it: repeat affected proof and full review, then capture a new receipt. Do not
-edit between verified attestation and push. This receipt reuses semantic review;
-it does not waive independent review, current GitHub state, CI, or authorization.
+The order is: proof, clean preliminary review plus that capture, `make
+pre-push`, `ci-gates review-attest verify`, then push. `make pre-push` is the
+required floor before every push — changed-package test/lint/build/vet, the
+file cap, registry-selected static gates, and docs-contradiction. For
+queue/lease/claim code, schema DDL, hot-path Cypher or graph writes, reducer
+projection/materialization, or a package move, the orchestrator also runs one
+serialized `make pre-pr` (`make pre-pr-full` for a move) before that push —
+recommended for that risk class, not required otherwise; subagents never run
+it themselves. After preflight, `ci-gates review-attest verify` replaces a
+second full semantic review only when the receipt matches. Any changed base,
+commit, tree, worktree, submodule, PR claim, review packet, or verdict
+invalidates it: repeat affected proof and full review, then capture a new
+receipt. Do not edit between verified attestation and push. This receipt
+reuses semantic review; it does not waive independent review, current GitHub
+state, CI, or authorization. CI's `required-gates-complete` (with
+`go-core-complete` and `go-race-complete`) is the actual blocking authority
+once pushed — nothing merges while it is red, and reproduce only the failing
+gate locally rather than re-running everything.
 
 ## Reporting
 

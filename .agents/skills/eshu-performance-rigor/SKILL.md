@@ -1,6 +1,6 @@
 ---
 name: eshu-performance-rigor
-description: Prove Eshu latency, throughput, resource, or wall-time changes with representative correctness and concurrency checks and comparable measurements.
+description: "Use when proving or improving an Eshu latency, throughput, resource, or wall-time claim: benchmarks, contribution budgets, scaled runs, and before/after evidence. Find an unknown cause first with eshu-diagnostic-rigor."
 ---
 
 # Eshu Performance Rigor
@@ -12,15 +12,20 @@ bottleneck is unknown; routine test execution alone does not need diagnosis.
 ## Essential Contract
 
 Accuracy comes first, performance second, and concurrency third. A faster wrong
-answer, unsafe claim, incomplete drain, hidden fallback, or serialized workaround
-is a failure. Do not raise worker defaults without safe conflict-domain and
-backend-headroom evidence.
+answer, unsafe claim, incomplete drain, hidden fallback, or serialized
+workaround is a failure — see root
+[Serialization Is Not A Fix](../../../CLAUDE.md#serialization-is-not-a-fix).
+Do not raise worker defaults without safe conflict-domain and backend-headroom
+evidence.
 
 Before implementation, record the stage, exact metric start/terminal events,
 correctness invariant or intended delta, expected cardinality and worst-case
 partition, baseline/known-normal band, minimum worthwhile improvement, stop
-threshold, required proof, and production diagnostic signal. Prove the theory
-with the cheapest representative shim before implementing or dispatching it.
+threshold, required proof, and production diagnostic signal. This skill is the
+proof ladder for root
+[Prove-The-Theory-First](../../../CLAUDE.md#mandatory-prove-the-theory-first):
+prove the theory with the cheapest representative shim before implementing or
+dispatching it.
 
 Read [proof-plan.md](references/proof-plan.md) to select the acceptance-driven
 proof ladder: theory, exactness or intended delta, applicable concurrency proof,
@@ -87,9 +92,12 @@ level of improvement and name the next measured bottleneck.
 
 Run focused reproduction and required integration/golden and performance-evidence
 gates. Follow [eshu-code-review](../eshu-code-review/SKILL.md) and root rules for
-review, attestation, `make pre-pr`, and push; a verified unchanged receipt avoids
-a duplicate semantic review. Changed inputs invalidate that receipt. Capture
-live CI/review truth and apply the declared retention mode at closeout.
+review, attestation, `make pre-push` (the required fast floor), and push; this
+skill's own risk classes — queue/lease, schema DDL, hot-path Cypher or graph
+writes, and reducer projection/materialization — warrant the deeper, optional
+`make pre-pr`/`make pre-pr-full` preflight first. A verified unchanged receipt
+avoids a duplicate semantic review. Changed inputs invalidate that receipt.
+Capture live CI/review truth and apply the declared retention mode at closeout.
 
 Add storage, Cypher, Go, concurrency, correlation, or golden-corpus skills when
 the touched contract needs them; their correctness requirements still apply.

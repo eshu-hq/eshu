@@ -128,7 +128,7 @@ naming alongside it lands exactly here.
 That 1,312 is not 1,312 external dependents, and the difference decides the
 restructure risk: **1,243 (94.7%) are inside this package's own subtree**, 69
 are outside it, and of those only **five are non-test** —
-`go/internal/coordinator/aws_scheduled_scheduler.go`,
+`go/internal/coordinator/planner/aws/scheduled/planner.go`,
 `go/cmd/collector-aws-cloud/config.go`,
 `go/cmd/collector-aws-cloud/status_committer.go`,
 `go/internal/collector/contracttest/contracttest.go`, and

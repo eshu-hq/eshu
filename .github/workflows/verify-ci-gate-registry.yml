@@ -35,6 +35,8 @@ jobs:
         run: |
           scripts/test-verify-ci-gates-registry.sh
           scripts/test-pre-pr-whole-module-gates.sh
+          scripts/test-pre-push.sh
+          scripts/test-no-prepr-stamp-references.sh
           scripts/test-generate-ci-gates-doc.sh
           scripts/test-verify-live-required-status-checks.sh
           scripts/test-resolve-required-gates-pr.sh

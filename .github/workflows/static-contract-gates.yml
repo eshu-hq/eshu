@@ -347,6 +347,7 @@ jobs:
               - 'scripts/verify-tagged-builds.sh'
               - 'scripts/test-verify-tagged-builds.sh'
               - 'scripts/dev/pre-pr.sh'
+              - 'scripts/dev/pre-push.sh'
             measurementcite:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'

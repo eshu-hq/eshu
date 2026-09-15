@@ -11,7 +11,7 @@ current PR does not claim that condition is proven.
 
 | Tier | Use when |
 | --- | --- |
-| Unit/static proof enough | Documentation and agent guidance, pure helper logic, parser-local behavior, generated string construction, or small contract code with no projected truth or runtime coupling. Guidance changes need semantic review of the instructions as well as docs/static checks. |
+| Unit/static proof enough | Documentation and agent guidance, pure helper logic, parser-local behavior, generated string construction, or small contract code with no projected truth or runtime coupling. Guidance changes need semantic review of the instructions as well as the docs build and `make pre-push` static-analysis gates. |
 | Cassette/golden replay required and sufficient | Deterministic fact emission, reducer/projector truth, API/MCP response shape, capability truth, dead-code classification, cross-repo liveness, stale generations, tenant/repo scope boundaries, or no-provider-key evidence is covered by committed replay inputs and golden assertions. |
 | Backend-required cassette/replay required | Correctness depends on real NornicDB/Neo4j behavior, Cypher dialect support, schema/index behavior, planner/hot-path eligibility, or exact emitted query shape against a live graph backend. |
 | Scaled/performance replay required | Small replay may be correct but cardinality, fanout, queue depth, batching, graph write budgets, Postgres indexes, or p95/p99 latency can fail. |
