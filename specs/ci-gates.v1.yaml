@@ -2943,6 +2943,9 @@ gates:
       - "scripts/lib/ifa_family_*.sh"
       - "scripts/verify-ifa-determinism.sh"
       - "scripts/test-verify-ifa-determinism.sh"
+      # #6162: the determinism-matrix job pre-warms Go modules through this
+      # shared retry helper before its first build/test step.
+      - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/lib/ifa_fault_injection_inheritance_cells.sh"
       - "scripts/lib/ifa_fault_injection_shell_exec_cells.sh"
       # kubernetes_namespace_environment + iam_instance_profile_role (#6309):
@@ -3039,6 +3042,9 @@ gates:
       - "scripts/lib/ifa_dead_command_line.sh"
       - "scripts/verify-ifa-dead-letter-matrix.sh"
       - "scripts/test-verify-ifa-dead-letter-matrix.sh"
+      # #6162: the dead-letter-matrix job pre-warms Go modules through this
+      # shared retry helper before its first build/test step.
+      - "scripts/ci/go-mod-download-retry.sh"
       # Glob, not the one filename (#6200) -- but scoped to the one lib this
       # gate loads, not to the whole ifa_determinism_ prefix.
       # scripts/verify-ifa-dead-letter-matrix.sh:75 sources
@@ -3493,6 +3499,9 @@ gates:
       # the gate's own preconditions shell out to rg. Without this trigger an edit
       # to the installer would not select the gate it is a precondition for.
       - "scripts/ci/install-apt-packages.sh"
+      # #6162: the job pre-warms Go modules through this shared retry helper
+      # before its first build/test step.
+      - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/test-verify-ifa-fault-injection.sh"
       - "scripts/lib/ifa_private_data_pattern.sh"
       - "scripts/lib/ifa_dead_command_line.sh"

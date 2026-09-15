@@ -171,6 +171,70 @@ for private_target in "${script}" "${lib}" "${pins_lib}"; do
 		|| fail "the private-data scan could not run over $(basename "${private_target}") (rg exit ${private_rc}); a scanner that cannot run must never read as clean"
 done
 
+# CI workflow wiring shared with the determinism-matrix sibling (#6162
+# follow-up). Both jobs build/test Go and both drive a matrix whose only
+# record of a mismatch, before this change, was a stdout tail of the BACKEND
+# container logs -- the host-side canonical dumps, rationale deltas, and
+# per-N binary logs that would show WHAT diverged were deleted by each
+# script's own EXIT trap the moment the job ended, --keep or not, because
+# neither job passed --keep and neither had an upload-artifact step. Runs
+# 34068313913 (cell_expirelease digest mismatch) and 33788992677
+# (determinism-matrix rationale non-convergence) left nothing to inspect.
+workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
+[[ -f "${workflow}" ]] || fail "missing ${workflow}"
+
+# assert_prewarm_before_run checks that, within one job's slice of the
+# workflow (start_needle..end_needle, exclusive of end_needle), "Set up Go"
+# precedes a "Pre-warm Go modules" step running the shared retry helper,
+# which itself precedes the job's own matrix invocation.
+assert_prewarm_before_run() {
+	local job_name="$1" start_needle="$2" end_needle="$3" run_needle="$4"
+	local start_line end_line setup_line prewarm_line run_line prewarm_run
+	# `|| true` throughout: under pipefail a no-match rg would otherwise abort
+	# this whole script via set -e before the fail() checks below can run.
+	start_line="$(rg -n --fixed-strings -- "${start_needle}" "${workflow}" | cut -d: -f1)" || true
+	end_line="$(rg -n --fixed-strings -- "${end_needle}" "${workflow}" | cut -d: -f1)" || true
+	[[ -n "${start_line}" && -n "${end_line}" && "${end_line}" -gt "${start_line}" ]] \
+		|| fail "${job_name}: could not locate its job block in ${workflow}"
+	setup_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
+		| rg -n --fixed-strings -- 'name: Set up Go' | cut -d: -f1)" || true
+	prewarm_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
+		| rg -n --fixed-strings -- 'name: Pre-warm Go modules' | cut -d: -f1)" || true
+	run_line="$(sed -n "${start_line},$((end_line - 1))p" "${workflow}" \
+		| rg -n --fixed-strings -- "${run_needle}" | cut -d: -f1)" || true
+	[[ -n "${setup_line}" && -n "${prewarm_line}" && -n "${run_line}" ]] \
+		|| fail "${job_name}: missing Set up Go / Pre-warm Go modules / matrix invocation step"
+	[[ "${setup_line}" -lt "${prewarm_line}" && "${prewarm_line}" -lt "${run_line}" ]] \
+		|| fail "${job_name}: module prefetch is not wired between setup-go and the matrix invocation"
+	prewarm_run="$(sed -n "$((start_line + prewarm_line))p" "${workflow}")"
+	[[ "${prewarm_run}" == *'run: scripts/ci/go-mod-download-retry.sh'* ]] \
+		|| fail "${job_name}: Pre-warm Go modules step does not run the shared retry helper (got: ${prewarm_run})"
+}
+
+assert_prewarm_before_run determinism-matrix \
+	'  determinism-matrix:' '  dead-letter-matrix:' \
+	'name: Run Ifa graph-determinism matrix'
+assert_prewarm_before_run dead-letter-matrix \
+	'  dead-letter-matrix:' '  fault-injection:' \
+	'name: Run Ifa dead-letter-set determinism matrix'
+
+rg --fixed-strings --quiet -- 'run: bash scripts/verify-ifa-determinism.sh --keep' "${workflow}" \
+	|| fail "determinism-matrix invocation does not pass --keep; a failing cell's work dir is gone before any upload can run"
+rg --fixed-strings --quiet -- 'run: bash scripts/verify-ifa-dead-letter-matrix.sh --keep' "${workflow}" \
+	|| fail "dead-letter-matrix invocation does not pass --keep; a failing cell's work dir is gone before any upload can run"
+
+for needle in \
+	'name: Upload determinism-matrix diagnostics' \
+	'/tmp/ifa-determinism.*/graph-n*.dump' \
+	'/tmp/ifa-determinism.*/rationale-delta-n*.dump' \
+	'/tmp/ifa-determinism.*/logs/*.log' \
+	'name: Upload dead-letter-matrix diagnostics' \
+	'/tmp/ifa-deadletter-matrix.*/mutated.json' \
+	'/tmp/ifa-deadletter-matrix.*/logs/*.log'; do
+	rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
+		|| fail "matrix workflow does not preserve diagnostic artifact: ${needle}"
+done
+
 # Every pin helper above must BIND CODE. Run last, so `compgen -A function`
 # sees them all. This is what stops #6161 from being reintroduced: a helper
 # added later is discovered and executed, not trusted.

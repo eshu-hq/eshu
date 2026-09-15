@@ -376,9 +376,7 @@ test_ifa_fault_failure_artifact_contract() {
 		'run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/4"' \
 		'uses: actions/upload-artifact@v4' \
 		'name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure' \
-		'/tmp/ifa-fault-injection.*/graph-baseline.dump' \
-		'/tmp/ifa-fault-injection.*/graph-restartbackend.dump' \
-		'/tmp/ifa-fault-injection.*/graph-restartbackend-failure.dump' \
+		'/tmp/ifa-fault-injection.*/graph-*.dump' \
 		'/tmp/ifa-fault-injection.*/graph-manifest.tsv' \
 		'/tmp/ifa-fault-injection.*/work-items.csv' \
 		'/tmp/ifa-fault-injection.*/gcp-facts.jsonl' \
@@ -401,6 +399,12 @@ test_ifa_fault_failure_artifact_contract() {
 		rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
 			|| fail "fault workflow does not preserve diagnostic artifact: ${needle}"
 	done
+	# #6162 follow-up: a literal per-cell name here (instead of the glob above)
+	# would silently drop every OTHER cell's graph-<cell>.dump (expirelease,
+	# killworker, etc.) from the uploaded artifact.
+	if rg --fixed-strings --quiet -- '/tmp/ifa-fault-injection.*/graph-baseline.dump' "${workflow}"; then
+		fail "fault workflow pins a literal per-cell dump name again instead of the graph-*.dump glob"
+	fi
 	rg --fixed-strings --quiet -- 'FAULT_COMPOSE_PROJECT: eshu-ifa-fault-injection-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}' "${workflow}" \
 		|| fail "fault job does not pin a stable per-shard Compose project"
 	rg --fixed-strings --quiet -- 'docker compose -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml down -v' "${workflow}" \
@@ -452,6 +456,31 @@ test_ifa_fault_failure_artifact_contract() {
 		|| fail "CI registry does not trigger on every fault-executor module"
 }
 
+# test_ifa_fault_injection_go_mod_prewarm (#6162 follow-up): pre-warm the Go
+# module cache with the shared download-only retry helper between setup-go and
+# the first build/test step, so a dropped proxy stream surfaces here instead
+# of as a fault- or race-shaped red (#6075's failure mode; runs 34627429845,
+# 34007134864, 33551099795, 34370706054).
+test_ifa_fault_injection_go_mod_prewarm() {
+	local workflow="${repo_root}/.github/workflows/ifa-determinism-gate.yml"
+	local setup_line prewarm_line unit_test_line shard_line prewarm_run_line
+	# fault-injection is the LAST Go-building job, so "Set up Go" / "Pre-warm Go
+	# modules" last-match here (same idiom as "Tear down Docker services"
+	# below); `|| true` stops pipefail turning a no-match rg into a set -e
+	# abort before the fail() checks below can report it.
+	setup_line="$(rg -n --fixed-strings -- 'name: Set up Go' "${workflow}" | tail -1 | cut -d: -f1)" || true
+	prewarm_line="$(rg -n --fixed-strings -- 'name: Pre-warm Go modules' "${workflow}" | tail -1 | cut -d: -f1)" || true
+	unit_test_line="$(rg -n --fixed-strings -- 'name: Run tagged fault-classification unit tests' "${workflow}" | cut -d: -f1)" || true
+	shard_line="$(rg -n --fixed-strings -- 'name: Run Ifa fault-injection matrix shard' "${workflow}" | cut -d: -f1)" || true
+	[[ -n "${setup_line}" && -n "${prewarm_line}" && -n "${unit_test_line}" && -n "${shard_line}" ]] \
+		|| fail "fault-injection job is missing one of: Set up Go / Pre-warm Go modules / tagged unit tests / matrix shard steps"
+	[[ "${setup_line}" -lt "${prewarm_line}" && "${prewarm_line}" -lt "${unit_test_line}" && "${unit_test_line}" -lt "${shard_line}" ]] \
+		|| fail "fault-injection job does not pre-warm Go modules between setup-go and its first go build/test step"
+	prewarm_run_line="$(sed -n "$((prewarm_line + 1))p" "${workflow}")"
+	[[ "${prewarm_run_line}" == *'run: scripts/ci/go-mod-download-retry.sh'* ]] \
+		|| fail "Pre-warm Go modules step does not run the shared retry helper (got: ${prewarm_run_line})"
+}
+
 run_ifa_fault_injection_diagnostics_cases() {
 	test_ifa_fault_capture_digest_reads_graph_once
 	test_ifa_fault_graph_manifest_describes_retained_bytes
@@ -466,4 +495,5 @@ run_ifa_fault_injection_diagnostics_cases() {
 	test_ifa_fault_restart_completeness_requires_each_boundary_artifact
 	test_ifa_fault_graph_manifest_timeout_fails_closed
 	test_ifa_fault_failure_artifact_contract
+	test_ifa_fault_injection_go_mod_prewarm
 }
