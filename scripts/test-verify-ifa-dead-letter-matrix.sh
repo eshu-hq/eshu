@@ -251,6 +251,21 @@ for needle in \
 	rg --fixed-strings --quiet -- "${needle}" "${workflow}" \
 		|| fail "matrix workflow does not address the kept compose project: ${needle}"
 done
+# Diagnostics steps must key on the matrix step's own outcome, not a bare
+# failure(): a module pre-warm that exhausts its retries fails the job before
+# any work dir exists, and a bare failure() then turns that one named download
+# failure into extra misleading completeness/upload failures (#6706 review).
+for step_id in fault_matrix determinism_matrix dead_letter_matrix; do
+	rg --fixed-strings --quiet -- "id: ${step_id}" "${workflow}" \
+		|| fail "matrix run step has no id ${step_id} for its diagnostics to key on"
+	rg --fixed-strings --quiet -- "if: failure() && steps.${step_id}.outcome == 'failure'" "${workflow}" \
+		|| fail "diagnostics are not gated on steps.${step_id}.outcome"
+done
+# The static mirror runs `go run ./cmd/ci-gates` inside its validators, so it
+# needs the same setup-go + pre-warm as the matrix jobs (#6706 review).
+assert_prewarm_before_run static-mirror \
+	'  static-mirror:' '  determinism-matrix:' \
+	'name: Validate determinism matrix mirror'
 if rg --fixed-strings --quiet -- 'run: docker compose -f docker-compose.yaml' "${workflow}"; then
 	fail "a workflow step runs docker compose without -p; it addresses a project no gate script starts"
 fi
