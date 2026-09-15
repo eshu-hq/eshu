@@ -166,7 +166,11 @@ func deployableUnitCorrelationRows(
 	return rows
 }
 
-func deployableUnitRetractRowsFromFacts(intent Intent, envelopes []facts.Envelope) []SharedProjectionIntentRow {
+func deployableUnitRetractRowsFromFacts(
+	intent Intent,
+	envelopes []facts.Envelope,
+	entityKeys map[string]struct{},
+) []SharedProjectionIntentRow {
 	var rows []SharedProjectionIntentRow
 	for _, envelope := range envelopes {
 		if envelope.FactKind != factKindRepository {
@@ -177,6 +181,9 @@ func deployableUnitRetractRowsFromFacts(intent Intent, envelopes []facts.Envelop
 			repoID = strings.TrimSpace(anyToString(envelope.Payload["repo_id"]))
 		}
 		if repoID == "" {
+			continue
+		}
+		if !deployableUnitIntentMatchesRepository(entityKeys, repoID, anyToString(envelope.Payload["name"])) {
 			continue
 		}
 		rows = append(rows, SharedProjectionIntentRow{
@@ -197,6 +204,22 @@ func deployableUnitRetractRowsFromFacts(intent Intent, envelopes []facts.Envelop
 		})
 	}
 	return rows
+}
+
+func deployableUnitIntentMatchesRepository(entityKeys map[string]struct{}, repoID, repoName string) bool {
+	for _, identity := range []string{repoID, repoName} {
+		identity = strings.ToLower(strings.TrimSpace(identity))
+		if identity == "" {
+			continue
+		}
+		if _, ok := entityKeys[identity]; ok {
+			return true
+		}
+		if _, ok := entityKeys[normalizedEntityKey(identity)]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func deployableUnitCorrelationRow(

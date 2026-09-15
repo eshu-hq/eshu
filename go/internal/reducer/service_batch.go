@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // runBatchConcurrent uses a single claimer goroutine to claim batches of work
@@ -176,8 +178,8 @@ func (s Service) runBatchConcurrent(
 					// (Fail clears lease_owner and moves status off
 					// 'claimed'/'running'), which the container_image_identity
 					// and ci_cd_run_correlation ack paths report as
-					// ErrReducerClaimRejected — a fatal error that cancels the
-					// whole run over a routine, retryable handler failure.
+					// ErrReducerClaimRejected. Skipping it avoids a second
+					// terminal transition for work the handler already failed.
 					continue
 				}
 
@@ -213,7 +215,11 @@ func (s Service) runBatchConcurrent(
 
 			if err := batchSink.AckBatch(ctx, intents, results); err != nil {
 				if ctx.Err() == nil {
-					appendErr(fmt.Errorf("batch ack reducer work: %w", err))
+					if errors.Is(err, ErrExecutionClaimRejected) {
+						s.logReducerAckClaimRejected(ctx, nil, len(intents), err)
+					} else {
+						appendErr(fmt.Errorf("batch ack reducer work: %w", err))
+					}
 				}
 			}
 			pending = pending[:0]
@@ -254,6 +260,64 @@ func (s Service) runBatchConcurrent(
 	<-ackDone
 
 	return errors.Join(errs...)
+}
+
+func (s Service) ackReducerWork(
+	ctx context.Context,
+	intent Intent,
+	result Result,
+	duration float64,
+	queueWait float64,
+	status string,
+	workerID int,
+) error {
+	err := s.WorkSink.Ack(ctx, intent, result)
+	if err == nil {
+		s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
+		return nil
+	}
+	if errors.Is(err, ErrExecutionClaimRejected) {
+		s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
+		s.logReducerAckClaimRejected(ctx, &intent, 0, err)
+		return nil
+	}
+
+	s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, err)
+	return fmt.Errorf("ack reducer work: %w", err)
+}
+
+func (s Service) logReducerAckClaimRejected(
+	ctx context.Context,
+	intent *Intent,
+	batchSize int,
+	err error,
+) {
+	if s.Logger == nil {
+		return
+	}
+
+	message := "reducer ack rejected stale claim"
+	attrs := []any{
+		log.Queue("reducer"),
+		telemetry.PhaseAttr(telemetry.PhaseReduction),
+		telemetry.FailureClassAttr("execution_claim_rejected"),
+		log.Err(err),
+	}
+	if intent != nil {
+		partitionKey := ""
+		if len(intent.EntityKeys) > 0 {
+			partitionKey = intent.EntityKeys[0]
+		}
+		for _, attr := range telemetry.DomainAttrs(string(intent.Domain), partitionKey) {
+			attrs = append(attrs, attr)
+		}
+		attrs = append(attrs, log.IntentID(intent.IntentID))
+	} else {
+		message = "reducer batch ack rejected stale claim"
+		attrs = append(attrs, slog.Int("batch_size", batchSize))
+	}
+
+	s.Logger.WarnContext(ctx, message, attrs...)
 }
 
 // executeAndReport runs one intent through the executor and reports the

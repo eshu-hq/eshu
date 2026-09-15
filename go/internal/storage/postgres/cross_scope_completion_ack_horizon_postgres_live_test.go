@@ -23,7 +23,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 				db.SetMaxOpenConns(8)
 				ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 				defer cancel()
-				now := time.Now().UTC()
+				now := time.Now().UTC().Truncate(time.Microsecond)
 				const scope, generation = "repository:6488-horizon", "generation:6488-horizon"
 				seedContainerImageIdentityAckScope(t, ctx, db, scope)
 				seedContainerImageIdentityAckGeneration(t, ctx, db, scope, generation)
@@ -32,7 +32,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 				}
 				insertCrossScopeCompletionBaseConsumer(t, ctx, db, "horizon-consumer", scope, generation, reducer.DomainSupplyChainImpact, now)
 				insertCrossScopeCompletionBaseConsumer(t, ctx, db, "horizon-producer", scope, generation, domain, now)
-				if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running',lease_owner='horizon-ack',claim_until=$1,container_image_identity_claim_epoch=1 WHERE work_item_id='horizon-producer'`, now.Add(time.Hour)); err != nil {
+				if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running',lease_owner='horizon-ack',claim_until=$1,last_attempt_at=$2,container_image_identity_claim_epoch=1 WHERE work_item_id='horizon-producer'`, now.Add(time.Hour), now); err != nil {
 					t.Fatal(err)
 				}
 				claimed := insertCrossScopeCompletionEvent(t, ctx, db, domain, "claimed", "horizon-fanout", now.Add(time.Hour), 1, now)
@@ -49,7 +49,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 				store := NewCrossScopeCompletionStore(worker)
 				store.Now = func() time.Time { return now }
 				lease := reducer.CrossScopeCompletionLease{EventID: claimed, ProducerDomain: domain, LeaseOwner: "horizon-fanout", ClaimEpoch: 1}
-				intents := []reducer.Intent{{IntentID: "horizon-producer", Domain: domain, ClaimEpoch: 1}}
+				intents := []reducer.Intent{{IntentID: "horizon-producer", Domain: domain, ClaimEpoch: 1, ClaimedAt: &now}}
 				type outcome struct {
 					result reducer.CrossScopeCompletionResult
 					err    error
@@ -61,7 +61,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 				var consumerDone chan error
 				if !afterCapture {
 					expectedIntents = 0
-					if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running', lease_owner='consumer-ack',claim_until=$1,cross_scope_replay_required=TRUE WHERE work_item_id='horizon-consumer'`, now.Add(time.Hour)); err != nil {
+					if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running', lease_owner='consumer-ack',claim_until=$1,last_attempt_at=$2,cross_scope_replay_required=TRUE WHERE work_item_id='horizon-consumer'`, now.Add(time.Hour), now); err != nil {
 						t.Fatal(err)
 					}
 					// Execute the actual ACK statement but keep its event increment uncommitted
@@ -99,7 +99,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 					consumerQueue := ReducerQueue{db: consumerConn, LeaseOwner: "consumer-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
 					consumerDone = make(chan error, 1)
 					go func() {
-						consumerDone <- consumerQueue.AckBatch(ctx, []reducer.Intent{{IntentID: "horizon-consumer", Domain: reducer.DomainSupplyChainImpact}}, nil)
+						consumerDone <- consumerQueue.AckBatch(ctx, []reducer.Intent{{IntentID: "horizon-consumer", Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}}, nil)
 					}()
 					waitForReducerRowLockWaiter(t, ctx, db, consumerPID, fanoutPID)
 					if err := tx.Commit(); err != nil {

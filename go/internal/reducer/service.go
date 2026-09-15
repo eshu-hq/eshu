@@ -402,13 +402,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 		return fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
 	}
 
-	if err := s.WorkSink.Ack(ctx, intent, result); err != nil {
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, err)
-		return fmt.Errorf("ack reducer work: %w", err)
-	}
-
-	s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
-	return nil
+	return s.ackReducerWork(ctx, intent, result, duration, queueWait, status, workerID)
 }
 
 func (s Service) recordReducerResult(ctx context.Context, intent Intent, result Result, duration float64, queueWait float64, status string, workerID int, execErr error) {

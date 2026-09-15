@@ -162,6 +162,11 @@ single and batch Ack, retry/dead-letter Fail, and relationship-generation
 activation require that exact token and a still-live lease. A zero or partial
 match returns `ErrReducerClaimRejected`; the service records
 `lease_lost_during_execution` and does not Ack or Fail the replacement claim.
+Postgres now wraps the shared reducer claim-rejection sentinel while preserving
+its established error-text prefix. If ownership is lost only when a single or batch
+Ack reaches Postgres after successful handler execution, the service logs the
+stale rejection and continues draining; it never fails or mutates the newer
+claim. Unrelated Ack errors remain fatal.
 
 The live PostgreSQL regressions exercise both lock orders. When recovery takes
 `EXCLUSIVE` first, exact-claim activation waits for `ROW SHARE`, resumes after
@@ -176,6 +181,9 @@ rejection rather than treating its partial update as full success.
 ESHU_POSTGRES_DSN=postgresql://... go test ./internal/storage/postgres \
   -run 'Test(ReducerExactClaimFence|RecoveryClaimFence)' \
   -count=1 -v  # ok, 3.497s
+
+go test ./internal/reducer \
+  -run 'TestService(Single|Batch)StaleAckDoesNotStopReducer' -count=1  # ok
 ```
 
 ## Defect 5 — shared RUNS_ON identity could carry mixed provenance
@@ -239,6 +247,49 @@ ESHU_POSTGRES_DSN=postgresql://... go test ./internal/storage/postgres \
   -run 'TestWorkloadReplay(DuringClaimReturnsAckToPending|AndBatchAckContentionConvergesToPending)' \
   -count=1 -v  # ok, 9.481s
 ```
+
+## Defect 6 — sibling deployable-unit intents retracted valid edges
+
+Deployable-unit correlation loads all repository facts for a scope generation,
+but maintenance reopens one intent per repository. On an empty evaluation, the
+old retraction helper emitted a row for every repository fact in that shared
+scope. A deployment-only or rejected sibling could therefore delete the app
+repository's `CORRELATES_DEPLOYABLE_UNIT` edge after the app intent wrote it.
+The retained determinism run showed that ordering twice: the app edge write
+completed, later sibling intents succeeded, and the final exact edge read was
+empty.
+
+The handler now validates entity keys once and passes that same normalized set
+to the retraction helper. The helper emits retractions only for repository
+identities owned by the current intent. The production Git fact contract keeps
+`graph_id` and `repo_id` equal; the canonical graph ID remains the retraction
+target, while the existing repository-name alias remains accepted.
+
+The regression was written first and failed with `retract rows = 2, want 1`.
+After the fix, the exact test and the broader deployable-unit test selection
+passed:
+
+```bash
+go test ./internal/reducer \
+  -run '^TestDeployableUnitRetractRowsStayWithinIntentRepository$' -count=1
+go test ./internal/reducer -run '^TestDeployableUnit' -count=1
+```
+
+The extracted deployable-unit standalone cell then ran from source commit
+`c97dca9cd4b56685d0364f7b62e093b23abe4c5d` on a fresh Postgres and NornicDB
+stack. It confirmed zero `CORRELATES_DEPLOYABLE_UNIT` edges before maintenance,
+then drove all four same-scope repository intents to `succeeded` with zero
+nonterminal intents. The post-maintenance checks observed one resolved
+`DEPLOYS_FROM` relationship and the direct graph assertion matched exactly one
+expected app-to-deployment edge with no extras. The cell passed in 126 seconds.
+The maintenance pass reopened zero deployable-unit intents because these were
+the initial readiness-deferred intents; their post-readiness execution still
+exercised all four sibling repositories through the production handler and
+writer before the final exact graph read.
+
+This adds no storage call, graph statement, worker, retry, or serialization.
+It performs an in-memory identity check over the already loaded repository
+facts and strictly narrows empty-result retraction rows.
 
 ## No-Regression Evidence:
 
@@ -322,4 +373,8 @@ from graph-write loss without breaking established dashboards. A
 readiness stall remains visible through shared-intent queue depth/age and
 `BlockedReadiness`; `graph_projection_phase_state` gaps identify the blocked
 scope and generation. The API recovery request remains covered by its existing
-HTTP span and status code.
+HTTP span and status code. No-Observability-Change: the deployable-unit fix
+changes only which already-loaded repository identities reach the existing
+retract call. Reducer execution status, shared-edge write telemetry, and the
+deployable-unit exact-edge gate remain the operator and correctness signals;
+no new runtime branch or failure class is introduced.

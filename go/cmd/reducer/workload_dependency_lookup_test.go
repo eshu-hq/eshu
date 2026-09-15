@@ -33,13 +33,18 @@ func TestWorkloadDependencyLookupListsRepoDependencyEdgesWithAnchoredDirections(
 		t.Fatalf("cypher = %q, want anchored outgoing/incoming branches without OR", reader.cypher)
 	}
 	for _, want := range []string{
+		"CALL {",
 		"UNWIND $repo_ids AS repo_id",
 		"MATCH (source:Repository {id: repo_id})-[:DEPENDS_ON]->(target:Repository)",
 		"MATCH (source:Repository)-[:DEPENDS_ON]->(target:Repository {id: repo_id})",
+		"RETURN source_repo_id, target_repo_id",
 	} {
 		if !strings.Contains(reader.cypher, want) {
 			t.Fatalf("cypher = %q, want fragment %q", reader.cypher, want)
 		}
+	}
+	if strings.HasPrefix(strings.TrimSpace(reader.cypher), "UNWIND") {
+		t.Fatalf("cypher = %q, want UNION branches wrapped by CALL before the outer RETURN", reader.cypher)
 	}
 }
 
