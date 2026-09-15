@@ -110,9 +110,12 @@ func resolutionGenerationReady(
 }
 
 // ownResolutionGenerationReady requires the intent's own relationship
-// generation before a resolved-relationship read. Foreign scopes are not
-// knowable until that read, so gating on them would be circular. Empty
-// candidate sets are vacuous and do not wait on work they do not consume.
+// generation before a resolved-relationship read. An inactive own generation
+// means both feeds of that read are partial, and a success on that partial
+// input is never reopened (#6184), so the intent defers instead. Foreign
+// scopes are not knowable until that read, so gating on them would be
+// circular. Empty candidate sets are vacuous and do not wait on work they do
+// not consume.
 func ownResolutionGenerationReady(
 	lookup maintenance.RelationshipGenerationActiveLookup,
 	intent Intent,
