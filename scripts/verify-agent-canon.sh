@@ -47,6 +47,20 @@ if [ -d "$skills_root" ]; then
   for skill_file in "$skills_root"/*/SKILL.md; do
     [ -f "$skill_file" ] || continue
     skill_name="$(basename "$(dirname "$skill_file")")"
+    # Frontmatter must parse as YAML. The common break is an unquoted
+    # description containing ": " (a mapping error); quote it instead.
+    fm_name="$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} /^name: /{sub(/^name: /,""); print}' "$skill_file")"
+    fm_desc="$(awk 'NR==1 && $0!="---"{exit} NR>1 && $0=="---"{exit} /^description: /{sub(/^description: /,""); print}' "$skill_file")"
+    if [ "$fm_name" != "$skill_name" ] || [ -z "$fm_desc" ]; then
+      printf 'verify-agent-canon: invalid skill frontmatter in %s: name must equal the directory and description must be set\n' "$skill_file" >&2
+      exit 1
+    fi
+    case "$fm_desc" in
+      \"*\"|\'*\') ;;
+      *": "*|*" #"*)
+        printf 'verify-agent-canon: invalid skill frontmatter in %s: quote a description that contains ": " or " #"\n' "$skill_file" >&2
+        exit 1 ;;
+    esac
     for harness in .claude .codex; do
       link="$repo_root/$harness/skills/$skill_name"
       if [ ! -L "$link" ]; then

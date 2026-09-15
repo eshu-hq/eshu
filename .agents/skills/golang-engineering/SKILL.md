@@ -1,6 +1,6 @@
 ---
 name: golang-engineering
-description: Use when writing or changing Go code or tests under go/: package and file naming, TDD, exported contracts, lint, the 40-file directory cap, compat-surface family moves, and build-tag traps.
+description: "Use when writing or changing Go code or tests under go/: package and file naming, TDD, exported contracts, lint, the 40-file directory cap, compat-surface family moves, and build-tag traps."
 ---
 
 # Go engineering in Eshu

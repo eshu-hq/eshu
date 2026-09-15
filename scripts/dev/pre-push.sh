@@ -67,9 +67,14 @@ source "${repo_root}/scripts/lib/pre-pr-go-paths.sh"
 
 git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
 # ESHU_PRE_PUSH_BASE compares against another ref, for a branch stacked on an
-# unmerged branch. Default: origin/main.
+# unmerged branch. Default: origin/main. An unresolvable base fails the run:
+# silently narrowing to HEAD~1 would check only the last commit's paths and
+# still print "all local gates passed".
 base="${ESHU_PRE_PUSH_BASE:-origin/main}"
-git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
+if ! git -C "${repo_root}" rev-parse --verify "${base}^{commit}" >/dev/null 2>&1; then
+	printf 'pre-push: base %s does not resolve to a commit; set ESHU_PRE_PUSH_BASE to a valid ref (or fetch origin main) and rerun.\n' "${base}" >&2
+	exit 2
+fi
 
 # Cross-subshell state so a failed git collector cannot silently read as
 # "nothing changed" — see pre_pr_git_state_init's own doc comment in

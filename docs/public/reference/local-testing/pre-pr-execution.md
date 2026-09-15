@@ -49,8 +49,8 @@ repository's promotion process.
 The gate JSON report records executed and reused commands, command hashes,
 self-test skips, failures, and durations. Parallel command durations are not
 additive wall time. Use the runner's elapsed duration for that stage and the
-full preflight summary for the other stages. A successful stamp still belongs
-to the exact commit; rebasing or amending requires fresh promotion.
+full preflight summary for the other stages. A passing run proves only the tree
+it ran on; a later edit needs the affected checks again.
 
 See [documentation fast-path boundaries](pre-pr-docs-fastpath.md) and
 [Local Testing](../local-testing.md) for the rest of the promotion workflow.

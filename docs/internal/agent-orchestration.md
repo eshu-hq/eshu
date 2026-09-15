@@ -221,7 +221,8 @@ for a branch that has already survived design review. The order is:
    issue with the owner's agreement quoted in the PR, and named there with its
    severity-table category.
 3. Capture a `ci-gates review-attest` receipt for the clean preliminary review.
-4. Only when the branch is otherwise ready to push, run `make pre-pr` once.
+4. Only when the branch is otherwise ready to push, run `make pre-push` once
+   (add `make pre-pr` for the risky change classes in CLAUDE.md).
 5. Verify the receipt against the exact post-preflight inputs. A match replaces
    a duplicate full semantic review. Any changed base, diff, worktree, claims,
    packet, or verdict invalidates it and restarts the affected proof and review.

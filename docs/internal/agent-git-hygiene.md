@@ -15,8 +15,9 @@ idempotent and shared across worktrees.
 Never `--no-verify` a commit or a push. Commit-stage gates are fast. Before
 every push, run `make pre-push` (`scripts/dev/pre-push.sh`): the fast local
 floor of changed-package `go test`, the 500-line file cap, changed-package
-gofumpt/lint/build/vet, the registry-selected blocking exactness/telemetry/
-hygiene/docs gates, and the advisory docs-contradiction gate. It has no race
+gofumpt/lint/build/vet, the allowlisted fast registry gates
+(`local.pre_push: floor`; other triggered gates print `DEFER-CI` and still run in
+`make pre-pr` and CI), and the advisory docs-contradiction gate. It has no race
 lane, no live Docker/NornicDB/Postgres lane, and writes no push stamp.
 
 There used to be a per-SHA push stamp here: `make pre-pr` wrote one on success
@@ -29,9 +30,12 @@ while CI's own PR failure rate stayed under 1% over a 30-day window.
 
 This does **not** weaken the Ifá/Odù protection for contracts, performance, or
 end-to-end behavior. That protection was never fully local to begin with: the
-live Ifá/Odù cells (fault injection, dead-letter matrix, load saturation,
-replay drive, golden-corpus, e2e) need Docker/NornicDB/Postgres and only ever
-ran in CI, or locally on explicit request — a green stamp never proved them.
+live Ifá/Odù cells (fault injection, determinism and dead-letter matrices,
+golden-corpus, e2e) need Docker/NornicDB/Postgres and only ever ran in CI, or
+locally on explicit request. The hermetic Ifá rows (load saturation,
+contract-layer, materialized-edge coverage) run in `make pre-pr`; `make
+pre-push` defers them, so run `make pre-pr` for changes under `go/internal/ifa`
+or reducer materialization.
 The blocking, non-bypassable authority for all of it is CI's
 `required-gates-complete` aggregate (alongside `go-core-complete` and
 `go-race-complete`), which `.github/workflows/required-gates.yml` computes from

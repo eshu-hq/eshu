@@ -101,7 +101,7 @@ type Local struct {
 	// PrePushDeferred is true when this gate is deferred out of the fast
 	// `ci-gates run --pre-push` selection lane (`scripts/dev/pre-push.sh`,
 	// the floor run before every push). It still runs via `make pre-pr` /
-	// `make pre-pr-full` and unconditionally in CI: deferring moves a gate's
+	// `make pre-pr-full` and in CI when its paths change: deferring moves a gate's
 	// enforcement to CI, it never removes it. See PrePushReason.
 	PrePushDeferred bool
 	// PrePushFloor is true when this gate is registered `local.pre_push:

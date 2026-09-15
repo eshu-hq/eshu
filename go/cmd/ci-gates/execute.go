@@ -79,6 +79,11 @@ func executeGatesWithOptions(
 			continue
 		}
 		if !selection.Selected {
+			if selection.Deferred && options.blockingOnly && !selection.Gate.Blocking {
+				_, _ = fmt.Fprintf(w, "ADVISORY-SKIP %s: outside the blocking promotion path\n", selection.Gate.ID)
+				report.addSkipped(selection.Gate, "gate", "advisory gate excluded by --blocking-only")
+				continue
+			}
 			if selection.Deferred {
 				_, _ = fmt.Fprintf(w, "DEFER-CI %s: %s\n", selection.Gate.ID, selection.Reason)
 				report.addSkipped(selection.Gate, "gate", "deferred to CI for --pre-push: "+selection.Reason)

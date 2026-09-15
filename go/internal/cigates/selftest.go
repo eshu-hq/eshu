@@ -61,7 +61,10 @@ func parsePrePush(registryPath, gateID string, gf gateFile) (deferred, floor boo
 		}
 		return false, false, "", nil
 	case "floor":
-		return false, true, reason, nil
+		if reason != "" {
+			return false, false, "", fmt.Errorf("ci-gates registry %s: gate %q has pre_push: floor with a pre_push_reason; a reason only applies to pre_push: deferred", registryPath, gateID)
+		}
+		return false, true, "", nil
 	case "deferred":
 		if reason == "" {
 			return false, false, "", fmt.Errorf("ci-gates registry %s: gate %q has pre_push: deferred but empty pre_push_reason (required: state the measured cost and where it still runs)", registryPath, gateID)

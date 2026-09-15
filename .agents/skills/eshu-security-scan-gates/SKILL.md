@@ -1,6 +1,6 @@
 ---
 name: eshu-security-scan-gates
-description: Use when a security-scan.yml job (Trivy, govulncheck, gosec, nancy) fails or a Go toolchain bump changes scanner results. Covers local reproduction, SARIF severity filtering, and #nosec rules.
+description: "Use when a security-scan.yml job (Trivy, govulncheck, gosec, nancy) fails or a Go toolchain bump changes scanner results. Covers local reproduction, SARIF severity filtering, and #nosec rules."
 ---
 
 # eshu-security-scan-gates

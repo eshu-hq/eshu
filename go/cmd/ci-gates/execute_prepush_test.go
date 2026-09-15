@@ -49,3 +49,31 @@ func TestExecuteGatesDeferredGatePrintsDeferCIAndDoesNotRun(t *testing.T) {
 		t.Fatal("executeGates() ran the deferred gate's command; it must not")
 	}
 }
+
+// TestExecuteGatesAdvisoryDeferredUnderBlockingOnlyPrintsAdvisorySkip proves a
+// triggered advisory gate under --pre-push --blocking-only is reported as
+// ADVISORY-SKIP, not DEFER-CI: DEFER-CI claims the gate still blocks merge in
+// CI, which is false for an advisory gate with no CI workflow.
+func TestExecuteGatesAdvisoryDeferredUnderBlockingOnlyPrintsAdvisorySkip(t *testing.T) {
+	t.Parallel()
+	selection := cigates.Selection{
+		Selected: false,
+		Deferred: true,
+		Reason:   "not in the pre-push floor; still runs in make pre-pr and blocks merge in CI",
+		Gate: cigates.Gate{
+			ID:       "advisory-gate",
+			Blocking: false,
+			Local:    &cigates.Local{Command: "true"},
+		},
+	}
+	var output bytes.Buffer
+	if _, err := executeGatesWithOptions(&output, []cigates.Selection{selection}, t.TempDir(), executeOptions{selfTests: selfTestsAll, blockingOnly: true}); err != nil {
+		t.Fatalf("executeGatesWithOptions() error = %v", err)
+	}
+	if strings.Contains(output.String(), "DEFER-CI advisory-gate") {
+		t.Fatalf("advisory gate printed DEFER-CI under --blocking-only:\n%s", output.String())
+	}
+	if !strings.Contains(output.String(), "ADVISORY-SKIP advisory-gate") {
+		t.Fatalf("advisory gate did not print ADVISORY-SKIP:\n%s", output.String())
+	}
+}

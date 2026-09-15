@@ -80,7 +80,7 @@ Your report must contain:
 | Trap | Why it bites |
 |---|---|
 | Diffing against local `origin/main` without fetching | The main checkout is routinely many commits behind; the diff is fiction |
-| Trusting an inherited green gate | A rebase invalidated the stamp, and the run predates the final edit |
+| Trusting an inherited green gate | The run predates the final edit or a rebase |
 | Editing the main checkout because the worktree is "just for the last task" | Main must stay a clean fast-forward of `origin/main` |
 | Judging a sibling worktree abandoned by file mtime | A thinking agent writes nothing; see Liveness in `SKILL.md` |
 | Re-invoking no skills after a compaction | Reload applicable instructions missing from context; a summary is not the skill |

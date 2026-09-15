@@ -46,6 +46,13 @@ while IFS= read -r f; do
 done < <(cd "${repo_root}" && git ls-files -z -- . \
 	| xargs -0 rg -l -e 'prepr-stamp-verify' -e 'ESHU_ALLOW_UNSTAMPED_PUSH' 2>/dev/null || true)
 
+# Positive control: the scan above swallows rg's exit status, so prove rg can
+# see the needle at all. Without this, a missing or broken rg would pass the
+# guard having checked nothing.
+command -v rg >/dev/null 2>&1 || fail "rg is not installed; the stamp-reference scan cannot run"
+printf 'prepr-stamp-verify\n' | rg -q -e 'prepr-stamp-verify' \
+	|| fail "positive control: rg did not match the needle it scans for"
+
 [[ "${status}" -eq 0 ]] || fail "one or more tracked files still reference the removed stamp mechanism (see above)"
 
 printf 'test-no-prepr-stamp-references: pass\n'

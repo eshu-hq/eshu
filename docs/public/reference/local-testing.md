@@ -80,9 +80,9 @@ The selected-gate runner separates a verifier from the tests of that verifier.
 `local.command` always runs when its gate is selected. A `test_command` still
 runs by default, but `make pre-pr` may skip it when the registry declares
 `self_test_triggers` and none of those harness paths changed. Entries without
-that field stay fail-closed and run both commands. The per-SHA stamp directory
-also retains a JSON report with command hashes, run/reuse decisions, skip
-reasons, and durations. See [execution ownership](local-testing/pre-pr-execution.md).
+that field stay fail-closed and run both commands. The runner also writes a JSON
+report with command hashes, run/reuse decisions, skip reasons, and durations for
+the duration of the run. See [execution ownership](local-testing/pre-pr-execution.md).
 
 Frontend- and security-heavy lanes are not in `make pre-pr` (they need Node, the
 network, or are slow); run `make frontend-preflight` / `make security-preflight`
@@ -141,7 +141,7 @@ make pre-pr-full      # pre-pr + advisory gates + `go test ./... -race`
 
 The default promotion path runs blocking registry gates only. Advisory checks
 remain available through `make pre-pr-full` and focused commands, so they can
-inform a review without withholding the local promotion stamp.
+inform a review without blocking the local run.
 
 ### Exact review attestation
 

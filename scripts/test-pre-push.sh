@@ -132,4 +132,16 @@ status="$(run_fixture "${fixture}" 23)"
 [[ "${status}" != "0" ]] || fail "case B: expected a non-zero exit when a gate fails, got 0"
 [[ ! -e "${fixture}/.git/eshu-prepr-stamp" ]] || fail "case B: a failed run must never write a stamp directory"
 
+# ── Case C: an unresolvable ESHU_PRE_PUSH_BASE fails instead of narrowing ──
+# Silently falling back to HEAD~1 would check only the last commit's paths and
+# still report success.
+fixture="$(build_fixture case-c)"
+status=0
+: > "${fixture}.args"
+ESHU_PRE_PUSH_BASE="refs/heads/does-not-exist-pre-push-base" DRIVER_ARGS_LOG="${fixture}.args" DRIVER_GATE_STATUS=0 \
+	PATH="${fixture}/bin:${PATH}" bash "${fixture}/scripts/dev/pre-push.sh" > "${fixture}.log" 2>&1 || status=$?
+[[ "${status}" == "2" ]] || { cat "${fixture}.log" >&2; fail "case C: expected exit 2 for an unresolvable base, got ${status}"; }
+rg -q -- 'does not resolve to a commit' "${fixture}.log" || fail "case C: failure did not name the unresolvable base"
+rg -q -- '--self-tests' "${fixture}.args" && fail "case C: gates ran against a narrowed base"
+
 printf 'test-pre-push: pass\n'

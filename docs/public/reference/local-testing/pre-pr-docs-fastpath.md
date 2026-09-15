@@ -134,7 +134,7 @@ them sees a file that was never `git add`ed. That gap was harmless while
 untracked `.go` file like any other — and it stopped being harmless the moment a
 lane could skip the build. Without the fourth command, someone who writes a new
 package, forgets `git add`, and has an otherwise docs-only diff gets a green
-FAST stamp on a tree that does not compile.
+FAST verdict on a tree that does not compile.
 
 So untracked paths join that list, and the allowlist judges them like any other
 path: an untracked `.go` file is not fast-path-safe, so it forces FULL.

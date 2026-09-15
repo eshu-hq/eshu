@@ -372,7 +372,8 @@ func anyTriggerMatches(triggers []string, path string) bool {
 // stayed a hygiene_hooks entry -- it still has no testable local.command
 // shape, the chicken-and-egg problem that gate's own local_only_reason
 // explained -- but its self-test did have a testable script and gained a real
-// gate instead of staying invisible, which is why this check now sees it. A
+// gate instead of staying invisible, which is why this check saw it. (That
+// stamp guard and its gate were later removed along with the push stamp.) A
 // hygiene_hooks entry with nothing to test (a staged-file variant, a
 // commit-msg-stage alias) has no remedy and stays a hook; one whose script
 // gains a test does.

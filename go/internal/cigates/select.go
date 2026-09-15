@@ -177,8 +177,9 @@ const prePushDeferReason = "not in the pre-push floor; still runs in make pre-pr
 // change: most registry gates trigger on go/**.
 //
 // A gate that was already unselected for another reason (tier, category, no
-// matching trigger, --blocking-only) is left unchanged, so DEFER-CI always
-// means the gate would have run here. prePush=false is a no-op.
+// matching trigger) is left unchanged. --blocking-only is applied later by the
+// executor, which reports a deferred advisory gate as ADVISORY-SKIP rather
+// than DEFER-CI. prePush=false is a no-op.
 func FilterPrePush(sels []Selection, prePush bool) []Selection {
 	if !prePush {
 		return sels

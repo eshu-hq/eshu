@@ -1,6 +1,6 @@
 ---
 name: eshu-mcp-call-rigor
-description: Use before calling or changing an Eshu MCP/API tool: scope, limit, ordering, timeout, and the {data, truth, error} envelope over tools/call at POST /mcp/message.
+description: "Use before calling or changing an Eshu MCP/API tool: scope, limit, ordering, timeout, and the {data, truth, error} envelope over tools/call at POST /mcp/message."
 ---
 
 # eshu-mcp-call-rigor

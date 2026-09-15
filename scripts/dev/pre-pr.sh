@@ -197,14 +197,15 @@ step_race() {
 # CI but need a live backend (Docker/NornicDB/Postgres) or a toolchain (Node,
 # network). Each runs ONLY when the diff touches its trigger paths, and only if
 # its prerequisite is present. A triggered gate whose prerequisite is missing is
-# DEFERRED to CI with a loud warning and recorded in the pre-pr stamp, so a
-# stamped push is honest about what it validated locally versus left to CI. This
+# DEFERRED to CI with a loud warning and listed in the final summary, so the run
+# is honest about what it validated locally versus left to CI. This
 # lane is what lets a green `make pre-pr` guarantee a green CI for the surfaces
 # it can reach (golden-corpus is the common one). Force-defer everything with
 # ESHU_PREPR_SKIP_LIVE=1 (records the deferral; CI stays the backstop for the
 # deferred gates only).
 #
-# live_deferred only ever recorded ONE of the ways a stamped run can validate
+# History (the per-SHA push stamp this block described is removed):
+# live_deferred only ever recorded ONE of the ways a stamped run could validate
 # less than "everything": a triggered live gate whose prerequisite was
 # missing, or a forced ESHU_PREPR_SKIP_LIVE=1. It said nothing about the
 # documentation-only fast path (below, pre_pr_decide_lane) skipping the whole

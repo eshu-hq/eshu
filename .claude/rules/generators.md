@@ -12,6 +12,5 @@ Never hand-edit a generated artifact. Change the generator, re-run it, and commi
 the result — a hand-edit survives exactly until the next regeneration and reads
 as drift when it disappears.
 
-Run the regeneration before `make pre-pr`, not after. A generated file committed
-afterwards dirties the tree and invalidates the per-SHA stamp, which costs a
-second full gate run.
+Run the regeneration before `make pre-push`, not after. A generated file committed
+afterwards changes the tree the gates checked, so they have to run again.

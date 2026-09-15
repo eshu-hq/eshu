@@ -297,7 +297,7 @@ nothing, and "tests pass" was reported on an empty run). Count tests that ran.
 
 Gates scoped to "the diff" compute it against `HEAD~1` unless given a base, so
 a multi-commit branch shows only its last commit. Export
-`ESHU_{PARSER_RELATIONSHIP_KIT,PERFORMANCE_EVIDENCE,MEASUREMENT_CITATIONS}_BASE=origin/main` before `make pre-pr`.
+`ESHU_{PARSER_RELATIONSHIP_KIT,PERFORMANCE_EVIDENCE,MEASUREMENT_CITATIONS}_BASE=origin/main` before running those gates.
 
 These fail in different directions: `parser-relationship-kit` false-FAILS
 loudly; the other two false-PASS silently, examining nothing.
@@ -346,10 +346,11 @@ Re-running without changing the conditions is not evidence.
 CI's `required-gates-complete` aggregate is the blocking, non-bypassable
 authority for every Ifá/Odù, contract, performance, and end-to-end gate the
 registry marks `blocking: true` — alongside `go-core-complete` and
-`go-race-complete`. `make pre-pr`'s own Ifá/Odù rows are static mirrors only
-(the live cells need Docker/NornicDB/Postgres and never ran locally), so
-`make pre-push` carries none of that protection and does not need to: a merge
-still requires `required-gates-complete` green regardless.
+`go-race-complete`. The live Ifá/Odù cells need Docker/NornicDB/Postgres and
+never ran locally; the hermetic Ifá rows (load saturation, contract-layer,
+materialized-edge coverage) run in `make pre-pr` and are deferred by
+`make pre-push`. Run `make pre-pr` for changes under `go/internal/ifa` or
+reducer materialization. A merge still requires `required-gates-complete` green.
 
 ### Duplicate-Work And Formatter-Drift Guards
 

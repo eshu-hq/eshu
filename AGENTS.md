@@ -398,8 +398,9 @@ After focused local proof and a preliminary full `eshu-code-review` with zero
 P0/P1/P2-blocking findings, run `make pre-push` once, immediately before the
 intended push or PR update. It is the fast local floor: changed-package
 `go test`, the 500-line file cap, changed-package gofumpt/lint/build/vet, the
-registry-selected blocking exactness/telemetry/hygiene/docs gates for changed
-paths, and the advisory docs-contradiction gate (no CI counterpart, so this is
+the allowlisted fast registry gates for changed paths (`local.pre_push: floor`;
+every other triggered gate prints `DEFER-CI` and still runs in `make pre-pr` and
+CI), and the advisory docs-contradiction gate (no CI counterpart, so this is
 its only enforcement). It has no race lane, no live Docker/NornicDB/Postgres
 lane, and writes no stamp. `make pre-pr` and `make pre-pr-full` remain
 available as deeper, RECOMMENDED (not required) preflights before pushing a
@@ -408,8 +409,10 @@ reducer projection/materialization, or a package move (prefer `pre-pr-full`
 for moves — build tags can hide files from `./...`, so only its whole-module
 race lane exercises them). Verify the preliminary review receipt against the
 exact post-`pre-push` inputs before push. If verification fails, run a new
-full `eshu-code-review`. CI stays authoritative, but MUST NOT be the first
-place a credential-free failure appears.
+full `eshu-code-review`. CI stays authoritative. When `make pre-push` prints
+`DEFER-CI` for a blocking gate on the surface you changed, run that gate
+(`make pre-pr`, or the gate's `local.command` from the registry) before pushing
+so CI is not its first run.
 
 The Ifá/Odù protection for contracts, performance, and end-to-end behavior
 lives in CI, not in any local command: the `required-gates-complete` aggregate
@@ -417,10 +420,13 @@ lives in CI, not in any local command: the `required-gates-complete` aggregate
 `go-race-complete`) collects every Ifá/Odù gate (fault injection, dead-letter
 matrix, load saturation, replay drive, contract-layer, materialized-edge
 coverage, determinism) plus every other `blocking: true` registry row for the
-changed paths, and a merge requires it green. `make pre-pr`'s own Ifá/Odù rows
-are static mirrors only — the live cells need Docker/NornicDB/Postgres and
-never ran locally even before `make pre-push` existed — so dropping the old
-push stamp does not reduce that protection; CI was always where it was proven.
+changed paths, and a merge requires it green. The live Ifá/Odù cells (fault
+injection, determinism and dead-letter matrices) need Docker/NornicDB/Postgres
+and never ran locally; `make pre-pr` ran only their static mirrors. The
+hermetic Ifá rows (load saturation, contract-layer, materialized-edge coverage)
+do run locally in `make pre-pr` and are deferred by `make pre-push`, so run
+`make pre-pr` when a change touches `go/internal/ifa` or reducer
+materialization.
 
 Common checks:
 

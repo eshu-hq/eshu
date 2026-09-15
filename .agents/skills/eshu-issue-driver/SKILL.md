@@ -54,7 +54,7 @@ proof and only the orchestrator runs the promotion gate.
    test/lint/build/vet, file cap, registry-selected static gates,
    docs-contradiction). For queue/lease/claim code, schema DDL, hot-path
    Cypher or graph writes, reducer projection/materialization, or a package
-   move, the orchestrator also runs one serialized `make pre-pr`
+   move, the orchestrator should also run one serialized `make pre-pr`
    (`make pre-pr-full` for a move) before that push — recommended for that
    risk class, not required otherwise. Keep the shared machine quiet for
    either live lane: coordinate ownership across worktrees/clones and inspect

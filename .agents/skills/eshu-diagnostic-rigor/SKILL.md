@@ -1,6 +1,6 @@
 ---
 name: eshu-diagnostic-rigor
-description: Use when the cause of an Eshu failure is unknown: a queue stall, backend slowness, a flaky test or gate, or a wrong API/MCP answer. Establishes the cause from evidence before any behavior change.
+description: "Use when the cause of an Eshu failure is unknown: a queue stall, backend slowness, a flaky test or gate, or a wrong API/MCP answer. Establishes the cause from evidence before any behavior change."
 ---
 
 # Eshu Diagnostic Rigor
