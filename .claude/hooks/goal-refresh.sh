@@ -420,86 +420,16 @@ case "$(printf '%s\n' "${goal_body}" | head -1)" in
 esac
 [ -n "${goal}" ] || exit 0
 
-printf '%s' "${goal}" | CONSENT_ENV="${CLAUDE_GOAL_CONSENT:-}" python3 -c '
-import json, os, sys
-lines = sys.stdin.read().splitlines()
-# CONSENT: <acts> is a permission the owner already gave. It is restated
-# separately from the objective, because an act the owner has consented to is
-# no longer something to stop and ask about -- and the ask-only-for-consent
-# sentence below reads as an invitation to do exactly that.
-# Leading metadata only, for the same reason the shell view above stops at the
-# first ordinary line: a body line discussing the consent format is objective
-# text, not a grant, and reading it as one both truncates the goal and tells
-# the agent the owner permitted something they never mentioned.
-meta = []
-seen_header = False
-for line in lines:
-    stripped_line = line.lstrip()
-    low = stripped_line.lower()
-    if low.startswith("consent:"):
-        meta.append(stripped_line)
-        continue
-    if stripped_line.startswith("SESSION:") and not seen_header:
-        seen_header = True
-        continue
-    break
-acts = [m.split(":", 1)[1].strip() for m in meta if m.split(":", 1)[1].strip()]
-env_acts = os.environ.get("CONSENT_ENV", "").strip()
-if env_acts:
-    acts.append(env_acts)
-kept_lines, in_meta, saw_header = [], True, False
-for line in lines:
-    if in_meta:
-        bare = line.lstrip()
-        if bare.lower().startswith("consent:"):
-            continue
-        if bare.startswith("SESSION:") and not saw_header:
-            saw_header = True
-        else:
-            in_meta = False
-    kept_lines.append(line)
-goal = "\n".join(kept_lines).strip()
-if not goal:
-    raise SystemExit(0)
-granted = ", ".join(acts)
-# Blanket is a whole token, the same test the Stop hook applies -- a substring
-# match read "install deps" as blanket consent there, and the two halves have
-# to agree about what a grant means or the same file says two things.
-blanket = any(tok.strip().lower() in ("all", "*")
-              for act in acts for tok in act.split(","))
-if granted and blanket:
-    consent_note = (
-        "\n\nOWNER CONSENT ALREADY GRANTED, blanket, for: " + granted
-        + ". Carry out the irreversible acts this goal needs; do not stop to "
-          "ask for them. Ask only when complete evidence would still leave a "
-          "product-taste call."
-    )
-elif granted:
-    consent_note = (
-        "\n\nOWNER CONSENT ALREADY GRANTED for: " + granted
-        + ". Carry those out yourself when the work reaches them; do not stop "
-          "to ask again for anything on that list. Ask only for an "
-          "irreversible act NOT on it, or when complete evidence would still "
-          "leave a product-taste call."
-    )
-else:
-    consent_note = (
-        " Ask only for consent on an irreversible act (push, merge, deploy, "
-        "delete, data mutation), or when complete evidence would still leave a "
-        "product-taste call."
-    )
-note = (
-    "ACTIVE GOAL (restated each turn so it cannot go stale):\n"
-    + goal
-    + "\n\nKeep working it. Take the next concrete action yourself. Do not ask "
-      "the owner something the code, a local doc, a loaded skill, or a "
-      "Deep-tier model dispatch can settle -- their rules already cover it."
-    + consent_note
-)
-print(json.dumps({"hookSpecificOutput": {
-    "hookEventName": "UserPromptSubmit",
-    "additionalContext": note,
-}}))
-' 2>/dev/null || exit 0
+# A named, unloaded project skill gets a nudge too -- see lib/skill-nudge-lib.sh.
+# shellcheck source=.claude/hooks/lib/skill-nudge-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/skill-nudge-lib.sh"
+nudge_skills="$(goal_refresh_missing_skill_nudges "${goal}" \
+	"${cwd_prefix}/.agents/skills" "$(printf '%s' "${session_id}" | cut -c1-12)")"
+
+# The restatement, consent bookkeeping, and skill-nudge text assembly live in
+# lib/goal-refresh-note.py -- kept out of this heredoc so the file fits under
+# the repo's 500-line cap.
+printf '%s' "${goal}" | CONSENT_ENV="${CLAUDE_GOAL_CONSENT:-}" NUDGE_SKILLS="${nudge_skills}" \
+	python3 "$(dirname "${BASH_SOURCE[0]}")/lib/goal-refresh-note.py" 2>/dev/null || exit 0
 
 exit 0
