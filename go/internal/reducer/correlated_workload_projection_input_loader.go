@@ -15,6 +15,26 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
+// loadResolvedRelationshipsForIntent reads the generation-pinned own-scope
+// resolved set when the loader supports it, falling back to the scope read.
+// It lives with the readiness gate because callers must establish
+// ownResolutionGenerationReady before using its output; otherwise an inactive
+// generation can look complete.
+func loadResolvedRelationshipsForIntent(
+	ctx context.Context,
+	loader ResolvedRelationshipLoader,
+	intent Intent,
+) ([]relationships.ResolvedRelationship, error) {
+	if generationScoped, ok := loader.(GenerationScopedResolvedRelationshipLoader); ok {
+		return generationScoped.GetResolvedRelationshipsForGeneration(
+			ctx,
+			intent.ScopeID,
+			intent.GenerationID,
+		)
+	}
+	return loader.GetResolvedRelationships(ctx, intent.ScopeID)
+}
+
 // WorkloadMaterializationResolutionNotReadyFailureClass classifies a deferral
 // of workload projection inputs whose own relationship generation has not
 // activated yet.
