@@ -1,0 +1,21 @@
+go/internal/reducer/code/call/projection/rows.go
+  s_20be138600ef1b::t_6876c8ae3c2356 23-34,37-48,50-62,64-69,71
+go/internal/reducer/code/call/projection/runner.go
+  s_20be138600ef1b::t_6876c8ae3c2356 197
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b6ae1700db64f412a8891ddd31e2c3a85c9a03ae",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
