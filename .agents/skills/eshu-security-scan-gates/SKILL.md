@@ -1,6 +1,6 @@
 ---
 name: eshu-security-scan-gates
-description: Use when a security-scan.yml job (Trivy fs/image, govulncheck, gosec, nancy) fails, or a Go/toolchain bump changes scanner behavior. Covers CI-vs-local reproduction traps, Trivy SARIF severity filtering, Go 1.26 SSA panics, gosec #nosec suppression, and the hot-path performance-evidence gate. Not for the vulnerability findings' actual remediation content or release tagging (eshu-release).
+description: Use when a security-scan.yml job (Trivy, govulncheck, gosec, nancy) fails or a Go toolchain bump changes scanner results. Covers local reproduction, SARIF severity filtering, and #nosec rules.
 ---
 
 # eshu-security-scan-gates

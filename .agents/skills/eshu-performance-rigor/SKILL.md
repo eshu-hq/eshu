@@ -1,6 +1,6 @@
 ---
 name: eshu-performance-rigor
-description: Use when measuring or optimizing an Eshu latency, throughput, resource, or wall-time claim: benchmarks, target-contribution budgets, scaled/remote runs, and before/after evidence. Requires correctness and concurrency proof alongside the numbers. Not for finding an unknown cause first, use eshu-diagnostic-rigor, then return here to prove the fix.
+description: Use when proving or improving an Eshu latency, throughput, resource, or wall-time claim: benchmarks, contribution budgets, scaled runs, and before/after evidence. Find an unknown cause first with eshu-diagnostic-rigor.
 ---
 
 # Eshu Performance Rigor

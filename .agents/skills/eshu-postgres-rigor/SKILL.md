@@ -1,6 +1,6 @@
 ---
 name: eshu-postgres-rigor
-description: Use when designing, debugging, or reviewing Eshu Postgres SQL, schema, transactions, locks, or queue claims (fact_work_items, leases, retries, dead-letter). Covers symptom classification, EXPLAIN/pg_stat evidence, and index doctrine. Not for Cypher/graph work, use cypher-query-rigor; not for an unmeasured latency claim, use eshu-performance-rigor.
+description: Use when writing or reviewing Eshu Postgres SQL, schema DDL, transactions, locks, or fact_work_items queue claims, leases, and dead letters. Covers EXPLAIN/pg_stat evidence and index doctrine.
 ---
 
 # Eshu Postgres Rigor

@@ -1,4 +1,4 @@
 interface:
   display_name: "Golang Engineering"
-  short_description: "Senior Go engineering workflow"
-  default_prompt: "Use $golang-engineering to implement or review a Go change with tests first."
+  short_description: "Eshu Go changes: naming, TDD, contracts, directory cap"
+  default_prompt: "Use $golang-engineering to implement or review this Go change under go/."

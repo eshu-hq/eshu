@@ -1,6 +1,6 @@
 ---
 name: concurrency-deadlock-rigor
-description: Use when designing or verifying Eshu concurrent workers, queues, leases, retries, claim/lock ordering, or shared-state coordination whose correctness depends on interleaving. Covers the replay/retry matrix and required contention proof. Not for a pure speed claim on already-safe concurrency, use eshu-performance-rigor.
+description: Use when changing Eshu workers, leases, retries, claim or lock ordering, or other shared state whose correctness depends on interleaving. Defines the replay/retry matrix and the contention proof required.
 ---
 
 # Concurrency And Deadlock Rigor

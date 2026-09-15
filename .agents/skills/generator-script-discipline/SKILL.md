@@ -1,6 +1,6 @@
 ---
 name: generator-script-discipline
-description: Use when building or changing a deterministic generator and its checked-in output — idempotency and drift tests, the static-contract-gates.yml matrix pattern, shell-heredoc portability, and ledger/mirror regeneration such as dirgate-grandfather.tsv. Not for hand-written Go code (golang-engineering) or per-package doc.go/README/AGENTS.md content (eshu-folder-doc-keeper).
+description: Use when adding or changing a generator and its committed output, or a generated ledger such as dirgate-grandfather.tsv: idempotency, drift tests, regeneration order, and restack conflicts.
 ---
 
 # Generator script discipline

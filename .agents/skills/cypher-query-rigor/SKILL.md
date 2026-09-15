@@ -1,6 +1,6 @@
 ---
 name: cypher-query-rigor
-description: Use when writing, debugging, or reviewing Eshu Cypher queries, graph schema, indexes, or Neo4j/NornicDB backend-specific behavior. Covers query/write checklists, anchor and index selection, and when to patch NornicDB. Not for Postgres SQL, use eshu-postgres-rigor; not for an unmeasured performance claim, use eshu-performance-rigor.
+description: Use when writing or reviewing Eshu Cypher reads, graph writes, indexes, or NornicDB/Neo4j dialect behavior. Covers anchor and index choice, write idempotency, and when to patch NornicDB. Postgres SQL belongs to eshu-postgres-rigor.
 ---
 
 # Cypher Query Rigor

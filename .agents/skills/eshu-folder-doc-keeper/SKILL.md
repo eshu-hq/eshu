@@ -1,6 +1,6 @@
 ---
 name: eshu-folder-doc-keeper
-description: Use when a Go package's doc.go, README.md, or scoped AGENTS.md is missing, stale, or flagged in .eshu-doc-state/stale.jsonl after a contract change. Covers the package-docs gate (scripts/verify-package-docs.sh), README/doc.go templates, and scaffolding new package docs. Not for hand-writing the Go code itself (golang-engineering) or root CLAUDE.md/AGENTS.md and release notes.
+description: Use when a Go package's doc.go, README.md, or scoped AGENTS.md is missing, stale, or failing the package-docs gate after a contract change or package move.
 ---
 
 # Eshu folder doc keeper

@@ -1,6 +1,6 @@
 ---
 name: golang-engineering
-description: Use when writing or modifying Go code or tests under go/ — package and file naming, TDD, exported-contract design, gofumpt/golangci-lint, dirgate's 40-file cap, compat-surface family moves, and build-tag pitfalls. Not for generator/artifact drift (generator-script-discipline), per-package doc.go/README/AGENTS.md content (eshu-folder-doc-keeper), or queue/worker concurrency proof (concurrency-deadlock-rigor).
+description: Use when writing or changing Go code or tests under go/: package and file naming, TDD, exported contracts, lint, the 40-file directory cap, compat-surface family moves, and build-tag traps.
 ---
 
 # Go engineering in Eshu

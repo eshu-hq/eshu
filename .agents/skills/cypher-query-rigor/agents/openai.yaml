@@ -1,4 +1,4 @@
 interface:
   display_name: "Cypher Query Rigor"
-  short_description: "Performance-safe Cypher query and write guidance"
-  default_prompt: "Use $cypher-query-rigor to design performant Cypher reads, writes, and indexes for this graph-backed change."
+  short_description: "Eshu Cypher reads, graph writes, indexes, and NornicDB dialect"
+  default_prompt: "Use $cypher-query-rigor to write or review the Cypher reads, graph writes, and indexes for this change."
