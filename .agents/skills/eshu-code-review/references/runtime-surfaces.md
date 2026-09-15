@@ -61,14 +61,21 @@ Check:
 When Cypher, graph reads/writes, query-shape generation, reducer projection, or
 API/MCP graph-backed responses change:
 
-- Compare Eshu's pinned NornicDB image/tag/digest against current NornicDB
-  docs/source before relying on optimizer behavior.
-- Read Eshu `docs/public/reference/cypher-performance.md`,
+- Compare Eshu's pinned NornicDB image/tag/digest (`deploy/helm/eshu/values.yaml`)
+  against the current `NornicDB-New` checkout before relying on optimizer
+  behavior — identify the running build by digest, not the embedded `VERSION`
+  file; see the "Which Build" section of
+  `docs/public/reference/nornicdb-pitfalls.md`.
+- Read Eshu's `docs/public/reference/cypher-performance.md`,
   `docs/public/reference/nornicdb-pitfalls.md`,
-  `docs/public/reference/nornicdb-tuning.md`, and the relevant current
-  NornicDB source/docs such as `docs/performance/hot-path-query-cookbook.md`,
+  `docs/public/reference/nornicdb-query-pitfalls.md`,
+  `docs/public/reference/nornicdb-write-shape-pitfalls.md`, and
+  `docs/public/reference/nornicdb-tuning.md`. For hot-path optimizer behavior
+  not yet captured there, check the current `NornicDB-New` fork checkout's own
+  `docs/performance/hot-path-query-cookbook.md`,
   `docs/skills/cypher-queries.skill.md`, `pkg/cypher/*hotpath*_test.go`, and
-  `pkg/cypher/executor_hotpath_trace.go`.
+  `pkg/cypher/executor_hotpath_trace.go` — those four paths live inside the
+  NornicDB fork, not this repo.
 - Identify the expected named fast path or deliberate fallback:
   `UnwindMergeChainBatch`, `UnwindMultiMatchCreateBatch`,
   `MergeSchemaLookupUsed`, `CompoundQueryFastPath`,

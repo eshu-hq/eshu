@@ -125,10 +125,13 @@ underneath it.
 
 ## Final exact-diff attestation
 
-One clean full semantic review is required before `make pre-pr`. Capture its
-inputs with `ci-gates review-attest capture`. After preflight, a matching
-`review-attest verify` receipt replaces a duplicate full semantic pass; it does
-not weaken the finding bar above. The receipt binds the base and head, merge
+One clean full semantic review is required before push. Capture its inputs
+with `ci-gates review-attest capture`. `make pre-push` is the required floor
+before every push; `make pre-pr` (`make pre-pr-full` for a package move) stays
+recommended, not required, for queue/lease/claim code, schema DDL, hot-path
+Cypher or graph writes, reducer projection/materialization, or a move. After
+preflight, a matching `review-attest verify` receipt replaces a duplicate full
+semantic pass; it does not weaken the finding bar above. The receipt binds the base and head, merge
 base, diff and commit range, clean worktree and submodules, exact PR claims,
 review packet, and verdict.
 
