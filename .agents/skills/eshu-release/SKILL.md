@@ -1,6 +1,6 @@
 ---
 name: eshu-release
-description: Release Eshu or reconcile CLI, image, Helm chart, and GitHub Release versions.
+description: Use when bumping deploy/helm/eshu/Chart.yaml, tagging a vX.Y.Z (or sdk/go/collector or sdk/go/factschema vX.Y.Z) release, or verifying the resulting Docker image, cosign/attestation, Helm OCI package, or GitHub Release artifacts. Not for day-to-day Go changes (golang-engineering) or security-scan gate failures (eshu-security-scan-gates).
 ---
 
 # Eshu Release And Deployment Pipeline
