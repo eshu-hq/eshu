@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -56,6 +57,149 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycle(
 			slog.Float64("replay_duration_seconds", timing.ReplayDurationSeconds),
 			slog.Float64("mark_completed_duration_seconds", timing.MarkCompletedDurationSeconds),
 			slog.Float64("lease_claim_duration_seconds", timing.LeaseClaimDurationSeconds),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
+}
+
+// startLeaseHeartbeat renews the source-repo lane lease while graph writes are
+// in flight so slow backend calls cannot make active work appear abandoned.
+func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context) (context.Context, func() error) {
+	interval := repoDependencyLeaseHeartbeatInterval(r.Config.leaseTTL())
+	if interval <= 0 {
+		return ctx, func() error { return nil }
+	}
+	heartbeatCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	var failureMu sync.Mutex
+	var failure error
+	var once sync.Once
+	recordFailure := func(err error) {
+		failureMu.Lock()
+		if failure != nil {
+			failureMu.Unlock()
+			return
+		}
+		failure = fmt.Errorf("repo dependency lease heartbeat failed: %w", err)
+		failureMu.Unlock()
+		if r.Logger != nil {
+			r.Logger.WarnContext(
+				heartbeatCtx,
+				"repo dependency lease heartbeat failed",
+				log.Domain(DomainRepoDependency),
+				telemetry.PhaseAttr(telemetry.PhaseReduction),
+				log.Err(err),
+			)
+		}
+		cancel()
+	}
+	go func() {
+		defer close(stopped)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-heartbeatCtx.Done():
+				return
+			case <-done:
+				return
+			case <-ticker.C:
+				claimed, err := r.LeaseManager.ClaimPartitionLease(
+					heartbeatCtx,
+					DomainRepoDependency,
+					r.Config.partitionID(),
+					r.Config.partitionCount(),
+					r.Config.leaseOwner(),
+					r.Config.leaseTTL(),
+				)
+				if err != nil {
+					if errors.Is(err, context.Canceled) {
+						return
+					}
+					recordFailure(err)
+					return
+				}
+				if !claimed {
+					recordFailure(errors.New("repo dependency lease heartbeat lost ownership"))
+					return
+				}
+			}
+		}
+	}()
+	var stopErr error
+	return heartbeatCtx, func() error {
+		once.Do(func() {
+			close(done)
+			cancel()
+			<-stopped
+			failureMu.Lock()
+			stopErr = failure
+			failureMu.Unlock()
+		})
+		return stopErr
+	}
+}
+
+func repoDependencyLeaseHeartbeatInterval(leaseTTL time.Duration) time.Duration {
+	if leaseTTL <= 0 {
+		return 0
+	}
+	interval := leaseTTL / 3
+	if interval <= 0 {
+		return leaseTTL
+	}
+	if interval > time.Minute {
+		return time.Minute
+	}
+	return interval
+}
+
+// recordRepoDependencyQuiescenceBlocked leaves operator-visible evidence for
+// a cycle held shut by the canonical-code quiescence gate (#6184), mirroring
+// the code-call lane's recordCodeCallTiming on its blocked path. It records
+// the same per-cycle instruments as a completed cycle -- so a lane held shut
+// for hours shows a steady series instead of a gap that reads as a dead
+// lane -- with a distinct log line naming the gate, since no write ran.
+func (r *RepoDependencyProjectionRunner) recordRepoDependencyQuiescenceBlocked(
+	ctx context.Context,
+	startedAt time.Time,
+) {
+	duration := time.Since(startedAt).Seconds()
+	if r.Instruments != nil {
+		attrs := metric.WithAttributes(telemetry.AttrDomain(DomainRepoDependency))
+		r.Instruments.CanonicalWriteDuration.Record(ctx, duration, attrs)
+		r.Instruments.CanonicalWrites.Add(ctx, 0, attrs)
+	}
+	if r.Logger != nil {
+		r.Logger.InfoContext(
+			ctx,
+			"repo dependency projection cycle blocked on canonical-code quiescence",
+			slog.Int("blocked_readiness", 1),
+			slog.Float64("duration_seconds", duration),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
+}
+
+func (r *RepoDependencyProjectionRunner) recordRepoDependencyWorkloadReadinessBlocked(
+	ctx context.Context,
+	acceptanceUnitID string,
+	startedAt time.Time,
+) {
+	duration := time.Since(startedAt).Seconds()
+	if r.Instruments != nil {
+		attrs := metric.WithAttributes(telemetry.AttrDomain(DomainRepoDependency))
+		r.Instruments.CanonicalWriteDuration.Record(ctx, duration, attrs)
+		r.Instruments.CanonicalWrites.Add(ctx, 0, attrs)
+	}
+	if r.Logger != nil {
+		r.Logger.InfoContext(
+			ctx,
+			"repo dependency RUNS_ON blocked on workload-materialization readiness",
+			slog.String("acceptance_unit_id", acceptanceUnitID),
+			slog.Int("blocked_readiness", 1),
+			slog.Float64("duration_seconds", duration),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)
 	}
@@ -151,6 +295,15 @@ func (r *RepoDependencyProjectionRunner) validate() error {
 	}
 	if r.AcceptanceUnitGate == nil {
 		return errors.New("repo dependency projection runner: acceptance unit gate is required")
+	}
+	if r.WorkloadMaterializationReplayer == nil {
+		return errors.New("repo dependency projection runner: workload materialization replayer is required")
+	}
+	if _, ok := r.WorkloadMaterializationReplayer.(WorkloadMaterializationFenceReplayer); !ok {
+		return errors.New("repo dependency projection runner: workload materialization replayer must support readiness fences")
+	}
+	if r.WorkloadReadinessPrefetch == nil {
+		return errors.New("repo dependency projection runner: workload readiness prefetch is required")
 	}
 	if r.Config.leaseTTL() <= r.Config.requiredLeaseSafetyBudget() {
 		return fmt.Errorf(

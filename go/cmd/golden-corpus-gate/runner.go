@@ -133,7 +133,7 @@ func runDrains(ctx context.Context, o options, getenv func(string) string, snap 
 	// below one line per poll -- the default 2s poll interval against the
 	// default 10-minute timeout would otherwise be up to 300 lines.
 	const drainProgressInterval = 15 * time.Second
-	counts, ok, err := pollUntilDrained(ctx, q, snap.DrainAssertions, len(populatedDomains), o.drainTimeout, o.drainPoll, stderr, drainProgressInterval)
+	counts, ok, err := pollUntilDrained(ctx, q, snap.DrainAssertions, len(populatedDomains), o.drainTimeout, o.drainPoll, stderr, drainProgressInterval, o.drainAllowReadinessDeferred)
 	if err != nil {
 		return err
 	}
@@ -155,6 +155,21 @@ func runDrains(ctx context.Context, o options, getenv func(string) string, snap 
 			_, _ = fmt.Fprintf(stderr, "drains: completion-event breakdown unavailable: %v\n", eErr)
 		} else if line := formatCompletionEventBreakdown(events); line != "" {
 			_, _ = fmt.Fprintf(stderr, "drains: completion events [%s]\n", line)
+		}
+	}
+	if o.drainAllowReadinessDeferred && !counts.Drained(snap.DrainAssertions) {
+		// Pre-maintenance quiescence pass: the poll already proved no live
+		// work remained, but re-verify against a fresh breakdown before
+		// reporting it -- the queues moved under the poll at least once to
+		// get here. Anything but a clean re-verification falls through to
+		// the strict verdict below, which fails loudly instead of claiming
+		// a pre-state the gate cannot prove.
+		if breakdown, bErr := q.ResidualBreakdown(ctx); bErr != nil {
+			_, _ = fmt.Fprintf(stderr, "drains: residual breakdown unavailable: %v\n", bErr)
+		} else if msg, quiescent := preMaintenanceQuiescence(counts, breakdown); quiescent {
+			_, _ = fmt.Fprintf(stderr, "drains: %s\n", msg)
+			r.AddCheck("drains", "pre_maintenance_quiescence", true, true, msg)
+			return nil
 		}
 	}
 	EvaluateDrains(counts, snap.DrainAssertions, len(populatedDomains), r)

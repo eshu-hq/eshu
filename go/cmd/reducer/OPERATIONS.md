@@ -58,7 +58,10 @@ operator-facing signals, scaling guidance, and runtime invariants for the
 - In that same local-authoritative NornicDB profile, `CodeCallProjectionRunner`
   is wired with `NewReducerGraphDrain` so code-call edge projection waits until
   reducer-owned graph domains have drained. Keep this as a scheduling gate, not
-  a graph-truth shortcut.
+  a graph-truth shortcut. Separately (#6184), the runner always carries a
+  `CanonicalQuiescence` checker on every backend/profile so cross-repository
+  edges wait for every code scope's canonical-nodes phase — the DR gate stack
+  runs non-authoritative with the drain off, which is where the loss was measured.
 
 ## Gotchas and invariants
 

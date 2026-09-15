@@ -106,12 +106,6 @@ type RefreshFenceLookup interface {
 	) (bool, error)
 }
 
-// ReducerGraphDrain reports whether reducer graph-writing domains are still
-// active, letting local single-backend runners avoid graph write contention.
-type ReducerGraphDrain interface {
-	HasActiveReducerGraphWork(ctx context.Context) (bool, error)
-}
-
 // RunnerConfig configures the controlled code-calls lane.
 type RunnerConfig struct {
 	LeaseOwner          string
@@ -188,6 +182,7 @@ type Runner struct {
 	ReadinessLookup     gpphase.ReadinessLookup
 	ReadinessPrefetch   gpphase.ReadinessPrefetch
 	ReducerGraphDrain   ReducerGraphDrain
+	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 	Config              RunnerConfig
 	Wait                func(context.Context, time.Duration) error
 
@@ -320,16 +315,14 @@ func (r *Runner) processPartitionOnce(
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
 	}
-	if r.ReducerGraphDrain != nil {
-		active, err := r.ReducerGraphDrain.HasActiveReducerGraphWork(ctx)
-		if err != nil {
-			return worker.PartitionProcessResult{}, fmt.Errorf("check reducer graph drain: %w", err)
-		}
-		if active {
-			result := worker.PartitionProcessResult{BlockedReadiness: 1}
-			r.recordCodeCallTiming(ctx, result)
-			return result, nil
-		}
+	blocked, err := r.projectionLaneBlocked(ctx)
+	if err != nil {
+		return worker.PartitionProcessResult{}, err
+	}
+	if blocked {
+		result := worker.PartitionProcessResult{BlockedReadiness: 1}
+		r.recordCodeCallTiming(ctx, result)
+		return result, nil
 	}
 
 	claimStart := time.Now()

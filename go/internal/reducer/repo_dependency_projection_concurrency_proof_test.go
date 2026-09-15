@@ -43,10 +43,12 @@ func TestIfaRepoDependencyProofWorkersOverlapDistinctAcceptanceUnits(t *testing.
 	store.onAllCompleted = cancel
 	writer := &overlapRecordingRepoDependencyWriter{delay: 40 * time.Millisecond}
 	runner := RepoDependencyProjectionRunner{
-		IntentReader:       store,
-		LeaseManager:       store,
-		AcceptanceUnitGate: store,
-		EdgeWriter:         writer,
+		IntentReader:                    store,
+		LeaseManager:                    store,
+		AcceptanceUnitGate:              store,
+		EdgeWriter:                      writer,
+		WorkloadMaterializationReplayer: &recordingWorkloadMaterializationReplayer{},
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
 			return "gen-" + strings.TrimPrefix(key.SourceRunID, "run-"), true
 		},
@@ -103,10 +105,12 @@ func TestIfaRepoDependencyProofWorkersKeepWholeAcceptanceUnitTogether(t *testing
 	store.onAllCompleted = cancel
 	writer := &overlapRecordingRepoDependencyWriter{}
 	runner := RepoDependencyProjectionRunner{
-		IntentReader:       store,
-		LeaseManager:       store,
-		AcceptanceUnitGate: store,
-		EdgeWriter:         writer,
+		IntentReader:                    store,
+		LeaseManager:                    store,
+		AcceptanceUnitGate:              store,
+		EdgeWriter:                      writer,
+		WorkloadMaterializationReplayer: &recordingWorkloadMaterializationReplayer{},
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
 			return "atomic-gen-" + strings.TrimPrefix(key.SourceRunID, "atomic-run-"), true
 		},

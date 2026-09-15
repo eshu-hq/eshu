@@ -381,6 +381,10 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 		if heartbeatErr := stopHeartbeatOnce(); heartbeatErr != nil {
 			err = errors.Join(err, heartbeatErr)
 		}
+		if errors.Is(err, ErrExecutionClaimRejected) {
+			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, err)
+			return nil
+		}
 		status = "failed"
 		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, status, workerID, err)
 		if failErr := s.WorkSink.Fail(ctx, intent, err); failErr != nil {
@@ -398,13 +402,7 @@ func (s Service) executeWithTelemetry(ctx context.Context, intent Intent, worker
 		return fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
 	}
 
-	if err := s.WorkSink.Ack(ctx, intent, result); err != nil {
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, err)
-		return fmt.Errorf("ack reducer work: %w", err)
-	}
-
-	s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
-	return nil
+	return s.ackReducerWork(ctx, intent, result, duration, queueWait, status, workerID)
 }
 
 func (s Service) recordReducerResult(ctx context.Context, intent Intent, result Result, duration float64, queueWait float64, status string, workerID int, execErr error) {
@@ -481,6 +479,12 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, result 
 				logAttrs = append(logAttrs, log.Err(execErr))
 			}
 			s.Logger.WarnContext(ctx, "reducer claim lost its lease before handler start", logAttrs...)
+		case "lease_lost_during_execution":
+			logAttrs = append(logAttrs, telemetry.FailureClassAttr("execution_claim_rejected"))
+			if execErr != nil {
+				logAttrs = append(logAttrs, log.Err(execErr))
+			}
+			s.Logger.WarnContext(ctx, "reducer claim lost its lease during handler execution", logAttrs...)
 		default:
 			s.Logger.InfoContext(ctx, "reducer execution succeeded", logAttrs...)
 		}

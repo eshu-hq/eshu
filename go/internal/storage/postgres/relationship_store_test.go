@@ -7,12 +7,14 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -228,6 +230,36 @@ func TestRelationshipStoreActivateResolutionGenerationSupersedesOlderActiveGener
 	}
 	if got, want := db.generations["gen-new"].status, "active"; got != want {
 		t.Fatalf("new generation status = %q, want %q", got, want)
+	}
+}
+
+func TestRelationshipStoreClaimFencedActivationRejectsLostClaim(t *testing.T) {
+	t.Parallel()
+
+	db := &fakeExecQueryer{execResults: []sql.Result{zeroRowsResult{}}}
+	store := NewRelationshipStore(db)
+	claimedAt := time.Date(2026, time.September, 14, 12, 0, 0, 0, time.UTC)
+	err := store.ActivateResolutionGenerationForClaim(
+		context.Background(), "gen-stale", "scope-stale", "intent-stale", claimedAt,
+	)
+	if !errors.Is(err, reducercontract.ErrExecutionClaimRejected) {
+		t.Fatalf("ActivateResolutionGenerationForClaim() error = %v, want claim rejected", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("exec calls = %d, want %d", got, want)
+	}
+	query := db.execs[0].query
+	for _, fragment := range []string{
+		"FROM fact_work_items",
+		"work_item_id = $5",
+		"last_attempt_at = $6",
+		"claim_until > clock_timestamp()",
+		"FOR UPDATE",
+		"FROM claimant",
+	} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("claim-fenced activation query missing %q:\n%s", fragment, query)
+		}
 	}
 }
 

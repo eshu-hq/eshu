@@ -193,31 +193,6 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 	}
 }
 
-func TestCodeCallProjectionRunnerWaitsForReducerGraphDrainBeforeLease(t *testing.T) {
-	t.Parallel()
-
-	reader := &fakeCodeCallIntentStore{leaseGranted: true}
-	runner := Runner{
-		IntentReader:      reader,
-		LeaseManager:      reader,
-		EdgeWriter:        &recordingCodeCallProjectionEdgeWriter{},
-		AcceptedGen:       func(sharedintent.AcceptanceKey) (string, bool) { return "", false },
-		ReducerGraphDrain: staticReducerGraphDrain{active: true},
-		Config:            RunnerConfig{BatchLimit: 10},
-	}
-
-	result, err := runner.processOnce(context.Background(), time.Now().UTC())
-	if err != nil {
-		t.Fatalf("processOnce() error = %v, want nil", err)
-	}
-	if result.BlockedReadiness != 1 {
-		t.Fatalf("BlockedReadiness = %d, want 1", result.BlockedReadiness)
-	}
-	if got := reader.claimsCount(); got != 0 {
-		t.Fatalf("lease claims = %d, want 0 while reducer graph work is active", got)
-	}
-}
-
 func TestCodeCallProjectionRunnerProcessOnceReportsReadinessBlockedWait(t *testing.T) {
 	t.Parallel()
 

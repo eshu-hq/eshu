@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package crossrepo //nolint:filelength // 509 lines: cross-repo resolution logic. Consolidating the cross-repo identifier hydration and resolution graph reads in one file keeps the deterministic ordering and dedup rules reviewable.
+package crossrepo
 
 import (
 	"context"
@@ -31,6 +31,41 @@ import (
 // copied literal so the assertion cannot drift from what the writer stamps.
 const CrossRepoEvidenceSource = "resolver/cross-repo"
 
+// CrossRepoBackwardEvidenceNotReadyFailureClass classifies a deferral of
+// cross-repo resolution while backward evidence has not committed.
+//
+// Registered as a non-counting reducer retry class
+// (nonCountingReducerRetryFailureClasses in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go): the scope is
+// waiting on upstream evidence, not failing on its own merits. Returning
+// success here instead would terminally strand the scope: the queue item
+// succeeds, nothing retries it, and downstream consumers (deployable-unit
+// correlation, workload materialization) read the generation's partial-or-absent
+// resolved set forever (#6184).
+const CrossRepoBackwardEvidenceNotReadyFailureClass = "cross_repo_backward_evidence_not_ready"
+
+// BackwardEvidenceNotReadyError defers resolution until backward evidence
+// commits. Retryable so the queue re-runs the scope instead of succeeding
+// deferred.
+type BackwardEvidenceNotReadyError struct {
+	ScopeID      string
+	GenerationID string
+}
+
+func (e BackwardEvidenceNotReadyError) Error() string {
+	return fmt.Sprintf(
+		"backward evidence not committed for scope %s generation %s; deferring cross-repo resolution rather than succeeding deferred",
+		e.ScopeID,
+		e.GenerationID,
+	)
+}
+
+func (BackwardEvidenceNotReadyError) Retryable() bool { return true }
+
+func (BackwardEvidenceNotReadyError) FailureClass() string {
+	return CrossRepoBackwardEvidenceNotReadyFailureClass
+}
+
 // EvidenceFactLoader loads persisted evidence facts for a generation.
 type EvidenceFactLoader interface {
 	ListEvidenceFacts(ctx context.Context, generationID string) ([]relationships.EvidenceFact, error)
@@ -50,6 +85,18 @@ type ResolutionPersister interface {
 	ActivateResolutionGeneration(ctx context.Context, generationID, scopeID string) error
 }
 
+// ClaimFencedResolutionPersister publishes a generation only while the exact
+// reducer claim that computed it remains live.
+type ClaimFencedResolutionPersister interface {
+	ActivateResolutionGenerationForClaim(
+		ctx context.Context,
+		generationID string,
+		scopeID string,
+		workItemID string,
+		claimedAt time.Time,
+	) error
+}
+
 // RepoDependencyIntentWriter persists durable repo-dependency projection
 // intents plus their authoritative acceptance rows.
 type RepoDependencyIntentWriter interface {
@@ -64,7 +111,11 @@ type RepoDependencyIntentWriter interface {
 //  2. Loads assertions from the assertion store
 //  3. Runs relationships.Resolve() to produce candidates and resolved edges
 //  4. Persists candidates and resolved edges for audit trail
-//  5. Emits repo-owned shared-projection intents for later canonical writes
+//  5. Emits repo-owned shared-projection intents for later canonical writes,
+//     attributed to the scope that owns each edge's source repository so the
+//     same logical edge is never stamped by two generations (see
+//     partitionResolvedOwnership). Activation (step 6) is unaffected: a scope
+//     whose emits are all foreign still publishes its generation.
 type CrossRepoRelationshipHandler struct {
 	EvidenceLoader    EvidenceFactLoader
 	Assertions        AssertionLoader
@@ -72,16 +123,16 @@ type CrossRepoRelationshipHandler struct {
 	IntentWriter      RepoDependencyIntentWriter
 	ReadinessLookup   gpphase.ReadinessLookup
 	ReadinessPrefetch gpphase.ReadinessPrefetch
+	ScopeRepos        ScopeRepositoryReader
 	Tracer            trace.Tracer
 	Instruments       *telemetry.Instruments
 }
 
-// Resolve executes the cross-repo relationship resolution pipeline for one
-// generation. Returns the number of durable intents emitted.
-func (h *CrossRepoRelationshipHandler) Resolve(
+func (h *CrossRepoRelationshipHandler) resolve(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
+	claim *resolutionClaim,
 ) (int, error) {
 	if h.EvidenceLoader == nil || h.IntentWriter == nil {
 		return 0, nil
@@ -140,7 +191,10 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 				slog.String("reason", "backward_evidence_not_committed"),
 			)
 			h.recordDuration(ctx, start, scopeID)
-			return 0, nil
+			return 0, BackwardEvidenceNotReadyError{
+				ScopeID:      scopeID,
+				GenerationID: generationID,
+			}
 		}
 	}
 
@@ -169,7 +223,7 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 			}
 		}
 		if h.Persister != nil {
-			if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
+			if err := h.activateResolutionGeneration(ctx, generationID, scopeID, claim); err != nil {
 				return 0, fmt.Errorf("activate empty resolution generation: %w", err)
 			}
 		}
@@ -218,6 +272,26 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	candidates = normalizeRelationshipCandidates(candidates)
 	resolved = normalizeResolvedRelationships(resolved)
 
+	// Ownership partition (single-writer per edge): keep only the resolved
+	// edges sourced in this scope's own repositories, and scope the
+	// retraction inputs the same way. See partitionResolvedOwnership.
+	ownRepos, enforceOwnership, err := h.resolveOwnership(ctx, scopeID, generationID)
+	if err != nil {
+		return 0, fmt.Errorf("list scope repositories for resolution ownership: %w", err)
+	}
+	ownedResolved, droppedResolved := partitionResolvedOwnership(resolved, ownRepos, enforceOwnership)
+	ownEvidenceFacts := filterEvidenceFactsBySourceRepos(evidenceFacts, ownRepos, enforceOwnership)
+	if len(droppedResolved) > 0 {
+		h.recordCrossRepoEdgesDropped(ctx, droppedResolved)
+		slog.InfoContext(
+			ctx, "cross-repo resolution dropped foreign-owned edges",
+			log.ScopeID(scopeID),
+			log.GenerationID(generationID),
+			slog.Int("dropped", len(droppedResolved)),
+			slog.Int("owned", len(ownedResolved)),
+		)
+	}
+
 	slog.InfoContext(
 		ctx, "cross-repo relationship resolution completed",
 		log.ScopeID(scopeID),
@@ -237,7 +311,7 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		if err := h.Persister.UpsertCandidates(ctx, generationID, candidates); err != nil {
 			return 0, fmt.Errorf("persist candidates: %w", err)
 		}
-		if err := h.Persister.UpsertResolved(ctx, generationID, resolved); err != nil {
+		if err := h.Persister.UpsertResolved(ctx, generationID, ownedResolved); err != nil {
 			return 0, fmt.Errorf("persist resolved: %w", err)
 		}
 	}
@@ -252,14 +326,14 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	now := time.Now().UTC()
 	retractRows := buildResolvedEdgeRetractionIntentRows(
 		scopeID,
-		evidenceFacts,
-		resolved,
+		ownEvidenceFacts,
+		ownedResolved,
 		sourceRunID,
 		generationID,
 		now,
 	)
 	writeRows, routeCounts := buildResolvedEdgeIntentRows(
-		resolved,
+		ownedResolved,
 		scopeID,
 		sourceRunID,
 		generationID,
@@ -276,7 +350,7 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	// Step 6: Activate (publish) the generation now that its graph-acceptance
 	// intents are durably committed. This ordering is the publish fence.
 	if h.Persister != nil {
-		if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
+		if err := h.activateResolutionGeneration(ctx, generationID, scopeID, claim); err != nil {
 			return 0, fmt.Errorf("activate resolution generation: %w", err)
 		}
 	}

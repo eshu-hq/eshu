@@ -1,0 +1,498 @@
+# #6184: cross-run resolver ordering + cross-repo CALLS readiness
+
+Owner direction: fix the gate, don't weaken it. Two engine defects from the
+#4594 breakdown, fixed here. The `Module` name-only key is already fixed on
+main (`MERGE (m:Module {name, lang})`). The current v1.3.2 live rebuild showed
+no `Environment` identity difference; its remaining differences are recorded
+below without expanding this readiness-focused increment.
+
+## Defect 1 — resolver preview reads fact arrival order
+
+`aggregateCandidate` (`go/internal/relationships/resolver.go`) kept the first
+five evidence facts it happened to see as the candidate's `evidence_preview`.
+The order comes from `listEvidenceFactsByGenerationSQL` (`ORDER BY
+observed_at, evidence_id`), where `observed_at` is one wall-clock timestamp
+shared per `UpsertEvidenceFacts` call — so which artifacts exist is decided by
+insert-call interleaving. Same defect behind the pass-1 under-production
+(13 of 19) and the unstable pre-wipe reference.
+
+Fix: `sortEvidenceFactsForAggregation` orders facts by clamped confidence
+descending, then evidence kind, path, matched value, raw confidence, and the
+`Details` serialization (total order; `fmt` prints maps with sorted keys, so
+it is deterministic). One sort stabilizes all four order-sensitive
+accumulations: the preview cap, rationale dedup, first-non-empty repo, and
+first-wins field ties. The input slice is never mutated.
+
+Regression: `TestAggregateCandidateEvidencePreviewIsOrderIndependent`
+(un-skipped; failed before with the forward/reversed diff, passes after).
+`TestAggregateCandidateSourceRevisionTiebreakKeepsFirstInInputOrder` pinned
+first-in-input-order tie-breaks — that pin encoded the defect (input order is
+wall clock), so it is rewritten as
+`TestAggregateCandidateSourceRevisionTiebreakIsContentOrdered`: both input
+orders yield the same revision.
+
+```bash
+go test ./internal/relationships/ -count=1          # ok 1.302s
+go test -race ./internal/relationships/ -count=1    # ok 8.946s
+```
+
+## Defect 2 — cross-repo CALLS has no callee-side readiness key
+
+Verified on the current base, not inferred:
+
+- `storage/cypher/canonical_code_call_edges.go:68-70`: MATCH-only write. A
+  row whose target uid has no node writes nothing and raises nothing.
+- `go/internal/reducer/code/call/projection/runner.go`: `MarkIntentsCompleted`
+  unconditional after the write.
+- `go/internal/reducer/code/call/projection/selection.go`: readiness key built from the
+  intent's own `AcceptanceKey()` (caller's repo) only. No key is ever
+  constructed for the callee's repository.
+
+Result on the DR fixture corpus: `CALLS` 115 of 116, reproducible — the one
+cross-repository edge (`orders-api` into `lib-common`), recovered only by a
+second full drain.
+
+Fix: `CodeCallProjectionRunner` reports `BlockedReadiness` (existing
+poll/backoff path) while `HasUncommittedCanonicalCodeScopes` is true — any
+code scope whose active generation holds git `repository` facts but lacks
+its `code_entities_uid` / `canonical_nodes_committed` phase. Non-code scopes
+never emit repository facts, so they never block; tombstoned repository
+facts do not count. The check is wired UNCONDITIONALLY via a narrow
+`CanonicalCodeQuiescenceChecker` dependency (`cmd/reducer/main.go`), not
+behind the `ReducerGraphDrain` flag: the first remote gate run proved the
+flag version a no-op where it matters — the DR compose stack sets no
+`ESHU_QUERY_PROFILE`, so the profile parses to `""`, the drain stays nil,
+and the cross-repo edge was lost exactly as before (115/116). The loss
+happens on every backend/profile (MATCH-only write plus caller-only key)
+while the contention half of the drain is NornicDB-local-authoritative
+only. Exactly one checker runs per cycle, never both. No recovery-handler
+change was needed: refinalize already clears `graph_projection_phase_state`
+for covered generations (`storage/postgres/rebuildreset/reset.go`) and the
+projector republishes phases unconditionally on re-run
+(`projector/runtime_stages.go: writeCanonicalProjection` publishes on both
+the empty and written paths), so during a rebuild code calls drain last and
+land cross-repo edges in a single pass. The gate helper lives in
+`go/internal/reducer/code/call/projection/quiescence.go`
+(`projectionLaneBlocked`) to keep the runner under the file cap.
+
+Regression:
+
+```bash
+go test ./internal/storage/postgres/ -run TestReducerGraphDrain -count=1  # ok
+go test ./internal/reducer/code/call/projection -run TestCodeCallProjectionRunnerWaitsFor -count=1  # ok
+go test -race ./internal/reducer/code/call/projection -run TestCodeCallProjection -count=1  # ok
+go test ./internal/reducer/ ./internal/relationships/ -count=1  # ok
+go test ./internal/storage/postgres/ -count=1  # ok
+go test ./internal/query/ ./internal/reducer/crossrepo/ ./internal/cli/compparity/ -count=1  # ok
+go build ./...  # clean; go vet clean on touched packages
+```
+
+`TestCodeCallProjectionRunnerWaitsForCanonicalCodeQuiescence` fails without
+the runner check (lease claimed, `BlockedReadiness == 0`).
+
+## Defect 3 — backfill snapshot predates projector activation
+
+Fail-closed resolution (retryable, non-counting deferral while backward
+evidence is uncommitted) turned a latent publisher race into a hard stall:
+the golden-corpus gate drained to residual=8 and never converged.
+
+Verified on a live kept gate stack, not inferred:
+
+- `graph_projection_phase_state` held `backward_evidence_committed` for the
+  previous generations only (29 of 31 scopes matched their active
+  generation); the two retrying generations (`deployable-config`,
+  `supply-chain-demo-db`) had no phase row.
+- Maintenance pass 1 logged `deferred_backfill_completed evidence_facts=3
+  readiness_rows=31` and `deferred_backfill_fanin_completed partitions=31
+  published=31 skipped=0` — the pass believed every partition current.
+- Timestamps: collection committed generation `45914e22` at `04:09:13.110`,
+  the fan-in published at `04:09:13.795`, projector Ack activated the
+  generation at `04:09:15.534` — 1.7 s after the snapshot.
+
+Cause: collectors commit generations as pending; projector Ack activates
+them (`activateProjectorGenerationQuery`, `updateProjectorScopeGenerationQuery`
+in `go/internal/storage/postgres/projector_queue.go`) concurrently with the
+deferred backfill. A scope whose activation lands after the snapshot keeps
+no phase for the rest of the run.
+
+Fix: `runPipelined` re-runs `BackfillAllRelationshipEvidence` after the
+source-local projector drains, under phase
+`relationship_backfill_post_drain`, before the reopen sequence. The
+partition memo gate keeps the repeat cheap: unchanged partitions skip their
+fact loads, so the repeat only derives evidence for newly activated
+generations. The ingester's `RunDeferredRelationshipMaintenance` keeps its
+single backfill — with no quiescence point there, the next periodic pass is
+the covering pass by design; the non-counting retry bridges the gap and
+supersession terminalizes items whose generation is no longer active.
+
+Regression: `TestPipelinedBootstrapRunsCoveringBackfillAfterProjectorDrain`
+fails without the second call (backfill calls = 1, want 2, plus a
+post-quiescence entry assertion);
+`TestPipelinedBootstrapCoveringBackfillFailureIsFatal` pins the fatal path.
+
+Proof: `scripts/verify-golden-corpus-gate.sh` green with the fix —
+`B-7 golden corpus gate green (elapsed 217s, budget ceiling 1800s)`, every
+drain `fact_work_items_residual: residual=0`, zero
+`backward_evidence_not_committed` occurrences in the run log.
+
+## Defect 4 — recovery retirement has a post-drain claim race
+
+The reducer-drain poll and the retirement write originally had no common
+exclusion boundary. A worker could claim pending, retrying, or expired work
+after the final zero poll and then commit that claim before the retirement
+statement. The retirement guard would correctly abort, but a claim that began
+before retirement and committed after it could still run against a generation
+recovery had already retired.
+
+Fix: recovery now performs the long drain without a table lock, then takes a
+transaction-scoped `EXCLUSIVE` lock on `fact_work_items` before any recovery
+write and immediately rechecks live leases. The mode conflicts with the
+queue's `ROW EXCLUSIVE` claim/lifecycle mutations, another recovery fence, and
+the `ROW SHARE` lock taken by claim-fenced relationship publication. Recovery
+holds it through enqueue, reset, generation retirement, and commit. This closes
+both sides of the race: no new execution can claim after the last zero poll,
+and an expired execution cannot publish a relationship generation while
+recovery retires it. The retirement `NOT EXISTS` predicate remains as defense
+in depth.
+
+Every durable reducer claim now carries the exact persisted `last_attempt_at`
+returned by the claim statement. Reclaims advance that value monotonically,
+including same-owner reclaims under an identical injected clock. Heartbeat,
+single and batch Ack, retry/dead-letter Fail, and relationship-generation
+activation require that exact token and a still-live lease. A zero or partial
+match returns `ErrReducerClaimRejected`; the service records
+`lease_lost_during_execution` and does not Ack or Fail the replacement claim.
+Postgres now wraps the shared reducer claim-rejection sentinel while preserving
+its established error-text prefix. If ownership is lost only when a single or batch
+Ack reaches Postgres after successful handler execution, the service logs the
+stale rejection and continues draining; it never fails or mutates the newer
+claim. Unrelated Ack errors remain fatal.
+
+The live PostgreSQL regressions exercise both lock orders. When recovery takes
+`EXCLUSIVE` first, exact-claim activation waits for `ROW SHARE`, resumes after
+retirement, and rejects the stale token. When activation takes `ROW SHARE`
+first, recovery waits, then retires the generation after the activation
+transaction completes. Same-owner same-clock reclaim advances the token by one
+microsecond; stale heartbeat, Ack, both Fail paths, and activation all reject
+without mutating the current claim. A mixed current/stale batch Ack reports
+rejection rather than treating its partial update as full success.
+
+```bash
+ESHU_POSTGRES_DSN=postgresql://... go test ./internal/storage/postgres \
+  -run 'Test(ReducerExactClaimFence|RecoveryClaimFence)' \
+  -count=1 -v  # ok, 3.497s
+
+go test ./internal/reducer \
+  -run 'TestService(Single|Batch)StaleAckDoesNotStopReducer' -count=1  # ok
+```
+
+## Defect 5 — shared RUNS_ON identity could carry mixed provenance
+
+Workload materialization and cross-repo resolution both write the same
+`(WorkloadInstance)-[:RUNS_ON]->(Platform)` identity. The workload writer
+preserved a foreign `evidence_source` on match but still overwrote `confidence`
+and `reason`, leaving a tuple that belonged to neither writer.
+
+The pinned NornicDB v1.3.2 behavior was measured before implementation. Reading
+the relationship's existing properties in the same statement that `MERGE`s it
+was not reliable, and `ON CREATE` did not persist the new relationship stamp.
+The viable serial shape is two statements in one graph transaction: first
+`MERGE` only the identity, then a bare `MATCH` with an ownership predicate that
+writes the complete workload tuple and clears `source_tool`. Atomic grouping
+prevents an unstamped identity from becoming visible if the second statement
+fails.
+
+Atomicity alone was insufficient under concurrency: two overlapping managed
+transactions using a propertyless relationship `MERGE` both committed distinct
+parallel `RUNS_ON` relationships on pinned NornicDB v1.3.2. The measured
+graph-native identity is
+`MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)` in both writers.
+NornicDB maps that pattern to one deterministic stored relationship identity.
+In the measured overlap, the competing keyed write could complete before the
+held transaction committed; after both commits, the graph still contained one
+relationship. Cross-repo continues to write its complete tuple unconditionally,
+so it wins in every ordering. This proof claims the committed identity and tuple,
+not a particular internal blocking or retry mechanism.
+
+Before the keyed MERGE, each writer deletes every matching pre-upgrade
+propertyless edge in the same graph transaction. The live upgrade fixture seeds
+two propertyless duplicates plus a keyed edge, runs each production writer, and
+reads back one relationship with the winning writer's coherent tuple. The
+Kubernetes upgrade contract stops every old resolution-engine lane before any
+new reducer starts, so an old writer cannot recreate a propertyless edge after
+the transactional cleanup. The required full rebuild then visits the complete
+population.
+
+Repo-dependency replay also records durable debt when the target workload item
+is already claimed or running. It reuses `cross_scope_replay_required`: the
+active lease is left intact, and the database ACK trigger returns the completed
+item to pending for one fresh pass. This closes the former `ON CONFLICT DO
+NOTHING` loss window without adding a second queue or stealing a live claim.
+
+The live Bolt matrix exercises workload-only, cross-repo-only, workload then
+cross-repo, cross-repo then workload, workload/cross-repo/workload, and
+cross-repo/workload/cross-repo. All six read back one coherent tuple. The
+rollback case forces the second workload statement to fail and observes no
+relationship before a successful retry. The deterministic overlap case holds
+each writer open in turn, lets the competing managed transaction reach its
+write before the first commits, and reads back one relationship with the
+coherent cross-repo tuple after both commits:
+
+```bash
+ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:... go test ./internal/storage/cypher \
+  -run 'TestBoltRunsOn(ConcurrentOverlapPreservesCrossRepoTuple|WritersPreserveOneCoherentProvenanceTuple|AtomicGroupRollsBackAfterFirstStatement|WritersReplaceDuplicateLegacyUnkeyedIdentities)' \
+  -count=1 -v  # ok, 4.971s
+
+ESHU_POSTGRES_DSN=postgresql://... go test ./internal/storage/postgres \
+  -run 'TestWorkloadReplay(DuringClaimReturnsAckToPending|AndBatchAckContentionConvergesToPending)' \
+  -count=1 -v  # ok, 9.481s
+```
+
+## Defect 6 — sibling deployable-unit intents retracted valid edges
+
+Deployable-unit correlation loads all repository facts for a scope generation,
+but maintenance reopens one intent per repository. On an empty evaluation, the
+old retraction helper emitted a row for every repository fact in that shared
+scope. A deployment-only or rejected sibling could therefore delete the app
+repository's `CORRELATES_DEPLOYABLE_UNIT` edge after the app intent wrote it.
+The retained determinism run showed that ordering twice: the app edge write
+completed, later sibling intents succeeded, and the final exact edge read was
+empty.
+
+The handler now validates entity keys once and passes that same normalized set
+to the retraction helper. The helper emits retractions only for repository
+identities owned by the current intent. The production Git fact contract keeps
+`graph_id` and `repo_id` equal; the canonical graph ID remains the retraction
+target, while the existing repository-name alias remains accepted.
+
+The regression was written first and failed with `retract rows = 2, want 1`.
+After the fix, the exact test and the broader deployable-unit test selection
+passed:
+
+```bash
+go test ./internal/reducer \
+  -run '^TestDeployableUnitRetractRowsStayWithinIntentRepository$' -count=1
+go test ./internal/reducer -run '^TestDeployableUnit' -count=1
+```
+
+The extracted deployable-unit standalone cell then ran from source commit
+`c97dca9cd4b56685d0364f7b62e093b23abe4c5d` on a fresh Postgres and NornicDB
+stack. It confirmed zero `CORRELATES_DEPLOYABLE_UNIT` edges before maintenance,
+then drove all four same-scope repository intents to `succeeded` with zero
+nonterminal intents. The post-maintenance checks observed one resolved
+`DEPLOYS_FROM` relationship and the direct graph assertion matched exactly one
+expected app-to-deployment edge with no extras. The cell passed in 126 seconds.
+The maintenance pass reopened zero deployable-unit intents because these were
+the initial readiness-deferred intents; their post-readiness execution still
+exercised all four sibling repositories through the production handler and
+writer before the final exact graph read.
+
+This adds no storage call, graph statement, worker, retry, or serialization.
+It performs an in-memory identity check over the already loaded repository
+facts and strictly narrows empty-result retraction rows.
+
+## Defect 7 — repo-dependency RUNS_ON completed before its workload endpoint
+
+The Ifá `killworker_repo_dependency` cell failed twice on PR #6634 with six of
+seven expected relationships. The only missing edge was the canonical
+`RUNS_ON` from the source workload instance to its Kubernetes platform. The
+post-recovery logs showed repo-dependency writing all seven intents before
+three later workload-materialization passes committed. The repo-dependency
+writer uses `MATCH` for the existing `WorkloadInstance`, so the early write
+affected zero graph rows without returning an error; the runner then completed
+the intent and never revisited it.
+
+The repo-dependency acceptance unit now computes a deterministic SHA-256 fence
+over each active `RUNS_ON` input set and checks the exact token-scoped
+`workload_materialization` phase while holding the repository acceptance gate.
+The fence includes the durable intent identity and persisted acceptance
+`created_at`. For an active input set, a distinct persisted acceptance time
+therefore creates a distinct causal token; this does not claim that re-upserting
+an already-completed deterministic intent reopens it. Missing readiness
+schedules a durable workload replay that
+carries the token in the existing queue payload and returns `BlockedReadiness`
+before any repository retract, upsert, or intent completion. The workload pass
+publishes that exact token phase only after its graph writes commit. An old
+phase, or an old in-flight pass that publishes after the new acceptance, cannot
+open the gate; the queue's replay bit returns the stale claim to pending first.
+The full repository unit retries after the token-bearing endpoint pass commits,
+preserving snapshot replacement atomicity without reducing worker count or
+serializing unrelated repositories.
+
+Both readiness dependencies are mandatory runner wiring, including fenced
+replay support. The queue preserves an active lease, dirties it only when its
+token changes, and retries its status-aware update after losing a concurrent
+first insert. An unfenced replay that loses the same insert race performs a
+fresh status read; under PostgreSQL Read Committed that read observes the
+committed winner. A genuinely unschedulable replay, including an existing
+dead-lettered workload item, becomes a quarantined cycle error instead of a
+permanent readiness polling loop.
+
+The mixed-unit regression was written before the gate. It failed because the
+runner wrote and completed `RUNS_ON` while readiness was absent. It now proves
+that a legacy phase does not satisfy the new token, zero retracts, writes, and
+completions occur while blocked, and the entire unit completes only after the
+token phase appears. Token tests prove input ordering does not change the fence
+while either a changed input set or a distinct persisted acceptance time does.
+Workload tests cover both zero- and nonzero-candidate token publication. A
+composed live PostgreSQL regression covers both single-item and batch ACK: it
+starts with a stale claimed workload pass and a legacy phase, observes the
+token and repository ID on the dirtied queue row, proves the stale ACK returns
+the row to pending, runs the real workload handler and phase store, then proves
+the repository runner writes once and completes the intent. The other live
+PostgreSQL tests prove concurrent first schedulers both report success, an old
+claim is dirtied by a new token, an equal-token poll does not dirty the current
+claim, and a newer token supersedes it without stealing the lease.
+
+The first final-head `Race Graph Writes` run exposed a test-only race in the
+shared workload-replay recorder used by the multi-worker proof. The exact test
+reproduced the race locally before the recorder gained a mutex, then passed ten
+consecutive executions under the race detector.
+
+Root-Cause Evidence: the next Ifá fault run exposed a separate production race:
+two concurrently successful writer logs showed source- and target-scope
+workload passes committing the same logical edge, and that run's graph check
+reported `graph=2, expected=1`. Concurrent source-
+and target-scope workload passes both committed the same propertyless
+Workload-to-Workload `DEPENDS_ON`, leaving two edges where the expected set
+contained one. A live overlap regression held one writer before commit and
+proved the second could commit independently; the unkeyed shape failed with
+`graph=2, expected=1`. Keying the relationship MERGE with
+`identity_key='canonical'` passed ten identical overlap trials without reducing
+worker concurrency. The hot production route now performs only the keyed MERGE;
+the existing workload-dependency retract-then-replay boundary owns replacement of propertyless legacy edges during the required post-upgrade graph rebuild.
+This avoids adding a relationship-set scan to every steady-state write batch.
+A live rebuild-boundary regression proves two propertyless legacy edges retract to zero before replay writes one keyed edge. The exact live set passed three
+executions, while both Ifá structural suites passed with the updated identity
+fixture and graph-fault anchor.
+
+```bash
+go test ./internal/reducer ./internal/storage/postgres ./cmd/reducer \
+  -run 'RepoDependency|ReplayWorkloadMaterialization|RunsOn|DefaultRuntime|Wiring' \
+  -count=1
+go test -race ./internal/reducer \
+  -run 'TestRepoDependencyProjectionRunner(DefersRunsOnUntilWorkloadReady|RejectsUnschedulableRunsOnReplay)$' \
+  -count=1
+go test -race ./internal/reducer \
+  -run '^TestIfaRepoDependencyProofWorkersOverlapDistinctAcceptanceUnits$' \
+  -count=10
+ESHU_CYPHER_BOLT_DSN="$NORNIC_DSN" go test -race ./internal/storage/cypher \
+  -run '^TestBoltWorkloadDependency' -count=3
+ESHU_POSTGRES_DSN="$TEST_DSN" go test ./internal/storage/postgres \
+  -run 'TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive|TestWorkload(ReplayConcurrentFirstScheduleReportsSuccess|FencedReplaySupersedesOnlyOlderInFlightToken)$' \
+  -count=1
+bash scripts/verify-ifa-fault-injection.sh --shard 17/17
+```
+
+The focused Ifá shard ran only the common baseline and the atomic
+repo-dependency family. `baseline_repo_dependency` (90 s),
+`killworker_repo_dependency` (143 s), and
+`failgraphwrite_repo_dependency` (84 s) each reached terminal zero with no dead
+letters, matched all seven expected repo-dependency edges, and produced the
+same digest `b1fd95c655187e502fc71b6664283f3d7ccde1f8b31872c6072625cacf0a9c0f`.
+The complete shard exited zero.
+
+## No-Regression Evidence:
+
+- Baseline: #4594 evidence — 341 s rebuild on the Compose fixture corpus
+  (67 scopes, 3,866 facts), `CALLS` 115/116, `EvidenceArtifact` settling at
+  pass 2.
+- Current-main comparison: unmodified `origin/main` `7ed966c45` on the same
+  host and NornicDB v1.3.2 started at 2,530 nodes / 3,301 edges and rebuilt to
+  2,521 / 3,284. It changed `CORRELATES_DEPLOYABLE_UNIT` from 3 to 8, lost one
+  of 116 `CALLS`, and lost all four `HANDLES_ROUTE` and all four `RUNS_IN`
+  edges. The identity differential was 29 missing / 12 extra. The next main
+  commit, `62ce6e9fb`, changes tag-history query wiring only and does not touch
+  projection or recovery behavior.
+- Rebuild-wiring live run at `eb5cd8c2a3`: `CGO_CFLAGS='-std=gnu17'
+  ESHU_DR_SKIP_INTERRUPT=true
+  ESHU_DR_COMPOSE_PROJECT=eshu-pr6634-final-rebuild
+  bash scripts/verify-graph-rebuild-from-facts.sh` used 6,369 facts across 67
+  active scopes. The pre-wipe identity snapshot held 2,529 nodes and 3,308
+  edges. The clean rebuild took 101 seconds (1m41s) with host load averages
+  15.30 / 17.86 / 21.30 and held 2,530 node identities and 3,309 edge
+  identities. It retained `CALLS=116`, `CORRELATES_DEPLOYABLE_UNIT=8`,
+  `HANDLES_ROUTE=4`, and `RUNS_IN=4`. The gate remained red: two pre-wipe nodes
+  and four relationships were missing, while three nodes and five relationships
+  were additional. The missing set was the `base:dev` workload instance, its
+  platform, and its four relationships; the additional set was two deployment
+  evidence artifacts, one environment, and their five relationships. The run
+  proves the graph-rebuild and claim-fence wiring through that revision. Later
+  commits change reducer replay and `RUNS_ON` readiness, so their final-head
+  proof is the composed live PostgreSQL regression and targeted Ifá shard
+  recorded above, not this earlier whole-rebuild run.
+- The interrupted pass killed the ingester, projector, and resolution engine
+  only after graph rows existed with 1,010 items still active. The fresh-key
+  recovery request ran while workers remained stopped, returned successfully,
+  and only then restarted them. Both queues again reached terminal-zero. The
+  result held 2,532 node identities and 3,312 edge identities. It lost no
+  identity; the differential was three additional nodes and nine additional
+  relationships, all in workload-instance materialization. The four owned lane
+  counts again remained 116 / 8 / 4 / 4. The overall gate remained red because
+  those sets differ from the older pre-wipe graph, so this increment does not
+  claim full #6184 closure.
+- This run also reproduced a NornicDB v1.3.2 scalar anomaly: after a rebuild,
+  `MATCH (n) RETURN count(n)` and computed numeric projections could return no
+  data even while label and identity scans returned more than 2,500 nodes. The
+  interrupt checkpoint therefore uses the bounded row-existence probe
+  `MATCH (n) RETURN labels(n)[0] ... LIMIT 1`; the full identity snapshots
+  remain the correctness comparison.
+- Crash recovery exposed a transport-budget inversion: reducer leases last 60
+  seconds and the recovery fence waits up to five minutes, but the API formerly
+  closed responses after 60 seconds. The live interrupted run then returned
+  curl 52 even though the handler could still be waiting safely. The API write
+  timeout now derives from the five-minute drain bound plus a one-minute margin;
+  the successful immediate-recovery result above is the runtime proof.
+- Runtime cost: the readiness gates add index-served `EXISTS` probes over
+  scope-count row sets. Deterministic workload `DEPENDS_ON` identity preserves writer concurrency without adding a cleanup statement to the hot path.
+  Propertyless workload-edge replacement stays at the existing domain retract-then-replay boundary required by the upgrade procedure.
+  Same-host, fresh-volume NornicDB v1.3.2 proof used the pinned image digest
+  below, applied only the production `Workload.id` uniqueness constraint before
+  data, and timed five alternating trials over 500 distinct dependency pairs
+  (1,000 Workload anchors). The old one-statement propertyless MERGE measured
+  `137.819ms`, `123.873ms`, `124.085ms`, `124.753ms`, and `126.926ms`
+  (median `124.753ms`). The final one-statement keyed MERGE measured
+  `133.978ms`, `140.759ms`, `122.266ms`, `128.773ms`, and `129.150ms`
+  (median `129.150ms`). The added median cost is `4.397ms` at the maximum
+  500-row edge batch, 0.015% of the default 30-second NornicDB graph-write
+  budget; every trial preserved exactly 500 relationships. Timings cover only
+  the graph transaction; node seed, cardinality readback, and fixture teardown
+  were outside the interval. Statement summaries were old: one indexed
+  `MATCH`/`MATCH` plus propertyless `MERGE`; final: the same indexed
+  `MATCH`/`MATCH` with a keyed `MERGE`. The live command was
+  `ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:<isolated-port> go test
+  ./internal/storage/cypher -run '^TestBoltWorkloadDependencyBatchShapeTiming$'
+  -count=1 -v`; it exited zero.
+  Exact claim-token predicates add comparisons on the
+  already-selected queue row and do not change batch sizes or worker counts.
+  The relation-wide `EXCLUSIVE` lock is recovery-only, acquired after the queue
+  drains, and held for the bounded reset/retirement transaction. The 101-second
+  run exercises the rebuild and claim-fence surfaces present at `eb5cd8c2a3`
+  under load and remains far inside the golden gate's 1,800-second absolute
+  ceiling. It is not a controlled comparison with the 87-second or 341-second
+  runs, so no end-to-end speedup or incremental cost claim is made.
+- Backend/version: `timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440`,
+  Linux amd64 local.
+- Input shape: the gate's own fixture corpus (same corpus as the 341 s
+  baseline), terminal state both queues zero, identity-diff assertion.
+- Why safe: the gate only delays edge writes until their endpoints'
+  prerequisites exist; it changes which cycle an edge lands in, never which
+  edges land. A wedged code scope stalls code calls visibly (pending intents
+  + `BlockedReadiness`) instead of losing edges silently — the same trade
+  the existing active-work drain check already makes.
+
+## Observability Evidence:
+
+The existing `eshu_dp_cross_repo_edges_resolved_total` counter retains its
+routed-edge-only meaning and `relationship_type` label shape. The new
+`eshu_dp_cross_repo_edges_dropped_total{reason="foreign_owned"}` counter records
+ownership-partition drops separately, so a partition change is distinguishable
+from graph-write loss without breaking established dashboards. A
+readiness stall remains visible through shared-intent queue depth/age and
+`BlockedReadiness`; `graph_projection_phase_state` gaps identify the blocked
+scope and generation. The API recovery request remains covered by its existing
+HTTP span and status code. No-Observability-Change: the deployable-unit fix
+changes only which already-loaded repository identities reach the existing
+retract call. Reducer execution status, shared-edge write telemetry, and the
+deployable-unit exact-edge gate remain the operator and correctness signals;
+no new runtime branch or failure class is introduced.

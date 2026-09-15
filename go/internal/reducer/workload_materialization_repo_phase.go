@@ -118,6 +118,48 @@ func publishRepoReadinessPhasesWithRepair(
 	return nil
 }
 
+func publishRepoDependencyReadinessFenceWithRepair(
+	ctx context.Context,
+	publisher GraphProjectionPhasePublisher,
+	repairQueue GraphProjectionPhaseRepairQueue,
+	intent Intent,
+	observedAt time.Time,
+) error {
+	if publisher == nil {
+		return nil
+	}
+	fence, _ := intent.Payload[RepoDependencyReadinessFencePayloadKey].(string)
+	repoID, _ := intent.Payload[RepoDependencyReadinessRepoIDPayloadKey].(string)
+	fence = strings.TrimSpace(fence)
+	repoID = strings.TrimSpace(repoID)
+	if fence == "" || repoID == "" {
+		return nil
+	}
+	key := workloadMaterializationRepoReadinessKey(intent.ScopeID, repoID, intent.GenerationID)
+	key.SourceRunID = RepoDependencyReadinessFenceSourceRunID(fence)
+	if err := key.Validate(); err != nil {
+		return fmt.Errorf("build repo dependency workload readiness fence: %w", err)
+	}
+	if observedAt.IsZero() {
+		observedAt = time.Now().UTC()
+	}
+	state := GraphProjectionPhaseState{
+		Key:         key,
+		Phase:       GraphProjectionPhaseWorkloadMaterialization,
+		CommittedAt: observedAt.UTC(),
+		UpdatedAt:   observedAt.UTC(),
+	}
+	if err := publishGraphProjectionPhaseStatesWithRepair(
+		ctx,
+		publisher,
+		repairQueue,
+		[]GraphProjectionPhaseState{state},
+	); err != nil {
+		return fmt.Errorf("publish repo dependency workload readiness fence: %w", err)
+	}
+	return nil
+}
+
 func enqueueRepoReadinessPhaseRepairs(
 	ctx context.Context,
 	repairQueue GraphProjectionPhaseRepairQueue,
@@ -243,4 +285,52 @@ func repositoryGraphIDsFromEnvelopes(envelopes []facts.Envelope) []string {
 	}
 	sort.Strings(repoIDs)
 	return repoIDs
+}
+
+// CypherGroupStatement is one statement in an atomic materializer write group.
+type CypherGroupStatement struct {
+	Cypher     string
+	Parameters map[string]any
+}
+
+// CypherGroupExecutor executes all statements in one atomic graph transaction.
+type CypherGroupExecutor interface {
+	ExecuteCypherGroup(context.Context, []CypherGroupStatement) error
+}
+
+const batchRuntimePlatformRunsOnLegacyIdentityCleanupCypher = `UNWIND $rows AS row
+MATCH (i:WorkloadInstance {id: row.instance_id})
+MATCH (p:Platform {id: row.platform_id})
+MATCH (i)-[rel:RUNS_ON]->(p)
+WHERE rel.identity_key IS NULL
+DELETE rel`
+
+func (m *WorkloadMaterializer) executeBatchedGroup(
+	ctx context.Context,
+	queries []string,
+	rows []map[string]any,
+) error {
+	executor, ok := m.executor.(CypherGroupExecutor)
+	if !ok {
+		return fmt.Errorf("atomic Cypher group executor is required")
+	}
+	batchSize := m.batchSize()
+	for start := 0; start < len(rows); start += batchSize {
+		end := start + batchSize
+		if end > len(rows) {
+			end = len(rows)
+		}
+		params := map[string]any{"rows": rows[start:end]}
+		statements := make([]CypherGroupStatement, 0, len(queries))
+		for _, query := range queries {
+			statements = append(statements, CypherGroupStatement{
+				Cypher:     query,
+				Parameters: params,
+			})
+		}
+		if err := executor.ExecuteCypherGroup(ctx, statements); err != nil {
+			return err
+		}
+	}
+	return nil
 }

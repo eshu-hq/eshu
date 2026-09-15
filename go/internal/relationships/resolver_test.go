@@ -354,12 +354,13 @@ func TestAggregateCandidateSourceRevisionHighestConfidenceWins(t *testing.T) {
 	}
 }
 
-// TestAggregateCandidateSourceRevisionTiebreakKeepsFirstInInputOrder proves
-// the deterministic tiebreak: when two facts carry equal confidence, the
-// fact appearing first in the input order wins, and the result is stable
-// regardless of which value happens to sort first alphabetically (ruling
-// out an accidental sort- or map-order dependency).
-func TestAggregateCandidateSourceRevisionTiebreakKeepsFirstInInputOrder(t *testing.T) {
+// TestAggregateCandidateSourceRevisionTiebreakIsContentOrdered proves the
+// deterministic tiebreak: when two facts carry equal confidence, the winner
+// is decided by the content sort key, not by input order. Input order is wall
+// clock (Postgres observed_at), so a first-in-input-order rule makes the
+// projected graph differ between runs (#6184). Both input orders must yield
+// the same revision.
+func TestAggregateCandidateSourceRevisionTiebreakIsContentOrdered(t *testing.T) {
 	t.Parallel()
 
 	buildFacts := func(firstRevision, secondRevision string) []EvidenceFact {
@@ -389,8 +390,8 @@ func TestAggregateCandidateSourceRevisionTiebreakKeepsFirstInInputOrder(t *testi
 	if got, want := len(resolvedZFirst), 1; got != want {
 		t.Fatalf("len(resolved) = %d, want %d", got, want)
 	}
-	if got, want := resolvedZFirst[0].SourceRevision, "zzz-later-alphabetically"; got != want {
-		t.Fatalf("SourceRevision = %q, want %q (the first fact in input order, not alphabetical order)", got, want)
+	if got, want := resolvedZFirst[0].SourceRevision, "aaa-earlier-alphabetically"; got != want {
+		t.Fatalf("SourceRevision = %q, want %q (content order, independent of input order)", got, want)
 	}
 
 	_, resolvedAFirst := Resolve(buildFacts("aaa-earlier-alphabetically", "zzz-later-alphabetically"), nil, DefaultConfidenceThreshold)
@@ -398,7 +399,7 @@ func TestAggregateCandidateSourceRevisionTiebreakKeepsFirstInInputOrder(t *testi
 		t.Fatalf("len(resolved) = %d, want %d", got, want)
 	}
 	if got, want := resolvedAFirst[0].SourceRevision, "aaa-earlier-alphabetically"; got != want {
-		t.Fatalf("SourceRevision = %q, want %q (the first fact in input order)", got, want)
+		t.Fatalf("SourceRevision = %q, want %q (content order, independent of input order)", got, want)
 	}
 }
 

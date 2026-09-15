@@ -127,6 +127,17 @@ func (r *repoDependencyIfaReplayer) ReplayWorkloadMaterialization(
 	return true, nil
 }
 
+func (r *repoDependencyIfaReplayer) ReplayWorkloadMaterializationForFence(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+	entityKey string,
+	_ string,
+	_ string,
+) (bool, error) {
+	return r.ReplayWorkloadMaterialization(ctx, scopeID, generationID, entityKey)
+}
+
 func (r *repoDependencyIfaReplayer) requestCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()

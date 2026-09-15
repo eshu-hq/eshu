@@ -177,12 +177,14 @@ right order of magnitude for this fixture corpus and nothing more; a bound needs
 repeated runs on one fixed definition at scale-lab size. See the evidence doc's
 "Is there a defensible time bound?" section.
 
-The rebuild is also not yet exact. One cross-repo `CALLS` edge can come back
-missing on a single pass, because the shared-projection readiness gate waits only
-on the intent's own repository and the edge write is `MATCH`-only. `HANDLES_ROUTE`
-and `RUNS_IN` are intermittent for a related reason — measured at 0, 2, 4, and 0
-of 4 across four rebuilds. Waiting on the shared backlog is necessary for a
-complete pass but does not guarantee one.
+The rebuild is still not identity-exact, but its readiness-owned lanes now
+converge in one pass. Fleet-wide canonical quiescence restored all 116 `CALLS`,
+all 8 `CORRELATES_DEPLOYABLE_UNIT`, all 4 `HANDLES_ROUTE`, and all 4 `RUNS_IN`
+edges in both clean and interrupted NornicDB v1.3.2 runs. The remaining measured
+differences are `EXTENDS_BASE` and workload-instance deployment identities. See
+`docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md`
+for the current-backend comparison; the table above remains the dated #4594
+baseline.
 
 A separate limit applies to any comparison against a pre-wipe snapshot: indexing
 the same corpus is not deterministic. Three runs recorded pre-wipe totals of

@@ -109,6 +109,36 @@ func TestServiceRunMarksFailureWhenExecutionFails(t *testing.T) {
 	}
 }
 
+func TestServiceDoesNotMutateQueueAfterExecutionClaimRejected(t *testing.T) {
+	t.Parallel()
+
+	intent := Intent{
+		IntentID:        "intent-stale",
+		ScopeID:         "scope-stale",
+		GenerationID:    "generation-stale",
+		SourceSystem:    "git",
+		Domain:          DomainDeploymentMapping,
+		Cause:           "stale resolver",
+		EntityKeys:      []string{"platform:stale"},
+		RelatedScopeIDs: []string{"scope-stale"},
+		EnqueuedAt:      time.Now().UTC(),
+		AvailableAt:     time.Now().UTC(),
+		Status:          IntentStatusClaimed,
+	}
+	sink := &stubReducerWorkSink{}
+	service := Service{
+		Executor: &stubReducerExecutor{executeErr: ErrExecutionClaimRejected},
+		WorkSink: sink,
+	}
+
+	if err := service.executeWithTelemetry(context.Background(), intent, 0); err != nil {
+		t.Fatalf("executeWithTelemetry() error = %v, want nil", err)
+	}
+	if sink.ackCalls != 0 || sink.failCalls != 0 {
+		t.Fatalf("queue mutations after rejected claim: ack=%d fail=%d, want zero", sink.ackCalls, sink.failCalls)
+	}
+}
+
 func TestServiceRunStartsSharedProjectionRunner(t *testing.T) {
 	t.Parallel()
 
@@ -222,45 +252,6 @@ func TestServiceRunStartsCodeCallProjectionRunner(t *testing.T) {
 
 	if claims == 0 {
 		t.Fatal("expected code call projection runner to attempt at least one lease claim")
-	}
-}
-
-func TestServiceRunStartsRepoDependencyProjectionRunner(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeRepoDependencyIntentStore{leaseGranted: false}
-
-	service := Service{
-		PollInterval: 10 * time.Millisecond,
-		WorkSource:   &stubReducerWorkSource{},
-		Executor:     &stubReducerExecutor{},
-		WorkSink:     &stubReducerWorkSink{},
-		RepoDependencyProjectionRunner: &RepoDependencyProjectionRunner{
-			IntentReader:       store,
-			LeaseManager:       store,
-			AcceptanceUnitGate: store,
-			EdgeWriter:         &recordingCodeCallProjectionEdgeWriter{},
-			AcceptedGen:        acceptedGenerationFixed("", false),
-			Config: RepoDependencyProjectionRunnerConfig{
-				PollInterval: 10 * time.Millisecond,
-			},
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-
-	err := service.Run(ctx)
-	if err != nil {
-		t.Fatalf("Run() error = %v, want nil", err)
-	}
-
-	store.mu.Lock()
-	claims := store.leaseClaims
-	store.mu.Unlock()
-
-	if claims == 0 {
-		t.Fatal("expected repo dependency projection runner to attempt at least one lease claim")
 	}
 }
 

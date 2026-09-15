@@ -33,6 +33,14 @@ import "strings"
 // them by evidence_source — the same property retractRepoRunsOnEdgesCypher
 // scopes its DELETE on. Do not treat membership here as "every RUNS_ON edge in
 // the graph": it is the subset this family stamped.
+// Writer precedence is deterministic by construction, not by schedule: both
+// writers use the same property-keyed relationship identity and converge on one
+// stored edge. The workload path first establishes that shared identity, then conditionally
+// replaces the complete property tuple only when the edge is unstamped or
+// already workload-owned. A cross-repo-owned tuple is preserved; this lane's
+// unconditional complete-tuple SET wins whenever it writes. An unconditional
+// workload SET made the family edge last-writer-wins and flaked the exact-set
+// gate whenever workload materialization cycled after this lane (#6184).
 //
 // Do not read retractRepoDependencyEdgesCypher as this family's retract. It
 // names DEPENDS_ON alone and looks authoritative, but its only user,

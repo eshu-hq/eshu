@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
 	t.Parallel()
 
+	claimedAt := time.Date(2026, time.September, 14, 12, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
 		db:            db,
@@ -28,6 +30,7 @@ func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
 			Domain:       reducer.DomainContainerImageIdentity,
 			AttemptCount: 7,
 			ClaimEpoch:   71,
+			ClaimedAt:    &claimedAt,
 		},
 		reducer.Result{},
 	); err != nil {
@@ -37,11 +40,14 @@ func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
 		t.Fatalf("Ack() exec count = %d, want %d", got, want)
 	}
 	assertContainerImageIdentityAttemptBoundAckQuery(t, db.execs[0].query)
-	if got, want := len(db.execs[0].args), 4; got != want {
+	if got, want := len(db.execs[0].args), 5; got != want {
 		t.Fatalf("target ACK arg count = %d, want %d", got, want)
 	}
 	if got, want := db.execs[0].args[3], int64(71); got != want {
 		t.Fatalf("target ACK claim epoch arg = %#v, want %#v", got, want)
+	}
+	if got, want := db.execs[0].args[4], claimedAt; got != want {
+		t.Fatalf("target ACK claimed_at arg = %#v, want %#v", got, want)
 	}
 }
 
@@ -74,6 +80,7 @@ func TestReducerQueueAckLeavesUnrelatedAndEmptyDomainsOnLegacyQuery(t *testing.T
 
 func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T) {
 	t.Parallel()
+	claimedAt := time.Date(2026, time.September, 14, 12, 0, 0, 0, time.UTC)
 
 	for _, test := range []struct {
 		name        string
@@ -141,7 +148,20 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			db := &fakeExecQueryer{}
+			for index := range test.intents {
+				test.intents[index].ClaimedAt = &claimedAt
+			}
+			target, cicd, unrelated, splitErr := splitReducerAckBatchIntents(test.intents)
+			if splitErr != nil {
+				t.Fatalf("split intents: %v", splitErr)
+			}
+			var results []sql.Result
+			for _, count := range []int{len(target), len(cicd), len(unrelated)} {
+				if count > 0 {
+					results = append(results, rowsAffectedResult{rowsAffected: int64(count)})
+				}
+			}
+			db := &fakeExecQueryer{execResults: results}
 			queue := ReducerQueue{
 				db:            db,
 				LeaseOwner:    "reducer-5854",
@@ -174,11 +194,11 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 						db.execs[0].query,
 					)
 				}
-				if got := len(db.execs[0].args); got < 4 || got%2 != 0 {
-					t.Fatalf("target batch ACK arg count = %d, want grouped pairs", got)
+				if got := len(db.execs[0].args); got < 5 || (got-2)%3 != 0 {
+					t.Fatalf("target batch ACK arg count = %d, want grouped claim triples", got)
 				}
 				gotPairs := make(map[string]int64, len(test.intents))
-				for argIndex := 2; argIndex < len(db.execs[0].args); argIndex += 2 {
+				for argIndex := 2; argIndex < len(db.execs[0].args); argIndex += 3 {
 					ids, ok := db.execs[0].args[argIndex].([]string)
 					if !ok {
 						t.Fatalf(
@@ -198,6 +218,9 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 					for _, id := range ids {
 						gotPairs[id] = epoch
 					}
+					if got, want := db.execs[0].args[argIndex+2], claimedAt; got != want {
+						t.Fatalf("target batch ACK claimed_at arg = %#v, want %#v", got, want)
+					}
 				}
 				for _, intent := range test.intents {
 					if intent.Domain != reducer.DomainContainerImageIdentity {
@@ -214,16 +237,18 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 				}
 				if test.wantMixed {
 					assertContainerImageIdentityLegacyAckQuery(t, db.execs[1].query)
-					if got, want := db.execs[1].args[2], "intent-5854-batch-mixed-unrelated"; got != want {
-						t.Fatalf("mixed unrelated ACK id = %#v, want %#v", got, want)
+					ids, ok := db.execs[1].args[2].([]string)
+					if !ok || len(ids) != 1 || ids[0] != "intent-5854-batch-mixed-unrelated" {
+						got := db.execs[1].args[2]
+						t.Fatalf("mixed unrelated ACK ids = %#v, want one expected id", got)
 					}
 				}
 				return
 			}
 			assertContainerImageIdentityLegacyAckQuery(t, db.execs[0].query)
-			if !strings.Contains(db.execs[0].query, "work_item_id IN (") {
+			if !strings.Contains(db.execs[0].query, "unnest($3::text[], $4::timestamptz[])") {
 				t.Fatalf(
-					"legacy batch ACK no longer uses exact expanded predicate:\n%s",
+					"generic batch ACK no longer binds exact claim pairs:\n%s",
 					db.execs[0].query,
 				)
 			}

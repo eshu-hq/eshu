@@ -740,13 +740,14 @@ repository ids, node ids, and statements stay out of metric labels.
   constraints is matched by type alone, never by nothing.
 - `MaterializedEdgeIdentityProperties` - the relationship properties, beyond a
   type's two endpoint nodes, that participate in its MERGE identity, keyed by
-  relationship type. Twelve of the fourteen families MERGE on endpoints alone
-  and declare an empty set; `codeowners_ownership_edges`
+  relationship type. Ten of the fourteen families MERGE on endpoints alone;
+  `codeowners_ownership_edges`
   (`DECLARES_CODEOWNER`: `pattern`, `source_path`) and `submodule_pin_edges`
   (`PINS_SUBMODULE`: `path`) fold a property into their MERGE key because two
   distinct source rows can otherwise collide onto the same (source, target)
-  relationship pattern. Fails closed on an unregistered family and returns a
-  defensive copy. `TestSingleTypeFamilyIdentityMatchesWriteCypher`
+  relationship pattern. `workload_dependency` declares `DEPENDS_ON.identity_key`;
+  `repo_dependency` declares `RUNS_ON.identity_key`. Concurrent writers converge.
+  Unknown families fail closed; reads return copies. The identity drift test
   (`materialized_edge_families_test.go`) holds each single-type family's real
   write-path Cypher const by reference and extracts its MERGE property map
   from it, so a declared identity can never drift from what the writer
@@ -1954,13 +1955,11 @@ callers are `materializededges.LoadExpectedEdges` and `cmd/ifa/assert_edges.go`'
 edge-type and endpoint-label registries above: no fact is emitted, no work
 item enqueued, no graph statement written or retracted by this lookup.
 `BenchmarkExpectedEdgeKey` (`go/internal/ifa/materializededges/materialized_edges_assert_test.go`)
-measures the one place this identity is consulted per-edge: an edge whose
-type declares no identity (twelve of the fourteen families) takes the
-byte-identical pre-identity `Key()` path (21.6 ns/op, 1 alloc); an edge whose
-type declares two identity properties (`codeowners_ownership_edges`,
-`submodule_pin_edges`) pays a bounded sort-and-build cost (107.0 ns/op, 3
-allocs) once per streamed graph edge in a CI gate run, not a request or
-write path.
+measures the one per-edge identity lookup: the eleven endpoint-only families
+take the pre-identity `Key()` path (21.6 ns/op, 1 alloc); its measured
+two-property case takes 107.0 ns/op and 3 allocations. The one-property
+`repo_dependency.RUNS_ON` and `submodule_pin_edges` cases are not separately
+measured; all run only in the CI gate, never a request or write path.
 
 No-Observability-Change: no span, metric, log, or status field is added,
 removed, or renamed by the identity registry or its `assertMaterializedEdges`

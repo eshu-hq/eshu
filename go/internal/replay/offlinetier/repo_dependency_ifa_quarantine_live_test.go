@@ -28,7 +28,10 @@ import (
 
 const repoDependencyQuarantineProofDSNEnv = "ESHU_REPO_DEPENDENCY_QUARANTINE_PROOF_DSN"
 
-var errRepoDependencyGraphResponseLost = errors.New("injected post-commit graph response loss")
+var (
+	errRepoDependencyGraphResponseLost = errors.New("injected post-commit graph response loss")
+	repoDependencyQuarantineDatabases  sync.Map
+)
 
 func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	if !repoDependencyConcurrencyProofEnabled(t) {
@@ -48,19 +51,17 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	artifactIDs := repoDependencyIfaArtifactIDs(t, rows)
 	acceptedGeneration := repoDependencyIfaAcceptedGeneration(rows)
 	acquireRepoDependencyIfaExclusiveBackend(ctx, t, exec, artifactIDs)
-
 	db, cleanupDB := openRepoDependencyQuarantineProofDB(ctx, t, dsn)
 	defer cleanupDB()
-	store := postgres.NewSharedIntentStore(postgres.SQLDB{DB: db})
-	gate := postgres.NewRepoDependencyAcceptanceUnitGate(postgres.SQLDB{DB: db})
-
+	database := postgres.SQLDB{DB: db}
+	store := postgres.NewSharedIntentStore(database)
+	gate := postgres.NewRepoDependencyAcceptanceUnitGate(database)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cleanupCancel()
 		cleanupRepoDependencyConcurrencyScope(cleanupCtx, t, exec, artifactIDs)
 		assertRepoDependencyIfaCleanup(cleanupCtx, t, exec, artifactIDs)
 	})
-
 	baseWriter := cypher.NewEdgeWriter(&cypher.RetryingExecutor{Inner: exec}, 0)
 	prepareRepoDependencyQuarantinePhase(ctx, t, db, store, exec, odu, artifactIDs, rows)
 	runRepoDependencyQuarantineUntil(ctx, t, store, gate, baseWriter, acceptedGeneration, "baseline", 1, func() bool {
@@ -68,13 +69,11 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	})
 	baseline := readRepoDependencyIfaSnapshot(ctx, t, exec, artifactIDs)
 	assertRepoDependencyIfaSnapshot(t, baseline, expectedEdges)
-
 	prepareRepoDependencyQuarantinePhase(ctx, t, db, store, exec, odu, artifactIDs, rows)
 	const faultAcceptanceUnit = "repository:source-05"
 	faultShard := repoDependencyQuarantineShard(faultAcceptanceUnit, 4)
 	overlapWriter := &repoDependencyOverlapWriter{inner: baseWriter, delay: 250 * time.Millisecond}
 	faultWriter := newRepoDependencyLostResponseWriter(overlapWriter, faultAcceptanceUnit)
-
 	runCtx, stopRun := context.WithCancel(ctx)
 	runDone := startRepoDependencyQuarantineRunner(
 		runCtx,
@@ -133,7 +132,6 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 		t.Fatalf("fault acceptance unit %q graph write was not committed before response loss", faultAcceptanceUnit)
 	}
 	pendingAfterFault := repoDependencyQuarantinePendingCount(ctx, t, db)
-
 	if _, err := db.ExecContext(ctx, `
 		UPDATE shared_projection_partition_leases
 		SET lease_expires_at = CURRENT_TIMESTAMP - INTERVAL '1 second'
@@ -166,12 +164,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	if len(missing) != 0 || len(extra) != 0 {
 		t.Fatalf("duplicate replay graph diff=%d/%d missing=%v extra=%v", len(missing), len(extra), missing, extra)
 	}
-	t.Logf(
-		"workers=4 fault_shard=%d max_concurrent_writes=%d pending_after_fault=%d final_diff=0/0 duplicate_diff=0/0",
-		faultShard,
-		overlapWriter.maxConcurrent(),
-		pendingAfterFault,
-	)
+	t.Logf("workers=4 fault_shard=%d max_concurrent_writes=%d pending_after_fault=%d final_diff=0/0 duplicate_diff=0/0", faultShard, overlapWriter.maxConcurrent(), pendingAfterFault)
 }
 
 type repoDependencyLostResponseWriter struct {
@@ -207,9 +200,7 @@ func (w *repoDependencyLostResponseWriter) WriteEdges(ctx context.Context, domai
 			return reducer.SharedProjectionWriteReport{}, errRepoDependencyGraphResponseLost
 		}
 	}
-	// Carry the inner report rather than a zero value: dropping it here would
-	// hide unroutable rows from the worker, which then completes the intent
-	// with nothing recorded — the exact loss #5984 exists to close.
+	// Preserve the inner report so unroutable rows are not silently completed (#5984).
 	return report, nil
 }
 
@@ -269,6 +260,9 @@ func openRepoDependencyQuarantineProofDB(ctx context.Context, t *testing.T, dsn 
 
 func prepareRepoDependencyQuarantinePhase(ctx context.Context, t *testing.T, db *sql.DB, store *postgres.SharedIntentStore, exec liveExecutor, odu ifa.Odu, artifactIDs []string, rows []reducer.SharedProjectionIntentRow) {
 	t.Helper()
+	repoDependencyQuarantineDatabases.Store(store, postgres.SQLDB{DB: db})
+	t.Cleanup(func() { repoDependencyQuarantineDatabases.Delete(store) })
+	seedRepoDependencyReplayCoordinates(ctx, t, db, rows)
 	if _, err := db.ExecContext(ctx, "TRUNCATE shared_projection_intents, shared_projection_partition_leases"); err != nil {
 		t.Fatalf("reset quarantine proof tables: %v", err)
 	}
@@ -302,12 +296,29 @@ func startRepoDependencyQuarantineRunner(
 	owner string,
 	workers int,
 ) <-chan error {
+	done := make(chan error, 1)
+	database, ok := repoDependencyQuarantineDatabases.Load(store)
+	if !ok {
+		dsn := os.Getenv(repoDependencyProcessDeathDSNEnv)
+		if dsn == "" {
+			done <- errors.New("repo-dependency workload replay database was not registered")
+			return done
+		}
+		db, err := sql.Open("pgx", dsn)
+		if err != nil {
+			done <- fmt.Errorf("open process-death workload replay database: %w", err)
+			return done
+		}
+		database = postgres.SQLDB{DB: db}
+	}
 	runner := reducer.RepoDependencyProjectionRunner{
-		IntentReader:       store,
-		LeaseManager:       store,
-		AcceptanceUnitGate: gate,
-		EdgeWriter:         writer,
-		AcceptedGen:        acceptedGeneration,
+		IntentReader:                    store,
+		LeaseManager:                    store,
+		AcceptanceUnitGate:              gate,
+		EdgeWriter:                      writer,
+		WorkloadMaterializationReplayer: postgres.NewReducerQueue(database.(postgres.ExecQueryer), owner+"-workload-replay", time.Minute),
+		WorkloadReadinessPrefetch:       repoDependencyIfaWorkloadReady,
+		AcceptedGen:                     acceptedGeneration,
 		Config: reducer.RepoDependencyProjectionRunnerConfig{
 			LeaseOwner:            owner,
 			PollInterval:          time.Second,
@@ -318,7 +329,6 @@ func startRepoDependencyQuarantineRunner(
 			Workers:               workers,
 		},
 	}
-	done := make(chan error, 1)
 	go func() {
 		done <- runner.Run(ctx)
 	}()

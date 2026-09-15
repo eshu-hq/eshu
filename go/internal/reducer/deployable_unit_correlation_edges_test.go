@@ -302,3 +302,29 @@ func TestDeployableUnitCorrelationHandleRetractsWithoutWritingDroppedCandidate(t
 		t.Fatalf("write calls = %d, want 0", len(writer.writeCalls))
 	}
 }
+
+func TestDeployableUnitRetractRowsStayWithinIntentRepository(t *testing.T) {
+	t.Parallel()
+
+	envelopes := append(
+		deployableUnitCorrelationEnvelopes("repo-app", "app", nil),
+		deployableUnitCorrelationEnvelopes("repo-deploy", "deploy", nil)...,
+	)
+	intent := deployableUnitIntent("repo:repo-deploy")
+	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
+	if err != nil {
+		t.Fatalf("deployableUnitCorrelationEntityKeys() error = %v", err)
+	}
+	rows := deployableUnitRetractRowsFromFacts(
+		intent,
+		envelopes,
+		entityKeys,
+	)
+
+	if len(rows) != 1 {
+		t.Fatalf("retract rows = %d, want 1 for the intent-owned repository", len(rows))
+	}
+	if got, want := rows[0].RepositoryID, "repo-deploy"; got != want {
+		t.Fatalf("RepositoryID = %q, want %q", got, want)
+	}
+}

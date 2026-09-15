@@ -7,6 +7,6 @@
 IFA_FAMILY_PIN_BLOCKER_KIND="table_lock:fact_records"
 IFA_FAMILY_PIN_WAIT_STAGE="handler"
 IFA_FAMILY_PIN_WAIT_KEY="workload_materialization"
-IFA_FAMILY_PIN_ANCHOR="MERGE (source)-[rel:DEPENDS_ON]->(target)"
+IFA_FAMILY_PIN_ANCHOR="MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)"
 IFA_FAMILY_PIN_SHARED_CELL=0
 IFA_FAMILY_PIN_CELL_KIND="custom"

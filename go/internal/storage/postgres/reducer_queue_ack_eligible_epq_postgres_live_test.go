@@ -26,7 +26,7 @@ func TestReducerContentionGateAckEligibleEPQLive(t *testing.T) {
 			seedContainerImageIdentityAckScope(t, ctx, db, scope)
 			seedContainerImageIdentityAckGeneration(t, ctx, db, scope, generation)
 			insertCrossScopeCompletionBaseConsumer(t, ctx, db, id, scope, generation, domain, now)
-			if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running',lease_owner=$1,claim_until=$2,container_image_identity_claim_epoch=1 WHERE work_item_id=$3`, owner, now.Add(time.Hour), id); err != nil {
+			if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running',lease_owner=$1,claim_until=$2,last_attempt_at=$3,container_image_identity_claim_epoch=1 WHERE work_item_id=$4`, owner, now.Add(time.Hour), now, id); err != nil {
 				t.Fatal(err)
 			}
 			var oldTID, newTID string
@@ -52,7 +52,7 @@ func TestReducerContentionGateAckEligibleEPQLive(t *testing.T) {
 			if err := worker.Conn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&workerPID); err != nil {
 				t.Fatal(err)
 			}
-			query, args := eligibleEPQAckQuery(now, owner, reducer.Intent{IntentID: id, Domain: domain, ClaimEpoch: 1})
+			query, args := eligibleEPQAckQuery(now, owner, reducer.Intent{IntentID: id, Domain: domain, ClaimEpoch: 1, ClaimedAt: &now})
 			type outcome struct {
 				result sql.Result
 				err    error
@@ -103,6 +103,6 @@ func eligibleEPQAckQuery(now time.Time, owner string, intent reducer.Intent) (st
 		// item. Exercise SQL deduplication together with the real heartbeat race.
 		return ackCICDRunCorrelationReducerWorkBatchQuery(now, owner, []reducer.Intent{intent, intent})
 	default:
-		return ackReducerWorkBatchQuery(1), []any{now, owner, intent.IntentID}
+		return ackReducerWorkBatchQuery(), []any{now, owner, []string{intent.IntentID}, []time.Time{claimedAtValue(intent)}}
 	}
 }

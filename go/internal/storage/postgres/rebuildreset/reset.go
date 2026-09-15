@@ -93,9 +93,61 @@ WHERE completed_at IS NOT NULL
 // phase rows that survived the graph wipe. The re-projection republishes each
 // phase as it commits, so the gates hold work until its inputs genuinely exist
 // rather than waving it through on an answer about a graph that is gone.
+//
+// The cross_repo_evidence keyspace is deliberately spared. Those rows attest
+// Postgres evidence-fact completeness, which a graph-only rebuild preserves:
+// wiping them strands the re-projection's cross-repo resolution in deferral,
+// because the ingestion backfill fan-in that publishes them never re-runs on a
+// projection-only rebuild (#6184). Graph-write phases describe the wiped graph
+// and must re-arm; evidence phases describe the preserved facts and must not.
 const clearReadinessPhaseStateTemplate = `
 DELETE FROM graph_projection_phase_state
 WHERE (scope_id, generation_id) IN (%s)
+  AND keyspace <> 'cross_repo_evidence'
+`
+
+// retireResolutionGenerationsTemplate supersedes the active relationship
+// generations for the refinalized pairs, pairing the phase re-arm above.
+// Without it the re-projection's by-repos resolved read keeps serving the
+// prior wave's rows as current: relationship_generations is the one truth
+// surface the phase wipe does not touch, so a retired-no-longer-active
+// generation is the only signal that tells downstream consumers their input
+// is being recomputed rather than complete (#6184). The re-projection's
+// resolution re-activates each generation (upsert) once it resolves from the
+// preserved facts, so retirement is a fence, not a loss.
+//
+// The NOT EXISTS clause is defense in depth for the in-flight reducer fence
+// (#6184 P1 review): retirement commits only when no reducer work item holds a
+// live lease on the refinalized pairs. The primary fence is the short
+// transaction-scoped fact_work_items table lock acquired after the bounded
+// drain; without it, a new claim can commit after this UPDATE takes its
+// snapshot but before the recovery transaction commits. A resolver that runs
+// through that window can re-activate the retired generation with stale rows
+// while its success ack dedupes the re-emitted intent.
+// The live-lease predicate mirrors the claim system: claim_until >
+// clock_timestamp() means
+// a worker is (or may still be) executing, while NULL or expired means the row
+// is reclaimable and whoever reclaims it resolves post-retirement, which is
+// the legitimate re-projection direction. clock_timestamp() advances inside
+// the transaction, matching the drain wait and allowing a crashed worker's
+// lease to expire while recovery polls.
+// The subquery re-unnests the caller's $1/$2 arrays, so the guard fences
+// exactly the set the outer IN retires, with no new bind arguments.
+const retireResolutionGenerationsTemplate = `
+UPDATE relationship_generations
+SET status = 'superseded'
+WHERE status = 'active'
+  AND (scope, generation_id) IN (%s)
+  AND NOT EXISTS (
+    SELECT 1
+    FROM fact_work_items AS w
+    WHERE w.stage = 'reducer'
+      AND w.status IN ('claimed', 'running')
+      AND w.claim_until > clock_timestamp()
+      AND (w.scope_id, w.generation_id) IN (
+        SELECT * FROM unnest($1::text[], $2::text[]) AS fenced(scope_id, generation_id)
+      )
+  )
 `
 
 // scopePredicate renders the scope filter for the one statement that still reads
@@ -168,9 +220,13 @@ type Counts struct {
 	// ReadinessPhasesCleared counts graph projection phase rows deleted so the
 	// readiness gates stop answering about a graph that was wiped.
 	ReadinessPhasesCleared int
+	// GenerationsRetired counts active relationship generations superseded so
+	// the re-projection never consumes the prior wave's resolved rows as
+	// current truth.
+	GenerationsRetired int
 }
 
-// Apply clears the three pieces of dedup state that would otherwise make a
+// ApplyPreRetirement clears the three pieces of dedup state that would otherwise make a
 // rebuild-from-facts stop at source-local structure. It runs inside the caller's
 // transaction so a refinalize either re-enqueues the projector work and reopens
 // its downstream state together, or does neither.
@@ -182,7 +238,7 @@ type Counts struct {
 //
 // All three statements touch terminal state only, so no live lease is taken away
 // and no claimed item can double-execute.
-func Apply(
+func ApplyPreRetirement(
 	ctx context.Context,
 	tx Execer,
 	generations Generations,
@@ -211,4 +267,24 @@ func Apply(
 	}
 
 	return counts, nil
+}
+
+// RetireResolutionGenerations supersedes active relationship generations after
+// the caller has acquired the reducer claim fence. Keeping this final write
+// separate minimizes the duration of the relation-wide EXCLUSIVE lock.
+func RetireResolutionGenerations(
+	ctx context.Context,
+	tx Execer,
+	generations Generations,
+) (int, error) {
+	query, args := buildResetQuery(retireResolutionGenerationsTemplate, generations)
+	result, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("refinalize rebuild reset: retire resolution generations: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("refinalize rebuild reset: retire resolution generations rows affected: %w", err)
+	}
+	return int(affected), nil
 }

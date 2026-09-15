@@ -932,6 +932,18 @@ func (r *recordingCypherExecutor) ExecuteCypher(_ context.Context, cypher string
 	return nil
 }
 
+func (r *recordingCypherExecutor) ExecuteCypherGroup(
+	ctx context.Context,
+	statements []CypherGroupStatement,
+) error {
+	for _, statement := range statements {
+		if err := r.ExecuteCypher(ctx, statement.Cypher, statement.Parameters); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func TestWorkloadMaterializationHandlerFactLoaderError(t *testing.T) {
 	t.Parallel()
 

@@ -1437,7 +1437,13 @@ type Instruments struct {
 	// Cross-repo resolution metrics
 	CrossRepoResolutionDuration metric.Float64Histogram
 	CrossRepoEvidenceLoaded     metric.Int64Counter
-	CrossRepoEdgesResolved      metric.Int64Counter
+	// CrossRepoEdgesResolved counts resolved edges routed for materialization.
+	// Label: relationship_type. Preserve this counter's established routed-edge
+	// semantics and label shape for existing dashboards.
+	CrossRepoEdgesResolved metric.Int64Counter
+	// CrossRepoEdgesDropped counts resolved edges withheld at the ownership
+	// partition. Labels: relationship_type and reason (foreign_owned).
+	CrossRepoEdgesDropped metric.Int64Counter
 	// CrossRepoActivationFenced counts generations whose publish (generation
 	// activation) was withheld because the durable graph-acceptance intents
 	// failed to commit, leaving the generation un-published so no stranded
@@ -4636,10 +4642,18 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.CrossRepoEdgesResolved, err = meter.Int64Counter(
 		"eshu_dp_cross_repo_edges_resolved_total",
-		metric.WithDescription("Total dependency edges resolved from cross-repo evidence"),
+		metric.WithDescription("Total cross-repo edges resolved and routed by relationship type"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CrossRepoEdgesResolved counter: %w", err)
+	}
+
+	inst.CrossRepoEdgesDropped, err = meter.Int64Counter(
+		"eshu_dp_cross_repo_edges_dropped_total",
+		metric.WithDescription("Total cross-repo edges withheld by ownership reason and relationship type"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CrossRepoEdgesDropped counter: %w", err)
 	}
 
 	inst.CrossRepoActivationFenced, err = meter.Int64Counter(
@@ -5693,6 +5707,13 @@ const (
 	// BootstrapPhaseRelationshipBackfill is the deferred relationship
 	// evidence backfill phase (BackfillAllRelationshipEvidence).
 	BootstrapPhaseRelationshipBackfill = "relationship_backfill"
+	// BootstrapPhaseRelationshipBackfillPostDrain is the covering deferred
+	// relationship backfill that re-runs after the source-local projector
+	// drains. Projector Ack activates each scope's new generation while the
+	// first backfill's snapshot may already have passed, so without this
+	// pass a generation activated mid-run keeps no backward-evidence phase
+	// for the rest of the run (#6184).
+	BootstrapPhaseRelationshipBackfillPostDrain = "relationship_backfill_post_drain"
 	// BootstrapPhaseIaCReachability is the IaC reachability materialization
 	// phase (MaterializeIaCReachability).
 	BootstrapPhaseIaCReachability = "iac_reachability"

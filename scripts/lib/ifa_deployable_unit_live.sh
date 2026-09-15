@@ -127,53 +127,6 @@ ifa_deployable_unit_live_drive() {
 	cat "${log_dir}/ifa-drive-deployable-unit.log"
 }
 
-# ifa_deployable_unit_live_drain_retry adapts ifa_deployable_unit_live_drain
-# to the drain_cmd calling convention ifa_deployable_unit_live_converge_edges
-# invokes ("$@" plus one appended pass-label argument, see that function's doc
-# comment): it turns the appended per-retry pass label into a UNIQUE drain
-# label ("post-${pass_label}") instead of the constant "post"
-# ifa_deployable_unit_live_run_standalone_cell used before this existed. Only
-# the standalone determinism-gate cell needs this -- the fault-injection
-# cells pass run_drain_gate, which polls an already-running projector/reducer
-# rather than starting fresh ones per retry, so it never truncates a log
-# (see this function's own header two functions below for the truncation this
-# fixes).
-ifa_deployable_unit_live_drain_retry() {
-	local bin_dir="$1" log_dir="$2" drain_timeout="$3" pass_label="$4"
-	ifa_deployable_unit_live_drain "post-${pass_label}" "${bin_dir}" "${log_dir}" "${drain_timeout}"
-}
-
-# ifa_deployable_unit_live_drain runs projector + reducer in the background
-# and polls the gate to the B-12 residual bound, exactly like every other
-# Ifá live cell's drain step. label distinguishes the primary drain (before
-# the maintenance pass) from the post-maintenance drain in the logs.
-#
-# label MUST be unique per invocation within a cell: ifa_det_start_bg opens
-# its log file with `>` (truncate), so calling this twice with the same label
-# -- e.g. the constant "post" on every convergence retry, the bug this
-# comment now documents -- overwrites reducer-deployable-unit-${label}.log /
-# projector-deployable-unit-${label}.log each time. On failure only the LAST
-# call's log survives; the pass where the family should have converged is
-# gone. ifa_deployable_unit_live_drain_retry above is how convergence retries
-# get a unique label instead of reusing this one.
-ifa_deployable_unit_live_drain() {
-	local label="$1" bin_dir="$2" log_dir="$3" drain_timeout="$4"
-	local projector_pid reducer_pid
-	printf '\n=== deployable_unit_edges (%s): drain projector + reducer ===\n' "${label}"
-	ifa_det_start_bg "${log_dir}" "projector-deployable-unit-${label}" projector_pid "${bin_dir}/eshu-projector"
-	ifa_det_start_bg "${log_dir}" "reducer-deployable-unit-${label}" reducer_pid "${bin_dir}/eshu-reducer"
-	if ! "${bin_dir}/eshu-golden-corpus-gate" \
-		-phase=drains \
-		-snapshot=testdata/golden/e2e-20repo-snapshot.json \
-		-drain-timeout="${drain_timeout}"; then
-		tail -30 "${log_dir}/reducer-deployable-unit-${label}.log" || true
-		tail -30 "${log_dir}/projector-deployable-unit-${label}.log" || true
-		echo "deployable_unit_edges (${label}): drain did not reach the snapshot's residual bound within ${drain_timeout}" >&2
-		return 1
-	fi
-	kill "${projector_pid}" "${reducer_pid}" >/dev/null 2>&1 || true
-}
-
 # ifa_deployable_unit_live_assert_empty_before_maintenance proves the
 # documented first-pass state explicitly: BEFORE any maintenance pass runs,
 # the live graph must carry ZERO CORRELATES_DEPLOYABLE_UNIT edges, because

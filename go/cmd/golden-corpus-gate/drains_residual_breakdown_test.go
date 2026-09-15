@@ -85,6 +85,28 @@ func TestResidualBreakdownHandlesEmpty(t *testing.T) {
 	}
 }
 
+// The #6184 fail-closed cross-repo deferrals must read as readiness waits,
+// not live work: without map entries the breakdown reports
+// readiness-deferred=0 for a queue entirely blocked on backward-evidence
+// publication, which cost real debugging time in the golden-corpus gate.
+func TestResidualBreakdownCountsCrossRepoDeferralsAsDeferred(t *testing.T) {
+	t.Parallel()
+
+	rows := []residualRow{
+		{Domain: "deployment_mapping", Status: "retrying", FailureClass: "cross_repo_backward_evidence_not_ready", Count: 2},
+		{Domain: "deployable_unit_correlation", Status: "retrying", FailureClass: "deployable_unit_correlation_resolution_not_ready", Count: 2},
+		{Domain: "workload_materialization", Status: "retrying", FailureClass: "workload_materialization_resolution_not_ready", Count: 4},
+	}
+	got := formatResidualBreakdown(rows)
+
+	if !strings.Contains(got, "readiness-deferred=8") {
+		t.Errorf("breakdown does not total cross-repo deferrals: %s", got)
+	}
+	if !strings.Contains(got, "no live work remained") {
+		t.Errorf("breakdown does not flag the all-deferred case: %s", got)
+	}
+}
+
 // A dead-lettered row is neither live nor deferred; it is a terminal failure
 // sitting in the residual. Counting it as live would hide it.
 func TestResidualBreakdownCountsDeadLetterSeparately(t *testing.T) {

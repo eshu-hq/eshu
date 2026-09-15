@@ -134,7 +134,7 @@ type refinalizeRequest struct {
 }
 
 // refinalizeResponse reports the re-enqueue plus the dedup state the refinalize
-// cleared for those scopes. The three reset counts matter here as much as on the
+// cleared for those scopes. The four reset counts matter here as much as on the
 // disaster-recovery route: re-projecting a wedged scope without re-driving its
 // reducer domains rebuilds only the source-local half of what that scope owns.
 type refinalizeResponse struct {
@@ -144,6 +144,7 @@ type refinalizeResponse struct {
 	ReducerWorkDeleted     int      `json:"reducer_work_deleted"`
 	SharedIntentsReopened  int      `json:"shared_intents_reopened"`
 	ReadinessPhasesCleared int      `json:"readiness_phases_cleared"`
+	GenerationsRetired     int      `json:"generations_retired"`
 }
 
 // handleRefinalize re-enqueues projector work for the specified scopes.
@@ -177,6 +178,7 @@ func (h *RecoveryHandler) handleRefinalize(w http.ResponseWriter, r *http.Reques
 		ReducerWorkDeleted:     result.ReducerWorkDeleted,
 		SharedIntentsReopened:  result.SharedIntentsReopened,
 		ReadinessPhasesCleared: result.ReadinessPhasesCleared,
+		GenerationsRetired:     result.GenerationsRetired,
 	})
 }
 

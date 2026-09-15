@@ -85,7 +85,7 @@ go/internal/query/read-models.md	805
 go/internal/reducer/AGENTS.md	2407
 go/internal/reducer/evidence-notes.md	804
 go/internal/relationships/README.md	532
-go/internal/storage/cypher/README.md	2124
+go/internal/storage/cypher/README.md	2123
 go/internal/storage/postgres/AGENTS.md	1172
 go/internal/storage/postgres/README.md	3766
 go/internal/storage/postgres/evidence-notes.md	1032
@@ -116,7 +116,7 @@ docs/internal/evidence/5847-container-image-identity-retire.md	926
 docs/internal/evidence/5998-rationale-retract-probe-guard.md	681
 docs/internal/evidence/publish-safety-screen-shape-coverage.md	974
 docs/public/contributing-language-support.md	503
-docs/public/observability/telemetry-coverage.md	1142
+docs/public/observability/telemetry-coverage.md	1109
 docs/public/operate/hosted-governance.md	672
 docs/public/reference/cypher-performance.md	1821
 docs/public/reference/environment-collectors.md	577

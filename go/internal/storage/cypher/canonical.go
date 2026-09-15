@@ -79,7 +79,7 @@ SET p.type = 'platform',
     p.environment = $environment,
     p.region = $platform_region,
     p.locator = $platform_locator
-MERGE (i)-[rel:RUNS_ON]->(p)
+MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)
 SET rel.confidence = 1.0,
     rel.reason = 'Workload instance runs on inferred platform',
     rel.evidence_source = $evidence_source`
@@ -113,7 +113,7 @@ SET rel.confidence = $confidence,
 
 const canonicalWorkloadDependencyUpsertCypher = `MATCH (source:Workload {id: $workload_id})
 MATCH (target:Workload {id: $target_workload_id})
-MERGE (source)-[rel:DEPENDS_ON]->(target)
+MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)
 SET rel.confidence = 0.9,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = $evidence_source`
@@ -173,7 +173,7 @@ SET rel.confidence = row.confidence,
 const batchCanonicalWorkloadDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Workload {id: row.workload_id})
 MATCH (target:Workload {id: row.target_workload_id})
-MERGE (source)-[rel:DEPENDS_ON]->(target)
+MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)
 SET rel.confidence = 0.9,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = row.evidence_source`

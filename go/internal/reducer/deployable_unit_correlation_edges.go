@@ -14,8 +14,118 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
+
+// DeployableUnitCorrelationResolutionNotReadyFailureClass classifies a
+// deferral of deployable-unit correlation work whose own relationship
+// generation has not activated yet.
+//
+// The storage queue registers this as a non-counting retry class because the
+// intent is waiting on an upstream phase, not failing on its own merits.
+const DeployableUnitCorrelationResolutionNotReadyFailureClass = "deployable_unit_correlation_resolution_not_ready"
+
+// DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass classifies a
+// deferral while a code repository can still be detached and re-projected.
+const DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass = "deployable_unit_correlation_canonical_nodes_not_ready"
+
+// deployableUnitCorrelationResolutionNotReadyError defers an intent until its
+// own relationship generation activates.
+type deployableUnitCorrelationResolutionNotReadyError struct {
+	scopeID      string
+	generationID string
+}
+
+func (e deployableUnitCorrelationResolutionNotReadyError) Error() string {
+	return fmt.Sprintf(
+		"cross-repo resolution not active for scope %s generation %s; deferring deployable unit correlation rather than evaluating against a partial resolved set",
+		e.scopeID,
+		e.generationID,
+	)
+}
+
+func (deployableUnitCorrelationResolutionNotReadyError) Retryable() bool { return true }
+
+func (deployableUnitCorrelationResolutionNotReadyError) FailureClass() string {
+	return DeployableUnitCorrelationResolutionNotReadyFailureClass
+}
+
+// deployableUnitCorrelationCanonicalNodesNotReadyError holds an edge-producing
+// intent until repository projection has committed for every active code repo.
+type deployableUnitCorrelationCanonicalNodesNotReadyError struct {
+	scopeID      string
+	generationID string
+}
+
+func (e deployableUnitCorrelationCanonicalNodesNotReadyError) Error() string {
+	return fmt.Sprintf(
+		"canonical repository projection is not quiescent for scope %s generation %s; deferring deployable unit correlation before graph writes",
+		e.scopeID,
+		e.generationID,
+	)
+}
+
+func (deployableUnitCorrelationCanonicalNodesNotReadyError) Retryable() bool { return true }
+
+func (deployableUnitCorrelationCanonicalNodesNotReadyError) FailureClass() string {
+	return DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass
+}
+
+// deployableUnitCanonicalReposReady holds edge-producing work until no active
+// code repository can run canonical Repository cleanup after the edge write.
+func deployableUnitCanonicalReposReady(
+	ctx context.Context,
+	checker CanonicalCodeQuiescenceChecker,
+	intent Intent,
+	hasCandidates bool,
+) error {
+	if checker == nil || !hasCandidates {
+		return nil
+	}
+	uncommitted, err := checker.HasUncommittedCanonicalCodeScopes(ctx)
+	if err != nil {
+		return fmt.Errorf("check canonical repository quiescence: %w", err)
+	}
+	if !uncommitted {
+		return nil
+	}
+	return deployableUnitCorrelationCanonicalNodesNotReadyError{
+		scopeID:      intent.ScopeID,
+		generationID: intent.GenerationID,
+	}
+}
+
+// resolutionGenerationReady reports whether the relationship generation has
+// activated. Lookup errors fail closed; nil preserves isolated test wiring.
+func resolutionGenerationReady(
+	lookup maintenance.RelationshipGenerationActiveLookup,
+	generationID string,
+) bool {
+	if lookup == nil {
+		return true
+	}
+	active, err := lookup(generationID)
+	return err == nil && active
+}
+
+// ownResolutionGenerationReady requires the intent's own relationship
+// generation before a resolved-relationship read. An inactive own generation
+// means both feeds of that read are partial, and a success on that partial
+// input is never reopened (#6184), so the intent defers instead. Foreign
+// scopes are not knowable until that read, so gating on them would be
+// circular. Empty candidate sets are vacuous and do not wait on work they do
+// not consume.
+func ownResolutionGenerationReady(
+	lookup maintenance.RelationshipGenerationActiveLookup,
+	intent Intent,
+	candidates []WorkloadCandidate,
+) bool {
+	if len(candidates) == 0 {
+		return true
+	}
+	return resolutionGenerationReady(lookup, intent.GenerationID)
+}
 
 const (
 	deployableUnitCorrelationEvidenceSource   = "reducer/deployable-unit-correlation"
@@ -166,7 +276,11 @@ func deployableUnitCorrelationRows(
 	return rows
 }
 
-func deployableUnitRetractRowsFromFacts(intent Intent, envelopes []facts.Envelope) []SharedProjectionIntentRow {
+func deployableUnitRetractRowsFromFacts(
+	intent Intent,
+	envelopes []facts.Envelope,
+	entityKeys map[string]struct{},
+) []SharedProjectionIntentRow {
 	var rows []SharedProjectionIntentRow
 	for _, envelope := range envelopes {
 		if envelope.FactKind != factKindRepository {
@@ -177,6 +291,9 @@ func deployableUnitRetractRowsFromFacts(intent Intent, envelopes []facts.Envelop
 			repoID = strings.TrimSpace(anyToString(envelope.Payload["repo_id"]))
 		}
 		if repoID == "" {
+			continue
+		}
+		if !deployableUnitIntentMatchesRepository(entityKeys, repoID, anyToString(envelope.Payload["name"])) {
 			continue
 		}
 		rows = append(rows, SharedProjectionIntentRow{
@@ -197,6 +314,22 @@ func deployableUnitRetractRowsFromFacts(intent Intent, envelopes []facts.Envelop
 		})
 	}
 	return rows
+}
+
+func deployableUnitIntentMatchesRepository(entityKeys map[string]struct{}, repoID, repoName string) bool {
+	for _, identity := range []string{repoID, repoName} {
+		identity = strings.ToLower(strings.TrimSpace(identity))
+		if identity == "" {
+			continue
+		}
+		if _, ok := entityKeys[identity]; ok {
+			return true
+		}
+		if _, ok := entityKeys[normalizedEntityKey(identity)]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func deployableUnitCorrelationRow(

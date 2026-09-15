@@ -48,9 +48,8 @@ var propertyKeyedMergeTypePattern = regexp.MustCompile(`-\[\s*(?:[A-Za-z_][A-Za-
 // TestPropertyKeyedRelationshipMergesMatchKnownAllowList closes a gap
 // TestSingleTypeFamilyIdentityMatchesWriteCypher cannot: that guard only
 // iterates singleTypeMaterializedEdgeFamilies, so it never looks at the four
-// multi-type families that declare an empty identity in
-// materializedEdgeIdentityByFamily (repo_dependency, code_calls,
-// sql_relationships, inheritance_edges) or at the five direct-materialization
+// multi-type families in materializedEdgeIdentityByFamily (repo_dependency,
+// code_calls, sql_relationships, inheritance_edges) or at the five direct-materialization
 // writers those families' registries never enumerate at all (DERIVED_FROM,
 // TAINT_FLOWS_TO, PUBLISHES x2, BUILT_FROM). Nothing would catch someone
 // folding a property into CALLS, QUERIES_TABLE, INHERITS, or DEPENDS_ON —
@@ -59,10 +58,11 @@ var propertyKeyedMergeTypePattern = regexp.MustCompile(`-\[\s*(?:[A-Za-z_][A-Za-
 //
 // This test scans every non-test .go file directly in this package for a
 // relationship-MERGE property map (`-[var:TYPE {...}]`) and asserts the
-// total inventory, by relationship type, equals a fixed seven-occurrence
+// total inventory, by relationship type, equals a fixed nine-occurrence
 // allow-list: the two gated identities (DECLARES_CODEOWNER, PINS_SUBMODULE,
-// already proven by TestSingleTypeFamilyIdentityMatchesWriteCypher) plus the
-// five out-of-scope writers. It fails the moment an eighth occurrence
+// already proven by TestSingleTypeFamilyIdentityMatchesWriteCypher), two
+// shared RUNS_ON templates, plus the five out-of-scope writers. It fails the
+// moment a tenth or otherwise unexpected occurrence
 // appears anywhere in the package — whether that is a genuinely new
 // property-keyed type or an unexpected third occurrence of an
 // already-allow-listed one (PUBLISHES already has two legitimate templates,
@@ -91,6 +91,8 @@ func TestPropertyKeyedRelationshipMergesMatchKnownAllowList(t *testing.T) {
 		"DERIVED_FROM":       1, // derived_from_edge_writer.go -- outside the 14-family scope.
 		"PUBLISHES":          2, // provenance_edge_writer.go -- Package + PackageVersion targets.
 		"BUILT_FROM":         1, // provenance_edge_writer.go -- outside the 14-family scope.
+		"RUNS_ON":            2, // canonical.go + canonical_relationships.go -- shared deterministic identity.
+		"DEPENDS_ON":         2, // canonical.go -- workload dependency single-row and batched templates.
 	}
 
 	got := scanPropertyKeyedRelationshipMergeTypes(t)

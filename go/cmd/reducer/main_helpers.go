@@ -334,6 +334,7 @@ func newRepoDependencyProjectionRunner(
 	workQueue postgres.ReducerQueue,
 	relationshipGenerationActive maintenance.RelationshipGenerationActiveLookup,
 	acceptedGenerationPrefetch reducer.AcceptedGenerationPrefetch,
+	workloadReadinessPrefetch reducer.GraphProjectionReadinessPrefetch,
 	repoDependencyCfg reducer.RepoDependencyProjectionRunnerConfig,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -362,6 +363,7 @@ func newRepoDependencyProjectionRunner(
 		AcceptanceUnitGate:              postgres.NewRepoDependencyAcceptanceUnitGate(reducerBeginner(database)),
 		EdgeWriter:                      edgeWriter,
 		WorkloadMaterializationReplayer: workQueue,
+		WorkloadReadinessPrefetch:       workloadReadinessPrefetch,
 		// Gate repo-dependency graph-projection authority on the relationship
 		// generation being active (published). Acceptance rows are committed
 		// atomically with the projection intents, but the runner derives
@@ -377,9 +379,12 @@ func newRepoDependencyProjectionRunner(
 		AcceptedGenPrefetch: func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (reducer.AcceptedGenerationLookup, error) {
 			return gatedPrefetch(ctx, intents)
 		},
-		Config:      repoDependencyCfg,
-		Tracer:      tracer,
-		Instruments: instruments,
-		Logger:      logger,
+		// #6184: cross-repo artifact/edge loss happens on every
+		// backend/profile, so quiescence is wired unconditionally.
+		CanonicalQuiescence: postgres.NewReducerGraphDrain(database),
+		Config:              repoDependencyCfg,
+		Tracer:              tracer,
+		Instruments:         instruments,
+		Logger:              logger,
 	}
 }

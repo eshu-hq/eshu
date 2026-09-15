@@ -71,6 +71,35 @@ type fakeBatchWorkSink struct {
 	failedBy []string
 }
 
+func TestBatchServiceDoesNotMutateQueueAfterExecutionClaimRejected(t *testing.T) {
+	t.Parallel()
+
+	sink := &fakeBatchWorkSink{}
+	service := Service{
+		Executor: &stubReducerExecutor{executeErr: ErrExecutionClaimRejected},
+		WorkSink: sink,
+	}
+	result, needsAck, err := service.executeAndReport(context.Background(), Intent{
+		IntentID:     "stale-batch-intent",
+		ScopeID:      "stale-batch-scope",
+		GenerationID: "stale-batch-generation",
+		Domain:       DomainDeploymentMapping,
+		AvailableAt:  time.Now().UTC(),
+	}, 0)
+	if err != nil {
+		t.Fatalf("executeAndReport() error = %v, want nil", err)
+	}
+	if needsAck {
+		t.Fatal("executeAndReport() needsAck = true, want false")
+	}
+	if result.Status != "" {
+		t.Fatalf("executeAndReport() status = %q, want empty", result.Status)
+	}
+	if sink.acked != 0 || sink.failed != 0 {
+		t.Fatalf("queue mutations after rejected claim: ack=%d fail=%d, want zero", sink.acked, sink.failed)
+	}
+}
+
 func (f *fakeBatchWorkSink) Ack(_ context.Context, intent Intent, _ Result) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

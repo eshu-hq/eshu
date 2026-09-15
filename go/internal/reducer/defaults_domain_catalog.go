@@ -38,6 +38,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 					Assertions:        handlers.AssertionLoader,
 					Persister:         handlers.ResolutionPersister,
 					IntentWriter:      handlers.RepoDependencyIntentWriter,
+					ScopeRepos:        handlers.ScopeRepos,
 					ReadinessLookup:   handlers.ReadinessLookup,
 					ReadinessPrefetch: handlers.ReadinessPrefetch,
 					Tracer:            handlers.Tracer,

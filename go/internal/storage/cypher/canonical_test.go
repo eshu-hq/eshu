@@ -85,7 +85,7 @@ func TestBuildCanonicalRuntimePlatformUpsertStatement(t *testing.T) {
 	if !strings.Contains(stmt.Cypher, "MERGE (p:Platform {id: $platform_id})") {
 		t.Fatalf("Cypher missing Platform MERGE: %s", stmt.Cypher)
 	}
-	if !strings.Contains(stmt.Cypher, "MERGE (i)-[rel:RUNS_ON]->(p)") {
+	if !strings.Contains(stmt.Cypher, "MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)") {
 		t.Fatalf("Cypher missing RUNS_ON edge: %s", stmt.Cypher)
 	}
 	if stmt.Parameters["platform_id"] != "platform:eks:aws:my-cluster:production:us-east-1" {
@@ -181,7 +181,7 @@ func TestBuildCanonicalRunsOnUpsertStatementUsesWorkloadInstanceShape(t *testing
 	if !strings.Contains(stmt.Cypher, "WorkloadInstance") {
 		t.Fatalf("Cypher missing WorkloadInstance match: %s", stmt.Cypher)
 	}
-	if !strings.Contains(stmt.Cypher, "MERGE (i)-[rel:RUNS_ON]->(p)") {
+	if !strings.Contains(stmt.Cypher, "MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)") {
 		t.Fatalf("Cypher missing RUNS_ON edge: %s", stmt.Cypher)
 	}
 	if stmt.Parameters["platform_id"] != "platform:eks:aws:cluster-1:prod:us-east-1" {
@@ -257,7 +257,7 @@ func TestBuildCanonicalWorkloadDependencyUpsertStatement(t *testing.T) {
 	if stmt.Operation != OperationCanonicalUpsert {
 		t.Fatalf("Operation = %q, want %q", stmt.Operation, OperationCanonicalUpsert)
 	}
-	if !strings.Contains(stmt.Cypher, "MERGE (source)-[rel:DEPENDS_ON]->(target)") {
+	if !strings.Contains(stmt.Cypher, "MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)") {
 		t.Fatalf("Cypher missing workload DEPENDS_ON edge: %s", stmt.Cypher)
 	}
 	if stmt.Parameters["workload_id"] != "wl-a" {

@@ -139,19 +139,18 @@ func blockedResourceConflictPolicy(domain reducer.Domain) reducerResourceConflic
 //
 //	| Domain                      | Write target                              | MERGEs :Platform {id}? |
 //	|-----------------------------|-------------------------------------------|------------------------|
-//	| WorkloadMaterialization     | MERGE (p:Platform {id}) + Workload/Endpoint| YES (NO advisory lock) |
+//	| WorkloadMaterialization     | MERGE (p:Platform {id}) + Workload/Endpoint| YES (PlatformGraphLocker) |
 //	| DeploymentMapping           | MERGE (p:Platform {id}) + PROVISIONS_PLATFORM | YES (PlatformGraphLocker) |
 //	| WorkloadIdentity            | Postgres fact_records ON CONFLICT (fact_id)| no (idempotent upsert) |
 //	| CloudAssetResolution        | Postgres fact_records ON CONFLICT (fact_id)| no (idempotent upsert) |
 //	| DeployableUnitCorrelation   | MERGE (Repository)-[:CORRELATES_DEPLOYABLE_UNIT]->(Repository) | no |
 //
 // WorkloadMaterialization and DeploymentMapping BOTH run
-// MERGE (p:Platform {id: row.platform_id}) over the same platform_id namespace,
-// and WorkloadMaterialization does NOT hold the PlatformGraphLocker advisory
-// lock that DeploymentMapping uses. Running them concurrently for the same scope
-// would race two unprotected MERGEs on the same Platform node, producing
-// commit-time uniqueness conflicts / retries / eventual dead-letter. They MUST
-// stay serialized against each other (#3672 review P1).
+// MERGE (p:Platform {id: row.platform_id}) over the same platform_id namespace.
+// Both now hold the PlatformGraphLocker advisory lock for exact graph conflict
+// keys. The queue's shared scope key remains a conservative first fence for
+// these two domains, preserving the #3672 scheduling contract and avoiding a
+// same-scope handoff through graph-lock contention.
 //
 // Therefore the two Platform-node writers share ONE conflict key (the
 // platform-node-writer group token + scope) so the queue fence still serializes

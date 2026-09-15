@@ -20,9 +20,11 @@ no graph-to-Postgres reconciliation to perform and no split-brain to resolve,
 because one side was never a source of truth.
 
 **Read [What the rebuild does not restore](#what-the-rebuild-does-not-restore)
-before you rely on this.** The rebuild is measured and it is incomplete: code
-call and inheritance edges, ownership, and several correlation families do not
-come back on their own today.
+before you rely on this.** The measured rebuild restores the formerly missing
+code-call and deployable-unit edge families, but it does not yet reproduce a
+byte-identical graph. The remaining measured difference is in workload/platform
+and deployment-evidence materialization, not the owned code-call or
+deployable-unit lanes.
 
 **Deliberately not on the menu:** graph-backend replication and multi-region
 graph storage. Both are deferred until rebuild-from-facts is shown to miss a
@@ -138,10 +140,10 @@ Unset the variable afterwards. On a graph that survived, re-running
 `CREATE CONSTRAINT` costs minutes per constraint, which is the reason the marker
 skip exists.
 
-### 5. Start the services back up
+### 5. Start the API, but keep projection workers stopped
 
 ```bash
-docker compose up -d
+docker compose start eshu
 ```
 
 Wait for the API to answer:
@@ -149,6 +151,12 @@ Wait for the API to answer:
 ```bash
 curl -fsS "http://localhost:${ESHU_HTTP_PORT:-8080}/health"
 ```
+
+Do not start the ingester, projector, or resolution engine yet. The recovery
+transaction retires the active relationship generations before it re-enqueues
+them, and its safety fence refuses to race a reducer holding a live lease.
+Submitting the command while workers remain stopped makes that fence
+deterministic. Start the workers only after the command is accepted.
 
 ### 6. Rebuild
 
@@ -177,6 +185,18 @@ The response tells you how much work was queued:
  "scope_ids":["git-repository-scope:repository:r_9e291581", "..."]}
 ```
 
+Now release the queued work:
+
+```bash
+docker compose start ingester projector resolution-engine mcp-server
+```
+
+Start any optional graph-writing services enabled in your deployment at the
+same point. If the request is refused because reducer work still holds a live
+lease, leave the workers stopped, wait for that lease to expire, and retry with
+a fresh `idempotency_key`; the failed key remains recorded as in progress so a
+retry cannot re-drive the transaction ambiguously.
+
 `enqueued` is the number of active scopes queued, and `scope_ids` lists them
 (truncated above). Both come from a real run against the Compose fixture corpus,
 so expect a much larger number on a real deployment.
@@ -194,17 +214,20 @@ ESHU_API_KEY=$(docker compose exec -T eshu \
 ```
 
 A rebuild also reports the dedup state it cleared — `reducer_work_deleted`,
-`shared_intents_reopened`, and `readiness_phases_cleared`. After a wipe all three
-should be non-zero; three zeros mean the rebuild will restore source-local
-structure and nothing else. The response above was captured before those
-counters existed, which is why it does not show them; the fields are described in
+`shared_intents_reopened`, `readiness_phases_cleared`, and `generations_retired`
+(active relationship generations superseded so the re-projection never consumes
+the prior wave's resolved rows as current truth). After a wipe all four should
+be non-zero; four zeros mean the rebuild will restore source-local structure
+and nothing else. The response above was captured
+before those counters existed, which is why it does not show them; the fields
+are described in
 [Status and admin endpoints](../reference/http-api/status-admin.md).
 
 Pick a fresh `idempotency_key` per rebuild attempt. Reusing one from a *scoped*
 recovery is refused with a 409 rather than quietly replaying that recovery's
 much smaller outcome. Reusing the key from a rebuild that already finished
 returns that rebuild's `enqueued` and `scope_ids` with `duplicate: true`, but
-not the three counters — the ledger does not store them. If you lost the first
+not the four counters — the ledger does not store them. If you lost the first
 response, count the effect in Postgres instead: pending `projector` rows in
 `fact_work_items`, and `shared_projection_intents` with `completed_at IS NULL`.
 
@@ -232,22 +255,22 @@ projection finished; it does not say the answers are right.
 
 ## If the rebuild is interrupted
 
-Run step 6 again with a **new** `idempotency_key`. That is the whole recovery.
+Keep every projection worker stopped, then run step 6 again with a **new**
+`idempotency_key`. The recovery transaction waits up to five minutes for a
+hard-killed reducer's lease to expire, within the API's six-minute response
+window. Start the workers only after the request is accepted, then wait for the
+drain to finish. Each queued item gets an id derived from its scope and
+generation, so re-enqueueing the same generation updates the row that is already
+there instead of adding a second one. Work that was in flight when the process
+died returns to `pending`; work that never started is unaffected.
 
-Run step 6 again with a **new** `idempotency_key`, then wait for the drain to
-finish. Each queued item gets an id derived from its scope and generation, so
-re-enqueueing the same generation updates the row that is already there instead
-of adding a second one. Work that was in flight when the process died returns to
-`pending`; work that never started is unaffected.
-
-This has been measured, not assumed. On the Compose fixture corpus, killing the
-ingester, projector, and resolution-engine mid-rebuild left 62 work items in
-flight, 505 shared intents open, and a half-built graph of 522 nodes. After a
-restart and a re-issued command, both queues drained to terminal with zero
-dead-letter and zero failed rows, and the graph came back matching the
-uninterrupted rebuild on every label and edge type — plus one `CALLS` edge the
-uninterrupted run had missed, because those edges depend on nodes another domain
-materializes and a single pass can run them in the wrong order.
+This has been measured, not assumed. On the Compose fixture corpus, the workers
+were killed only after graph rows existed while queue work was still active.
+After the re-issued command was accepted and the workers restarted, both queues
+drained to terminal with zero dead-letter and zero failed rows. The clean and
+interrupted rebuilds each restored all 116 `CALLS` edges in one pass; the
+fleet-wide canonical-repository readiness gate now holds cross-repository edges
+until both endpoints can exist.
 
 Re-running is safe. A second pass adds what the first missed, and passes after
 that change nothing: across four measured rebuilds the `EvidenceArtifact` set
@@ -267,46 +290,47 @@ You do not need to wipe again before restarting. The graph is partially built,
 
 A rebuild used to stop at source-local structure: it brought back 2,431 of 2,504
 nodes and 2,905 of 3,289 relationships, with the whole call-graph, inheritance,
-ownership, and correlation layers missing. That is fixed. A rebuild now restores
-2,503 of 2,505 nodes and 3,286 of 3,288 relationships on the same corpus, and
-every one of the seventeen reducer domains re-runs.
+ownership, and correlation layers missing. That is fixed. In the latest clean
+run, the pre-wipe graph held 2,529 node identities and 3,308 relationship
+identities; the rebuild held 2,530 and 3,309. The identity differential was two
+missing and three additional nodes, plus four missing and five additional
+relationships. Every reducer domain re-ran, but that residual means this is not
+a byte-identical restoration claim.
 
 What is left is small, and it is worth knowing what each piece is.
 
-**One cross-repository `CALLS` edge can come back missing on a single pass.**
-A call from one repository into another needs both repositories' code nodes
-committed. The shared-projection readiness gate waits only on the calling
-repository, and the edge query matches nothing rather than waiting, so a pass
-that drains the edge before the other repository is rebuilt silently writes
-nothing. Measured: `CALLS` at 115 of 116, reproducible across three runs.
-Re-running the rebuild recovers it — see
-[If the rebuild is interrupted](#if-the-rebuild-is-interrupted), including the
-warning about what else repeated runs do.
+**Cross-repository `CALLS` waits for every active code repository.** A call from
+one repository into another needs both repositories' code nodes committed. The
+shared-projection lane now checks fleet-wide canonical-repository quiescence
+before writing, so a single clean or interrupted rebuild restores all 116 edges
+on the measured corpus. A repository that never publishes its canonical phase
+holds the lane visibly in readiness deferral instead of silently losing an
+edge. Investigate the missing phase and pending queue row; do not re-run a
+healthy rebuild merely to recover `CALLS`.
 
-**`HANDLES_ROUTE` and `RUNS_IN` are intermittent.** These connect code symbols to
-`:Endpoint` and `:Workload` nodes that a different domain materializes. Across
-four measured rebuilds they came back at 0, 2, 4, and 0 out of 4. Waiting for the
-shared edge backlog to drain is what makes a complete pass possible at all, but
-it does not guarantee one. Re-running the rebuild recovers them.
+**Deployable-unit edges wait for canonical graph quiescence.** `HANDLES_ROUTE`
+and `RUNS_IN` connect code symbols to `:Endpoint` and `:Workload` nodes that a
+different domain materializes. The deployable-unit lane now waits for the
+fleet-wide canonical phase before reading resolved relationships or writing
+edges. The clean and interrupted v1.3.2 runs each restored all four edges in
+both families; a missing prerequisite stays visibly deferred instead of being
+silently accepted as an empty match.
 
-**Same-named modules in different languages come back with the wrong language.**
-A `Module` graph node is keyed on its name alone, so one node named `time` serves
-Go and Python both, and its `lang` is whichever writer landed first. A rebuild
-re-runs the writers in a different order, so the language can flip. This is not
-caused by the rebuild — the same collision happens during ordinary indexing — but
-a rebuild is where you will notice it. If you compare module counts before and
-after, expect the totals to match while individual nodes disagree.
+**The remaining measured difference is outside the owned lanes above.** The
+latest clean run was missing one `WorkloadInstance`, its `Platform`, and four
+relationships, while adding two deployment `EvidenceArtifact` nodes, one
+`Environment`, and five relationships. The earlier interrupted run lost no
+identity and added three nodes plus nine relationships in workload-instance
+materialization. The code-call and deployable-unit counts stayed complete in
+both runs, while exact whole-graph identity parity remains unproved. Treat any
+workload/platform or deployment-evidence delta as a convergence issue to
+investigate, not as evidence that a missing code or deployable-unit lane is
+expected.
 
-**Some of the remaining difference is not the rebuild at all.** Indexing the same
-corpus twice does not produce byte-identical graphs. Three runs of this procedure
-recorded pre-wipe totals of 2,506/3,294, 2,504/3,289, and 2,505/3,288, differing
-in `EvidenceArtifact`, `Module`, and `Environment` — the same families that show
-up in a rebuild comparison. When you compare a rebuilt graph against counts you
-recorded earlier, expect a couple of nodes of noise from the indexer before you
-suspect the rebuild.
-
-The measurement, the per-label counts, and the domain-by-domain breakdown are in
-`docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
+The original baseline and the current measurement, including per-label and
+domain-by-domain breakdowns, are in
+`docs/internal/evidence/4594-graph-rebuild-from-facts.md` and
+`docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md`.
 
 ## How long it takes
 
