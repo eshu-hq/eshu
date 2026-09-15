@@ -45,7 +45,8 @@
   `go/internal/relationships/github_actions_evidence.go` (which reuses each
   function's exact pre-#5526 behavior verbatim) and
   `go/internal/query/content_relationships_github_actions.go` /
-  `go/internal/query/repository_workflow_artifacts.go` (which layer their own
+  `go/internal/query/repositoryartifacts/repository_workflow_artifacts.go`
+  (which layer their own
   quote-stripping and, for `ActionRepo`, ref-cleaning on top). Run the
   differential tests in
   `go/internal/relationships/github_actions_slug_detectors_test.go` and

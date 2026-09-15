@@ -9,7 +9,7 @@
 3. `go/cmd/eshu/local_host.go` — the hidden `local-host watch` /
    `local-host mcp-stdio` cobra wrapper. Shows how the two halves fit together.
 4. `go/cmd/eshu/graph.go` — the `eshu graph` and `eshu install` wrapper.
-5. `go/cmd/eshu/vuln_scan_local.go` — the largest external consumer, and the
+5. `go/cmd/eshu/vuln_scan.go` — the largest external consumer, and the
    reason roughly twenty names here are exported.
 6. `docs/public/deployment/service-runtimes.md` — what each supervised service
    is for.

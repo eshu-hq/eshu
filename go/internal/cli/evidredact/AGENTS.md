@@ -7,7 +7,7 @@
 2. `go/internal/cli/evidredact/doc.go` — the godoc contract.
 3. `go/internal/urlredact/AGENTS.md` — the shared boundary, the percent-escape
    depth rule, and the differential corpus. Every rule there binds this package.
-4. `go/cmd/eshu/first_run_evidence.go` — the consumer. It keeps thin wrappers
+4. `go/internal/cli/firstrun/evidence.go` — the consumer. It keeps thin wrappers
    (`redactEndpoint`, `scrubEvidenceText`) because the shared corpus is driven
    through `redactEndpoint` by that package's differential test. The other
    endpoint redaction site, `go/internal/cli/hosted/onboard.go`, calls
@@ -56,8 +56,8 @@
   `Set a matching token: export ESHU_API_KEY=<server token>` reached the
   artifact as `Set a matching [redacted]` — losing the variable name, against a
   placeholder that could never carry a secret. Both such strings were reworded
-  to name the variable in prose (`cmd/eshu/diagnostics_classify.go`,
-  `cmd/eshu/hosted_setup.go`) and each carries the reason inline.
+  to name the variable in prose (`internal/cli/firstrun/classify.go`,
+  `cmd/eshu/hosted.go`) and each carries the reason inline.
 
   When you add a recovery step, next command, or docs link: no `key=value` whose
   key holds `token`, `secret`, `password`, `credential`, `api_key` or
