@@ -3,7 +3,10 @@
 
 package reducer
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
 // These doubles serve the reducer-root tests that wire the deployment_mapping
 // handler through the default domain catalog (defaults, materialization
@@ -32,6 +35,7 @@ func (w *recordingPlatformMaterializationWriter) WritePlatformMaterialization(
 // replays the deployment_mapping handler requests after cross-repo resolution
 // writes canonical edges.
 type recordingWorkloadMaterializationReplayer struct {
+	mu     sync.Mutex
 	calls  []workloadMaterializationReplayCall
 	err    error
 	reject bool
@@ -55,6 +59,8 @@ func (r *recordingWorkloadMaterializationReplayer) ReplayWorkloadMaterialization
 	repoID string,
 	fence string,
 ) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.calls = append(r.calls, workloadMaterializationReplayCall{
 		scopeID:      scopeID,
 		generationID: generationID,
@@ -72,6 +78,8 @@ func (r *recordingWorkloadMaterializationReplayer) ReplayWorkloadMaterialization
 	generationID string,
 	entityKey string,
 ) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.calls = append(r.calls, workloadMaterializationReplayCall{
 		scopeID:      scopeID,
 		generationID: generationID,
