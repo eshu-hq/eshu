@@ -344,6 +344,11 @@ PostgreSQL tests prove concurrent first schedulers both report success, an old
 claim is dirtied by a new token, an equal-token poll does not dirty the current
 claim, and a newer token supersedes it without stealing the lease.
 
+The first final-head `Race Graph Writes` run exposed a test-only race in the
+shared workload-replay recorder used by the multi-worker proof. The exact test
+reproduced the race locally before the recorder gained a mutex, then passed ten
+consecutive executions under the race detector.
+
 ```bash
 go test ./internal/reducer ./internal/storage/postgres ./cmd/reducer \
   -run 'RepoDependency|ReplayWorkloadMaterialization|RunsOn|DefaultRuntime|Wiring' \
@@ -351,6 +356,9 @@ go test ./internal/reducer ./internal/storage/postgres ./cmd/reducer \
 go test -race ./internal/reducer \
   -run 'TestRepoDependencyProjectionRunner(DefersRunsOnUntilWorkloadReady|RejectsUnschedulableRunsOnReplay)$' \
   -count=1
+go test -race ./internal/reducer \
+  -run '^TestIfaRepoDependencyProofWorkersOverlapDistinctAcceptanceUnits$' \
+  -count=10
 ESHU_POSTGRES_DSN="$TEST_DSN" go test ./internal/storage/postgres \
   -run 'TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive|TestWorkload(ReplayConcurrentFirstScheduleReportsSuccess|FencedReplaySupersedesOnlyOlderInFlightToken)$' \
   -count=1
