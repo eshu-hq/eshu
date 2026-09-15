@@ -1,0 +1,67 @@
+docs/public/deploy/kubernetes/upgrades-rollbacks.md
+  s_20be138600ef1b::t_10167be3382b91 45,47-51,75-77
+go/internal/storage/cypher/canonical_test.go
+  s_20be138600ef1b::t_f9ca05fe8c3d9e 260
+scripts/lib/ifa_family_registry_pins/workload_dependency.sh
+  s_20be138600ef1b::t_1c831312516bd2 10
+go/internal/storage/cypher/materialized_edge_property_keyed_inventory_test.go
+  s_20be138600ef1b::t_f9ca05fe8c3d9e 95
+scripts/lib/ifa_family_registry/rows/08_workload_dependency.sh
+  s_20be138600ef1b::t_1c831312516bd2 11
+docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md
+  s_20be138600ef1b::t_81b181c7587613 444-445
+  s_20be138600ef1b::t_aae0fe60c4fae6 352-355,357-365,376-377
+  s_20be138600ef1b::t_615ffc5291c88a 356
+go/internal/storage/cypher/README.md
+  s_20be138600ef1b::t_cd941136991603 743
+  s_20be138600ef1b::t_10167be3382b91 748-750
+go/internal/ifa/materializededges/materialized_edges_workload_dependency_test.go
+  s_20be138600ef1b::t_8168be1eacd336 228-231,249-252,261,280-283,290-293,298
+go/internal/storage/cypher/materialized_edge_families_test.go
+  s_20be138600ef1b::t_f9ca05fe8c3d9e 477
+go/internal/storage/cypher/canonical.go
+  s_20be138600ef1b::t_f9ca05fe8c3d9e 116,176,181-186
+  s_20be138600ef1b::t_79d624b5507147 187
+go/internal/reducer/workload_materializer.go
+  s_20be138600ef1b::t_f9ca05fe8c3d9e 453
+go/internal/storage/cypher/edge_writer_test.go
+  s_20be138600ef1b::t_bd302e7416d734 99-100,102-111,113-114
+  s_20be138600ef1b::t_3f8a46ff18166b 81
+go/internal/ifa/materializededges/materialized_edges_workload_dependency.go
+  s_20be138600ef1b::t_1c831312516bd2 237
+go/internal/storage/cypher/canonical_relationships.go
+  s_20be138600ef1b::t_f9ca05fe8c3d9e 464-468,471-472,477-480
+  s_20be138600ef1b::t_b3d277d11d1cfc 481
+scripts/lib/ifa_fault_injection_workload_dependency_cells.sh
+  s_20be138600ef1b::t_1c831312516bd2 7
+scripts/lib/test-ifa-fault-injection-workload-dependency-cases.sh
+  s_20be138600ef1b::t_1c831312516bd2 193
+go/internal/ifa/testdata/workloaddependency/ifa-workload-dependency-family-expected-edges.json
+  s_20be138600ef1b::t_1c831312516bd2 3,8-11,16-19
+go/internal/storage/cypher/runs_on_writer_precedence_live_test.go
+  s_20be138600ef1b::t_5c234cf89b0ae5 27,91-95
+  s_20be138600ef1b::t_62aba6b6e450ff 60-65
+go/internal/reducer/workload_materializer_test.go
+  s_20be138600ef1b::t_f9ca05fe8c3d9e 562
+go/internal/storage/cypher/materialized_edge_families.go
+  s_20be138600ef1b::t_f34c154bffe276 56-59
+  s_20be138600ef1b::t_f9ca05fe8c3d9e 78-81,218
+go/internal/storage/cypher/dependency_live_test.go
+  s_20be138600ef1b::t_20a039de82b144 1-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e8508bf553cf41771c9943cdc3c24f8e3cab649e",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
