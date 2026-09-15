@@ -14,17 +14,19 @@ import (
 )
 
 // refinalizeFakeDB returns a fake transaction-capable database primed with the
-// three result sets a refinalize reads: the materialized (scope_id,
-// generation_id) set, the drain poll's zero live-lease count, then the scope
-// ids the projector re-enqueue returns. The fake exec result reports one row
+// four result sets a refinalize reads: the materialized (scope_id,
+// generation_id) set, the drain poll's zero live-lease count, the post-lock
+// zero live-lease count, then the scope ids the projector re-enqueue returns.
+// The fake exec result reports one row
 // affected, so the retirement count is nonzero and the post-Apply fence check
 // short-circuits without a fourth read, exactly as production does when the
-// atomic guard did not trip.
+// retirement guard did not trip.
 func refinalizeFakeDB(pairs [][]any, enqueued [][]any) *fakeBeginnerExecQueryer {
 	return &fakeBeginnerExecQueryer{
 		fakeExecQueryer: fakeExecQueryer{
 			queryResponses: []queueFakeRows{
 				{rows: pairs},
+				{rows: [][]any{{0}}},
 				{rows: [][]any{{0}}},
 				{rows: enqueued},
 			},
@@ -57,8 +59,8 @@ func TestRecoveryStoreRefinalizeScopeProjectionsAllScopes(t *testing.T) {
 		t.Fatalf("result.Enqueued = %d, want %d", got, want)
 	}
 
-	if len(db.queries) != 3 {
-		t.Fatalf("query count = %d, want 3 (materialize the generations, drain poll, then enqueue)", len(db.queries))
+	if len(db.queries) != 4 {
+		t.Fatalf("query count = %d, want 4 (generation read, drain poll, post-lock recheck, enqueue)", len(db.queries))
 	}
 	selectQuery := db.queries[0].query
 	if strings.Contains(selectQuery, "scope.scope_id = ANY(") {
@@ -149,8 +151,8 @@ func TestRefinalizeReadsIngestionScopesExactlyOnce(t *testing.T) {
 }
 
 // refinalizeStatements returns every statement a refinalize issued, in order:
-// the queries first (generation read, drain poll, enqueue), then the four
-// reset execs.
+// the queries first (generation read, drain poll, post-lock recheck, enqueue),
+// then the claim-fence lock and four reset execs.
 func refinalizeStatements(db *fakeBeginnerExecQueryer) []string {
 	statements := make([]string, 0, len(db.queries)+len(db.execs))
 	for _, query := range db.queries {
@@ -162,7 +164,7 @@ func refinalizeStatements(db *fakeBeginnerExecQueryer) []string {
 	return statements
 }
 
-// assertRefinalizeBindsOneGenerationSet checks that the drain poll, the
+// assertRefinalizeBindsOneGenerationSet checks that both live-lease reads, the
 // projector re-enqueue, and all four rebuild-reset statements bind exactly the
 // generation set the first statement read.
 //
@@ -178,8 +180,8 @@ func assertRefinalizeBindsOneGenerationSet(
 ) {
 	t.Helper()
 
-	if len(db.queries) != 3 {
-		t.Fatalf("query count = %d, want 3 (generation read, drain poll, enqueue)", len(db.queries))
+	if len(db.queries) != 4 {
+		t.Fatalf("query count = %d, want 4 (generation read, drain poll, post-lock recheck, enqueue)", len(db.queries))
 	}
 	poll := db.queries[1]
 	if !strings.Contains(poll.query, "fact_work_items") || !strings.Contains(poll.query, "claim_until > clock_timestamp()") {
@@ -195,7 +197,13 @@ func assertRefinalizeBindsOneGenerationSet(
 	}
 	assertStringSliceArg(t, "drain poll scope ids", poll.args[0], wantScopeIDs)
 	assertStringSliceArg(t, "drain poll generation ids", poll.args[1], wantGenerationIDs)
-	enqueue := db.queries[2]
+	postLockRecheck := db.queries[2]
+	if postLockRecheck.query != poll.query {
+		t.Fatalf("post-lock live-lease recheck differs from the drain predicate:\n%s\n---\n%s", poll.query, postLockRecheck.query)
+	}
+	assertStringSliceArg(t, "post-lock recheck scope ids", postLockRecheck.args[0], wantScopeIDs)
+	assertStringSliceArg(t, "post-lock recheck generation ids", postLockRecheck.args[1], wantGenerationIDs)
+	enqueue := db.queries[3]
 	if strings.Contains(enqueue.query, "ingestion_scopes") {
 		t.Fatalf("the projector re-enqueue still reads ingestion_scopes instead of binding the "+
 			"generation set already read: %s", enqueue.query)
@@ -206,8 +214,14 @@ func assertRefinalizeBindsOneGenerationSet(
 	assertStringSliceArg(t, "projector re-enqueue scope ids", enqueue.args[1], wantScopeIDs)
 	assertStringSliceArg(t, "projector re-enqueue generation ids", enqueue.args[2], wantGenerationIDs)
 
-	if len(db.execs) != 4 {
-		t.Fatalf("rebuild-reset statement count = %d, want 4", len(db.execs))
+	if len(db.execs) != 5 {
+		t.Fatalf("claim-fence plus rebuild-reset statement count = %d, want 5", len(db.execs))
+	}
+	if !strings.Contains(db.execs[0].query, "LOCK TABLE fact_work_items IN SHARE ROW EXCLUSIVE MODE") {
+		t.Fatalf("first post-drain exec is not the reducer claim fence: %s", db.execs[0].query)
+	}
+	if len(db.execs[0].args) != 0 {
+		t.Fatalf("claim-fence arg count = %d, want 0", len(db.execs[0].args))
 	}
 	wantTargets := []string{
 		"DELETE FROM fact_work_items",
@@ -216,15 +230,16 @@ func assertRefinalizeBindsOneGenerationSet(
 		"UPDATE relationship_generations",
 	}
 	for i, want := range wantTargets {
-		if !strings.Contains(db.execs[i].query, want) {
-			t.Fatalf("rebuild-reset statement %d does not target %q: %s", i, want, db.execs[i].query)
+		exec := db.execs[i+1]
+		if !strings.Contains(exec.query, want) {
+			t.Fatalf("rebuild-reset statement %d does not target %q: %s", i, want, exec.query)
 		}
-		if len(db.execs[i].args) != 2 {
+		if len(exec.args) != 2 {
 			t.Fatalf("rebuild-reset statement %d arg count = %d, want 2 (scope ids, generation ids)",
-				i, len(db.execs[i].args))
+				i, len(exec.args))
 		}
-		assertStringSliceArg(t, fmt.Sprintf("rebuild-reset statement %d scope ids", i), db.execs[i].args[0], wantScopeIDs)
-		assertStringSliceArg(t, fmt.Sprintf("rebuild-reset statement %d generation ids", i), db.execs[i].args[1], wantGenerationIDs)
+		assertStringSliceArg(t, fmt.Sprintf("rebuild-reset statement %d scope ids", i), exec.args[0], wantScopeIDs)
+		assertStringSliceArg(t, fmt.Sprintf("rebuild-reset statement %d generation ids", i), exec.args[1], wantGenerationIDs)
 	}
 }
 

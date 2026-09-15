@@ -271,7 +271,7 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	ownedResolved, droppedResolved := partitionResolvedOwnership(resolved, ownRepos, enforceOwnership)
 	ownEvidenceFacts := filterEvidenceFactsBySourceRepos(evidenceFacts, ownRepos, enforceOwnership)
 	if len(droppedResolved) > 0 {
-		h.recordCrossRepoEdgeOutcomes(ctx, droppedResolved, crossRepoEdgeOutcomeForeignOwnedDropped)
+		h.recordCrossRepoEdgesDropped(ctx, droppedResolved)
 		slog.InfoContext(
 			ctx, "cross-repo resolution dropped foreign-owned edges",
 			log.ScopeID(scopeID),
@@ -355,7 +355,6 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 				ctx, int64(count),
 				metric.WithAttributes(
 					attribute.String("relationship_type", relationshipType),
-					telemetry.AttrOutcome(crossRepoEdgeOutcomeOwnedRouted),
 				),
 			)
 		}

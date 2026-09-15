@@ -19,11 +19,10 @@ import (
 // missing (#6184 live-cell wedge in killworker_repo_dependency: six repo edges
 // present, RUNS_ON restamped to the workloads source).
 //
-// The stamp is therefore assigned only ON CREATE: the cross-repo write always
-// wins when the repo lane writes, while a lane-first workload edge keeps this
-// lane's stamp. Confidence and reason still refresh unconditionally, and the
-// template stays CASE-free per this lane's convention (pinned by
-// TestWorkloadMaterializerWritesRuntimePlatforms).
+// The workload path therefore uses two statements: one establishes the edge
+// identity, and a second MATCH updates the complete tuple only while that edge
+// is unstamped or workload-owned. Cross-repo's unconditional full-tuple writer
+// then wins in every possible order.
 //
 // The live fault-injection cell is the behavioral regression (it failed
 // pre-fix and must pass post-fix); this shape test pins the mechanism so a
@@ -31,27 +30,28 @@ import (
 func TestRuntimePlatformRunsOnUpsertPreservesForeignStamp(t *testing.T) {
 	t.Parallel()
 
-	template := batchRuntimePlatformRunsOnEdgeUpsertCypher
+	ensureTemplate := batchRuntimePlatformRunsOnEdgeUpsertCypher
 	for _, want := range []string{
 		"MERGE (i)-[rel:RUNS_ON]->(p)",
-		"ON CREATE SET",
-		"ON MATCH SET",
 	} {
-		if !strings.Contains(template, want) {
-			t.Errorf("RUNS_ON upsert template missing %q:\n%s", want, template)
+		if !strings.Contains(ensureTemplate, want) {
+			t.Errorf("RUNS_ON identity template missing %q:\n%s", want, ensureTemplate)
 		}
 	}
-	// New edges are still stamped by this lane.
-	head, tail, found := strings.Cut(template, "ON MATCH SET")
-	if !found {
-		t.Fatalf("RUNS_ON upsert template missing ON MATCH SET:\n%s", template)
+	if strings.Contains(ensureTemplate, "SET rel.") {
+		t.Errorf("RUNS_ON identity MERGE must not mutate shared properties:\n%s", ensureTemplate)
 	}
-	if !strings.Contains(head, "rel.evidence_source = row.evidence_source") {
-		t.Errorf("RUNS_ON upsert must stamp new edges on create:\n%s", head)
-	}
-	// Matched edges keep whatever stamp they carry: any evidence_source
-	// mention past ON MATCH reintroduces the overwrite race.
-	if strings.Contains(tail, "rel.evidence_source") {
-		t.Errorf("RUNS_ON upsert ON MATCH tail must not touch evidence_source:\n%s", tail)
+	ownedTemplate := batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher
+	for _, want := range []string{
+		"MATCH (i)-[rel:RUNS_ON]->(p)",
+		"WHERE rel.evidence_source IS NULL OR rel.evidence_source = row.evidence_source",
+		"rel.confidence = row.platform_confidence",
+		"rel.reason = 'Workload instance runs on inferred platform'",
+		"rel.evidence_source = row.evidence_source",
+		"rel.source_tool = null",
+	} {
+		if !strings.Contains(ownedTemplate, want) {
+			t.Errorf("RUNS_ON owned-property template missing %q:\n%s", want, ownedTemplate)
+		}
 	}
 }

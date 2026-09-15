@@ -42,11 +42,13 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   `Append`; `Args` hands it to a statement.
 - `Apply(ctx, tx, generations) (Counts, error)` — runs the four resets inside
   the caller's transaction, against the set it was given.
-- `ReadAffectedGenerations`, `EnqueueProjectorWork`, `WaitForReducerDrain`,
-  `AssertRetirementFenced` — the ordered coordination prelude the caller runs
-  in its transaction before `Apply`: read the set once, wait out in-flight
-  reducer leases (bounded), re-enqueue projector work, then confirm the
-  retirement actually committed. `InflightReducersError` is the abort signal.
+- `ReadAffectedGenerations`, `WaitForReducerDrain`,
+  `AcquireReducerClaimFence`, `EnqueueProjectorWork`, and
+  `AssertRetirementFenced` — the ordered coordination the caller runs in its
+  transaction around `Apply`: read the set once, wait out in-flight reducer
+  leases (bounded), freeze new queue mutations, re-enqueue projector work, then
+  confirm the retirement actually committed. `InflightReducersError` is the
+  abort signal.
   `Queryer`/`Rows` are narrow local interfaces so this package never imports
   its caller.
 - `Counts` — how many rows each reset touched, surfaced to the operator in the
@@ -60,17 +62,20 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   and running rows hold live leases a rebuild must not yank; `dead_letter` and
   `failed` belong to the replay endpoint and contributed nothing to the pre-wipe
   graph.
-- **Retire only over drained reducers.** The generation retirement carries an
-  atomic live-lease guard: it commits only when no reducer row holds a live
-  lease (`claimed`/`running` with `claim_until > now()`) on the refinalized
+- **Retire only over drained reducers.** After the lock-free drain, recovery
+  briefly holds `SHARE ROW EXCLUSIVE` on `fact_work_items`, immediately
+  rechecks live leases, and keeps that transaction-scoped lock through commit.
+  Queue INSERT/UPDATE/DELETE operations therefore cannot claim into the
+  retirement window. The generation retirement also carries a live-lease
+  guard: it changes rows only when no reducer row holds a live lease
+  (`claimed`/`running` with `claim_until > now()`) on the refinalized
   pairs. A resolver that claimed before the refinalize would otherwise get its
   generation retired mid-flight, then re-activate it with stale rows while its
-  success ack dedupes the re-emitted intent (Codex #6184 P1). The caller waits
-  out the drain first and aborts past its bound; the guard closes the
-  poll-to-commit window in the same statement. Expired leases are reclaimable,
-  not in-flight: whoever reclaims such a row resolves post-retirement, which is
-  the legitimate re-projection direction, so crashed workers never wedge
-  recovery.
+  success ack dedupes the re-emitted intent (#6184 P1 review). The caller waits
+  out the drain first and aborts past its bound; the table fence closes the
+  poll-to-commit window and the retirement predicate remains defense in depth.
+  Expired leases are reclaimable, not in-flight: the table fence delays their
+  next claim until after commit, so crashed workers never wedge recovery.
 - **Delete, do not reset to pending.** A pending row is claimable before the
   projector re-run that owns its inputs has committed anything, which is the same
   silent-incompleteness defect this package exists to fix. Reset-to-pending also
@@ -98,10 +103,12 @@ lands outside that refinalize — the operator rebuilds the generation that was
 active when the command ran. Locking `ingestion_scopes` instead would put an
 ingester behind a whole-deployment rebuild and buy no truth.
 
-Restoring projector→reducer causality does not buy reducer→reducer ordering. A
-cross-repository edge whose intent drains before the second repository's
-canonical nodes are committed is still missed on a single pass. See
-`docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
+Restoring projector→reducer causality does not buy every reducer→reducer
+ordering guarantee. The canonical-code quiescence gates now preserve the
+measured `CALLS`, `CORRELATES_DEPLOYABLE_UNIT`, `HANDLES_ROUTE`, and `RUNS_IN`
+lanes in a single pass, but workload-instance deployment materialization still
+has identity drift under clean and interrupted rebuilds. See
+`docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md`.
 
 ## Verification
 

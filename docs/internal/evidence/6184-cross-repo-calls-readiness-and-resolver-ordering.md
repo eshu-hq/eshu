@@ -135,6 +135,61 @@ Proof: `scripts/verify-golden-corpus-gate.sh` green with the fix —
 drain `fact_work_items_residual: residual=0`, zero
 `backward_evidence_not_committed` occurrences in the run log.
 
+## Defect 4 — recovery retirement has a post-drain claim race
+
+The reducer-drain poll and the retirement write originally had no common
+exclusion boundary. A worker could claim pending, retrying, or expired work
+after the final zero poll and then commit that claim before the retirement
+statement. The retirement guard would correctly abort, but a claim that began
+before retirement and committed after it could still run against a generation
+recovery had already retired.
+
+Fix: recovery now performs the long drain without a table lock, then takes a
+transaction-scoped `SHARE ROW EXCLUSIVE` lock on `fact_work_items` and
+immediately rechecks live leases before it enqueues or retires anything. The
+mode conflicts with the queue's `ROW EXCLUSIVE` mutations and with another
+recovery fence. It therefore closes the claim window and serializes concurrent
+refinalizes without holding a lock while waiting for an existing worker.
+The retirement `NOT EXISTS` predicate remains as defense in depth.
+
+The live PostgreSQL regression pauses recovery after generation retirement and
+uses the real `ClaimBatch` implementation on another connection. Before the
+fence, all four cases returned a claim before recovery committed. With the
+fence, pending, retrying, expired-claimed, and expired-running work each wait
+on an ungranted `RowExclusiveLock`, then resume after commit. A second live
+test starts two refinalizes together and proves they serialize without a
+deadlock.
+
+```bash
+ESHU_POSTGRES_DSN=postgresql://... go test ./internal/storage/postgres \
+  -run 'TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit|TestConcurrentRefinalizesSerializeWithoutDeadlock' \
+  -count=1 -v  # ok, 6.714s
+```
+
+## Defect 5 — shared RUNS_ON identity could carry mixed provenance
+
+Workload materialization and cross-repo resolution both write the same
+`(WorkloadInstance)-[:RUNS_ON]->(Platform)` identity. The workload writer
+preserved a foreign `evidence_source` on match but still overwrote `confidence`
+and `reason`, leaving a tuple that belonged to neither writer.
+
+The pinned NornicDB v1.3.2 behavior was measured before implementation. Reading
+the relationship's existing properties in the same statement that `MERGE`s it
+was not reliable, and `ON CREATE` did not persist the new relationship stamp.
+The viable shape is two auto-commit statements: first `MERGE` only the identity,
+then a bare `MATCH` with an ownership predicate that writes the complete
+workload tuple and clears `source_tool`. Cross-repo continues to write its
+complete tuple unconditionally, so it wins in every ordering.
+
+The live Bolt matrix exercises workload-only, cross-repo-only, workload then
+cross-repo, cross-repo then workload, workload/cross-repo/workload, and
+cross-repo/workload/cross-repo. All six read back one coherent tuple:
+
+```bash
+ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:... go test ./internal/storage/cypher \
+  -run TestBoltRunsOnWritersPreserveOneCoherentProvenanceTuple -count=1 -v  # ok
+```
+
 ## No-Regression Evidence:
 
 - Baseline: #4594 evidence — 341 s rebuild on the Compose fixture corpus
@@ -147,21 +202,23 @@ drain `fact_work_items_residual: residual=0`, zero
   edges. The identity differential was 29 missing / 12 extra. The next main
   commit, `62ce6e9fb`, changes tag-history query wiring only and does not touch
   projection or recovery behavior.
-- Candidate live run: `scripts/verify-graph-rebuild-from-facts.sh` used 6,369
-  facts across 67 active scopes. The pre-wipe graph was 2,532 nodes / 3,313
-  edges. The clean rebuild took 89 seconds (1m29s), drained both durable queues
-  to terminal-zero, and produced 2,529 / 3,302. It kept `CALLS=116`,
-  `CORRELATES_DEPLOYABLE_UNIT=8`, `HANDLES_ROUTE=4`, and `RUNS_IN=4`. Its
-  remaining differential was three missing nodes and eleven missing edges,
-  limited to `EXTENDS_BASE` and workload-instance deployment materialization.
+- Final post-review live run: `scripts/verify-graph-rebuild-from-facts.sh` used
+  6,369 facts across 67 active scopes. The pre-wipe identity snapshot held 2,529
+  nodes and 3,303 edges. The clean rebuild took 87 seconds (1m27s), drained both
+  durable queues to terminal-zero, and held 2,530 node identities and 3,308 edge
+  identities. It lost no identity; the differential was one additional workload
+  instance and its five workload-instance relationships. It kept `CALLS=116`,
+  `CORRELATES_DEPLOYABLE_UNIT=8`, `HANDLES_ROUTE=4`, and `RUNS_IN=4`.
 - The interrupted pass killed the ingester, projector, and resolution engine
-  only after graph rows existed with 989 items still active. The fresh-key
-  recovery request ran while workers remained stopped, waited approximately one
-  abandoned lease period, returned successfully, and only then restarted them.
-  Both queues again reached terminal-zero. The result was 2,532 nodes / 3,310
-  edges: node identities matched exactly and three edges were missing
-  (`EXTENDS_BASE` plus two workload-instance `DEPLOYMENT_SOURCE` edges). The
-  four owned lane counts again remained 116 / 8 / 4 / 4.
+  only after graph rows existed with 1,010 items still active. The fresh-key
+  recovery request ran while workers remained stopped, returned successfully,
+  and only then restarted them. Both queues again reached terminal-zero. The
+  result held 2,532 node identities and 3,312 edge identities. It lost no
+  identity; the differential was three additional nodes and nine additional
+  relationships, all in workload-instance materialization. The four owned lane
+  counts again remained 116 / 8 / 4 / 4. The overall gate remained red because
+  those sets differ from the older pre-wipe graph, so this increment does not
+  claim full #6184 closure.
 - This run also reproduced a NornicDB v1.3.2 scalar anomaly: after a rebuild,
   `MATCH (n) RETURN count(n)` and computed numeric projections could return no
   data even while label and identity scans returned more than 2,500 nodes. The
@@ -174,10 +231,14 @@ drain `fact_work_items_residual: residual=0`, zero
   curl 52 even though the handler could still be waiting safely. The API write
   timeout now derives from the five-minute drain bound plus a one-minute margin;
   the successful immediate-recovery result above is the runtime proof.
-- Unit-level cost: no hot-path Cypher, batch-size, or worker-count change. The
-  readiness gates add index-served `EXISTS` probes over scope-count row sets,
-  and the API change extends only the bounded response deadline; neither
-  serializes writers nor changes queue throughput.
+- Runtime cost: the readiness gates add index-served `EXISTS` probes over
+  scope-count row sets. The shared `RUNS_ON` workload batch adds one statement
+  for eight fixture rows. The claim fence runs only in the recovery critical
+  section after the queue has drained; it does not alter steady-state claim SQL,
+  batch sizes, or worker counts. The final 87-second clean run was six seconds
+  slower than the prior 81-second run on the same corpus and profile and far
+  below the 341-second historical baseline; this sample is no claim of a
+  speedup or a statistically significant regression.
 - Backend/version: `timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440`,
   Linux amd64 local.
 - Input shape: the gate's own fixture corpus (same corpus as the 341 s
@@ -190,10 +251,11 @@ drain `fact_work_items_residual: residual=0`, zero
 
 ## Observability Evidence:
 
-No brand-new instrument was required. The existing
-`eshu_dp_cross_repo_edges_resolved_total` counter now records bounded
-`owned_routed` and `foreign_owned_dropped` outcomes by `relationship_type`, so
-an ownership-partition change is distinguishable from graph-write loss. A
+The existing `eshu_dp_cross_repo_edges_resolved_total` counter retains its
+routed-edge-only meaning and `relationship_type` label shape. The new
+`eshu_dp_cross_repo_edges_dropped_total{reason="foreign_owned"}` counter records
+ownership-partition drops separately, so a partition change is distinguishable
+from graph-write loss without breaking established dashboards. A
 readiness stall remains visible through shared-intent queue depth/age and
 `BlockedReadiness`; `graph_projection_phase_state` gaps identify the blocked
 scope and generation. The API recovery request remains covered by its existing

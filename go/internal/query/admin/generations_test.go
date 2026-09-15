@@ -205,7 +205,7 @@ func TestAdminHandler_RecoverGenerations_RequiresReasonAndKey(t *testing.T) {
 
 // TestOpenAPIRecoverGenerationsResponsesMatchTheHandler holds the published
 // contract to what the endpoint actually sends. The two 200 bodies are not the
-// same shape: a recovery this call performed reports the three dedup counters,
+// same shape: a recovery this call performed reports the four dedup counters,
 // and an idempotent replay cannot, because the admin_replay_requests ledger does
 // not persist them.
 //

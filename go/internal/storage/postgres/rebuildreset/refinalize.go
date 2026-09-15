@@ -48,6 +48,22 @@ type Queryer interface {
 	QueryContext(context.Context, string, ...any) (Rows, error)
 }
 
+// ClaimFenceQueryer combines the read and write surface needed to acquire the
+// queue mutation fence and immediately recheck live reducer leases.
+type ClaimFenceQueryer interface {
+	Queryer
+	Execer
+}
+
+// refinalizeReducerClaimFenceQuery prevents any fact_work_items mutation from
+// beginning during the short post-drain recovery critical section. ClaimBatch
+// takes ROW EXCLUSIVE before its UPDATE, which conflicts with SHARE ROW
+// EXCLUSIVE; the self-exclusive mode also serializes concurrent recoveries so
+// they cannot deadlock while upgrading a weaker table lock for their own DML.
+const refinalizeReducerClaimFenceQuery = `
+LOCK TABLE fact_work_items IN SHARE ROW EXCLUSIVE MODE
+`
+
 // refinalizeScopeProjectionsQuery re-enqueues projector work by inserting one
 // pending work item per generation in the set the refinalize already
 // materialized. $1 is the timestamp; $2 and $3 are the index-aligned scope-id
@@ -120,7 +136,7 @@ RETURNING scope_id
 // resolves post-retirement. clock_timestamp() advances while this transaction
 // polls, so a crashed worker's lease can expire without another writer having
 // to clear the row. The retirement statement uses the same moving-clock
-// predicate in its atomic guard.
+// predicate in its defense-in-depth retirement guard.
 const refinalizeInflightReducersQuery = `
 SELECT COUNT(*)
 FROM fact_work_items AS w
@@ -152,7 +168,7 @@ LIMIT 1
 // InflightReducersError reports a refinalize aborted because reducer work
 // still held live leases on the generations it was about to retire. Retiring
 // under a running resolver lets it re-activate the retired generation with
-// stale rows while its success ack dedupes the re-emitted intent (Codex #6184
+// stale rows while its success ack dedupes the re-emitted intent (#6184
 // P1), so the abort rolls the whole refinalize back and the operator retries
 // after the in-flight work drains. Match it with errors.As; the message
 // carries the busiest scope and generation.
@@ -308,7 +324,34 @@ func WaitForReducerDrain(
 	}
 }
 
-// AssertRetirementFenced distinguishes a tripped atomic retirement guard from
+// AcquireReducerClaimFence closes the last-poll-to-commit claim window. It is
+// called only after the lock-free drain: holding this table lock while waiting
+// for a live worker would block that worker's acknowledgement. Once acquired,
+// the immediate live-lease recheck either aborts or establishes that no worker
+// claimed between the final poll and the lock. The lock is transaction-scoped,
+// so it then freezes pending, retrying, and expired work until recovery commits.
+func AcquireReducerClaimFence(
+	ctx context.Context,
+	q ClaimFenceQueryer,
+	generations Generations,
+) error {
+	if generations.Len() == 0 {
+		return nil
+	}
+	if _, err := q.ExecContext(ctx, refinalizeReducerClaimFenceQuery); err != nil {
+		return fmt.Errorf("refinalize reducer claim fence: %w", err)
+	}
+	inflight, err := countInflightReducers(ctx, q, generations)
+	if err != nil {
+		return fmt.Errorf("refinalize reducer claim fence recheck: %w", err)
+	}
+	if inflight == 0 {
+		return nil
+	}
+	return newInflightReducersError(ctx, q, generations, inflight, 0, 0)
+}
+
+// AssertRetirementFenced distinguishes a tripped retirement guard from
 // a genuine no-op. The retirement UPDATE in reset.go retires nothing when its
 // NOT EXISTS guard sees a live lease, so a zero retired count with live
 // leases outstanding means a claim committed between the drain wait and the
@@ -365,7 +408,7 @@ func newInflightReducersError(
 
 // countInflightReducers counts reducer rows holding live leases on the
 // refinalized pairs. It shares its predicate with the retirement statement's
-// atomic guard by construction: both filter stage, live-lease statuses,
+// retirement guard by construction: both filter stage, live-lease statuses,
 // claim_until against the wall clock, and the same generation arrays.
 func countInflightReducers(
 	ctx context.Context,

@@ -11,21 +11,16 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/relationships"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const (
-	crossRepoEdgeOutcomeOwnedRouted         = "owned_routed"
-	crossRepoEdgeOutcomeForeignOwnedDropped = "foreign_owned_dropped"
-)
+const crossRepoEdgeDropReasonForeignOwned = "foreign_owned"
 
-// recordCrossRepoEdgeOutcomes records bounded ownership outcomes by
-// relationship type so a broken single-writer attribution premise is visible
-// in metrics instead of only in logs.
-func (h *CrossRepoRelationshipHandler) recordCrossRepoEdgeOutcomes(
+// recordCrossRepoEdgesDropped records bounded ownership drops by relationship
+// type so a broken single-writer attribution premise is visible in metrics
+// without changing the established resolved-edge counter's meaning.
+func (h *CrossRepoRelationshipHandler) recordCrossRepoEdgesDropped(
 	ctx context.Context,
 	resolved []relationships.ResolvedRelationship,
-	outcome string,
 ) {
 	if h.Instruments == nil || len(resolved) == 0 {
 		return
@@ -41,12 +36,12 @@ func (h *CrossRepoRelationshipHandler) recordCrossRepoEdgeOutcomes(
 	}
 	sort.Strings(types)
 	for _, relationshipType := range types {
-		h.Instruments.CrossRepoEdgesResolved.Add(
+		h.Instruments.CrossRepoEdgesDropped.Add(
 			ctx,
 			counts[relationshipType],
 			metric.WithAttributes(
 				attribute.String("relationship_type", relationshipType),
-				telemetry.AttrOutcome(outcome),
+				attribute.String("reason", crossRepoEdgeDropReasonForeignOwned),
 			),
 		)
 	}

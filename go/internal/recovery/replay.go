@@ -217,7 +217,7 @@ func (f RefinalizeFilter) Validate() error {
 // RefinalizeResult captures the outcome of a refinalize operation.
 //
 // Enqueued and ScopeIDs describe the projector work a refinalize queued. The
-// three reset counters describe the downstream dedup state it cleared so that
+// four reset counters describe the downstream dedup state it cleared so that
 // projector work actually rebuilds the whole graph rather than only the
 // source-local part of it. They are reported because "the rebuild ran and the
 // graph is still short" is otherwise invisible: an operator watching a recovery

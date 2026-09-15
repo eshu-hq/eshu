@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuildreset"
 )
 
-// TestRefinalizeAbortsWhileReducersHoldLiveLeases is the Codex #6184 P1
+// TestRefinalizeAbortsWhileReducersHoldLiveLeases is the #6184 P1 review
 // failing-first proof: a refinalize that runs while a reducer work item holds
 // a live lease must abort instead of retiring the generation under the
 // running resolver. Without the fence the refinalize succeeds, the generation
@@ -174,7 +174,7 @@ func TestRefinalizeIgnoresExpiredReducerLeases(t *testing.T) {
 
 // TestAssertRetirementFencedDistinguishesGuardTripFromNoOp covers the
 // post-Apply distinguish deterministically, without timing: a zero retired
-// count with a live lease outstanding is the tripped atomic guard and must
+// count with a live lease outstanding is the tripped retirement guard and must
 // abort, while a zero count with no live lease is the convergent re-run and
 // must commit, as must any positive count.
 func TestAssertRetirementFencedDistinguishesGuardTripFromNoOp(t *testing.T) {

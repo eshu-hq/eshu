@@ -250,14 +250,14 @@ func TestResetSparesBackwardEvidencePhases(t *testing.T) {
 	}
 }
 
-// TestResetRetirementGuardsAgainstLiveReducerLeases is the Codex #6184 P1
-// hermetic pin for the atomic half of the in-flight reducer fence. Retirement
-// must commit only when no reducer row holds a live lease on the refinalized
-// pairs, in the same statement: a drain-wait poll alone leaves the
-// poll-to-commit window open for a claim landing between the last poll and the
-// UPDATE. Asserted against the shipped constant, not a copied literal, and the
-// arg reuse ($1/$2 re-unnested) is asserted too: a guard binding a different
-// set than the outer IN retires would fence the wrong generations.
+// TestResetRetirementGuardsAgainstLiveReducerLeases is the #6184 P1 review
+// hermetic pin for the defense-in-depth half of the in-flight reducer fence.
+// The transaction-scoped fact_work_items table lock closes the claim-to-commit
+// window; retirement must still change rows only when no reducer row holds a
+// live lease on the refinalized pairs. Asserted against the shipped constant,
+// not a copied literal, and the arg reuse ($1/$2 re-unnested) is asserted too:
+// a guard binding a different set than the outer IN retires would fence the
+// wrong generations.
 func TestResetRetirementGuardsAgainstLiveReducerLeases(t *testing.T) {
 	t.Parallel()
 

@@ -116,14 +116,14 @@ WHERE (scope_id, generation_id) IN (%s)
 // resolution re-activates each generation (upsert) once it resolves from the
 // preserved facts, so retirement is a fence, not a loss.
 //
-// The NOT EXISTS clause is the atomic half of the in-flight reducer fence
-// (Codex #6184 P1): retirement commits only when no reducer work item holds a
-// live lease on the refinalized pairs. A resolver that claimed before the
-// refinalize but resolves through it would otherwise get its generation
-// retired mid-flight, then re-activate it with stale rows while its success
-// ack dedupes the re-emitted intent. The polite half — a bounded drain wait —
-// lives in the caller's RefinalizeScopeProjections; this guard closes the
-// poll-to-commit window atomically, in the same statement as the retirement.
+// The NOT EXISTS clause is defense in depth for the in-flight reducer fence
+// (#6184 P1 review): retirement commits only when no reducer work item holds a
+// live lease on the refinalized pairs. The primary fence is the short
+// transaction-scoped fact_work_items table lock acquired after the bounded
+// drain; without it, a new claim can commit after this UPDATE takes its
+// snapshot but before the recovery transaction commits. A resolver that runs
+// through that window can re-activate the retired generation with stale rows
+// while its success ack dedupes the re-emitted intent.
 // The live-lease predicate mirrors the claim system: claim_until >
 // clock_timestamp() means
 // a worker is (or may still be) executing, while NULL or expired means the row

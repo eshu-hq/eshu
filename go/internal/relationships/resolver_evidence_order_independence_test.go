@@ -123,7 +123,7 @@ func TestAggregateCandidateRationaleAndRepoOrderIndependent(t *testing.T) {
 	}
 }
 
-// TestAggregateCandidateNaNConfidenceOrderIndependent closes the codex P2
+// TestAggregateCandidateNaNConfidenceOrderIndependent closes the P2 review
 // from the #6184 review: the raw-confidence tie-break compares unclamped
 // values with !=, which is always true for NaN, but NaN > x is always false,
 // so a NaN fact short-circuits to arrival order without consulting the

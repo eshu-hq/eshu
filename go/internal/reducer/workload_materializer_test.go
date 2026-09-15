@@ -281,10 +281,10 @@ func TestWorkloadMaterializerWritesRuntimePlatforms(t *testing.T) {
 	if containsCypher(executor.calls, "CASE") {
 		t.Fatal("runtime platform writes should precompute confidence in Go, not Cypher CASE")
 	}
-	if got := len(executor.calls); got != 2 {
-		t.Fatalf("executor calls = %d, want 2 split runtime platform statements", got)
+	if got := len(executor.calls); got != 3 {
+		t.Fatalf("executor calls = %d, want 3 split runtime platform statements", got)
 	}
-	rows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	rows := executor.calls[2].Parameters["rows"].([]map[string]any)
 	if got, want := rows[0]["platform_confidence"], 0.9; got != want {
 		t.Fatalf("platform_confidence = %#v, want %#v", got, want)
 	}
@@ -426,8 +426,8 @@ func TestWorkloadMaterializerFullPipeline(t *testing.T) {
 		t.Fatalf("RuntimePlatformsWritten = %d, want 1", result.RuntimePlatformsWritten)
 	}
 	// Split write phases keep node upserts separate from relationship writes.
-	if len(executor.calls) != 7 {
-		t.Fatalf("executor calls = %d, want 7", len(executor.calls))
+	if len(executor.calls) != 8 {
+		t.Fatalf("executor calls = %d, want 8", len(executor.calls))
 	}
 }
 
