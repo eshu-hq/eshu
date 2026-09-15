@@ -1,6 +1,6 @@
 ---
 name: resolve-review-threads
-description: Resolve GitHub PR review threads (Codex, Copilot, Claude, human) via the resolveReviewThread mutation once each finding is verified fixed at current HEAD; classify fixed/unchanged/ambiguous and report counts. Not the review verdict itself (eshu-code-review) and not reply-text authoring or driving an issue to merged (eshu-issue-driver).
+description: Resolves GitHub PR review threads (Codex, Copilot, Claude, human) via resolveReviewThread once each finding is verified fixed at current HEAD; classifies fixed/unchanged/ambiguous. Not reply authoring or the review verdict.
 ---
 
 # Resolve Review Threads
@@ -88,18 +88,17 @@ Stop and report if any prerequisite fails — do not guess.
 
 ## Operating rules
 
-- MUST NOT auto-resolve a thread not classified `fixed` from current-HEAD
-  evidence.
-- MUST treat outdated threads as still in scope.
-- MUST stop and report on a truncated thread list rather than classify a
-  partial set.
-- MUST NOT loop-retry a failed `resolveReviewThread` mutation — one attempt,
-  then report the thread ID and response body.
-- MUST NOT author reply text, and MUST NOT push commits or amend the working
-  tree, from this skill.
-- MUST NOT add AI attribution anywhere.
-- MUST keep the report under 40 lines for a typical PR; truncate comment
-  bodies to their first line plus an ellipsis.
+- Resolve only threads classified `fixed` from current-HEAD evidence; a
+  false-positive resolve is worse than an honest open thread.
+- Treat outdated threads as still in scope.
+- On a truncated thread list, stop and report rather than classify a partial
+  set.
+- Give a failed `resolveReviewThread` mutation one attempt; report the thread
+  ID and response body instead of retrying in a loop.
+- This skill only mutates GitHub thread state — no reply authoring, no
+  pushing or amending the working tree, no AI attribution.
+- Keep the report under 40 lines for a typical PR; truncate comment bodies to
+  their first line plus an ellipsis.
 
 ## Related skills
 

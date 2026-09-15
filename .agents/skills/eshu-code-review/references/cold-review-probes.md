@@ -4,6 +4,10 @@ Use this reference with `eshu-code-review` before writing the verdict. Apply
 only the surface-specific probes matching the diff; record the reason for
 excluded concerns together when they share one boundary.
 
+Contents: [Full-Picture Gate](#full-picture-gate),
+[Adversarial Probe Matrix](#adversarial-probe-matrix),
+[Output Template](#output-template).
+
 ## Full-Picture Gate
 
 Trace the changed flow before judging it:

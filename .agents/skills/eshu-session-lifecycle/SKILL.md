@@ -1,6 +1,6 @@
 ---
 name: eshu-session-lifecycle
-description: Resume or hand off Eshu work, monitor PRs, assess agent liveness, or clean up owned worktrees.
+description: Session mechanics for Eshu work — resume a branch/handoff, pause with a resume note, babysit an open PR through CI, judge agent/worktree liveness, or clean up worktrees.
 ---
 
 # Eshu Session Lifecycle
@@ -18,10 +18,13 @@ not a run you performed. Re-run affected checks when the evidence is absent,
 ambiguous, invalidated, or the environment matters and cannot be verified.
 Refresh live PR status and ownership even when local proof remains reusable.
 
-This does not waive final promotion: `make pre-pr` must stamp the intended
-commit, and `review-attest verify` must match the reviewed inputs before push.
-A rebase or amend invalidates prior stamps and review receipts. See
-[local testing](../../../docs/public/reference/local-testing.md).
+This does not waive final promotion: `make pre-push` is the required floor
+before every push, `make pre-pr`/`make pre-pr-full` stay recommended for risky
+changes (queue/lease/claim code, schema DDL, hot-path Cypher or graph writes,
+reducer materialization, package moves), and `review-attest verify` must match
+the reviewed inputs before push. A rebase or amend invalidates prior review
+receipts. Once pushed, CI's `required-gates-complete` is the actual blocking
+authority. See [local testing](../../../docs/public/reference/local-testing.md).
 
 ## Routing
 

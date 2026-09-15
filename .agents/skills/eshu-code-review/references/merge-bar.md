@@ -4,6 +4,13 @@
 an unqualified "fix every P2 before push" has no terminator and has repeatedly
 stalled ready work.
 
+Contents: [The failure this exists to stop](#the-failure-this-exists-to-stop),
+[The bar](#the-bar),
+[Findings introduced by review fixes](#findings-introduced-by-review-fixes),
+[Sweeping rule text](#sweeping-rule-text), [Repeat findings](#repeat-findings),
+[Final exact-diff attestation](#final-exact-diff-attestation),
+[Stating it](#stating-it).
+
 ## The failure this exists to stop
 
 A full review of a non-trivial diff can nearly always produce another P2. Worse,

@@ -1,6 +1,6 @@
 ---
 name: eshu-issue-driver
-description: Drive an assigned eshu-hq/eshu issue or epic through implementation, review, promotion, and a verified merged/closed outcome — worktree per leaf, PR monitoring, and completion evidence. Orchestrates eshu-code-review's verdict and resolve-review-threads' cleanup toward closure; neither replaces this end-to-end drive.
+description: Drives an assigned eshu-hq/eshu issue or epic through implementation, review, promotion, and a verified merged/closed outcome — worktree per leaf, PR monitoring, to closure.
 ---
 
 # Eshu Issue Driver

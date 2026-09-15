@@ -1,6 +1,6 @@
 ---
 name: eshu-code-review
-description: Produce the pre-push/pre-PR/pre-merge verdict on an Eshu diff — proof-tier selection, the five review passes, severity-graded findings, and merge-bar readiness. Not for resolving GitHub review threads (resolve-review-threads) or driving an issue to merged (eshu-issue-driver); those consume this verdict.
+description: Produces the push/PR/merge review verdict on an Eshu diff — proof-tier selection, the five review passes, severity findings, merge-bar readiness. Not for closing GitHub threads (resolve-review-threads).
 ---
 
 # Eshu Code Review

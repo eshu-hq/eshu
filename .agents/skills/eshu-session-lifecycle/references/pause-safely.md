@@ -8,6 +8,9 @@ turn where context is about to compact or summarize.
 This playbook is explicit only. "Keep going", "going to bed, keep going", and
 "don't stop" mean continue. Do not pause on those.
 
+Contents: [Steps](#steps), [Resume note: required slots](#resume-note-required-slots),
+[Reply](#reply).
+
 ## Steps
 
 1. **Stop at a boundary.** Finish the current atomic step or back out of it.
@@ -72,7 +75,7 @@ This playbook is explicit only. "Keep going", "going to bed, keep going", and
 ## Resume note: required slots
 
 Mirror the handoff contract in
-[Agent Orchestration Model](../../../docs/internal/agent-orchestration.md), since
+[Agent Orchestration Model](../../../../docs/internal/agent-orchestration.md), since
 a resume note is a handoff to your future self. Every slot is required; write
 "none" rather than dropping one.
 

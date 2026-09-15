@@ -51,11 +51,12 @@ turn after context compaction.
    proof. Re-run affected checks when those no longer match or the evidence is
    only a claim. Attribute inherited proof honestly.
 
-6. **Verify promotion state.** Any rebase or amend invalidates the per-SHA push
-   stamp and review receipt. Before the next push, use the current
-   `eshu-code-review` promotion sequence and `make pre-pr`; an inherited summary
-   cannot replace either gate. If HEAD did not change, inspect the actual stamp
-   and receipt rather than assuming they are absent or valid.
+6. **Verify promotion state.** Any rebase or amend invalidates the review
+   receipt. Before the next push, use the current `eshu-code-review` promotion
+   sequence and run `make pre-push` (the required floor; add `make pre-pr`/
+   `make pre-pr-full` only for a risky change) — an inherited summary cannot
+   replace either. If HEAD did not change, inspect the actual receipt rather
+   than assuming it is absent or valid.
 
 7. **Verify each acceptance criterion against HEAD before implementing
    anything.** On aged work most criteria are already satisfied by changes that

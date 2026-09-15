@@ -1,6 +1,6 @@
 ---
 name: eshu-humanizer
-description: Polish the prose of an Eshu PR body/title, review reply, issue update, or doc edit before it publishes — lead with the concrete change, cut AI-sounding filler, keep quoted evidence verbatim, and match confidence to what was measured. A prose pass, not a review verdict (eshu-code-review) or thread-resolution mechanism (resolve-review-threads).
+description: Polishes the prose of an Eshu PR body/title, review reply, issue update, or doc edit before it publishes — concrete lead, no AI-sounding filler, verbatim evidence, measured confidence.
 ---
 
 # Eshu humanizer
