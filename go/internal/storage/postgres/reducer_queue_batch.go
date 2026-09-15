@@ -86,7 +86,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 		return err
 	}
 
-	targetClaimRejected := false
+	claimRejected := false
 	if len(targetIntents) > 0 {
 		query, args := ackContainerImageIdentityReducerWorkBatchQuery(
 			now,
@@ -105,7 +105,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 		if err != nil {
 			return fmt.Errorf("batch ack reducer work: rows affected: %w", err)
 		}
-		targetClaimRejected = rowsAffected == 0
+		claimRejected = rowsAffected != int64(len(targetIntents))
 	}
 	if len(cicdIntents) > 0 {
 		query, args := ackCICDRunCorrelationReducerWorkBatchQuery(
@@ -125,30 +125,39 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 		if err != nil {
 			return fmt.Errorf("batch ack reducer CI/CD work: rows affected: %w", err)
 		}
-		if rowsAffected == 0 {
-			targetClaimRejected = true
+		if rowsAffected != int64(len(cicdIntents)) {
+			claimRejected = true
 		}
 	}
 
 	if len(unrelatedIntents) > 0 {
-		args := make([]any, 0, len(unrelatedIntents)+2)
-		args = append(args, now, q.LeaseOwner)
+		ids := make([]string, 0, len(unrelatedIntents))
+		claimedAt := make([]time.Time, 0, len(unrelatedIntents))
 		for _, intent := range unrelatedIntents {
-			args = append(args, intent.IntentID)
+			ids = append(ids, intent.IntentID)
+			claimedAt = append(claimedAt, claimedAtValue(intent))
 		}
 
-		query := ackReducerWorkBatchQuery(len(unrelatedIntents))
+		query := ackReducerWorkBatchQuery()
 
-		if _, err := q.db.ExecContext(ctx, query, args...); err != nil {
+		result, err := q.db.ExecContext(ctx, query, now, q.LeaseOwner, ids, claimedAt)
+		if err != nil {
 			return fmt.Errorf(
 				"batch ack reducer work (%d unrelated items): %w",
 				len(unrelatedIntents),
 				err,
 			)
 		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("batch ack reducer work: rows affected: %w", err)
+		}
+		if rowsAffected != int64(len(unrelatedIntents)) {
+			claimRejected = true
+		}
 	}
 
-	if targetClaimRejected {
+	if claimRejected {
 		return ErrReducerClaimRejected
 	}
 
@@ -165,7 +174,8 @@ func splitReducerAckBatchIntents(
 	for _, intent := range intents {
 		if prior, ok := seen[intent.IntentID]; ok {
 			if prior.Domain != intent.Domain ||
-				prior.ClaimEpoch != intent.ClaimEpoch {
+				prior.ClaimEpoch != intent.ClaimEpoch ||
+				!sameClaimedAt(prior.ClaimedAt, intent.ClaimedAt) {
 				return nil, nil, nil, fmt.Errorf(
 					"batch ack reducer work item %q has conflicting claim epochs or domains",
 					intent.IntentID,
@@ -187,35 +197,55 @@ func splitReducerAckBatchIntents(
 	return target, cicd, unrelated, nil
 }
 
+func sameClaimedAt(left, right *time.Time) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Equal(*right)
+}
+
 func ackContainerImageIdentityReducerWorkBatchQuery(
 	now time.Time,
 	leaseOwner string,
 	intents []reducer.Intent,
 ) (string, []any) {
-	idsByEpoch := make(map[int64][]string)
+	type claimKey struct {
+		epoch     int64
+		claimedAt time.Time
+	}
+	idsByClaim := make(map[claimKey][]string)
 	for _, intent := range intents {
-		idsByEpoch[intent.ClaimEpoch] = append(
-			idsByEpoch[intent.ClaimEpoch],
+		key := claimKey{epoch: intent.ClaimEpoch, claimedAt: claimedAtValue(intent)}
+		idsByClaim[key] = append(
+			idsByClaim[key],
 			intent.IntentID,
 		)
 	}
-	epochs := make([]int64, 0, len(idsByEpoch))
-	for epoch := range idsByEpoch {
-		epochs = append(epochs, epoch)
+	keys := make([]claimKey, 0, len(idsByClaim))
+	for key := range idsByClaim {
+		keys = append(keys, key)
 	}
-	sort.Slice(epochs, func(i, j int) bool { return epochs[i] < epochs[j] })
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].epoch != keys[j].epoch {
+			return keys[i].epoch < keys[j].epoch
+		}
+		return keys[i].claimedAt.Before(keys[j].claimedAt)
+	})
 
 	args := []any{now, leaseOwner}
-	predicates := make([]string, 0, len(epochs))
-	for _, epoch := range epochs {
+	predicates := make([]string, 0, len(keys))
+	for _, key := range keys {
 		idsPlaceholder := len(args) + 1
-		args = append(args, idsByEpoch[epoch])
+		args = append(args, idsByClaim[key])
 		epochPlaceholder := len(args) + 1
-		args = append(args, epoch)
+		args = append(args, key.epoch)
+		claimedAtPlaceholder := len(args) + 1
+		args = append(args, key.claimedAt)
 		predicates = append(predicates, fmt.Sprintf(
-			"(work_item_id = ANY($%d::text[]) AND container_image_identity_claim_epoch = $%d)",
+			"(work_item_id = ANY($%d::text[]) AND container_image_identity_claim_epoch = $%d AND last_attempt_at = $%d)",
 			idsPlaceholder,
 			epochPlaceholder,
+			claimedAtPlaceholder,
 		))
 	}
 
@@ -228,6 +258,7 @@ WITH locked_work AS MATERIALIZED (
       AND domain = 'container_image_identity'
       AND lease_owner = $2
       AND status IN ('claimed', 'running')
+	  AND claim_until > clock_timestamp()
     ORDER BY work_item_id COLLATE "C"
     FOR NO KEY UPDATE
 ), acknowledged AS MATERIALIZED (
@@ -279,7 +310,7 @@ ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE 
     updated_at = EXCLUDED.updated_at
 RETURNING 1
 )
-SELECT 1 FROM acknowledged LIMIT 1
+SELECT 1 FROM acknowledged
 `, args
 }
 
@@ -289,19 +320,20 @@ func ackCICDRunCorrelationReducerWorkBatchQuery(
 	intents []reducer.Intent,
 ) (string, []any) {
 	ids := make([]string, 0, len(intents))
+	claimedAt := make([]time.Time, 0, len(intents))
 	for _, intent := range intents {
 		ids = append(ids, intent.IntentID)
+		claimedAt = append(claimedAt, claimedAtValue(intent))
 	}
-	sort.Strings(ids)
 	// Bind fixed eligibility to the ordered requested rows to avoid the broad
 	// partial-index plan observed when startup statistics were absent.
 	// Each dependent lookup checks eligibility before acquiring its row lock.
 	return `
 WITH requested AS MATERIALIZED (
-    SELECT id, 'reducer'::text AS expected_stage,
+    SELECT id, claimed_at, 'reducer'::text AS expected_stage,
            'ci_cd_run_correlation'::text AS expected_domain
-    FROM (SELECT unnest($3::text[]) AS id) AS input
-    GROUP BY id
+	FROM unnest($3::text[], $4::timestamptz[]) AS input(id, claimed_at)
+	GROUP BY id, claimed_at
     ORDER BY id COLLATE "C"
 ), locked_work AS MATERIALIZED (
     SELECT lookup.work_item_id
@@ -314,6 +346,8 @@ WITH requested AS MATERIALIZED (
           AND domain = requested.expected_domain
           AND lease_owner = $2
           AND status IN ('claimed', 'running')
+		  AND claim_until > clock_timestamp()
+		  AND last_attempt_at = requested.claimed_at
         FOR NO KEY UPDATE
     ) AS lookup
 ), acknowledged AS MATERIALIZED (
@@ -354,23 +388,26 @@ ON CONFLICT (producer_domain) WHERE status IN ('pending', 'retrying') DO UPDATE 
     updated_at = EXCLUDED.updated_at
 RETURNING 1
 )
-SELECT 1 FROM acknowledged LIMIT 1
-`, []any{now, leaseOwner, ids}
+SELECT 1 FROM acknowledged
+`, []any{now, leaseOwner, ids, claimedAt}
 }
 
-func ackReducerWorkBatchQuery(itemCount int) string {
-	placeholders := make([]string, itemCount)
-	for index := range itemCount {
-		placeholders[index] = fmt.Sprintf("$%d", index+3)
-	}
-	return fmt.Sprintf(`
-WITH locked_work AS MATERIALIZED (
+func ackReducerWorkBatchQuery() string {
+	return `
+WITH requested AS MATERIALIZED (
+	SELECT id, claimed_at
+	FROM unnest($3::text[], $4::timestamptz[]) AS input(id, claimed_at)
+	GROUP BY id, claimed_at
+),
+locked_work AS MATERIALIZED (
     SELECT work_item_id
-    FROM fact_work_items
-    WHERE work_item_id IN (%s)
+	FROM fact_work_items
+	JOIN requested ON requested.id = fact_work_items.work_item_id
+	WHERE last_attempt_at = requested.claimed_at
       AND stage = 'reducer'
       AND lease_owner = $2
       AND status IN ('claimed', 'running')
+	  AND claim_until > clock_timestamp()
     ORDER BY work_item_id COLLATE "C"
     FOR NO KEY UPDATE
 )
@@ -386,7 +423,7 @@ SET status = 'succeeded',
     failure_details = NULL
 WHERE work_item_id IN (SELECT work_item_id FROM locked_work)
   AND (SELECT count(*) FROM locked_work) > 0
-`, strings.Join(placeholders, ", "))
+`
 }
 
 // FailBatch marks multiple claimed reducer work items as failed in a single

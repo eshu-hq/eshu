@@ -85,6 +85,18 @@ type ResolutionPersister interface {
 	ActivateResolutionGeneration(ctx context.Context, generationID, scopeID string) error
 }
 
+// ClaimFencedResolutionPersister publishes a generation only while the exact
+// reducer claim that computed it remains live.
+type ClaimFencedResolutionPersister interface {
+	ActivateResolutionGenerationForClaim(
+		ctx context.Context,
+		generationID string,
+		scopeID string,
+		workItemID string,
+		claimedAt time.Time,
+	) error
+}
+
 // RepoDependencyIntentWriter persists durable repo-dependency projection
 // intents plus their authoritative acceptance rows.
 type RepoDependencyIntentWriter interface {
@@ -116,12 +128,11 @@ type CrossRepoRelationshipHandler struct {
 	Instruments       *telemetry.Instruments
 }
 
-// Resolve executes the cross-repo relationship resolution pipeline for one
-// generation. Returns the number of durable intents emitted.
-func (h *CrossRepoRelationshipHandler) Resolve(
+func (h *CrossRepoRelationshipHandler) resolve(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
+	claim *resolutionClaim,
 ) (int, error) {
 	if h.EvidenceLoader == nil || h.IntentWriter == nil {
 		return 0, nil
@@ -212,7 +223,7 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 			}
 		}
 		if h.Persister != nil {
-			if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
+			if err := h.activateResolutionGeneration(ctx, generationID, scopeID, claim); err != nil {
 				return 0, fmt.Errorf("activate empty resolution generation: %w", err)
 			}
 		}
@@ -339,7 +350,7 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	// Step 6: Activate (publish) the generation now that its graph-acceptance
 	// intents are durably committed. This ordering is the publish fence.
 	if h.Persister != nil {
-		if err := h.Persister.ActivateResolutionGeneration(ctx, generationID, scopeID); err != nil {
+		if err := h.activateResolutionGeneration(ctx, generationID, scopeID, claim); err != nil {
 			return 0, fmt.Errorf("activate resolution generation: %w", err)
 		}
 	}

@@ -74,6 +74,49 @@ WHERE scope_id = $2
   AND status = 'succeeded'
 `
 
+// scheduleWorkloadMaterializationReplayQuery records replay debt without
+// stealing an active claim. Succeeded work reopens immediately; claimed or
+// running work keeps its exact lease and carries the existing durable
+// cross-scope replay bit so the database ACK trigger returns it to pending.
+const scheduleWorkloadMaterializationReplayQuery = `
+UPDATE fact_work_items
+SET status = CASE
+        WHEN status = 'succeeded' THEN 'pending'
+        ELSE status
+    END,
+    attempt_count = CASE
+        WHEN status = 'succeeded' THEN 0
+        ELSE attempt_count
+    END,
+    container_image_identity_v2_authorized_status = CASE
+        WHEN status = 'succeeded' AND container_image_identity_v2_required THEN 'pending'
+        ELSE container_image_identity_v2_authorized_status
+    END,
+    container_image_identity_v3_authorized_status = CASE
+        WHEN status = 'succeeded' AND container_image_identity_v3_required THEN 'pending'
+        ELSE container_image_identity_v3_authorized_status
+    END,
+    lease_owner = CASE WHEN status = 'succeeded' THEN NULL ELSE lease_owner END,
+    claim_until = CASE WHEN status = 'succeeded' THEN NULL ELSE claim_until END,
+    visible_at = CASE WHEN status = 'succeeded' THEN $1 ELSE visible_at END,
+    next_attempt_at = CASE WHEN status = 'succeeded' THEN NULL ELSE next_attempt_at END,
+    updated_at = CASE
+        WHEN status = 'succeeded' OR status IN ('claimed', 'running') THEN $1
+        ELSE updated_at
+    END,
+    reopened_at = CASE WHEN status = 'succeeded' THEN $1 ELSE reopened_at END,
+    cross_scope_replay_required = CASE
+        WHEN status IN ('claimed', 'running') THEN TRUE
+        ELSE FALSE
+    END,
+    failure_class = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_class END,
+    failure_message = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_message END,
+    failure_details = CASE WHEN status = 'succeeded' THEN NULL ELSE failure_details END
+WHERE work_item_id = $2
+  AND stage = 'reducer'
+  AND status IN ('pending', 'claimed', 'running', 'retrying', 'succeeded')
+`
+
 const countInFlightReducerWorkByDomainQuery = `
 SELECT COUNT(*)
 FROM fact_work_items
@@ -167,11 +210,9 @@ func (q ReducerQueue) ReplayWorkloadMaterialization(
 	generationID string,
 	entityKey string,
 ) (bool, error) {
-	// Replay is enqueue-only: it opportunistically reopens a succeeded row via
-	// ReopenSucceeded (which runs its own validateDB) and otherwise enqueues a
-	// fresh intent through enqueueReducerBatch. No lease fields are read on
-	// this path, so use the enqueue-side check rather than demanding
-	// LeaseOwner/LeaseDuration the call does not need.
+	// Replay is enqueue-only: it reopens succeeded work, marks an active claim
+	// for replay after ACK, accepts already-pending work, or enqueues a missing
+	// intent. It never steals or rewrites an active lease.
 	if err := q.validateEnqueue(); err != nil {
 		return false, err
 	}
@@ -189,11 +230,15 @@ func (q ReducerQueue) ReplayWorkloadMaterialization(
 	}
 	workItemID := reducerWorkItemID(intent)
 
-	reopened, err := q.ReopenSucceeded(ctx, workItemID)
+	result, err := q.db.ExecContext(ctx, scheduleWorkloadMaterializationReplayQuery, q.now(), workItemID)
 	if err != nil {
 		return false, fmt.Errorf("schedule workload materialization replay: %w", err)
 	}
-	if reopened {
+	matched, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("schedule workload materialization replay: rows affected: %w", err)
+	}
+	if matched > 0 {
 		return true, nil
 	}
 	if _, err := q.enqueueReducerBatch(ctx, []projector.ReducerIntent{intent}, q.now()); err != nil {

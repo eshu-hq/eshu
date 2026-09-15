@@ -88,6 +88,9 @@ func TestReducerQueueEnqueueAndClaimRoundTrip(t *testing.T) {
 	if got, want := intent.AttemptCount, 1; got != want {
 		t.Fatalf("Claim().AttemptCount = %d, want %d", got, want)
 	}
+	if intent.ClaimedAt == nil || !intent.ClaimedAt.Equal(now) {
+		t.Fatalf("Claim().ClaimedAt = %v, want %v", intent.ClaimedAt, now)
+	}
 	if got, want := len(db.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}

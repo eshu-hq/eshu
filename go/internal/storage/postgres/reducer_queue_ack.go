@@ -13,6 +13,8 @@ WHERE work_item_id = $2
   AND stage = 'reducer'
   AND lease_owner = $3
   AND status IN ('claimed', 'running')
+  AND claim_until > clock_timestamp()
+  AND last_attempt_at = $4
 `
 
 const ackContainerImageIdentityReducerWorkQuery = `
@@ -34,6 +36,8 @@ WITH acknowledged AS MATERIALIZED (
       AND lease_owner = $3
       AND status IN ('claimed', 'running')
       AND container_image_identity_claim_epoch = $4
+      AND claim_until > clock_timestamp()
+      AND last_attempt_at = $5
     RETURNING work.work_item_id, work.status
 ), emission_clock AS MATERIALIZED (
     SELECT clock_timestamp() AS emitted_at
@@ -58,7 +62,7 @@ WITH acknowledged AS MATERIALIZED (
         updated_at = EXCLUDED.updated_at
     RETURNING 1
 )
-SELECT 1 FROM acknowledged LIMIT 1
+SELECT 1 FROM acknowledged
 `
 
 const ackCICDRunCorrelationReducerWorkQuery = `
@@ -74,6 +78,8 @@ WITH acknowledged AS MATERIALIZED (
       AND domain = 'ci_cd_run_correlation'
       AND lease_owner = $3
       AND status IN ('claimed', 'running')
+      AND claim_until > clock_timestamp()
+      AND last_attempt_at = $4
     RETURNING work.work_item_id, work.status
 ), emission_clock AS MATERIALIZED (
     SELECT clock_timestamp() AS emitted_at
@@ -98,5 +104,5 @@ WITH acknowledged AS MATERIALIZED (
         updated_at = EXCLUDED.updated_at
     RETURNING 1
 )
-SELECT 1 FROM acknowledged LIMIT 1
+SELECT 1 FROM acknowledged
 `

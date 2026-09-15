@@ -217,7 +217,7 @@ func assertRefinalizeBindsOneGenerationSet(
 	if len(db.execs) != 5 {
 		t.Fatalf("claim-fence plus rebuild-reset statement count = %d, want 5", len(db.execs))
 	}
-	if !strings.Contains(db.execs[0].query, "LOCK TABLE fact_work_items IN SHARE ROW EXCLUSIVE MODE") {
+	if !strings.Contains(db.execs[0].query, "LOCK TABLE fact_work_items IN EXCLUSIVE MODE") {
 		t.Fatalf("first post-drain exec is not the reducer claim fence: %s", db.execs[0].query)
 	}
 	if len(db.execs[0].args) != 0 {

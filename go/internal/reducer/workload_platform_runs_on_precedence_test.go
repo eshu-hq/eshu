@@ -4,9 +4,35 @@
 package reducer
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
+
+type executeOnlyRunsOnTestExecutor struct{}
+
+func (executeOnlyRunsOnTestExecutor) ExecuteCypher(
+	context.Context,
+	string,
+	map[string]any,
+) error {
+	return nil
+}
+
+func TestRuntimePlatformRunsOnRequiresAtomicGroup(t *testing.T) {
+	t.Parallel()
+
+	materializer := NewWorkloadMaterializer(executeOnlyRunsOnTestExecutor{})
+	_, err := materializer.Materialize(context.Background(), &ProjectionResult{
+		RuntimePlatformRows: []RuntimePlatformRow{{
+			InstanceID: "instance-1",
+			PlatformID: "platform-1",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "atomic") {
+		t.Fatalf("Materialize() error = %v, want missing atomic-group capability", err)
+	}
+}
 
 // TestRuntimePlatformRunsOnUpsertPreservesForeignStamp pins the deterministic
 // writer precedence for the shared RUNS_ON identity: the cross-repo resolver
@@ -32,7 +58,7 @@ func TestRuntimePlatformRunsOnUpsertPreservesForeignStamp(t *testing.T) {
 
 	ensureTemplate := batchRuntimePlatformRunsOnEdgeUpsertCypher
 	for _, want := range []string{
-		"MERGE (i)-[rel:RUNS_ON]->(p)",
+		"MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)",
 	} {
 		if !strings.Contains(ensureTemplate, want) {
 			t.Errorf("RUNS_ON identity template missing %q:\n%s", want, ensureTemplate)
@@ -43,7 +69,7 @@ func TestRuntimePlatformRunsOnUpsertPreservesForeignStamp(t *testing.T) {
 	}
 	ownedTemplate := batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher
 	for _, want := range []string{
-		"MATCH (i)-[rel:RUNS_ON]->(p)",
+		"MATCH (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)",
 		"WHERE rel.evidence_source IS NULL OR rel.evidence_source = row.evidence_source",
 		"rel.confidence = row.platform_confidence",
 		"rel.reason = 'Workload instance runs on inferred platform'",

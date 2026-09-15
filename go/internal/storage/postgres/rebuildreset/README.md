@@ -40,15 +40,16 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   once, first, inside its transaction.
 - `Generations` — that set, held as two index-aligned arrays. Build it with
   `Append`; `Args` hands it to a statement.
-- `Apply(ctx, tx, generations) (Counts, error)` — runs the four resets inside
-  the caller's transaction, against the set it was given.
+- `ApplyPreRetirement(ctx, tx, generations) (Counts, error)` and
+  `RetireResolutionGenerations(ctx, tx, generations) (int, error)` — run the
+  reset steps inside the caller's fenced transaction, against the same bound
+  generation set.
 - `ReadAffectedGenerations`, `WaitForReducerDrain`,
-  `AcquireReducerClaimFence`, `EnqueueProjectorWork`, and
+  `EnqueueProjectorWork`, `AcquireReducerClaimFence`, and
   `AssertRetirementFenced` — the ordered coordination the caller runs in its
   transaction around `Apply`: read the set once, wait out in-flight reducer
-  leases (bounded), freeze new queue mutations, re-enqueue projector work, then
-  confirm the retirement actually committed. `InflightReducersError` is the
-  abort signal.
+  leases (bounded), re-enqueue projector work, then confirm the retirement
+  actually committed. `InflightReducersError` is the abort signal.
   `Queryer`/`Rows` are narrow local interfaces so this package never imports
   its caller.
 - `Counts` — how many rows each reset touched, surfaced to the operator in the
@@ -62,20 +63,27 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   and running rows hold live leases a rebuild must not yank; `dead_letter` and
   `failed` belong to the replay endpoint and contributed nothing to the pre-wipe
   graph.
-- **Retire only over drained reducers.** After the lock-free drain, recovery
-  briefly holds `SHARE ROW EXCLUSIVE` on `fact_work_items`, immediately
-  rechecks live leases, and keeps that transaction-scoped lock through commit.
-  Queue INSERT/UPDATE/DELETE operations therefore cannot claim into the
-  retirement window. The generation retirement also carries a live-lease
-  guard: it changes rows only when no reducer row holds a live lease
+- **Retire only over drained reducers.** After the lock-free drain and before
+  any transaction write, recovery takes `EXCLUSIVE` on `fact_work_items` for
+  the immediate live-lease recheck, projector re-enqueue, three dedup resets,
+  relationship retirement, and commit. Taking it before write avoids a table
+  lock upgrade deadlock between concurrent recoveries. The mode conflicts
+  with both a claim's row update and claim-fenced publication's `SELECT FOR
+  UPDATE`, while ordinary queue reads remain available. The generation
+  retirement also carries a
+  live-lease guard: it changes rows only when no reducer row holds a live lease
   (`claimed`/`running` with `claim_until > now()`) on the refinalized
   pairs. A resolver that claimed before the refinalize would otherwise get its
   generation retired mid-flight, then re-activate it with stale rows while its
   success ack dedupes the re-emitted intent (#6184 P1 review). The caller waits
-  out the drain first and aborts past its bound; the table fence closes the
-  poll-to-commit window and the retirement predicate remains defense in depth.
-  Expired leases are reclaimable, not in-flight: the table fence delays their
-  next claim until after commit, so crashed workers never wedge recovery.
+  out the drain first and aborts past its bound; the immediate recheck after
+  lock acquisition rejects a claim that won after the last poll. Expired leases
+  are reclaimable, not in-flight. A resolver still running after expiry cannot
+  republish: relationship-generation activation locks and validates its exact
+  `(work_item_id, last_attempt_at)` claim and requires the lease to remain live.
+  The relation-wide write pause is recovery-only and bounded by the four reset
+  statements plus commit; it does block unrelated queue writes during that
+  interval, so its representative lock-hold duration is part of the live proof.
 - **Delete, do not reset to pending.** A pending row is claimable before the
   projector re-run that owns its inputs has committed anything, which is the same
   silent-incompleteness defect this package exists to fix. Reset-to-pending also
@@ -116,7 +124,9 @@ Live Postgres tests live in the parent package, because they drive the whole
 operation through `RecoveryStore.RefinalizeScopeProjections`:
 
 ```bash
-cd go && go test ./internal/storage/postgres -run RefinalizeRebuildReset -count=1
+cd go && go test ./internal/storage/postgres \
+  -run 'Refinalize(RebuildReset|.*Reducer|.*Claim)|RelationshipStoreClaimFencedActivation' \
+  -count=1
 ```
 
 End-to-end: `scripts/verify-graph-rebuild-from-facts.sh`.

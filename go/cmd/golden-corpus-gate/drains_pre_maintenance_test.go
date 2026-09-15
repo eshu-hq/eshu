@@ -139,6 +139,20 @@ func TestPreMaintenanceQuiescenceRejects(t *testing.T) {
 			counts: DrainCounts{FactWorkItemsResidual: 1},
 			rows:   []residualRow{{Domain: "d", Status: "retrying", Count: 1}},
 		},
+		"claimed row retaining readiness failure": {
+			counts: DrainCounts{FactWorkItemsResidual: 1},
+			rows: []residualRow{{
+				Domain: "workload_materialization", Status: "claimed",
+				FailureClass: "workload_materialization_resolution_not_ready", Count: 1,
+			}},
+		},
+		"running row retaining readiness failure": {
+			counts: DrainCounts{FactWorkItemsResidual: 1},
+			rows: []residualRow{{
+				Domain: "deployment_mapping", Status: "running",
+				FailureClass: "cross_repo_backward_evidence_not_ready", Count: 1,
+			}},
+		},
 		"dead letter": {
 			counts: DrainCounts{FactWorkItemsResidual: 1, FactWorkItemsDeadLetter: 1},
 			rows:   []residualRow{{Domain: "d", Status: "dead_letter", Count: 1}},

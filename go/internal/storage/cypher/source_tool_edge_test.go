@@ -102,9 +102,9 @@ func TestEdgeWriterThreadsSourceToolIntoRows(t *testing.T) {
 	}
 
 	wantTool := map[string]string{
-		"MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)":   "ansible",
-		"MERGE (source_repo)-[rel:DEPLOYS_FROM]->(target_repo)": "kustomize",
-		"MERGE (i)-[rel:RUNS_ON]->(p)":                          "argocd",
+		"MERGE (source_repo)-[rel:DEPENDS_ON]->(target_repo)":      "ansible",
+		"MERGE (source_repo)-[rel:DEPLOYS_FROM]->(target_repo)":    "kustomize",
+		"MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)": "argocd",
 	}
 	matched := 0
 	for _, call := range executor.calls {

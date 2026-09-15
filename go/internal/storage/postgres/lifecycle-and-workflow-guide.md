@@ -191,6 +191,12 @@ and replay marking updates matching `dead_letter` rows to `replay_requested`
 while successful source commits update unresolved rows to `replayed`, without
 touching `fact_work_items` or changing projector/reducer worker counts.
 
+Repo-dependency-triggered workload materialization replay uses the queue's
+durable dirty bit. A succeeded workload item reopens immediately; a claimed or
+running item keeps its exact lease and sets `cross_scope_replay_required`, so
+its ACK returns it to pending instead of losing stronger relationship evidence
+behind the work-item uniqueness constraint.
+
 Observability Evidence: `StatusStore.ReadStatusSnapshot` reads
 `collector_generation_dead_letters` into the runtime status report. Operators
 see `collector_generation_dead_letters.dead_letter`,

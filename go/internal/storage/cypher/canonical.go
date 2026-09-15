@@ -79,7 +79,7 @@ SET p.type = 'platform',
     p.environment = $environment,
     p.region = $platform_region,
     p.locator = $platform_locator
-MERGE (i)-[rel:RUNS_ON]->(p)
+MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)
 SET rel.confidence = 1.0,
     rel.reason = 'Workload instance runs on inferred platform',
     rel.evidence_source = $evidence_source`

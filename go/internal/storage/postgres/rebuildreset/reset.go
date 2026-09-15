@@ -226,7 +226,7 @@ type Counts struct {
 	GenerationsRetired int
 }
 
-// Apply clears the four pieces of dedup state that would otherwise make a
+// ApplyPreRetirement clears the three pieces of dedup state that would otherwise make a
 // rebuild-from-facts stop at source-local structure. It runs inside the caller's
 // transaction so a refinalize either re-enqueues the projector work and reopens
 // its downstream state together, or does neither.
@@ -236,9 +236,9 @@ type Counts struct {
 // projector work. Passing it in rather than re-selecting it is the point: under
 // READ COMMITTED a re-selection could pick up a generation the enqueue never saw.
 //
-// All four statements touch terminal state only, so no live lease is taken away
+// All three statements touch terminal state only, so no live lease is taken away
 // and no claimed item can double-execute.
-func Apply(
+func ApplyPreRetirement(
 	ctx context.Context,
 	tx Execer,
 	generations Generations,
@@ -253,7 +253,6 @@ func Apply(
 		{"delete succeeded reducer work", deleteSucceededReducerWorkTemplate, &counts.ReducerWorkDeleted},
 		{"reopen shared projection intents", reopenSharedIntentsTemplate, &counts.SharedIntentsReopened},
 		{"clear readiness phase state", clearReadinessPhaseStateTemplate, &counts.ReadinessPhasesCleared},
-		{"retire resolution generations", retireResolutionGenerationsTemplate, &counts.GenerationsRetired},
 	} {
 		query, args := buildResetQuery(step.template, generations)
 		result, err := tx.ExecContext(ctx, query, args...)
@@ -268,4 +267,24 @@ func Apply(
 	}
 
 	return counts, nil
+}
+
+// RetireResolutionGenerations supersedes active relationship generations after
+// the caller has acquired the reducer claim fence. Keeping this final write
+// separate minimizes the duration of the relation-wide EXCLUSIVE lock.
+func RetireResolutionGenerations(
+	ctx context.Context,
+	tx Execer,
+	generations Generations,
+) (int, error) {
+	query, args := buildResetQuery(retireResolutionGenerationsTemplate, generations)
+	result, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("refinalize rebuild reset: retire resolution generations: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("refinalize rebuild reset: retire resolution generations rows affected: %w", err)
+	}
+	return int(affected), nil
 }

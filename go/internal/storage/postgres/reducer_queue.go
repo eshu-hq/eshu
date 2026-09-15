@@ -40,6 +40,8 @@ WHERE work_item_id = $3
   AND stage = 'reducer'
   AND lease_owner = $4
   AND status IN ('claimed', 'running')
+  AND claim_until > clock_timestamp()
+  AND last_attempt_at = $5
 `
 
 const failReducerWorkQuery = `
@@ -58,6 +60,8 @@ WHERE work_item_id = $5
   AND stage = 'reducer'
   AND lease_owner = $6
   AND status IN ('claimed', 'running')
+  AND claim_until > clock_timestamp()
+  AND last_attempt_at = $7
 `
 
 const failContainerImageIdentityReducerWorkQuery = `
@@ -85,6 +89,8 @@ WHERE work_item_id = $5
   AND lease_owner = $6
   AND status IN ('claimed', 'running')
   AND container_image_identity_claim_epoch = $7
+  AND claim_until > clock_timestamp()
+  AND last_attempt_at = $8
 `
 
 const retryReducerWorkQuery = `
@@ -103,6 +109,8 @@ WHERE work_item_id = $6
   AND stage = 'reducer'
   AND lease_owner = $7
   AND status IN ('claimed', 'running')
+  AND claim_until > clock_timestamp()
+  AND last_attempt_at = $8
 `
 
 const retryContainerImageIdentityReducerWorkQuery = `
@@ -130,6 +138,8 @@ WHERE work_item_id = $6
   AND lease_owner = $7
   AND status IN ('claimed', 'running')
   AND container_image_identity_claim_epoch = $8
+  AND claim_until > clock_timestamp()
+  AND last_attempt_at = $9
 `
 
 // ReducerQueue provides reducer-stage queue behavior over fact_work_items.
@@ -362,7 +372,6 @@ func (q ReducerQueue) Claim(ctx context.Context) (reducer.Intent, bool, error) {
 		}
 		return reducer.Intent{}, false, fmt.Errorf("claim reducer work: %w", err)
 	}
-
 	return intent, true, nil
 }
 
@@ -380,6 +389,7 @@ func (q ReducerQueue) Heartbeat(ctx context.Context, intent reducer.Intent) erro
 		now,
 		intent.IntentID,
 		q.LeaseOwner,
+		claimedAtValue(intent),
 	)
 	if err != nil {
 		return fmt.Errorf("heartbeat reducer work: %w", err)
@@ -413,19 +423,17 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, _ reducer.
 	if intent.Domain == reducer.DomainContainerImageIdentity {
 		args = append(args, intent.ClaimEpoch)
 	}
+	args = append(args, claimedAtValue(intent))
 	result, err := q.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("ack reducer work: %w", err)
 	}
-	if intent.Domain == reducer.DomainContainerImageIdentity ||
-		intent.Domain == reducer.DomainCICDRunCorrelation {
-		rowsAffected, rowsErr := result.RowsAffected()
-		if rowsErr != nil {
-			return fmt.Errorf("ack reducer work: rows affected: %w", rowsErr)
-		}
-		if rowsAffected == 0 {
-			return ErrReducerClaimRejected
-		}
+	rowsAffected, rowsErr := result.RowsAffected()
+	if rowsErr != nil {
+		return fmt.Errorf("ack reducer work: rows affected: %w", rowsErr)
+	}
+	if rowsAffected != 1 {
+		return ErrReducerClaimRejected
 	}
 
 	return nil

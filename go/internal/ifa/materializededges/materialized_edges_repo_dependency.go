@@ -154,6 +154,7 @@ func resolveRepoDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 			RelationshipType: relationshipType,
 			SourceEntityID:   sourceEntityID,
 			TargetEntityID:   repoDependencyRowTargetEntityID(row),
+			Identity:         repoDependencyEdgeIdentity(relationshipType),
 		})
 	}
 	if mismatch := compareRepoDependencyExpectedEdges(odu.Name, expected, actual); mismatch != "" {
@@ -164,6 +165,17 @@ func resolveRepoDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath strin
 		"odù %q: DiscoveredEvidence -> relationships.Resolve -> reducer.ExtractRepoDependencyIntentRows reproduces the expected %d-edge set exactly across all %d registry types; ExtractWorkloadCandidates -> BuildProjectionRows derives RUNS_ON's unique WorkloadInstance and CanonicalPlatformID derives its required Platform; the self-reference/near-miss-alias negative cases produced zero spurious evidence",
 		odu.Name, len(expected), len(registry),
 	)
+}
+
+// repoDependencyEdgeIdentity returns the constant relationship identity owned
+// by the repo_dependency writer. RUNS_ON shares endpoints with the workload
+// writer, so both use the canonical identity key; the six repository edge
+// types remain endpoint-keyed.
+func repoDependencyEdgeIdentity(relationshipType string) map[string]string {
+	if relationshipType == string(relationships.RelRunsOn) {
+		return map[string]string{"identity_key": "canonical"}
+	}
+	return nil
 }
 
 // repoDependencyFamilyRunsOnPrerequisites derives the graph identities the

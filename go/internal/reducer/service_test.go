@@ -109,6 +109,36 @@ func TestServiceRunMarksFailureWhenExecutionFails(t *testing.T) {
 	}
 }
 
+func TestServiceDoesNotMutateQueueAfterExecutionClaimRejected(t *testing.T) {
+	t.Parallel()
+
+	intent := Intent{
+		IntentID:        "intent-stale",
+		ScopeID:         "scope-stale",
+		GenerationID:    "generation-stale",
+		SourceSystem:    "git",
+		Domain:          DomainDeploymentMapping,
+		Cause:           "stale resolver",
+		EntityKeys:      []string{"platform:stale"},
+		RelatedScopeIDs: []string{"scope-stale"},
+		EnqueuedAt:      time.Now().UTC(),
+		AvailableAt:     time.Now().UTC(),
+		Status:          IntentStatusClaimed,
+	}
+	sink := &stubReducerWorkSink{}
+	service := Service{
+		Executor: &stubReducerExecutor{executeErr: ErrExecutionClaimRejected},
+		WorkSink: sink,
+	}
+
+	if err := service.executeWithTelemetry(context.Background(), intent, 0); err != nil {
+		t.Fatalf("executeWithTelemetry() error = %v, want nil", err)
+	}
+	if sink.ackCalls != 0 || sink.failCalls != 0 {
+		t.Fatalf("queue mutations after rejected claim: ack=%d fail=%d, want zero", sink.ackCalls, sink.failCalls)
+	}
+}
+
 func TestServiceRunStartsSharedProjectionRunner(t *testing.T) {
 	t.Parallel()
 

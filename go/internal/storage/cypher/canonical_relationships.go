@@ -323,13 +323,21 @@ const canonicalRunsOnUpsertCypher = `UNWIND $rows AS row
 MATCH (repo:Repository {id: row.repo_id})-[:DEFINES]->(w:Workload)
 MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)
 MATCH (p:Platform {id: row.platform_id})
-MERGE (i)-[rel:RUNS_ON]->(p)
+MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)
 SET rel.confidence = 0.97,
     rel.reason = 'Repository workload instance runs on inferred platform',
     rel.evidence_source = row.evidence_source,
-    rel.source_tool = row.source_tool`
+	 rel.source_tool = row.source_tool`
 
 const batchCanonicalRunsOnUpsertCypher = canonicalRunsOnUpsertCypher
+
+const batchCanonicalRunsOnLegacyIdentityCleanupCypher = `UNWIND $rows AS row
+MATCH (repo:Repository {id: row.repo_id})-[:DEFINES]->(w:Workload)
+MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)
+MATCH (p:Platform {id: row.platform_id})
+MATCH (i)-[rel:RUNS_ON]->(p)
+WHERE rel.identity_key IS NULL
+DELETE rel`
 
 const repoDependencyRelationshipEdgeTypes = "DEPENDS_ON|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|" +
 	"PROVISIONS_DEPENDENCY_FOR|USES_MODULE|READS_CONFIG_FROM"

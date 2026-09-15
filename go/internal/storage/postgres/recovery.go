@@ -384,7 +384,9 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	// Coordination (read once, drain-wait, enqueue, fence check) lives in
 	// rebuildreset; the drain wait runs after the authoritative read and
 	// before any write so a resolver that claimed first cannot get its
-	// generation retired mid-flight (#6184 P1 review).
+	// generation retired mid-flight. A resolver whose lease expires while it
+	// is still executing is fenced at relationship-generation activation by
+	// its exact queue claim (#6184 P1 review).
 	rq := rebuildresetQueryer{Transaction: tx}
 
 	generations, err := rebuildreset.ReadAffectedGenerations(ctx, rq, filter)
@@ -404,7 +406,11 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		return recovery.RefinalizeResult{}, err
 	}
 
-	counts, err := rebuildreset.Apply(ctx, tx, generations)
+	counts, err := rebuildreset.ApplyPreRetirement(ctx, tx, generations)
+	if err != nil {
+		return recovery.RefinalizeResult{}, err
+	}
+	counts.GenerationsRetired, err = rebuildreset.RetireResolutionGenerations(ctx, tx, generations)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}

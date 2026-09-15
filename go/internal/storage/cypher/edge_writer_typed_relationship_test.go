@@ -303,14 +303,14 @@ func TestEdgeWriterWriteEdgesRunsOnDispatchUsesWorkloadInstanceShape(t *testing.
 	if err != nil {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
-	if got, want := len(executor.calls), 1; got != want {
+	if got, want := len(executor.calls), 2; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
-	cypher := executor.calls[0].Cypher
+	cypher := executor.calls[1].Cypher
 	if !strings.Contains(cypher, "WorkloadInstance") {
 		t.Fatalf("cypher missing WorkloadInstance match: %s", cypher)
 	}
-	if !strings.Contains(cypher, "MERGE (i)-[rel:RUNS_ON]->(p)") {
+	if !strings.Contains(cypher, "MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)") {
 		t.Fatalf("cypher missing RUNS_ON merge: %s", cypher)
 	}
 }

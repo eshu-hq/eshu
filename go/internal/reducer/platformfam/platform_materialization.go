@@ -60,6 +60,13 @@ type CrossRepoRelationshipResolver interface {
 	Resolve(ctx context.Context, scopeID, generationID string) (int, error)
 }
 
+// ClaimedCrossRepoRelationshipResolver binds publication to the exact durable
+// reducer claim. Production resolvers implement this stronger contract; the
+// legacy shape remains for isolated family tests and non-queue callers.
+type ClaimedCrossRepoRelationshipResolver interface {
+	ResolveClaimed(ctx context.Context, intent reducercontract.Intent) (int, error)
+}
+
 // WorkloadMaterializationReplayer requeues workload materialization after
 // stronger deployment evidence becomes available for the same scope generation.
 type WorkloadMaterializationReplayer interface {
@@ -132,7 +139,15 @@ func (h PlatformMaterializationHandler) Handle(
 	// from persisted evidence facts after platform materialization completes.
 	if h.CrossRepoResolver != nil {
 		crossRepoStarted := time.Now()
-		resolvedCrossRepoWrites, err := h.CrossRepoResolver.Resolve(ctx, intent.ScopeID, intent.GenerationID)
+		var resolvedCrossRepoWrites int
+		var err error
+		if intent.ClaimedAt == nil {
+			resolvedCrossRepoWrites, err = h.CrossRepoResolver.Resolve(ctx, intent.ScopeID, intent.GenerationID)
+		} else if claimedResolver, ok := h.CrossRepoResolver.(ClaimedCrossRepoRelationshipResolver); ok {
+			resolvedCrossRepoWrites, err = claimedResolver.ResolveClaimed(ctx, intent)
+		} else {
+			err = fmt.Errorf("cross-repo resolver %T does not support claim-fenced resolution", h.CrossRepoResolver)
+		}
 		timing.crossRepoResolutionDuration = time.Since(crossRepoStarted)
 		if err != nil {
 			return reducercontract.Result{}, fmt.Errorf("cross-repo relationship resolution: %w", err)
