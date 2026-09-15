@@ -20,20 +20,14 @@
 #       whole-module here too, on top of (c)'s faster scoped pass — the
 #       cross-package coverage pre-pr.sh's own header describes is real value,
 #       not accidental duplication. Also passes `--pre-push` to
-#       run-selected-gates.sh: a small, data-backed set of the slowest
-#       registry gates (measured median 19-111s each, ~60% of a full
-#       selected-gates run combined -- doc-citations, docs-cli-env-refs,
-#       parser-relationship-kit, tagged-builds, query-plan-regression,
-#       code-coverage-report, and the three ifa-*-matrix/determinism/
-#       fault-injection static mirrors, plus the golden-corpus static mirror)
-#       are registered `local.pre_push: deferred` in specs/ci-gates.v1.yaml
-#       and skipped here, printing `DEFER-CI <gate>: <reason>` for each --
-#       never silently. Every one of them is either blocking:true with a real
-#       CI workflow/job (required-gates.yml aggregates every blocking gate
-#       automatically) or advisory (never required for merge), so deferring
-#       moves its enforcement to CI and `make pre-pr`/`make pre-pr-full`; it
-#       never removes it. telemetry-coverage stays in the floor: it is one of
-#       the most frequent local catches and the operator cares about it;
+#       run-selected-gates.sh, which makes the gate step an ALLOWLIST: only
+#       gates registered `local.pre_push: floor` in specs/ci-gates.v1.yaml run
+#       (24 fast gates chosen from 67 local pre-pr timing reports: lint, file
+#       and directory caps, package docs, perf-evidence, telemetry coverage,
+#       the contract registries). Every other triggered gate prints
+#       `DEFER-CI <gate>: <reason>` and still runs in `make pre-pr` and CI.
+#       A denylist of the slowest gates was tried first and still took more
+#       than 15 minutes on a one-line Go change; the allowlist took 400s;
 #   (e) the advisory docs-contradiction gate, unconditionally. It has no CI
 #       workflow at all (docs-contradiction is local-only by design), so
 #       dropping the push stamp would otherwise remove its only enforcement.

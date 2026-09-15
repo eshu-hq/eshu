@@ -29,12 +29,12 @@ changed packages/paths: `go test`, the file cap, gofumpt/lint/build/vet, the
 registry-selected blocking exactness/telemetry/hygiene/docs gates, and the
 advisory docs-contradiction gate. No race/live lane, no push stamp (removed —
 see [agent-git-hygiene.md](https://github.com/eshu-hq/eshu/blob/main/docs/internal/agent-git-hygiene.md)).
-A handful of the slowest registry gates (median 19-111s each) carry
-`local.pre_push: deferred` in `specs/ci-gates.v1.yaml` and are skipped here —
-printed `DEFER-CI <gate>: <reason>`, never silently — since each is either
-blocking with a real CI destination (`required-gates.yml` aggregates it
-automatically) or advisory (never required for merge); `pre-pr` still runs
-them all. `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
+The gate step is an allowlist: only gates registered `local.pre_push: floor`
+in `specs/ci-gates.v1.yaml` run (fast lint, cap, package-docs, perf-evidence,
+telemetry-coverage, and contract-registry gates). Every other gate the diff
+triggers prints `DEFER-CI <gate>: <reason>`, never silently, and still runs in
+`make pre-pr` and blocks merge in CI through `required-gates-complete`.
+Measured on a one-line `go/internal/query` change: 400s. `make pre-pr`/`pre-pr-full` remain RECOMMENDED (optional) deeper
 preflights for queue/lease/claim, schema DDL, hot-Cypher/graph-write, or
 reducer/package-move changes (`pre-pr-full` for moves: build tags hide files
 from `./...`):

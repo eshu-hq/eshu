@@ -199,27 +199,24 @@ single-threading work, or inventing silent fallbacks.
 
 ## Read These First
 
-Read the sections relevant to the changed contract:
+Read the doc that matches the change, not every doc for every change:
 
-- [Service Runtimes](docs/public/deployment/service-runtimes.md) for service
-  ownership, startup, and deployment behavior.
-- [Local Testing](docs/public/reference/local-testing.md) for selecting and
-  running verification gates.
-- [Telemetry](docs/public/reference/telemetry/index.md) for operator signals.
-- [Architecture](docs/public/architecture.md) for pipeline and ownership changes.
-
-If a change affects Docker Compose, agents MUST also read
-[Docker Compose](docs/public/run-locally/docker-compose.md).
-
-If a change touches hot-path Cypher, graph writes, query handlers, reducer
-projection, materialization, or schema DDL, agents MUST also read
-[Cypher Performance](docs/public/reference/cypher-performance.md).
-
-If a change affects NornicDB knobs or compatibility, agents MUST also read:
-
-- [NornicDB Tuning](docs/public/reference/nornicdb-tuning.md)
-- [NornicDB Pitfalls](docs/public/reference/nornicdb-pitfalls.md)
-- [Graph Backend Installation](docs/public/reference/graph-backend-installation.md)
+- Service ownership, startup, or deployment behavior:
+  [Service Runtimes](docs/public/deployment/service-runtimes.md).
+- Selecting or running a verification gate:
+  [Local Testing](docs/public/reference/local-testing.md).
+- Adding or changing an operator signal:
+  [Telemetry](docs/public/reference/telemetry/index.md).
+- Pipeline stages or ownership boundaries:
+  [Architecture](docs/public/architecture.md).
+- Docker Compose: [Docker Compose](docs/public/run-locally/docker-compose.md).
+- Hot-path Cypher, graph writes, query handlers, reducer projection,
+  materialization, or schema DDL:
+  [Cypher Performance](docs/public/reference/cypher-performance.md).
+- NornicDB knobs or compatibility:
+  [NornicDB Tuning](docs/public/reference/nornicdb-tuning.md),
+  [NornicDB Pitfalls](docs/public/reference/nornicdb-pitfalls.md), and
+  [Graph Backend Installation](docs/public/reference/graph-backend-installation.md).
 
 ## Skill Routing
 

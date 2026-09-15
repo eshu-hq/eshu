@@ -13,13 +13,6 @@
 #      test elsewhere asserts that directory is never recreated, which
 #      requires naming it.
 #
-#   .agents/, .claude/skills/, and .codex/skills/ are excluded FOR NOW: a
-#   separate, concurrent effort is rewording every skill under .agents/skills/
-#   (the source of truth the other two symlink to) to drop stamp/mandatory-
-#   make-pre-pr language, and this guard must not fight that in-flight work or
-#   fail on files this branch does not own. Tighten this back to the full tree
-#   once that effort lands.
-#
 # CI remains the blocking authority for Ifá/Odù contracts, performance, and
 # end-to-end proof via the required-gates-complete aggregate — see
 # docs/public/reference/local-testing.md. This guard is about the LOCAL
@@ -50,7 +43,7 @@ while IFS= read -r f; do
 	[[ -z "${f}" || "${f}" == "${self}" ]] && continue
 	printf 'test-no-prepr-stamp-references: %s still references the removed stamp mechanism\n' "${f}" >&2
 	status=1
-done < <(cd "${repo_root}" && git ls-files -z -- . ':!.agents' ':!.claude/skills' ':!.codex/skills' \
+done < <(cd "${repo_root}" && git ls-files -z -- . \
 	| xargs -0 rg -l -e 'prepr-stamp-verify' -e 'ESHU_ALLOW_UNSTAMPED_PUSH' 2>/dev/null || true)
 
 [[ "${status}" -eq 0 ]] || fail "one or more tracked files still reference the removed stamp mechanism (see above)"
