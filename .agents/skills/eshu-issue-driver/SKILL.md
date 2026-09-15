@@ -1,6 +1,6 @@
 ---
 name: eshu-issue-driver
-description: Drive assigned Eshu GitHub issues or epics through implementation, review, and verified closure when the user requests merged or closed outcomes.
+description: Drive an assigned eshu-hq/eshu issue or epic through implementation, review, promotion, and a verified merged/closed outcome — worktree per leaf, PR monitoring, and completion evidence. Orchestrates eshu-code-review's verdict and resolve-review-threads' cleanup toward closure; neither replaces this end-to-end drive.
 ---
 
 # Eshu Issue Driver
@@ -50,18 +50,27 @@ proof and only the orchestrator runs the promotion gate.
    Use that skill's finding schema, proof tiers, and merge bar as the single
    source of review policy.
 4. Capture the clean review's inputs with `ci-gates review-attest capture`.
-   When otherwise ready to push, the orchestrator runs one serialized
-   `make pre-pr` promotion attempt. Keep the shared machine quiet for live
-   lanes: coordinate ownership across worktrees/clones and inspect the live-gate
-   lock and running gate process; absence of a `make pre-pr` process alone does
-   not prove the machine is free. Never kill another session's gate.
+   Run `make pre-push` before every push — the required floor (changed-package
+   test/lint/build/vet, file cap, registry-selected static gates,
+   docs-contradiction). For queue/lease/claim code, schema DDL, hot-path
+   Cypher or graph writes, reducer projection/materialization, or a package
+   move, the orchestrator also runs one serialized `make pre-pr`
+   (`make pre-pr-full` for a move) before that push — recommended for that
+   risk class, not required otherwise. Keep the shared machine quiet for
+   either live lane: coordinate ownership across worktrees/clones and inspect
+   the live-gate lock and running gate process; absence of a `make pre-pr`
+   process alone does not prove the machine is free. Never kill another
+   session's gate.
 5. Verify the receipt with `ci-gates review-attest verify` after preflight.
    Matching inputs reuse the preliminary semantic review. A changed base,
    commit, tree, worktree, submodule, PR claim, review packet, or verdict
    requires affected proof and a new full review/receipt before promotion.
    On preflight failure, diagnose and fix it, rerun affected proof, and obtain
    a clean preliminary review before another attempt. Deferred P2 and cosmetic
-   P3 findings do not restart this loop.
+   P3 findings do not restart this loop. Once pushed, CI's
+   `required-gates-complete` (with `go-core-complete` and `go-race-complete`)
+   is the actual blocking authority; on a red check, reproduce only that gate
+   locally.
 6. With authorization already established for the act, push the reviewed head
    and verify the remote SHA equals local HEAD before PR creation/update.
    Use `--force-with-lease` for an authorized rebase of an already-pushed branch.
