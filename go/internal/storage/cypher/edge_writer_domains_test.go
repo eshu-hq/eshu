@@ -49,8 +49,15 @@ func TestBatchedWriteEdgesUsesUNWINDCypher(t *testing.T) {
 			if err != nil {
 				t.Fatalf("WriteEdges(%s) error = %v", tc.domain, err)
 			}
-			if !strings.Contains(executor.calls[0].Cypher, tc.contains) {
-				t.Fatalf("cypher missing %q: %s", tc.contains, executor.calls[0].Cypher)
+			found := false
+			for _, call := range executor.calls {
+				if strings.Contains(call.Cypher, tc.contains) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("no cypher call contains %q: %#v", tc.contains, executor.calls)
 			}
 		})
 	}

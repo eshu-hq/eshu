@@ -461,11 +461,10 @@ func BuildCanonicalRunsOnUpsert(p CanonicalRunsOnParams, evidenceSource string) 
 	}
 }
 
-// buildEdgeRouteStatements removes pre-upgrade propertyless identities before
-// issuing deterministic keyed MERGEs. Group-capable production executors
-// commit each cleanup and replacement atomically. The deployment upgrade
-// contract stops every old reducer before keyed writers start, so an old
-// writer cannot recreate a propertyless edge after cleanup.
+// buildEdgeRouteStatements removes pre-upgrade propertyless RUNS_ON identities
+// before issuing deterministic keyed MERGEs. Workload dependency upgrades use
+// the domain's existing retract-then-replay boundary; keeping migration work
+// out of its hot writer avoids an unbounded relationship scan on every batch.
 func buildEdgeRouteStatements(cypher string, rows []map[string]any, batchSize int) []Statement {
 	statements := make([]Statement, 0, 2)
 	switch cypher {
@@ -473,11 +472,6 @@ func buildEdgeRouteStatements(cypher string, rows []map[string]any, batchSize in
 		statements = append(
 			statements,
 			buildBatchedStatements(batchCanonicalRunsOnLegacyIdentityCleanupCypher, rows, batchSize)...,
-		)
-	case batchCanonicalWorkloadDependencyUpsertCypher:
-		statements = append(
-			statements,
-			buildBatchedStatements(batchCanonicalWorkloadDependencyLegacyIdentityCleanupCypher, rows, batchSize)...,
 		)
 	}
 	return append(statements, buildBatchedStatements(cypher, rows, batchSize)...)
