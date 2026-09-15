@@ -92,6 +92,7 @@ func TestPropertyKeyedRelationshipMergesMatchKnownAllowList(t *testing.T) {
 		"PUBLISHES":          2, // provenance_edge_writer.go -- Package + PackageVersion targets.
 		"BUILT_FROM":         1, // provenance_edge_writer.go -- outside the 14-family scope.
 		"RUNS_ON":            2, // canonical.go + canonical_relationships.go -- shared deterministic identity.
+		"DEPENDS_ON":         2, // canonical.go -- workload dependency single-row and batched templates.
 	}
 
 	got := scanPropertyKeyedRelationshipMergeTypes(t)

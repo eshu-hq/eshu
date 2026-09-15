@@ -474,6 +474,7 @@ func TestMaterializedEdgeIdentityPropertiesMatchTheirMergeKeys(t *testing.T) {
 	}{
 		{"codeowners_ownership_edges", map[string][]string{"DECLARES_CODEOWNER": {"pattern", "source_path"}}},
 		{"submodule_pin_edges", map[string][]string{"PINS_SUBMODULE": {"path"}}},
+		{"workload_dependency", map[string][]string{"DEPENDS_ON": {"identity_key"}}},
 		{"repo_dependency", map[string][]string{"RUNS_ON": {"identity_key"}}},
 	}
 	for _, tc := range cases {

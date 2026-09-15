@@ -53,12 +53,10 @@ type materializedEdgeFamily struct {
 	// endpoint nodes — that participate in this family's single edge type's
 	// MERGE identity. Nil for a family whose relationship MERGEs on its
 	// endpoints alone (`MERGE (a)-[rel:TYPE]->(b)`, no property map).
-	// codeowners_ownership_edges and submodule_pin_edges are the two
-	// exceptions: their writers fold a relationship property into the MERGE
-	// key itself (canonical_codeowners_edges.go, canonical_submodule_edges.go)
-	// because two distinct source rows can otherwise collide onto the same
-	// (source, target) relationship pattern and silently overwrite each
-	// other.
+	// Codeowners and submodule writers use identity properties to distinguish
+	// multiple logical rows sharing one endpoint pair. Workload dependencies
+	// use one constant identity property so concurrent source- and target-scope
+	// writers converge on the same stored relationship.
 	IdentityProperties []string
 }
 
@@ -77,9 +75,10 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		IdentityCypher: batchCanonicalShellExecUpsertCypher,
 	},
 	"workload_dependency": {
-		EdgeTypes:      map[string]string{"DEPENDS_ON": "workload-to-workload dependency (batchCanonicalWorkloadDependencyUpsertCypher)"},
-		RetractCypher:  retractWorkloadDependencyEdgesCypher,
-		IdentityCypher: batchCanonicalWorkloadDependencyUpsertCypher,
+		EdgeTypes:          map[string]string{"DEPENDS_ON": "workload-to-workload dependency (batchCanonicalWorkloadDependencyUpsertCypher)"},
+		RetractCypher:      retractWorkloadDependencyEdgesCypher,
+		IdentityCypher:     batchCanonicalWorkloadDependencyUpsertCypher,
+		IdentityProperties: []string{"identity_key"},
 	},
 	"deployable_unit_edges": {
 		EdgeTypes:      map[string]string{"CORRELATES_DEPLOYABLE_UNIT": "deployable-unit correlation (batchCanonicalDeployableUnitCorrelationUpsertCypher)"},
@@ -216,7 +215,7 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 // writers (see the package doc comment above), and repo_dependency shares
 // the DEPENDS_ON type with workload_dependency. Three declare an explicit
 // empty identity because their relationship MERGEs key on endpoint nodes alone.
-// repo_dependency's RUNS_ON writer additionally keys on identity_key so the
+// repo_dependency's RUNS_ON writer additionally keys on identity_key so its
 // two production writers converge on one stored relationship identity.
 // This matches the scope TestMaterializedEdgeFamilyRegistryMatchesItsRetract
 // already draws around singleTypeMaterializedEdgeFamilies: proving identity

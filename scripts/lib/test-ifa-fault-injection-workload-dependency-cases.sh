@@ -190,6 +190,6 @@ run_ifa_fault_injection_workload_dependency_cases() {
 	if rg --fixed-strings --quiet -- 'IFA_FAMILY_RETRY_BASELINE_VAR[workload_dependency]' "${registry_row}"; then
 		fail "workload_dependency custom exact-row cells must not advertise the aggregate retry-baseline oracle"
 	fi
-	rg --fixed-strings --quiet -- 'IFA_FAMILY_ANCHOR[workload_dependency]="MERGE (source)-[rel:DEPENDS_ON]->(target)"' "${registry_row}" \
+	rg --fixed-strings --quiet -- 'IFA_FAMILY_ANCHOR[workload_dependency]="MERGE (source)-[rel:DEPENDS_ON {identity_key: '\''canonical'\''}]->(target)"' "${registry_row}" \
 		|| fail "workload_dependency registry graph-fault anchor is not the workload writer MERGE"
 }
