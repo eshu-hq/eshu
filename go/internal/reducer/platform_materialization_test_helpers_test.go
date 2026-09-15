@@ -32,8 +32,9 @@ func (w *recordingPlatformMaterializationWriter) WritePlatformMaterialization(
 // replays the deployment_mapping handler requests after cross-repo resolution
 // writes canonical edges.
 type recordingWorkloadMaterializationReplayer struct {
-	calls []workloadMaterializationReplayCall
-	err   error
+	calls  []workloadMaterializationReplayCall
+	err    error
+	reject bool
 }
 
 // workloadMaterializationReplayCall is one recorded replay request.
@@ -41,6 +42,28 @@ type workloadMaterializationReplayCall struct {
 	scopeID      string
 	generationID string
 	entityKey    string
+	repoID       string
+	fence        string
+	fenced       bool
+}
+
+func (r *recordingWorkloadMaterializationReplayer) ReplayWorkloadMaterializationForFence(
+	_ context.Context,
+	scopeID string,
+	generationID string,
+	entityKey string,
+	repoID string,
+	fence string,
+) (bool, error) {
+	r.calls = append(r.calls, workloadMaterializationReplayCall{
+		scopeID:      scopeID,
+		generationID: generationID,
+		entityKey:    entityKey,
+		repoID:       repoID,
+		fence:        fence,
+		fenced:       true,
+	})
+	return !r.reject, r.err
 }
 
 func (r *recordingWorkloadMaterializationReplayer) ReplayWorkloadMaterialization(
@@ -54,5 +77,5 @@ func (r *recordingWorkloadMaterializationReplayer) ReplayWorkloadMaterialization
 		generationID: generationID,
 		entityKey:    entityKey,
 	})
-	return true, r.err
+	return !r.reject, r.err
 }

@@ -82,6 +82,118 @@ func TestWorkloadReplayDuringClaimReturnsAckToPending(t *testing.T) {
 	}
 }
 
+func TestWorkloadReplayConcurrentFirstScheduleReportsSuccess(t *testing.T) {
+	db, ctx := refinalizeRebuildResetLiveDB(t)
+	suffix := testSuffix(t)
+	scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
+	entityKey := "repo:workload-first-replay-" + suffix
+	queue := NewReducerQueue(SQLDB{DB: db}, "workload-first-replay", time.Minute)
+	firstConn := ackFanoutProbeConnection(t, ctx, db, "workload-first-replay-winner")
+	waiterConn := ackFanoutProbeConnection(t, ctx, db, "workload-first-replay-waiter")
+	firstPID := workloadReplayBackendPID(t, ctx, firstConn)
+	waiterPID := workloadReplayBackendPID(t, ctx, waiterConn)
+
+	firstTx, err := firstConn.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("begin first replay transaction: %v", err)
+	}
+	t.Cleanup(func() { _ = firstTx.Rollback() })
+	firstQueue := queue
+	firstQueue.db = SQLTx{Tx: firstTx}
+	replayed, err := firstQueue.ReplayWorkloadMaterialization(ctx, scopeID, generationID, entityKey)
+	if err != nil || !replayed {
+		t.Fatalf("first replay = (%v, %v), want (true, nil)", replayed, err)
+	}
+
+	waiterQueue := queue
+	waiterQueue.db = waiterConn
+	waiterDone := make(chan workloadReplayOutcome, 1)
+	go func() {
+		got, replayErr := waiterQueue.ReplayWorkloadMaterialization(ctx, scopeID, generationID, entityKey)
+		waiterDone <- workloadReplayOutcome{replayed: got, err: replayErr}
+	}()
+	waitForReducerRowLockWaiter(t, ctx, db, waiterPID, firstPID)
+	if err := firstTx.Commit(); err != nil {
+		t.Fatalf("commit first replay transaction: %v", err)
+	}
+	outcome := <-waiterDone
+	if outcome.err != nil || !outcome.replayed {
+		t.Fatalf("concurrent replay loser = (%v, %v), want (true, nil)", outcome.replayed, outcome.err)
+	}
+}
+
+func TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken(t *testing.T) {
+	db, ctx := refinalizeRebuildResetLiveDB(t)
+	queue, claimed, scopeID, generationID, entityKey := seedClaimedWorkloadReplay(
+		t, ctx, db, "fenced-token",
+	)
+	repoID := "repository:fenced-token"
+
+	replayed, err := queue.ReplayWorkloadMaterializationForFence(
+		ctx, scopeID, generationID, entityKey, repoID, "fence-b",
+	)
+	if err != nil || !replayed {
+		t.Fatalf("schedule fence B = (%v, %v), want (true, nil)", replayed, err)
+	}
+	assertWorkloadReplayFenceState(t, ctx, db, claimed.IntentID, "fence-b", true)
+	if err := queue.Ack(ctx, claimed, reducer.Result{}); err != nil {
+		t.Fatalf("ack pre-fence claim: %v", err)
+	}
+
+	claimB, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("claim fence B = (%v, %v), want work", ok, err)
+	}
+	if got := claimB.Payload[reducer.RepoDependencyReadinessFencePayloadKey]; got != "fence-b" {
+		t.Fatalf("claim B fence = %v, want fence-b", got)
+	}
+	if replayed, err = queue.ReplayWorkloadMaterializationForFence(
+		ctx, scopeID, generationID, entityKey, repoID, "fence-b",
+	); err != nil || !replayed {
+		t.Fatalf("repeat fence B = (%v, %v), want (true, nil)", replayed, err)
+	}
+	assertWorkloadReplayFenceState(t, ctx, db, claimB.IntentID, "fence-b", false)
+
+	if replayed, err = queue.ReplayWorkloadMaterializationForFence(
+		ctx, scopeID, generationID, entityKey, repoID, "fence-c",
+	); err != nil || !replayed {
+		t.Fatalf("schedule fence C = (%v, %v), want (true, nil)", replayed, err)
+	}
+	assertWorkloadReplayFenceState(t, ctx, db, claimB.IntentID, "fence-c", true)
+	if err := queue.Ack(ctx, claimB, reducer.Result{}); err != nil {
+		t.Fatalf("ack superseded fence B claim: %v", err)
+	}
+	claimC, ok, err := queue.Claim(ctx)
+	if err != nil || !ok {
+		t.Fatalf("claim fence C = (%v, %v), want work", ok, err)
+	}
+	if got := claimC.Payload[reducer.RepoDependencyReadinessFencePayloadKey]; got != "fence-c" {
+		t.Fatalf("claim C fence = %v, want fence-c", got)
+	}
+}
+
+func assertWorkloadReplayFenceState(
+	t *testing.T,
+	ctx context.Context,
+	db *sql.DB,
+	workItemID string,
+	wantFence string,
+	wantReplay bool,
+) {
+	t.Helper()
+	var fence string
+	var replay bool
+	if err := db.QueryRowContext(ctx, `
+SELECT COALESCE(payload->>'repo_dependency_readiness_fence', ''), cross_scope_replay_required
+FROM fact_work_items
+WHERE work_item_id = $1`, workItemID).Scan(&fence, &replay); err != nil {
+		t.Fatalf("read workload replay fence state: %v", err)
+	}
+	if fence != wantFence || replay != wantReplay {
+		t.Fatalf("workload replay fence state = (%q, %v), want (%q, %v)", fence, replay, wantFence, wantReplay)
+	}
+}
+
 func TestWorkloadReplayAndBatchAckContentionConvergesToPending(t *testing.T) {
 	t.Run("ack_first_replay_reopens", testWorkloadReplayAfterUncommittedBatchAck)
 	t.Run("replay_first_batch_ack_trigger_reopens", testWorkloadBatchAckAfterUncommittedReplay)

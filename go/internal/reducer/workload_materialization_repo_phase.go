@@ -118,6 +118,48 @@ func publishRepoReadinessPhasesWithRepair(
 	return nil
 }
 
+func publishRepoDependencyReadinessFenceWithRepair(
+	ctx context.Context,
+	publisher GraphProjectionPhasePublisher,
+	repairQueue GraphProjectionPhaseRepairQueue,
+	intent Intent,
+	observedAt time.Time,
+) error {
+	if publisher == nil {
+		return nil
+	}
+	fence, _ := intent.Payload[RepoDependencyReadinessFencePayloadKey].(string)
+	repoID, _ := intent.Payload[RepoDependencyReadinessRepoIDPayloadKey].(string)
+	fence = strings.TrimSpace(fence)
+	repoID = strings.TrimSpace(repoID)
+	if fence == "" || repoID == "" {
+		return nil
+	}
+	key := workloadMaterializationRepoReadinessKey(intent.ScopeID, repoID, intent.GenerationID)
+	key.SourceRunID = RepoDependencyReadinessFenceSourceRunID(fence)
+	if err := key.Validate(); err != nil {
+		return fmt.Errorf("build repo dependency workload readiness fence: %w", err)
+	}
+	if observedAt.IsZero() {
+		observedAt = time.Now().UTC()
+	}
+	state := GraphProjectionPhaseState{
+		Key:         key,
+		Phase:       GraphProjectionPhaseWorkloadMaterialization,
+		CommittedAt: observedAt.UTC(),
+		UpdatedAt:   observedAt.UTC(),
+	}
+	if err := publishGraphProjectionPhaseStatesWithRepair(
+		ctx,
+		publisher,
+		repairQueue,
+		[]GraphProjectionPhaseState{state},
+	); err != nil {
+		return fmt.Errorf("publish repo dependency workload readiness fence: %w", err)
+	}
+	return nil
+}
+
 func enqueueRepoReadinessPhaseRepairs(
 	ctx context.Context,
 	repairQueue GraphProjectionPhaseRepairQueue,

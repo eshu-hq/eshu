@@ -457,10 +457,12 @@ func TestRepoDependencyProjectionRunnerRunContinuesAfterCycleError(t *testing.T)
 	defer cancel()
 
 	runner := RepoDependencyProjectionRunner{
-		IntentReader:       reader,
-		LeaseManager:       reader,
-		AcceptanceUnitGate: reader,
-		EdgeWriter:         writer,
+		IntentReader:                    reader,
+		LeaseManager:                    reader,
+		AcceptanceUnitGate:              reader,
+		EdgeWriter:                      writer,
+		WorkloadMaterializationReplayer: &recordingWorkloadMaterializationReplayer{},
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
 		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
 			return "gen-1", key.AcceptanceUnitID == repoID
 		},

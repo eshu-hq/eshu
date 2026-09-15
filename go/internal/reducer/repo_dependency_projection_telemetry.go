@@ -182,6 +182,29 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyQuiescenceBlocked(
 	}
 }
 
+func (r *RepoDependencyProjectionRunner) recordRepoDependencyWorkloadReadinessBlocked(
+	ctx context.Context,
+	acceptanceUnitID string,
+	startedAt time.Time,
+) {
+	duration := time.Since(startedAt).Seconds()
+	if r.Instruments != nil {
+		attrs := metric.WithAttributes(telemetry.AttrDomain(DomainRepoDependency))
+		r.Instruments.CanonicalWriteDuration.Record(ctx, duration, attrs)
+		r.Instruments.CanonicalWrites.Add(ctx, 0, attrs)
+	}
+	if r.Logger != nil {
+		r.Logger.InfoContext(
+			ctx,
+			"repo dependency RUNS_ON blocked on workload-materialization readiness",
+			slog.String("acceptance_unit_id", acceptanceUnitID),
+			slog.Int("blocked_readiness", 1),
+			slog.Float64("duration_seconds", duration),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
+}
+
 func recordRepoDependencyStepDurations(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
@@ -272,6 +295,15 @@ func (r *RepoDependencyProjectionRunner) validate() error {
 	}
 	if r.AcceptanceUnitGate == nil {
 		return errors.New("repo dependency projection runner: acceptance unit gate is required")
+	}
+	if r.WorkloadMaterializationReplayer == nil {
+		return errors.New("repo dependency projection runner: workload materialization replayer is required")
+	}
+	if _, ok := r.WorkloadMaterializationReplayer.(WorkloadMaterializationFenceReplayer); !ok {
+		return errors.New("repo dependency projection runner: workload materialization replayer must support readiness fences")
+	}
+	if r.WorkloadReadinessPrefetch == nil {
+		return errors.New("repo dependency projection runner: workload readiness prefetch is required")
 	}
 	if r.Config.leaseTTL() <= r.Config.requiredLeaseSafetyBudget() {
 		return fmt.Errorf(
