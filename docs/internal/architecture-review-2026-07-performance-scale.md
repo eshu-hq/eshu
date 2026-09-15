@@ -116,7 +116,11 @@ partitions (`collector-performance-envelope.md`,
 
 ---
 
-## Part F — SDK and repo-split plan
+## Part F — SDK and repository-migration dependencies
+
+The conditional split framing from this July review is superseded by #6707.
+Every non-default collector moves to its assigned repository. This section
+records the contract and cutover dependencies; it does not reopen that decision.
 
 ### F.1 SDK public surface
 
@@ -133,27 +137,29 @@ PagerDuty is the designated reference
 (`collector-extraction-policy.md`): packaging, trust, claim execution,
 fact-shape parity, Compose proof, redaction, and operator evidence are
 complete; classification is `extraction_candidate`; nothing is
-`external_ready` yet. The caveat the policy itself states: the reference
+`external` yet. The legacy diagnostic maps to `planned`, not to a completed
+cutover. The caveat the policy itself states: the reference
 component emits namespaced example kinds (`dev.eshu.examples.pagerduty.*`)
 that the incident-routing readback does not consume — flipping the in-tree
 collector off today would silently break incident routing.
 
-Before the split is safe rather than early, in order:
+Before PagerDuty can cut over safely, in order:
 
 1. Payload schemas for the `incident.*` / `incident_routing.*` kinds.
-2. Kind-parity decision: the external collector emits the core fact kinds
-   (registry marks lifecycle owner as the external package), or readback
-   gains kind aliasing. Core kinds under the existing registry entry is
-   simpler and matches the parity already proven.
-3. Tagged SDK + fixture pack releases the external repo pins in CI.
+2. First-party producer delegation authorizes the external collector to emit
+   the existing core-owned kinds. Eshu retains kind lifecycle, admission, and
+   canonical ownership; readback does not gain an alias for example kinds.
+3. Tagged collector-SDK and fact-schema module releases are pinned by the
+   external repository in CI.
 4. Dual-run window: in-tree and external collectors side by side on distinct
    `CollectorInstanceID`s in a staging corpus; the `parity/` harness compares
    fact streams until byte-parity holds for N cycles.
 5. Operational readiness: revocation drill executed once; dead-letter
    visibility through component diagnostics confirmed; Helm wiring
    default-off → opt-in → default flip as three separate releases.
-6. Move the code, mark the family `external_ready`, delete the in-tree copy
-   one release later.
+6. Mark the family `ready_for_cutover`, transfer producer authority, and prove
+   the deployed production path. Remove the in-tree implementation only after
+   that proof passes; the family then becomes `external`.
 
 ### F.3 Governance once collectors have other maintainers
 
@@ -183,15 +189,17 @@ OSS/SDK goal:
    ([A.5](architecture-review-2026-07.md#a5-how-findings-actually-work-today))
    — design it before GCP/Azure drift findings multiply the fragmentation.
 5. **Publish the SLO/performance contract and the Postgres tuning doc.**
-6. **PagerDuty to `external_ready`** via F.2, tagging SDK v0.2 on the way.
+6. **PagerDuty to `ready_for_cutover`, then `external`** through the
+   authority transfer and production proof in F.2.
 7. **HA hygiene**: dead-letter operator surface, coordinator
    leader-election-or-proof, backpressure/quota design.
 8. **Then scale work in evidence order**: domain-sharded fleets and
-   projection-lane extraction, LISTEN/NOTIFY as a scheduling win, and only
+   projection-lane scaling, LISTEN/NOTIFY as a scheduling win, and only
    after those are spent, scope-partition sharding — knowing the graph
    backend's ~2,800 facts/s is the ceiling that decides 10×.
 9. **Collector pattern convergence**: GCP typed-depth registry as the
-   documented standard; hold Azure to it now, migrate AWS opportunistically.
+   documented standard; hold Azure to it now, then migrate AWS after its
+   public contracts and cutover evidence are ready.
 
 The single most important sentence in this review: **the seam about to become
 public already exists and is better than assumed — but it is versioned only

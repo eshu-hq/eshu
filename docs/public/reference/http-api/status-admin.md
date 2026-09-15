@@ -352,8 +352,8 @@ when the family is not tracked by the policy.
 
 List responses are bounded by `limit` (default 100, max 500) and return `count`,
 `total_count`, and `truncated`. See
-[Collector Extraction Policy](../collector-extraction-policy.md) for the
-classification vocabulary and the seven criteria.
+[Collector Repository Migration Policy](../collector-extraction-policy.md)
+for the roadmap mapping and cutover criteria.
 
 The MCP equivalents are `list_collector_extraction_readiness` with optional
 `limit` and `get_collector_extraction_readiness`. The CLI equivalent is

@@ -8,9 +8,9 @@ The short rule is unchanged: extensions may observe source truth and emit
 versioned facts. Reducers, projectors, graph writers, query handlers, and answer
 packet builders own canonical Eshu truth.
 
-For deciding whether an existing in-tree collector is eligible to move out of
-tree, start with the
-[Collector Extraction Policy](../reference/collector-extraction-policy.md).
+For the cutover requirements and migration order of an existing in-tree
+collector, start with the
+[Collector Repository Migration Policy](../reference/collector-extraction-policy.md).
 
 ## Choose The Boundary First
 
@@ -489,7 +489,7 @@ Use this checklist when triaging an extension PR.
 - [Fact Envelope Reference](../reference/fact-envelope-reference.md)
 - [Reducer Guarantees](../reference/reducer-guarantees.md)
 - [Collector Authoring](../guides/collector-authoring.md)
-- [Collector Extraction Policy](../reference/collector-extraction-policy.md)
+- [Collector Repository Migration Policy](../reference/collector-extraction-policy.md)
 - [Language Support](../contributing-language-support.md)
 - [Relationship Mapping](../reference/relationship-mapping.md)
 - [Semantic Enrichment Posture](../reference/semantic-enrichment-posture.md)

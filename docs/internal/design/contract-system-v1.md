@@ -26,10 +26,10 @@ Two consequences:
    produce an error, a retry, or a dead letter. It produces empty-string graph
    identities — silent wrong truth, which the Life Motto ranks as the worst
    possible failure.
-2. **Multi-repo blocker.** We intend to move collector families out of the
-   monorepo (see
-   [Collector Extraction Policy](../../public/reference/collector-extraction-policy.md))
-   and accept third-party collectors through the SDK. An implicit contract
+2. **Multi-repo blocker.** Every non-default collector moves to its assigned
+   repository (see
+   [Collector Repository Migration Policy](../../public/reference/collector-extraction-policy.md)).
+   Eshu also accepts third-party collectors through the SDK. An implicit contract
    held together by string literals duplicated across packages (see the
    intentional duplication comments in
    `go/internal/reducer/iamcan/iam_can_assume_edge_rows.go`,
@@ -301,14 +301,16 @@ Incremental, family by family, accuracy first:
 4. **The registry's additive v1 evolution** (new fields, same file, minor
    `version:` bump) and the guarantees doc.
 5. **Fixture packs** and conformance payload validation.
-6. **Remaining families** migrate opportunistically; a family must be typed
-   before its collectors are eligible for extraction
-   (this becomes an additional row in the
+6. **Remaining families** migrate in the order set by their repository cutover
+   dependencies. A family must be typed before its collectors can become
+   `ready_for_cutover`; typing does not decide whether they move
+   (this remains a row in the
    [Extraction Criteria](../../public/reference/collector-extraction-policy.md#extraction-criteria)).
-7. **PagerDuty extraction** (already the reference proof) re-runs on the new
-   contracts as the end-to-end dogfood: external repo, pinned contracts
-   version, conformance + fixture pack in its own CI, dual-run parity window,
-   then `external_ready`.
+7. **PagerDuty repository cutover** re-runs the existing boundary proof on the
+   published contracts: external repository, pinned contract versions,
+   conformance and fixture packs in its own CI, and a dual-run parity window.
+   It becomes `external` only after deployed cutover proof passes and the
+   in-tree implementation is removed.
 
 Per-stage verification follows repository rules: failing regression tests
 first for behavior changes, focused package gates, docs build for doc

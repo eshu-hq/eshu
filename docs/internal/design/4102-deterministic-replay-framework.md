@@ -134,8 +134,8 @@ replay).
 R-10 (contributor conformance packaging — the 5-command flow), issue #4112.
 
 The framework ships as an out-of-tree onboarding surface so a contributor can
-prove a collector's extraction **with zero provider credentials and zero
-Docker** before it is ever a candidate for the monorepo split:
+prove a collector's repository boundary **with zero provider credentials and
+zero Docker** before production cutover:
 
 - **Starter spec** (`go/conformance/testdata/starter-spec.yaml`) — the
   contributor-facing twin of the B-12 golden snapshot, parsed via
@@ -173,9 +173,10 @@ code.
 
 ## 9. Sequencing
 
-The monorepo split (#4047) happens after all of Epic B (#3741). Epic B's finish
-line is the split gate, so the entire framework must land before Epic B closes.
-There is no separate split timeline to pace against.
+The conditional monorepo-split language in the original plan is superseded by
+#6707. This framework remains a prerequisite for each collector cutover under
+#4047; completing it does not by itself establish that any collector is
+`external`.
 
 ## 10. Phase 4 — convergence: failure + concurrency onto the same gate
 

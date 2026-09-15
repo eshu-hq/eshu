@@ -22,7 +22,7 @@ collector, reducer, query, API, MCP, or generated-reference boundaries.
 | API and MCP contracts | [HTTP API](http-api.md), [MCP Reference](mcp-reference.md), and [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md) |
 | Environment source of truth | [Environment Variables](environment-variables.md) and [Environment Variable Registry](env-registry.md) |
 | Documentation IA metadata | [Docs Catalog Metadata](docs-catalog.md) |
-| Collector contracts | [Collector Extraction Policy](collector-extraction-policy.md), [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md), and provider-specific collector contracts |
+| Collector contracts | [Collector Repository Migration Policy](collector-extraction-policy.md), [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md), and provider-specific collector contracts |
 | Evidence and answer contracts | [Portable Evidence Bundle](evidence-bundle.md), [Evidence Citation Handle Contract](evidence-citation-handles.md), and [Answer Packet Contract](answer-packets.md) |
 
 ## Placement

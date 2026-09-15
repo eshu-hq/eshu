@@ -161,7 +161,7 @@ nav:
       - Plugin Trust Model: reference/plugin-trust-model.md
       - Language Query DSL: reference/language-query-dsl.md
       - Source-Language Resolver Contract: reference/source-language-resolver-contract.md
-      - Collector Extraction Policy: reference/collector-extraction-policy.md
+      - Collector Repository Migration Policy: reference/collector-extraction-policy.md
       - Multi-Cloud Runtime Collector Contract: reference/multi-cloud-collector-contract.md
       - GCP Cloud Collector Contract: reference/gcp-cloud-collector-contract.md
       - Azure Cloud Collector Contract: reference/azure-cloud-collector-contract.md

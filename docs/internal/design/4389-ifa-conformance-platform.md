@@ -124,8 +124,8 @@ Measured scale (all **exists**):
   holds: assert at the stable `facts.Envelope` seam, not inside collector code.
 - Other fan-ins (exact / non-test): `telemetry` 608 / 510, `reducer` 297 / 124,
   `query` 198 / 77, `projector` 101 / 40; `replay` 13 exact / 69 tree.
-- The companion `eshu-monorepo-split.md` uses the **non-test** basis above for
-  extraction sizing; where a number there differs, prefer the non-test column.
+- The ecosystem repository plan supersedes the conditional split direction;
+  these measurements remain historical evidence, with the non-test column preferred.
 
 ### Fact-emission seam (exists — cleanly tappable)
 

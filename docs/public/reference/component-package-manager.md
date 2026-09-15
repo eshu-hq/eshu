@@ -255,8 +255,12 @@ tracks it reports a classification (`keep_in_tree`, `extraction_candidate`,
 checklist; `--json` emits the machine-readable form. Unlike `inventory` and
 `diagnostics`, it reads no API or registry state — the data is static policy
 classification compiled into the CLI, so it runs offline and never moves code.
-See [Collector Extraction Policy](collector-extraction-policy.md) for the
-classification vocabulary and the seven criteria.
+These literals are the current CLI contract, not the ecosystem migration state.
+The migration policy maps them to `core_by_design`, `planned`,
+`contract_blocked`, and `ready_for_cutover`; only deployed cutover and
+in-tree removal establish `external`.
+See [Collector Repository Migration Policy](collector-extraction-policy.md)
+for the roadmap mapping and cutover criteria.
 
 ## Hosted Coordinator Activation
 

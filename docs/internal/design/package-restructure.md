@@ -40,10 +40,10 @@ directory gate, then a measured migration.
 
 Why this matters beyond taste: a contributor opening `internal/query` sees
 1,903 files and concludes nobody curates this codebase. The counter to
-"this looks machine-generated" is a tree a stranger can navigate. And the
-directories we create become the module seams #4047/#4398 (the
-package-extraction program) need — a family graded "clean" today is a
-candidate repo tomorrow.
+"this looks machine-generated" is a tree a stranger can navigate. The
+directories also expose dependencies that the committed ecosystem move in
+#6707 must replace with public contracts. A clean package is evidence about
+coupling; it is not automatically a repository, service, or public API.
 
 ## Part 1: the gate (lands first, conflicts with nothing)
 
@@ -2448,17 +2448,15 @@ side effect of shrinking to one delegating call, which is inert because
 darwin/arm64, same branch. `go build ./...` and `go vet ./...` exit 0; `go
 test ./internal/reducer/...` passes all packages including `gpphase`.
 
-## Part 5: what this buys the modularization program
+## Part 5: what this buys the ecosystem migration
 
-Extraction grades from the research become the repo-split roadmap:
+The coupling grades identify work for the repository destinations in #6707:
 
-- `clean` families (query/supply/chain, query/code, reducer/containerimage,
-  collector/gitrepo leaves, projector provider intents, coordinator
-  schedulers, most cli families) = future module/repo candidates with
-  measured-zero internal coupling.
-- `tangled` families = the dependency-inversion backlog, each with its
-  named blocker (impact helper seam, Service decomposition, dispatch hub
-  extraction, LanguageProvider wiring, supplychain type hoist).
-- `shared-core` sets = the de-facto public API of each future module;
-  what stays in root today is what a split repo would have to export
-  tomorrow. #4047's "extraction readiness gate" can assert exactly this.
+- `clean` means measured-zero internal coupling at the recorded base. The code
+  follows its declared owner or a deliberately selected public contract.
+- `tangled` identifies dependency-inversion work required before its owner moves.
+- `shared-core` identifies code that needs an explicit owner. It does not become
+  a public API by default. Publishing owners select, version, and test public
+  contracts; collector and fact-schema contracts live in `eshu-sdk`.
+
+#4047 proves each collector cutover; a package move does not advance migration state.
