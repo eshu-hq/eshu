@@ -328,7 +328,9 @@ same `have_cwd`/`CLAUDE_GOAL_FILE` and `goal_write` target the plain `/goal
 because this form's entire point is starting a goal that does not exist yet.
 Splitting on the first ` -- ` only means a goal that itself discusses consent,
 or contains a later ` -- `, stays objective text (`/goal consented users --
-need a path` does not even reach this arm — see the word-boundary note above).
+need a path` does not even reach this arm: the consent patterns match only
+`consent` followed by end-of-string or a space, so `consented` falls through to
+the plain `/goal <text>` producer).
 Empty acts (`/goal consent -- text`) or empty goal text (`/goal consent push
 --`) are rejected on stderr with nothing written, the same way the arm's other
 rejections are. This closes the same race as `CLAUDE_GOAL_CONSENT` below, for

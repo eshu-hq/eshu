@@ -158,7 +158,6 @@ else
 	no "CONSENTED USERS: the whole line is kept as a plain objective (file: $(cat "${cugoal}" 2>/dev/null))"
 fi
 
-# LAST line on purpose -- see the sibling companions.
 
 # ── revoke matched by command prefix only (#6714 review) ─────────────────────
 # A one-line goal whose OBJECTIVE mentions revoke-consent must start the new
@@ -184,4 +183,5 @@ else
 	no "REVOKE WORD: the real /goal revoke-consent command still clears the grant"
 fi
 
+# LAST line on purpose -- see the sibling companions.
 goal_refresh_oneline_consent_cases_loaded=1

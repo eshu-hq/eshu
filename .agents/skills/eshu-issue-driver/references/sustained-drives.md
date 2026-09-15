@@ -127,7 +127,8 @@ own: it is one command, so there is no second one to race, and both hooks read
 the `CONSENT:` line it writes from the very first Stop.
 `scripts/test-goal-refresh-hook-oneline-consent-cases.sh` proves this end to
 end, including the negative: `/goal consented users -- need a path` does not
-match the consent arm at all (the word-boundary guard below), and a later
+match the consent arm at all (its patterns match only `consent` followed by
+end-of-string or a space, so `consented` is an ordinary goal), and a later
 ` -- ` inside the goal text is not read as a second delimiter.
 
 From a **launcher** that does not control the first chat turn's exact text,
