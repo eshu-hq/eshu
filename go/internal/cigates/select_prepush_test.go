@@ -96,6 +96,72 @@ func TestFilterPrePush_DefersUnlistedGate(t *testing.T) {
 	}
 }
 
+// TestFilterPrePush_DefaultReasonForBlockingGate proves the default reason
+// for a triggered blocking gate deferred with no gate-specific
+// pre_push_reason truthfully says it still blocks merge in CI -- true for
+// every blocking gate, since the registry loader (parsePrePush) and
+// ValidateRequiredStatusChecks both refuse a blocking gate with no
+// ci.workflow/ci.job destination.
+func TestFilterPrePush_DefaultReasonForBlockingGate(t *testing.T) {
+	t.Parallel()
+	sels := []cigates.Selection{
+		{Gate: gate("blocking-gate", cigates.TierPrePR, cigates.CategoryExactness, []string{"go/**"}, localCmd("bash other.sh"), ""), Selected: true, Reason: "triggered"},
+	}
+	out := cigates.FilterPrePush(sels, true)
+	if !strings.Contains(out[0].Reason, "blocks merge in CI") {
+		t.Errorf("Reason = %q, want it to say the gate still blocks merge in CI", out[0].Reason)
+	}
+}
+
+// TestFilterPrePush_DefaultReasonForAdvisoryGateWithCI proves the default
+// reason for a triggered advisory (blocking:false) gate that still has a CI
+// destination does not claim it blocks merge -- an advisory gate failing in
+// CI never blocks merge, only make pre-pr and CI enforce it at all.
+func TestFilterPrePush_DefaultReasonForAdvisoryGateWithCI(t *testing.T) {
+	t.Parallel()
+	g := cigates.Gate{
+		ID: "advisory-gate", Name: "advisory-gate",
+		Category: cigates.CategoryExactness, Tier: cigates.TierPrePR,
+		Blocking: false, Triggers: []string{"go/**"},
+		Local: localCmd("bash advisory.sh"),
+		CI:    cigates.CI{Workflow: "advisory.yml", Job: "advisory"},
+	}
+	sels := []cigates.Selection{{Gate: g, Selected: true, Reason: "triggered"}}
+	out := cigates.FilterPrePush(sels, true)
+	if strings.Contains(out[0].Reason, "blocks merge in CI") {
+		t.Errorf("Reason = %q, want it not to claim CI-merge-blocking for an advisory gate", out[0].Reason)
+	}
+	if !strings.Contains(out[0].Reason, "advisory") {
+		t.Errorf("Reason = %q, want it to say the gate is advisory", out[0].Reason)
+	}
+}
+
+// TestFilterPrePush_DefaultReasonForGateWithNoCIWorkflow proves the default
+// reason for a triggered gate with no CI workflow at all (e.g.
+// docs-contradiction) says it is local-only, run via make pre-pr -- it must
+// not claim CI coverage that does not exist.
+func TestFilterPrePush_DefaultReasonForGateWithNoCIWorkflow(t *testing.T) {
+	t.Parallel()
+	g := cigates.Gate{
+		ID: "local-only-gate", Name: "local-only-gate",
+		Category: cigates.CategoryExactness, Tier: cigates.TierPrePR,
+		Blocking: false, Triggers: []string{"go/**"},
+		Local: localCmd("bash local-only.sh"),
+		CI:    cigates.CI{},
+	}
+	sels := []cigates.Selection{{Gate: g, Selected: true, Reason: "triggered"}}
+	out := cigates.FilterPrePush(sels, true)
+	if strings.Contains(out[0].Reason, "blocks merge in CI") || strings.Contains(out[0].Reason, "runs in make pre-pr and") {
+		t.Errorf("Reason = %q, want it not to claim CI enforcement: this gate has no CI workflow", out[0].Reason)
+	}
+	if !strings.Contains(out[0].Reason, "no CI workflow") {
+		t.Errorf("Reason = %q, want it to say there is no CI workflow", out[0].Reason)
+	}
+	if !strings.Contains(out[0].Reason, "make pre-pr") {
+		t.Errorf("Reason = %q, want it to say the gate still runs in make pre-pr", out[0].Reason)
+	}
+}
+
 // TestFilterPrePush_NeverMarksAnUntriggeredGateAsDeferred proves the "never
 // skip silently" contract from the other direction: a gate that was already
 // unselected (trigger mismatch) must not be relabeled Deferred=true just

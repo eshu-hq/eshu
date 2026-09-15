@@ -163,15 +163,48 @@ func FilterByCategory(sels []Selection, categories []Category) []Selection {
 	return out
 }
 
-// prePushDeferReason is the reason printed for a triggered gate that is not
-// in the pre-push floor and carries no gate-specific pre_push_reason.
-const prePushDeferReason = "not in the pre-push floor; still runs in make pre-pr and blocks merge in CI"
+// prePushBlockingDeferReason is the default reason for a triggered blocking
+// gate deferred out of the pre-push floor. Every blocking gate is guaranteed
+// a ci.workflow/ci.job destination -- ValidateRequiredStatusChecks rejects a
+// blocking gate without one, and RequiredGates errors if one matches changed
+// paths without reaching a required status context -- so "blocks merge in
+// CI" is true for every gate this reason is printed for.
+const prePushBlockingDeferReason = "not in the pre-push floor; still runs in make pre-pr and blocks merge in CI"
+
+// prePushAdvisoryDeferReason is the default reason for a triggered
+// advisory (blocking:false) gate deferred out of the pre-push floor that
+// still has a CI destination: it runs in CI, but a failure there does not
+// block merge.
+const prePushAdvisoryDeferReason = "not in the pre-push floor; still runs in make pre-pr; advisory in CI, not merge-blocking"
+
+// prePushLocalOnlyDeferReason is the default reason for a triggered gate
+// deferred out of the pre-push floor that has no CI workflow at all (both
+// ci.workflow and ci.job empty). Nothing in CI ever runs it, so it must not
+// claim CI coverage: make pre-pr is its only remaining enforcement.
+const prePushLocalOnlyDeferReason = "not in the pre-push floor; no CI workflow -- local-only, run it via make pre-pr"
+
+// defaultPrePushDeferReason picks the truthful default reason for a gate
+// deferred out of the pre-push floor with no gate-specific pre_push_reason,
+// based on the gate's own Blocking and CI fields rather than assuming every
+// deferred gate blocks merge in CI (false for advisory gates and for gates
+// with no CI workflow at all, e.g. docs-contradiction).
+func defaultPrePushDeferReason(g Gate) string {
+	switch {
+	case g.Blocking:
+		return prePushBlockingDeferReason
+	case g.CI.Workflow == "" && g.CI.Job == "":
+		return prePushLocalOnlyDeferReason
+	default:
+		return prePushAdvisoryDeferReason
+	}
+}
 
 // FilterPrePush applies the `ci-gates run --pre-push` lane used by
 // scripts/dev/pre-push.sh. The floor is an allowlist: a selected gate keeps
 // running only when its registry entry declares `local.pre_push: floor`.
 // Every other selected gate is unselected with Deferred=true and a reason
-// (its own pre_push_reason, or prePushDeferReason), so the caller prints
+// (its own pre_push_reason, or defaultPrePushDeferReason's per-gate default),
+// so the caller prints
 // DEFER-CI instead of skipping silently. The allowlist exists because a
 // denylist of slow gates still ran for more than 15 minutes on a one-line Go
 // change: most registry gates trigger on go/**.
@@ -189,7 +222,7 @@ func FilterPrePush(sels []Selection, prePush bool) []Selection {
 		if s.Selected && (s.Gate.Local == nil || !s.Gate.Local.PrePushFloor) {
 			s.Selected = false
 			s.Deferred = true
-			s.Reason = prePushDeferReason
+			s.Reason = defaultPrePushDeferReason(s.Gate)
 			if s.Gate.Local != nil && s.Gate.Local.PrePushReason != "" {
 				s.Reason = s.Gate.Local.PrePushReason
 			}

@@ -144,4 +144,77 @@ ESHU_PRE_PUSH_BASE="refs/heads/does-not-exist-pre-push-base" DRIVER_ARGS_LOG="${
 rg -q -- 'does not resolve to a commit' "${fixture}.log" || fail "case C: failure did not name the unresolvable base"
 rg -q -- '--self-tests' "${fixture}.args" && fail "case C: gates ran against a narrowed base"
 
+# ── Case D: a commit deletes the last Go file in a package → fmt/lint must
+# not be handed the now-nonexistent path (#6712 review). build_fixture's
+# `precommit-go.sh` stand-in only logs args; this one also fails fmt/lint
+# exactly the way golangci-lint fails on a deleted directory (`lstat: no such
+# file or directory`) so the assertion is on the real failure mode, not a
+# paraphrase of it.
+build_fixture_deleted_package() {
+	local fixture="${temp_root}/case-d"
+	rm -rf "${fixture}"
+	mkdir -p "${fixture}/scripts/dev" "${fixture}/scripts/lib" "${fixture}/go/internal/deleted" "${fixture}/bin"
+	cp "${script}" "${fixture}/scripts/dev/pre-push.sh"
+	cp "${repo_root}"/scripts/lib/pre-pr-lane.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}"/scripts/lib/pre-pr-fixture-consumers.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}"/scripts/lib/pre-pr-test-selection.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}"/scripts/lib/pre-pr-go-paths.sh "${fixture}/scripts/lib/"
+	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
+	chmod +x "${fixture}/bin/go"
+	cat > "${fixture}/scripts/dev/precommit-go.sh" <<'PRECOMMIT'
+#!/usr/bin/env bash
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+printf 'precommit-go %s\n' "$*" >> "${DRIVER_ARGS_LOG}"
+cmd="${1:-}"; shift || true
+if [[ "${cmd}" == "fmt" || "${cmd}" == "lint" ]]; then
+	for f in "$@"; do
+		if [[ ! -f "${root}/${f}" ]]; then
+			printf 'precommit-go %s: lstat %s: no such file or directory\n' "${cmd}" "${f}" >&2
+			exit 3
+		fi
+	done
+fi
+exit 0
+PRECOMMIT
+	chmod +x "${fixture}/scripts/dev/precommit-go.sh"
+	cat > "${fixture}/scripts/dev/run-selected-gates.sh" <<'GATE'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" >> "${DRIVER_ARGS_LOG}"
+exit 0
+GATE
+	chmod +x "${fixture}/scripts/dev/run-selected-gates.sh"
+	cat > "${fixture}/scripts/verify-docs-contradiction.sh" <<'DOCS'
+#!/usr/bin/env bash
+printf 'docs-contradiction ran\n' >> "${DRIVER_ARGS_LOG}"
+exit 0
+DOCS
+	chmod +x "${fixture}/scripts/verify-docs-contradiction.sh"
+	printf 'package deleted\n' > "${fixture}/go/internal/deleted/pkg.go"
+	printf 'baseline\n' > "${fixture}/README.md"
+	git -C "${fixture}" init -q
+	git -C "${fixture}" -c core.hooksPath=/dev/null add .
+	git -C "${fixture}" -c core.hooksPath=/dev/null -c user.name=Test -c user.email=test@example.invalid commit -qm baseline
+	local head
+	head="$(git -C "${fixture}" rev-parse HEAD)"
+	git -C "${fixture}" update-ref refs/remotes/origin/main "${head}"
+	# Delete the package's only Go file and its now-empty directory —
+	# reproduces "a commit deletes the last Go file in a package". Staged
+	# (not committed) so collect_changed_paths' `--cached` half picks it up,
+	# the same way case A/B/C rely on an uncommitted README.md edit.
+	git -C "${fixture}" rm -q go/internal/deleted/pkg.go
+	rmdir "${fixture}/go/internal/deleted" 2>/dev/null || true
+	printf '%s\n' "${fixture}"
+}
+
+fixture="$(build_fixture_deleted_package)"
+status="$(run_fixture "${fixture}" 0)"
+[[ "${status}" == "0" ]] || { cat "${fixture}.log" >&2; fail "case D: a deleted package must not fail fmt/lint with an lstat error, got exit ${status}"; }
+# filecap is allowed to still see the deleted path (filecap_check_file skips a
+# missing file internally and never errors) — only fmt/lint must not.
+rg -q -- '^precommit-go (fmt|lint) .*go/internal/deleted/pkg\.go' "${fixture}.args" && \
+	{ cat "${fixture}.args" >&2; fail "case D: the deleted file must never reach precommit-go.sh fmt/lint"; }
+true
+
 printf 'test-pre-push: pass\n'

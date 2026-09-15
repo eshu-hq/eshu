@@ -139,12 +139,25 @@ step_filecap() {
 # package dirs (precommit-go.sh has no build/vet mode at all — whole-module or
 # otherwise — so those two run directly here rather than growing a script
 # already past the repo's own line cap).
+#
+# `files` is filtered to paths that still exist on disk, the way changed_go_dirs
+# (used for `dirs` below) already drops directories that no longer exist.
+# Without the filter, a commit that deletes the last .go file in a package
+# still hands that now-nonexistent path to `${precommit} fmt`/`lint`; those
+# derive a package DIRECTORY from each file via precommit-go.sh's go_dirs
+# (plain `dirname`, no existence check), and golangci-lint then fails the
+# whole run with `lstat <dir>: no such file or directory` instead of simply
+# having nothing left to format or lint in a deleted package.
 step_fmt_lint_build_vet() {
 	local files=() dirs=() f d status=0
-	while IFS= read -r f; do [[ -n "${f}" ]] && files+=("${f}"); done < <(changed_go_files)
+	while IFS= read -r f; do
+		[[ -n "${f}" ]] || continue
+		[[ -f "${repo_root}/${f}" ]] || continue
+		files+=("${f}")
+	done < <(changed_go_files)
 	while IFS= read -r d; do [[ -n "${d}" ]] && dirs+=("${d}"); done < <(changed_go_dirs)
 	if [[ ${#files[@]} -eq 0 ]]; then
-		printf 'no changed Go files — skipping fmt/lint/build/vet\n'
+		printf 'no changed Go files still on disk — skipping fmt/lint/build/vet\n'
 		return 0
 	fi
 	"${precommit}" fmt "${files[@]}" || status=1
