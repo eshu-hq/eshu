@@ -296,6 +296,10 @@ evidence-backed house style without loading a writing playbook each time.
   proof.
 - Docs-only changes MUST run the docs build gate when navigation or project
   guidance changes.
+- A new or tightened gate, validator, or guard MUST have a seeded-violation
+  RED/GREEN pair: it fails on a planted violation and passes on the clean
+  tree. A guard satisfied by a comment describing it, or by a test built from
+  a copy of its own data or implementation, is not proof.
 
 Agents MUST NOT say work is ready without listing the commands or runtime proof
 actually run.

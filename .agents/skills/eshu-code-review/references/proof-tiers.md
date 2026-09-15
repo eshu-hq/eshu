@@ -37,3 +37,16 @@ Pressure scenarios reviewers must distinguish:
 - Backend image or optimizer upgrades: cassette/golden replay proves functional
   truth, but backend-version, hot-path, startup, and performance proof need
   stronger validation.
+
+## Seeded-violation proof for a new or tightened gate
+
+A new or tightened gate, validator, or guard is not proven by a green run
+alone — a green run also happens when the check never fires. Require a
+seeded-violation RED/GREEN pair: plant the exact violation the gate exists to
+catch, show the gate fails on it, then show the same gate passes on the clean
+tree. A guard whose only proof is a comment describing what it checks, or a
+test built from a copy of the guard's own data or implementation, is not
+proof — it can pass unconditionally regardless of whether the check runs at
+all. This is the repo's most recurring defect class in review: a tautological
+guard satisfied by its own restatement rather than by an independent
+violation.
