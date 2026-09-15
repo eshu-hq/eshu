@@ -1,0 +1,74 @@
+go/internal/storage/postgres/reducer_queue_ack_lock_order_postgres_live_test.go
+  s_20be138600ef1b::t_a99509ca34fe45 9,123-128
+  s_20be138600ef1b::t_dcd3089fcf2dc6 41,51,53
+go/cmd/reducer/workload_dependency_lookup_nornicdb_live_test.go
+  s_20be138600ef1b::t_75910744780d67 38
+  s_20be138600ef1b::t_51a7effe6a46d5 63-90
+  s_20be138600ef1b::t_f18d43d58ef662 1-37,39-62,91-141
+docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md
+  s_20be138600ef1b::t_c0998ec2aab252 165,167-169,184-186
+  s_20be138600ef1b::t_38a80e1b46a3c4 251-281,364-368
+  s_20be138600ef1b::t_d5ac56b07314d3 166
+go/internal/storage/postgres/reducer_queue_ack_eligible_epq_postgres_live_test.go
+  s_20be138600ef1b::t_dcd3089fcf2dc6 29,55
+go/internal/storage/postgres/reducer_queue_ack_fk_compatibility_postgres_live_test.go
+  s_20be138600ef1b::t_dcd3089fcf2dc6 48,56,85
+go/internal/storage/postgres/cross_scope_completion_ack_horizon_postgres_live_test.go
+  s_20be138600ef1b::t_dcd3089fcf2dc6 26,35,52,64,102
+go/internal/reducer/service.go
+  s_20be138600ef1b::t_0ac2785eeb290f 405
+go/internal/reducer/deployable_unit_correlation_edges_test.go
+  s_20be138600ef1b::t_d8d82120c5ece0 305-312,318,320,322-330
+  s_20be138600ef1b::t_b44e6cc6b669ee 313-317,319,321
+go/internal/reducer/service_batch_stale_ack_test.go
+  s_20be138600ef1b::t_5a414d0ce6e809 77-146
+  s_20be138600ef1b::t_f7329237d31f2c 1-23,26-76,147-186,188-194
+  s_20be138600ef1b::t_05c83af6decfcb 24-25
+  s_20be138600ef1b::t_2ce95369b4e6b4 187
+go/internal/storage/postgres/reducer_queue_ack_fanout_telemetry_test.go
+  s_20be138600ef1b::t_dcd3089fcf2dc6 31,39,44
+go/cmd/reducer/workload_dependency_lookup_test.go
+  s_20be138600ef1b::t_cd5153fc89d802 48
+  s_20be138600ef1b::t_f18d43d58ef662 36,40,46-47
+go/cmd/reducer/evidence-6634-workload-dependency-incoming-lookup.md
+  s_20be138600ef1b::t_b77aaddf77a960 1-38,40-41,43-61,64-66,68-76,78-96
+  s_20be138600ef1b::t_684d661a819ae3 67
+  s_20be138600ef1b::t_574acb785579fb 62-63
+  s_20be138600ef1b::t_cfd435dd3986b3 77
+  s_20be138600ef1b::t_f3d6d519087503 39,42
+go/internal/reducer/deployable_unit_correlation.go
+  s_20be138600ef1b::t_568e3bc694ccab 59
+  s_20be138600ef1b::t_b44e6cc6b669ee 60-61,119-122
+  s_20be138600ef1b::t_01faa67c6ad363 24-25
+go/cmd/reducer/workload_dependency_lookup.go
+  s_20be138600ef1b::t_574acb785579fb 25-27
+  s_20be138600ef1b::t_647c6ffc568527 29-38
+go/internal/reducer/deployable_unit_correlation_edges.go
+  s_20be138600ef1b::t_b44e6cc6b669ee 169-173
+  s_20be138600ef1b::t_24eebccba3aca1 186-188,209-222
+  s_20be138600ef1b::t_0158538aa22556 223-224
+go/internal/storage/postgres/reducer_queue.go
+  s_20be138600ef1b::t_a18ddf0cb788ea 200-203
+go/internal/reducer/service_batch.go
+  s_20be138600ef1b::t_0ac2785eeb290f 219
+  s_20be138600ef1b::t_903a7b390ee78e 218,220-222
+  s_20be138600ef1b::t_538242fb683546 181-182
+  s_20be138600ef1b::t_09d70f6af74121 10,19,265-321
+  s_20be138600ef1b::t_ba8f47a5f46259 322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c97dca9cd4b56685d0364f7b62e093b23abe4c5d",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
