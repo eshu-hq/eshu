@@ -305,9 +305,11 @@ the intent and never revisited it.
 The repo-dependency acceptance unit now computes a deterministic SHA-256 fence
 over each active `RUNS_ON` input set and checks the exact token-scoped
 `workload_materialization` phase while holding the repository acceptance gate.
-The fence includes the durable intent identity and its acceptance `created_at`,
-so another resolution of an otherwise identical relationship set still creates
-a new causal token. Missing readiness schedules a durable workload replay that
+The fence includes the durable intent identity and persisted acceptance
+`created_at`. For an active input set, a distinct persisted acceptance time
+therefore creates a distinct causal token; this does not claim that re-upserting
+an already-completed deterministic intent reopens it. Missing readiness
+schedules a durable workload replay that
 carries the token in the existing queue payload and returns `BlockedReadiness`
 before any repository retract, upsert, or intent completion. The workload pass
 publishes that exact token phase only after its graph writes commit. An old
@@ -331,11 +333,16 @@ runner wrote and completed `RUNS_ON` while readiness was absent. It now proves
 that a legacy phase does not satisfy the new token, zero retracts, writes, and
 completions occur while blocked, and the entire unit completes only after the
 token phase appears. Token tests prove input ordering does not change the fence
-while either a changed input set or a new acceptance epoch does. Workload tests
-cover both zero- and nonzero-candidate token publication. Live PostgreSQL tests
-prove concurrent first schedulers both report success, an old claim is dirtied
-by a new token, an equal-token poll does not dirty the current claim, and a
-newer token supersedes it without stealing the lease.
+while either a changed input set or a distinct persisted acceptance time does.
+Workload tests cover both zero- and nonzero-candidate token publication. A
+composed live PostgreSQL regression covers both single-item and batch ACK: it
+starts with a stale claimed workload pass and a legacy phase, observes the
+token and repository ID on the dirtied queue row, proves the stale ACK returns
+the row to pending, runs the real workload handler and phase store, then proves
+the repository runner writes once and completes the intent. The other live
+PostgreSQL tests prove concurrent first schedulers both report success, an old
+claim is dirtied by a new token, an equal-token poll does not dirty the current
+claim, and a newer token supersedes it without stealing the lease.
 
 ```bash
 go test ./internal/reducer ./internal/storage/postgres ./cmd/reducer \
@@ -345,15 +352,15 @@ go test -race ./internal/reducer \
   -run 'TestRepoDependencyProjectionRunner(DefersRunsOnUntilWorkloadReady|RejectsUnschedulableRunsOnReplay)$' \
   -count=1
 ESHU_POSTGRES_DSN="$TEST_DSN" go test ./internal/storage/postgres \
-  -run 'TestWorkload(ReplayConcurrentFirstScheduleReportsSuccess|FencedReplaySupersedesOnlyOlderInFlightToken)$' \
+  -run 'TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive|TestWorkload(ReplayConcurrentFirstScheduleReportsSuccess|FencedReplaySupersedesOnlyOlderInFlightToken)$' \
   -count=1
 bash scripts/verify-ifa-fault-injection.sh --shard 17/17
 ```
 
 The focused Ifá shard ran only the common baseline and the atomic
-repo-dependency family. `baseline_repo_dependency` (82 s),
+repo-dependency family. `baseline_repo_dependency` (90 s),
 `killworker_repo_dependency` (143 s), and
-`failgraphwrite_repo_dependency` (85 s) each reached terminal zero with no dead
+`failgraphwrite_repo_dependency` (84 s) each reached terminal zero with no dead
 letters, matched all seven expected repo-dependency edges, and produced the
 same digest `b1fd95c655187e502fc71b6664283f3d7ccde1f8b31872c6072625cacf0a9c0f`.
 The complete shard exited zero.
@@ -370,7 +377,7 @@ The complete shard exited zero.
   edges. The identity differential was 29 missing / 12 extra. The next main
   commit, `62ce6e9fb`, changes tag-history query wiring only and does not touch
   projection or recovery behavior.
-- Final-runtime-source live run: `CGO_CFLAGS='-std=gnu17'
+- Rebuild-wiring live run at `eb5cd8c2a3`: `CGO_CFLAGS='-std=gnu17'
   ESHU_DR_SKIP_INTERRUPT=true
   ESHU_DR_COMPOSE_PROJECT=eshu-pr6634-final-rebuild
   bash scripts/verify-graph-rebuild-from-facts.sh` used 6,369 facts across 67
@@ -383,8 +390,10 @@ The complete shard exited zero.
   were additional. The missing set was the `base:dev` workload instance, its
   platform, and its four relationships; the additional set was two deployment
   evidence artifacts, one environment, and their five relationships. The run
-  postdates the runtime corrections in this PR; the later golden-gate
-  classification fix changes only the test harness's pre-maintenance predicate.
+  proves the graph-rebuild and claim-fence wiring through that revision. Later
+  commits change reducer replay and `RUNS_ON` readiness, so their final-head
+  proof is the composed live PostgreSQL regression and targeted Ifá shard
+  recorded above, not this earlier whole-rebuild run.
 - The interrupted pass killed the ingester, projector, and resolution engine
   only after graph rows existed with 1,010 items still active. The fresh-key
   recovery request ran while workers remained stopped, returned successfully,
@@ -416,10 +425,10 @@ The complete shard exited zero.
   already-selected queue row and do not change batch sizes or worker counts.
   The relation-wide `EXCLUSIVE` lock is recovery-only, acquired after the queue
   drains, and held for the bounded reset/retirement transaction. The 101-second
-  run exercises the final runtime source under load and remains far inside the
-  golden gate's 1,800-second absolute ceiling. It is not a controlled comparison
-  with the 87-second or 341-second runs, so no end-to-end speedup or incremental
-  cost claim is made.
+  run exercises the rebuild and claim-fence surfaces present at `eb5cd8c2a3`
+  under load and remains far inside the golden gate's 1,800-second absolute
+  ceiling. It is not a controlled comparison with the 87-second or 341-second
+  runs, so no end-to-end speedup or incremental cost claim is made.
 - Backend/version: `timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440`,
   Linux amd64 local.
 - Input shape: the gate's own fixture corpus (same corpus as the 341 s

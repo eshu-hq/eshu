@@ -6,13 +6,17 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"hash/crc32"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRepoDependencyLeaseOwnerActiveUsesWallClockTimestamp(t *testing.T) {
@@ -155,4 +159,199 @@ func waitForPostgresWallClockAfter(t *testing.T, ctx context.Context, db *sql.DB
 			t.Fatal("Postgres wall clock did not pass the forced lease expiry")
 		}
 	}
+}
+
+func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing.T) {
+	for _, batchAck := range []bool{false, true} {
+		name := "single_ack"
+		if batchAck {
+			name = "batch_ack"
+		}
+		t.Run(name, func(t *testing.T) {
+			db, ctx := refinalizeRebuildResetLiveDB(t)
+			suffix := testSuffix(t)
+			scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
+			repoID, entityKey := "repo:fence-"+suffix, "repo:fence-"+suffix
+			now := time.Now().UTC()
+			row := reducer.SharedProjectionIntentRow{
+				IntentID: "runs-on-" + suffix, ProjectionDomain: reducer.DomainRepoDependency,
+				PartitionKey: "runs_on:" + repoID + "->platform:kubernetes:test", ScopeID: scopeID,
+				AcceptanceUnitID: repoID, RepositoryID: repoID, SourceRunID: "repo_dependency:" + scopeID,
+				GenerationID: generationID, CreatedAt: now,
+				Payload: map[string]any{"repo_id": repoID, "platform_id": "platform:kubernetes:test", "relationship_type": "RUNS_ON", "evidence_source": reducer.CrossRepoEvidenceSource},
+			}
+			if err := NewSharedIntentAcceptanceWriter(SQLDB{DB: db}).UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{row}); err != nil {
+				t.Fatalf("seed RUNS_ON intent: %v", err)
+			}
+			phaseStore := NewGraphProjectionPhaseStateStore(SQLDB{DB: db})
+			legacyKey := reducer.GraphProjectionPhaseKey{ScopeID: scopeID, AcceptanceUnitID: repoID, SourceRunID: generationID, GenerationID: generationID, Keyspace: reducer.GraphProjectionKeyspaceServiceUID}
+			if err := phaseStore.Upsert(ctx, []reducer.GraphProjectionPhaseState{{Key: legacyKey, Phase: reducer.GraphProjectionPhaseWorkloadMaterialization, CommittedAt: now, UpdatedAt: now}}); err != nil {
+				t.Fatalf("seed stale workload phase: %v", err)
+			}
+
+			queue := NewReducerQueue(SQLDB{DB: db}, "fence-proof-"+suffix, time.Minute)
+			queue.ClaimDomain = reducer.DomainWorkloadMaterialization
+			if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{{ScopeID: scopeID, GenerationID: generationID, Domain: reducer.DomainWorkloadMaterialization, EntityKey: entityKey, Reason: "pre-fence pass", SourceSystem: "reducer"}}); err != nil {
+				t.Fatalf("enqueue stale workload pass: %v", err)
+			}
+			stale, ok, err := queue.Claim(ctx)
+			if err != nil || !ok {
+				t.Fatalf("claim stale workload pass = (%v, %v), want work", ok, err)
+			}
+
+			writer := &causalFenceEdgeWriter{}
+			runner := causalFenceRunner(db, queue, writer, suffix)
+			stop := startCausalFenceRunner(ctx, t, runner)
+			var fence string
+			waitForCausalFence(t, ctx, func() bool {
+				var repo string
+				var dirty bool
+				err := db.QueryRowContext(ctx, `SELECT COALESCE(payload->>'repo_dependency_readiness_fence',''), COALESCE(payload->>'repo_dependency_readiness_repo_id',''), cross_scope_replay_required FROM fact_work_items WHERE work_item_id=$1`, stale.IntentID).Scan(&fence, &repo, &dirty)
+				return err == nil && fence != "" && repo == repoID && dirty
+			})
+			stop()
+			if writer.writeCount() != 0 || writer.retractCount() != 0 || sharedIntentCompleted(t, ctx, db, row.IntentID) {
+				t.Fatal("RUNS_ON retracted, projected, or completed before token-scoped workload readiness")
+			}
+
+			ackCausalFence(t, ctx, queue, stale, batchAck)
+			if state := readClaimTokenWorkState(t, ctx, db, stale.IntentID); state.status != "pending" {
+				t.Fatalf("stale ACK status = %q, want pending", state.status)
+			}
+			fresh, ok, err := queue.Claim(ctx)
+			if err != nil || !ok || fresh.Payload[reducer.RepoDependencyReadinessFencePayloadKey] != fence || fresh.Payload[reducer.RepoDependencyReadinessRepoIDPayloadKey] != repoID {
+				t.Fatalf("reclaimed fenced payload = (%v, %v, %v), want token %q repo %q", fresh.Payload, ok, err, fence, repoID)
+			}
+			handler := reducer.WorkloadMaterializationHandler{
+				FactLoader:     causalFenceFactLoader{repoID: repoID},
+				Materializer:   reducer.NewWorkloadMaterializer(nil),
+				PhasePublisher: phaseStore,
+			}
+			if _, err := handler.Handle(ctx, fresh); err != nil {
+				t.Fatalf("handle fenced workload pass: %v", err)
+			}
+			ackCausalFence(t, ctx, queue, fresh, batchAck)
+
+			stop = startCausalFenceRunner(ctx, t, runner)
+			waitForCausalFence(t, ctx, func() bool { return sharedIntentCompleted(t, ctx, db, row.IntentID) })
+			stop()
+			if writer.writeCount() != 1 {
+				t.Fatalf("RUNS_ON write count = %d, want 1 after token readiness", writer.writeCount())
+			}
+		})
+	}
+}
+
+type causalFenceFactLoader struct{ repoID string }
+
+func (l causalFenceFactLoader) ListFacts(context.Context, string, string) ([]facts.Envelope, error) {
+	return []facts.Envelope{{FactID: "repo", FactKind: "repository", Payload: map[string]any{"graph_id": l.repoID}}}, nil
+}
+
+type causalFenceEdgeWriter struct {
+	mu       sync.Mutex
+	retracts int
+	writes   int
+}
+
+func (w *causalFenceEdgeWriter) RetractEdges(context.Context, string, []sharedintent.Row, string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.retracts++
+	return nil
+}
+
+func (w *causalFenceEdgeWriter) WriteEdges(context.Context, string, []sharedintent.Row, string) (sharedintent.WriteReport, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.writes++
+	return sharedintent.WriteReport{}, nil
+}
+
+func (w *causalFenceEdgeWriter) writeCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.writes
+}
+
+func (w *causalFenceEdgeWriter) retractCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.retracts
+}
+
+func causalFenceRunner(db *sql.DB, queue ReducerQueue, writer reducer.SharedProjectionEdgeWriter, suffix string) *reducer.RepoDependencyProjectionRunner {
+	store := NewSharedIntentStore(SQLDB{DB: db})
+	const partitionCount = 1_000_000_000
+	partitionID := int(crc32.ChecksumIEEE([]byte(suffix)) % partitionCount)
+	return &reducer.RepoDependencyProjectionRunner{
+		IntentReader:                    store,
+		LeaseManager:                    store,
+		AcceptanceUnitGate:              NewRepoDependencyAcceptanceUnitGate(SQLDB{DB: db}),
+		EdgeWriter:                      writer,
+		WorkloadMaterializationReplayer: queue,
+		WorkloadReadinessPrefetch:       NewGraphProjectionReadinessPrefetch(SQLDB{DB: db}),
+		AcceptedGen:                     NewAcceptedGenerationLookup(SQLDB{DB: db}),
+		AcceptedGenPrefetch:             NewAcceptedGenerationPrefetch(SQLDB{DB: db}),
+		Config: reducer.RepoDependencyProjectionRunnerConfig{
+			LeaseOwner:            "fence-runner-" + suffix,
+			PollInterval:          time.Millisecond,
+			LeaseTTL:              35 * time.Second,
+			CycleTimeout:          2 * time.Second,
+			GraphQuiescenceBudget: time.Millisecond,
+			BatchLimit:            100,
+			PartitionID:           partitionID,
+			PartitionCount:        partitionCount,
+		},
+	}
+}
+
+func startCausalFenceRunner(ctx context.Context, t *testing.T, runner *reducer.RepoDependencyProjectionRunner) func() {
+	t.Helper()
+	runCtx, cancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() { done <- runner.Run(runCtx) }()
+	return func() {
+		cancel()
+		if err := <-done; err != nil {
+			t.Fatalf("run repo dependency projection: %v", err)
+		}
+	}
+}
+
+func waitForCausalFence(t *testing.T, ctx context.Context, ready func() bool) {
+	t.Helper()
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for !ready() {
+		select {
+		case <-time.After(10 * time.Millisecond):
+		case <-deadline.C:
+			t.Fatal("causal fence condition did not converge")
+		case <-ctx.Done():
+			t.Fatal("causal fence context expired")
+		}
+	}
+}
+
+func ackCausalFence(t *testing.T, ctx context.Context, queue ReducerQueue, intent reducer.Intent, batch bool) {
+	t.Helper()
+	var err error
+	if batch {
+		err = queue.AckBatch(ctx, []reducer.Intent{intent}, nil)
+	} else {
+		err = queue.Ack(ctx, intent, reducer.Result{})
+	}
+	if err != nil {
+		t.Fatalf("ack workload pass: %v", err)
+	}
+}
+
+func sharedIntentCompleted(t *testing.T, ctx context.Context, db *sql.DB, intentID string) bool {
+	t.Helper()
+	var completed bool
+	if err := db.QueryRowContext(ctx, `SELECT completed_at IS NOT NULL FROM shared_projection_intents WHERE intent_id=$1`, intentID).Scan(&completed); err != nil {
+		t.Fatalf("read shared intent completion: %v", err)
+	}
+	return completed
 }

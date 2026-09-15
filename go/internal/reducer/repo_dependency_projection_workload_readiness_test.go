@@ -163,7 +163,10 @@ func TestRepoDependencyRunsOnFenceIsOrderIndependentAndInputSensitive(t *testing
 		t.Fatalf("input-set fences match: AB=%q A=%q", ab[0].fence, a[0].fence)
 	}
 	rowANewer := rowA
-	rowANewer.CreatedAt = rowA.CreatedAt.Add(time.Nanosecond)
+	// PostgreSQL TIMESTAMPTZ persists microsecond precision. Keep this delta
+	// comfortably above that boundary so the unit proof models a value that
+	// survives the real queue round trip.
+	rowANewer.CreatedAt = rowA.CreatedAt.Add(time.Second)
 	newer, err := repoDependencyRunsOnFenceRequests([]SharedProjectionIntentRow{rowANewer})
 	if err != nil || len(newer) != 1 {
 		t.Fatalf("newer fence requests = (%d, %v), want (1, nil)", len(newer), err)
