@@ -333,17 +333,20 @@ func resetCrossScopeCompletionPerfRows(
 	intents []reducer.Intent,
 ) {
 	t.Helper()
+	claimedAt := time.Now().UTC().Truncate(time.Microsecond)
 	ids := make([]string, len(intents))
 	for index, intent := range intents {
 		ids[index] = intent.IntentID
+		intents[index].ClaimedAt = &claimedAt
 	}
 	if _, err := db.ExecContext(ctx, `
 UPDATE fact_work_items
 SET status = 'claimed', attempt_count = 1, lease_owner = $2,
     claim_until = clock_timestamp() + INTERVAL '1 minute', visible_at = NULL,
+    last_attempt_at = $3,
     failure_class = NULL, failure_message = NULL, failure_details = NULL
 WHERE work_item_id = ANY($1::text[])
-`, ids, owner); err != nil {
+`, ids, owner, claimedAt); err != nil {
 		t.Fatalf("reset completion performance rows: %v", err)
 	}
 }
@@ -383,11 +386,13 @@ func legacyCrossScopeCompletionMixedAck(
 	if err := legacyCrossScopeCompletionIdentityAck(ctx, db, owner, identity); err != nil {
 		return err
 	}
-	args := []any{time.Now().UTC(), owner}
+	ids := make([]string, 0, len(unrelated))
+	claimedAt := make([]time.Time, 0, len(unrelated))
 	for _, intent := range unrelated {
-		args = append(args, intent.IntentID)
+		ids = append(ids, intent.IntentID)
+		claimedAt = append(claimedAt, claimedAtValue(intent))
 	}
-	_, err := db.ExecContext(ctx, ackReducerWorkBatchQuery(len(unrelated)), args...)
+	_, err := db.ExecContext(ctx, ackReducerWorkBatchQuery(), time.Now().UTC(), owner, ids, claimedAt)
 	return err
 }
 
