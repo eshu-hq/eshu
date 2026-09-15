@@ -214,21 +214,25 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 // singleTypeMaterializedEdgeFamilies: code_calls, sql_relationships, and
 // inheritance_edges keep their own multi-type registries next to their
 // writers (see the package doc comment above), and repo_dependency shares
-// the DEPENDS_ON type with workload_dependency. Each declares an explicit
-// empty identity — their relationship MERGEs key on endpoint nodes alone —
-// matching the scope TestMaterializedEdgeFamilyRegistryMatchesItsRetract
+// the DEPENDS_ON type with workload_dependency. Three declare an explicit
+// empty identity because their relationship MERGEs key on endpoint nodes alone.
+// repo_dependency's RUNS_ON writer additionally keys on identity_key so the
+// two production writers converge on one stored relationship identity.
+// This matches the scope TestMaterializedEdgeFamilyRegistryMatchesItsRetract
 // already draws around singleTypeMaterializedEdgeFamilies: proving identity
 // against a held write-Cypher const (as
 // TestSingleTypeFamilyIdentityMatchesWriteCypher does below) only works for a
 // family with one write template in this file; these four span several
 // templates across several files, so their reasoning stays there too. The
-// empty declaration itself is backed globally, not per-family, by
+// three empty declarations are backed globally, not per-family, by
 // TestPropertyKeyedRelationshipMergesMatchKnownAllowList
 // (materialized_edge_property_keyed_inventory_test.go), which scans this
 // entire package's source for any property-keyed relationship MERGE and
-// fails if one appears on a type these four families own.
+// fails if an undeclared one appears. RUNS_ON is the sole property-keyed
+// identity these four families own and is pinned by the exact registry and
+// write-template tests.
 var materializedEdgeIdentityByFamily = map[string]map[string][]string{
-	"repo_dependency":   {},
+	"repo_dependency":   {"RUNS_ON": {"identity_key"}},
 	"code_calls":        {},
 	"sql_relationships": {},
 	"inheritance_edges": {},
@@ -261,8 +265,12 @@ func MaterializedEdgeIdentityProperties(family string) (map[string][]string, err
 		}
 		return out, nil
 	}
-	if _, ok := materializedEdgeIdentityByFamily[family]; ok {
-		return map[string][]string{}, nil
+	if entry, ok := materializedEdgeIdentityByFamily[family]; ok {
+		out := make(map[string][]string, len(entry))
+		for edgeType, props := range entry {
+			out[edgeType] = append([]string(nil), props...)
+		}
+		return out, nil
 	}
 	return nil, fmt.Errorf("cypher: no materialized-edge identity registered for family %q; register it before proving it on a live gate", family)
 }

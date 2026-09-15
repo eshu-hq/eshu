@@ -461,11 +461,11 @@ func TestMaterializedEdgeIdentityPropertiesReturnsACopy(t *testing.T) {
 	}
 }
 
-// TestCodeownersAndSubmoduleIdentityPropertiesMatchTheirMergeKeys pins the
-// two gated families' declared identity against the literal property names
+// TestMaterializedEdgeIdentityPropertiesMatchTheirMergeKeys pins the
+// property-keyed families' declared identity against the literal property names
 // their MERGE templates use, so a reviewer can see the exact expected values
 // without cross-referencing the writer files.
-func TestCodeownersAndSubmoduleIdentityPropertiesMatchTheirMergeKeys(t *testing.T) {
+func TestMaterializedEdgeIdentityPropertiesMatchTheirMergeKeys(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -474,6 +474,7 @@ func TestCodeownersAndSubmoduleIdentityPropertiesMatchTheirMergeKeys(t *testing.
 	}{
 		{"codeowners_ownership_edges", map[string][]string{"DECLARES_CODEOWNER": {"pattern", "source_path"}}},
 		{"submodule_pin_edges", map[string][]string{"PINS_SUBMODULE": {"path"}}},
+		{"repo_dependency", map[string][]string{"RUNS_ON": {"identity_key"}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.family, func(t *testing.T) {

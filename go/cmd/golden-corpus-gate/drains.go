@@ -240,7 +240,10 @@ func classifyResidualRows(rows []residualRow) (live, deferred, deadLetter, faile
 		// busy one and send the reader looking for progress that is not coming.
 		case row.Status == "failed":
 			failed += row.Count
-		case readinessDeferredFailureClasses[row.FailureClass]:
+		// Claim transitions retain prior failure metadata. Only retrying rows are
+		// waiting on readiness; claimed/running rows are live even when they still
+		// carry a readiness failure from an earlier attempt.
+		case row.Status == "retrying" && readinessDeferredFailureClasses[row.FailureClass]:
 			deferred += row.Count
 		default:
 			live += row.Count

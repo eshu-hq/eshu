@@ -18,10 +18,13 @@ import (
 // comparable BEFORE plan; ESHU_ACK_FANOUT_PLAN_ONLY=1 omits contention trials.
 func explainAckFanoutProbe(t *testing.T, ctx context.Context, db *sql.DB, now time.Time, intents []reducer.Intent, lease reducer.CrossScopeCompletionLease) {
 	t.Helper()
-	ackArgs := []any{now, "ack-6488"}
+	ids := make([]string, 0, len(intents))
+	claimedAt := make([]time.Time, 0, len(intents))
 	for _, intent := range intents {
-		ackArgs = append(ackArgs, intent.IntentID)
+		ids = append(ids, intent.IntentID)
+		claimedAt = append(claimedAt, claimedAtValue(intent))
 	}
+	ackArgs := []any{now, "ack-6488", ids, claimedAt}
 	edges := reducer.CrossScopeCompletionEdges()
 	producers, consumers := make([]string, 0, len(edges)), make([]string, 0, len(edges))
 	for _, edge := range edges {
@@ -32,7 +35,7 @@ func explainAckFanoutProbe(t *testing.T, ctx context.Context, db *sql.DB, now ti
 		name, query string
 		args        []any
 	}{
-		{"generic_ack_64", ackReducerWorkBatchQuery(len(intents)), ackArgs},
+		{"generic_ack_64", ackReducerWorkBatchQuery(), ackArgs},
 		{"fanout_64", fanoutCrossScopeCompletionQuery, []any{now, lease.EventID, lease.ProducerDomain, lease.LeaseOwner, lease.ClaimEpoch, 1, producers, consumers}},
 	} {
 		tx, err := db.BeginTx(ctx, nil)

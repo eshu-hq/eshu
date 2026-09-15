@@ -114,6 +114,13 @@ func (q ReducerQueue) maxAttempts() int {
 	return 3
 }
 
+func claimedAtValue(intent reducer.Intent) time.Time {
+	if intent.ClaimedAt == nil {
+		return time.Time{}
+	}
+	return intent.ClaimedAt.UTC()
+}
+
 func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 	var intentID string
 	var scopeID string
@@ -124,6 +131,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 	var enqueuedAt time.Time
 	var availableAt time.Time
 	var cycleStartedAt time.Time
+	var claimedAt time.Time
 	var rawPayload []byte
 
 	if err := rows.Scan(
@@ -136,6 +144,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 		&enqueuedAt,
 		&availableAt,
 		&cycleStartedAt,
+		&claimedAt,
 		&rawPayload,
 	); err != nil {
 		return reducer.Intent{}, err
@@ -159,6 +168,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 	if err != nil {
 		return reducer.Intent{}, err
 	}
+	claimedAt = claimedAt.UTC()
 
 	intent := reducer.Intent{
 		IntentID:        intentID,
@@ -176,6 +186,7 @@ func scanReducerIntent(rows Rows) (reducer.Intent, error) {
 		EnqueuedAt:      enqueuedAt.UTC(),
 		AvailableAt:     availableAt.UTC(),
 		CycleStartedAt:  cycleStartedAt.UTC(),
+		ClaimedAt:       &claimedAt,
 	}
 	if entityKey != "" {
 		intent.EntityKeys = []string{entityKey}
@@ -260,18 +271,17 @@ func (q ReducerQueue) failIntent(
 			query = retryContainerImageIdentityReducerWorkQuery
 			args = append(args, intent.ClaimEpoch)
 		}
+		args = append(args, claimedAtValue(intent))
 		result, err := q.db.ExecContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("fail reducer work: %w", err)
 		}
-		if target {
-			rowsAffected, rowsErr := result.RowsAffected()
-			if rowsErr != nil {
-				return fmt.Errorf("fail reducer work: rows affected: %w", rowsErr)
-			}
-			if rowsAffected == 0 {
-				return ErrReducerClaimRejected
-			}
+		rowsAffected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return fmt.Errorf("fail reducer work: rows affected: %w", rowsErr)
+		}
+		if rowsAffected != 1 {
+			return ErrReducerClaimRejected
 		}
 		if q.Instruments != nil && q.Instruments.ReducerRetrySurge != nil {
 			q.Instruments.ReducerRetrySurge.Add(ctx, 1, metric.WithAttributes(
@@ -300,18 +310,17 @@ func (q ReducerQueue) failIntent(
 		query = failContainerImageIdentityReducerWorkQuery
 		args = append(args, intent.ClaimEpoch)
 	}
+	args = append(args, claimedAtValue(intent))
 	result, err := q.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("fail reducer work: %w", err)
 	}
-	if target {
-		rowsAffected, rowsErr := result.RowsAffected()
-		if rowsErr != nil {
-			return fmt.Errorf("fail reducer work: rows affected: %w", rowsErr)
-		}
-		if rowsAffected == 0 {
-			return ErrReducerClaimRejected
-		}
+	rowsAffected, rowsErr := result.RowsAffected()
+	if rowsErr != nil {
+		return fmt.Errorf("fail reducer work: rows affected: %w", rowsErr)
+	}
+	if rowsAffected != 1 {
+		return ErrReducerClaimRejected
 	}
 
 	return nil

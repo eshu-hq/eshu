@@ -11,6 +11,12 @@ import (
 	"time"
 )
 
+// ErrExecutionClaimRejected means a side effect was fenced because the exact
+// reducer claim that began the execution is no longer live. The service must
+// not acknowledge or fail the queue row: it may already belong to a newer
+// claimant.
+var ErrExecutionClaimRejected = errors.New("reducer execution claim rejected")
+
 // IntentStatus captures the durable reducer intent lifecycle state.
 type IntentStatus string
 

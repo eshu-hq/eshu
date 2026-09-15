@@ -5,6 +5,11 @@ package reducer
 
 import reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 
+// ErrExecutionClaimRejected is returned when an executor loses its exact
+// durable claim before publishing. The service leaves the queue row untouched
+// because it may already belong to a newer claimant.
+var ErrExecutionClaimRejected = reducercontract.ErrExecutionClaimRejected
+
 // Domain identifies a canonical shared-truth reducer domain.
 type Domain = reducercontract.Domain
 

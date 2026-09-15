@@ -198,6 +198,9 @@ func (m *WorkloadMaterializer) Materialize(
 
 	// Batch runtime platforms
 	if len(projection.RuntimePlatformRows) > 0 {
+		if _, ok := m.executor.(CypherGroupExecutor); !ok {
+			return result, fmt.Errorf("write runtime platform edges: atomic Cypher group executor is required")
+		}
 		stageStarted := time.Now()
 		rows := make([]map[string]any, len(projection.RuntimePlatformRows))
 		for i, row := range projection.RuntimePlatformRows {
@@ -218,11 +221,12 @@ func (m *WorkloadMaterializer) Materialize(
 		if err := m.executeBatched(ctx, batchRuntimePlatformNodeUpsertCypher, nodeRows); err != nil {
 			return result, fmt.Errorf("write runtime platforms: %w", err)
 		}
-		if err := m.executeBatched(ctx, batchRuntimePlatformRunsOnEdgeUpsertCypher, rows); err != nil {
-			return result, fmt.Errorf("ensure runtime platform edges: %w", err)
-		}
-		if err := m.executeBatched(ctx, batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher, rows); err != nil {
-			return result, fmt.Errorf("write owned runtime platform edge properties: %w", err)
+		if err := m.executeBatchedGroup(ctx, []string{
+			batchRuntimePlatformRunsOnLegacyIdentityCleanupCypher,
+			batchRuntimePlatformRunsOnEdgeUpsertCypher,
+			batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher,
+		}, rows); err != nil {
+			return result, fmt.Errorf("write atomic runtime platform edges: %w", err)
 		}
 		result.RuntimePlatformDuration = time.Since(stageStarted)
 		result.RuntimePlatformsWritten = len(nodeRows)
@@ -413,21 +417,22 @@ SET p.type = 'platform',
 	// RUNS_ON has two writers. This first statement only establishes the shared
 	// edge identity; the second statement stamps or refreshes the complete
 	// workload-owned property tuple. Keeping the ownership predicate in a
-	// separate MATCH is required on pinned NornicDB: relationship properties
+	// separate statement in the same transaction is required on pinned
+	// NornicDB: relationship properties
 	// read from the same MERGE statement do not reliably expose the preexisting
-	// tuple. The split also closes every interleaving. If cross-repo writes
-	// between these statements, the ownership predicate preserves its tuple; if
-	// it writes later, its unconditional full-tuple SET wins. A failure after
-	// the MERGE leaves an unstamped edge that the next retry safely adopts.
+	// tuple. Atomic grouping prevents an unstamped edge from becoming visible.
+	// The cross-repo writer's unconditional full-tuple update either runs before
+	// this transaction, in which case the predicate preserves it, or afterward,
+	// in which case it wins.
 	batchRuntimePlatformRunsOnEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (i:WorkloadInstance {id: row.instance_id})
 MATCH (p:Platform {id: row.platform_id})
-MERGE (i)-[rel:RUNS_ON]->(p)`
+MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)`
 
 	batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher = `UNWIND $rows AS row
 MATCH (i:WorkloadInstance {id: row.instance_id})
 MATCH (p:Platform {id: row.platform_id})
-MATCH (i)-[rel:RUNS_ON]->(p)
+MATCH (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)
 WHERE rel.evidence_source IS NULL OR rel.evidence_source = row.evidence_source
 SET rel.confidence = row.platform_confidence,
     rel.reason = 'Workload instance runs on inferred platform',

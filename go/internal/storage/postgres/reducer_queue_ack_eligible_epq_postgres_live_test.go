@@ -103,6 +103,6 @@ func eligibleEPQAckQuery(now time.Time, owner string, intent reducer.Intent) (st
 		// item. Exercise SQL deduplication together with the real heartbeat race.
 		return ackCICDRunCorrelationReducerWorkBatchQuery(now, owner, []reducer.Intent{intent, intent})
 	default:
-		return ackReducerWorkBatchQuery(1), []any{now, owner, intent.IntentID}
+		return ackReducerWorkBatchQuery(), []any{now, owner, []string{intent.IntentID}, []time.Time{claimedAtValue(intent)}}
 	}
 }

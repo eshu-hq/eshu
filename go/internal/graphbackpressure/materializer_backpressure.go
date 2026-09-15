@@ -5,6 +5,7 @@ package graphbackpressure
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -35,6 +36,23 @@ func (e cypherExecutorGate) ExecuteCypher(ctx context.Context, query string, par
 	}
 	defer release()
 	return e.inner.ExecuteCypher(ctx, query, params)
+}
+
+// ExecuteCypherGroup holds one shared permit for the complete atomic group.
+func (e cypherExecutorGate) ExecuteCypherGroup(
+	ctx context.Context,
+	statements []reducer.CypherGroupStatement,
+) error {
+	grouped, ok := e.inner.(reducer.CypherGroupExecutor)
+	if !ok {
+		return fmt.Errorf("materializer executor %T does not support atomic groups", e.inner)
+	}
+	release, err := e.gate.Acquire(ctx, "materialize_cypher_group")
+	if err != nil {
+		return err
+	}
+	defer release()
+	return grouped.ExecuteCypherGroup(ctx, statements)
 }
 
 // WrapCypherExecutorWithGate bounds the materializer CypherExecutor path on the

@@ -36,6 +36,9 @@ func (r *proofRows) Scan(dest ...any) error {
 	if len(dest) == 9 && len(row) == 8 {
 		row = append(row[:5:5], append([]any{int64(0)}, row[5:]...)...)
 	}
+	if len(dest) == 11 && len(row) == 10 {
+		row = append(row[:9:9], append([]any{row[8]}, row[9:]...)...)
+	}
 	if len(dest) != len(row) {
 		return fmt.Errorf("scan destination count = %d, want %d", len(dest), len(row))
 	}

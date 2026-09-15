@@ -6,7 +6,7 @@
 //
 // The caller (postgres.RecoveryStore today) owns the transaction and the
 // result assembly; this package owns the statement order and the in-flight
-// reducer fence, so every statement binds the one generation set read first.
+// reducer retirement guard, so every statement binds the one generation set read first.
 // Queryer and Rows are narrow local interfaces so this package never imports
 // its caller: any QueryContext source whose rows offer Next/Scan/Err/Close
 // satisfies them implicitly.
@@ -48,20 +48,21 @@ type Queryer interface {
 	QueryContext(context.Context, string, ...any) (Rows, error)
 }
 
-// ClaimFenceQueryer combines the read and write surface needed to acquire the
-// queue mutation fence and immediately recheck live reducer leases.
+// ClaimFenceQueryer combines the read and write surface needed to freeze queue
+// claims and relationship publication for the final retirement statement.
 type ClaimFenceQueryer interface {
 	Queryer
 	Execer
 }
 
-// refinalizeReducerClaimFenceQuery prevents any fact_work_items mutation from
-// beginning during the short post-drain recovery critical section. ClaimBatch
-// takes ROW EXCLUSIVE before its UPDATE, which conflicts with SHARE ROW
-// EXCLUSIVE; the self-exclusive mode also serializes concurrent recoveries so
-// they cannot deadlock while upgrading a weaker table lock for their own DML.
+// refinalizeReducerClaimFenceQuery is deliberately EXCLUSIVE, not SHARE ROW
+// EXCLUSIVE. Claim UPDATEs take ROW EXCLUSIVE and claim-fenced relationship
+// activation takes ROW SHARE through SELECT FOR UPDATE; EXCLUSIVE conflicts
+// with both while still permitting ordinary ACCESS SHARE reads. Recovery takes
+// it immediately after the lock-free drain and before any transaction write,
+// avoiding lock upgrades when two recoveries overlap.
 const refinalizeReducerClaimFenceQuery = `
-LOCK TABLE fact_work_items IN SHARE ROW EXCLUSIVE MODE
+LOCK TABLE fact_work_items IN EXCLUSIVE MODE
 `
 
 // refinalizeScopeProjectionsQuery re-enqueues projector work by inserting one
@@ -324,12 +325,11 @@ func WaitForReducerDrain(
 	}
 }
 
-// AcquireReducerClaimFence closes the last-poll-to-commit claim window. It is
-// called only after the lock-free drain: holding this table lock while waiting
-// for a live worker would block that worker's acknowledgement. Once acquired,
-// the immediate live-lease recheck either aborts or establishes that no worker
-// claimed between the final poll and the lock. The lock is transaction-scoped,
-// so it then freezes pending, retrying, and expired work until recovery commits.
+// AcquireReducerClaimFence closes the last-poll-to-commit window for both new
+// claims and expired workers attempting claim-fenced publication. The lock is
+// transaction-scoped; callers acquire it after the lock-free drain and before
+// any write, then retain it through the atomic enqueue, reset, retirement, and
+// commit sequence.
 func AcquireReducerClaimFence(
 	ctx context.Context,
 	q ClaimFenceQueryer,

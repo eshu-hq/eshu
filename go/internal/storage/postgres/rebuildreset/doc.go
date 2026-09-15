@@ -31,13 +31,15 @@
 // generations a refinalize is actually rebuilding, issued once by the recovery
 // path, in the same transaction as the projector re-enqueue.
 //
-// Apply is the entry point; Counts reports what it cleared. The ordered
+// ApplyPreRetirement and RetireResolutionGenerations are the reset entry
+// points; Counts reports what they cleared. The ordered
 // coordination around it — ReadAffectedGenerations, WaitForReducerDrain,
-// AcquireReducerClaimFence, EnqueueProjectorWork, and AssertRetirementFenced in
+// EnqueueProjectorWork, AcquireReducerClaimFence, and AssertRetirementFenced in
 // refinalize.go — is part of the same contract: the caller runs the sequence in
 // its transaction around Apply, so every statement binds the one generation set
-// read first and no reducer can claim into the retirement-to-commit window
-// (#6184 P1 review).
+// read first. The late EXCLUSIVE queue lock blocks both claim UPDATEs and the
+// SELECT FOR UPDATE used by exact-claim relationship publication for only the
+// final recheck, retirement, and commit window (#6184 P1 review).
 //
 // A refinalize transaction runs at Postgres's default READ COMMITTED
 // isolation, so a statement that re-derived the generation set would get its

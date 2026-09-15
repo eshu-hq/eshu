@@ -145,25 +145,37 @@ before retirement and committed after it could still run against a generation
 recovery had already retired.
 
 Fix: recovery now performs the long drain without a table lock, then takes a
-transaction-scoped `SHARE ROW EXCLUSIVE` lock on `fact_work_items` and
-immediately rechecks live leases before it enqueues or retires anything. The
-mode conflicts with the queue's `ROW EXCLUSIVE` mutations and with another
-recovery fence. It therefore closes the claim window and serializes concurrent
-refinalizes without holding a lock while waiting for an existing worker.
-The retirement `NOT EXISTS` predicate remains as defense in depth.
+transaction-scoped `EXCLUSIVE` lock on `fact_work_items` before any recovery
+write and immediately rechecks live leases. The mode conflicts with the
+queue's `ROW EXCLUSIVE` claim/lifecycle mutations, another recovery fence, and
+the `ROW SHARE` lock taken by claim-fenced relationship publication. Recovery
+holds it through enqueue, reset, generation retirement, and commit. This closes
+both sides of the race: no new execution can claim after the last zero poll,
+and an expired execution cannot publish a relationship generation while
+recovery retires it. The retirement `NOT EXISTS` predicate remains as defense
+in depth.
 
-The live PostgreSQL regression pauses recovery after generation retirement and
-uses the real `ClaimBatch` implementation on another connection. Before the
-fence, all four cases returned a claim before recovery committed. With the
-fence, pending, retrying, expired-claimed, and expired-running work each wait
-on an ungranted `RowExclusiveLock`, then resume after commit. A second live
-test starts two refinalizes together and proves they serialize without a
-deadlock.
+Every durable reducer claim now carries the exact persisted `last_attempt_at`
+returned by the claim statement. Reclaims advance that value monotonically,
+including same-owner reclaims under an identical injected clock. Heartbeat,
+single and batch Ack, retry/dead-letter Fail, and relationship-generation
+activation require that exact token and a still-live lease. A zero or partial
+match returns `ErrReducerClaimRejected`; the service records
+`lease_lost_during_execution` and does not Ack or Fail the replacement claim.
+
+The live PostgreSQL regressions exercise both lock orders. When recovery takes
+`EXCLUSIVE` first, exact-claim activation waits for `ROW SHARE`, resumes after
+retirement, and rejects the stale token. When activation takes `ROW SHARE`
+first, recovery waits, then retires the generation after the activation
+transaction completes. Same-owner same-clock reclaim advances the token by one
+microsecond; stale heartbeat, Ack, both Fail paths, and activation all reject
+without mutating the current claim. A mixed current/stale batch Ack reports
+rejection rather than treating its partial update as full success.
 
 ```bash
 ESHU_POSTGRES_DSN=postgresql://... go test ./internal/storage/postgres \
-  -run 'TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit|TestConcurrentRefinalizesSerializeWithoutDeadlock' \
-  -count=1 -v  # ok, 6.714s
+  -run 'Test(ReducerExactClaimFence|RecoveryClaimFence)' \
+  -count=1 -v  # ok, 3.497s
 ```
 
 ## Defect 5 — shared RUNS_ON identity could carry mixed provenance
@@ -176,18 +188,56 @@ and `reason`, leaving a tuple that belonged to neither writer.
 The pinned NornicDB v1.3.2 behavior was measured before implementation. Reading
 the relationship's existing properties in the same statement that `MERGE`s it
 was not reliable, and `ON CREATE` did not persist the new relationship stamp.
-The viable shape is two auto-commit statements: first `MERGE` only the identity,
-then a bare `MATCH` with an ownership predicate that writes the complete
-workload tuple and clears `source_tool`. Cross-repo continues to write its
-complete tuple unconditionally, so it wins in every ordering.
+The viable serial shape is two statements in one graph transaction: first
+`MERGE` only the identity, then a bare `MATCH` with an ownership predicate that
+writes the complete workload tuple and clears `source_tool`. Atomic grouping
+prevents an unstamped identity from becoming visible if the second statement
+fails.
+
+Atomicity alone was insufficient under concurrency: two overlapping managed
+transactions using a propertyless relationship `MERGE` both committed distinct
+parallel `RUNS_ON` relationships on pinned NornicDB v1.3.2. The measured
+graph-native identity is
+`MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)` in both writers.
+NornicDB maps that pattern to one deterministic stored relationship identity.
+In the measured overlap, the competing keyed write could complete before the
+held transaction committed; after both commits, the graph still contained one
+relationship. Cross-repo continues to write its complete tuple unconditionally,
+so it wins in every ordering. This proof claims the committed identity and tuple,
+not a particular internal blocking or retry mechanism.
+
+Before the keyed MERGE, each writer deletes every matching pre-upgrade
+propertyless edge in the same graph transaction. The live upgrade fixture seeds
+two propertyless duplicates plus a keyed edge, runs each production writer, and
+reads back one relationship with the winning writer's coherent tuple. The
+Kubernetes upgrade contract stops every old resolution-engine lane before any
+new reducer starts, so an old writer cannot recreate a propertyless edge after
+the transactional cleanup. The required full rebuild then visits the complete
+population.
+
+Repo-dependency replay also records durable debt when the target workload item
+is already claimed or running. It reuses `cross_scope_replay_required`: the
+active lease is left intact, and the database ACK trigger returns the completed
+item to pending for one fresh pass. This closes the former `ON CONFLICT DO
+NOTHING` loss window without adding a second queue or stealing a live claim.
 
 The live Bolt matrix exercises workload-only, cross-repo-only, workload then
 cross-repo, cross-repo then workload, workload/cross-repo/workload, and
-cross-repo/workload/cross-repo. All six read back one coherent tuple:
+cross-repo/workload/cross-repo. All six read back one coherent tuple. The
+rollback case forces the second workload statement to fail and observes no
+relationship before a successful retry. The deterministic overlap case holds
+each writer open in turn, lets the competing managed transaction reach its
+write before the first commits, and reads back one relationship with the
+coherent cross-repo tuple after both commits:
 
 ```bash
 ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:... go test ./internal/storage/cypher \
-  -run TestBoltRunsOnWritersPreserveOneCoherentProvenanceTuple -count=1 -v  # ok
+  -run 'TestBoltRunsOn(ConcurrentOverlapPreservesCrossRepoTuple|WritersPreserveOneCoherentProvenanceTuple|AtomicGroupRollsBackAfterFirstStatement|WritersReplaceDuplicateLegacyUnkeyedIdentities)' \
+  -count=1 -v  # ok, 4.971s
+
+ESHU_POSTGRES_DSN=postgresql://... go test ./internal/storage/postgres \
+  -run 'TestWorkloadReplay(DuringClaimReturnsAckToPending|AndBatchAckContentionConvergesToPending)' \
+  -count=1 -v  # ok, 9.481s
 ```
 
 ## No-Regression Evidence:
@@ -202,13 +252,21 @@ ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:... go test ./internal/storage/cypher \
   edges. The identity differential was 29 missing / 12 extra. The next main
   commit, `62ce6e9fb`, changes tag-history query wiring only and does not touch
   projection or recovery behavior.
-- Final post-review live run: `scripts/verify-graph-rebuild-from-facts.sh` used
-  6,369 facts across 67 active scopes. The pre-wipe identity snapshot held 2,529
-  nodes and 3,303 edges. The clean rebuild took 87 seconds (1m27s), drained both
-  durable queues to terminal-zero, and held 2,530 node identities and 3,308 edge
-  identities. It lost no identity; the differential was one additional workload
-  instance and its five workload-instance relationships. It kept `CALLS=116`,
-  `CORRELATES_DEPLOYABLE_UNIT=8`, `HANDLES_ROUTE=4`, and `RUNS_IN=4`.
+- Final-runtime-source live run: `CGO_CFLAGS='-std=gnu17'
+  ESHU_DR_SKIP_INTERRUPT=true
+  ESHU_DR_COMPOSE_PROJECT=eshu-pr6634-final-rebuild
+  bash scripts/verify-graph-rebuild-from-facts.sh` used 6,369 facts across 67
+  active scopes. The pre-wipe identity snapshot held 2,529 nodes and 3,308
+  edges. The clean rebuild took 101 seconds (1m41s) with host load averages
+  15.30 / 17.86 / 21.30 and held 2,530 node identities and 3,309 edge
+  identities. It retained `CALLS=116`, `CORRELATES_DEPLOYABLE_UNIT=8`,
+  `HANDLES_ROUTE=4`, and `RUNS_IN=4`. The gate remained red: two pre-wipe nodes
+  and four relationships were missing, while three nodes and five relationships
+  were additional. The missing set was the `base:dev` workload instance, its
+  platform, and its four relationships; the additional set was two deployment
+  evidence artifacts, one environment, and their five relationships. The run
+  postdates the runtime corrections in this PR; the later golden-gate
+  classification fix changes only the test harness's pre-maintenance predicate.
 - The interrupted pass killed the ingester, projector, and resolution engine
   only after graph rows existed with 1,010 items still active. The fresh-key
   recovery request ran while workers remained stopped, returned successfully,
@@ -232,13 +290,18 @@ ESHU_CYPHER_BOLT_DSN=bolt://127.0.0.1:... go test ./internal/storage/cypher \
   timeout now derives from the five-minute drain bound plus a one-minute margin;
   the successful immediate-recovery result above is the runtime proof.
 - Runtime cost: the readiness gates add index-served `EXISTS` probes over
-  scope-count row sets. The shared `RUNS_ON` workload batch adds one statement
-  for eight fixture rows. The claim fence runs only in the recovery critical
-  section after the queue has drained; it does not alter steady-state claim SQL,
-  batch sizes, or worker counts. The final 87-second clean run was six seconds
-  slower than the prior 81-second run on the same corpus and profile and far
-  below the 341-second historical baseline; this sample is no claim of a
-  speedup or a statistically significant regression.
+  scope-count row sets. A workload `RUNS_ON` batch adds one graph statement;
+  the shared deterministic relationship identity preserves writer concurrency.
+  A
+  matching pre-upgrade edge adds one bounded cleanup statement per batch.
+  Exact claim-token predicates add comparisons on the
+  already-selected queue row and do not change batch sizes or worker counts.
+  The relation-wide `EXCLUSIVE` lock is recovery-only, acquired after the queue
+  drains, and held for the bounded reset/retirement transaction. The 101-second
+  run exercises the final runtime source under load and remains far inside the
+  golden gate's 1,800-second absolute ceiling. It is not a controlled comparison
+  with the 87-second or 341-second runs, so no end-to-end speedup or incremental
+  cost claim is made.
 - Backend/version: `timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440`,
   Linux amd64 local.
 - Input shape: the gate's own fixture corpus (same corpus as the 341 s

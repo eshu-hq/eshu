@@ -43,7 +43,7 @@ func TestReducerContentionGateAckFanoutProbe(t *testing.T) {
 		// Reverse the lexical identity relative to heap insertion and scope order.
 		id := fmt.Sprintf("ack-fanout-6488-%03d", count-i)
 		insertCrossScopeCompletionBaseConsumer(t, ctx, db, id, scope, generation, reducer.DomainSupplyChainImpact, now)
-		intents[i] = reducer.Intent{IntentID: id, Domain: reducer.DomainSupplyChainImpact}
+		intents[i] = reducer.Intent{IntentID: id, Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}
 	}
 	if _, err := db.ExecContext(ctx, `ANALYZE fact_work_items; ANALYZE ingestion_scopes; ANALYZE scope_generations`); err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestReducerContentionGateAckFanoutProbe(t *testing.T) {
 	store := NewCrossScopeCompletionStore(fanoutConn)
 	store.Now = func() time.Time { return now }
 	for trial := range 40 {
-		if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running', attempt_count=1, lease_owner='ack-6488', claim_until=$1, cross_scope_replay_required=FALSE`, now.Add(time.Hour)); err != nil {
+		if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running', attempt_count=1, lease_owner='ack-6488', claim_until=$1, last_attempt_at=$2, cross_scope_replay_required=FALSE`, now.Add(time.Hour), now); err != nil {
 			t.Fatal(err)
 		}
 		event := insertCrossScopeCompletionEvent(t, ctx, db, reducer.DomainCICDRunCorrelation, "claimed", "fanout-6488", now.Add(time.Hour), 1, now)

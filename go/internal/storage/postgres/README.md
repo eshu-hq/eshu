@@ -2487,7 +2487,7 @@ Critical hazard (#3672 review P1): `workload_materialization` and
 same `platform_id` namespace, and `workload_materialization` does **not** hold
 the `PlatformGraphLocker` advisory lock that `deployment_mapping` uses. If the
 two were claimed concurrently for the same scope, two unprotected MERGEs would
-race the same Platform node → NornicDB commit-time uniqueness conflict / retry /
+race the same Platform node -> NornicDB commit-time uniqueness conflict / retry /
 eventual dead-letter. They therefore MUST share one conflict key so the queue
 fence keeps them serialized. `TestPlatformNodeWritersShareConflictKeyForSameScope`
 is the regression guard for this invariant.

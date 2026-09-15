@@ -292,6 +292,10 @@ func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID i
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			err = errors.Join(err, heartbeatErr)
 		}
+		if errors.Is(err, ErrExecutionClaimRejected) {
+			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, err)
+			return Result{}, false, nil
+		}
 		status = "failed"
 		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, status, workerID, err)
 		if failErr := s.WorkSink.Fail(ctx, intent, err); failErr != nil {

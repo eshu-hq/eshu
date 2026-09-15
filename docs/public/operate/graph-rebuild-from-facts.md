@@ -20,9 +20,11 @@ no graph-to-Postgres reconciliation to perform and no split-brain to resolve,
 because one side was never a source of truth.
 
 **Read [What the rebuild does not restore](#what-the-rebuild-does-not-restore)
-before you rely on this.** The rebuild is measured and it is incomplete: code
-call and inheritance edges, ownership, and several correlation families do not
-come back on their own today.
+before you rely on this.** The measured rebuild restores the formerly missing
+code-call and deployable-unit edge families, but it does not yet reproduce a
+byte-identical graph. The remaining measured difference is in workload/platform
+and deployment-evidence materialization, not the owned code-call or
+deployable-unit lanes.
 
 **Deliberately not on the menu:** graph-backend replication and multi-region
 graph storage. Both are deferred until rebuild-from-facts is shown to miss a
@@ -288,9 +290,12 @@ You do not need to wipe again before restarting. The graph is partially built,
 
 A rebuild used to stop at source-local structure: it brought back 2,431 of 2,504
 nodes and 2,905 of 3,289 relationships, with the whole call-graph, inheritance,
-ownership, and correlation layers missing. That is fixed. A rebuild now restores
-2,503 of 2,505 nodes and 3,286 of 3,288 relationships on the same corpus, and
-every one of the seventeen reducer domains re-runs.
+ownership, and correlation layers missing. That is fixed. In the latest clean
+run, the pre-wipe graph held 2,529 node identities and 3,308 relationship
+identities; the rebuild held 2,530 and 3,309. The identity differential was two
+missing and three additional nodes, plus four missing and five additional
+relationships. Every reducer domain re-ran, but that residual means this is not
+a byte-identical restoration claim.
 
 What is left is small, and it is worth knowing what each piece is.
 
@@ -311,24 +316,21 @@ edges. The clean and interrupted v1.3.2 runs each restored all four edges in
 both families; a missing prerequisite stays visibly deferred instead of being
 silently accepted as an empty match.
 
-**Same-named modules in different languages come back with the wrong language.**
-A `Module` graph node is keyed on its name alone, so one node named `time` serves
-Go and Python both, and its `lang` is whichever writer landed first. A rebuild
-re-runs the writers in a different order, so the language can flip. This is not
-caused by the rebuild — the same collision happens during ordinary indexing — but
-a rebuild is where you will notice it. If you compare module counts before and
-after, expect the totals to match while individual nodes disagree.
+**The remaining measured difference is outside the owned lanes above.** The
+latest clean run was missing one `WorkloadInstance`, its `Platform`, and four
+relationships, while adding two deployment `EvidenceArtifact` nodes, one
+`Environment`, and five relationships. The earlier interrupted run lost no
+identity and added three nodes plus nine relationships in workload-instance
+materialization. The code-call and deployable-unit counts stayed complete in
+both runs, while exact whole-graph identity parity remains unproved. Treat any
+workload/platform or deployment-evidence delta as a convergence issue to
+investigate, not as evidence that a missing code or deployable-unit lane is
+expected.
 
-**Some of the remaining difference is not the rebuild at all.** Indexing the same
-corpus twice does not produce byte-identical graphs. Three runs of this procedure
-recorded pre-wipe totals of 2,506/3,294, 2,504/3,289, and 2,505/3,288, differing
-in `EvidenceArtifact`, `Module`, and `Environment` — the same families that show
-up in a rebuild comparison. When you compare a rebuilt graph against counts you
-recorded earlier, expect a couple of nodes of noise from the indexer before you
-suspect the rebuild.
-
-The measurement, the per-label counts, and the domain-by-domain breakdown are in
-`docs/internal/evidence/4594-graph-rebuild-from-facts.md`.
+The original baseline and the current measurement, including per-label and
+domain-by-domain breakdowns, are in
+`docs/internal/evidence/4594-graph-rebuild-from-facts.md` and
+`docs/internal/evidence/6184-cross-repo-calls-readiness-and-resolver-ordering.md`.
 
 ## How long it takes
 

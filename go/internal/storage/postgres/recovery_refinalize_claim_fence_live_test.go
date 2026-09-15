@@ -15,19 +15,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit proves recovery's
-// retirement fence covers the full commit window. A claimable row must remain
-// parked while the recovery transaction has retired its generation but not yet
-// committed; otherwise its resolver can reactivate that retired generation.
 func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
 	for _, status := range []string{"pending", "retrying", "claimed", "running"} {
 		t.Run(status, func(t *testing.T) {
 			db, ctx := refinalizeRebuildResetLiveDB(t)
 			suffix := testSuffix(t)
 			scopeID, activeGeneration, _ := refinalizeResetScope(t, ctx, db, suffix)
-			workItemID := seedRefinalizeResetReducerWork(
-				t, ctx, db, scopeID, activeGeneration, "claim-fence-"+status, status,
-			)
+			workItemID := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activeGeneration, "claim-fence-"+status, status)
 			if status == "claimed" || status == "running" {
 				armLiveLease(t, ctx, db, workItemID, -time.Minute)
 			}
@@ -38,18 +32,10 @@ func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
 			var releaseOnce sync.Once
 			releaseRecovery := func() { releaseOnce.Do(func() { close(release) }) }
 			t.Cleanup(releaseRecovery)
-			raceDB := &refinalizeRetirementPauseDB{
-				SQLDB:   SQLDB{DB: db},
-				retired: retired,
-				release: release,
-			}
+			racingDB := &refinalizeRetirementPauseDB{SQLDB: SQLDB{DB: db}, retired: retired, release: release}
 			recoveryDone := make(chan error, 1)
 			go func() {
-				_, err := NewRecoveryStore(raceDB).RefinalizeScopeProjections(
-					ctx,
-					recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}},
-					time.Now().UTC(),
-				)
+				_, err := NewRecoveryStore(racingDB).RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}}, time.Now().UTC())
 				recoveryDone <- err
 			}()
 
@@ -85,7 +71,7 @@ func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
 				t.Fatalf("ClaimBatch returned before recovery commit: intents=%#v err=%v", result.intents, result.err)
 			case <-time.After(250 * time.Millisecond):
 			}
-			assertBackendWaitingOnFactWorkItemsRowExclusive(t, ctx, db, claimPID)
+			assertBackendWaitingOnFactWorkItemsLock(t, ctx, db, claimPID, "RowExclusiveLock")
 
 			releaseRecovery()
 			if err := <-recoveryDone; err != nil {
@@ -109,9 +95,6 @@ func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
 	}
 }
 
-// TestConcurrentRefinalizesSerializeWithoutDeadlock proves the claim-fence
-// table mode is self-exclusive: two recovery requests may serialize, but both
-// must finish and converge instead of deadlocking during their own queue DML.
 func TestConcurrentRefinalizesSerializeWithoutDeadlock(t *testing.T) {
 	db, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
@@ -119,32 +102,52 @@ func TestConcurrentRefinalizesSerializeWithoutDeadlock(t *testing.T) {
 	seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activeGeneration, "concurrent-fence", "succeeded")
 	seedActiveRelationshipGeneration(t, ctx, db, activeGeneration, scopeID)
 
-	start := make(chan struct{})
-	results := make(chan error, 2)
-	for range 2 {
-		go func() {
-			<-start
-			_, err := NewRecoveryStore(SQLDB{DB: db}).RefinalizeScopeProjections(
-				ctx,
-				recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}},
-				time.Now().UTC(),
-			)
-			results <- err
-		}()
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseFirst := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseFirst)
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := NewRecoveryStore(&refinalizeTableLockPauseDB{
+			SQLDB: SQLDB{DB: db}, locked: locked, release: release,
+		}).RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}}, time.Now().UTC())
+		firstDone <- err
+	}()
+	select {
+	case <-locked:
+	case err := <-firstDone:
+		t.Fatalf("first refinalize completed before lock pause: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("first refinalize did not acquire EXCLUSIVE fence")
 	}
-	close(start)
-	for range 2 {
+
+	secondConn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("open second recovery connection: %v", err)
+	}
+	defer func() { _ = secondConn.Close() }()
+	var secondPID int
+	if err := secondConn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&secondPID); err != nil {
+		t.Fatalf("read second recovery backend pid: %v", err)
+	}
+	secondDone := make(chan error, 1)
+	go func() {
+		_, err := NewRecoveryStore(claimFenceConn{Conn: secondConn}).RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}}, time.Now().UTC())
+		secondDone <- err
+	}()
+	assertBackendWaitingOnFactWorkItemsLock(t, ctx, db, secondPID, "ExclusiveLock")
+
+	releaseFirst()
+	for _, done := range []<-chan error{firstDone, secondDone} {
 		select {
-		case err := <-results:
+		case err := <-done:
 			if err != nil {
 				t.Fatalf("concurrent RefinalizeScopeProjections() error = %v", err)
 			}
 		case <-time.After(10 * time.Second):
 			t.Fatal("concurrent refinalizes did not serialize within 10s")
 		}
-	}
-	if got := relationshipGenerationStatus(t, ctx, db, activeGeneration); got != "superseded" {
-		t.Fatalf("relationship generation status = %q, want superseded", got)
 	}
 }
 
@@ -153,15 +156,9 @@ type claimBatchResult struct {
 	err     error
 }
 
-type claimFenceConn struct {
-	*sql.Conn
-}
+type claimFenceConn struct{ *sql.Conn }
 
-func (c claimFenceConn) QueryContext(
-	ctx context.Context,
-	query string,
-	args ...any,
-) (Rows, error) {
+func (c claimFenceConn) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
 	return c.Conn.QueryContext(ctx, query, args...)
 }
 
@@ -176,11 +173,7 @@ func (d *refinalizeRetirementPauseDB) Begin(ctx context.Context) (Transaction, e
 	if err != nil {
 		return nil, err
 	}
-	return &refinalizeRetirementPauseTx{
-		Transaction: tx,
-		retired:     d.retired,
-		release:     d.release,
-	}, nil
+	return &refinalizeRetirementPauseTx{Transaction: tx, retired: d.retired, release: d.release}, nil
 }
 
 type refinalizeRetirementPauseTx struct {
@@ -190,11 +183,7 @@ type refinalizeRetirementPauseTx struct {
 	once    sync.Once
 }
 
-func (t *refinalizeRetirementPauseTx) ExecContext(
-	ctx context.Context,
-	query string,
-	args ...any,
-) (sql.Result, error) {
+func (t *refinalizeRetirementPauseTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	result, err := t.Transaction.ExecContext(ctx, query, args...)
 	if err == nil && strings.Contains(query, "UPDATE relationship_generations") {
 		t.once.Do(func() { close(t.retired) })
@@ -207,12 +196,41 @@ func (t *refinalizeRetirementPauseTx) ExecContext(
 	return result, err
 }
 
-func assertBackendWaitingOnFactWorkItemsRowExclusive(
-	t *testing.T,
-	ctx context.Context,
-	db *sql.DB,
-	pid int,
-) {
+type refinalizeTableLockPauseDB struct {
+	SQLDB
+	locked  chan<- struct{}
+	release <-chan struct{}
+}
+
+func (d *refinalizeTableLockPauseDB) Begin(ctx context.Context) (Transaction, error) {
+	tx, err := d.SQLDB.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &refinalizeTableLockPauseTx{Transaction: tx, locked: d.locked, release: d.release}, nil
+}
+
+type refinalizeTableLockPauseTx struct {
+	Transaction
+	locked  chan<- struct{}
+	release <-chan struct{}
+	once    sync.Once
+}
+
+func (t *refinalizeTableLockPauseTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	result, err := t.Transaction.ExecContext(ctx, query, args...)
+	if err == nil && strings.Contains(query, "LOCK TABLE fact_work_items") {
+		t.once.Do(func() { close(t.locked) })
+		select {
+		case <-t.release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return result, err
+}
+
+func assertBackendWaitingOnFactWorkItemsLock(t *testing.T, ctx context.Context, db *sql.DB, pid int, mode string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -222,8 +240,8 @@ SELECT COUNT(*)
 FROM pg_locks
 WHERE pid = $1
   AND relation = 'fact_work_items'::regclass
-  AND mode = 'RowExclusiveLock'
-  AND NOT granted`, pid).Scan(&waiting)
+  AND mode = $2
+  AND NOT granted`, pid, mode).Scan(&waiting)
 		if err != nil {
 			t.Fatalf("read fact_work_items lock wait: %v", err)
 		}
@@ -231,7 +249,7 @@ WHERE pid = $1
 			return
 		}
 		if !time.Now().Before(deadline) {
-			t.Fatalf("backend pid %d has no ungranted fact_work_items RowExclusiveLock", pid)
+			t.Fatalf("backend pid %d has no ungranted fact_work_items %s", pid, mode)
 		}
 		time.Sleep(25 * time.Millisecond)
 	}

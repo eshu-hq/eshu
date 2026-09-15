@@ -189,6 +189,34 @@ VALUES ($1, $2, 'active', $3, $4)
 ON CONFLICT (generation_id) DO UPDATE SET status = 'active', activated_at = $4
 `
 
+const activateResolutionGenerationForClaimSQL = `
+WITH claimant AS MATERIALIZED (
+    SELECT 1
+    FROM fact_work_items
+    WHERE work_item_id = $5
+      AND stage = 'reducer'
+      AND scope_id = $2
+      AND generation_id = $1
+      AND domain = 'deployment_mapping'
+      AND status IN ('claimed', 'running')
+      AND last_attempt_at = $6
+      AND claim_until > clock_timestamp()
+    FOR UPDATE
+),
+deactivate AS (
+    UPDATE relationship_generations
+    SET status = 'superseded'
+    WHERE scope = $2
+      AND generation_id <> $1
+      AND status = 'active'
+      AND EXISTS (SELECT 1 FROM claimant)
+)
+INSERT INTO relationship_generations (generation_id, scope, status, created_at, activated_at)
+SELECT $1, $2, 'active', $3, $4
+FROM claimant
+ON CONFLICT (generation_id) DO UPDATE SET status = 'active', activated_at = $4
+`
+
 // insertEvidenceFactBatchPrefix and insertEvidenceFactBatchSuffix wrap the
 // dynamically generated per-row placeholder tuples of a multi-row evidence
 // INSERT into relationship_evidence_facts (issue #3704). The column order is

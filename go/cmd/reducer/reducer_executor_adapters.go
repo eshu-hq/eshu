@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -117,6 +118,22 @@ func (e reducerCypherExecutor) ExecuteCypher(ctx context.Context, cypher string,
 		Cypher:     cypher,
 		Parameters: params,
 	})
+}
+
+// ExecuteCypherGroup runs materializer statements in one graph transaction.
+func (e reducerCypherExecutor) ExecuteCypherGroup(
+	ctx context.Context,
+	statements []reducer.CypherGroupStatement,
+) error {
+	group := make([]sourcecypher.Statement, 0, len(statements))
+	for _, statement := range statements {
+		group = append(group, sourcecypher.Statement{
+			Operation:  sourcecypher.OperationCanonicalUpsert,
+			Cypher:     statement.Cypher,
+			Parameters: statement.Parameters,
+		})
+	}
+	return e.retry.ExecuteGroup(ctx, group)
 }
 
 // cypherRunnerStatementExecutor adapts a cypherRunner's RunCypher method to
