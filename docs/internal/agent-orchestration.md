@@ -169,14 +169,11 @@ discipline.
 - Go unit tests, the **race detector**, `golangci-lint` (incl. the custom
   500-line file-cap plugin), and `gofumpt` formatting (`test.yml`,
   `race-graph-writes.yml`).
-- Structural drift gates: OpenAPI ↔ handler (`verify-openapi.yml`), MCP schema
-  + capability inventory (`mcp-schema-drift.yml`), telemetry coverage
-  (`verify-telemetry-coverage.yml`), route coverage
-  (`verify-route-coverage.yml`), golden-corpus correlation edges
-  (`golden-corpus-gate.yml`), contract source-of-truth
-  (`contract-source-of-truth.yml`), operator dashboard
-  (`generate-operator-dashboard.yml`), skill roundtrip
-  (`verify-skill-roundtrip.yml`).
+- Structural drift gates: OpenAPI ↔ handler, telemetry coverage, route
+  coverage, contract source-of-truth, operator dashboard, and skill roundtrip
+  now run as dynamic path-filtered gates inside `static-contract-gates.yml`,
+  alongside MCP schema + capability inventory (`mcp-schema-drift.yml`) and
+  golden-corpus correlation edges (`golden-corpus-gate.yml`).
 - Security: trivy (fs), gosec, govulncheck, nancy (`security-scan.yml`).
 - Docs build `mkdocs --strict`, license headers, whitespace hygiene
   (`test.yml`).

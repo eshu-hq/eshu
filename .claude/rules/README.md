@@ -6,20 +6,20 @@ paths:
 # Path-scoped rules for Claude Code
 
 <!-- This file carries a `paths:` glob on purpose. A rule with no `paths:` field
-loads unconditionally at launch, at the same priority as .claude/CLAUDE.md, so an
+loads unconditionally at launch, at the same priority as the root CLAUDE.md, so an
 un-scoped README here would spend context in every session to explain a directory
 most sessions never touch. Scoped to the rules themselves, it loads exactly when
 someone edits one. -->
 
-Claude Code reads `CLAUDE.md`, not `AGENTS.md`. This repository carries 728
-per-directory `AGENTS.md` files under `go/`, and Claude loads **none** of them.
-Codex does, because it resolves instructions per directory. That asymmetry is
-what this directory closes.
+Claude Code reads `CLAUDE.md`, not `AGENTS.md`. This repository carries over a
+thousand per-directory `AGENTS.md` files under `go/`, and Claude loads
+**none** of them. Codex does, because it resolves instructions per directory.
+That asymmetry is what this directory closes.
 
 Each file here declares a `paths:` glob in YAML frontmatter. Claude Code loads
 the rule when it **reads a file matching that glob** — not on every tool use, and
 not at launch. A rule with no `paths:` field loads unconditionally at launch with
-the same priority as `.claude/CLAUDE.md`; nothing here should do that, because
+the same priority as the root `CLAUDE.md`; nothing here should do that, because
 that is what the root canon is for.
 
 ## What belongs here, and what does not
