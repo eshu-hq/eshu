@@ -95,4 +95,4 @@ tool knows whether blindly retrying an item is safe.
 - [Fact Schema Versioning](fact-schema-versioning.md)
 - [Status And Admin](http-api/status-admin.md)
 - [Component Package Manager](component-package-manager.md)
-- [Collector Extraction Policy](collector-extraction-policy.md)
+- [Collector Repository Migration Policy](collector-extraction-policy.md)

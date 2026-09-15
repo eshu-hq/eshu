@@ -247,7 +247,7 @@ proof is tracked by `go test
 ./internal/collector/pagerduty -run ReferenceComponent`, the Helm
 component-extension contract tests in `go/internal/runtime`, and
 `scripts/verify-remote-e2e-pagerduty-component-extension.sh`. See
-[Collector Extraction Policy](collector-extraction-policy.md) for the
+[Collector Repository Migration Policy](collector-extraction-policy.md) for the
 stage-by-stage status table.
 
 Broader live PagerDuty config classes and alert-route-to-service comparison

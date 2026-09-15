@@ -1,270 +1,227 @@
-# Collector Extraction Policy
+# Collector Repository Migration Policy
 
-This page is the decision record for moving a collector out of the core Eshu
-repository. It exists because the SDK and extension host boundary already
-supports out-of-tree collector execution, but that boundary is not the same as a
-production extraction decision.
+This page defines how Eshu moves non-default collectors into independently
+owned and released repositories.
 
-Collectors observe source truth and emit versioned facts. Reducers,
-projectors, graph writers, query handlers, and answer packet builders own
-canonical Eshu truth.
+The destination is settled: every non-default collector moves. The gate below
+controls when a collector cuts over and when its old in-tree implementation can
+be removed.
 
-## Current Boundary
+Collectors observe source truth and emit versioned facts. Eshu core owns fact
+admission, canonical identity, projection, persistence, recovery, graph truth,
+and retraction.
 
-The public collector SDK lives at `sdk/go/collector` and exposes the
-`collector-sdk/v1alpha1` wire contract. It intentionally does not import Eshu
-internal packages. The core extension host lives in
-`go/internal/collector/extensionhost`: it builds a bounded JSON claim/config
-request, launches a manifest-declared runner, validates the returned SDK result,
-maps accepted facts to internal envelopes, and hands claim mutation and commits
-back to `collector.ClaimedService`.
+## Target Boundary
 
-An extension never receives Postgres, graph, reducer, API, MCP, or
-workflow-control handles. Installed, enabled, and claim-capable component states
-remain separate.
+Each collector repository contains one source collector, its private source
+client, fixtures, conformance tests, build, release, security response, and
+operator documentation.
 
-## Why A Monorepo By Default
+Collector repositories depend only on published contracts. They never receive
+Postgres, graph, queue, lease, reducer, API, MCP, or workflow implementation
+handles. They submit a bounded result containing validated facts and an explicit
+outcome.
 
-The default home for a collector is the core monorepo. One repository per small
-collector is explicitly **not** the default, and a new collector must not start
-its own repository to avoid review or shared contracts. Extraction is a
-deliberate graduation a collector earns by meeting the
-[Extraction Criteria](#extraction-criteria), not a starting point.
+The default Git collector, repository discovery, parser, and reducer core remain
+in `eshu`. Public collector and fact-schema contracts move to independently
+versioned modules in `eshu-sdk`.
 
-The monorepo is the default because the costs it removes are larger than the
-isolation a separate repository adds:
+The internal design
+`docs/internal/design/eshu-ecosystem-repository-migration.md` records the
+complete repository map.
 
-- **Contract stability.** Collectors, the public collector SDK
-  (`sdk/go/collector`), the fact schema versions in `go/internal/facts`, reducer
-  admission, and query truth co-evolve. In one tree a contract change and every
-  consumer move together in a single reviewed commit. Splitting a collector out
-  before its facts and consumer contracts are stable turns one atomic change
-  into a cross-repository version negotiation.
-- **Correlation correctness.** Code-to-cloud and supply-chain correlation depend
-  on join keys that several collectors and reducers produce and consume
-  together. Keeping correlation-critical collectors in tree keeps those keys
-  changing atomically. A premature split risks silent join-key drift, which is a
-  correctness failure, not a packaging inconvenience.
-- **One release, CI, and security surface.** A single repository has one
-  versioning, build, conformance, provenance, and vulnerability-response
-  surface. Each extracted repository adds its own release cadence, digest-pinned
-  artifact, trust policy, and CI — overhead that only pays off when the source's
-  vendor churn is genuinely independent.
-- **One proof surface.** Fixture conformance, reducer admission, graph/query
-  truth, and remote Compose proof run together in tree. Fragmenting them across
-  repositories makes it harder to prove the whole pipeline still agrees.
-- **Lower contributor and version-skew cost.** Dozens of tiny repositories
-  multiply scaffolding, dependency bumps, and the chance that a collector pins
-  an incompatible core or SDK version. The
-  [conformance flow](../extend/community-extension-authoring.md) already lets a
-  collector be validated against its manifest and SDK contracts without its own
-  repository, so isolation is available without paying the split cost early.
+## One Collector, One Repository
 
-Extraction becomes worth its cost only when a source family's vendor API or
-format churn is independent enough that a separate release cadence helps more
-than the shared contract, correlation, and proof guarantees it gives up. Until
-then, in tree is the safer and cheaper default.
+Each non-default collector has its own destination repository. Provider source
+clients, collection logic, and private helpers move with that collector.
+Provider-specific parsing, reduction, and canonical projection remain with the
+core owner. Shared public fact shapes belong to the fact-schema module.
+
+New non-default collectors start in their destination repository. They are
+never staged in `eshu` as temporary implementations.
+
+Package nesting inside the current tree is preparation only. A directory level
+does not create a repository, service, public API, or permission to share a
+database.
 
 ## Extraction Criteria
 
-A collector family is eligible for out-of-tree extraction only when all rows are
-true.
+A collector can enter `ready_for_cutover` only when every applicable row is
+proven.
 
 | Criterion | Required evidence |
 | --- | --- |
-| Source coupling | The collector depends only on external source APIs or artifacts plus public SDK contracts, not Eshu internal packages. |
-| Fact contract | Every emitted fact kind, schema version, source confidence, stable key, redacted payload, and downstream consumer is documented before runtime work. |
-| Scope and generation | The collector has a durable source scope and generation identity that supports retry, replay, stale-state handling, and idempotent re-emission. |
-| Trust boundary | Component manifest, compatible core range, digest-pinned artifact, publisher, revocation behavior, and allowlist or strict trust mode are documented. |
-| Runtime behavior | The hosted path has bounded claims, read-only credentials, resource limits, retry/dead-letter behavior, health, readiness, metrics, status, and logs. |
-| Release cadence | Vendor API or source-format churn is independent enough that a separate release cadence helps more than it harms correlation correctness. |
-| Proof surface | Fixture conformance, remote Compose proof, reducer admission, graph/query truth, and private-data handling all pass before support is claimed. |
+| Source boundary | The collector imports only external source dependencies and published Eshu contracts. |
+| Fact contract | Every emitted kind, schema, stable key, confidence, provenance field, redaction rule, and downstream consumer is documented. |
+| Producer authority | The first-party producer identity and allowed fact kinds are explicit, versioned, revocable, and rejected when invalid. |
+| Scope and generation | Durable source scope and generation support retry, replay, stale input, idempotency, and out-of-order delivery. |
+| Runtime safety | Claims are bounded; credentials are read-only where possible; retries, cancellation, dead letters, and partial failures are deterministic. |
+| Trust and release | Artifact identity, publisher, compatible core range, immutable digest, revocation, vulnerability response, and ownership are recorded. |
+| Truth proof | Fixtures agree with reducer, graph, API, and MCP truth before support is claimed. |
+| Operations | Health, readiness, metrics, traces, structured logs, status, resource bounds, and operator procedures are proven. |
+| Rollback | Authority can return to the prior supported producer without duplicate authority, lost facts, or an ambiguous generation. |
 
-Passing local manifest verification or SDK fixture conformance is necessary but
-not sufficient. It proves package shape and SDK result validity; it does not
-prove hosted activation, graph truth, API/MCP readback, or production safety.
+Passing manifest validation or fixture conformance is necessary but not
+sufficient. It proves a package and result shape, not production graph truth or
+operational safety.
 
-## Keep In Tree
+## Migration States
 
-Correlation-critical core collectors stay in-tree by default:
+The target roadmap vocabulary is:
 
-- Git repository collection and parsing inputs
-- Terraform state and source evidence that provides deployment join keys
-- AWS, GCP, and Azure cloud collectors
-- Kubernetes live evidence
-- collectors whose facts co-evolve tightly with reducer admission,
-  materialization, graph identity, or query contracts
+| State | Meaning |
+| --- | --- |
+| `core_by_design` | The default Git collector. It remains in `eshu`. |
+| `planned` | Destination and owner are assigned. |
+| `contract_blocked` | A named SDK, schema, authorization, state, or compatibility contract blocks cutover. |
+| `ready_for_cutover` | Repository, release, parity, operational, and rollback proof pass. |
+| `external` | Production uses the external repository and the old implementation has been removed. |
 
-These collectors create or preserve the join keys the code-to-cloud graph
-depends on. Moving them out of tree would require a separate architecture gate
-with fixture truth, reducer graph truth, API/MCP truth, performance, and
-concurrency evidence proving the split does not weaken correlation correctness.
+The current `eshu component extraction-readiness` command still reports its
+legacy advisory classifications: `keep_in_tree`, `extraction_candidate`,
+`blocked`, and `external_ready`. Until its wire contract is deliberately
+updated, read them as diagnostics rather than the ecosystem migration state.
+Do not claim the target state names are live CLI output.
 
-## Source-Family Package Boundaries
+The migration mapping is:
 
-Extraction is decided per **source family**, not per individual collector. A
-family is the unit a single out-of-tree package may own: collectors that share a
-vendor, protocol, or evidence domain and can release on one cadence. Splitting a
-single small collector into its own repository is not a family boundary.
+| Current diagnostic | Roadmap interpretation |
+| --- | --- |
+| `keep_in_tree` | Historical policy result; Git maps to `core_by_design`, while every other collector remains scheduled to move. |
+| `extraction_candidate` | Usually `planned`; proof may satisfy some cutover rows. |
+| `blocked` | `contract_blocked` when the diagnostic names the missing contract. |
+| `external_ready` | At most `ready_for_cutover` until deployed cutover and in-tree removal prove `external`. |
 
-The distinction that decides a family's default home is whether it **produces**
-correlation join keys or only **consumes** them. Families that produce the
-identity, deployment, or supply-chain join keys the graph is built on stay in
-tree; families that observe a vendor and emit source evidence consumed by
-reducers are extraction candidates.
+Changing the diagnostic vocabulary requires a separate CLI/API contract change
+with compatibility tests and documentation updates.
 
-| Source family | Examples | Default home | Why |
-| --- | --- | --- | --- |
-| Core code-to-cloud | Git, parsers, Terraform state, AWS/GCP/Azure, Kubernetes-live | In tree | Produce the identity and deployment join keys; co-evolve with reducer admission and graph identity. |
-| Cloud posture and supply-chain producers | image identity, SBOM/attestation, OCI/package registries that mint supply-chain join keys | In tree | Mint or preserve join keys that supply-chain correlation depends on. |
-| Observability | Grafana, Loki, Tempo, Mimir, Prometheus metadata | Extraction candidate | Vendor-cadence metadata consumed by coverage/drift reducers; emits evidence without changing graph admission. |
-| Docs and knowledge | Confluence and other documentation sources | Extraction candidate | Documentation evidence on provider cadence; provenance-only until a consumer admits it. |
-| SaaS and incident integrations | PagerDuty, Jira, CI/CD providers | Extraction candidate | External-system evidence on vendor cadence; correlated by reducers rather than producing core keys. |
-| Scanner packs | isolated security analyzers and advisory/vulnerability-intelligence sources | Extraction candidate | Analyzer and advisory evidence packaged as a set; reducers own which findings become user-facing truth. |
+## First-Party Producer Delegation
 
-A family is a candidate only when it meets every row of the
-[Extraction Criteria](#extraction-criteria); membership in a candidate family is
-necessary, not sufficient. Vulnerability-intelligence facts, for example,
-participate in supply-chain correlation but do not **produce** the image or
-package join keys, so the scanner-pack family can move on vendor cadence while
-the join-key producers stay in tree.
+An extracted first-party collector can emit a core-owned fact kind only through
+explicit producer delegation.
 
-This table groups collectors by policy intent; it is not the per-collector
-readiness drilldown. The advisory `eshu component extraction-readiness` command
-and its catalog (`go/internal/extraction`) track only the individual collector
-families enumerated under [Keep In Tree](#keep-in-tree) and
-[Extraction Candidates](#extraction-candidates) — the families with a verifiable
-per-criterion verdict today. Broader groupings here (for example "supply-chain
-producers" or "scanner packs") describe the boundary policy and are not all
-individually queryable yet; querying a collector the catalog does not track
-returns not-found rather than a verdict. When a grouped family graduates to its
-own tracked readiness verdict, add it to both the catalog and the
-[Extraction Candidates](#extraction-candidates) list so the policy and the
-diagnostic stay in lockstep.
+Admission validates:
 
-## Extraction Candidates
+- producer identity and source scope;
+- allowed fact kinds and schema versions;
+- stable key, generation, and payload bounds;
+- confidence, citation, and provenance requirements; and
+- redaction and secret-handling policy.
 
-Vendor-API and support-source collectors are the first candidates when they
-meet the criteria above:
+Delegation does not transfer canonical ownership. Collectors cannot write graph
+edges, choose incompatible canonical identities, mutate queues, or access core
+storage. Authorization must fail closed when it is missing, expired, revoked,
+or does not cover the submitted kind.
 
-- PagerDuty incident and routing evidence
-- Jira work items
-- Confluence documentation evidence
-- observability metadata such as Grafana, Loki, Tempo, Mimir, or Prometheus
-- vulnerability intelligence and advisory sources
+## Claim and Result Contract
 
-These sources can change on provider cadence and can often emit source facts
-without changing Eshu's core graph admission model. They still need reducer and
-query proof before facts are presented as active platform truth.
+The public collector SDK boundary is a bounded exchange:
+
+1. The host supplies a claim identifier, source scope, configuration, supported
+   contract versions, deadline, and permitted work.
+2. The collector reads the external source and returns facts plus a typed
+   outcome.
+3. The host authenticates the producer and validates size, schema, identity,
+   generation, redaction, and compatibility.
+4. Eshu core owns admission, persistence, reducer queue transitions, and
+   projection. Workflow claim transitions remain owned by `eshu-workflow`.
+
+The contract must distinguish successful empty collection, retryable source
+failure, permanent rejection, cancellation, partial source visibility, and an
+ambiguous transport result. Duplicate delivery must be safe.
+
+## Compatibility
+
+Every collector repository tests a declared matrix of collector SDK,
+fact-schema, and Eshu core versions. At minimum it covers the newest collector
+against the oldest supported core and the oldest supported collector against
+the newest core.
+
+A schema release cannot silently change stable keys, source scope, generation
+meaning, redaction, or downstream materialization. Breaking changes require a
+new version and an overlap or migration plan.
+
+## Cutover and Rollback
+
+Production cutover follows #4047.
+
+Before cutover:
+
+- the external artifact and exact configuration are recorded;
+- in-tree and external outputs are compared on the same representative inputs;
+- core graph and read truth agree;
+- operator dashboards and alerts identify the producer version; and
+- rollback has been rehearsed.
+
+During cutover, only one producer may hold authority for a source scope and
+generation. Stop new claims, drain or expire in-flight leases, switch producer
+authority, and verify accepted facts before removing the old implementation.
+
+Rollback reverses the authority transition, restores the last supported
+producer, replays from the last committed generation, and verifies exact fact,
+projection, graph, and read truth.
 
 ## Extraction Readiness Diagnostics
 
-Component diagnostics surface this policy as an advisory readiness checklist so
-the decision is evidence-based, not a matter of memory. The diagnostic is
-informational: it never moves code, disables a collector, or changes runtime
-behavior.
+The existing component diagnostic is advisory. It never moves code, changes
+authority, disables an in-tree collector, or changes runtime behavior.
 
-Each tracked collector family receives one classification:
-
-| Classification | Meaning |
-| --- | --- |
-| `keep_in_tree` | Correlation-critical core collector. It stays in tree until a separate architecture gate proves a split keeps correlation correct. |
-| `extraction_candidate` | Eligible family whose extraction *mechanics* (source coupling, fact contract, scope/generation, trust, and boundary proof) are met, but which has not been promoted to run out of tree as its default. Production graph/query readback may intentionally remain the in-tree collector's path until promotion; that pending production readback is why the family is a candidate and not yet `external_ready`. |
-| `blocked` | Eligible family with at least one unmet criterion. The unmet criteria are reported as concrete blockers. |
-| `external_ready` | The out-of-tree proof is complete and the family runs out of tree as its default path. |
-
-The checklist evaluates the same seven rows as the
-[Extraction Criteria](#extraction-criteria) table, and each criterion is `met`,
-`unmet`, or `not_applicable`. A `blocked` verdict distinguishes a schema or
-identity gap (`source_coupling`, `fact_contract`, or `scope_generation` unmet)
-from a hosted-runtime gap (`runtime_behavior` unmet), so a contributor knows
-which kind of work closes it. A profile that omits a criterion fails closed: the
-missing criterion is treated as `unmet`.
-
-The classifications are reproducible from documented repository evidence, not
-inferred at runtime. Today the cloud, Git, Terraform-state, and Kubernetes-live
-collectors are `keep_in_tree`; PagerDuty is an `extraction_candidate` because its
-out-of-tree boundary proof is complete while the in-tree collector stays the
-production path; the remaining named candidates are `blocked` until their trust,
-hosted-runtime, and proof work exists. No collector is `external_ready` yet.
-
-Read the checklist with:
+Read it with:
 
 ```bash
-eshu component extraction-readiness            # every tracked family
-eshu component extraction-readiness pagerduty  # one family, with blockers
+eshu component extraction-readiness
+eshu component extraction-readiness pagerduty
 eshu component extraction-readiness jira --verbose --json
 ```
+
+Its result is evidence for the migration issue, not the cutover itself. Missing
+criteria fail closed and are reported as blockers.
 
 ## PagerDuty Reference Path
 
 <!-- capability-state: id=component_extensions.diagnostics state=ga issue=2700 -->
 <!-- capability-state: id=component_extensions.inventory state=ga issue=2700 -->
 
-PagerDuty is the first extraction proof target for this policy. The reference
-proof for the out-of-tree boundary is complete: a PagerDuty reference collector
-runs as a trusted out-of-tree component package, claims work through the hosted
-component-extension worker with no core handles, and commits validated facts
-through the existing `collector.ClaimedService` boundary. The proof establishes
-the extraction *mechanics* — packaging, trust, claim execution, fact-shape
-parity, Compose proof, redaction, and operator evidence. It does not change which
-facts the reducer materializes: the reference component emits namespaced example
-facts, and the incident-routing reducer/graph/query readback continues to consume
-only the in-tree collector's fact kinds (see the caveats below). The hosted
-component-extension surfaces it exercises — `list_component_extensions` and
-`get_component_extension_diagnostics` — carry general-availability maturity in
-the [capability catalog](capability-catalog.md): the local profiles are proven
-by `go_test ./internal/query`, and the production profile's deployed-registry
-claim is proven by a live Compose run of this Scorecard harness against a
-deployed component-extension stack (see the internal remote-validation
-artifacts `docs/internal/remote-validation/prod-component-extension-inventory.md`
-and `docs/internal/remote-validation/prod-component-extension-diagnostics.md`).
-The diagnostics route shares its registry-readback function with inventory,
-and the deployed proof now captures that route directly rather than relying
-on the shared path alone: the linked artifact records a live
-`GET /api/v0/component-extensions/{id}/diagnostics` HTTP 200 against the
-deployed, auth-gated query API, with `trust_decision`, `policy_gate`,
-`scheduler_state`, `read_model_availability`, and `last_conformance_proof`
-all observed in the response, closing the previous coverage gap. The following stages are done and are guarded by tracked
-tests, scripts, and proof artifacts.
+PagerDuty is the completed reference proof for the out-of-tree execution
+boundary. A trusted component package uses `collector-sdk/v1alpha1`, receives no
+core handles, claims bounded work through the component-extension host, and
+returns validated facts through the normal claimed-service boundary.
 
-| Stage | Required evidence | State | Proof |
-| --- | --- | --- | --- |
-| Reference package | Reference PagerDuty component package on `collector-sdk/v1alpha1` with a digest-pinned artifact. | Complete | `examples/collector-extensions/pagerduty/manifest.yaml` |
-| Trust boundary | Trust verification in `allowlist` or `strict` mode with revocation behavior documented. | Complete | `go/internal/runtime` Helm component-extension contract tests; [Plugin Trust Model](plugin-trust-model.md) |
-| Claim-capable execution | Execution through `collector-component-extension` with no core handles exposed. | Complete | `go/cmd/collector-component-extension`, `go/internal/collector/extensionhost` |
-| Fact-shape parity | The reference component's SDK result matches the in-tree PagerDuty fact contract on schema version, stable key, confidence, source ref, and payload for synthetic fixtures. The reference component's fact **kinds** are namespaced (`dev.eshu.examples.pagerduty.*`), distinct from the core kinds, so they are not interchangeable core facts. | Complete | `go test ./internal/collector/pagerduty -run ReferenceComponent` |
-| Reducer and read materialization | Conservative incident-routing materialization and graph/query readback exists for the **in-tree** collector's fact kinds. The reference component emits namespaced example facts that are committed as source evidence only and are **not** consumed by this readback. | In-tree only; not proven via the extension path | `go/internal/reducer/incident/incident_routing_evidence_rows.go`, `go/internal/storage/cypher/incident_routing_evidence_writer.go`, `go/internal/query/incident_context_routing.go` |
-| Remote Compose proof | Remote Compose proof with default-off Helm wiring before hosted chart defaults. | Complete | `docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml`, `scripts/verify-remote-e2e-pagerduty-component-extension.sh` |
-| Private-data proof | Tokens, private endpoints, responder identities, payloads, paths, and names redacted or rejected. | Complete | Redaction canary in `scripts/verify-remote-e2e-pagerduty-component-extension.sh`; reference component redaction test |
-| Operator evidence | Health, readiness, metrics, logs, status, retries, dead letters, fact counts, and freshness. | Complete | Proof artifacts and `/admin/status`, `/healthz`, `/readyz`, `/metrics` on the component-extension worker |
+The proof covers packaging, trust, claim execution, result validation, fixture
+parity, Compose execution, redaction, and operator evidence.
 
-Completing this boundary proof does not move PagerDuty out of tree for
-production correlation. The following are intentional, still-open caveats:
+| Stage | State | Proof |
+| --- | --- | --- |
+| Reference package | Complete | `examples/collector-extensions/pagerduty/manifest.yaml` |
+| Trust boundary | Complete | `go/internal/runtime` Helm contract tests and [Plugin Trust Model](plugin-trust-model.md) |
+| Claim-capable execution | Complete | `go/cmd/collector-component-extension` and `go/internal/collector/extensionhost` |
+| Fact-shape parity | Complete for the example contract | `go test ./internal/collector/pagerduty -run ReferenceComponent` |
+| Remote Compose proof | Complete | `docs/public/run-locally/docker-compose.component-extension-pagerduty.yaml` and `scripts/verify-remote-e2e-pagerduty-component-extension.sh` |
+| Private-data proof | Complete | Remote proof redaction canary and reference component redaction test |
+| Operator evidence | Complete | `docs/internal/remote-validation/prod-component-extension-inventory.md` and `docs/internal/remote-validation/prod-component-extension-diagnostics.md`; health, readiness, metrics, logs, and status endpoints. |
+| Production reducer/read truth | In-tree only | `go/internal/reducer/incident/incident_routing_evidence_rows.go`, `go/internal/storage/cypher/incident_routing_evidence_writer.go`, and `go/internal/query/incident_context_routing.go`. |
 
-- The reference component emits namespaced example facts
-  (`dev.eshu.examples.pagerduty.*`). They are committed as source evidence
-  through the claim boundary but are **not** consumed by the incident-routing
-  reducer, graph writer, or API/MCP readback, which key on the in-tree
-  collector's `incident_routing.*` and `incident.record` kinds. Disabling the
-  in-tree collector in favor of the reference component would therefore commit
-  facts that the incident-routing readback silently skips.
-- The Helm component-extension wiring is default-off. Enabling it is an explicit
-  operator opt-in, not a production default.
-- Reducer graph materialization is deliberately conservative. It promotes
-  `IncidentRoutingEvidence` only when declared, applied, and live service slots
-  converge to `exact` (or a live service is `exact` with no IaC). Drifted,
-  stale, permission-hidden, ambiguous, unresolved, rejected, derived, and
-  missing evidence stays provenance-only.
-- Broader live PagerDuty config classes and alert-route-to-service comparison
-  remain staged follow-up work.
+The two capability-state markers above are backed by the named production
+validation artifacts. The diagnostics artifact records a live authenticated
+`GET /api/v0/component-extensions/{id}/diagnostics` response with trust,
+policy, scheduler, read-model, and conformance state. The inventory artifact
+records the matching deployed registry readback.
 
-Until the full incident-routing surface lands, the in-tree PagerDuty collector
-stays the production correlation path. The completed boundary proof shows the
-extraction mechanics work end to end; it is the template for the next candidate,
-not a signal to disable the in-tree collector. See
-[PagerDuty Evidence Contract](pagerduty-evidence.md) for the per-stage evidence
-detail and the exact proof commands.
+The reference package emits namespaced example facts such as
+`dev.eshu.examples.pagerduty.*`. Those facts are not interchangeable with the
+core `incident_routing.*` and `incident.record` kinds. The reducer, graph
+writer, API, and MCP paths do not consume the example kinds.
+
+Therefore the boundary proof does not mean PagerDuty has cut over. Disabling the
+in-tree collector today would commit evidence that the incident-routing read
+path skips. First-party producer delegation and production-kind compatibility
+must land before that cutover.
+
+The Helm component-extension path is also default-off. Enabling it remains an
+explicit operator action. Broader live PagerDuty configuration coverage and
+alert-route comparison remain follow-up work.
+
+See [PagerDuty Evidence Contract](pagerduty-evidence.md) for the detailed proof.
 
 ## Verification Gates
 
@@ -272,23 +229,22 @@ Use the smallest gate that proves the touched boundary.
 
 | Change | Required gate |
 | --- | --- |
-| Policy or docs only | Strict MkDocs build, collector-authoring gate when the policy affects collector guidance, package-doc gate, `git diff --check`, and sensitive-string scan. |
-| SDK or manifest contract | SDK tests, component inspect/verify/conform tests, JSON Schema lockstep, and package-doc gate. |
-| Extension host or claim-capable worker | Focused Go tests for `extensionhost`, `collector-component-extension`, workflow claims, retries, identity mismatch, and status mapping. |
-| Collector extraction proof | Collector authoring gate, fixture conformance, remote Compose proof, reducer/materializer tests, API/MCP readback, performance evidence, and observability evidence. |
-| Hosted activation | Trust policy proof, Helm/Compose render checks, runtime status proof, private-data proof, and explicit operator opt-in. |
+| Policy or docs only | Strict MkDocs build, collector-authoring gate when guidance changes, package-doc gate, `git diff --check`, and sensitive-string scan. |
+| SDK or schema contract | SDK tests, schema compatibility, component inspect/verify/conform tests, and package-doc gate. |
+| Producer delegation | Admission tests for identity, allowlists, revocation, schema, scope, retries, duplicates, and stale generations. |
+| Extension host or worker | Focused host, workflow, retry, cancellation, identity-mismatch, status, and resource-bound tests. |
+| Collector cutover | Fixture conformance, deployed proof, reducer/graph/API/MCP truth, performance evidence, operations evidence, and rollback rehearsal. |
 
-No-Regression Evidence: this policy changes documentation only. It adds no SDK
-surface, component manifest field, collector runtime, workflow claim behavior,
-graph write, reducer behavior, API route, MCP tool, Helm template, Compose
-service, or release artifact.
+No-Regression Evidence: this policy change documents the approved destination
+and cutover requirements. It does not change the SDK, schema, collector runtime,
+workflow claim, graph, reducer, query, Helm, Compose, or release behavior.
 
-No-Observability-Change: the policy names required future signals but adds no
-metrics, spans, logs, status fields, queue domains, pprof output, or dashboard
-labels.
+No-Observability-Change: this policy names required future signals but adds no
+metric, span, log, status field, queue domain, pprof output, or dashboard label.
 
 ## Related Docs
 
+- `docs/internal/design/eshu-ecosystem-repository-migration.md`
 - [Community Extension Authoring](../extend/community-extension-authoring.md)
 - [Collector Authoring](../guides/collector-authoring.md)
 - [Component Package Manager](component-package-manager.md)

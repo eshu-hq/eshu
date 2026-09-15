@@ -8,7 +8,7 @@ For deployed lanes and readiness gaps, see
 For GCP and Azure cloud collector design, see
 [Multi-Cloud Runtime Collector Contract](../reference/multi-cloud-collector-contract.md).
 For moving an existing collector out of tree, see
-[Collector Extraction Policy](../reference/collector-extraction-policy.md).
+[Collector Repository Migration Policy](../reference/collector-extraction-policy.md).
 
 ## Contract To Lock First
 
@@ -186,7 +186,7 @@ collector, fact, projector, reducer, and runtime packages.
 - [System Architecture](../architecture.md)
 - [Source Layout](../reference/source-layout.md)
 - [Multi-Cloud Runtime Collector Contract](../reference/multi-cloud-collector-contract.md)
-- [Collector Extraction Policy](../reference/collector-extraction-policy.md)
+- [Collector Repository Migration Policy](../reference/collector-extraction-policy.md)
 - [Relationship Mapping](../reference/relationship-mapping.md)
 - [Local Testing](../reference/local-testing.md)
 - [Telemetry Overview](../reference/telemetry/index.md)

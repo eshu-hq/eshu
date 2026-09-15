@@ -20,11 +20,12 @@ refactored today.
    information.
 3. **Split compound names into nested directories, do not glue full names
    together.** Combining two full names into one (`billingcorrelation`,
-   `workloadmaterialization`) is ugly, unreadable, and fused in a way that
-   can never split into its own repo later. Nest instead:
+   `workloadmaterialization`) is ugly and unreadable. Nest instead:
    `billing/correlation/provenance/edges.go` reads as a sentence; the glued
-   form does not. Each level holds what fits, and each level is a future
-   repo boundary.
+   form does not. Each level clarifies responsibility. Repository and runtime
+   boundaries come from the
+   [ecosystem repository plan](design/eshu-ecosystem-repository-migration.md),
+   not path depth.
 4. **Follow the language's own conventions.** Go names follow Effective Go
    (see `golang-engineering`): no package-name stutter in exported
    identifiers (`correlation.Writer`, not

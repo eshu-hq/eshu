@@ -9,8 +9,8 @@ golden-corpus gate — just a smaller corpus and an offline cassette replay
 instead of a live pipeline.
 
 A green `go test ./conformance` run is the credential-free deterministic proof
-that [#4047](https://github.com/eshu-hq/eshu/issues/4047) (the monorepo split)
-points to for the **collector extraction** readiness criterion.
+that [#4047](https://github.com/eshu-hq/eshu/issues/4047) uses for a collector's
+repository-cutover readiness criterion.
 
 ## What it does
 
