@@ -10,6 +10,7 @@
 package cigates_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/cigates"
@@ -56,19 +57,42 @@ func TestFilterPrePush_DefersATriggeredGate(t *testing.T) {
 	}
 }
 
-// TestFilterPrePush_LeavesNonDeferredGateSelected proves a triggered gate
-// with no pre_push field is unaffected by --pre-push.
-func TestFilterPrePush_LeavesNonDeferredGateSelected(t *testing.T) {
+// TestFilterPrePush_RunsFloorGate proves a triggered gate registered
+// `local.pre_push: floor` stays selected under --pre-push.
+func TestFilterPrePush_RunsFloorGate(t *testing.T) {
 	t.Parallel()
+	floor := &cigates.Local{Command: "bash fast.sh", PrePushFloor: true}
 	sels := []cigates.Selection{
-		{Gate: gate("normal-gate", cigates.TierPrePR, cigates.CategoryExactness, []string{"go/**"}, localCmd("bash fast.sh"), ""), Selected: true, Reason: "triggered"},
+		{Gate: gate("floor-gate", cigates.TierPrePR, cigates.CategoryExactness, []string{"go/**"}, floor, ""), Selected: true, Reason: "triggered"},
 	}
 	out := cigates.FilterPrePush(sels, true)
 	if !out[0].Selected {
-		t.Error("Selected = false, want true: this gate carries no pre_push deferral")
+		t.Error("Selected = false, want true: floor gates run in the pre-push lane")
 	}
 	if out[0].Deferred {
-		t.Error("Deferred = true, want false: this gate was never deferred")
+		t.Error("Deferred = true, want false for a floor gate")
+	}
+}
+
+// TestFilterPrePush_DefersUnlistedGate proves the floor is an allowlist: a
+// triggered gate with no pre_push field is deferred to CI under --pre-push,
+// with a reason that names where it still runs. Measured on a one-line Go
+// change, a denylist of slow gates still ran for more than 15 minutes because
+// most registry gates trigger on go/**.
+func TestFilterPrePush_DefersUnlistedGate(t *testing.T) {
+	t.Parallel()
+	sels := []cigates.Selection{
+		{Gate: gate("normal-gate", cigates.TierPrePR, cigates.CategoryExactness, []string{"go/**"}, localCmd("bash other.sh"), ""), Selected: true, Reason: "triggered"},
+	}
+	out := cigates.FilterPrePush(sels, true)
+	if out[0].Selected {
+		t.Error("Selected = true, want false: only floor gates run under --pre-push")
+	}
+	if !out[0].Deferred {
+		t.Error("Deferred = false, want true so the caller prints DEFER-CI")
+	}
+	if !strings.Contains(out[0].Reason, "make pre-pr") || !strings.Contains(out[0].Reason, "CI") {
+		t.Errorf("Reason = %q, want it to say the gate still runs in make pre-pr and CI", out[0].Reason)
 	}
 }
 

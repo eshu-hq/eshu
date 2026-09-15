@@ -104,6 +104,10 @@ type Local struct {
 	// `make pre-pr-full` and unconditionally in CI: deferring moves a gate's
 	// enforcement to CI, it never removes it. See PrePushReason.
 	PrePushDeferred bool
+	// PrePushFloor is true when this gate is registered `local.pre_push:
+	// floor`. Under `--pre-push` only floor gates run; every other triggered
+	// gate is deferred to `make pre-pr` and CI with a printed DEFER-CI line.
+	PrePushFloor bool
 	// PrePushReason explains why this gate is deferred from `--pre-push`,
 	// normally citing the measured cost. Required when PrePushDeferred is
 	// true; empty otherwise.
@@ -328,7 +332,7 @@ func Load(path string) (*Registry, error) {
 
 		var local *Local
 		if gf.Local != nil {
-			prePushDeferred, prePushReason, err := parsePrePush(path, id, gf)
+			prePushDeferred, prePushFloor, prePushReason, err := parsePrePush(path, id, gf)
 			if err != nil {
 				return nil, err
 			}
@@ -336,6 +340,7 @@ func Load(path string) (*Registry, error) {
 				Command:         strings.TrimSpace(gf.Local.Command),
 				TestCommand:     strings.TrimSpace(gf.Local.TestCommand),
 				PrePushDeferred: prePushDeferred,
+				PrePushFloor:    prePushFloor,
 				PrePushReason:   prePushReason,
 			}
 		}

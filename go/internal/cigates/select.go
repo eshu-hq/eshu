@@ -163,31 +163,35 @@ func FilterByCategory(sels []Selection, categories []Category) []Selection {
 	return out
 }
 
-// FilterPrePush marks any currently-selected gate whose registry entry
-// declares `local.pre_push: deferred` as not-selected, carrying its
-// pre_push_reason and Deferred=true. It is the `--pre-push` counterpart of
-// FilterByCategory, applied by `ci-gates run --pre-push`
-// (scripts/dev/pre-push.sh, the fast local floor run before every push) to
-// skip the handful of registry gates measured slow enough to defer to
-// `make pre-pr` and CI. prePush=false is a no-op: every Selection passes
-// through unchanged, Deferred always false.
+// prePushDeferReason is the reason printed for a triggered gate that is not
+// in the pre-push floor and carries no gate-specific pre_push_reason.
+const prePushDeferReason = "not in the pre-push floor; still runs in make pre-pr and blocks merge in CI"
+
+// FilterPrePush applies the `ci-gates run --pre-push` lane used by
+// scripts/dev/pre-push.sh. The floor is an allowlist: a selected gate keeps
+// running only when its registry entry declares `local.pre_push: floor`.
+// Every other selected gate is unselected with Deferred=true and a reason
+// (its own pre_push_reason, or prePushDeferReason), so the caller prints
+// DEFER-CI instead of skipping silently. The allowlist exists because a
+// denylist of slow gates still ran for more than 15 minutes on a one-line Go
+// change: most registry gates trigger on go/**.
 //
-// A gate that was already unselected for any other reason (tier, category,
-// no matching trigger, --blocking-only) is left exactly as it was: Deferred
-// only ever becomes true for a gate that WOULD have run here. That is the
-// "never skip silently" contract -- a deferral always means "this was
-// triggered, and moved to CI on purpose", never "this existed in the
-// registry".
+// A gate that was already unselected for another reason (tier, category, no
+// matching trigger, --blocking-only) is left unchanged, so DEFER-CI always
+// means the gate would have run here. prePush=false is a no-op.
 func FilterPrePush(sels []Selection, prePush bool) []Selection {
 	if !prePush {
 		return sels
 	}
 	out := make([]Selection, len(sels))
 	for i, s := range sels {
-		if s.Selected && s.Gate.Local != nil && s.Gate.Local.PrePushDeferred {
+		if s.Selected && (s.Gate.Local == nil || !s.Gate.Local.PrePushFloor) {
 			s.Selected = false
 			s.Deferred = true
-			s.Reason = s.Gate.Local.PrePushReason
+			s.Reason = prePushDeferReason
+			if s.Gate.Local != nil && s.Gate.Local.PrePushReason != "" {
+				s.Reason = s.Gate.Local.PrePushReason
+			}
 		}
 		out[i] = s
 	}

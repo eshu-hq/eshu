@@ -51,29 +51,31 @@ func parseSelfTestTriggers(
 // of the required merge gate in the first place, so deferring it removes
 // nothing required-gates.yml enforces, whether or not it happens to carry
 // its own separate, non-required CI workflow.
-func parsePrePush(registryPath, gateID string, gf gateFile) (deferred bool, reason string, err error) {
+func parsePrePush(registryPath, gateID string, gf gateFile) (deferred, floor bool, reason string, err error) {
 	prePush := strings.TrimSpace(gf.Local.PrePush)
 	reason = strings.TrimSpace(gf.Local.PrePushReason)
 	switch prePush {
 	case "":
 		if reason != "" {
-			return false, "", fmt.Errorf("ci-gates registry %s: gate %q has pre_push_reason but no pre_push: deferred", registryPath, gateID)
+			return false, false, "", fmt.Errorf("ci-gates registry %s: gate %q has pre_push_reason but no pre_push value", registryPath, gateID)
 		}
-		return false, "", nil
+		return false, false, "", nil
+	case "floor":
+		return false, true, reason, nil
 	case "deferred":
 		if reason == "" {
-			return false, "", fmt.Errorf("ci-gates registry %s: gate %q has pre_push: deferred but empty pre_push_reason (required: state the measured cost and where it still runs)", registryPath, gateID)
+			return false, false, "", fmt.Errorf("ci-gates registry %s: gate %q has pre_push: deferred but empty pre_push_reason (required: state the measured cost and where it still runs)", registryPath, gateID)
 		}
 		hasCIDestination := strings.TrimSpace(gf.CI.Workflow) != "" && strings.TrimSpace(gf.CI.Job) != ""
 		if gf.Blocking && !hasCIDestination {
-			return false, "", fmt.Errorf(
+			return false, false, "", fmt.Errorf(
 				"ci-gates registry %s: gate %q has pre_push: deferred but is blocking:true with no ci.workflow/ci.job -- deferring it from --pre-push would leave it enforced nowhere; give it a real CI destination or drop the deferral",
 				registryPath, gateID,
 			)
 		}
-		return true, reason, nil
+		return true, false, reason, nil
 	default:
-		return false, "", fmt.Errorf("ci-gates registry %s: gate %q has invalid pre_push %q (want \"deferred\" or omit the field)", registryPath, gateID, gf.Local.PrePush)
+		return false, false, "", fmt.Errorf("ci-gates registry %s: gate %q has invalid pre_push %q (want \"floor\", \"deferred\", or omit the field)", registryPath, gateID, gf.Local.PrePush)
 	}
 }
 

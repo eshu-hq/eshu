@@ -72,7 +72,9 @@ source "${repo_root}/scripts/lib/pre-pr-test-selection.sh"
 source "${repo_root}/scripts/lib/pre-pr-go-paths.sh"
 
 git -C "${repo_root}" fetch --no-tags origin main >/dev/null 2>&1 || true
-base="origin/main"
+# ESHU_PRE_PUSH_BASE compares against another ref, for a branch stacked on an
+# unmerged branch. Default: origin/main.
+base="${ESHU_PRE_PUSH_BASE:-origin/main}"
 git -C "${repo_root}" rev-parse --verify "${base}" >/dev/null 2>&1 || base="HEAD~1"
 
 # Cross-subshell state so a failed git collector cannot silently read as

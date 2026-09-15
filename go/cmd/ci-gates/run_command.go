@@ -21,7 +21,7 @@ func runRun(args []string) error {
 	category := fs.String("category", "", "comma-separated category filter (e.g. exactness,telemetry); empty = all")
 	selfTests := fs.String("self-tests", "all", "self-test policy: all or changed")
 	blockingOnly := fs.Bool("blocking-only", false, "run only blocking selected gates")
-	prePush := fs.Bool("pre-push", false, "skip gates registered local.pre_push: deferred (the fast pre-push floor); each prints DEFER-CI, never silently")
+	prePush := fs.Bool("pre-push", false, "run only gates registered local.pre_push: floor; every other triggered gate prints DEFER-CI")
 	prePRWholeModule := fs.Bool("pre-pr-whole-module", false, "run and reuse the pre-PR whole-module Go checks")
 	reportFile := fs.String("report-file", "", "write an atomic JSON timing report to this path")
 	_ = fs.Bool("json", false, "reserved for compatibility; use --report-file for structured output")

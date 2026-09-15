@@ -190,3 +190,31 @@ func TestLoad_NoPrePushFieldLeavesDeferredFalse(t *testing.T) {
 		t.Errorf("gate.Local.PrePushReason = %q, want empty when pre_push is absent", gate.Local.PrePushReason)
 	}
 }
+
+func TestLoad_PrePushFloorParsed(t *testing.T) {
+	t.Parallel()
+	yaml := `version: v1
+gates:
+  - id: fast-gate
+    name: Fast Gate
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers: ["go/**"]
+    local:
+      command: "bash scripts/verify-fast.sh"
+      pre_push: floor
+    ci:
+      workflow: test.yml
+      job: "test"
+    ci_only_reason: ""
+`
+	reg, err := cigates.Load(writeYAML(t, yaml))
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil for pre_push: floor", err)
+	}
+	local := reg.Gates[0].Local
+	if local == nil || !local.PrePushFloor || local.PrePushDeferred {
+		t.Fatalf("Local = %+v, want PrePushFloor=true and PrePushDeferred=false", local)
+	}
+}
