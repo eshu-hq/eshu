@@ -1,0 +1,20 @@
+docs/public/reference/nornicdb-pitfalls.md
+  h_78a442cba0b3e6 937,941,943-945,989-992,1006-1008,1015,1097-1098,1115
+go/internal/replay/offlinetier/nornicdb_function_projection_live_test.go
+  h_78a442cba0b3e6 9,20-25,81,151-153,155-159,207-210,223-234
+scripts/test-verify-replay-tier.sh
+  h_78a442cba0b3e6 59,64,299
+scripts/verify-replay-tier.sh
+  h_78a442cba0b3e6 120,132
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09e9924deef6db212f02b1e273e3152d6ca5fd8f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
