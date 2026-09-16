@@ -18,14 +18,16 @@ Tags for this module use the Go subdirectory-module format:
 (`sdk/go/factschema/fixturepack`) ships inside this module and has no separate
 version — pinning this module pins the fixture pack too.
 
-## [Unreleased] (proposed `v0.2.0`)
+## [Unreleased]
 
-Direction for the next release: additive post-`v0.1.0` changes only — 46 new
-schemas, zero breaking schema diffs against tag `sdk/go/factschema/v0.1.0`
+## [0.2.0] - 2026-09-16
+
+Additive post-`v0.1.0` changes only — 46 new schemas, zero breaking schema
+diffs against tag `sdk/go/factschema/v0.1.0`
 (`bash scripts/verify-factschema-diff.sh -base-ref sdk/go/factschema/v0.1.0`
 exits 0), so this stays a minor bump per the policy above. See
 [SDK Compatibility](../../../docs/public/extend/sdk-compatibility.md) for the
-version row this release will fill.
+version row for this release.
 
 ### Added
 

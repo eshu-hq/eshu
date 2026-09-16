@@ -88,9 +88,10 @@ with no `replace` directive at all — `go get
 github.com/eshu-hq/eshu/sdk/go/collector@v0.1.0` (and the `factschema`
 equivalent) resolves through the public Go module proxy now that the `v0.1.0`
 tags in [`RELEASING.md`](../../../RELEASING.md) are cut (proxy-verified per
-#6708; `v0.2.0` is prepared but not yet tagged — see
-[SDK Compatibility](../../../docs/public/extend/sdk-compatibility.md) for the
-current row). The `sdk/go/factschema` pin
+#6708; `v0.2.0` is released in the CHANGELOGs with tags cut after merge —
+see [SDK Compatibility](../../../docs/public/extend/sdk-compatibility.md)
+for the current row — and the pin above moves to `v0.2.0` once the tags are
+cut and proxy-verified). The `sdk/go/factschema` pin
 is also the fixture-pack pin: `fixturepack_pin_test.go` in this directory
 demonstrates pinning that module and validating payloads against its embedded
 schemas, exactly as an external collector would after replacing the local
