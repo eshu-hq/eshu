@@ -62,3 +62,15 @@ No-Observability-Change: this package emits no signal directly. Intent volume st
 `eshu_dp_projector_run_duration_seconds`; the reducer execution that consumes the
 intent by `eshu_dp_reducer_executions_total` and
 `eshu_dp_reducer_run_duration_seconds`.
+
+### Move record (#6627)
+
+No-Regression Evidence (#6627 observability nesting): base `ee0d26b61`,
+backend go1.27.1 darwin/arm64; same build/vet/recursive-test record as the
+parent coverage package above; B-12 replay reported 437/437 PASS in the move
+lane with CI required-gates as the blocking authority. Rename-only
+relocation; no benchmark delta exists to measure.
+
+No-Observability-Change (#6627 observability nesting): this package emits no
+signal directly; intent volume and reducer execution stay covered by the
+instruments named above, unchanged.
