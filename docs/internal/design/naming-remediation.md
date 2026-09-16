@@ -106,7 +106,7 @@ projector/  (remaining glued packages)
 ├── observability/coverage/        ← observabilitycoverage
 │   └── materialization/           ← observabilitycoveragematerialization
 ├── sbom/attestation/              ← sbomattestation
-├── access/posture/                ← secretsiam (projection-owned; does not copy the collector path)
+├── access/posture/                ← secretsiam (projection-owned; shares only the trailing segment with collector/access/posture, not its runtime or fact shapes)
 ├── semantic/entity/               ← semanticentity
 ├── service/catalog/               ← servicecatalog
 └── supply/chain/impact/           ← supplychainimpact

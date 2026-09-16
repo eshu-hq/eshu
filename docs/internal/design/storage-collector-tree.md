@@ -74,9 +74,10 @@ Every directory ends at 40 non-test files or fewer.
    `collector/observability/prometheus`. Mimir support is described in the package
    doc, not the path. Coordinator's `planner/metrics` becomes `planner/prometheus` so
    the two match (tracked on #6627).
-2. **The 133 `awscloud/constants_<service>.go` files consolidate into about 12
-   files in one package, `collector/cloud/aws/catalog`,** grouped by service category
-   (`compute.go`, `storage.go`, `database.go` and so on). Each file today holds one
+2. **The 133 `awscloud/constants_<service>.go` files consolidate into category files
+   (`compute.go`, `storage.go`, `database.go` and so on) in one package,
+   `collector/cloud/aws/catalog`** - as many as needed to hold the 500-line file cap
+   (7,283 lines across 133 files will not fit in 12). Each file today holds one
    small `const` block.
 3. **`awscloud/services/` becomes `cloud/aws/service/`**, singular per Go convention.
 4. **The shared database interfaces in `storage/postgres/db.go` move to
@@ -178,12 +179,14 @@ name is not a useful prefix inside the repository. `identity_saml_provider.go` b
 `identity` holds more than 40 files, which is why it splits. Every other domain
 listed is under the cap.
 
+The db/ hoist carries a lock-ownership trap: SQLDB.withSchemaBootstrapLock (in schema_bootstrap_lock.go) satisfies the package-private schemaBootstrapLocker contract asserted by applyBootstrapDefinitions, so moving SQLDB without the lock implementation silently degrades bootstrap to unlocked DDL. #6693 keeps the lock machinery and the types it guards in one package, or introduces a cycle-free exported adapter with lock-contention proof.
+
 ## Target tree: `internal/storage/cypher`
 
 ```text
 storage/cypher/
 ├── edge/{writer, materialized}           ← edge_writer (16) + materialized_edge (3)
-├── canonical/{node, inheritance, flux, terraform}   ← the 34 canonical_* files
+├── canonical/{node, inheritance, flux, terraform}   ← the 33 canonical_* files
 ├── cloud/
 │   ├── resource/                        ← shared cloud node writer and existence contract
 │   ├── aws/{relationship,image,ec2,iam,rds,s3,security/group}/
@@ -230,8 +233,7 @@ writer contract.
   `make pre-pr-full` is a recommended but optional deeper gate. When it is not
   run, focused whole-module build, vet, race, importer, and contract proof must
   ensure CI is not the first test of moved wiring.
-- **Prove test repoints with `go test -list`.** A stale `-run` pattern selects zero
-  tests and still exits 0.
+- **Prove test repoints with `go test -list` plus an assertion on the exact expected test name (for example `go test ./internal/storage/<pkg>/... -list TestMovedFamily -count=1 | rg -q TestMovedFamily`, capturing the assertion exit code directly); a bare `-list` exits 0 on empty and proves nothing.**
 - **Gate and spec lockstep in the same PR.** Any CI trigger, verify-script, ledger or
   generated artifact that names a moved path is updated with the move. `rg` the old
   path across the repo, including `scripts/`, `.github/workflows/`, `specs/` and
