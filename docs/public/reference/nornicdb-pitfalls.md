@@ -17,10 +17,10 @@ NornicDB source before patching.
 The same scoping note applies as on the companion page: entries below name
 `nornicdb-cpu-bge:v1.1.11` (`sha256:51b6174a…`) or a `NornicDB-New` fork
 checkout, measured when v1.1.11 was what `deploy/helm/eshu/values.yaml`
-shipped. The chart now pins `v1.3.2@sha256:a47ae7ea…`; most historical
-behaviors below have not been re-measured on it. The artifact reports
-`NornicDB v1.3.1` because upstream retained a stale embedded `VERSION` file, so
-identify it by digest and check the digest you actually run.
+shipped. The chart now pins `v1.3.3@sha256:81cedbf4…`; most historical
+behaviors below have not been re-measured on it. The v1.3.2 artifact reported
+`NornicDB v1.3.1` (stale embedded `VERSION` file); v1.3.3 reports `NornicDB v1.3.3`.
+Identify the build by digest and check the digest you actually run.
 
 ## How To Use This Page
 

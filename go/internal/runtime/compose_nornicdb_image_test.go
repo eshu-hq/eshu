@@ -11,15 +11,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const nornicDBV132Image = "timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
+const nornicDBV133Image = "timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
 
-func TestNornicDBComposeDefaultPinsV132PublishedImage(t *testing.T) {
+func TestNornicDBComposeDefaultPinsV133PublishedImage(t *testing.T) {
 	t.Parallel()
 
 	doc := readComposeDocument(t, "docker-compose.yaml")
 	service := requireComposeService(t, doc, "nornicdb")
-	if want := "${NORNICDB_IMAGE:-" + nornicDBV132Image + "}"; service.Image != want {
-		t.Fatalf("nornicdb image = %q, want immutable v1.3.2 default %q", service.Image, want)
+	if want := "${NORNICDB_IMAGE:-" + nornicDBV133Image + "}"; service.Image != want {
+		t.Fatalf("nornicdb image = %q, want immutable v1.3.3 default %q", service.Image, want)
 	}
 	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
 	if want := "pull_policy: ${NORNICDB_PULL_POLICY:-missing}"; !strings.Contains(content, want) {
@@ -45,10 +45,10 @@ func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 		"NORNICDB_IMAGE",
 		"NORNICDB_PULL_POLICY",
 		"pull policy `missing`",
-		"v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440",
+		"v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f",
 		"fresh graph volume",
-		"Never start an older NornicDB binary on a volume modified by v1.3.2",
-		"reports `NornicDB v1.3.1` because upstream's v1.3.2 tag retains a stale embedded VERSION file",
+		"Never start an older NornicDB binary on a volume modified by v1.3.3",
+		"reports `NornicDB v1.3.3`: upstream's v1.3.2 tag retained a stale embedded VERSION file",
 	} {
 		if !strings.Contains(docs, want) {
 			t.Fatalf("docker compose docs missing exact-source override guidance %q", want)
@@ -56,11 +56,11 @@ func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 	}
 }
 
-func TestNornicDBRuntimeReadmeTracksV132PublishedDefault(t *testing.T) {
+func TestNornicDBRuntimeReadmeTracksV133PublishedDefault(t *testing.T) {
 	t.Parallel()
 
 	docs := readRepositoryFile(t, "../../..", "go/internal/runtime/README.md")
-	want := "Compose pulls the immutable NornicDB v1.3.2 image by default"
+	want := "Compose pulls the immutable NornicDB v1.3.3 image by default"
 	if !strings.Contains(strings.Join(strings.Fields(docs), " "), want) {
 		t.Fatalf("runtime README missing current NornicDB published-image contract %q", want)
 	}
@@ -77,14 +77,14 @@ func TestNornicDBComposeDefaultsToLiveProvenAmd64Platform(t *testing.T) {
 	}
 }
 
-func TestNornicDBComposeDefaultsToFreshV132GraphVolume(t *testing.T) {
+func TestNornicDBComposeDefaultsToFreshV132FormatGraphVolume(t *testing.T) {
 	t.Parallel()
 
 	doc := readComposeDocument(t, "docker-compose.yaml")
 	service := requireComposeService(t, doc, "nornicdb")
 	assertComposeNamedVolume(t, service, "nornicdb_v132_data", "/data")
 	if _, ok := doc.Volumes["nornicdb_v132_data"]; !ok {
-		t.Fatal("docker-compose.yaml does not declare the v1.3.2 graph volume")
+		t.Fatal("docker-compose.yaml does not declare the v1.3.2-format graph volume reused by v1.3.3")
 	}
 	if _, ok := doc.Volumes["nornicdb_data"]; ok {
 		t.Fatal("docker-compose.yaml still declares the pre-v1.3.2 graph volume")
@@ -210,7 +210,7 @@ func TestNornicDBGraphSearchSplitDesignTracksImplementedStabilization(t *testing
 	normalizedDocs := strings.Join(strings.Fields(docs), " ")
 	for _, want := range []string{
 		"Phase-1 stabilization status:",
-		"Compose, Helm, and the R-5 replay gate pin the same NornicDB `v1.3.2` multi-architecture image by digest",
+		"Compose, Helm, and the R-5 replay gate pin the same NornicDB `v1.3.3` multi-architecture image by digest",
 		"Runtime contract tests enforce the graph-only NornicDB controls",
 	} {
 		if !strings.Contains(normalizedDocs, want) {
@@ -240,7 +240,7 @@ var digestedImageRef = regexp.MustCompile(`^[^:@\s]+:[^@\s]+@sha256:[0-9a-f]{64}
 // Before #6296 the chart's image had no gate coverage at all: B-7 and the e2e
 // workflows then drove a Compose-only source build rather than the chart's
 // published image. Putting the chart and replay gate on one artifact bought
-// that coverage, and this test keeps the current v1.3.2 digest in lockstep.
+// that coverage, and this test keeps the current v1.3.3 digest in lockstep.
 // scripts/test-verify-replay-tier.sh pins
 // the gate's own NORNICDB_IMAGE and TestNornicDBGraphSearchSplitDesignTracks-
 // ImplementedStabilization pins the design doc's prose, but either file could
@@ -268,8 +268,8 @@ func TestHelmNornicDBImageMatchesReplayTierGate(t *testing.T) {
 	if !digestedImageRef.MatchString(chartRef) {
 		t.Fatalf("chart nornicdb image %q is not pinned by a full sha256 digest; a tag alone can be retargeted upstream without a repository change", chartRef)
 	}
-	if chartRef != nornicDBV132Image {
-		t.Fatalf("chart NornicDB image = %q, want validated v1.3.2 artifact %q", chartRef, nornicDBV132Image)
+	if chartRef != nornicDBV133Image {
+		t.Fatalf("chart NornicDB image = %q, want validated v1.3.3 artifact %q", chartRef, nornicDBV133Image)
 	}
 
 	compose := readComposeDocument(t, "docker-compose.yaml")

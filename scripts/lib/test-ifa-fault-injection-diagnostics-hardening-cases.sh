@@ -18,7 +18,7 @@ test_ifa_fault_backend_accepts_index_repository_digest() (
 	test_ifa_fault_prepare_provenance_case "${case_dir}"
 	source "${diagnostics_lib}"
 	PATH="${fake_bin}:${PATH}" \
-		IFA_TEST_RUNTIME_REPO_DIGEST=timothyswt/nornicdb-cpu-bge@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440 \
+		IFA_TEST_RUNTIME_REPO_DIGEST=timothyswt/nornicdb-cpu-bge@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f \
 		ifa_fault_capture_failure_diagnostics \
 		"${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn
 	[[ -s "${case_dir}/diagnostics-complete" ]] \
@@ -42,7 +42,7 @@ test_ifa_fault_backend_digest_mismatch_retains_evidence() (
 	set -e
 	[[ "${rc}" -ne 0 ]] || fail "backend digest mismatch did not fail closed"
 	jq -e '
-		.expected_index_digest == "sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
+		.expected_index_digest == "sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
 		and .runtime_repo_digests == ["timothyswt/nornicdb-cpu-bge@sha256:2222222222222222222222222222222222222222222222222222222222222222"]
 		and .provenance_match == false
 	' "${case_dir}/backend-provenance.json" >/dev/null \
@@ -156,7 +156,7 @@ test_ifa_fault_backend_rejects_incomplete_or_wrong_runtime_identity() (
 					ifa_fault_capture_failure_diagnostics "${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn 2>/dev/null
 				;;
 			wrong-repository)
-				PATH="${fake_bin}:${PATH}" IFA_TEST_RUNTIME_REPO_DIGEST=registry.example/wrong@sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc \
+				PATH="${fake_bin}:${PATH}" IFA_TEST_RUNTIME_REPO_DIGEST=registry.example/wrong@sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e \
 					ifa_fault_capture_failure_diagnostics "${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn 2>/dev/null
 				;;
 			config-image-mismatch)
@@ -175,8 +175,8 @@ test_ifa_fault_backend_rejects_incomplete_or_wrong_runtime_identity() (
 			jq -e '
 				.rendered_platform == "linux/amd64"
 				and .runtime_platform == "linux/arm64"
-				and .expected_platform_digest == "sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"
-				and .runtime_repo_digests == ["timothyswt/nornicdb-cpu-bge@sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"]
+				and .expected_platform_digest == "sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e"
+				and .runtime_repo_digests == ["timothyswt/nornicdb-cpu-bge@sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e"]
 				and .provenance_match == false
 			' "${case_dir}/backend-provenance.json" >/dev/null \
 				|| fail "wrong-platform case did not isolate the platform mismatch"

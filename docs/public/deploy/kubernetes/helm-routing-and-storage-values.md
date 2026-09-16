@@ -39,7 +39,7 @@ or independently prove an immutable override, select
 routing workloads to it.
 
 Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
-`v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440`,
+`v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f`,
 persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
 off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
 BM25/vector warming set to `lazy`, search index persistence off, and
@@ -62,10 +62,11 @@ targetPorts. Operators still diagnose this path through the same pod readiness,
 container logs, Service endpoints, and graph-backed Eshu readiness checks.
 
 The immutable index digest is the artifact identity. A container started from
-the v1.3.2 image reports `NornicDB v1.3.1` because upstream did not update the
-embedded VERSION file for the tag. The published image does not carry an OCI
-source revision label, so verify the v1.3.2 tag plus digest and do not
-substitute either the stale binary string or an absent label for artifact
+the v1.3.2 image reported `NornicDB v1.3.1` because upstream did not update the
+embedded VERSION file for that tag; v1.3.3 corrects it and reports
+`NornicDB v1.3.3`. The published image does not carry an OCI
+source revision label, so verify the v1.3.3 tag plus digest and do not
+substitute either the binary string alone or an absent label for artifact
 identity.
 
 The bundled default has passed the relationship-identity and restart graph-truth

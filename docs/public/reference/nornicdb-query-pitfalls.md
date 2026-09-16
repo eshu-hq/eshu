@@ -16,7 +16,7 @@ NornicDB source before patching.
 Almost every entry below was measured on `nornicdb-cpu-bge:v1.1.11`
 (`sha256:51b6174a…`) or on a `NornicDB-New` fork checkout, back when v1.1.11 was
 what `deploy/helm/eshu/values.yaml` shipped. It no longer is: the chart now
-pins `v1.3.2@sha256:a47ae7ea…`; its stale embedded `VERSION` file makes it report `NornicDB v1.3.1`, so identify it by immutable digest.
+pins `v1.3.3@sha256:81cedbf4…`; v1.3.3 corrects the stale embedded `VERSION` file that made v1.3.2 report `NornicDB v1.3.1`, so identify it by immutable digest.
 
 Read every "on the pinned build" sentence below as naming the build in that
 entry, not the build you are deploying today. Most of these shapes have not
@@ -172,19 +172,19 @@ dispatch above.
 ### Validation
 
 Run the static shape guard (no backend) and the backend-required retract proof
-against the replay tier's immutable v1.3.2 pin:
+against the replay tier's immutable v1.3.3 pin:
 
 ```bash
 cd go
 go test ./internal/storage/cypher -run TestCodeCallRetractStatementsUseSingleSourceLabel -count=1
-ESHU_REPLAY_TIER_LIVE=1 bash ../scripts/verify-replay-tier.sh   # TestReducerCodeCallEdgeRetractGraphTruth, v1.3.2
+ESHU_REPLAY_TIER_LIVE=1 bash ../scripts/verify-replay-tier.sh   # TestReducerCodeCallEdgeRetractGraphTruth, v1.3.3
 ```
 
 No-Regression Evidence: the broken retract was a no-op (deleted nothing), so the
 #5116 fix has no slower prior path to regress; the fix makes the intended scoped
 retract work. The original live proof established this behavior on v1.1.11.
 The replay tier now runs `TestReducerCodeCallEdgeRetractGraphTruth` against the
-immutable v1.3.2 pin and proves the same invariants: the in-scope
+immutable v1.3.3 pin and proves the same invariants: the in-scope
 `CALLS`/`REFERENCES`/`INSTANTIATES` edges retract to zero while an out-of-scope
 repo's edge and every endpoint node survive. The per-label fan-out runs a
 bounded, fixed number of scoped deletes per retract.

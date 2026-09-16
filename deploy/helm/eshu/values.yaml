@@ -1105,9 +1105,9 @@ nornicdb:
     relationshipMergePropertyIdentity: false
   image:
     repository: timothyswt/nornicdb-cpu-bge
-    # Immutable v1.3.2 multi-architecture index (linux/amd64, linux/arm64),
+    # Immutable v1.3.3 multi-architecture index (linux/amd64, linux/arm64),
     # aligned with Compose and the R-5 live replay gate.
-    tag: "v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
+    tag: "v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
     pullPolicy: IfNotPresent
   ports:
     http: 7474
@@ -1135,7 +1135,7 @@ nornicdb:
       memory: 64Gi
   persistence:
     enabled: true
-    # Set only for an operator-provisioned, v1.3.2-compatible claim. The chart
+    # Set only for an operator-provisioned, v1.3.3-compatible claim. The chart
     # refuses its legacy pre-v1.3.2 claim because the on-disk format is unsafe
     # to reuse across this upgrade boundary.
     existingClaim: ""

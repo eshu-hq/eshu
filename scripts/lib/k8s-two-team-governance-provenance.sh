@@ -37,11 +37,12 @@ capture_k8s_governance_provenance() {
 	[[ -n "${nornicdb_runtime_image_id}" ]] || die "NornicDB pod has no runtime imageID"
 	nornicdb_version="$(kc exec "${nornicdb_pod}" -c nornicdb -- /app/nornicdb version 2>/dev/null | tr -d '\r' | tail -1)" \
 		|| die "cannot query NornicDB runtime version"
-	# Upstream's v1.3.2 tag retains pkg/buildinfo/VERSION=1.3.1. The caller
-	# separately records the immutable v1.3.2 image digest; preserve the binary's
-	# actual self-report here rather than claiming metadata it does not expose.
-	[[ "${nornicdb_version}" == "NornicDB v1.3.1" ]] \
-		|| die "NornicDB runtime version is ${nornicdb_version:-missing}, want the v1.3.2 image's honest NornicDB v1.3.1 self-report"
+	# Upstream's v1.3.2 tag retained pkg/buildinfo/VERSION=1.3.1, but v1.3.3
+	# corrects it and self-reports v1.3.3. The caller separately records the
+	# immutable v1.3.3 image digest; preserve the binary's actual self-report
+	# here rather than claiming metadata it does not expose.
+	[[ "${nornicdb_version}" == "NornicDB v1.3.3" ]] \
+		|| die "NornicDB runtime version is ${nornicdb_version:-missing}, want the v1.3.3 image's honest NornicDB v1.3.3 self-report"
 
 	provenance_file="${artifacts_dir}/provenance.json"
 	provenance_tmp="$(mktemp "${artifacts_dir}/.provenance.XXXXXX")"
