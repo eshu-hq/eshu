@@ -1,0 +1,90 @@
+deploy/helm/eshu/README.md
+  h_78a442cba0b3e6 44,48,52
+deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml
+  h_78a442cba0b3e6 27
+deploy/helm/eshu/templates/_validation_core.tpl
+  h_78a442cba0b3e6 43
+deploy/helm/eshu/templates/pvc-nornicdb.yaml
+  h_78a442cba0b3e6 4
+deploy/helm/eshu/values.schema.json
+  h_78a442cba0b3e6 1488,1492
+deploy/helm/eshu/values.yaml
+  h_78a442cba0b3e6 1108,1110,1138
+docker-compose.yaml
+  h_78a442cba0b3e6 3,7-10
+docs/internal/design/430-nornicdb-graph-search-split.md
+  h_78a442cba0b3e6 9,55,59,61-63,79-81,344,350-351
+docs/internal/evidence/6162-nornicdb-v133-alignment.md
+  h_78a442cba0b3e6 1-102
+docs/public/deploy/kubernetes/helm-routing-and-storage-values.md
+  h_78a442cba0b3e6 42,65-69
+docs/public/deploy/kubernetes/storage.md
+  h_78a442cba0b3e6 81,88,97,102,104,110
+docs/public/deploy/kubernetes/upgrades-rollbacks.md
+  h_78a442cba0b3e6 22
+docs/public/reference/environment-ingestion-queues.md
+  h_78a442cba0b3e6 204-205
+docs/public/reference/nornicdb-pitfalls.md
+  h_78a442cba0b3e6 20-23
+docs/public/reference/nornicdb-query-pitfalls.md
+  h_78a442cba0b3e6 19,175,180,187
+docs/public/run-locally/docker-compose.md
+  h_78a442cba0b3e6 172,175,189,203,207,215-216,222,224
+go/internal/replay/offlinetier/README.md
+  h_78a442cba0b3e6 50
+go/internal/runtime/README.md
+  h_78a442cba0b3e6 277
+go/internal/runtime/compose_nornicdb_image_test.go
+  h_78a442cba0b3e6 14,16,21-22,48,50-51,59,63,80,87,213,243,271-272
+scripts/lib/ifa_fault_injection_diagnostics.sh
+  h_78a442cba0b3e6 79,89,110,112,300
+scripts/lib/k8s-two-team-governance-provenance.sh
+  h_78a442cba0b3e6 40-45
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  h_78a442cba0b3e6 261,292-293,296,299,440
+scripts/lib/test-ifa-fault-injection-diagnostics-fake-docker.sh
+  h_78a442cba0b3e6 4-6
+scripts/lib/test-ifa-fault-injection-diagnostics-hardening-cases.sh
+  h_78a442cba0b3e6 21,45,159,178-179
+scripts/run-k8s-two-team-governance-proof.sh
+  h_78a442cba0b3e6 41
+scripts/test-k8s-two-team-governance-provenance.sh
+  h_78a442cba0b3e6 10-11,49,101-102
+scripts/test-verify-k8s-two-team-governance-proof.sh
+  h_78a442cba0b3e6 17-20,57,146-147,150
+scripts/test-verify-replay-tier.sh
+  h_78a442cba0b3e6 104,107,109,250-251,337,340,342
+scripts/verify-k8s-two-team-governance-proof.sh
+  h_78a442cba0b3e6 30-32,200-204,214
+scripts/verify-replay-tier.sh
+  h_78a442cba0b3e6 24
+specs/replay-coverage-manifest.v1.yaml
+  h_78a442cba0b3e6 546
+tests/fixtures/governance_k8s_two_team_proof/bad_cross_scope_leak/provenance.json
+  h_78a442cba0b3e6 4,6-7
+tests/fixtures/governance_k8s_two_team_proof/bad_leak/provenance.json
+  h_78a442cba0b3e6 4,6-7
+tests/fixtures/governance_k8s_two_team_proof/bad_netpol_absent/provenance.json
+  h_78a442cba0b3e6 4,6-7
+tests/fixtures/governance_k8s_two_team_proof/bad_not_kubernetes/provenance.json
+  h_78a442cba0b3e6 4,6-7
+tests/fixtures/governance_k8s_two_team_proof/bad_parity/provenance.json
+  h_78a442cba0b3e6 4,6-7
+tests/fixtures/governance_k8s_two_team_proof/bad_selector_open/provenance.json
+  h_78a442cba0b3e6 4,6-7
+tests/fixtures/governance_k8s_two_team_proof/bad_unauth_open/provenance.json
+  h_78a442cba0b3e6 4,6-7
+tests/fixtures/governance_k8s_two_team_proof/good/provenance.json
+  h_78a442cba0b3e6 4,6-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a015ae3d1a5876599b7d7624ff2f45273b89e3dd",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
