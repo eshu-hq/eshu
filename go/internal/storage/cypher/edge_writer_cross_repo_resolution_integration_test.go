@@ -104,7 +104,7 @@ func TestCrossRepoResolutionDispatchesTypedRelationshipsIntoNeo4jWrites(t *testi
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
-	if got, want := len(executor.calls), 4; got != want {
+	if got, want := len(executor.calls), 5; got != want {
 		t.Fatalf("executor calls = %d, want %d", got, want)
 	}
 
@@ -113,7 +113,7 @@ func TestCrossRepoResolutionDispatchesTypedRelationshipsIntoNeo4jWrites(t *testi
 	for i := range executor.calls {
 		call := &executor.calls[i]
 		switch {
-		case strings.Contains(call.Cypher, "MERGE (i)-[rel:RUNS_ON]->(p)"):
+		case strings.Contains(call.Cypher, "MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)"):
 			runsOnWrite = call
 		case strings.Contains(call.Cypher, "MERGE (source_repo)-[rel:DEPLOYS_FROM]->(target_repo)"):
 			typedRepoWrites[string(relationships.RelDeploysFrom)] = call
@@ -168,7 +168,7 @@ func TestCrossRepoResolutionDispatchesTypedRelationshipsIntoNeo4jWrites(t *testi
 	if runsOnWrite.Operation != OperationCanonicalUpsert {
 		t.Fatalf("runs_on write operation = %q, want %q", runsOnWrite.Operation, OperationCanonicalUpsert)
 	}
-	if !strings.Contains(runsOnWrite.Cypher, "MERGE (i)-[rel:RUNS_ON]->(p)") {
+	if !strings.Contains(runsOnWrite.Cypher, "MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)") {
 		t.Fatalf("runs_on cypher missing RUNS_ON merge: %s", runsOnWrite.Cypher)
 	}
 	if !strings.Contains(runsOnWrite.Cypher, "WorkloadInstance") {

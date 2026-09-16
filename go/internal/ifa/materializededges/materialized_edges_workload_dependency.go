@@ -234,6 +234,7 @@ func resolveWorkloadDependencyMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 			RelationshipType: workloadDependencyRelationshipType,
 			SourceEntityID:   anyToStringValue(row.Payload["workload_id"]),
 			TargetEntityID:   anyToStringValue(row.Payload["target_workload_id"]),
+			Identity:         map[string]string{"identity_key": "canonical"},
 		})
 	}
 	if mismatch := compareWorkloadDependencyExpectedEdges(odu.Name, expected, actual); mismatch != "" {

@@ -460,6 +460,7 @@ func runRepoDependencyIfaRunner(
 		AcceptanceUnitGate:              store,
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: replayer,
+		WorkloadReadinessPrefetch:       repoDependencyIfaWorkloadReady,
 		AcceptedGen:                     store.acceptedGeneration,
 		Config: reducer.RepoDependencyProjectionRunnerConfig{
 			Workers:               workers,
@@ -476,4 +477,14 @@ func runRepoDependencyIfaRunner(
 	if got := store.pendingCount(); got != 0 {
 		t.Fatalf("workers=%d pending intents=%d, want 0", workers, got)
 	}
+}
+
+func repoDependencyIfaWorkloadReady(
+	_ context.Context,
+	_ []reducer.GraphProjectionPhaseKey,
+	_ reducer.GraphProjectionPhase,
+) (reducer.GraphProjectionReadinessLookup, error) {
+	return func(reducer.GraphProjectionPhaseKey, reducer.GraphProjectionPhase) (bool, bool) {
+		return true, true
+	}, nil
 }

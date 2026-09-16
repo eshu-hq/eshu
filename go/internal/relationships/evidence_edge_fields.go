@@ -7,8 +7,8 @@ package relationships
 // value for one Details-derived field using a defensible, deterministic
 // rule: the highest-confidence fact that carries a non-empty value wins; a
 // confidence tie keeps whichever fact was considered first (aggregateCandidate
-// walks facts in the order buildCandidates grouped them, which is the
-// caller's original discovery order — deterministic, not Go map order).
+// walks facts in content-sorted order since #6184, so ties resolve
+// identically on every run — deterministic, not Go map order).
 // Facts that carry no value for the field are skipped entirely, so a
 // lower-confidence fact can still contribute a value the highest-confidence
 // fact in the bucket lacks. Never uses map iteration order: that is

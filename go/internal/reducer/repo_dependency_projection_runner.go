@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -18,7 +17,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
@@ -44,10 +42,19 @@ type RepoDependencyProjectionRunner struct {
 	AcceptanceUnitGate              RepoDependencyAcceptanceUnitGate
 	EdgeWriter                      SharedProjectionEdgeWriter
 	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
-	AcceptedGen                     AcceptedGenerationLookup
-	AcceptedGenPrefetch             AcceptedGenerationPrefetch
-	Config                          RepoDependencyProjectionRunnerConfig
-	Wait                            func(context.Context, time.Duration) error
+	// WorkloadReadinessPrefetch reports whether RUNS_ON endpoint materialization
+	// committed before the repo-dependency acceptance unit may write its edges.
+	WorkloadReadinessPrefetch GraphProjectionReadinessPrefetch
+	AcceptedGen               AcceptedGenerationLookup
+	AcceptedGenPrefetch       AcceptedGenerationPrefetch
+	// CanonicalQuiescence holds the lane until every code scope's active
+	// generation has committed canonical nodes (#6184). The lane's artifact
+	// and edge writes MATCH Repository nodes from both the source and
+	// target repos, so an intent drained before either side commits is lost
+	// silently. Nil preserves the pre-#6184 behavior.
+	CanonicalQuiescence CanonicalCodeQuiescenceChecker
+	Config              RepoDependencyProjectionRunnerConfig
+	Wait                func(context.Context, time.Duration) error
 
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
@@ -70,7 +77,7 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 		}
 
 		cycleStart := time.Now()
-		didWork, err := r.runOneCycle(ctx)
+		result, err := r.runOneCycle(ctx)
 		if err != nil {
 			consecutiveEmpty++
 			r.recordRepoDependencyCycleFailure(ctx, err, time.Since(cycleStart).Seconds())
@@ -86,8 +93,23 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 			}
 			continue
 		}
-		if didWork {
+		if result.ProcessedIntents > 0 {
 			consecutiveEmpty = 0
+			continue
+		}
+		// A quiescence-blocked cycle is neither work nor idleness: the lane
+		// is held shut by the canonical-code gate, so reset the empty
+		// backoff and re-poll at the base interval instead of backing off
+		// into a sleep that delays post-quiescence recovery. Mirrors the
+		// code-call lane's BlockedReadiness branch.
+		if result.BlockedReadiness > 0 {
+			consecutiveEmpty = 0
+			if err := r.wait(ctx, r.Config.pollInterval()); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+					return nil
+				}
+				return fmt.Errorf("wait for repo dependency readiness: %w", err)
+			}
 			continue
 		}
 
@@ -101,18 +123,30 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 	}
 }
 
-func (r *RepoDependencyProjectionRunner) runOneCycle(ctx context.Context) (bool, error) {
+func (r *RepoDependencyProjectionRunner) runOneCycle(ctx context.Context) (PartitionProcessResult, error) {
 	result, err := r.processOnce(ctx, time.Now().UTC())
 	if err != nil {
-		return true, err
+		return PartitionProcessResult{}, err
 	}
-	return result.ProcessedIntents > 0, nil
+	return result, nil
 }
 
 func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now time.Time) (PartitionProcessResult, error) {
 	cycleStart := time.Now()
 	claimStart := time.Now()
 	result := PartitionProcessResult{}
+	// #6184: hold the whole lane while any code scope's canonical nodes are
+	// uncommitted, before claiming the lease. See CanonicalCodeQuiescenceChecker.
+	if r.CanonicalQuiescence != nil {
+		uncommitted, err := r.CanonicalQuiescence.HasUncommittedCanonicalCodeScopes(ctx)
+		if err != nil {
+			return PartitionProcessResult{}, fmt.Errorf("check canonical code quiescence: %w", err)
+		}
+		if uncommitted {
+			r.recordRepoDependencyQuiescenceBlocked(ctx, cycleStart)
+			return PartitionProcessResult{BlockedReadiness: 1}, nil
+		}
+	}
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
 		ctx,
 		DomainRepoDependency,
@@ -215,101 +249,6 @@ func (r *RepoDependencyProjectionRunner) quarantineLease(err error) error {
 		return nil
 	}
 	return &repoDependencyLeaseQuarantineError{delay: r.Config.leaseTTL(), cause: err}
-}
-
-// startLeaseHeartbeat renews the source-repo lane lease while graph writes are
-// in flight so slow backend calls cannot make active work appear abandoned.
-func (r *RepoDependencyProjectionRunner) startLeaseHeartbeat(ctx context.Context) (context.Context, func() error) {
-	interval := repoDependencyLeaseHeartbeatInterval(r.Config.leaseTTL())
-	if interval <= 0 {
-		return ctx, func() error { return nil }
-	}
-	heartbeatCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	stopped := make(chan struct{})
-	var failureMu sync.Mutex
-	var failure error
-	var once sync.Once
-	recordFailure := func(err error) {
-		failureMu.Lock()
-		if failure != nil {
-			failureMu.Unlock()
-			return
-		}
-		failure = fmt.Errorf("repo dependency lease heartbeat failed: %w", err)
-		failureMu.Unlock()
-		if r.Logger != nil {
-			r.Logger.WarnContext(
-				heartbeatCtx,
-				"repo dependency lease heartbeat failed",
-				log.Domain(DomainRepoDependency),
-				telemetry.PhaseAttr(telemetry.PhaseReduction),
-				log.Err(err),
-			)
-		}
-		cancel()
-	}
-	go func() {
-		defer close(stopped)
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-heartbeatCtx.Done():
-				return
-			case <-done:
-				return
-			case <-ticker.C:
-				claimed, err := r.LeaseManager.ClaimPartitionLease(
-					heartbeatCtx,
-					DomainRepoDependency,
-					r.Config.partitionID(),
-					r.Config.partitionCount(),
-					r.Config.leaseOwner(),
-					r.Config.leaseTTL(),
-				)
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						return
-					}
-					recordFailure(err)
-					return
-				}
-				if !claimed {
-					recordFailure(errors.New("repo dependency lease heartbeat lost ownership"))
-					return
-				}
-			}
-		}
-	}()
-	var stopErr error
-	return heartbeatCtx, func() error {
-		once.Do(func() {
-			close(done)
-			cancel()
-			<-stopped
-			failureMu.Lock()
-			stopErr = failure
-			failureMu.Unlock()
-		})
-		return stopErr
-	}
-}
-
-// repoDependencyLeaseHeartbeatInterval renews before the lease reaches its
-// deadline while capping idle wakeups for unusually long lease settings.
-func repoDependencyLeaseHeartbeatInterval(leaseTTL time.Duration) time.Duration {
-	if leaseTTL <= 0 {
-		return 0
-	}
-	interval := leaseTTL / 3
-	if interval <= 0 {
-		return leaseTTL
-	}
-	if interval > time.Minute {
-		return time.Minute
-	}
-	return interval
 }
 
 func repoDependencyNeedsRetract(rows []SharedProjectionIntentRow, staleIDs []string) bool {

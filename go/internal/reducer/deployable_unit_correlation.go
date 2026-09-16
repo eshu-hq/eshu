@@ -14,15 +14,15 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
 const deployableUnitCorrelationFallbackThreshold = 0.90
 
-// DeployableUnitCorrelationHandler reduces one correlation intent into
-// evidence-backed candidate evaluation and materializes admitted exact
-// deployable-unit correlation edges when an edge writer is wired.
+// DeployableUnitCorrelationHandler reduces one intent into evidence-backed
+// candidate evaluation and admitted exact deployable-unit correlation edges.
 type DeployableUnitCorrelationHandler struct {
 	FactLoader              FactLoader
 	ResolvedLoader          ResolvedRelationshipLoader
@@ -30,6 +30,15 @@ type DeployableUnitCorrelationHandler struct {
 	EdgeWriter              SharedProjectionEdgeWriter
 	AdmissionDecisionWriter admissiondecision.AdmissionDecisionWriter
 	AdmissionDecisionNow    func() time.Time
+	// ResolutionActiveLookup backs the resolution-readiness gate
+	// (ownResolutionGenerationReady): the intent defers while its own
+	// relationship generation is inactive, so evaluation never succeeds on
+	// a partial resolved set. Nil keeps the gate open for test wiring.
+	// This is the shared relationship-generation fence also backing the
+	// repo-dependency lane, so main.go wires the same lookup value here.
+	ResolutionActiveLookup maintenance.RelationshipGenerationActiveLookup
+	// CanonicalQuiescence keeps graph writes behind repository projection.
+	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 }
 
 // Handle executes the deployable-unit correlation reduction path.
@@ -47,10 +56,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, fmt.Errorf("deployable unit correlation fact loader is required")
 	}
 
-	// Fail fast before the FactLoader is called. ExtractDeployableUnitCorrelationRows
-	// re-derives entityKeys itself; the repeat is cheap and keeps that seam
-	// self-contained for its other caller (#5993).
-	if _, err := deployableUnitCorrelationEntityKeys(intent); err != nil {
+	// Fail fast and retain the ownership key used by empty-result retraction.
+	entityKeys, err := deployableUnitCorrelationEntityKeys(intent)
+	if err != nil {
 		return Result{}, err
 	}
 
@@ -71,6 +79,18 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	// it twice per intent was pure wasted CPU on this reducer path (#5993
 	// review).
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
+
+	// Fail closed before the resolved-relationship read: both feeds are partial
+	// until the scope's own resolution activates, and success is never reopened.
+	if !ownResolutionGenerationReady(h.ResolutionActiveLookup, intent, candidates) {
+		return Result{}, deployableUnitCorrelationResolutionNotReadyError{
+			scopeID:      intent.ScopeID,
+			generationID: intent.GenerationID,
+		}
+	}
+	if err := deployableUnitCanonicalReposReady(ctx, h.CanonicalQuiescence, intent, len(candidates) > 0); err != nil {
+		return Result{}, err
+	}
 
 	var resolved []relationships.ResolvedRelationship
 	if h.ResolvedLoader != nil {
@@ -96,7 +116,10 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		return Result{}, err
 	}
 	if len(evaluation.Results) == 0 {
-		if err := h.retractDeployableUnitEdges(ctx, deployableUnitRetractRowsFromFacts(intent, envelopes)); err != nil {
+		if err := h.retractDeployableUnitEdges(
+			ctx,
+			deployableUnitRetractRowsFromFacts(intent, envelopes, entityKeys),
+		); err != nil {
 			return Result{}, err
 		}
 		if err := publishIntentGraphPhase(
@@ -166,21 +189,6 @@ func deployableUnitCorrelationEntityKeys(intent Intent) (map[string]struct{}, er
 		}
 	}
 	return normalized, nil
-}
-
-func loadResolvedRelationshipsForIntent(
-	ctx context.Context,
-	loader ResolvedRelationshipLoader,
-	intent Intent,
-) ([]relationships.ResolvedRelationship, error) {
-	if generationScoped, ok := loader.(GenerationScopedResolvedRelationshipLoader); ok {
-		return generationScoped.GetResolvedRelationshipsForGeneration(
-			ctx,
-			intent.ScopeID,
-			intent.GenerationID,
-		)
-	}
-	return loader.GetResolvedRelationships(ctx, intent.ScopeID)
 }
 
 func filterDeployableUnitCandidates(

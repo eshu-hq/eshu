@@ -104,6 +104,30 @@ func (r *reducerBoltLiveRunner) ExecuteCypher(ctx context.Context, cypher string
 	return err
 }
 
+func (r *reducerBoltLiveRunner) ExecuteCypherGroup(
+	ctx context.Context,
+	statements []CypherGroupStatement,
+) error {
+	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{
+		AccessMode:   neo4jdriver.AccessModeWrite,
+		DatabaseName: r.databaseName,
+	})
+	defer func() { _ = session.Close(ctx) }()
+	_, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
+		for _, statement := range statements {
+			result, runErr := tx.Run(ctx, statement.Cypher, statement.Parameters)
+			if runErr != nil {
+				return nil, runErr
+			}
+			if _, consumeErr := result.Consume(ctx); consumeErr != nil {
+				return nil, consumeErr
+			}
+		}
+		return nil, nil
+	})
+	return err
+}
+
 // queryRows runs a read query and returns the collected rows.
 func (r *reducerBoltLiveRunner) queryRows(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{

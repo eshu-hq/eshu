@@ -259,11 +259,13 @@ func validRepoDependencyQuarantineRunner(t *testing.T) RepoDependencyProjectionR
 		leaseGranted:            true,
 	}
 	return RepoDependencyProjectionRunner{
-		IntentReader:       store,
-		LeaseManager:       store,
-		AcceptanceUnitGate: store,
-		EdgeWriter:         &recordingCodeCallProjectionEdgeWriter{},
-		AcceptedGen:        acceptedGenerationFixed("gen-quarantine", true),
+		IntentReader:                    store,
+		LeaseManager:                    store,
+		AcceptanceUnitGate:              store,
+		EdgeWriter:                      &recordingCodeCallProjectionEdgeWriter{},
+		WorkloadMaterializationReplayer: &recordingWorkloadMaterializationReplayer{},
+		WorkloadReadinessPrefetch:       readyRepoDependencyWorkloadPrefetch,
+		AcceptedGen:                     acceptedGenerationFixed("gen-quarantine", true),
 		Config: RepoDependencyProjectionRunnerConfig{
 			LeaseTTL:              5 * time.Minute,
 			CycleTimeout:          45 * time.Second,

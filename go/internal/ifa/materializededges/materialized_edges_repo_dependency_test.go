@@ -84,6 +84,9 @@ func TestResolveRepoDependencyMaterializedEdgesRejectsWrongExpectedSet(t *testin
 	if ok {
 		t.Fatalf("resolveRepoDependencyMaterializedEdges() = (true, %q), want (false, ...) for a deliberately wrong fixture", detail)
 	}
+	if !strings.Contains(detail, "not-the-real-target") {
+		t.Fatalf("failure detail = %q, want the deliberately wrong target; fixture identity must remain valid", detail)
+	}
 }
 
 func TestRepoDependencyFamilyRunsOnPrerequisites(t *testing.T) {
@@ -249,22 +252,25 @@ func writeRepoDependencyExpectedEdgesFixture(t *testing.T, path string, edges []
 	fixture := struct {
 		Odu   string `json:"odu"`
 		Edges []struct {
-			RelationshipType string `json:"relationship_type"`
-			SourceEntityID   string `json:"source_entity_id"`
-			TargetEntityID   string `json:"target_entity_id"`
+			RelationshipType string            `json:"relationship_type"`
+			SourceEntityID   string            `json:"source_entity_id"`
+			TargetEntityID   string            `json:"target_entity_id"`
+			Identity         map[string]string `json:"identity,omitempty"`
 		} `json:"edges"`
 	}{
 		Odu: ifa.RepoDependencyFamilyOduName,
 	}
 	for _, edge := range edges {
 		fixture.Edges = append(fixture.Edges, struct {
-			RelationshipType string `json:"relationship_type"`
-			SourceEntityID   string `json:"source_entity_id"`
-			TargetEntityID   string `json:"target_entity_id"`
+			RelationshipType string            `json:"relationship_type"`
+			SourceEntityID   string            `json:"source_entity_id"`
+			TargetEntityID   string            `json:"target_entity_id"`
+			Identity         map[string]string `json:"identity,omitempty"`
 		}{
 			RelationshipType: edge["relationship_type"],
 			SourceEntityID:   edge["source_entity_id"],
 			TargetEntityID:   edge["target_entity_id"],
+			Identity:         repoDependencyEdgeIdentity(edge["relationship_type"]),
 		})
 	}
 	raw, err := json.Marshal(fixture)

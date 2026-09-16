@@ -104,6 +104,92 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 	}
 }
 
+func TestServiceRunRecordsStaleAckWithoutSuccess(t *testing.T) {
+	t.Parallel()
+
+	intent := Intent{
+		IntentID:     "intent-stale-ack",
+		ScopeID:      "scope-stale-ack",
+		GenerationID: "generation-stale-ack",
+		Domain:       DomainRepoDependency,
+		AvailableAt:  time.Now().UTC(),
+	}
+	var logs bytes.Buffer
+	reader := metric.NewManualReader()
+	provider := metric.NewMeterProvider(metric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("reducer-stale-ack"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	sink := &stubReducerWorkSink{ackErr: ErrExecutionClaimRejected}
+	service := Service{
+		PollInterval: time.Millisecond,
+		WorkSource:   &stubReducerWorkSource{intents: []Intent{intent}},
+		Executor: &stubReducerExecutor{result: Result{
+			IntentID: intent.IntentID,
+			Domain:   intent.Domain,
+			Status:   ResultStatusSucceeded,
+		}},
+		WorkSink:    sink,
+		Wait:        func(context.Context, time.Duration) error { return context.Canceled },
+		Logger:      slog.New(slog.NewJSONHandler(&logs, nil)),
+		Instruments: instruments,
+	}
+
+	if err := service.Run(context.Background()); err != nil {
+		t.Fatalf("Run() error = %v, want nil for stale ACK", err)
+	}
+	if sink.ackCalls != 1 || sink.failCalls != 0 {
+		t.Fatalf("Ack() calls = %d, Fail() calls = %d, want 1 and 0", sink.ackCalls, sink.failCalls)
+	}
+	output := logs.String()
+	for _, want := range []string{
+		`"msg":"reducer ack rejected stale claim"`,
+		`"failure_class":"execution_claim_rejected"`,
+		`"status":"ack_claim_rejected"`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("logs missing %s in %s", want, output)
+		}
+	}
+	if strings.Contains(output, `"msg":"reducer execution succeeded"`) || strings.Contains(output, `"status":"succeeded"`) {
+		t.Fatalf("stale ACK logged success: %s", output)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := reducerCounterValue(t, rm, "eshu_dp_reducer_executions_total", map[string]string{
+		"queue":  "reducer",
+		"status": "ack_claim_rejected",
+		"domain": string(intent.Domain),
+	}); got != 1 {
+		t.Fatalf("reducer executions for rejected ACK = %d, want 1", got)
+	}
+	for _, scope := range rm.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_reducer_executions_total" {
+				continue
+			}
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			if !ok || len(sum.DataPoints) != 1 {
+				t.Fatalf("reducer executions data = %T with %d series, want one rejected-ACK series", m.Data, len(sum.DataPoints))
+			}
+		}
+	}
+	if got := reducerHistogramCount(t, rm, "eshu_dp_reducer_run_duration_seconds", map[string]string{
+		"domain": string(intent.Domain),
+	}); got != 1 {
+		t.Fatalf("reducer run duration count = %d, want 1", got)
+	}
+	if got := reducerHistogramCount(t, rm, "eshu_dp_reducer_queue_wait_seconds", map[string]string{
+		"domain": string(intent.Domain),
+	}); got != 1 {
+		t.Fatalf("reducer queue wait count = %d, want 1", got)
+	}
+}
+
 func TestServiceRunLogsClassifiedExecutionFailure(t *testing.T) {
 	t.Parallel()
 

@@ -7,14 +7,27 @@ import (
 	"bytes"
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuildreset"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestAPIServerWriteTimeoutOutlivesRefinalizeDrain(t *testing.T) {
+	t.Parallel()
+
+	server := newAPIServer(":0", http.NotFoundHandler())
+	assert.GreaterOrEqual(t,
+		server.WriteTimeout,
+		rebuildreset.DefaultRefinalizeDrainTimeout+time.Minute,
+		"recovery responses need a full drain bound plus transport margin",
+	)
+}
 
 func TestPrintAPIVersionFlagReturnsBeforeRuntimeStartup(t *testing.T) {
 	original := buildinfo.Version

@@ -4,9 +4,11 @@
 
 1. `README.md` in this directory — why the package exists and what each reset is
    for
-2. `reset.go` — the three SQL templates, `AffectedGenerationsQuery`, `Apply`
+2. `reset.go` — the four reset templates, `AffectedGenerationsQuery`, `Apply`;
+   `refinalize.go` — the ordered coordination (read once, drain-wait, enqueue,
+   fence check) the caller runs before `Apply`
 3. `../recovery.go` — `RecoveryStore.RefinalizeScopeProjections`, the only
-   caller, and the projector re-enqueue that runs in the same transaction
+   caller, which orchestrates the `refinalize.go` prelude in its transaction
 4. `docs/internal/evidence/4594-graph-rebuild-from-facts.md` — the measured
    before/after, and the failures that are still open
 5. `docs/public/operate/graph-rebuild-from-facts.md` — the operator runbook
@@ -42,9 +44,10 @@
 
 `AffectedGenerationsTemplate` is the only statement in a refinalize that reads
 `ingestion_scopes`, so it is the only place the scope guards live. The projector
-re-enqueue in `../recovery.go` and the three resets here all bind the
-`Generations` it returned. Change a guard and every statement follows, because
-none of them selects anything.
+re-enqueue, the drain poll, and the four resets (all in this package; the
+transaction owner in `../recovery.go` only orchestrates) bind the `Generations`
+it returned. Change a guard and every statement follows, because none of them
+selects anything.
 
 If you find yourself adding a `FROM ingestion_scopes` to any other statement,
 stop: that is the defect this shape exists to prevent.
@@ -69,8 +72,9 @@ regression.
 
 ## What is still open
 
-Cross-repository edge ordering. This package restores projector→reducer
-causality; it does not order reducer against reducer. A `CALLS` edge into another
-repository can still be missed on a single pass and recovered by a second
-refinalize. Do not paper over that here with a retry loop — it belongs in the
-readiness gate.
+Graph identity parity outside this package. Fleet-wide canonical quiescence now
+orders cross-repository `CALLS`, and deployable-unit resolution has its own
+canonical quiescence gate, so do not add a recovery retry loop for either lane.
+The remaining rebuild differences are owned by their relationship domains;
+keep this package limited to safe generation retirement and deterministic
+re-enqueueing.

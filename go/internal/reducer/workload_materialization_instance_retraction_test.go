@@ -34,9 +34,10 @@ func replayWorkloadInstanceGraphModel(
 	t.Helper()
 
 	edgeCyphers := map[string]string{
-		batchWorkloadInstanceOfEdgeUpsertCypher:    "INSTANCE_OF",
-		batchDeploymentSourceUpsertCypher:          "DEPLOYMENT_SOURCE",
-		batchRuntimePlatformRunsOnEdgeUpsertCypher: "RUNS_ON",
+		batchWorkloadInstanceOfEdgeUpsertCypher:             "INSTANCE_OF",
+		batchDeploymentSourceUpsertCypher:                   "DEPLOYMENT_SOURCE",
+		batchRuntimePlatformRunsOnEdgeUpsertCypher:          "RUNS_ON",
+		batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher: "RUNS_ON",
 	}
 
 	for _, call := range calls {

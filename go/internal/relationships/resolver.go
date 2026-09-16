@@ -151,7 +151,16 @@ func buildCandidates(facts []EvidenceFact) []Candidate {
 }
 
 // aggregateCandidate builds a single candidate from a group of evidence facts.
+//
+// facts arrive in Postgres row order (observed_at, evidence_id), which is wall
+// clock, not content: two indexing runs of the same facts hand them over in a
+// different order. Every accumulation below is order-sensitive (the five-item
+// preview cap, first-seen rationale dedup, first-non-empty repo, first-wins
+// field ties), so the facts are sorted by a content key first. The order is a
+// pure function of the fact set, which makes the candidate — and therefore the
+// projected graph — identical across runs. (#6184)
 func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
+	facts = sortEvidenceFactsForAggregation(facts)
 	maxConf := 0.0
 	confidenceMissProbability := 1.0
 	evidenceKinds := make(map[string]struct{})

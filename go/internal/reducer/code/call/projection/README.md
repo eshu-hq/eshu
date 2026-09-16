@@ -33,7 +33,8 @@ vocabulary (`codecall`), or the graph-projection phase/readiness vocabulary
 | symbol | what it is |
 |---|---|
 | `Runner` / `RunnerConfig` | the projection cycle and its tunables |
-| `ReducerGraphDrain` | the optional gate that pauses local single-backend runners while reducer graph-writing domains are active |
+| `ReducerGraphDrain` | the optional local-authoritative gate that checks reducer graph work and canonical-code quiescence |
+| `CanonicalCodeQuiescenceChecker` | the backend/profile-independent gate wired when `ReducerGraphDrain` is disabled |
 | `IntentReader` / `PartitionIntentReader` / `PartitionCandidateReader` / `UnhashedCandidateReader` | the intent-listing ports, from broad domain scans down to partition-hashed candidate reads |
 | `HistoryLookup` / `CurrentRunHistoryLookup` / `CurrentRunPartitionHistoryLookup` / `CurrentRunRefreshHistoryLookup` | optional completion-history ports that let a durable store skip a proven no-op retract |
 | `RefreshFenceLookup` | the optional bounded refresh-fence check a durable store can implement instead of loading the whole acceptance unit |

@@ -118,8 +118,8 @@ complement — because deleting whatever currently matches a key space the
 parameters enumerate removes the same set on a second run. Anything else keeps
 the group terminal: re-executing a `CREATE` duplicates, an accumulating `SET`
 double-applies, and a row-driven `UNWIND ... MATCH ... DELETE` is the shape
-that no-ops inside a managed transaction (see the retract pitfall above), so it
-must never be replayed as though it had applied.
+that can no-op inside a managed transaction. The #6634 RUNS_ON exception admits
+only the exact atomic groups in `docs/internal/design/6634-runs-on-atomic-replay.md`.
 
 An open-ended predicate keeps the group terminal for a different reason. A
 retract selecting the complement of a parameter — `n.generation_id <>
@@ -152,9 +152,9 @@ body. For the pinned backend's compatibility shape, it accepts
 `Neo.ClientError.Statement.SyntaxError` only when the message also contains
 the observed `commit failed: constraint violation` prefix and the complete
 UNIQUE-conflict body (`constraint violation`, `UNIQUE on`, and
-`already exists`). The caller must still prove the statement is MERGE-shaped;
-ordinary syntax errors and writes that do not converge on replay remain
-terminal. Untyped or wrapped errors keep the historical fallback for
+`already exists`). The caller must prove a MERGE-shaped statement or the
+exact RUNS_ON group above; syntax errors and divergent writes stay terminal.
+Untyped or wrapped errors keep the historical fallback for
 `failed to commit implicit transaction` and
 `commit failed: constraint violation` shapes.
 

@@ -302,7 +302,10 @@ claimed AS (
             END,
         lease_owner = $3,
         claim_until = $4,
-        last_attempt_at = $1,
+        last_attempt_at = CASE
+            WHEN work.last_attempt_at IS NULL OR work.last_attempt_at < $1 THEN $1
+            ELSE work.last_attempt_at + interval '1 microsecond'
+        END,
         updated_at = $1
     FROM locked
     WHERE work.work_item_id = locked.work_item_id
@@ -316,6 +319,7 @@ claimed AS (
         work.created_at,
         COALESCE(work.visible_at, work.created_at) AS available_at,
         COALESCE(work.reopened_at, work.created_at) AS cycle_started_at,
+        work.last_attempt_at AS claimed_at,
         work.payload
 )
 SELECT
@@ -328,6 +332,7 @@ SELECT
     created_at,
     available_at,
     cycle_started_at,
+    claimed_at,
     payload
 FROM claimed
 `

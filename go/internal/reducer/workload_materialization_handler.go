@@ -190,6 +190,15 @@ func (h WorkloadMaterializationHandler) Handle(
 		); err != nil {
 			return Result{}, err
 		}
+		if err := publishRepoDependencyReadinessFenceWithRepair(
+			ctx,
+			h.PhasePublisher,
+			h.RepairQueue,
+			intent,
+			time.Now().UTC(),
+		); err != nil {
+			return Result{}, err
+		}
 		timing.phasePublishDuration = time.Since(phaseStarted)
 		timing.totalDuration = time.Since(totalStarted)
 		logWorkloadMaterializationCompleted(ctx, intent, candidates, nil, MaterializeResult{}, timing, 0, 0, 0)
@@ -372,6 +381,15 @@ func (h WorkloadMaterializationHandler) Handle(
 		intent.ScopeID,
 		intent.GenerationID,
 		repoReadinessRepoIDs,
+		time.Now().UTC(),
+	); err != nil {
+		return Result{}, err
+	}
+	if err := publishRepoDependencyReadinessFenceWithRepair(
+		ctx,
+		h.PhasePublisher,
+		h.RepairQueue,
+		intent,
 		time.Now().UTC(),
 	); err != nil {
 		return Result{}, err

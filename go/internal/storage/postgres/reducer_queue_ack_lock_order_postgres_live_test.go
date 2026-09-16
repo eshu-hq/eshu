@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -37,7 +38,7 @@ func TestReducerContentionGateAckFanoutLockOrderLive(t *testing.T) {
 			db.SetMaxOpenConns(6)
 			ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 			defer cancel()
-			now := time.Now().UTC()
+			now := time.Now().UTC().Truncate(time.Microsecond)
 			const scope, generation = "repository:6488-order", "generation:6488-order"
 			seedContainerImageIdentityAckScope(t, ctx, db, scope)
 			seedContainerImageIdentityAckGeneration(t, ctx, db, scope, generation)
@@ -47,9 +48,9 @@ func TestReducerContentionGateAckFanoutLockOrderLive(t *testing.T) {
 			intents := []reducer.Intent{}
 			for _, id := range []string{"order-z", "order-a"} {
 				insertCrossScopeCompletionBaseConsumer(t, ctx, db, id, scope, generation, variant.domain, now)
-				intents = append(intents, reducer.Intent{IntentID: id, Domain: variant.domain, ClaimEpoch: 1})
+				intents = append(intents, reducer.Intent{IntentID: id, Domain: variant.domain, ClaimEpoch: 1, ClaimedAt: &now})
 			}
-			if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running', lease_owner='order-owner', claim_until=$1, container_image_identity_claim_epoch=1`, now.Add(time.Hour)); err != nil {
+			if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running', lease_owner='order-owner', claim_until=$1, last_attempt_at=$2, container_image_identity_claim_epoch=1`, now.Add(time.Hour), now); err != nil {
 				t.Fatal(err)
 			}
 			if variant.dirty {
@@ -119,7 +120,12 @@ func TestReducerContentionGateAckFanoutLockOrderLive(t *testing.T) {
 			if err := blocker.Commit(); err != nil {
 				t.Fatal(err)
 			}
-			if err := <-done; err != nil {
+			err = <-done
+			if variant.stale && !variant.fanout {
+				if !errors.Is(err, ErrReducerClaimRejected) {
+					t.Fatalf("stale reducer claim error = %v, want %v", err, ErrReducerClaimRejected)
+				}
+			} else if err != nil {
 				t.Fatal(err)
 			}
 			for _, intent := range intents {

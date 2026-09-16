@@ -19,8 +19,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/rebuildreset"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+const apiRecoveryResponseMargin = time.Minute
 
 func main() {
 	if handled, err := printAPIVersionFlag(os.Args[1:], os.Stdout); handled {
@@ -85,13 +88,7 @@ func main() {
 		otelhttp.WithMessageEvents(otelhttp.ReadEvents, otelhttp.WriteEvents),
 	)
 
-	srv := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: 10 * time.Second,
-		WriteTimeout:      60 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
+	srv := newAPIServer(addr, handler)
 
 	shutdownTimeout := apiShutdownTimeout(os.Getenv)
 	go func() {
@@ -119,6 +116,21 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("eshu-api shutdown complete", telemetry.EventAttr("runtime.server.stopped"))
+}
+
+// newAPIServer keeps the response budget longer than the recovery drain fence.
+// A hard-killed reducer can hold its lease until claim_until; the recovery
+// handler waits safely for that lease instead of retiring its generation. The
+// server must still be able to return the transaction's eventual result.
+func newAPIServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout: rebuildreset.DefaultRefinalizeDrainTimeout +
+			apiRecoveryResponseMargin,
+		IdleTimeout: 120 * time.Second,
+	}
 }
 
 func printAPIVersionFlag(args []string, stdout io.Writer) (bool, error) {

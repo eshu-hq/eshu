@@ -39,6 +39,7 @@ func TestReducerQueueHeartbeatRenewsClaim(t *testing.T) {
 		"updated_at = $2",
 		"work_item_id = $3",
 		"lease_owner = $4",
+		"claim_until > clock_timestamp()",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("Heartbeat() query missing %q:\n%s", want, query)

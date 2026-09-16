@@ -6,6 +6,7 @@ package platformfam
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -259,6 +260,7 @@ func TestPlatformMaterializationHandlerCallsCrossRepoResolver(t *testing.T) {
 		CrossRepoResolver:               resolver,
 	}
 
+	claimedAt := time.Date(2026, time.April, 13, 12, 1, 0, 0, time.UTC)
 	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-pm-cross",
 		ScopeID:         "scope-1",
@@ -271,6 +273,7 @@ func TestPlatformMaterializationHandlerCallsCrossRepoResolver(t *testing.T) {
 		EnqueuedAt:      time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 13, 12, 0, 0, 0, time.UTC),
 		Status:          reducercontract.IntentStatusClaimed,
+		ClaimedAt:       &claimedAt,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -290,6 +293,9 @@ func TestPlatformMaterializationHandlerCallsCrossRepoResolver(t *testing.T) {
 	if got, want := resolver.calls[0].generationID, "gen-1"; got != want {
 		t.Fatalf("cross-repo resolver generation_id = %q, want %q", got, want)
 	}
+	if resolver.calls[0].claimedAt == nil || !resolver.calls[0].claimedAt.Equal(claimedAt) {
+		t.Fatalf("cross-repo resolver claimed_at = %v, want %v", resolver.calls[0].claimedAt, claimedAt)
+	}
 	if got, want := len(replayer.calls), 1; got != want {
 		t.Fatalf("replayer calls = %d, want %d", got, want)
 	}
@@ -301,6 +307,33 @@ func TestPlatformMaterializationHandlerCallsCrossRepoResolver(t *testing.T) {
 	}
 	if got, want := replayer.calls[0].entityKey, "repo:service-edge-api"; got != want {
 		t.Fatalf("replayer entity_key = %q, want %q", got, want)
+	}
+}
+
+func TestPlatformMaterializationHandlerRejectsUnfencedClaimedResolver(t *testing.T) {
+	t.Parallel()
+
+	claimedAt := time.Date(2026, time.September, 14, 12, 0, 0, 0, time.UTC)
+	handler := PlatformMaterializationHandler{
+		Writer:            &recordingPlatformMaterializationWriter{},
+		CrossRepoResolver: legacyOnlyCrossRepoResolver{},
+	}
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
+		IntentID:        "intent-claimed",
+		ScopeID:         "scope-claimed",
+		GenerationID:    "generation-claimed",
+		SourceSystem:    "git",
+		Domain:          reducercontract.DomainDeploymentMapping,
+		Cause:           "claimed",
+		EntityKeys:      []string{"platform:claimed"},
+		RelatedScopeIDs: []string{"scope-claimed"},
+		EnqueuedAt:      claimedAt,
+		AvailableAt:     claimedAt,
+		ClaimedAt:       &claimedAt,
+		Status:          reducercontract.IntentStatusClaimed,
+	})
+	if err == nil || !strings.Contains(err.Error(), "claim-fenced") {
+		t.Fatalf("Handle() error = %v, want missing claim-fenced resolver", err)
 	}
 }
 
@@ -487,9 +520,16 @@ type recordingCrossRepoRelationshipResolver struct {
 	err    error
 }
 
+type legacyOnlyCrossRepoResolver struct{}
+
+func (legacyOnlyCrossRepoResolver) Resolve(context.Context, string, string) (int, error) {
+	return 0, nil
+}
+
 type crossRepoResolveCall struct {
 	scopeID      string
 	generationID string
+	claimedAt    *time.Time
 }
 
 func (r *recordingCrossRepoRelationshipResolver) Resolve(
@@ -498,6 +538,18 @@ func (r *recordingCrossRepoRelationshipResolver) Resolve(
 	generationID string,
 ) (int, error) {
 	r.calls = append(r.calls, crossRepoResolveCall{scopeID: scopeID, generationID: generationID})
+	return r.writes, r.err
+}
+
+func (r *recordingCrossRepoRelationshipResolver) ResolveClaimed(
+	_ context.Context,
+	intent reducercontract.Intent,
+) (int, error) {
+	r.calls = append(r.calls, crossRepoResolveCall{
+		scopeID:      intent.ScopeID,
+		generationID: intent.GenerationID,
+		claimedAt:    intent.ClaimedAt,
+	})
 	return r.writes, r.err
 }
 

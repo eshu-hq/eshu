@@ -12,6 +12,7 @@ import (
 // fakeNeo4jExecutor records all executed statements for assertion.
 type fakeNeo4jExecutor struct {
 	calls     []fakeExecutorCall
+	groups    [][]CypherGroupStatement
 	errOnCall int // 0 = never error, N = error on Nth call (1-indexed)
 	err       error
 }
@@ -25,6 +26,19 @@ func (f *fakeNeo4jExecutor) ExecuteCypher(ctx context.Context, cypher string, pa
 	f.calls = append(f.calls, fakeExecutorCall{Cypher: cypher, Parameters: params})
 	if f.errOnCall > 0 && len(f.calls) == f.errOnCall {
 		return f.err
+	}
+	return nil
+}
+
+func (f *fakeNeo4jExecutor) ExecuteCypherGroup(
+	ctx context.Context,
+	statements []CypherGroupStatement,
+) error {
+	f.groups = append(f.groups, append([]CypherGroupStatement(nil), statements...))
+	for _, statement := range statements {
+		if err := f.ExecuteCypher(ctx, statement.Cypher, statement.Parameters); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -275,16 +289,34 @@ func TestWorkloadMaterializerWritesRuntimePlatforms(t *testing.T) {
 	if result.RuntimePlatformsWritten != 1 {
 		t.Fatalf("RuntimePlatformsWritten = %d, want 1", result.RuntimePlatformsWritten)
 	}
-	if !containsCypher(executor.calls, "MERGE (i)-[rel:RUNS_ON]->(p)") {
+	if !containsCypher(executor.calls, "MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)") {
 		t.Fatal("missing RUNS_ON MERGE cypher")
 	}
 	if containsCypher(executor.calls, "CASE") {
 		t.Fatal("runtime platform writes should precompute confidence in Go, not Cypher CASE")
 	}
-	if got := len(executor.calls); got != 2 {
-		t.Fatalf("executor calls = %d, want 2 split runtime platform statements", got)
+	if got := len(executor.calls); got != 4 {
+		t.Fatalf("executor calls = %d, want 4 runtime platform statements", got)
 	}
-	rows := executor.calls[1].Parameters["rows"].([]map[string]any)
+	if got := len(executor.groups); got != 1 {
+		t.Fatalf("atomic group calls = %d, want 1", got)
+	}
+	group := executor.groups[0]
+	if got := len(group); got != 3 {
+		t.Fatalf("atomic group statement count = %d, want 3", got)
+	}
+	if group[0].Cypher != batchRuntimePlatformRunsOnLegacyIdentityCleanupCypher ||
+		group[1].Cypher != batchRuntimePlatformRunsOnEdgeUpsertCypher ||
+		group[2].Cypher != batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher {
+		t.Fatalf("atomic group order = %#v, want legacy cleanup, identity, then owned tuple", group)
+	}
+	group[0].Parameters["shared_group_probe"] = true
+	if group[1].Parameters["shared_group_probe"] != true ||
+		group[2].Parameters["shared_group_probe"] != true {
+		t.Fatal("atomic RUNS_ON statements do not share one chunk parameter map")
+	}
+	delete(group[0].Parameters, "shared_group_probe")
+	rows := rowsForCypher(t, executor.calls, "MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)")
 	if got, want := rows[0]["platform_confidence"], 0.9; got != want {
 		t.Fatalf("platform_confidence = %#v, want %#v", got, want)
 	}
@@ -328,7 +360,7 @@ func TestWorkloadMaterializerDeduplicatesRuntimePlatformNodeRowsButKeepsRunEdges
 	if got, want := len(nodeRows), 1; got != want {
 		t.Fatalf("runtime platform node rows = %d, want %d", got, want)
 	}
-	edgeRows := rowsForCypher(t, executor.calls, "MERGE (i)-[rel:RUNS_ON]->(p)")
+	edgeRows := rowsForCypher(t, executor.calls, "MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)")
 	if got, want := len(edgeRows), 2; got != want {
 		t.Fatalf("runtime platform edge rows = %d, want %d", got, want)
 	}
@@ -426,8 +458,8 @@ func TestWorkloadMaterializerFullPipeline(t *testing.T) {
 		t.Fatalf("RuntimePlatformsWritten = %d, want 1", result.RuntimePlatformsWritten)
 	}
 	// Split write phases keep node upserts separate from relationship writes.
-	if len(executor.calls) != 7 {
-		t.Fatalf("executor calls = %d, want 7", len(executor.calls))
+	if len(executor.calls) != 9 {
+		t.Fatalf("executor calls = %d, want 9", len(executor.calls))
 	}
 }
 
@@ -527,7 +559,7 @@ func TestWorkloadMaterializerWritesWorkloadDependencies(t *testing.T) {
 	if result.WorkloadDependenciesWritten != 1 {
 		t.Fatalf("WorkloadDependenciesWritten = %d, want 1", result.WorkloadDependenciesWritten)
 	}
-	if !containsCypher(executor.calls, "MERGE (source)-[rel:DEPENDS_ON]->(target)") {
+	if !containsCypher(executor.calls, "MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)") {
 		t.Fatal("missing workload DEPENDS_ON MERGE cypher")
 	}
 }

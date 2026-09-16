@@ -135,6 +135,8 @@ type fakeCommitter struct {
 	// (#4271 review follow-up).
 	backfillStarted chan struct{}
 	backfillRelease chan struct{}
+	// backfillGateOnce applies the test gate only to the initial backfill.
+	backfillGateOnce sync.Once
 }
 
 func (f *fakeCommitter) CommitScopeGeneration(
@@ -156,8 +158,10 @@ func (f *fakeCommitter) BackfillAllRelationshipEvidence(
 	_ *telemetry.Instruments,
 ) error {
 	if f.backfillStarted != nil && f.backfillRelease != nil {
-		close(f.backfillStarted)
-		<-f.backfillRelease
+		f.backfillGateOnce.Do(func() {
+			close(f.backfillStarted)
+			<-f.backfillRelease
+		})
 	}
 	if f.backfillDelay > 0 {
 		time.Sleep(f.backfillDelay)

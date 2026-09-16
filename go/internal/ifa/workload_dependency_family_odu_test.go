@@ -176,7 +176,17 @@ func TestWorkloadDependencyFamilyOduCarriesProductionFollowup(t *testing.T) {
 	}
 }
 
-func TestWorkloadDependencyFamilyOduCarriesRepoDependencyPrerequisiteFollowup(t *testing.T) {
+// TestWorkloadDependencyFamilyOduCarriesDeploymentMappingFollowup proves
+// every workload-bearing scope carries a deployment_mapping follow-up.
+// Production emits one for every repo snapshot (git_fact_builder.go), and
+// under the fail-closed readiness contract a scope whose relationship
+// generation never activates strands its workload_materialization items at
+// the drain: the resolver that activates them rides the deployment_mapping
+// item, so a workload-bearing scope without one can never converge (#6184:
+// target and multi-target stalled the determinism matrix). Orphan-source
+// carries one for the rejected stale-evidence path; orphan-target has no
+// workload candidates and needs none.
+func TestWorkloadDependencyFamilyOduCarriesDeploymentMappingFollowup(t *testing.T) {
 	t.Parallel()
 
 	var followups []facts.Envelope
@@ -187,11 +197,13 @@ func TestWorkloadDependencyFamilyOduCarriesRepoDependencyPrerequisiteFollowup(t 
 	}
 	wantRepoIDs := map[string]struct{}{
 		workloadDependencyFamilySourceRepoID:       {},
+		workloadDependencyFamilyTargetRepoID:       {},
 		workloadDependencyFamilyMultiSourceRepoID:  {},
+		workloadDependencyFamilyMultiTargetRepoID:  {},
 		workloadDependencyFamilyOrphanSourceRepoID: {},
 	}
 	if len(followups) != len(wantRepoIDs) {
-		t.Fatalf("deployment_mapping followups = %d, want exactly %d (one per dependency-source scope)", len(followups), len(wantRepoIDs))
+		t.Fatalf("deployment_mapping followups = %d, want exactly %d (one per workload-bearing scope plus orphan-source)", len(followups), len(wantRepoIDs))
 	}
 	for _, followup := range followups {
 		repoID, _ := followup.Payload["repo_id"].(string)

@@ -16,9 +16,9 @@
 // rebuilt from preserved Postgres facts after a restore. Refinalize also clears
 // the downstream dedup state for exactly those generations — succeeded reducer
 // work, completed shared projection intents, and graph projection phase rows —
-// because all three outlive a graph wipe and would otherwise tell the pipeline
+// because all four outlive a graph wipe and would otherwise tell the pipeline
 // the work is already done, leaving the rebuild stuck at source-local structure.
-// RefinalizeResult reports each of those three counts.
+// RefinalizeResult reports each of those four counts.
 // ReplayCollectorGenerations
 // marks collector generation
 // commit failures for source-level replay when the failure happened before

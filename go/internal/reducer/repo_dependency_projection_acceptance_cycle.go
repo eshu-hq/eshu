@@ -55,6 +55,17 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 	writtenRows := 0
 	writtenGroups := 0
 	if len(active) > 0 {
+		ready, replayRequests, replayDuration, err := r.ensureRunsOnWorkloadReadiness(ctx, active)
+		result.ReplayDurationSeconds = replayDuration.Seconds()
+		result.ReplayRequests = replayRequests
+		if err != nil {
+			return result, active, writtenGroups, err
+		}
+		if !ready {
+			result.BlockedReadiness = 1
+			r.recordRepoDependencyWorkloadReadinessBlocked(ctx, acceptanceUnitID, cycleStart)
+			return result, nil, writtenGroups, nil
+		}
 		if repoDependencyNeedsRetract(rows, staleIDs) {
 			retractStart := time.Now()
 			retractedRows, err := r.retractRepo(ctx, active)
@@ -74,8 +85,8 @@ func (r *RepoDependencyProjectionRunner) processAcceptanceUnit(
 		if r.WorkloadMaterializationReplayer != nil {
 			replayStart := time.Now()
 			replayRequests, err := r.replayWorkloadMaterialization(ctx, active)
-			result.ReplayDurationSeconds = time.Since(replayStart).Seconds()
-			result.ReplayRequests = replayRequests
+			result.ReplayDurationSeconds += time.Since(replayStart).Seconds()
+			result.ReplayRequests += replayRequests
 			if err != nil {
 				return result, active, writtenGroups, fmt.Errorf("replay workload materialization after repo dependency projection: %w", err)
 			}

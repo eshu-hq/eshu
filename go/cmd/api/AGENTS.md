@@ -49,6 +49,10 @@
   Operators setting an explicit 5 s value retain the prior hard-coded behavior.
   The deadline is read at startup; runtime changes require a restart
   (`main.go:95`).
+- **Recovery response budget** — the HTTP write timeout is derived from
+  `rebuildreset.DefaultRefinalizeDrainTimeout` plus a one-minute margin. A
+  hard-killed reducer can retain its lease for the drain window; shortening the
+  server timeout below that bound drops the eventual recovery response.
 - **Compile-time port conformance** — `wiring.go:23` asserts that `Neo4jReader`
   satisfies `GraphQuery` and `ContentReader` satisfies `ContentStore`; removing
   these assertions will silently break port conformance.
@@ -64,12 +68,12 @@
   follow the same struct-and-`Mount` pattern; missing a step leaves routes
   unreachable or undocumented.
 
-- **Change the listen address or timeouts** → edit `main.go:77` for
-  `ESHU_API_ADDR` and `main.go:87` for the `http.Server` timeout fields. The
-  server read/write/idle timeouts are hard-coded constants; only the graceful
-  shutdown timeout is configurable via `ESHU_API_SHUTDOWN_TIMEOUT`. Why: server
-  timeouts are deployment-level knobs that should be changed deliberately, not
-  silently picked up from environment.
+- **Change the listen address or timeouts** → edit `main.go` for
+  `ESHU_API_ADDR` and `newAPIServer`. The read-header and idle timeouts are
+  hard-coded; the write timeout follows the recovery drain bound; only the
+  graceful shutdown timeout is configurable via `ESHU_API_SHUTDOWN_TIMEOUT`.
+  Why: server timeouts are deployment-level contracts that should be changed
+  deliberately, not silently picked up from environment.
 
 - **Swap the graph backend** → set `ESHU_GRAPH_BACKEND=nornicdb` or
   `ESHU_GRAPH_BACKEND=neo4j`; the binary delegates to `ParseGraphBackend` and

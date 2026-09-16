@@ -29,57 +29,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=scripts/lib/graph_rebuild_runtime.sh
+source "${SCRIPT_DIR}/lib/graph_rebuild_runtime.sh"
 
 COMPOSE_PROJECT="${ESHU_DR_COMPOSE_PROJECT:-eshu-dr-rebuild}"
 KEEP_STACK="${ESHU_KEEP_COMPOSE_STACK:-false}"
 SKIP_INTERRUPT="${ESHU_DR_SKIP_INTERRUPT:-false}"
 BOOTSTRAP_TIMEOUT="${ESHU_DR_BOOTSTRAP_TIMEOUT:-1800}"
 DRAIN_TIMEOUT="${ESHU_DR_DRAIN_TIMEOUT:-1800}"
-
-# assert_identity_snapshot_sane refuses to compare a snapshot whose identities
-# cannot tell anything apart. A file of interchangeable keys diffs clean against
-# any other such file, which is a gate that passes while comparing nothing.
-#
-# Blank and null keys are the obvious case and not the only one. A node identity
-# is a concatenation of coalesce()d properties, so a node carrying none of them
-# produces a key that is nothing but the separators the concatenation added --
-# and the label prefix then makes the line non-empty, `Module|||||`, so an
-# emptiness check waves it through. The same collapse on an edge endpoint leaves
-# six leading or six trailing separators, a count no real identity reaches: the
-# fullest legitimate collapse is a node carrying only a uid, which contributes
-# four.
-#
-# The `null` patterns are anchored. Unanchored, they also match legitimate
-# content such as the Terraform resource name `null_resource.network_placeholder`
-# and would fail the gate on good data.
-#
-# An empty edge file is refused for the reason an empty node file is: it compares
-# clean against any other empty file, and this backend has been observed
-# returning zero rows for a query shape it dislikes without raising an error.
-assert_identity_snapshot_sane() {
-	local out_dir="$1"
-	local nodes_total edges_total nodes_bad edges_bad
-
-	nodes_total="$(wc -l <"$out_dir/nodes.txt" | tr -d ' ')"
-	edges_total="$(wc -l <"$out_dir/edges.txt" | tr -d ' ')"
-	if [[ "$nodes_total" == "0" ]]; then
-		echo "Refusing to compare: node identity snapshot is empty." >&2
-		return 1
-	fi
-	if [[ "$edges_total" == "0" ]]; then
-		echo "Refusing to compare: edge identity snapshot is empty." >&2
-		return 1
-	fi
-
-	nodes_bad="$(rg -c '^\s*$|^null$|\|null$|^[A-Za-z_][A-Za-z0-9_]*\|+$' "$out_dir/nodes.txt" 2>/dev/null || true)"
-	edges_bad="$(rg -c '^\s*$|^null$|^\|{6}|\|{6}$' "$out_dir/edges.txt" 2>/dev/null || true)"
-	if [[ -n "$nodes_bad" && "$nodes_bad" != "0" ]] || [[ -n "$edges_bad" && "$edges_bad" != "0" ]]; then
-		echo "Refusing to compare: ${nodes_bad:-0} node and ${edges_bad:-0} edge identity lines are" \
-			"blank, null, or nothing but separators." >&2
-		return 1
-	fi
-	echo "Identity snapshot checked: $nodes_total node and $edges_total edge keys, all distinguishing."
-}
+INTERRUPT_TIMEOUT="${ESHU_DR_INTERRUPT_TIMEOUT:-120}"
 
 # Everything below this line is the procedure itself, including the tool and
 # Docker checks. scripts/test-verify-graph-rebuild-from-facts.sh sources this
@@ -223,12 +181,6 @@ wait_for_service_exit() {
 # intents were still open, and the relationship count rose from 3,277 to 3,286
 # when they finally drained. Every one of those edges would have been reported
 # as missing.
-queue_active_count() {
-	psql_scalar "SELECT
-	    (SELECT count(*) FROM fact_work_items WHERE status IN ('pending','claimed','running'))
-	  + (SELECT count(*) FROM shared_projection_intents WHERE completed_at IS NULL);"
-}
-
 wait_for_queue_terminal() {
 	local timeout_seconds="$1"
 	local deadline=$((SECONDS + timeout_seconds))
@@ -252,137 +204,6 @@ wait_for_queue_terminal() {
 	done
 	echo "Timed out waiting for the queue to reach a terminal state" >&2
 	return 1
-}
-
-# graph_pairs runs a two-column key/count query and emits `key=count` lines.
-graph_pairs() {
-	local statement="$1" prefix="$2"
-	curl -fsS -H 'Content-Type: application/json' \
-		-d "$(jq -nc --arg s "$statement" '{statements:[{statement:$s}]}')" \
-		"${GRAPH_BASE}/db/nornic/tx/commit" \
-		| jq -r --arg p "$prefix" '.results[0].data[] | "\($p)\(.row[0])=\(.row[1])"'
-}
-
-# snapshot_counts records totals plus a count for every node label and every
-# relationship type. It is reported for readability, not asserted on: the
-# assertion is the identity-set comparison below. Counts tell a reader at a
-# glance which part of the graph is short.
-snapshot_counts() {
-	local out_file="$1"
-	{
-		echo "total_nodes=$(graph_scalar 'MATCH (n) RETURN count(n) AS c')"
-		echo "total_rels=$(graph_scalar 'MATCH ()-[r]->() RETURN count(r) AS c')"
-		graph_pairs 'MATCH (n) UNWIND labels(n) AS l RETURN l AS k, count(*) AS c ORDER BY l' 'label:'
-		graph_pairs 'MATCH ()-[r]->() RETURN type(r) AS k, count(*) AS c ORDER BY k' 'rel:'
-	} >"$out_file"
-}
-
-# node_identity_expr builds the per-node identity key. No single property is
-# universal: most nodes carry `uid`, Repository/Workload/Endpoint/Platform carry
-# `id`, CodeownerTeam carries `ref`, Directory is (repo_id, path), Module is
-# (name, lang), Environment is `name`. Concatenating the union of those fields
-# gives one key that is populated for every label present in this corpus.
-#
-# `$1` is the pattern variable to key on.
-node_identity_expr() {
-	local v="$1"
-	printf "coalesce(%s.uid, %s.id, %s.ref, %s.locator, '') + '|' + coalesce(%s.name,'') + '|' + coalesce(%s.path,'') + '|' + coalesce(%s.repo_id,'') + '|' + coalesce(%s.lang,'')" \
-		"$v" "$v" "$v" "$v" "$v" "$v" "$v" "$v"
-}
-
-# graph_lines runs a single-column query and emits one raw line per row.
-graph_lines() {
-	curl -fsS -H 'Content-Type: application/json' \
-		-d "$(jq -nc --arg s "$1" '{statements:[{statement:$s}]}')" \
-		"${GRAPH_BASE}/db/nornic/tx/commit" \
-		| jq -r '.results[0].data[] | .row[0] // ""'
-}
-
-# snapshot_sets writes the identity of every node and every edge, one per line.
-#
-# This is what the rebuild is asserted against, replacing count equality. Counts
-# can match while the content is wrong -- a node rebuilt under a different id, an
-# edge rewired to a different target, a family that lost two and gained two all
-# compare equal by count. Comparing the identities themselves turns a failure
-# into a named list of exactly which nodes and edges are missing or extra.
-#
-# Duplicate lines are kept rather than deduplicated, so multiplicity is part of
-# the comparison: two nodes collapsing into one still shows up.
-#
-# Nodes are queried one label at a time on purpose. The natural shape,
-# `UNWIND labels(n) AS l RETURN l + '|' + ...`, silently returns null on this
-# backend -- concatenating an UNWIND-produced variable yields null even though
-# the same concatenation over plain property refs works. That produced a file of
-# 2,510 identical "null" lines, which diffs clean against any other such file:
-# a gate that passes while comparing nothing. Per-label queries avoid UNWIND
-# entirely. `toString()` is also avoided here: it renders null as the literal
-# string "<nil>" rather than null, which would defeat coalesce.
-snapshot_sets() {
-	local out_dir="$1"
-	mkdir -p "$out_dir"
-
-	local node_expr edge_expr label
-	node_expr="$(node_identity_expr n)"
-
-	# The label list comes from the `l, count(*)` aggregation, not from
-	# `RETURN DISTINCT l`. DISTINCT after UNWIND returns one null per node on this
-	# backend -- 2,510 nulls instead of 83 labels -- while the aggregation shape
-	# returns the labels correctly. graph_pairs already relies on that shape.
-	# Labels are interpolated bare, NOT backtick-quoted. This backend silently
-	# returns zero rows for `MATCH (n:`Label`)` -- no error, no warning, just an
-	# empty result -- which would write an empty snapshot that compares equal to
-	# another empty snapshot. Bare labels return the rows. The pattern check below
-	# keeps that safe: anything needing quoting is rejected loudly instead of being
-	# interpolated into a query that would fail silently or inject.
-	: >"$out_dir/nodes.txt"
-	while IFS= read -r label; do
-		[[ -n "$label" ]] || continue
-		if [[ ! "$label" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-			echo "Refusing to compare: node label '$label' needs quoting, which this backend does not support." >&2
-			return 1
-		fi
-		graph_lines "MATCH (n:${label}) RETURN ${node_expr} AS k ORDER BY k" \
-			| sed "s|^|${label}\||" >>"$out_dir/nodes.txt"
-	done < <(graph_lines 'MATCH (n) UNWIND labels(n) AS l RETURN l AS k, count(*) AS c ORDER BY l')
-	sort -o "$out_dir/nodes.txt" "$out_dir/nodes.txt"
-
-	edge_expr="$(node_identity_expr a) + '||' + type(r) + '||' + $(node_identity_expr b)"
-	graph_lines "MATCH (a)-[r]->(b) RETURN ${edge_expr} AS k ORDER BY k" \
-		| sort >"$out_dir/edges.txt"
-
-	assert_identity_snapshot_sane "$out_dir"
-}
-
-# compare_sets asserts bidirectional set difference is empty for nodes and edges,
-# and prints the actual missing and extra identities when it is not.
-#
-# Callers run this with `|| status=$?` so a mismatch does not end the run, which
-# also disables `set -e` inside this function. Every command whose failure would
-# otherwise be silent is therefore checked by hand: a `comm` that failed would
-# leave both diff files empty and report a clean 0/0.
-compare_sets() {
-	local before="$1" after="$2" label="$3" failed=0 kind
-	for kind in nodes edges; do
-		if ! comm -23 "$before/$kind.txt" "$after/$kind.txt" >"$TMP_DIR/$kind.missing" ||
-			! comm -13 "$before/$kind.txt" "$after/$kind.txt" >"$TMP_DIR/$kind.extra"; then
-			echo "$label: could not diff $kind identities; treating as a failure rather than a match" >&2
-			return 1
-		fi
-		local missing extra
-		missing="$(wc -l <"$TMP_DIR/$kind.missing" | tr -d ' ')"
-		extra="$(wc -l <"$TMP_DIR/$kind.extra" | tr -d ' ')"
-		if [[ "$missing" == "0" && "$extra" == "0" ]]; then
-			echo "$label: $kind set difference 0/0."
-			continue
-		fi
-		failed=1
-		echo "$label: $kind differ from the pre-wipe snapshot: $missing missing, $extra extra" >&2
-		echo "  missing (in pre-wipe, absent after rebuild), first 25:" >&2
-		sed -n '1,25p' "$TMP_DIR/$kind.missing" | sed 's/^/    /' >&2
-		echo "  extra (absent before, present after rebuild), first 25:" >&2
-		sed -n '1,25p' "$TMP_DIR/$kind.extra" | sed 's/^/    /' >&2
-	done
-	return "$failed"
 }
 
 wipe_graph() {
@@ -431,7 +252,20 @@ reapply_graph_schema() {
 start_services() {
 	"${COMPOSE_CMD[@]}" start "${GRAPH_WRITERS[@]}" >/dev/null
 	wait_for_http "${API_BASE}/health" 120
+	assert_bootstrap_index_stopped
+}
 
+# start_recovery_api starts only the HTTP control plane. Projection workers stay
+# stopped until request_rebuild has durably reset and enqueued the generation
+# set, eliminating their claim race with the recovery transaction's in-flight
+# reducer fence.
+start_recovery_api() {
+	"${COMPOSE_CMD[@]}" start eshu >/dev/null
+	wait_for_http "${API_BASE}/health" 120
+	assert_bootstrap_index_stopped
+}
+
+assert_bootstrap_index_stopped() {
 	local bootstrap_state
 	bootstrap_state="$(docker inspect --format='{{.State.Status}}' \
 		"$("${COMPOSE_CMD[@]}" ps -a -q bootstrap-index)")"
@@ -517,10 +351,10 @@ echo
 echo "=== Phase 2: wipe, reapply schema, rebuild (timed) ==="
 wipe_graph
 reapply_graph_schema
-start_services
+start_recovery_api
 
 REBUILD_START="$SECONDS"
-ENQUEUED="$(request_rebuild "dr-rebuild-pass1-$$")"
+ENQUEUED="$(enqueue_rebuild_then_start_workers "dr-rebuild-pass1-$$")"
 echo "Rebuild enqueued $ENQUEUED scopes."
 wait_for_queue_terminal "$DRAIN_TIMEOUT"
 REBUILD_SECONDS=$((SECONDS - REBUILD_START))
@@ -563,22 +397,18 @@ echo
 echo "=== Phase 3: interrupted rebuild ==="
 wipe_graph
 reapply_graph_schema
-start_services
+start_recovery_api
 
-request_rebuild "dr-rebuild-pass2a-$$" >/dev/null
-echo "Rebuild started; letting it make partial progress..."
-sleep 20
-
-INTERRUPT_NODES="$(graph_scalar 'MATCH (n) RETURN count(n) AS c')"
-echo "Killing the projection workers mid-drain (graph holds $INTERRUPT_NODES nodes)."
+enqueue_rebuild_then_start_workers "dr-rebuild-pass2a-$$" >/dev/null
+echo "Rebuild started; waiting for a real in-progress checkpoint..."
+wait_for_interrupt_point "$INTERRUPT_TIMEOUT"
+echo "Killing the projection workers mid-drain (projected graph rows are present)."
 "${COMPOSE_CMD[@]}" kill ingester projector resolution-engine >/dev/null
 
-REMAINING="$(psql_scalar "SELECT count(*) FROM fact_work_items WHERE status IN ('pending','claimed','running');")"
 echo "Work left in flight at the kill: $REMAINING items."
 
-echo "Restarting workers and re-issuing the rebuild..."
-"${COMPOSE_CMD[@]}" start ingester projector resolution-engine >/dev/null
-request_rebuild "dr-rebuild-pass2b-$$" >/dev/null
+echo "Re-issuing the rebuild, then restarting workers..."
+enqueue_rebuild_then_start_workers "dr-rebuild-pass2b-$$" >/dev/null
 wait_for_queue_terminal "$DRAIN_TIMEOUT"
 
 snapshot_counts "$TMP_DIR/after-interrupt.txt"

@@ -327,6 +327,7 @@ func (h *Handler) refinalize(w http.ResponseWriter, r *http.Request) {
 		"reducer_work_deleted":     result.ReducerWorkDeleted,
 		"shared_intents_reopened":  result.SharedIntentsReopened,
 		"readiness_phases_cleared": result.ReadinessPhasesCleared,
+		"generations_retired":      result.GenerationsRetired,
 	})
 }
 

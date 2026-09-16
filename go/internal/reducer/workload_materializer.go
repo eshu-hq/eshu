@@ -198,6 +198,9 @@ func (m *WorkloadMaterializer) Materialize(
 
 	// Batch runtime platforms
 	if len(projection.RuntimePlatformRows) > 0 {
+		if _, ok := m.executor.(CypherGroupExecutor); !ok {
+			return result, fmt.Errorf("write runtime platform edges: atomic Cypher group executor is required")
+		}
 		stageStarted := time.Now()
 		rows := make([]map[string]any, len(projection.RuntimePlatformRows))
 		for i, row := range projection.RuntimePlatformRows {
@@ -218,8 +221,12 @@ func (m *WorkloadMaterializer) Materialize(
 		if err := m.executeBatched(ctx, batchRuntimePlatformNodeUpsertCypher, nodeRows); err != nil {
 			return result, fmt.Errorf("write runtime platforms: %w", err)
 		}
-		if err := m.executeBatched(ctx, batchRuntimePlatformRunsOnEdgeUpsertCypher, rows); err != nil {
-			return result, fmt.Errorf("write runtime platform edges: %w", err)
+		if err := m.executeBatchedGroup(ctx, []string{
+			batchRuntimePlatformRunsOnLegacyIdentityCleanupCypher,
+			batchRuntimePlatformRunsOnEdgeUpsertCypher,
+			batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher,
+		}, rows); err != nil {
+			return result, fmt.Errorf("write atomic runtime platform edges: %w", err)
 		}
 		result.RuntimePlatformDuration = time.Since(stageStarted)
 		result.RuntimePlatformsWritten = len(nodeRows)
@@ -407,13 +414,30 @@ SET p.type = 'platform',
     p.region = row.platform_region,
     p.locator = row.platform_locator`
 
+	// RUNS_ON has two writers. This first statement only establishes the shared
+	// edge identity; the second statement stamps or refreshes the complete
+	// workload-owned property tuple. Keeping the ownership predicate in a
+	// separate statement in the same transaction is required on pinned
+	// NornicDB: relationship properties
+	// read from the same MERGE statement do not reliably expose the preexisting
+	// tuple. Atomic grouping prevents an unstamped edge from becoming visible.
+	// The cross-repo writer's unconditional full-tuple update either runs before
+	// this transaction, in which case the predicate preserves it, or afterward,
+	// in which case it wins.
 	batchRuntimePlatformRunsOnEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (i:WorkloadInstance {id: row.instance_id})
 MATCH (p:Platform {id: row.platform_id})
-MERGE (i)-[rel:RUNS_ON]->(p)
+MERGE (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)`
+
+	batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher = `UNWIND $rows AS row
+MATCH (i:WorkloadInstance {id: row.instance_id})
+MATCH (p:Platform {id: row.platform_id})
+MATCH (i)-[rel:RUNS_ON {identity_key: 'canonical'}]->(p)
+WHERE rel.evidence_source IS NULL OR rel.evidence_source = row.evidence_source
 SET rel.confidence = row.platform_confidence,
     rel.reason = 'Workload instance runs on inferred platform',
-    rel.evidence_source = row.evidence_source`
+    rel.evidence_source = row.evidence_source,
+    rel.source_tool = null`
 
 	batchRepoDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (source_repo:Repository {id: row.repo_id})
@@ -426,7 +450,7 @@ SET rel.confidence = $edge_confidence,
 	batchWorkloadDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Workload {id: row.workload_id})
 MATCH (target:Workload {id: row.target_workload_id})
-MERGE (source)-[rel:DEPENDS_ON]->(target)
+MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)
 SET rel.confidence = $edge_confidence,
     rel.reason = 'Runtime services list declares workload dependency',
     rel.evidence_source = row.evidence_source`

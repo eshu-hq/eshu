@@ -62,7 +62,7 @@ func TestAckBatchClearsProvenanceEdgeIdentityUpgradeFence(t *testing.T) {
 	)
 	for name, query := range map[string]string{
 		"container image identity":   containerQuery,
-		"package source correlation": ackReducerWorkBatchQuery(1),
+		"package source correlation": ackReducerWorkBatchQuery(),
 	} {
 		if !strings.Contains(query, "provenance_edge_identity_upgrade_required = FALSE") {
 			t.Fatalf("%s batch ACK does not clear the upgrade fence:\n%s", name, query)

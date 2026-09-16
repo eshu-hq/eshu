@@ -193,8 +193,9 @@ var _ *sql.DB
 func TestAdminHandler_Refinalize(t *testing.T) {
 	stub := &stubRecoveryHandler{
 		refinalizeResult: recovery.RefinalizeResult{
-			Enqueued: 2,
-			ScopeIDs: []string{"scope-1", "scope-2"},
+			Enqueued:           2,
+			ScopeIDs:           []string{"scope-1", "scope-2"},
+			GenerationsRetired: 3,
 		},
 	}
 	h := &Handler{Recovery: stub}
@@ -211,6 +212,9 @@ func TestAdminHandler_Refinalize(t *testing.T) {
 	got := decodeBody(t, w)
 	if int(got["enqueued"].(float64)) != 2 {
 		t.Errorf("enqueued = %v, want 2", got["enqueued"])
+	}
+	if int(got["generations_retired"].(float64)) != 3 {
+		t.Errorf("generations_retired = %v, want 3", got["generations_retired"])
 	}
 }
 

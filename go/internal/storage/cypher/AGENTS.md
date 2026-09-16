@@ -95,12 +95,17 @@
   failed attempt and the replay, and the replayed `DELETE` would remove rows
   the first attempt never saw. This gate is repo-wide: it sits on the shared
   `RetryingExecutor.ExecuteGroup` path and classifies every
-  `OperationCanonicalRetract` emitter, not only the semantic writer. The
-  retract shape was
-  added for #6176, when `SemanticEntityWriter` stopped dispatching its retract
-  outside the group: a MERGE-only gate would have made the writer's own atomic
-  retract+upsert group unretryable and dead-lettered the concurrent-MERGE race
-  the retry exists to absorb. Driver-level
+  `OperationCanonicalRetract` emitter, not only the semantic writer. A separate
+  #6634 exception admits only the two exact atomic RUNS_ON cleanup-and-upsert
+  groups: matched row chunks and operations are required, and other statements
+  in a cross-repo group must be known repo-dependency or evidence-artifact
+  upsert templates. It does not make arbitrary `UNWIND ... DELETE` or
+  accumulating `SET` replay-safe; see
+  `docs/internal/design/6634-runs-on-atomic-replay.md` for its proof limits.
+  The retract shape was added for #6176, when `SemanticEntityWriter` stopped
+  dispatching its retract outside the group: a MERGE-only gate would have made
+  the writer's own atomic retract+upsert group unretryable and dead-lettered
+  the concurrent-MERGE race the retry exists to absorb. Driver-level
   `session.ExecuteWrite` retries handle Neo.TransientError.* codes; the Eshu
   retry loop additionally handles driver `ConnectivityError` only when the
   driver classifies it as retryable. A `ConnectivityError` wrapping

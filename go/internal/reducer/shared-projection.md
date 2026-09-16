@@ -6,7 +6,7 @@ domain-specific edge semantics here.
 
 ## Runner contract
 
-`SharedProjectionRunner` (`shared_projection_runner.go:95`) iterates all
+The shared worker `Runner` (`intents/shared/worker/runner.go`) iterates all
 shared-projection domains and all partitions each cycle, calling
 `ProcessPartitionOnce` for each domain/partition pair. Domains processed:
 `platform_infra`, `workload_dependency`, `inheritance_edges`,
@@ -17,7 +17,8 @@ The runner uses exponential back-off, doubling each empty cycle and capped at
 intents are blocked on a readiness phase (`BlockedReadiness > 0`), it
 re-polls at the base interval without backing off.
 
-`CodeCallProjectionRunner` owns the `code_calls` domain separately because it
+The code-call projection `Runner` (`code/call/projection/runner.go`) owns the
+`code_calls` domain separately because it
 rewrites accepted repo/run units while preserving repo-wide retraction
 semantics. By default it runs one partition and one worker. When configured
 with multiple code-call partitions and workers, it may process distinct
@@ -29,8 +30,16 @@ skip retraction only when the same partition has already completed, so other
 file partitions still retract their owned delta file paths. In
 local-authoritative NornicDB runs it can receive a `ReducerGraphDrain`; when
 active reducer graph domains remain, the runner records a blocked cycle and
-waits before claiming a code-call partition. The gate only schedules work. It
-does not change which rows become `CALLS`, `REFERENCES`, or `USES_METACLASS`.
+waits before claiming a code-call partition. It waits the same way while any
+code scope's active generation still lacks its `canonical_nodes_committed`
+phase (#6184): the per-intent readiness gate only covers the caller's
+acceptance unit, so a cross-repository edge drained before the callee
+repository commits MATCHes nothing and is marked completed anyway. That
+quiescence half is wired unconditionally (`CanonicalQuiescence`), not behind
+the drain flag, because the loss happens on every backend and query profile —
+the DR gate stack itself runs a non-authoritative profile with the drain off.
+The gate only schedules work. It does not change which rows become `CALLS`,
+`REFERENCES`, or `USES_METACLASS`.
 
 No-Regression Evidence: `go test ./internal/reducer/code/call/projection ./internal/storage/postgres
 -run 'TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope|TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition|TestCodeCallProjectionRunnerSkipsRetractForCurrentRunChunkAfterFirstChunk|TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainIntents'

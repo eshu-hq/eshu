@@ -303,7 +303,7 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 	if err == nil {
 		return ""
 	}
-	if !allStatementsAreReplaySafe(stmts) {
+	if !allStatementsAreReplaySafe(stmts) && !isCanonicalRunsOnReplaySafeGroup(stmts) {
 		return ""
 	}
 	if isNornicDBRelationshipSnapshotConflict(err) {

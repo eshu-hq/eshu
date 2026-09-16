@@ -3,7 +3,10 @@
 
 package reducer
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
 // These doubles serve the reducer-root tests that wire the deployment_mapping
 // handler through the default domain catalog (defaults, materialization
@@ -32,8 +35,10 @@ func (w *recordingPlatformMaterializationWriter) WritePlatformMaterialization(
 // replays the deployment_mapping handler requests after cross-repo resolution
 // writes canonical edges.
 type recordingWorkloadMaterializationReplayer struct {
-	calls []workloadMaterializationReplayCall
-	err   error
+	mu     sync.Mutex
+	calls  []workloadMaterializationReplayCall
+	err    error
+	reject bool
 }
 
 // workloadMaterializationReplayCall is one recorded replay request.
@@ -41,6 +46,30 @@ type workloadMaterializationReplayCall struct {
 	scopeID      string
 	generationID string
 	entityKey    string
+	repoID       string
+	fence        string
+	fenced       bool
+}
+
+func (r *recordingWorkloadMaterializationReplayer) ReplayWorkloadMaterializationForFence(
+	_ context.Context,
+	scopeID string,
+	generationID string,
+	entityKey string,
+	repoID string,
+	fence string,
+) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, workloadMaterializationReplayCall{
+		scopeID:      scopeID,
+		generationID: generationID,
+		entityKey:    entityKey,
+		repoID:       repoID,
+		fence:        fence,
+		fenced:       true,
+	})
+	return !r.reject, r.err
 }
 
 func (r *recordingWorkloadMaterializationReplayer) ReplayWorkloadMaterialization(
@@ -49,10 +78,12 @@ func (r *recordingWorkloadMaterializationReplayer) ReplayWorkloadMaterialization
 	generationID string,
 	entityKey string,
 ) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.calls = append(r.calls, workloadMaterializationReplayCall{
 		scopeID:      scopeID,
 		generationID: generationID,
 		entityKey:    entityKey,
 	})
-	return true, r.err
+	return !r.reject, r.err
 }

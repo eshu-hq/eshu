@@ -119,6 +119,12 @@ cell_baseline_symbol_runtime() {
 	drive_all_cassettes "${cell}"
 	ifa_symbol_runtime_drive "${cell}" "${bin_dir}" "${symbol_runtime_cassette}" 1 "${log_dir}" \
 		|| die "${cell}: symbol-runtime cassette drive failed"
+	# The cassette's deployment_mapping followup needs backward evidence
+	# before cross-repo resolution activates, and the workload write gates on
+	# that activation (#6184): without this pass both stay retrying and the
+	# strict drain below can never converge.
+	ifa_repo_dependency_live_run_maintenance_pass "symbol-runtime-${cell}" "${bin_dir}" "${log_dir}" \
+		|| die "${cell}: bootstrap-index maintenance pass failed"
 	ifa_det_start_bg "${log_dir}" "projector-${cell}" projector_pid "${bin_dir}/eshu-projector"
 	ifa_det_start_bg "${log_dir}" "reducer-${cell}" reducer_pid "${bin_dir}/eshu-reducer"
 	run_drain_gate "${cell}"
@@ -159,6 +165,11 @@ _ifa_symbol_runtime_cell_killworker() {
 	drive_all_cassettes "${cell}"
 	ifa_symbol_runtime_drive "${cell}" "${bin_dir}" "${symbol_runtime_cassette}" 1 "${log_dir}" \
 		|| die "${cell}: symbol-runtime cassette drive failed"
+	# Same maintenance leg as the baseline cell: the lease-hold proof below
+	# targets the shared-projection lanes, which only converge after the
+	# workload write they depend on converges (#6184).
+	ifa_repo_dependency_live_run_maintenance_pass "symbol-runtime-${cell}" "${bin_dir}" "${log_dir}" \
+		|| die "${cell}: bootstrap-index maintenance pass failed"
 	ifa_det_start_bg "${log_dir}" "projector-${cell}" projector_pid "${bin_dir}/eshu-projector"
 	ifa_fault_start_runner_lease_hold "${cell}" "${family}" holder_before \
 		|| die "${cell}: could not acquire the production runner lease key"
@@ -247,6 +258,11 @@ _ifa_symbol_runtime_cell_failgraphwrite() {
 	drive_all_cassettes "${cell}"
 	ifa_symbol_runtime_drive "${cell}" "${bin_dir}" "${symbol_runtime_cassette}" 1 "${log_dir}" \
 		|| die "${cell}: symbol-runtime cassette drive failed"
+	# Same maintenance leg as the baseline cell: the graph-write fault below
+	# targets the shared-projection MERGE, which only converges after the
+	# workload write it depends on converges (#6184).
+	ifa_repo_dependency_live_run_maintenance_pass "symbol-runtime-${cell}" "${bin_dir}" "${log_dir}" \
+		|| die "${cell}: bootstrap-index maintenance pass failed"
 	local fault_once_script projector_pid reducer_pid marker_rc
 	fault_once_script="${work_dir}/fault-once-then-succeed-${family}.json"
 	ifa_fault_write_once_script "${fault_once_script}" "${anchor}" "queue-retry"
