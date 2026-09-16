@@ -1,4 +1,4 @@
-# observabilitycoveragematerialization
+# materialization
 
 Builds the reducer intent that projects observability coverage decisions into
 canonical `COVERS` graph edges.
@@ -12,7 +12,7 @@ there can be no coverage edge, so there is nothing to enqueue.
 
 Export budget: one builder, no types.
 
-## Why this is a separate package from `observabilitycoverage`
+## Why this is a separate package from `observability/coverage`
 
 The sibling package owns the **correlation** intent; this one owns
 **materialization**. They are not merged because the sibling's scoped

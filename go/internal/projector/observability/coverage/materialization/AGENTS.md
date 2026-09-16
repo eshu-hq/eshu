@@ -1,4 +1,4 @@
-# observabilitycoveragematerialization — scoped agent instructions
+# materialization — scoped agent instructions
 
 ## Read first
 
@@ -25,7 +25,7 @@
 
 - Do not widen the export surface past
   `BuildObservabilityCoverageMaterializationReducerIntent`.
-- Do not merge this package into `observabilitycoverage`; that package's
+- Do not merge this package into `observability/coverage`; that package's
   AGENTS.md forbids a second exported builder.
 - Do not "deduplicate" the `observabilityResourceTypes` mirror into a shared
   package.
