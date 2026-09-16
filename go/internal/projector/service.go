@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package projector
+package projector //nolint:dirgate // Root owns the projector Service runtime loop; service/ owns only service-catalog reducer-intent routing.
 
 import (
 	"context"

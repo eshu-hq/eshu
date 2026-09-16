@@ -21,4 +21,4 @@
 // correlation decision and write. Root projector assembly owns lookup
 // construction and lifetime, invocation order, queue writes, retries, and
 // telemetry.
-package servicecatalog
+package catalog
