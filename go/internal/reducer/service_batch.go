@@ -19,6 +19,14 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
+type batchAckItem struct {
+	intent    Intent
+	result    Result
+	duration  float64
+	queueWait float64
+	workerID  int
+}
+
 // runBatchConcurrent uses a single claimer goroutine to claim batches of work
 // and hand them only to ready worker goroutines. A separate acker goroutine
 // batches acknowledgments. This reduces Postgres round-trips from O(items) to
@@ -36,13 +44,9 @@ func (s Service) runBatchConcurrent(
 	type workItem struct {
 		intent Intent
 	}
-	type ackItem struct {
-		intent Intent
-		result Result
-	}
 
 	workCh := make(chan workItem)
-	ackCh := make(chan ackItem, batchSize*2)
+	ackCh := make(chan batchAckItem, batchSize*2)
 	workerReady := make(chan struct{}, s.Workers)
 
 	var (
@@ -164,7 +168,7 @@ func (s Service) runBatchConcurrent(
 					return
 				}
 
-				result, needsAck, err := s.executeAndReport(ctx, wi.intent, workerID)
+				ackItem, needsAck, err := s.executeAndReport(ctx, wi.intent, workerID)
 				if err != nil {
 					// Execute failures that require a Fail() call are handled
 					// inside executeAndReport. A returned error means the Fail
@@ -182,10 +186,15 @@ func (s Service) runBatchConcurrent(
 					// terminal transition for work the handler already failed.
 					continue
 				}
+				if ctx.Err() != nil {
+					s.recordBatchAckOutcome(ctx, ackItem, "ack_outcome_unknown", ctx.Err())
+					return
+				}
 
 				select {
-				case ackCh <- ackItem{intent: wi.intent, result: result}:
+				case ackCh <- ackItem:
 				case <-ctx.Done():
+					s.recordBatchAckOutcome(ctx, ackItem, "ack_outcome_unknown", ctx.Err())
 					return
 				}
 			}
@@ -197,12 +206,19 @@ func (s Service) runBatchConcurrent(
 	go func() {
 		defer close(ackDone)
 
-		var pending []ackItem
+		var pending []batchAckItem
 		flushTimer := time.NewTimer(100 * time.Millisecond)
 		defer flushTimer.Stop()
 
 		flush := func() {
 			if len(pending) == 0 {
+				return
+			}
+			if ctx.Err() != nil {
+				for _, item := range pending {
+					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", ctx.Err())
+				}
+				pending = pending[:0]
 				return
 			}
 
@@ -214,12 +230,19 @@ func (s Service) runBatchConcurrent(
 			}
 
 			if err := batchSink.AckBatch(ctx, intents, results); err != nil {
+				for _, item := range pending {
+					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", err)
+				}
 				if ctx.Err() == nil {
 					if errors.Is(err, ErrExecutionClaimRejected) {
 						s.logReducerAckClaimRejected(ctx, nil, len(intents), err)
 					} else {
 						appendErr(fmt.Errorf("batch ack reducer work: %w", err))
 					}
+				}
+			} else {
+				for _, item := range pending {
+					s.recordBatchAckOutcome(ctx, item, "succeeded", nil)
 				}
 			}
 			pending = pending[:0]
@@ -247,7 +270,12 @@ func (s Service) runBatchConcurrent(
 				flush()
 				flushTimer.Reset(100 * time.Millisecond)
 			case <-ctx.Done():
-				flush()
+				for _, item := range pending {
+					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", ctx.Err())
+				}
+				for item := range ackCh {
+					s.recordBatchAckOutcome(ctx, item, "ack_outcome_unknown", ctx.Err())
+				}
 				return
 			}
 		}
@@ -260,6 +288,14 @@ func (s Service) runBatchConcurrent(
 	<-ackDone
 
 	return errors.Join(errs...)
+}
+
+func (s Service) recordBatchAckOutcome(ctx context.Context, item batchAckItem, status string, ackErr error) {
+	result := item.result
+	if status != "succeeded" {
+		result = Result{}
+	}
+	s.recordReducerResult(ctx, item.intent, result, item.duration, item.queueWait, status, item.workerID, ackErr)
 }
 
 func (s Service) ackReducerWork(
@@ -277,7 +313,7 @@ func (s Service) ackReducerWork(
 		return nil
 	}
 	if errors.Is(err, ErrExecutionClaimRejected) {
-		s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_claim_rejected", workerID, err)
 		s.logReducerAckClaimRejected(ctx, &intent, 0, err)
 		return nil
 	}
@@ -312,6 +348,7 @@ func (s Service) logReducerAckClaimRejected(
 			attrs = append(attrs, attr)
 		}
 		attrs = append(attrs, log.IntentID(intent.IntentID))
+		attrs = append(attrs, log.Status("ack_claim_rejected"))
 	} else {
 		message = "reducer batch ack rejected stale claim"
 		attrs = append(attrs, slog.Int("batch_size", batchSize))
@@ -320,19 +357,21 @@ func (s Service) logReducerAckClaimRejected(
 	s.Logger.WarnContext(ctx, message, attrs...)
 }
 
-// executeAndReport runs one intent through the executor and reports the
-// result. On execution failure, it calls WorkSink.Fail and returns nil. On
-// Fail/Ack infrastructure errors, it returns a non-nil error (fatal).
+// executeAndReport runs one intent through the executor and reports failures.
+// It defers success telemetry to the batch acker, which knows whether AckBatch
+// accepted every item. On execution failure, it calls WorkSink.Fail and returns
+// nil. On Fail or heartbeat errors, it returns a non-nil error (fatal).
 //
 // The second return is whether the caller still owes this intent an
-// acknowledgment. When err is nil, it is false exactly when WorkSink.Fail has
-// already terminalized the row, so the caller must not ack it a second time.
+// acknowledgment. When err is nil, it is false when WorkSink.Fail has already
+// terminalized the row or the execution claim was rejected, so the caller must
+// not ack it.
 // The non-nil-error returns carry a don't-care false value: Fail may not have
 // terminalized the row at all, and on the heartbeat-error path the executor
 // actually succeeded and the row is still claimed. The per-item path in
 // service.go holds the same contract by returning early after its own Fail
 // call.
-func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID int) (Result, bool, error) {
+func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID int) (batchAckItem, bool, error) {
 	start := time.Now()
 	queueWait := reducerQueueWaitSeconds(start, intent.AvailableAt)
 
@@ -350,29 +389,31 @@ func (s Service) executeAndReport(ctx context.Context, intent Intent, workerID i
 	execCtx = WithQuarantineWriter(execCtx, s.QuarantineWriter)
 	result, err := s.Executor.Execute(execCtx, intent)
 	duration := time.Since(start).Seconds()
-	status := "succeeded"
-
 	if err != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 			err = errors.Join(err, heartbeatErr)
 		}
 		if errors.Is(err, ErrExecutionClaimRejected) {
 			s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "lease_lost_during_execution", workerID, err)
-			return Result{}, false, nil
+			return batchAckItem{}, false, nil
 		}
-		status = "failed"
-		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, status, workerID, err)
+		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "failed", workerID, err)
 		if failErr := s.WorkSink.Fail(ctx, intent, err); failErr != nil {
-			return Result{}, false, errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
+			return batchAckItem{}, false, errors.Join(err, fmt.Errorf("fail reducer work: %w", failErr))
 		}
-		return Result{Status: ResultStatusFailed}, false, nil
+		return batchAckItem{}, false, nil
 	}
 
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 		s.recordReducerResult(ctx, intent, Result{}, duration, queueWait, "ack_failed", workerID, heartbeatErr)
-		return Result{}, false, fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
+		return batchAckItem{}, false, fmt.Errorf("heartbeat reducer work: %w", heartbeatErr)
 	}
 
-	s.recordReducerResult(ctx, intent, result, duration, queueWait, status, workerID, nil)
-	return result, true, nil
+	return batchAckItem{
+		intent:    intent,
+		result:    result,
+		duration:  duration,
+		queueWait: queueWait,
+		workerID:  workerID,
+	}, true, nil
 }

@@ -92,8 +92,8 @@ func TestBatchServiceDoesNotMutateQueueAfterExecutionClaimRejected(t *testing.T)
 	if needsAck {
 		t.Fatal("executeAndReport() needsAck = true, want false")
 	}
-	if result.Status != "" {
-		t.Fatalf("executeAndReport() status = %q, want empty", result.Status)
+	if result.result.Status != "" {
+		t.Fatalf("executeAndReport() status = %q, want empty", result.result.Status)
 	}
 	if sink.acked != 0 || sink.failed != 0 {
 		t.Fatalf("queue mutations after rejected claim: ack=%d fail=%d, want zero", sink.acked, sink.failed)

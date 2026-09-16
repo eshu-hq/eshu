@@ -127,6 +127,29 @@ File|src/main.go||src/main.go|repo-1|
 ' 'TerraformResource|null_resource.network_placeholder|network_placeholder|main.tf|repo-1|||DECLARED_IN||File|src/main.go||src/main.go|repo-1|
 ')"
 
+# A retry whose scheduled time is already due is still active until a worker
+# claims and completes it. Model that row in the SQL scalar and assert the
+# active-work count stays nonzero between scheduler and worker polls.
+psql_scalar() {
+	local statement="$1"
+	if [[ "$statement" == *'FROM shared_projection_intents'* ]]; then
+		if [[ "$statement" == *"'retrying'"* && "$statement" != *'next_attempt_at'* ]]; then
+			printf '1\n'
+		else
+			printf '0\n'
+		fi
+	else
+		printf '0\n'
+	fi
+}
+retry_active_count="$(queue_active_count)"
+if [[ "$retry_active_count" != "1" ]]; then
+	record_fail "a due retry stays active until its worker completes" \
+		"active count=${retry_active_count}, want 1 for a due retry"
+else
+	record_pass "a due retry stays active until its worker completes"
+fi
+
 # The interrupted pass must kill workers while both graph output and queued
 # work exist. A fixed sleep can land before projection begins or after it
 # finishes, turning the recovery proof into a vacuous restart. Stub the live

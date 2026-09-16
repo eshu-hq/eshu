@@ -216,9 +216,12 @@ ESHU_API_KEY=$(docker compose exec -T eshu \
 A rebuild also reports the dedup state it cleared — `reducer_work_deleted`,
 `shared_intents_reopened`, `readiness_phases_cleared`, and `generations_retired`
 (active relationship generations superseded so the re-projection never consumes
-the prior wave's resolved rows as current truth). After a wipe all four should
-be non-zero; four zeros mean the rebuild will restore source-local structure
-and nothing else. The response above was captured
+the prior wave's resolved rows as current truth). Inspect these counts against
+the stack's prior state, not as four required non-zero postconditions:
+`generations_retired=0` is valid when no relationship generation was active,
+and another zero may mean there were no matching rows to reset. An unexpected
+all-zero response on a populated stack calls for checking queue state and the
+final graph identity comparison. The response above was captured
 before those counters existed, which is why it does not show them; the fields
 are described in
 [Status and admin endpoints](../reference/http-api/status-admin.md).

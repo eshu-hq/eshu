@@ -328,10 +328,10 @@ var residualBreakdownSQL = residualBreakdownColumnsSQL + ",\n       " +
 // the retry budget for that reason (nonCountingReducerRetryFailureClasses in
 // go/internal/storage/postgres/reducer_queue_readiness_sql.go).
 //
-// Listed here rather than imported because this is a diagnostic label, not a
-// control decision: a class missing from this list is reported as live work,
-// which is a slightly less precise message and never a wrong verdict. Keeping
-// the gate free of a dependency on reducer internals is worth that trade.
+// Listed here rather than imported to keep the gate free of a runtime reducer
+// dependency. This is also a control decision for pre-maintenance quiescence:
+// a missing readiness class is counted as live work and can block the gate
+// before the maintenance pass that would make the work runnable.
 var readinessDeferredFailureClasses = map[string]bool{
 	"aws_cloud_runtime_drift_state_pending":    true,
 	"aws_cloud_runtime_drift_write_superseded": true,
@@ -345,13 +345,13 @@ var readinessDeferredFailureClasses = map[string]bool{
 	// reports "the pipeline just needed longer" for a queue that is actually
 	// blocked on a precondition.
 	"aws_relationship_ec2_instance_nodes_not_ready": true,
-	// #6184: fail-closed cross-repo resolution deferrals. Without these
-	// entries the breakdown reports readiness-deferred=0 for a queue that is
-	// entirely waiting on backward-evidence publication, sending the reader
-	// looking for stuck live work that is not there.
-	"cross_repo_backward_evidence_not_ready":           true,
-	"deployable_unit_correlation_resolution_not_ready": true,
-	"workload_materialization_resolution_not_ready":    true,
+	// #6184: fail-closed cross-repo and deployable-unit deferrals. Without
+	// these entries, work waiting on backward evidence or canonical repository
+	// projection looks live to the pre-maintenance quiescence decision.
+	"cross_repo_backward_evidence_not_ready":                true,
+	"deployable_unit_correlation_resolution_not_ready":      true,
+	"deployable_unit_correlation_canonical_nodes_not_ready": true,
+	"workload_materialization_resolution_not_ready":         true,
 }
 
 // formatResidualBreakdown renders the residual rows as one line for the drain

@@ -670,8 +670,8 @@ console or API defect.
   `readiness_phases_cleared` (phase rows removed: they outlive a wipe and would
   otherwise assert canonical nodes are committed for an empty graph), and
   `generations_retired` (see [Rebuild the graph from
-  facts](../../operate/graph-rebuild-from-facts.md)). On a rebuild after a wipe
-  all four should be non-zero; four zeros restore source-local structure only.
+  facts](../../operate/graph-rebuild-from-facts.md)). These diagnostic counts
+  may be zero with no prior state; unexpected all-zero resets need graph checks.
 
   A retry that returns `duplicate: true` does not carry those four counters.
   The `admin_replay_requests` ledger persists the enqueue outcome and not the

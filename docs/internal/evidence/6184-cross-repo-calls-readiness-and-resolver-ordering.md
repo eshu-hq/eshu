@@ -491,8 +491,9 @@ from graph-write loss without breaking established dashboards. A
 readiness stall remains visible through shared-intent queue depth/age and
 `BlockedReadiness`; `graph_projection_phase_state` gaps identify the blocked
 scope and generation. The API recovery request remains covered by its existing
-HTTP span and status code. No-Observability-Change: the deployable-unit fix
-changes only which already-loaded repository identities reach the existing
-retract call. Reducer execution status, shared-edge write telemetry, and the
-deployable-unit exact-edge gate remain the operator and correctness signals;
-no new runtime branch or failure class is introduced.
+HTTP span and status code. Deployable-unit correlation now has two non-counting
+readiness failure classes: `deployable_unit_correlation_resolution_not_ready`
+and `deployable_unit_correlation_canonical_nodes_not_ready`. The durable queue
+`failure_class` and reducer logs distinguish upstream waits from graph-write
+failures; reducer status, shared-edge telemetry, and the exact-edge gate remain
+operator and correctness signals.

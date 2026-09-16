@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # Runtime helpers for scripts/verify-graph-rebuild-from-facts.sh.
 
+# queue_active_count includes every retrying work item until a worker moves it
+# to a terminal status. A due retry still waits for the next worker poll;
+# treating it as drained makes the residual check fail early.
+queue_active_count() {
+	psql_scalar "SELECT
+	    (SELECT count(*) FROM fact_work_items WHERE status IN ('pending','claimed','running','retrying'))
+	  + (SELECT count(*) FROM shared_projection_intents WHERE completed_at IS NULL);"
+}
+
 # wait_for_interrupt_point waits until a rebuild has produced graph output
 # while work remains active, then records the node-presence sentinel in
 # INTERRUPT_NODES and the active-work count in REMAINING. graph_scalar and

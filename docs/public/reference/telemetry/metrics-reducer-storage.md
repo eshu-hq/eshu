@@ -15,6 +15,11 @@ correlation, supply-chain impact, capacity, and memory metrics.
 | `eshu_dp_reducer_batch_claim_size` | histogram | Batch claim size where batched reducer claiming is used. |
 | `eshu_dp_reducer_heartbeat_missed_total` | counter | Reducer lease heartbeat failures by domain, including the immediate pre-heartbeat emitted at claim time. A non-zero rate means a worker's lease may be reclaimed and re-executed by another worker. |
 
+`eshu_dp_reducer_executions_total{status="succeeded"}` means the reducer ACK
+completed. `ack_claim_rejected` marks a rejected single-item ACK;
+`ack_outcome_unknown` marks a batch whose ACK may have committed only some
+items. Inspect durable queue state before treating either as completed work.
+
 Compare queue wait with run duration before changing worker counts. High queue
 age with low run duration points to claim, routing, or conflict-domain pressure.
 High run duration points to the handler, store, or graph-write path.

@@ -6,6 +6,7 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -304,6 +305,46 @@ MATCH (p:Platform {id: row.platform_id})
 MATCH (i)-[rel:RUNS_ON]->(p)
 WHERE rel.identity_key IS NULL
 DELETE rel`
+
+// IsWorkloadRunsOnReplayGroup recognizes the materializer's exact atomic
+// legacy-cleanup, keyed-identity, and owned-tuple write sequence. A failed
+// commit rolls back all three statements; replaying the same rows then removes
+// the same legacy identities and preserves a concurrent cross-repo tuple.
+// Any changed template or row chunk must be reviewed before it can be retried.
+func IsWorkloadRunsOnReplayGroup(group []CypherGroupStatement) bool {
+	if len(group) != 3 ||
+		group[0].Cypher != batchRuntimePlatformRunsOnLegacyIdentityCleanupCypher ||
+		group[1].Cypher != batchRuntimePlatformRunsOnEdgeUpsertCypher ||
+		group[2].Cypher != batchRuntimePlatformRunsOnOwnedEdgePropertiesCypher {
+		return false
+	}
+	if len(group[0].Parameters) != 1 ||
+		len(group[1].Parameters) != 1 ||
+		len(group[2].Parameters) != 1 {
+		return false
+	}
+	rows, ok := group[0].Parameters["rows"].([]map[string]any)
+	if !ok || len(rows) == 0 ||
+		!reflect.DeepEqual(rows, group[1].Parameters["rows"]) ||
+		!reflect.DeepEqual(rows, group[2].Parameters["rows"]) {
+		return false
+	}
+	seenPairs := make(map[string]map[string]any, len(rows))
+	for _, row := range rows {
+		for _, key := range []string{"instance_id", "platform_id", "evidence_source"} {
+			value, ok := row[key].(string)
+			if !ok || strings.TrimSpace(value) == "" {
+				return false
+			}
+		}
+		pair := row["instance_id"].(string) + "\x00" + row["platform_id"].(string)
+		if previous, exists := seenPairs[pair]; exists && !reflect.DeepEqual(previous, row) {
+			return false
+		}
+		seenPairs[pair] = row
+	}
+	return true
+}
 
 func (m *WorkloadMaterializer) executeBatchedGroup(
 	ctx context.Context,

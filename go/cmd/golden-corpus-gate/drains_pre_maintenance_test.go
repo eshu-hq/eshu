@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 var errPreMaintenanceBoom = errors.New("boom")
@@ -40,6 +42,31 @@ func TestPollPreMaintenancePassesOnReadinessDeferredOnly(t *testing.T) {
 	}
 	if !ok {
 		t.Fatalf("expected pre-maintenance quiescence pass, got counts %+v", counts)
+	}
+}
+
+func TestPollPreMaintenanceTreatsDeployableCanonicalNodesAsDeferred(t *testing.T) {
+	counts := DrainCounts{FactWorkItemsResidual: 1}
+	row := residualRow{
+		Domain:       "deployable_unit_correlation",
+		Status:       "retrying",
+		FailureClass: reducer.DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass,
+		Count:        1,
+	}
+	msg, quiescent := preMaintenanceQuiescence(counts, []residualRow{row})
+	if !quiescent || !strings.Contains(msg, "live=0 readiness-deferred=1") {
+		t.Fatalf("canonical-node readiness row must be deferred: quiescent=%t message=%q", quiescent, msg)
+	}
+	q := &fakeDrainQuerier{seq: []DrainCounts{counts}, breakdown: []residualRow{row}}
+	_, ok, err := pollUntilDrained(context.Background(), q,
+		strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0, true)
+	if err != nil || !ok {
+		t.Fatalf("pre-maintenance poll must pass deferred row: ok=%t err=%v", ok, err)
+	}
+
+	row.Status = "claimed" // Claiming retains old failure metadata but is live work.
+	if _, quiescent := preMaintenanceQuiescence(counts, []residualRow{row}); quiescent {
+		t.Fatal("claimed row retaining readiness metadata must remain live")
 	}
 }
 
