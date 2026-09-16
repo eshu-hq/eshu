@@ -1,4 +1,4 @@
-# materialization — scoped agent instructions
+# AGENTS.md — observability-coverage-materialization projector intent guidance
 
 ## Read first
 

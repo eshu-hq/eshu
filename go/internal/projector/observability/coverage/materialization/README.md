@@ -1,4 +1,4 @@
-# materialization
+# Observability-coverage-materialization projector intents
 
 Builds the reducer intent that projects observability coverage decisions into
 canonical `COVERS` graph edges.
