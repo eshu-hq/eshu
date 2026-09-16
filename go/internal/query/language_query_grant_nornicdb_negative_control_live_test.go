@@ -117,11 +117,11 @@ func TestLiveNornicDBLanguageQueryImpossibleLanguageReturnsNoRows(t *testing.T) 
 // every shape. Any other answer is cross-tenant exposure on whatever backend is
 // under test, not an accuracy bug.
 //
-// Which backend matters. The v1.3.2 image pinned by the replay gate and
+// Which backend matters. The v1.3.3 image pinned by the replay gate and
 // Compose filters this correctly when measured. The embedded 1.0.0
 // library -- linked only under the nolocalllm build tag -- does not. So a
 // failure here on a local profile is expected against 1.0.0 and would be a
-// genuine regression against the deployed v1.3.2 artifact.
+// genuine regression against the deployed v1.3.3 artifact.
 //
 // The existing grant tests cannot catch this: they assert that a GRANTED caller
 // sees the granted rows, which stays true whether or not the predicate is
