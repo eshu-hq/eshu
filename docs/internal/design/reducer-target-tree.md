@@ -57,6 +57,26 @@ The 2026-09-08 tree predates `docs/internal/naming.md`. The owner's review of
    `Payload*` accessors get their own PR.
 10. **`code/intel` is held** until the query-lane owner agrees.
 
+## Binding update (2026-09-16, #6061): `cloud/<provider>` layout
+
+`cloud/` is the umbrella for reducer-owned cloud truth. Provider-specific
+reduction belongs under `cloud/aws/`, `cloud/gcp/`, or `cloud/azure/`;
+provider-neutral reduction sits beside those children in named shared owners
+such as `cloud/asset/`, `cloud/inventory/`, `cloud/tags/`, and
+`cloud/runtime/drift/`. A provider directory is not a collector repository
+boundary: provider acquisition moves to its collector repository, while
+parsing, reduction, and canonical projection stay in Eshu core. This replaces
+the top-level sibling `aws/`, `gcp/`, and `azure/` destinations below wherever
+the older tree names them.
+
+Provider-specific IAM and security-group leaves belong under `cloud/aws/` by
+the same census that places every other provider leaf; genuinely shared leaves
+stay in named shared owners. Confirm each leaf by symbol census at move time:
+a filename prefix is not membership proof. The earlier exception assigning
+multiple parent closures to #6634 is retired — #6634 merged as bounded
+graph-rebuild correctness without reducer package moves, and the remaining
+moves follow the one-parent-per-PR order below under this issue.
+
 ## Owner decisions recorded (2026-09-08, #6061)
 
 1. **Supplychain hoist: yes.** `packages/correlation` moves FIRST so the
@@ -112,10 +132,10 @@ trio. `contract/` stays top-level shared vocabulary.
 | `dependency/` | `repo`, `imports` ← `code_import_*`, `submodule`, `resolution` ← `crossrepo` |
 | `workload/` | `correlation` ← `deployable_unit_*`, `materialization`, `identity`, `cloud` |
 | `platform/` | ← `platformfam` + `platforms.go`, `infrastructure` |
-| `aws/` | `resource`, `relationship`, `cloud` ← `awscloud`, `join` ← `cloudjoin`, `ec2/instance` (+ `profile` ← `ec2usesprofile`), `ec2/encryption` ← `ec2blockkms`, `internet/exposure`, `rds/posture`, `s3/grant`, `s3/logging` ← `s3logsto` |
-| `gcp/`, `azure/` | ← `gcp_*`, `azure_*` |
-| `cloud/` | `asset`, `inventory`, `tags`, `runtime/drift/multi` ← `multicloudruntimedrift` |
-| `iam/` | `access` ← `iamcan`, `escalation`, `policy`, `instance/profile` ← `iaminstprofile` |
+| `cloud/aws/` | `resource`, `relationship`, `image` and `runtime/drift` ← split `awscloud`, `join` ← `cloudjoin`, `ec2/instance` (+ `profile` ← `ec2usesprofile`), `ec2/encryption` ← `ec2blockkms`, `internet/exposure`, `rds/posture`, `s3/grant`, `s3/logging` ← `s3logsto`, provider-specific `iam/` leaves by census |
+| `cloud/gcp/`, `cloud/azure/` | ← `gcp_*`, `azure_*` |
+| `cloud/` shared children | `asset`, `inventory`, `tags`, `runtime/drift` ← `multicloudruntimedrift` |
+| `iam/` shared leaves | `access` ← `iamcan`, `escalation`, `policy`, `instance/profile` ← `iaminstprofile` (only the genuinely shared leaves; AWS-only leaves move under `cloud/aws/`) |
 | `kubernetes/` | `correlation` ← `kubernetescorrelation`, `live` ← `kubernetes_*` |
 | `terraform/` | `drift` ← `tfconfigstate`, `state` ← `tfstate` |
 | single leaves | `crossplane/satisfaction`, `observability/coverage` ← `obscoverage`, `incident`, `secrets/iam`, `security/{alert,group}`, `search/{document,vector}`, `supply/chain/{impact,cicd,image,sbom,model}`, `service/catalog` |
@@ -187,8 +207,8 @@ singletons that already left the root are dropped.
 
 | File(s) | Proposed home |
 |---|---|
-| `s3.go`, `ec2*` singletons | `aws/` children by census |
-| `gcp_materialization.go` | `gcp/` |
+| `s3.go`, `ec2*` singletons | `cloud/aws/` children by census |
+| `gcp_materialization.go` | `cloud/gcp/` |
 | `sbom*` singleton, `security*` singleton | `supply/chain/sbom`, `security/alert` |
 | `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go` | `fact/` children by census (`intent_emission.go` defaults to `fact/decode`) |
 | `platform_infra_materialization.go` (the `platform` stanza in `compat_cloud.go` burns down) | `platform/infrastructure` |
@@ -245,7 +265,7 @@ singletons that already left the root are dropped.
    contracts: each moves with all of its consumers in the same PR, with no
    forwarding package left behind.
 5. `edges/` and `dependency/`.
-6. `aws/`, `gcp/`, `azure/`, `cloud/`, `iam/`, `kubernetes/`, `terraform/`.
+6. `cloud/` (provider leaves `aws/`, `gcp/`, `azure/` plus shared children), `iam/` (shared leaves; AWS-only leaves join `cloud/aws/`), `kubernetes/`, `terraform/`.
 7. `workload/` and `platform/`, after decision 5.
 8. `supply/chain/`, `security/`, `search/`, `service/catalog`,
    `observability/`, `incident/`, `secrets/`, `crossplane/`.
@@ -253,8 +273,9 @@ singletons that already left the root are dropped.
 
 Re-derive each family with `go/types` first; filename prefixes lie (per Lane
 A's query census: 4 of 46 `code*.go` files belonged to a different handler).
-Open #6634 edits the code-call runner files and the dirgate ledger:
-whichever of it and #6645 lands second restacks onto the other.
+#6634 and #6645 both landed; each restacked onto the other at the time.
+The standing rule remains: whichever of two sibling move PRs lands second
+restacks onto the other and re-derives the dirgate ledger.
 
 Preconditions per move PR: all-lanes-quiet window (re-check open PRs every
 preflight); `internal/query` untouched (lanes A/B, #5167); one-way imports
