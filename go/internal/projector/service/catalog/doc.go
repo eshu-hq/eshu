@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package servicecatalog builds the service-catalog-correlation reducer
+// Package catalog builds the service-catalog-correlation reducer
 // intent from one immutable scope generation: when the generation carries at
 // least one fact whose kind the central service-catalog schema registry
 // recognizes (entity, ownership, repository link, dependency, API link,

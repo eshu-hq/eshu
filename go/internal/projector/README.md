@@ -307,7 +307,7 @@ admission after source-local document projection succeeds.
 Service-catalog facts follow the same schema-gated handoff. When a generation
 contains service-catalog entity, ownership, repository-link, dependency, API,
 operational-link, scorecard, or warning facts,
-`servicecatalog.BuildServiceCatalogCorrelationReducerIntent` emits one
+`catalog.BuildServiceCatalogCorrelationReducerIntent` emits one
 `service_catalog_correlation` reducer intent for that scope/generation. The
 projector rejects unsupported service-catalog schema versions during projection
 so stale collector payloads cannot silently reach the reducer.
