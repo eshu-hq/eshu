@@ -6,7 +6,7 @@ package offlinetier_test
 // nornicdb_function_projection_live_test.go is the standing backend proof for
 // issue #6262: the pinned NornicDB build must evaluate traversal/relationship-
 // seeded OPTIONAL MATCH projections instead of returning their literal source
-// text, while preserving the measured node-only negative control below.
+// text, and since v1.3.3 the node-only compound path must evaluate too.
 //
 // NornicDB v1.1.11 exposed two distinct corruption shapes that Eshu still
 // avoids in its production query builders:
@@ -17,10 +17,12 @@ package offlinetier_test
 //     corrupts even a PLAIN property read on its own variable — with no
 //     relationship bound anywhere in the query.
 //
-// NornicDB PR #265 fixed the traversal/relationship-seeded variants. The
-// node-only compound path still returns the old expression placeholder for a
-// second chained binding. These tests hold that exact boundary so neither a
-// regression nor a future widening of the fix can pass unnoticed.
+// NornicDB PR #265 fixed the traversal/relationship-seeded variants. NornicDB
+// v1.3.3 fixed the node-only compound path as well: the second chained binding
+// now evaluates instead of returning the old expression placeholder. These
+// tests pin the evaluated behavior so a regression fails loudly. Older or
+// custom backends may still emit the placeholder; no production Eshu query
+// depends on the fixed path without the split-and-merge pattern.
 //
 // Issue #5691 made this sharper: File-[:IMPORTS]->Module edges now exist, so a
 // relationship read that corrupts its type column finally has real data to
@@ -76,7 +78,7 @@ func functionProjectionSeed(ctx context.Context, t *testing.T, exec liveExecutor
 
 // TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch requires the
 // corrected traversal-seeded OPTIONAL MATCH evaluator first shipped before
-// NornicDB v1.3.1 and retained by the currently pinned v1.3.2 artifact.
+// NornicDB v1.3.1 and retained by the currently pinned v1.3.3 artifact.
 func TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch(t *testing.T) {
 	if !liveTierEnabled() {
 		t.Skipf("set %s=1 to run the function-projection proof against a real NornicDB", liveTierEnv)
@@ -146,13 +148,15 @@ RETURN type(rel) AS type,
 	}
 }
 
-// TestNornicDBChainedOptionalMatchPreservesExecutorBoundary pins the different
-// behavior of relationship-seeded and node-only chained OPTIONAL MATCH paths.
+// TestNornicDBChainedOptionalMatchEvaluatesSecondHop pins that both the
+// relationship-seeded and the node-only chained OPTIONAL MATCH paths evaluate
+// the second-hop property on the pinned artifact.
 //
-// The pinned NornicDB v1.3.2 artifact evaluates the relationship-seeded second hop, but its
-// node-only compound path still returns "sourceRepo.id". The positive and
-// negative assertions below pin that measured executor boundary.
-func TestNornicDBChainedOptionalMatchPreservesExecutorBoundary(t *testing.T) {
+// The pinned NornicDB v1.3.3 artifact evaluates the relationship-seeded second
+// hop, and — fixed upstream in v1.3.3 — the node-only compound path too, which
+// returned the literal "sourceRepo.id" placeholder on v1.3.2 and older. Both
+// assertions below require evaluated values.
+func TestNornicDBChainedOptionalMatchEvaluatesSecondHop(t *testing.T) {
 	if !liveTierEnabled() {
 		t.Skipf("set %s=1 to run the function-projection proof against a real NornicDB", liveTierEnv)
 	}
@@ -200,9 +204,10 @@ RETURN 'IMPORTS' AS type,
 		}
 	}
 
-	// The node-only variant remains a precise negative control. It takes the
-	// compound node executor path rather than the fixed traversal path and still
-	// returns the literal source expression for the second chained binding.
+	// The node-only variant takes the compound node executor path rather than
+	// the traversal path. On v1.3.2 and older it returned the literal source
+	// expression for the second chained binding; v1.3.3 evaluates it. The
+	// assertions below pin the evaluated behavior on the pinned artifact.
 	nodeOnly, err := exec.Run(ctx, `MATCH (source:`+p+`Fn)
 OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:`+p+`File)
 OPTIONAL MATCH (sourceRepo:`+p+`Repo)-[:REPO_CONTAINS]->(sourceFile)
@@ -215,17 +220,17 @@ RETURN sourceFile.relative_path AS source_file_path,
 		t.Fatalf("node-only rows = %d, want 1: %+v", len(nodeOnly), nodeOnly)
 	}
 	t.Logf("no relationship bound: %+v", nodeOnly[0])
-	if got := nodeOnly[0]["source_file_path"]; got != "app.ts" {
-		t.Errorf("node-only source_file_path = %#v, want app.ts; the first OPTIONAL MATCH must still bind", got)
-	}
-	gotRepoID, ok := nodeOnly[0]["source_repo_id"]
-	if !ok {
-		t.Fatal("node-only source_repo_id column is absent, want the v1.3.2 artifact's literal-placeholder negative control")
-	}
-	if gotRepoID == nil {
-		t.Fatal("node-only source_repo_id = nil, want the v1.3.2 artifact's literal placeholder sourceRepo.id")
-	}
-	if gotRepoID != "sourceRepo.id" {
-		t.Errorf("node-only source_repo_id = %#v, want the v1.3.2 artifact's literal placeholder %q; if this becomes repo-1, the remaining backend defect is fixed and this boundary must be revisited", gotRepoID, "sourceRepo.id")
+	for field, want := range map[string]string{
+		"source_file_path": "app.ts",
+		"source_repo_id":   "repo-1",
+	} {
+		got, ok := nodeOnly[0][field]
+		if !ok {
+			t.Errorf("node-only %s column is absent, want evaluated %q", field, want)
+			continue
+		}
+		if got != want {
+			t.Errorf("node-only %s = %#v, want evaluated %q; nil, missing, or literal-expression values are backend regressions", field, got, want)
+		}
 	}
 }

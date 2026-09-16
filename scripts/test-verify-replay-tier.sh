@@ -56,12 +56,12 @@ has_blast_radius_nonvacuity_guard() {
 # renamed or skipped test must not let the real-backend tier report green.
 has_projection_boundary_nonvacuity_guard() {
 	rg --quiet \
-		"^[[:space:]]*-run '.*TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch\\|TestNornicDBChainedOptionalMatchPreservesExecutorBoundary' -count=1 -v$" \
+		"^[[:space:]]*-run '.*TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch\\|TestNornicDBChainedOptionalMatchEvaluatesSecondHop' -count=1 -v$" \
 		"$1" || return 1
 	rg --quiet '^for projection_test in \\$' "$1" || return 1
 	local name
 	for name in TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
-		TestNornicDBChainedOptionalMatchPreservesExecutorBoundary; do
+		TestNornicDBChainedOptionalMatchEvaluatesSecondHop; do
 		rg --quiet "^\\t${name}[; \\\\]" "$1" || return 1
 	done
 	rg --quiet '^\trg --quiet "\^--- PASS: \$\{projection_test\} " "\$\{TIER_LOG\}"' "$1"
@@ -296,7 +296,7 @@ done
 # The #6262 selectors need their own standing mutation checks. Replacing either
 # exact test name must break both allowlist and PASS-line ownership.
 for projection_test in TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
-	TestNornicDBChainedOptionalMatchPreservesExecutorBoundary; do
+	TestNornicDBChainedOptionalMatchEvaluatesSecondHop; do
 	sed "s/${projection_test}/${projection_test}Missing/g" "${script}" \
 		>"${tmp}/script-missing-${projection_test}"
 	if has_projection_boundary_nonvacuity_guard "${tmp}/script-missing-${projection_test}"; then
