@@ -52,6 +52,15 @@ responsibility.
 `plannercontract` also moves under this parent as the shared plan-key contract,
 not as another planner implementation.
 
+Reconciliation (2026-09-16, observed on `origin/main` `8920e2183`): this
+nesting has landed as `coordinator/{cicd,component,oci,planner,sbom,scanner,
+securityalert,vault}` with
+`planner/{aws/{freshness,scheduled},component/extension,contract,gcp,grafana,
+jira,loki,metrics,pagerduty,tempo,tfstate}`, `component/activation`, and
+`scanner/worker`. The one remainder is the #6692 owner decision below:
+`planner/metrics` becomes `planner/prometheus` so it matches the collector at
+`collector/observability/prometheus`. That rename moves with #6627, not here.
+
 ```
 coordinator/
 ├── planner/
@@ -63,7 +72,7 @@ coordinator/
 │   ├── grafana/                   ← grafanaplanner
 │   ├── jira/                      ← jiraplanner
 │   ├── loki/                      ← lokiplanner
-│   ├── metrics/                   ← prometheusmimir
+│   ├── prometheus/                ← prometheusmimir (renamed from planner/metrics per #6692)
 │   ├── pagerduty/                 ← pagerdutyplanner
 │   ├── tempo/                     ← tempoplanner
 │   └── tfstate/                   ← tfstateplanner
@@ -78,44 +87,34 @@ coordinator/
 
 ## projector
 
+Reconciliation (2026-09-16, observed on `origin/main` `8920e2183`): most of
+this nesting has landed. `projector/` now holds `aws/{cloud/image,ec2,rds,
+relationship,resource,s3}`, `azure/`, `gcp/`,
+`cloud/{inventory,runtime/drift/{aws,multi}}`, `cicd/run/`,
+`code/{function,interproc,taint}`, `incident/routing/`, `intent/`,
+`kubernetes/`, `package/source/`, `security/`, and `workload/cloud/`. The drift
+pairing landed at `cloud/runtime/drift/{aws,multi}` and the image builder at
+`aws/cloud/image/`; those as-built paths stand until #6627 decides otherwise
+with source evidence. What remains glued under #6627:
+
 ```
-projector/
-├── aws/
-│   ├── ec2/  s3/  rds/            ← already clean, relocated under aws
-│   ├── relationship/              ← awsrelationship
-│   ├── resource/                  ← awsresource
-│   └── cloud/image/               ← awscloudimage
-├── cloud/
-│   ├── inventory/                 ← cloudinventory
-│   └── runtime/drift/
-│       ├── aws/                   ← awscloudruntimedrift
-│       └── multi/                 ← multicloudruntimedrift
-├── code/
-│   ├── function/summary/          ← codefunctionsummary
-│   ├── interproc/evidence/        ← codeinterprocevidence
-│   └── taint/evidence/            ← codetaintevidence
-├── iam/
-│   ├── trust/                     ← iamcanassume
-│   └── instance/profile/          ← iaminstanceprofile
+projector/  (remaining glued packages)
+├── container/image/identity/      ← containerimageidentity
+├── crossplane/satisfaction/       ← crossplanesatisfiedby
+├── cloud/aws/iam/trust/           ← iamcanassume (AWS-only; #6627 confirms by census)
+├── cloud/aws/iam/instance/profile/ ← iaminstanceprofile (AWS-only; #6627 confirms by census)
 ├── observability/coverage/        ← observabilitycoverage
 │   └── materialization/           ← observabilitycoveragematerialization
-├── container/image/identity/      ← containerimageidentity
-├── cicd/run/correlation/          ← cicdruncorrelation
-├── crossplane/satisfaction/       ← crossplanesatisfiedby
-├── incident/routing/              ← incidentrouting
-├── package/source/                ← packagesource
 ├── sbom/attestation/              ← sbomattestation
-├── secrets/iam/                   ← secretsiam
+├── access/posture/                ← secretsiam (projection-owned; does not copy the collector path)
 ├── semantic/entity/               ← semanticentity
 ├── service/catalog/               ← servicecatalog
-├── supply/chain/impact/           ← supplychainimpact
-├── workload/cloud/                ← workloadcloud
-└── azure/  gcp/  kubernetes/  intent/  security/   ← already clean
+└── supply/chain/impact/           ← supplychainimpact
 ```
 
-Two groupings here say something the flat list hid. `awscloudruntimedrift` and
-`multicloudruntimedrift` are one concept at two scopes, so they pair under
-`cloud/runtime/drift/`. And `observabilitycoveragematerialization` is the
+The IAM destinations follow the reducer's `cloud/<provider>/` layout for
+AWS-only builders; if census shows shared (multi-provider) use, they stay in a
+named shared owner instead. `observabilitycoveragematerialization` is the
 materialization step of `observabilitycoverage`, so it nests inside it rather
 than sitting beside it.
 
@@ -160,10 +159,13 @@ semantics; the directory spelling does not change that format or its ownership.
 
 ## Decisions taken
 
-- **`prometheusmimir` becomes `planner/metrics`.** It builds workflow rows for
+- **`prometheusmimir` becomes `planner/prometheus`.** It builds workflow rows for
   enabled Prometheus or Grafana Mimir metric-metadata targets. The providers
   are alternatives within one planner, not a parent and child. Keep the
   existing package intact and document its supported targets.
+  Mimir is reached through the Prometheus API plus tenant header, so the path
+  names the protocol (see #6692 owner decision 1). The rename itself moves
+  with #6627.
   `PlanPrometheusMimirWork`, the collector kind, provider values, identities,
   and runtime behavior remain unchanged.
 - **Component activation remains a shared contract outside the planner
@@ -184,14 +186,17 @@ semantics; the directory spelling does not change that format or its ownership.
 - **Runtime drift splits** to `cloud/runtime/drift/{aws,multi}`. The two
   existing packages remain separate: the AWS builder triggers on AWS resource
   facts; the multi builder triggers on GCP/Azure facts and deliberately excludes
-  AWS-only triggering.
+  AWS-only triggering. This has landed in the projector as-built; the reducer's
+  `multicloudruntimedrift/` follows under #6061.
 - **IAM trust and Crossplane satisfaction use their package responsibilities.**
-  `iamcanassume` becomes `iam/trust`, matching its decoded trust-statement
-  predicate. `crossplanesatisfiedby` becomes `crossplane/satisfaction`, matching
-  its Claim-satisfaction intent. The graph relationships remain `CAN_ASSUME`
-  and `SATISFIED_BY`.
+  `iamcanassume` becomes `cloud/aws/iam/trust` when census confirms it is
+  AWS-only, matching its decoded trust-statement predicate — the
+  `cloud/<provider>/` direction from #6061. `crossplanesatisfiedby` becomes
+  `crossplane/satisfaction`, matching its Claim-satisfaction intent. The graph
+  relationships remain `CAN_ASSUME` and `SATISFIED_BY`.
 - **Instance profile and supply chain retain their domain meaning with readable
-  paths.** Use `iam/instance/profile`, projector's `supply/chain/impact`, and
+  paths.** Use `cloud/aws/iam/instance/profile` when census confirms AWS-only
+  use, projector's `supply/chain/impact`, and
   MCP's `supply/chain/{evidence,impact}`. No fused-name exception is needed.
   Preserve the existing package boundaries; MCP evidence and impact remain
   siblings.
