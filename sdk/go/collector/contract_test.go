@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -116,6 +117,36 @@ func TestValidationRejectsUndeclaredAndUnsafeFacts(t *testing.T) {
 			tt.mutate(&candidate)
 			if _, err := validator.ValidateResult(candidate); err == nil {
 				t.Fatalf("ValidateResult() error = nil, want non-nil")
+			}
+		})
+	}
+}
+
+func TestValidationRejectsUnsupportedProtocolVersion(t *testing.T) {
+	t.Parallel()
+
+	validator := NewValidator(testContract())
+	cases := []struct {
+		name     string
+		protocol string
+	}{
+		{name: "unknown future protocol", protocol: "collector-sdk/v9"},
+		{name: "blank protocol", protocol: ""},
+		{name: "whitespace protocol", protocol: "  "},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			candidate := cloneResult(readFixture(t, "complete"))
+			candidate.ProtocolVersion = tc.protocol
+			_, err := validator.ValidateResult(candidate)
+			if err == nil {
+				t.Fatalf("ValidateResult() error = nil, want non-nil for protocol %q", tc.protocol)
+			}
+			if got, want := err.Error(), "protocol_version "+strconv.Quote(tc.protocol)+" is unsupported"; got != want {
+				t.Fatalf("ValidateResult() error = %q, want %q", got, want)
 			}
 		})
 	}

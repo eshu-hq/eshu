@@ -18,13 +18,62 @@ Tags for this module use the Go subdirectory-module format:
 (`sdk/go/factschema/fixturepack`) ships inside this module and has no separate
 version — pinning this module pins the fixture pack too.
 
-## [Unreleased]
+## [Unreleased] (proposed `v0.2.0`)
 
-Initial release candidate for the fact-schema contracts module (closes the
-scaffold started in #4567), proposed as `v0.1.0` (see
-[`RELEASING.md`](../../../RELEASING.md) for the exact tag command and
-reasoning). This section stays named `[Unreleased]` — not a dated `[0.1.0]`
-entry — until a maintainer actually cuts the tag, per the convention below.
+Direction for the next release: additive post-`v0.1.0` changes only — 46 new
+schemas, zero breaking schema diffs against tag `sdk/go/factschema/v0.1.0`
+(`bash scripts/verify-factschema-diff.sh -base-ref sdk/go/factschema/v0.1.0`
+exits 0), so this stays a minor bump per the policy above. See
+[SDK Compatibility](../../../docs/public/extend/sdk-compatibility.md) for the
+version row this release will fill.
+
+### Added
+
+- Six new typed `<family>/v1` packages with `Decode<Kind>`/`Encode<Kind>`
+  seams, schemas, and fixture-pack entries: `codeowners`
+  (`codeowners.ownership`), `reducerderived` (governed reducer-owned findings
+  such as `reducer_supply_chain_impact_finding`,
+  `reducer_aws_cloud_runtime_drift_finding`,
+  `reducer_multi_cloud_runtime_drift_finding`, plus package-correlation and
+  terraform-drift findings), `scannerworker` (`scanner_worker.analysis`,
+  `scanner_worker.warning`), `semantic` (`semantic.code_hint`,
+  `semantic.documentation_observation`), `submodule` (`submodule.pin`), and
+  `vulnerabilitysuppression` (`vulnerability.suppression`, shared by VEX,
+  operator-policy, and provider-dismissal producers).
+- `reducer_supply_chain_impact_finding` carries the optional
+  `environment_evidence` field (`map[string]string`, `omitempty`), labelling
+  each name in `environments` as `deploy_event` or `declared` (issue #5426),
+  plus the optional `ci_declared_artifact_digest` and `ci_declared_image_ref`
+  fields holding the matched `cicd_run_correlation` deployment's own declared
+  artifact identity, baked only on a strong-branch match (issue #5469). All
+  three are additive-optional: a finding written before them existed still
+  decodes with nil fields.
+- New kinds in existing families: `vulnerability.reference` and
+  `vulnerability.source_snapshot`; `aws` IAM boundary/policy/attachment/trust,
+  DNS, image-reference, and warning kinds; `azure` identity-observation,
+  image-reference, resource-change, and tag-observation kinds; `gcp` IAM and
+  image-reference kinds; `ci.deployment_event`; Kubernetes RBAC and
+  service-account-token kinds; `secrets_iam_coverage_warning`; Vault
+  auth-mount, identity, and secret-engine-mount kinds; and `workitem` metadata
+  extensions.
+- `SchemaBytes` — embedded access to the checked-in `schema/*.json` bytes for
+  one fact kind, so out-of-module conformance tests can load a committed
+  schema without duplicating the schema tree the way `fixturepack` must.
+
+### Changed
+
+- Core Eshu now generates the adapter that maps durable internal fact envelopes
+  into this module's `Envelope` for Decode calls. This does not change any
+  factschema payload schema, fixture-pack artifact, or public Go API.
+- Go directive `1.26.0` → `1.26.5` (toolchain floor only; no language or
+  library break for consumers).
+
+## [0.1.0] - 2026-07-06
+
+First tagged release (`sdk/go/factschema/v0.1.0` at `92061fe39`, fetchable via
+the Go module proxy; closes the scaffold started in #4567). Content below is
+the module tree at that tag: 130 generated schemas, zero breaking diffs since
+only the tag itself is the baseline.
 
 ### Added
 
@@ -47,18 +96,6 @@ entry — until a maintainer actually cuts the tag, per the convention below.
 - `DecodeError` classified error type (`ClassificationInputInvalid`) so a
   missing required field on decode dead-letters visibly instead of silently
   zeroing out.
-- `reducer_supply_chain_impact_finding` gains the optional
-  `environment_evidence` field (`map[string]string`, `omitempty`), labelling
-  each name in `environments` as `deploy_event` or `declared` (issue #5426).
-  Additive-optional: it is absent from the schema's `required` set, so a
-  payload written before it existed still decodes, and a finding with no
-  corroboration keeps its previous byte-identical payload.
-
-### Changed
-
-- Core Eshu now generates the adapter that maps durable internal fact envelopes
-  into this module's `Envelope` for Decode calls. This does not change any
-  factschema payload schema, fixture-pack artifact, or public Go API.
 
 ## Convention for future entries
 
