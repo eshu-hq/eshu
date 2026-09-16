@@ -1,4 +1,4 @@
-# observabilitycoveragematerialization
+# Observability-coverage-materialization projector intents
 
 Builds the reducer intent that projects observability coverage decisions into
 canonical `COVERS` graph edges.
@@ -12,7 +12,7 @@ there can be no coverage edge, so there is nothing to enqueue.
 
 Export budget: one builder, no types.
 
-## Why this is a separate package from `observabilitycoverage`
+## Why this is a separate package from `observability/coverage`
 
 The sibling package owns the **correlation** intent; this one owns
 **materialization**. They are not merged because the sibling's scoped
@@ -62,3 +62,15 @@ No-Observability-Change: this package emits no signal directly. Intent volume st
 `eshu_dp_projector_run_duration_seconds`; the reducer execution that consumes the
 intent by `eshu_dp_reducer_executions_total` and
 `eshu_dp_reducer_run_duration_seconds`.
+
+### Move record (#6627)
+
+No-Regression Evidence (#6627 observability nesting): base `ee0d26b61`,
+backend go1.27.1 darwin/arm64; same build/vet/recursive-test record as the
+parent coverage package above; B-12 replay reported 437/437 PASS in the move
+lane with CI required-gates as the blocking authority. Rename-only
+relocation; no benchmark delta exists to measure.
+
+No-Observability-Change (#6627 observability nesting): this package emits no
+signal directly; intent volume and reducer execution stay covered by the
+instruments named above, unchanged.

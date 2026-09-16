@@ -112,7 +112,7 @@
 - Do not import the root `projector` package or `codegraphDerefString`. Root
   imports this package to dispatch, and the reverse direction is an import
   cycle; this package keeps its own decode call the way `ec2` and
-  `observabilitycoverage` do. Root's own `decodeAWSRelationship` wrapper no
+  `observability/coverage` do. Root's own `decodeAWSRelationship` wrapper no
   longer exists — it had this trigger as its only caller and was removed
   with the extraction, so there is nothing there to import even if the
   cycle were not a problem.

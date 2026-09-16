@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package observabilitycoveragematerialization
+package materialization
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ import (
 //
 // This package keeps its own decode rather than importing root's wrapper, the
 // same way internal/projector/aws/ec2 and the sibling
-// internal/projector/observabilitycoverage do: sharing root's would require
+// internal/projector/observability/coverage do: sharing root's would require
 // importing the package that already imports this one to dispatch, which
 // cycles.
 //

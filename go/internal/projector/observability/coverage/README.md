@@ -59,7 +59,7 @@ metric, or log boundary.
 
 - `observabilityResourceTypes` is a three-way mirror: this package's copy,
   root's materialization-trigger copy
-  (`../observabilitycoveragematerialization/materialization_intents.go`), and the
+  (`materialization/materialization_intents.go`), and the
   reducer's `observabilityResourceSignals`
   (`go/internal/reducer/obscoverage/observability_coverage_correlation_index.go`) must
   agree on what counts as an observability object. Add a resource type to
@@ -103,17 +103,30 @@ last root caller of was a direct delegate to
 `projectorintent.FactLookup.FirstMatchingKindPredicate`, so dispatching on
 `index.lookup` is behavior-identical by construction; the forwarder was
 removed and its per-distinct-kind evaluation proof relocated to
-`../intent/fact_lookup_test.go`. The child's `decodeAWSResource` calls the
+`../../intent/fact_lookup_test.go`. The child's `decodeAWSResource` calls the
 same `factschema.DecodeAWSResource` through the same
 `factenvelope.FactSchemaFromInternal` adapter root's wrapper delegates to,
 and the sole caller discards the error, so the decode substitution is
 behavior-identical for this trigger. Focused proof, run from the `go/`
-module root: `go test ./internal/projector/observabilitycoverage
+module root: `go test ./internal/projector/observability/coverage
 ./internal/projector ./internal/projector/intent -count=1` green,
 whole-module `go build ./...` and `go vet ./internal/projector/...` clean.
 
+### Move record (#6627)
+
+No-Regression Evidence (#6627 observability nesting): base `ee0d26b61`,
+backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
+recursive projector tests green (32 packages), moved tests green in the new
+path, B-12 replay reported 437/437 PASS in the move lane with CI
+required-gates as the blocking authority. Same code path on the same input
+shape before and after; rename-only, so no benchmark delta exists to measure.
+
+No-Observability-Change (#6627 observability nesting): no stage added and no
+metric, span, or log name changed; the covering instruments named in this
+section are unchanged.
+
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

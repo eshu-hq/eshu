@@ -49,7 +49,7 @@ to read the optional `TargetType` field. Root's own classified wrapper of the
 same seam had this trigger as its only caller, so it moved out entirely
 (the `iamcanassume` extraction precedent) rather than staying as dead code;
 this package's copy carries a family-prefixed name, matching the `ec2` and
-`observabilitycoverage` extractions. The payload-usage manifest gate does
+`observability/coverage` extractions. The payload-usage manifest gate does
 enforce a unique function name per decode-seam file set, but root's wrapper
 went away in the same commit, so the plain name would not collide today. Every other
 trigger branch reads only envelope-level fields (`FactKind`, `FactID`,
@@ -135,7 +135,7 @@ pins both tiers. The `aws_relationship` decode call was moved to a local
 (`factschema_decode_aws.go`) that calls the same
 `factschema.DecodeAWSRelationship` seam root's dropped
 `decodeAWSRelationship` called, with the same error-discarding caller
-behavior, matching the `ec2`/`observabilitycoverage` per-package decode
+behavior, matching the `ec2`/`observability/coverage` per-package decode
 pattern; the child tests
 `TestTriggerFactAWSRelationshipTargetingContainerImage`,
 `TestTriggerFactAWSRelationshipNotTargetingContainerImage`, and

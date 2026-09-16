@@ -912,7 +912,7 @@ at root under their pre-extraction file name
 file and its retraction-safety test by name as the enqueue-side half of the
 #5450 proof, and the reducer side is out of scope for a projector move.
 The observability-coverage-correlation builder moved into
-`internal/projector/observabilitycoverage`. It triggers on any fact kind the
+`internal/projector/observability/coverage`. It triggers on any fact kind the
 `facts.ObservabilitySchemaVersion` registry recognizes except
 `observability_source.instance`, or on an `aws_resource` fact whose decoded
 `resource_type` is in the AWS-native observability closed set, anchoring with
@@ -950,7 +950,7 @@ the earliest such fact via `FirstOfKindMatching` — a no-role profile (empty
 `aws_resource_materialization:<scope>` entity key with the AWS node builders
 for the canonical-nodes readiness gate, and carries a decode seam: the child
 keeps its own `factschema_decode_aws.go` against `sdk/go/factschema` (the
-`ec2`/`observabilitycoverage` pattern) instead of importing root's classified
+`ec2`/`observability/coverage` pattern) instead of importing root's classified
 `decodeAWSResource` wrapper, which stays at root for its remaining
 observability-coverage materialization caller. Its source-system call was the
 root `awsCloudRuntimeDriftSourceSystem` helper, compared body-for-body
@@ -1000,7 +1000,7 @@ field through its own `factschema_decode_aws.go`
 (`decodeContainerImageIdentityAWSRelationship`) against `sdk/go/factschema`.
 Root's own `decodeAWSRelationship` wrapper of the same seam had this trigger
 as its only caller, so it moved out entirely (the `iamcanassume` precedent)
-rather than staying as dead code, unlike `ec2`/`observabilitycoverage`
+rather than staying as dead code, unlike `ec2`/`observability/coverage`
 where root's classified wrapper keeps other callers; the sole caller here
 discards the decode error, so the two calls are behavior-identical. Its private `containerImageIdentitySourceSystem` helper
 was checked body-for-body against `projectorintent.SourceSystem` and found

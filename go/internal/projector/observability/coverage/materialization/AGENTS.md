@@ -1,11 +1,11 @@
-# observabilitycoveragematerialization — scoped agent instructions
+# AGENTS.md — observability-coverage-materialization projector intent guidance
 
 ## Read first
 
 1. `./README.md` for what this package owns and why it is separate from the
    correlation sibling.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants.
-3. `../observabilitycoverage/AGENTS.md` — the sibling, whose one-builder rule is
+2. `../../../AGENTS.md` and `../../../README.md` for projector-wide invariants.
+3. `../AGENTS.md` — the sibling, whose one-builder rule is
    why these are two packages.
 
 ## Invariants
@@ -25,7 +25,7 @@
 
 - Do not widen the export surface past
   `BuildObservabilityCoverageMaterializationReducerIntent`.
-- Do not merge this package into `observabilitycoverage`; that package's
+- Do not merge this package into `observability/coverage`; that package's
   AGENTS.md forbids a second exported builder.
 - Do not "deduplicate" the `observabilityResourceTypes` mirror into a shared
   package.

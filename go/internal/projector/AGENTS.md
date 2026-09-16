@@ -159,13 +159,13 @@
   pinned by the child package tests and the root fan-out parity fixture's
   `DomainCodeFunctionSummary` payload expectation.
 - **Observability-coverage-correlation family (#6057)** — the
-  `observability_coverage_correlation` builder lives in `observabilitycoverage/`
+  `observability_coverage_correlation` builder lives in `observability/coverage/`
   and consumes the lookup like the families above. It is a decode-seam-bearing
   family: its AWS branch decodes `aws_resource.resource_type` through its own
   `factschema_decode_aws.go` against `sdk/go/factschema` (the `ec2` pattern).
   Its `observabilityResourceTypes` set is a three-way mirror with root's
   materialization trigger
-  (`observabilitycoveragematerialization/materialization_intents.go`) and the reducer's
+  (`observability/coverage/materialization/materialization_intents.go`) and the reducer's
   `observabilityResourceSignals`
   (`go/internal/reducer/obscoverage/observability_coverage_correlation_index.go`); a
   resource type added to one copy must be added to all three. The root
@@ -182,7 +182,7 @@
   against `sdk/go/factschema` (the `ec2` pattern) and matches
   `aws_iam_instance_profile`, Root no longer has a `decodeAWSResource` wrapper:
   materialization was its last caller and both moved into
-    `observabilitycoveragematerialization/`, which carries its own decode.
+    `observability/coverage/materialization/`, which carries its own decode.
   A no-role instance profile still triggers — the reducer's retract pass must
   run in a generation whose profile dropped its roles — and the intent shares
   the `aws_resource_materialization:<scope>` entity key with the AWS node
@@ -209,7 +209,7 @@
   other branch reads only envelope fields or a local `payloadString` copy.
   Root's `decodeAWSRelationship` wrapper had this trigger as its only caller
   and moved out entirely (the `iamcanassume` precedent), unlike
-  `ec2`/`observabilitycoverage` where root keeps other callers. The root
+  `ec2`/`observability/coverage` where root keeps other callers. The root
   `containerImageIdentitySourceSystem` helper was byte-identical to
   `projectorintent.SourceSystem` and was dropped rather than moved. The four
   topic-split root test files kept one builder-only case (the dockerfile
@@ -264,7 +264,7 @@
   `projectorintent.SourceSystem`, but unlike the CI/CD and container-image
   precedents it could not simply be dropped: two OTHER root builders
   (`aws_resource_materialization_intents.go`, itself since extracted into
-  `aws/resource/`, and `observabilitycoveragematerialization/`)
+  `aws/resource/`, and `observability/coverage/materialization/`)
   still called it, so
   both call sites were repointed to `projectorintent.SourceSystem` directly in
   this same change before the helper's definition moved out. This family IS

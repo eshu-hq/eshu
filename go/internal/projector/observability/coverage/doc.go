@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package observabilitycoverage builds the observability-coverage-correlation
+// Package coverage builds the observability-coverage-correlation
 // reducer intent from one immutable scope generation: when the generation
 // carries any observability source fact (a declared dashboard, alert, or
 // log/trace source the facts.ObservabilitySchemaVersion registry recognizes,
@@ -16,4 +16,4 @@
 // fallback for a trigger fact with no source ref and no collector kind. Root
 // projector assembly owns lookup construction and lifetime, invocation order,
 // queue writes, retries, and telemetry.
-package observabilitycoverage
+package coverage
