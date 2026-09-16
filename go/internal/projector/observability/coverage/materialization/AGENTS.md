@@ -4,8 +4,8 @@
 
 1. `./README.md` for what this package owns and why it is separate from the
    correlation sibling.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants.
-3. `../observabilitycoverage/AGENTS.md` — the sibling, whose one-builder rule is
+2. `../../../AGENTS.md` and `../../../README.md` for projector-wide invariants.
+3. `../AGENTS.md` — the sibling, whose one-builder rule is
    why these are two packages.
 
 ## Invariants

@@ -86,7 +86,7 @@
 - **`awsCloudRuntimeDriftSourceSystem` had two other root callers at
   extraction time**, not one: `aws_resource_materialization_intents.go` (since
   extracted into `../../../../aws/resource/materialization_intents.go`) and
-  `observabilitycoveragematerialization/materialization_intents.go`. Both were repointed to
+  `observability/coverage/materialization/materialization_intents.go`. Both were repointed to
   `projectorintent.SourceSystem` in the same commit that moved this file, so
   the helper's definition could be dropped instead of duplicated. A future
   reader who finds a compile error referencing

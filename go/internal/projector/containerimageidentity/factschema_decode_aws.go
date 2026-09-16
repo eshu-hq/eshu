@@ -16,7 +16,7 @@ import (
 // kind, named factschema_decode_aws.go to match the repo-wide convention
 // (root's go/internal/projector/factschema_decode_aws.go,
 // go/internal/projector/aws/ec2/factschema_decode_aws.go,
-// go/internal/projector/observabilitycoverage/factschema_decode_aws.go) so
+// go/internal/projector/observability/coverage/factschema_decode_aws.go) so
 // the payload-usage manifest gate (scripts/verify-payload-usage-manifest.sh,
 // issue #4573) discovers it: that gate globs factschema_decode*.go files
 // recursively and AST-scans each function body for a factschema.FactKindXxx
@@ -29,7 +29,7 @@ import (
 // so it was removed rather than kept as dead code — the way root's
 // decodeAWSIAMPermission wrapper moved out entirely when iamcanassume/ was
 // extracted. This package recreates the call under a family-prefixed name
-// (matching the family-prefixed naming the ec2 and observabilitycoverage
+// (matching the family-prefixed naming the ec2 and observability/coverage
 // extractions use; the payload-usage manifest gate does enforce a unique
 // function name per decode-seam file set, though root's wrapper was deleted
 // in this same commit so the plain name would not collide today) rather than
@@ -37,7 +37,7 @@ import (
 // package to dispatch to it and the reverse direction would cycle. The sole
 // caller here (awsRelationshipTargetsContainerImage) discards the error
 // entirely, so this direct call is behavior-identical to the classified
-// call root used to make. It mirrors the ec2 and observabilitycoverage
+// call root used to make. It mirrors the ec2 and observability/coverage
 // families' independent per-package decode copies for their own AWS
 // fact kinds.
 func decodeContainerImageIdentityAWSRelationship(env facts.Envelope) (awsv1.Relationship, error) {

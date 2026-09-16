@@ -26,8 +26,8 @@ import (
 	projectoriaminstanceprofile "github.com/eshu-hq/eshu/go/internal/projector/iaminstanceprofile"
 	"github.com/eshu-hq/eshu/go/internal/projector/incident/routing"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
-	projectorobservabilitycoverage "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoverage"
-	projectorobservabilitycoveragematerialization "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoveragematerialization"
+	"github.com/eshu-hq/eshu/go/internal/projector/observability/coverage"
+	"github.com/eshu-hq/eshu/go/internal/projector/observability/coverage/materialization"
 	packagesource "github.com/eshu-hq/eshu/go/internal/projector/package/source"
 	projectorsbomattestation "github.com/eshu-hq/eshu/go/internal/projector/sbomattestation"
 	projectorsecretsiam "github.com/eshu-hq/eshu/go/internal/projector/secretsiam"
@@ -100,10 +100,10 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := awsimage.BuildMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorobservabilitycoveragematerialization.BuildObservabilityCoverageMaterializationReducerIntent(scopeValue, generation, index.lookup); ok {
+	if intent, ok := materialization.BuildObservabilityCoverageMaterializationReducerIntent(scopeValue, generation, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorobservabilitycoverage.BuildObservabilityCoverageCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := coverage.BuildObservabilityCoverageCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := routing.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

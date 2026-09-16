@@ -101,7 +101,7 @@ func TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily(t *testin
 // TestBuildProjectionRejectsUnsupportedObservabilitySchemaVersion pins the
 // root schema-version gate for the observability family: an unsupported
 // observability source-fact schema_version fails projection before the
-// observabilitycoverage builder ever sees the generation. It lives at root
+// observability/coverage builder ever sees the generation. It lives at root
 // because validateFactSchemaVersion is root behavior, not the child
 // builder's. Relocated from the pre-extraction
 // observability_coverage_correlation_intents_test.go.

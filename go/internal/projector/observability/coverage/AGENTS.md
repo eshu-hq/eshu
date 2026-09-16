@@ -3,9 +3,9 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order; this probe
+2. `../../AGENTS.md` and `../../README.md` for projector-wide invariants.
+3. `../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after the observability-coverage materialization probe and before the
    incident-routing probe.
 5. `go/internal/reducer/obscoverage/observability_coverage_correlation.go` and
@@ -27,7 +27,7 @@
   to change admission.
 - `observabilityResourceTypes` is this package's copy of a three-way mirror:
   root's materialization trigger
-  (`../observabilitycoveragematerialization/materialization_intents.go`) keeps
+  (`materialization/materialization_intents.go`) keeps
   the same set
   and both mirror the reducer's `observabilityResourceSignals`
   (`go/internal/reducer/obscoverage/observability_coverage_correlation_index.go`). A
@@ -52,7 +52,7 @@
   signals map) in the same change, plus their tests.
 - **Changing the reason strings or the entity key.** Both are asserted
   verbatim by the package tests and by the root ordered fan-out fixture
-  (`../scope_generation_intents_fanout_test.go`); change them together.
+  (`../../scope_generation_intents_fanout_test.go`); change them together.
 
 ## Failure modes
 
@@ -77,7 +77,7 @@
   passing.
 - **The root schema-version regression test lives at root.**
   `TestBuildProjectionRejectsUnsupportedObservabilitySchemaVersion` is in
-  `../schema_version_admission_test.go` because it asserts root's
+  `../../schema_version_admission_test.go` because it asserts root's
   `validateFactSchemaVersion`, not this builder; do not recreate it here.
 
 ## Anti-patterns

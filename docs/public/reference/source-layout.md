@@ -100,8 +100,8 @@ live in the repository today.
 | `go/internal/projector/incident/routing/` | PagerDuty incident-routing reducer-intent family builder |
 | `go/internal/projector/intent/` | dependency-neutral reducer-intent values, source labels, and immutable fact index for extracted projector families |
 | `go/internal/projector/kubernetes/` | Kubernetes live-workload and namespace reducer-intent family builders |
-| `go/internal/projector/observabilitycoverage/` | observability-coverage-correlation reducer-intent family builder and its aws_resource decode wrapper |
-| `go/internal/projector/observabilitycoveragematerialization/` | Observability-coverage materialization intent: the closed observability resource-type set, the AWS resource decode, and the COVERS-edge reducer intent |
+| `go/internal/projector/observability/coverage/` | observability-coverage-correlation reducer-intent family builder and its aws_resource decode wrapper |
+| `go/internal/projector/observability/coverage/materialization/` | Observability-coverage materialization intent: the closed observability resource-type set, the AWS resource decode, and the COVERS-edge reducer intent |
 | `go/internal/projector/package/source/` | package-source-correlation reducer-intent family builder |
 | `go/internal/projector/secretsiam/` | secrets/IAM trust-chain reducer-intent family builder |
 | `go/internal/projector/sbomattestation/` | SBOM-attestation-attachment reducer-intent family builder |
