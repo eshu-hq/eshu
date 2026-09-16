@@ -57,7 +57,7 @@ The 2026-09-08 tree predates `docs/internal/naming.md`. The owner's review of
    `Payload*` accessors get their own PR.
 10. **`code/intel` is held** until the query-lane owner agrees.
 
-## Owner decision recorded (2026-09-16, #6061)
+## Binding update (2026-09-16, #6061): `cloud/<provider>` layout
 
 `cloud/` is the umbrella for reducer-owned cloud truth. Provider-specific
 reduction belongs under `cloud/aws/`, `cloud/gcp/`, or `cloud/azure/`;
