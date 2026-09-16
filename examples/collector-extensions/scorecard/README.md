@@ -86,8 +86,11 @@ require github.com/eshu-hq/eshu/sdk/go/factschema v0.1.0
 
 with no `replace` directive at all — `go get
 github.com/eshu-hq/eshu/sdk/go/collector@v0.1.0` (and the `factschema`
-equivalent) resolves through the public Go module proxy once the tags in
-[`RELEASING.md`](../../../RELEASING.md) are cut. The `sdk/go/factschema` pin
+equivalent) resolves through the public Go module proxy now that the `v0.1.0`
+tags in [`RELEASING.md`](../../../RELEASING.md) are cut (proxy-verified per
+#6708; `v0.2.0` is prepared but not yet tagged — see
+[SDK Compatibility](../../../docs/public/extend/sdk-compatibility.md) for the
+current row). The `sdk/go/factschema` pin
 is also the fixture-pack pin: `fixturepack_pin_test.go` in this directory
 demonstrates pinning that module and validating payloads against its embedded
 schemas, exactly as an external collector would after replacing the local
