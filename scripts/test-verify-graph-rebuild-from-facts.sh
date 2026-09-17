@@ -337,6 +337,67 @@ if assert_bootstrap_container_unchanged >/dev/null 2>&1; then
 else
 	record_pass "a missing bootstrap pin fails the tripwire"
 fi
+
+# Surgical restarts must not resolve Compose dependencies: `docker compose
+# start` (v5) starts the stopped dependency closure, including the
+# bootstrap-index one-shot whose restart voids the rebuild proof (#6184 run
+# 7). Restarts go through daemon-level `docker start` on the listed containers
+# only; `ps -q` merely resolves their ids.
+compose_mock_dir="$(mktemp -d)"
+: >"${compose_mock_dir}/calls"
+: >"${compose_mock_dir}/docker-calls"
+GRAPH_WRITERS=(eshu mcp-server ingester resolution-engine projector)
+API_BASE="http://localhost:1"
+wait_for_http() { return 0; }
+# An earlier block stubbed the start orchestration; restore the real lib
+# functions under test here.
+# shellcheck source=scripts/lib/graph_rebuild_runtime.sh
+source "${script_root}/lib/graph_rebuild_runtime.sh"
+MOCK_PS_IDS="cid-eshu"
+mock_compose() {
+	printf '%s\n' "$*" >>"${compose_mock_dir}/calls"
+	if [[ "$1" == "logs" ]]; then
+		printf 'bootstrap.graph.applied\n'
+	elif [[ "$1" == "ps" ]]; then
+		printf '%s\n' "${MOCK_PS_IDS}"
+	fi
+	return 0
+}
+docker() {
+	printf 'docker %s\n' "$*" >>"${compose_mock_dir}/docker-calls"
+	if [[ "$1" == "inspect" ]]; then
+		if [[ "$*" == *'State.Status'* ]]; then
+			printf 'exited\n'
+		else
+			printf '%s\n' "${MOCK_BOOTSTRAP_STARTED_AT}"
+		fi
+	fi
+	return 0
+}
+start_recovery_api >/dev/null 2>&1
+if rg -q '^(up|start)( |$)' "${compose_mock_dir}/calls"; then
+	record_fail "recovery api start resolves no dependencies" \
+		"compose calls=$(paste -sd, "${compose_mock_dir}/calls"), want ps only"
+elif ! rg -qx 'docker start cid-eshu' "${compose_mock_dir}/docker-calls"; then
+	record_fail "recovery api start resolves no dependencies" \
+		"docker calls=$(paste -sd, "${compose_mock_dir}/docker-calls"), want 'docker start cid-eshu'"
+else
+	record_pass "recovery api start resolves no dependencies"
+fi
+
+: >"${compose_mock_dir}/calls"
+: >"${compose_mock_dir}/docker-calls"
+MOCK_PS_IDS=$'cid-a\ncid-b'
+start_services >/dev/null 2>&1
+if rg -q '^(up|start)( |$)' "${compose_mock_dir}/calls"; then
+	record_fail "worker restart resolves no dependencies" \
+		"compose calls=$(paste -sd, "${compose_mock_dir}/calls"), want ps only"
+elif ! rg -qx 'docker start cid-a cid-b' "${compose_mock_dir}/docker-calls"; then
+	record_fail "worker restart resolves no dependencies" \
+		"docker calls=$(paste -sd, "${compose_mock_dir}/docker-calls"), want 'docker start cid-a cid-b'"
+else
+	record_pass "worker restart resolves no dependencies"
+fi
 rm -rf "${compose_mock_dir}"
 
 printf '\n%d passed, %d failed\n' "${pass_count}" "${fail_count}"

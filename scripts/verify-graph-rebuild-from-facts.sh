@@ -226,37 +226,6 @@ wipe_graph() {
 	echo "Graph is empty."
 }
 
-# start_services restarts the stopped writers with `start`, not `up -d`.
-# `ingester` declares depends_on bootstrap-index: service_completed_successfully,
-# and `up` is entitled to recreate that one-shot. If it did, bootstrap-index
-# would re-index the corpus and re-project it, which both contaminates the
-# rebuild timing and means the graph was not rebuilt from facts by the command
-# under test. `start` restarts existing containers and resolves no dependencies.
-start_services() {
-	"${COMPOSE_CMD[@]}" start "${GRAPH_WRITERS[@]}" >/dev/null
-	wait_for_http "${API_BASE}/health" 120
-	assert_bootstrap_index_stopped
-}
-
-# start_recovery_api starts only the HTTP control plane. Projection workers stay
-# stopped until request_rebuild has durably reset and enqueued the generation
-# set, eliminating their claim race with the recovery transaction's in-flight
-# reducer fence.
-start_recovery_api() {
-	"${COMPOSE_CMD[@]}" start eshu >/dev/null
-	wait_for_http "${API_BASE}/health" 120
-	assert_bootstrap_index_stopped
-}
-
-assert_bootstrap_index_stopped() {
-	local bootstrap_state
-	bootstrap_state="$(docker inspect --format='{{.State.Status}}' \
-		"$("${COMPOSE_CMD[@]}" ps -a -q bootstrap-index)")"
-	if [[ "$bootstrap_state" != "exited" ]]; then
-		echo "bootstrap-index is $bootstrap_state, expected exited: it restarted and would re-index the corpus, so the rebuild would not be measuring rebuild-from-facts" >&2
-		return 1
-	fi
-}
 
 API_KEY=""
 

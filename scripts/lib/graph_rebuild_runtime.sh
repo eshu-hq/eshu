@@ -239,3 +239,53 @@ assert_bootstrap_container_unchanged() {
 		return 1
 	fi
 }
+
+# start_existing_containers starts existing containers by daemon id without
+# resolving Compose dependencies. `docker compose start` is not usable here:
+# v5 starts the stopped dependency closure, including the bootstrap-index
+# one-shot (a stopped completed-dependency is still started), whose restart
+# reopens reducer work and backfills facts the rebuild command never issued
+# (#6184 run 7). `ps -q` only lists; `docker start` only starts.
+start_existing_containers() {
+	local ids id_list
+	ids="$("${COMPOSE_CMD[@]}" ps -q "$@" | tr -d '\r')"
+	if [[ -z "$ids" ]]; then
+		echo "No containers to start for: $*" >&2
+		return 1
+	fi
+	# shellcheck disable=SC2206
+	id_list=($ids)
+	docker start "${id_list[@]}" >/dev/null
+}
+
+# start_services restarts the stopped writers without resolving dependencies
+# (see start_existing_containers). `ingester` declares depends_on
+# bootstrap-index: service_completed_successfully, and any resolving restart
+# would re-run that one-shot: it would re-index the corpus and re-project it,
+# which both contaminates the rebuild timing and means the graph was not
+# rebuilt from facts by the command under test.
+start_services() {
+	start_existing_containers "${GRAPH_WRITERS[@]}" || return $?
+	wait_for_http "${API_BASE}/health" 120
+	assert_bootstrap_index_stopped
+}
+
+# start_recovery_api starts only the HTTP control plane. Projection workers stay
+# stopped until request_rebuild has durably reset and enqueued the generation
+# set, eliminating their claim race with the recovery transaction's in-flight
+# reducer fence.
+start_recovery_api() {
+	start_existing_containers eshu || return $?
+	wait_for_http "${API_BASE}/health" 120
+	assert_bootstrap_index_stopped
+}
+
+assert_bootstrap_index_stopped() {
+	local bootstrap_state
+	bootstrap_state="$(docker inspect --format='{{.State.Status}}' \
+		"$("${COMPOSE_CMD[@]}" ps -a -q bootstrap-index)")"
+	if [[ "$bootstrap_state" != "exited" ]]; then
+		echo "bootstrap-index is $bootstrap_state, expected exited: it restarted and would re-index the corpus, so the rebuild would not be measuring rebuild-from-facts" >&2
+		return 1
+	fi
+}
