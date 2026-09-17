@@ -964,20 +964,19 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
     alone (no JOIN) using the partial index `fact_records_identity_epoch_idx_v2`
     (Index Only Scan, ~51 ms on 500k facts). These detect raw fact insertions/
     deletions that change the identity set.
-  * `active_fingerprint` — `COALESCE(md5(string_agg(scope_id::text || ':' ||
-    active_generation_id::text, '|' ORDER BY scope_id)), '') FROM
-    ingestion_scopes` (Seq Scan + aggregate on tiny table, ~2 ms on 2000
-    scopes — same cost class as the prior summed hash; it scans the same
-    small table either way, so this is not a performance regression). This
-    detects a supersession (active_generation_id flip) that changes the
-    active identity set without changing the raw fact count or max
-    observed_at.
+  * `active_fingerprint` — SHA-256 hex digest of
+    `COALESCE(string_agg(scope_id::text || ':' ||
+    active_generation_id::text, '|' ORDER BY scope_id), '') FROM
+    ingestion_scopes`, encoded as UTF-8 before hashing. This avoids MD5,
+    which is unavailable on FIPS-configured PostgreSQL, and detects a
+    supersession (active_generation_id flip) that changes the active identity
+    set without changing the raw fact count or max observed_at.
   * **Collision resistance**: with only (count, max), a supersession that
     swaps `active_generation_id` to a new generation with equal
     identity-fact cardinality would produce a false cache hit (stale
     evidence). The fingerprint closes this gap. Earlier this fingerprint was
     `sum(hashtext(scope_id || ':' || active_generation_id))`, a 32-bit hash
-    summed across scopes — that shape has two failure modes an md5 digest of
+    summed across scopes — that shape has two failure modes a digest of
     the ordered mapping does not: a 32-bit `hashtext` collision between two
     different active mappings, and two offsetting per-scope deltas that
     cancel out in the sum (e.g. one scope's hash increases by exactly as
@@ -986,9 +985,9 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
     is a structural property of summation, not a random collision). The
     current fingerprint instead hashes the full ordered mapping
     (`ORDER BY scope_id`, joined with `'|'`) as one string, so any change to
-    any scope's active generation changes the input to `md5` and therefore
-    the digest deterministically. There is no "self-heals on the next
-    probe" residual risk to rely on for this fingerprint.
+    any scope's active generation changes the digest input. SHA-256 makes a
+    false cache hit from a digest collision negligibly likely; there is no
+    "self-heals on the next probe" behavior to rely on for such a hit.
 - **Cap behavior**: `ESHU_IDENTITY_CACHE_MAX_BYTES` (default 500 MiB, measured).
   Loaded set exceeding the cap is served DIRECTLY (passthrough, never partial,
   never cached) and increments `eshu_dp_identity_cache_passthrough_total`.

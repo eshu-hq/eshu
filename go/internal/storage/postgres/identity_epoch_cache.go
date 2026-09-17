@@ -29,7 +29,7 @@ const defaultIdentityCacheMaxBytes = 500 * 1024 * 1024 // 500 MiB
 // ingestion_scopes so a supersession (active_generation_id flip) is detected
 // even when total fact count and max observed_at are unchanged.
 //
-// The fingerprint is a collision-resistant md5 digest of the ordered active-
+// The fingerprint is a collision-resistant SHA-256 digest of the ordered active-
 // generation mapping (every scope's "scope_id:active_generation_id" pair,
 // ORDER BY scope_id, joined with '|'), not a summed 32-bit hash. Any change
 // to the active mapping — including two different mappings that would
