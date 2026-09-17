@@ -1,0 +1,14 @@
+go/internal/storage/cypher/edge_writer_repo_dependency_artifact_live_test.go
+  h_78a442cba0b3e6 99-100,103-116,119-125,143-147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ae3f367c5382950b7cb8a3a79b0816c09d7ca2e8",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
