@@ -146,7 +146,7 @@ git -C "${case_substring_collision}" commit -q -m "seed unrelated row naming a s
 printf 'package multifile4\n' >"${case_substring_collision}/go/internal/reducer/multifile4/sync.go"
 git -C "${case_substring_collision}" add .
 git -C "${case_substring_collision}" commit -q -m "add a new sync.go stage file with no doc row of its own"
-expect_fail "does not let an unrelated row's file, which merely prefixes a new file's name, report it covered" "${case_substring_collision}"
+expect_fail_with "does not let an unrelated row's file, which merely prefixes a new file's name, report it covered" "${case_substring_collision}" "new stage file go/internal/reducer/multifile4/sync.go is not covered by any row"
 
 # Case 43 (#6681 defect (b)): an EXISTING glob-form row
 # ("go/internal/reducer/globstage5/*.go") already covers a seed file. A
@@ -193,7 +193,7 @@ mkdir -p "${case_glob_boundary}/go/internal/reducer/globstage6/subdir"
 printf 'package subdir\n' >"${case_glob_boundary}/go/internal/reducer/globstage6/subdir/nested.go"
 git -C "${case_glob_boundary}" add .
 git -C "${case_glob_boundary}" commit -q -m "add a new file one directory below an existing glob-form doc row"
-expect_fail "does not let a glob row cover a new file one directory below it" "${case_glob_boundary}"
+expect_fail_with "does not let a glob row cover a new file one directory below it" "${case_glob_boundary}" "new stage file go/internal/reducer/globstage6/subdir/nested.go is not covered by any row"
 
 # Case 45 (#6681, issue acceptance criterion 2 -- explicit test, review
 # finding F1): cases 39-41 above prove POSITION-independent COVERAGE (check

@@ -195,7 +195,10 @@ resolve_row_cell_paths_into() {
 # parse a comma cell" to "matches a wider set than the glob really
 # covers" (review finding, #6681). Requiring $file to actually appear in
 # the glob's real expansion keeps both checks agreeing on what a glob row
-# does and does not name.
+# does and does not name. For a plain path the comparison is an exact
+# string match, so a non-canonical doc path ("./go/...", "a//b", "x/../y")
+# that (3b)'s `[ -f ]` accepts is reported "not covered" here. That fails
+# closed, and the real doc has no such cell.
 path_covers_file() {
   local row_path="$1" file="$2" match
   case "$row_path" in

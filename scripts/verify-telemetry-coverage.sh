@@ -304,7 +304,8 @@ done <"$instruments_metrics_tmp"
 # policy.
 while IFS= read -r file; do
   [ -n "$file" ] || continue
-  # path_covers_file (shared with (3b), see its header comment for the
+  # path_covers_file (in the row-check lib next to (3b)'s path_target_exists,
+  # using the same compgen -G glob expansion; see its header comment for the
   # (a)/(b) defect history) does an exact or glob-aware comparison per doc
   # token, never a substring search -- the old `rg -F " $file"` lookup here
   # matched on an unanchored substring of the whole " <path> <signal>" line,

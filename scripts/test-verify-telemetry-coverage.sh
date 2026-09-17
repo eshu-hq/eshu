@@ -440,10 +440,11 @@ expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh"
 
-# Cases 39-44 (#6681 multi-file doc-row coverage): extracted for the same
+# Cases 39-45 (#6681 multi-file doc-row coverage): extracted for the same
 # 500-line-cap reason as the row-selection cases above. Sourced, not
-# executed -- reuses the same init_repo/expect_pass/expect_fail/run_verifier/
-# record_pass/record_fail helpers.
+# executed -- reuses the same init_repo/expect_pass/run_verifier/
+# record_pass/record_fail helpers, and defines expect_fail_with for its own
+# negative cases.
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-multifile-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-multifile-cases.sh"
 
