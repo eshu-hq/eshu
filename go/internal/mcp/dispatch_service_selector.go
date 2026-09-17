@@ -5,7 +5,7 @@ package mcp
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
-	servicecontexttools "github.com/eshu-hq/eshu/go/internal/mcp/servicecontext"
+	servicecontexttools "github.com/eshu-hq/eshu/go/internal/mcp/service/context"
 )
 
 // serviceContextRoute adapts the child package's service-context request

@@ -15,7 +15,7 @@ execution, response envelopes, transport, and telemetry.
 Routing deliberately remains split from this package. Service catalog
 correlation requests enter through `dispatch_repositories.go` and
 `dispatch_service_catalog.go`. Service context, story, investigation, and
-intelligence-report requests are selected by the `servicecontext` child
+intelligence-report requests are selected by the `service/context` child
 package, reached from the parent's `serviceContextRoute` adapter in
 `dispatch_service_selector.go`. HTTP query handlers continue to own selector
 validation, tenant scope, storage and graph reads, result bounds, truth
@@ -55,7 +55,7 @@ transport and dispatch signals, while the HTTP handlers retain
   neighbors stay unchanged, and the complete registry remains 162 tools in the
   same order.
 - Service catalog routing (in the parent package) and the service selector
-  routes (in `../servicecontext`) deliberately remain separate.
+  routes (in `./context`) deliberately remain separate.
 - Keep query execution, route mapping, authorization, transport, and telemetry
   out of this package.
 
@@ -66,7 +66,7 @@ authorization, query execution, response shaping, transport, or telemetry.
 
 - [MCP package](../README.md)
 - [MCP tool contract](../contract/tool/README.md)
-- [MCP service-context route selection](../servicecontext/README.md)
+- [MCP service-context route selection](./context/README.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 
 ## Verification

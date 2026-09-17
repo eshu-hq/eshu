@@ -69,7 +69,7 @@
    lives in `dispatch_infra_resource_aggregates.go` (reusing that existing
    filename rather than creating a new one, so the root non-test file count
    stays at its dirgate pin) instead of `dispatch.go`, and service-context
-   request selection in `go/internal/mcp/servicecontext`, whose
+   request selection in `go/internal/mcp/service/context`, whose
    `serviceContextRoute` adapter lives in `dispatch_service_selector.go`
    rather than inline in `dispatch.go`, because (like `relationshipEdgesRoute`
    in `dispatch_relationship_edges.go`) it must forward a selector-validation
@@ -181,7 +181,7 @@
   catalog correlations stay in `dispatch_repositories.go` and
   `dispatch_service_catalog.go`, while context, story, investigation, and
   intelligence-report request selection is owned by
-  `go/internal/mcp/servicecontext`, reached through the `serviceContextRoute`
+  `go/internal/mcp/service/context`, reached through the `serviceContextRoute`
   adapter in `dispatch_service_selector.go`.
   Ecosystem registration is one 23-definition group, but routing remains split
   across `dispatch_ecosystem.go`, `dispatch_repositories.go`, `dispatch.go`,

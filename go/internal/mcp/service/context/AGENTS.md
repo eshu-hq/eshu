@@ -3,18 +3,18 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch.go` for `resolveRoute` and `../dispatch_service_selector.go`
+4. `../../dispatch.go` for `resolveRoute` and `../../dispatch_service_selector.go`
    for the private `serviceContextRoute` adapter, consulted as a delegation
    ahead of the switch that held the four arms before the extraction.
-5. `../service/context_tools.go` (for `get_service_context`,
+5. `../context_tools.go` (for `get_service_context`,
    `get_service_story`, and `investigate_service`) and
-   `../service/intelligence_tools.go` (for
+   `../intelligence_tools.go` (for
    `get_service_intelligence_report`) for the four advertised schemas. They
    stay in the sibling `service` registration package and must keep naming
    the same fields this selector reads.
-6. `../contract/route/README.md` for the dependency-neutral request contract.
+6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. The handler behind each path, for the selector-resolution and truth
    behavior this package's routes must stay compatible with. Confirmed with
    `rg --files internal/query -g '<file>'` (and `internal/serviceintelhttp`
@@ -113,8 +113,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/servicecontext ./internal/mcp -count=1
-go vet ./internal/mcp/servicecontext ./internal/mcp
+go test ./internal/mcp/service/context ./internal/mcp -count=1
+go vet ./internal/mcp/service/context ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

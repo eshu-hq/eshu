@@ -74,6 +74,7 @@ live in the repository today.
 | `go/internal/mcp/securityalert/` | security-alert reconciliation listing, count, and inventory MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/semantic/` | semantic-evidence and semantic-search MCP tool registration definitions |
 | `go/internal/mcp/service/` | service catalog, context, investigation, and intelligence-report MCP tool registration definitions |
+| `go/internal/mcp/service/context/` | service-context MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/supply/chain/evidence/` | supply-chain-evidence MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/supply/chain/impact/` | supply-chain-impact findings, count, inventory, and explanation MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/contract/tool/` | dependency-neutral MCP tool registration shape |
@@ -237,6 +238,8 @@ Read and operator surfaces live under:
   pure dependency-neutral request selection
 - `go/internal/mcp/securityalert/`: security-alert reconciliation family
   membership and pure dependency-neutral request selection
+- `go/internal/mcp/service/context/`: service-context family membership and
+  pure dependency-neutral request selection
 - `go/internal/mcp/supply/chain/evidence/`: supply-chain-evidence family
   membership and pure dependency-neutral request selection
 - `go/internal/mcp/supply/chain/impact/`: supply-chain-impact family membership
