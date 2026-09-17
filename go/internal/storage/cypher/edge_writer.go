@@ -221,6 +221,11 @@ func (w *EdgeWriter) WriteEdges(
 		// the report instead (#5984, owner decision on PR #6008).
 		return report, nil
 	}
+	// Fail closed on absent write targets (#6184): see
+	// checkRoutedBatchTargets for the contract.
+	if err := checkRoutedBatchTargets(ctx, w, domain, evidenceSource, rows, routedRows, routeOrder); err != nil {
+		return report, err
+	}
 	writtenRows := 0
 	for _, cypher := range routeOrder {
 		writtenRows += len(routedRows[cypher])

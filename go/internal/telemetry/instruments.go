@@ -1301,6 +1301,12 @@ type Instruments struct {
 	// because a payload-deterministic rejection can never be retried away
 	// (#5984, PR #6008 review).
 	SharedEdgeUnroutableRows metric.Int64Counter
+	// SharedEdgeTargetMiss counts shared-edge write batches deferred because
+	// a runtime target was absent from the graph (#6184). Labels are limited
+	// to the bounded projection domain; evidence source and sample intent
+	// stay in the accompanying structured log. Each detection counts once;
+	// a batch held across retry cycles re-counts on every detection.
+	SharedEdgeTargetMiss metric.Int64Counter
 	// RationaleRetractProbeOutcomes counts the #5998 rationale EXPLAINS
 	// retract probe-guard decision by two bounded labels: outcome (skipped /
 	// deleted / unsupported / probe_error) and scope (whole_scope /
@@ -4337,6 +4343,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedEdgeUnroutableRows counter: %w", err)
+	}
+
+	inst.SharedEdgeTargetMiss, err = meter.Int64Counter(
+		"eshu_dp_shared_edge_target_miss_total",
+		metric.WithDescription("Total shared-edge write batches deferred because a runtime target was absent from the graph, by domain"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedEdgeTargetMiss counter: %w", err)
 	}
 
 	inst.RationaleRetractProbeOutcomes, err = meter.Int64Counter(
