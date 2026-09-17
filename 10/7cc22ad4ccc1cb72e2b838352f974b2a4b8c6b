@@ -1,0 +1,39 @@
+scripts/lib/dirgate-grandfather.tsv
+  h_78a442cba0b3e6 88
+go/internal/reducer/workload_materializer_deployment_source_guard.go
+  h_78a442cba0b3e6 1-10,15-100,102-120,126-140
+  h_78a442cba0b3e6 11-14,101,121-125
+docs/public/observability/telemetry-coverage.md
+  h_78a442cba0b3e6 352
+  h_78a442cba0b3e6 358,361
+go/internal/storage/cypher/edge_writer_unroutable.go
+  h_78a442cba0b3e6 132,144-146,206-219
+tools/golangci-lint-dirgate/grandfather.go
+  h_78a442cba0b3e6 34
+go/internal/reducer/workload_materializer_deployment_source_guard_test.go
+  h_78a442cba0b3e6 1-10,16-151,189-190
+  h_78a442cba0b3e6 11-15,152-188
+go/cmd/reducer/reducer_executor_adapters.go
+  h_78a442cba0b3e6 115-124,126-129,138-150
+  h_78a442cba0b3e6 125
+go/internal/reducer/workload_materializer.go
+  h_78a442cba0b3e6 9,46-50,190-194
+  h_78a442cba0b3e6 11-12,51
+go/internal/storage/cypher/edge_writer_deployable_unit_target_presence_test.go
+  h_78a442cba0b3e6 1-121
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 248
+go/internal/graphbackpressure/materializer_backpressure.go
+  h_78a442cba0b3e6 41-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "107cc22ad4ccc1cb72e2b838352f974b2a4b8c6b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
