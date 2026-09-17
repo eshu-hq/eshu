@@ -20,10 +20,10 @@ pins `v1.3.3@sha256:81cedbf4…`; v1.3.3 corrects the stale embedded `VERSION` f
 
 Read every "on the pinned build" sentence below as naming the build in that
 entry, not the build you are deploying today. Most of these shapes have not
-been re-measured on `sha256:a47ae7ea…`, so an entry is a reason to check, not
-evidence that the behaviour is still there — or that it is gone. Re-run the
-reproduction against the digest you actually run before relying on either
-answer.
+been re-measured on the current pin `sha256:81cedbf4…` (v1.3.3), so an entry
+is a reason to check, not evidence that the behaviour is still there — or that
+it is gone. Re-run the reproduction against the digest you actually run before
+relying on either answer (spot v1.3.3 re-measurement: grant-join and no-WHERE aggregates correct; UNWIND+WHERE literal projection and multi-clause row loss persist).
 
 ## How To Use This Page
 
