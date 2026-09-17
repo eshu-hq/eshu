@@ -6,7 +6,6 @@ package coordinator
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/jira"
@@ -34,10 +33,14 @@ func (s Service) scheduleJiraWork(
 		if s.JiraPlanner == nil {
 			return fmt.Errorf("jira planner is required for active jira collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.JiraPlanner.PlanJiraWork(ctx, jira.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
-			PlanKey:    s.jiraPlanKey(instance, observedAt),
+			PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 		})
 		if err != nil {
 			return fmt.Errorf("plan jira work for %q: %w", instance.InstanceID, err)
@@ -56,19 +59,4 @@ func shouldScheduleJira(instance workflow.CollectorInstance) bool {
 	return instance.CollectorKind == scope.CollectorJira &&
 		instance.Enabled &&
 		instance.ClaimsEnabled
-}
-
-func (s Service) jiraPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }

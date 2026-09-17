@@ -270,3 +270,86 @@ func TestLoadConfigRejectsHeartbeatAtOrAboveLeaseTTL(t *testing.T) {
 		t.Fatal("LoadConfig() error = nil, want non-nil")
 	}
 }
+
+func TestLoadConfigRejectsInstanceScanIntervalBelowReconcileInterval(t *testing.T) {
+	t.Parallel()
+
+	getenv := testCoordinatorEnv(map[string]string{
+		"ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL": "30s",
+		"ESHU_COLLECTOR_INSTANCES_JSON": `[{
+			"instance_id": "aws-ops",
+			"collector_kind": "aws",
+			"mode": "continuous",
+			"enabled": true,
+			"claims_enabled": false,
+			"configuration": {"scheduled_scan_enabled": true, "scan_interval": "10s"}
+		}]`,
+	})
+
+	_, err := LoadConfig(getenv)
+	if err == nil || !strings.Contains(err.Error(), `collector instance "aws-ops": scan_interval`) {
+		t.Fatalf("LoadConfig() error = %v, want scan_interval rejection", err)
+	}
+}
+
+func TestLoadConfigRejectsInstanceScanIntervalSubSecond(t *testing.T) {
+	t.Parallel()
+
+	getenv := testCoordinatorEnv(map[string]string{
+		"ESHU_COLLECTOR_INSTANCES_JSON": `[{
+			"instance_id": "aws-ops",
+			"collector_kind": "aws",
+			"mode": "continuous",
+			"enabled": true,
+			"claims_enabled": false,
+			"configuration": {"scan_interval": "250ms"}
+		}]`,
+	})
+
+	_, err := LoadConfig(getenv)
+	if err == nil || !strings.Contains(err.Error(), "must be at least 1s") {
+		t.Fatalf("LoadConfig() error = %v, want sub-second rejection", err)
+	}
+}
+
+func TestLoadConfigAcceptsInstanceScanIntervalAtOrAboveReconcileInterval(t *testing.T) {
+	t.Parallel()
+
+	getenv := testCoordinatorEnv(map[string]string{
+		"ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL": "30s",
+		"ESHU_COLLECTOR_INSTANCES_JSON": `[{
+			"instance_id": "aws-ops",
+			"collector_kind": "aws",
+			"mode": "continuous",
+			"enabled": true,
+			"claims_enabled": false,
+			"configuration": {"scan_interval": "12h"}
+		}, {
+			"instance_id": "git-ops",
+			"collector_kind": "git",
+			"mode": "continuous",
+			"enabled": true,
+			"claims_enabled": false,
+			"configuration": {"provider": "github", "scan_interval": "30s"}
+		}, {
+			"instance_id": "git-unset",
+			"collector_kind": "git",
+			"mode": "continuous",
+			"enabled": true,
+			"claims_enabled": false,
+			"configuration": {"provider": "github"}
+		}]`,
+	})
+
+	if _, err := LoadConfig(getenv); err != nil {
+		t.Fatalf("LoadConfig() error = %v, want nil", err)
+	}
+}
+
+// testCoordinatorEnv returns a getenv over the supplied overrides with every
+// other variable blank, so LoadConfig applies its defaults for the rest.
+func testCoordinatorEnv(values map[string]string) func(string) string {
+	return func(key string) string {
+		return values[key]
+	}
+}

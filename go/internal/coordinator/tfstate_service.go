@@ -6,7 +6,6 @@ package coordinator
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
@@ -30,10 +29,14 @@ func (s Service) scheduleTerraformStateWork(
 		if s.TerraformStatePlanner == nil {
 			return fmt.Errorf("terraform state planner is required for active terraform_state collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.TerraformStatePlanner.PlanTerraformStateWork(ctx, tfstate.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
-			PlanKey:    s.terraformStatePlanKey(instance, observedAt),
+			PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 		})
 		if err != nil {
 			if terraformstate.IsWaitingOnGitGeneration(err) {
@@ -56,21 +59,6 @@ func shouldScheduleTerraformState(instance workflow.CollectorInstance) bool {
 	return instance.CollectorKind == scope.CollectorTerraformState &&
 		instance.Enabled &&
 		instance.ClaimsEnabled
-}
-
-func (s Service) terraformStatePlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }
 
 func (s Service) logTerraformStateWait(instance workflow.CollectorInstance, err error) {

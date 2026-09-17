@@ -81,7 +81,9 @@ for the full list. Key env vars:
 - ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED — must be `true` for active mode;
   default `false`; also accepted as ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS
 - ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL — collector-instance reconcile
-  and scheduled-work planning cadence; default `30s`
+  and scheduled-work planning cadence; default `30s`. One collector instance
+  can widen its own scheduled-scan bucket with `scan_interval` (below); the
+  global value stays the floor.
 - ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL — workflow-run status and
   completeness reconcile cadence; default `30s`
 - ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL — expired-claim reap cadence
@@ -126,6 +128,68 @@ for the full list. Key env vars:
 Compose exposes the optional metrics port `19469`. Helm keeps deployment mode
 `dark` and claims disabled by default. The semantic-provider execution worker is
 off by default and ships no live provider traffic.
+
+### Per-instance scan interval
+
+Every periodic scheduled planner (AWS, GCP, Terraform state, OCI registry,
+package registry, vulnerability intelligence, SBOM attestation, security alert,
+scanner worker, CI/CD run, Grafana, Loki, Prometheus/Mimir, Tempo, Jira,
+PagerDuty, Vault, component extension) buckets its plan key by truncating the
+wall clock to an interval. By default that interval is the global
+`ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL`. A collector instance may set
+`scan_interval` inside its `configuration` object to use a wider bucket of its
+own, so one heavy collector can re-plan its full scope every 12 hours while
+the rest of the fleet keeps the 30-second default:
+
+```json
+[{
+  "instance_id": "aws-ops-prod",
+  "collector_kind": "aws",
+  "mode": "continuous",
+  "enabled": true,
+  "claims_enabled": true,
+  "configuration": {
+    "scheduled_scan_enabled": true,
+    "scan_interval": "12h",
+    "target_scopes": [{"account_id": "123456789012", "allowed_regions": ["us-east-1"], "allowed_services": ["ec2"]}]
+  }
+}]
+```
+
+Rules, enforced by `Config.Validate` at startup and again at the reconcile
+that reads the value:
+
+- Unset or blank keeps today's behavior: the instance buckets on the global
+  reconcile interval.
+- The value is a Go duration string (`30s`, `90m`, `12h`). Anything else, a
+  number included, fails startup.
+- It must be at least `1s` and must not be shorter than the global reconcile
+  interval. The reconcile ticker fires at the global rate, so a narrower
+  per-instance bucket could not be visited as often as it promises.
+- Buckets truncate against the Unix epoch, so a `12h` instance turns over at
+  00:00 and 12:00 UTC no matter when the coordinator started; the first bucket
+  after a restart may therefore be shorter than the configured interval.
+- Freshness-triggered (webhook) planners and bootstrap instances are
+  unaffected; only the periodic scheduled planners read this field. A
+  package-registry or vulnerability-intelligence instance whose derivation
+  uses `planning_mode: single_pass` is already pinned to one plan key, so
+  `scan_interval` is accepted there but changes nothing.
+- A wider bucket is also a wider retry window. The store skips a plan whose
+  run is already `complete` or `failed`, so a scan that fails early in a `12h`
+  bucket is not re-planned until the next bucket turns over, and a run that
+  never reaches a terminal status (a stuck or dead-lettered work item) blocks
+  the same targets in the next bucket too. Watch `workflow_runs.status` and
+  `workflow_work_items.status` for that instance before assuming a quiet
+  instance is healthy.
+
+The coordinator still calls every scheduled planner on each global tick. A
+widened instance produces the same plan key, and so the same run and work-item
+identifiers, on every tick inside its bucket, and the store's open-target
+guard admits that plan once. At startup the coordinator logs one
+`workflow coordinator collector instance sets scan interval`
+line per instance that sets the field, with `scan_interval` and
+`reconcile_interval`, so an operator can confirm the override took effect from
+the log alone.
 
 ## Exported surface
 

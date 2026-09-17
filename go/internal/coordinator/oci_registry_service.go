@@ -6,7 +6,6 @@ package coordinator //nolint:dirgate // OCI registry scheduling and durable admi
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	ociregistry "github.com/eshu-hq/eshu/go/internal/coordinator/oci/registry"
@@ -29,10 +28,14 @@ func (s Service) scheduleOCIRegistryWork(
 		if s.OCIRegistryPlanner == nil {
 			return fmt.Errorf("OCI registry planner is required for active oci_registry collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.OCIRegistryPlanner.PlanOCIRegistryWork(ctx, ociregistry.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
-			PlanKey:    s.ociRegistryPlanKey(instance, observedAt),
+			PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 		})
 		if err != nil {
 			return fmt.Errorf("plan OCI registry work for %q: %w", instance.InstanceID, err)
@@ -51,19 +54,4 @@ func shouldScheduleOCIRegistry(instance workflow.CollectorInstance) bool {
 	return instance.CollectorKind == scope.CollectorOCIRegistry &&
 		instance.Enabled &&
 		instance.ClaimsEnabled
-}
-
-func (s Service) ociRegistryPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }

@@ -28,14 +28,18 @@ func (s Service) schedulePackageRegistryWork(
 		if s.PackageRegistryPlanner == nil {
 			return fmt.Errorf("package registry planner is required for active package_registry collectors")
 		}
-		ownedTargets, err := s.packageRegistryOwnedTargets(ctx, instance, observedAt)
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
+		ownedTargets, err := s.packageRegistryOwnedTargets(ctx, instance, observedAt, interval)
 		if err != nil {
 			return fmt.Errorf("load package registry derived targets for %q: %w", instance.InstanceID, err)
 		}
 		run, items, err := s.PackageRegistryPlanner.PlanPackageRegistryWork(ctx, PackageRegistryPlanRequest{
 			Instance:            instance,
 			ObservedAt:          observedAt,
-			PlanKey:             s.packageRegistryPlanKey(instance, observedAt),
+			PlanKey:             s.packageRegistryPlanKey(instance, observedAt, interval),
 			OwnedPackageTargets: ownedTargets,
 		})
 		if err != nil {
@@ -55,6 +59,7 @@ func (s Service) packageRegistryOwnedTargets(
 	ctx context.Context,
 	instance workflow.CollectorInstance,
 	observedAt time.Time,
+	interval time.Duration,
 ) ([]workflow.OwnedPackageDependencyTarget, error) {
 	derivation, err := packageRegistryDerivationFromConfig(instance.Configuration)
 	if err != nil {
@@ -70,7 +75,7 @@ func (s Service) packageRegistryOwnedTargets(
 	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
 		Ecosystems:     sortedStringSetValues(packageRegistryDerivationEcosystems(derivation.Ecosystems)),
 		Limit:          derivedTargetReadLimit(targetLimit),
-		RotationOffset: derivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, s.Config.ReconcileInterval, targetLimit),
+		RotationOffset: derivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, interval, targetLimit),
 	})
 }
 
@@ -80,11 +85,10 @@ func shouldSchedulePackageRegistry(instance workflow.CollectorInstance) bool {
 		instance.ClaimsEnabled
 }
 
-func (s Service) packageRegistryPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
+func (s Service) packageRegistryPlanKey(instance workflow.CollectorInstance, observedAt time.Time, interval time.Duration) string {
 	if instance.Bootstrap {
 		return "bootstrap"
 	}
-	interval := s.Config.ReconcileInterval
 	prefix := strings.TrimSpace(string(instance.Mode))
 	derivation, _ := packageRegistryDerivationFromConfig(instance.Configuration)
 	return derivedTargetPlanKey(prefix, observedAt, interval, derivation.PlanningMode)

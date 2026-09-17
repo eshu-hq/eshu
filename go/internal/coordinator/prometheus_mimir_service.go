@@ -6,7 +6,6 @@ package coordinator
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/metrics"
@@ -39,10 +38,14 @@ func (s Service) schedulePrometheusMimirWork(
 		if s.PrometheusMimirPlanner == nil {
 			return fmt.Errorf("prometheus/mimir planner is required for active prometheus_mimir collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.PrometheusMimirPlanner.PlanPrometheusMimirWork(ctx, metrics.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
-			PlanKey:    s.prometheusMimirPlanKey(instance, observedAt),
+			PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 		})
 		if err != nil {
 			return fmt.Errorf("plan prometheus/mimir work for %q: %w", instance.InstanceID, err)
@@ -61,19 +64,4 @@ func shouldSchedulePrometheusMimir(instance workflow.CollectorInstance) bool {
 	return instance.CollectorKind == scope.CollectorPrometheusMimir &&
 		instance.Enabled &&
 		instance.ClaimsEnabled
-}
-
-func (s Service) prometheusMimirPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }

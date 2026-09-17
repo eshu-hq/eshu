@@ -6,7 +6,6 @@ package coordinator
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
@@ -35,10 +34,14 @@ func (s Service) scheduleSecurityAlertWork(
 		if s.SecurityAlertPlanner == nil {
 			return fmt.Errorf("security alert planner is required for active security_alert collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.SecurityAlertPlanner.PlanSecurityAlertWork(ctx, securityalert.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
-			PlanKey:    s.securityAlertPlanKey(instance, observedAt),
+			PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 		})
 		if err != nil {
 			return fmt.Errorf("plan security alert work for %q: %w", instance.InstanceID, err)
@@ -57,19 +60,4 @@ func shouldScheduleSecurityAlert(instance workflow.CollectorInstance) bool {
 	return instance.CollectorKind == scope.CollectorSecurityAlert &&
 		instance.Enabled &&
 		instance.ClaimsEnabled
-}
-
-func (s Service) securityAlertPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }

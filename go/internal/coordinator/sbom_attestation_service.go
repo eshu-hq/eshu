@@ -6,7 +6,6 @@ package coordinator //nolint:dirgate // SBOM scheduling and durable admission re
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
@@ -35,10 +34,14 @@ func (s Service) scheduleSBOMAttestationWork(
 		if s.SBOMAttestationPlanner == nil {
 			return fmt.Errorf("SBOM attestation planner is required for active sbom_attestation collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.SBOMAttestationPlanner.PlanSBOMAttestationWork(ctx, attestation.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
-			PlanKey:    s.sbomAttestationPlanKey(instance, observedAt),
+			PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 		})
 		if err != nil {
 			return fmt.Errorf("plan SBOM attestation work for %q: %w", instance.InstanceID, err)
@@ -57,19 +60,4 @@ func shouldScheduleSBOMAttestation(instance workflow.CollectorInstance) bool {
 	return instance.CollectorKind == scope.CollectorSBOMAttestation &&
 		instance.Enabled &&
 		instance.ClaimsEnabled
-}
-
-func (s Service) sbomAttestationPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }

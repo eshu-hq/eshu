@@ -16,6 +16,7 @@ func (s Service) vulnerabilityInstalledEvidenceTargets(
 	ctx context.Context,
 	instance workflow.CollectorInstance,
 	observedAt time.Time,
+	interval time.Duration,
 ) ([]workflow.OSPackageAdvisoryTarget, []workflow.SBOMComponentAdvisoryTarget, error) {
 	derivation, err := vulnerabilityInstalledEvidenceDerivationFromConfig(instance.Configuration)
 	if err != nil {
@@ -31,7 +32,7 @@ func (s Service) vulnerabilityInstalledEvidenceTargets(
 	filter := workflow.OSPackageAdvisoryTargetFilter{
 		Ecosystems:     sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
 		Limit:          derivedTargetReadLimit(targetLimit),
-		RotationOffset: derivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, s.Config.ReconcileInterval, targetLimit),
+		RotationOffset: derivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, interval, targetLimit),
 	}
 	var osTargets []workflow.OSPackageAdvisoryTarget
 	if s.OSPackageAdvisoryTargetReader != nil {

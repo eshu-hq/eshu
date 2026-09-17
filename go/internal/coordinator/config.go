@@ -227,6 +227,9 @@ func (c Config) Validate() error {
 		if err := instance.Validate(); err != nil {
 			return fmt.Errorf("workflow coordinator collector instance: %w", err)
 		}
+		if err := validateScanInterval(instance.Configuration, c.ReconcileInterval); err != nil {
+			return fmt.Errorf("collector instance %q: %w", instance.InstanceID, err)
+		}
 		if instance.Enabled && instance.ClaimsEnabled && !c.ClaimsEnabled {
 			return fmt.Errorf("collector instance %q enables claims while coordinator claims are disabled", instance.InstanceID)
 		}

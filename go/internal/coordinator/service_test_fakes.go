@@ -12,11 +12,16 @@ import (
 )
 
 type fakeStore struct {
-	observed             []time.Time
-	desired              [][]workflow.DesiredCollectorInstance
-	instances            []workflow.CollectorInstance
-	createdRuns          []workflow.Run
-	enqueuedItems        []workflow.WorkItem
+	observed      []time.Time
+	desired       [][]workflow.DesiredCollectorInstance
+	instances     []workflow.CollectorInstance
+	createdRuns   []workflow.Run
+	enqueuedItems []workflow.WorkItem
+	// plannedItems keeps every work item ever admitted, even after a test drains
+	// enqueuedItems to model a finished run. It mirrors the real store's second
+	// NOT EXISTS clause: a target already planned under the same run ID is never
+	// re-admitted, whatever the run's status.
+	plannedItems         []workflow.WorkItem
 	reapedClaims         []workflow.Claim
 	reconcileErr         error
 	listErr              error
@@ -98,6 +103,9 @@ func (f *fakeStore) CreateRunWithWorkItemsIfNoOpenTargets(
 		if fakeStoreHasOpenWorkItem(f.enqueuedItems, item) {
 			continue
 		}
+		if fakeStoreHasPlannedWorkItemForRun(f.plannedItems, run.RunID, item) {
+			continue
+		}
 		eligible = append(eligible, item)
 	}
 	if len(eligible) == 0 {
@@ -109,8 +117,18 @@ func (f *fakeStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	if err := f.EnqueueWorkItems(ctx, eligible); err != nil {
 		return workflow.RunAdmission{}, err
 	}
+	f.plannedItems = append(f.plannedItems, eligible...)
 	// This fake has no unique index, so every admitted target lands.
 	return workflow.RunAdmission{EligibleTargets: len(eligible), InsertedWorkItems: len(eligible)}, nil
+}
+
+func fakeStoreHasPlannedWorkItemForRun(planned []workflow.WorkItem, runID string, candidate workflow.WorkItem) bool {
+	for _, item := range planned {
+		if item.RunID == runID && fakeStoreHasOpenWorkItem([]workflow.WorkItem{item}, candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 func fakeStoreHasOpenWorkItem(existing []workflow.WorkItem, candidate workflow.WorkItem) bool {

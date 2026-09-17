@@ -6,7 +6,10 @@
 // loops.
 //
 // Service reconciles declarative collector instances against the durable store
-// on every reconcile interval. In active mode it also applies optional hosted
+// on every reconcile interval. Periodic scheduled planners bucket their plan
+// keys on that interval unless a collector instance sets scan_interval in its
+// configuration, in which case that instance buckets on its own wider
+// interval (see scheduled_work.go). In active mode it also applies optional hosted
 // collector egress policy before planning supported collector work, requires
 // explicit hosted extension egress policy before planning component extension
 // work, drains expired claims on the reap interval, and advances workflow run progress.

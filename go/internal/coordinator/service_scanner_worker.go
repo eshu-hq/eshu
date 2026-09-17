@@ -6,7 +6,6 @@ package coordinator
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	scannerworker "github.com/eshu-hq/eshu/go/internal/coordinator/scanner/worker"
@@ -38,10 +37,14 @@ func (s Service) scheduleScannerWorkerWork(
 		if s.ScannerWorkerPlanner == nil {
 			return fmt.Errorf("scanner-worker planner is required for active scanner_worker collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.ScannerWorkerPlanner.PlanScannerWorkerWork(ctx, scannerworker.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
-			PlanKey:    s.scannerWorkerPlanKey(instance, observedAt),
+			PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 		})
 		if err != nil {
 			return fmt.Errorf("plan scanner-worker work for %q: %w", instance.InstanceID, err)
@@ -60,19 +63,4 @@ func shouldScheduleScannerWorker(instance workflow.CollectorInstance) bool {
 	return instance.CollectorKind == scope.CollectorScannerWorker &&
 		instance.Enabled &&
 		instance.ClaimsEnabled
-}
-
-func (s Service) scannerWorkerPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }
