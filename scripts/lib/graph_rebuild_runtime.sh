@@ -245,10 +245,11 @@ assert_bootstrap_container_unchanged() {
 # v5 starts the stopped dependency closure, including the bootstrap-index
 # one-shot (a stopped completed-dependency is still started), whose restart
 # reopens reducer work and backfills facts the rebuild command never issued
-# (#6184 run 7). `ps -q` only lists; `docker start` only starts.
+# (#6184 run 7). `ps -a -q` only lists, stopped writers included (run 8);
+# `docker start` only starts.
 start_existing_containers() {
 	local ids id_list
-	ids="$("${COMPOSE_CMD[@]}" ps -q "$@" | tr -d '\r')"
+	ids="$("${COMPOSE_CMD[@]}" ps -a -q "$@" | tr -d '\r')"
 	if [[ -z "$ids" ]]; then
 		echo "No containers to start for: $*" >&2
 		return 1

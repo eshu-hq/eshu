@@ -378,6 +378,9 @@ start_recovery_api >/dev/null 2>&1
 if rg -q '^(up|start)( |$)' "${compose_mock_dir}/calls"; then
 	record_fail "recovery api start resolves no dependencies" \
 		"compose calls=$(paste -sd, "${compose_mock_dir}/calls"), want ps only"
+elif ! rg -q '^ps -a( |$)' "${compose_mock_dir}/calls"; then
+	record_fail "stopped writers are visible to the restart" \
+		"ps call lists running containers only; stopped writers resolve to nothing (run 8)"
 elif ! rg -qx 'docker start cid-eshu' "${compose_mock_dir}/docker-calls"; then
 	record_fail "recovery api start resolves no dependencies" \
 		"docker calls=$(paste -sd, "${compose_mock_dir}/docker-calls"), want 'docker start cid-eshu'"
