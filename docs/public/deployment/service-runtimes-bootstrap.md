@@ -21,13 +21,14 @@ It owns this sequence:
 Invalid graph backend values fail startup. Invalid or non-positive graph schema
 statement timeouts fail before DDL runs.
 
-Postgres records successful SQL files in `eshu_schema_migrations` by path,
-variant, and checksum. A later run skips recorded files; a changed checksum
-fails before pending DDL starts. An existing database without the ledger must
-execute the historical files once to establish receipts. Before that first
-rollout, preserve a recoverable database copy, quiesce application readers and
-writers, and rehearse the replay against the copy with a bounded maintenance
-window. Do not mark every file applied from a graph schema marker: graph schema
+Postgres records successful SQL files in the current schema's
+`eshu_schema_migrations` table by path, variant, and checksum. A later run skips
+recorded files; an invalid concurrent index triggers its migration's recovery
+path. A changed checksum fails before pending DDL starts. An existing database
+without the ledger must execute the historical files once to establish receipts.
+Before that first rollout, preserve a recoverable database copy, quiesce
+application readers and writers, and rehearse the replay against the copy with a
+bounded maintenance window. Do not mark every file applied from a graph schema marker: graph schema
 completion does not certify all Postgres DDL or data transformations. An
 interrupted replay retains completed receipts; preserve them when retrying.
 

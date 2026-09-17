@@ -77,7 +77,7 @@ func main() {
 		logger,
 		openBootstrapDB,
 		func(ctx context.Context, exec bootstrapExecutor) error {
-			return applyPostgresSchema(ctx, exec, os.Getenv)
+			return applyPostgresSchema(ctx, exec, os.Getenv, logger)
 		},
 		openNeo4j,
 		graph.EnsureSchemaWithBackendStrict,
@@ -89,7 +89,7 @@ func main() {
 
 const deferContentSearchIndexesEnv = "ESHU_DEFER_CONTENT_SEARCH_INDEXES"
 
-func applyPostgresSchema(ctx context.Context, exec bootstrapExecutor, getenv func(string) string) error {
+func applyPostgresSchema(ctx context.Context, exec bootstrapExecutor, getenv func(string) string, logger *slog.Logger) error {
 	raw := strings.TrimSpace(getenv(deferContentSearchIndexesEnv))
 	deferred := false
 	if raw != "" {
@@ -100,10 +100,10 @@ func applyPostgresSchema(ctx context.Context, exec bootstrapExecutor, getenv fun
 		}
 	}
 
-	if deferred {
-		return postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, exec)
-	}
-	return postgres.ApplyBootstrap(ctx, exec)
+	return postgres.ApplyBootstrapWithOptions(ctx, exec, postgres.BootstrapOptions{
+		DeferContentSearchIndexes: deferred,
+		Logger:                    logger,
+	})
 }
 
 func newLogger(bootstrap telemetry.Bootstrap, writer io.Writer) *slog.Logger {

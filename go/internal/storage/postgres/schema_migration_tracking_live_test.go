@@ -8,6 +8,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"log/slog"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -51,6 +54,58 @@ func TestBootstrapSkipsAppliedMigrationsUnderReaderLockLive(t *testing.T) {
 	defer replayCancel()
 	if err := ApplyBootstrap(replayCtx, SQLDB{DB: applyDB}); err != nil {
 		t.Fatalf("reapply completed schema while a reader holds ACCESS SHARE: %v", err)
+	}
+}
+
+func TestBootstrapLedgerUsesCurrentSchemaLive(t *testing.T) {
+	dsn := os.Getenv("ESHU_POSTGRES_TEST_DSN")
+	if dsn == "" {
+		t.Skip("set ESHU_POSTGRES_TEST_DSN to a disposable PostgreSQL database")
+	}
+	adminDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open admin connection: %v", err)
+	}
+	t.Cleanup(func() { _ = adminDB.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if err := ApplyBootstrap(ctx, SQLDB{DB: adminDB}); err != nil {
+		t.Fatalf("apply public schema: %v", err)
+	}
+	schema := fmt.Sprintf("eshu_6738_ledger_scope_%d", time.Now().UnixNano())
+	if _, err := adminDB.ExecContext(ctx, "CREATE SCHEMA "+quoteSQLIdentifier(schema)); err != nil {
+		t.Fatalf("create isolated schema: %v", err)
+	}
+	t.Cleanup(func() {
+		_, err := adminDB.ExecContext(context.Background(),
+			"DROP SCHEMA IF EXISTS "+quoteSQLIdentifier(schema)+" CASCADE")
+		if err != nil {
+			t.Errorf("drop isolated schema: %v", err)
+		}
+	})
+	parsed, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatalf("parse admin DSN: %v", err)
+	}
+	query := parsed.Query()
+	query.Set("search_path", schema+",public")
+	parsed.RawQuery = query.Encode()
+	isolatedDB, err := sql.Open("pgx", parsed.String())
+	if err != nil {
+		t.Fatalf("open isolated schema: %v", err)
+	}
+	t.Cleanup(func() { _ = isolatedDB.Close() })
+	if err := ApplyBootstrap(ctx, SQLDB{DB: isolatedDB}); err != nil {
+		t.Fatalf("apply isolated schema: %v", err)
+	}
+	var receipts int
+	if err := isolatedDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM "+quoteSQLIdentifier(schema)+".eshu_schema_migrations",
+	).Scan(&receipts); err != nil {
+		t.Fatalf("count isolated schema receipts: %v", err)
+	}
+	if receipts != len(BootstrapDefinitions()) {
+		t.Fatalf("isolated schema receipts = %d, want %d", receipts, len(BootstrapDefinitions()))
 	}
 }
 
@@ -281,7 +336,7 @@ func TestBootstrapPreservesReceiptsAfterLaterMigrationFailureLive(t *testing.T) 
 		{Name: "first", Path: "test/001_first.sql", SQL: "CREATE TABLE first_migration (id INT)"},
 		{Name: "second", Path: "test/002_second.sql", SQL: "INVALID SQL"},
 	}
-	if err := applyBootstrapDefinitions(ctx, SQLDB{DB: db}, definitions); err == nil {
+	if err := applyBootstrapDefinitions(ctx, SQLDB{DB: db}, definitions, slog.Default()); err == nil {
 		t.Fatal("first apply unexpectedly succeeded")
 	}
 	var recorded int
@@ -292,7 +347,7 @@ func TestBootstrapPreservesReceiptsAfterLaterMigrationFailureLive(t *testing.T) 
 		t.Fatalf("retained receipts = %d, want 1", recorded)
 	}
 	definitions[1].SQL = "CREATE TABLE second_migration (id INT)"
-	if err := applyBootstrapDefinitions(ctx, SQLDB{DB: db}, definitions); err != nil {
+	if err := applyBootstrapDefinitions(ctx, SQLDB{DB: db}, definitions, slog.Default()); err != nil {
 		t.Fatalf("resume after later migration failure: %v", err)
 	}
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM eshu_schema_migrations").Scan(&recorded); err != nil {

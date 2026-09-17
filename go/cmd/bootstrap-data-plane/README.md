@@ -72,9 +72,10 @@ are registered. Lifecycle events use `telemetry.EventAttr`:
 `statement_count` when graph DDL is skipped). Existing-schema adoption emits
 `bootstrap.graph.adoption_incomplete` when objects are missing and
 `bootstrap.graph.adopted` when the backend schema is complete enough to mark.
-Postgres bootstrap logs each started and recorded migration with path, variant,
-position, and duration, then `postgres schema migrations complete` with applied,
-skipped, total, and duration fields. Graph DDL also emits one
+Postgres bootstrap uses this runtime's structured logger for each started and
+recorded migration with path, variant, recovery flag, position, duration, and
+`event_name`, then `postgres schema migrations complete` with applied, skipped,
+total, and duration fields. Graph DDL also emits one
 structured `graph schema statement applying` and one terminal
 `graph schema statement applied` or `graph schema statement failed` log per
 statement, including backend, phase, statement index, statement total, duration,
@@ -82,7 +83,10 @@ failure class, and a bounded schema statement summary.
 
 ## Gotchas / invariants
 
-- completed Postgres migrations are skipped by path, variant, and SQL checksum;
+- completed Postgres migrations are skipped by path, variant, and SQL checksum
+  unless a named concurrent index is invalid and needs drop-and-rebuild recovery;
+  receipts belong to the connection's current schema, not another schema in
+  its search path;
   a changed checksum fails before any pending DDL runs. The first run against an
   existing database without a ledger executes and records every migration, so
   schedule that one replay with quiesced application traffic and a recoverable

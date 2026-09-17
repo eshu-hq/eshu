@@ -21,12 +21,13 @@ already exist.
 Performance Evidence: on one disposable PostgreSQL 18.6 database with the
 current 129-file migration tree and **zero application rows**, the same Go test
 measured the call boundary of `ApplyDefinitions` replaying the completed tree
-at **69.207667 ms**. After the new runner created 129 receipts, an
-`ApplyBootstrap` call over that schema took **2.891167 ms** and skipped all 129
+at **66.657417 ms**. After the final runner created 129 receipts, an
+`ApplyBootstrap` call over that schema took **12.488708 ms** and skipped all 129
 files while a read-only transaction held `ACCESS SHARE` on
 `scope_generations`. Both timings are single local samples with the same empty
-schema and backend; they are neither a throughput estimate nor a speedup claim
-for a populated environment. The steady-state work is one ledger read of 129
+schema and backend. The skip includes a catalog check for invalid concurrent
+indexes. These are neither a throughput estimate nor a speedup claim for a
+populated environment. The steady-state work is one ledger read of 129
 rows, checksum comparison, and zero migration DDL. First application to an
 untracked database still executes the historical SQL and can be costly.
 
@@ -41,9 +42,17 @@ runtime of an initial replay on a large corpus.
 No-Regression Evidence: a fresh local database recorded 129 full receipts
 and a second run reported `applied=0 skipped=129`. The terminal local counts
 were 129 receipts, 0 `fact_work_items`, and 0 `scope_generations`; the empty
-queue is a fixture property, not corpus-readiness evidence. A separate test
-planted checksum drift and observed failure before DDL. A later malformed
-migration preserved the earlier receipt; the corrected retry then recorded both.
+queue is a fixture property, not corpus-readiness evidence.
+
+A recorded migration with a cancelled concurrent index build was RED because
+`ApplyBootstrap` skipped the invalid index, then GREEN when the runner detected
+and rebuilt it. The documentation findings read and filter index restart tests
+also passed. A schema with `search_path = isolated, public` was RED because it
+borrowed the `public` ledger; after scoping receipts to `current_schema()`, it
+recorded 129 isolated receipts and the original cloud reopen ordering test
+passed. A separate test planted checksum drift and observed failure before
+DDL. A later malformed migration preserved the earlier receipt; the corrected
+retry then recorded both.
 The deferred-to-full regression was RED when the entity-name GIN was absent,
 then GREEN after the three dependent variants were tracked: the full run
 reported `applied=3 skipped=126`, the lifecycle row was `ready`, and
@@ -58,16 +67,26 @@ cd go && go vet ./...
 cd go && go test -tags integration ./internal/storage/postgres -run '^TestBootstrapDeferredContentMigrationUpgradesToFullLive$' -count=1 -v
 ```
 
+Additional live PostgreSQL tests passed after the final code edit:
+`TestBootstrapLedgerUsesCurrentSchemaLive`,
+`TestContainerImageIdentityCloudReferenceReopenOrderingPostgresLive`,
+`TestActiveOCIWarningIndexMigrationLifecycleLive`,
+`TestDocumentationFindingsIndexRestartSafetyLive`, and
+`TestBootstrapBinaryRecordsPostgresMigrationsLive`.
+
 The integration tests used disposable PostgreSQL 18.6 databases supplied by
 the documented test DSN variables. The command package's live adapter test also
-recorded 129 receipts. The strict MkDocs build and `git diff --check` passed.
-Hosted CI remains authoritative for its required gates.
+recorded 129 receipts and verified that migration completion carries the
+bootstrap runtime identity and `event_name` in JSON. The strict MkDocs build
+and `git diff --check` passed. Hosted CI remains authoritative for its required
+gates.
 
 ## Observability Evidence
 
-Observability Evidence: the runner logs each migration when it starts and when
-its receipt is recorded, with path, variant, position, total, and elapsed
-milliseconds. A completion log records applied, skipped, total, and duration.
+Observability Evidence: the runner uses the bootstrap runtime structured
+logger for each migration start and receipt, with path, variant, recovery flag,
+position, total, `event_name`, and elapsed milliseconds. A completion log
+records applied, skipped, total, and duration.
 An error includes the failed migration name; no success receipt is written for
 that file. These bounded logs let an operator distinguish a long first replay
 from a skip-only restart and see which file stopped. No new metric label or

@@ -10,10 +10,10 @@ or AWS runtime drift storage behavior.
 
 ### Schema bootstrap
 
-`ApplyBootstrap` applies unrecorded `BootstrapDefinitions` in order and
-stores path, variant, and checksum receipts in `eshu_schema_migrations`.
+`ApplyBootstrap` applies unrecorded definitions; `eshu_schema_migrations` stores path, variant, and checksum receipts.
 `ApplyBootstrapWithoutContentSearchIndexes` defers content and index lifecycle.
-A later full bootstrap reruns those three files. Checksum drift fails before DDL.
+A later full bootstrap reruns those three files. Receipts use the current schema;
+invalid concurrent indexes trigger recovery; checksum drift fails before DDL.
 An untracked existing database replays all files once; it needs a recoverable
 copy and quiesced traffic. `ValidateDefinitions` enforces uniqueness.
 `graph_schema_applications` stores the graph backend/schema fingerprint and the

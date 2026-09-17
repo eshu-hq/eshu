@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -25,7 +27,7 @@ type schemaConnectionExecutor struct {
 }
 
 type schemaMigrationTracker interface {
-	applyTrackedDefinitions(context.Context, []Definition, time.Duration) error
+	applyTrackedDefinitions(context.Context, []Definition, time.Duration, *slog.Logger) error
 }
 
 type schemaMigrationKey struct {
@@ -38,9 +40,16 @@ type schemaMigrationPlan struct {
 	checksum   string
 	variant    string
 	apply      bool
+	recorded   bool
 }
 
-const schemaMigrationsTableSQL = `CREATE TABLE IF NOT EXISTS eshu_schema_migrations (
+type schemaMigrationLedger struct {
+	schema  string
+	table   string
+	applied map[schemaMigrationKey]string
+}
+
+const schemaMigrationsTableSQL = `CREATE TABLE IF NOT EXISTS %s (
     path TEXT NOT NULL,
     variant TEXT NOT NULL,
     checksum_sha256 TEXT NOT NULL,
@@ -60,10 +69,108 @@ func migrationVariant(def Definition) string {
 	return def.variant
 }
 
+func (executor schemaConnectionExecutor) invalidConcurrentIndexNames(
+	ctx context.Context,
+	definitions []Definition,
+	schema string,
+) (map[string]bool, error) {
+	nameSet := make(map[string]struct{})
+	for _, def := range definitions {
+		for _, name := range concurrentIndexNamesForInvalidCleanup(def.SQL) {
+			nameSet[name] = struct{}{}
+		}
+	}
+	invalid := make(map[string]bool)
+	if len(nameSet) == 0 {
+		return invalid, nil
+	}
+	names := make([]string, 0, len(nameSet))
+	for name := range nameSet {
+		names = append(names, name)
+	}
+	rows, err := executor.conn.QueryContext(ctx, `
+SELECT DISTINCT c.relname::text
+FROM pg_index i
+JOIN pg_class c ON c.oid = i.indexrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relname::text = ANY($1::text[])
+  AND n.nspname = $2
+  AND i.indisvalid = FALSE
+`, names, schema)
+	if err != nil {
+		return nil, fmt.Errorf("inspect invalid concurrent indexes: %w", err)
+	}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			_ = rows.Close()
+			return nil, fmt.Errorf("scan invalid concurrent index: %w", err)
+		}
+		invalid[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, fmt.Errorf("read invalid concurrent indexes: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close invalid concurrent index rows: %w", err)
+	}
+	return invalid, nil
+}
+
+func (executor schemaConnectionExecutor) loadSchemaMigrationLedger(
+	ctx context.Context,
+	capacity int,
+	lockTimeout time.Duration,
+) (schemaMigrationLedger, error) {
+	var schema sql.NullString
+	if err := executor.conn.QueryRowContext(ctx, "SELECT current_schema()").Scan(&schema); err != nil {
+		return schemaMigrationLedger{}, fmt.Errorf("read schema migration namespace: %w", err)
+	}
+	if !schema.Valid || schema.String == "" {
+		return schemaMigrationLedger{}, fmt.Errorf("schema migration namespace is empty")
+	}
+	table := quoteSQLIdentifier(schema.String) + ".eshu_schema_migrations"
+	var tableName sql.NullString
+	if err := executor.conn.QueryRowContext(ctx, "SELECT to_regclass($1)::text", table).Scan(&tableName); err != nil {
+		return schemaMigrationLedger{}, fmt.Errorf("inspect schema migration ledger: %w", err)
+	}
+	if !tableName.Valid {
+		if _, err := executor.execContextWithLockTimeout(
+			ctx, fmt.Sprintf(schemaMigrationsTableSQL, table), lockTimeout,
+		); err != nil {
+			return schemaMigrationLedger{}, fmt.Errorf("create schema migration ledger: %w", err)
+		}
+	}
+	rows, err := executor.conn.QueryContext(ctx, "SELECT path, variant, checksum_sha256 FROM "+table)
+	if err != nil {
+		return schemaMigrationLedger{}, fmt.Errorf("read schema migration ledger: %w", err)
+	}
+	applied := make(map[schemaMigrationKey]string, capacity)
+	for rows.Next() {
+		var key schemaMigrationKey
+		var checksum string
+		if err := rows.Scan(&key.path, &key.variant, &checksum); err != nil {
+			_ = rows.Close()
+			return schemaMigrationLedger{}, fmt.Errorf("scan schema migration ledger: %w", err)
+		}
+		applied[key] = checksum
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return schemaMigrationLedger{}, fmt.Errorf("read schema migration ledger rows: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return schemaMigrationLedger{}, fmt.Errorf("close schema migration ledger rows: %w", err)
+	}
+	return schemaMigrationLedger{schema: schema.String, table: table, applied: applied}, nil
+}
+
 func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 	ctx context.Context,
 	definitions []Definition,
 	lockTimeout time.Duration,
+	logger *slog.Logger,
 ) error {
 	if err := ValidateDefinitions(definitions); err != nil {
 		return err
@@ -80,40 +187,13 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 	}
 
 	started := time.Now()
-	var tableName sql.NullString
-	if err := executor.conn.QueryRowContext(
-		ctx, "SELECT to_regclass('eshu_schema_migrations')::text",
-	).Scan(&tableName); err != nil {
-		return fmt.Errorf("inspect schema migration ledger: %w", err)
-	}
-	if !tableName.Valid {
-		if _, err := executor.execContextWithLockTimeout(ctx, schemaMigrationsTableSQL, lockTimeout); err != nil {
-			return fmt.Errorf("create schema migration ledger: %w", err)
-		}
-	}
-
-	rows, err := executor.conn.QueryContext(
-		ctx, "SELECT path, variant, checksum_sha256 FROM eshu_schema_migrations",
-	)
+	ledger, err := executor.loadSchemaMigrationLedger(ctx, len(definitions), lockTimeout)
 	if err != nil {
-		return fmt.Errorf("read schema migration ledger: %w", err)
+		return err
 	}
-	applied := make(map[schemaMigrationKey]string, len(definitions))
-	for rows.Next() {
-		var key schemaMigrationKey
-		var checksum string
-		if err := rows.Scan(&key.path, &key.variant, &checksum); err != nil {
-			_ = rows.Close()
-			return fmt.Errorf("scan schema migration ledger: %w", err)
-		}
-		applied[key] = checksum
-	}
-	if err := rows.Err(); err != nil {
-		_ = rows.Close()
-		return fmt.Errorf("read schema migration ledger rows: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close schema migration ledger rows: %w", err)
+	invalidIndexes, err := executor.invalidConcurrentIndexNames(ctx, definitions, ledger.schema)
+	if err != nil {
+		return err
 	}
 
 	plans := make([]schemaMigrationPlan, 0, len(definitions))
@@ -123,7 +203,7 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 		fullApplied := false
 		if def.fullChecksum != "" {
 			fullKey := schemaMigrationKey{path: def.Path, variant: "full"}
-			if recorded, exists := applied[fullKey]; exists {
+			if recorded, exists := ledger.applied[fullKey]; exists {
 				if recorded != def.fullChecksum {
 					return fmt.Errorf("schema migration %q full checksum changed: recorded %s, current %s",
 						def.Path, recorded, def.fullChecksum)
@@ -132,12 +212,22 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 			}
 		}
 		key := schemaMigrationKey{path: def.Path, variant: variant}
-		if recorded, exists := applied[key]; exists {
+		if recorded, exists := ledger.applied[key]; exists {
 			if recorded != checksum {
 				return fmt.Errorf("schema migration %q (%s) checksum changed: recorded %s, current %s",
 					def.Path, variant, recorded, checksum)
 			}
-			plans = append(plans, schemaMigrationPlan{definition: def, checksum: checksum, variant: variant})
+			recoverIndex := false
+			for _, name := range concurrentIndexNamesForInvalidCleanup(def.SQL) {
+				if invalidIndexes[name] {
+					recoverIndex = true
+					break
+				}
+			}
+			plans = append(plans, schemaMigrationPlan{
+				definition: def, checksum: checksum, variant: variant,
+				apply: recoverIndex, recorded: true,
+			})
 			continue
 		}
 		if fullApplied {
@@ -153,31 +243,38 @@ func (executor schemaConnectionExecutor) applyTrackedDefinitions(
 			continue
 		}
 		migrationStarted := time.Now()
-		slog.InfoContext(ctx, "postgres schema migration applying",
+		logger.InfoContext(ctx, "postgres schema migration applying",
+			telemetry.EventAttr("bootstrap.postgres.migration.applying"),
 			"path", plan.definition.Path,
 			"variant", plan.variant,
+			"recovery", plan.recorded,
 			"index", index+1,
 			"total", len(plans),
 		)
 		if _, err := executor.execContextWithLockTimeout(ctx, plan.definition.SQL, lockTimeout); err != nil {
 			return fmt.Errorf("apply %s: %w", plan.definition.Name, err)
 		}
-		if _, err := executor.ExecContext(ctx,
-			"INSERT INTO eshu_schema_migrations (path, variant, checksum_sha256) VALUES ($1, $2, $3)",
-			plan.definition.Path, plan.variant, plan.checksum,
-		); err != nil {
-			return fmt.Errorf("record schema migration %s: %w", plan.definition.Name, err)
+		if !plan.recorded {
+			if _, err := executor.ExecContext(ctx,
+				"INSERT INTO "+ledger.table+" (path, variant, checksum_sha256) VALUES ($1, $2, $3)",
+				plan.definition.Path, plan.variant, plan.checksum,
+			); err != nil {
+				return fmt.Errorf("record schema migration %s: %w", plan.definition.Name, err)
+			}
 		}
 		appliedCount++
-		slog.InfoContext(ctx, "postgres schema migration recorded",
+		logger.InfoContext(ctx, "postgres schema migration recorded",
+			telemetry.EventAttr("bootstrap.postgres.migration.recorded"),
 			"path", plan.definition.Path,
 			"variant", plan.variant,
+			"recovery", plan.recorded,
 			"index", index+1,
 			"total", len(plans),
 			"duration_ms", time.Since(migrationStarted).Milliseconds(),
 		)
 	}
-	slog.InfoContext(ctx, "postgres schema migrations complete",
+	logger.InfoContext(ctx, "postgres schema migrations complete",
+		telemetry.EventAttr("bootstrap.postgres.migrations.complete"),
 		"total", len(definitions),
 		"applied", appliedCount,
 		"skipped", len(definitions)-appliedCount,
