@@ -116,3 +116,59 @@ trigger line and retains the trigger JSON, canonical graph dump and manifest,
 work-item and GCP-fact snapshots, runtime logs, backend provenance, and the
 diagnostics completeness manifest. These are CI fault-gate diagnostics, not
 production telemetry.
+
+## 2026-09-17: closed store during v1.3.3 commit validation
+
+PR #6742 run 35259033020, fault-injection shard 4/4, observed a new restart
+spelling while draining GCP resource work:
+
+```text
+Neo.ClientError.Transaction.TransactionCommitFailed (commit failed: storage closed)
+gcp_resource_materialization/dead_letter/projection_bug=1
+gcp_relationship_materialization/pending=1
+```
+
+The resource failed on attempt 1. The failed gate had one dead-lettered and one
+dependent pending item after its four-minute drain; the baseline had zero
+cross-scope GCP relationships. The migration PR does not touch the graph retry
+classifier, and the fault driver creates fresh databases and completes bootstrap
+before this cell. The current Compose default points at the v1.3.3 digest
+recorded in `docs/internal/evidence/6162-nornicdb-v133-alignment.md`; this
+failure log alone does not prove the running container digest.
+
+At upstream v1.3.3 tag commit `a9956536c2cc902e3463aeb9fbc43c695e3dabb0`,
+`BadgerTransaction.Commit` calls `validateSnapshotIsolationConflicts` before
+the Badger commit. A closed-store read through `GetNodeCurrentHead` returns
+`ErrStorageClosed`; validation failure calls `closeLocked(TxStatusRolledBack,
+true, nil)` and returns before `badgerTx.Commit`. That close discards the
+transaction and pending writes. The Cypher and Bolt layers emit the exact typed
+wire error above. Source: `pkg/storage/badger_txn_helpers.go:10-23`,
+`badger_mvcc.go:979-986`, `badger_transaction.go:1680-1681,220-240,1755`,
+`pkg/cypher/transaction.go:201`, and `pkg/bolt/session_messages.go:454-464`.
+This source path supports replay of the whole durable handler, not an in-place
+transaction-body retry. The existing CloudResource writer MERGEs on stable uid
+and SETs mutable properties, so duplicate queue delivery converges on that uid.
+
+The changed conflict domain is one GCP project resource and its dependent
+relationship intent. Worker count, lease settings, lock order, transaction
+scope, and retry budget are unchanged; the classification determines whether
+the existing durable queue retries the resource after backoff. The live gate's
+before state is one resource dead letter and one relationship pending. A live
+after count and graph-digest comparison remain to be recorded from the changed
+binary before claiming this restart cell resolved.
+
+No-Regression Evidence: a focused production-path regression using the raw
+typed error failed on current main because `reducer.IsRetryable` was false
+(`go test ./internal/storage/cypher -run '^TestBackendRestartCommitStorageClosed'
+-count=1`, exit 1). The same test passed after the narrow classifier change
+(exit 0); the existing backend-restart tests and the full Cypher package suite
+also passed (exit 0). Negative cases keep wrong codes, plain errors, longer
+bodies, and constraint identities containing the error text terminal. A
+separate assertion keeps in-place retry at one call. Successful graph writes
+return before this error classifier, and the new exact-string check adds no
+graph call or success-path work. No wall-time speedup is claimed.
+
+No-Observability-Change: no metric, span, log field, status field, worker, or
+queue stage changes. Once proven live, this error will use the existing
+retryable failure class and queue attempt/backoff signals in place of the
+observed `projection_bug` dead letter.

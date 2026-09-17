@@ -6,8 +6,9 @@ runtime map.
 
 ## Schema Bootstrap
 
-`eshu-bootstrap-data-plane` applies Postgres and graph-backend schema DDL, then
-exits. It writes no application data.
+`eshu-bootstrap-data-plane` applies Postgres migrations and graph-backend
+schema DDL, then exits. Historical migrations may backfill or update application
+tables; ordinary collection and indexing run in other services.
 
 It owns this sequence:
 
@@ -20,9 +21,20 @@ It owns this sequence:
 Invalid graph backend values fail startup. Invalid or non-positive graph schema
 statement timeouts fail before DDL runs.
 
-Index-building migrations use `CREATE INDEX CONCURRENTLY`, so they do not block
-writes to the table they build on. They do take longer than a blocking build
-and they extend schema bootstrap: migration `099` builds an index on
+Postgres records successful SQL files in the current schema's
+`eshu_schema_migrations` table by path, variant, and checksum. A later run skips
+recorded files; an invalid concurrent index triggers its migration's recovery
+path. A changed checksum fails before pending DDL starts. An existing database
+without the ledger must execute the historical files once to establish receipts.
+Before that first rollout, preserve a recoverable database copy, quiesce
+application readers and writers, and rehearse the replay against the copy with a
+bounded maintenance window. Do not mark every file applied from a graph schema marker: graph schema
+completion does not certify all Postgres DDL or data transformations. An
+interrupted replay retains completed receipts; preserve them when retrying.
+
+Some index-building migrations use `CREATE INDEX CONCURRENTLY`, so those do not
+block writes to the table they build on. They take longer than a blocking
+build and extend schema bootstrap: migration `099` builds an index on
 `fact_records`, and that build scales with table size. A build that fails part
 way leaves an invalid index behind, which the next schema apply drops by name
 before retrying, so a failed upgrade does not need manual cleanup. Until that

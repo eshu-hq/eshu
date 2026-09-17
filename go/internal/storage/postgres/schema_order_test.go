@@ -188,9 +188,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 101 (#5167 four-column key so a walk step seeks the ACTIVE
 	// consumer row instead of scanning every retained generation of a group).
 	// There is no migration 100: it created the two-column index 101
-	// supersedes, and every file in this directory replays on every bootstrap,
-	// so a create the next file drops would rebuild that index on every
-	// startup. The create is gone; 102's drop alone converges the installs
+	// supersedes, and untracked existing databases replay the directory once.
+	// A create the next file drops would rebuild that index during that replay.
+	// The create is gone; 102's drop alone converges the installs
 	// that already built it.
 	"code_reachability_entity_repository_scope_generation_idx",
 	// migration 102 (#5167) drops that two-column index: its key is a strict

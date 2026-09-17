@@ -15,12 +15,12 @@
 
 ## Invariants this package enforces
 
-- **Idempotency** — every DDL statement uses `CREATE ... IF NOT EXISTS`; the
-  binary is safe to run as a Kubernetes schema-bootstrap Job or Compose
-  `db-migrate` service on every deploy. On NornicDB, marker-missing preserved
-  graphs must adopt the existing schema before DDL because repeated constraint
-  checks can be minutes per statement on large graphs. This is the doc.go
-  contract.
+- **Idempotency** — Postgres migration receipts skip completed SQL by path,
+  variant, and checksum. First rollout to an existing database without the
+  ledger replays all historical SQL once; preserve a recoverable copy and
+  quiesce application traffic for that run. NornicDB marker-missing preserved
+  graphs adopt the existing graph schema before DDL because repeated constraint
+  checks can take minutes per statement on large graphs.
 - **Both stores must succeed** — `run` applies Postgres first (logging with
   `EventAttr`), then graph; if either fails the process exits non-zero. Close
   errors are joined with `errors.Join` rather than swallowed. Enforced at
@@ -65,9 +65,9 @@
 
 ## Anti-patterns specific to this package
 
-- **Writing application data here** — this binary owns schema DDL only; it
-  must not insert rows, create graph nodes, or emit facts. Data population
-  belongs in `bootstrap-index` or the ingester.
+- **Running normal data collection here** — this binary owns schema DDL and
+  migration-owned data transformations. Repository collection, graph
+  population, and fact emission belong in `bootstrap-index` or the ingester.
 
 - **Adding a long-running loop** — the binary must exit after DDL completes.
   Adding a poll loop breaks the deployment bootstrap contract and prevents
@@ -75,8 +75,8 @@
 
 ## What NOT to change without an ADR
 
-- The DDL idempotency contract (`CREATE ... IF NOT EXISTS`) — removing it
-  breaks safe re-runs and coordinated Kubernetes deployment; see
+- The migration receipt and DDL idempotency contracts — removing them breaks
+  safe retries and coordinated Kubernetes deployment; see
   `docs/public/deployment/service-runtimes.md`.
 - The ESHU_GRAPH_BACKEND values understood by `schemaBackendFromEnv` — adding
   or renaming backend values is a multi-package change; see

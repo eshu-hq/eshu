@@ -9,6 +9,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"log/slog"
 	"path"
 	"sort"
 	"strings"
@@ -20,6 +21,15 @@ type Definition struct {
 	Name string
 	Path string
 	SQL  string
+
+	variant      string
+	fullChecksum string
+}
+
+// BootstrapOptions controls deferred content indexes and migration progress logs.
+type BootstrapOptions struct {
+	DeferContentSearchIndexes bool
+	Logger                    *slog.Logger
 }
 
 // Executor is the narrow adapter surface required to apply schema bootstrap
@@ -90,9 +100,15 @@ func BootstrapDefinitions() []Definition {
 func BootstrapDefinitionsWithoutContentSearchIndexes() []Definition {
 	defs := BootstrapDefinitions()
 	for i := range defs {
-		if defs[i].Name == "content_store" {
-			defs[i].SQL = contentStoreSchemaWithoutSearchIndexesSQL
-			break
+		// These lifecycle files make conditional decisions while indexes are deferred;
+		// the full pass must revisit them after content_store builds the indexes.
+		switch defs[i].Name {
+		case "content_store", "content_substring_index_state", "content_entity_name_trgm_index":
+			defs[i].fullChecksum = migrationChecksum(defs[i].SQL)
+			defs[i].variant = "deferred"
+			if defs[i].Name == "content_store" {
+				defs[i].SQL = contentStoreSchemaWithoutSearchIndexesSQL
+			}
 		}
 	}
 	return defs
@@ -174,18 +190,40 @@ func ApplyDefinitionsWithLockTimeout(
 
 // ApplyBootstrap applies the Wave 2 schema bootstrap layout.
 func ApplyBootstrap(ctx context.Context, exec Executor) error {
-	return applyBootstrapDefinitions(ctx, exec, BootstrapDefinitions())
+	return ApplyBootstrapWithOptions(ctx, exec, BootstrapOptions{})
 }
 
 // ApplyBootstrapWithoutContentSearchIndexes applies the bootstrap layout while
 // deferring content trigram indexes for a later bulk index build.
 func ApplyBootstrapWithoutContentSearchIndexes(ctx context.Context, exec Executor) error {
-	return applyBootstrapDefinitions(ctx, exec, BootstrapDefinitionsWithoutContentSearchIndexes())
+	return ApplyBootstrapWithOptions(ctx, exec, BootstrapOptions{DeferContentSearchIndexes: true})
 }
 
-func applyBootstrapDefinitions(ctx context.Context, exec Executor, definitions []Definition) error {
+// ApplyBootstrapWithOptions applies pending Postgres migrations and logs progress
+// through the supplied logger, or the default logger when Logger is nil.
+func ApplyBootstrapWithOptions(ctx context.Context, exec Executor, options BootstrapOptions) error {
+	definitions := BootstrapDefinitions()
+	if options.DeferContentSearchIndexes {
+		definitions = BootstrapDefinitionsWithoutContentSearchIndexes()
+	}
+	logger := options.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return applyBootstrapDefinitions(ctx, exec, definitions, logger)
+}
+
+func applyBootstrapDefinitions(
+	ctx context.Context,
+	exec Executor,
+	definitions []Definition,
+	logger *slog.Logger,
+) error {
 	if locker, ok := exec.(schemaBootstrapLocker); ok {
 		return locker.withSchemaBootstrapLock(ctx, defaultSchemaLockTimeout, func(locked Executor) error {
+			if tracker, ok := locked.(schemaMigrationTracker); ok {
+				return tracker.applyTrackedDefinitions(ctx, definitions, defaultSchemaLockTimeout, logger)
+			}
 			return ApplyDefinitions(ctx, locked, definitions)
 		})
 	}

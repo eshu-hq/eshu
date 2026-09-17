@@ -116,7 +116,7 @@ func TestApplyPostgresSchemaDefersOnlyContentSubstringIndexesWhenEnabled(t *test
 			return "true"
 		}
 		return ""
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("applyPostgresSchema() error = %v, want nil", err)
 	}
@@ -142,7 +142,7 @@ func TestApplyPostgresSchemaRejectsInvalidDeferSetting(t *testing.T) {
 			return "sometimes"
 		}
 		return ""
-	})
+	}, nil)
 	if err == nil || !strings.Contains(err.Error(), deferContentSearchIndexesEnv) {
 		t.Fatalf("applyPostgresSchema() error = %v, want named invalid boolean error", err)
 	}
