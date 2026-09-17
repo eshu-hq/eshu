@@ -22,7 +22,7 @@ import (
 	interproc "github.com/eshu-hq/eshu/go/internal/projector/code/interproc/evidence"
 	taint "github.com/eshu-hq/eshu/go/internal/projector/code/taint/evidence"
 	containerimageidentity "github.com/eshu-hq/eshu/go/internal/projector/container/image/identity"
-	projectorcrossplanesatisfiedby "github.com/eshu-hq/eshu/go/internal/projector/crossplanesatisfiedby"
+	projectorcrossplanesatisfaction "github.com/eshu-hq/eshu/go/internal/projector/crossplane/satisfaction"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	"github.com/eshu-hq/eshu/go/internal/projector/incident/routing"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
@@ -181,7 +181,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorkubernetes.BuildCorrelationMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorcrossplanesatisfiedby.BuildCrossplaneSatisfiedByMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := projectorcrossplanesatisfaction.BuildCrossplaneSatisfiedByMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorsecurity.BuildSecurityGroupEndpointMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

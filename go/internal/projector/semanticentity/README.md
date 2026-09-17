@@ -87,7 +87,7 @@ queue, storage, graph, span, metric, or log boundary.
   the repository acceptance unit, so there is nothing to key on without it.
 - `entity_type` is read from the flat payload only. The `entity_kind`
   fallback that `projector.buildContentEntityRecord` and the
-  `crossplanesatisfiedby` trigger use is **not** applied here — this
+  `crossplane/satisfaction` trigger use is **not** applied here — this
   predicate has always read `entity_type` alone.
 - The `payloadMetadata*` readers check the flat payload key first and fall
   back to the nested `entity_metadata` map, because parser adapters emit
