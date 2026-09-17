@@ -114,9 +114,34 @@ phase-1, held).
 
 ## Scale-lab rebuild (acceptance item 1)
 
-Run18 in flight at write time: 3x amplified corpus (195 top-level
-repos, `~/tmp/e6184/scale-corpus`, path-derived repo ids verified
-distinct), same gate with `ESHU_DR_SKIP_INTERRUPT=true`, pass-1
-identity verdict plus rebuild timing. Log:
-`~/tmp/e6184/run18-scale-gate.log`. Result to be appended here and to
-the SLO row on landing.
+3x amplified corpus: 195 top-level repos (`~/tmp/e6184/scale-corpus`,
+flat copies of the fixture with `-s0/-s1/-s2` suffixes), accepted as
+201 scopes / 19107 `fact_records` (exactly 3x; repo ids are
+path-derived so copies scope distinctly). Same gate with
+`ESHU_DR_SKIP_INTERRUPT=true` on the pinned image.
+
+- Run18: INVALID baseline — the keeper live test's broken cleanup (see
+  fix `2ab137370`) left 36 keeper nodes on the live backend mid-phase-1
+  and they appear in the verdict diff (39 missing = 36 keeper + 3 tie,
+  58 missing edges = 36 keeper + 22 tie, by exact count). Lesson
+  recorded; never run live tests against the active validation lane.
+- Run19 (clean): pass 1 rebuilds in **144 s** (vs 83 s at 1x —
+  sublinear). Identity diff is exactly one family: the `workload:base`
+  ownership tie — all three copies DEFINE byte-identical
+  `workload:base`, phase-1 materialized s0's copy
+  (`repository:r_b16b40b7`), pass 1 materialized s1's
+  (`repository:r_e5f4da75`): 3 missing + 3 extra nodes and 23 missing +
+  22 extra edges, every one touching that tie. **Zero
+  `EvidenceArtifact` / `HAS_DEPLOYMENT_EVIDENCE` /
+  `EVIDENCES_REPOSITORY_RELATIONSHIP` identities differ at 3x** — the
+  fixed family converges at scale.
+
+SLO row: fixture-scale exact-green 83 s (acceptance proof, runs 16/17)
+plus scale throughput signal 144 s at 3x scopes/facts with the tie-only
+diff above. Exact-identity comparison at scale requires a
+duplicate-free corpus — naive identical-copy amplification introduces a
+workload-ownership conflict the identity model cannot hold stable
+across rebuilds (pre-existing tie-break behavior, out of scope for the
+acceptance corpus which has no duplicate workloads; noted as a
+follow-up for the owner, not fixed here). Logs:
+`~/tmp/e6184/run19-scale-gate.log`, `run18-scale-gate.log`.
