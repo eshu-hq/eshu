@@ -53,8 +53,8 @@ case "${1:-}" in
     ;;
   --files) mode="files"; shift; paths=("$@") ;;
   "") mode="default" ;;
-  -*) echo "usage: $(basename "$0") [--staged | --files <f>... | --range <base>]" >&2; exit 2 ;;
-  *) paths=("$@") ;;
+  -*) echo "usage: $(basename "$0") [--staged | --files <f>... | --range <base> | <f>...]" >&2; exit 2 ;;
+  *) mode="files"; paths=("$@") ;;
 esac
 
 # The merge-base upstream for default mode. Overridable for tests; mirrors

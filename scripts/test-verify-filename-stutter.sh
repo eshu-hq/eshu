@@ -171,6 +171,21 @@ case "$out" in
   *) printf 'FAIL disconnected history names the cause: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
 esac
 
+# 12b. Bare positional args honor files mode (no silent range scan).
+repo12b="$(new_repo)"
+mkdir -p "$repo12b/go/internal/projector/semantic/entity"
+printf 'package entity\n' > "$repo12b/go/internal/projector/semantic/entity/entity_intents.go"
+export ESHU_STUTTER_REPO_ROOT="$repo12b"
+set +e
+out="$(bash "$gate" go/internal/projector/semantic/entity/entity_intents.go 2>&1)"
+rc=$?
+set -e
+check "bare positional arg scans the named file RED" 1 "$rc"
+case "$out" in
+  *go/internal/projector/semantic/entity/entity_intents.go*) printf 'ok   bare-arg diagnostic names the path\n' ;;
+  *) printf 'FAIL bare-arg diagnostic names the path: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
+esac
+
 # 12. Default mode: committed stutter RED, clean tree GREEN.
 repo12="$(new_repo)"
 export ESHU_STUTTER_REPO_ROOT="$repo12"
