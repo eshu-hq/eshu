@@ -19,14 +19,6 @@ import (
 // repo uses tags only: @v6 x44, @v5 x1) after the @.
 var setupGoUsesRE = regexp.MustCompile(`(^|/)actions/setup-go(@|$)`)
 
-// goModDownloadRetryRE captures the optional module-dir argument of a
-// scripts/ci/go-mod-download-retry.sh invocation. An empty capture means the
-// bare form, which defaults to "go". The capture class deliberately excludes
-// shell operators (|, ;, &): a bare `\S+` would swallow "||" out of
-// `... .sh || true` as if it were a module argument, masking the exit-status
-// suppression prewarmSuppressedRE exists to catch.
-var goModDownloadRetryRE = regexp.MustCompile(`scripts/ci/go-mod-download-retry\.sh(?:\s+([\w./"'-]+))?`)
-
 // goTouchRE matches a literal `go <verb>` invocation for a verb that touches
 // the module graph. moduleTouchingToolRE matches the other module-graph-
 // touching tools this repo's CI runs. Neither is load-bearing for
@@ -40,14 +32,6 @@ var moduleTouchingToolRE = regexp.MustCompile(`\b(golangci-lint|govulncheck|gose
 // "${{ matrix.sum }}" -- this check has no workflow-evaluation engine and
 // cannot resolve one statically.
 var ghExpressionRE = regexp.MustCompile(`\$\{\{.*\}\}`)
-
-// prewarmSuppressedRE matches a shell suffix, immediately after a
-// go-mod-download-retry.sh call on the same line, that throws away its exit
-// status: "; true", "|| true", or "|| :". The command still runs -- this
-// only means a genuine failure (proxy down, all retries exhausted) can no
-// longer fail the job, defeating the "fail HERE, loud" purpose the script
-// exists for.
-var prewarmSuppressedRE = regexp.MustCompile(`^\s*(;\s*true\b|\|\|\s*true\b|\|\|\s*:(\s|$))`)
 
 // prewarmStep is the minimal shape this check reads from a workflow step.
 // A separate type from runStep (scriptworkflow.go) -- this check needs
@@ -106,24 +90,20 @@ func unquoteArg(s string) string {
 	return s
 }
 
-// prewarmStepIneffective reports why a step that DOES name the right module
-// still cannot protect the job, or "" if it can. matchEnd is the byte
-// offset immediately after the go-mod-download-retry.sh match in step.Run,
-// used to inspect only the rest of that same line for a suppressing suffix.
+// prewarmStepIneffective reports why a step whose pre-warm command DOES name
+// the right module still cannot protect the job, or "" if it can.
+// suppressed is commandSuppressed's verdict for that command (prewarmshell.go):
+// chained as "cmd || true", "cmd; true", or "cmd || :", all of which make the
+// step exit 0 regardless of the pre-warm's own result.
 //
 // Limits, deliberately not handled: an arbitrary `if:` expression is not
 // evaluated -- only a literal `false`/`${{ false }}` is recognized, since
 // evaluating a real expression needs the workflow's runtime context this
-// static check does not have. The pre-warm is recognized by the script path
-// appearing in the step's run text, not by parsing shell, so a mention that
-// never executes it (`echo scripts/ci/go-mod-download-retry.sh`, a `#`
-// comment) or a form that swallows its exit status other than the `|| true`,
-// `; true` and `|| :` suffixes (`|| echo`, `|| exit 0`, `if ...; then`, a
-// trailing `&`) is counted as warming; so is `continue-on-error: ${{ true }}`.
-// A composite action (`uses: ./.github/actions/...`) that wraps
-// actions/setup-go internally is invisible to this check. None of these
-// shapes exist in this repo today.
-func prewarmStepIneffective(step prewarmStep, matchEnd int) string {
+// static check does not have; so is `continue-on-error: ${{ true }}` (an
+// expression, not the literal `true`). A composite action
+// (`uses: ./.github/actions/...`) that wraps actions/setup-go internally is
+// invisible to this check. Neither shape exists in this repo today.
+func prewarmStepIneffective(step prewarmStep, suppressed bool) string {
 	if strings.EqualFold(strings.TrimSpace(step.ContinueOnError), "true") {
 		return "continue-on-error: true"
 	}
@@ -131,12 +111,8 @@ func prewarmStepIneffective(step prewarmStep, matchEnd int) string {
 	case "false", "${{false}}":
 		return "if: " + strings.TrimSpace(step.If)
 	}
-	rest := step.Run[matchEnd:]
-	if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
-		rest = rest[:nl]
-	}
-	if prewarmSuppressedRE.MatchString(rest) {
-		return "its exit status is suppressed (" + strings.TrimSpace(rest) + ")"
+	if suppressed {
+		return "its exit status is suppressed (chained with || true / ; true / || :)"
 	}
 	return ""
 }
@@ -155,6 +131,12 @@ func prewarmStepIneffective(step prewarmStep, matchEnd int) string {
 // step whatsoever is exactly the failure case above and must still
 // pre-warm. goTouchRE/moduleTouchingToolRE only decide what a too-late
 // pre-warm's error message names.
+//
+// A pre-warm is recognized only in COMMAND POSITION (prewarmshell.go's
+// shellCommandsInRun/prewarmInvocation), not by a raw text match: a
+// commented-out line, `echo`/`printf`'d path, or other mention no longer
+// counts (PR #6743 Codex P1 -- text matching let a maintainer defeat the
+// guard with a comment, which AGENTS.md treats as its own defect class).
 //
 // Fails closed: a workflow file this check cannot read or parse, or a
 // cache-dependency-path it cannot resolve to a module, is reported, not
@@ -238,44 +220,37 @@ func findPrewarmOrderingViolation(steps []prewarmStep, moduleDir string) string 
 		if step.Run == "" {
 			continue
 		}
-		loc := goModDownloadRetryRE.FindStringSubmatchIndex(step.Run)
-		if loc == nil {
-			if !prewarmSeen {
-				if v := touchDescription(step.Run); v != "" {
-					return v
+		cmds := shellCommandsInRun(step.Run)
+		for idx, cmd := range cmds {
+			arg, isPrewarm := prewarmInvocation(cmd)
+			if !isPrewarm {
+				if !prewarmSeen {
+					if v := touchDescription(cmd.Text); v != "" {
+						return v
+					}
 				}
+				continue
 			}
-			continue
-		}
-		// A pre-warm call can share its line (or an earlier line of the
-		// same multi-line `run: |` block) with a touch that ran first --
-		// finding the call anywhere in step.Run is not enough; only the
-		// text strictly BEFORE the match can have already run.
-		if !prewarmSeen {
-			if v := touchDescription(step.Run[:loc[0]]); v != "" {
-				return v
+			if arg == "" {
+				arg = "go"
 			}
-		}
-		arg := "go"
-		if loc[2] >= 0 {
-			arg = unquoteArg(step.Run[loc[2]:loc[3]])
-		}
-		if arg != moduleDir {
-			if wrongModuleSeen == "" {
-				wrongModuleSeen = arg
+			if arg != moduleDir {
+				if wrongModuleSeen == "" {
+					wrongModuleSeen = arg
+				}
+				continue
 			}
-			continue
+			// Report an ineffective same-module pre-warm immediately, rather
+			// than recording it and continuing to scan: it IS the root finding
+			// -- a later touch this leaves unprotected is a symptom, and
+			// reporting that instead would bury the actual fix (remove the
+			// continue-on-error/if:false/suppression) behind an ordering
+			// message that does not name it.
+			if reason := prewarmStepIneffective(step, commandSuppressed(cmds, idx)); reason != "" {
+				return fmt.Sprintf("found a pre-warm for %q, but %s", moduleDir, reason)
+			}
+			prewarmSeen = true
 		}
-		// Report an ineffective same-module pre-warm immediately, rather
-		// than recording it and continuing to scan: it IS the root finding
-		// -- a later touch this leaves unprotected is a symptom, and
-		// reporting that instead would bury the actual fix (remove the
-		// continue-on-error/if:false/suppression) behind an ordering
-		// message that does not name it.
-		if reason := prewarmStepIneffective(step, loc[1]); reason != "" {
-			return fmt.Sprintf("found a pre-warm for %q, but %s", moduleDir, reason)
-		}
-		prewarmSeen = true
 	}
 	if prewarmSeen {
 		return ""
@@ -286,25 +261,15 @@ func findPrewarmOrderingViolation(steps []prewarmStep, moduleDir string) string 
 	return "no step warms that module"
 }
 
-// touchDescription reports the first module-graph touch in text, naming the
-// exact line it matched on, or "" if none.
-func touchDescription(text string) string {
-	if loc := goTouchRE.FindStringIndex(text); loc != nil {
-		return fmt.Sprintf("step %q runs a Go command before any scripts/ci/go-mod-download-retry.sh step warms that module",
-			strings.TrimSpace(lineAt(text, loc[0])))
+// touchDescription reports whether cmdText -- one command from
+// shellCommandsInRun, already narrowed to command position -- is a
+// module-graph touch, or "" if not.
+func touchDescription(cmdText string) string {
+	if goTouchRE.MatchString(cmdText) {
+		return fmt.Sprintf("step %q runs a Go command before any scripts/ci/go-mod-download-retry.sh step warms that module", cmdText)
 	}
-	if loc := moduleTouchingToolRE.FindStringIndex(text); loc != nil {
-		return fmt.Sprintf("step %q runs a module-graph-touching tool before any scripts/ci/go-mod-download-retry.sh step warms that module",
-			strings.TrimSpace(lineAt(text, loc[0])))
+	if moduleTouchingToolRE.MatchString(cmdText) {
+		return fmt.Sprintf("step %q runs a module-graph-touching tool before any scripts/ci/go-mod-download-retry.sh step warms that module", cmdText)
 	}
 	return ""
-}
-
-// lineAt returns the line of text containing byte offset pos.
-func lineAt(text string, pos int) string {
-	start := strings.LastIndexByte(text[:pos], '\n') + 1 // -1+1 == 0 when absent
-	if end := strings.IndexByte(text[pos:], '\n'); end >= 0 {
-		return text[start : pos+end]
-	}
-	return text[start:]
 }
