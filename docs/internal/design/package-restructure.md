@@ -1440,7 +1440,7 @@ builders, `supplyChainImpactFindingsRoute` and
 four supply-chain builders that stay there; the other two, plus the
 eighteen-filter helper they share, sat alone in
 `dispatch_supply_chain_aggregates.go`. Family membership and all four
-builders now live under `internal/mcp/supplychainimpact`; the aggregates file
+builders now live under `internal/mcp/supply/chain/impact`; the aggregates file
 is deleted and `dispatch_supply_chain_impact.go` takes its place holding only
 the thin `supplyChainImpactRoute` adapter. Root keeps the four tool
 definitions and their assembly positions, global fanout order, dispatch,

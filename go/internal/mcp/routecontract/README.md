@@ -16,7 +16,7 @@ packages such as `internal/mcp/admissiondecisions`, `internal/mcp/ask`,
 `internal/mcp/impact`, `internal/mcp/infrasearch`, `internal/mcp/kubernetes`,
 `internal/mcp/observabilitycoverage`, `internal/mcp/packageregistry`,
 `internal/mcp/relationships`, `internal/mcp/secretsiam`,
-`internal/mcp/securityalert`, `internal/mcp/supplychainimpact`, and
+`internal/mcp/securityalert`, `internal/mcp/supply/chain/impact`, and
 `internal/mcp/visualization` own those decisions. The root `internal/mcp`
 package still owns global route fanout, family adapters, request dispatch,
 authorization forwarding, timeouts, response budgets, response envelopes,

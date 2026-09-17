@@ -83,7 +83,7 @@ telemetry, and the same query handlers execute the requests.
 
 - [MCP package](../README.md)
 - [MCP route contract](../routecontract/README.md)
-- [MCP supply-chain-impact route selection](../supplychainimpact/README.md)
+- [MCP supply-chain-impact route selection](../supply/chain/impact/README.md)
 - [HTTP API reference](../../../../docs/public/reference/http-api.md)
 
 ## Verification

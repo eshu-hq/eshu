@@ -86,8 +86,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/supplychainevidence ./internal/mcp -count=1
-go vet ./internal/mcp/supplychainevidence ./internal/mcp
+go test ./internal/mcp/supply/chain/evidence ./internal/mcp -count=1
+go vet ./internal/mcp/supply/chain/evidence ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

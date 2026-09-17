@@ -38,10 +38,10 @@
    `go/internal/mcp/secretsiam`, observability-coverage request selection in
    `go/internal/mcp/observabilitycoverage`, container-image identity request
    selection in `go/internal/mcp/containerimage`, supply-chain-impact request
-   selection in `go/internal/mcp/supplychainimpact`, supply-chain evidence
+   selection in `go/internal/mcp/supply/chain/impact`, supply-chain evidence
    (vulnerability-scanner read contract, advisory-evidence, and
    SBOM/attestation attachment) request selection in
-   `go/internal/mcp/supplychainevidence`, whose `supplyChainEvidenceRoute`
+   `go/internal/mcp/supply/chain/evidence`, whose `supplyChainEvidenceRoute`
    adapter reuses the `dispatch_supply_chain.go` filename rather than adding a
    new one, security-alert reconciliation request selection in
    `go/internal/mcp/securityalert`,

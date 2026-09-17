@@ -111,8 +111,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/supplychainimpact ./internal/mcp -count=1
-go vet ./internal/mcp/supplychainimpact ./internal/mcp
+go test ./internal/mcp/supply/chain/impact ./internal/mcp -count=1
+go vet ./internal/mcp/supply/chain/impact ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

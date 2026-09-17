@@ -5,7 +5,7 @@ package mcp
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
-	supplychainevidencetools "github.com/eshu-hq/eshu/go/internal/mcp/supplychainevidence"
+	supplychainevidencetools "github.com/eshu-hq/eshu/go/internal/mcp/supply/chain/evidence"
 )
 
 // supplyChainEvidenceRoute adapts the child package's supply-chain evidence
