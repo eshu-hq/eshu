@@ -1,0 +1,16 @@
+docs/internal/evidence/6162-nornicdb-v133-alignment.md
+  h_78a442cba0b3e6 59,62,70-72
+docs/internal/measurements.jsonl
+  h_78a442cba0b3e6 69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "78d878af9405cdf6b8ceb4b289b03c38bac211c7",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
