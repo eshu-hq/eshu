@@ -36,7 +36,7 @@
    `go/internal/mcp/cicd`, CODEOWNERS ownership request selection in
    `go/internal/mcp/code/owners`, secrets/IAM posture request selection in
    `go/internal/mcp/secretsiam`, observability-coverage request selection in
-   `go/internal/mcp/observabilitycoverage`, container-image identity request
+   `go/internal/mcp/observability/coverage`, container-image identity request
    selection in `go/internal/mcp/container/image`, supply-chain-impact request
    selection in `go/internal/mcp/supply/chain/impact`, supply-chain evidence
    (vulnerability-scanner read contract, advisory-evidence, and

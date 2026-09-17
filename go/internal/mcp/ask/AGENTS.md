@@ -9,7 +9,7 @@
 4. `../types.go` for the ordered assembly position.
 5. `../dispatch_ask.go` and `../dispatch_ask_test.go` for the root adapter and
    production-boundary proof.
-6. `../toolcontract/README.md` and `../routecontract/README.md` for the
+6. `../contract/tool/README.md` and `../contract/route/README.md` for the
    dependency-neutral definition and request contracts.
 7. `../../../../docs/internal/remote-validation/prod-ask-default-off.md` for
    deployed default-off and enabled-path evidence.

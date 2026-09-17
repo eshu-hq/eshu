@@ -7,7 +7,7 @@
 3. `../types.go` and `../tools_codebase.go` for the ordered assembly positions.
 4. `code_routes.go` and `edge_routes.go` for pure family membership and request
    selection, then the root relationship dispatch files for adapter behavior.
-5. `../toolcontract/README.md` for the dependency-neutral definition contract.
+5. `../contract/tool/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing the relationship-edge query path.
 
 ## Invariants

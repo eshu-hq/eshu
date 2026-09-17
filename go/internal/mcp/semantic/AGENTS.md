@@ -7,7 +7,7 @@
 3. `../types.go` for the ordered assembly positions.
 4. `../dispatch_semantic_evidence.go` and
    `../dispatch_semantic_search.go` for the split route ownership.
-5. `../toolcontract/README.md` for the dependency-neutral definition contract.
+5. `../contract/tool/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing semantic query behavior.
 
 ## Invariants

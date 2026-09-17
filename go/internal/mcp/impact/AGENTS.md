@@ -13,7 +13,7 @@
 6. `../ecosystem/` for eight of the nine advertised schemas, and
    `../tools_reachability.go` for `trace_exposure_path`'s. The schemas stay
    there and must keep naming the same fields these builders select.
-7. `../routecontract/README.md` for the dependency-neutral request contract.
+7. `../contract/route/README.md` for the dependency-neutral request contract.
 8. `go/internal/query/impact/trace_deployment.go` for the
    trace-deployment-chain handler this family's most commented default feeds:
    `normalizeTraceDeploymentChainMaxDepth` clamps `max_depth` into [0, 1000]

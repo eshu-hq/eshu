@@ -14,7 +14,7 @@
    registered in `../tools_infra_resource_aggregates.go`), and
    `../dispatch_impact.go` (the adapter over `../impact`) for split route
    ownership.
-5. `../toolcontract/README.md` for the dependency-neutral definition contract.
+5. `../contract/tool/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing ecosystem query behavior.
 
 ## Invariants

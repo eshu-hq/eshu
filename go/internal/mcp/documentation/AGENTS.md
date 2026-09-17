@@ -5,7 +5,7 @@
 1. `README.md` and `doc.go` in this directory.
 2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `../types.go` for the two ordered assembly positions.
-4. `../toolcontract/README.md` for the dependency-neutral definition contract.
+4. `../contract/tool/README.md` for the dependency-neutral definition contract.
 
 ## Invariants
 

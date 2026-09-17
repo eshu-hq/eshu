@@ -1355,7 +1355,7 @@ The observability-coverage route family is the fifth Wave 2 MCP extraction and
 returns to the single-tool shape: one tool, one arm of the same
 `repositoryRoute` switch, one request builder in
 `dispatch_observability_coverage.go` with no private helper beside it. Family
-membership and the builder now live under `internal/mcp/observabilitycoverage`,
+membership and the builder now live under `internal/mcp/observability/coverage`,
 and `dispatch_observability_coverage.go` keeps only the thin
 `observabilityCoverageRoute` adapter. Root keeps the tool definition and its
 assembly position, global fanout order, dispatch, authorization, transport,

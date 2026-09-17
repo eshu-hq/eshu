@@ -8,7 +8,7 @@
 4. `../dispatch_repositories.go`, `../dispatch_service_catalog.go`, and
    `../dispatch_service_selector.go` (the `serviceContextRoute` adapter over
    `../servicecontext`) for split route ownership.
-5. `../toolcontract/README.md` for the dependency-neutral definition contract.
+5. `../contract/tool/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing service query behavior.
 
 ## Invariants

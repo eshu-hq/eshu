@@ -14,7 +14,7 @@
    `get_service_intelligence_report`) for the four advertised schemas. They
    stay in the sibling `service` registration package and must keep naming
    the same fields this selector reads.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../contract/route/README.md` for the dependency-neutral request contract.
 7. The handler behind each path, for the selector-resolution and truth
    behavior this package's routes must stay compatible with. Confirmed with
    `rg --files internal/query -g '<file>'` (and `internal/serviceintelhttp`

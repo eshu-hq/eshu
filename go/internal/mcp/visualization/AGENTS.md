@@ -10,7 +10,7 @@
 5. `../dispatch_visualization.go` and
    `../dispatch_visualization_contract_test.go` for the root adapter and
    production-boundary proof.
-6. `../toolcontract/README.md` and `../routecontract/README.md` for the
+6. `../contract/tool/README.md` and `../contract/route/README.md` for the
    dependency-neutral definition and request contracts.
 
 ## Invariants

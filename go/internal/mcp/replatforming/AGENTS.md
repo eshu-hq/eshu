@@ -14,7 +14,7 @@
    (`compose_replatforming_plan`, `get_replatforming_rollups`). They stay at
    the parent's root and must keep naming the same fields this builder
    selects.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../contract/route/README.md` for the dependency-neutral request contract.
 7. `go/internal/query/iac/replatforming_plan_handler.go` and
    `go/internal/query/iac/replatforming_rollups_handler.go` for the two
    handlers, and `go/internal/query/iac/management.go` /

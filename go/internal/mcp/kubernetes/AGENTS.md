@@ -11,7 +11,7 @@
    answered ahead of.
 6. `../tools_kubernetes.go` for the advertised schema, which stays at root and
    must keep naming the same ten fields and the same 1..200 `limit` range.
-7. `../routecontract/README.md` for the dependency-neutral request contract.
+7. `../contract/route/README.md` for the dependency-neutral request contract.
 8. `go/internal/query/kubernetes.go` for the handler that reads the keys this
    package selects: the required `limit` and its bound, the anchor rule, and
    the access-scope short-circuit all live there. The bound is a rejection,
