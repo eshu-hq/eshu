@@ -66,6 +66,10 @@ type Config struct {
 	// core-owned declaration without a live grant fails Source construction
 	// exactly as manifest validation without grant context rejects it.
 	Grants []component.ProducerGrant
+	// LiveGrants, when set, supplies the current grant set for every
+	// emitted result so revocation during execution fails closed. When nil,
+	// emission checks fall back to the construction-time Grants snapshot.
+	LiveGrants func() []component.ProducerGrant
 }
 
 // Source implements collector.ClaimedSource for collector SDK extensions.
@@ -82,4 +86,8 @@ type Source struct {
 	statusRecorder      StatusRecorder
 	clock               func() time.Time
 	collectorKinds      map[scope.CollectorKind]struct{}
+	// liveGrants supplies the current producer-grant set for every emission
+	// so revocation during execution fails closed. It defaults to the
+	// construction-time Grants snapshot.
+	liveGrants func() []component.ProducerGrant
 }

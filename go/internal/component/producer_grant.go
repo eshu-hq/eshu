@@ -6,6 +6,8 @@ package component
 import (
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // ProducerGrant is the core-issued authorization for a first-party producer
@@ -53,6 +55,24 @@ func (r Registry) RecordGrant(grant ProducerGrant) error {
 		state.Grants = append(state.Grants, grant)
 	}
 	return r.save(state)
+}
+
+// AuthorizesEmission reports whether the grants authorize one emitted fact
+// for a producer identity. Kinds that are not core-owned need no grant and
+// always pass; a core-owned kind passes only with a live grant naming this
+// producer and version, covering the schema version, scoped to one of the
+// declared scopes, neither revoked nor expired. Anything else fails closed.
+func AuthorizesEmission(grants []ProducerGrant, producerID, version, kind, schemaVersion string, scopes []string, now time.Time) bool {
+	if !facts.IsCoreFactKind(strings.TrimSpace(kind)) {
+		return true
+	}
+	covered := grantedCoreKinds(producerID, version, scopes, grants, now)
+	for _, coveredVersion := range covered[strings.TrimSpace(kind)] {
+		if coveredVersion == schemaVersion {
+			return true
+		}
+	}
+	return false
 }
 
 // grantedCoreKinds indexes the live grants matching a manifest identity to

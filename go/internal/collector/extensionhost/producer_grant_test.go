@@ -4,12 +4,15 @@
 package extensionhost
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
+	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // TestNewSourceAcceptsGrantedCoreFactKind is the #6709 slice-2 TDD red test:
@@ -45,6 +48,108 @@ func TestNewSourceAcceptsGrantedCoreFactKind(t *testing.T) {
 	}
 	if source == nil {
 		t.Fatal("NewSource(granted core kind) = nil, want source")
+	}
+}
+
+// grantedCoreKindManifest returns a test manifest declaring a core-owned
+// kind plus a live grant covering it, for emission-path tests.
+func grantedCoreKindManifest() (component.Manifest, []component.ProducerGrant) {
+	manifest := testManifest()
+	manifest.Spec.EmittedFacts[0].Kind = "aws_resource"
+	grants := []component.ProducerGrant{{
+		ProducerID:     manifest.Metadata.ID,
+		Version:        manifest.Metadata.Version,
+		Kind:           "aws_resource",
+		SchemaVersions: []string{"1.0.0"},
+		Scope:          "repo",
+		ExpiresAt:      time.Now().Add(time.Hour).UTC(),
+	}}
+	return manifest, grants
+}
+
+// grantedCoreKindResult returns a complete result emitting one core-owned
+// fact that satisfies the contract for grantedCoreKindManifest.
+func grantedCoreKindResult(item workflow.WorkItem) sdkcollector.Result {
+	fact := testSDKFact(item)
+	fact.Kind = "aws_resource"
+	fact.SchemaVersion = "1.0.0"
+	return completeResult(item, fact)
+}
+
+// TestSourceRejectsEmissionAfterGrantRevoked is the #6709 slice-3 TDD red
+// test: grants are rechecked on every emission, so revoking the recorded
+// grant after activation fails the next result closed with the actionable
+// core-owned error instead of emitting under a dead authorization.
+func TestSourceRejectsEmissionAfterGrantRevoked(t *testing.T) {
+	t.Parallel()
+
+	manifest, grants := grantedCoreKindManifest()
+	revoked := grants[0]
+	revoked.Revoked = true
+	item := testWorkItem()
+	source, err := NewSource(Config{
+		Manifest:            manifest,
+		CollectorInstanceID: "scorecard-instance",
+		ScopeKind:           scope.KindRepository,
+		ConfigHandle:        "cfg-scorecard",
+		Config:              map[string]any{"fixture": "scorecard"},
+		Runner:              &recordingRunner{result: grantedCoreKindResult(item)},
+		Clock:               testObservedAt,
+		Grants:              grants,
+		LiveGrants:          func() []component.ProducerGrant { return []component.ProducerGrant{revoked} },
+	})
+	if err != nil {
+		t.Fatalf("NewSource() error = %v, want nil", err)
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want terminal grant-revocation error")
+	}
+	if ok {
+		t.Fatal("NextClaimed() ok = true, want false")
+	}
+	if got := len(collectFacts(t, collected)); got != 0 {
+		t.Fatalf("facts after revocation = %d, want 0", got)
+	}
+	assertFailure(t, err, FailureClassInvalidResult, true)
+	if !strings.Contains(err.Error(), "aws_resource") || !strings.Contains(err.Error(), "grant") {
+		t.Fatalf("NextClaimed() error = %v, want core-owned kind naming its grant", err)
+	}
+}
+
+// TestSourceAcceptsEmissionWithLiveGrant proves the recheck passes while
+// the grant stays live: authorization is continuous, not just checked at
+// construction.
+func TestSourceAcceptsEmissionWithLiveGrant(t *testing.T) {
+	t.Parallel()
+
+	manifest, grants := grantedCoreKindManifest()
+	item := testWorkItem()
+	source, err := NewSource(Config{
+		Manifest:            manifest,
+		CollectorInstanceID: "scorecard-instance",
+		ScopeKind:           scope.KindRepository,
+		ConfigHandle:        "cfg-scorecard",
+		Config:              map[string]any{"fixture": "scorecard"},
+		Runner:              &recordingRunner{result: grantedCoreKindResult(item)},
+		Clock:               testObservedAt,
+		Grants:              grants,
+		LiveGrants:          func() []component.ProducerGrant { return grants },
+	})
+	if err != nil {
+		t.Fatalf("NewSource() error = %v, want nil", err)
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	if got := len(collectFacts(t, collected)); got != 1 {
+		t.Fatalf("facts with live grant = %d, want 1", got)
 	}
 }
 

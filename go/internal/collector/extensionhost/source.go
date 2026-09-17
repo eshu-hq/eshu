@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
@@ -48,6 +49,11 @@ func NewSource(config Config) (*Source, error) {
 	if clock == nil {
 		clock = time.Now
 	}
+	grants := append([]component.ProducerGrant(nil), config.Grants...)
+	liveGrants := config.LiveGrants
+	if liveGrants == nil {
+		liveGrants = func() []component.ProducerGrant { return grants }
+	}
 	collectorKinds := make(map[scope.CollectorKind]struct{}, len(config.Manifest.Spec.CollectorKinds))
 	for _, kind := range config.Manifest.Spec.CollectorKinds {
 		collectorKinds[scope.CollectorKind(kind)] = struct{}{}
@@ -65,6 +71,7 @@ func NewSource(config Config) (*Source, error) {
 		statusRecorder:      config.StatusRecorder,
 		clock:               clock,
 		collectorKinds:      collectorKinds,
+		liveGrants:          liveGrants,
 	}, nil
 }
 
@@ -180,6 +187,40 @@ func (s *Source) validateResult(request Request, result sdkcollector.Result) err
 			terminal: true,
 			cause:    err,
 		}
+	}
+	if err := s.validateGrantCoverage(result); err != nil {
+		return extensionFailure{
+			class:    FailureClassInvalidResult,
+			terminal: true,
+			cause:    err,
+		}
+	}
+	return nil
+}
+
+// validateGrantCoverage rechecks core-issued producer authorization on every
+// emission against the live grant set, so a grant revoked after activation
+// fails the next result closed instead of emitting under a dead
+// authorization. Kinds that are not core-owned need no grant.
+func (s *Source) validateGrantCoverage(result sdkcollector.Result) error {
+	grants := s.liveGrants()
+	now := s.clock()
+	for _, fact := range result.Facts {
+		if component.AuthorizesEmission(
+			grants,
+			s.manifest.Metadata.ID,
+			s.manifest.Metadata.Version,
+			fact.Kind,
+			fact.SchemaVersion,
+			s.manifest.Spec.CollectorKinds,
+			now,
+		) {
+			continue
+		}
+		return fmt.Errorf(
+			"fact kind %q is core-owned by Eshu and has no live producer grant for %q version %q",
+			fact.Kind, s.manifest.Metadata.ID, s.manifest.Metadata.Version,
+		)
 	}
 	return nil
 }
