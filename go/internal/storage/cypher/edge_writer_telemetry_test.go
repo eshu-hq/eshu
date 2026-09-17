@@ -108,21 +108,45 @@ func TestEdgeWriterWriteEdgesLogsDerivedRowsSeparately(t *testing.T) {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
-	var entry map[string]any
-	if err := json.Unmarshal(bytes.TrimSpace(logs.Bytes()), &entry); err != nil {
-		t.Fatalf("unmarshal log entry: %v\nlogs:\n%s", err, logs.String())
+	// The main group and the evidence-artifact batch log separately: since
+	// #6184 run15 the artifact statements run sequentially after the main
+	// group commits (same-transaction MATCHes miss the main batch's
+	// in-transaction MERGEs on NornicDB), so one claim emits two entries.
+	lines := bytes.Split(bytes.TrimSpace(logs.Bytes()), []byte("\n"))
+	if len(lines) != 2 {
+		t.Fatalf("log lines = %d, want 2 (main group + artifact batch)\nlogs:\n%s", len(lines), logs.String())
 	}
-	if got, want := entry["input_intents"], float64(1); got != want {
-		t.Fatalf("input_intents = %v, want %v", got, want)
+	var group, artifact map[string]any
+	if err := json.Unmarshal(lines[0], &group); err != nil {
+		t.Fatalf("unmarshal group log entry: %v\nlogs:\n%s", err, logs.String())
 	}
-	if got, want := entry["accepted_intents"], float64(1); got != want {
-		t.Fatalf("accepted_intents = %v, want %v", got, want)
+	if err := json.Unmarshal(lines[1], &artifact); err != nil {
+		t.Fatalf("unmarshal artifact log entry: %v\nlogs:\n%s", err, logs.String())
 	}
-	if got, want := entry["skipped_intents"], float64(0); got != want {
-		t.Fatalf("skipped_intents = %v, want %v", got, want)
+	if got, want := group["execution_mode"], "group"; got != want {
+		t.Fatalf("group execution_mode = %v, want %v", got, want)
 	}
-	if got, want := entry["executed_rows"], float64(3); got != want {
-		t.Fatalf("executed_rows = %v, want %v", got, want)
+	if got, want := artifact["execution_mode"], "artifact-sequential"; got != want {
+		t.Fatalf("artifact execution_mode = %v, want %v", got, want)
+	}
+	for name, entry := range map[string]map[string]any{"group": group, "artifact": artifact} {
+		if got, want := entry["input_intents"], float64(1); got != want {
+			t.Fatalf("%s input_intents = %v, want %v", name, got, want)
+		}
+		if got, want := entry["accepted_intents"], float64(1); got != want {
+			t.Fatalf("%s accepted_intents = %v, want %v", name, got, want)
+		}
+		if got, want := entry["skipped_intents"], float64(0); got != want {
+			t.Fatalf("%s skipped_intents = %v, want %v", name, got, want)
+		}
+	}
+	// executed_rows counts each entry's own statements: the main group
+	// covers the one routed row, the artifact batch the two derived rows.
+	if got, want := group["executed_rows"], float64(1); got != want {
+		t.Fatalf("group executed_rows = %v, want %v", got, want)
+	}
+	if got, want := artifact["executed_rows"], float64(2); got != want {
+		t.Fatalf("artifact executed_rows = %v, want %v", got, want)
 	}
 }
 
