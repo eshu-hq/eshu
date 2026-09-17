@@ -45,21 +45,22 @@ run_gate() {
   printf '%s' "$rc"
 }
 
-# 1. RED: the #6736 shape -- a staged rename landing entity/entity_intents.go.
+# 1. RED: the stutter shape -- a staged rename landing entity/entity_checks.go
+# (same class as the #6736 entity/entity_intents.go miss).
 repo="$(new_repo)"
 mkdir -p "$repo/go/internal/projector/semanticentity" "$repo/go/internal/projector/semantic"
-printf 'package semanticentity\n' > "$repo/go/internal/projector/semanticentity/entity_intents.go"
+printf 'package semanticentity\n' > "$repo/go/internal/projector/semanticentity/entity_checks.go"
 export ESHU_STUTTER_REPO_ROOT="$repo"
 git -C "$repo" add -A && git -C "$repo" commit -qm base
 mkdir -p "$repo/go/internal/projector/semantic/entity"
-git -C "$repo" mv go/internal/projector/semanticentity/entity_intents.go go/internal/projector/semantic/entity/entity_intents.go
+git -C "$repo" mv go/internal/projector/semanticentity/entity_checks.go go/internal/projector/semantic/entity/entity_checks.go
 rc="$(run_gate --staged)"
 check "staged rename into stuttering nest is RED" 1 "$rc"
 
 # 2. RED: a plain staged add of a stuttering new file.
 repo2="$(new_repo)"
 mkdir -p "$repo2/go/internal/projector/semantic/entity"
-printf 'package entity\n' > "$repo2/go/internal/projector/semantic/entity/entity_intents.go"
+printf 'package entity\n' > "$repo2/go/internal/projector/semantic/entity/entity_checks.go"
 export ESHU_STUTTER_REPO_ROOT="$repo2"
 git -C "$repo2" add -A
 rc="$(run_gate --staged)"
@@ -104,7 +105,7 @@ printf 'package semanticentity\n' > "$repo6/go/internal/projector/semanticentity
 export ESHU_STUTTER_REPO_ROOT="$repo6"
 git -C "$repo6" add -A && git -C "$repo6" commit -qm base
 mkdir -p "$repo6/go/internal/projector/semantic/entity"
-printf 'package entity\n' > "$repo6/go/internal/projector/semantic/entity/entity_intents.go"
+printf 'package entity\n' > "$repo6/go/internal/projector/semantic/entity/entity_checks.go"
 git -C "$repo6" add -A && git -C "$repo6" commit -qm stutter
 rc="$(run_gate --range HEAD~1)"
 check "--range over stutter commit is RED" 1 "$rc"
@@ -159,7 +160,7 @@ orphan="$(git -C "$repo11" rev-parse HEAD)"
 git -C "$repo11" checkout -q --orphan stray
 git -C "$repo11" rm -qf . 2>/dev/null || true
 mkdir -p "$repo11/go/internal/projector/semantic/entity"
-printf 'package entity\n' > "$repo11/go/internal/projector/semantic/entity/entity_intents.go"
+printf 'package entity\n' > "$repo11/go/internal/projector/semantic/entity/entity_checks.go"
 git -C "$repo11" add -A && git -C "$repo11" commit -qm stray
 set +e
 out="$(bash "$gate" --range "$orphan" 2>&1)"
@@ -174,15 +175,15 @@ esac
 # 12b. Bare positional args honor files mode (no silent range scan).
 repo12b="$(new_repo)"
 mkdir -p "$repo12b/go/internal/projector/semantic/entity"
-printf 'package entity\n' > "$repo12b/go/internal/projector/semantic/entity/entity_intents.go"
+printf 'package entity\n' > "$repo12b/go/internal/projector/semantic/entity/entity_checks.go"
 export ESHU_STUTTER_REPO_ROOT="$repo12b"
 set +e
-out="$(bash "$gate" go/internal/projector/semantic/entity/entity_intents.go 2>&1)"
+out="$(bash "$gate" go/internal/projector/semantic/entity/entity_checks.go 2>&1)"
 rc=$?
 set -e
 check "bare positional arg scans the named file RED" 1 "$rc"
 case "$out" in
-  *go/internal/projector/semantic/entity/entity_intents.go*) printf 'ok   bare-arg diagnostic names the path\n' ;;
+  *go/internal/projector/semantic/entity/entity_checks.go*) printf 'ok   bare-arg diagnostic names the path\n' ;;
   *) printf 'FAIL bare-arg diagnostic names the path: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
 esac
 
@@ -192,11 +193,11 @@ export ESHU_STUTTER_REPO_ROOT="$repo12"
 export ESHU_STUTTER_UPSTREAM="HEAD~1"
 git -C "$repo12" commit -q --allow-empty -m base
 mkdir -p "$repo12/go/internal/projector/semantic/entity"
-printf 'package entity\n' > "$repo12/go/internal/projector/semantic/entity/entity_intents.go"
+printf 'package entity\n' > "$repo12/go/internal/projector/semantic/entity/entity_checks.go"
 git -C "$repo12" add -A && git -C "$repo12" commit -qm stutter
 rc="$(run_gate)"
 check "default mode over committed stutter is RED" 1 "$rc"
-git -C "$repo12" mv go/internal/projector/semantic/entity/entity_intents.go go/internal/projector/semantic/entity/intents.go
+git -C "$repo12" mv go/internal/projector/semantic/entity/entity_checks.go go/internal/projector/semantic/entity/intents.go
 git -C "$repo12" commit -qm destutter
 rc="$(run_gate)"
 check "default mode over clean tree is GREEN" 0 "$rc"
