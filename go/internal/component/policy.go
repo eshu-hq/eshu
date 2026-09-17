@@ -52,8 +52,21 @@ func (p Policy) Verify(manifest Manifest) VerificationResult {
 	return p.VerifyContext(context.Background(), manifest)
 }
 
+// VerifyWithGrants validates a manifest against the policy, honoring
+// core-issued producer grants for core-owned fact kinds. A nil grant set
+// behaves exactly like Verify.
+func (p Policy) VerifyWithGrants(ctx context.Context, manifest Manifest, grants []ProducerGrant) VerificationResult {
+	return p.verifyWithGrants(ctx, manifest, grants)
+}
+
 // VerifyContext validates a manifest against the policy.
 func (p Policy) VerifyContext(ctx context.Context, manifest Manifest) VerificationResult {
+	return p.verifyWithGrants(ctx, manifest, nil)
+}
+
+// verifyWithGrants validates a manifest against the policy, consulting the
+// given core-issued producer grants for core-owned fact-kind declarations.
+func (p Policy) verifyWithGrants(ctx context.Context, manifest Manifest, grants []ProducerGrant) VerificationResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -61,7 +74,7 @@ func (p Policy) VerifyContext(ctx context.Context, manifest Manifest) Verificati
 	if mode == "" {
 		mode = TrustModeDisabled
 	}
-	if err := manifest.Validate(); err != nil {
+	if err := manifest.ValidateWithGrants(grants); err != nil {
 		return VerificationResult{Mode: mode, Code: ErrorCodeInvalidManifest, Reason: err.Error()}
 	}
 	result := VerificationResult{

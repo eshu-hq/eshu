@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
+	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -33,6 +34,7 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
+	grantHome := config.ComponentHome
 	source, err := extensionhost.NewSource(extensionhost.Config{
 		Manifest:            config.Manifest,
 		CollectorInstanceID: config.Instance.InstanceID,
@@ -41,6 +43,18 @@ func buildClaimedService(
 		Config:              config.ExtensionConfig,
 		Runner:              config.Runner,
 		Clock:               time.Now,
+		Grants:              config.Grants,
+		// LiveGrants re-reads the registry on every emission so a
+		// grant revoked during execution fails the next result
+		// closed. A read failure denies core-owned kinds rather
+		// than emitting under unknown authorization.
+		LiveGrants: func() []component.ProducerGrant {
+			grants, err := component.NewRegistry(grantHome).ProducerGrants()
+			if err != nil {
+				return nil
+			}
+			return grants
+		},
 	})
 	if err != nil {
 		return collector.ClaimedService{}, err

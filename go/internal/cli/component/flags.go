@@ -34,4 +34,19 @@ const (
 	// `eshu component init collector`. RunInitCollector renders it when the
 	// fact kind is empty or malformed.
 	InitFactKindFlag = "fact-kind"
+	// GrantKindFlag is the core-owned fact kind input of
+	// `eshu component grant`. RunGrant renders it when the kind is not
+	// core-owned.
+	GrantKindFlag = "kind"
+	// GrantSchemaVersionFlag is the repeatable covered-schema input of
+	// `eshu component grant`. RunGrant renders it when no schema version
+	// is given or one entry is blank.
+	GrantSchemaVersionFlag = "schema-version"
+	// GrantScopeFlag is the source-scope input of `eshu component grant`.
+	// RunGrant renders it when the scope is empty.
+	GrantScopeFlag = "scope"
+	// GrantExpiresInFlag is the grant-lifetime input of
+	// `eshu component grant`. RunGrant renders it when the lifetime is not
+	// positive.
+	GrantExpiresInFlag = "expires-in"
 )

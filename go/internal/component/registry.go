@@ -50,6 +50,9 @@ type Activation struct {
 
 type registryState struct {
 	Components []InstalledComponent `json:"components"`
+	// Grants holds core-issued producer authorizations. Absent in
+	// registries written before producer delegation; nil grants deny.
+	Grants []ProducerGrant `json:"grants,omitempty"`
 }
 
 // NewRegistry creates a local component registry rooted at home.
@@ -66,7 +69,11 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 			verification.Reason,
 		)
 	}
-	manifest, err := LoadManifest(manifestPath)
+	state, err := r.load()
+	if err != nil {
+		return InstalledComponent{}, err
+	}
+	manifest, err := loadManifest(manifestPath, state.Grants)
 	if err != nil {
 		return InstalledComponent{}, err
 	}
@@ -80,10 +87,6 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 		return InstalledComponent{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
 	}
 	manifestDigest := sha256Hex(raw)
-	state, err := r.load()
-	if err != nil {
-		return InstalledComponent{}, err
-	}
 	if err := r.validateInstallFactKindClaims(manifest, state); err != nil {
 		return InstalledComponent{}, err
 	}
@@ -119,6 +122,24 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 		return InstalledComponent{}, err
 	}
 	return installed, nil
+}
+
+// LoadInstalledManifest reloads a registry-owned manifest, honoring the
+// registry's durable producer grants. Activation flows use this instead of
+// LoadManifest so granted core-kind declarations resolve.
+func (r Registry) LoadInstalledManifest(componentID, version string) (Manifest, error) {
+	return r.installedManifest(InstalledComponent{ID: componentID, Version: version})
+}
+
+// ProducerGrants returns the registry's durable producer authorizations.
+// A nil result denies every core-owned declaration, matching registries
+// written before producer delegation.
+func (r Registry) ProducerGrants() ([]ProducerGrant, error) {
+	state, err := r.load()
+	if err != nil {
+		return nil, err
+	}
+	return append([]ProducerGrant(nil), state.Grants...), nil
 }
 
 // List returns installed components in stable ID/version order.

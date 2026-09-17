@@ -3,6 +3,8 @@
 
 package component
 
+import "context"
+
 // Registry lifecycle states emitted by Registry.Readback.
 const (
 	RegistryStateInstalled    = "installed"
@@ -37,13 +39,17 @@ func (r Registry) Readback(policy Policy) ([]RegistryReadbackComponent, error) {
 		return nil, err
 	}
 	readback := make([]RegistryReadbackComponent, 0, len(components))
+	state, err := r.load()
+	if err != nil {
+		return nil, err
+	}
 	for _, installed := range components {
 		installed.ManifestPath = r.manifestPath(installed.ID, installed.Version)
 		entry := RegistryReadbackComponent{
 			InstalledComponent: installed,
 			States:             lifecycleStates(installed),
 		}
-		manifest, err := LoadManifest(installed.ManifestPath)
+		manifest, err := loadManifest(installed.ManifestPath, state.Grants)
 		if err != nil {
 			entry.States = appendFailureState(entry.States, ErrorCodeOf(err))
 			entry.Error = errorSummary(err, ErrorCodeInvalidManifest)
@@ -51,7 +57,7 @@ func (r Registry) Readback(policy Policy) ([]RegistryReadbackComponent, error) {
 			continue
 		}
 		if !policy.isZero() {
-			result := policy.Verify(manifest)
+			result := policy.VerifyWithGrants(context.Background(), manifest, state.Grants)
 			entry.Verification = &result
 			if !result.Allowed {
 				entry.States = appendFailureState(entry.States, result.Code)

@@ -4,6 +4,7 @@
 package component
 
 import (
+	"context"
 	"io"
 	"strings"
 
@@ -79,11 +80,20 @@ func RunInstall(
 	policy componentcore.Policy,
 	manifestPath string,
 ) error {
-	manifest, err := componentcore.LoadManifest(manifestPath)
+	// Install is home-aware: the registry's durable producer grants admit
+	// granted core-kind manifests here, exactly as Registry.Install
+	// enforces below. Policy-alone verification (verify command,
+	// LoadManifest) keeps rejecting them.
+	registry := componentcore.NewRegistry(home)
+	grants, err := registry.ProducerGrants()
 	if err != nil {
 		return renderError(w, jsonOutput, "install", err)
 	}
-	result := policy.Verify(manifest)
+	manifest, err := componentcore.LoadManifestWithGrants(manifestPath, grants)
+	if err != nil {
+		return renderError(w, jsonOutput, "install", err)
+	}
+	result := policy.VerifyWithGrants(context.Background(), manifest, grants)
 	if !result.Allowed {
 		return renderVerificationError(w, jsonOutput, "install", result, componentVerificationFailure(result))
 	}
@@ -98,7 +108,6 @@ func RunInstall(
 		}
 		return writef(w, "would install %s@%s\n", manifest.Metadata.ID, manifest.Metadata.Version)
 	}
-	registry := componentcore.NewRegistry(home)
 	installed, err := registry.Install(manifestPath, result)
 	if err != nil {
 		return renderError(w, jsonOutput, "install", err)

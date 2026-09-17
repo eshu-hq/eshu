@@ -62,6 +62,9 @@ const (
 	// ErrorCodeRegistryWriteFailed identifies a failed atomic registry update
 	// or package-content write.
 	ErrorCodeRegistryWriteFailed ErrorCode = "registry_write_failed"
+	// ErrorCodeGrantNotFound identifies a grant operation naming a producer
+	// grant absent from the registry.
+	ErrorCodeGrantNotFound ErrorCode = "grant_not_found"
 )
 
 // Error carries a stable component-manager error code and a sanitized message.
