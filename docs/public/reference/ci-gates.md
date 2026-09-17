@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 107 gates. Local execution runs the primary
+The registry currently defines 108 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -38,6 +38,7 @@ Advisory rows remain visible but do not block merge.
 | `package-docs` | Go package docs coverage | hygiene | pre-pr | true | `bash scripts/verify-package-docs.sh`<br>then self-test: `bash scripts/test-verify-package-docs.sh` | test.yml / verify-contracts | 3 path(s): go/**, scripts/test-verify-package-docs.sh, scripts/verify-package-docs.sh |
 | `agent-canon` | Agent canon check | hygiene | pre-pr | true | `bash scripts/verify-agent-canon.sh`<br>then self-test: `bash scripts/test-verify-agent-hygiene.sh && bash scripts/test-agent-hooks.sh && bash scripts/test-goal-continue-hook.sh && bash scripts/test-goal-refresh-hook.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 24 path(s): go/**, .agents/**, .claude/skills/**, … |
 | `no-diff-fragments` | No diff fragments or conflict markers in source | hygiene | pre-commit | true | `bash scripts/verify-no-diff-fragments.sh`<br>then self-test: `bash scripts/test-verify-no-diff-fragments.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
+| `filename-stutter` | No filename stutter in added/renamed Go files | hygiene | pre-commit | true | `bash scripts/verify-filename-stutter.sh`<br>then self-test: `bash scripts/test-verify-filename-stutter.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 3 path(s): **/*.go, scripts/verify-filename-stutter.sh, scripts/test-verify-filename-stutter.sh |
 | `no-ai-attribution` | No AI attribution in commits/docs | hygiene | pre-commit | true | `bash scripts/verify-no-ai-attribution.sh` | verify-agent-hygiene.yml / Agent hygiene gate | 1 path(s): ** |
 | `license-header` | Go license header verification | hygiene | pre-commit | true | `bash scripts/verify-license-header.sh`<br>then self-test: `bash scripts/test-verify-license-header.sh` | test.yml / verify-contracts | 4 path(s): **/*.go, scripts/test-verify-license-header.sh, scripts/verify-license-header.sh, … |
 | `ci-install-apt-packages` | CI apt/ripgrep installer test mirror | hygiene | pre-pr | true | `bash scripts/test-ci-install-apt-packages.sh` | test.yml / go-core | 5 path(s): scripts/ci/install-apt-packages.sh, scripts/test-ci-install-apt-packages.sh, scripts/lib/test-ci-install-apt-packages-fixtures.sh, … |

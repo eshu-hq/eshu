@@ -39,6 +39,9 @@ jobs:
       - name: Run diff-fragment gate test mirror
         run: scripts/test-verify-no-diff-fragments.sh
 
+      - name: Run filename-stutter gate test mirror
+        run: scripts/test-verify-filename-stutter.sh
+
       - name: Run agent hooks test mirror
         run: scripts/test-agent-hooks.sh
 
@@ -81,3 +84,17 @@ jobs:
         run: |
           set -o pipefail
           scripts/verify-no-ai-attribution.sh
+
+      - name: No filename stutter in added/renamed Go files
+        run: |
+          # PRs scan the base..head range; direct pushes scan everything
+          # pushed (before..sha). A recreated ref has no before SHA, so the
+          # HEAD~1 fallback covers only the tip there.
+          if [ -n "${{ github.base_ref }}" ]; then
+            range="origin/${{ github.base_ref }}"
+          elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            range="HEAD~1"
+          else
+            range="${{ github.event.before }}"
+          fi
+          scripts/verify-filename-stutter.sh --range "$range"
