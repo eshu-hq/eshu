@@ -3,18 +3,18 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch.go` for `resolveRoute` and the private `entityResolutionRoute`
+4. `../../dispatch.go` for `resolveRoute` and the private `entityResolutionRoute`
    adapter, consulted as a delegation ahead of the switch that held the three
    arms before the extraction, and
-   `../dispatch_entity_resolution_contract_test.go` for the
+   `../../dispatch_entity_resolution_contract_test.go` for the
    production-boundary proof.
-5. `../tools_context.go` and `../tools_content.go` for the three advertised
+5. `../../tools_context.go` and `../../tools_content.go` for the three advertised
    schemas. They stay at the parent's root and must keep naming the same
    fields this builder selects; `get_entity_context` also advertises
    `environment`, which this builder forwards but the handler never decodes.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. `go/internal/query/entity.go` (`resolveEntity`, `getEntityContext`),
    `go/internal/query/entity_resolve_page.go`
    (`normalizeResolveEntityLimit`), and `go/internal/query/contentread/content_handler.go`
@@ -114,8 +114,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/entityresolution ./internal/mcp -count=1
-go vet ./internal/mcp/entityresolution ./internal/mcp
+go test ./internal/mcp/entity/resolution ./internal/mcp -count=1
+go vet ./internal/mcp/entity/resolution ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

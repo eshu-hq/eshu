@@ -12,7 +12,7 @@ does not own tool names, family membership, or route-selection policy. Family
 packages such as `internal/mcp/admission/decisions`, `internal/mcp/ask`,
 `internal/mcp/cicd`, `internal/mcp/code/flow`, `internal/mcp/code/owners`,
 `internal/mcp/code/quality`, `internal/mcp/container/image`, `internal/mcp/code/dead`,
-`internal/mcp/entityresolution`,
+`internal/mcp/entity/resolution`,
 `internal/mcp/impact`, `internal/mcp/infra/search`, `internal/mcp/kubernetes`,
 `internal/mcp/observabilitycoverage`, `internal/mcp/packageregistry`,
 `internal/mcp/relationships`, `internal/mcp/secretsiam`,
@@ -64,7 +64,7 @@ transport and API request telemetry.
 - [MCP complexity/quality route selection](../../code/quality/README.md)
 - [MCP container-image identity route selection](../../container/image/README.md)
 - [MCP dead-code route selection](../../code/dead/README.md)
-- [MCP entity-resolution route selection](../../entityresolution/README.md)
+- [MCP entity-resolution route selection](../../entity/resolution/README.md)
 - [MCP impact-analysis route selection](../../impact/README.md)
 - [MCP infrastructure-search route selection](../../infra/search/README.md)
 - [MCP Kubernetes-correlation route selection](../../kubernetes/README.md)

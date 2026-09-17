@@ -1782,7 +1782,7 @@ third to lift case arms out of `dispatch.go`'s own switch. Its three tools —
 `resolve_entity`, `get_entity_context`, and `get_entity_content` — were
 inline arms in the Entities and Content sections of the switch; family
 membership and the request builders now live under
-`internal/mcp/entityresolution`, and the thin `entityResolutionRoute`
+`internal/mcp/entity/resolution`, and the thin `entityResolutionRoute`
 adapter lives in `dispatch.go` itself, beside `deadCodeRoute` and
 `codeQualityRoute`, for the same dirgate reason. `resolveRoute` goes from 23
 delegations and 43 cases to 24 delegations and 40 cases, with all 162 tools

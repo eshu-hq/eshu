@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
-	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entityresolution"
+	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entity/resolution"
 )
 
 // entityResolutionRouteTools maps every tool the child package owns to the

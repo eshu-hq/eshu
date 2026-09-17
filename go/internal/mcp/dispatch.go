@@ -19,7 +19,7 @@ import (
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 	contenttools "github.com/eshu-hq/eshu/go/internal/mcp/content"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
-	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entityresolution"
+	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entity/resolution"
 	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iacmanagement"
 )
 

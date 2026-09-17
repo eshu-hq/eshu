@@ -53,7 +53,7 @@
    selection in `go/internal/mcp/code/flow`, dead-code,
    complexity/quality, entity-resolution, and content request selection in
    `go/internal/mcp/code/dead`, `go/internal/mcp/code/quality`,
-   `go/internal/mcp/entityresolution`, and `go/internal/mcp/content`,
+   `go/internal/mcp/entity/resolution`, and `go/internal/mcp/content`,
    code-intelligence request selection in `go/internal/mcp/code/intel`,
    IaC-management request selection in `go/internal/mcp/iacmanagement`,
    whose `deadCodeRoute`, `codeQualityRoute`, `entityResolutionRoute`,
