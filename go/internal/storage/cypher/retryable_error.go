@@ -104,6 +104,14 @@ const (
 	// why the live dead-letter surfaced the other one first, but the same
 	// backend restart and the same retry decision.
 	nornicDBStoreClosedCommitAllocMsg = "allocating mvcc commit version: DB Closed"
+	// nornicDBStoreClosedCommitValidationMsg is the v1.3.3 commit-validation
+	// spelling observed in Ifa run 35259033020. At NornicDB v1.3.3 commit
+	// 1680-1681, a closed-store read during snapshot validation rolls the
+	// transaction back and discards its Badger writes before the storage commit
+	// at 1755. Bolt reports the bare ErrStorageClosed as this exact message.
+	// Match the entire body: a constraint diagnostic can contain arbitrary
+	// evidence-derived identities, including the words "storage closed".
+	nornicDBStoreClosedCommitValidationMsg = "commit failed: storage closed"
 )
 
 // isNornicDBWriteConflict recognizes NornicDB transaction-age conflicts. The
@@ -310,7 +318,7 @@ func isNornicDBRestartTransactionStartFailure(err error) bool {
 //
 // Like the start-side guard, this accepts more than one body for the one
 // condition, because the store reports commit-side teardown differently
-// depending on how far into shutdown it is. There are THREE:
+// depending on how far into shutdown it is. There are FOUR:
 //
 //	nornicDBStoreClosingCommitMsg      Badger refusing a commit while the
 //	                                   store is still CLOSING
@@ -318,6 +326,8 @@ func isNornicDBRestartTransactionStartFailure(err error) bool {
 //	                                   transaction, failing the materialize call
 //	nornicDBStoreClosedCommitAllocMsg  the same closed store, failing the
 //	                                   version-allocation call just before it
+//	nornicDBStoreClosedCommitValidationMsg  a closed-store read during commit
+//	                                         validation on v1.3.3
 //
 // so the full second shape reads:
 //
@@ -343,7 +353,8 @@ func isNornicDBStoreClosingCommitFailure(err error) bool {
 	var neo4jErr *neo4jdriver.Neo4jError
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBTransactionCommitFailedCode &&
-		(strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg) ||
+		(neo4jErr.Msg == nornicDBStoreClosedCommitValidationMsg ||
+			strings.Contains(neo4jErr.Msg, nornicDBStoreClosingCommitMsg) ||
 			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedCommitMsg) ||
 			strings.Contains(neo4jErr.Msg, nornicDBStoreClosedCommitAllocMsg))
 }
