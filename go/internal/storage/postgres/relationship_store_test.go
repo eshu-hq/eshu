@@ -639,6 +639,31 @@ type relationshipTestDB struct {
 	resolved      map[string]resolvedRecord
 	insertCounts  map[string]int
 	scopes        map[string]scopeRecord
+	workItems     []workItemRecord
+}
+
+// workItemRecord models the fact_work_items columns the completeness gate
+// reads to tell "resolution forthcoming" from "never resolves": only a live
+// reducer deployment_mapping item can still create the scope's generation
+// row, so only it keeps a row-less scope holding the gate.
+type workItemRecord struct {
+	scopeID string
+	stage   string
+	domain  string
+	status  string
+}
+
+// liveWorkItemStatus reports whether a fact_work_items status is non-terminal
+// queue work: the same pending/claimed/running/retrying set the claim paths
+// treat as live. Terminal rows (succeeded, superseded, dead_letter) can no
+// longer create a generation row.
+func liveWorkItemStatus(status string) bool {
+	switch status {
+	case "pending", "claimed", "running", "retrying":
+		return true
+	default:
+		return false
+	}
 }
 
 // scopeRecord models the ingestion_scopes columns the completeness gate reads:
@@ -827,23 +852,37 @@ func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args
 }
 
 // activeScopeGenerationsComplete evaluates the completeness-gate predicate over
-// fake state with the same semantics as the shipped SQL: every active scope
-// must have an active relationship generation row for its current generation.
+// fake state with the same semantics as the shipped SQL: an active scope
+// holds the gate while its current generation has a non-active row, or while
+// it has no row but live reducer deployment_mapping work is still
+// outstanding. A row-less scope with no live resolution work never holds the
+// gate: no row can appear for it, and the by-repos read cannot see it.
 // Retired scopes and superseded generations never hold the gate.
 func (db *relationshipTestDB) activeScopeGenerationsComplete() bool {
 	for scopeID, scope := range db.scopes {
 		if scope.status != "active" {
 			continue
 		}
-		complete := false
+		hasRow := false
+		rowActive := false
 		for generationID, gen := range db.generations {
-			if gen.scope == scopeID && generationID == scope.activeGenerationID && gen.status == "active" {
-				complete = true
+			if gen.scope == scopeID && generationID == scope.activeGenerationID {
+				hasRow = true
+				rowActive = gen.status == "active"
 				break
 			}
 		}
-		if !complete {
-			return false
+		if hasRow {
+			if !rowActive {
+				return false
+			}
+			continue
+		}
+		for _, item := range db.workItems {
+			if item.scopeID == scopeID && item.stage == "reducer" &&
+				item.domain == "deployment_mapping" && liveWorkItemStatus(item.status) {
+				return false
+			}
 		}
 	}
 	return true

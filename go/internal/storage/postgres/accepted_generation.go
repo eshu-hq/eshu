@@ -110,12 +110,15 @@ func NewAcceptedGenerationPrefetch(db ExecQueryer) reducer.AcceptedGenerationPre
 	}
 }
 
-// AreActiveScopeRelationshipGenerationsComplete reports whether every active
-// scope's current relationship generation is active. It backs the workload and
-// deployable-unit correlation input gates so derivation that merges foreign
-// resolved reads defers until the corpus-wide resolved set is complete
-// (#6184). A single boolean row always returns; a missing row is impossible
-// from the NOT EXISTS shape, and a query error fails safe as incomplete.
+// AreActiveScopeRelationshipGenerationsComplete reports whether derivation
+// that merges foreign resolved reads may proceed: every active scope either
+// has its current relationship generation active, or has no generation row
+// and no live resolution work that could still produce one. It backs the
+// workload and deployable-unit correlation input gates so derivation defers
+// until the corpus-wide resolved set is complete (#6184) without waiting on
+// scopes that will never resolve (#6730). A single boolean row always
+// returns; a missing row is impossible from the NOT EXISTS shape, and a
+// query error fails safe as incomplete.
 func (s *RelationshipStore) AreActiveScopeRelationshipGenerationsComplete(
 	ctx context.Context,
 ) (bool, error) {
