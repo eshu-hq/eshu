@@ -203,20 +203,25 @@ func (s Service) createWorkflowWorkIfNoOpenTargets(
 }
 
 // logScanIntervalOverrides records, once at startup before the first
-// reconcile, every desired collector instance whose configuration sets
-// scan_interval and that will actually run on it, with the global reconcile
-// interval beside it, so an operator can confirm from the log alone which
-// instances carry their own cadence and what it is (#6720). Bootstrap
-// instances are skipped: scanInterval ignores the field for them, so logging
-// it would claim a cadence they do not have. Config.Validate has already
-// rejected malformed values by the time Run is called, so a decode error here
-// is logged rather than fatal.
+// reconcile, every enabled, claim-enabled, non-bootstrap desired collector
+// instance whose configuration sets scan_interval, with the global reconcile
+// interval beside it, so an operator can see from the log which instances
+// carry a bucket of their own and what it is (#6720). Disabled and
+// claims-disabled instances (every shouldSchedule<Kind> refuses them) and
+// bootstrap instances (scanInterval ignores the field for them) are skipped,
+// because logging them would claim a cadence they do not have. Whether a
+// logged instance's kind consumes the bucket is not evaluated here: a kind
+// with no scheduled planner, an AWS instance with scheduled_scan_enabled
+// false, or a single_pass derivation sets a bucket nothing reads. The
+// plan-key suffix of the run IDs the instance produces is the ground truth.
+// Config.Validate has already rejected malformed values by the time Run is
+// called, so a decode error here is logged rather than fatal.
 func (s Service) logScanIntervalOverrides() {
 	if s.Logger == nil {
 		return
 	}
 	for _, instance := range s.Config.CollectorInstances {
-		if instance.Bootstrap {
+		if instance.Bootstrap || !instance.Enabled || !instance.ClaimsEnabled {
 			continue
 		}
 		interval, set, err := scanIntervalFromConfiguration(instance.Configuration)

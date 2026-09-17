@@ -196,9 +196,15 @@ widened instance produces the same plan key, and so the same run and work-item
 identifiers, on every tick inside its bucket, and the store's open-target
 guard admits that plan once. At startup the coordinator logs one
 `workflow coordinator collector instance sets scan interval`
-line per instance that sets the field, with `scan_interval` and
-`reconcile_interval`, so an operator can confirm the override took effect from
-the log alone.
+line per enabled, claim-enabled, non-bootstrap instance that sets the field,
+with `scan_interval` and `reconcile_interval`. The line says the value was
+read and validated and is the bucket that instance's planner will use, if
+its kind has one; it does not evaluate kind-specific gates (a kind with no
+scheduled planner, an AWS instance with `scheduled_scan_enabled: false`, or a
+`single_pass` derivation sets a bucket nothing consumes). The ground truth
+for the cadence in effect is the plan-key
+suffix of the run IDs the instance produces, for example
+`aws:aws-ops-prod:schedule:continuous-20260520T120000Z`.
 
 ## Exported surface
 
