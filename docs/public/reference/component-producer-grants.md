@@ -59,8 +59,9 @@ stored grant revoked so the next emission fails closed.
   revocation.
 - Inputs canonicalize before storage and lookup: producer, version, kind,
   scope, and schema entries are trimmed, and versions compare in
-  normalized form, so `v0.1.0` and `0.1.0` are the same grant identity
-  instead of a silent inert grant.
+  normalized form at match, storage-key, and lookup time, so `v0.1.0` and
+  `0.1.0` are the same grant identity instead of twin records or a missed
+  revocation.
 
 ## Enforcement points
 

@@ -196,7 +196,8 @@ func RunGrants(w io.Writer, jsonOutput bool, home string, producer string) error
 
 // findStoredGrant returns the durable grant RevokeGrant just marked
 // revoked. Revocation succeeded, so a missing record is a registry
-// consistency failure, not a silent success.
+// consistency failure, not a silent success. Versions compare normalized,
+// mirroring the storage key, so either spelling finds the record.
 func findStoredGrant(registry componentcore.Registry, producerID, version, kind, scope string) (componentcore.ProducerGrant, error) {
 	grants, err := registry.ProducerGrants()
 	if err != nil {
@@ -204,7 +205,7 @@ func findStoredGrant(registry componentcore.Registry, producerID, version, kind,
 	}
 	for _, grant := range grants {
 		if grant.ProducerID == producerID &&
-			grant.Version == version &&
+			componentcore.NormalizeGrantVersion(grant.Version) == componentcore.NormalizeGrantVersion(version) &&
 			grant.Kind == kind &&
 			grant.Scope == scope {
 			return grant, nil

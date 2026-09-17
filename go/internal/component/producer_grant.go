@@ -10,11 +10,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// NormalizeGrantVersion canonicalizes a grant version for identity
+// comparison, mirroring the manifest metadata.version rule: surrounding
+// whitespace is ignored and the v prefix is optional, so "v0.1.0" and
+// "0.1.0" name the same grant.
+func NormalizeGrantVersion(version string) string {
+	return normalizeSemver(version)
+}
+
 // ProducerGrant is the core-issued authorization for a first-party producer
 // to emit an approved core-owned fact kind. Delegation never transfers
 // canonical ownership: the grant names who may emit, what kind and schema
 // versions, and in which source scope. Anything outside the grant fails
 // closed at validation time.
+//
+// Versions compare in normalized form everywhere (see NormalizeGrantVersion):
+// both spellings validate, so the v prefix is not part of grant identity at
+// match, storage, or lookup time.
 type ProducerGrant struct {
 	// ProducerID is the manifest metadata.id of the granted component.
 	ProducerID string `json:"producer_id"`
@@ -43,10 +55,14 @@ func (r Registry) RecordGrant(grant ProducerGrant) error {
 	if err != nil {
 		return err
 	}
+	// The storage key compares versions in normalized form: both spellings
+	// validate, so the v prefix is not part of grant identity. Re-issuing
+	// one logical grant under the other spelling replaces the record
+	// instead of storing twins that revocation could then miss.
 	replaced := false
 	for i, existing := range state.Grants {
 		if existing.ProducerID == grant.ProducerID &&
-			existing.Version == grant.Version &&
+			normalizeSemver(existing.Version) == normalizeSemver(grant.Version) &&
 			existing.Kind == grant.Kind &&
 			existing.Scope == grant.Scope {
 			state.Grants[i] = grant
@@ -86,10 +102,13 @@ func (r Registry) RevokeGrant(producerID, version, kind, scope string) error {
 	if err != nil {
 		return err
 	}
+	// The lookup normalizes versions exactly like the storage key, so
+	// revoking under either spelling revokes the live grant instead of
+	// reporting grant_not_found while a twin keeps authorizing.
 	revoked := false
 	for i, existing := range state.Grants {
 		if existing.ProducerID == producerID &&
-			existing.Version == version &&
+			normalizeSemver(existing.Version) == normalizeSemver(version) &&
 			existing.Kind == kind &&
 			existing.Scope == scope {
 			state.Grants[i].Revoked = true

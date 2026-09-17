@@ -312,3 +312,76 @@ func TestAuthorizesEmissionNormalizesVersionPrefix(t *testing.T) {
 		t.Fatal("AuthorizesEmission(version 0.2.0) = true, want false for a different version")
 	}
 }
+
+// TestRecordGrantReplaceConvergesVersionSpellings proves the v prefix is
+// not part of the storage key either: re-issuing one logical grant under
+// the other spelling replaces the record instead of storing twins.
+func TestRecordGrantReplaceConvergesVersionSpellings(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry(t.TempDir())
+	issue := func(version string) {
+		t.Helper()
+		if err := registry.RecordGrant(ProducerGrant{
+			ProducerID:     "dev.example.collector.alpha",
+			Version:        version,
+			Kind:           "aws_resource",
+			SchemaVersions: []string{"1.0.0"},
+			Scope:          "aws",
+			ExpiresAt:      time.Now().Add(time.Hour).UTC(),
+		}); err != nil {
+			t.Fatalf("RecordGrant(%s) error = %v, want nil", version, err)
+		}
+	}
+	issue("v0.1.0")
+	issue("0.1.0")
+	grants, err := registry.ProducerGrants()
+	if err != nil {
+		t.Fatalf("ProducerGrants() error = %v, want nil", err)
+	}
+	if len(grants) != 1 {
+		t.Fatalf("ProducerGrants() count = %d, want 1 converged record", len(grants))
+	}
+}
+
+// TestRevokeGrantMatchesVersionSpellings proves revocation cannot miss a
+// live grant over spelling: revoking under either spelling revokes the
+// record, so scripted rollback never mistakes grant_not_found for
+// convergence while a twin keeps authorizing.
+func TestRevokeGrantMatchesVersionSpellings(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ stored, revoke string }{
+		{stored: "v0.1.0", revoke: "0.1.0"},
+		{stored: "0.1.0", revoke: "v0.1.0"},
+	} {
+		t.Run("stored_"+tc.stored+"_revoke_"+tc.revoke, func(t *testing.T) {
+			t.Parallel()
+
+			registry := NewRegistry(t.TempDir())
+			if err := registry.RecordGrant(ProducerGrant{
+				ProducerID:     "dev.example.collector.alpha",
+				Version:        tc.stored,
+				Kind:           "aws_resource",
+				SchemaVersions: []string{"1.0.0"},
+				Scope:          "aws",
+				ExpiresAt:      time.Now().Add(time.Hour).UTC(),
+			}); err != nil {
+				t.Fatalf("RecordGrant() error = %v, want nil", err)
+			}
+			if err := registry.RevokeGrant("dev.example.collector.alpha", tc.revoke, "aws_resource", "aws"); err != nil {
+				t.Fatalf("RevokeGrant() error = %v, want nil across spellings", err)
+			}
+			grants, err := registry.ProducerGrants()
+			if err != nil {
+				t.Fatalf("ProducerGrants() error = %v, want nil", err)
+			}
+			if len(grants) != 1 || !grants[0].Revoked {
+				t.Fatalf("ProducerGrants() = %+v, want one revoked grant", grants)
+			}
+			if AuthorizesEmission(grants, "dev.example.collector.alpha", tc.stored, "aws_resource", "1.0.0", []string{"aws"}, time.Now().UTC()) {
+				t.Fatal("AuthorizesEmission() = true after revocation, want false")
+			}
+		})
+	}
+}
