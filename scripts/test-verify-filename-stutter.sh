@@ -11,6 +11,9 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 gate="${script_dir}/verify-filename-stutter.sh"
 failures=0
 
+tmp_roots=()
+trap 'rm -rf "${tmp_roots[@]}" 2>/dev/null || true' EXIT
+
 check() {
   # $1 = case name, $2 = expected exit (0|1), $3 = actual exit
   if [ "$2" != "$3" ]; then
@@ -24,6 +27,7 @@ check() {
 new_repo() {
   local dir
   dir="$(mktemp -d)"
+  tmp_roots+=("$dir")
   git -C "$dir" init -q
   git -C "$dir" config user.email test@example.test
   git -C "$dir" config user.name "Test"
@@ -145,6 +149,43 @@ repo10="$(new_repo)"
 export ESHU_STUTTER_REPO_ROOT="$repo10"
 rc="$(run_gate --range bogus-base-that-cannot-resolve)"
 check "unresolvable --range base exits 2" 2 "$rc"
+
+# 11. RED: disconnected history -- valid base commit, no merge base.
+# The range diff producer fails; the gate must fail, not scan EOF.
+repo11="$(new_repo)"
+export ESHU_STUTTER_REPO_ROOT="$repo11"
+git -C "$repo11" commit -q --allow-empty -m base
+orphan="$(git -C "$repo11" rev-parse HEAD)"
+git -C "$repo11" checkout -q --orphan stray
+git -C "$repo11" rm -qf . 2>/dev/null || true
+mkdir -p "$repo11/go/internal/projector/semantic/entity"
+printf 'package entity\n' > "$repo11/go/internal/projector/semantic/entity/entity_intents.go"
+git -C "$repo11" add -A && git -C "$repo11" commit -qm stray
+set +e
+out="$(bash "$gate" --range "$orphan" 2>&1)"
+rc=$?
+set -e
+check "disconnected-history range is RED" 1 "$rc"
+case "$out" in
+  *"no merge base"*) printf 'ok   disconnected history names the cause\n' ;;
+  *) printf 'FAIL disconnected history names the cause: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
+esac
+
+# 12. Default mode: committed stutter RED, clean tree GREEN.
+repo12="$(new_repo)"
+export ESHU_STUTTER_REPO_ROOT="$repo12"
+export ESHU_STUTTER_UPSTREAM="HEAD~1"
+git -C "$repo12" commit -q --allow-empty -m base
+mkdir -p "$repo12/go/internal/projector/semantic/entity"
+printf 'package entity\n' > "$repo12/go/internal/projector/semantic/entity/entity_intents.go"
+git -C "$repo12" add -A && git -C "$repo12" commit -qm stutter
+rc="$(run_gate)"
+check "default mode over committed stutter is RED" 1 "$rc"
+git -C "$repo12" mv go/internal/projector/semantic/entity/entity_intents.go go/internal/projector/semantic/entity/intents.go
+git -C "$repo12" commit -qm destutter
+rc="$(run_gate)"
+check "default mode over clean tree is GREEN" 0 "$rc"
+unset ESHU_STUTTER_UPSTREAM
 
 if [ "$failures" != "0" ]; then
   printf 'test-verify-filename-stutter: %d case(s) failed\n' "$failures" >&2

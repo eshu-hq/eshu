@@ -16,13 +16,20 @@
 # only; other suffixes exit 0 so the gate can widen later.
 #
 # Modes:
+#   (default)      scan Added + Renamed destinations in the merge-base
+#                  range plus staged files. Used by local promotion
+#                  (registry local.command), where the changes are normally
+#                  already committed and the index is clean, so --staged
+#                  alone would false-green.
 #   --staged       scan files staged in the index (Added + Renamed).
-#                  Used by pre-commit, the point where the name is introduced.
+#                  Used by pre-commit only, the point where the name is
+#                  introduced.
 #   --files <f..>  scan explicit repo-relative paths. Used by tests.
 #   --range <base> scan Added + Renamed destinations in <base>...HEAD.
 #                  Used by CI so web edits and bot commits are covered too.
 #
-# Exit 0 when clean; 1 listing each offending path and why.
+# Exit 0 when clean; 1 listing each offending path and why; 2 on usage or
+# unresolvable-base errors (fail closed, never green on an unscanned tree).
 set -euo pipefail
 
 repo_root="${ESHU_STUTTER_REPO_ROOT:-}"
@@ -31,7 +38,7 @@ if [ -z "$repo_root" ]; then
 fi
 cd "$repo_root"
 
-mode="files"
+mode="default"
 range_base=""
 paths=()
 case "${1:-}" in
@@ -45,35 +52,58 @@ case "${1:-}" in
     fi
     ;;
   --files) mode="files"; shift; paths=("$@") ;;
-  "") mode="staged" ;;
+  "") mode="default" ;;
   -*) echo "usage: $(basename "$0") [--staged | --files <f>... | --range <base>]" >&2; exit 2 ;;
   *) paths=("$@") ;;
 esac
 
+# The merge-base upstream for default mode. Overridable for tests; mirrors
+# the factschema-diff precedent of diffing against the integration branch.
+upstream="${ESHU_STUTTER_UPSTREAM:-origin/main}"
+
+# Materialize the candidate list in the main shell before scanning. A
+# failing producer (bogus base, disconnected history) must fail the gate,
+# but an exit inside the process substitution feeding the scan loop would
+# die in the subshell, hand the loop EOF, and report a clean tree.
+candidates_file="$(mktemp)"
+trap 'rm -f "$candidates_file"' EXIT
+case "$mode" in
+  staged)
+    git diff --cached --name-status --diff-filter=AR -z >"$candidates_file"
+    ;;
+  range)
+    if ! git rev-parse --verify --quiet "$range_base^{commit}" >/dev/null; then
+      printf 'filename-stutter: cannot resolve range base %q\n' "$range_base" >&2
+      exit 2
+    fi
+    if ! git diff --name-status "$range_base...HEAD" --diff-filter=AR -z >"$candidates_file"; then
+      printf 'filename-stutter: cannot diff range %q...HEAD (no merge base?)\n' "$range_base" >&2
+      exit 1
+    fi
+    ;;
+  default)
+    if ! merge_base="$(git merge-base HEAD "$upstream" 2>/dev/null)"; then
+      printf 'filename-stutter: cannot resolve merge base with %q\n' "$upstream" >&2
+      exit 2
+    fi
+    {
+      git diff --name-status "$merge_base...HEAD" --diff-filter=AR -z
+      git diff --cached --name-status --diff-filter=AR -z
+    } >"$candidates_file"
+    ;;
+  files) printf '%s\0' "${paths[@]}" >"$candidates_file" ;;
+esac
+
 # Collect candidate repo-relative paths, one per line.
 list_candidates() {
-  case "$mode" in
-    staged) git diff --cached --name-status --diff-filter=AR -z ;;
-    range) git diff --name-status "$range_base...HEAD" --diff-filter=AR -z ;;
-    files) printf '%s\0' "${paths[@]}" ;;
-  esac
+  cat "$candidates_file"
 }
-
-# Fail closed on a bogus base. This check must run in the main shell: an
-# exit inside list_candidates would die only in the process-substitution
-# subshell that feeds the scan loop, failing the gate open.
-if [ "$mode" = "range" ]; then
-  if ! git rev-parse --verify --quiet "$range_base^{commit}" >/dev/null; then
-    printf 'filename-stutter: cannot resolve range base %q\n' "$range_base" >&2
-    exit 2
-  fi
-fi
 
 failures=0
 while IFS= read -r -d '' status; do
   path="$status"
   case "$mode" in
-    staged|range)
+    staged|range|default)
       # --name-status -z emits <status>\0<path>\0, or for renames
       # <status>\0<old>\0<new>\0: the destination (last field) is the
       # introduced name.
