@@ -44,21 +44,95 @@ func TestConformancePositive(t *testing.T) {
 	}
 }
 
-// TestConformanceEmpty proves empty source completes unchanged with no facts.
+// TestConformanceEmpty proves an empty source emits an authoritative complete
+// snapshot with zero records, retiring stale evidence instead of leaving it
+// current. Unchanged freshness stays a separate ResultUnchanged outcome.
 func TestConformanceEmpty(t *testing.T) {
 	t.Parallel()
 
 	manifest := loadManifest(t)
 	result := mustCollect(t, "empty.json", testClaim(), testObservedAt(), "")
-	if result.State != sdk.ResultUnchanged {
-		t.Fatalf("State = %q, want unchanged", result.State)
+	if result.State != sdk.ResultComplete {
+		t.Fatalf("State = %q, want complete", result.State)
 	}
-	if len(result.Facts) != 0 {
-		t.Fatalf("FactCount = %d, want 0", len(result.Facts))
+	if len(result.Facts) != 1 || result.Facts[0].Kind != FactKindSnapshot {
+		t.Fatalf("Facts = %#v, want one snapshot fact", result.Facts)
 	}
 	report := conformance.Run(conformance.Request{Manifest: manifest, Fixtures: []sdk.Result{result}, Mode: conformance.ModeFixture})
 	if !report.OK() {
-		t.Fatalf("empty unchanged findings = %#v, want passed", report.Findings)
+		t.Fatalf("empty snapshot findings = %#v, want passed", report.Findings)
+	}
+}
+
+// TestSourceURIRefusal proves credential-bearing source URIs fail before any
+// fact is built, including hierarchical userinfo the naive "@" check misses.
+func TestSourceURIRefusal(t *testing.T) {
+	t.Parallel()
+
+	for _, uri := range []string{
+		"https://user:secret@example.invalid/source",
+		"https://user:password@example.invalid/source",
+		"svc:SECRET@example.invalid/x",
+		"https://example.invalid/source?token=abc",
+		"https://example.invalid/source?password=hunter2",
+		"",
+	} {
+		_, err := Collect(testClaim(), mustLoadReport(t, "complete.json"), CollectOptions{
+			ObservedAt: testObservedAt(),
+			SourceURI:  uri,
+		})
+		if err == nil {
+			t.Fatalf("Collect(SourceURI=%q) error = nil, want refusal", uri)
+		}
+	}
+	if _, err := Collect(testClaim(), mustLoadReport(t, "complete.json"), CollectOptions{
+		ObservedAt: testObservedAt(),
+		SourceURI:  "https://example.invalid/source/template",
+	}); err != nil {
+		t.Fatalf("Collect(good URI) error = %v, want nil", err)
+	}
+}
+
+// TestClaimBounds proves record, payload, and deadline bounds fail terminal
+// instead of allocating without bound.
+func TestClaimBounds(t *testing.T) {
+	t.Parallel()
+
+	overRecords, err := Collect(testClaim(), mustLoadReport(t, "complete.json"), CollectOptions{
+		ObservedAt: testObservedAt(),
+		SourceURI:  "https://example.invalid/source/template",
+		Limits:     ResourceUse{MaxRecordsPerClaim: 1, MaxPayloadBytes: 65536, ClaimTimeoutSeconds: 300},
+	})
+	if err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if overRecords.State != sdk.ResultTerminal {
+		t.Fatalf("State = %q, want terminal for record-budget breach", overRecords.State)
+	}
+
+	overPayload, err := Collect(testClaim(), mustLoadReport(t, "complete.json"), CollectOptions{
+		ObservedAt: testObservedAt(),
+		SourceURI:  "https://example.invalid/source/template",
+		Limits:     ResourceUse{MaxRecordsPerClaim: 5000, MaxPayloadBytes: 10, ClaimTimeoutSeconds: 300},
+	})
+	if err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if overPayload.State != sdk.ResultTerminal {
+		t.Fatalf("State = %q, want terminal for payload-budget breach", overPayload.State)
+	}
+
+	expired := testClaim()
+	expired.Deadline = testObservedAt().Add(-time.Minute)
+	pastDeadline, err := Collect(expired, mustLoadReport(t, "complete.json"), CollectOptions{
+		ObservedAt: testObservedAt(),
+		SourceURI:  "https://example.invalid/source/template",
+	})
+	if err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if pastDeadline.State != sdk.ResultTerminal {
+		t.Fatalf("State = %q, want terminal past the claim deadline", pastDeadline.State)
 	}
 }
 
@@ -172,6 +246,26 @@ func TestRetryAndPartial(t *testing.T) {
 	}
 	if !foundWarning {
 		t.Fatal("partial result missing warning status")
+	}
+	foundReason := false
+	for _, fact := range partial.Facts {
+		if fact.Kind == FactKindWarning && fact.Payload["reason"] == "source-degraded" {
+			foundReason = true
+		}
+	}
+	if !foundReason {
+		t.Fatalf("partial result missing warning fact carrying the cause: %#v", partial.Facts)
+	}
+	withheld, err := CollectPartial(testClaim(), mustLoadReport(t, "partial.json"),
+		CollectOptions{ObservedAt: testObservedAt(), SourceURI: "https://example.invalid/source/template"}, "password=hunter2")
+	if err != nil {
+		t.Fatalf("CollectPartial() error = %v", err)
+	}
+	for _, fact := range withheld.Facts {
+		raw, _ := json.Marshal(fact.Payload)
+		if strings.Contains(string(raw), "hunter2") {
+			t.Fatalf("partial warning leaks unshareable cause: %s", raw)
+		}
 	}
 }
 

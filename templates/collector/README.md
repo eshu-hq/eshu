@@ -28,7 +28,9 @@ go test ./... -count=1
 go run ./cmd/collector --input ./testdata/complete.json
 ```
 
-`scripts/run-conformance.sh` runs the same gate CI runs (`ci.yml`).
+`scripts/run-conformance.sh` runs the same gate CI runs
+(`.github/workflows/ci.yml`, discovered by GitHub Actions when this directory
+becomes a repository root).
 
 ## Configuration
 
@@ -74,12 +76,19 @@ one scope+generation at once.
 ## Releases
 
 Every artifact in `manifest.yaml` is digest-pinned (`@sha256:…`, never
-`:latest`). `manifest_test.go` enforces pinning plus manifest validity.
-Resolve the digest after push with `scripts/pin-digest.sh`.
+`:latest`). `manifest_test.go` enforces pinning plus manifest validity, and
+the all-zero placeholder digest is rejected as soon as you rename the
+component — so after renaming, CI stays red until you resolve the real pushed
+digest with `scripts/pin-digest.sh`. Base images in `Dockerfile` are pinned
+the same way; re-pin them when bumping either base.
 
 ## Remote proof
 
-`compose/docker-compose.yml` plus `scripts/run-remote-readback.sh` exercise
-one claim through graph, API, and MCP readback against a target core. Record
-the tested artifact, topology, and evidence location in the cutover issue;
-credential-free conformance stays in CI.
+`compose/docker-compose.yml` plus `scripts/run-remote-readback.sh` submit
+one claim to a target core and assert every emitted stable key through graph,
+API, and MCP readback. All four surface bindings are required with no
+defaults — an unconfigured surface fails the script instead of reporting
+unmeasured success — and the endpoint paths come from the target core's own
+API reference, never invented here. Record the tested core version, topology,
+and evidence location in the cutover issue; credential-free conformance stays
+in CI.

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -60,10 +61,13 @@ type Record struct {
 
 // CollectOptions controls emission for one claimed scope.
 type CollectOptions struct {
-	ObservedAt       time.Time
-	SourceURI        string
-	PreviousDigest   string
-	WarningThreshold float64
+	ObservedAt     time.Time
+	SourceURI      string
+	PreviousDigest string
+	// Limits bounds one claim's emission. The zero value selects
+	// DefaultResourceUse so an unconfigured copy still fails terminal
+	// instead of allocating without bound.
+	Limits ResourceUse
 }
 
 // Contract returns the SDK fact families this template may emit.
@@ -100,10 +104,18 @@ func LoadReport(r io.Reader) (Report, error) {
 }
 
 // Digest returns the stable identity of one report for freshness/stale proof.
+// It covers every field that changes emitted facts: the source (snapshot
+// payload), each record's emitted fields, and each record's redaction
+// presence, so a stale digest never preserves stale evidence.
 func Digest(report Report) string {
-	ids := make([]string, 0, len(report.Records))
+	ids := make([]string, 0, len(report.Records)+1)
+	ids = append(ids, "source\x00"+report.Source)
 	for _, record := range report.Records {
-		ids = append(ids, record.ID+"\x00"+record.Name+"\x00"+record.Detail)
+		secretPresence := "secret:0"
+		if record.Secret != "" {
+			secretPresence = "secret:1"
+		}
+		ids = append(ids, record.ID+"\x00"+record.Name+"\x00"+record.Detail+"\x00"+secretPresence)
 	}
 	sort.Strings(ids)
 	sum := sha256.Sum256([]byte(strings.Join(ids, "\x01")))
@@ -112,15 +124,24 @@ func Digest(report Report) string {
 
 // Collect builds one SDK result for the claimed scope and generation.
 // Behavior contract, covered by conformance_test.go:
-//   - empty input emits ResultUnchanged with no facts (not an empty complete);
+//   - empty input emits an authoritative complete snapshot with zero records
+//     (retires stale evidence; distinct from unchanged freshness);
 //   - unchanged digest emits ResultUnchanged (stale/freshness proof);
 //   - duplicate record IDs emit one fact (idempotent re-emission);
 //   - secrets never enter payloads; each redaction is recorded;
-//   - source_ref carries claim scope, generation, and a credential-free URI.
+//   - source_ref carries claim scope, generation, and a credential-free URI;
+//   - record, payload, and deadline bounds fail terminal, never unbounded.
 func Collect(claim sdk.Claim, report Report, opts CollectOptions) (sdk.Result, error) {
 	observedAt := opts.ObservedAt.UTC()
 	if observedAt.IsZero() {
 		observedAt = time.Now().UTC()
+	}
+	limits := opts.Limits
+	if limits.MaxRecordsPerClaim <= 0 || limits.MaxPayloadBytes <= 0 || limits.ClaimTimeoutSeconds <= 0 {
+		limits = DefaultResourceUse()
+	}
+	if !claim.Deadline.IsZero() && observedAt.After(claim.Deadline) {
+		return terminalResult(claim, observedAt, "claim-deadline-exceeded"), nil
 	}
 	if err := sdk.ValidateShareSafeKeys(map[string]any{"source": report.Source}); err != nil {
 		return sdk.Result{}, err
@@ -131,16 +152,10 @@ func Collect(claim sdk.Claim, report Report, opts CollectOptions) (sdk.Result, e
 	if err := checkSourceURI(opts.SourceURI); err != nil {
 		return sdk.Result{}, err
 	}
-	if len(report.Records) == 0 {
-		return sdk.Result{
-			ProtocolVersion: sdk.ProtocolVersionV1Alpha1,
-			State:           sdk.ResultUnchanged,
-			Claim:           claim,
-			Generation:      sdk.Generation{ID: claim.GenerationID, ObservedAt: observedAt, FreshnessHint: "empty-source"},
-			Statuses:        []sdk.Status{{Class: sdk.StatusComplete, FactCount: 0}},
-		}, nil
+	if len(report.Records) > limits.MaxRecordsPerClaim {
+		return terminalResult(claim, observedAt, "record-budget-exceeded"), nil
 	}
-	if opts.PreviousDigest != "" && opts.PreviousDigest == Digest(report) {
+	if opts.PreviousDigest != "" && opts.PreviousDigest == Digest(report) && len(report.Records) > 0 {
 		return sdk.Result{
 			ProtocolVersion: sdk.ProtocolVersionV1Alpha1,
 			State:           sdk.ResultUnchanged,
@@ -168,6 +183,13 @@ func Collect(claim sdk.Claim, report Report, opts CollectOptions) (sdk.Result, e
 		factRedactions := []sdk.Redaction{}
 		if record.Secret != "" {
 			factRedactions = append(factRedactions, sdk.Redaction{Field: "secret", Reason: "credential-redacted"})
+		}
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			return sdk.Result{}, fmt.Errorf("encode record payload: %w", err)
+		}
+		if len(encoded) > limits.MaxPayloadBytes {
+			return terminalResult(claim, observedAt, "payload-budget-exceeded"), nil
 		}
 		facts = append(facts, sdk.Fact{
 			Kind:             FactKindRecord,
@@ -224,10 +246,59 @@ func CollectPartial(claim sdk.Claim, report Report, opts CollectOptions, failure
 	if result.State != sdk.ResultComplete {
 		return result, nil
 	}
+	// The cause travels as a FactKindWarning fact so operators see why the
+	// claim is partial. The reason is share-safe validated first; an
+	// unshareable cause is withheld and the redaction recorded instead.
+	reason := strings.TrimSpace(failure)
+	if reason == "" {
+		reason = "source-degraded"
+	}
+	warningPayload := map[string]any{"reason": reason}
+	warningRedactions := []sdk.Redaction{}
+	// ValidateShareSafeKeys guards key shape; the reason travels as a value,
+	// so credential-marker text is scanned separately. Either trip withholds
+	// the cause and records the redaction instead of leaking it.
+	if err := sdk.ValidateShareSafeKeys(map[string]any{"reason": reason}); err != nil || containsCredentialText(reason) {
+		warningPayload = map[string]any{"reason": "withheld-unshareable-cause"}
+		warningRedactions = append(warningRedactions, sdk.Redaction{Field: "reason", Reason: "unshareable-cause-redacted"})
+	}
+	observedAt := result.Generation.ObservedAt
+	warningKey := "warning:partial:" + claim.GenerationID
+	result.Facts = append(result.Facts, sdk.Fact{
+		Kind:             FactKindWarning,
+		SchemaVersion:    "1.0.0",
+		StableKey:        warningKey,
+		SourceConfidence: sdk.SourceConfidenceReported,
+		ObservedAt:       observedAt,
+		SourceRef: sdk.SourceRef{
+			SourceSystem: SourceSystem,
+			ScopeID:      claim.Scope.ID,
+			GenerationID: claim.GenerationID,
+			FactKey:      warningKey,
+			URI:          opts.SourceURI + "#partial",
+			RecordID:     "partial",
+		},
+		Payload:    warningPayload,
+		Redactions: warningRedactions,
+	})
 	result.State = sdk.ResultPartial
-	result.Statuses = append(result.Statuses, sdk.Status{Class: sdk.StatusWarning, Partial: true, WarningCount: 1})
-	_ = failure
+	result.Statuses = append(result.Statuses, sdk.Status{Class: sdk.StatusWarning, Partial: true, WarningCount: 1, FactCount: len(result.Facts)})
 	return result, nil
+}
+
+// terminalResult is the bounded-failure shape for exhausted budgets and
+// expired claims: explicit terminal state with a failure class, never an
+// ambiguous complete and never unbounded allocation.
+func terminalResult(claim sdk.Claim, observedAt time.Time, failureClass string) sdk.Result {
+	return sdk.Result{
+		ProtocolVersion: sdk.ProtocolVersionV1Alpha1,
+		State:           sdk.ResultTerminal,
+		Claim:           claim,
+		Generation:      sdk.Generation{ID: claim.GenerationID, ObservedAt: observedAt},
+		Statuses: []sdk.Status{{
+			Class: sdk.StatusFailure, FailureClass: failureClass,
+		}},
+	}
 }
 
 // CollectRetryable is the bounded-retry shape for transient source errors.
@@ -247,9 +318,19 @@ func CollectRetryable(claim sdk.Claim, observedAt time.Time, retryAfterSeconds i
 }
 
 func checkSourceURI(raw string) error {
-	lower := strings.ToLower(strings.TrimSpace(raw))
-	if strings.Contains(lower, "@") && !strings.Contains(lower, "://") {
-		return fmt.Errorf("source URI must not embed credentials")
+	trimmed := strings.TrimSpace(raw)
+	lower := strings.ToLower(trimmed)
+	// url.Parse only surfaces userinfo after "//", so check "@" first: a
+	// hierarchical URI with userinfo (https://user:secret@host) and an
+	// opaque credential body (svc:SECRET@host/x) are both refused. Error
+	// text never echoes the URI, which may carry the credential.
+	if strings.Contains(trimmed, "@") {
+		if u, err := url.Parse(trimmed); err != nil || u.User != nil {
+			return fmt.Errorf("source URI must not embed credentials")
+		}
+		if !strings.Contains(lower, "://") {
+			return fmt.Errorf("source URI must not embed credentials")
+		}
 	}
 	for _, key := range []string{"password", "secret", "token"} {
 		if strings.Contains(lower, key+"=") {
@@ -257,4 +338,23 @@ func checkSourceURI(raw string) error {
 		}
 	}
 	return nil
+}
+
+// credentialValueMarkers are substrings that mark free text as unsafe to
+// emit. Matching is deliberately broad: a withheld reason stays diagnosable
+// through its redaction record, while a leaked credential does not.
+var credentialValueMarkers = []string{
+	"password", "passwd", "secret", "token", "bearer",
+	"api_key", "apikey", "private_key", "client_secret", "credentials",
+}
+
+// containsCredentialText reports whether free text may carry a credential.
+func containsCredentialText(text string) bool {
+	lower := strings.ToLower(text)
+	for _, marker := range credentialValueMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
 }

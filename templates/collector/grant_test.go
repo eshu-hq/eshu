@@ -67,6 +67,11 @@ func TestProducerGrantContract(t *testing.T) {
 	if authorizesEmission(expired, ComponentID, "0.1.0", "aws_resource", "1.0.0", "component:template-primary", time.Now()) {
 		t.Fatal("expired grant must fail closed")
 	}
+	// Revocation and expiry constrain core-owned kinds only: a revoked grant
+	// object must not block namespaced-kind emission.
+	if !authorizesEmission(revoked, ComponentID, "0.1.0", FactKindRecord, "1.0.0", "component:template-primary", time.Now()) {
+		t.Fatal("revoked grant must not block namespaced kinds")
+	}
 	// Conflicting producers never share one scope+generation: the template
 	// emits under its own claim scope only.
 	result := mustCollect(t, "complete.json", testClaim(), testObservedAt(), "")
@@ -100,16 +105,19 @@ func TestGrantExampleParses(t *testing.T) {
 // kinds pass. Core remains the enforcement owner; this keeps the template's
 // pre-submit check identical to the host's verdict.
 func authorizesEmission(grant GrantRequest, producerID, version, kind, schemaVersion, scope string, now time.Time) bool {
+	// Namespaced kinds need no grant, so they bypass before revocation and
+	// expiry are consulted: those only constrain core-owned kinds, and a
+	// revoked or expired grant object must never block namespaced emission.
+	kind = strings.TrimSpace(kind)
+	scope = strings.TrimSpace(scope)
+	if strings.Contains(kind, ".") {
+		return true
+	}
 	if grant.Revoked {
 		return false
 	}
 	if grant.ExpiresAt.IsZero() || !now.Before(grant.ExpiresAt) {
 		return false
-	}
-	kind = strings.TrimSpace(kind)
-	scope = strings.TrimSpace(scope)
-	if strings.Contains(kind, ".") {
-		return true
 	}
 	if strings.TrimSpace(grant.ProducerID) != strings.TrimSpace(producerID) ||
 		normalizeVersion(grant.Version) != normalizeVersion(version) {

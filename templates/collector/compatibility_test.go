@@ -111,8 +111,12 @@ func coreRangeCovers(manifestRange, runningCore string) bool {
 			if cmp <= 0 {
 				return false
 			}
-		case "<=", "=":
+		case "<=":
 			if cmp > 0 {
+				return false
+			}
+		case "=":
+			if cmp != 0 {
 				return false
 			}
 		default:

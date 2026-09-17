@@ -38,6 +38,18 @@ func TestManifestReleaseProvenance(t *testing.T) {
 		if strings.Contains(artifact.Image, ":latest") {
 			t.Fatalf("artifact image %q uses a mutable tag", artifact.Image)
 		}
+		// The all-zero digest matches the pin format but names no pullable
+		// artifact. The pristine template ships unpinned, so zeros are
+		// tolerated only while the manifest still carries the template
+		// placeholder identity (compared as a literal: adopters rename the
+		// ComponentID constant too, so comparing against it would disarm
+		// this tripwire). Renaming is the mandatory first adopter step;
+		// from that moment the gate stays red until scripts/pin-digest.sh
+		// records the real pushed digest.
+		if strings.HasSuffix(artifact.Image, "@sha256:"+strings.Repeat("0", 64)) &&
+			manifest.Metadata.ID != "dev.eshu.template.collector" {
+			t.Fatalf("artifact image %q is the unpinned placeholder digest: run scripts/pin-digest.sh", artifact.Image)
+		}
 	}
 	if len(manifest.Spec.EmittedFacts) == 0 {
 		t.Fatal("manifest declares no emitted facts")
