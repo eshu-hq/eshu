@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"golang.org/x/mod/semver"
 	"gopkg.in/yaml.v3"
@@ -107,8 +108,17 @@ type Telemetry struct {
 	MetricsPrefix string `yaml:"metricsPrefix" json:"metricsPrefix"`
 }
 
-// LoadManifest loads and validates a component package manifest.
+// LoadManifest loads and validates a component package manifest without
+// producer-grant context: core-owned fact kinds are always rejected here.
+// Registry flows that consult durable grants use loadManifest with state
+// grants instead.
 func LoadManifest(path string) (Manifest, error) {
+	return loadManifest(path, nil)
+}
+
+// loadManifest loads and validates a manifest, honoring the given
+// core-issued producer grants for core-owned fact kinds.
+func loadManifest(path string, grants []ProducerGrant) (Manifest, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- path is supplied by the install flow from a locally staged manifest file, not from untrusted external input
 	if err != nil {
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
@@ -117,14 +127,21 @@ func LoadManifest(path string) (Manifest, error) {
 	if err := yaml.Unmarshal(raw, &manifest); err != nil {
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, "decode component manifest", err)
 	}
-	if err := manifest.Validate(); err != nil {
+	if err := manifest.validate(grants); err != nil {
 		return Manifest{}, WrapError(ErrorCodeInvalidManifest, err.Error(), err)
 	}
 	return manifest, nil
 }
 
-// Validate checks manifest identity, compatibility, and owned surfaces.
+// Validate checks manifest identity, compatibility, and owned surfaces
+// without producer-grant context.
 func (m Manifest) Validate() error {
+	return m.validate(nil)
+}
+
+// validate checks manifest identity, compatibility, and owned surfaces,
+// honoring core-issued producer grants for core-owned fact kinds.
+func (m Manifest) validate(grants []ProducerGrant) error {
 	if strings.TrimSpace(m.APIVersion) != manifestAPIVersion {
 		return fmt.Errorf("apiVersion must be %q", manifestAPIVersion)
 	}
@@ -168,8 +185,9 @@ func (m Manifest) Validate() error {
 			return err
 		}
 	}
+	granted := grantedCoreKinds(m.Metadata.ID, m.Metadata.Version, m.Spec.CollectorKinds, grants, time.Now().UTC())
 	for _, fact := range m.Spec.EmittedFacts {
-		if err := fact.Validate(); err != nil {
+		if err := fact.validate(granted); err != nil {
 			return err
 		}
 	}
@@ -209,12 +227,19 @@ func (a Artifact) Validate() error {
 	return nil
 }
 
-// Validate checks fact-family fields.
+// Validate checks fact-family fields without producer-grant context.
 func (f FactFamily) Validate() error {
+	return f.validate(nil)
+}
+
+// validate checks fact-family fields, honoring granted core kinds: the map
+// carries kind to covered schema versions for grants already matched to the
+// owning manifest. A nil map rejects every core-owned kind.
+func (f FactFamily) validate(granted map[string][]string) error {
 	if err := validateIdentifier("fact kind", f.Kind); err != nil {
 		return err
 	}
-	if err := validateComponentFactKind(f.Kind); err != nil {
+	if err := validateComponentFactKind(f.Kind, granted[f.Kind], f.SchemaVersions); err != nil {
 		return err
 	}
 	if err := validatePayloadSchemaRef(f.PayloadSchemaRef); err != nil {

@@ -50,6 +50,9 @@ type Activation struct {
 
 type registryState struct {
 	Components []InstalledComponent `json:"components"`
+	// Grants holds core-issued producer authorizations. Absent in
+	// registries written before producer delegation; nil grants deny.
+	Grants []ProducerGrant `json:"grants,omitempty"`
 }
 
 // NewRegistry creates a local component registry rooted at home.
@@ -66,7 +69,11 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 			verification.Reason,
 		)
 	}
-	manifest, err := LoadManifest(manifestPath)
+	state, err := r.load()
+	if err != nil {
+		return InstalledComponent{}, err
+	}
+	manifest, err := loadManifest(manifestPath, state.Grants)
 	if err != nil {
 		return InstalledComponent{}, err
 	}
@@ -80,10 +87,6 @@ func (r Registry) Install(manifestPath string, verification VerificationResult) 
 		return InstalledComponent{}, WrapError(ErrorCodeInvalidManifest, "read component manifest", err)
 	}
 	manifestDigest := sha256Hex(raw)
-	state, err := r.load()
-	if err != nil {
-		return InstalledComponent{}, err
-	}
 	if err := r.validateInstallFactKindClaims(manifest, state); err != nil {
 		return InstalledComponent{}, err
 	}

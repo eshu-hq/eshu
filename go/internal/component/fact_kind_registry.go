@@ -5,6 +5,7 @@ package component
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"golang.org/x/mod/semver"
@@ -22,13 +23,24 @@ type factKindClaim struct {
 }
 
 // validateComponentFactKind enforces the component-side namespace boundary.
-func validateComponentFactKind(kind string) error {
+// covered carries the schema versions a core-issued producer grant authorizes
+// for kind; declared must be a subset of covered for a core-owned kind to
+// pass. Without coverage every core-owned kind fails closed.
+func validateComponentFactKind(kind string, covered, declared []string) error {
 	trimmed := strings.TrimSpace(kind)
 	if kind != trimmed {
 		return fmt.Errorf("fact kind %q must be canonical without surrounding whitespace", kind)
 	}
 	if facts.IsCoreFactKind(trimmed) {
-		return fmt.Errorf("fact kind %q is core-owned by Eshu and cannot be claimed by optional components", trimmed)
+		for _, version := range declared {
+			if !slices.Contains(covered, version) {
+				return fmt.Errorf("fact kind %q is core-owned by Eshu and cannot be claimed by optional components", trimmed)
+			}
+		}
+		if len(declared) == 0 {
+			return fmt.Errorf("fact kind %q is core-owned by Eshu and cannot be claimed by optional components", trimmed)
+		}
+		return nil
 	}
 	if !strings.Contains(trimmed, ".") {
 		return fmt.Errorf("fact kind %q must be namespaced with a collision-resistant prefix", trimmed)
@@ -78,7 +90,13 @@ func (r Registry) validateEnableFactKindClaims(component InstalledComponent, sta
 // installedManifest loads the registry-owned manifest path instead of trusting
 // the persisted ManifestPath field.
 func (r Registry) installedManifest(component InstalledComponent) (Manifest, error) {
-	manifest, err := LoadManifest(r.manifestPath(component.ID, component.Version))
+	// Registry-internal reloads honor durable producer grants so granted
+	// core-kind manifests pass enable and collision checks.
+	state, err := r.load()
+	if err != nil {
+		return Manifest{}, err
+	}
+	manifest, err := loadManifest(r.manifestPath(component.ID, component.Version), state.Grants)
 	if err != nil {
 		return Manifest{}, WrapError(
 			ErrorCodeCorruptedRegistryState,
