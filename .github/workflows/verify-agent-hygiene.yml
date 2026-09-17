@@ -88,7 +88,8 @@ jobs:
       - name: No filename stutter in added/renamed Go files
         run: |
           # PRs scan the base..head range; direct pushes scan everything
-          # pushed (before..sha), so a multi-commit push is fully covered.
+          # pushed (before..sha). A recreated ref has no before SHA, so the
+          # HEAD~1 fallback covers only the tip there.
           if [ -n "${{ github.base_ref }}" ]; then
             range="origin/${{ github.base_ref }}"
           elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
