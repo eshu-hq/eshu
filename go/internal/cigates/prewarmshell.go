@@ -3,7 +3,10 @@
 
 package cigates
 
-import "strings"
+import (
+	"regexp"
+	"strings"
+)
 
 // This file is checkSetupGoPrewarmOrdering's command-position recognizer
 // (#6615 PR #6743 Codex P1): a pre-warm is credited only when it is the
@@ -113,6 +116,12 @@ func splitLineCommands(line string, offset int) []shellCommand {
 			emit(i, "&&")
 			i += 2
 			segStart = i
+		case c == '&' && isRedirectionAmpersand(line, i):
+			i++
+		case c == '&':
+			emit(i, "&")
+			i++
+			segStart = i
 		case c == '|' && i+1 < len(line) && line[i+1] == '|':
 			emit(i, "||")
 			i += 2
@@ -139,25 +148,82 @@ func splitLineCommands(line string, offset int) []shellCommand {
 	return out
 }
 
-// commandSuppressed reports whether cmds[idx] is immediately chained to a
-// following "true" or "||" ":" -- "cmd || true", "cmd; true", "cmd || :" --
-// which always makes the LINE exit 0 regardless of cmd's own result (a GH
-// Actions `run:` step's exit status is its last command's, absent `set -e`),
-// so a genuinely failing pre-warm no longer fails the job.
-func commandSuppressed(cmds []shellCommand, idx int) bool {
-	c := cmds[idx]
+// isRedirectionAmpersand reports whether the "&" at line[i] belongs to a
+// redirection rather than to the background operator: ">&", "<&" (as in
+// "2>&1") and "&>" (as in "cmd &>log"). Splitting a command there would tear
+// a real pre-warm invocation in half and stop recognizing it.
+func isRedirectionAmpersand(line string, i int) bool {
+	if i+1 < len(line) && line[i+1] == '>' {
+		return true
+	}
+	for j := i - 1; j >= 0; j-- {
+		switch line[j] {
+		case ' ', '\t':
+			continue
+		case '>', '<':
+			return true
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+// pipefailSetRE matches a `set` that turns pipefail ON: "set -o pipefail",
+// "set -eo pipefail", "set -euo pipefail". "set +o pipefail" turns it off
+// and deliberately does not match.
+var pipefailSetRE = regexp.MustCompile(`^set\s+-[a-zA-Z]*o\s+pipefail\b`)
+
+// commandSuppression describes how cmds[idx]'s own exit status is kept from
+// reaching the job, or "" when the status does reach it. shellPipefail is
+// true when the step declared a shell that sets `-o pipefail`.
+//
+// A GitHub Actions `run:` step runs under `bash -e {0}` by default, and an
+// explicit `shell: bash` under `bash --noprofile --norc -eo pipefail {0}`
+// (workflow-syntax reference). Measured on /bin/bash -e:
+//
+//	false || true -> 0   false || echo x -> 0   false || exit 0 -> 0
+//	false | tee   -> 0   false &         -> 0   false && echo x -> 1
+//
+// so the right-hand side of "||" is irrelevant -- any of them that succeeds
+// swallows the failure -- a pipeline reports only its last command unless
+// pipefail is set, and a backgrounded command reports nothing and has not
+// even finished. "&&" is NOT suppression: the RHS never runs and the list
+// keeps the non-zero status.
+func commandSuppression(cmds []shellCommand, idx int, shellPipefail bool) string {
+	if cmds[idx].NextOp == "&" {
+		return "its exit status is suppressed: it is backgrounded with &, so the step exits 0 immediately and the job moves on while the download is still running"
+	}
 	if idx+1 >= len(cmds) {
-		return false
+		return ""
 	}
 	next := cmds[idx+1].Text
-	switch c.NextOp {
+	switch cmds[idx].NextOp {
 	case ";":
-		return next == "true"
+		if next == "true" {
+			return "its exit status is discarded by the following " + next
+		}
 	case "||":
-		return next == "true" || next == ":"
-	default:
-		return false
+		return "its exit status is suppressed (chained with || " + next + ", so the step exits 0 when the pre-warm fails)"
+	case "|":
+		if shellPipefail || runSetsPipefail(cmds[:idx]) {
+			return ""
+		}
+		return "its exit status is suppressed: the pipeline into " + next +
+			" reports only that last command, and the default runner shell is bash -e WITHOUT pipefail -- add shell: bash or set -o pipefail"
 	}
+	return ""
+}
+
+// runSetsPipefail reports whether an earlier command in the same run: block
+// turned pipefail on.
+func runSetsPipefail(earlier []shellCommand) bool {
+	for _, c := range earlier {
+		if pipefailSetRE.MatchString(c.Text) {
+			return true
+		}
+	}
+	return false
 }
 
 // stripShellComment returns line with a trailing unquoted "#" comment

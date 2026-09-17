@@ -43,6 +43,7 @@ type prewarmStep struct {
 	Run             string            `yaml:"run"`
 	If              string            `yaml:"if"`
 	ContinueOnError string            `yaml:"continue-on-error"`
+	Shell           string            `yaml:"shell"`
 }
 
 type prewarmJob struct {
@@ -92,9 +93,9 @@ func unquoteArg(s string) string {
 
 // prewarmStepIneffective reports why a step whose pre-warm command DOES name
 // the right module still cannot protect the job, or "" if it can.
-// suppressed is commandSuppressed's verdict for that command (prewarmshell.go):
-// chained as "cmd || true", "cmd; true", or "cmd || :", all of which make the
-// step exit 0 regardless of the pre-warm's own result.
+// suppression is commandSuppression's verdict for that command
+// (prewarmshell.go): the ways a `||` chain, a pipeline, or a `&` background
+// make the step exit 0 regardless of the pre-warm's own result.
 //
 // Limits, deliberately not handled: an arbitrary `if:` expression is not
 // evaluated -- only a literal `false`/`${{ false }}` is recognized, since
@@ -103,7 +104,7 @@ func unquoteArg(s string) string {
 // expression, not the literal `true`). A composite action
 // (`uses: ./.github/actions/...`) that wraps actions/setup-go internally is
 // invisible to this check. Neither shape exists in this repo today.
-func prewarmStepIneffective(step prewarmStep, suppressed bool) string {
+func prewarmStepIneffective(step prewarmStep, suppression string) string {
 	if strings.EqualFold(strings.TrimSpace(step.ContinueOnError), "true") {
 		return "continue-on-error: true"
 	}
@@ -111,10 +112,19 @@ func prewarmStepIneffective(step prewarmStep, suppressed bool) string {
 	case "false", "${{false}}":
 		return "if: " + strings.TrimSpace(step.If)
 	}
-	if suppressed {
-		return "its exit status is suppressed (chained with || true / ; true / || :)"
-	}
-	return ""
+	return suppression
+}
+
+// stepShellSetsPipefail reports whether the step's `shell:` selector runs
+// bash with `-o pipefail`, which decides whether a piped pre-warm still
+// fails the job. Per GitHub's workflow-syntax reference, an omitted `shell:`
+// runs `bash -e {0}` on Linux/macOS -- NO pipefail, so a pipeline reports
+// only its last command -- while an explicit `shell: bash` runs
+// `bash --noprofile --norc -eo pipefail {0}`. A custom shell string counts
+// when it asks for pipefail itself.
+func stepShellSetsPipefail(step prewarmStep) bool {
+	shell := strings.TrimSpace(step.Shell)
+	return shell == "bash" || strings.Contains(shell, "pipefail")
 }
 
 // checkSetupGoPrewarmOrdering enforces #6615's F2 invariant: every job that
@@ -246,7 +256,8 @@ func findPrewarmOrderingViolation(steps []prewarmStep, moduleDir string) string 
 			// reporting that instead would bury the actual fix (remove the
 			// continue-on-error/if:false/suppression) behind an ordering
 			// message that does not name it.
-			if reason := prewarmStepIneffective(step, commandSuppressed(cmds, idx)); reason != "" {
+			suppression := commandSuppression(cmds, idx, stepShellSetsPipefail(step))
+			if reason := prewarmStepIneffective(step, suppression); reason != "" {
 				return fmt.Sprintf("found a pre-warm for %q, but %s", moduleDir, reason)
 			}
 			prewarmSeen = true
