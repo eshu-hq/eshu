@@ -35,7 +35,7 @@
 // OCI, Git (including static workflow-image evidence), AWS, Azure, and GCP
 // image-reference evidence emits one container_image_identity reducer
 // intent per scope generation via
-// containerimageidentity.BuildContainerImageIdentityReducerIntent; the
+// identity.BuildContainerImageIdentityReducerIntent; the
 // reducer owns the cross-source join.
 // AWS resource observations stay source-local until
 // awsdrift.BuildReducerIntent emits one

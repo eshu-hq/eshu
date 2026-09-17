@@ -141,11 +141,26 @@ pattern; the child tests
 `TestTriggerFactAWSRelationshipNotTargetingContainerImage`, and
 `TestTriggerFactAWSRelationshipUndecodable` pin that substitution directly.
 Focused proof, run from the `go/` module root:
-`go test ./internal/projector/containerimageidentity ./internal/projector -count=1`
+`go test ./internal/projector/container/image/identity ./internal/projector -count=1`
 green, whole-module `go build` and `go vet` clean.
+
+### Move record (#6627)
+
+No-Regression Evidence (#6627 container nesting): base `f5960e824`,
+backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
+recursive projector tests green, moved tests green in the new path, replay
+coverage gate reported 437/437 satisfied with CI required-gates as the
+blocking authority. B-7 golden-corpus gate was not run locally: the Docker
+daemon is unreachable (socket EOF on image pull), so CI is the blocking
+authority there. Same code path on the same input shape before and after;
+rename-only, so no benchmark delta exists to measure.
+
+No-Observability-Change (#6627 container nesting): no stage added and no
+metric, span, or log name changed; the covering instruments named in this
+section are unchanged.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../../README.md)
+- [Intent contract](../../../intent/README.md)
+- [Package restructure](../../../../../../docs/internal/design/package-restructure.md)

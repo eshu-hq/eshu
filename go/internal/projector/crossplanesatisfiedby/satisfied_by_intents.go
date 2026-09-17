@@ -17,7 +17,7 @@ import (
 const crossplaneSatisfiedByEntityFactKind = "content_entity"
 
 // candidateFactKinds is the single fact kind triggerFact ever inspects,
-// mirroring the containerimageidentity package's candidateFactKinds
+// mirroring the identity package's candidateFactKinds
 // closed-list shape.
 var candidateFactKinds = []string{crossplaneSatisfiedByEntityFactKind}
 

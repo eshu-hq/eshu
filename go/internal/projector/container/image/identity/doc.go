@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package containerimageidentity builds the container_image_identity reducer
+// Package identity builds the container_image_identity reducer
 // intent from one immutable scope generation. The trigger fires on the
 // earliest accepted fact across a closed set of candidate kinds, in original
 // generation order: OCI digest/tag/referrer facts, AWS/Azure/GCP
@@ -27,4 +27,4 @@
 // behavior-preserving substitution, not a change. Root projector assembly
 // owns lookup construction and lifetime, invocation order, queue writes,
 // retries, and telemetry.
-package containerimageidentity
+package identity
