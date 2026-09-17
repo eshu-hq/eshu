@@ -788,7 +788,7 @@ remaining root callers; the secrets/IAM extraction below took it to two. The uns
 `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.
 The secrets/IAM trust-chain builder moved into
-`internal/projector/secretsiam`. It triggers on any fact kind the
+`internal/projector/access/posture`. It triggers on any fact kind the
 `facts.SecretsIAMSchemaVersion` registry recognizes, anchoring with
 `FirstMatchingKindPredicate` on the earliest such fact in input order, and
 carries no decode seam. Its private source-system helper (`secretsIAMSourceSystem`

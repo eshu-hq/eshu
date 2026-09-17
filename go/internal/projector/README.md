@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/aws/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/cloud/aws/iam/trust`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/service/catalog`, `internal/projector/secretsiam`, `internal/projector/observability/coverage`, `internal/projector/cloud/aws/iam/instance/profile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplane/satisfaction`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
+`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/cloud/aws/iam/trust`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/service/catalog`, `internal/projector/access/posture`, `internal/projector/observability/coverage`, `internal/projector/cloud/aws/iam/instance/profile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplane/satisfaction`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
 families import that neutral lookup (semanticentity does not: it is per-fact);
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -314,7 +314,7 @@ so stale collector payloads cannot silently reach the reducer.
 Secrets/IAM posture facts follow the same reducer-owned boundary. When a
 generation contains any `aws_iam_*`, `k8s_*`, `eks_*`, `vault_*`, or
 `secrets_iam_coverage_warning` fact from `facts.SecretsIAMFactKinds`,
-`secretsiam.BuildSecretsIAMTrustChainReducerIntent` emits one `secrets_iam_trust_chain`
+`posture.BuildSecretsIAMTrustChainReducerIntent` emits one `secrets_iam_trust_chain`
 intent for the trigger scope/generation. The projector validates the
 `secrets_iam_posture` source schema version and records the trigger fact only.
 It does not join AWS IAM, Kubernetes ServiceAccount, or Vault policy evidence

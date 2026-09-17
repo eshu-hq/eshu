@@ -139,7 +139,7 @@ func TestBuildProjectionRejectsUnsupportedObservabilitySchemaVersion(t *testing.
 
 // TestBuildProjectionRejectsUnsupportedSecretsIAMSchemaVersion pins the root
 // schema-version gate for the secrets/IAM posture family: an unsupported
-// k8s_service_account schema_version fails projection before the secretsiam
+// k8s_service_account schema_version fails projection before the posture
 // builder ever sees the generation. It lives at root because
 // validateFactSchemaVersion is root behavior, not the child builder's.
 func TestBuildProjectionRejectsUnsupportedSecretsIAMSchemaVersion(t *testing.T) {

@@ -106,7 +106,7 @@ key, per-kind reason strings, earliest-across-kinds anchor rule, and
 source-system derivation are identical to the base commit, and the
 dispatcher's ordered fan-out is unchanged at 44 builder probes with this
 probe still running immediately after
-`secretsiam.BuildSecretsIAMTrustChainReducerIntent` and immediately before
+`posture.BuildSecretsIAMTrustChainReducerIntent` and immediately before
 `security.BuildSecurityAlertReconciliationReducerIntent`. The family carried
 a private `supplyChainImpactSourceSystem` helper that was checked
 body-for-body against `projectorintent.SourceSystem` and found identical
