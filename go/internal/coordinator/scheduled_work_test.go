@@ -6,6 +6,7 @@ package coordinator
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"strings"
 	"testing"
@@ -39,6 +40,11 @@ func TestScanIntervalFromConfiguration(t *testing.T) {
 		{name: "null value is rejected", raw: `{"scan_interval": null}`, wantErr: "scan_interval must be a duration string, got null"},
 		{name: "boolean value is rejected", raw: `{"scan_interval": true}`, wantErr: "scan_interval must be a duration string, got boolean"},
 		{name: "object value is rejected without echoing it", raw: `{"scan_interval": {"token": "do-not-echo"}}`, wantErr: "scan_interval must be a duration string, got object"},
+		// Unrelated values stay opaque: json.Valid accepts 1e400 but a float64
+		// decode of the whole document would not (Codex review on #6724).
+		{name: "unrelated out-of-range number is ignored when unset", raw: `{"opaque": 1e400}`, want: 0, wantSet: false},
+		{name: "unrelated out-of-range number is ignored when set", raw: `{"opaque": 1e400, "scan_interval": "1h"}`, want: time.Hour, wantSet: true},
+		{name: "array value is rejected", raw: `{"scan_interval": ["1h"]}`, wantErr: "scan_interval must be a duration string, got array"},
 		{name: "null document is unset", raw: `null`, want: 0, wantSet: false},
 		// A valid non-object document carries no scan_interval field, so it is
 		// unset: DesiredCollectorInstance.Validate accepts any valid JSON here and
@@ -72,6 +78,35 @@ func TestScanIntervalFromConfiguration(t *testing.T) {
 	}
 }
 
+// A present null arrives in a RawMessage map entry as the literal null, not
+// as an empty value, and unmarshalling that literal into a string succeeds
+// silently. These pins keep the type check from being mistaken for dead code.
+func TestJSONTypeNameNamesEveryDecodedShape(t *testing.T) {
+	t.Parallel()
+
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(`{"scan_interval": null}`), &decoded); err != nil {
+		t.Fatalf("decode error = %v", err)
+	}
+	raw, present := decoded["scan_interval"]
+	if !present || string(raw) != "null" {
+		t.Fatalf("present=%v raw=%q, want present with the literal null", present, raw)
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err != nil || text != "" {
+		t.Fatalf("unmarshal null into string: err=%v text=%q, want silent success with empty text", err, text)
+	}
+	cases := map[string]string{
+		`null`: "null", `""`: "string", `"1h"`: "string", `42`: "number", `-1.5e3`: "number",
+		`true`: "boolean", `false`: "boolean", `[]`: "array", `{}`: "object", ``: "null", `  "x" `: "string",
+	}
+	for raw, want := range cases {
+		if got := jsonTypeName(json.RawMessage(raw)); got != want {
+			t.Fatalf("jsonTypeName(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
 func TestValidateScanIntervalAgainstReconcileInterval(t *testing.T) {
 	t.Parallel()
 
@@ -89,6 +124,12 @@ func TestValidateScanIntervalAgainstReconcileInterval(t *testing.T) {
 		{name: "negative rejected", raw: `{"scan_interval": "-5m"}`, wantErr: "must be at least 1s"},
 		{name: "sub-second rejected", raw: `{"scan_interval": "500ms"}`, wantErr: "must be at least 1s"},
 		{name: "below global rejected", raw: `{"scan_interval": "10s"}`, wantErr: "must not be shorter than the reconcile interval 30s"},
+		// 45s over a 30s ticker puts consecutive ticks in consecutive buckets
+		// every other cycle, so scans would recur 30s apart forever; only an
+		// integer multiple keeps one plan per bucket exactly one interval apart
+		// (Codex review on #6724).
+		{name: "non-multiple of global rejected", raw: `{"scan_interval": "45s"}`, wantErr: "must be an integer multiple of the reconcile interval 30s"},
+		{name: "multiple of global passes", raw: `{"scan_interval": "90s"}`},
 		{name: "unparseable rejected", raw: `{"scan_interval": "soon"}`, wantErr: "scan_interval"},
 		{name: "null value rejected", raw: `{"scan_interval": null}`, wantErr: "got null"},
 	}

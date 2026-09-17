@@ -39,10 +39,13 @@ const minScanInterval = time.Second
 // template that meant 12h and emitted null would otherwise run on the global
 // cadence with no signal.
 func scanIntervalFromConfiguration(raw string) (time.Duration, bool, error) {
-	// Decode into a map so key presence and value type are separable:
-	// encoding/json writes a JSON null into a string or RawMessage field as
-	// the zero value, which is indistinguishable from an absent key.
-	var decoded map[string]any
+	// Decode into a map of raw values so key presence and value type are
+	// separable (encoding/json writes a JSON null into a string field as the
+	// zero value, indistinguishable from an absent key) and so every other
+	// field stays opaque: json.Valid accepts a number such as 1e400 that a
+	// float64 decode would reject, and an unrelated field must never make
+	// this reader fail.
+	var decoded map[string]json.RawMessage
 	normalized := strings.TrimSpace(raw)
 	if !strings.HasPrefix(normalized, "{") {
 		return 0, false, nil
@@ -54,11 +57,14 @@ func scanIntervalFromConfiguration(raw string) (time.Duration, bool, error) {
 	if !present {
 		return 0, false, nil
 	}
-	text, isString := rawValue.(string)
-	if !isString {
-		// Report the JSON type, never the value: the diagnostic is "wrong
-		// type", and echoing an operator-supplied document into an error that
-		// lands in startup output and reconcile logs is not worth the risk.
+	// Both halves of this guard are needed: json.Unmarshal of the literal
+	// null into a string succeeds silently and leaves "", so only the type
+	// check rejects an explicit null. Report the JSON type, never the value:
+	// the diagnostic is "wrong type", and echoing an operator-supplied
+	// document into an error that lands in startup output and reconcile
+	// logs is not worth the risk.
+	var text string
+	if err := json.Unmarshal(rawValue, &text); err != nil || jsonTypeName(rawValue) != "string" {
 		return 0, false, fmt.Errorf("%s must be a duration string, got %s", scanIntervalConfigKey, jsonTypeName(rawValue))
 	}
 	value := strings.TrimSpace(text)
@@ -72,32 +78,38 @@ func scanIntervalFromConfiguration(raw string) (time.Duration, bool, error) {
 	return parsed, true, nil
 }
 
-// jsonTypeName names the JSON type encoding/json produced for a decoded
-// map value, for error messages that must not echo the value itself.
-func jsonTypeName(value any) string {
-	switch value.(type) {
-	case nil:
+// jsonTypeName names the JSON type of one raw value from its first byte,
+// for error messages that must not echo the value itself. An explicit null in
+// a RawMessage map entry arrives as the four-byte literal null and is named by
+// the 'n' case; the empty case is defensive only and does not occur for a
+// present key.
+func jsonTypeName(raw json.RawMessage) string {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
 		return "null"
-	case bool:
-		return "boolean"
-	case float64:
-		return "number"
-	case string:
+	}
+	switch trimmed[0] {
+	case '"':
 		return "string"
-	case []any:
-		return "array"
-	case map[string]any:
+	case '{':
 		return "object"
+	case '[':
+		return "array"
+	case 't', 'f':
+		return "boolean"
+	case 'n':
+		return "null"
 	default:
-		return fmt.Sprintf("%T", value)
+		return "number"
 	}
 }
 
 // validateScanInterval rejects a configured scan_interval the coordinator cannot
 // honor. The reconcile ticker fires at the global interval, so a per-instance
 // bucket narrower than that would be visited less often than it promises and
-// would mint a fresh plan key on most visits. Unset passes: the instance then
-// uses the global interval.
+// would mint a fresh plan key on most visits, and a bucket that is not an
+// integer multiple of it would be planned at uneven spacing. Unset passes: the
+// instance then uses the global interval.
 func validateScanInterval(raw string, reconcileInterval time.Duration) error {
 	interval, set, err := scanIntervalFromConfiguration(raw)
 	if err != nil {
@@ -115,6 +127,17 @@ func validateScanInterval(raw string, reconcileInterval time.Duration) error {
 	if interval < reconcileInterval {
 		return fmt.Errorf(
 			"%s %s must not be shorter than the reconcile interval %s",
+			scanIntervalConfigKey, interval, reconcileInterval,
+		)
+	}
+	// Ticks arrive every reconcile interval, so a bucket that is an integer
+	// multiple of it holds exactly that many ticks and consecutive buckets
+	// are planned exactly one interval apart. A 45s bucket over a 30s ticker
+	// instead puts consecutive ticks in consecutive buckets every other
+	// cycle, so scans would recur 30s apart forever.
+	if interval%reconcileInterval != 0 {
+		return fmt.Errorf(
+			"%s %s must be an integer multiple of the reconcile interval %s",
 			scanIntervalConfigKey, interval, reconcileInterval,
 		)
 	}

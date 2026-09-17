@@ -166,9 +166,14 @@ that reads the value:
 - The value is a Go duration string (`30s`, `90m`, `12h`). Anything else
   fails startup, a number or an explicit `null` included; a key that is
   present must carry a string. A blank string is treated as unset.
-- It must be at least `1s` and must not be shorter than the global reconcile
-  interval. The reconcile ticker fires at the global rate, so a narrower
-  per-instance bucket could not be visited as often as it promises.
+- It must be at least `1s`, must not be shorter than the global reconcile
+  interval, and must be an integer multiple of it (`12h` over the `30s`
+  default is; `45s` is not). The reconcile ticker fires at the global rate, so
+  a narrower bucket could not be visited as often as it promises, and a
+  non-multiple bucket would put consecutive ticks in consecutive buckets every
+  other cycle and plan scans at uneven spacing. With a multiple, each bucket
+  holds exactly that many ticks and consecutive scans are planned one
+  interval apart once the first partial bucket has passed.
 - Buckets are fixed multiples of the interval measured from Go's zero time
   (`time.Truncate`), not from when the coordinator started. Any interval that
   divides 24h therefore lands on fixed UTC wall-clock boundaries: a `12h`
