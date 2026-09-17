@@ -61,6 +61,11 @@ type Config struct {
 	Runner              Runner
 	StatusRecorder      StatusRecorder
 	Clock               func() time.Time
+	// Grants carries core-issued producer authorizations consulted when
+	// the manifest declares core-owned fact kinds. Nil grants deny: a
+	// core-owned declaration without a live grant fails Source construction
+	// exactly as manifest validation without grant context rejects it.
+	Grants []component.ProducerGrant
 }
 
 // Source implements collector.ClaimedSource for collector SDK extensions.

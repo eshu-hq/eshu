@@ -51,6 +51,10 @@ type runtimeConfig struct {
 	ComponentConfig    component.Activation
 	ManifestDigest     string
 	ComponentPublisher string
+	// Grants carries the registry's durable producer authorizations for
+	// extension-host construction. It is populated from registry state,
+	// never from the component package itself.
+	Grants []component.ProducerGrant
 }
 
 type activationCandidate struct {
@@ -122,8 +126,13 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 	if heartbeatInterval >= claimLeaseTTL {
 		return runtimeConfig{}, fmt.Errorf("component extension collector heartbeat interval must be less than claim lease TTL")
 	}
+	grants, err := component.NewRegistry(home).ProducerGrants()
+	if err != nil {
+		return runtimeConfig{}, fmt.Errorf("read producer grants: %w", err)
+	}
 	return runtimeConfig{
 		ComponentHome:      home,
+		Grants:             grants,
 		Instance:           desiredInstance(candidate),
 		Manifest:           candidate.manifest,
 		CollectorKind:      candidate.collectorKind,
@@ -146,7 +155,8 @@ func selectActivation(
 	policy component.Policy,
 	requestedInstanceID string,
 ) (activationCandidate, error) {
-	readback, err := component.NewRegistry(home).Readback(policy)
+	registry := component.NewRegistry(home)
+	readback, err := registry.Readback(policy)
 	if err != nil {
 		return activationCandidate{}, fmt.Errorf("read component registry: %w", err)
 	}
@@ -155,7 +165,7 @@ func selectActivation(
 		if entry.Error != nil || entry.Verification == nil || !entry.Verification.Allowed {
 			continue
 		}
-		manifest, err := component.LoadManifest(entry.ManifestPath)
+		manifest, err := registry.LoadInstalledManifest(entry.ID, entry.Version)
 		if err != nil {
 			return activationCandidate{}, fmt.Errorf("load component manifest %q: %w", entry.ID, err)
 		}

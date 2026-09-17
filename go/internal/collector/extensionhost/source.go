@@ -20,8 +20,11 @@ import (
 )
 
 // NewSource validates component host configuration and builds a claimed source.
+// Core-owned fact-kind declarations require live producer grants from
+// Config.Grants; without them construction fails exactly as grant-less
+// manifest validation rejects them.
 func NewSource(config Config) (*Source, error) {
-	if err := config.Manifest.Validate(); err != nil {
+	if err := config.Manifest.ValidateWithGrants(config.Grants); err != nil {
 		return nil, fmt.Errorf("validate component manifest: %w", err)
 	}
 	instanceID := strings.TrimSpace(config.CollectorInstanceID)

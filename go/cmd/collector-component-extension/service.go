@@ -41,6 +41,7 @@ func buildClaimedService(
 		Config:              config.ExtensionConfig,
 		Runner:              config.Runner,
 		Clock:               time.Now,
+		Grants:              config.Grants,
 	})
 	if err != nil {
 		return collector.ClaimedService{}, err

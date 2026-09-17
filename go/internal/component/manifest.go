@@ -139,6 +139,15 @@ func (m Manifest) Validate() error {
 	return m.validate(nil)
 }
 
+// ValidateWithGrants checks manifest identity, compatibility, and owned
+// surfaces, honoring core-issued producer grants for core-owned fact kinds.
+// Callers that admit granted producers (registry install, extension-host
+// activation) pass the durable grants they authorize; every other caller
+// uses Validate and stays fail-closed.
+func (m Manifest) ValidateWithGrants(grants []ProducerGrant) error {
+	return m.validate(grants)
+}
+
 // validate checks manifest identity, compatibility, and owned surfaces,
 // honoring core-issued producer grants for core-owned fact kinds.
 func (m Manifest) validate(grants []ProducerGrant) error {
