@@ -3,13 +3,13 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch_secrets_iam.go` and `../dispatch_secrets_iam_contract_test.go`
+4. `../../dispatch_secrets_iam.go` and `../../dispatch_secrets_iam_contract_test.go`
    for the root adapter and the production-boundary proof.
-5. `../dispatch_repositories.go` for the repository switch this family is
+5. `../../dispatch_repositories.go` for the repository switch this family is
    answered ahead of.
-6. `../contract/route/README.md` for the dependency-neutral request contract.
+6. `../../contract/route/README.md` for the dependency-neutral request contract.
 
 ## Invariants
 
@@ -78,8 +78,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/secretsiam ./internal/mcp -count=1
-go vet ./internal/mcp/secretsiam ./internal/mcp
+go test ./internal/mcp/access/posture ./internal/mcp -count=1
+go vet ./internal/mcp/access/posture ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

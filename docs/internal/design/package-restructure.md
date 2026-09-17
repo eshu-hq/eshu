@@ -1325,7 +1325,7 @@ The secrets/IAM posture route family is the fourth Wave 2 MCP extraction: five
 tools, five arms of the same `repositoryRoute` switch -- one fewer than the
 package-registry family moved -- with all five request builders sitting together
 in `dispatch_secrets_iam.go` and no private helper between them. Family membership and all five builders now live
-under `internal/mcp/secretsiam`, and `dispatch_secrets_iam.go` keeps only the
+under `internal/mcp/access/posture`, and `dispatch_secrets_iam.go` keeps only the
 thin `secretsIAMRoute` adapter. Root keeps every tool definition and its
 assembly position, global fanout order, dispatch, authorization, transport,
 timeouts, response budgets, envelopes, summaries, and telemetry. The adapter is

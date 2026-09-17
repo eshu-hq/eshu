@@ -26,7 +26,7 @@ family route selection; `internal/query` retains validation and graph reads. The
 child the cloud inventory and runtime-drift pair; both families' routing stays
 here. The `visualization` child owns registration and pure request selection,
 while query derives packets. The `package/registry`, `cicd`, `code/owners`,
-`secretsiam`, `observability/coverage`, `container/image`, `supply/chain/impact`,
+`access/posture`, `observability/coverage`, `container/image`, `supply/chain/impact`,
 `supply/chain/evidence`, `securityalert`, `admission/decisions`, `kubernetes`,
 `infra/search`, `impact`, `code/flow`, `code/intel`, `content`, `code/dead`, `code/quality`, `entity/resolution`, `iac/management`, `infra/inventory`, `service/context`, and `replatforming`
 children own only family membership and pure request selection; root keeps the matching `*Route` adapters and dispatch, and each family's definitions stay with their current owners. `content` owns `get_file_content`, `get_file_lines`, `build_evidence_citation_packet`, `search_file_content`, and `search_entity_content`; the last two share `contentSearchBody`, and `get_entity_content`'s registration stays grouped with these five in `tools_content.go` even though its routing lives in `entity/resolution`. The `ecosystem`

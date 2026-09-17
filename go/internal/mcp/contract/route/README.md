@@ -15,7 +15,7 @@ packages such as `internal/mcp/admission/decisions`, `internal/mcp/ask`,
 `internal/mcp/entity/resolution`,
 `internal/mcp/impact`, `internal/mcp/infra/search`, `internal/mcp/kubernetes`,
 `internal/mcp/observability/coverage`, `internal/mcp/package/registry`,
-`internal/mcp/relationships`, `internal/mcp/secretsiam`,
+`internal/mcp/relationships`, `internal/mcp/access/posture`,
 `internal/mcp/securityalert`, `internal/mcp/supply/chain/impact`, and
 `internal/mcp/visualization` own those decisions. The root `internal/mcp`
 package still owns global route fanout, family adapters, request dispatch,
@@ -71,7 +71,7 @@ transport and API request telemetry.
 - [MCP observability-coverage route selection](../../observability/coverage/README.md)
 - [MCP package-registry route selection](../../package/registry/README.md)
 - [MCP relationship registrations](../../relationships/README.md)
-- [MCP secrets/IAM route selection](../../secretsiam/README.md)
+- [MCP secrets/IAM route selection](../../access/posture/README.md)
 - [MCP security-alert reconciliation route selection](../../securityalert/README.md)
 - [MCP supply-chain-impact route selection](../../supply/chain/impact/README.md)
 - [MCP visualization registration and route selection](../../visualization/README.md)
