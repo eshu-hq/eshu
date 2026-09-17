@@ -172,8 +172,10 @@
   enabled `configuration.targets[]` entry with a per-target `FairnessKey` that
   preserves durable partition metadata; rely on the parent Postgres open-target
   admission guard to prevent overlapping scheduled work; add
-  `schedule<Kind>Work`, `shouldSchedule<Kind>`, and `<kind>PlanKey` in
-  `<kind>_service.go`; call `schedule<Kind>Work` in `runReconcile` adjacent to
+  `schedule<Kind>Work` and `shouldSchedule<Kind>` in `<kind>_service.go` and
+  take the plan key from `s.scanInterval(instance)` plus
+  `scheduledPlanKey(...)` (see **Plan keys for a periodic scheduled planner**
+  below); call `schedule<Kind>Work` in `runReconcile` adjacent to
   the existing schedule calls (guarded by active mode and `ClaimsEnabled`); wire
   the concrete planner in `go/cmd/workflow-coordinator/main.go`; add the
   `CollectorKind` constant in `internal/scope/scope.go`. The planner must be
@@ -186,6 +188,14 @@
 - **Change the reconcile interval default** → edit `defaultReconcileInterval`
   in `config.go`; document the change in `README.md` and the configuration
   table; verify that `Config.Validate` still passes with the new default.
+
+- **Plan keys for a periodic scheduled planner** → call
+  `s.scanInterval(instance)` then `scheduledPlanKey(instance, observedAt,
+  interval)` from `scheduled_work.go`; never add a per-kind copy of the
+  truncate-the-clock function (sixteen of them were collapsed in #6720). The
+  per-instance `scan_interval` field is decoded there for every kind; a
+  kind-specific configuration decoder must not grow its own copy. Freshness
+  planners keep their `freshness-` keys and stay on the global interval.
 
 - **Add a new config field from env** → add the `envXxx` call in `LoadConfig`;
   add the field to `Config`; apply a default in `withDefaults`; add validation

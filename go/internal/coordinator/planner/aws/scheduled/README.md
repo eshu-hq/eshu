@@ -7,7 +7,9 @@ Plans scheduled AWS collector work from a collector instance's configuration.
 `WorkPlanner.PlanAWSScheduledWork` turns one `PlanRequest` — a collector
 instance, an observed time, and a plan key — into a `workflow.Run` plus its
 `workflow.WorkItem` set. `ScanEnabled` decodes the `scheduled_scan_enabled`
-flag. `PlanRequest` carries the inputs.
+flag. `PlanRequest` carries the inputs. The sibling `scan_interval` field is
+not decoded here: root's `scheduled_work.go` reads it for every collector kind
+and folds it into the plan key this package receives.
 
 ## Relationship to freshness
 

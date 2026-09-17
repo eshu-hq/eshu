@@ -15,7 +15,8 @@
   regional service pairing is distinct from freshness-trigger authorization.
 - Keep the local `scheduled_scan_enabled` decode (`ScanEnabled`) here. It is the
   sibling flag to target-scope parsing, and root calls it rather than keeping
-  its own copy.
+  its own copy. Do not decode `scan_interval` here: that field is kind-neutral
+  and root's `scheduled_work.go` reads it once for every scheduled planner.
 - Do not import the root `coordinator` package; root imports this one to wire
   the `AWSScheduledPlanner` port, and the reverse import cycles.
 - `aws_bindings_test.go` must stay. It is the only thing populating the AWS

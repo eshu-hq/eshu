@@ -6,7 +6,6 @@ package coordinator //nolint:dirgate // Root owns scheduling, policy, audit, and
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
@@ -57,12 +56,16 @@ func (s Service) scheduleComponentExtensionWork(
 		if s.ComponentExtensionPlanner == nil {
 			return fmt.Errorf("component extension planner is required for active component extension collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.ComponentExtensionPlanner.PlanComponentExtensionWork(
 			ctx,
 			extension.PlanRequest{
 				Instance:   instance,
 				ObservedAt: observedAt,
-				PlanKey:    s.componentExtensionPlanKey(instance, observedAt),
+				PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 			},
 		)
 		if err != nil {
@@ -84,19 +87,4 @@ func shouldScheduleComponentExtension(instance workflow.CollectorInstance) bool 
 	}
 	_, ok, err := activation.ParseConfig(instance.Configuration)
 	return ok || err != nil
-}
-
-func (s Service) componentExtensionPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }

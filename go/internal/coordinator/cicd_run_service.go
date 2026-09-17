@@ -6,7 +6,6 @@ package coordinator //nolint:dirgate // CI/CD scheduling and durable admission r
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	cicdrun "github.com/eshu-hq/eshu/go/internal/coordinator/cicd/run"
@@ -38,10 +37,14 @@ func (s Service) scheduleCICDRunWork(
 		if s.CICDRunPlanner == nil {
 			return fmt.Errorf("ci/cd run planner is required for active ci_cd_run collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.CICDRunPlanner.PlanCICDRunWork(ctx, cicdrun.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
-			PlanKey:    s.cicdRunPlanKey(instance, observedAt),
+			PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 		})
 		if err != nil {
 			return fmt.Errorf("plan ci/cd run work for %q: %w", instance.InstanceID, err)
@@ -60,19 +63,4 @@ func shouldScheduleCICDRun(instance workflow.CollectorInstance) bool {
 	return instance.CollectorKind == scope.CollectorCICDRun &&
 		instance.Enabled &&
 		instance.ClaimsEnabled
-}
-
-func (s Service) cicdRunPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }

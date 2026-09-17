@@ -81,7 +81,9 @@ for the full list. Key env vars:
 - ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED — must be `true` for active mode;
   default `false`; also accepted as ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS
 - ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL — collector-instance reconcile
-  and scheduled-work planning cadence; default `30s`
+  and scheduled-work planning cadence; default `30s`. One collector instance
+  can widen its own scheduled-scan bucket with `scan_interval` (below); the
+  global value stays the floor.
 - ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL — workflow-run status and
   completeness reconcile cadence; default `30s`
 - ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL — expired-claim reap cadence
@@ -126,6 +128,89 @@ for the full list. Key env vars:
 Compose exposes the optional metrics port `19469`. Helm keeps deployment mode
 `dark` and claims disabled by default. The semantic-provider execution worker is
 off by default and ships no live provider traffic.
+
+### Per-instance scan interval
+
+Every periodic scheduled planner (AWS, GCP, Terraform state, OCI registry,
+package registry, vulnerability intelligence, SBOM attestation, security alert,
+scanner worker, CI/CD run, Grafana, Loki, Prometheus/Mimir, Tempo, Jira,
+PagerDuty, Vault, component extension) buckets its plan key by truncating the
+wall clock to an interval. By default that interval is the global
+`ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL`. A collector instance may set
+`scan_interval` inside its `configuration` object to use a wider bucket of its
+own, so one heavy collector can re-plan its full scope every 12 hours while
+the rest of the fleet keeps the 30-second default:
+
+```json
+[{
+  "instance_id": "aws-ops-prod",
+  "collector_kind": "aws",
+  "mode": "continuous",
+  "enabled": true,
+  "claims_enabled": true,
+  "configuration": {
+    "scheduled_scan_enabled": true,
+    "scan_interval": "12h",
+    "target_scopes": [{"account_id": "123456789012", "allowed_regions": ["us-east-1"], "allowed_services": ["ec2"]}]
+  }
+}]
+```
+
+Rules, enforced by `Config.Validate` at startup and again at the reconcile
+that reads the value:
+
+- Unset or blank keeps today's behavior: the instance buckets on the global
+  reconcile interval. A `configuration` that is valid JSON but not an object
+  (for example `[]` on a generic collector) has no `scan_interval` and is
+  treated as unset, not rejected.
+- The value is a Go duration string (`30s`, `90m`, `12h`). Anything else
+  fails startup, a number or an explicit `null` included; a key that is
+  present must carry a string. A blank string is treated as unset.
+- It must be at least `1s`, must not be shorter than the global reconcile
+  interval, and must be an integer multiple of it (`12h` over the `30s`
+  default is; `45s` is not). The reconcile ticker fires at the global rate, so
+  a narrower bucket could not be visited as often as it promises, and a
+  non-multiple bucket would put consecutive ticks in consecutive buckets every
+  other cycle and plan scans at uneven spacing. With a multiple, each bucket
+  holds exactly that many ticks and consecutive scans are planned one
+  interval apart once the first partial bucket has passed.
+- Buckets are fixed multiples of the interval measured from Go's zero time
+  (`time.Truncate`), not from when the coordinator started. Any interval that
+  divides 24h therefore lands on fixed UTC wall-clock boundaries: a `12h`
+  instance turns over at 00:00 and 12:00 UTC. The first bucket after a restart
+  may be shorter than the configured interval. Derived-target rotation for
+  package-registry and vulnerability-intelligence instances indexes the same
+  truncated bucket, so the page of targets and the plan key change together.
+- Freshness-triggered (webhook) planners never read this field, and
+  bootstrap instances ignore it: their plan key is the fixed `bootstrap` and
+  their derived-target rotation stays on the global reconcile interval. The
+  value is still parsed and floor-checked at startup on a bootstrap instance,
+  so a bad value fails fast, but it is not logged as an override. A
+  package-registry or vulnerability-intelligence instance whose derivation
+  uses `planning_mode: single_pass` is already pinned to one plan key, so
+  `scan_interval` is accepted there but changes nothing.
+- A wider bucket is also a wider retry window. The store skips a plan whose
+  run is already `complete` or `failed`, so a scan that fails early in a `12h`
+  bucket is not re-planned until the next bucket turns over, and a run that
+  never reaches a terminal status (a stuck or dead-lettered work item) blocks
+  the same targets in the next bucket too. Watch `workflow_runs.status` and
+  `workflow_work_items.status` for that instance before assuming a quiet
+  instance is healthy.
+
+The coordinator still calls every scheduled planner on each global tick. A
+widened instance produces the same plan key, and so the same run and work-item
+identifiers, on every tick inside its bucket, and the store's open-target
+guard admits that plan once. At startup the coordinator logs one
+`workflow coordinator collector instance sets scan interval`
+line per enabled, claim-enabled, non-bootstrap instance that sets the field,
+with `scan_interval` and `reconcile_interval`. The line says the value was
+read and validated and is the bucket that instance's planner will use, if
+its kind has one; it does not evaluate kind-specific gates (a kind with no
+scheduled planner, an AWS instance with `scheduled_scan_enabled: false`, or a
+`single_pass` derivation sets a bucket nothing consumes). The ground truth
+for the cadence in effect is the plan-key
+suffix of the run IDs the instance produces, for example
+`aws:aws-ops-prod:schedule:continuous-20260520T120000Z`.
 
 ## Exported surface
 

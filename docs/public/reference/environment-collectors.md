@@ -10,7 +10,7 @@ collector targets, and webhook listener variables.
 | `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE` | `dark` | workflow coordinator | Coordinator mode: `dark` or `active`. |
 | `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED` | `false` | workflow coordinator | Enables workflow claims. |
 | `ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS` | `false` | workflow coordinator | Backward-compatible claims flag. Prefer `ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED`. |
-| `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` | `30s` | workflow coordinator | Desired collector-instance and scheduled-work planning interval. |
+| `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL` | `30s` | workflow coordinator | Desired collector-instance and scheduled-work planning interval. A collector instance may widen its own scheduled-scan bucket with `scan_interval` in its `configuration` object; the value must be a duration at least as long as this one. See the [workflow coordinator README](https://github.com/eshu-hq/eshu/blob/main/go/cmd/workflow-coordinator/README.md#per-instance-scan-interval). |
 | `ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL` | `30s` | workflow coordinator | Workflow-run status and completeness reconciliation interval. |
 | `ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL` | workflow default | workflow coordinator | Expired-claim reap interval. |
 | `ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL` | workflow default | workflow coordinator | Collector claim TTL. Must exceed heartbeat interval. |

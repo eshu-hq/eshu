@@ -6,7 +6,6 @@ package coordinator
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/loki"
@@ -39,10 +38,14 @@ func (s Service) scheduleLokiWork(
 		if s.LokiPlanner == nil {
 			return fmt.Errorf("loki planner is required for active loki collectors")
 		}
+		interval, err := s.scanInterval(instance)
+		if err != nil {
+			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.LokiPlanner.PlanLokiWork(ctx, loki.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
-			PlanKey:    s.lokiPlanKey(instance, observedAt),
+			PlanKey:    scheduledPlanKey(instance, observedAt, interval),
 		})
 		if err != nil {
 			return fmt.Errorf("plan loki work for %q: %w", instance.InstanceID, err)
@@ -61,19 +64,4 @@ func shouldScheduleLoki(instance workflow.CollectorInstance) bool {
 	return instance.CollectorKind == scope.CollectorLoki &&
 		instance.Enabled &&
 		instance.ClaimsEnabled
-}
-
-func (s Service) lokiPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
-	if instance.Bootstrap {
-		return "bootstrap"
-	}
-	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
-	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
 }

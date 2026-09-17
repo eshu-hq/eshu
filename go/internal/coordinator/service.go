@@ -144,6 +144,7 @@ func (s Service) Run(ctx context.Context) error {
 	if err := s.Config.Validate(); err != nil {
 		return err
 	}
+	s.logScanIntervalOverrides()
 
 	if err := s.runReconcile(ctx); err != nil {
 		return fmt.Errorf("initial collector reconciliation: %w", err)
