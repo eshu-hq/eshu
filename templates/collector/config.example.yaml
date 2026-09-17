@@ -1,0 +1,20 @@
+host:
+  sourceSystem: dev.eshu.template.source
+  scope:
+    id: component:template-primary
+    kind: component
+process:
+  command: ./collector
+  args:
+    - --sdk-stdio
+config:
+  source:
+    mode: local-file
+    input: ./testdata/complete.json
+    sourceURI: https://example.invalid/source/template
+  freshness:
+    previousDigest: ""
+  limits:
+    maxRecordsPerClaim: 5000
+    maxPayloadBytes: 65536
+    claimTimeoutSeconds: 300

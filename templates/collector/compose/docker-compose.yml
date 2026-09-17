@@ -1,0 +1,29 @@
+# Remote Compose harness starter: the collector container speaks only the
+# collector-sdk/v1alpha1 stdio contract over a credential-free fixture; it
+# receives no Postgres/graph/queue handles. scripts/run-remote-readback.sh
+# submits one claim to the target core and asserts every emitted stable key
+# reads back through graph, API, and MCP. All four surface bindings are
+# required with no defaults: an unconfigured surface fails the script instead
+# of reporting unmeasured success. Record the tested core version, topology,
+# and evidence location in the cutover issue.
+name: template-collector-readback
+
+services:
+  collector:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    network_mode: none
+    read_only: true
+    user: "65532:65532"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stdin_open: true
+    command: ["--sdk-stdio"]
+    environment:
+      CORE_SUBMIT_URL: ${CORE_SUBMIT_URL:?set CORE_SUBMIT_URL to the target core claim endpoint}
+      CORE_GRAPH_READ_URL_TEMPLATE: ${CORE_GRAPH_READ_URL_TEMPLATE:?set to the target core graph-read URL with %s for the stable key}
+      CORE_API_READ_URL_TEMPLATE: ${CORE_API_READ_URL_TEMPLATE:?set to the target core API-read URL with %s for the stable key}
+      CORE_MCP_READ_COMMAND: ${CORE_MCP_READ_COMMAND:?set to the MCP read command receiving the stable key as $$1}
