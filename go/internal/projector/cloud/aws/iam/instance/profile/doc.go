@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package iaminstanceprofile builds the IAM instance-profile-role
+// Package profile builds the IAM instance-profile-role
 // materialization reducer intent from one immutable scope generation: when the
 // generation carries an aws_resource fact whose decoded resource_type is
 // aws_iam_instance_profile, it asks the reducer to project the profiles'
@@ -16,4 +16,4 @@
 // (factschema_decode_aws.go) rather than root projector's wrapper. Root
 // projector assembly owns lookup construction and lifetime, invocation order,
 // queue writes, retries, and telemetry.
-package iaminstanceprofile
+package profile

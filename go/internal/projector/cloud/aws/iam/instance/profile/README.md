@@ -105,12 +105,33 @@ aliases, with the discarded error classification the only difference
 (mutation-tested: a presence-only predicate substitute fails the
 resource-type and undecodable-fact pins, the filtered body passes). Focused
 proof, run from the `go/` module root:
-`go test ./internal/projector/iaminstanceprofile ./internal/projector -count=1`
+`go test ./internal/projector/cloud/aws/iam/instance/profile ./internal/projector -count=1`
 green, whole-module `go build` and `go vet` clean.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [IAM instance-profile role edge design](../../../../docs/internal/design/1299-iam-instance-profile-role-edge.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../../../../README.md)
+- [Intent contract](../../../../../intent/README.md)
+- [IAM instance-profile role edge design](../../../../../../../../docs/internal/design/1299-iam-instance-profile-role-edge.md)
+- [Package restructure](../../../../../../../../docs/internal/design/package-restructure.md)
+
+### Move record (#6627)
+
+No-Regression Evidence: this move relocates this builder and its decode seam
+from `internal/projector/iaminstanceprofile` to
+`internal/projector/cloud/aws/iam/instance/profile` without changing the
+trigger, the intent value, or the root fan-out position. Base: `6abf61fe4`.
+Backend: not applicable; proof is in-process (`go build ./...`, `go vet`,
+`go test ./internal/projector/... ./internal/mcp/... -count=1`, plus the
+focused
+`go test ./internal/projector/cloud/aws/iam/instance/profile ./internal/projector -count=1`
+run from the `go/` module root). Census: both builders consume AWS-only fact
+kinds (`AWSIAMPermissionFactKind`, and `AWSResourceFactKind` filtered to
+`resource_type aws_iam_instance_profile`), zero GCP/Azure references.
+
+No-Observability-Change: this move adds no queue, storage, graph, span,
+metric, or log boundary. Root intent enqueue remains covered by
+`eshu_dp_reducer_intents_enqueued_total`; the reducer handler retains the
+`reducer.iam_instance_profile_role_materialization` span and the
+`eshu_dp_iam_instance_profile_role_edges_total` /
+`eshu_dp_iam_instance_profile_role_skipped_total` counters.

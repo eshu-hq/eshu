@@ -47,7 +47,7 @@ This family carries one decode seam: `factschema_decode_aws.go` decodes an
 `aws_relationship` envelope through `sdk/go/factschema.DecodeAWSRelationship`
 to read the optional `TargetType` field. Root's own classified wrapper of the
 same seam had this trigger as its only caller, so it moved out entirely
-(the `iamcanassume` extraction precedent) rather than staying as dead code;
+(the `cloud/aws/iam/trust` extraction precedent) rather than staying as dead code;
 this package's copy carries a family-prefixed name, matching the `ec2` and
 `observability/coverage` extractions. The payload-usage manifest gate does
 enforce a unique function name per decode-seam file set, but root's wrapper

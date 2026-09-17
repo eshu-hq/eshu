@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package iamcanassume builds the IAM CAN_ASSUME materialization reducer
+// Package trust builds the IAM CAN_ASSUME materialization reducer
 // intent from one immutable scope generation: when at least one
 // aws_iam_permission fact decodes as a role trust statement (policy_source
 // "trust"), it asks the reducer to project the generation's trust statements
@@ -14,4 +14,4 @@
 // projects a trust edge before its role and user endpoints exist. Root
 // projector assembly owns lookup construction and lifetime, invocation order,
 // queue writes, retries, and telemetry.
-package iamcanassume
+package trust

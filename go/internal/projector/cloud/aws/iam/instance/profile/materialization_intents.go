@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package iaminstanceprofile
+package profile
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
