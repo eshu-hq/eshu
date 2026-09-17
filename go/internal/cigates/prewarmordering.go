@@ -72,12 +72,10 @@ type prewarmWorkflowFile struct {
 // prewarmModuleDirFromCacheDependencyPath derives the module directory a
 // setup-go cache-dependency-path implies. Returns ok=false when it cannot:
 // the key is absent, or its value contains an unresolved ${{ }} expression
-// (e.g. a matrix variable). Absent is NOT silently skipped: actions/setup-go
-// v5 and v6 both default cache-dependency-path to repo-root go.mod when
-// unset (their READMEs, fetched from
-// raw.githubusercontent.com/actions/setup-go/<ref>/README.md, say so
-// verbatim), and this repo's go.mod lives under go/, not the repo root, so
-// that default cannot be mapped to a real module here. "go.sum" (no
+// (e.g. a matrix variable). Absent is NOT silently skipped: when unset,
+// actions/setup-go v6 defaults cache-dependency-path to a repo-root go.mod
+// and v5 to a repo-root go.sum (per each ref's README), and this repo has
+// neither at the root, so that default cannot be mapped to a real module. "go.sum" (no
 // directory component) resolves to the real, valid module ".".
 func prewarmModuleDirFromCacheDependencyPath(cacheDependencyPath string) (dir string, ok bool) {
 	p := strings.TrimSpace(cacheDependencyPath)
@@ -116,9 +114,15 @@ func unquoteArg(s string) string {
 // Limits, deliberately not handled: an arbitrary `if:` expression is not
 // evaluated -- only a literal `false`/`${{ false }}` is recognized, since
 // evaluating a real expression needs the workflow's runtime context this
-// static check does not have. A composite action
-// (`uses: ./.github/actions/...`) that wraps actions/setup-go internally is
-// invisible to this check; none exist in this repo today.
+// static check does not have. The pre-warm is recognized by the script path
+// appearing in the step's run text, not by parsing shell, so a mention that
+// never executes it (`echo scripts/ci/go-mod-download-retry.sh`, a `#`
+// comment) or a form that swallows its exit status other than the `|| true`,
+// `; true` and `|| :` suffixes (`|| echo`, `|| exit 0`, `if ...; then`, a
+// trailing `&`) is counted as warming; so is `continue-on-error: ${{ true }}`.
+// A composite action (`uses: ./.github/actions/...`) that wraps
+// actions/setup-go internally is invisible to this check. None of these
+// shapes exist in this repo today.
 func prewarmStepIneffective(step prewarmStep, matchEnd int) string {
 	if strings.EqualFold(strings.TrimSpace(step.ContinueOnError), "true") {
 		return "continue-on-error: true"
