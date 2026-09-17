@@ -37,6 +37,18 @@ type supplyChainImpactLoadedEvidence struct {
 	postSecurityAlertScopeFacts     int
 	securityAlertScopingApplied     bool
 	securityAlertScopedOutFacts     int
+	// floorArmed reports whether the #5709 floor could have deferred this
+	// pass: a producer-reachable initial filter on a wired seam. It is the
+	// probe's H1b discriminator (unreachable initial filter means the
+	// resolved-digest stage ran unprotected) and is carried here so Handle
+	// and the deferral branch log the same value the load decided on.
+	floorArmed bool
+	// crossScopeProducerDelta is the batch-wide cross-scope producer delta
+	// across the until-stable, resolved-digest, and peer-identity stages.
+	// It is the probe's H1a discriminator: a committing pass with zero
+	// pinned-digest rows but a positive batch delta had its floor disarmed
+	// by another finding's evidence.
+	crossScopeProducerDelta int
 }
 
 // loadSupplyChainImpactEvidence runs the scope-fact, repository, manifest-
@@ -164,7 +176,10 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 	// Every stage that can return producer output has now run: the until-stable
 	// loop, the resolved-digest re-run (#5464), and the peer-identity pass
 	// (#5468).
+	floorArmed := h.ProducerReadiness != nil && h.crossScopeProducerLookupPlanned(activeEvidenceFilter)
+	producerDelta := crossScopeProducerDelta6702(floor.producerFactsBefore, envelopes)
 	if deferral := h.crossScopeProducerDeferralAfterLoad(ctx, floor, intent, envelopes); deferral != nil {
+		emitAnchorProbe6702(ctx, h.Logger, intent, floorArmed, producerDelta, true, envelopes, nil)
 		return supplyChainImpactLoadedEvidence{}, timing, deferral
 	}
 
@@ -218,6 +233,8 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactEvidence(
 		postSecurityAlertScopeFacts:     postSecurityAlertScopeFacts,
 		securityAlertScopingApplied:     securityAlertScopingApplied,
 		securityAlertScopedOutFacts:     securityAlertScopedOutFacts,
+		floorArmed:                      floorArmed,
+		crossScopeProducerDelta:         producerDelta,
 	}, timing, nil
 }
 

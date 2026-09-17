@@ -183,6 +183,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercont
 	suppressionCounts := supplyChainSuppressionCounts(findings)
 	remediationCounts := supplyChainRemediationCounts(findings)
 	timing.evaluateSuppressionsDuration = time.Since(phaseStarted)
+	emitAnchorProbe6702(ctx, h.Logger, intent, loaded.floorArmed, loaded.crossScopeProducerDelta, false, envelopes, findings)
 
 	phaseStarted = time.Now()
 	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(ctx, SupplyChainImpactWrite{
