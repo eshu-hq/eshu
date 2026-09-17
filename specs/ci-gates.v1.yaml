@@ -398,7 +398,11 @@ gates:
       # engine_<lang>_*) are never scanned, only newly introduced names.
       # The gate's own scripts are triggers too, so a PR editing only them
       # still selects the gate locally instead of first failing in CI.
-      - "go/**/*.go"
+      # The gate script scans repo-wide (344 tracked .go files live outside
+      # go/, e.g. sdk/go/**), so the trigger must too -- a go/-scoped
+      # trigger would let those trees skip local promotion and first fail
+      # in CI (#5535 precedent).
+      - "**/*.go"
       - "scripts/verify-filename-stutter.sh"
       - "scripts/test-verify-filename-stutter.sh"
     local:

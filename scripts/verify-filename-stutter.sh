@@ -59,8 +59,17 @@ list_candidates() {
   esac
 }
 
+# Fail closed on a bogus base. This check must run in the main shell: an
+# exit inside list_candidates would die only in the process-substitution
+# subshell that feeds the scan loop, failing the gate open.
+if [ "$mode" = "range" ]; then
+  if ! git rev-parse --verify --quiet "$range_base^{commit}" >/dev/null; then
+    printf 'filename-stutter: cannot resolve range base %q\n' "$range_base" >&2
+    exit 2
+  fi
+fi
+
 failures=0
-checked=0
 while IFS= read -r -d '' status; do
   path="$status"
   case "$mode" in
@@ -80,7 +89,6 @@ while IFS= read -r -d '' status; do
     *.go) ;;
     *) continue ;;
   esac
-  checked=$((checked + 1))
   base="$(basename "$path" .go)"
   base="${base%_test}"
   leaf="$(basename "$(dirname "$path")")"
@@ -99,7 +107,7 @@ while IFS= read -r -d '' status; do
       stutters=1
       break
     fi
-  done < <(printf '%s' "$base" | tr '_' '\n')
+  done < <(printf '%s\n' "$base" | tr '_' '\n')
   if [ "$stutters" = "1" ]; then
     printf 'filename-stutter: %s repeats directory %s\n' "$path" "$leaf" >&2
     failures=$((failures + 1))

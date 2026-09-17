@@ -115,6 +115,37 @@ git -C "$repo7" add -A && git -C "$repo7" commit -qm clean
 rc="$(run_gate --range HEAD~1)"
 check "--range over clean commit is GREEN" 0 "$rc"
 
+# 8. RED: trailing segment repeats the leaf (entity/foo_entity.go). The
+# segment splitter must see the final segment, not drop it.
+repo8="$(new_repo)"
+mkdir -p "$repo8/go/internal/projector/semantic/entity"
+printf 'package entity\n' > "$repo8/go/internal/projector/semantic/entity/foo_entity.go"
+export ESHU_STUTTER_REPO_ROOT="$repo8"
+git -C "$repo8" add -A
+rc="$(run_gate --staged)"
+check "staged add with trailing-segment stutter is RED" 1 "$rc"
+
+# 9. RED via --files, and the diagnostic names the offending path.
+repo9="$(new_repo)"
+mkdir -p "$repo9/go/internal/correlation/rules"
+printf 'package rules\n' > "$repo9/go/internal/correlation/rules/my_rules.go"
+export ESHU_STUTTER_REPO_ROOT="$repo9"
+set +e
+out="$(bash "$gate" --files go/internal/correlation/rules/my_rules.go 2>&1)"
+rc=$?
+set -e
+check "--files stutter path is RED" 1 "$rc"
+case "$out" in
+  *go/internal/correlation/rules/my_rules.go*) printf 'ok   --files diagnostic names the path\n' ;;
+  *) printf 'FAIL --files diagnostic names the path: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
+esac
+
+# 10. Fail closed: unresolvable --range base exits 2, not 0.
+repo10="$(new_repo)"
+export ESHU_STUTTER_REPO_ROOT="$repo10"
+rc="$(run_gate --range bogus-base-that-cannot-resolve)"
+check "unresolvable --range base exits 2" 2 "$rc"
+
 if [ "$failures" != "0" ]; then
   printf 'test-verify-filename-stutter: %d case(s) failed\n' "$failures" >&2
   exit 1
