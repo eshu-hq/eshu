@@ -1018,7 +1018,7 @@ trigger directly (no-fact, empty-generation, OCI-manifest anchor, the
 two-tier source-system fallback, the AWS-relationship decode substitution
 in both directions, and the moved Dockerfile-tombstone case).
 The supply-chain-impact builder moved into
-`internal/projector/supplychainimpact`. It triggers on the earliest accepted
+`internal/projector/supply/chain/impact`. It triggers on the earliest accepted
 fact across twelve candidate kinds — vulnerability CVE, affected-package,
 EPSS-score, known-exploited, and suppression facts, a provider
 security-alert fact, package-registry package identity, an SBOM component,
@@ -1038,7 +1038,7 @@ for a source-snapshot-only negative case, replaced at root with a
 `security_alert_reconciliation_intents_test.go` carried a second builder-only
 case (a provider-alert reason assertion) alongside its own
 `buildProjection`-level tests. Both moved into the new
-`supplychainimpact/impact_intents_test.go`; every other case in both root
+`supply/chain/impact/intents_test.go`; every other case in both root
 files stayed, exercising `buildProjection`. Unlike several sibling families,
 the root ordered fan-out parity fixture
 (`scope_generation_intents_fanout_parity_test.go`) genuinely covers this

@@ -74,7 +74,7 @@ boundary.
   vulnerability fallback) and the `supply_chain_impact:<scope>` entity key is
   fixed; both are pinned by this package's own tests. Unlike the
   `cicd/run/correlation` family, the root fan-out parity fixture
-  (`../scope_generation_intents_fanout_parity_test.go`) DOES cover this
+  (`../../../scope_generation_intents_fanout_parity_test.go`) DOES cover this
   domain: it carries a `package-registry.package` fact ahead of a
   `security_alert.repository_alert` fact and asserts `factID:
   "package-identity-1"`, `entityKey:
@@ -91,7 +91,7 @@ boundary.
   vulnerability, package, SBOM, and OCI evidence, and the deployment/
   environment evidence read through `crossscope.dependencyCatalog`.
 - The root dispatcher tests that go through `buildProjection` stay at root in
-  `../supply_chain_impact_projection_test.go`.
+  `../../../supply_chain_impact_projection_test.go`.
 
 ## Verification
 
@@ -113,12 +113,27 @@ body-for-body against `projectorintent.SourceSystem` and found identical
 (trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no third tier),
 so the substitution is behavior-identical by construction and the child
 tests pin both tiers with the two set to different values. Focused proof,
-run from the `go/` module root: `go test ./internal/projector/supplychainimpact
+run from the `go/` module root: `go test ./internal/projector/supply/chain/impact
 ./internal/projector -count=1` green, whole-module `go build` and `go vet`
 clean.
 
+### Move record (#6627)
+
+No-Regression Evidence (#6627 supply nesting): base `db5c55e86`,
+backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
+recursive projector tests green, moved tests green in the new path, B-12
+replay reported 437/437 PASS in the move lane with CI required-gates as the
+blocking authority. B-7 golden-corpus gate was not run locally: the Docker
+daemon is unreachable (socket EOF), so CI is the blocking authority there.
+Same code path on the same input shape before and after; rename-only, so no
+benchmark delta exists to measure.
+
+No-Observability-Change (#6627 supply nesting): no stage added and no
+metric, span, or log name changed; the covering instruments named in this
+section are unchanged.
+
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../../README.md)
+- [Intent contract](../../../intent/README.md)
+- [Package restructure](../../../../../../docs/internal/design/package-restructure.md)

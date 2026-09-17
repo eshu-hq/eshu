@@ -88,8 +88,8 @@
 // lives in the internal/projector/package/source child package; the reducer
 // owns hint classification and consumption admission. The
 // supply-chain-impact reducer-intent builder lives in the
-// internal/projector/supplychainimpact child package via
-// supplychainimpact.BuildSupplyChainImpactReducerIntent; the reducer owns the
+// internal/projector/supply/chain/impact child package via
+// impact.BuildSupplyChainImpactReducerIntent; the reducer owns the
 // cross-source vulnerability-to-package-to-deployment join.
 // When a Postgres-backed runtime configures PackageRegistryIdentityLocker,
 // package-registry canonical writes also take transaction-scoped package UID

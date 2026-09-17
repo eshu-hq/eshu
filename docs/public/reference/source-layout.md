@@ -107,7 +107,7 @@ live in the repository today.
 | `go/internal/projector/sbomattestation/` | SBOM-attestation-attachment reducer-intent family builder |
 | `go/internal/projector/security/` | security-alert reconciliation and AWS security-group reducer-intent family builders |
 | `go/internal/projector/service/catalog/` | service-catalog-correlation reducer-intent family builder |
-| `go/internal/projector/supplychainimpact/` | supply-chain-impact reducer-intent family builder |
+| `go/internal/projector/supply/chain/impact/` | supply-chain-impact reducer-intent family builder |
 | `go/internal/projector/workload/cloud/` | workload-cloud-relationship reducer-intent family builder |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |
 | `go/internal/query/package/registry/` | package-registry query handler family: package/version identity, package-native dependency edges, reducer-derived correlation, and inventory reads |

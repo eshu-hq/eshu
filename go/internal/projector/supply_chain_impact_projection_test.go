@@ -190,7 +190,7 @@ func TestBuildProjectionQueuesSupplyChainImpactForOCIReferrerEvidence(t *testing
 // source-snapshot-only generation does not queue a supply_chain_impact
 // intent. The builder-level equivalent
 // (TestBuildSupplyChainImpactReducerIntentNoFactNoIntent) moved into
-// supplychainimpact/impact_intents_test.go with the extraction; this
+// supply/chain/impact/intents_test.go with the extraction; this
 // dispatcher-level case stays at root because it exercises buildProjection,
 // not the builder directly.
 func TestBuildProjectionSkipsSupplyChainImpactForSnapshotOnlyEvidence(t *testing.T) {

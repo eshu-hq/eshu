@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package supplychainimpact builds the supply_chain_impact reducer intent
+// Package impact builds the supply_chain_impact reducer intent
 // from one immutable scope generation. The trigger fires on the earliest
 // accepted fact across twelve candidate kinds, in original generation
 // order: vulnerability CVE, affected-package, EPSS-score, known-exploited,
@@ -19,4 +19,4 @@
 // substitution, not a change. Root projector assembly owns lookup
 // construction and lifetime, invocation order, queue writes, retries, and
 // telemetry.
-package supplychainimpact
+package impact

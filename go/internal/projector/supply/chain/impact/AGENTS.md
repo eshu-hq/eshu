@@ -3,10 +3,10 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants, including
+2. `../../../AGENTS.md` and `../../../README.md` for projector-wide invariants, including
    the rule that the projector never makes cross-source admission decisions.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order; this probe
+3. `../../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `secretsiam.BuildSecretsIAMTrustChainReducerIntent` and before
    the `security.BuildSecurityAlertReconciliationReducerIntent` probe.
 5. `go/internal/reducer/supplychain/core/impact.go` for what the reducer does
@@ -26,7 +26,7 @@
   entity key byte-identical. The reducer claims one intent per scope
   generation and reloads the generation's facts itself; this package's own
   tests pin these values, and the root fan-out parity fixture
-  (`../scope_generation_intents_fanout_parity_test.go`) ALSO pins the
+  (`../../../scope_generation_intents_fanout_parity_test.go`) ALSO pins the
   package-identity case — unlike several sibling families, that fixture
   genuinely covers this domain, so a change to the package-identity reason
   or entity key breaks a root test too.
@@ -48,7 +48,7 @@
 - **Adding a trigger kind.** Add it to `candidateFactKinds`, the `triggerFact`
   switch, and — if it needs a distinct label — the `reason` function. Update
   this package's own tests and the root dispatcher tests in
-  `../supply_chain_impact_projection_test.go`.
+  `../../../supply_chain_impact_projection_test.go`.
 - **Changing a reason string or the entity key.** Both are asserted verbatim
   by this package's own tests AND by the root fan-out parity fixture's
   package-identity case — check both before changing either.
@@ -64,7 +64,7 @@
   preserved pre-extraction behavior, not a bug to patch in passing.
 - **Root dispatcher tests live outside this directory.** The `buildProjection`
   cases for this domain are at root in
-  `../supply_chain_impact_projection_test.go`. A change here can break them
+  `../../../supply_chain_impact_projection_test.go`. A change here can break them
   without touching any file in this directory.
 
 ## Anti-patterns
@@ -89,6 +89,6 @@
 ## Verification
 
 Use TDD. Run the focused child tests, the root dispatcher tests in
-`../supply_chain_impact_projection_test.go`, the root ordered fan-out parity
+`../../../supply_chain_impact_projection_test.go`, the root ordered fan-out parity
 and probe-count tests, package-doc verification, the projector package tree,
 and the golden-corpus gates selected by the changed paths.
