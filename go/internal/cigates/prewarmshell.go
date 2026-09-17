@@ -21,9 +21,9 @@ import (
 // matching); Start is its byte offset into the ORIGINAL run text, so callers
 // can still report source lines and "ran before/after" using real
 // coordinates. NextOp is the operator that terminated this command ("&&",
-// "||", ";", "|", or "" at end of line/block) -- commandSuppressed uses it
-// to recognize "cmd || true" / "cmd; true" / "cmd || :" as a pair of
-// commands rather than one, since splitLineCommands already separates them.
+// "||", ";", "|", "&", or "" at end of line/block) -- commandSuppression
+// uses it to tell a command whose failure reaches the job from one chained,
+// piped, or backgrounded so that it does not.
 type shellCommand struct {
 	Text   string
 	Start  int
@@ -73,8 +73,8 @@ func shellCommandsInRun(run string) []shellCommand {
 }
 
 // splitLineCommands strips line's trailing unquoted shell comment, then
-// splits what remains into commands on unquoted "&&", "||", ";", "|", and
-// on the control keywords "then"/"do"/"else" at word boundaries (the
+// splits what remains into commands on unquoted "&&", "||", ";", "|", "&",
+// and on the control keywords "then"/"do"/"else" at word boundaries (the
 // keyword itself is discarded, not emitted as its own command -- it is
 // never a pre-warm invocation). offset is line's byte position within the
 // original multi-line text, added to every returned Start so positions stay
@@ -83,8 +83,8 @@ func shellCommandsInRun(run string) []shellCommand {
 // Deliberately NOT a keyword: "if". "if scripts/ci/go-mod-download-retry.sh"
 // stays ONE command whose first word is "if", so it is never recognized as
 // executing the script directly -- which is exactly right: an `if` guard
-// consumes the command's exit status, the same failure mode `|| true`
-// (prewarmSuppressedRE) exists to catch, so "not recognized as a pre-warm at
+// consumes the command's exit status, the same failure mode
+// commandSuppression exists to catch, so "not recognized as a pre-warm at
 // all" and "recognized but ineffective" reach the same outcome without a
 // second code path.
 func splitLineCommands(line string, offset int) []shellCommand {
@@ -169,10 +169,17 @@ func isRedirectionAmpersand(line string, i int) bool {
 	return false
 }
 
-// pipefailSetRE matches a `set` that turns pipefail ON: "set -o pipefail",
-// "set -eo pipefail", "set -euo pipefail". "set +o pipefail" turns it off
-// and deliberately does not match.
-var pipefailSetRE = regexp.MustCompile(`^set\s+-[a-zA-Z]*o\s+pipefail\b`)
+// pipefailSetRE matches a `set` that changes pipefail either way: capture 1
+// is "-" for "set -o pipefail" / "set -eo pipefail" / "set -euo pipefail",
+// and "+" for "set +o pipefail", which turns it back off.
+var pipefailSetRE = regexp.MustCompile(`^set\s+([-+])[a-zA-Z]*o\s+pipefail\b`)
+
+// rhsCannotSucceedRE matches a `||` right-hand side that cannot itself exit
+// 0, so the failure still reaches the job. Bare `exit` and `return` count:
+// they carry the failing command's own status. Measured on /bin/bash -e:
+// `false || exit 1` and `false || false` both exit 1, while `false || true`,
+// `false || echo x` and `false || exit 0` all exit 0.
+var rhsCannotSucceedRE = regexp.MustCompile(`^(false|(exit|return)(\s+[1-9][0-9]*)?)$`)
 
 // commandSuppression describes how cmds[idx]'s own exit status is kept from
 // reaching the job, or "" when the status does reach it. shellPipefail is
@@ -185,11 +192,21 @@ var pipefailSetRE = regexp.MustCompile(`^set\s+-[a-zA-Z]*o\s+pipefail\b`)
 //	false || true -> 0   false || echo x -> 0   false || exit 0 -> 0
 //	false | tee   -> 0   false &         -> 0   false && echo x -> 1
 //
-// so the right-hand side of "||" is irrelevant -- any of them that succeeds
-// swallows the failure -- a pipeline reports only its last command unless
-// pipefail is set, and a backgrounded command reports nothing and has not
-// even finished. "&&" is NOT suppression: the RHS never runs and the list
-// keeps the non-zero status.
+// so a "||" whose right-hand side SUCCEEDS swallows the failure, a pipeline
+// reports only its last command unless pipefail is set, and a backgrounded
+// command reports nothing and has not even finished.
+//
+// Not suppression, each measured rather than reasoned about:
+//   - "&&" -- the RHS never runs and the list keeps the non-zero status.
+//   - "cmd; X" -- `-e` exits AT the failing cmd, so X never runs
+//     (`bash -e -c 'false; true'` exits 1). This holds only while `-e` is in
+//     effect; a `set +e` earlier in the block would change it, and this file
+//     does not track `set +e`. No workflow uses one.
+//   - "|| exit 1", "|| false" -- an RHS that cannot exit 0.
+//
+// Known over-rejection: a brace or subshell group RHS (`|| { echo x; exit
+// 1; }`) is split at its own ";" and cannot be recognized as failing, so it
+// is reported. Grouping is already an unmodelled construct here.
 func commandSuppression(cmds []shellCommand, idx int, shellPipefail bool) string {
 	if cmds[idx].NextOp == "&" {
 		return "its exit status is suppressed: it is backgrounded with &, so the step exits 0 immediately and the job moves on while the download is still running"
@@ -199,14 +216,13 @@ func commandSuppression(cmds []shellCommand, idx int, shellPipefail bool) string
 	}
 	next := cmds[idx+1].Text
 	switch cmds[idx].NextOp {
-	case ";":
-		if next == "true" {
-			return "its exit status is discarded by the following " + next
-		}
 	case "||":
-		return "its exit status is suppressed (chained with || " + next + ", so the step exits 0 when the pre-warm fails)"
+		if rhsCannotSucceedRE.MatchString(next) {
+			return ""
+		}
+		return "its exit status is suppressed (chained with || " + next + ", which succeeds, so the step exits 0 when the pre-warm fails)"
 	case "|":
-		if shellPipefail || runSetsPipefail(cmds[:idx]) {
+		if runSetsPipefail(cmds[:idx], shellPipefail) {
 			return ""
 		}
 		return "its exit status is suppressed: the pipeline into " + next +
@@ -215,15 +231,23 @@ func commandSuppression(cmds []shellCommand, idx int, shellPipefail bool) string
 	return ""
 }
 
-// runSetsPipefail reports whether an earlier command in the same run: block
-// turned pipefail on.
-func runSetsPipefail(earlier []shellCommand) bool {
+// runSetsPipefail reports whether pipefail is on by the time the command
+// after earlier runs. pipefail is state, not a one-way switch, so the LAST
+// `set ±o pipefail` wins: `set -o pipefail; set +o pipefail` leaves it off.
+// on is the starting state from the step's shell selector, which a later
+// `set +o pipefail` in the body can still turn off.
+//
+// Limit, named rather than left silent: a `set` inside a conditional still
+// counts, because `then`/`do`/`else` are split keywords and this file does
+// not model which branch runs. That direction over-credits pipefail, so a
+// pipeline guarded by a conditional `set -o pipefail` is accepted.
+func runSetsPipefail(earlier []shellCommand, on bool) bool {
 	for _, c := range earlier {
-		if pipefailSetRE.MatchString(c.Text) {
-			return true
+		if m := pipefailSetRE.FindStringSubmatch(c.Text); m != nil {
+			on = m[1] == "-"
 		}
 	}
-	return false
+	return on
 }
 
 // stripShellComment returns line with a trailing unquoted "#" comment
@@ -347,16 +371,33 @@ func prewarmInvocation(cmd shellCommand) (moduleArg string, isPrewarm bool) {
 	}
 	first := words[i]
 	if prewarmScriptPaths[first] {
-		if i+1 < len(words) {
-			return unquoteArg(words[i+1]), true
-		}
-		return "", true
+		return firstModuleArg(words[i+1:]), true
 	}
 	if (first == "bash" || first == "sh") && i+1 < len(words) && prewarmScriptPaths[words[i+1]] {
-		if i+2 < len(words) {
-			return unquoteArg(words[i+2]), true
-		}
-		return "", true
+		return firstModuleArg(words[i+2:]), true
 	}
 	return "", false
+}
+
+// redirectionWordRE matches a word that is a redirection rather than an
+// argument: ">log", ">>log", "2>&1", "<in", "&>log". A redirection may
+// appear anywhere in a command, so the module argument is the first word
+// that is not one -- otherwise `retry.sh 2>&1` reports the script as warming
+// a module named "2>&1" and fails a workflow that is in fact correct.
+var redirectionWordRE = regexp.MustCompile(`^[0-9]*(&?>>?|<)`)
+
+// firstModuleArg returns the pre-warm's module-directory argument from the
+// words following the script path, or "" when it has none. A redirection
+// word whose target is detached ("> log") also consumes the word after it.
+func firstModuleArg(words []string) string {
+	for i := 0; i < len(words); i++ {
+		w := words[i]
+		if !redirectionWordRE.MatchString(w) {
+			return unquoteArg(w)
+		}
+		if strings.HasSuffix(w, ">") || strings.HasSuffix(w, "<") {
+			i++
+		}
+	}
+	return ""
 }

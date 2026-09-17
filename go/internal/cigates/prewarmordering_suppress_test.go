@@ -121,12 +121,28 @@ func TestCheckSetupGoPrewarmOrderingBackgroundedPrewarmViolation(t *testing.T) {
 func TestCheckSetupGoPrewarmOrderingRedirectionPrewarmClean(t *testing.T) {
 	t.Parallel()
 
-	root := prewarmSuppressionFixture(t, `      - name: Pre-warm (redirected)
-        run: scripts/ci/go-mod-download-retry.sh go 2>&1
+	for _, tc := range []struct {
+		name string
+		run  string
+	}{
+		{"module-then-redirect", `scripts/ci/go-mod-download-retry.sh go 2>&1`},
+		// No module argument: the redirection must not be read as the
+		// module, or a correct workflow is reported as warming "2>&1".
+		{"redirect-only", `scripts/ci/go-mod-download-retry.sh 2>&1`},
+		{"redirect-to-file", `scripts/ci/go-mod-download-retry.sh >prewarm.log 2>&1`},
+		{"detached-redirect-target", `scripts/ci/go-mod-download-retry.sh > prewarm.log`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := prewarmSuppressionFixture(t, `      - name: Pre-warm (redirected)
+        run: `+tc.run+`
 `)
 
-	if got := prewarmOrderingErrs(t, root); len(got) != 0 {
-		t.Fatalf("redirected-prewarm fixture: got %d unexpected violations: %v", len(got), got)
+			if got := prewarmOrderingErrs(t, root); len(got) != 0 {
+				t.Fatalf("%s fixture: got %d unexpected violations: %v", tc.name, len(got), got)
+			}
+		})
 	}
 }
 
@@ -161,6 +177,61 @@ func TestCheckSetupGoPrewarmOrderingOrChainedPrewarmViolations(t *testing.T) {
 				t.Fatalf("%s fixture: message %q does not name suppression", tc.name, got[0])
 			}
 		})
+	}
+}
+
+// TestCheckSetupGoPrewarmOrderingFailingRightHandSideClean: an RHS that
+// cannot itself exit 0 leaves the failure intact, so rejecting these would
+// be a false RED against a workflow that is doing the right thing -- and the
+// message would state something measurably untrue about it.
+func TestCheckSetupGoPrewarmOrderingFailingRightHandSideClean(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		run  string
+	}{
+		{"or-exit-nonzero", `scripts/ci/go-mod-download-retry.sh go || exit 1`},
+		{"or-false", `scripts/ci/go-mod-download-retry.sh go || false`},
+		// `cmd; X` is NOT suppression under the runner's `bash -e`: -e exits
+		// at the failing pre-warm and X never runs. Measured: `bash -e -c
+		// 'false; true'` exits 1.
+		{"semicolon-true", `scripts/ci/go-mod-download-retry.sh go; true`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := prewarmSuppressionFixture(t, `      - name: Pre-warm
+        run: `+tc.run+`
+`)
+
+			if got := prewarmOrderingErrs(t, root); len(got) != 0 {
+				t.Fatalf("%s fixture: got %d unexpected violations: %v", tc.name, len(got), got)
+			}
+		})
+	}
+}
+
+// TestCheckSetupGoPrewarmOrderingPipefailToggledOffViolation: pipefail is
+// state, not a one-way switch, so the LAST `set ±o pipefail` before the
+// pre-warm decides. Measured: `bash -e -c 'set -o pipefail; set +o pipefail;
+// false | tee /dev/null'` exits 0.
+func TestCheckSetupGoPrewarmOrderingPipefailToggledOffViolation(t *testing.T) {
+	t.Parallel()
+
+	root := prewarmSuppressionFixture(t, `      - name: Pre-warm (pipefail turned back off)
+        run: |
+          set -eo pipefail
+          set +o pipefail
+          scripts/ci/go-mod-download-retry.sh go | tee prewarm.log
+`)
+
+	got := prewarmOrderingErrs(t, root)
+	if len(got) != 1 {
+		t.Fatalf("pipefail-toggled-off fixture: got %d violations, want 1: %v", len(got), got)
+	}
+	if !strings.Contains(got[0], "suppress") {
+		t.Fatalf("pipefail-toggled-off fixture: message %q does not name suppression", got[0])
 	}
 }
 
