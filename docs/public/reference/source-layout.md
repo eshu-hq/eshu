@@ -68,14 +68,14 @@ live in the repository today.
 | `go/internal/mcp/packageregistry/` | package-registry MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
 | `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP registrations plus pure family membership and dependency-neutral route selection |
-| `go/internal/mcp/routecontract/` | dependency-neutral MCP route arguments and internal-request shape |
+| `go/internal/mcp/contract/route/` | dependency-neutral MCP route arguments and internal-request shape |
 | `go/internal/mcp/secretsiam/` | secrets/IAM posture MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/securityalert/` | security-alert reconciliation listing, count, and inventory MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/semantic/` | semantic-evidence and semantic-search MCP tool registration definitions |
 | `go/internal/mcp/service/` | service catalog, context, investigation, and intelligence-report MCP tool registration definitions |
 | `go/internal/mcp/supply/chain/evidence/` | supply-chain-evidence MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/supply/chain/impact/` | supply-chain-impact findings, count, inventory, and explanation MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
+| `go/internal/mcp/contract/tool/` | dependency-neutral MCP tool registration shape |
 | `go/internal/mcp/visualization/` | visualization-packet MCP registration plus pure family membership and dependency-neutral route selection |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |

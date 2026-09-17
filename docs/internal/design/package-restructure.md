@@ -1173,13 +1173,13 @@ The documentation registration family is the first extracted MCP family. Its
 six definitions live under `internal/mcp/documentation`, while the root keeps
 both existing assembly positions, documentation routing, dispatch,
 authorization, and transport ownership. The move uses the dependency-neutral
-`internal/mcp/toolcontract` shape and does not combine the two constructor
+`internal/mcp/contract/tool` shape and does not combine the two constructor
 groups or change the 162-tool order.
 
 The cloud registration family is the second extracted MCP family. Its inventory
 and runtime-drift definitions live under `internal/mcp/cloud`, while the root
 keeps both assembly positions and all cloud routing, dispatch, authorization,
-and transport ownership. The move uses `internal/mcp/toolcontract` and leaves
+and transport ownership. The move uses `internal/mcp/contract/tool` and leaves
 the 162-tool order unchanged.
 
 The visualization family is the third MCP extraction. Its definition, family
@@ -1200,7 +1200,7 @@ The query-playbook registration family is the fifth extracted MCP family. Its
 two definitions live under `internal/mcp/playbooks`, while the root keeps their
 assembly position after documentation tools and before investigation workflows
 plus all query-playbook routing, dispatch, authorization, and transport
-ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
+ownership. The move uses `internal/mcp/contract/tool` and leaves the 162-tool
 order unchanged.
 
 The relationship family is the sixth extracted MCP family. Its three
@@ -1209,7 +1209,7 @@ analysis definitions remain at zero-based positions 8 and 9 in the codebase
 group, and the relationship-edge definition remains after Ask and before
 repository files. The same child package owns `CodeRoute` and `EdgeRoute`, pure
 selectors that decide family membership and convert decoded arguments into
-`internal/mcp/routecontract` requests. Root keeps ordered assembly, global
+`internal/mcp/contract/route` requests. Root keeps ordered assembly, global
 fanout order, thin route adapters, dispatch, authorization, transport,
 timeouts, response budgets, envelopes, and telemetry. `internal/query` keeps
 relationship validation, graph reads, bounds, and response shaping. The
@@ -1221,7 +1221,7 @@ four definitions live under `internal/mcp/freshness`, while the root keeps
 their assembly position after visualization and before context tools. Routing
 also stays in root: `get_repository_freshness` remains in
 `dispatch_repositories.go`, and the other three definitions remain in
-`dispatch_freshness.go`. The move uses `internal/mcp/toolcontract` and leaves
+`dispatch_freshness.go`. The move uses `internal/mcp/contract/tool` and leaves
 the 162-tool order unchanged.
 
 The semantic registration family is the eighth extracted MCP family. Its three
@@ -1230,7 +1230,7 @@ semantic-evidence and semantic-search assembly positions after investigation
 packets and before documentation finding aggregates. Routing also stays in
 root: the evidence pair remains in `dispatch_semantic_evidence.go`, and search
 remains in `dispatch_semantic_search.go`. The move uses
-`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+`internal/mcp/contract/tool` and leaves the 162-tool order unchanged.
 
 The investigation registration family is the ninth extracted MCP family. Its
 two workflow and three evidence-packet definitions live under
@@ -1239,7 +1239,7 @@ after query playbooks and before semantic evidence. Routing also stays in root:
 workflow discovery and resolution remain in
 `dispatch_investigation_workflows.go`, and the three packet exports remain in
 `dispatch_investigation_packets.go`. The move uses
-`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+`internal/mcp/contract/tool` and leaves the 162-tool order unchanged.
 
 The service registration family is the tenth extracted MCP family. Its catalog
 definition, three service-context and investigation definitions, and
@@ -1249,7 +1249,7 @@ catalog correlations remain in `dispatch_repositories.go` and
 `dispatch_service_catalog.go`; service context, story, investigation, and
 intelligence-report routes remain in `dispatch.go` and
 `dispatch_service_selector.go`. The move uses
-`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+`internal/mcp/contract/tool` and leaves the 162-tool order unchanged.
 
 The ecosystem registration family is the eleventh extracted MCP family. Its
 23 definitions live under `internal/mcp/ecosystem`, while the root keeps their
@@ -1265,7 +1265,7 @@ extraction below; impact-analysis selection moved to `internal/mcp/impact` in
 the twelfth Wave 2 extraction below, with `dispatch_impact.go` keeping the
 thin adapter; and
 environment comparison remains in `compareRoute`. That move uses
-`internal/mcp/routecontract`, not `toolcontract`: route-selection extractions
+`internal/mcp/contract/route`, not `toolcontract`: route-selection extractions
 take the routecontract seam, while `toolcontract` is what an ecosystem tool
 *registration* move uses. It leaves the 162-tool order unchanged.
 

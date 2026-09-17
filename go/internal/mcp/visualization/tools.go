@@ -3,7 +3,7 @@
 
 package visualizationtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // Tools returns the canonical visualization-packet registration definition.
 // The tool derives a bounded packet from a response the caller has already

@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // Route selects the internal HTTP request for a service-context tool

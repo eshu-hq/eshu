@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // familyRoutes pins the four owned tool names to their method and internal

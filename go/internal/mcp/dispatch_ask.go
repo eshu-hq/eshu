@@ -5,7 +5,7 @@ package mcp
 
 import (
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // askRoute maps the "ask" tool to POST /api/v0/ask.

@@ -3,7 +3,7 @@
 
 package doctools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // FindingAggregateTools returns the cheap-summary aggregate
 // tools shipped alongside the existing list_documentation_findings tool.

@@ -3,7 +3,7 @@
 
 package semantictools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // EvidenceTools returns the semantic evidence MCP tool definitions.
 func EvidenceTools() []toolcontract.ToolDefinition {

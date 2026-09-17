@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	kubernetestools "github.com/eshu-hq/eshu/go/internal/mcp/kubernetes"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // kubernetesRouteTools lists every tool the child package owns.

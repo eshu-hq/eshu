@@ -4,8 +4,8 @@
 package mcp
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	replatformingtools "github.com/eshu-hq/eshu/go/internal/mcp/replatforming"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // iacManagementStatusBody, terraformImportPlanBody,

@@ -3,11 +3,11 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for route resolution, HTTP dispatch, and transport rules.
-3. `../dispatch.go` for the root route shape and dispatch path.
-4. `../relationships/code_routes.go` and `../relationships/edge_routes.go` for
+2. `../../AGENTS.md` for route resolution, HTTP dispatch, and transport rules.
+3. `../../dispatch.go` for the root route shape and dispatch path.
+4. `../../relationships/code_routes.go` and `../../relationships/edge_routes.go` for
    the first family selectors.
-5. `../dispatch_relationships.go` and `../dispatch_relationship_edges.go` for
+5. `../../dispatch_relationships.go` and `../../dispatch_relationship_edges.go` for
    their root fanout adapters.
 6. The owning domain route and its tests before changing an argument method.
 
@@ -50,8 +50,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/routecontract ./internal/mcp -count=1
-go vet ./internal/mcp/routecontract ./internal/mcp
+go test ./internal/mcp/contract/route ./internal/mcp -count=1
+go vet ./internal/mcp/contract/route ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root.

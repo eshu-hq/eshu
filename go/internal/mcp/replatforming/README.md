@@ -36,7 +36,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/mcp/routecontract` owns the dependency-neutral decoded-argument
+- `internal/mcp/contract/route` owns the dependency-neutral decoded-argument
   and internal-request shapes used by `Route`.
 
 ## Telemetry

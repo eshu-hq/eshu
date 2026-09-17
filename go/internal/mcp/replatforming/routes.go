@@ -3,7 +3,7 @@
 
 package replatformingtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 
 // Route selects the internal HTTP request for a replatforming-planning tool
 // without executing it. It reports handled only for the two tools this

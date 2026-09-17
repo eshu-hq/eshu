@@ -5,7 +5,7 @@ package mcp
 
 import (
 	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/code/owners"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // codeownersRoute adapts the child package's CODEOWNERS ownership request into

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // deadCodeRouteTools maps every tool the child package owns to the path it

@@ -4,8 +4,8 @@
 package mcp
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	infrainventorytools "github.com/eshu-hq/eshu/go/internal/mcp/infra/inventory"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // infraInventoryRoute adapts the child package's infrastructure-inventory

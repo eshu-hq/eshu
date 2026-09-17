@@ -3,7 +3,7 @@
 
 package doctools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // Tools returns the four documentation read registrations in their canonical
 // order within the parent MCP registry.

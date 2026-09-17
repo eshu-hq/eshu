@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 func TestCodeRelationshipRequestUsesNeutralContract(t *testing.T) {

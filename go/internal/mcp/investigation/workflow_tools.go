@@ -3,7 +3,7 @@
 
 package investigationtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // WorkflowTools returns the investigation workflow MCP tool definitions.
 func WorkflowTools() []toolcontract.ToolDefinition {

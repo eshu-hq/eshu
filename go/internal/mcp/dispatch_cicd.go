@@ -5,7 +5,7 @@ package mcp
 
 import (
 	cicdtools "github.com/eshu-hq/eshu/go/internal/mcp/cicd"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // cicdRoute adapts the child package's CI/CD run-correlation request into the

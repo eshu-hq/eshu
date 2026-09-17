@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	packageregistrytools "github.com/eshu-hq/eshu/go/internal/mcp/packageregistry"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // packageRegistryRouteTools lists every tool the child package owns, in the order

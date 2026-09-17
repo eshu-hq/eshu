@@ -3,7 +3,7 @@
 
 package ecosystemtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // Tools returns the ecosystem tool definitions in their canonical order.
 func Tools() []toolcontract.ToolDefinition {

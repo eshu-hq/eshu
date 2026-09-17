@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	infrasearchtools "github.com/eshu-hq/eshu/go/internal/mcp/infra/search"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // infraSearchRouteTools lists every tool the child package owns.

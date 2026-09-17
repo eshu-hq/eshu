@@ -3,7 +3,7 @@
 
 package servicetools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // CatalogTools returns the service catalog correlation registration.
 func CatalogTools() []toolcontract.ToolDefinition {

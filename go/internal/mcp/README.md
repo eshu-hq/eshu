@@ -546,7 +546,7 @@ registration definitions),
 definitions),
 `internal/mcp/service` (service catalog, context, investigation, and
 intelligence-report tool registrations),
-`internal/mcp/routecontract` (neutral argument/request values), `internal/mcp/toolcontract`
+`internal/mcp/contract/route` (neutral argument/request values), `internal/mcp/contract/tool`
 (neutral `ToolDefinition` registrations), and `internal/mcp/visualization` (visualization registration/request selection),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,
 `query.AuthContextFromContext`, `query.AuthMode*`, the mounted `http.Handler`),

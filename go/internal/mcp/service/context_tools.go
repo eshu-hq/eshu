@@ -3,7 +3,7 @@
 
 package servicetools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // ContextTools returns the service context, story, and investigation
 // registrations in their canonical local order.

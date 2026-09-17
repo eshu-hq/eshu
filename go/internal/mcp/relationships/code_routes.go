@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // CodeRoute selects the internal HTTP request for a code-relationship tool.

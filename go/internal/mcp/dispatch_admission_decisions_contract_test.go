@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	admissiondecisionstools "github.com/eshu-hq/eshu/go/internal/mcp/admissiondecisions"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // admissionDecisionsRouteTools lists every tool the child package owns.

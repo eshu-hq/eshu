@@ -93,5 +93,5 @@ go vet ./internal/mcp/...
 
 ## Related docs
 
-- [MCP package](../README.md)
-- [Source layout](../../../../docs/public/reference/source-layout.md)
+- [MCP package](../../README.md)
+- [Source layout](../../../../../docs/public/reference/source-layout.md)

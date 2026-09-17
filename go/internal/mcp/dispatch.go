@@ -18,9 +18,9 @@ import (
 	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 	contenttools "github.com/eshu-hq/eshu/go/internal/mcp/content"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entityresolution"
 	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iacmanagement"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // dispatchTool routes an MCP tool call to the appropriate internal HTTP endpoint.

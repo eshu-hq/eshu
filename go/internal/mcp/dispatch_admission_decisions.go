@@ -5,7 +5,7 @@ package mcp
 
 import (
 	admissiondecisionstools "github.com/eshu-hq/eshu/go/internal/mcp/admissiondecisions"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // admissionDecisionsRoute adapts the child package's admission-decisions

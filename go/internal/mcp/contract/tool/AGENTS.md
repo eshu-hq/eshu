@@ -3,8 +3,8 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for the MCP wire, routing, authorization, and telemetry rules.
-3. `../types.go` for the root alias and ordered tool assembler.
+2. `../../AGENTS.md` for the MCP wire, routing, authorization, and telemetry rules.
+3. `../../types.go` for the root alias and ordered tool assembler.
 
 ## Invariants
 

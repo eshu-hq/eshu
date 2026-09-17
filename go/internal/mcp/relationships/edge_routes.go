@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	"github.com/eshu-hq/eshu/go/internal/sourcetool"
 )
 

@@ -3,7 +3,7 @@
 
 package cloudtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // RuntimeDriftTools returns the runtime drift readback tool spanning all
 // three providers (issues #1997, #1998, #5759 follow-up). It mirrors the

@@ -6,7 +6,7 @@ package codeownerstools
 import (
 	"strconv"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // Route selects the internal HTTP request for a CODEOWNERS ownership tool

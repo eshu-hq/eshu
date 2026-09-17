@@ -5,7 +5,7 @@ package mcp
 
 import (
 	containerimagetools "github.com/eshu-hq/eshu/go/internal/mcp/containerimage"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // containerImageRoute adapts the child package's container-image identity

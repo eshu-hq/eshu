@@ -4,8 +4,8 @@
 package mcp
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	packageregistrytools "github.com/eshu-hq/eshu/go/internal/mcp/packageregistry"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // packageRegistryRoute adapts the child package's package-registry request into

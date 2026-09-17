@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // codeFlowRouteTools maps every tool the child package owns to the path it

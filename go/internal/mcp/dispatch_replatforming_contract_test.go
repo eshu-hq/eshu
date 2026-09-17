@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	replatformingtools "github.com/eshu-hq/eshu/go/internal/mcp/replatforming"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // replatformingRouteTools maps every tool the child package owns to the path

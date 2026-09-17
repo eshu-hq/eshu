@@ -4,7 +4,7 @@
 package mcp
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	supplychainevidencetools "github.com/eshu-hq/eshu/go/internal/mcp/supply/chain/evidence"
 )
 

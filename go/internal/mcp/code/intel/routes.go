@@ -3,7 +3,7 @@
 
 package codeinteltools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 
 // Route selects the internal HTTP request for a code-intelligence tool
 // without executing it. It reports handled only for the eight tools this

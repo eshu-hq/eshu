@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	cicdtools "github.com/eshu-hq/eshu/go/internal/mcp/cicd"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // cicdRouteTools lists every tool the child package owns, in the order the root

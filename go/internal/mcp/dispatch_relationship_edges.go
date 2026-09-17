@@ -4,8 +4,8 @@
 package mcp
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // relationshipEdgesRoute adapts the child package's relationship-edge request

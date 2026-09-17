@@ -4,8 +4,8 @@
 package mcp
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	infrasearchtools "github.com/eshu-hq/eshu/go/internal/mcp/infra/search"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // infraResourceSearchRoute adapts the child package's infrastructure-search

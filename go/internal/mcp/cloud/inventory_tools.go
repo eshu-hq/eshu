@@ -3,7 +3,7 @@
 
 package cloudtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // InventoryTools returns the canonical multi-cloud resource inventory
 // readback tool. It mirrors the GET /api/v0/cloud/inventory route: a bounded,

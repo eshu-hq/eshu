@@ -3,7 +3,7 @@
 
 package ecosystemtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 func preChangeImpactTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
