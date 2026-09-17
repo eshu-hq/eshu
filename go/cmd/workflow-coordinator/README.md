@@ -243,7 +243,7 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   SBOM and attestation targets
 - `internal/coordinator/planner/loki` — concrete scheduler wiring for Grafana
   Loki observability targets
-- `internal/coordinator/planner/metrics` — concrete scheduler wiring for
+- `internal/coordinator/planner/prometheus` — concrete scheduler wiring for
   Prometheus and Grafana Mimir metric-metadata targets
 - `internal/coordinator/planner/tempo` — concrete scheduler wiring for Grafana
   Tempo trace-signal targets

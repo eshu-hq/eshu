@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/aws/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/cloud/aws/iam/trust`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/service/catalog`, `internal/projector/access/posture`, `internal/projector/observability/coverage`, `internal/projector/cloud/aws/iam/instance/profile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplane/satisfaction`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
+`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/cloud/aws/iam/trust`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbom/attestation`, `internal/projector/service/catalog`, `internal/projector/access/posture`, `internal/projector/observability/coverage`, `internal/projector/cloud/aws/iam/instance/profile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplane/satisfaction`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
 families import that neutral lookup (semantic/entity does not: it is per-fact);
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -300,7 +300,7 @@ only selects the trigger fact; it does not perform the cross-generation join.
 SBOM and attestation documents use the same reducer-owned boundary. When a
 generation contains an `sbom.document`, `attestation.statement`, or OCI
 referrer fact,
-`sbomattestation.BuildSBOMAttestationAttachmentReducerIntent` emits one
+`attestation.BuildSBOMAttestationAttachmentReducerIntent` emits one
 `sbom_attestation_attachment` reducer intent for that scope/generation. The
 projector does not attach components to images; the reducer owns subject-digest
 admission after source-local document projection succeeds.
@@ -576,7 +576,7 @@ or snapshot-only Terraform-state work reached the durable zero-row checkpoint
 or remains in reducer convergence.
 
 No-Regression Evidence: SBOM attachment intent routing is covered by
-`../scripts/go-test-run-guard.sh 1 'TestBuildSBOMAttestationAttachmentReducerIntent' -- ./internal/projector/sbomattestation -count=1` (the guard rather than a bare `go test -run`, which exits 0 when the pattern matches nothing after a rename).
+`../scripts/go-test-run-guard.sh 1 'TestBuildSBOMAttestationAttachmentReducerIntent' -- ./internal/projector/sbom/attestation -count=1` (the guard rather than a bare `go test -run`, which exits 0 when the pattern matches nothing after a rename).
 It adds at most one reducer intent per SBOM or attestation scope generation and
 does not change graph write cardinality, worker counts, claim ordering, batch
 size, retry timing, or backend settings.

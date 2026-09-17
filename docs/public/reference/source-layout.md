@@ -32,7 +32,7 @@ live in the repository today.
 | `go/internal/coordinator/planner/loki/` | Grafana Loki scheduler request validation, target filtering, and deterministic workflow planning |
 | `go/internal/coordinator/planner/pagerduty/` | PagerDuty scheduler request and target validation, webhook-scope membership, privacy, and deterministic workflow planning |
 | `go/internal/coordinator/planner/contract/` | dependency-neutral scheduler plan-key validation |
-| `go/internal/coordinator/planner/metrics/` | Prometheus/Mimir scheduler request validation, target filtering, privacy, and deterministic workflow planning |
+| `go/internal/coordinator/planner/prometheus/` | Prometheus/Mimir scheduler request validation, target filtering, privacy, and deterministic workflow planning |
 | `go/internal/coordinator/scanner/` | documentation-only namespace for coordinator-side scanner planning contracts |
 | `go/internal/coordinator/scanner/worker/` | scanner-worker scheduler configuration validation, requested-scope privacy, and deterministic workflow planning |
 | `go/internal/coordinator/securityalert/` | provider security-alert scheduler request validation and deterministic workflow planning |
@@ -104,7 +104,7 @@ live in the repository today.
 | `go/internal/projector/observability/coverage/materialization/` | Observability-coverage materialization intent: the closed observability resource-type set, the AWS resource decode, and the COVERS-edge reducer intent |
 | `go/internal/projector/package/source/` | package-source-correlation reducer-intent family builder |
 | `go/internal/projector/access/posture/` | secrets/IAM trust-chain reducer-intent family builder |
-| `go/internal/projector/sbomattestation/` | SBOM-attestation-attachment reducer-intent family builder |
+| `go/internal/projector/sbom/attestation/` | SBOM-attestation-attachment reducer-intent family builder |
 | `go/internal/projector/security/` | security-alert reconciliation and AWS security-group reducer-intent family builders |
 | `go/internal/projector/service/catalog/` | service-catalog-correlation reducer-intent family builder |
 | `go/internal/projector/supply/chain/impact/` | supply-chain-impact reducer-intent family builder |

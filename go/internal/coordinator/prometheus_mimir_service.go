@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/metrics"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -16,7 +16,7 @@ import (
 // PrometheusMimirPlanner plans Prometheus/Mimir metric-metadata workflow rows
 // from collector instance configuration.
 type PrometheusMimirPlanner interface {
-	PlanPrometheusMimirWork(context.Context, metrics.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanPrometheusMimirWork(context.Context, prometheus.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 // schedulePrometheusMimirWork admits one scheduled run per active, claim-enabled
@@ -42,7 +42,7 @@ func (s Service) schedulePrometheusMimirWork(
 		if err != nil {
 			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
 		}
-		run, items, err := s.PrometheusMimirPlanner.PlanPrometheusMimirWork(ctx, metrics.PlanRequest{
+		run, items, err := s.PrometheusMimirPlanner.PlanPrometheusMimirWork(ctx, prometheus.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    scheduledPlanKey(instance, observedAt, interval),

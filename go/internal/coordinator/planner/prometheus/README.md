@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`metrics` plans one workflow work item per enabled Prometheus or
+`prometheus` plans one workflow work item per enabled Prometheus or
 Grafana Mimir target without contacting a provider or resolving credentials.
 
 ## Ownership boundary

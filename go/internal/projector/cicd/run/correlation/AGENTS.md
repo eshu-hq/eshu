@@ -8,7 +8,7 @@
 3. `../../../intent/AGENTS.md` for the neutral builder contract.
 4. `../../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `identity.BuildContainerImageIdentityReducerIntent`
-   and before the `sbomattestation.BuildSBOMAttestationAttachmentReducerIntent`
+   and before the `attestation.BuildSBOMAttestationAttachmentReducerIntent`
    probe.
 5. `go/internal/reducer/cicdrun/ci_cd_run_correlation.go` for what the
    reducer does with the intent this package enqueues: the full-snapshot and

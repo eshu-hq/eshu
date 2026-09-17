@@ -803,7 +803,7 @@ callers. The unsupported-schema-version regression test stays at root in
 `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.
 The SBOM-attestation-attachment builder moved into
-`internal/projector/sbomattestation`. It triggers on a subject anchor — an
+`internal/projector/sbom/attestation`. It triggers on a subject anchor — an
 `sbom.document`, `attestation.statement`, or OCI referrer fact — anchoring
 with `FirstAcrossKinds` on the earliest such fact in input order, and carries
 no decode seam. Its private `sbomAttestationAttachmentSourceSystem` helper had
@@ -1088,7 +1088,7 @@ interface, clock, scheduling, gates, durable admission, retries, queues, leases,
 and telemetry. Direct collector enums remain extraction debt, so this
 in-process seam does not prove independent extraction. The
 Prometheus/Mimir scheduler is the eighth extraction under
-`internal/coordinator/planner/metrics`; the child owns all five request fields,
+`internal/coordinator/planner/prometheus`; the child owns all five request fields,
 enabled-target validation and filtering, configured order, deterministic IDs,
 requested-scope privacy, trigger precedence, and per-target fairness keys. Root
 keeps scheduling order, its plan-key clock, tenant and egress filtering,

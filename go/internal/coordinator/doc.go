@@ -56,7 +56,7 @@
 // webhook-scope membership, and plans deterministic work-item evidence. This
 // package retains authorization, scheduling, and freshness orchestration.
 // The root PrometheusMimirPlanner interface accepts
-// metrics.PlanRequest. The child plans bounded metric-metadata work,
+// prometheus.PlanRequest. The child plans bounded metric-metadata work,
 // one item per enabled Prometheus or Grafana Mimir target, partitioned by
 // target scope so concurrent reconciles never contend for one metric source.
 // The root TempoPlanner interface accepts the child tempo.PlanRequest;

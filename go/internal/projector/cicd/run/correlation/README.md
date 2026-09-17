@@ -108,7 +108,7 @@ key, reason string, run-over-artifact anchor rule, and source-system
 derivation are identical to the base commit, and the dispatcher's ordered
 fan-out is unchanged at 44 builder probes with this probe still running
 immediately after `identity.BuildContainerImageIdentityReducerIntent`
-and immediately before `sbomattestation.BuildSBOMAttestationAttachmentReducerIntent`. The
+and immediately before `attestation.BuildSBOMAttestationAttachmentReducerIntent`. The
 family carried a private `cicdRunCorrelationSourceSystem` helper that was
 checked body-for-body against `projectorintent.SourceSystem` and found
 identical (trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no

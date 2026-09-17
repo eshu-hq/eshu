@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package sbomattestation builds the SBOM-attestation-attachment reducer
+// Package attestation builds the SBOM-attestation-attachment reducer
 // intent from one immutable scope generation: when the generation carries at
 // least one subject-anchor fact — an sbom.document, an attestation.statement,
 // or an OCI referrer whose payload names both subject and referrer digests —
@@ -21,4 +21,4 @@
 // owns subject-digest admission and every attachment decision and write. Root
 // projector assembly owns lookup construction and lifetime, invocation order,
 // queue writes, retries, and telemetry.
-package sbomattestation
+package attestation

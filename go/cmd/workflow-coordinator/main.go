@@ -28,8 +28,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/grafana"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/jira"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/loki"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/metrics"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tempo"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
@@ -193,7 +193,7 @@ func run(parent context.Context) error {
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},
 		PagerDutyPlanner:                  pagerduty.WorkPlanner{},
 		JiraPlanner:                       jira.WorkPlanner{},
-		PrometheusMimirPlanner:            metrics.WorkPlanner{},
+		PrometheusMimirPlanner:            prometheus.WorkPlanner{},
 		TempoPlanner:                      tempo.WorkPlanner{},
 		GCPPlanner:                        gcp.WorkPlanner{},
 		GrafanaPlanner:                    grafana.WorkPlanner{},
