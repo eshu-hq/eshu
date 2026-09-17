@@ -174,3 +174,68 @@ compare_sets() {
 	done
 	return "$failed"
 }
+
+# reapply_graph_schema runs schema bootstrap with the marker override. Without
+# it the run is a no-op: the "applied" marker is a Postgres row, Postgres was
+# preserved, and bootstrap would return before opening a graph connection,
+# leaving the rebuild to write into a backend with no indexes or constraints.
+#
+# The migrate container is recreated with --no-deps: a plain `up` re-resolves
+# depends_on and restarts the exited bootstrap-index one-shot, whose restart
+# reopens reducer work and backfills evidence facts into the wiped graph --
+# rows the rebuild command under test never issued (#6184 runs 5-6).
+reapply_graph_schema() {
+	echo "Reapplying graph schema with ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true..."
+	"${COMPOSE_CMD[@]}" rm -sf db-migrate >/dev/null 2>&1 || true
+	ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true "${COMPOSE_CMD[@]}" up -d --no-deps db-migrate >/dev/null
+	wait_for_service_exit db-migrate 600
+
+	if ! "${COMPOSE_CMD[@]}" logs db-migrate 2>&1 | rg -q 'bootstrap.graph.applied'; then
+		echo "Schema bootstrap did not apply graph schema. The marker override did not take effect:" >&2
+		"${COMPOSE_CMD[@]}" logs --tail=50 db-migrate >&2
+		return 1
+	fi
+	echo "Graph schema applied."
+}
+
+# bootstrap_container_started_at prints the bootstrap-index container's start
+# timestamp. A restart is the same container started again, so the identity pin
+# must be the start timestamp, not the container id (which survives a restart).
+bootstrap_container_started_at() {
+	local container
+	container="$("${COMPOSE_CMD[@]}" ps -a -q bootstrap-index | tr -d '\r')"
+	if [[ -z "$container" ]]; then
+		return 1
+	fi
+	docker inspect --format='{{.State.StartedAt}}' "$container" | tr -d '\r'
+}
+
+# record_bootstrap_container pins the bootstrap-index start timestamp once its
+# initial indexing run has exited. BOOTSTRAP_STARTED_AT carries the pin.
+record_bootstrap_container() {
+	BOOTSTRAP_STARTED_AT="$(bootstrap_container_started_at)" || return $?
+	if [[ -z "$BOOTSTRAP_STARTED_AT" ]]; then
+		echo "Could not resolve the bootstrap-index container start timestamp" >&2
+		return 1
+	fi
+}
+
+# assert_bootstrap_container_unchanged fails when bootstrap-index started again
+# after the pin. Its restart reopens reducer work and backfills facts, so a
+# changed pin means the graph was not rebuilt from facts by the command under
+# test; fail loudly instead of reporting the injected rows as rebuild drift.
+assert_bootstrap_container_unchanged() {
+	local current
+	if [[ -z "${BOOTSTRAP_STARTED_AT:-}" ]]; then
+		echo "Bootstrap container start was never recorded; refusing to compare snapshots" >&2
+		return 1
+	fi
+	current="$(bootstrap_container_started_at)" || {
+		echo "Could not resolve the bootstrap-index container start timestamp" >&2
+		return 1
+	}
+	if [[ "$current" != "$BOOTSTRAP_STARTED_AT" ]]; then
+		echo "bootstrap-index restarted outside the rebuild command under test; its restart reopens reducer work and backfills facts, so the graph was not rebuilt from facts by the command under test" >&2
+		return 1
+	fi
+}

@@ -36,6 +36,7 @@ COMPOSE_PROJECT="${ESHU_DR_COMPOSE_PROJECT:-eshu-dr-rebuild}"
 KEEP_STACK="${ESHU_KEEP_COMPOSE_STACK:-false}"
 SKIP_INTERRUPT="${ESHU_DR_SKIP_INTERRUPT:-false}"
 BOOTSTRAP_TIMEOUT="${ESHU_DR_BOOTSTRAP_TIMEOUT:-1800}"
+BOOTSTRAP_STARTED_AT=""
 DRAIN_TIMEOUT="${ESHU_DR_DRAIN_TIMEOUT:-1800}"
 INTERRUPT_TIMEOUT="${ESHU_DR_INTERRUPT_TIMEOUT:-120}"
 
@@ -225,24 +226,6 @@ wipe_graph() {
 	echo "Graph is empty."
 }
 
-# reapply_graph_schema runs schema bootstrap with the marker override. Without
-# it the run is a no-op: the "applied" marker is a Postgres row, Postgres was
-# preserved, and bootstrap would return before opening a graph connection,
-# leaving the rebuild to write into a backend with no indexes or constraints.
-reapply_graph_schema() {
-	echo "Reapplying graph schema with ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true..."
-	"${COMPOSE_CMD[@]}" rm -sf db-migrate >/dev/null 2>&1 || true
-	ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true "${COMPOSE_CMD[@]}" up -d db-migrate >/dev/null
-	wait_for_service_exit db-migrate 600
-
-	if ! "${COMPOSE_CMD[@]}" logs db-migrate 2>&1 | rg -q 'bootstrap.graph.applied'; then
-		echo "Schema bootstrap did not apply graph schema. The marker override did not take effect:" >&2
-		"${COMPOSE_CMD[@]}" logs --tail=50 db-migrate >&2
-		return 1
-	fi
-	echo "Graph schema applied."
-}
-
 # start_services restarts the stopped writers with `start`, not `up -d`.
 # `ingester` declares depends_on bootstrap-index: service_completed_successfully,
 # and `up` is entitled to recreate that one-shot. If it did, bootstrap-index
@@ -329,10 +312,12 @@ docker ps -a --format '{{.Names}}' | rg "^${COMPOSE_PROJECT}-" \
 docker volume rm "${COMPOSE_PROJECT}_nornicdb_v132_data" >/dev/null 2>&1 || true
 "${COMPOSE_CMD[@]}" up -d --build >/dev/null
 wait_for_service_exit bootstrap-index "$BOOTSTRAP_TIMEOUT"
+record_bootstrap_container
 wait_for_http "${API_BASE}/health" 120
 resolve_api_key
 wait_for_queue_terminal "$DRAIN_TIMEOUT"
 
+assert_bootstrap_container_unchanged
 snapshot_counts "$TMP_DIR/before.txt"
 snapshot_sets "$TMP_DIR/before"
 echo "Pre-wipe graph:"
@@ -359,6 +344,7 @@ echo "Rebuild enqueued $ENQUEUED scopes."
 wait_for_queue_terminal "$DRAIN_TIMEOUT"
 REBUILD_SECONDS=$((SECONDS - REBUILD_START))
 
+assert_bootstrap_container_unchanged
 snapshot_counts "$TMP_DIR/after.txt"
 snapshot_sets "$TMP_DIR/after"
 echo "Rebuilt graph:"
@@ -411,6 +397,7 @@ echo "Re-issuing the rebuild, then restarting workers..."
 enqueue_rebuild_then_start_workers "dr-rebuild-pass2b-$$" >/dev/null
 wait_for_queue_terminal "$DRAIN_TIMEOUT"
 
+assert_bootstrap_container_unchanged
 snapshot_counts "$TMP_DIR/after-interrupt.txt"
 snapshot_sets "$TMP_DIR/after-interrupt"
 echo "Graph after the interrupted rebuild:"
