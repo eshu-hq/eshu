@@ -3,10 +3,10 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants, including
+2. `../../AGENTS.md` and `../../README.md` for projector-wide invariants, including
    the rule that the projector never makes cross-source admission decisions.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order; this probe
+3. `../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `projectorkubernetes.BuildCorrelationMaterializationReducerIntent`
    and before `projectorsecurity.BuildSecurityGroupEndpointMaterializationReducerIntent`.
 5. `go/internal/reducer/crossplane` for `ExtractCrossplaneSatisfiedByEdgeRows`
@@ -36,8 +36,8 @@
   `crossplane_satisfied_by_materialization:<scope>` entity key byte-identical.
   The reducer claims one intent per scope generation and reloads the
   generation's facts itself; this package's own tests pin these values. **The
-  root fan-out parity fixture (`../scope_generation_intents_fanout_parity_test.go`
-  and `../scope_generation_intents_fanout_test.go`) does NOT cover this
+  root fan-out parity fixture (`../../scope_generation_intents_fanout_parity_test.go`
+  and `../../scope_generation_intents_fanout_test.go`) does NOT cover this
   domain** — `reducer.DomainCrossplaneSatisfiedByMaterialization` appears in
   neither `fanOutParityExpectations` nor `fanOutParityExpectedOrder`, and the
   shared fixture carries no `K8sResource`/`CrossplaneXRD` content-entity fact
@@ -64,14 +64,14 @@
 - **Adding a candidate entity type.** Add it to `triggerFact`'s switch,
   decide whether the reducer's `ExtractCrossplaneSatisfiedByEdgeRows` needs
   the same addition, and update the child tests plus the root dispatcher
-  test file (`../crossplane_satisfied_by_materialization_projection_test.go`).
+  test file (`../../crossplane_satisfied_by_materialization_projection_test.go`).
 
 ## Failure modes
 
 - **Root dispatcher tests live outside this directory.** The `buildProjection`
   cases for this domain — K8sResource candidate, CrossplaneXRD candidate, and
   the unrelated-entity non-trigger case — stayed at root in
-  `../crossplane_satisfied_by_materialization_projection_test.go` because
+  `../../crossplane_satisfied_by_materialization_projection_test.go` because
   they call the unexported root `buildProjection` dispatcher directly, which
   this package cannot import. A change here can break them without touching
   any file in this directory.

@@ -32,7 +32,7 @@ confirmation that gates the redrive ledger write.
 durable redrive ledger and cross-scope redrive sweep
 (`internal/storage/postgres/crossplane_satisfied_by_redrive_*.go`), or the
 projector-side intent trigger that enqueues this domain's intent
-(`internal/projector/crossplanesatisfiedby`).
+(`internal/projector/crossplane/satisfaction`).
 
 ## Exported surface
 
@@ -107,7 +107,7 @@ emission sites, only the package that owns the code moved. See
 
 ## Related docs
 
-- `go/internal/projector/crossplanesatisfiedby/README.md` — the projector-side intent trigger this package's handler consumes
+- `go/internal/projector/crossplane/satisfaction/README.md` — the projector-side intent trigger this package's handler consumes
 - `go/internal/storage/cypher/crossplane_satisfied_by_edge_writer.go` — the concrete graph write this package's `CrossplaneSatisfiedByEdgeWriter` port wraps
 - `go/internal/storage/postgres/README.md` — the cross-scope redrive ledger and sweep (issue #5476)
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for this domain
@@ -122,7 +122,7 @@ method set rather than imported, so the existing concrete implementation
 still satisfies it with no new indirection. Every outward caller that names a
 moved symbol — `internal/reducer` root (`defaults_handlers.go`,
 `defaults_additive_domains_crossplane.go`), `internal/storage/postgres` (the
-redrive live tests), and `internal/projector/crossplanesatisfiedby` (doc
+redrive live tests), and `internal/projector/crossplane/satisfaction` (doc
 references) — was updated to the qualified `crossplane.` symbol in the same
 commit. `cmd/reducer` (`wiring_handlers.go`) needed no change: it assigns
 concrete implementations into `reducer.CrossplaneHandlers` fields, which still

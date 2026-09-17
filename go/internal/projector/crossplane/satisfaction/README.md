@@ -78,8 +78,8 @@ no queue, storage, graph, span, metric, or log boundary.
 - **The root fan-out parity fixture does not cover this domain.**
   `reducer.DomainCrossplaneSatisfiedByMaterialization` is absent from both
   `fanOutParityExpectations` and `fanOutParityExpectedOrder` in
-  `../scope_generation_intents_fanout_parity_test.go`, and the shared fixture
-  in `../scope_generation_intents_fanout_test.go` carries no
+  `../../scope_generation_intents_fanout_parity_test.go`, and the shared fixture
+  in `../../scope_generation_intents_fanout_test.go` carries no
   `K8sResource`/`CrossplaneXRD` content-entity fact. This package's own tests
   are the only coverage for the reason string, entity key, and source-system
   derivation.
@@ -96,9 +96,9 @@ no queue, storage, graph, span, metric, or log boundary.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)
 
 No-Regression Evidence: this extraction moves one builder without changing its
 trigger, value, or fan-out position. The reducer intent domain
@@ -138,3 +138,18 @@ their own -- `payload.go` is unexported map and scalar readers that perform no
 I/O, and `satisfied_by_intents.go` is a pure trigger-and-value builder. The
 telemetry-coverage rows for both were written from what the files contain rather
 than copied from a sibling.
+
+### Move record (#6627)
+
+No-Regression Evidence (#6627 crossplane nesting): base `f21c0e0b`,
+backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
+recursive projector tests green, moved tests green in the new path via the
+test-run guard, and the repoint listing is non-empty (7 tests). B-12 replay
+and B-7 golden-corpus gates were not run locally: the Docker daemon is
+unreachable (socket EOF), so CI is the blocking authority there. Same code
+path on the same input shape before and after; rename-only, so no benchmark
+delta exists to measure.
+
+No-Observability-Change (#6627 crossplane nesting): no stage added and no
+metric, span, or log name changed; the covering instruments named in this
+section are unchanged.

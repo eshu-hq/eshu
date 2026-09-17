@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package crossplanesatisfiedby builds the
+// Package satisfaction builds the
 // crossplane_satisfied_by_materialization reducer intent from one immutable
 // scope generation. The trigger fires on the earliest content_entity fact
 // whose entity_kind (falling back to entity_type) is K8sResource or
@@ -19,4 +19,4 @@
 // identical body, so this is a behavior-preserving substitution, not a
 // change. Root projector assembly owns lookup construction and lifetime,
 // invocation order, queue writes, retries, and telemetry.
-package crossplanesatisfiedby
+package satisfaction

@@ -14,7 +14,7 @@ decisions into canonical `SATISFIED_BY` graph edges.
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/crossplane/README.md`
-- `go/internal/projector/crossplanesatisfiedby/AGENTS.md` — the projector-side
+- `go/internal/projector/crossplane/satisfaction/AGENTS.md` — the projector-side
   intent trigger that enqueues this package's domain
 - `docs/internal/design/package-restructure.md`
 
@@ -52,7 +52,7 @@ Adding a new candidate entity type or join key: extend
 `crossplaneContentEntityType`'s switch and the corresponding
 `crossplane*CandidateFromPayload` builder in
 `crossplane_satisfied_by_edge_rows.go`, then update
-`go/internal/projector/crossplanesatisfiedby`'s `triggerFact` switch so the
+`go/internal/projector/crossplane/satisfaction`'s `triggerFact` switch so the
 projector still enqueues the intent for the new entity type (see that
 package's own AGENTS.md).
 
