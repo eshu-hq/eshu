@@ -90,8 +90,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/admissiondecisions ./internal/mcp -count=1
-go vet ./internal/mcp/admissiondecisions ./internal/mcp
+go test ./internal/mcp/admission/decisions ./internal/mcp -count=1
+go vet ./internal/mcp/admission/decisions ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

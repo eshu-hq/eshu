@@ -46,7 +46,7 @@
    new one, security-alert reconciliation request selection in
    `go/internal/mcp/securityalert`,
    admission-decisions request selection in
-   `go/internal/mcp/admissiondecisions`, Kubernetes-correlation request
+   `go/internal/mcp/admission/decisions`, Kubernetes-correlation request
    selection in `go/internal/mcp/kubernetes`, infrastructure-search
    request selection in `go/internal/mcp/infra/search`, impact-analysis
    request selection in `go/internal/mcp/impact`, code-flow request

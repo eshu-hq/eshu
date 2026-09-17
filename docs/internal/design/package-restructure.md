@@ -1519,7 +1519,7 @@ The admission-decisions route family is the ninth Wave 2 MCP extraction and
 returns to the single-tool shape: one tool, `list_admission_decisions`, one
 arm of the same `repositoryRoute` switch, one request builder alone in
 `dispatch_admission_decisions.go` with no private helper beside it. Family
-membership and the builder now live under `internal/mcp/admissiondecisions`,
+membership and the builder now live under `internal/mcp/admission/decisions`,
 and `dispatch_admission_decisions.go` keeps only the thin
 `admissionDecisionsRoute` adapter. Root keeps the tool definition and its
 assembly position, global fanout order, dispatch, authorization, transport,

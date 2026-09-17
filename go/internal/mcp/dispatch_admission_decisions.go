@@ -4,7 +4,7 @@
 package mcp
 
 import (
-	admissiondecisionstools "github.com/eshu-hq/eshu/go/internal/mcp/admissiondecisions"
+	admissiondecisionstools "github.com/eshu-hq/eshu/go/internal/mcp/admission/decisions"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
