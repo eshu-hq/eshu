@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	projectorintent "github.com/eshu-hq/eshu/go/internal/projector/intent"
-	projectorsemanticentity "github.com/eshu-hq/eshu/go/internal/projector/semanticentity"
+	projectorentity "github.com/eshu-hq/eshu/go/internal/projector/semantic/entity"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -262,7 +262,7 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		// fact borrows inputFacts[i] instead of deep-cloning it: every consumer
 		// below (validateFactBoundary, validateFactSchemaVersion,
 		// buildContentRecord, buildContentEntityRecord, buildRepositoryRefs,
-		// projectorsemanticentity.BuildSemanticEntityReducerIntent,
+		// projectorentity.BuildSemanticEntityReducerIntent,
 		// buildReducerIntent) only reads
 		// fact.Payload/fact.SourceRef, so it is safe to share the caller's
 		// Payload map read-only across this loop. Consumers in this loop MUST
@@ -289,7 +289,7 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 				contentMaterialization.RepositoryRefs = append(contentMaterialization.RepositoryRefs, refs...)
 			}
 		}
-		if intent, ok := projectorsemanticentity.BuildSemanticEntityReducerIntent(fact); ok {
+		if intent, ok := projectorentity.BuildSemanticEntityReducerIntent(fact); ok {
 			intents = append(intents, intent)
 		}
 		if intent, ok := buildReducerIntent(fact); ok {

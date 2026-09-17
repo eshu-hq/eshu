@@ -102,7 +102,7 @@
 ## Verification
 
 Use TDD. Run the focused child tests
-(`go test ./internal/projector/semanticentity/ -count=1`), the root projector
+(`go test ./internal/projector/semantic/entity/ -count=1`), the root projector
 package (`go test ./internal/projector/... -count=1`), the focused
 `TestRouteServesDataRegistry` run, `scripts/verify-package-docs.sh`,
 `scripts/verify-doc-citations.sh` when a cited test or file name changes, and

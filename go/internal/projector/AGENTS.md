@@ -294,9 +294,9 @@
   the moved `buildProjection` cases, since `buildProjection` is a root-only
   function the child package cannot call.
 - **Semantic-entity family (#6057)** — the
-  `semantic_entity_materialization` builder lives in `semanticentity/` and is
+  `semantic_entity_materialization` builder lives in `semantic/entity/` and is
   the one extracted family that is NOT a scope-generation probe. Root calls
-  `projectorsemanticentity.BuildSemanticEntityReducerIntent` once per input
+  `projectorentity.BuildSemanticEntityReducerIntent` once per input
   fact from `buildProjection`'s loop in `runtime.go`, so it takes a
   `facts.Envelope` rather than an `intent.FactLookup` and can return an
   intent for many facts in one generation; they share the `repo:<repo_id>`
@@ -364,7 +364,7 @@
 - **Add a new reducer domain intent** → add the domain constant in
   `internal/reducer`, add intent construction in `buildReducerIntent` or a
   new `build*ReducerIntent` helper in `runtime.go` (or, for the semantic-entity
-  family, `semanticentity/entity_intents.go`), add a test in
+  family, `semantic/entity/entity_intents.go`), add a test in
   `stage_relationships_test.go` or that family package's own test files.
   Why: intent domain values must be parseable by `reducer.ParseDomain`.
 

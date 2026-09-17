@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package semanticentity builds the semantic_entity_materialization reducer
+// Package entity builds the semantic_entity_materialization reducer
 // intent from a single content_entity fact. Unlike the scope-generation
 // families under internal/projector, this builder is called once per input
 // fact from root's per-fact projection loop, so it takes a facts.Envelope
@@ -23,4 +23,4 @@
 // it writes and re-applies its own language predicates; root projector
 // assembly owns the per-fact loop, intent ordering, queue writes, retries,
 // and telemetry.
-package semanticentity
+package entity

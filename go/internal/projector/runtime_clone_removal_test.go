@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	projectorsemanticentity "github.com/eshu-hq/eshu/go/internal/projector/semanticentity"
+	projectorentity "github.com/eshu-hq/eshu/go/internal/projector/semantic/entity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
@@ -21,7 +21,7 @@ import (
 // materialization gate + buildRepositoryRefs via git_refs), a content-record
 // fact (buildContentRecord), a content-entity fact that is also a semantic
 // entity (buildContentEntityRecord plus
-// projectorsemanticentity.BuildSemanticEntityReducerIntent), a
+// projectorentity.BuildSemanticEntityReducerIntent), a
 // generic reducer-signal fact (buildReducerIntent), and a malformed
 // codegraph_repository fact that buildCanonicalMaterialization quarantines
 // (missing its required repo_id). It backs both the #4854 mutation-safety
@@ -145,7 +145,7 @@ func deepCopyPayload(payload map[string]any) map[string]any {
 // borrows inputFacts[i] instead of deep-cloning it (runtime.go), so every
 // consumer in that loop (validateFactBoundary, validateFactSchemaVersion,
 // buildContentRecord, buildContentEntityRecord, buildRepositoryRefs,
-// projectorsemanticentity.BuildSemanticEntityReducerIntent,
+// projectorentity.BuildSemanticEntityReducerIntent,
 // buildReducerIntent) now shares the same
 // Payload map as the caller's inputFacts slice. This snapshots every input
 // fact's Payload before the call and asserts it is byte-identical after,
@@ -211,7 +211,7 @@ func buildProjectionClonePathForEquivalenceTest(scopeValue scope.IngestionScope,
 				contentMaterialization.RepositoryRefs = append(contentMaterialization.RepositoryRefs, refs...)
 			}
 		}
-		if intent, ok := projectorsemanticentity.BuildSemanticEntityReducerIntent(fact); ok {
+		if intent, ok := projectorentity.BuildSemanticEntityReducerIntent(fact); ok {
 			intents = append(intents, intent)
 		}
 		if intent, ok := buildReducerIntent(fact); ok {

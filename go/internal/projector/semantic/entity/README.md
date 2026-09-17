@@ -70,12 +70,12 @@ queue, storage, graph, span, metric, or log boundary.
 - **This builder runs per fact, not per scope generation.** Every sibling
   family under `internal/projector` returns at most one intent per
   generation from `appendScopeGenerationReducerIntents`. This one is called
-  from root's `buildProjection` per-fact loop (`../runtime.go`) and can
+  from root's `buildProjection` per-fact loop (`../../runtime.go`) and can
   return an intent for many facts in the same generation. They all share the
   `repo:<repo_id>` entity key, so root's deterministic sort and the
   reducer's per-key claim collapse them into one unit of work — but
   `result.Intents.Count` does NOT count each one: it is the enqueue
-    INSERT's `RowsAffected`, not `len(intents)` (`../runtime.go:59`, #5593).
+    INSERT's `RowsAffected`, not `len(intents)` (`../../runtime.go:59`, #5593).
     Accepted facts sharing a repository yield the same work-item ID, so
     `ON CONFLICT DO NOTHING` collapses them and the count is normally one.
 - `SourceSystem` is the raw `fact.SourceRef.SourceSystem`, **not** the
@@ -94,17 +94,17 @@ queue, storage, graph, span, metric, or log boundary.
   metadata both ways. `payloadMetadataBool` accepts only a real `bool`; a
   `"true"` string is not coerced, unlike root's `payloadBoolPtr`.
 - `semanticEntityFactKind` duplicates root's `FactKindParsedEntityObserved`
-  (`"content_entity"`, `../stage_facts.go`) as a literal rather than an
+  (`"content_entity"`, `../../stage_facts.go`) as a literal rather than an
   import, because root imports this package and the reverse direction would
   cycle.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Elixir language support](../../../../docs/public/languages/elixir.md) —
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [Elixir language support](../../../../../docs/public/languages/elixir.md) —
   cites this package's Elixir tests as parity evidence
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)
 
 No-Regression Evidence: this extraction moves one builder and its four test
 files without changing the trigger or the intent value. The domain
@@ -113,7 +113,7 @@ files without changing the trigger or the intent value. The domain
 anchor, and the raw `SourceRef.SourceSystem` label are unchanged from the base
 commit; the function is called at the same position in root's per-fact loop,
 still after `buildRepositoryRefs` and before `buildReducerIntent`. The
-per-fact call site is in `../runtime.go`, not the
+per-fact call site is in `../../runtime.go`, not the
 `scope_generation_intents.go` fan-out, so the ordered fan-out is untouched:
 `appendScopeGenerationReducerIntents` has 44 builder probes on `origin/main`
 and 44 on this branch, and `TestReducerIntentProbeCountMatchesDocumentedCount`
@@ -129,10 +129,10 @@ verbatim apart from the package clause and the now-exported call. Root keeps
 the integration coverage that goes through the dispatcher:
 `TestRuntimeProjectEnqueuesSemanticEntityMaterializationForAnnotationTypedefTypeAliasComponentAndFunction`
 and `TestBuildReducerIntentQueuesJavaScriptCallableSemanticEntities` in
-`../runtime_test.go`, plus the `#4854` mutation-safety and clone-vs-borrow
-equivalence tests in `../runtime_clone_removal_test.go`, which exercise this
+`../../runtime_test.go`, plus the `#4854` mutation-safety and clone-vs-borrow
+equivalence tests in `../../runtime_clone_removal_test.go`, which exercise this
 builder through `buildProjection`. The root fan-out parity fixture
-(`../scope_generation_intents_fanout_parity_test.go`) does NOT mention this
+(`../../scope_generation_intents_fanout_parity_test.go`) does NOT mention this
 domain and never did — it only covers `appendScopeGenerationReducerIntents`.
 
 No-Observability-Change: no metric, span, log, or quarantine counter is added,
@@ -142,3 +142,22 @@ non-test files under this package emit no signal of their own —
 `payload.go` is unexported map and scalar readers that perform no I/O, and
 `entity_intents.go` is a pure trigger-and-value builder. The
 telemetry-coverage rows for both were written from what the files contain.
+
+### Move record (#6627)
+
+No-Regression Evidence (#6627 semanticentity nesting): base `1e046489d`,
+backend go1.27.1 darwin/arm64; rename-only `semanticentity` to
+`semantic/entity` move with no trigger, value, or per-fact call-site change.
+Whole-module build exit 0, vet clean, recursive projector tests green,
+moved tests green in the new path via the test-run guard, and the repoint
+listing is non-empty (`projectorentity.BuildSemanticEntityReducerIntent`
+at root's per-fact loop plus the two root test call sites). B-7
+golden-corpus was not run locally: the Docker daemon is unreachable, so CI
+is the blocking authority there. Rename-only, so no benchmark delta exists
+to measure.
+
+No-Observability-Change (#6627 semanticentity nesting): no metric, span, log,
+or quarantine counter is added, moved, or renamed by this move. Root assembly
+and `eshu_dp_reducer_intents_enqueued_total` remain unchanged; the explicit
+`projectorentity` import alias exists only because `entity` is already a loop
+variable in `runtime.go`, and changes no dispatched symbol.

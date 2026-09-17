@@ -248,7 +248,7 @@ Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/aws/ec2`, `internal/projector/gcp`,
 `internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/cloud/aws/iam/trust`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/service/catalog`, `internal/projector/access/posture`, `internal/projector/observability/coverage`, `internal/projector/cloud/aws/iam/instance/profile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplane/satisfaction`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
-families import that neutral lookup (semanticentity does not: it is per-fact);
+families import that neutral lookup (semantic/entity does not: it is per-fact);
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
 command wiring remains source-compatible.
