@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package servicetools
+package servicetools //nolint:dirgate // Root owns service tool registration aggregation (Catalog/Context/Intelligence); route selection lives in the context child.
 
 import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
