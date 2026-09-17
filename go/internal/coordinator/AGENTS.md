@@ -19,7 +19,7 @@
    - `go/internal/coordinator/planner/loki/planner.go` and `loki_service.go` —
      the extracted Loki planner and its root scheduling seam under the same
      ordering, clock, admission, retry, and telemetry boundary
-   - `go/internal/coordinator/planner/metrics/planner.go` and
+   - `go/internal/coordinator/planner/prometheus/planner.go` and
      `prometheus_mimir_service.go` — the extracted Prometheus/Mimir planner and
      root seam; preserve configured order, safe requested-scope metadata, and
      per-target fairness partitions

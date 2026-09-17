@@ -94,13 +94,25 @@ forwarder was a direct delegate to
 behavior-identical the same way, and the forwarder stays at root for the four
 root probes that still call it. Focused proof, run from the `go/` module
 root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildSBOMAttestationAttachmentReducerIntent' -- ./internal/projector/sbomattestation -count=1`
+`../scripts/go-test-run-guard.sh 1 'TestBuildSBOMAttestationAttachmentReducerIntent' -- ./internal/projector/sbom/attestation -count=1`
 and `go test ./internal/projector/... -count=1` green, whole-module `go build`
 and `go vet` clean.
 
+### Move record (#6627)
+
+No-Regression Evidence (#6627 sbomattestation nesting): base `f316c0593`,
+backend go1.27.1 darwin/arm64; rename-only `sbomattestation` to
+`sbom/attestation` move with no trigger, value, or fan-out change. The
+package clause becomes `attestation`, mirroring
+`coordinator/sbom/attestation`; every exported symbol is unchanged. Scoped
+build exit 0, vet clean, recursive projector tests green, and the moved
+tests green in the new path via the test-run guard above. B-12 replay and
+B-7 golden-corpus gates were not run locally, so CI is the blocking
+authority there. Rename-only, so no benchmark delta exists to measure.
+
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Reducer domain catalog](../../reducer/domain-catalog.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [Reducer domain catalog](../../../reducer/domain-catalog.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

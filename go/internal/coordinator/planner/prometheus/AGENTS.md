@@ -1,4 +1,4 @@
-# AGENTS.md - internal/coordinator/planner/metrics guidance
+# AGENTS.md - internal/coordinator/planner/prometheus guidance
 
 ## Read first
 

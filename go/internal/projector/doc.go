@@ -99,7 +99,7 @@
 // SBOM and attestation documents emit sbom_attestation_attachment reducer
 // intents; source-local components enrich the reducer decision but do not attach
 // themselves to images in the projector. That reducer-intent builder lives in
-// the internal/projector/sbomattestation child package; the reducer owns
+// the internal/projector/sbom/attestation child package; the reducer owns
 // subject-digest admission and attachment writes.
 // PagerDuty incident and incident-routing facts emit one
 // incident_routing_materialization reducer intent; declared/applied/live routing

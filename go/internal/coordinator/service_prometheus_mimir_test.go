@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/metrics"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakePrometheusMimirPlanner struct {
-	requests []metrics.PlanRequest
+	requests []prometheus.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -23,7 +23,7 @@ type fakePrometheusMimirPlanner struct {
 
 func (f *fakePrometheusMimirPlanner) PlanPrometheusMimirWork(
 	_ context.Context,
-	request metrics.PlanRequest,
+	request prometheus.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -109,7 +109,7 @@ func TestServiceRunForwardsExactPrometheusMimirRequestAndAdmitsWork(t *testing.T
 			if got, want := len(planner.requests), 1; got != want {
 				t.Fatalf("planner requests = %d, want %d", got, want)
 			}
-			wantRequest := metrics.PlanRequest{
+			wantRequest := prometheus.PlanRequest{
 				Instance:   instance,
 				ObservedAt: now,
 				PlanKey:    test.wantPlanKey,

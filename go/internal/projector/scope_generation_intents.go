@@ -30,7 +30,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/observability/coverage"
 	"github.com/eshu-hq/eshu/go/internal/projector/observability/coverage/materialization"
 	packagesource "github.com/eshu-hq/eshu/go/internal/projector/package/source"
-	projectorsbomattestation "github.com/eshu-hq/eshu/go/internal/projector/sbomattestation"
+	"github.com/eshu-hq/eshu/go/internal/projector/sbom/attestation"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
 	"github.com/eshu-hq/eshu/go/internal/projector/service/catalog"
 	"github.com/eshu-hq/eshu/go/internal/projector/supply/chain/impact"
@@ -154,7 +154,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := correlation.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorsbomattestation.BuildSBOMAttestationAttachmentReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := attestation.BuildSBOMAttestationAttachmentReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := catalog.BuildServiceCatalogCorrelationReducerIntent(scopeValue, generation, index.lookup); ok {
