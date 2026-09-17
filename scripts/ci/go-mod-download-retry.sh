@@ -15,7 +15,13 @@
 # above, and the reducer latency gate on go-sitter-forest/sql@v1.9.9). Neither
 # had run a test when it died -- both were still fetching dependencies -- so
 # the red arrived labelled "race detector" and "latency budget", which is
-# actively misleading about where to look.
+# actively misleading about where to look. #6615 found the same shape hitting
+# three more workflows on one commit (golang.org/x/net, github.com/
+# hybridgroup/yzma, sigs.k8s.io/yaml), none of which called this script --
+# each had to be found and fixed one at a time. Usage below adds a module-dir
+# argument so every module this repo's CI actually builds (go/, sdk/go/
+# collector, sdk/go/factschema, examples/collector-extensions/scorecard, ...)
+# can share this one wrapper instead of a second one-off per module.
 #
 # Go's own `,direct` GOPROXY fallback does not cover this: it applies to 404
 # and 410 from the proxy, not to a connection that fails partway through a
@@ -26,8 +32,16 @@
 # reads an already-populated module cache instead of the network. It does not
 # make the build hermetic; a module genuinely absent upstream still fails, and
 # should.
+#
+# Usage: scripts/ci/go-mod-download-retry.sh [module-dir]
+#   module-dir: path to the module to warm, relative to the repo root.
+#     Defaults to "go" (the app module) to keep every pre-#6615 call site
+#     working unchanged. Pass e.g. "sdk/go/collector" to warm a different
+#     module -- each go.mod in this repo has its own dependency graph, so
+#     warming go/ does not warm sdk/go/collector or sdk/go/factschema.
 set -uo pipefail
 
+module_dir="${1:-go}"
 attempts="${ESHU_GO_DOWNLOAD_ATTEMPTS:-3}"
 delay="${ESHU_GO_DOWNLOAD_RETRY_DELAY:-5}"
 
@@ -49,7 +63,19 @@ if ! [[ "${delay}" =~ ^[0-9]+$ ]]; then
 	exit 2
 fi
 
-cd "$(dirname "$0")/../../go" || exit 1
+repo_root="$(cd "$(dirname "$0")/../.." && pwd)"
+target_dir="${repo_root}/${module_dir}"
+
+# Validate the module dir up front, same reasoning as the attempts/delay
+# guards above: a `cd` into a missing directory under `set -uo pipefail`
+# (no `-e`) does not stop the script, so a typo'd module-dir would otherwise
+# report success having warmed nothing.
+if [[ ! -f "${target_dir}/go.mod" ]]; then
+	printf 'go-mod-download-retry: no go.mod at "%s" (module-dir "%s") -- nothing to warm\n' "${target_dir}" "${module_dir}" >&2
+	exit 2
+fi
+
+cd "${target_dir}" || exit 1
 
 for attempt in $(seq 1 "${attempts}"); do
 	# `go mod download` (NOT `... all`): plain download fetches what the main
@@ -58,16 +84,16 @@ for attempt in $(seq 1 "${attempts}"); do
 	# thousands of new go.sum lines, which would leave every CI run with a
 	# dirty tree.
 	if go mod download; then
-		[[ "${attempt}" -gt 1 ]] && echo "go-mod-download-retry: succeeded on attempt ${attempt}/${attempts}"
+		[[ "${attempt}" -gt 1 ]] && echo "go-mod-download-retry: succeeded on attempt ${attempt}/${attempts} (${module_dir})"
 		exit 0
 	fi
 	if [[ "${attempt}" -eq "${attempts}" ]]; then
-		echo "go-mod-download-retry: still failing after ${attempts} attempt(s)." >&2
+		echo "go-mod-download-retry: still failing after ${attempts} attempt(s) for module \"${module_dir}\"." >&2
 		echo "  A module download that fails every time is not the transient proxy" >&2
 		echo "  fault this wrapper exists for -- check the module actually resolves." >&2
 		exit 1
 	fi
-	echo "go-mod-download-retry: attempt ${attempt}/${attempts} failed; retrying in ${delay}s" >&2
+	echo "go-mod-download-retry: attempt ${attempt}/${attempts} failed for module \"${module_dir}\"; retrying in ${delay}s" >&2
 	sleep "${delay}"
 	delay=$((delay * 2))
 done
