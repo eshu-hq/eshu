@@ -64,9 +64,11 @@ type CollectOptions struct {
 	ObservedAt     time.Time
 	SourceURI      string
 	PreviousDigest string
-	// Limits bounds one claim's emission. The zero value selects
-	// DefaultResourceUse so an unconfigured copy still fails terminal
-	// instead of allocating without bound.
+	// Limits bounds one claim's emission. Each non-positive field selects
+	// its DefaultResourceUse value, so a partially customized Limits keeps
+	// the caller's values and only the gaps fall back to defaults; the zero
+	// value resolves to DefaultResourceUse, and an unconfigured copy still
+	// fails terminal instead of allocating without bound.
 	Limits ResourceUse
 }
 
@@ -147,9 +149,19 @@ func Collect(claim sdk.Claim, report Report, opts CollectOptions) (sdk.Result, e
 	if observedAt.IsZero() {
 		observedAt = time.Now().UTC()
 	}
+	// Default per field, not wholesale: a partially customized Limits
+	// keeps the caller's values (nestedLimits in cmd/collector already
+	// defaults this way, so both entry points agree).
 	limits := opts.Limits
-	if limits.MaxRecordsPerClaim <= 0 || limits.MaxPayloadBytes <= 0 || limits.ClaimTimeoutSeconds <= 0 {
-		limits = DefaultResourceUse()
+	defaults := DefaultResourceUse()
+	if limits.MaxRecordsPerClaim <= 0 {
+		limits.MaxRecordsPerClaim = defaults.MaxRecordsPerClaim
+	}
+	if limits.MaxPayloadBytes <= 0 {
+		limits.MaxPayloadBytes = defaults.MaxPayloadBytes
+	}
+	if limits.ClaimTimeoutSeconds <= 0 {
+		limits.ClaimTimeoutSeconds = defaults.ClaimTimeoutSeconds
 	}
 	if !claim.Deadline.IsZero() && observedAt.After(claim.Deadline) {
 		return terminalResult(claim, observedAt, "claim-deadline-exceeded"), nil

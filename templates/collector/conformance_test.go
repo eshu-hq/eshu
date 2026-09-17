@@ -288,6 +288,49 @@ func TestSnapshotPayloadBound(t *testing.T) {
 	}
 }
 
+// TestPartialLimitsKeepCustomValues proves Collect defaults Limits per
+// field: a partially customized Limits keeps the caller's values (gaps fall
+// back to DefaultResourceUse) instead of discarding the whole struct. The
+// complete fixture holds two records, so a custom MaxRecordsPerClaim of 1
+// must go terminal while defaults would emit complete.
+func TestPartialLimitsKeepCustomValues(t *testing.T) {
+	t.Parallel()
+
+	report := mustLoadReport(t, "complete.json")
+	if len(report.Records) != 2 {
+		t.Fatalf("complete.json holds %d records, want 2 for the custom-bound discriminator", len(report.Records))
+	}
+	result, err := Collect(testClaim(), report, CollectOptions{
+		ObservedAt: testObservedAt(),
+		SourceURI:  "https://example.invalid/source/template",
+		Limits:     ResourceUse{MaxRecordsPerClaim: 1},
+	})
+	if err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if result.State != sdk.ResultTerminal {
+		t.Fatalf("State = %q, want terminal: custom MaxRecordsPerClaim 1 lost", result.State)
+	}
+	if len(result.Statuses) != 1 || result.Statuses[0].FailureClass != "record-budget-exceeded" {
+		t.Fatalf("Statuses = %#v, want record-budget-exceeded", result.Statuses)
+	}
+
+	result, err = Collect(testClaim(), report, CollectOptions{
+		ObservedAt: testObservedAt(),
+		SourceURI:  "https://example.invalid/source/template",
+		Limits:     ResourceUse{MaxPayloadBytes: 8},
+	})
+	if err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if result.State != sdk.ResultTerminal {
+		t.Fatalf("State = %q, want terminal: custom MaxPayloadBytes 8 lost", result.State)
+	}
+	if len(result.Statuses) != 1 || result.Statuses[0].FailureClass != "payload-budget-exceeded" {
+		t.Fatalf("Statuses = %#v, want payload-budget-exceeded", result.Statuses)
+	}
+}
+
 // TestLoadReportRefusesOversizedInput proves source documents past the read
 // cap fail instead of decoding unbounded input.
 func TestLoadReportRefusesOversizedInput(t *testing.T) {

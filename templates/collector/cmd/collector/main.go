@@ -61,16 +61,19 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 	// liveness, freshness, failure, and retry state. Adopters graduate this
 	// to their logs/metrics/status endpoint; the shape stays the same.
 	// The monitor reports the effective limits for the mode in use, and
-	// collection runs under a wall-time bound: breaching it fails the run
-	// instead of emitting late evidence.
+	// collection runs under a wall-time bound in both modes: breaching it
+	// fails the run instead of emitting late evidence.
 	monitor := collector.NewMonitor()
 	var result sdk.Result
 	var err error
 	if *sdkStdio {
-		var stdioLimits collector.ResourceUse
-		result, stdioLimits, err = collectSDKStdio(stdin)
+		var plan stdioPlan
+		plan, err = parseSDKStdio(stdin)
 		if err == nil {
-			limits = stdioLimits
+			limits = plan.limits
+			result, err = runWithTimeout(func() (sdk.Result, error) {
+				return collectStdioPlan(plan)
+			}, limits)
 		}
 	} else {
 		result, err = collectWithTimeout(*inputPath, *sourceURI, *previousDigest, limits)
@@ -149,18 +152,29 @@ func collectLocalFlags(inputPath, sourceURI, previousDigest string, limits colle
 	})
 }
 
-// collectWithTimeout bounds one claim's wall time: a collection that
-// outruns ClaimTimeoutSeconds fails the run instead of emitting late
-// evidence. Single-shot mode performs no retries; adopters adding a retry
-// loop bound it with Monitor.ObserveRetryNevertheless.
+// collectWithTimeout bounds one local-flags claim's wall time: a
+// collection that outruns ClaimTimeoutSeconds fails the run instead of
+// emitting late evidence. Single-shot mode performs no retries; adopters
+// adding a retry loop bound it with Monitor.ObserveRetryNevertheless.
 func collectWithTimeout(inputPath, sourceURI, previousDigest string, limits collector.ResourceUse) (sdk.Result, error) {
+	return runWithTimeout(func() (sdk.Result, error) {
+		return collectLocalFlags(inputPath, sourceURI, previousDigest, limits)
+	}, limits)
+}
+
+// runWithTimeout bounds one claim's wall time whatever the entry mode: a
+// collection that outruns limits.ClaimTimeoutSeconds fails the run instead
+// of emitting late evidence. Limits reaching here always carry a positive
+// timeout (flag parsing and nestedLimits default per field), so the bound
+// is never accidentally zero.
+func runWithTimeout(work func() (sdk.Result, error), limits collector.ResourceUse) (sdk.Result, error) {
 	type outcome struct {
 		result sdk.Result
 		err    error
 	}
 	done := make(chan outcome, 1)
 	go func() {
-		result, err := collectLocalFlags(inputPath, sourceURI, previousDigest, limits)
+		result, err := work()
 		done <- outcome{result: result, err: err}
 	}()
 	timeout := time.Duration(limits.ClaimTimeoutSeconds) * time.Second
@@ -172,65 +186,88 @@ func collectWithTimeout(inputPath, sourceURI, previousDigest string, limits coll
 	}
 }
 
-func collectSDKStdio(stdin io.Reader) (sdk.Result, collector.ResourceUse, error) {
-	limits := collector.DefaultResourceUse()
+// stdioPlan is a parsed SDK host request: everything parseSDKStdio learns
+// from stdin before the wall-time bound starts covering the collection.
+type stdioPlan struct {
+	inputPath      string
+	sourceURI      string
+	previousDigest string
+	limits         collector.ResourceUse
+	claim          sdk.Claim
+}
+
+// parseSDKStdio decodes and validates one collector SDK host request. It
+// performs no collection itself so run() can report the effective limits
+// and enforce their wall-time bound around the collect step.
+func parseSDKStdio(stdin io.Reader) (stdioPlan, error) {
+	plan := stdioPlan{limits: collector.DefaultResourceUse()}
 	var request sdkRequest
 	decoder := json.NewDecoder(stdin)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&request); err != nil {
-		return sdk.Result{}, limits, fmt.Errorf("decode SDK request: %w", err)
+		return stdioPlan{}, fmt.Errorf("decode SDK request: %w", err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
-			return sdk.Result{}, limits, fmt.Errorf("decode SDK request: trailing JSON value")
+			return stdioPlan{}, fmt.Errorf("decode SDK request: trailing JSON value")
 		}
-		return sdk.Result{}, limits, fmt.Errorf("decode SDK request trailer: %w", err)
+		return stdioPlan{}, fmt.Errorf("decode SDK request trailer: %w", err)
 	}
 	if strings.TrimSpace(request.ProtocolVersion) != sdk.ProtocolVersionV1Alpha1 {
-		return sdk.Result{}, limits, fmt.Errorf("protocol_version %q is unsupported", request.ProtocolVersion)
+		return stdioPlan{}, fmt.Errorf("protocol_version %q is unsupported", request.ProtocolVersion)
 	}
 	inputPath, err := nestedString(request.Config, "source", "input")
 	if err != nil {
-		return sdk.Result{}, limits, err
+		return stdioPlan{}, err
 	}
 	// A missing key falls back to the placeholder; a present-but-malformed
 	// value fails closed instead of silently emitting against the placeholder.
 	sourceURI, present, err := nestedOptionalString(request.Config, "source", "sourceURI")
 	if err != nil {
-		return sdk.Result{}, limits, err
+		return stdioPlan{}, err
 	}
 	if !present || strings.TrimSpace(sourceURI) == "" {
 		sourceURI = "https://example.invalid/source/template"
 	}
 	previousDigest, _, err := nestedOptionalString(request.Config, "freshness", "previousDigest")
 	if err != nil {
-		return sdk.Result{}, limits, err
+		return stdioPlan{}, err
 	}
-	limits, err = nestedLimits(request.Config)
+	limits, err := nestedLimits(request.Config)
 	if err != nil {
-		return sdk.Result{}, limits, err
-	}
-	file, err := os.Open(inputPath)
-	if err != nil {
-		return sdk.Result{}, limits, err
-	}
-	defer func() { _ = file.Close() }()
-	report, err := collector.LoadReport(file)
-	if err != nil {
-		return sdk.Result{}, limits, err
+		return stdioPlan{}, err
 	}
 	claim := request.Claim
 	if strings.TrimSpace(claim.GenerationID) == "" {
 		claim.GenerationID = "generation-1"
 	}
-	result, err := collector.Collect(claim, report, collector.CollectOptions{
+	plan.inputPath = inputPath
+	plan.sourceURI = sourceURI
+	plan.previousDigest = previousDigest
+	plan.limits = limits
+	plan.claim = claim
+	return plan, nil
+}
+
+// collectStdioPlan runs the file read and Collect for a parsed request
+// under the caller's wall-time bound.
+func collectStdioPlan(plan stdioPlan) (sdk.Result, error) {
+	file, err := os.Open(plan.inputPath)
+	if err != nil {
+		return sdk.Result{}, err
+	}
+	defer func() { _ = file.Close() }()
+	report, err := collector.LoadReport(file)
+	if err != nil {
+		return sdk.Result{}, err
+	}
+	return collector.Collect(plan.claim, report, collector.CollectOptions{
 		ObservedAt:     time.Now().UTC(),
-		SourceURI:      sourceURI,
-		PreviousDigest: previousDigest,
-		Limits:         limits,
+		SourceURI:      plan.sourceURI,
+		PreviousDigest: plan.previousDigest,
+		Limits:         plan.limits,
 	})
-	return result, limits, err
 }
 
 func demoClaim() sdk.Claim {

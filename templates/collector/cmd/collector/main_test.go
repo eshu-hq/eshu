@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	collector "github.com/eshu-hq/eshu-collector-template"
+	sdk "github.com/eshu-hq/eshu/sdk/go/collector"
 )
 
 // TestNestedOptionalStringSeparatesMissingFromMalformed proves a missing key
@@ -155,5 +156,60 @@ func TestNestedLimitsConsumesConfigBlock(t *testing.T) {
 		"limits": map[string]any{"maxRecordsPerClaim": "many"},
 	}); err == nil {
 		t.Fatal("nestedLimits(malformed) error = nil, want failure")
+	}
+}
+
+// TestRunWithTimeoutFailsSlowWork proves the shared wall-time runner fails
+// a collection that outruns ClaimTimeoutSeconds instead of waiting
+// unbounded. Both entry modes (local flags and SDK stdio) run through it,
+// so one mechanism test covers the bound behind both.
+func TestRunWithTimeoutFailsSlowWork(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	defer close(release)
+	bounds := collector.DefaultResourceUse()
+	bounds.ClaimTimeoutSeconds = 1
+	_, err := runWithTimeout(func() (sdk.Result, error) {
+		<-release
+		return sdk.Result{}, nil
+	}, bounds)
+	if err == nil || !strings.Contains(err.Error(), "wall-time bound of 1 seconds exceeded") {
+		t.Fatalf("runWithTimeout(slow) error = %v, want wall-time bound failure", err)
+	}
+}
+
+// TestStdioPathCollectsRequest proves the --sdk-stdio path still collects
+// after the parse/collect split and reports the request's limits: a host
+// request against the complete fixture emits a complete result, and the
+// request's custom claim timeout reaches the health snapshot.
+func TestStdioPathCollectsRequest(t *testing.T) {
+	t.Parallel()
+
+	request := sdkRequest{
+		ProtocolVersion: sdk.ProtocolVersionV1Alpha1,
+		Claim:           sdk.Claim{Scope: sdk.Scope{ID: "component:template-primary", Kind: "component"}},
+		Config: map[string]any{
+			"source": map[string]any{"input": "../../testdata/complete.json"},
+			"limits": map[string]any{"claimTimeoutSeconds": 60.0},
+		},
+	}
+	var stdin bytes.Buffer
+	if err := json.NewEncoder(&stdin).Encode(request); err != nil {
+		t.Fatalf("json.Encode(request) error = %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"--sdk-stdio"}, &stdin, &stdout, &stderr); err != nil {
+		t.Fatalf("run(--sdk-stdio) error = %v", err)
+	}
+	var result sdk.Result
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatalf("json.Unmarshal(result) error = %v", err)
+	}
+	if result.State != sdk.ResultComplete {
+		t.Fatalf("State = %q, want complete for the stdio fixture run", result.State)
+	}
+	if !strings.Contains(stderr.String(), `"claim_timeout_seconds":60`) {
+		t.Fatalf("health snapshot missing the request timeout: %q", stderr.String())
 	}
 }
