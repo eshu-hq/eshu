@@ -96,14 +96,33 @@ func keeperRepoDependencyRow(tag string, i int) reducer.SharedProjectionIntentRo
 	}
 }
 
-func cleanupKeeperFamily(ctx context.Context, runner *boltRetractTestRunner, tag string) {
+func cleanupKeeperFamily(t *testing.T, ctx context.Context, runner *boltRetractTestRunner, tag string) {
+	t.Helper()
 	// Artifact node ids are content-derived (no keeper prefix), but every
 	// row the writer commits stamps generation_id, so sweep by that plus
-	// the keeper repo-id prefixes.
-	_, _ = runner.runCypher(ctx,
-		`MATCH (n) WHERE n.generation_id = 'keeper-generation' OR n.id STARTS WITH $prefix OR n.repo_id STARTS WITH $prefix DETACH DELETE n`,
+	// the keeper repo-id prefixes. This MUST run through a write session:
+	// runCypher is read-only and a DELETE through it fails (silently
+	// polluting every backend the test touches — caught when keeper nodes
+	// showed up in a live gate verdict). Fail loudly if anything remains.
+	stmt := Statement{
+		Cypher:     `MATCH (n) WHERE n.generation_id = 'keeper-generation' OR n.id STARTS WITH $prefix OR n.repo_id STARTS WITH $prefix DETACH DELETE n`,
+		Parameters: map[string]any{"prefix": "keeper/repo-" + tag},
+	}
+	if err := runner.runCypherSingle(ctx, stmt); err != nil {
+		t.Errorf("cleanup keeper nodes: %v", err)
+		return
+	}
+	left, err := boltCount(ctx, runner,
+		`MATCH (n) WHERE n.generation_id = 'keeper-generation' OR n.id STARTS WITH $prefix OR n.repo_id STARTS WITH $prefix RETURN count(n) AS count`,
 		map[string]any{"prefix": "keeper/repo-" + tag},
 	)
+	if err != nil {
+		t.Errorf("verify keeper cleanup: %v", err)
+		return
+	}
+	if left != 0 {
+		t.Errorf("keeper cleanup left %d nodes behind", left)
+	}
 }
 
 // TestBoltWriteEdgesRepoDependencyArtifactColdEndpointsPersist is the #6184
@@ -119,10 +138,13 @@ func cleanupKeeperFamily(ctx context.Context, runner *boltRetractTestRunner, tag
 // the test skips.
 func TestBoltWriteEdgesRepoDependencyArtifactColdEndpointsPersist(t *testing.T) {
 	runner := openBoltTestRunner(t)
-	defer runner.close(context.Background())
 	ctx := context.Background()
 	tag := fmt.Sprintf("%d", time.Now().UnixNano())
-	t.Cleanup(func() { cleanupKeeperFamily(context.Background(), runner, tag) })
+	// LIFO: the driver must outlive the node sweep, so register its close
+	// first (a bare defer would run before these cleanups and leave the
+	// sweep dialing a closed driver).
+	t.Cleanup(func() { runner.close(context.Background()) })
+	t.Cleanup(func() { cleanupKeeperFamily(t, context.Background(), runner, tag) })
 
 	writer := NewEdgeWriter(&trueGroupLiveExecutor{runner: runner}, 0)
 
