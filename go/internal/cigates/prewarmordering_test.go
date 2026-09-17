@@ -166,10 +166,15 @@ jobs:
 	}
 }
 
-// TestCheckSetupGoPrewarmOrdering_NoGoTouch_NoError proves a setup-go step
-// with nothing that touches the module graph afterward is not itself a
-// violation -- there is nothing to order the (absent) pre-warm against.
-func TestCheckSetupGoPrewarmOrdering_NoGoTouch_NoError(t *testing.T) {
+// TestCheckSetupGoPrewarmOrdering_NoGoTouchNoPrewarm_Violation proves the F2
+// "must warm regardless of touch" invariant directly: a cached setup-go step
+// followed only by a harmless `go version` (which matches no touch pattern)
+// and NO pre-warm is still a violation -- this is the review's blocking-gap
+// shape restated with a literal `go` command that nonetheless never touches
+// the module graph, so detecting a touch can never be what decides this
+// rule. (Superseded the old NoGoTouch_NoError case, whose premise -- "no
+// touch detected" implies "nothing to warm" -- was the bug.)
+func TestCheckSetupGoPrewarmOrdering_NoGoTouchNoPrewarm_Violation(t *testing.T) {
 	t.Parallel()
 
 	root := buildPrewarmRepo(t, "fixture.yml", `name: fixture
@@ -188,8 +193,8 @@ jobs:
 `)
 
 	got := prewarmOrderingErrs(t, root)
-	if len(got) != 0 {
-		t.Fatalf("no-go-touch fixture: got %d unexpected violations: %v", len(got), got)
+	if len(got) != 1 {
+		t.Fatalf("no-go-touch-no-prewarm fixture: got %d violations, want 1: %v", len(got), got)
 	}
 }
 
@@ -219,6 +224,138 @@ jobs:
 	if len(got) != 1 {
 		t.Fatalf("module-tool-touch fixture: got %d violations, want 1: %v", len(got), got)
 	}
+}
+
+// TestCheckSetupGoPrewarmOrdering_NonGoStepNoPrewarm_Violation is the review's
+// blocking-gap case: a job with a cached setup-go step is followed only by a
+// step that is NOT a literal `go <verb>` or module-touching tool (a plain
+// script invocation), and never runs a pre-warm at all. The bug this closes:
+// findPrewarmOrderingViolation used to return "" whenever nothing matched
+// goTouchRE/moduleTouchingToolRE, which is exactly the shape of the job that
+// caused #6615's root cause (102442878753, "Verify factschema-diff test
+// mirror" -- a fast job whose only Go execution happens inside a script, not
+// as a literal verb in the workflow step).
+func TestCheckSetupGoPrewarmOrdering_NonGoStepNoPrewarm_Violation(t *testing.T) {
+	t.Parallel()
+
+	root := buildPrewarmRepo(t, "fixture.yml", `name: fixture
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Run a non-Go script
+        run: bash scripts/foo.sh
+`)
+
+	got := prewarmOrderingErrs(t, root)
+	if len(got) != 1 {
+		t.Fatalf("non-Go-step-no-prewarm fixture: got %d violations, want 1: %v", len(got), got)
+	}
+}
+
+// TestCheckSetupGoPrewarmOrdering_NonGoStepWithPrewarm_Clean is (a)'s clean
+// counterpart: the same non-Go step, but the job also runs a matching
+// pre-warm -- required now even though nothing else in the job would have
+// tripped goTouchRE.
+func TestCheckSetupGoPrewarmOrdering_NonGoStepWithPrewarm_Clean(t *testing.T) {
+	t.Parallel()
+
+	root := buildPrewarmRepo(t, "fixture.yml", `name: fixture
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+      - name: Run a non-Go script
+        run: bash scripts/foo.sh
+`)
+
+	got := prewarmOrderingErrs(t, root)
+	if len(got) != 0 {
+		t.Fatalf("non-Go-step-with-prewarm fixture: got %d unexpected violations: %v", len(got), got)
+	}
+}
+
+// TestCheckSetupGoPrewarmOrdering_CacheDisabled_Clean proves an explicit
+// `cache: false` setup-go step is exempt: it restores and saves nothing, so
+// there is no cache-race invariant to enforce. actions/setup-go's own
+// action.yml (v5 and v6, fetched directly from
+// raw.githubusercontent.com/actions/setup-go/<ref>/action.yml) declares
+// `cache: { default: true }`, so a step with NO cache: key is cached by
+// default -- only an explicit `false` exempts it, which is why every other
+// case in this file omits the key and still expects the rule to apply.
+func TestCheckSetupGoPrewarmOrdering_CacheDisabled_Clean(t *testing.T) {
+	t.Parallel()
+
+	root := buildPrewarmRepo(t, "fixture.yml", `name: fixture
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+          cache: false
+      - name: Build
+        run: go build ./...
+`)
+
+	got := prewarmOrderingErrs(t, root)
+	if len(got) != 0 {
+		t.Fatalf("cache-disabled fixture: got %d unexpected violations: %v", len(got), got)
+	}
+}
+
+// TestCheckSetupGoPrewarmOrdering_UnparseableWorkflow_Error proves a
+// workflow file this check cannot read or parse fails closed (reports an
+// error naming the file) rather than silently skipping it -- the review's
+// second finding: the prior version's `continue` on a read/parse failure
+// hid a broken workflow from this check entirely.
+func TestCheckSetupGoPrewarmOrdering_UnparseableWorkflow_Error(t *testing.T) {
+	t.Parallel()
+
+	root := buildPrewarmRepo(t, "fixture.yml", "not: [valid: yaml: at: all\n")
+
+	var got []string
+	for _, err := range cigates.DriftCheck(root, minimalReg(nil, nil, nil)) {
+		msg := err.Error()
+		if strings.Contains(msg, "fixture.yml") && strings.Contains(msg, "parse") {
+			got = append(got, msg)
+		}
+	}
+	if len(got) != 1 {
+		t.Fatalf("unparseable-workflow fixture: got %d parse-error findings naming fixture.yml, want 1 (all errs: %v)",
+			len(got), driftCheckErrStrings(t, root))
+	}
+}
+
+// driftCheckErrStrings is a debugging helper for a failed
+// TestCheckSetupGoPrewarmOrdering_UnparseableWorkflow_Error assertion: it
+// prints every DriftCheck error so a mismatch is diagnosable from the
+// failure output alone.
+func driftCheckErrStrings(t *testing.T, root string) []string {
+	t.Helper()
+	var out []string
+	for _, err := range cigates.DriftCheck(root, minimalReg(nil, nil, nil)) {
+		out = append(out, err.Error())
+	}
+	return out
 }
 
 // TestCheckSetupGoPrewarmOrdering_CommittedWorkflows_NoError is the live
