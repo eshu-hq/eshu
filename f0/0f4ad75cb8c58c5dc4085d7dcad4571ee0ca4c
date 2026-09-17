@@ -1,0 +1,14 @@
+docs/internal/evidence/6184-graph-rebuild-artifact-visibility-v133.md
+  h_78a442cba0b3e6 218-239
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f00f4ad75cb8c58c5dc4085d7dcad4571ee0ca4c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

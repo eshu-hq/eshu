@@ -1,0 +1,16 @@
+go/internal/storage/cypher/edge_writer_unroutable.go
+  h_78a442cba0b3e6 127-131
+scripts/test-verify-graph-rebuild-from-facts.sh
+  h_78a442cba0b3e6 345-348
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2beadc704efdb47fad6f81bab52e74c9ea8dc7ab",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
