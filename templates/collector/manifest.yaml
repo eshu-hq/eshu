@@ -1,0 +1,40 @@
+apiVersion: eshu.dev/v1alpha1
+kind: ComponentPackage
+metadata:
+  id: dev.eshu.template.collector
+  name: Template collector
+  publisher: eshu-hq
+  version: 0.1.0
+spec:
+  compatibleCore: ">=0.0.5 <0.2.0"
+  componentType: collector
+  collectorKinds:
+    - template
+  runtime:
+    sdkProtocol: collector-sdk/v1alpha1
+    adapter: process
+  artifacts:
+    - platform: linux/amd64
+      image: ghcr.io/eshu-hq/template-collector@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  emittedFacts:
+    - kind: dev.eshu.template.collector.snapshot
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+    - kind: dev.eshu.template.collector.record
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - observed
+    - kind: dev.eshu.template.collector.warning
+      schemaVersions:
+        - 1.0.0
+      sourceConfidence:
+        - reported
+  consumerContracts:
+    reducer:
+      phases:
+        - source_evidence_only:no_graph_truth
+  telemetry:
+    metricsPrefix: eshu_dp_template_collector_

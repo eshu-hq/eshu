@@ -1,0 +1,24 @@
+# Remote Compose harness starter: runs one template claim through the core
+# graph, API, and MCP readback. The collector container speaks only the
+# collector-sdk/v1alpha1 stdio contract over a credential-free fixture; it
+# receives no Postgres/graph/queue handles. Wire this compose file to a local
+# core checkout (or a released core image) and assert the emitted stable keys
+# read back through graph, API, and MCP before promoting any collector.
+#
+# See scripts/run-remote-readback.sh for the claim-execution driver.
+name: template-collector-readback
+
+services:
+  collector:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    network_mode: none
+    read_only: true
+    user: "65532:65532"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stdin_open: true
+    command: ["--sdk-stdio"]
