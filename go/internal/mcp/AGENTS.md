@@ -48,7 +48,7 @@
    admission-decisions request selection in
    `go/internal/mcp/admissiondecisions`, Kubernetes-correlation request
    selection in `go/internal/mcp/kubernetes`, infrastructure-search
-   request selection in `go/internal/mcp/infrasearch`, impact-analysis
+   request selection in `go/internal/mcp/infra/search`, impact-analysis
    request selection in `go/internal/mcp/impact`, code-flow request
    selection in `go/internal/mcp/code/flow`, dead-code,
    complexity/quality, entity-resolution, and content request selection in
@@ -65,7 +65,7 @@
    "── Content ──" switch section; `get_entity_content` stays registered
    alongside them in `tools_content.go` but routes through
    `entityresolution` instead), infrastructure-inventory request selection in
-   `go/internal/mcp/infrainventory`, whose `infraInventoryRoute` adapter
+   `go/internal/mcp/infra/inventory`, whose `infraInventoryRoute` adapter
    lives in `dispatch_infra_resource_aggregates.go` (reusing that existing
    filename rather than creating a new one, so the root non-test file count
    stays at its dirgate pin) instead of `dispatch.go`, and service-context
@@ -185,7 +185,7 @@
   adapter in `dispatch_service_selector.go`.
   Ecosystem registration is one 23-definition group, but routing remains split
   across `dispatch_ecosystem.go`, `dispatch_repositories.go`, `dispatch.go`,
-  the `dispatch_infra_search.go` adapter over `infrasearch`, and the
+  the `dispatch_infra_search.go` adapter over `infra/search`, and the
   `dispatch_impact.go` adapter over `impact`.
 
 - **Extract a domain route** → express its family membership decision, decoded

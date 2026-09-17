@@ -16,7 +16,7 @@ Routing remains split in the parent package. Ecosystem summaries and change
 planning enter through `dispatch_ecosystem.go`; repository reads enter through
 `dispatch_repositories.go`, while package-registry request selection lives in
 `../packageregistry` and reaches dispatch through the `packageRegistryRoute`
-adapter; infrastructure-search request selection lives in `../infrasearch` and
+adapter; infrastructure-search request selection lives in `../infra/search` and
 reaches dispatch through the `infraResourceSearchRoute` adapter in
 `dispatch_infra_search.go`, while the other infrastructure reads enter through
 `dispatch.go`; impact-analysis request selection lives in `../impact` and
@@ -69,7 +69,7 @@ authorization, query execution, response shaping, transport, or telemetry.
 - [MCP package](../README.md)
 - [MCP tool contract](../toolcontract/README.md)
 - [MCP impact-analysis route selection](../impact/README.md)
-- [MCP infrastructure-search route selection](../infrasearch/README.md)
+- [MCP infrastructure-search route selection](../infra/search/README.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 
 ## Verification

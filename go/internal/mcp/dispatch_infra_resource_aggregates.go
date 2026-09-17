@@ -4,7 +4,7 @@
 package mcp
 
 import (
-	infrainventorytools "github.com/eshu-hq/eshu/go/internal/mcp/infrainventory"
+	infrainventorytools "github.com/eshu-hq/eshu/go/internal/mcp/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
@@ -18,7 +18,7 @@ import (
 // infraResourceAggregateCountRoute and infraResourceAggregateInventoryRoute
 // body helpers; investigate_resource and analyze_infra_relationships moved
 // here from inline dispatch.go switch arms. find_infra_resources stays with
-// the sibling infrasearch family reached through infraResourceSearchRoute
+// the sibling infra/search family reached through infraResourceSearchRoute
 // in dispatch.go -- searching resources and counting/investigating them are
 // different families that happen to share the infra/resources namespace.
 func infraInventoryRoute(toolName string, args map[string]any) (*route, bool) {

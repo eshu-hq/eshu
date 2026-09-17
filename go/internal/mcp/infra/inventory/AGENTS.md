@@ -108,8 +108,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/infrainventory ./internal/mcp -count=1
-go vet ./internal/mcp/infrainventory ./internal/mcp
+go test ./internal/mcp/infra/inventory ./internal/mcp -count=1
+go vet ./internal/mcp/infra/inventory ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

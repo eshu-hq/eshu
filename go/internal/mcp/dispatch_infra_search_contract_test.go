@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	infrasearchtools "github.com/eshu-hq/eshu/go/internal/mcp/infrasearch"
+	infrasearchtools "github.com/eshu-hq/eshu/go/internal/mcp/infra/search"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 

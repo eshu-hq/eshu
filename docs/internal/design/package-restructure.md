@@ -1260,7 +1260,7 @@ routers: ecosystem summaries and change planning remain in
 `dispatch_repositories.go`, and package-registry reads moved to
 `internal/mcp/packageregistry` in the first Wave 2 extraction below;
 infrastructure reads remain in `dispatch.go`, and infrastructure-search
-selection moved to `internal/mcp/infrasearch` in the eleventh Wave 2
+selection moved to `internal/mcp/infra/search` in the eleventh Wave 2
 extraction below; impact-analysis selection moved to `internal/mcp/impact` in
 the twelfth Wave 2 extraction below, with `dispatch_impact.go` keeping the
 thin adapter; and
@@ -1596,7 +1596,7 @@ and lifts an arm out of `resolveRoute`'s own switch rather than out of a split
 router. One tool, `find_infra_resources`, one arm under the switch's Infra
 group, one request builder alone in `dispatch_infra_search.go` with no private
 helper beside it. Family membership and the builder now live under
-`internal/mcp/infrasearch`, and `dispatch_infra_search.go` keeps only the thin
+`internal/mcp/infra/search`, and `dispatch_infra_search.go` keeps only the thin
 `infraResourceSearchRoute` adapter. Root keeps global fanout order, dispatch,
 authorization, transport, timeouts, response budgets, envelopes, summaries, and
 telemetry; the `ecosystem` child keeps the advertised definition and its

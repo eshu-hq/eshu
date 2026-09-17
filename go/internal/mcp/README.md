@@ -25,10 +25,10 @@ family route selection; `internal/query` retains validation and graph reads. The
 `documentation` child owns its six registration definitions and the `cloud`
 child the cloud inventory and runtime-drift pair; both families' routing stays
 here. The `visualization` child owns registration and pure request selection,
-while query derives packets. The `packageregistry`, `cicd`, `codeowners`,
-`secretsiam`, `observabilitycoverage`, `containerimage`, `supplychainimpact`,
-`supplychainevidence`, `securityalert`, `admissiondecisions`, `kubernetes`,
-`infrasearch`, `impact`, `codeflow`, `codeintel`, `content`, `deadcode`, `codequality`, `entityresolution`, `iacmanagement`, `infrainventory`, `servicecontext`, and `replatforming`
+while query derives packets. The `packageregistry`, `cicd`, `code/owners`,
+`secretsiam`, `observabilitycoverage`, `containerimage`, `supply/chain/impact`,
+`supply/chain/evidence`, `securityalert`, `admissiondecisions`, `kubernetes`,
+`infra/search`, `impact`, `code/flow`, `code/intel`, `content`, `code/dead`, `code/quality`, `entityresolution`, `iacmanagement`, `infra/inventory`, `servicecontext`, and `replatforming`
 children own only family membership and pure request selection; root keeps the matching `*Route` adapters and dispatch, and each family's definitions stay with their current owners. `content` owns `get_file_content`, `get_file_lines`, `build_evidence_citation_packet`, `search_file_content`, and `search_entity_content`; the last two share `contentSearchBody`, and `get_entity_content`'s registration stays grouped with these five in `tools_content.go` even though its routing lives in `entityresolution`. The `ecosystem`
 child owns the 23 ecosystem, repository-context, infrastructure-impact, and
 change-planning registration definitions; their split routers stay here. The `ask` child

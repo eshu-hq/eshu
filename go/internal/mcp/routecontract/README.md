@@ -13,7 +13,7 @@ packages such as `internal/mcp/admissiondecisions`, `internal/mcp/ask`,
 `internal/mcp/cicd`, `internal/mcp/code/flow`, `internal/mcp/code/owners`,
 `internal/mcp/code/quality`, `internal/mcp/containerimage`, `internal/mcp/code/dead`,
 `internal/mcp/entityresolution`,
-`internal/mcp/impact`, `internal/mcp/infrasearch`, `internal/mcp/kubernetes`,
+`internal/mcp/impact`, `internal/mcp/infra/search`, `internal/mcp/kubernetes`,
 `internal/mcp/observabilitycoverage`, `internal/mcp/packageregistry`,
 `internal/mcp/relationships`, `internal/mcp/secretsiam`,
 `internal/mcp/securityalert`, `internal/mcp/supply/chain/impact`, and
@@ -59,21 +59,21 @@ transport and API request telemetry.
 - [MCP admission-decisions route selection](../admissiondecisions/README.md)
 - [MCP Ask registration and route selection](../ask/README.md)
 - [MCP CI/CD run-correlation route selection](../cicd/README.md)
-- [MCP code-flow route selection](../codeflow/README.md)
-- [MCP CODEOWNERS ownership route selection](../codeowners/README.md)
-- [MCP complexity/quality route selection](../codequality/README.md)
+- [MCP code-flow route selection](../code/flow/README.md)
+- [MCP CODEOWNERS ownership route selection](../code/owners/README.md)
+- [MCP complexity/quality route selection](../code/quality/README.md)
 - [MCP container-image identity route selection](../containerimage/README.md)
-- [MCP dead-code route selection](../deadcode/README.md)
+- [MCP dead-code route selection](../code/dead/README.md)
 - [MCP entity-resolution route selection](../entityresolution/README.md)
 - [MCP impact-analysis route selection](../impact/README.md)
-- [MCP infrastructure-search route selection](../infrasearch/README.md)
+- [MCP infrastructure-search route selection](../infra/search/README.md)
 - [MCP Kubernetes-correlation route selection](../kubernetes/README.md)
 - [MCP observability-coverage route selection](../observabilitycoverage/README.md)
 - [MCP package-registry route selection](../packageregistry/README.md)
 - [MCP relationship registrations](../relationships/README.md)
 - [MCP secrets/IAM route selection](../secretsiam/README.md)
 - [MCP security-alert reconciliation route selection](../securityalert/README.md)
-- [MCP supply-chain-impact route selection](../supplychainimpact/README.md)
+- [MCP supply-chain-impact route selection](../supply/chain/impact/README.md)
 - [MCP visualization registration and route selection](../visualization/README.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 
