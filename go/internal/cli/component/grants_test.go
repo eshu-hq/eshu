@@ -15,7 +15,10 @@ import (
 	componentcore "github.com/eshu-hq/eshu/go/internal/component"
 )
 
-var grantTestClock = time.Date(2026, time.September, 17, 12, 0, 0, 0, time.UTC)
+// grantTestClock pins issuance to the start of the test run, not a fixed
+// instant: the install path validates grant expiry against wall time, so a
+// fixed clock rots every grant-live assumption once wall time passes it.
+var grantTestClock = time.Now().UTC().Truncate(time.Second)
 
 // grantedCoreKindManifestYAML is a minimal valid manifest declaring the
 // core-owned aws_resource kind in scope aws for producer alpha.
@@ -89,7 +92,8 @@ func TestRunGrantRecordsCoreKindGrant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunGrant() error = %v, want nil", err)
 	}
-	want := "granted dev.example.collector.alpha@0.1.0 kind aws_resource scope aws expires 2026-09-17T13:00:00Z\n"
+	want := "granted dev.example.collector.alpha@0.1.0 kind aws_resource scope aws expires " +
+		grantTestClock.Add(time.Hour).Format(time.RFC3339) + "\n"
 	if got := out.String(); got != want {
 		t.Fatalf("RunGrant() output = %q, want %q", got, want)
 	}
@@ -330,8 +334,10 @@ func TestRunGrantsListsDurableGrants(t *testing.T) {
 	if err := RunGrants(out, false, home, ""); err != nil {
 		t.Fatalf("RunGrants() error = %v, want nil", err)
 	}
-	want := "dev.example.collector.alpha\t0.1.0\taws_resource\tscope=aws\tschemas=1.0.0\texpires=2026-09-17T13:00:00Z\trevoked=false\n" +
-		"dev.example.collector.beta\t0.1.0\taws_resource\tscope=aws\tschemas=1.0.0\texpires=2026-09-17T14:00:00Z\trevoked=true\n"
+	want := "dev.example.collector.alpha\t0.1.0\taws_resource\tscope=aws\tschemas=1.0.0\texpires=" +
+		grantTestClock.Add(time.Hour).Format(time.RFC3339) + "\trevoked=false\n" +
+		"dev.example.collector.beta\t0.1.0\taws_resource\tscope=aws\tschemas=1.0.0\texpires=" +
+		grantTestClock.Add(2*time.Hour).Format(time.RFC3339) + "\trevoked=true\n"
 	if got := out.String(); got != want {
 		t.Fatalf("RunGrants() output = %q, want %q", got, want)
 	}

@@ -3,13 +3,13 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants, including
+2. `../../AGENTS.md` and `../../README.md` for projector-wide invariants, including
    the rule that posture facts are provenance only in the projector.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order; this probe
+3. `../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after the service-catalog correlation and before the supply-chain
    impact probe.
-5. `../schema_version_admission.go` for the root gate that rejects an
+5. `../../schema_version_admission.go` for the root gate that rejects an
    unsupported secrets/IAM schema version before this builder runs.
 6. `go/internal/reducer/secretsiam/secrets_iam_trust_chain.go` for what the reducer does
    with the intent this package enqueues.

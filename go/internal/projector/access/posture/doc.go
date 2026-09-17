@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package secretsiam builds the secrets/IAM trust-chain reducer intent from
+// Package posture builds the secrets/IAM trust-chain reducer intent from
 // one immutable scope generation: when the generation carries at least one
 // fact whose kind the central secrets/IAM posture schema registry recognizes
 // (AWS IAM principals and policies, GCP IAM, Kubernetes service accounts and
@@ -21,4 +21,4 @@
 // derived access path from the projector. Root projector assembly owns lookup
 // construction and lifetime, invocation order, queue writes, retries, and
 // telemetry.
-package secretsiam
+package posture

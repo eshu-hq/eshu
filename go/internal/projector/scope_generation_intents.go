@@ -5,6 +5,7 @@ package projector
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/projector/access/posture"
 	awsimage "github.com/eshu-hq/eshu/go/internal/projector/aws/cloud/image"
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/ec2"
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/rds"
@@ -30,7 +31,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/observability/coverage/materialization"
 	packagesource "github.com/eshu-hq/eshu/go/internal/projector/package/source"
 	projectorsbomattestation "github.com/eshu-hq/eshu/go/internal/projector/sbomattestation"
-	projectorsecretsiam "github.com/eshu-hq/eshu/go/internal/projector/secretsiam"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
 	"github.com/eshu-hq/eshu/go/internal/projector/service/catalog"
 	"github.com/eshu-hq/eshu/go/internal/projector/supply/chain/impact"
@@ -160,7 +160,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := catalog.BuildServiceCatalogCorrelationReducerIntent(scopeValue, generation, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorsecretsiam.BuildSecretsIAMTrustChainReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := posture.BuildSecretsIAMTrustChainReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := impact.BuildSupplyChainImpactReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
