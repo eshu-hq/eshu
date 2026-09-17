@@ -9,7 +9,7 @@
    adapter and the production-boundary proof.
 5. `../dispatch_repositories.go` for the repository switch this family is
    answered ahead of.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../contract/route/README.md` for the dependency-neutral request contract.
 
 ## Invariants
 

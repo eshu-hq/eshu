@@ -4,8 +4,8 @@
 package mcp
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
-	supplychainimpacttools "github.com/eshu-hq/eshu/go/internal/mcp/supplychainimpact"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+	supplychainimpacttools "github.com/eshu-hq/eshu/go/internal/mcp/supply/chain/impact"
 )
 
 // supplyChainImpactRoute adapts the child package's supply-chain-impact

@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	impacttools "github.com/eshu-hq/eshu/go/internal/mcp/impact"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // impactRouteTools lists every tool the impact child package owns.

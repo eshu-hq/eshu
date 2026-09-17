@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/codequality"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // codeQualityRouteTools maps every tool the child package owns to the path it

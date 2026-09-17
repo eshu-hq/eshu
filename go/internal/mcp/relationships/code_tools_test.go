@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 )
 
 func TestCodeToolsPreserveRegistrationContract(t *testing.T) {

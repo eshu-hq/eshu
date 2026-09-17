@@ -11,8 +11,8 @@
 5. `../tools_content.go` for the six advertised schemas registered together
    (this package's five plus `get_entity_content`). They stay at the
    parent's root and must keep naming the same fields this builder selects.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
-7. `../entityresolution/doc.go` and `../codeintel/routes.go` for why
+6. `../contract/route/README.md` for the dependency-neutral request contract.
+7. `../entity/resolution/doc.go` and `../code/intel/routes.go` for why
    `get_entity_content` and `search_entity_content` sit in different
    families despite the shared `content`/`entity` spelling.
 8. `go/internal/query/contentread/content_handler.go`, `content_reader.go`, and

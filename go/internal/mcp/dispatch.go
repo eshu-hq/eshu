@@ -14,13 +14,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 
-	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/codeintel"
-	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/codequality"
+	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
+	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
+	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 	contenttools "github.com/eshu-hq/eshu/go/internal/mcp/content"
-	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/deadcode"
-	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entityresolution"
-	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iacmanagement"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entity/resolution"
+	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iac/management"
 )
 
 // dispatchTool routes an MCP tool call to the appropriate internal HTTP endpoint.

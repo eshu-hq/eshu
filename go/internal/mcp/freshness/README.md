@@ -26,7 +26,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/mcp/toolcontract` owns the dependency-neutral `ToolDefinition`
+- `internal/mcp/contract/tool` owns the dependency-neutral `ToolDefinition`
   shape returned by `Tools`.
 
 ## Telemetry
@@ -57,7 +57,7 @@ authorization, query execution, response shaping, or telemetry.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 
 ## Verification

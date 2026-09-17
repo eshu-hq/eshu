@@ -29,9 +29,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/mcp/toolcontract` owns the dependency-neutral `ToolDefinition`
+- `internal/mcp/contract/tool` owns the dependency-neutral `ToolDefinition`
   shape returned by both constructors.
-- `internal/mcp/routecontract` owns the dependency-neutral decoded-argument and
+- `internal/mcp/contract/route` owns the dependency-neutral decoded-argument and
   selected-request values used by both route selectors.
 - `internal/sourcetool` owns the canonical closed vocabulary advertised by the
   optional `source_tool` field.
@@ -68,7 +68,7 @@ validation, graph reads, and response shaping.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [HTTP API reference](../../../../docs/public/reference/http-api.md)
 
 ## Verification

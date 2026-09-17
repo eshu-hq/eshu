@@ -4,8 +4,8 @@
 package mcp
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
-	secretsiamtools "github.com/eshu-hq/eshu/go/internal/mcp/secretsiam"
+	secretsiamtools "github.com/eshu-hq/eshu/go/internal/mcp/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // secretsIAMRoute adapts the child package's secrets/IAM posture request into

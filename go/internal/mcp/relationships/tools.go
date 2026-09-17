@@ -4,7 +4,7 @@
 package relationshiptools
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 	"github.com/eshu-hq/eshu/go/internal/sourcetool"
 )
 

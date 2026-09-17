@@ -3,7 +3,7 @@
 
 package relationshiptools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // relationshipTypeEnum lists the relationship types the bounded relationship
 // story query path can follow.

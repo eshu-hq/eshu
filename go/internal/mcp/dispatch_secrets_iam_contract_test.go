@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
-	secretsiamtools "github.com/eshu-hq/eshu/go/internal/mcp/secretsiam"
+	secretsiamtools "github.com/eshu-hq/eshu/go/internal/mcp/access/posture"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // secretsIAMRouteTools lists every tool the child package owns, in the order

@@ -4,8 +4,8 @@
 package mcp
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // codeRelationshipRoute adapts the child package's code-relationship request

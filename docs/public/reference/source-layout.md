@@ -45,34 +45,39 @@ live in the repository today.
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |
 | `go/internal/mcp/` | MCP ordered assembly, global route fanout and adapters, dispatch, authorization, transport, timeouts, response budgets, envelopes, and telemetry |
-| `go/internal/mcp/admissiondecisions/` | admission-decisions MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/admission/decisions/` | admission-decisions MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/ask/` | Ask Eshu MCP registration plus pure family membership and dependency-neutral route selection |
 | `go/internal/mcp/cicd/` | CI/CD run-correlation MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/cloud/` | cloud inventory and runtime-drift MCP tool registration definitions |
-| `go/internal/mcp/codeflow/` | code-flow MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/codeowners/` | CODEOWNERS ownership MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/codequality/` | complexity/quality MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/containerimage/` | container-image identity, tag-history, and aggregate MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/deadcode/` | dead-code MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/flow/` | code-flow MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/intel/` | code-intelligence MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/owners/` | CODEOWNERS ownership MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/quality/` | complexity/quality MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/container/image/` | container-image identity, tag-history, and aggregate MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/dead/` | dead-code MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/documentation/` | documentation-family MCP tool registration definitions |
 | `go/internal/mcp/ecosystem/` | ecosystem, repository-context, infrastructure-impact, and change-planning MCP tool registration definitions |
-| `go/internal/mcp/entityresolution/` | entity-resolution MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/entity/resolution/` | entity-resolution MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/freshness/` | generation, repository, and service freshness MCP tool registration definitions |
+| `go/internal/mcp/iac/management/` | IaC-management MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/impact/` | impact-analysis MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/infrasearch/` | infrastructure-search MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/infra/inventory/` | infrastructure-inventory MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/infra/search/` | infrastructure-search MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/investigation/` | investigation workflow and evidence-packet MCP tool registration definitions |
 | `go/internal/mcp/kubernetes/` | Kubernetes-correlation MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/observabilitycoverage/` | observability-coverage MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/packageregistry/` | package-registry MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/observability/coverage/` | observability-coverage MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/package/registry/` | package-registry MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
 | `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP registrations plus pure family membership and dependency-neutral route selection |
-| `go/internal/mcp/routecontract/` | dependency-neutral MCP route arguments and internal-request shape |
-| `go/internal/mcp/secretsiam/` | secrets/IAM posture MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/contract/route/` | dependency-neutral MCP route arguments and internal-request shape |
+| `go/internal/mcp/access/posture/` | secrets/IAM posture MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/securityalert/` | security-alert reconciliation listing, count, and inventory MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/semantic/` | semantic-evidence and semantic-search MCP tool registration definitions |
 | `go/internal/mcp/service/` | service catalog, context, investigation, and intelligence-report MCP tool registration definitions |
-| `go/internal/mcp/supplychainimpact/` | supply-chain-impact findings, count, inventory, and explanation MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/toolcontract/` | dependency-neutral MCP tool registration shape |
+| `go/internal/mcp/service/context/` | service-context MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/supply/chain/evidence/` | supply-chain-evidence MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/supply/chain/impact/` | supply-chain-impact findings, count, inventory, and explanation MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/contract/tool/` | dependency-neutral MCP tool registration shape |
 | `go/internal/mcp/visualization/` | visualization-packet MCP registration plus pure family membership and dependency-neutral route selection |
 | `go/internal/parser/` | native parser registry, language adapters, and SCIP support |
 | `go/internal/projector/` | source-local projection stages and failure classification |
@@ -193,41 +198,51 @@ Read and operator surfaces live under:
 - `go/internal/mcp/`: MCP ordered assembly, global route fanout and adapters,
   dispatch, authorization, transport, timeouts, response budgets, envelopes,
   and telemetry
-- `go/internal/mcp/admissiondecisions/`: admission-decisions family
+- `go/internal/mcp/admission/decisions/`: admission-decisions family
   membership and pure dependency-neutral request selection
 - `go/internal/mcp/ask/`: Ask registration, family membership, and pure
   dependency-neutral request selection
 - `go/internal/mcp/cicd/`: CI/CD run-correlation family membership and pure
   dependency-neutral request selection
-- `go/internal/mcp/codeflow/`: code-flow family membership and pure
+- `go/internal/mcp/code/flow/`: code-flow family membership and pure
   dependency-neutral request selection
-- `go/internal/mcp/codeowners/`: CODEOWNERS ownership family membership and
-  pure dependency-neutral request selection
-- `go/internal/mcp/codequality/`: complexity/quality family membership and
-  pure dependency-neutral request selection
-- `go/internal/mcp/containerimage/`: container-image identity family membership
-  and pure dependency-neutral request selection
-- `go/internal/mcp/deadcode/`: dead-code family membership and pure
+- `go/internal/mcp/code/intel/`: code-intelligence family membership and pure
   dependency-neutral request selection
-- `go/internal/mcp/entityresolution/`: entity-resolution family membership
+- `go/internal/mcp/code/owners/`: CODEOWNERS ownership family membership and
+  pure dependency-neutral request selection
+- `go/internal/mcp/code/quality/`: complexity/quality family membership and
+  pure dependency-neutral request selection
+- `go/internal/mcp/container/image/`: container-image identity family membership
   and pure dependency-neutral request selection
+- `go/internal/mcp/code/dead/`: dead-code family membership and pure
+  dependency-neutral request selection
+- `go/internal/mcp/entity/resolution/`: entity-resolution family membership
+  and pure dependency-neutral request selection
+- `go/internal/mcp/iac/management/`: IaC-management family membership and pure
+  dependency-neutral request selection
 - `go/internal/mcp/impact/`: impact-analysis family membership and pure
   dependency-neutral request selection
-- `go/internal/mcp/infrasearch/`: infrastructure-search family membership and
+- `go/internal/mcp/infra/inventory/`: infrastructure-inventory family membership
+  and pure dependency-neutral request selection
+- `go/internal/mcp/infra/search/`: infrastructure-search family membership and
   pure dependency-neutral request selection
 - `go/internal/mcp/kubernetes/`: Kubernetes-correlation family membership and
   pure dependency-neutral request selection
-- `go/internal/mcp/observabilitycoverage/`: observability-coverage family
+- `go/internal/mcp/observability/coverage/`: observability-coverage family
   membership and pure dependency-neutral request selection
-- `go/internal/mcp/packageregistry/`: package-registry family membership and
+- `go/internal/mcp/package/registry/`: package-registry family membership and
   pure dependency-neutral request selection
 - `go/internal/mcp/relationships/`: relationship-family registrations, family
   membership decisions, and pure dependency-neutral request selection
-- `go/internal/mcp/secretsiam/`: secrets/IAM posture family membership and
+- `go/internal/mcp/access/posture/`: secrets/IAM posture family membership and
   pure dependency-neutral request selection
 - `go/internal/mcp/securityalert/`: security-alert reconciliation family
   membership and pure dependency-neutral request selection
-- `go/internal/mcp/supplychainimpact/`: supply-chain-impact family membership
+- `go/internal/mcp/service/context/`: service-context family membership and
+  pure dependency-neutral request selection
+- `go/internal/mcp/supply/chain/evidence/`: supply-chain-evidence family
+  membership and pure dependency-neutral request selection
+- `go/internal/mcp/supply/chain/impact/`: supply-chain-impact family membership
   and pure dependency-neutral request selection
 - `go/internal/mcp/visualization/`: visualization registration, family
   membership, and pure dependency-neutral request selection

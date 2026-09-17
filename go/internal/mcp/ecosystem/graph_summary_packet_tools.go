@@ -3,7 +3,7 @@
 
 package ecosystemtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // graphSummaryPacketTool defines the bounded, summary-first graph packet tool.
 // It mirrors get_ecosystem_overview but adds a repo-scoped packet (hot entities

@@ -4,8 +4,8 @@
 package mcp
 
 import (
-	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/codeflow"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // codeFlowRoute adapts the child package's code-flow request selection into

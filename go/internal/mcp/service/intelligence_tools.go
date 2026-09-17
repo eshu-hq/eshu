@@ -3,7 +3,7 @@
 
 package servicetools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // IntelligenceTools returns the MCP tool for the composed service
 // intelligence report. The tool maps to GET

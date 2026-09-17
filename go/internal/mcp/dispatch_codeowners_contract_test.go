@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/codeowners"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/code/owners"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // codeownersRouteTools lists every tool the child package owns, in the order

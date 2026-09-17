@@ -4,8 +4,8 @@
 package mcp
 
 import (
-	observabilitycoveragetools "github.com/eshu-hq/eshu/go/internal/mcp/observabilitycoverage"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+	observabilitycoveragetools "github.com/eshu-hq/eshu/go/internal/mcp/observability/coverage"
 )
 
 // observabilityCoverageRoute adapts the child package's observability-coverage

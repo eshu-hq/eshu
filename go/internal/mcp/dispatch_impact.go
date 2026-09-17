@@ -4,8 +4,8 @@
 package mcp
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	impacttools "github.com/eshu-hq/eshu/go/internal/mcp/impact"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // impactRoute adapts the child package's impact-analysis request selection

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	containerimagetools "github.com/eshu-hq/eshu/go/internal/mcp/containerimage"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	containerimagetools "github.com/eshu-hq/eshu/go/internal/mcp/container/image"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // containerImageRouteTools lists every tool the child package owns.

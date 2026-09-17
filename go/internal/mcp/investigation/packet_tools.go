@@ -3,7 +3,7 @@
 
 package investigationtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // PacketTools returns the investigation evidence-packet MCP tool definitions.
 func PacketTools() []toolcontract.ToolDefinition {

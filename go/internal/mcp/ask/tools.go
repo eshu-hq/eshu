@@ -3,7 +3,7 @@
 
 package asktools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // Tools returns the MCP tool definition for the Ask Eshu natural-language
 // answer tool. The advertised tool is default-off: when no agent_reasoning provider

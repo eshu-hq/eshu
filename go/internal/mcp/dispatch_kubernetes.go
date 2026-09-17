@@ -4,8 +4,8 @@
 package mcp
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	kubernetestools "github.com/eshu-hq/eshu/go/internal/mcp/kubernetes"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 
 // kubernetesCorrelationsRoute adapts the child package's Kubernetes-correlation

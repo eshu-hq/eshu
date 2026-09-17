@@ -15,8 +15,8 @@ execution, response envelopes, transport, and telemetry.
 Routing remains split in the parent package. Ecosystem summaries and change
 planning enter through `dispatch_ecosystem.go`; repository reads enter through
 `dispatch_repositories.go`, while package-registry request selection lives in
-`../packageregistry` and reaches dispatch through the `packageRegistryRoute`
-adapter; infrastructure-search request selection lives in `../infrasearch` and
+`../package/registry` and reaches dispatch through the `packageRegistryRoute`
+adapter; infrastructure-search request selection lives in `../infra/search` and
 reaches dispatch through the `infraResourceSearchRoute` adapter in
 `dispatch_infra_search.go`, while the other infrastructure reads enter through
 `dispatch.go`; impact-analysis request selection lives in `../impact` and
@@ -31,7 +31,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/mcp/toolcontract` owns the dependency-neutral `ToolDefinition`
+- `internal/mcp/contract/tool` owns the dependency-neutral `ToolDefinition`
   shape returned by `Tools`.
 
 ## Telemetry
@@ -67,9 +67,9 @@ authorization, query execution, response shaping, transport, or telemetry.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [MCP impact-analysis route selection](../impact/README.md)
-- [MCP infrastructure-search route selection](../infrasearch/README.md)
+- [MCP infrastructure-search route selection](../infra/search/README.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)
 
 ## Verification

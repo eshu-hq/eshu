@@ -29,7 +29,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/mcp/routecontract` owns the dependency-neutral decoded-argument
+- `internal/mcp/contract/route` owns the dependency-neutral decoded-argument
   and internal-request shapes used by `Route`.
 
 ## Telemetry
@@ -86,7 +86,7 @@ telemetry, and the same query handlers execute the requests.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP route contract](../routecontract/README.md)
+- [MCP route contract](../contract/route/README.md)
 - [MCP ecosystem registration](../ecosystem/README.md)
 - [Read-surface consumer existence gate](../../../../docs/public/reference/read-surface-consumer-existence-gate.md)
 - [HTTP API reference](../../../../docs/public/reference/http-api.md)

@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
-	supplychainimpacttools "github.com/eshu-hq/eshu/go/internal/mcp/supplychainimpact"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+	supplychainimpacttools "github.com/eshu-hq/eshu/go/internal/mcp/supply/chain/impact"
 )
 
 // supplyChainImpactRouteTools lists every tool the child package owns.

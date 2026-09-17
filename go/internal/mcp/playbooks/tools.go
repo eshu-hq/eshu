@@ -3,7 +3,7 @@
 
 package playbooktools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // Tools returns fresh MCP definitions for the query-playbook catalog.
 func Tools() []toolcontract.ToolDefinition {

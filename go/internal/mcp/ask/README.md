@@ -23,9 +23,9 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/mcp/toolcontract` owns the dependency-neutral `ToolDefinition`
+- `internal/mcp/contract/tool` owns the dependency-neutral `ToolDefinition`
   shape returned by `Tools`.
-- `internal/mcp/routecontract` owns the dependency-neutral decoded-argument and
+- `internal/mcp/contract/route` owns the dependency-neutral decoded-argument and
   internal-request shapes used by `Route`.
 
 ## Telemetry
@@ -59,8 +59,8 @@ request.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP route contract](../routecontract/README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP route contract](../contract/route/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [Ask local proof](../../../../docs/public/reference/local-testing/ask-eshu-local-proof.md)
 
 ## Verification

@@ -7,7 +7,7 @@
 3. `../types.go` for the ordered assembly positions.
 4. `../dispatch_investigation_workflows.go` and
    `../dispatch_investigation_packets.go` for the split route ownership.
-5. `../toolcontract/README.md` for the dependency-neutral definition contract.
+5. `../contract/tool/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing investigation query behavior.
 
 ## Invariants

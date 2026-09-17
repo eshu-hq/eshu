@@ -25,11 +25,11 @@ family route selection; `internal/query` retains validation and graph reads. The
 `documentation` child owns its six registration definitions and the `cloud`
 child the cloud inventory and runtime-drift pair; both families' routing stays
 here. The `visualization` child owns registration and pure request selection,
-while query derives packets. The `packageregistry`, `cicd`, `codeowners`,
-`secretsiam`, `observabilitycoverage`, `containerimage`, `supplychainimpact`,
-`supplychainevidence`, `securityalert`, `admissiondecisions`, `kubernetes`,
-`infrasearch`, `impact`, `codeflow`, `codeintel`, `content`, `deadcode`, `codequality`, `entityresolution`, `iacmanagement`, `infrainventory`, `servicecontext`, and `replatforming`
-children own only family membership and pure request selection; root keeps the matching `*Route` adapters and dispatch, and each family's definitions stay with their current owners. `content` owns `get_file_content`, `get_file_lines`, `build_evidence_citation_packet`, `search_file_content`, and `search_entity_content`; the last two share `contentSearchBody`, and `get_entity_content`'s registration stays grouped with these five in `tools_content.go` even though its routing lives in `entityresolution`. The `ecosystem`
+while query derives packets. The `package/registry`, `cicd`, `code/owners`,
+`access/posture`, `observability/coverage`, `container/image`, `supply/chain/impact`,
+`supply/chain/evidence`, `securityalert`, `admission/decisions`, `kubernetes`,
+`infra/search`, `impact`, `code/flow`, `code/intel`, `content`, `code/dead`, `code/quality`, `entity/resolution`, `iac/management`, `infra/inventory`, `service/context`, and `replatforming`
+children own only family membership and pure request selection; root keeps the matching `*Route` adapters and dispatch, and each family's definitions stay with their current owners. `content` owns `get_file_content`, `get_file_lines`, `build_evidence_citation_packet`, `search_file_content`, and `search_entity_content`; the last two share `contentSearchBody`, and `get_entity_content`'s registration stays grouped with these five in `tools_content.go` even though its routing lives in `entity/resolution`. The `ecosystem`
 child owns the 23 ecosystem, repository-context, infrastructure-impact, and
 change-planning registration definitions; their split routers stay here. The `ask` child
 owns natural-language answer registration and pure request selection; global fanout and dispatch stay here, while query executes answers.
@@ -49,7 +49,7 @@ registration definitions. Evidence routing stays in
 The `service` child package owns five service catalog, context, investigation,
 and intelligence-report registration definitions. Catalog routing stays in
 `dispatch_repositories.go` and `dispatch_service_catalog.go`; the other four
-tools' request selection is owned by `servicecontext`, reached through the `serviceContextRoute` adapter in `dispatch_service_selector.go`.
+tools' request selection is owned by `service/context`, reached through the `serviceContextRoute` adapter in `dispatch_service_selector.go`.
 
 ## Where this fits in the pipeline
 
@@ -352,7 +352,7 @@ envelope as structured content and as the envelope resource.
 
 Package-registry tools keep MCP as transport too. Ownership candidates,
 package-version publication evidence, and manifest-backed consumption all come
-from the query handler; the `packageregistry` child owns the bounded request
+from the query handler; the `package/registry` child owns the bounded request
 selection and `dispatch_package_registry.go` adapts it into a transport route.
 
 Repository-language tools keep MCP as transport only. The HTTP query layer owns
@@ -546,7 +546,7 @@ registration definitions),
 definitions),
 `internal/mcp/service` (service catalog, context, investigation, and
 intelligence-report tool registrations),
-`internal/mcp/routecontract` (neutral argument/request values), `internal/mcp/toolcontract`
+`internal/mcp/contract/route` (neutral argument/request values), `internal/mcp/contract/tool`
 (neutral `ToolDefinition` registrations), and `internal/mcp/visualization` (visualization registration/request selection),
 `internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`,
 `query.AuthContextFromContext`, `query.AuthMode*`, the mounted `http.Handler`),
@@ -575,7 +575,7 @@ The `Accept: application/eshu.envelope+json` header is always set on internal
 dispatch requests (`dispatch.go:42`). Handlers that check this header will
 return the canonical envelope shape.
 
-`normalizeQualifiedIdentifier`, owned by `servicecontext`, strips the `<type>:`
+`normalizeQualifiedIdentifier`, owned by `service/context`, strips the `<type>:`
 prefix from service identifiers before building path segments. If a new
 service-context tool is added, apply this helper when the input may include a type qualifier.
 `get_service_story` and `investigate_service` also forward canonical

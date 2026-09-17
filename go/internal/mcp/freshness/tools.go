@@ -3,7 +3,7 @@
 
 package freshnesstools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 
 // Tools returns fresh MCP definitions for generation, repository, and service
 // freshness reads.

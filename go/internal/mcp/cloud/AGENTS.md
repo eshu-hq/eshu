@@ -7,7 +7,7 @@
 3. `../types.go` for the two ordered assembly positions.
 4. `../dispatch_cloud_inventory.go` and
    `../dispatch_cloud_runtime_drift.go` for argument mapping.
-5. `../toolcontract/README.md` for the dependency-neutral definition contract.
+5. `../contract/tool/README.md` for the dependency-neutral definition contract.
 
 ## Invariants
 

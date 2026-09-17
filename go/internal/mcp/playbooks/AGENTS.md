@@ -7,7 +7,7 @@
 3. `../types.go` for the ordered assembly position.
 4. `../dispatch_query_playbooks.go` and the root query-playbook tests for route
    and body mapping.
-5. `../toolcontract/README.md` for the dependency-neutral definition contract.
+5. `../contract/tool/README.md` for the dependency-neutral definition contract.
 6. `../../../../docs/public/reference/query-playbooks.md` for the catalog and
    resolver contract.
 

@@ -7,8 +7,8 @@
 3. `../types.go` for the three ordered assembly positions.
 4. `../dispatch_repositories.go`, `../dispatch_service_catalog.go`, and
    `../dispatch_service_selector.go` (the `serviceContextRoute` adapter over
-   `../servicecontext`) for split route ownership.
-5. `../toolcontract/README.md` for the dependency-neutral definition contract.
+   `context`) for split route ownership.
+5. `../contract/tool/README.md` for the dependency-neutral definition contract.
 6. `../../query/AGENTS.md` before changing service query behavior.
 
 ## Invariants
@@ -22,7 +22,7 @@
   slices.
 - Preserve the three root assembly positions and the complete 162-tool order.
 - Keep service catalog routing (root) separate from service context, story,
-  investigation, and intelligence-report routing (`../servicecontext`).
+  investigation, and intelligence-report routing (`context`).
 
 ## Common changes
 

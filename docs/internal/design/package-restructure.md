@@ -1173,13 +1173,13 @@ The documentation registration family is the first extracted MCP family. Its
 six definitions live under `internal/mcp/documentation`, while the root keeps
 both existing assembly positions, documentation routing, dispatch,
 authorization, and transport ownership. The move uses the dependency-neutral
-`internal/mcp/toolcontract` shape and does not combine the two constructor
+`internal/mcp/contract/tool` shape and does not combine the two constructor
 groups or change the 162-tool order.
 
 The cloud registration family is the second extracted MCP family. Its inventory
 and runtime-drift definitions live under `internal/mcp/cloud`, while the root
 keeps both assembly positions and all cloud routing, dispatch, authorization,
-and transport ownership. The move uses `internal/mcp/toolcontract` and leaves
+and transport ownership. The move uses `internal/mcp/contract/tool` and leaves
 the 162-tool order unchanged.
 
 The visualization family is the third MCP extraction. Its definition, family
@@ -1200,7 +1200,7 @@ The query-playbook registration family is the fifth extracted MCP family. Its
 two definitions live under `internal/mcp/playbooks`, while the root keeps their
 assembly position after documentation tools and before investigation workflows
 plus all query-playbook routing, dispatch, authorization, and transport
-ownership. The move uses `internal/mcp/toolcontract` and leaves the 162-tool
+ownership. The move uses `internal/mcp/contract/tool` and leaves the 162-tool
 order unchanged.
 
 The relationship family is the sixth extracted MCP family. Its three
@@ -1209,7 +1209,7 @@ analysis definitions remain at zero-based positions 8 and 9 in the codebase
 group, and the relationship-edge definition remains after Ask and before
 repository files. The same child package owns `CodeRoute` and `EdgeRoute`, pure
 selectors that decide family membership and convert decoded arguments into
-`internal/mcp/routecontract` requests. Root keeps ordered assembly, global
+`internal/mcp/contract/route` requests. Root keeps ordered assembly, global
 fanout order, thin route adapters, dispatch, authorization, transport,
 timeouts, response budgets, envelopes, and telemetry. `internal/query` keeps
 relationship validation, graph reads, bounds, and response shaping. The
@@ -1221,7 +1221,7 @@ four definitions live under `internal/mcp/freshness`, while the root keeps
 their assembly position after visualization and before context tools. Routing
 also stays in root: `get_repository_freshness` remains in
 `dispatch_repositories.go`, and the other three definitions remain in
-`dispatch_freshness.go`. The move uses `internal/mcp/toolcontract` and leaves
+`dispatch_freshness.go`. The move uses `internal/mcp/contract/tool` and leaves
 the 162-tool order unchanged.
 
 The semantic registration family is the eighth extracted MCP family. Its three
@@ -1230,7 +1230,7 @@ semantic-evidence and semantic-search assembly positions after investigation
 packets and before documentation finding aggregates. Routing also stays in
 root: the evidence pair remains in `dispatch_semantic_evidence.go`, and search
 remains in `dispatch_semantic_search.go`. The move uses
-`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+`internal/mcp/contract/tool` and leaves the 162-tool order unchanged.
 
 The investigation registration family is the ninth extracted MCP family. Its
 two workflow and three evidence-packet definitions live under
@@ -1239,7 +1239,7 @@ after query playbooks and before semantic evidence. Routing also stays in root:
 workflow discovery and resolution remain in
 `dispatch_investigation_workflows.go`, and the three packet exports remain in
 `dispatch_investigation_packets.go`. The move uses
-`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+`internal/mcp/contract/tool` and leaves the 162-tool order unchanged.
 
 The service registration family is the tenth extracted MCP family. Its catalog
 definition, three service-context and investigation definitions, and
@@ -1249,7 +1249,7 @@ catalog correlations remain in `dispatch_repositories.go` and
 `dispatch_service_catalog.go`; service context, story, investigation, and
 intelligence-report routes remain in `dispatch.go` and
 `dispatch_service_selector.go`. The move uses
-`internal/mcp/toolcontract` and leaves the 162-tool order unchanged.
+`internal/mcp/contract/tool` and leaves the 162-tool order unchanged.
 
 The ecosystem registration family is the eleventh extracted MCP family. Its
 23 definitions live under `internal/mcp/ecosystem`, while the root keeps their
@@ -1258,14 +1258,14 @@ infrastructure aggregates. Routing stays split across the existing root
 routers: ecosystem summaries and change planning remain in
 `dispatch_ecosystem.go`; repository reads remain in
 `dispatch_repositories.go`, and package-registry reads moved to
-`internal/mcp/packageregistry` in the first Wave 2 extraction below;
+`internal/mcp/package/registry` in the first Wave 2 extraction below;
 infrastructure reads remain in `dispatch.go`, and infrastructure-search
-selection moved to `internal/mcp/infrasearch` in the eleventh Wave 2
+selection moved to `internal/mcp/infra/search` in the eleventh Wave 2
 extraction below; impact-analysis selection moved to `internal/mcp/impact` in
 the twelfth Wave 2 extraction below, with `dispatch_impact.go` keeping the
 thin adapter; and
 environment comparison remains in `compareRoute`. That move uses
-`internal/mcp/routecontract`, not `toolcontract`: route-selection extractions
+`internal/mcp/contract/route`, not `toolcontract`: route-selection extractions
 take the routecontract seam, while `toolcontract` is what an ecosystem tool
 *registration* move uses. It leaves the 162-tool order unchanged.
 
@@ -1273,7 +1273,7 @@ The package-registry route family is the first Wave 2 MCP extraction, and the
 first that moves route selection without moving a registration. Its six tools
 were answered by arms of the 46-arm `repositoryRoute` switch in
 `dispatch_repositories.go`; family membership and pure `routecontract` request
-selection now live under `internal/mcp/packageregistry`. Root keeps every tool
+selection now live under `internal/mcp/package/registry`. Root keeps every tool
 definition and its assembly position, global fanout order, the thin
 `packageRegistryRoute` adapter, dispatch, authorization, transport, timeouts,
 response budgets, envelopes, summaries, and telemetry. The adapter is consulted
@@ -1305,7 +1305,7 @@ The CODEOWNERS ownership route family is the third Wave 2 MCP extraction and
 the smallest: one tool, one arm of the same `repositoryRoute` switch. Its
 request builder sat in `dispatch_codeowners.go` beside a private
 `optionalIntString` helper that nothing else called. Family membership, the
-builder, and that helper now live under `internal/mcp/codeowners`, and
+builder, and that helper now live under `internal/mcp/code/owners`, and
 `dispatch_codeowners.go` keeps only the thin `codeownersRoute` adapter. Root
 keeps the tool definition and its assembly position, global fanout order,
 dispatch, authorization, transport, timeouts, response budgets, envelopes,
@@ -1325,7 +1325,7 @@ The secrets/IAM posture route family is the fourth Wave 2 MCP extraction: five
 tools, five arms of the same `repositoryRoute` switch -- one fewer than the
 package-registry family moved -- with all five request builders sitting together
 in `dispatch_secrets_iam.go` and no private helper between them. Family membership and all five builders now live
-under `internal/mcp/secretsiam`, and `dispatch_secrets_iam.go` keeps only the
+under `internal/mcp/access/posture`, and `dispatch_secrets_iam.go` keeps only the
 thin `secretsIAMRoute` adapter. Root keeps every tool definition and its
 assembly position, global fanout order, dispatch, authorization, transport,
 timeouts, response budgets, envelopes, summaries, and telemetry. The adapter is
@@ -1355,7 +1355,7 @@ The observability-coverage route family is the fifth Wave 2 MCP extraction and
 returns to the single-tool shape: one tool, one arm of the same
 `repositoryRoute` switch, one request builder in
 `dispatch_observability_coverage.go` with no private helper beside it. Family
-membership and the builder now live under `internal/mcp/observabilitycoverage`,
+membership and the builder now live under `internal/mcp/observability/coverage`,
 and `dispatch_observability_coverage.go` keeps only the thin
 `observabilityCoverageRoute` adapter. Root keeps the tool definition and its
 assembly position, global fanout order, dispatch, authorization, transport,
@@ -1387,7 +1387,7 @@ named for the family. `containerImageIdentitiesRoute` and
 `containerImageTagHistoryRoute` sat in `dispatch_supply_chain.go` beside six
 supply-chain builders that stay there, while the count and inventory builders
 sat alone in `dispatch_container_image_aggregates.go`. All four now live under
-`internal/mcp/containerimage`; the aggregates file is deleted and
+`internal/mcp/container/image`; the aggregates file is deleted and
 `dispatch_container_image.go` takes its place holding only the thin
 `containerImageRoute` adapter. Root keeps the four tool definitions and their
 assembly positions, global fanout order, dispatch, authorization, transport,
@@ -1440,7 +1440,7 @@ builders, `supplyChainImpactFindingsRoute` and
 four supply-chain builders that stay there; the other two, plus the
 eighteen-filter helper they share, sat alone in
 `dispatch_supply_chain_aggregates.go`. Family membership and all four
-builders now live under `internal/mcp/supplychainimpact`; the aggregates file
+builders now live under `internal/mcp/supply/chain/impact`; the aggregates file
 is deleted and `dispatch_supply_chain_impact.go` takes its place holding only
 the thin `supplyChainImpactRoute` adapter. Root keeps the four tool
 definitions and their assembly positions, global fanout order, dispatch,
@@ -1519,7 +1519,7 @@ The admission-decisions route family is the ninth Wave 2 MCP extraction and
 returns to the single-tool shape: one tool, `list_admission_decisions`, one
 arm of the same `repositoryRoute` switch, one request builder alone in
 `dispatch_admission_decisions.go` with no private helper beside it. Family
-membership and the builder now live under `internal/mcp/admissiondecisions`,
+membership and the builder now live under `internal/mcp/admission/decisions`,
 and `dispatch_admission_decisions.go` keeps only the thin
 `admissionDecisionsRoute` adapter. Root keeps the tool definition and its
 assembly position, global fanout order, dispatch, authorization, transport,
@@ -1596,7 +1596,7 @@ and lifts an arm out of `resolveRoute`'s own switch rather than out of a split
 router. One tool, `find_infra_resources`, one arm under the switch's Infra
 group, one request builder alone in `dispatch_infra_search.go` with no private
 helper beside it. Family membership and the builder now live under
-`internal/mcp/infrasearch`, and `dispatch_infra_search.go` keeps only the thin
+`internal/mcp/infra/search`, and `dispatch_infra_search.go` keeps only the thin
 `infraResourceSearchRoute` adapter. Root keeps global fanout order, dispatch,
 authorization, transport, timeouts, response budgets, envelopes, summaries, and
 telemetry; the `ecosystem` child keeps the advertised definition and its
@@ -1677,7 +1677,7 @@ four tools -- `dispatch_taint_path`, `dispatch_reaching_def`,
 `codeFlowRoute` in `dispatch_code_flow.go`, already an isolated delegation
 consulted from `resolveRoute` ahead of the code-relationship delegation and
 the main switch. Family membership and the shared six-key request builder now
-live under `internal/mcp/codeflow`, and `dispatch_code_flow.go` keeps only
+live under `internal/mcp/code/flow`, and `dispatch_code_flow.go` keeps only
 the thin `codeFlowRoute` adapter at the same delegation position, so
 `resolveRoute` keeps 20 delegations and 49 cases -- 69 ordered arms -- on
 both sides and no other family's resolution order changes. Root keeps the
@@ -1709,7 +1709,7 @@ already-isolated delegation or fallback. Its three tools — `find_dead_code`,
 `investigate_dead_code`, and `find_cross_repo_dead_code` — were three inline
 arms sharing the `exclude_decorated_with` vocabulary and the `limit` 100
 default; family membership and the three request builders now live under
-`internal/mcp/deadcode`, and the thin `deadCodeRoute` adapter lives in
+`internal/mcp/code/dead`, and the thin `deadCodeRoute` adapter lives in
 `dispatch.go` itself — a new adapter file would have grown the root non-test
 file set past its dirgate pin of 106, which every extraction so far has held.
 The delegation is consulted with the other route delegations ahead of the
@@ -1746,7 +1746,7 @@ second to lift case arms out of `dispatch.go`'s own switch. Its three tools —
 `calculate_cyclomatic_complexity`, `find_most_complex_functions`, and
 `inspect_code_quality` — were three inline arms whose first two share the
 `POST /api/v0/code/complexity` path and handler; family membership and the
-three request builders now live under `internal/mcp/codequality`, and the
+three request builders now live under `internal/mcp/code/quality`, and the
 thin `codeQualityRoute` adapter lives in `dispatch.go` itself, beside
 `deadCodeRoute`, for the same dirgate reason. The delegation is consulted
 with the other route delegations ahead of the switch, which no caller can
@@ -1782,7 +1782,7 @@ third to lift case arms out of `dispatch.go`'s own switch. Its three tools —
 `resolve_entity`, `get_entity_context`, and `get_entity_content` — were
 inline arms in the Entities and Content sections of the switch; family
 membership and the request builders now live under
-`internal/mcp/entityresolution`, and the thin `entityResolutionRoute`
+`internal/mcp/entity/resolution`, and the thin `entityResolutionRoute`
 adapter lives in `dispatch.go` itself, beside `deadCodeRoute` and
 `codeQualityRoute`, for the same dirgate reason. `resolveRoute` goes from 23
 delegations and 43 cases to 24 delegations and 40 cases, with all 162 tools

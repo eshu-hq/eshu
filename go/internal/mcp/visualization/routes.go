@@ -3,7 +3,7 @@
 
 package visualizationtools
 
-import "github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+import "github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 
 // Route selects the internal HTTP request for the visualization-packet tool
 // without executing it. It reports handled only for tools owned by this

@@ -32,30 +32,30 @@
    helpers; understand `parseCanonicalEnvelope` before touching response
    shaping.
    Package-registry request selection itself lives in
-   `go/internal/mcp/packageregistry`, CI/CD run-correlation request selection in
+   `go/internal/mcp/package/registry`, CI/CD run-correlation request selection in
    `go/internal/mcp/cicd`, CODEOWNERS ownership request selection in
-   `go/internal/mcp/codeowners`, secrets/IAM posture request selection in
-   `go/internal/mcp/secretsiam`, observability-coverage request selection in
-   `go/internal/mcp/observabilitycoverage`, container-image identity request
-   selection in `go/internal/mcp/containerimage`, supply-chain-impact request
-   selection in `go/internal/mcp/supplychainimpact`, supply-chain evidence
+   `go/internal/mcp/code/owners`, secrets/IAM posture request selection in
+   `go/internal/mcp/access/posture`, observability-coverage request selection in
+   `go/internal/mcp/observability/coverage`, container-image identity request
+   selection in `go/internal/mcp/container/image`, supply-chain-impact request
+   selection in `go/internal/mcp/supply/chain/impact`, supply-chain evidence
    (vulnerability-scanner read contract, advisory-evidence, and
    SBOM/attestation attachment) request selection in
-   `go/internal/mcp/supplychainevidence`, whose `supplyChainEvidenceRoute`
+   `go/internal/mcp/supply/chain/evidence`, whose `supplyChainEvidenceRoute`
    adapter reuses the `dispatch_supply_chain.go` filename rather than adding a
    new one, security-alert reconciliation request selection in
    `go/internal/mcp/securityalert`,
    admission-decisions request selection in
-   `go/internal/mcp/admissiondecisions`, Kubernetes-correlation request
+   `go/internal/mcp/admission/decisions`, Kubernetes-correlation request
    selection in `go/internal/mcp/kubernetes`, infrastructure-search
-   request selection in `go/internal/mcp/infrasearch`, impact-analysis
+   request selection in `go/internal/mcp/infra/search`, impact-analysis
    request selection in `go/internal/mcp/impact`, code-flow request
-   selection in `go/internal/mcp/codeflow`, dead-code,
+   selection in `go/internal/mcp/code/flow`, dead-code,
    complexity/quality, entity-resolution, and content request selection in
-   `go/internal/mcp/deadcode`, `go/internal/mcp/codequality`,
-   `go/internal/mcp/entityresolution`, and `go/internal/mcp/content`,
-   code-intelligence request selection in `go/internal/mcp/codeintel`,
-   IaC-management request selection in `go/internal/mcp/iacmanagement`,
+   `go/internal/mcp/code/dead`, `go/internal/mcp/code/quality`,
+   `go/internal/mcp/entity/resolution`, and `go/internal/mcp/content`,
+   code-intelligence request selection in `go/internal/mcp/code/intel`,
+   IaC-management request selection in `go/internal/mcp/iac/management`,
    whose `deadCodeRoute`, `codeQualityRoute`, `entityResolutionRoute`,
    `codeIntelRoute`, `iacManagementRoute`, and `contentRoute` adapters live
    in `dispatch.go` itself rather than dedicated adapter files (the content
@@ -65,11 +65,11 @@
    "── Content ──" switch section; `get_entity_content` stays registered
    alongside them in `tools_content.go` but routes through
    `entityresolution` instead), infrastructure-inventory request selection in
-   `go/internal/mcp/infrainventory`, whose `infraInventoryRoute` adapter
+   `go/internal/mcp/infra/inventory`, whose `infraInventoryRoute` adapter
    lives in `dispatch_infra_resource_aggregates.go` (reusing that existing
    filename rather than creating a new one, so the root non-test file count
    stays at its dirgate pin) instead of `dispatch.go`, and service-context
-   request selection in `go/internal/mcp/servicecontext`, whose
+   request selection in `go/internal/mcp/service/context`, whose
    `serviceContextRoute` adapter lives in `dispatch_service_selector.go`
    rather than inline in `dispatch.go`, because (like `relationshipEdgesRoute`
    in `dispatch_relationship_edges.go`) it must forward a selector-validation
@@ -160,7 +160,7 @@
 - **Change an existing tool's argument mapping** → first find where the tool is
   routed. Tools still routed by an inline `case` are mapped in `resolveRoute` in
   `dispatch.go`; tools delegated to a child selector are mapped in that child's
-  `routes.go` (for example `go/internal/mcp/codeintel/routes.go`), and
+  `routes.go` (for example `go/internal/mcp/code/intel/routes.go`), and
   `dispatch.go` holds only the delegating adapter. Then update the matching
   `tools_*.go` `InputSchema`, and update or add a test beside the mapping you
   changed. Why: the `InputSchema` is the advertised contract; mismatches between
@@ -181,11 +181,11 @@
   catalog correlations stay in `dispatch_repositories.go` and
   `dispatch_service_catalog.go`, while context, story, investigation, and
   intelligence-report request selection is owned by
-  `go/internal/mcp/servicecontext`, reached through the `serviceContextRoute`
+  `go/internal/mcp/service/context`, reached through the `serviceContextRoute`
   adapter in `dispatch_service_selector.go`.
   Ecosystem registration is one 23-definition group, but routing remains split
   across `dispatch_ecosystem.go`, `dispatch_repositories.go`, `dispatch.go`,
-  the `dispatch_infra_search.go` adapter over `infrasearch`, and the
+  the `dispatch_infra_search.go` adapter over `infra/search`, and the
   `dispatch_impact.go` adapter over `impact`.
 
 - **Extract a domain route** → express its family membership decision, decoded

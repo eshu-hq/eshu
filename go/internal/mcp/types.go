@@ -6,6 +6,7 @@ package mcp
 import (
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	ecosystemtools "github.com/eshu-hq/eshu/go/internal/mcp/ecosystem"
 	freshnesstools "github.com/eshu-hq/eshu/go/internal/mcp/freshness"
@@ -14,7 +15,6 @@ import (
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
 	semantictools "github.com/eshu-hq/eshu/go/internal/mcp/semantic"
 	servicetools "github.com/eshu-hq/eshu/go/internal/mcp/service"
-	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
 	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
 )
 

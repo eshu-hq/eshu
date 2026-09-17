@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/mcp/toolcontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 )
 
 func TestToolsPreserveVisualizationRegistrationContract(t *testing.T) {

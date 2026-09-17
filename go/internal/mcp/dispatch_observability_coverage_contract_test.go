@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
-	observabilitycoveragetools "github.com/eshu-hq/eshu/go/internal/mcp/observabilitycoverage"
-	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+	observabilitycoveragetools "github.com/eshu-hq/eshu/go/internal/mcp/observability/coverage"
 )
 
 // observabilityCoverageRouteTools lists every tool the child package owns.
