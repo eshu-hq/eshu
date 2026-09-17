@@ -46,7 +46,7 @@
 # reason -- a tautological guard (#6681 review). Used only by the #6681
 # cases in this file; the pre-existing expect_fail cases elsewhere are
 # untouched. run_verifier (defined by the caller) always writes stderr to
-# /tmp/eshu-telemetry-coverage.err before returning, win or lose.
+# $verifier_err, a per-run file under the suite's tmp_root, win or lose.
 expect_fail_with() {
   local label="$1"
   local dir="$2"
@@ -55,7 +55,9 @@ expect_fail_with() {
     record_fail "${label} (verifier unexpectedly passed)"
     return
   fi
-  if rg --fixed-strings --quiet -- "${substring}" /tmp/eshu-telemetry-coverage.err 2>/dev/null; then
+  # verifier_err is set by the runner that sources this file.
+  # shellcheck disable=SC2154
+  if rg --fixed-strings --quiet -- "${substring}" "${verifier_err}" 2>/dev/null; then
     record_pass "${label}"
   else
     record_fail "${label} (failed, but stderr did not contain: ${substring})"

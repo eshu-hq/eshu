@@ -143,8 +143,10 @@ expect_fail "fails when a row's stage-name cell is blank even with a valid path 
 if run_verifier "${case_blank_stage}"; then
   record_fail "header/separator rows stay ignored (fixture unexpectedly passed)"
 else
-  if rg --fixed-strings --quiet -- 'doc row "stage"' /tmp/eshu-telemetry-coverage.err 2>/dev/null ||
-    rg --fixed-strings --quiet -- 'doc row "---"' /tmp/eshu-telemetry-coverage.err 2>/dev/null; then
+  # verifier_err is set by the runner that sources this file.
+  # shellcheck disable=SC2154
+  if rg --fixed-strings --quiet -- 'doc row "stage"' "${verifier_err}" 2>/dev/null ||
+    rg --fixed-strings --quiet -- 'doc row "---"' "${verifier_err}" 2>/dev/null; then
     record_fail "header/separator rows must never be reported as malformed"
   else
     record_pass "header row and GFM separator row stay correctly ignored, not treated as data rows"
