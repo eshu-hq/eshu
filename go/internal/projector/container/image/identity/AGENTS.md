@@ -3,10 +3,10 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants, including
+2. `../../../AGENTS.md` and `../../../README.md` for projector-wide invariants, including
    the rule that the projector never makes cross-source admission decisions.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order; this probe
+3. `../../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `s3.BuildInternetExposureMaterializationReducerIntent`
    and before `correlation.BuildReducerIntent`.
 5. `go/internal/reducer/containerimage/container_image_identity.go` and its sibling
@@ -54,11 +54,11 @@
 - **Adding a trigger kind.** Add it to both the `triggerFact` switch and
   `candidateFactKinds`, decide whether it needs its own decode seam or reads
   only envelope fields, and update the child tests plus the root dispatcher
-  tests (`../container_image_identity_projection_test.go` and its
+  tests (`../../../container_image_identity_projection_test.go` and its
   `_dockerfile`/`_cicd`/`_slsa` siblings).
 - **Changing the reason string or the entity key.** Both are asserted
   verbatim by the package tests and by the root fan-out parity fixture
-  (`../scope_generation_intents_fanout_parity_test.go`); change them
+  (`../../../scope_generation_intents_fanout_parity_test.go`); change them
   together.
 - **Adding a second decode seam.** Name the file `factschema_decode_*.go` so
   the payload-usage manifest gate discovers it (see Failure modes below),
@@ -93,7 +93,7 @@
   yields an empty `SourceSystem` rather than a literal default. That is the
   preserved pre-extraction behavior, not a bug to patch in passing.
 - **Root dispatcher tests live outside this directory**, split by topic:
-  `../container_image_identity_projection_test.go` (general/OCI/AWS
+  `../../../container_image_identity_projection_test.go` (general/OCI/AWS
   relationship/content-entity), `..._dockerfile_projection_test.go`
   (Dockerfile add/edit/non-trigger; the tombstone-removal trigger-level case
   moved into this package's own test file since it called the now-unexported

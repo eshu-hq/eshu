@@ -877,7 +877,7 @@ empty and both facts are present. `full_snapshot` is set whenever the marker
 is present, independent of which fact won provenance. Root's
 `decodeCodeFunctionSummary` and `decodeCodeDataflowScanned` wrappers
 (`factschema_decode_codedataflow.go`) had this builder as their only caller,
-so both moved out entirely with the extraction — the `containerimageidentity`
+so both moved out entirely with the extraction — the `identity`
 precedent — rather than staying behind like the shared `aws_resource` decode
 siblings. The family never had a private source-system helper: the moved body
 keeps its original single-tier `strings.TrimSpace(trigger.CollectorKind)`
@@ -984,7 +984,7 @@ tiers. The root test file mixed builder-level assertions with
 (no-fact, empty-generation, run-anchor, artifact-only-anchor, run-over-artifact
 precedence, and the two-tier source-system fallback).
 The container-image-identity builder moved into
-`internal/projector/containerimageidentity`. It triggers on the earliest
+`internal/projector/container/image/identity`. It triggers on the earliest
 accepted fact across a closed set of candidate kinds — OCI
 manifest/index/tag/referrer, AWS/Azure/GCP image-reference, an
 `aws_relationship` whose decoded `TargetType` is `container_image`, a
@@ -1013,7 +1013,7 @@ dockerfile file's tombstone-removal test called the unexported
 package's own test file (renamed `triggerFact` there); every other case
 exercises `buildProjection` and stayed at root, each file renamed with a
 `_projection_test.go` suffix. A new
-`containerimageidentity/identity_intents_test.go` pins the builder and
+`container/image/identity/intents_test.go` pins the builder and
 trigger directly (no-fact, empty-generation, OCI-manifest anchor, the
 two-tier source-system fallback, the AWS-relationship decode substitution
 in both directions, and the moved Dockerfile-tombstone case).

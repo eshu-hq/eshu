@@ -150,7 +150,7 @@
   `factschema_decode.go` against `sdk/go/factschema`. Root's
   `decodeCodeFunctionSummary` and `decodeCodeDataflowScanned` wrappers had this
   builder as their only caller, so they moved out entirely with the
-  extraction (the `containerimageidentity` precedent) rather than staying
+  extraction (the `identity` precedent) rather than staying
   behind like the shared `aws_resource` decode siblings. The payload's
   `repo_id` is a two-step best effort — the winning trigger's own decode
   first, then the marker's `repo_id` as fallback when both facts are present
@@ -202,7 +202,7 @@
   so the whole file stayed at root, renamed
   `ci_cd_run_correlation_projection_test.go`.
 - **Container-image-identity family (#6057)** — the
-  `container_image_identity` builder lives in `containerimageidentity/` and
+  `container_image_identity` builder lives in `container/image/identity/` and
   consumes the lookup like the families above. It is decode-seam-bearing:
   its `aws_relationship` branch decodes optional `TargetType` through its own
   `factschema_decode_aws.go`, triggering only on `"container_image"`; every

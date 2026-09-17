@@ -239,7 +239,7 @@ generation. `inputFacts` is immutable once a scope generation is claimed for
 projection, so sharing one read-only index across all 44 probes is
 concurrency-safe. Probes that pick their anchor fact from more than one
 candidate kind (e.g. `impact.BuildSupplyChainImpactReducerIntent`,
-`containerimageidentity.BuildContainerImageIdentityReducerIntent`) use the index's
+`identity.BuildContainerImageIdentityReducerIntent`) use the index's
 `firstAcrossKinds` helper or the seam's `FirstMatchingKindPredicate`, which preserve the
 exact same "earliest fact in original `inputFacts` order" anchor selection the
 old full scan made — not "earliest fact of the first-checked kind" — so anchor
@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/aws/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/iamcanassume`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/service/catalog`, `internal/projector/secretsiam`, `internal/projector/observability/coverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicd/run/correlation`, `internal/projector/containerimageidentity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplanesatisfiedby`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
+`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/iamcanassume`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/service/catalog`, `internal/projector/secretsiam`, `internal/projector/observability/coverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplanesatisfiedby`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
 families import that neutral lookup (semanticentity does not: it is per-fact);
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -279,7 +279,7 @@ Container-image identity follows the same handoff rule: when a generation
 contains OCI digest/tag/referrer facts, AWS, Azure, or GCP image-reference facts,
 AWS container-image relationships, Git content-entity image references, or
 static `ci.workflow_image_evidence`,
-`containerimageidentity.BuildContainerImageIdentityReducerIntent` ([architecture](containerimageidentity/README.md)) emits one
+`identity.BuildContainerImageIdentityReducerIntent` ([architecture](container/image/identity/README.md)) emits one
 `container_image_identity` reducer intent for that scope/generation. The
 projector still does not join images to workloads or runtime evidence; the
 reducer owns digest-first admission after source-local projection succeeds.

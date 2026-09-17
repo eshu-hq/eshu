@@ -40,7 +40,7 @@ import (
 // What this mapping does NOT capture: container_image_identity intents are also
 // enqueued in aws, azure, gcp, git, and sbom_attestation scopes (see
 // candidateFactKinds in
-// internal/projector/containerimageidentity/identity_intents.go), so identity
+// internal/projector/container/image/identity/intents.go), so identity
 // output can be published by a scope this map does not name. The floor does
 // not wait for those.
 //
