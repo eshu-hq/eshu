@@ -32,9 +32,9 @@ No-Regression Evidence: this move relocates the `instance/profile` builder
 changing trigger selection, intent values, or root fan-out order.
 Base: `6abf61fe4`. Backend: not applicable; proof is in-process
 (`go build ./...`, `go vet`, `go test ./internal/projector/...`
-`./internal/mcp/... -count=1`). Census: both builders consume AWS-only fact
-kinds (`AWSIAMPermissionFactKind`, and `AWSResourceFactKind` filtered to
-`resource_type aws_iam_instance_profile`), zero GCP/Azure references.
+`./internal/mcp/... -count=1`). Census: this builder consumes only the
+AWS-only `AWSResourceFactKind` filtered to
+`resource_type aws_iam_instance_profile`, zero GCP/Azure references.
 
 No-Observability-Change: this namespace package has no runtime
 implementation. Existing projector enqueue/run metrics, reducer execution

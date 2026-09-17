@@ -43,8 +43,8 @@ retain their existing ownership.
 
 ## Related docs
 
-- `go/internal/projector/README.md`
-- `docs/internal/design/naming-remediation.md`
+- [Projector architecture](../../README.md)
+- [Naming remediation](../../../../../docs/internal/design/naming-remediation.md)
 
 ### Move record (#6627)
 
