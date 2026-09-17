@@ -145,3 +145,28 @@ across rebuilds (pre-existing tie-break behavior, out of scope for the
 acceptance corpus which has no duplicate workloads; noted as a
 follow-up for the owner, not fixed here). Logs:
 `~/tmp/e6184/run19-scale-gate.log`, `run18-scale-gate.log`.
+
+No-Regression Evidence (graph rebuild writes): baseline 82-83 s clean
+rebuild on runs 11-15 (67 scopes, 6369 facts, pinned v1.3.3 digest
+above); after the writer split, 83 s on run17 at normal load (run16
+88 s under ~3x machine load average 7.10 vs 2.16) and 144 s on the 3x
+corpus (201 scopes, 19107 facts) — sublinear. Terminal state for every
+acceptance run: two consecutive all-queues-zero checks (fact work items
+plus open shared-projection intents) followed by 0/0 node and edge
+identity verdicts on clean and interrupted rebuilds. Safe because no
+Cypher text changed (templates byte-identical): only execution grouping
+changed (artifact batches run sequentially after the main group
+commits), batch sizes and retryable-error/intent-reopen semantics are
+unchanged, and the KustomizeOverlayResolver wiring from the earlier
+branch commit is covered by the same runs 11-17 gate greens.
+
+Observability Evidence: artifact batches emit the existing `shared
+edge write completed` log with a new log-only `execution_mode`
+value `artifact-sequential`, carrying the same per-batch
+input/accepted/skipped/executed/route-count fields as the `group`
+entry, so an operator can tell grouped mains from sequential artifact
+writes per claim; the legs guard from `786dcdf8d` logs a WARN with
+domain/partition/sample ids plus the `SharedEdgeTargetMiss` counter on
+every deferred batch. No new metrics, spans, or dashboards; no
+telemetry coverage doc change needed (no execution-mode enumeration
+exists there).
