@@ -32,7 +32,7 @@ import (
 	projectorsbomattestation "github.com/eshu-hq/eshu/go/internal/projector/sbomattestation"
 	projectorsecretsiam "github.com/eshu-hq/eshu/go/internal/projector/secretsiam"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
-	projectorservicecatalog "github.com/eshu-hq/eshu/go/internal/projector/servicecatalog"
+	"github.com/eshu-hq/eshu/go/internal/projector/service/catalog"
 	projectorsupplychainimpact "github.com/eshu-hq/eshu/go/internal/projector/supplychainimpact"
 	workload "github.com/eshu-hq/eshu/go/internal/projector/workload/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -157,7 +157,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorsbomattestation.BuildSBOMAttestationAttachmentReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorservicecatalog.BuildServiceCatalogCorrelationReducerIntent(scopeValue, generation, index.lookup); ok {
+	if intent, ok := catalog.BuildServiceCatalogCorrelationReducerIntent(scopeValue, generation, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorsecretsiam.BuildSecretsIAMTrustChainReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

@@ -11,8 +11,8 @@ the already shipped `service_catalog_correlation` reducer domain consumes.
 This package is the pure **normalizer** side. The Git collector calls it while
 streaming recognized repo-hosted descriptor files, and fixture tests can call it
 directly. The consumer half — projector intent
-(`servicecatalog.BuildServiceCatalogCorrelationReducerIntent` under
-`go/internal/projector/servicecatalog/`), reducer handler/writer
+(`catalog.BuildServiceCatalogCorrelationReducerIntent` under
+`go/internal/projector/service/catalog/`), reducer handler/writer
 (`ServiceCatalogCorrelationHandler`), query store
 (`ListServiceCatalogCorrelations`), the `list_service_catalog_correlations` MCP
 tool, and the `ServiceCatalogCorrelations` telemetry counter — already ships and

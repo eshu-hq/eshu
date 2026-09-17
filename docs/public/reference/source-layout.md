@@ -106,7 +106,7 @@ live in the repository today.
 | `go/internal/projector/secretsiam/` | secrets/IAM trust-chain reducer-intent family builder |
 | `go/internal/projector/sbomattestation/` | SBOM-attestation-attachment reducer-intent family builder |
 | `go/internal/projector/security/` | security-alert reconciliation and AWS security-group reducer-intent family builders |
-| `go/internal/projector/servicecatalog/` | service-catalog-correlation reducer-intent family builder |
+| `go/internal/projector/service/catalog/` | service-catalog-correlation reducer-intent family builder |
 | `go/internal/projector/supplychainimpact/` | supply-chain-impact reducer-intent family builder |
 | `go/internal/projector/workload/cloud/` | workload-cloud-relationship reducer-intent family builder |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |

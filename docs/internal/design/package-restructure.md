@@ -775,7 +775,7 @@ was body-identical to `projectorintent.SourceSystem`, so it was dropped
 rather than moved. The `packageIdentityEnvelope` test fixture stays at root
 because the fan-out and supply-chain-impact tests still build on it.
 The service-catalog-correlation builder moved into
-`internal/projector/servicecatalog`. It triggers on any fact kind the
+`internal/projector/service/catalog`. It triggers on any fact kind the
 `facts.ServiceCatalogSchemaVersion` registry recognizes, anchoring with
 `FirstMatchingKindPredicate` on the earliest such fact in input order, and
 carries no decode seam. Its private `serviceCatalogCorrelationSourceSystem`

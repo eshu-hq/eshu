@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package servicecatalog builds the service-catalog-correlation reducer
+// Package catalog builds the service-catalog-correlation reducer
 // intent from one immutable scope generation: when the generation carries at
 // least one fact whose kind the central service-catalog schema registry
 // recognizes (entity, ownership, repository link, dependency, API link,
@@ -21,4 +21,4 @@
 // correlation decision and write. Root projector assembly owns lookup
 // construction and lifetime, invocation order, queue writes, retries, and
 // telemetry.
-package servicecatalog
+package catalog

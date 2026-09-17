@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/aws/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/iamcanassume`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, `internal/projector/observability/coverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicd/run/correlation`, `internal/projector/containerimageidentity`, `internal/projector/supplychainimpact`, `internal/projector/crossplanesatisfiedby`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
+`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/iamcanassume`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/service/catalog`, `internal/projector/secretsiam`, `internal/projector/observability/coverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicd/run/correlation`, `internal/projector/containerimageidentity`, `internal/projector/supplychainimpact`, `internal/projector/crossplanesatisfiedby`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
 families import that neutral lookup (semanticentity does not: it is per-fact);
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -307,7 +307,7 @@ admission after source-local document projection succeeds.
 Service-catalog facts follow the same schema-gated handoff. When a generation
 contains service-catalog entity, ownership, repository-link, dependency, API,
 operational-link, scorecard, or warning facts,
-`servicecatalog.BuildServiceCatalogCorrelationReducerIntent` emits one
+`catalog.BuildServiceCatalogCorrelationReducerIntent` emits one
 `service_catalog_correlation` reducer intent for that scope/generation. The
 projector rejects unsupported service-catalog schema versions during projection
 so stale collector payloads cannot silently reach the reducer.

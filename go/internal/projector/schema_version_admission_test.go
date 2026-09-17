@@ -13,7 +13,7 @@ import (
 // TestBuildProjectionRejectsUnsupportedServiceCatalogSchemaVersion pins the
 // root schema-version gate for the service-catalog family: an unsupported
 // service_catalog.entity schema_version fails projection before the
-// servicecatalog builder ever sees the generation. It lives at root because
+// service/catalog builder ever sees the generation. It lives at root because
 // validateFactSchemaVersion is root behavior, not the child builder's.
 func TestBuildProjectionRejectsUnsupportedServiceCatalogSchemaVersion(t *testing.T) {
 	t.Parallel()

@@ -91,14 +91,29 @@ so it moved with the family unchanged rather than being swapped; the root
 is behavior-identical by construction, and the forwarder stays at root for the
 three root probes that still call it. Focused proof, run from the `go/` module
 root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildServiceCatalogCorrelationReducerIntent' -- ./internal/projector/servicecatalog -count=1`
+`../scripts/go-test-run-guard.sh 1 'TestBuildServiceCatalogCorrelationReducerIntent' -- ./internal/projector/service/catalog -count=1`
 and `go test ./internal/projector/... -count=1` green, whole-module `go build`
 and `go vet` clean.
 
+### Move record (#6627)
+
+No-Regression Evidence (#6627 service nesting): base `cef5e2506`,
+backend go1.27.1 darwin/arm64; whole-module build exit 0, vet clean,
+recursive projector tests green, moved tests green in the new path, B-12
+replay reported 437/437 PASS in the move lane with CI required-gates as the
+blocking authority. B-7 golden-corpus gate was not run locally: the Docker
+daemon is unreachable (socket EOF), so CI is the blocking authority there.
+Same code path on the same input shape before and after; rename-only, so no
+benchmark delta exists to measure.
+
+No-Observability-Change (#6627 service nesting): no stage added and no
+metric, span, or log name changed; the covering instruments named in this
+section are unchanged.
+
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Service-catalog collector](../../collector/servicecatalog/README.md)
-- [Reducer domain catalog](../../reducer/domain-catalog.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [Service-catalog collector](../../../collector/servicecatalog/README.md)
+- [Reducer domain catalog](../../../reducer/domain-catalog.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)
