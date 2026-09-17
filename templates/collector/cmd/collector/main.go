@@ -43,6 +43,9 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
+	if *maxRecords < 0 || *maxPayloadBytes < 0 || *claimTimeoutSeconds < 0 {
+		return fmt.Errorf("limits must be non-negative (0 selects defaults)")
+	}
 	limits := collector.DefaultResourceUse()
 	if *maxRecords > 0 {
 		limits.MaxRecordsPerClaim = *maxRecords
@@ -53,6 +56,11 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 	if *claimTimeoutSeconds > 0 {
 		limits.ClaimTimeoutSeconds = *claimTimeoutSeconds
 	}
+	// The health monitor is the operator signal behind health.go: every
+	// outcome below is observed, and the snapshot line on stderr carries
+	// liveness, freshness, failure, and retry state. Adopters graduate this
+	// to their logs/metrics/status endpoint; the shape stays the same.
+	monitor := collector.NewMonitor()
 	var result sdk.Result
 	var err error
 	if *sdkStdio {
@@ -61,11 +69,40 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 		result, err = collectLocalFlags(*inputPath, *sourceURI, *previousDigest, limits)
 	}
 	if err != nil {
+		monitor.ObserveFailure(firstLine(err.Error()))
+		health, resource := monitor.Snapshot()
+		logHealth(stderr, health, resource)
 		return err
 	}
+	digest := ""
+	for _, fact := range result.Facts {
+		if fact.Kind == collector.FactKindSnapshot {
+			digest = fact.StableKey
+		}
+	}
+	monitor.ObserveSuccess(digest, time.Now().UTC())
+	health, resource := monitor.Snapshot()
+	logHealth(stderr, health, resource)
 	encoder := json.NewEncoder(stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(result)
+}
+
+func firstLine(message string) string {
+	if i := strings.IndexByte(message, '\n'); i >= 0 {
+		return message[:i]
+	}
+	return message
+}
+
+func logHealth(stderr io.Writer, health collector.Health, resource collector.ResourceUse) {
+	// Error and digest strings here never carry credentials: collection
+	// errors never echo URIs or payloads, and digests are opaque hashes.
+	line, err := json.Marshal(map[string]any{"health": health, "resource": resource})
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(stderr, "collector health: %s\n", line)
 }
 
 func collectLocalFlags(inputPath, sourceURI, previousDigest string, limits collector.ResourceUse) (sdk.Result, error) {

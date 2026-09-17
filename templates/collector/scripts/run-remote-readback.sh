@@ -20,12 +20,14 @@ cd "$(dirname "$0")/.."
 : "${CORE_API_READ_URL_TEMPLATE:?CORE_API_READ_URL_TEMPLATE is not set: remote proof not performed}"
 : "${CORE_MCP_READ_COMMAND:?CORE_MCP_READ_COMMAND is not set: remote proof not performed}"
 
-go run ./cmd/collector --input ./testdata/complete.json > /tmp/template-result.json
+result_file="$(mktemp /tmp/template-result.XXXXXX.json)"
+trap 'rm -f "$result_file"' EXIT
+go run ./cmd/collector --input ./testdata/complete.json > "$result_file"
 echo "Submitting claim..."
 curl -sS -f -X POST -H 'Content-Type: application/json' \
-  --data @/tmp/template-result.json "$CORE_SUBMIT_URL" > /dev/null
+  --data @"$result_file" "$CORE_SUBMIT_URL" > /dev/null
 
-mapfile -t KEYS < <(python3 -c "import json;print('\n'.join(f['stable_key'] for f in json.load(open('/tmp/template-result.json'))['facts']))")
+mapfile -t KEYS < <(python3 -c "import json,sys;print('\n'.join(f['stable_key'] for f in json.load(open(sys.argv[1]))['facts']))" "$result_file")
 if [ "${#KEYS[@]}" -eq 0 ]; then
   echo "readback FAILED: collector emitted no facts" >&2
   exit 1

@@ -269,6 +269,36 @@ func TestRetryAndPartial(t *testing.T) {
 	}
 }
 
+// TestSnapshotPayloadBound proves an unbounded source string cannot slip
+// past the payload budget inside the snapshot fact.
+func TestSnapshotPayloadBound(t *testing.T) {
+	t.Parallel()
+
+	report := mustLoadReport(t, "complete.json")
+	report.Source = strings.Repeat("s", 70000)
+	result, err := Collect(testClaim(), report, CollectOptions{
+		ObservedAt: testObservedAt(),
+		SourceURI:  "https://example.invalid/source/template",
+	})
+	if err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if result.State != sdk.ResultTerminal {
+		t.Fatalf("State = %q, want terminal for snapshot-budget breach", result.State)
+	}
+}
+
+// TestLoadReportRefusesOversizedInput proves source documents past the read
+// cap fail instead of decoding unbounded input.
+func TestLoadReportRefusesOversizedInput(t *testing.T) {
+	t.Parallel()
+
+	oversized := strings.NewReader(`{"source":"x","records":[` + strings.Repeat(" ", maxReportBytes+1) + `]}`)
+	if _, err := LoadReport(oversized); err == nil {
+		t.Fatal("LoadReport(oversized) error = nil, want failure")
+	}
+}
+
 func testObservedAt() time.Time {
 	return time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
 }

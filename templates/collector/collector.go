@@ -94,10 +94,21 @@ func Contract() sdk.Contract {
 	}
 }
 
+// maxReportBytes caps one source document. Reads past the cap fail instead
+// of decoding unbounded input; emission bounds below still gate every fact.
+const maxReportBytes = 32 << 20
+
 // LoadReport decodes one placeholder source document.
 func LoadReport(r io.Reader) (Report, error) {
+	raw, err := io.ReadAll(io.LimitReader(r, maxReportBytes+1))
+	if err != nil {
+		return Report{}, fmt.Errorf("read report: %w", err)
+	}
+	if len(raw) > maxReportBytes {
+		return Report{}, fmt.Errorf("source document exceeds %d bytes", maxReportBytes)
+	}
 	var report Report
-	if err := json.NewDecoder(r).Decode(&report); err != nil {
+	if err := json.Unmarshal(raw, &report); err != nil {
 		return Report{}, fmt.Errorf("decode report: %w", err)
 	}
 	return report, nil
@@ -209,6 +220,10 @@ func Collect(claim sdk.Claim, report Report, opts CollectOptions) (sdk.Result, e
 			Redactions: factRedactions,
 		})
 	}
+	snapshotPayload := map[string]any{"source": report.Source, "record_count": len(seen)}
+	if encoded, err := json.Marshal(snapshotPayload); err != nil || len(encoded) > limits.MaxPayloadBytes {
+		return terminalResult(claim, observedAt, "payload-budget-exceeded"), nil
+	}
 	snapshotKey := "snapshot:" + Digest(report)
 	facts = append(facts, sdk.Fact{
 		Kind:             FactKindSnapshot,
@@ -224,7 +239,7 @@ func Collect(claim sdk.Claim, report Report, opts CollectOptions) (sdk.Result, e
 			URI:          opts.SourceURI,
 			RecordID:     "snapshot",
 		},
-		Payload: map[string]any{"source": report.Source, "record_count": len(seen)},
+		Payload: snapshotPayload,
 	})
 	return sdk.Result{
 		ProtocolVersion: sdk.ProtocolVersionV1Alpha1,

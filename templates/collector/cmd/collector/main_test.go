@@ -4,6 +4,8 @@
 package main
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	collector "github.com/eshu-hq/eshu-collector-template"
@@ -29,6 +31,18 @@ func TestNestedOptionalStringSeparatesMissingFromMalformed(t *testing.T) {
 	}, "source", "sourceURI")
 	if err != nil || !present || value != "https://example.invalid/x" {
 		t.Fatalf("valid key = (%q, %v, %v), want value/present/nil", value, present, err)
+	}
+}
+
+// TestNegativeLimitFlagsFailClosed proves negative CLI limits fail instead
+// of silently selecting defaults, matching the config-file posture.
+func TestNegativeLimitFlagsFailClosed(t *testing.T) {
+	t.Parallel()
+
+	var stdout, stderr bytes.Buffer
+	err := run([]string{"--max-records", "-5"}, strings.NewReader(""), &stdout, &stderr)
+	if err == nil || !strings.Contains(err.Error(), "non-negative") {
+		t.Fatalf("run(negative flag) error = %v, want non-negative rejection", err)
 	}
 }
 
