@@ -179,7 +179,11 @@ var pipefailSetRE = regexp.MustCompile(`^set\s+([-+])[a-zA-Z]*o\s+pipefail\b`)
 // they carry the failing command's own status. Measured on /bin/bash -e:
 // `false || exit 1` and `false || false` both exit 1, while `false || true`,
 // `false || echo x` and `false || exit 0` all exit 0.
-var rhsCannotSucceedRE = regexp.MustCompile(`^(false|(exit|return)(\s+[1-9][0-9]*)?)$`)
+//
+// The status argument is capped at 1-255 because a wait status is 8 bits:
+// `false || exit 512` exits 0 (measured), so treating 512 as "cannot
+// succeed" would be a false green in the direction that matters.
+var rhsCannotSucceedRE = regexp.MustCompile(`^(false|(exit|return)(\s+([1-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5]))?)$`)
 
 // commandSuppression describes how cmds[idx]'s own exit status is kept from
 // reaching the job, or "" when the status does reach it. shellPipefail is
@@ -200,8 +204,9 @@ var rhsCannotSucceedRE = regexp.MustCompile(`^(false|(exit|return)(\s+[1-9][0-9]
 //   - "&&" -- the RHS never runs and the list keeps the non-zero status.
 //   - "cmd; X" -- `-e` exits AT the failing cmd, so X never runs
 //     (`bash -e -c 'false; true'` exits 1). This holds only while `-e` is in
-//     effect; a `set +e` earlier in the block would change it, and this file
-//     does not track `set +e`. No workflow uses one.
+//     effect; a `set +e` earlier in the SAME run: block would change it, and
+//     this file does not track `set +e`. required-gates.yml uses one, but in
+//     a later step than its pre-warm, so none precedes a pre-warm today.
 //   - "|| exit 1", "|| false" -- an RHS that cannot exit 0.
 //
 // Known over-rejection: a brace or subshell group RHS (`|| { echo x; exit

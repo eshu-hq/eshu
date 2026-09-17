@@ -161,6 +161,9 @@ func TestCheckSetupGoPrewarmOrderingOrChainedPrewarmViolations(t *testing.T) {
 		// Quoted because a bare trailing ":" is a YAML key indicator and
 		// makes the fixture unparseable rather than unwarmed.
 		{"or-colon", `"scripts/ci/go-mod-download-retry.sh go || :"`},
+		// A wait status is 8 bits, so `exit 512` exits 0. Measured:
+		// `bash -e -c 'false || exit 512'` exits 0.
+		{"or-exit-wraps-to-zero", `scripts/ci/go-mod-download-retry.sh go || exit 512`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
