@@ -31,6 +31,10 @@ const (
 	MetricDimensionSourceSystem  = "source_system"
 	MetricDimensionCollectorKind = "collector_kind"
 	MetricDimensionDomain        = "domain"
+	// MetricDimensionExecutionMode labels shared-edge write instruments
+	// with the closed execution-mode set ("group", "artifact-sequential").
+	// Producers must never use raw statement text or row data here.
+	MetricDimensionExecutionMode = "execution_mode"
 	MetricDimensionPartitionKey  = "partition_key"
 	// MetricDimensionPartitionID labels per-(domain, partition) shared-projection
 	// histograms with the numeric partition slot (0-based, bounded by

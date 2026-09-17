@@ -818,6 +818,9 @@ func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args
 	case strings.Contains(query, "FROM relationship_assertions"):
 		return db.queryAssertions(func(_ assertionRecord) bool { return true }), nil
 
+	case strings.Contains(query, "SELECT s.scope_id"):
+		return newRelationshipRows(db.incompleteActiveScopeRows()), nil
+
 	case strings.Contains(query, "FROM ingestion_scopes"):
 		return newRelationshipRows([][]any{{db.activeScopeGenerationsComplete()}}), nil
 
@@ -886,6 +889,46 @@ func (db *relationshipTestDB) activeScopeGenerationsComplete() bool {
 		}
 	}
 	return true
+}
+
+// incompleteActiveScopeRows lists the fake scopes holding the completeness
+// gate with the same per-scope predicate as activeScopeGenerationsComplete,
+// sorted for stable assertions (mirrors the listing query's ORDER BY).
+func (db *relationshipTestDB) incompleteActiveScopeRows() [][]any {
+	var ids []string
+	for scopeID, scope := range db.scopes {
+		if scope.status != "active" {
+			continue
+		}
+		hasRow := false
+		rowActive := false
+		for generationID, gen := range db.generations {
+			if gen.scope == scopeID && generationID == scope.activeGenerationID {
+				hasRow = true
+				rowActive = gen.status == "active"
+				break
+			}
+		}
+		if hasRow {
+			if !rowActive {
+				ids = append(ids, scopeID)
+			}
+			continue
+		}
+		for _, item := range db.workItems {
+			if item.scopeID == scopeID && item.stage == "reducer" &&
+				item.domain == "deployment_mapping" && liveWorkItemStatus(item.status) {
+				ids = append(ids, scopeID)
+				break
+			}
+		}
+	}
+	sort.Strings(ids)
+	rows := make([][]any, 0, len(ids))
+	for _, id := range ids {
+		rows = append(rows, []any{id})
+	}
+	return rows
 }
 
 func (db *relationshipTestDB) queryAssertions(filter func(assertionRecord) bool) *relationshipRows {

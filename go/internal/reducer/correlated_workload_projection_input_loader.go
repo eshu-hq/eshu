@@ -54,14 +54,36 @@ const WorkloadMaterializationResolutionNotReadyFailureClass = "workload_material
 type workloadMaterializationResolutionNotReadyError struct {
 	scopeID      string
 	generationID string
+	// cause carries the fence lookup failure when the deferral is outage
+	// driven rather than backpressure driven; nil for a genuinely
+	// incomplete corpus fence (#6730: a swallowed lookup error reads
+	// exactly like healthy backpressure at 3 AM).
+	cause error
+	// holdingScopeIDs names the scopes holding the corpus fence, best
+	// effort; empty when the holder lookup is unwired or failed.
+	holdingScopeIDs []string
 }
 
 func (e workloadMaterializationResolutionNotReadyError) Error() string {
-	return fmt.Sprintf(
+	msg := fmt.Sprintf(
 		"cross-repo resolution not active for scope %s generation %s; deferring workload projection inputs rather than materializing against a partial resolved set",
 		e.scopeID,
 		e.generationID,
 	)
+	if e.cause != nil {
+		msg += fmt.Sprintf("; corpus fence lookup failed: %v", e.cause)
+	}
+	if len(e.holdingScopeIDs) > 0 {
+		msg += fmt.Sprintf("; holding scopes: %s", strings.Join(e.holdingScopeIDs, ","))
+	}
+	return msg
+}
+
+// Unwrap exposes the fence lookup failure to errors.Is/As without changing
+// the retryable failure class: the cause travels for logs, the class travels
+// for the queue.
+func (e workloadMaterializationResolutionNotReadyError) Unwrap() error {
+	return e.cause
 }
 
 func (workloadMaterializationResolutionNotReadyError) Retryable() bool { return true }
@@ -88,6 +110,10 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 	// foreign scopes the own-generation check cannot see (#6184). Nil keeps
 	// the gate open for test wiring; main.go wires the Postgres lookup here.
 	ResolutionsCompleteLookup maintenance.RelationshipGenerationsCompleteLookup
+	// IncompleteScopesLookup best-effort names the scopes holding the fence
+	// on a deferral, so the error is actionable instead of opaque (#6730).
+	// Nil-safe: a nil lookup or a lookup error simply omits the holder list.
+	IncompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup
 }
 
 // LoadWorkloadProjectionInputs loads workload candidates, enriches them with
@@ -127,11 +153,22 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 	}
 	// The own-scope check cannot see foreign scopes, whose retired-or-pending
 	// generations would feed the by-repos read below a partial set. Defer on
-	// the corpus-wide fence with the same non-counting retry class.
-	if !corpusResolutionsComplete(l.ResolutionsCompleteLookup, candidates) {
+	// the corpus-wide fence with the same non-counting retry class; a fence
+	// lookup failure travels on the deferral so an outage never reads as
+	// healthy backpressure (#6730).
+	fenceReady, fenceErr := corpusResolutionsComplete(ctx, l.ResolutionsCompleteLookup, candidates)
+	if fenceErr != nil {
 		return nil, nil, workloadMaterializationResolutionNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
+			cause:        fenceErr,
+		}
+	}
+	if !fenceReady {
+		return nil, nil, workloadMaterializationResolutionNotReadyError{
+			scopeID:         intent.ScopeID,
+			generationID:    intent.GenerationID,
+			holdingScopeIDs: maintenance.IncompleteScopeIDs(ctx, l.IncompleteScopesLookup),
 		}
 	}
 	if l.ResolvedLoader != nil {
@@ -142,6 +179,30 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 		candidates = applyResolvedDeploymentSources(candidates, resolved)
 		logDeploymentSourceGuardStats(ctx, string(intent.Domain), intent.ScopeID, intent.GenerationID, resolved)
 		candidates = applyResolvedProvisioningSources(candidates, resolved)
+		// Re-evaluate the corpus fence after the foreign read (#6730 Codex
+		// P1): the pre-read fence and this read are separate queries, so a
+		// scope that advances its active generation mid-pass would otherwise
+		// leave this pass succeeding on a mixed-corpus input that is never
+		// reopened. Success now requires the fence to hold across the whole
+		// pass. Residual window: a full advance-and-complete cycle inside one
+		// pass still needs snapshot isolation across fence and read — a store
+		// interface change the owner has not approved — so that narrower
+		// shape stays documented here rather than silently accepted.
+		fenceStillReady, fenceRecheckErr := corpusResolutionsComplete(ctx, l.ResolutionsCompleteLookup, candidates)
+		if fenceRecheckErr != nil {
+			return nil, nil, workloadMaterializationResolutionNotReadyError{
+				scopeID:      intent.ScopeID,
+				generationID: intent.GenerationID,
+				cause:        fenceRecheckErr,
+			}
+		}
+		if !fenceStillReady {
+			return nil, nil, workloadMaterializationResolutionNotReadyError{
+				scopeID:         intent.ScopeID,
+				generationID:    intent.GenerationID,
+				holdingScopeIDs: maintenance.IncompleteScopeIDs(ctx, l.IncompleteScopesLookup),
+			}
+		}
 	}
 
 	if l.ScopeResolver != nil {
@@ -408,15 +469,19 @@ func ownResolutionGenerationReady(
 // and do not wait on work they do not consume. A nil lookup keeps the gate
 // open for test wiring; a lookup error fails safe as incomplete.
 func corpusResolutionsComplete(
+	ctx context.Context,
 	lookup maintenance.RelationshipGenerationsCompleteLookup,
 	candidates []WorkloadCandidate,
-) bool {
+) (bool, error) {
 	if len(candidates) == 0 {
-		return true
+		return true, nil
 	}
 	if lookup == nil {
-		return true
+		return true, nil
 	}
-	complete, err := lookup()
-	return err == nil && complete
+	complete, err := lookup(ctx)
+	if err != nil {
+		return false, err
+	}
+	return complete, nil
 }

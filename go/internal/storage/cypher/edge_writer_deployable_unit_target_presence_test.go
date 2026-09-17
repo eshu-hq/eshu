@@ -119,3 +119,57 @@ func TestEdgeWriterWriteEdgesDeployableUnitTargetPresentProceeds(t *testing.T) {
 		t.Fatal("expected the edge write to run when all targets are present")
 	}
 }
+
+// distinctDeployableUnitRows builds n DU rows with pairwise-distinct
+// source and deployment repos so no probe deduplication collapses them.
+func distinctDeployableUnitRows(n int) []reducer.SharedProjectionIntentRow {
+	rows := make([]reducer.SharedProjectionIntentRow, 0, n)
+	for i := 0; i < n; i++ {
+		rows = append(rows, reducer.SharedProjectionIntentRow{
+			IntentID:     "i-du-chunk",
+			RepositoryID: "repo-src",
+			GenerationID: "gen-1",
+			Payload: map[string]any{
+				"repo_id":             "repo-src",
+				"deployment_repo_id":  "repo-deploy-chunk",
+				"deployable_unit_key": "du-chunk",
+				"correlation_key":     "corr-chunk",
+				"confidence":          0.9,
+				"reason":              "test",
+			},
+		})
+		// Vary the deployment repo per row; the source repo stays shared
+		// (one MATCH) while each deployment repo adds one MATCH clause.
+		rows[i].Payload["deployment_repo_id"] = "repo-deploy-" + string(rune('a'+i))
+	}
+	return rows
+}
+
+// TestEdgeWriterDeployableUnitProbeChunksPerWriteBatch pins the #6730 owner
+// finding: one existence probe must cover at most one write batch worth of
+// rows, so a 10k-row drain cannot build an unbounded MATCH chain the
+// backend never proved. With BatchSize 2 and 3 distinct-target rows, the
+// guard must probe twice (2+1) instead of once.
+func TestEdgeWriterDeployableUnitProbeChunksPerWriteBatch(t *testing.T) {
+	t.Parallel()
+
+	executor := &targetMissProbeExecutor{probeAllPresent: true}
+	writer := NewEdgeWriter(executor, 2)
+
+	rows := distinctDeployableUnitRows(3)
+	if _, err := writer.WriteEdges(
+		context.Background(), reducer.DomainDeployableUnitEdges,
+		rows,
+		"reducer/deployable-unit-correlation",
+	); err != nil {
+		t.Fatalf("WriteEdges() with all targets present error = %v", err)
+	}
+	if executor.probeCalls != 2 {
+		t.Fatalf("probe calls = %d, want 2 (chunks of 2+1 at BatchSize 2)", executor.probeCalls)
+	}
+	for i, stmt := range executor.probeStmts {
+		if got := strings.Count(stmt.Cypher, "MATCH "); got > 3 {
+			t.Fatalf("probe %d has %d MATCH clauses, want at most 3 (one write batch of 2 rows: shared source + 2 targets)", i, got)
+		}
+	}
+}

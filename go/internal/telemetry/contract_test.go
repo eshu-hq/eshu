@@ -22,6 +22,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"target_kind",
 		"limit_kind",
 		"domain",
+		"execution_mode",
 		"partition_key",
 		"partition_id",
 		"runner",

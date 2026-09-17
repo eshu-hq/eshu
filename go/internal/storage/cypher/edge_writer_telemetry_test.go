@@ -322,7 +322,7 @@ func TestEdgeWriterWriteEdgesInheritanceRecordsSharedGroupTelemetry(t *testing.T
 		t.Fatalf("Collect() error = %v", err)
 	}
 
-	wantAttrs := map[string]string{"domain": reducer.DomainInheritanceEdges}
+	wantAttrs := map[string]string{"domain": reducer.DomainInheritanceEdges, "execution_mode": "group"}
 	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_write_groups_total", wantAttrs, 2)
 	assertFloat64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_duration_seconds", wantAttrs, 2)
 	assertInt64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_statement_count", wantAttrs, 2)
@@ -357,7 +357,7 @@ func TestEdgeWriterWriteEdgesRepoDependencyRecordsSharedGroupTelemetry(t *testin
 		t.Fatalf("Collect() error = %v", err)
 	}
 
-	wantAttrs := map[string]string{"domain": reducer.DomainRepoDependency}
+	wantAttrs := map[string]string{"domain": reducer.DomainRepoDependency, "execution_mode": "group"}
 	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_write_groups_total", wantAttrs, 1)
 	assertFloat64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_duration_seconds", wantAttrs, 1)
 	assertInt64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_statement_count", wantAttrs, 1)
@@ -487,4 +487,118 @@ func attributesMatch(attrs attribute.Set, want map[string]string) bool {
 		}
 	}
 	return true
+}
+
+// TestEdgeWriterArtifactPhaseLogsOneSummaryEntry pins the #6730 owner
+// finding: one claim with k artifact statements must emit ONE
+// artifact-sequential log entry, not k entries each carrying the full
+// claim's input_intents — anyone summing input_intents across
+// artifact-sequential entries overcounts k×. BatchSize 1 forces the two
+// derived artifact rows into two statements.
+func TestEdgeWriterArtifactPhaseLogsOneSummaryEntry(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	executor := &recordingGroupExecutor{}
+	writer := NewEdgeWriter(executor, 1)
+	writer.Logger = logger
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			GenerationID: "gen-a",
+			Payload: map[string]any{
+				"repo_id":           "repo-a",
+				"target_repo_id":    "repo-b",
+				"relationship_type": "DEPENDS_ON",
+				"resolved_id":       "resolved-a",
+				"evidence_artifacts": []map[string]any{
+					{"evidence_kind": "manifest", "path": "package.json", "matched_value": "repo-b"},
+					{"evidence_kind": "workflow", "path": ".github/workflows/build.yml", "matched_value": "repo-b"},
+				},
+			},
+		},
+	}
+
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+		t.Fatalf("WriteEdges() error = %v", err)
+	}
+
+	var artifactEntries []map[string]any
+	for _, line := range bytes.Split(bytes.TrimSpace(logs.Bytes()), []byte("\n")) {
+		var entry map[string]any
+		if err := json.Unmarshal(line, &entry); err != nil {
+			t.Fatalf("unmarshal log entry: %v\nlogs:\n%s", err, logs.String())
+		}
+		if entry["execution_mode"] == "artifact-sequential" {
+			artifactEntries = append(artifactEntries, entry)
+		}
+	}
+	if len(artifactEntries) != 1 {
+		t.Fatalf("artifact-sequential entries = %d, want 1 (one summary per claim, not one per statement)\nlogs:\n%s", len(artifactEntries), logs.String())
+	}
+	// The single summary still accounts the whole phase: both derived rows
+	// executed across both statements.
+	if got, want := artifactEntries[0]["executed_rows"], float64(2); got != want {
+		t.Fatalf("artifact executed_rows = %v, want %v", got, want)
+	}
+	if got, want := artifactEntries[0]["statement_count"], float64(2); got != want {
+		t.Fatalf("artifact statement_count = %v, want %v", got, want)
+	}
+}
+
+// TestEdgeWriterArtifactPhaseRecordsSharedGroupTelemetry pins the #6730
+// owner fix: the post-commit evidence-artifact phase records under the
+// grouped-write instruments with execution_mode="artifact-sequential", so the
+// instruments keep covering the whole repo_dependency write instead of
+// silently dropping the artifact phase.
+func TestEdgeWriterArtifactPhaseRecordsSharedGroupTelemetry(t *testing.T) {
+	t.Parallel()
+
+	metricReader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(metricReader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
+	executor := &recordingGroupExecutor{}
+	writer := NewEdgeWriter(executor, 1)
+	writer.Instruments = instruments
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{
+			IntentID:     "i1",
+			RepositoryID: "repo-a",
+			GenerationID: "gen-a",
+			Payload: map[string]any{
+				"repo_id":           "repo-a",
+				"target_repo_id":    "repo-b",
+				"relationship_type": "DEPENDS_ON",
+				"resolved_id":       "resolved-a",
+				"evidence_artifacts": []map[string]any{
+					{"evidence_kind": "manifest", "path": "package.json", "matched_value": "repo-b"},
+					{"evidence_kind": "workflow", "path": ".github/workflows/build.yml", "matched_value": "repo-b"},
+				},
+			},
+		},
+	}
+
+	if _, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads"); err != nil {
+		t.Fatalf("WriteEdges() error = %v", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := metricReader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_write_groups_total",
+		map[string]string{"domain": reducer.DomainRepoDependency, "execution_mode": "group"}, 1)
+	assertInt64CounterValue(t, rm, "eshu_dp_shared_edge_write_groups_total",
+		map[string]string{"domain": reducer.DomainRepoDependency, "execution_mode": "artifact-sequential"}, 1)
+	assertInt64HistogramCount(t, rm, "eshu_dp_shared_edge_write_group_statement_count",
+		map[string]string{"domain": reducer.DomainRepoDependency, "execution_mode": "artifact-sequential"}, 1)
 }

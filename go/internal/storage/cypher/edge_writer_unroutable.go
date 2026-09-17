@@ -184,6 +184,11 @@ func buildTargetPresenceProbeStatement(domain string, rows []map[string]any) (St
 	}
 	switch domain {
 	case reducer.DomainHandlesRoute:
+		// The write MATCHes both (f:Function {uid}) and (e:Endpoint
+		// {repo_id, path}); the probe anchors both, or a batch whose
+		// Function node is absent (post-wipe ordering vs content
+		// projection) passes the guard and completes a silent zero-edge
+		// write (#6730 owner finding).
 		for _, row := range rows {
 			repo, _ := row["repo_id"].(string)
 			path, _ := row["path"].(string)
@@ -193,6 +198,10 @@ func buildTargetPresenceProbeStatement(domain string, rows []map[string]any) (St
 			key := repo + "\x00" + path
 			emit(key, fmt.Sprintf("(e%d:Endpoint {repo_id: $r%d, path: $p%d})", clause, clause, clause),
 				fmt.Sprintf("r%d", clause), repo, fmt.Sprintf("p%d", clause), path)
+			if uid, _ := row["function_entity_id"].(string); uid != "" {
+				emit("f\x00"+uid, fmt.Sprintf("(f%d:Function {uid: $u%d})", clause, clause),
+					fmt.Sprintf("u%d", clause), uid)
+			}
 		}
 	case reducer.DomainRunsIn:
 		for _, row := range rows {
@@ -254,13 +263,38 @@ func (e *edgeTargetMissingError) Error() string {
 // Retryable opts the miss into bounded queue retries.
 func (e *edgeTargetMissingError) Retryable() bool { return true }
 
+// edgeTargetProbeError fails a batch whose target-existence probe could not
+// run. Retryable() keeps the rows queued on the same non-counting class as a
+// detected miss: writing unchecked would recreate the exact silent zero-edge
+// loss the guard exists to prevent whenever the probe fails (timeout or
+// rejection under load) while a target is actually absent (#6730 Codex P1).
+type edgeTargetProbeError struct {
+	domain         string
+	batchRows      int
+	sampleIntentID string
+	err            error
+}
+
+func (e *edgeTargetProbeError) Error() string {
+	return fmt.Sprintf(
+		"%s batch of %d row(s) target-existence probe failed (sample intent %q); deferring the unverified batch rather than writing unchecked: %v",
+		e.domain, e.batchRows, e.sampleIntentID, e.err,
+	)
+}
+
+// Retryable opts the probe failure into bounded queue retries.
+func (e *edgeTargetProbeError) Retryable() bool { return true }
+
+// Unwrap exposes the probe failure to errors.Is/As without changing the
+// retryable failure class.
+func (e *edgeTargetProbeError) Unwrap() error { return e.err }
+
 // checkBatchTargetsPresent probes one routed batch for runtime-target
 // completeness before its write statements run. It returns nil when the
-// domain is unguarded, the executor has no probe capability, the probe
-// itself fails (fail open on infrastructure faults), or every target is
-// present. A detected miss emits the operator signal and returns a
-// retryable error; the caller must run no write statement for the batch
-// afterwards.
+// domain is unguarded, the executor has no probe capability, or every target
+// is present. A probe failure or a detected miss emits the operator signal
+// and returns a retryable error; the caller must run no write statement for
+// the batch afterwards.
 func (w *EdgeWriter) checkBatchTargetsPresent(
 	ctx context.Context,
 	prober ProbeExecutor,
@@ -278,7 +312,7 @@ func (w *EdgeWriter) checkBatchTargetsPresent(
 	if err != nil {
 		if w.Logger != nil {
 			w.Logger.Warn(
-				"shared edge target probe failed, writing without verification",
+				"shared edge target probe failed, deferring unverified batch",
 				"domain", domain,
 				"evidence_source", evidenceSource,
 				"batch_rows", len(rows),
@@ -286,7 +320,12 @@ func (w *EdgeWriter) checkBatchTargetsPresent(
 				"error", err,
 			)
 		}
-		return nil
+		return &edgeTargetProbeError{
+			domain:         domain,
+			batchRows:      len(rows),
+			sampleIntentID: sampleIntentID,
+			err:            err,
+		}
 	}
 	if allPresent {
 		return nil
@@ -315,9 +354,14 @@ func (w *EdgeWriter) checkBatchTargetsPresent(
 }
 
 // checkRoutedBatchTargets runs the target-presence guard over every routed
-// group of one WriteEdges batch. The sample intent identifies the batch in
-// the log; per-group samples would cost an intent-id index through routing
-// for no operator benefit, so the batch head stands in for all groups.
+// group of one WriteEdges call, chunked at the same batch size the write
+// path uses (see EdgeWriter.batchSizeForDomain): one probe covers at most
+// one write batch worth of rows, so a large drain cannot build an unbounded
+// MATCH chain the backend never proved — the fence scales down with the
+// batch size (#6184 owner finding on PR #6730). The sample intent identifies
+// the batch in the log; per-group samples would cost an intent-id index
+// through routing for no operator benefit, so the batch head stands in for
+// all groups.
 func checkRoutedBatchTargets(
 	ctx context.Context,
 	w *EdgeWriter,
@@ -336,9 +380,23 @@ func checkRoutedBatchTargets(
 		sampleRepoID = rows[0].RepositoryID
 		sampleIntentID = rows[0].IntentID
 	}
+	bs := w.batchSizeForDomain(domain)
 	for _, cypher := range routeOrder {
-		if err := w.checkBatchTargetsPresent(ctx, prober, domain, evidenceSource, routedRows[cypher], sampleRepoID, sampleIntentID); err != nil {
-			return err
+		group := routedRows[cypher]
+		if bs <= 0 || bs >= len(group) {
+			if err := w.checkBatchTargetsPresent(ctx, prober, domain, evidenceSource, group, sampleRepoID, sampleIntentID); err != nil {
+				return err
+			}
+			continue
+		}
+		for start := 0; start < len(group); start += bs {
+			end := start + bs
+			if end > len(group) {
+				end = len(group)
+			}
+			if err := w.checkBatchTargetsPresent(ctx, prober, domain, evidenceSource, group[start:end], sampleRepoID, sampleIntentID); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -371,13 +429,24 @@ func (w *EdgeWriter) executeArtifactStatements(
 	routeCount int,
 	bs int,
 ) error {
+	// One summary entry for the whole artifact phase: per-statement entries
+	// each carrying the full claim's input_intents overcount k× for a claim
+	// with k artifact statements, while the phase totals (executed_rows,
+	// statement_count) stay summable (#6730 owner finding). The grouped-write
+	// instruments record the phase under execution_mode="artifact-sequential"
+	// so they keep covering the whole repo_dependency write.
+	totalDuration := 0.0
 	for _, stmt := range stmts {
 		start := time.Now()
 		if err := w.executor.Execute(ctx, stmt); err != nil {
 			return WrapRetryableNeo4jError(err)
 		}
-		duration := time.Since(start).Seconds()
-		w.logSharedEdgeWrite(domain, evidenceSource, "artifact-sequential", inputRows, writtenRows, droppedRows, routeCount, bs, 0, duration, []Statement{stmt})
+		totalDuration += time.Since(start).Seconds()
 	}
+	if len(stmts) == 0 {
+		return nil
+	}
+	w.recordGroupedWrite(ctx, domain, "artifact-sequential", totalDuration, stmts)
+	w.logSharedEdgeWrite(domain, evidenceSource, "artifact-sequential", inputRows, writtenRows, droppedRows, routeCount, bs, 0, totalDuration, stmts)
 	return nil
 }

@@ -18,8 +18,28 @@ Start with:
 - `eshu_dp_shared_edge_write_groups_total`
 - `eshu_dp_shared_edge_write_group_duration_seconds`
 - `eshu_dp_shared_edge_write_group_statement_count`
+- `eshu_dp_shared_edge_target_miss_total`
 - `eshu_dp_code_call_edge_batches_total`
 - `eshu_dp_code_call_edge_batch_duration_seconds`
+
+## Shared-Edge Target Misses
+
+`eshu_dp_shared_edge_target_miss_total` counts shared-edge write batches
+deferred because a runtime target was absent from the graph (#6184). It has
+one bounded label:
+
+- `domain` identifies the guarded shared projection domain (`handles_route`,
+  `runs_in`, `deployable_unit_edges`, plus `workload_materialization`
+  counted by the deployment-source target guard).
+
+Read it alongside the `shared edge batch target absent, deferring batch`
+WARN, which carries the evidence source and one sample intent id —
+deliberately kept out of the metric labels to bound cardinality. A miss is a
+timing state, not a payload defect: the target commits later in the same
+generation and the re-selected batch binds then, so a transient rise during a
+rebuild drain is expected and a stuck non-zero rate across generations is
+the signal worth alerting on. (This section lives here rather than in
+`index.md` because that file is grandfather-capped and may not grow.)
 
 Use traces and logs for repository, generation, source run, and lease-owner
 detail. The shared-write metrics intentionally stay domain-scoped.

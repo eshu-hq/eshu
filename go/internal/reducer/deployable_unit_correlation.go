@@ -43,6 +43,10 @@ type DeployableUnitCorrelationHandler struct {
 	// foreign scopes the own-generation check cannot see (#6184). Nil keeps
 	// the gate open for test wiring; main.go wires the Postgres lookup here.
 	ResolutionsCompleteLookup maintenance.RelationshipGenerationsCompleteLookup
+	// IncompleteScopesLookup best-effort names the scopes holding the fence
+	// on a deferral, so the error is actionable instead of opaque (#6730).
+	// Nil-safe: a nil lookup or a lookup error simply omits the holder list.
+	IncompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup
 	// CanonicalQuiescence keeps graph writes behind repository projection.
 	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 }
@@ -88,7 +92,7 @@ func (h DeployableUnitCorrelationHandler) Handle(
 
 	// Fail closed before the resolved-relationship read: both feeds are partial
 	// until resolutions complete corpus-wide, and success is never reopened.
-	if err := checkDeployableUnitResolutionReadiness(h.ResolutionActiveLookup, h.ResolutionsCompleteLookup, intent, candidates); err != nil {
+	if err := checkDeployableUnitResolutionReadiness(ctx, h.ResolutionActiveLookup, h.ResolutionsCompleteLookup, h.IncompleteScopesLookup, intent, candidates); err != nil {
 		return Result{}, err
 	}
 	if err := deployableUnitCanonicalReposReady(ctx, h.CanonicalQuiescence, intent, len(candidates) > 0); err != nil {
@@ -100,6 +104,12 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		resolved, err = loadWorkloadResolvedRelationships(ctx, h.ResolvedLoader, intent, candidates)
 		if err != nil {
 			return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
+		}
+		// Re-evaluate the corpus fence after the foreign read (#6730 Codex
+		// P1); see the loader for the check-then-read rationale and the
+		// residual-window note.
+		if err := checkDeployableUnitResolutionReadiness(ctx, h.ResolutionActiveLookup, h.ResolutionsCompleteLookup, h.IncompleteScopesLookup, intent, candidates); err != nil {
+			return Result{}, err
 		}
 		// A second, independent pass over resolved purely for diagnostics
 		// (#6149 follow-up item 6) -- ExtractDeployableUnitCorrelationRows

@@ -203,11 +203,13 @@ LIMIT 1
 // claim paths' non-terminal set. Rows for retired scopes and superseded
 // generations are excluded: only the scope's current generation can ever
 // resolve, so only it can hold the gate.
-const activeScopeRelationshipGenerationsCompleteSQL = `
-SELECT NOT EXISTS (
-  SELECT 1
-  FROM ingestion_scopes AS s
-  WHERE s.status = 'active'
+// incompleteScopeRelationshipGenerationsPredicate matches the active scopes
+// holding the corpus fence: a retired-or-pending current generation, or no
+// generation row with live deployment_mapping work that could still produce
+// one. Shared by the boolean completeness query and the holder-listing query
+// below so the two cannot drift apart (#6730).
+const incompleteScopeRelationshipGenerationsPredicate = `
+  s.status = 'active'
     AND (
       EXISTS (
         SELECT 1
@@ -233,7 +235,23 @@ SELECT NOT EXISTS (
         )
       )
     )
+`
+
+const activeScopeRelationshipGenerationsCompleteSQL = `
+SELECT NOT EXISTS (
+  SELECT 1
+  FROM ingestion_scopes AS s
+  WHERE` + incompleteScopeRelationshipGenerationsPredicate + `
 )
+`
+
+// incompleteActiveScopeRelationshipGenerationsSQL lists the scope IDs
+// holding the corpus fence, for deferral diagnosability.
+const incompleteActiveScopeRelationshipGenerationsSQL = `
+SELECT s.scope_id
+FROM ingestion_scopes AS s
+WHERE` + incompleteScopeRelationshipGenerationsPredicate + `
+ORDER BY s.scope_id
 `
 
 const activateResolutionGenerationSQL = `

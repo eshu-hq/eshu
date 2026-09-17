@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -23,6 +24,14 @@ type RelationshipGenerationActiveChecker interface {
 // accepted generation only grants graph-projection authority once the
 // relationship generation is activated, keeping the graph from running ahead of
 // the Postgres relationship read models.
+//
+// The lookup type is synchronous by design — it is invoked from per-row
+// authority checks deep inside graph-runner loops where no request context
+// is in scope — so the adapter uses context.Background() for the single
+// indexed status read. Cancellation-safety for request-scoped passes lives
+// one layer up: the corpus-wide fence lookup
+// (NewRelationshipGenerationsCompleteLookup) takes the caller's context
+// (#6730).
 func NewRelationshipGenerationActiveLookup(
 	checker RelationshipGenerationActiveChecker,
 ) maintenance.RelationshipGenerationActiveLookup {
@@ -34,6 +43,15 @@ func NewRelationshipGenerationActiveLookup(
 		return checker.IsGenerationActive(context.Background(), generationID)
 	}
 }
+
+// errActiveScopeRelationshipGenerationsNoRows is the concrete no-cause error
+// for the defensive empty-row branch below: the NOT EXISTS aggregate always
+// yields one row, so reaching it means the backend violated the query shape.
+// It is deliberately not a %w wrap — there is no underlying error to chain,
+// and wrapping a nil rows.Err() formats as %!w(<nil>).
+var errActiveScopeRelationshipGenerationsNoRows = errors.New(
+	"active scope relationship generations complete: no rows returned",
+)
 
 // RelationshipGenerationsCompleteChecker reports whether every active scope's
 // current relationship generation is active. RelationshipStore satisfies it.
@@ -48,13 +66,64 @@ type RelationshipGenerationsCompleteChecker interface {
 func NewRelationshipGenerationsCompleteLookup(
 	checker RelationshipGenerationsCompleteChecker,
 ) maintenance.RelationshipGenerationsCompleteLookup {
-	return func() (bool, error) {
-		return checker.AreActiveScopeRelationshipGenerationsComplete(context.Background())
+	return func(ctx context.Context) (bool, error) {
+		return checker.AreActiveScopeRelationshipGenerationsComplete(ctx)
 	}
+}
+
+// RelationshipGenerationsIncompleteScopesChecker lists the active scope IDs
+// holding the corpus fence. RelationshipStore satisfies it.
+type RelationshipGenerationsIncompleteScopesChecker interface {
+	IncompleteActiveScopeRelationshipGenerations(ctx context.Context) ([]string, error)
+}
+
+// NewRelationshipGenerationsIncompleteScopesLookup adapts the holder-listing
+// checker to the workload and deployable-unit correlation deferral errors.
+// Best-effort by contract: the gate ignores a lookup error and omits the
+// holder list rather than blocking the deferral on diagnosability.
+func NewRelationshipGenerationsIncompleteScopesLookup(
+	checker RelationshipGenerationsIncompleteScopesChecker,
+) maintenance.RelationshipGenerationsIncompleteScopesLookup {
+	return func(ctx context.Context) ([]string, error) {
+		return checker.IncompleteActiveScopeRelationshipGenerations(ctx)
+	}
+}
+
+// IncompleteActiveScopeRelationshipGenerations lists the active scope IDs
+// whose current relationship generation is not complete, ordered for stable
+// deferral messages. It shares its predicate with the boolean completeness
+// query so the holder list can never disagree with the gate (#6730).
+func (s *RelationshipStore) IncompleteActiveScopeRelationshipGenerations(
+	ctx context.Context,
+) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, incompleteActiveScopeRelationshipGenerationsSQL)
+	if err != nil {
+		return nil, fmt.Errorf("query incomplete scope relationship generations: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var scopeIDs []string
+	for rows.Next() {
+		var scopeID string
+		if err := rows.Scan(&scopeID); err != nil {
+			return nil, fmt.Errorf("scan incomplete scope relationship generations: %w", err)
+		}
+		scopeIDs = append(scopeIDs, scopeID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate incomplete scope relationship generations: %w", err)
+	}
+	return scopeIDs, nil
 }
 
 // NewAcceptedGenerationLookup creates an exact bounded-unit acceptance lookup
 // backed by shared_projection_acceptance.
+//
+// Like NewRelationshipGenerationActiveLookup above, the lookup type is
+// synchronous by design — per-row acceptance checks run where no request
+// context is in scope — so the adapter uses context.Background() for the
+// single indexed key read. A lookup error fails safe as not-found, and
+// request-scoped cancellation is enforced by the fence and queue layers
+// above (#6730).
 func NewAcceptedGenerationLookup(db ExecQueryer) reducer.AcceptedGenerationLookup {
 	store := NewSharedProjectionAcceptanceStore(db)
 	return func(key reducer.SharedProjectionAcceptanceKey) (string, bool) {
@@ -129,7 +198,10 @@ func (s *RelationshipStore) AreActiveScopeRelationshipGenerationsComplete(
 	defer func() { _ = rows.Close() }()
 
 	if !rows.Next() {
-		return false, fmt.Errorf("active scope relationship generations complete: no rows: %w", rows.Err())
+		if err := rows.Err(); err != nil {
+			return false, fmt.Errorf("active scope relationship generations complete: iterate rows: %w", err)
+		}
+		return false, errActiveScopeRelationshipGenerationsNoRows
 	}
 	var complete bool
 	if err := rows.Scan(&complete); err != nil {

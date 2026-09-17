@@ -12,6 +12,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionSourceSystem,
 	MetricDimensionCollectorKind,
 	MetricDimensionDomain,
+	MetricDimensionExecutionMode,
 	MetricDimensionPartitionKey,
 	MetricDimensionPartitionID,
 	MetricDimensionRunner,

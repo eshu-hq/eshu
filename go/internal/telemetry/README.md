@@ -53,11 +53,9 @@ See `doc.go` for the godoc contract. Key groups:
 
 ### Metric instruments
 
-`Instruments` holds all pre-registered OTEL metric instruments. Create with
-`NewInstruments(meter)`. Observable gauges require a separate
-`RegisterObservableGauges` call once the queue and worker observers are wired.
-`RegisterAcceptanceObservableGauges` adds the `eshu_dp_shared_acceptance_rows`
-gauge when a shared-acceptance observer is available.
+`Instruments` holds all pre-registered OTEL metric instruments. Create with `NewInstruments(meter)`.
+Observable gauges require a separate `RegisterObservableGauges` call once the queue and worker observers are wired.
+`RegisterAcceptanceObservableGauges` adds the `eshu_dp_shared_acceptance_rows` gauge when a shared-acceptance observer is available.
 `RegisterGraphOrphanObservableGauge` adds the `eshu_dp_graph_orphan_nodes` gauge
 when the reducer has a graph orphan observer.
 
@@ -95,7 +93,8 @@ when the reducer has a graph orphan observer.
 | `DocumentationClaimCandidates` | `eshu_dp_documentation_claim_candidates_extracted_total` |
 | `DocumentationClaimsSuppressed` | `eshu_dp_documentation_claim_candidates_suppressed_total` |
 | `DocumentationDriftFindings` | `eshu_dp_documentation_drift_findings_total` |
-| `SharedEdgeWriteGroups` | `eshu_dp_shared_edge_write_groups_total` |
+| `SharedEdgeWriteGroups` | `eshu_dp_shared_edge_write_groups_total` (labels: bounded `domain`, `execution_mode` — `group`, `artifact-sequential`) |
+| `SharedEdgeTargetMiss` | `eshu_dp_shared_edge_target_miss_total` (labels: bounded `domain`; one count per deferred batch) |
 | `SharedEdgeRunsOnRetractOmissions` | `eshu_dp_shared_edge_runs_on_retract_omissions_total` (labels: bounded `domain`, `reason`) |
 | `SharedEdgeUnroutableRows` | `eshu_dp_shared_edge_unroutable_rows_total` (labels: bounded `domain`, `reason`; one count per rejected row) |
 | `RationaleRetractProbeOutcomes` | `eshu_dp_rationale_retract_probe_outcomes_total` (labels: bounded `outcome` — `skipped`, `deleted`, `unsupported`, `probe_error`; bounded `scope` — `whole_scope`, `delta_by_file_path`) |

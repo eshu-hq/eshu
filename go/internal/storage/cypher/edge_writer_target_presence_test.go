@@ -150,25 +150,35 @@ func TestEdgeWriterWriteEdgesTargetPresentProceeds(t *testing.T) {
 	}
 }
 
-// TestEdgeWriterWriteEdgesProbeErrorFallsBackToWrite pins the infrastructure
-// failure direction: a failing existence probe must not stall the partition
-// on work that may be perfectly writable. The batch writes as today and the
-// miss stays visible through the write path, exactly as before this guard.
-func TestEdgeWriterWriteEdgesProbeErrorFallsBackToWrite(t *testing.T) {
+// TestEdgeWriterWriteEdgesProbeErrorFailsClosed pins the #6730 Codex P1
+// direction: a failing existence probe must defer the batch retryably, never
+// write unchecked. Fail-open recreates the exact silent edge loss the guard
+// exists to prevent whenever the probe shape fails while a target is
+// actually absent (timeout or rejection under load); the rows stay queued on
+// the same non-counting retry class as a detected miss and re-run after the
+// backend recovers.
+func TestEdgeWriterWriteEdgesProbeErrorFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	executor := &targetMissProbeExecutor{probeErr: errors.New("probe backend unavailable")}
 	writer := NewEdgeWriter(executor, 0)
 
-	if _, err := writer.WriteEdges(
+	_, err := writer.WriteEdges(
 		context.Background(), reducer.DomainHandlesRoute,
 		[]reducer.SharedProjectionIntentRow{validHandlesRouteRow()},
 		"parser/framework-routes",
-	); err != nil {
-		t.Fatalf("WriteEdges() with a failing probe error = %v, want the legacy fail-open write", err)
+	)
+	if err == nil {
+		t.Fatal("WriteEdges() with a failing probe succeeded silently, want a retryable error so the unverified batch re-runs instead of risking a silent zero-edge write")
 	}
-	if executor.executeCalls == 0 {
-		t.Fatal("expected the edge write to run when the probe itself fails")
+	if !reducer.IsRetryable(err) {
+		t.Fatalf("WriteEdges() error = %v, want a retryable error so the rows stay queued", err)
+	}
+	if executor.executeCalls != 0 {
+		t.Fatalf("executor writes = %d, want 0: no edge statement may run when the probe cannot verify its targets", executor.executeCalls)
+	}
+	if executor.probeCalls == 0 {
+		t.Fatal("target existence probe was never consulted")
 	}
 }
 
@@ -221,6 +231,42 @@ func TestEdgeWriterTargetMissProbeMentionsBatchScope(t *testing.T) {
 	for _, forbidden := range []string{"MERGE", "CREATE", "DELETE", "SET ", "OPTIONAL", "WITH", "WHERE", "COUNT", "UNWIND"} {
 		if strings.Contains(probe, forbidden) {
 			t.Fatalf("probe cypher must be anchored MATCHes only, found %q:\n%s", forbidden, probe)
+		}
+	}
+}
+
+// TestEdgeWriterHandlesRouteProbeAnchorsFunction pins the #6730 owner
+// finding: the HANDLES_ROUTE write MATCHes two nodes — (f:Function {uid})
+// and (e:Endpoint {repo_id, path}) — so the presence probe must anchor both.
+// An Endpoint-only probe lets a batch whose Function node is absent (post-wipe
+// ordering vs content projection) pass the guard and complete a silent
+// zero-edge write.
+func TestEdgeWriterHandlesRouteProbeAnchorsFunction(t *testing.T) {
+	t.Parallel()
+
+	rows := []map[string]any{{
+		"function_entity_id": "content-entity:gw",
+		"repo_id":            "repo-a",
+		"path":               "/widgets",
+	}}
+	probe, ok := buildTargetPresenceProbeStatement(reducer.DomainHandlesRoute, rows)
+	if !ok {
+		t.Fatal("buildTargetPresenceProbeStatement(handles_route) = false, want a probe anchoring Function and Endpoint")
+	}
+	for _, want := range []string{":Function {uid: $", ":Endpoint {repo_id: $", "RETURN 1 LIMIT 1"} {
+		if !strings.Contains(probe.Cypher, want) {
+			t.Fatalf("probe cypher missing %q:\n%s", want, probe.Cypher)
+		}
+	}
+	found := map[string]bool{}
+	for _, v := range probe.Parameters {
+		if s, ok := v.(string); ok {
+			found[s] = true
+		}
+	}
+	for _, want := range []string{"content-entity:gw", "repo-a", "/widgets"} {
+		if !found[want] {
+			t.Fatalf("probe parameters missing target %q: %v", want, probe.Parameters)
 		}
 	}
 }

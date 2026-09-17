@@ -124,6 +124,8 @@ func buildReducerService(
 	// must not succeed while any active scope's current relationship
 	// generation is inactive (#6184).
 	resolutionsComplete := postgres.NewRelationshipGenerationsCompleteLookup(relationshipStore)
+	// Best-effort holder list for fence deferral errors (#6730).
+	incompleteScopes := postgres.NewRelationshipGenerationsIncompleteScopesLookup(relationshipStore)
 	factStore := postgres.NewFactStore(database)
 	if identityCache != nil {
 		factStore = postgres.NewFactStoreWithIdentityCache(database, identityCache)
@@ -229,6 +231,7 @@ func buildReducerService(
 			AdmissionDecisionWriter:   admissionDecisionWriter,
 			ResolutionActiveLookup:    relationshipGenerationActive,
 			ResolutionsCompleteLookup: resolutionsComplete,
+			IncompleteScopesLookup:    incompleteScopes,
 			CanonicalQuiescence:       postgres.NewReducerGraphDrain(database),
 		},
 		WorkloadProjectionInputLoader: reducer.CorrelatedWorkloadProjectionInputLoader{
@@ -237,6 +240,7 @@ func buildReducerService(
 			ScopeResolver:             postgres.RepoScopeResolver{DB: database},
 			ResolutionActiveLookup:    relationshipGenerationActive,
 			ResolutionsCompleteLookup: resolutionsComplete,
+			IncompleteScopesLookup:    incompleteScopes,
 		},
 		WorkloadDependencyLookup:           neo4jWorkloadDependencyLookup{reader: graphReader},
 		InstanceRetractionLookup:           neo4jWorkloadInstanceRetractionLookup{reader: graphReader},

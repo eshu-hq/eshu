@@ -96,9 +96,10 @@ without repository paths, resource identifiers, or generation ids.
 | `eshu_dp_shared_acceptance_upsert_duration_seconds` | histogram | Shared acceptance write latency. |
 | `eshu_dp_shared_acceptance_upserts_total` | counter | Shared acceptance write volume. |
 | `eshu_dp_shared_acceptance_rows` | observable gauge | Durable shared acceptance row count. |
-| `eshu_dp_shared_edge_write_groups_total` | counter | Shared edge write group volume. |
-| `eshu_dp_shared_edge_write_group_duration_seconds` | histogram | Shared edge write group latency. |
-| `eshu_dp_shared_edge_write_group_statement_count` | histogram | Statements per shared edge write group. |
+| `eshu_dp_shared_edge_write_groups_total` | counter | Shared edge write group volume (labels: bounded `domain`, `execution_mode` — `group`, `artifact-sequential`). |
+| `eshu_dp_shared_edge_write_group_duration_seconds` | histogram | Shared edge write group latency (labels: bounded `domain`, `execution_mode`). |
+| `eshu_dp_shared_edge_write_group_statement_count` | histogram | Statements per shared edge write group (labels: bounded `domain`, `execution_mode`). |
+| `eshu_dp_shared_edge_target_miss_total` | counter | Shared edge write batches deferred on an absent graph target (label: bounded `domain`). |
 | `eshu_dp_shared_edge_runs_on_retract_omissions_total` | counter | Impossible `RUNS_ON` retract roles omitted by bounded `domain` and `reason`; use the structured omission log for source and repository context. |
 | `eshu_dp_code_call_edge_batches_total` | counter | Isolated code-call edge batch volume. |
 | `eshu_dp_code_call_edge_batch_duration_seconds` | histogram | Isolated code-call edge batch latency. |

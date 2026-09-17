@@ -36,14 +36,34 @@ const DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass = "deployable_
 type deployableUnitCorrelationResolutionNotReadyError struct {
 	scopeID      string
 	generationID string
+	// cause carries the fence lookup failure when the deferral is outage
+	// driven rather than backpressure driven; nil for a genuinely
+	// incomplete corpus fence (see the workload-materialization twin).
+	cause error
+	// holdingScopeIDs names the scopes holding the corpus fence, best
+	// effort; empty when the holder lookup is unwired or failed.
+	holdingScopeIDs []string
 }
 
 func (e deployableUnitCorrelationResolutionNotReadyError) Error() string {
-	return fmt.Sprintf(
+	msg := fmt.Sprintf(
 		"cross-repo resolution not active for scope %s generation %s; deferring deployable unit correlation rather than evaluating against a partial resolved set",
 		e.scopeID,
 		e.generationID,
 	)
+	if e.cause != nil {
+		msg += fmt.Sprintf("; corpus fence lookup failed: %v", e.cause)
+	}
+	if len(e.holdingScopeIDs) > 0 {
+		msg += fmt.Sprintf("; holding scopes: %s", strings.Join(e.holdingScopeIDs, ","))
+	}
+	return msg
+}
+
+// Unwrap exposes the fence lookup failure to errors.Is/As without changing
+// the retryable failure class.
+func (e deployableUnitCorrelationResolutionNotReadyError) Unwrap() error {
+	return e.cause
 }
 
 func (deployableUnitCorrelationResolutionNotReadyError) Retryable() bool { return true }
@@ -103,8 +123,10 @@ func deployableUnitCanonicalReposReady(
 // Both defer with the same non-counting retry class, because success on a
 // partial input is never reopened (#6184).
 func checkDeployableUnitResolutionReadiness(
+	ctx context.Context,
 	activeLookup maintenance.RelationshipGenerationActiveLookup,
 	completeLookup maintenance.RelationshipGenerationsCompleteLookup,
+	incompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup,
 	intent Intent,
 	candidates []WorkloadCandidate,
 ) error {
@@ -114,10 +136,19 @@ func checkDeployableUnitResolutionReadiness(
 			generationID: intent.GenerationID,
 		}
 	}
-	if !corpusResolutionsComplete(completeLookup, candidates) {
+	fenceReady, fenceErr := corpusResolutionsComplete(ctx, completeLookup, candidates)
+	if fenceErr != nil {
 		return deployableUnitCorrelationResolutionNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
+			cause:        fenceErr,
+		}
+	}
+	if !fenceReady {
+		return deployableUnitCorrelationResolutionNotReadyError{
+			scopeID:         intent.ScopeID,
+			generationID:    intent.GenerationID,
+			holdingScopeIDs: maintenance.IncompleteScopeIDs(ctx, incompleteScopesLookup),
 		}
 	}
 	return nil

@@ -46,7 +46,38 @@ type RelationshipGenerationActiveLookup func(generationID string) (bool, error)
 //
 // A non-nil error is treated by the gate as "not complete" (fail safe), same
 // as RelationshipGenerationActiveLookup.
-type RelationshipGenerationsCompleteLookup func() (bool, error)
+//
+// The lookup takes the caller's context (#6730): fence evaluations run
+// inside request-scoped handler passes, so cancellation must propagate to
+// the Postgres read instead of leaking it past the request on
+// context.Background. A nil lookup keeps the gate open for test wiring.
+type RelationshipGenerationsCompleteLookup func(ctx context.Context) (bool, error)
+
+// RelationshipGenerationsIncompleteScopesLookup lists the active scope IDs
+// whose current relationship generation is not complete (retired-or-pending
+// with live resolution work, or missing with live work). It backs the
+// holding-scope IDs on fence deferrals. Best-effort: a lookup error is
+// ignored by the gate and the deferral simply omits the holder list.
+type RelationshipGenerationsIncompleteScopesLookup func(ctx context.Context) ([]string, error)
+
+// IncompleteScopeIDs best-effort resolves the scopes holding the corpus
+// fence for a deferral error. A nil lookup or a lookup error yields nil so
+// diagnosability never blocks the deferral itself. Shared by the workload
+// projection input loader and the deployable-unit correlation handler, whose
+// deferral errors both name the holding scopes (#6730).
+func IncompleteScopeIDs(
+	ctx context.Context,
+	lookup RelationshipGenerationsIncompleteScopesLookup,
+) []string {
+	if lookup == nil {
+		return nil
+	}
+	ids, err := lookup(ctx)
+	if err != nil {
+		return nil
+	}
+	return ids
+}
 
 // GateAcceptedGenerationOnActive decorates an AcceptedGenerationLookup so an
 // accepted generation only grants graph-projection authority once it is also
