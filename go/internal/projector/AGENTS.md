@@ -364,7 +364,7 @@
 - **Add a new reducer domain intent** → add the domain constant in
   `internal/reducer`, add intent construction in `buildReducerIntent` or a
   new `build*ReducerIntent` helper in `runtime.go` (or, for the semantic-entity
-  family, `semantic/entity/entity_intents.go`), add a test in
+  family, `semantic/entity/intents.go`), add a test in
   `stage_relationships_test.go` or that family package's own test files.
   Why: intent domain values must be parseable by `reducer.ParseDomain`.
 

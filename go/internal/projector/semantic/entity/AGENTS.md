@@ -45,13 +45,13 @@
   matching addition — admitting here without admitting there enqueues work
   the handler drops.
 - **Adding a language predicate.** Add the test to the matching
-  `entity_intents_<lang>_test.go`, and add a rejecting case as well: every
+  `intents_<lang>_test.go`, and add a rejecting case as well: every
   predicate here is a two-sided gate, and a test that only asserts the
   positive passes even if the language check is deleted.
 - **Touching a predicate a language-support doc cites.**
   `docs/public/languages/elixir.md` cites
-  `entity_intents_test.go::TestBuildSemanticEntityReducerIntentQueuesElixirGuardSemanticEntities`
-  and two tests in `entity_intents_elixir_test.go` by path. Renaming a test
+  `intents_test.go::TestBuildSemanticEntityReducerIntentQueuesElixirGuardSemanticEntities`
+  and two tests in `intents_elixir_test.go` by path. Renaming a test
   or the file fails `scripts/verify-doc-citations.sh`, which resolves the
   citation file-scoped.
 
