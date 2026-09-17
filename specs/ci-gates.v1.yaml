@@ -549,7 +549,7 @@ gates:
     local:
       # go-mod-download-retry.sh has no separate verify mode either -- it is
       # a thin `go mod download` retry wrapper, and every job in this repo
-      # that compiles Go now depends on it (#6615). The 11-case test mirror
+      # that compiles Go now depends on it (#6615). The test mirror
       # IS this gate's verification: hermetic, off the network, via a fake
       # `go` on PATH that records invocation directory and attempt count.
       # Mirrors ci-install-apt-packages' shape (a static/hermetic mirror gate

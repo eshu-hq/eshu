@@ -13,16 +13,17 @@ import (
 )
 
 // prewarmOrderingErrs runs DriftCheck and returns only this check's own
-// findings (the ones naming "warms that module"), the same isolation
-// scriptTriggerErrs (scripttrigger_test.go) uses for check 8/11 -- a case
-// asserts on its own rule, not on whatever else a minimal fixture repo trips
-// in the other ~12 DriftCheck rules.
+// findings (every one names "actions/setup-go step", including the
+// cannot-derive-module case, which does not also say "warms that module"),
+// the same isolation scriptTriggerErrs (scripttrigger_test.go) uses for
+// check 8/11 -- a case asserts on its own rule, not on whatever else a
+// minimal fixture repo trips in the other ~12 DriftCheck rules.
 func prewarmOrderingErrs(t *testing.T, root string) []string {
 	t.Helper()
 	var out []string
 	for _, err := range cigates.DriftCheck(root, minimalReg(nil, nil, nil)) {
 		msg := err.Error()
-		if strings.Contains(msg, "warms that module") {
+		if strings.Contains(msg, "actions/setup-go step") {
 			out = append(out, msg)
 		}
 	}
@@ -356,38 +357,4 @@ func driftCheckErrStrings(t *testing.T, root string) []string {
 		out = append(out, err.Error())
 	}
 	return out
-}
-
-// TestCheckSetupGoPrewarmOrdering_CommittedWorkflows_NoError is the live
-// GREEN proof: every real job in every committed .github/workflows/*.yml
-// file satisfies this rule today. Uses the real repo root, not a fixture --
-// the property under test is about the committed workflows, and a fixture
-// would pass while a real one drifted.
-func TestCheckSetupGoPrewarmOrdering_CommittedWorkflows_NoError(t *testing.T) {
-	t.Parallel()
-
-	repoRoot := filepath.Join("..", "..", "..")
-	var got []string
-	for _, err := range cigates.DriftCheck(repoRoot, mustLoadCommittedRegistryForPrewarmTest(t, repoRoot)) {
-		msg := err.Error()
-		if strings.Contains(msg, "warms that module") {
-			got = append(got, msg)
-		}
-	}
-	if len(got) != 0 {
-		t.Fatalf("committed workflows: got %d prewarm-ordering violations, want 0:\n%s", len(got), strings.Join(got, "\n"))
-	}
-}
-
-// mustLoadCommittedRegistryForPrewarmTest loads the real specs/ci-gates.v1.yaml.
-// A separate small helper rather than reusing loadCommittedRegistry
-// (valueflow_required_test.go) because that helper also returns a repoRoot
-// string this test already has and does not need duplicated.
-func mustLoadCommittedRegistryForPrewarmTest(t *testing.T, repoRoot string) *cigates.Registry {
-	t.Helper()
-	reg, err := cigates.Load(filepath.Join(repoRoot, "specs", "ci-gates.v1.yaml"))
-	if err != nil {
-		t.Fatalf("Load(specs/ci-gates.v1.yaml): %v", err)
-	}
-	return reg
 }

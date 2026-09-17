@@ -263,8 +263,8 @@ jobs:
         run: bash scripts/test-ci-install-apt-packages.sh
 
       # go-mod-download-retry.sh has no separate verify mode either, for the
-      # same reason install-apt-packages.sh above does not: the 11-case test
-      # mirror IS this gate's verification, hermetic and off the network (a
+      # same reason install-apt-packages.sh above does not: the test mirror
+      # IS this gate's verification, hermetic and off the network (a
       # fake `go` on PATH). Without this step the mirror only ever ran when a
       # human happened to invoke it -- #6615 review found it unwired into CI,
       # the registry, or any hook, so a regression in the wrapper every other
