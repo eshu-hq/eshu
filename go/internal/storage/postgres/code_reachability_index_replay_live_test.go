@@ -21,7 +21,7 @@ import (
 
 // codeReachabilityTwoColumnIndexDDL is the statement #5167 batch 1's first
 // release shipped as migration 100. That file is deleted -- a create the next
-// migration drops rebuilds the index on every bootstrap -- so the DDL is
+// migration drops rebuilds the index on an untracked replay -- so the DDL is
 // repeated here to reconstruct the state those installs are actually in, which
 // is the state migration 102's drop has to converge.
 const codeReachabilityTwoColumnIndexDDL = `
@@ -33,12 +33,11 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS code_reachability_entity_repository_idx
 // see: a second bootstrap over a populated store that already holds the
 // intended index does no index work at all.
 //
-// Every file under migrations/ is Exec'd on every bootstrap in filename order,
-// with no ledger of what already ran (BootstrapDefinitions and ApplyDefinitions
-// in schema.go). So a superseded index left in the tree as a create that a
-// later file drops is not a one-time cost: the drop clears the name, the next
-// startup's IF NOT EXISTS no longer skips, and the index is rebuilt
-// concurrently over a populated table and dropped again, forever.
+// This test calls ApplyDefinitions directly to simulate an untracked existing
+// database's first replay. A superseded index left in the tree as a create
+// that a later file drops still wastes a build before receipts exist: the drop
+// clears the name, the next replay's IF NOT EXISTS no longer skips, and the
+// index is built over a populated table and dropped again.
 //
 // The store starts where an install of the earlier release stands -- rows on
 // disk and the two-column index built -- so the first pass has to converge it,

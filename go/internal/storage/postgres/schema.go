@@ -20,6 +20,9 @@ type Definition struct {
 	Name string
 	Path string
 	SQL  string
+
+	variant      string
+	fullChecksum string
 }
 
 // Executor is the narrow adapter surface required to apply schema bootstrap
@@ -91,6 +94,8 @@ func BootstrapDefinitionsWithoutContentSearchIndexes() []Definition {
 	defs := BootstrapDefinitions()
 	for i := range defs {
 		if defs[i].Name == "content_store" {
+			defs[i].fullChecksum = migrationChecksum(defs[i].SQL)
+			defs[i].variant = "deferred"
 			defs[i].SQL = contentStoreSchemaWithoutSearchIndexesSQL
 			break
 		}
@@ -183,9 +188,16 @@ func ApplyBootstrapWithoutContentSearchIndexes(ctx context.Context, exec Executo
 	return applyBootstrapDefinitions(ctx, exec, BootstrapDefinitionsWithoutContentSearchIndexes())
 }
 
-func applyBootstrapDefinitions(ctx context.Context, exec Executor, definitions []Definition) error {
+func applyBootstrapDefinitions(
+	ctx context.Context,
+	exec Executor,
+	definitions []Definition,
+) error {
 	if locker, ok := exec.(schemaBootstrapLocker); ok {
 		return locker.withSchemaBootstrapLock(ctx, defaultSchemaLockTimeout, func(locked Executor) error {
+			if tracker, ok := locked.(schemaMigrationTracker); ok {
+				return tracker.applyTrackedDefinitions(ctx, definitions, defaultSchemaLockTimeout)
+			}
 			return ApplyDefinitions(ctx, locked, definitions)
 		})
 	}

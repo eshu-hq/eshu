@@ -62,10 +62,9 @@ const identityEpochIndexFamily = "fact_records_identity_epoch_idx"
 // bootstrap over a populated fact_records that already holds the intended index
 // does no index work at all.
 //
-// Every file under migrations/ is Exec'd on every bootstrap in filename order,
-// with no ledger of what already ran (BootstrapDefinitions and ApplyDefinitions
-// in schema.go). Before #6543 this index was the directory's one remaining
-// violation of that model: migrations 069 and 077 both created
+// This test calls ApplyDefinitions directly to simulate an untracked existing
+// database's first replay. Before #6543 this index was the directory's one
+// remaining violation of that model: migrations 069 and 077 both created
 // fact_records_identity_epoch_idx, with different predicates, and 076 dropped
 // it between them, so the drop cleared the name, the next startup's
 // IF NOT EXISTS no longer skipped, and the index was rebuilt concurrently over

@@ -2,8 +2,8 @@
 
 ## Purpose
 
-`eshu-bootstrap-data-plane` applies all Postgres and graph-backend schema
-DDL then exits. It decouples schema migration from data population so the
+`eshu-bootstrap-data-plane` applies pending Postgres migrations and graph
+schema DDL, then exits. It decouples schema migration from data population so the
 API, MCP, ingester, and reducer come up against an empty-but-valid schema
 while `bootstrap-index` or `ingester` populates data.
 
@@ -13,10 +13,11 @@ This binary owns DDL orchestration only. Postgres table definitions live in
 `internal/storage/postgres/`. Graph schema bootstrap lives in
 `internal/graph/` and is applied through `graph.EnsureSchemaWithBackendStrict`
 so any rejected DDL keeps the graph marker unset for the next retry.
-The only row this binary writes is the Postgres graph schema application marker,
-which records that the backend/fingerprint pair completed successfully and
-which older writer fingerprints, if any, remain explicitly compatible. The
-binary writes no application data and does not stay resident.
+The binary records each successful Postgres migration in
+`eshu_schema_migrations` and writes the graph schema application marker after
+successful graph DDL. The marker records the backend/fingerprint pair and any
+explicitly compatible older writer fingerprints. The binary writes no
+application data and does not stay resident.
 
 ## Entry points
 
@@ -69,7 +70,9 @@ are registered. Lifecycle events use `telemetry.EventAttr`:
 `statement_count` when graph DDL is skipped). Existing-schema adoption emits
 `bootstrap.graph.adoption_incomplete` when objects are missing and
 `bootstrap.graph.adopted` when the backend schema is complete enough to mark.
-Graph DDL also emits one
+Postgres bootstrap logs each started and recorded migration with path, variant,
+position, and duration, then `postgres schema migrations complete` with applied,
+skipped, total, and duration fields. Graph DDL also emits one
 structured `graph schema statement applying` and one terminal
 `graph schema statement applied` or `graph schema statement failed` log per
 statement, including backend, phase, statement index, statement total, duration,
@@ -77,7 +80,13 @@ failure class, and a bounded schema statement summary.
 
 ## Gotchas / invariants
 
-- idempotent: every DDL statement is `CREATE ... IF NOT EXISTS`
+- completed Postgres migrations are skipped by path, variant, and SQL checksum;
+  a changed checksum fails before any pending DDL runs. The first run against an
+  existing database without a ledger executes and records every migration, so
+  schedule that one replay with quiesced application traffic and a recoverable
+  database copy. Do not infer Postgres migration completion from the graph
+  schema marker. A failure may leave completed migration receipts; preserve
+  them for the next retry.
 - after a successful graph schema apply, the binary marks the backend and schema
   fingerprint in Postgres. A later run with the same fingerprint skips graph
   DDL instead of asking NornicDB to re-check every constraint/index against a
@@ -104,8 +113,9 @@ failure class, and a bounded schema statement summary.
   continuing through the rest of the schema list
 - graph driver close uses a 10-second timeout; close errors are joined into
   the run result via `errors.Join`
-- exits non-zero if either Postgres or graph DDL fails; no partial apply. The
-  graph marker is written only after every graph DDL statement succeeds.
+- exits non-zero if either Postgres or graph DDL fails. Postgres migrations
+  commit separately, and a later migration failure preserves earlier receipts.
+  The graph marker is written only after every graph DDL statement succeeds.
 - `neo4jSchemaExecutor` runs DDL in a write session against the configured
   database name; do not point it at a read replica
 

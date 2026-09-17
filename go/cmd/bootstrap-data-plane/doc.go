@@ -6,8 +6,8 @@
 //
 // When invoked with --version or -v, it prints the embedded application
 // version and exits before opening stores. Otherwise the binary opens Postgres
-// through the runtime config helpers, applies the
-// fact-store, queue, content, and audit DDL via postgres.ApplyBootstrap, then
+// through the runtime config helpers, applies unrecorded fact-store, queue,
+// content, and audit migrations via postgres.ApplyBootstrap, then
 // opens the configured graph backend (Neo4j or NornicDB) and applies the
 // schema bootstrap through graph.EnsureSchemaWithBackendStrict. When the
 // Postgres graph-schema marker is missing for NornicDB, the binary first
@@ -18,7 +18,7 @@
 // a per-statement deadline so startup failures name the stuck schema phase
 // instead of waiting for the outer Kubernetes or Compose deadline. After every
 // graph statement succeeds, Postgres records the backend/schema fingerprint so
-// preserved-volume restarts can skip already-applied graph DDL. All DDL uses
-// CREATE ... IF NOT EXISTS so the binary remains safe to run as a Kubernetes
-// Job or Compose `db-migrate` service before the long-running runtimes start.
+// preserved-volume restarts can skip already-applied graph DDL. Postgres
+// migration receipts let later runs skip completed SQL; an untracked existing
+// database must replay the migration history once before that benefit applies.
 package main

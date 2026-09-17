@@ -10,17 +10,16 @@ import (
 	"testing"
 )
 
-// This directory has no applied-migration ledger. BootstrapDefinitions
-// enumerates every file under migrations/ and ApplyDefinitions Execs all of
-// them, in filename order, on every bootstrap;
-// TestApplyBootstrapExecutesDefinitionsInOrder pins that. Every service start
-// therefore replays the whole directory, so a migration is a desired-state
-// statement that has to be a no-op once the state it asks for already holds.
+// BootstrapDefinitions enumerates every file under migrations/. The tracked
+// runner skips completed files, but an existing database without receipts must
+// replay the entire tree once. Retries can also replay an interrupted file.
+// Keep that replay path free of index rebuild loops and idempotent where
+// historical SQL has already run.
 //
 // An index name that one definition CREATEs and another DROPs breaks that. The
 // drop leaves the name absent, so the next bootstrap's `IF NOT EXISTS` no
 // longer skips and rebuilds the index -- concurrently, over a populated table
-// -- and the drop removes it again, on every startup, forever. Replacing an
+// -- and the drop removes it again in the same replay. Replacing an
 // index therefore means creating the replacement under a NEW name and dropping
 // the old one, with no create of the old name left in the tree:
 // 059_relationship_family_candidate_index.sql with
@@ -37,8 +36,8 @@ var (
 		`(?is)\bDROP\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+EXISTS\s+)?([A-Za-z_][A-Za-z0-9_$]*)`)
 )
 
-// replayRebuiltIndexNames are the index names a bootstrap both drops and
-// recreates, and therefore rebuilds on every single startup. It is empty, and
+// replayRebuiltIndexNames are the index names a full untracked replay both
+// drops and recreates, wasting a build on an existing database. It is empty, and
 // an entry is a record of a known defect rather than a licence to add another:
 // the assertion below requires the violating set to equal this list exactly, so
 // a new offender fails the test and cannot be waved through without adding a
@@ -46,7 +45,7 @@ var (
 //
 // It listed fact_records_identity_epoch_idx until #6543. Migration 069 created
 // that name, 076 dropped it, and 077 created it again under the SAME name with
-// a wider predicate, so every bootstrap dropped the index and rebuilt it
+// a wider predicate, so every historical bootstrap dropped the index and rebuilt it
 // concurrently over fact_records with no covering index in between. Deleting a
 // file could not fix that the way it fixed code_reachability_entity_repository_idx,
 // because the replacement reused the name: an install still holding 069's
@@ -58,7 +57,7 @@ var replayRebuiltIndexNames []string
 
 // TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay fails when a
 // bootstrap definition creates an index name another definition drops, because
-// the pair costs a concurrent index build on every service start.
+// the pair costs a concurrent index build on first untracked replay.
 func TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay(t *testing.T) {
 	t.Parallel()
 
@@ -95,7 +94,7 @@ func TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay(t *testing.T) {
 	if !slices.Equal(rebuilt, want) {
 		for _, name := range rebuilt {
 			if !slices.Contains(want, name) {
-				t.Errorf("index %s is created by %v and dropped by %v, so every bootstrap rebuilds it; create the replacement under a new name and leave no create of the dropped one",
+				t.Errorf("index %s is created by %v and dropped by %v, so an untracked replay rebuilds it; create the replacement under a new name and leave no create of the dropped one",
 					name, created[name], dropped[name])
 			}
 		}

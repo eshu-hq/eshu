@@ -10,12 +10,12 @@ or AWS runtime drift storage behavior.
 
 ### Schema bootstrap
 
-`ApplyBootstrap` (or `ApplyBootstrapWithoutContentSearchIndexes`) applies all
-`BootstrapDefinitions` in order. Each `Definition` carries a name and SQL DDL.
-`ValidateDefinitions` enforces uniqueness. Schema DDL is idempotent
-(`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`).
-The large `fact_records` DDL lives in `schema_fact_records.go` so
-`schema.go` can stay focused on bootstrap ordering and exported helpers.
+`ApplyBootstrap` applies unrecorded `BootstrapDefinitions` in order and
+stores path, variant, and checksum receipts in `eshu_schema_migrations`.
+`ApplyBootstrapWithoutContentSearchIndexes` records a deferred content variant.
+A later full bootstrap applies that file once. Checksum drift fails before DDL.
+An untracked existing database replays all files once; it needs a recoverable
+copy and quiesced traffic. `ValidateDefinitions` enforces uniqueness.
 `graph_schema_applications` stores the graph backend/schema fingerprint and the
 explicit compatible writer-fingerprint list after `eshu-bootstrap-data-plane`
 successfully applies graph DDL. Preserved-volume restarts use that durable

@@ -91,13 +91,15 @@ const deferContentSearchIndexesEnv = "ESHU_DEFER_CONTENT_SEARCH_INDEXES"
 
 func applyPostgresSchema(ctx context.Context, exec bootstrapExecutor, getenv func(string) string) error {
 	raw := strings.TrimSpace(getenv(deferContentSearchIndexesEnv))
-	if raw == "" {
-		return postgres.ApplyBootstrap(ctx, exec)
+	deferred := false
+	if raw != "" {
+		var err error
+		deferred, err = strconv.ParseBool(raw)
+		if err != nil {
+			return fmt.Errorf("%s must be a boolean: %w", deferContentSearchIndexesEnv, err)
+		}
 	}
-	deferred, err := strconv.ParseBool(raw)
-	if err != nil {
-		return fmt.Errorf("%s must be a boolean: %w", deferContentSearchIndexesEnv, err)
-	}
+
 	if deferred {
 		return postgres.ApplyBootstrapWithoutContentSearchIndexes(ctx, exec)
 	}
