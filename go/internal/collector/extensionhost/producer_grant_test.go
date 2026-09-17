@@ -118,6 +118,48 @@ func TestSourceRejectsEmissionAfterGrantRevoked(t *testing.T) {
 	}
 }
 
+// TestSourceRejectsEmissionAfterGrantExpiry mirrors the revocation proof
+// for the time bound: an expired grant fails the next result closed even
+// though it authorized construction.
+func TestSourceRejectsEmissionAfterGrantExpiry(t *testing.T) {
+	t.Parallel()
+
+	manifest, grants := grantedCoreKindManifest()
+	expired := grants[0]
+	expired.ExpiresAt = testObservedAt().Add(-time.Hour).UTC()
+	live := []component.ProducerGrant{expired}
+	item := testWorkItem()
+	source, err := NewSource(Config{
+		Manifest:            manifest,
+		CollectorInstanceID: "scorecard-instance",
+		ScopeKind:           scope.KindRepository,
+		ConfigHandle:        "cfg-scorecard",
+		Config:              map[string]any{"fixture": "scorecard"},
+		Runner:              &recordingRunner{result: grantedCoreKindResult(item)},
+		Clock:               testObservedAt,
+		Grants:              grants,
+		LiveGrants:          func() []component.ProducerGrant { return live },
+	})
+	if err != nil {
+		t.Fatalf("NewSource() error = %v, want nil", err)
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want terminal grant-expiry error")
+	}
+	if ok {
+		t.Fatal("NextClaimed() ok = true, want false")
+	}
+	if got := len(collectFacts(t, collected)); got != 0 {
+		t.Fatalf("facts after expiry = %d, want 0", got)
+	}
+	assertFailure(t, err, FailureClassInvalidResult, true)
+	if !strings.Contains(err.Error(), "aws_resource") || !strings.Contains(err.Error(), "grant") {
+		t.Fatalf("NextClaimed() error = %v, want core-owned kind naming its grant", err)
+	}
+}
+
 // TestSourceAcceptsEmissionWithLiveGrant proves the recheck passes while
 // the grant stays live: authorization is continuous, not just checked at
 // construction.
@@ -151,6 +193,48 @@ func TestSourceAcceptsEmissionWithLiveGrant(t *testing.T) {
 	if got := len(collectFacts(t, collected)); got != 1 {
 		t.Fatalf("facts with live grant = %d, want 1", got)
 	}
+}
+
+// TestSourceGrantedEmissionStillEnforcesGenerationFencing proves a live
+// grant does not weaken claim identity: a granted producer emitting under
+// another generation still fails terminal with identity mismatch.
+func TestSourceGrantedEmissionStillEnforcesGenerationFencing(t *testing.T) {
+	t.Parallel()
+
+	manifest, grants := grantedCoreKindManifest()
+	item := testWorkItem()
+	result := grantedCoreKindResult(item)
+	result.Claim.GenerationID = "other-generation"
+	result.Generation.ID = "other-generation"
+	for i := range result.Facts {
+		result.Facts[i].SourceRef.GenerationID = "other-generation"
+	}
+	source, err := NewSource(Config{
+		Manifest:            manifest,
+		CollectorInstanceID: "scorecard-instance",
+		ScopeKind:           scope.KindRepository,
+		ConfigHandle:        "cfg-scorecard",
+		Config:              map[string]any{"fixture": "scorecard"},
+		Runner:              &recordingRunner{result: result},
+		Clock:               testObservedAt,
+		Grants:              grants,
+		LiveGrants:          func() []component.ProducerGrant { return grants },
+	})
+	if err != nil {
+		t.Fatalf("NewSource() error = %v, want nil", err)
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want terminal identity mismatch")
+	}
+	if ok {
+		t.Fatal("NextClaimed() ok = true, want false")
+	}
+	if got := len(collectFacts(t, collected)); got != 0 {
+		t.Fatalf("facts after fencing violation = %d, want 0", got)
+	}
+	assertFailure(t, err, FailureClassIdentityMismatch, true)
 }
 
 // TestNewSourceRejectsUngrantedCoreFactKind locks the fail-closed default:

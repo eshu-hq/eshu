@@ -196,7 +196,7 @@ func (m Manifest) validate(grants []ProducerGrant) error {
 	}
 	granted := grantedCoreKinds(m.Metadata.ID, m.Metadata.Version, m.Spec.CollectorKinds, grants, time.Now().UTC())
 	for _, fact := range m.Spec.EmittedFacts {
-		if err := fact.validate(granted); err != nil {
+		if err := fact.validate(m.Metadata.ID, granted); err != nil {
 			return err
 		}
 	}
@@ -238,17 +238,18 @@ func (a Artifact) Validate() error {
 
 // Validate checks fact-family fields without producer-grant context.
 func (f FactFamily) Validate() error {
-	return f.validate(nil)
+	return f.validate("", nil)
 }
 
 // validate checks fact-family fields, honoring granted core kinds: the map
 // carries kind to covered schema versions for grants already matched to the
-// owning manifest. A nil map rejects every core-owned kind.
-func (f FactFamily) validate(granted map[string][]string) error {
+// owning manifest. A nil map rejects every core-owned kind. producerID names
+// the claiming component so rejections identify the producer.
+func (f FactFamily) validate(producerID string, granted map[string][]string) error {
 	if err := validateIdentifier("fact kind", f.Kind); err != nil {
 		return err
 	}
-	if err := validateComponentFactKind(f.Kind, granted[f.Kind], f.SchemaVersions); err != nil {
+	if err := validateComponentFactKind(producerID, f.Kind, granted[f.Kind], f.SchemaVersions); err != nil {
 		return err
 	}
 	if err := validatePayloadSchemaRef(f.PayloadSchemaRef); err != nil {

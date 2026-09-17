@@ -75,6 +75,31 @@ func AuthorizesEmission(grants []ProducerGrant, producerID, version, kind, schem
 	return false
 }
 
+// RevokeGrant marks the stored grant for a producer, version, kind, and
+// scope revoked so subsequent emissions fail closed. It reports an error
+// when no matching grant exists so rollback automation cannot mistake a
+// typo for a completed revocation.
+func (r Registry) RevokeGrant(producerID, version, kind, scope string) error {
+	state, err := r.load()
+	if err != nil {
+		return err
+	}
+	revoked := false
+	for i, existing := range state.Grants {
+		if existing.ProducerID == producerID &&
+			existing.Version == version &&
+			existing.Kind == kind &&
+			existing.Scope == scope {
+			state.Grants[i].Revoked = true
+			revoked = true
+		}
+	}
+	if !revoked {
+		return NewError(ErrorCodeGrantNotFound, "no producer grant for revocation")
+	}
+	return r.save(state)
+}
+
 // grantedCoreKinds indexes the live grants matching a manifest identity to
 // the core-owned kinds they cover. A grant binds only when it names this
 // producer and version, its scope is one of the manifest-declared collector

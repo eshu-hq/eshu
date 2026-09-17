@@ -25,8 +25,10 @@ type factKindClaim struct {
 // validateComponentFactKind enforces the component-side namespace boundary.
 // covered carries the schema versions a core-issued producer grant authorizes
 // for kind; declared must be a subset of covered for a core-owned kind to
-// pass. Without coverage every core-owned kind fails closed.
-func validateComponentFactKind(kind string, covered, declared []string) error {
+// pass. Without coverage every core-owned kind fails closed. producerID names
+// the claiming component so rejections identify the producer without
+// exposing credentials.
+func validateComponentFactKind(producerID, kind string, covered, declared []string) error {
 	trimmed := strings.TrimSpace(kind)
 	if kind != trimmed {
 		return fmt.Errorf("fact kind %q must be canonical without surrounding whitespace", kind)
@@ -34,11 +36,11 @@ func validateComponentFactKind(kind string, covered, declared []string) error {
 	if facts.IsCoreFactKind(trimmed) {
 		for _, version := range declared {
 			if !slices.Contains(covered, version) {
-				return fmt.Errorf("fact kind %q is core-owned by Eshu and cannot be claimed by optional components", trimmed)
+				return fmt.Errorf("fact kind %q is core-owned by Eshu and cannot be claimed by optional components (producer %q)", trimmed, producerID)
 			}
 		}
 		if len(declared) == 0 {
-			return fmt.Errorf("fact kind %q is core-owned by Eshu and cannot be claimed by optional components", trimmed)
+			return fmt.Errorf("fact kind %q is core-owned by Eshu and cannot be claimed by optional components (producer %q)", trimmed, producerID)
 		}
 		return nil
 	}
