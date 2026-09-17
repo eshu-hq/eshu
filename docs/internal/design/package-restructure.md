@@ -1258,7 +1258,7 @@ infrastructure aggregates. Routing stays split across the existing root
 routers: ecosystem summaries and change planning remain in
 `dispatch_ecosystem.go`; repository reads remain in
 `dispatch_repositories.go`, and package-registry reads moved to
-`internal/mcp/packageregistry` in the first Wave 2 extraction below;
+`internal/mcp/package/registry` in the first Wave 2 extraction below;
 infrastructure reads remain in `dispatch.go`, and infrastructure-search
 selection moved to `internal/mcp/infra/search` in the eleventh Wave 2
 extraction below; impact-analysis selection moved to `internal/mcp/impact` in
@@ -1273,7 +1273,7 @@ The package-registry route family is the first Wave 2 MCP extraction, and the
 first that moves route selection without moving a registration. Its six tools
 were answered by arms of the 46-arm `repositoryRoute` switch in
 `dispatch_repositories.go`; family membership and pure `routecontract` request
-selection now live under `internal/mcp/packageregistry`. Root keeps every tool
+selection now live under `internal/mcp/package/registry`. Root keeps every tool
 definition and its assembly position, global fanout order, the thin
 `packageRegistryRoute` adapter, dispatch, authorization, transport, timeouts,
 response budgets, envelopes, summaries, and telemetry. The adapter is consulted

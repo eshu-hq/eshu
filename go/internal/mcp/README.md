@@ -25,7 +25,7 @@ family route selection; `internal/query` retains validation and graph reads. The
 `documentation` child owns its six registration definitions and the `cloud`
 child the cloud inventory and runtime-drift pair; both families' routing stays
 here. The `visualization` child owns registration and pure request selection,
-while query derives packets. The `packageregistry`, `cicd`, `code/owners`,
+while query derives packets. The `package/registry`, `cicd`, `code/owners`,
 `secretsiam`, `observability/coverage`, `container/image`, `supply/chain/impact`,
 `supply/chain/evidence`, `securityalert`, `admission/decisions`, `kubernetes`,
 `infra/search`, `impact`, `code/flow`, `code/intel`, `content`, `code/dead`, `code/quality`, `entity/resolution`, `iac/management`, `infra/inventory`, `servicecontext`, and `replatforming`
@@ -352,7 +352,7 @@ envelope as structured content and as the envelope resource.
 
 Package-registry tools keep MCP as transport too. Ownership candidates,
 package-version publication evidence, and manifest-backed consumption all come
-from the query handler; the `packageregistry` child owns the bounded request
+from the query handler; the `package/registry` child owns the bounded request
 selection and `dispatch_package_registry.go` adapts it into a transport route.
 
 Repository-language tools keep MCP as transport only. The HTTP query layer owns

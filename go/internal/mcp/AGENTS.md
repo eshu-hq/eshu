@@ -32,7 +32,7 @@
    helpers; understand `parseCanonicalEnvelope` before touching response
    shaping.
    Package-registry request selection itself lives in
-   `go/internal/mcp/packageregistry`, CI/CD run-correlation request selection in
+   `go/internal/mcp/package/registry`, CI/CD run-correlation request selection in
    `go/internal/mcp/cicd`, CODEOWNERS ownership request selection in
    `go/internal/mcp/code/owners`, secrets/IAM posture request selection in
    `go/internal/mcp/secretsiam`, observability-coverage request selection in

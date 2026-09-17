@@ -14,7 +14,7 @@ packages such as `internal/mcp/admission/decisions`, `internal/mcp/ask`,
 `internal/mcp/code/quality`, `internal/mcp/container/image`, `internal/mcp/code/dead`,
 `internal/mcp/entity/resolution`,
 `internal/mcp/impact`, `internal/mcp/infra/search`, `internal/mcp/kubernetes`,
-`internal/mcp/observability/coverage`, `internal/mcp/packageregistry`,
+`internal/mcp/observability/coverage`, `internal/mcp/package/registry`,
 `internal/mcp/relationships`, `internal/mcp/secretsiam`,
 `internal/mcp/securityalert`, `internal/mcp/supply/chain/impact`, and
 `internal/mcp/visualization` own those decisions. The root `internal/mcp`
@@ -69,7 +69,7 @@ transport and API request telemetry.
 - [MCP infrastructure-search route selection](../../infra/search/README.md)
 - [MCP Kubernetes-correlation route selection](../../kubernetes/README.md)
 - [MCP observability-coverage route selection](../../observability/coverage/README.md)
-- [MCP package-registry route selection](../../packageregistry/README.md)
+- [MCP package-registry route selection](../../package/registry/README.md)
 - [MCP relationship registrations](../../relationships/README.md)
 - [MCP secrets/IAM route selection](../../secretsiam/README.md)
 - [MCP security-alert reconciliation route selection](../../securityalert/README.md)

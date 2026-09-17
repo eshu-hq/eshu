@@ -66,7 +66,7 @@ live in the repository today.
 | `go/internal/mcp/investigation/` | investigation workflow and evidence-packet MCP tool registration definitions |
 | `go/internal/mcp/kubernetes/` | Kubernetes-correlation MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/observability/coverage/` | observability-coverage MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/packageregistry/` | package-registry MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/package/registry/` | package-registry MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/playbooks/` | query-playbook MCP tool registration definitions |
 | `go/internal/mcp/relationships/` | code-relationship and relationship-edge MCP registrations plus pure family membership and dependency-neutral route selection |
 | `go/internal/mcp/contract/route/` | dependency-neutral MCP route arguments and internal-request shape |
@@ -229,7 +229,7 @@ Read and operator surfaces live under:
   pure dependency-neutral request selection
 - `go/internal/mcp/observability/coverage/`: observability-coverage family
   membership and pure dependency-neutral request selection
-- `go/internal/mcp/packageregistry/`: package-registry family membership and
+- `go/internal/mcp/package/registry/`: package-registry family membership and
   pure dependency-neutral request selection
 - `go/internal/mcp/relationships/`: relationship-family registrations, family
   membership decisions, and pure dependency-neutral request selection
