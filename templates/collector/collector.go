@@ -166,7 +166,12 @@ func Collect(claim sdk.Claim, report Report, opts CollectOptions) (sdk.Result, e
 	if len(report.Records) > limits.MaxRecordsPerClaim {
 		return terminalResult(claim, observedAt, "record-budget-exceeded"), nil
 	}
-	if opts.PreviousDigest != "" && opts.PreviousDigest == Digest(report) && len(report.Records) > 0 {
+	// PreviousDigest accepts the last emitted snapshot stable key (the
+	// LastDigest the Monitor reports) or the raw report digest; either
+	// match means the source has not moved since the last emission.
+	digest := Digest(report)
+	if opts.PreviousDigest != "" && len(report.Records) > 0 &&
+		(opts.PreviousDigest == digest || opts.PreviousDigest == "snapshot:"+digest) {
 		return sdk.Result{
 			ProtocolVersion: sdk.ProtocolVersionV1Alpha1,
 			State:           sdk.ResultUnchanged,

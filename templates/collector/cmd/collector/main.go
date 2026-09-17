@@ -60,32 +60,58 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 	// outcome below is observed, and the snapshot line on stderr carries
 	// liveness, freshness, failure, and retry state. Adopters graduate this
 	// to their logs/metrics/status endpoint; the shape stays the same.
+	// The monitor reports the effective limits for the mode in use, and
+	// collection runs under a wall-time bound: breaching it fails the run
+	// instead of emitting late evidence.
 	monitor := collector.NewMonitor()
 	var result sdk.Result
 	var err error
 	if *sdkStdio {
-		result, err = collectSDKStdio(stdin)
+		var stdioLimits collector.ResourceUse
+		result, stdioLimits, err = collectSDKStdio(stdin)
+		if err == nil {
+			limits = stdioLimits
+		}
 	} else {
-		result, err = collectLocalFlags(*inputPath, *sourceURI, *previousDigest, limits)
+		result, err = collectWithTimeout(*inputPath, *sourceURI, *previousDigest, limits)
 	}
+	monitor.SetResource(limits)
 	if err != nil {
 		monitor.ObserveFailure(firstLine(err.Error()))
 		health, resource := monitor.Snapshot()
 		logHealth(stderr, health, resource)
 		return err
 	}
+	// Only Complete/Partial with a snapshot digest move LastSuccessAt.
+	// Terminal outcomes observe as failures (propagating the failure
+	// class), and Unchanged outcomes leave the last good digest alone.
 	digest := ""
 	for _, fact := range result.Facts {
 		if fact.Kind == collector.FactKindSnapshot {
 			digest = fact.StableKey
 		}
 	}
-	monitor.ObserveSuccess(digest, time.Now().UTC())
+	if result.State == sdk.ResultTerminal {
+		monitor.ObserveFailure(terminalCause(result))
+	} else if digest != "" {
+		monitor.ObserveSuccess(digest, time.Now().UTC())
+	}
 	health, resource := monitor.Snapshot()
 	logHealth(stderr, health, resource)
 	encoder := json.NewEncoder(stdout)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(result)
+}
+
+// terminalCause propagates the terminal failure class for operator
+// visibility instead of a static string.
+func terminalCause(result sdk.Result) string {
+	for _, status := range result.Statuses {
+		if strings.TrimSpace(status.FailureClass) != "" {
+			return firstLine(status.FailureClass)
+		}
+	}
+	return "claim-terminal"
 }
 
 func firstLine(message string) string {
@@ -123,63 +149,88 @@ func collectLocalFlags(inputPath, sourceURI, previousDigest string, limits colle
 	})
 }
 
-func collectSDKStdio(stdin io.Reader) (sdk.Result, error) {
+// collectWithTimeout bounds one claim's wall time: a collection that
+// outruns ClaimTimeoutSeconds fails the run instead of emitting late
+// evidence. Single-shot mode performs no retries; adopters adding a retry
+// loop bound it with Monitor.ObserveRetryNevertheless.
+func collectWithTimeout(inputPath, sourceURI, previousDigest string, limits collector.ResourceUse) (sdk.Result, error) {
+	type outcome struct {
+		result sdk.Result
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		result, err := collectLocalFlags(inputPath, sourceURI, previousDigest, limits)
+		done <- outcome{result: result, err: err}
+	}()
+	timeout := time.Duration(limits.ClaimTimeoutSeconds) * time.Second
+	select {
+	case finished := <-done:
+		return finished.result, finished.err
+	case <-time.After(timeout):
+		return sdk.Result{}, fmt.Errorf("claim wall-time bound of %d seconds exceeded", limits.ClaimTimeoutSeconds)
+	}
+}
+
+func collectSDKStdio(stdin io.Reader) (sdk.Result, collector.ResourceUse, error) {
+	limits := collector.DefaultResourceUse()
 	var request sdkRequest
 	decoder := json.NewDecoder(stdin)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&request); err != nil {
-		return sdk.Result{}, fmt.Errorf("decode SDK request: %w", err)
+		return sdk.Result{}, limits, fmt.Errorf("decode SDK request: %w", err)
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
-			return sdk.Result{}, fmt.Errorf("decode SDK request: trailing JSON value")
+			return sdk.Result{}, limits, fmt.Errorf("decode SDK request: trailing JSON value")
 		}
-		return sdk.Result{}, fmt.Errorf("decode SDK request trailer: %w", err)
+		return sdk.Result{}, limits, fmt.Errorf("decode SDK request trailer: %w", err)
 	}
 	if strings.TrimSpace(request.ProtocolVersion) != sdk.ProtocolVersionV1Alpha1 {
-		return sdk.Result{}, fmt.Errorf("protocol_version %q is unsupported", request.ProtocolVersion)
+		return sdk.Result{}, limits, fmt.Errorf("protocol_version %q is unsupported", request.ProtocolVersion)
 	}
 	inputPath, err := nestedString(request.Config, "source", "input")
 	if err != nil {
-		return sdk.Result{}, err
+		return sdk.Result{}, limits, err
 	}
 	// A missing key falls back to the placeholder; a present-but-malformed
 	// value fails closed instead of silently emitting against the placeholder.
 	sourceURI, present, err := nestedOptionalString(request.Config, "source", "sourceURI")
 	if err != nil {
-		return sdk.Result{}, err
+		return sdk.Result{}, limits, err
 	}
 	if !present || strings.TrimSpace(sourceURI) == "" {
 		sourceURI = "https://example.invalid/source/template"
 	}
 	previousDigest, _, err := nestedOptionalString(request.Config, "freshness", "previousDigest")
 	if err != nil {
-		return sdk.Result{}, err
+		return sdk.Result{}, limits, err
 	}
-	limits, err := nestedLimits(request.Config)
+	limits, err = nestedLimits(request.Config)
 	if err != nil {
-		return sdk.Result{}, err
+		return sdk.Result{}, limits, err
 	}
 	file, err := os.Open(inputPath)
 	if err != nil {
-		return sdk.Result{}, err
+		return sdk.Result{}, limits, err
 	}
 	defer func() { _ = file.Close() }()
 	report, err := collector.LoadReport(file)
 	if err != nil {
-		return sdk.Result{}, err
+		return sdk.Result{}, limits, err
 	}
 	claim := request.Claim
 	if strings.TrimSpace(claim.GenerationID) == "" {
 		claim.GenerationID = "generation-1"
 	}
-	return collector.Collect(claim, report, collector.CollectOptions{
+	result, err := collector.Collect(claim, report, collector.CollectOptions{
 		ObservedAt:     time.Now().UTC(),
 		SourceURI:      sourceURI,
 		PreviousDigest: previousDigest,
 		Limits:         limits,
 	})
+	return result, limits, err
 }
 
 func demoClaim() sdk.Claim {
@@ -218,6 +269,11 @@ func nestedOptionalString(config map[string]any, keys ...string) (string, bool, 
 	for _, key := range keys {
 		m, ok := current.(map[string]any)
 		if !ok {
+			// A present-but-wrong-typed intermediate node fails closed;
+			// only a genuinely absent (nil) node selects the default.
+			if current != nil {
+				return "", true, fmt.Errorf("config %q must be an object", strings.Join(keys, "."))
+			}
 			return "", false, nil
 		}
 		current, ok = m[key]
@@ -262,6 +318,9 @@ func nestedOptionalNumber(config map[string]any, keys ...string) (int, bool, err
 	for _, key := range keys {
 		m, ok := current.(map[string]any)
 		if !ok {
+			if current != nil {
+				return 0, true, fmt.Errorf("config %q must be an object", strings.Join(keys, "."))
+			}
 			return 0, false, nil
 		}
 		current, ok = m[key]

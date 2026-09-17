@@ -57,6 +57,14 @@ func NewMonitor() *Monitor {
 	return &Monitor{health: Health{Alive: true}, resource: DefaultResourceUse()}
 }
 
+// SetResource records the effective bounds for the mode in use so the
+// reported resource field reflects the active bound, not just the default.
+func (m *Monitor) SetResource(resource ResourceUse) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.resource = resource
+}
+
 // ObserveSuccess records a completed claim.
 func (m *Monitor) ObserveSuccess(digest string, at time.Time) {
 	m.mu.Lock()
