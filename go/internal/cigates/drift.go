@@ -125,6 +125,18 @@ var matrixVariableRE = regexp.MustCompile(`\$\{\{\s*matrix\.([A-Za-z0-9_]+)\s*\}
 //     produced 352 false positives, measured once against the committed
 //     registry at the time this narrowing was added, before this narrowing
 //     existed. See checkCIScriptTriggerCoverage.
+//
+//  12. setup-go pre-warm ordering (#6615): every actions/setup-go step whose
+//     cache-dependency-path names a go.sum/go.mod must be followed, in the
+//     same job, by a scripts/ci/go-mod-download-retry.sh step for that same
+//     module BEFORE the first step that actually touches the module graph
+//     (a literal `go build/test/vet/run/install/list/mod/generate`, or
+//     golangci-lint/govulncheck/gosec/nancy). Registry-independent — this
+//     walks every workflow file directly, not gate-by-gate, so it also
+//     catches a job no gate's ci.job happens to name. See
+//     checkSetupGoPrewarmOrdering for why "somewhere in the job" (what the
+//     #6615 branch's first review pass verified) is not the same guarantee
+//     as "before the touch", and the no-restore-keys cache race this closes.
 func DriftCheck(repoRoot string, reg *Registry) []error {
 	var errs []error
 
@@ -146,6 +158,7 @@ func DriftCheck(repoRoot string, reg *Registry) []error {
 	errs = append(errs, checkRequiredStatusWorkflows(repoRoot, reg)...)
 	errs = append(errs, checkGoPackageTriggerCoverage(reg)...)
 	errs = append(errs, checkCIScriptTriggerCoverage(repoRoot, reg)...)
+	errs = append(errs, checkSetupGoPrewarmOrdering(repoRoot)...)
 
 	return errs
 }

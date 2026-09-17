@@ -35,6 +35,7 @@ on:
       - "sdk/go/**"
       - ".github/workflows/sdk-go.yml"
       - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
   workflow_dispatch:
 
 concurrency:
@@ -62,6 +63,15 @@ jobs:
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a build failure
+      # that never compiled anything (#6615 follow-up to #6075). This module
+      # is outside go/ (its own go.mod, own dependency graph), so it warms
+      # sdk/go/collector specifically -- warming go/ would not touch this
+      # module's cache.
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh sdk/go/collector
 
       - name: Build
         working-directory: sdk/go/collector
@@ -115,6 +125,15 @@ jobs:
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a build failure
+      # that never compiled anything (#6615 follow-up to #6075). This module
+      # is outside go/ (its own go.mod, own dependency graph), so it warms
+      # sdk/go/factschema specifically -- warming go/ would not touch this
+      # module's cache.
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh sdk/go/factschema
 
       - name: Build
         working-directory: sdk/go/factschema

@@ -34,6 +34,7 @@ on:
       - 'scripts/test-verify-replay-tier.sh'
       - 'scripts/dev/pre-pr.sh'
       - 'scripts/ci/install-apt-packages.sh'
+      - 'scripts/ci/go-mod-download-retry.sh'
       - '.github/workflows/verify-replay-tier.yml'
 
 concurrency:
@@ -61,6 +62,12 @@ jobs:
 
       - name: Install contract dependencies
         run: scripts/ci/install-apt-packages.sh ripgrep
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a replay-tier
+      # failure that never ran a test (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Verify replay tier contract
         run: bash scripts/test-verify-replay-tier.sh

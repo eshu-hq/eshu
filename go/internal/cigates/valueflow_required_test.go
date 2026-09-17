@@ -160,6 +160,7 @@ func TestValueFlowExpectationIsRequiredForItsOwnTriggers(t *testing.T) {
 		"scripts/verify-value-flow-conformance-expectation.sh":      "scripts/verify-value-flow-conformance-expectation.sh",
 		"scripts/test-verify-value-flow-conformance-expectation.sh": "scripts/test-verify-value-flow-conformance-expectation.sh",
 		"scripts/ci/install-apt-packages.sh":                        "scripts/ci/install-apt-packages.sh",
+		"scripts/ci/go-mod-download-retry.sh":                       "scripts/ci/go-mod-download-retry.sh",
 		".github/workflows/value-flow-conformance-expectation.yml":  ".github/workflows/value-flow-conformance-expectation.yml",
 	}
 	if len(selecting) != len(gate.Triggers) {

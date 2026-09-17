@@ -14,6 +14,7 @@ on:
       - "docker-compose*.yml"
       - "deploy/**"
       - "scripts/verify_backend_conformance_live.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/e2e-tests.yml"
 
 concurrency:
@@ -47,6 +48,12 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as an E2E failure
+      # that never compiled anything (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Build Go binaries
         working-directory: go

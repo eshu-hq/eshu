@@ -53,6 +53,7 @@ on:
       - "scripts/verify-value-flow-conformance-expectation.sh"
       - "scripts/test-verify-value-flow-conformance-expectation.sh"
       - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/value-flow-conformance-expectation.yml"
   workflow_dispatch:
 
@@ -89,6 +90,12 @@ jobs:
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a conformance
+      # expectation failure that never ran a test (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Prove the expectation script itself
         run: scripts/test-verify-value-flow-conformance-expectation.sh

@@ -53,6 +53,7 @@ on:
       - 'scripts/verify-replay-coverage-gate.sh'
       - 'scripts/test-verify-replay-coverage-gate.sh'
       - 'scripts/ci/install-apt-packages.sh'
+      - 'scripts/ci/go-mod-download-retry.sh'
       - '.github/workflows/replay-coverage-gate.yml'
 
 concurrency:
@@ -85,6 +86,11 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a coverage-gate
+      # failure that never compiled anything (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
       - name: Run replay coverage gate (blocking)
         env:
           RCOV_REPORT_OUT: replay-coverage-report.json

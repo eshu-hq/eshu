@@ -20,6 +20,7 @@ on:
       - "go/cmd/payload-usage-manifest/**"
       - "scripts/*verify-payload-usage-manifest*.sh"
       - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/payload-usage-manifest.yml"
   push:
     branches:
@@ -51,6 +52,12 @@ jobs:
 
       - name: Install ripgrep and jq
         run: scripts/ci/install-apt-packages.sh ripgrep jq
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a payload-usage
+      # test failure that never compiled (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run Go unit tests
         working-directory: go
@@ -84,6 +91,12 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a payload-usage
+      # gate failure that never compiled (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run payload-usage-manifest gate
         shell: bash

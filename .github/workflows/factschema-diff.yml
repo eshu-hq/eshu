@@ -59,6 +59,7 @@ on:
       - "go/cmd/factschema-diff/**"
       - "scripts/*verify-factschema-diff*.sh"
       - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/factschema-diff.yml"
   push:
     branches:
@@ -90,6 +91,12 @@ jobs:
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a factschema-diff
+      # test failure that never compiled anything (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run Go unit tests
         working-directory: go
@@ -127,6 +134,12 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a factschema-diff
+      # gate failure that never compiled anything (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run factschema-diff
         shell: bash

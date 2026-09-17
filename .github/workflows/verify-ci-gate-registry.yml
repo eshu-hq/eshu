@@ -31,6 +31,12 @@ jobs:
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
 
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a registry-drift
+      # failure that never compiled anything (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       - name: Run test mirror
         run: |
           scripts/test-verify-ci-gates-registry.sh
@@ -59,6 +65,12 @@ jobs:
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a registry-drift
+      # failure that never compiled anything (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Verify ci-gate registry integrity and hook/workflow drift
         run: scripts/verify-ci-gates-registry.sh --drift
