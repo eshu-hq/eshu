@@ -386,6 +386,34 @@ gates:
     ci_only_reason: ""
     hook_id: no-diff-fragments
 
+  - id: filename-stutter
+    name: No filename stutter in added/renamed Go files
+    category: hygiene
+    tier: pre-commit
+    blocking: true
+    triggers:
+      # The stutter lands in a file the PR adds or renames (a move into a
+      # nest, or a new file repeating its directory), so a Go-path trigger
+      # covers the case. Legacy family conventions (*_rules.go,
+      # engine_<lang>_*) are never scanned, only newly introduced names.
+      # The gate's own scripts are triggers too, so a PR editing only them
+      # still selects the gate locally instead of first failing in CI.
+      - "go/**/*.go"
+      - "scripts/verify-filename-stutter.sh"
+      - "scripts/test-verify-filename-stutter.sh"
+    local:
+      command: "bash scripts/verify-filename-stutter.sh --staged"
+      pre_push: floor
+      test_command: "bash scripts/test-verify-filename-stutter.sh"
+    ci:
+      # Runs in verify-agent-hygiene.yml's gate job alongside agent-canon and
+      # the AI-attribution check; same workflow, same job, one more step.
+      workflow: verify-agent-hygiene.yml
+      job: "Agent hygiene gate"
+    requirements: []
+    ci_only_reason: ""
+    hook_id: filename-stutter
+
   - id: no-ai-attribution
     name: No AI attribution in commits/docs
     category: hygiene

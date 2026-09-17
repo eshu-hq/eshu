@@ -78,6 +78,13 @@ repos:
         always_run: true
         pass_filenames: false
 
+      - id: filename-stutter
+        name: no filename stutter (staged content)
+        entry: scripts/verify-filename-stutter.sh --staged
+        language: script
+        always_run: true
+        pass_filenames: false
+
       - id: no-ai-attribution-content
         name: no AI attribution (staged content)
         entry: scripts/verify-no-ai-attribution.sh --staged
