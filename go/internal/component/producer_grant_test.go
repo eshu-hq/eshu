@@ -144,6 +144,55 @@ func TestRevokeGrantMissingReportsNotFound(t *testing.T) {
 	}
 }
 
+// TestRegistryInstallFencesReplacedGrantedProducer proves cutover fencing
+// on the grant path: while producer A holds a granted core kind, producer B
+// cannot install the same kind even with its own live grant. Replacement
+// requires uninstalling (fencing) A first, after which B installs cleanly.
+func TestRegistryInstallFencesReplacedGrantedProducer(t *testing.T) {
+	t.Parallel()
+
+	const (
+		kind       = "aws_resource"
+		grantScope = "aws"
+		alpha      = "dev.example.collector.alpha"
+		beta       = "dev.example.collector.beta"
+		version    = "0.1.0"
+	)
+	registry := NewRegistry(t.TempDir())
+	for _, producer := range []string{alpha, beta} {
+		if err := registry.RecordGrant(ProducerGrant{
+			ProducerID:     producer,
+			Version:        version,
+			Kind:           kind,
+			SchemaVersions: []string{"1.0.0"},
+			Scope:          grantScope,
+			ExpiresAt:      time.Now().Add(time.Hour).UTC(),
+		}); err != nil {
+			t.Fatalf("RecordGrant(%s) error = %v, want nil", producer, err)
+		}
+	}
+	alphaYAML := componentManifestForFactKind(alpha, version, kind, []string{"1.0.0"})
+	if _, err := registry.Install(writeManifest(t, alphaYAML), verificationFor(alpha, version)); err != nil {
+		t.Fatalf("Install(alpha) error = %v, want nil", err)
+	}
+
+	betaYAML := componentManifestForFactKind(beta, version, kind, []string{"1.0.0"})
+	_, err := registry.Install(writeManifest(t, betaYAML), verificationFor(beta, version))
+	if err == nil {
+		t.Fatal("Install(beta) error = nil, want fact-kind collision while alpha holds the kind")
+	}
+	if got := ErrorCodeOf(err); got != ErrorCodeFactKindCollision {
+		t.Fatalf("Install(beta) code = %q, want %q; err=%v", got, ErrorCodeFactKindCollision, err)
+	}
+
+	if err := registry.Uninstall(alpha, version); err != nil {
+		t.Fatalf("Uninstall(alpha) error = %v, want nil", err)
+	}
+	if _, err := registry.Install(writeManifest(t, betaYAML), verificationFor(beta, version)); err != nil {
+		t.Fatalf("Install(beta after uninstall) error = %v, want nil; err=%v", err, err)
+	}
+}
+
 // TestRegistryInstallStillRejectsUngrantedCoreFactKindClaim locks the
 // fail-closed default: without a recorded grant the core-owned rejection
 // stands, even for an otherwise valid manifest.

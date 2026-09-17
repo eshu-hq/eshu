@@ -160,6 +160,44 @@ func TestSourceRejectsEmissionAfterGrantExpiry(t *testing.T) {
 	}
 }
 
+// TestSourceRevokedGrantTurnsRetryTerminal proves the recheck runs before
+// result-state handling: a revoked grant fails the result terminal even
+// when the extension asks to retry, instead of retrying forever under a
+// dead authorization.
+func TestSourceRevokedGrantTurnsRetryTerminal(t *testing.T) {
+	t.Parallel()
+
+	manifest, grants := grantedCoreKindManifest()
+	revoked := grants[0]
+	revoked.Revoked = true
+	item := testWorkItem()
+	result := grantedCoreKindResult(item)
+	result.State = sdkcollector.ResultRetryable
+	source, err := NewSource(Config{
+		Manifest:            manifest,
+		CollectorInstanceID: "scorecard-instance",
+		ScopeKind:           scope.KindRepository,
+		ConfigHandle:        "cfg-scorecard",
+		Config:              map[string]any{"fixture": "scorecard"},
+		Runner:              &recordingRunner{result: result},
+		Clock:               testObservedAt,
+		Grants:              grants,
+		LiveGrants:          func() []component.ProducerGrant { return []component.ProducerGrant{revoked} },
+	})
+	if err != nil {
+		t.Fatalf("NewSource() error = %v, want nil", err)
+	}
+
+	_, ok, err := source.NextClaimed(context.Background(), item)
+	if err == nil {
+		t.Fatal("NextClaimed() error = nil, want terminal grant error")
+	}
+	if ok {
+		t.Fatal("NextClaimed() ok = true, want false")
+	}
+	assertFailure(t, err, FailureClassInvalidResult, true)
+}
+
 // TestSourceAcceptsEmissionWithLiveGrant proves the recheck passes while
 // the grant stays live: authorization is continuous, not just checked at
 // construction.
