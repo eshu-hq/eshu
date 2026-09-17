@@ -70,8 +70,8 @@ identically in its own transaction).
 path and executes evidence-artifact statements sequentially in
 auto-commit transactions after the main group commits
 (`executeArtifactStatements` in
-`go/internal/storage/cypher/edge_writer_artifact_sequential.go`, split
-out for the 500-line cap — `edge_writer.go` is at 498). Artifact
+`go/internal/storage/cypher/edge_writer_unroutable.go`, folded in for
+the 131-file dirgate cap — no new file). Artifact
 failure keeps the established contract: retryable error, intents stay
 open, reprocessed claims re-MERGE mains idempotently first. No Cypher
 text changed; the `artifact-sequential` execution mode is log-only.
