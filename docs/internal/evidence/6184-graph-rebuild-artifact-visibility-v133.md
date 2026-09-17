@@ -215,3 +215,25 @@ SLO row: fixture exact-green 82 s plus 3x throughput signal 149 s
 with the tie-only diff above; FI 4/4 and determinism green on the
 fix commit. CI `required-gates-complete` remains authoritative for
 merge.
+
+## Gate proof (review-thread fixes, `dfea5d3f0`)
+
+Run27 (fixture corpus, both passes, binaries from `dfea5d3f0`,
+pinned v1.3.3 digest): exit 0 — clean rebuild **83 s** (inside the
+82–83 s runs 11–17/20 band: the extra Function MATCH clause, probe
+chunking, fail-closed probe path, and post-read fence recheck add no
+measurable rebuild cost), pass 1 0/0 nodes/edges, pass 2 (restart,
+933 items in flight at the kill) 0/0, DEPLOYMENT_SOURCE 12/12.
+Log: `~/tmp/e6184/run27-gate.log`.
+
+Supersedes the Observability Evidence note above for the artifact
+phase: one claim now emits ONE `artifact-sequential` summary entry
+(phase `executed_rows`/`statement_count` stay summable; per-statement
+entries carrying full-claim counts are gone), and the grouped-write
+instruments (`eshu_dp_shared_edge_write_groups_total`,
+`..._group_duration_seconds`, `..._group_statement_count`) record the
+phase under a bounded `execution_mode` label (`group`,
+`artifact-sequential`) so duration dashboards keep seeing the whole
+write. `eshu_dp_shared_edge_target_miss_total` is documented in the
+telemetry README, the reducer-storage metric reference, the
+shared-write-operations reference, and the coverage row.
