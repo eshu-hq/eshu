@@ -754,7 +754,7 @@ reducer's edge handler gates on the canonical-nodes-committed row the AWS node
 builders publish under that key. The root `awsCloudRuntimeDriftSourceSystem`
 helper it called stays at root for its seven remaining root callers; the child
 uses the body-identical `projectorintent.SourceSystem`.
-The IAM CAN_ASSUME builder moved into `internal/projector/iamcanassume` as the
+The IAM CAN_ASSUME builder moved into `internal/projector/iamcanassume` (now `internal/projector/cloud/aws/iam/trust`, #6627) as the
 third decode-bearing family: it anchors with `FirstOfKindMatching` on the
 earliest `aws_iam_permission` fact whose payload decodes with
 `policy_source == "trust"`, skipping identity statements and undecodable
@@ -942,7 +942,7 @@ The unsupported-schema-version regression test stays at root in
 `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.
 The IAM instance-profile-role builder moved into
-`internal/projector/iaminstanceprofile`. It triggers on an `aws_resource`
+`internal/projector/iaminstanceprofile` (now `internal/projector/cloud/aws/iam/instance/profile`, #6627). It triggers on an `aws_resource`
 fact whose decoded `resource_type` is `aws_iam_instance_profile`, anchored to
 the earliest such fact via `FirstOfKindMatching` — a no-role profile (empty
 `role_arns`) still triggers so the reducer handler's retract pass runs

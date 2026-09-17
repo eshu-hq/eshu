@@ -78,7 +78,7 @@
 // internal/projector/aws/relationship child package; the reducer owns the
 // bounded relationship join, the canonical-nodes readiness gate, and edge
 // projection. The IAM CAN_ASSUME reducer-intent builder and its
-// aws_iam_permission decode wrapper live in the internal/projector/iamcanassume
+// aws_iam_permission decode wrapper live in the internal/projector/cloud/aws/iam/trust
 // child package; the reducer owns principal resolution, the canonical-nodes
 // readiness gate, and trust-edge projection.
 // Package-registry identity emits package source-correlation and

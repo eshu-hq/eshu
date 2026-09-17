@@ -3,9 +3,9 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order; this probe
+2. `../../../../../AGENTS.md` and `../../../../../README.md` for projector-wide invariants.
+3. `../../../../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../../../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after the EC2 USES_PROFILE probe and before the EC2 internet-exposure
    probe.
 5. `docs/internal/design/1299-iam-instance-profile-role-edge.md` for the
@@ -55,13 +55,13 @@
 
 - **Changing the reason string or the entity key.** Both are asserted
   verbatim by the package tests and by the root fan-out parity fixture
-  (`../scope_generation_intents_fanout_parity_test.go`); change them
+  (`../../../../../scope_generation_intents_fanout_parity_test.go`); change them
   together, and remember the entity key is a cross-domain readiness contract,
   not a label.
 - **Changing the trigger predicate.** The `resource_type` filter and the
   no-role trigger are correctness decisions, not cleanups: the package tests
   and the root fan-out fixture (`aws-resource-iam-profile-1` in
-  `../scope_generation_intents_fanout_test.go`) pin them, and the design
+  `../../../../../scope_generation_intents_fanout_test.go`) pin them, and the design
   doc's retraction section explains why presence of a profile — not presence
   of roles — is the signal. Update the design doc in the same change.
 

@@ -132,7 +132,7 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/facts/documentation.go:118
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/facts/documentation.go:184
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/facts/documentation.go:208
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/iamcanassume/materialization_intents.go:39
+LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/cloud/aws/iam/trust/materialization_intents.go:39
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/tfstate_canonical.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_inventory_readback.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_runtime_drift.go:20

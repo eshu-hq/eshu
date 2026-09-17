@@ -130,7 +130,7 @@
   incident-routing, AWS-relationship, AWS-cloud-image, IAM CAN_ASSUME, package-source-correlation, cloud-inventory-admission, code-taint-evidence, code-interproc-evidence, code-function-summary, SBOM-attestation-attachment, service-catalog-correlation, and secrets-IAM-trust-chain family builders consume the lookup. Root owns ordered family assembly and the public `ReducerIntent`
   alias for callers. A family that needs a typed-payload decode (EC2's
   `USES_PROFILE` builder was the first; S3's `LOGS_TO` builder is the second;
-  the IAM CAN_ASSUME builder in `iamcanassume/` is the third, and it took the
+  the IAM CAN_ASSUME builder in `cloud/aws/iam/trust/` is the third, and it took the
   root `factschema_decode_iam.go` wrapper with it because that builder was the
   wrapper's only caller)
   keeps its own local decode call against `sdk/go/factschema` rather than
@@ -176,7 +176,7 @@
   `intent/fact_lookup_test.go`.
 - **IAM instance-profile-role family (#6057)** — the
   `iam_instance_profile_role_materialization` builder lives in
-  `iaminstanceprofile/` and consumes the lookup like the families above. It is
+  `cloud/aws/iam/instance/profile/` and consumes the lookup like the families above. It is
   a decode-seam-bearing family: its trigger predicate decodes
   `aws_resource.resource_type` through its own `factschema_decode_aws.go`
   against `sdk/go/factschema` (the `ec2` pattern) and matches
@@ -208,7 +208,7 @@
   `factschema_decode_aws.go`, triggering only on `"container_image"`; every
   other branch reads only envelope fields or a local `payloadString` copy.
   Root's `decodeAWSRelationship` wrapper had this trigger as its only caller
-  and moved out entirely (the `iamcanassume` precedent), unlike
+  and moved out entirely (the `cloud/aws/iam/trust` precedent), unlike
   `ec2`/`observability/coverage` where root keeps other callers. The root
   `containerImageIdentitySourceSystem` helper was byte-identical to
   `projectorintent.SourceSystem` and was dropped rather than moved. The four

@@ -63,7 +63,7 @@ storage, graph, span, metric, or log boundary.
 - **The entity key is not private to this family.** Eleven other reducer-intent
   builders emit the same `aws_resource_materialization:<scope>` key so their
   handlers gate on the `CloudResource` substrate this domain publishes — the
-  `aws/relationship`, `aws/cloud/image`, `iamcanassume`, `iaminstanceprofile`,
+  `aws/relationship`, `aws/cloud/image`, `cloud/aws/iam/trust`, `cloud/aws/iam/instance/profile`,
   `rds`, `security`, and `workload/cloud` packages, three builders in `s3`, and
   `observability/coverage/materialization/materialization_intents.go`. (Twelve
   `EntityKey` assignment sites carry the prefix in non-test projector code,

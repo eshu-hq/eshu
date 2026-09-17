@@ -13,6 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/s3"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	"github.com/eshu-hq/eshu/go/internal/projector/cicd/run/correlation"
+	iamprofile "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/iam/instance/profile"
+	iamtrust "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/iam/trust"
 	inventory "github.com/eshu-hq/eshu/go/internal/projector/cloud/inventory"
 	awsdrift "github.com/eshu-hq/eshu/go/internal/projector/cloud/runtime/drift/aws"
 	multidrift "github.com/eshu-hq/eshu/go/internal/projector/cloud/runtime/drift/multi"
@@ -22,8 +24,6 @@ import (
 	containerimageidentity "github.com/eshu-hq/eshu/go/internal/projector/container/image/identity"
 	projectorcrossplanesatisfiedby "github.com/eshu-hq/eshu/go/internal/projector/crossplanesatisfiedby"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
-	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
-	projectoriaminstanceprofile "github.com/eshu-hq/eshu/go/internal/projector/iaminstanceprofile"
 	"github.com/eshu-hq/eshu/go/internal/projector/incident/routing"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
 	"github.com/eshu-hq/eshu/go/internal/projector/observability/coverage"
@@ -118,7 +118,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := summary.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectoriamcanassume.BuildIAMCanAssumeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := iamtrust.BuildIAMCanAssumeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := s3.BuildLogsToMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
@@ -136,7 +136,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := ec2.BuildUsesProfileMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectoriaminstanceprofile.BuildIAMInstanceProfileRoleMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := iamprofile.BuildIAMInstanceProfileRoleMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := ec2.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

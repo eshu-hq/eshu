@@ -12,7 +12,7 @@ import (
 
 // iamTrustPermissionEnvelope returns one aws_iam_permission fact with the given
 // policy_source. It lived beside the iam_can_assume builder's root tests until
-// that family moved into internal/projector/iamcanassume; the root fan-out
+// that family moved into internal/projector/cloud/aws/iam/trust; the root fan-out
 // fixture still needs it to prove the dispatcher skips the identity statement
 // and anchors the trust statement through the child builder.
 func iamTrustPermissionEnvelope(factID, scopeID, generationID, policySource string) facts.Envelope {
@@ -41,7 +41,7 @@ func iamTrustPermissionEnvelope(factID, scopeID, generationID, policySource stri
 // iamInstanceProfileResourceFact returns one aws_resource fact typed as an IAM
 // instance profile carrying the given role_arns. It lived beside the
 // iam_instance_profile_role builder's root tests until that family moved into
-// internal/projector/iaminstanceprofile; the root fan-out fixture still needs
+// internal/projector/cloud/aws/iam/instance/profile; the root fan-out fixture still needs
 // it to prove the dispatcher anchors this domain to the profile-typed resource
 // rather than a generic aws_resource fact.
 func iamInstanceProfileResourceFact(factID, scopeID, generationID string, roleARNs ...string) facts.Envelope {

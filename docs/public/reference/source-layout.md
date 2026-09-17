@@ -95,8 +95,8 @@ live in the repository today.
 | `go/internal/projector/code/taint/evidence/` | taint-evidence reducer-intent builder |
 | `go/internal/projector/container/image/identity/` | container-image-identity reducer-intent family builder |
 | `go/internal/projector/gcp/` | GCP resource and relationship reducer-intent family builders |
-| `go/internal/projector/iamcanassume/` | IAM CAN_ASSUME trust-edge reducer-intent family builder and its aws_iam_permission decode wrapper |
-| `go/internal/projector/iaminstanceprofile/` | IAM instance-profile-role reducer-intent family builder and its aws_resource decode wrapper |
+| `go/internal/projector/cloud/aws/iam/trust/` | IAM CAN_ASSUME trust-edge reducer-intent family builder and its aws_iam_permission decode wrapper |
+| `go/internal/projector/cloud/aws/iam/instance/profile/` | IAM instance-profile-role reducer-intent family builder and its aws_resource decode wrapper |
 | `go/internal/projector/incident/routing/` | PagerDuty incident-routing reducer-intent family builder |
 | `go/internal/projector/intent/` | dependency-neutral reducer-intent values, source labels, and immutable fact index for extracted projector families |
 | `go/internal/projector/kubernetes/` | Kubernetes live-workload and namespace reducer-intent family builders |

@@ -27,7 +27,7 @@ import (
 // seam. Root's own decodeAWSRelationship wrapper (formerly in its
 // factschema_decode_aws.go) had this package's trigger as its only caller,
 // so it was removed rather than kept as dead code — the way root's
-// decodeAWSIAMPermission wrapper moved out entirely when iamcanassume/ was
+// decodeAWSIAMPermission wrapper moved out entirely when cloud/aws/iam/trust/ was
 // extracted. This package recreates the call under a family-prefixed name
 // (matching the family-prefixed naming the ec2 and observability/coverage
 // extractions use; the payload-usage manifest gate does enforce a unique
