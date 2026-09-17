@@ -105,12 +105,11 @@ is_doc_table_header_or_separator() {
 
 # ROW_CELL_PATHS: output array for resolve_row_cell_paths_into below, reset
 # at the start of every call. A documented global, not a bash 4.3+ nameref
-# (`local -n`): macOS's bundled /bin/bash is 3.2, which this repo's dev
-# matrix must still run under, and 3.2 rejects `local -n` as an unknown
-# `local` option -- a hard parse-time error under `set -e`, not a silent
-# no-op (confirmed: `bash scripts/test-verify-telemetry-coverage.sh` under
-# a `/bin/bash` 3.2 shim failed 16/47 with exactly that error, #6681
-# review). Every call site below reads ROW_CELL_PATHS immediately after
+# (`local -n`): this verifier already ran under macOS's bundled /bin/bash
+# 3.2 before #6681, and 3.2 rejects `local -n` as an unknown `local`
+# option -- a hard error under `set -e`, not a silent no-op (a `/bin/bash`
+# 3.2 shim run of `bash scripts/test-verify-telemetry-coverage.sh` failed
+# 16/47 with exactly that error during #6681 review, where main passed). Every call site below reads ROW_CELL_PATHS immediately after
 # calling resolve_row_cell_paths_into, before any other call that might
 # reuse it; this script is single-threaded with no recursion, so that
 # ordering is the only contract.
