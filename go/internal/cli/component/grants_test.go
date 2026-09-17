@@ -5,6 +5,7 @@ package component
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -128,6 +129,64 @@ func TestRunGrantRejectsIncompleteIssuance(t *testing.T) {
 				t.Fatalf("ProducerGrants() count = %d, want 0 after rejected issuance", len(grants))
 			}
 		})
+	}
+}
+
+// TestRunGrantJSONPinsPayloadShape proves the --json contract: the grant
+// block carries the stored grant under the pinned schema version.
+func TestRunGrantJSONPinsPayloadShape(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	out := &bytes.Buffer{}
+	err := RunGrant(
+		out, true, home,
+		"dev.example.collector.alpha", "0.1.0",
+		"aws_resource", []string{"1.0.0"}, "aws",
+		time.Hour, grantTestClock,
+	)
+	if err != nil {
+		t.Fatalf("RunGrant() error = %v, want nil", err)
+	}
+	var payload map[string]any
+	if jerr := json.Unmarshal(out.Bytes(), &payload); jerr != nil {
+		t.Fatalf("RunGrant() output is not JSON: %v", jerr)
+	}
+	if got := payload["schema_version"]; got != "eshu.component.cli.v1" {
+		t.Fatalf("schema_version = %v, want eshu.component.cli.v1", got)
+	}
+	if got := payload["command"]; got != "grant" {
+		t.Fatalf("command = %v, want grant", got)
+	}
+	if got := payload["status"]; got != "granted" {
+		t.Fatalf("status = %v, want granted", got)
+	}
+	grant, ok := payload["grant"].(map[string]any)
+	if !ok {
+		t.Fatalf("grant block = %v, want object", payload["grant"])
+	}
+	for key, want := range map[string]any{
+		"producer_id": "dev.example.collector.alpha",
+		"version":     "0.1.0",
+		"kind":        "aws_resource",
+		"scope":       "aws",
+	} {
+		if got := grant[key]; got != want {
+			t.Fatalf("grant.%s = %v, want %v", key, got, want)
+		}
+	}
+
+	listOut := &bytes.Buffer{}
+	if err := RunGrants(listOut, true, home, ""); err != nil {
+		t.Fatalf("RunGrants() error = %v, want nil", err)
+	}
+	var listPayload map[string]any
+	if jerr := json.Unmarshal(listOut.Bytes(), &listPayload); jerr != nil {
+		t.Fatalf("RunGrants() output is not JSON: %v", jerr)
+	}
+	listed, ok := listPayload["grants"].([]any)
+	if !ok || len(listed) != 1 {
+		t.Fatalf("grants = %v, want one recorded grant", listPayload["grants"])
 	}
 }
 
