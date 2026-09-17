@@ -119,6 +119,11 @@ func buildReducerService(
 	presence := newEndpointPresenceWirings(getenv, secretsIAMGraphWriter != nil, database)
 	relationshipStore := postgres.NewRelationshipStore(database)
 	relationshipGenerationActive := postgres.NewRelationshipGenerationActiveLookup(relationshipStore)
+	// Corpus-wide fence for derivation that merges foreign resolved reads
+	// (workload materialization, deployable-unit correlation): those loaders
+	// must not succeed while any active scope's current relationship
+	// generation is inactive (#6184).
+	resolutionsComplete := postgres.NewRelationshipGenerationsCompleteLookup(relationshipStore)
 	factStore := postgres.NewFactStore(database)
 	if identityCache != nil {
 		factStore = postgres.NewFactStoreWithIdentityCache(database, identityCache)
@@ -217,19 +222,21 @@ func buildReducerService(
 
 	executor, err := reducer.NewDefaultRuntime(reducer.DefaultHandlers{
 		DeployableUnitCorrelationHandler: reducer.DeployableUnitCorrelationHandler{
-			FactLoader:              factStore,
-			ResolvedLoader:          relationshipStore,
-			PhasePublisher:          graphProjectionStateStore,
-			EdgeWriter:              edgeWriterForHandlers,
-			AdmissionDecisionWriter: admissionDecisionWriter,
-			ResolutionActiveLookup:  relationshipGenerationActive,
-			CanonicalQuiescence:     postgres.NewReducerGraphDrain(database),
+			FactLoader:                factStore,
+			ResolvedLoader:            relationshipStore,
+			PhasePublisher:            graphProjectionStateStore,
+			EdgeWriter:                edgeWriterForHandlers,
+			AdmissionDecisionWriter:   admissionDecisionWriter,
+			ResolutionActiveLookup:    relationshipGenerationActive,
+			ResolutionsCompleteLookup: resolutionsComplete,
+			CanonicalQuiescence:       postgres.NewReducerGraphDrain(database),
 		},
 		WorkloadProjectionInputLoader: reducer.CorrelatedWorkloadProjectionInputLoader{
-			FactLoader:             factStore,
-			ResolvedLoader:         relationshipStore,
-			ScopeResolver:          postgres.RepoScopeResolver{DB: database},
-			ResolutionActiveLookup: relationshipGenerationActive,
+			FactLoader:                factStore,
+			ResolvedLoader:            relationshipStore,
+			ScopeResolver:             postgres.RepoScopeResolver{DB: database},
+			ResolutionActiveLookup:    relationshipGenerationActive,
+			ResolutionsCompleteLookup: resolutionsComplete,
 		},
 		WorkloadDependencyLookup:           neo4jWorkloadDependencyLookup{reader: graphReader},
 		InstanceRetractionLookup:           neo4jWorkloadInstanceRetractionLookup{reader: graphReader},

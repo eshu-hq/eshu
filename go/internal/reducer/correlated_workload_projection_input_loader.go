@@ -82,6 +82,12 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 	// relationship-generation fence also backing the repo-dependency lane,
 	// so main.go wires the same lookup value here.
 	ResolutionActiveLookup maintenance.RelationshipGenerationActiveLookup
+	// ResolutionsCompleteLookup backs the corpus-wide resolution-readiness
+	// gate: the load defers while any active scope's current relationship
+	// generation is inactive, because the by-repos resolved read merges
+	// foreign scopes the own-generation check cannot see (#6184). Nil keeps
+	// the gate open for test wiring; main.go wires the Postgres lookup here.
+	ResolutionsCompleteLookup maintenance.RelationshipGenerationsCompleteLookup
 }
 
 // LoadWorkloadProjectionInputs loads workload candidates, enriches them with
@@ -110,9 +116,19 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 	// deployable-unit correlation gate: an inactive own generation means the
 	// pinned own-scope load and the by-repos load are both partial, and
 	// workload materialization succeeding on that partial input is never
-	// reopened (#6184). Deliberately own-scope only; foreign scopes are
-	// undiscoverable before the read itself (see ownResolutionGenerationReady).
+	// reopened (#6184). The own-scope check is deliberately own-scope only
+	// (foreign scopes are undiscoverable before the read itself); the
+	// corpus-wide fence below covers the foreign side.
 	if !ownResolutionGenerationReady(l.ResolutionActiveLookup, intent, candidates) {
+		return nil, nil, workloadMaterializationResolutionNotReadyError{
+			scopeID:      intent.ScopeID,
+			generationID: intent.GenerationID,
+		}
+	}
+	// The own-scope check cannot see foreign scopes, whose retired-or-pending
+	// generations would feed the by-repos read below a partial set. Defer on
+	// the corpus-wide fence with the same non-counting retry class.
+	if !corpusResolutionsComplete(l.ResolutionsCompleteLookup, candidates) {
 		return nil, nil, workloadMaterializationResolutionNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
@@ -350,4 +366,57 @@ func correlatedWorkloadName(
 		}
 	}
 	return candidateWorkloadName(candidate)
+}
+
+// resolutionGenerationReady reports whether the relationship generation has
+// activated. Lookup errors fail closed; nil preserves isolated test wiring.
+func resolutionGenerationReady(
+	lookup maintenance.RelationshipGenerationActiveLookup,
+	generationID string,
+) bool {
+	if lookup == nil {
+		return true
+	}
+	active, err := lookup(generationID)
+	return err == nil && active
+}
+
+// ownResolutionGenerationReady requires the intent's own relationship
+// generation before a resolved-relationship read. An inactive own generation
+// means both feeds of that read are partial, and a success on that partial
+// input is never reopened (#6184), so the intent defers instead. Foreign
+// scopes are not knowable until that read, so gating on them would be
+// circular. Empty candidate sets are vacuous and do not wait on work they do
+// not consume.
+func ownResolutionGenerationReady(
+	lookup maintenance.RelationshipGenerationActiveLookup,
+	intent Intent,
+	candidates []WorkloadCandidate,
+) bool {
+	if len(candidates) == 0 {
+		return true
+	}
+	return resolutionGenerationReady(lookup, intent.GenerationID)
+}
+
+// corpusResolutionsComplete requires every active scope's current relationship
+// generation before a resolved-relationship read. The own-generation check
+// cannot see foreign scopes, and the by-repos read filters on status =
+// 'active', so without this fence a retired-or-pending foreign generation
+// feeds derivation a partial set that varies run to run, and success on that
+// partial input is never reopened (#6184). Empty candidate sets are vacuous
+// and do not wait on work they do not consume. A nil lookup keeps the gate
+// open for test wiring; a lookup error fails safe as incomplete.
+func corpusResolutionsComplete(
+	lookup maintenance.RelationshipGenerationsCompleteLookup,
+	candidates []WorkloadCandidate,
+) bool {
+	if len(candidates) == 0 {
+		return true
+	}
+	if lookup == nil {
+		return true
+	}
+	complete, err := lookup()
+	return err == nil && complete
 }

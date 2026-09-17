@@ -5,6 +5,7 @@ package reducer //nolint:filelength // 896 lines: correlated workload projection
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -893,4 +894,57 @@ func (r *stubScopeResolver) ResolveRepoActiveGenerations(
 		}
 	}
 	return result, nil
+}
+
+func TestWorkloadProjectionInputsDeferWhileCorpusResolutionIncomplete(t *testing.T) {
+	t.Parallel()
+
+	resolvedLoader := &stubResolvedRelationshipLoader{}
+	loader := CorrelatedWorkloadProjectionInputLoader{
+		FactLoader:     &stubFactLoader{envelopes: dockerfileLoaderEnvelopes()},
+		ResolvedLoader: resolvedLoader,
+		// Own generation is active, but a foreign scope's resolution has not
+		// activated yet: the by-repos read would serve a partial set (#6184).
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"gen-1": true}),
+		ResolutionsCompleteLookup: func() (bool, error) {
+			return false, nil
+		},
+	}
+
+	_, _, err := loader.LoadWorkloadProjectionInputs(context.Background(), dockerfileLoaderIntent())
+	if err == nil {
+		t.Fatal("LoadWorkloadProjectionInputs() error = nil, want resolution-not-ready deferral while a foreign generation is inactive")
+	}
+	var deferral workloadMaterializationResolutionNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("LoadWorkloadProjectionInputs() error type = %T, want workloadMaterializationResolutionNotReadyError", err)
+	}
+	if !deferral.Retryable() {
+		t.Fatal("deferral Retryable() = false, want true so the queue re-runs after activation")
+	}
+	if got, want := deferral.FailureClass(), WorkloadMaterializationResolutionNotReadyFailureClass; got != want {
+		t.Fatalf("deferral FailureClass() = %q, want %q", got, want)
+	}
+	if resolvedLoader.calls != 0 || resolvedLoader.repoCalls != 0 {
+		t.Fatalf("resolved loader calls = %d/%d, want 0/0: the gate must fire before the fail-open read",
+			resolvedLoader.calls, resolvedLoader.repoCalls)
+	}
+}
+
+func TestWorkloadProjectionInputsProceedWhenCorpusResolutionComplete(t *testing.T) {
+	t.Parallel()
+
+	loader := CorrelatedWorkloadProjectionInputLoader{
+		FactLoader:             &stubFactLoader{envelopes: dockerfileLoaderEnvelopes()},
+		ResolvedLoader:         &stubResolvedRelationshipLoader{},
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"gen-1": true}),
+		ResolutionsCompleteLookup: func() (bool, error) {
+			return true, nil
+		},
+	}
+
+	_, _, err := loader.LoadWorkloadProjectionInputs(context.Background(), dockerfileLoaderIntent())
+	if err != nil {
+		t.Fatalf("LoadWorkloadProjectionInputs() error = %v, want nil when own and corpus resolution are complete", err)
+	}
 }

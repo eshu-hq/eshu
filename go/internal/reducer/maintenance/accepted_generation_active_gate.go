@@ -35,6 +35,19 @@ type AcceptedGenerationPrefetch = func(ctx context.Context, intents []sharedinte
 // Postgres generation swap.
 type RelationshipGenerationActiveLookup func(generationID string) (bool, error)
 
+// RelationshipGenerationsCompleteLookup reports whether every active scope's
+// current relationship generation is active (published) in Postgres. It backs
+// the workload and deployable-unit correlation input gates: those loaders
+// merge a generation-pinned own-scope resolved read with a by-repos read over
+// foreign scopes, and the own-generation check cannot see a foreign scope
+// whose resolution retired or has not activated yet (#6184). Succeeding on
+// that partial merged input is never reopened, so the load defers until the
+// corpus-wide resolved set is complete.
+//
+// A non-nil error is treated by the gate as "not complete" (fail safe), same
+// as RelationshipGenerationActiveLookup.
+type RelationshipGenerationsCompleteLookup func() (bool, error)
+
 // GateAcceptedGenerationOnActive decorates an AcceptedGenerationLookup so an
 // accepted generation only grants graph-projection authority once it is also
 // active (published) in Postgres.

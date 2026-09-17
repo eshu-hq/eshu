@@ -638,6 +638,14 @@ type relationshipTestDB struct {
 	candidates    map[string]candidateRecord
 	resolved      map[string]resolvedRecord
 	insertCounts  map[string]int
+	scopes        map[string]scopeRecord
+}
+
+// scopeRecord models the ingestion_scopes columns the completeness gate reads:
+// only status and the current generation participate.
+type scopeRecord struct {
+	status             string
+	activeGenerationID string
 }
 
 func newRelationshipTestDB() *relationshipTestDB {
@@ -648,6 +656,7 @@ func newRelationshipTestDB() *relationshipTestDB {
 		candidates:    make(map[string]candidateRecord),
 		resolved:      make(map[string]resolvedRecord),
 		insertCounts:  make(map[string]int),
+		scopes:        make(map[string]scopeRecord),
 	}
 }
 
@@ -784,6 +793,9 @@ func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args
 	case strings.Contains(query, "FROM relationship_assertions"):
 		return db.queryAssertions(func(_ assertionRecord) bool { return true }), nil
 
+	case strings.Contains(query, "FROM ingestion_scopes"):
+		return newRelationshipRows([][]any{{db.activeScopeGenerationsComplete()}}), nil
+
 	case strings.Contains(query, "FROM relationship_generations") && strings.Contains(query, "status = 'active'"):
 		generationID := args[0].(string)
 		if gen, ok := db.generations[generationID]; ok && gen.status == "active" {
@@ -812,6 +824,29 @@ func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args
 	default:
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
+}
+
+// activeScopeGenerationsComplete evaluates the completeness-gate predicate over
+// fake state with the same semantics as the shipped SQL: every active scope
+// must have an active relationship generation row for its current generation.
+// Retired scopes and superseded generations never hold the gate.
+func (db *relationshipTestDB) activeScopeGenerationsComplete() bool {
+	for scopeID, scope := range db.scopes {
+		if scope.status != "active" {
+			continue
+		}
+		complete := false
+		for generationID, gen := range db.generations {
+			if gen.scope == scopeID && generationID == scope.activeGenerationID && gen.status == "active" {
+				complete = true
+				break
+			}
+		}
+		if !complete {
+			return false
+		}
+	}
+	return true
 }
 
 func (db *relationshipTestDB) queryAssertions(filter func(assertionRecord) bool) *relationshipRows {
@@ -1008,6 +1043,8 @@ func (r *relationshipRows) Scan(dest ...any) error {
 			}
 		case *float64:
 			*d = val.(float64)
+		case *bool:
+			*d = val.(bool)
 		case *int:
 			*d = val.(int)
 		case *time.Time:

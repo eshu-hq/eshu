@@ -37,6 +37,12 @@ type DeployableUnitCorrelationHandler struct {
 	// This is the shared relationship-generation fence also backing the
 	// repo-dependency lane, so main.go wires the same lookup value here.
 	ResolutionActiveLookup maintenance.RelationshipGenerationActiveLookup
+	// ResolutionsCompleteLookup backs the corpus-wide resolution-readiness
+	// gate: the intent defers while any active scope's current relationship
+	// generation is inactive, because the by-repos resolved read merges
+	// foreign scopes the own-generation check cannot see (#6184). Nil keeps
+	// the gate open for test wiring; main.go wires the Postgres lookup here.
+	ResolutionsCompleteLookup maintenance.RelationshipGenerationsCompleteLookup
 	// CanonicalQuiescence keeps graph writes behind repository projection.
 	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 }
@@ -81,12 +87,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
 	// Fail closed before the resolved-relationship read: both feeds are partial
-	// until the scope's own resolution activates, and success is never reopened.
-	if !ownResolutionGenerationReady(h.ResolutionActiveLookup, intent, candidates) {
-		return Result{}, deployableUnitCorrelationResolutionNotReadyError{
-			scopeID:      intent.ScopeID,
-			generationID: intent.GenerationID,
-		}
+	// until resolutions complete corpus-wide, and success is never reopened.
+	if err := checkDeployableUnitResolutionReadiness(h.ResolutionActiveLookup, h.ResolutionsCompleteLookup, intent, candidates); err != nil {
+		return Result{}, err
 	}
 	if err := deployableUnitCanonicalReposReady(ctx, h.CanonicalQuiescence, intent, len(candidates) > 0); err != nil {
 		return Result{}, err
@@ -484,16 +487,4 @@ func deployableUnitKeys(candidate WorkloadCandidate) []string {
 		values = append(values, key)
 	}
 	return uniqueSortedStrings(values)
-}
-
-func deployableUnitCorrelationSummary(evaluatedCandidates int, summary correlation.Summary) string {
-	return fmt.Sprintf(
-		"evaluated %d deployable unit candidate(s); admitted=%d rejected=%d low_confidence=%d conflicts=%d rules=%d",
-		evaluatedCandidates,
-		summary.AdmittedCandidates,
-		summary.RejectedCandidates,
-		summary.LowConfidenceCount,
-		summary.ConflictCount,
-		summary.EvaluatedRules,
-	)
 }

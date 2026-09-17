@@ -176,6 +176,29 @@ WHERE generation_id = $1
 LIMIT 1
 `
 
+// activeScopeRelationshipGenerationsCompleteSQL reports whether every active
+// scope's current relationship generation is active. A missing row (scope
+// resolving for the first time) or a non-active row (retired by refinalize,
+// pending re-resolution) both read as incomplete: the by-repos resolved read
+// filters on status = 'active', so either shape feeds workload and
+// deployable-unit derivation a partial foreign set (#6184). Rows for retired
+// scopes and superseded generations are excluded by the join: only the scope's
+// current generation can ever resolve, so only it can hold the gate.
+const activeScopeRelationshipGenerationsCompleteSQL = `
+SELECT NOT EXISTS (
+  SELECT 1
+  FROM ingestion_scopes AS s
+  WHERE s.status = 'active'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM relationship_generations AS rg
+      WHERE rg.scope = s.scope_id
+        AND rg.generation_id = s.active_generation_id
+        AND rg.status = 'active'
+    )
+)
+`
+
 const activateResolutionGenerationSQL = `
 WITH deactivate AS (
     UPDATE relationship_generations

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/correlation"
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -96,35 +97,30 @@ func deployableUnitCanonicalReposReady(
 	}
 }
 
-// resolutionGenerationReady reports whether the relationship generation has
-// activated. Lookup errors fail closed; nil preserves isolated test wiring.
-func resolutionGenerationReady(
-	lookup maintenance.RelationshipGenerationActiveLookup,
-	generationID string,
-) bool {
-	if lookup == nil {
-		return true
-	}
-	active, err := lookup(generationID)
-	return err == nil && active
-}
-
-// ownResolutionGenerationReady requires the intent's own relationship
-// generation before a resolved-relationship read. An inactive own generation
-// means both feeds of that read are partial, and a success on that partial
-// input is never reopened (#6184), so the intent defers instead. Foreign
-// scopes are not knowable until that read, so gating on them would be
-// circular. Empty candidate sets are vacuous and do not wait on work they do
-// not consume.
-func ownResolutionGenerationReady(
-	lookup maintenance.RelationshipGenerationActiveLookup,
+// checkDeployableUnitResolutionReadiness defers the intent while the resolved
+// set it would read is partial: first the own-generation check, then the
+// corpus-wide fence covering the foreign scopes the own check cannot see.
+// Both defer with the same non-counting retry class, because success on a
+// partial input is never reopened (#6184).
+func checkDeployableUnitResolutionReadiness(
+	activeLookup maintenance.RelationshipGenerationActiveLookup,
+	completeLookup maintenance.RelationshipGenerationsCompleteLookup,
 	intent Intent,
 	candidates []WorkloadCandidate,
-) bool {
-	if len(candidates) == 0 {
-		return true
+) error {
+	if !ownResolutionGenerationReady(activeLookup, intent, candidates) {
+		return deployableUnitCorrelationResolutionNotReadyError{
+			scopeID:      intent.ScopeID,
+			generationID: intent.GenerationID,
+		}
 	}
-	return resolutionGenerationReady(lookup, intent.GenerationID)
+	if !corpusResolutionsComplete(completeLookup, candidates) {
+		return deployableUnitCorrelationResolutionNotReadyError{
+			scopeID:      intent.ScopeID,
+			generationID: intent.GenerationID,
+		}
+	}
+	return nil
 }
 
 const (
@@ -454,4 +450,16 @@ func deployableUnitDecisionReason(candidate correlationmodel.Candidate) string {
 		return "deployable unit correlation not admitted"
 	}
 	return "deployable unit correlation rejected: " + strings.Join(uniqueSortedStrings(reasons), ",")
+}
+
+func deployableUnitCorrelationSummary(evaluatedCandidates int, summary correlation.Summary) string {
+	return fmt.Sprintf(
+		"evaluated %d deployable unit candidate(s); admitted=%d rejected=%d low_confidence=%d conflicts=%d rules=%d",
+		evaluatedCandidates,
+		summary.AdmittedCandidates,
+		summary.RejectedCandidates,
+		summary.LowConfidenceCount,
+		summary.ConflictCount,
+		summary.EvaluatedRules,
+	)
 }
