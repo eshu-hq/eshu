@@ -69,7 +69,13 @@ func derivedTargetRotationOffset(observedAt time.Time, interval time.Duration, l
 	if interval <= 0 {
 		interval = defaultReconcileInterval
 	}
-	bucket := observedAt.UTC().UnixNano() / int64(interval)
+	// Index the bucket from the same truncated clock the plan key uses.
+	// time.Truncate rounds from Go's zero time, so for an interval that does
+	// not divide the zero-time-to-epoch offset (5h, say) an epoch-based
+	// UnixNano/interval bucket would flip at a different moment than the plan
+	// key and let a rotating instance page to new targets under the old run ID.
+	// For an epoch-aligned interval the two indices are identical.
+	bucket := observedAt.UTC().Truncate(interval).UnixNano() / int64(interval)
 	return bucket * int64(limit)
 }
 

@@ -371,3 +371,48 @@ func TestServiceRunReconcileRotatesVulnerabilityTargetsOnInstanceScanInterval(t 
 		}
 	}
 }
+
+// The plan key truncates the clock with time.Truncate, which rounds from Go's
+// zero time, while the derived-target rotation offset used to divide UnixNano,
+// which rounds from the Unix epoch. For an interval that does not divide the
+// offset between the two (5h does not; 12h, 1h and 30s do) the two flipped at
+// different moments, so a rotating package-registry or vulnerability instance
+// could page to new targets under the old run ID. Both must change together
+// (Codex review on #6724).
+func TestDerivedTargetRotationOffsetFlipsWithThePlanKeyBucket(t *testing.T) {
+	t.Parallel()
+
+	const interval = 5 * time.Hour
+	instance := workflow.CollectorInstance{Mode: workflow.CollectorModeContinuous}
+	bucketStart := time.Date(2026, time.September, 17, 0, 0, 0, 0, time.UTC)
+	if got := bucketStart.Truncate(interval); !got.Equal(bucketStart) {
+		t.Fatalf("test premise: %s is not a %s truncate boundary (got %s)", bucketStart, interval, got)
+	}
+	if bucketStart.UnixNano()%int64(interval) == 0 {
+		t.Fatalf("test premise: %s is epoch-aligned for %s; pick a boundary where the two epochs disagree", bucketStart, interval)
+	}
+	// The epoch-aligned 5h boundary that falls inside this truncate bucket.
+	epochBoundary := time.Unix(0, (bucketStart.UnixNano()/int64(interval)+1)*int64(interval)).UTC()
+	if !epochBoundary.After(bucketStart) || !epochBoundary.Before(bucketStart.Add(interval)) {
+		t.Fatalf("test premise: epoch boundary %s not inside bucket [%s, %s)", epochBoundary, bucketStart, bucketStart.Add(interval))
+	}
+
+	before := bucketStart.Add(-time.Minute)
+	inside := bucketStart.Add(time.Minute)
+	afterEpochBoundary := epochBoundary.Add(time.Minute)
+
+	// Crossing the truncate boundary: plan key and rotation offset both change.
+	if scheduledPlanKey(instance, before, interval) == scheduledPlanKey(instance, inside, interval) {
+		t.Fatalf("plan key did not change across the truncate boundary at %s", bucketStart)
+	}
+	if derivedTargetRotationOffset(before, interval, 10) == derivedTargetRotationOffset(inside, interval, 10) {
+		t.Fatalf("rotation offset did not change across the truncate boundary at %s", bucketStart)
+	}
+	// Crossing only the epoch boundary inside one bucket: neither changes.
+	if a, b := scheduledPlanKey(instance, inside, interval), scheduledPlanKey(instance, afterEpochBoundary, interval); a != b {
+		t.Fatalf("plan key changed inside one bucket: %q -> %q", a, b)
+	}
+	if a, b := derivedTargetRotationOffset(inside, interval, 10), derivedTargetRotationOffset(afterEpochBoundary, interval, 10); a != b {
+		t.Fatalf("rotation offset changed inside one plan-key bucket at the epoch boundary %s: %d -> %d", epochBoundary, a, b)
+	}
+}

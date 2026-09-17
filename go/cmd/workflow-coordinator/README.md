@@ -166,9 +166,13 @@ that reads the value:
 - It must be at least `1s` and must not be shorter than the global reconcile
   interval. The reconcile ticker fires at the global rate, so a narrower
   per-instance bucket could not be visited as often as it promises.
-- Buckets truncate against the Unix epoch, so a `12h` instance turns over at
-  00:00 and 12:00 UTC no matter when the coordinator started; the first bucket
-  after a restart may therefore be shorter than the configured interval.
+- Buckets are fixed multiples of the interval measured from Go's zero time
+  (`time.Truncate`), not from when the coordinator started. Any interval that
+  divides 24h therefore lands on fixed UTC wall-clock boundaries: a `12h`
+  instance turns over at 00:00 and 12:00 UTC. The first bucket after a restart
+  may be shorter than the configured interval. Derived-target rotation for
+  package-registry and vulnerability-intelligence instances indexes the same
+  truncated bucket, so the page of targets and the plan key change together.
 - Freshness-triggered (webhook) planners and bootstrap instances are
   unaffected; only the periodic scheduled planners read this field. A
   package-registry or vulnerability-intelligence instance whose derivation
