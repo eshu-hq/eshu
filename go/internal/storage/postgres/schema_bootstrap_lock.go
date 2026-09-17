@@ -13,6 +13,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -338,7 +340,7 @@ func (executor schemaConnectionExecutor) execContextWithLockTimeout(
 func (db SQLDB) withSchemaBootstrapLock(
 	ctx context.Context,
 	waitTimeout time.Duration,
-	apply func(Executor) error,
+	apply func(db.Executor) error,
 ) error {
 	if db.DB == nil {
 		return fmt.Errorf("postgres SQLDB requires a database handle")

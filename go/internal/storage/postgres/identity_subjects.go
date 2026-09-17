@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 )
 
@@ -360,7 +362,7 @@ CREATE INDEX IF NOT EXISTS identity_token_metadata_active_idx
 // IdentitySubjectStore owns identity subject schema and local identity lifecycle
 // writes for the user-management rollout.
 type IdentitySubjectStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 	// providerSecretKeyring seals provider-config write-only secrets (#4966).
 	// It is nil when no DEK is configured (ESHU_AUTH_SECRET_ENC_KEY(_FILE)
 	// unset); provider-config writes that carry a secret fail closed in that
@@ -386,7 +388,7 @@ type IdentitySubjectStore struct {
 }
 
 // NewIdentitySubjectStore constructs a Postgres identity subject store.
-func NewIdentitySubjectStore(db ExecQueryer) *IdentitySubjectStore {
+func NewIdentitySubjectStore(db db.ExecQueryer) *IdentitySubjectStore {
 	return &IdentitySubjectStore{db: db}
 }
 

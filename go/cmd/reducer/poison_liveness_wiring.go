@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -23,7 +25,7 @@ type postgresPoisonLivenessRecoverer struct {
 // this runner, while the stuck-gauge (wired separately, see
 // poisonLivenessObserverFor) remains active regardless.
 func poisonLivenessRunnerFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cfg poisonLivenessConfig,
 ) *maintenance.PoisonLivenessRunner {
 	if !cfg.Runner.AutoRetryEnabled {
@@ -62,7 +64,7 @@ type poisonLivenessObserver struct {
 	store postgres.PoisonLivenessStore
 }
 
-func poisonLivenessObserverFor(database postgres.ExecQueryer) poisonLivenessObserver {
+func poisonLivenessObserverFor(database db.ExecQueryer) poisonLivenessObserver {
 	return poisonLivenessObserver{store: postgres.NewPoisonLivenessStore(database)}
 }
 

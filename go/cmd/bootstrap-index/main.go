@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -26,7 +28,7 @@ import (
 )
 
 type bootstrapDB interface {
-	postgres.ExecQueryer
+	db.ExecQueryer
 	Close() error
 }
 
@@ -106,8 +108,8 @@ func main() {
 		os.Getenv,
 		openBootstrapDB,
 		applySchema,
-		func(ctx context.Context, db bootstrapDB) error {
-			beginner, ok := db.(postgres.Beginner)
+		func(ctx context.Context, database bootstrapDB) error {
+			beginner, ok := database.(db.Beginner)
 			if !ok {
 				return fmt.Errorf("bootstrap database does not support transactions")
 			}

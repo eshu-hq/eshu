@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -26,7 +28,7 @@ type latencyBackfillDB struct {
 	stmtLatency   time.Duration
 }
 
-func (db *latencyBackfillDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *latencyBackfillDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	time.Sleep(db.stmtLatency)
 	rows, err := db.rowsFor(query, args)
 	if err != nil {
@@ -103,13 +105,13 @@ func (db *latencyBackfillDB) ExecContext(context.Context, string, ...any) (sql.R
 	return fakeResult{}, nil
 }
 
-func (db *latencyBackfillDB) Begin(context.Context) (Transaction, error) {
+func (db *latencyBackfillDB) Begin(context.Context) (db.Transaction, error) {
 	return &latencyBackfillTx{db: db}, nil
 }
 
 type latencyBackfillTx struct{ db *latencyBackfillDB }
 
-func (tx *latencyBackfillTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (tx *latencyBackfillTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	time.Sleep(tx.db.stmtLatency)
 	rows, err := tx.db.rowsFor(query, args)
 	if err != nil {

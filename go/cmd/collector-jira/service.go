@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -28,7 +30,7 @@ var fallbackClaimSequence uint64
 
 // buildCassetteService wires a credential-free cassette source onto the shared collector commit boundary.
 func buildCassetteService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cassettePath string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -51,7 +53,7 @@ func buildCassetteService(
 }
 
 func buildClaimedService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,

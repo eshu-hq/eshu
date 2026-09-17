@@ -10,6 +10,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -23,7 +25,7 @@ const (
 )
 
 type localContentSearchIndexDB interface {
-	pgstorage.Executor
+	db.Executor
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
@@ -65,7 +67,7 @@ func startDeferredContentSearchIndexes(ctx context.Context, out io.Writer, dsn s
 	}, nil
 }
 
-func runDeferredContentSearchIndexes(ctx context.Context, out io.Writer, db localContentSearchIndexDB, interval time.Duration, expectedProjectors int) error {
+func runDeferredContentSearchIndexes(ctx context.Context, out io.Writer, database localContentSearchIndexDB, interval time.Duration, expectedProjectors int) error {
 	out = writerOrDiscard(out)
 	if interval <= 0 {
 		interval = deferredContentSearchIndexPollInterval
@@ -74,16 +76,16 @@ func runDeferredContentSearchIndexes(ctx context.Context, out io.Writer, db loca
 	defer ticker.Stop()
 
 	for {
-		ready, err := localContentSearchIndexesReady(ctx, db, expectedProjectors)
+		ready, err := localContentSearchIndexesReady(ctx, database, expectedProjectors)
 		if err != nil {
 			_, _ = fmt.Fprintf(out, "warning: deferred content search index readiness check failed: %v\n", err)
 		}
 		if ready {
 			start := time.Now()
 			buildCtx, cancel := context.WithTimeout(context.Background(), deferredContentSearchIndexBuildTimeout)
-			beginner, ok := db.(pgstorage.Beginner)
+			beginner, ok := database.(db.Beginner)
 			if !ok {
-				rawDB, rawOK := db.(*sql.DB)
+				rawDB, rawOK := database.(*sql.DB)
 				if !rawOK {
 					cancel()
 					return fmt.Errorf("deferred content search index database does not support transactions")

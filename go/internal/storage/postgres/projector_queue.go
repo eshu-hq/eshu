@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -18,7 +20,7 @@ import (
 
 // ProjectorQueue provides projector-stage queue claim and ack behavior.
 type ProjectorQueue struct {
-	db                ExecQueryer
+	db                db.ExecQueryer
 	LeaseOwner        string
 	LeaseDuration     time.Duration
 	RetryDelay        time.Duration
@@ -66,7 +68,7 @@ var ErrProjectorClaimRejected = errors.New("projector work claim rejected")
 
 // NewProjectorQueue constructs a Postgres-backed projector work queue.
 func NewProjectorQueue(
-	db ExecQueryer,
+	db db.ExecQueryer,
 	leaseOwner string,
 	leaseDuration time.Duration,
 ) ProjectorQueue {
@@ -165,7 +167,7 @@ func (q ProjectorQueue) Ack(
 		return err
 	}
 
-	beginner, ok := q.db.(Beginner)
+	beginner, ok := q.db.(db.Beginner)
 	if !ok {
 		return errors.New("projector queue database must support Begin for ack")
 	}

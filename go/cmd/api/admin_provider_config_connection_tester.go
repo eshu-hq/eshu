@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/githublogin"
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -33,12 +35,12 @@ type providerConfigConnectionTester struct {
 	keyring *secretcrypto.Keyring
 }
 
-func newProviderConfigConnectionTester(db *sql.DB, keyring *secretcrypto.Keyring) query.ProviderConfigConnectionTester {
-	if db == nil {
+func newProviderConfigConnectionTester(rawDB *sql.DB, keyring *secretcrypto.Keyring) query.ProviderConfigConnectionTester {
+	if rawDB == nil {
 		return nil
 	}
 	return &providerConfigConnectionTester{
-		store:   pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})),
+		store:   pgstatus.NewIdentitySubjectStore(db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})),
 		keyring: keyring,
 	}
 }

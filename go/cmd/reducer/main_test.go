@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -436,7 +438,7 @@ type fakeReducerTransactionalDB struct {
 	fakeReducerDB
 }
 
-func (f *fakeReducerTransactionalDB) Begin(context.Context) (postgres.Transaction, error) {
+func (f *fakeReducerTransactionalDB) Begin(context.Context) (db.Transaction, error) {
 	return nil, nil
 }
 
@@ -454,7 +456,7 @@ func (f *fakeReducerDB) ExecContext(
 	return fakeReducerResult{}, nil
 }
 
-func (f *fakeReducerDB) QueryContext(_ context.Context, query string, args ...any) (postgres.Rows, error) {
+func (f *fakeReducerDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	// countFailedGenerationRepositoryScopesSQL (SeedSearchVectorScopeState):
 	// report zero failed scopes so startup wiring tests, which only exercise
 	// runner construction, aren't coupled to seed-count fixtures. Checked

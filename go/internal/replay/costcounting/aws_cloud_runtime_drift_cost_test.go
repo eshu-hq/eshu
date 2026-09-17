@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -116,10 +118,10 @@ var awsCloudRuntimeDriftFixtureEvidenceAsOf = time.Date(2026, time.July, 12, 12,
 // admission.
 const awsCloudRuntimeDriftFixtureFencingToken int64 = 1
 
-// postgresExecCountingQueryer is an in-memory postgres.ExecQueryer that
+// postgresExecCountingQueryer is an in-memory db.ExecQueryer that
 // records each ExecContext call. QueryContext is never exercised by
 // PostgresAWSCloudRuntimeDriftWriter (it only writes) and is implemented as a
-// no-op solely to satisfy the postgres.ExecQueryer interface.
+// no-op solely to satisfy the db.ExecQueryer interface.
 type postgresExecCountingQueryer struct {
 	execCalls atomic.Int64
 }
@@ -129,25 +131,25 @@ func (q *postgresExecCountingQueryer) ExecContext(_ context.Context, _ string, _
 	return postgresFakeResult{}, nil
 }
 
-func (q *postgresExecCountingQueryer) QueryContext(_ context.Context, _ string, _ ...any) (postgres.Rows, error) {
+func (q *postgresExecCountingQueryer) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return nil, nil
 }
 
 func (q *postgresExecCountingQueryer) count() int64 { return q.execCalls.Load() }
 
-// Begin lets postgresExecCountingQueryer double as a postgres.Beginner, so
+// Begin lets postgresExecCountingQueryer double as a db.Beginner, so
 // InstrumentedDB.Begin can wrap it (#5848: PostgresAWSCloudRuntimeDriftWriter
 // now writes through a transaction for the insert-admission check, the
 // versioned upsert, and the generation-authoritative retire). ExecContext
 // calls made through the returned transaction still route through this same
 // counting queryer, so both the raw exec count and the instrumented histogram
 // observation count stay meaningful.
-func (q *postgresExecCountingQueryer) Begin(context.Context) (postgres.Transaction, error) {
+func (q *postgresExecCountingQueryer) Begin(context.Context) (db.Transaction, error) {
 	return postgresCountingTx{q: q}, nil
 }
 
 // postgresCountingTx adapts postgresExecCountingQueryer into a no-op
-// postgres.Transaction: ExecContext/QueryContext forward to the same counting
+// db.Transaction: ExecContext/QueryContext forward to the same counting
 // queryer, Commit/Rollback are no-ops. There is no real transactional
 // isolation here; this fixture only needs call counting.
 type postgresCountingTx struct {
@@ -158,7 +160,7 @@ func (tx postgresCountingTx) ExecContext(ctx context.Context, query string, args
 	return tx.q.ExecContext(ctx, query, args...)
 }
 
-func (tx postgresCountingTx) QueryContext(ctx context.Context, query string, args ...any) (postgres.Rows, error) {
+func (tx postgresCountingTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.q.QueryContext(ctx, query, args...)
 }
 

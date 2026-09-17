@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -29,7 +31,7 @@ import (
 // tests that would have caught it need ESHU_POSTGRES_DSN and skip without it.
 //
 // The tests below need no Postgres. Both exported functions take a
-// pgstorage.ExecQueryer, so fakeCredentialDB stands in for the connection and
+// db.ExecQueryer, so fakeCredentialDB stands in for the connection and
 // records every statement they drive, including the INSERT the real
 // pgstorage.GovernanceAuditStore issues. Asserting on that INSERT rather than
 // on a stubbed appender keeps governanceaudit.NormalizeEvent in the path: an
@@ -263,9 +265,9 @@ type recordedStatement struct {
 	args []any
 }
 
-// fakeCredentialDB is a hermetic pgstorage.ExecQueryer that records every
+// fakeCredentialDB is a hermetic db.ExecQueryer that records every
 // statement RetrieveInitialCredential and ResetInitialCredential drive. It
-// also implements pgstorage.Beginner, which ResetBootstrapCredential requires
+// also implements db.Beginner, which ResetBootstrapCredential requires
 // for its transaction.
 //
 // The query routing below matches production SQL by substring. That couples
@@ -300,7 +302,7 @@ func (f *fakeCredentialDB) ExecContext(_ context.Context, query string, args ...
 	return fakeCredentialResult{}, nil
 }
 
-func (f *fakeCredentialDB) QueryContext(_ context.Context, query string, args ...any) (pgstorage.Rows, error) {
+func (f *fakeCredentialDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	f.record(query, args)
 	switch {
 	case strings.Contains(query, "SELECT sealed_credential"):
@@ -323,10 +325,10 @@ func (f *fakeCredentialDB) QueryContext(_ context.Context, query string, args ..
 	}
 }
 
-// Begin satisfies pgstorage.Beginner. Statements inside the transaction land
+// Begin satisfies db.Beginner. Statements inside the transaction land
 // in the same recording as statements outside it, which is what lets the
 // audit assertion see the reset's INSERT.
-func (f *fakeCredentialDB) Begin(context.Context) (pgstorage.Transaction, error) {
+func (f *fakeCredentialDB) Begin(context.Context) (db.Transaction, error) {
 	return fakeCredentialTx{db: f}, nil
 }
 
@@ -377,7 +379,7 @@ func (t fakeCredentialTx) ExecContext(ctx context.Context, query string, args ..
 	return t.db.ExecContext(ctx, query, args...)
 }
 
-func (t fakeCredentialTx) QueryContext(ctx context.Context, query string, args ...any) (pgstorage.Rows, error) {
+func (t fakeCredentialTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return t.db.QueryContext(ctx, query, args...)
 }
 

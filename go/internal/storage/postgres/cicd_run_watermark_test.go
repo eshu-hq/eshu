@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/runwatermark"
 )
 
@@ -161,7 +163,7 @@ func (db *cicdWatermarkTestDB) ExecContext(_ context.Context, query string, args
 	return result, nil
 }
 
-func (db *cicdWatermarkTestDB) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (db *cicdWatermarkTestDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return &cicdWatermarkFakeRows{rows: db.queryRows}, nil
 }
 
@@ -175,7 +177,7 @@ type cicdWatermarkRowsResult struct{ rowsAffected int64 }
 func (r cicdWatermarkRowsResult) LastInsertId() (int64, error) { return 0, nil }
 func (r cicdWatermarkRowsResult) RowsAffected() (int64, error) { return r.rowsAffected, nil }
 
-// cicdWatermarkFakeRows implements the postgres.Rows seam over a canned row
+// cicdWatermarkFakeRows implements the db.Rows seam over a canned row
 // set for tests, mirroring the AWS checkpoint store test's fake DB shape.
 type cicdWatermarkFakeRows struct {
 	rows [][]any

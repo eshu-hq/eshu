@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // statusActiveGenerationBenchDSN resolves the live Postgres DSN used by the
@@ -262,7 +264,7 @@ func benchmarkStatusActiveFactWorkItemsCTE(b *testing.B, dsn string, benchCase s
 // scope_generations population with many rows per scope_id.
 func seedStatusActiveGenerationBenchmark(
 	ctx context.Context,
-	db Executor,
+	db db.Executor,
 	benchCase statusActiveGenerationBenchCase,
 ) error {
 	base := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
@@ -395,8 +397,8 @@ CROSS JOIN work_series`,
 // TestStatusActiveFactWorkItemsCTEUsesGenerationIndex to assert the planner
 // picks an index scan on scope_generations instead of a sequential scan once
 // scope_generations_scope_generation_idx exists.
-func statusActiveGenerationExplainAnalyze(ctx context.Context, db Executor, query string) (string, error) {
-	queryer, ok := db.(Queryer)
+func statusActiveGenerationExplainAnalyze(ctx context.Context, database db.Executor, query string) (string, error) {
+	queryer, ok := database.(db.Queryer)
 	if !ok {
 		return "", fmt.Errorf("executor does not support QueryContext")
 	}

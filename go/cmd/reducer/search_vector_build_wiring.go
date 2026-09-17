@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	reducersearchvector "github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
@@ -19,7 +21,7 @@ import (
 const envSemanticSearchLocalEmbedder = searchembedruntime.EnvLocalEmbedder
 
 func searchVectorBuildRunnerFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	getenv func(string) string,
 	logger *slog.Logger,
 	instruments *telemetry.Instruments,

@@ -10,18 +10,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
 // IncidentFreshnessStore persists incident-source webhook refresh triggers for
 // later workflow coordinator handoff.
 type IncidentFreshnessStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewIncidentFreshnessStore constructs a Postgres-backed incident freshness
 // trigger store.
-func NewIncidentFreshnessStore(db ExecQueryer) *IncidentFreshnessStore {
+func NewIncidentFreshnessStore(db db.ExecQueryer) *IncidentFreshnessStore {
 	return &IncidentFreshnessStore{db: db}
 }
 
@@ -181,7 +183,7 @@ func (s *IncidentFreshnessStore) MarkTriggersFailed(
 	return nil
 }
 
-func scanIncidentFreshnessTrigger(rows Rows) (webhook.StoredIncidentFreshnessTrigger, error) {
+func scanIncidentFreshnessTrigger(rows db.Rows) (webhook.StoredIncidentFreshnessTrigger, error) {
 	var stored webhook.StoredIncidentFreshnessTrigger
 	var provider, status string
 	if err := rows.Scan(

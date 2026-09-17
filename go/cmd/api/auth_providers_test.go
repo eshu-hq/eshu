@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -119,7 +121,7 @@ func TestNewAuthProviderListStoreOIDCHandlerNilSafe(t *testing.T) {
 	}
 }
 
-// authProvidersFakeDB is a minimal pgstatus.ExecQueryer fake driving the three
+// authProvidersFakeDB is a minimal db.ExecQueryer fake driving the three
 // read queries ListLoginProviders depends on: the tenant-scoped active-login
 // -provider list, and the two per-id "is this provider active for this
 // tenant" checks used for env-config providers. Dispatch is by SQL-shape
@@ -139,7 +141,7 @@ func (f *authProvidersFakeDB) ExecContext(context.Context, string, ...any) (sql.
 	return nil, nil
 }
 
-func (f *authProvidersFakeDB) QueryContext(_ context.Context, query string, args ...any) (pgstatus.Rows, error) {
+func (f *authProvidersFakeDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "provider_kind IN ('external_oidc', 'external_saml', 'external_github')"):
 		data := make([][]any, 0, len(f.dbRows))
@@ -160,7 +162,7 @@ func (f *authProvidersFakeDB) QueryContext(_ context.Context, query string, args
 	}
 }
 
-// authProvidersFakeRows is a minimal pgstatus.Rows fake supporting *string
+// authProvidersFakeRows is a minimal db.Rows fake supporting *string
 // scans only — every column ListLoginProviders' backing queries select is a
 // string (provider_config_id, provider_kind).
 type authProvidersFakeRows struct {

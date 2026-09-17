@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -118,12 +120,12 @@ var ErrCrossScopeCompletionClaimRejected = errors.New("cross-scope completion cl
 // CrossScopeCompletionStore is the Postgres-backed durable completion-event
 // queue and set-based consumer fanout.
 type CrossScopeCompletionStore struct {
-	db  ExecQueryer
+	db  db.ExecQueryer
 	Now func() time.Time
 }
 
 // NewCrossScopeCompletionStore returns a completion queue over db.
-func NewCrossScopeCompletionStore(db ExecQueryer) *CrossScopeCompletionStore {
+func NewCrossScopeCompletionStore(db db.ExecQueryer) *CrossScopeCompletionStore {
 	return &CrossScopeCompletionStore{db: db}
 }
 

@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -255,7 +257,7 @@ func benchmarkReducerQueueClaimReadinessGate(b *testing.B, dsn string, benchCase
 
 func seedReducerClaimReadinessBenchmark(
 	ctx context.Context,
-	db Executor,
+	db db.Executor,
 	benchCase reducerClaimReadinessBenchmarkCase,
 ) error {
 	now := time.Date(2026, time.June, 13, 11, 0, 0, 0, time.UTC)
@@ -272,7 +274,7 @@ func seedReducerClaimReadinessBenchmark(
 	return nil
 }
 
-func seedReducerClaimBenchmarkScopes(ctx context.Context, db Executor, scopeCount int, now time.Time) error {
+func seedReducerClaimBenchmarkScopes(ctx context.Context, db db.Executor, scopeCount int, now time.Time) error {
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, parent_scope_id,
@@ -319,7 +321,7 @@ FROM generate_series(1, $2) AS series(i)`, now, scopeCount); err != nil {
 
 func seedReducerClaimReadinessWork(
 	ctx context.Context,
-	db Executor,
+	db db.Executor,
 	benchCase reducerClaimReadinessBenchmarkCase,
 	scopeCount int,
 	now time.Time,
@@ -388,7 +390,7 @@ func reducerClaimReadinessBenchmarkDomainCaseSQL() string {
 
 func seedReducerClaimReadinessPhases(
 	ctx context.Context,
-	db Executor,
+	db db.Executor,
 	phaseRows int,
 	scopeCount int,
 	now time.Time,

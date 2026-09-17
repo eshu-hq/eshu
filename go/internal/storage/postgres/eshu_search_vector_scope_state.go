@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const eshuSearchVectorScopeStateSchemaSQL = `
@@ -201,7 +203,7 @@ type EshuSearchVectorScopeState struct {
 // EshuSearchVectorScopeStateStore persists per-scope vector build state and
 // provides the #4233 bounded ListPendingSearchVectorScopes query.
 type EshuSearchVectorScopeStateStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // EshuSearchVectorScopeStateSchemaSQL returns the Postgres DDL for the
@@ -211,7 +213,7 @@ func EshuSearchVectorScopeStateSchemaSQL() string {
 }
 
 // NewEshuSearchVectorScopeStateStore constructs the vector scope state store.
-func NewEshuSearchVectorScopeStateStore(db ExecQueryer) EshuSearchVectorScopeStateStore {
+func NewEshuSearchVectorScopeStateStore(db db.ExecQueryer) EshuSearchVectorScopeStateStore {
 	return EshuSearchVectorScopeStateStore{db: db}
 }
 

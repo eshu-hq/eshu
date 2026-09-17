@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -96,7 +98,7 @@ func (db *codeCallIntentWriterTestDB) ExecContext(_ context.Context, query strin
 	}
 }
 
-func (db *codeCallIntentWriterTestDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db *codeCallIntentWriterTestDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
 }
 

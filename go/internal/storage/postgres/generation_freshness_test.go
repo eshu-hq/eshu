@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestGenerationFreshnessCheck(t *testing.T) {
@@ -218,7 +220,7 @@ func (db *generationFreshnessTestDB) ExecContext(_ context.Context, _ string, _ 
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *generationFreshnessTestDB) QueryContext(_ context.Context, _ string, args ...any) (Rows, error) {
+func (db *generationFreshnessTestDB) QueryContext(_ context.Context, _ string, args ...any) (db.Rows, error) {
 	if db.queryErr != nil {
 		return nil, db.queryErr
 	}

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
@@ -110,14 +112,14 @@ WHERE collector_instance_id = $1
 // AWSPaginationCheckpointStore persists claim-fenced AWS pagination tokens in
 // Postgres.
 type AWSPaginationCheckpointStore struct {
-	db          ExecQueryer
+	db          db.ExecQueryer
 	Now         func() time.Time
 	Instruments *telemetry.Instruments
 }
 
 // NewAWSPaginationCheckpointStore constructs a checkpoint store over the
 // shared data-plane database.
-func NewAWSPaginationCheckpointStore(db ExecQueryer) AWSPaginationCheckpointStore {
+func NewAWSPaginationCheckpointStore(db db.ExecQueryer) AWSPaginationCheckpointStore {
 	return AWSPaginationCheckpointStore{db: db}
 }
 

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -26,12 +28,12 @@ SELECT EXISTS (
 // generation/maintenance fence across one repo-dependency graph replacement
 // and its durable intent completion.
 type RepoDependencyAcceptanceUnitGate struct {
-	db Beginner
+	db db.Beginner
 }
 
 // NewRepoDependencyAcceptanceUnitGate creates a repository-scoped gate backed
 // by a transaction-capable Postgres adapter.
-func NewRepoDependencyAcceptanceUnitGate(db Beginner) *RepoDependencyAcceptanceUnitGate {
+func NewRepoDependencyAcceptanceUnitGate(db db.Beginner) *RepoDependencyAcceptanceUnitGate {
 	return &RepoDependencyAcceptanceUnitGate{db: db}
 }
 
@@ -90,7 +92,7 @@ func (g *RepoDependencyAcceptanceUnitGate) WithAcceptanceUnit(
 
 func repoDependencyLeaseOwnerActive(
 	ctx context.Context,
-	tx ExecQueryer,
+	tx db.ExecQueryer,
 	key reducer.RepoDependencyAcceptanceUnitGateKey,
 ) (bool, error) {
 	rows, err := tx.QueryContext(

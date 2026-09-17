@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -19,7 +21,7 @@ import (
 // review).
 func loadRepositoryCatalog(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) ([]relationships.CatalogEntry, map[string]time.Time, error) {
 	if queryer == nil {
 		return nil, nil, nil

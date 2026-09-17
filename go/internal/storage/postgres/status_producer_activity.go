@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
 func readProducerActivitySnapshot(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) (statuspkg.ProducerActivitySnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, producerActivityQuery, asOf)

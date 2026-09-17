@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/semanticqueue"
 )
 
@@ -88,11 +90,11 @@ func SemanticExtractionJobSchemaSQL() string {
 
 // SemanticExtractionQueueStore persists semantic extraction queue records.
 type SemanticExtractionQueueStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewSemanticExtractionQueueStore creates a semantic extraction queue store.
-func NewSemanticExtractionQueueStore(db ExecQueryer) SemanticExtractionQueueStore {
+func NewSemanticExtractionQueueStore(db db.ExecQueryer) SemanticExtractionQueueStore {
 	return SemanticExtractionQueueStore{db: db}
 }
 

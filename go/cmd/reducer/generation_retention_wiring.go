@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -15,7 +17,7 @@ type postgresGenerationRetentionPruner struct {
 }
 
 func generationRetentionRunnerFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cfg generationRetentionConfig,
 ) *maintenance.GenerationRetentionRunner {
 	if !cfg.Enabled {

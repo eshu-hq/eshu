@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -136,7 +138,7 @@ func deduplicateSharedIntentRows(rows []reducer.SharedProjectionIntentRow) []red
 }
 
 // upsertSharedIntentBatch inserts one batch of shared intents in one statement.
-func upsertSharedIntentBatch(ctx context.Context, db ExecQueryer, batch []preparedSharedIntentRow) error {
+func upsertSharedIntentBatch(ctx context.Context, db db.ExecQueryer, batch []preparedSharedIntentRow) error {
 	if len(batch) == 0 {
 		return nil
 	}

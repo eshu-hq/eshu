@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -53,7 +55,7 @@ type quietFleetDB struct {
 	state *quietFleetBarrierState
 }
 
-func (d *quietFleetDB) Begin(context.Context) (Transaction, error) {
+func (d *quietFleetDB) Begin(context.Context) (db.Transaction, error) {
 	return &quietFleetTx{state: d.state}, nil
 }
 
@@ -61,7 +63,7 @@ func (d *quietFleetDB) ExecContext(context.Context, string, ...any) (sql.Result,
 	return fakeResult{}, nil
 }
 
-func (d *quietFleetDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (d *quietFleetDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "SELECT completed_at") && strings.Contains(query, "FROM deferred_maintenance_barriers"):
 		epoch, _ := args[1].(int64)
@@ -143,7 +145,7 @@ func (tx *quietFleetTx) ExecContext(_ context.Context, query string, args ...any
 	}
 }
 
-func (tx *quietFleetTx) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (tx *quietFleetTx) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM deferred_maintenance_barriers") && strings.Contains(query, "FOR UPDATE"):
 		tx.state.mu.Lock()

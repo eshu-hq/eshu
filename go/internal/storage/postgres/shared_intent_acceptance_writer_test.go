@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -361,7 +363,7 @@ func newSharedIntentAcceptanceWriterDB() *sharedIntentAcceptanceWriterDB {
 	return &sharedIntentAcceptanceWriterDB{}
 }
 
-func (db *sharedIntentAcceptanceWriterDB) Begin(context.Context) (Transaction, error) {
+func (db *sharedIntentAcceptanceWriterDB) Begin(context.Context) (db.Transaction, error) {
 	db.beginCalls++
 	if db.tx == nil {
 		db.tx = &sharedIntentAcceptanceWriterTx{}
@@ -374,7 +376,7 @@ func (db *sharedIntentAcceptanceWriterDB) ExecContext(_ context.Context, query s
 	return sharedIntentResult{}, nil
 }
 
-func (db *sharedIntentAcceptanceWriterDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db *sharedIntentAcceptanceWriterDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
 }
 
@@ -413,7 +415,7 @@ func (tx *sharedIntentAcceptanceWriterTx) ExecContext(_ context.Context, query s
 	return sharedIntentResult{}, nil
 }
 
-func (tx *sharedIntentAcceptanceWriterTx) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (tx *sharedIntentAcceptanceWriterTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
 }
 
@@ -448,7 +450,7 @@ func (db *sharedIntentAcceptanceWriterNoTxDB) ExecContext(_ context.Context, que
 	return sharedIntentResult{}, nil
 }
 
-func (db *sharedIntentAcceptanceWriterNoTxDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db *sharedIntentAcceptanceWriterNoTxDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
 }
 
@@ -456,7 +458,7 @@ type sharedIntentAcceptanceWriterLockDB struct {
 	mgr *advisoryLockManager
 }
 
-func (db *sharedIntentAcceptanceWriterLockDB) Begin(context.Context) (Transaction, error) {
+func (db *sharedIntentAcceptanceWriterLockDB) Begin(context.Context) (db.Transaction, error) {
 	return &sharedIntentAcceptanceWriterLockTx{
 		advisoryLockTx: &advisoryLockTx{mgr: db.mgr},
 	}, nil
@@ -466,7 +468,7 @@ func (*sharedIntentAcceptanceWriterLockDB) ExecContext(context.Context, string, 
 	return nil, fmt.Errorf("unexpected outer exec")
 }
 
-func (*sharedIntentAcceptanceWriterLockDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (*sharedIntentAcceptanceWriterLockDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected outer query")
 }
 

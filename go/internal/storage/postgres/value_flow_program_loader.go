@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -95,12 +97,12 @@ ORDER BY function_id ASC, param_index ASC, kind ASC
 // ValueFlowProgramInputStore loads bounded runtime inputs for value-flow Program
 // assembly from active code-call projection state and persisted summaries.
 type ValueFlowProgramInputStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewValueFlowProgramInputStore constructs a Postgres-backed value-flow Program
 // input loader.
-func NewValueFlowProgramInputStore(db ExecQueryer) ValueFlowProgramInputStore {
+func NewValueFlowProgramInputStore(db db.ExecQueryer) ValueFlowProgramInputStore {
 	return ValueFlowProgramInputStore{db: db}
 }
 
@@ -312,7 +314,7 @@ type valueFlowProgramCallEdgeRow struct {
 	callee           valueFlowProgramFunctionIdentity
 }
 
-func (r *valueFlowProgramCallEdgeRow) scan(rows Rows) error {
+func (r *valueFlowProgramCallEdgeRow) scan(rows db.Rows) error {
 	if err := rows.Scan(
 		&r.callerEntityID,
 		&r.calleeEntityID,

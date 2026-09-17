@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -278,7 +280,7 @@ func (s *ScopedAPITokenStore) ResolvePermissionGrantsForRoles(
 // deduplicated and trimmed.
 func resolvePermissionGrantsForRoles(
 	ctx context.Context,
-	db Queryer,
+	db db.Queryer,
 	tenantID string,
 	roles []string,
 	asOf time.Time,
@@ -324,7 +326,7 @@ func resolvePermissionGrantsForRoles(
 	return cleanBrowserSessionStrings(features), cleanBrowserSessionStrings(dataClasses), nil
 }
 
-func scanIdentityAPIRepositoryTargets(rows Rows) ([]string, error) {
+func scanIdentityAPIRepositoryTargets(rows db.Rows) ([]string, error) {
 	defer func() { _ = rows.Close() }()
 	repositories := make([]string, 0)
 	for rows.Next() {

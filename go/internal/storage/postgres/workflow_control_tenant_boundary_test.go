@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -154,7 +156,7 @@ func (f *tenantBoundaryExecQueryer) ExecContext(_ context.Context, query string,
 	return f.result, nil
 }
 
-func (f *tenantBoundaryExecQueryer) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (f *tenantBoundaryExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("unexpected query")
 }
 

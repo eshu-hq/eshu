@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // upsertFactBatch inserts one batch of facts using a multi-row INSERT query.
-func upsertFactBatch(ctx context.Context, db ExecQueryer, batch []facts.Envelope) error {
+func upsertFactBatch(ctx context.Context, db db.ExecQueryer, batch []facts.Envelope) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -47,7 +49,7 @@ func upsertFactBatch(ctx context.Context, db ExecQueryer, batch []facts.Envelope
 // correctly protected.
 func upsertFactBatchReturningAccepted(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	batch []facts.Envelope,
 ) (map[string]struct{}, error) {
 	if len(batch) == 0 {
@@ -211,7 +213,7 @@ RETURNING fact_id
 // immediately rather than after the entire generation commits.
 func upsertStreamingFacts(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	factStream <-chan facts.Envelope,
 	scopeID string,
 	generationID string,

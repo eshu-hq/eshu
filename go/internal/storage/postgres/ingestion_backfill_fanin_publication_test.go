@@ -32,6 +32,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -133,7 +135,7 @@ var errFanInProofBatchFailed = errors.New("injected deferred backfill batch fail
 // other call delegates untouched, so the pass runs against real Postgres up to
 // the injected fault.
 type failOnNthBeginner struct {
-	inner ExecQueryer
+	inner db.ExecQueryer
 
 	mu     sync.Mutex
 	begins int
@@ -144,7 +146,7 @@ type failOnNthBeginner struct {
 	beforeBegin func(ordinal int)
 }
 
-func (b *failOnNthBeginner) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (b *failOnNthBeginner) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return b.inner.QueryContext(ctx, query, args...)
 }
 
@@ -152,7 +154,7 @@ func (b *failOnNthBeginner) ExecContext(ctx context.Context, query string, args 
 	return b.inner.ExecContext(ctx, query, args...)
 }
 
-func (b *failOnNthBeginner) Begin(ctx context.Context) (Transaction, error) {
+func (b *failOnNthBeginner) Begin(ctx context.Context) (db.Transaction, error) {
 	b.mu.Lock()
 	b.begins++
 	ordinal := b.begins
@@ -164,7 +166,7 @@ func (b *failOnNthBeginner) Begin(ctx context.Context) (Transaction, error) {
 	if b.failOn > 0 && ordinal == b.failOn {
 		return nil, fmt.Errorf("begin %d: %w", ordinal, errFanInProofBatchFailed)
 	}
-	beginner, ok := b.inner.(Beginner)
+	beginner, ok := b.inner.(db.Beginner)
 	if !ok {
 		return nil, fmt.Errorf("wrapped handle %T is not a Beginner", b.inner)
 	}
@@ -220,7 +222,7 @@ func seedFanInProofSharedPartition(
 // fanInProofCatalogFingerprint recomputes the catalog fingerprint the pass
 // derives, so the gate assertions use the same value the write side would have
 // memoized.
-func fanInProofCatalogFingerprint(t *testing.T, ctx context.Context, queryer ExecQueryer) string {
+func fanInProofCatalogFingerprint(t *testing.T, ctx context.Context, queryer db.ExecQueryer) string {
 	t.Helper()
 	catalog, _, err := loadRepositoryCatalog(ctx, queryer)
 	if err != nil {
@@ -234,7 +236,7 @@ func fanInProofCatalogFingerprint(t *testing.T, ctx context.Context, queryer Exe
 // partition in ToLoad. A Skipped verdict is the durable-wrong-state outcome the
 // fan-in exists to prevent: the partition's evidence was never fully committed,
 // yet every later pass would refuse to reload it.
-func assertFanInProofGateLoads(t *testing.T, ctx context.Context, adapter ExecQueryer, fingerprint string) {
+func assertFanInProofGateLoads(t *testing.T, ctx context.Context, adapter db.ExecQueryer, fingerprint string) {
 	t.Helper()
 	partition := scopeGenerationPartition{ScopeID: fanInProofScopeID, GenerationID: fanInProofGenerationID}
 	gate, err := applyDeferredPartitionMemoGate(

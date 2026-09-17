@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // MultiCloudRuntimeDriftFindingFactKind is the durable reducer fact emitted for
@@ -73,12 +75,12 @@ type MultiCloudRuntimeDriftEvidenceRow struct {
 // MultiCloudRuntimeDriftFindingStore reads active multi-cloud runtime drift
 // reducer facts for the unmanaged-resource and runtime-drift query surfaces.
 type MultiCloudRuntimeDriftFindingStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewMultiCloudRuntimeDriftFindingStore constructs a multi-cloud runtime drift
 // finding reader over the provided database adapter.
-func NewMultiCloudRuntimeDriftFindingStore(db ExecQueryer) MultiCloudRuntimeDriftFindingStore {
+func NewMultiCloudRuntimeDriftFindingStore(db db.ExecQueryer) MultiCloudRuntimeDriftFindingStore {
 	return MultiCloudRuntimeDriftFindingStore{db: db}
 }
 

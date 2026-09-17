@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -196,7 +198,7 @@ func runFanInProofEvidencePhaseOnly(
 	t *testing.T,
 	ctx context.Context,
 	store IngestionStore,
-	adapter ExecQueryer,
+	adapter db.ExecQueryer,
 ) map[scopeGenerationPartition][]string {
 	t.Helper()
 

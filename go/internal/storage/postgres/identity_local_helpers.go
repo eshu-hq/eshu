@@ -12,13 +12,15 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 var errLocalIdentityRecoveryCodeInvalid = errors.New("local identity recovery code invalid")
 
 func selectLocalIdentityInvitation(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	inviteCodeHash string,
 	asOf time.Time,
 ) (localIdentityInvitationRow, bool, error) {
@@ -39,7 +41,7 @@ func selectLocalIdentityInvitation(
 
 func selectLocalIdentityCredential(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	subjectIDHash string,
 	asOf time.Time,
 ) (localIdentityCredentialRow, bool, error) {
@@ -52,7 +54,7 @@ func selectLocalIdentityCredential(
 // transaction.
 func selectLocalIdentityCredentialForUpdate(
 	ctx context.Context,
-	tx ExecQueryer,
+	tx db.ExecQueryer,
 	subjectIDHash string,
 	asOf time.Time,
 ) (localIdentityCredentialRow, bool, error) {
@@ -66,7 +68,7 @@ func selectLocalIdentityCredentialForUpdate(
 // can never drift between the two query texts.
 func scanLocalIdentityCredential(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	query string,
 	subjectIDHash string,
 	asOf time.Time,
@@ -110,7 +112,7 @@ func scanLocalIdentityCredential(
 
 func consumeLocalIdentityRecoveryCode(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	userID string,
 	attempt LocalIdentityAuthenticationAttempt,
 ) error {
@@ -182,7 +184,7 @@ type localIdentityRoleAssignment struct {
 
 func insertLocalIdentityUserCredential(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	record localIdentityUserCredentialRecord,
 ) error {
 	if _, err := db.ExecContext(ctx, insertLocalIdentityUserQuery, record.UserID, record.SubjectIDHash, record.ProfileHandleHash, record.CreatedAt); err != nil {
@@ -206,7 +208,7 @@ func insertLocalIdentityUserCredential(
 
 func insertLocalIdentityMFA(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	userID string,
 	factorID string,
 	factorKind string,
@@ -227,7 +229,7 @@ func insertLocalIdentityMFA(
 
 func assignLocalIdentityRole(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	assignment localIdentityRoleAssignment,
 ) error {
 	if _, err := db.ExecContext(

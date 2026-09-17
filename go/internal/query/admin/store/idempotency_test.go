@@ -10,9 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // scriptedExecQueryer serves canned query results in order and records exec calls.
@@ -23,7 +24,7 @@ type scriptedExecQueryer struct {
 	execArgs  []any
 }
 
-func (s *scriptedExecQueryer) QueryContext(_ context.Context, _ string, _ ...any) (pgstatus.Rows, error) {
+func (s *scriptedExecQueryer) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	if s.queryIdx >= len(s.queries) {
 		return &querytestutil.ScriptedRows{}, nil
 	}

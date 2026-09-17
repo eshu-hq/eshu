@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -31,7 +33,7 @@ func NewStore(db *sql.DB) admin.Store {
 }
 
 type postgresStore struct {
-	db        pgstatus.ExecQueryer
+	db        db.ExecQueryer
 	decisions *pgstatus.DecisionStore
 	now       func() time.Time
 }
@@ -365,7 +367,7 @@ WHERE 1=1
 	return builder.String(), args
 }
 
-func scanWorkItems(ctx context.Context, db pgstatus.ExecQueryer, query string, args ...any) ([]admin.WorkItem, error) {
+func scanWorkItems(ctx context.Context, db db.ExecQueryer, query string, args ...any) ([]admin.WorkItem, error) {
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query work items: %w", err)

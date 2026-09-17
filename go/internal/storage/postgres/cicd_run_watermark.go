@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/cicdrun/runwatermark"
 )
 
@@ -65,13 +67,13 @@ WHERE cicd_run_watermarks.fencing_token <= EXCLUDED.fencing_token
 // run watermark must be readable by a LATER generation to detect a gap
 // against an EARLIER generation's progress.
 type CICDRunWatermarkStore struct {
-	db  ExecQueryer
+	db  db.ExecQueryer
 	Now func() time.Time
 }
 
 // NewCICDRunWatermarkStore constructs a watermark store over the shared
 // data-plane database.
-func NewCICDRunWatermarkStore(db ExecQueryer) CICDRunWatermarkStore {
+func NewCICDRunWatermarkStore(db db.ExecQueryer) CICDRunWatermarkStore {
 	return CICDRunWatermarkStore{db: db}
 }
 

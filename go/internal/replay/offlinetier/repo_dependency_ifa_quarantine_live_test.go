@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
@@ -316,7 +318,7 @@ func startRepoDependencyQuarantineRunner(
 		LeaseManager:                    store,
 		AcceptanceUnitGate:              gate,
 		EdgeWriter:                      writer,
-		WorkloadMaterializationReplayer: postgres.NewReducerQueue(database.(postgres.ExecQueryer), owner+"-workload-replay", time.Minute),
+		WorkloadMaterializationReplayer: postgres.NewReducerQueue(database.(db.ExecQueryer), owner+"-workload-replay", time.Minute),
 		WorkloadReadinessPrefetch:       repoDependencyIfaWorkloadReady,
 		AcceptedGen:                     acceptedGeneration,
 		Config: reducer.RepoDependencyProjectionRunnerConfig{

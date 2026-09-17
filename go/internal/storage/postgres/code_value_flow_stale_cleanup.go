@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -29,12 +31,12 @@ LIMIT $2
 // CodeValueFlowCurrentGenerationStore lists active repository-scope generations
 // that can own reducer value-flow evidence.
 type CodeValueFlowCurrentGenerationStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewCodeValueFlowCurrentGenerationStore returns a bounded active-generation
 // reader for reducer value-flow stale cleanup.
-func NewCodeValueFlowCurrentGenerationStore(db ExecQueryer) CodeValueFlowCurrentGenerationStore {
+func NewCodeValueFlowCurrentGenerationStore(db db.ExecQueryer) CodeValueFlowCurrentGenerationStore {
 	return CodeValueFlowCurrentGenerationStore{db: db}
 }
 

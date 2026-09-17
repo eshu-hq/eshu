@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -17,28 +19,28 @@ import (
 // and their authoritative bounded-unit acceptance rows when the backing
 // database supports transactions.
 type SharedIntentAcceptanceWriter struct {
-	db          ExecQueryer
-	beginner    Beginner
+	db          db.ExecQueryer
+	beginner    db.Beginner
 	instruments *telemetry.Instruments
 }
 
 // NewSharedIntentAcceptanceWriter creates a writer backed by the provided
 // database handle.
-func NewSharedIntentAcceptanceWriter(db ExecQueryer) *SharedIntentAcceptanceWriter {
+func NewSharedIntentAcceptanceWriter(db db.ExecQueryer) *SharedIntentAcceptanceWriter {
 	return NewSharedIntentAcceptanceWriterWithInstruments(db, nil)
 }
 
 // NewSharedIntentAcceptanceWriterWithInstruments creates a writer backed by
 // the provided database handle and optional metrics instruments.
 func NewSharedIntentAcceptanceWriterWithInstruments(
-	db ExecQueryer,
+	database db.ExecQueryer,
 	instruments *telemetry.Instruments,
 ) *SharedIntentAcceptanceWriter {
 	writer := &SharedIntentAcceptanceWriter{
-		db:          db,
+		db:          database,
 		instruments: instruments,
 	}
-	if beginner, ok := db.(Beginner); ok {
+	if beginner, ok := database.(db.Beginner); ok {
 		writer.beginner = beginner
 	}
 	return writer
@@ -103,7 +105,7 @@ func repoDependencyAcceptanceUnitIDs(rows []reducer.SharedProjectionIntentRow) [
 
 func upsertSharedIntentArtifacts(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	intentRows []reducer.SharedProjectionIntentRow,
 	acceptanceRows []SharedProjectionAcceptance,
 	instruments *telemetry.Instruments,

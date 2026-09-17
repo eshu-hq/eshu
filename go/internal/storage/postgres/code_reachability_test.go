@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
@@ -382,7 +384,7 @@ func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, a
 	}
 }
 
-func (db *codeReachabilityTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *codeReachabilityTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.lastQuery = query
 	if !strings.Contains(query, "FROM code_reachability_rows") {
 		return nil, fmt.Errorf("unexpected query: %s", query)

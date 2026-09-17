@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -104,7 +106,7 @@ LIMIT 10
 // claimable but fenced by an active row in the same durable conflict key.
 func listReducerConflictBlockages(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) ([]statuspkg.QueueBlockage, error) {
 	rows, err := queryer.QueryContext(ctx, reducerConflictBlockageQuery, asOf)

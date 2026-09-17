@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -56,7 +58,7 @@ const (
 // always the innermost (last-acquired, first-released) lock in any
 // transaction that holds it, never held by a transaction that is also
 // waiting on 3456.
-func lockLocalIdentityMFAReset(ctx context.Context, tx Transaction, userID string) error {
+func lockLocalIdentityMFAReset(ctx context.Context, tx db.Transaction, userID string) error {
 	if _, err := tx.ExecContext(
 		ctx,
 		localIdentityMFAResetAdvisoryLockQuery,

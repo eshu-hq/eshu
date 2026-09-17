@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -37,7 +39,7 @@ import (
 // reports not-found and the chain falls through).
 type stubExecQueryer struct{}
 
-func (stubExecQueryer) QueryContext(context.Context, string, ...any) (pgstatus.Rows, error) {
+func (stubExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return emptyRows{}, nil
 }
 

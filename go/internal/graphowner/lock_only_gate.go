@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -45,7 +47,7 @@ type postureNodeRetractFunc func(ctx context.Context, scopeIDs []string, generat
 // substitute a fake in-memory locker; postgres.GraphNodeOwnerStore satisfies
 // it unchanged.
 type graphNodeOwnerLocker interface {
-	LockUIDs(ctx context.Context, tx postgres.ExecQueryer, uids []string) error
+	LockUIDs(ctx context.Context, tx db.ExecQueryer, uids []string) error
 }
 
 // LockOnlyGate serializes a graph node-property write against the SAME
@@ -98,7 +100,7 @@ type graphNodeOwnerLocker interface {
 // for Write*. Wrapper types forward Retract* directly to the underlying
 // writer, unchanged from pre-#5062 behavior.
 type LockOnlyGate struct {
-	db    postgres.Beginner
+	db    db.Beginner
 	store graphNodeOwnerLocker
 
 	// Instruments records the #5101 lock-only observability signals
@@ -115,7 +117,7 @@ type LockOnlyGate struct {
 // the #5007 owner ledger uses. A nil db yields a pass-through gate (no
 // locking), matching NewGate's pass-through behavior for a deployment without
 // Postgres.
-func NewLockOnlyGate(db postgres.Beginner) *LockOnlyGate {
+func NewLockOnlyGate(db db.Beginner) *LockOnlyGate {
 	return &LockOnlyGate{db: db, store: postgres.NewGraphNodeOwnerStore()}
 }
 

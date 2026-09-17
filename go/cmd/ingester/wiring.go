@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -106,7 +108,7 @@ const (
 )
 
 func buildIngesterService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	canonicalWriter projector.CanonicalWriter,
 	getenv func(string) string,
 	getwd func() (string, error),
@@ -129,7 +131,7 @@ func buildIngesterService(
 }
 
 func buildIngesterCollectorService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	getenv func(string) string,
 	getwd func() (string, error),
 	environ func() []string,
@@ -229,7 +231,7 @@ func buildIngesterCollectorService(
 }
 
 func buildIngesterProjectorService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	canonicalWriter projector.CanonicalWriter,
 	getenv func(string) string,
 	tracer trace.Tracer,
@@ -358,7 +360,7 @@ func largeGenMaxConcurrent(getenv func(string) string) int {
 }
 
 func buildIngesterProjectorRuntime(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	canonicalWriter projector.CanonicalWriter,
 	intentWriter projector.ReducerIntentWriter,
 	retryInjector projector.RetryInjector,

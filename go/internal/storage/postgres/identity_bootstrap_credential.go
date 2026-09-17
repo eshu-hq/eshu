@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // ErrBootstrapCredentialNotFound indicates no bootstrap credential row exists
@@ -219,7 +221,7 @@ func (s *IdentitySubjectStore) GenerateBootstrapAdminWithCredential(
 // insertBootstrapCredentialInTx performs the advisory-locked idempotent
 // insert shared by GenerateBootstrapCredential and
 // GenerateBootstrapAdminWithCredential.
-func insertBootstrapCredentialInTx(ctx context.Context, tx Transaction, seal BootstrapCredentialSeal) (bool, error) {
+func insertBootstrapCredentialInTx(ctx context.Context, tx db.Transaction, seal BootstrapCredentialSeal) (bool, error) {
 	seal = normalizeBootstrapCredentialSeal(seal)
 	if err := validateBootstrapCredentialSeal(seal); err != nil {
 		return false, err
@@ -417,7 +419,7 @@ func (s *IdentitySubjectStore) ResetBootstrapCredential(
 
 func selectBootstrapCredentialSubject(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	tenantID, workspaceID string,
 ) (string, error) {
 	rows, err := db.QueryContext(ctx, selectBootstrapCredentialSubjectQuery, tenantID, workspaceID)
@@ -440,7 +442,7 @@ func selectBootstrapCredentialSubject(
 
 func selectBootstrapCredentialOwnerUserID(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	subjectIDHash string,
 ) (string, error) {
 	rows, err := db.QueryContext(ctx, selectBootstrapCredentialOwnerUserIDQuery, subjectIDHash)

@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
@@ -386,7 +388,7 @@ func (db *governanceAuditTenantMemoryDB) ExecContext(_ context.Context, query st
 	return nil, sql.ErrNoRows
 }
 
-func (db *governanceAuditTenantMemoryDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *governanceAuditTenantMemoryDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	// Detect a tenant filter by scanning for "tenant_id = $N" and finding the
 	// corresponding arg value.
 	var tenantFilter string

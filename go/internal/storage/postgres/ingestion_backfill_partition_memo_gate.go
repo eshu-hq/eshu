@@ -9,6 +9,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -91,7 +93,7 @@ WHERE latest.generation_id IS NOT NULL
 // short-circuits without a query.
 func loadArgoCDBearingPartitions(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	candidatePartitions []scopeGenerationPartition,
 ) (map[scopeGenerationPartition]struct{}, error) {
 	if queryer == nil || len(candidatePartitions) == 0 {
@@ -230,7 +232,7 @@ func applyDeferredPartitionMemoGate(
 // missing memo only costs a reload.
 func writeDeferredBackfillPartitionMemos(
 	ctx context.Context,
-	tx Transaction,
+	tx db.Transaction,
 	candidates []scopeGenerationPartition,
 	catalogFingerprint string,
 	committedAt time.Time,

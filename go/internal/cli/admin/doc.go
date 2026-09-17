@@ -17,7 +17,7 @@
 // "os" nor "os/exec": it reads no environment variable, executes no binary,
 // creates or writes no file, and prints nothing. It opens no socket of its
 // own either — HTTP goes through the Client interface it is handed, and
-// Postgres statements go through the pgstorage.ExecQueryer it is handed, so
+// Postgres statements go through the db.ExecQueryer it is handed, so
 // base URL, credential, timeout, proxy handling, and DSN are all decided by
 // the caller. Environment variables are named in this source but never read
 // from it: ESHU_AUTH_SECRET_ENC_KEY, ESHU_AUTH_BOOTSTRAP_MODE, and

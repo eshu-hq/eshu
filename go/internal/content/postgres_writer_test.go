@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/content"
 	pg "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -282,7 +284,7 @@ func (f *recordingExecQueryer) QueryContext(
 	_ context.Context,
 	_ string,
 	_ ...any,
-) (pg.Rows, error) {
+) (db.Rows, error) {
 	return nil, context.Canceled
 }
 

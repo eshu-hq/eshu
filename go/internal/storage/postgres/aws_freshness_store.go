@@ -10,17 +10,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 )
 
 // AWSFreshnessStore persists AWS event-driven refresh triggers for later
 // workflow handoff.
 type AWSFreshnessStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewAWSFreshnessStore constructs a Postgres-backed AWS freshness store.
-func NewAWSFreshnessStore(db ExecQueryer) *AWSFreshnessStore {
+func NewAWSFreshnessStore(db db.ExecQueryer) *AWSFreshnessStore {
 	return &AWSFreshnessStore{db: db}
 }
 
@@ -246,7 +248,7 @@ func (s *AWSFreshnessStore) MarkTriggersFailed(
 // scanAWSFreshnessTrigger scans a row shape ending in claim_fencing_token.
 // Callers that RETURNING a row without that trailing column (none currently)
 // must not use this scanner.
-func scanAWSFreshnessTrigger(rows Rows) (freshness.StoredTrigger, error) {
+func scanAWSFreshnessTrigger(rows db.Rows) (freshness.StoredTrigger, error) {
 	var stored freshness.StoredTrigger
 	var kind, status string
 	if err := rows.Scan(

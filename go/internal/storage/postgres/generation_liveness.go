@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -62,11 +64,11 @@ type GenerationLivenessResult struct {
 // bounded statements against Postgres. All writes are idempotent under
 // concurrent reducer workers and retries; the conflict domain is scope_id.
 type GenerationLivenessStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewGenerationLivenessStore constructs a Postgres-backed liveness store.
-func NewGenerationLivenessStore(db ExecQueryer) GenerationLivenessStore {
+func NewGenerationLivenessStore(db db.ExecQueryer) GenerationLivenessStore {
 	return GenerationLivenessStore{db: db}
 }
 

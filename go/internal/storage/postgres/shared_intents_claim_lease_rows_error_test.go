@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestSharedIntentStoreClaimPartitionLeaseSurfacesRowsError(t *testing.T) {
@@ -35,7 +37,7 @@ type leaseRowsErrorDB struct {
 	rowsErr error
 }
 
-func (db leaseRowsErrorDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db leaseRowsErrorDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return &leaseRowsErrorRows{err: db.rowsErr}, nil
 }
 

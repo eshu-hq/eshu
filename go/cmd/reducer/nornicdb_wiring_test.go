@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -19,7 +21,7 @@ type drainAwareReducerDB struct {
 	reducerGraphWork bool
 }
 
-func (f *drainAwareReducerDB) QueryContext(ctx context.Context, query string, args ...any) (postgres.Rows, error) {
+func (f *drainAwareReducerDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	if strings.Contains(query, "active_fact_work_items AS (") {
 		return &fakeExistsRows{value: f.reducerGraphWork}, nil
 	}

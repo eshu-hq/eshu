@@ -7,6 +7,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -19,7 +21,7 @@ type postgresGenerationLivenessRecoverer struct {
 }
 
 func generationLivenessRunnerFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cfg generationLivenessConfig,
 ) *maintenance.GenerationLivenessRunner {
 	if !cfg.Enabled {
@@ -60,7 +62,7 @@ type activeGenerationAgeObserver struct {
 }
 
 func activeGenerationAgeObserverFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cfg generationLivenessConfig,
 ) activeGenerationAgeObserver {
 	return activeGenerationAgeObserver{

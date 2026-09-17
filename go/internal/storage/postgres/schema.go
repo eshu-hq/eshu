@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // Definition describes one ordered bootstrap SQL payload.
@@ -32,18 +34,12 @@ type BootstrapOptions struct {
 	Logger                    *slog.Logger
 }
 
-// Executor is the narrow adapter surface required to apply schema bootstrap
-// statements against a SQL connection or transaction.
-type Executor interface {
-	ExecContext(context.Context, string, ...any) (sql.Result, error)
-}
-
 type schemaLockTimeoutExecutor interface {
 	execContextWithLockTimeout(context.Context, string, time.Duration) (sql.Result, error)
 }
 
 type schemaBootstrapLocker interface {
-	withSchemaBootstrapLock(context.Context, time.Duration, func(Executor) error) error
+	withSchemaBootstrapLock(context.Context, time.Duration, func(db.Executor) error) error
 }
 
 const defaultSchemaLockTimeout = 5 * time.Second
@@ -149,7 +145,7 @@ func ValidateDefinitions(defs []Definition) error {
 }
 
 // ApplyDefinitions executes one ordered schema layout against the executor.
-func ApplyDefinitions(ctx context.Context, exec Executor, defs []Definition) error {
+func ApplyDefinitions(ctx context.Context, exec db.Executor, defs []Definition) error {
 	return ApplyDefinitionsWithLockTimeout(ctx, exec, defs, defaultSchemaLockTimeout)
 }
 
@@ -157,7 +153,7 @@ func ApplyDefinitions(ctx context.Context, exec Executor, defs []Definition) err
 // bounding Postgres lock acquisition for lock-timeout-capable executors.
 func ApplyDefinitionsWithLockTimeout(
 	ctx context.Context,
-	exec Executor,
+	exec db.Executor,
 	defs []Definition,
 	lockTimeout time.Duration,
 ) error {
@@ -189,19 +185,19 @@ func ApplyDefinitionsWithLockTimeout(
 }
 
 // ApplyBootstrap applies the Wave 2 schema bootstrap layout.
-func ApplyBootstrap(ctx context.Context, exec Executor) error {
+func ApplyBootstrap(ctx context.Context, exec db.Executor) error {
 	return ApplyBootstrapWithOptions(ctx, exec, BootstrapOptions{})
 }
 
 // ApplyBootstrapWithoutContentSearchIndexes applies the bootstrap layout while
 // deferring content trigram indexes for a later bulk index build.
-func ApplyBootstrapWithoutContentSearchIndexes(ctx context.Context, exec Executor) error {
+func ApplyBootstrapWithoutContentSearchIndexes(ctx context.Context, exec db.Executor) error {
 	return ApplyBootstrapWithOptions(ctx, exec, BootstrapOptions{DeferContentSearchIndexes: true})
 }
 
 // ApplyBootstrapWithOptions applies pending Postgres migrations and logs progress
 // through the supplied logger, or the default logger when Logger is nil.
-func ApplyBootstrapWithOptions(ctx context.Context, exec Executor, options BootstrapOptions) error {
+func ApplyBootstrapWithOptions(ctx context.Context, exec db.Executor, options BootstrapOptions) error {
 	definitions := BootstrapDefinitions()
 	if options.DeferContentSearchIndexes {
 		definitions = BootstrapDefinitionsWithoutContentSearchIndexes()
@@ -215,12 +211,12 @@ func ApplyBootstrapWithOptions(ctx context.Context, exec Executor, options Boots
 
 func applyBootstrapDefinitions(
 	ctx context.Context,
-	exec Executor,
+	exec db.Executor,
 	definitions []Definition,
 	logger *slog.Logger,
 ) error {
 	if locker, ok := exec.(schemaBootstrapLocker); ok {
-		return locker.withSchemaBootstrapLock(ctx, defaultSchemaLockTimeout, func(locked Executor) error {
+		return locker.withSchemaBootstrapLock(ctx, defaultSchemaLockTimeout, func(locked db.Executor) error {
 			if tracker, ok := locked.(schemaMigrationTracker); ok {
 				return tracker.applyTrackedDefinitions(ctx, definitions, defaultSchemaLockTimeout, logger)
 			}
@@ -234,7 +230,7 @@ func applyBootstrapDefinitions(
 // accelerate content file and entity source search. A transaction-scoped
 // advisory lock serializes the complete finalization lifecycle, so concurrent
 // finalizers wait and then recheck durable readiness instead of racing DDL.
-func EnsureContentSearchIndexes(ctx context.Context, db Beginner) error {
+func EnsureContentSearchIndexes(ctx context.Context, db db.Beginner) error {
 	if db == nil {
 		return fmt.Errorf("executor is required")
 	}
@@ -275,7 +271,7 @@ func EnsureContentSearchIndexes(ctx context.Context, db Beginner) error {
 	return nil
 }
 
-func claimContentSearchIndexBuild(ctx context.Context, db Beginner) (bool, error) {
+func claimContentSearchIndexBuild(ctx context.Context, db db.Beginner) (bool, error) {
 	tx, err := db.Begin(ctx)
 	if err != nil {
 		return false, fmt.Errorf("begin content search index build claim: %w", err)
@@ -298,7 +294,7 @@ func claimContentSearchIndexBuild(ctx context.Context, db Beginner) (bool, error
 	return claimed == 1, nil
 }
 
-func ensureContentSearchIndexesInTransaction(ctx context.Context, exec Executor) error {
+func ensureContentSearchIndexesInTransaction(ctx context.Context, exec db.Executor) error {
 	claim, err := exec.ExecContext(ctx, contentSearchIndexClaimBuildSQL)
 	if err != nil {
 		return fmt.Errorf("claim content search index build: %w", err)
@@ -340,7 +336,7 @@ func ensureContentSearchIndexesInTransaction(ctx context.Context, exec Executor)
 	return nil
 }
 
-func markContentSearchIndexBuildFailed(db Beginner) error {
+func markContentSearchIndexBuildFailed(db db.Beginner) error {
 	failedCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	tx, err := db.Begin(failedCtx)

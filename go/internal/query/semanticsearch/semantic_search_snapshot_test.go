@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestPostgresSemanticSearchSnapshotStoreLoadsExactRevisionIdentity(t *testing.T) {
@@ -111,7 +111,7 @@ func TestSemanticSearchSnapshotCacheableRejectsStaleAndPartialStates(t *testing.
 }
 
 type semanticSearchSnapshotQueryer struct {
-	rows  pgstatus.Rows
+	rows  db.Rows
 	query string
 	args  []any
 }
@@ -120,7 +120,7 @@ func (q *semanticSearchSnapshotQueryer) QueryContext(
 	_ context.Context,
 	query string,
 	args ...any,
-) (pgstatus.Rows, error) {
+) (db.Rows, error) {
 	q.query = query
 	q.args = append([]any(nil), args...)
 	return q.rows, nil

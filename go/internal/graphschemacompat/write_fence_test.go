@@ -12,8 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/graph"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // markerReply is one scripted answer to the marker read.
@@ -32,7 +33,7 @@ type scriptedMarkerQueryer struct {
 	calls   int
 }
 
-func (q *scriptedMarkerQueryer) QueryContext(context.Context, string, ...any) (postgres.Rows, error) {
+func (q *scriptedMarkerQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	reply := q.replies[len(q.replies)-1]
@@ -70,7 +71,7 @@ func refusedReply() markerReply {
 
 // newTestFence returns a fence over a controllable clock so the interval can be
 // crossed without sleeping.
-func newTestFence(db postgres.Queryer, clock *time.Time) *WriteFence {
+func newTestFence(db db.Queryer, clock *time.Time) *WriteFence {
 	fence := NewWriteFence(db, graph.SchemaBackendNornicDB, time.Minute)
 	fence.now = func() time.Time { return *clock }
 	return fence

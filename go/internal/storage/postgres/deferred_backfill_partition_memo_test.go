@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestDeferredBackfillPartitionMemoSchemaSQLMirrorsMigrationFile keeps the Go
@@ -46,7 +48,7 @@ func (n noopExecQueryer) ExecContext(context.Context, string, ...any) (sql.Resul
 	return nil, nil
 }
 
-func (n noopExecQueryer) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (n noopExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	n.t.Helper()
 	n.t.Fatal("QueryContext must not be called for an empty partition list")
 	return nil, nil

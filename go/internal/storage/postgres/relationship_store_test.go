@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -807,7 +809,7 @@ func (db *relationshipTestDB) ExecContext(_ context.Context, query string, args 
 	}
 }
 
-func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM relationship_assertions") && strings.Contains(query, "WHERE relationship_type"):
 		relType := args[0].(string)

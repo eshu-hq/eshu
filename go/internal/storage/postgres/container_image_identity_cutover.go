@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const containerImageIdentityCutoverExistsQuery = `
@@ -34,12 +36,12 @@ SELECT (
 // ContainerImageIdentityCutoverStore reads durable completion markers for the
 // outcome-keyed to image-reference-keyed identity transition.
 type ContainerImageIdentityCutoverStore struct {
-	queryer Queryer
+	queryer db.Queryer
 }
 
 // NewContainerImageIdentityCutoverStore constructs the marker lookup.
 func NewContainerImageIdentityCutoverStore(
-	queryer Queryer,
+	queryer db.Queryer,
 ) ContainerImageIdentityCutoverStore {
 	return ContainerImageIdentityCutoverStore{queryer: queryer}
 }

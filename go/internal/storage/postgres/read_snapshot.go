@@ -8,14 +8,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func withReadOnlyRepeatableRead(
 	ctx context.Context,
-	db ExecQueryer,
-	load func(Queryer) error,
+	database db.ExecQueryer,
+	load func(db.Queryer) error,
 ) (err error) {
-	beginner, ok := db.(ReadOnlyRepeatableReadBeginner)
+	beginner, ok := database.(db.ReadOnlyRepeatableReadBeginner)
 	if !ok {
 		return fmt.Errorf("database does not support read-only repeatable-read transactions")
 	}

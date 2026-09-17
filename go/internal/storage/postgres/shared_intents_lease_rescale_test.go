@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -363,7 +365,7 @@ func TestRepoDependencyAcceptanceUnitGateConnectionLossCannotTransferActiveShard
 	}
 }
 
-func postgresBackendPID(ctx context.Context, db ExecQueryer) (int, error) {
+func postgresBackendPID(ctx context.Context, db db.ExecQueryer) (int, error) {
 	rows, err := db.QueryContext(ctx, "SELECT pg_backend_pid()")
 	if err != nil {
 		return 0, fmt.Errorf("read gate backend pid: %w", err)
@@ -433,7 +435,7 @@ func (partitionRescaleGuardDB) ExecContext(context.Context, string, ...any) (sql
 	return nil, fmt.Errorf("unexpected exec")
 }
 
-func (partitionRescaleGuardDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (partitionRescaleGuardDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	if !strings.Contains(query, "pg_advisory_xact_lock") ||
 		!strings.Contains(query, "shared_projection_partition_leases") ||
 		!strings.Contains(query, "hashtext($1)") ||

@@ -9,6 +9,8 @@ import (
 	"log"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -349,7 +351,7 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 
 func listSucceededReducerWorkItemIDsForDomain(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	domain string,
 ) ([]string, error) {
 	rows, err := queryer.QueryContext(ctx, listSucceededReducerWorkItemsByDomainQuery, domain)

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -126,12 +128,12 @@ WHERE keyspace = $1
 // materializers upsert presence per committed node uid, and the projection gate
 // reads it through MissingUIDs.
 type GraphEndpointPresenceStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewGraphEndpointPresenceStore constructs a store backed by the provided
 // database handle.
-func NewGraphEndpointPresenceStore(db ExecQueryer) *GraphEndpointPresenceStore {
+func NewGraphEndpointPresenceStore(db db.ExecQueryer) *GraphEndpointPresenceStore {
 	return &GraphEndpointPresenceStore{db: db}
 }
 
@@ -275,7 +277,7 @@ func (s *GraphEndpointPresenceStore) MissingUIDs(
 	return missing, nil
 }
 
-func upsertGraphEndpointPresenceBatch(ctx context.Context, db ExecQueryer, batch []reducer.EndpointPresenceRow) error {
+func upsertGraphEndpointPresenceBatch(ctx context.Context, db db.ExecQueryer, batch []reducer.EndpointPresenceRow) error {
 	if len(batch) == 0 {
 		return nil
 	}

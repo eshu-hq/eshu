@@ -6,9 +6,10 @@ package query
 import (
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // SemanticSearchHandler exposes bounded curated search-document retrieval. The
@@ -108,14 +109,14 @@ func NewPostgresSemanticSearchIndexStore(db *sql.DB) semanticsearch.PostgresSema
 // NewPostgresSemanticSearchScopeResolver constructs the Postgres-backed
 // repository-to-scope resolver. Forwards unchanged to
 // semanticsearch.NewPostgresSemanticSearchScopeResolver.
-func NewPostgresSemanticSearchScopeResolver(db pgstatus.Queryer) PostgresSemanticSearchScopeResolver {
+func NewPostgresSemanticSearchScopeResolver(db db.Queryer) PostgresSemanticSearchScopeResolver {
 	return semanticsearch.NewPostgresSemanticSearchScopeResolver(db)
 }
 
 // NewPostgresSemanticSearchSnapshotStore constructs the Postgres-backed corpus
 // snapshot store. Forwards unchanged to
 // semanticsearch.NewPostgresSemanticSearchSnapshotStore.
-func NewPostgresSemanticSearchSnapshotStore(db pgstatus.Queryer) PostgresSemanticSearchSnapshotStore {
+func NewPostgresSemanticSearchSnapshotStore(db db.Queryer) PostgresSemanticSearchSnapshotStore {
 	return semanticsearch.NewPostgresSemanticSearchSnapshotStore(db)
 }
 

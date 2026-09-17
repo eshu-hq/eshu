@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -407,7 +409,7 @@ func (db containerImageIdentityPerfCountingDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	started := time.Now()
 	rows, err := db.delegate.QueryContext(ctx, query, args...)
 	db.counts.recordQuery(query, time.Since(started))
@@ -427,7 +429,7 @@ func (db containerImageIdentityPerfCountingDB) ExecContext(
 
 func (db containerImageIdentityPerfCountingDB) Begin(
 	ctx context.Context,
-) (postgres.Transaction, error) {
+) (db.Transaction, error) {
 	db.counts.begins.Add(1)
 	tx, err := db.delegate.Begin(ctx)
 	if err != nil {
@@ -440,7 +442,7 @@ func (db containerImageIdentityPerfCountingDB) Begin(
 }
 
 type containerImageIdentityPerfCountingTx struct {
-	delegate postgres.Transaction
+	delegate db.Transaction
 	counts   *containerImageIdentityPerfStatementCounts
 }
 
@@ -448,7 +450,7 @@ func (tx containerImageIdentityPerfCountingTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	started := time.Now()
 	rows, err := tx.delegate.QueryContext(ctx, query, args...)
 	tx.counts.recordQuery(query, time.Since(started))

@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -53,7 +55,7 @@ const lockChunkSize = cypher.DefaultBatchSize
 type graphNodeOwnerResolver interface {
 	ResolveOwnedUIDs(
 		ctx context.Context,
-		tx postgres.ExecQueryer,
+		tx db.ExecQueryer,
 		entries []postgres.GraphNodeOwnerEntry,
 		updatedAt time.Time,
 	) (owned map[string]struct{}, contendedLost int, err error)
@@ -65,7 +67,7 @@ type graphNodeOwnerResolver interface {
 // determinism then depends on the ledger being present, which the reducer wires
 // on the Postgres-backed path.
 type Gate struct {
-	db    postgres.Beginner
+	db    db.Beginner
 	store graphNodeOwnerResolver
 
 	// Instruments records the #5007 cross-scope ownership contention counter
@@ -79,7 +81,7 @@ type Gate struct {
 
 // NewGate returns a Gate backed by the owner ledger over db. A nil db yields a
 // pass-through gate (no ownership resolution).
-func NewGate(db postgres.Beginner) *Gate {
+func NewGate(db db.Beginner) *Gate {
 	return &Gate{db: db, store: postgres.NewGraphNodeOwnerStore()}
 }
 

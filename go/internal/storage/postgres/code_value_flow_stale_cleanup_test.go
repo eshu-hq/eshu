@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -86,7 +88,7 @@ func (db *codeValueFlowCurrentGenerationDB) ExecContext(_ context.Context, _ str
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *codeValueFlowCurrentGenerationDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *codeValueFlowCurrentGenerationDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.query = query
 	db.args = args
 	return newProofRows(db.rows), nil

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -73,7 +75,7 @@ func (f *deployableUnitQuiescenceWiringDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	if strings.Contains(query, "graph_projection_phase_state AS phase") {
 		f.probedCanonicalQuiescence = true
 		return nil, f.quiescenceErr

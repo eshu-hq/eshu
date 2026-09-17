@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -42,7 +44,7 @@ func (s *RelationshipStore) GetResolvedRelationshipsForRepos(
 	return scanResolvedRelationshipRows(sqlRows, "by repos")
 }
 
-func scanResolvedRelationshipRows(rows Rows, label string) ([]relationships.ResolvedRelationship, error) {
+func scanResolvedRelationshipRows(rows db.Rows, label string) ([]relationships.ResolvedRelationship, error) {
 	var result []relationships.ResolvedRelationship
 	for rows.Next() {
 		var r relationships.ResolvedRelationship

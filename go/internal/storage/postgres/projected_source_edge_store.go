@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -74,12 +76,12 @@ func ProjectedSourceEdgeSchemaSQL() string {
 // CodeInterprocProjectedEdgeStore: the same superset-ledger pattern, keyed by
 // an arbitrary evidence_source rather than a single hardcoded edge kind.
 type ProjectedSourceEdgeStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewProjectedSourceEdgeStore constructs a Postgres-backed projected-source-edge
 // ledger.
-func NewProjectedSourceEdgeStore(db ExecQueryer) ProjectedSourceEdgeStore {
+func NewProjectedSourceEdgeStore(db db.ExecQueryer) ProjectedSourceEdgeStore {
 	return ProjectedSourceEdgeStore{db: db}
 }
 

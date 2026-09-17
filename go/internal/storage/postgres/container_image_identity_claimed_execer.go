@@ -6,13 +6,15 @@ package postgres
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // ContainerImageIdentityClaimedExecer adapts the shared Postgres query surface
 // to reducer statements that must return an exact-claim verdict and cleanup
 // count from the same database statement.
 type ContainerImageIdentityClaimedExecer struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // ExecContainerImageIdentityClaimed runs one exact-claim statement and reports
@@ -32,7 +34,7 @@ func (e ContainerImageIdentityClaimedExecer) ExecContainerImageIdentityClaimed(
 
 func execContainerImageIdentityClaimed(
 	ctx context.Context,
-	db Queryer,
+	db db.Queryer,
 	query string,
 	args ...any,
 ) (int, bool, error) {

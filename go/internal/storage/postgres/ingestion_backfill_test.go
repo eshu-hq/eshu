@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -37,11 +39,11 @@ func (db *backfillTxDB) ExecContext(ctx context.Context, query string, args ...a
 	return db.inner.ExecContext(ctx, query, args...)
 }
 
-func (db *backfillTxDB) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (db *backfillTxDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return db.inner.QueryContext(ctx, query, args...)
 }
 
-func (db *backfillTxDB) Begin(context.Context) (Transaction, error) {
+func (db *backfillTxDB) Begin(context.Context) (db.Transaction, error) {
 	db.beginCalls++
 	return &backfillTx{inner: db.inner}, nil
 }
@@ -54,7 +56,7 @@ func (tx *backfillTx) ExecContext(ctx context.Context, query string, args ...any
 	return tx.inner.ExecContext(ctx, query, args...)
 }
 
-func (tx *backfillTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx *backfillTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.inner.QueryContext(ctx, query, args...)
 }
 

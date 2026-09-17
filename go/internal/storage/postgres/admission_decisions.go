@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -222,11 +224,11 @@ type AdmissionDecisionFilter struct {
 // AdmissionDecisionStore persists shared reducer admission decisions and their
 // evidence handles.
 type AdmissionDecisionStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewAdmissionDecisionStore creates an admission decision store backed by db.
-func NewAdmissionDecisionStore(db ExecQueryer) *AdmissionDecisionStore {
+func NewAdmissionDecisionStore(db db.ExecQueryer) *AdmissionDecisionStore {
 	return &AdmissionDecisionStore{db: db}
 }
 
@@ -360,7 +362,7 @@ func (s *AdmissionDecisionStore) ListEvidence(
 	return scanAdmissionDecisionEvidenceRows(rows)
 }
 
-func scanAdmissionDecisionRows(rows Rows) ([]AdmissionDecision, error) {
+func scanAdmissionDecisionRows(rows db.Rows) ([]AdmissionDecision, error) {
 	var result []AdmissionDecision
 	for rows.Next() {
 		var decision AdmissionDecision
@@ -415,7 +417,7 @@ func scanAdmissionDecisionRows(rows Rows) ([]AdmissionDecision, error) {
 	return result, rows.Err()
 }
 
-func scanAdmissionDecisionEvidenceRows(rows Rows) ([]AdmissionDecisionEvidence, error) {
+func scanAdmissionDecisionEvidenceRows(rows db.Rows) ([]AdmissionDecisionEvidence, error) {
 	var result []AdmissionDecisionEvidence
 	for rows.Next() {
 		var row AdmissionDecisionEvidence

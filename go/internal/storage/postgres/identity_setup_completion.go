@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // CompleteSetupMFAInput carries the caller-hashed recovery codes and owner
@@ -129,7 +131,7 @@ func (s *IdentitySubjectStore) CompleteSetupMFA(
 // owner from an existing row in the same request.
 func selectBootstrapCredentialConsumedState(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	tenantID, workspaceID, subjectIDHash string,
 ) (bool, error) {
 	rows, err := db.QueryContext(ctx, selectBootstrapCredentialConsumedStateQuery, tenantID, workspaceID, subjectIDHash)

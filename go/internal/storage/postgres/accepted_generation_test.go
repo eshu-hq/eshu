@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -150,7 +152,7 @@ func (db *acceptanceQueryCapturingDB) ExecContext(_ context.Context, _ string, _
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *acceptanceQueryCapturingDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *acceptanceQueryCapturingDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.lastQuery = query
 	db.lastArgs = args
 	return queryAcceptanceRows(db.rows, query, args...)
@@ -162,6 +164,6 @@ func (db *acceptanceStoreErrorDB) ExecContext(_ context.Context, _ string, _ ...
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *acceptanceStoreErrorDB) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (db *acceptanceStoreErrorDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("boom")
 }

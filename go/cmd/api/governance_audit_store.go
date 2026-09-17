@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -20,14 +22,14 @@ import (
 // in the same JSON log as every other API signal, not on Go's default text
 // handler. A nil logger falls back to slog.Default.
 func newGovernanceAuditStore(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) query.GovernanceAuditSummaryReader {
-	if db == nil {
+	if rawDB == nil {
 		return nil
 	}
-	governanceAuditDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	governanceAuditDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		governanceAuditDB = &pgstatus.InstrumentedDB{
 			Inner:       governanceAuditDB,

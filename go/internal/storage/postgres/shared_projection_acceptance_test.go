@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestSharedProjectionAcceptanceStoreUpsertAndLookup(t *testing.T) {
@@ -176,7 +178,7 @@ func (db *sharedProjectionAcceptanceTestDB) ExecContext(_ context.Context, query
 	}
 }
 
-func (db *sharedProjectionAcceptanceTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *sharedProjectionAcceptanceTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	rows := make([]sharedProjectionAcceptanceRow, 0, len(db.rows))
 	for _, row := range db.rows {
 		rows = append(rows, row)
@@ -184,7 +186,7 @@ func (db *sharedProjectionAcceptanceTestDB) QueryContext(_ context.Context, quer
 	return queryAcceptanceRows(rows, query, args...)
 }
 
-func queryAcceptanceRows(rows []sharedProjectionAcceptanceRow, query string, args ...any) (Rows, error) {
+func queryAcceptanceRows(rows []sharedProjectionAcceptanceRow, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "WHERE scope_id = $1"):
 		if len(args) != 3 {

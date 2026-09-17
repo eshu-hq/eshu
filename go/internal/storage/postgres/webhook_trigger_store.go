@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
@@ -17,11 +19,11 @@ import (
 // WebhookTriggerStore persists provider webhook intake decisions for later
 // targeted repository refresh handoff.
 type WebhookTriggerStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewWebhookTriggerStore constructs a Postgres-backed webhook trigger store.
-func NewWebhookTriggerStore(db ExecQueryer) *WebhookTriggerStore {
+func NewWebhookTriggerStore(db db.ExecQueryer) *WebhookTriggerStore {
 	return &WebhookTriggerStore{db: db}
 }
 
@@ -254,7 +256,7 @@ func webhookRefreshKey(trigger webhook.Trigger) string {
 	return strings.Join(parts, ":")
 }
 
-func scanStoredWebhookTrigger(rows Rows) (webhook.StoredTrigger, error) {
+func scanStoredWebhookTrigger(rows db.Rows) (webhook.StoredTrigger, error) {
 	var stored webhook.StoredTrigger
 	var provider, eventKind, decision, reason, status string
 	if err := rows.Scan(

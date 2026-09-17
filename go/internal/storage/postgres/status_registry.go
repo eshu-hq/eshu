@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -150,7 +152,7 @@ ORDER BY ecosystem
 
 func readRegistryCollectorSnapshots(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) ([]statuspkg.RegistryCollectorSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, registryCollectorStatusQuery, asOf.UTC())
@@ -211,7 +213,7 @@ func readRegistryCollectorSnapshots(
 
 func readRegistryMetadataTargetCounts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) (map[string][]statuspkg.RegistryMetadataTargetCount, error) {
 	rows, err := queryer.QueryContext(ctx, registryMetadataTargetStatusQuery, asOf.UTC())
@@ -263,7 +265,7 @@ func readRegistryMetadataTargetCounts(
 
 func readRegistryCollectorFailureClassCounts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) (map[string][]statuspkg.NamedCount, error) {
 	rows, err := queryer.QueryContext(ctx, registryCollectorFailureClassQuery)
 	if err != nil {

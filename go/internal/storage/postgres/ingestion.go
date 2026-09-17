@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -35,8 +37,8 @@ const deferredMaintenanceBarrierLockKey int64 = 0x45534855444d42
 // repository catalog cache. It is nil only for stores constructed without
 // NewIngestionStore, in which case the catalog falls back to a per-commit load.
 type IngestionStore struct {
-	db          ExecQueryer
-	beginner    Beginner
+	db          db.ExecQueryer
+	beginner    db.Beginner
 	Now         func() time.Time
 	Logger      *slog.Logger
 	Instruments *telemetry.Instruments
@@ -73,14 +75,14 @@ type IngestionStore struct {
 // NewIngestionStore constructs a transactional storage boundary for projection
 // input. It installs a shared repository catalog cache so per-commit catalog
 // reloads stay O(1) across the lifetime of the store (issue #3481).
-func NewIngestionStore(db ExecQueryer) IngestionStore {
+func NewIngestionStore(database db.ExecQueryer) IngestionStore {
 	store := IngestionStore{
-		db:                     db,
+		db:                     database,
 		catalogCache:           newRepositoryCatalogCache(),
 		maintenanceWorkers:     deferredBackfillWorkerCount(),
 		idleMaintenanceLogGate: &deferredMaintenanceIdleLogGate{},
 	}
-	if beginner, ok := db.(Beginner); ok {
+	if beginner, ok := database.(db.Beginner); ok {
 		store.beginner = beginner
 	}
 
@@ -384,7 +386,7 @@ func (s IngestionStore) commitScopeGeneration(
 // the catalog reflects committed global repository facts plus this
 // transaction's own writes, and this generation's repository facts are not yet
 // written at load time and are not evidence targets for themselves.
-func (s IngestionStore) repositoryCatalog(ctx context.Context, queryer Queryer) (catalogSnapshot, error) {
+func (s IngestionStore) repositoryCatalog(ctx context.Context, queryer db.Queryer) (catalogSnapshot, error) {
 	return s.catalogCache.get(ctx, queryer)
 }
 
@@ -464,7 +466,7 @@ func (s IngestionStore) now() time.Time {
 
 func upsertIngestionScope(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 ) error {
@@ -498,7 +500,7 @@ func upsertIngestionScope(
 
 func upsertScopeGeneration(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	generation scope.ScopeGeneration,
 ) error {
 	_, err := db.ExecContext(

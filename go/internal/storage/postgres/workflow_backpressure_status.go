@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -166,7 +168,7 @@ ORDER BY collector_kind ASC, collector_instance_id ASC, source_system ASC, last_
 
 func readWorkflowCollectorBackpressureStatus(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) ([]statuspkg.CollectorBackpressureSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, workflowCollectorBackpressureQuery, asOf.UTC())
@@ -221,7 +223,7 @@ func readWorkflowCollectorBackpressureStatus(
 
 func attachWorkflowCollectorBackpressureFailureClasses(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 	rows []statuspkg.CollectorBackpressureSnapshot,
 	byKey map[string]int,

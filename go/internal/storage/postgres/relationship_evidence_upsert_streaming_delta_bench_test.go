@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -44,7 +46,7 @@ type latencyExecQueryer struct {
 	execCount   int
 }
 
-func (db *latencyExecQueryer) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db *latencyExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	time.Sleep(db.stmtLatency)
 	return &queueFakeRows{}, nil
 }

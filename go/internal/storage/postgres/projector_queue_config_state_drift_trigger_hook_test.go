@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -32,11 +34,11 @@ func (f configStateDriftTriggerHookFake) ExecContext(context.Context, string, ..
 	return driverResult{}, nil
 }
 
-func (f configStateDriftTriggerHookFake) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (f configStateDriftTriggerHookFake) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("query not expected in this test")
 }
 
-func (f configStateDriftTriggerHookFake) Begin(context.Context) (Transaction, error) {
+func (f configStateDriftTriggerHookFake) Begin(context.Context) (db.Transaction, error) {
 	return f, nil
 }
 

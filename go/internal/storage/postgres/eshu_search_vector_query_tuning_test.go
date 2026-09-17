@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type searchVectorTuningDB struct {
@@ -18,7 +20,7 @@ type searchVectorFallbackDB struct {
 	queries int
 }
 
-func (d *searchVectorFallbackDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (d *searchVectorFallbackDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	d.queries++
 	return &queueFakeRows{}, nil
 }
@@ -27,11 +29,11 @@ func (d *searchVectorFallbackDB) ExecContext(context.Context, string, ...any) (s
 	panic("search vector fallback must not execute query tuning")
 }
 
-func (d *searchVectorTuningDB) Begin(context.Context) (Transaction, error) {
+func (d *searchVectorTuningDB) Begin(context.Context) (db.Transaction, error) {
 	return d.tx, nil
 }
 
-func (d *searchVectorTuningDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (d *searchVectorTuningDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	panic("search vector query must run in the tuned transaction")
 }
 
@@ -47,7 +49,7 @@ type searchVectorTuningTx struct {
 	commitErr error
 }
 
-func (t *searchVectorTuningTx) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (t *searchVectorTuningTx) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	t.queries = append(t.queries, query)
 	return &queueFakeRows{}, nil
 }

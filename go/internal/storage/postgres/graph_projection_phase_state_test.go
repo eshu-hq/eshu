@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -142,7 +144,7 @@ func (db *graphProjectionPhaseStateTestDB) ExecContext(_ context.Context, query 
 	}
 }
 
-func (db *graphProjectionPhaseStateTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *graphProjectionPhaseStateTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM graph_projection_phase_state"):
 		if len(args) != 6 {

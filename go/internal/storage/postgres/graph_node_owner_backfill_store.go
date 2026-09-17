@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -34,8 +36,8 @@ ON CONFLICT (backfill_key) DO NOTHING`
 // GraphNodeOwnerBackfillDB combines the query and transaction surfaces the
 // upgrade backfill needs. SQLDB satisfies it for production wiring.
 type GraphNodeOwnerBackfillDB interface {
-	ExecQueryer
-	Beginner
+	db.ExecQueryer
+	db.Beginner
 }
 
 // GraphNodeOwnerBackfillStore seeds pre-ledger graph rows through the same

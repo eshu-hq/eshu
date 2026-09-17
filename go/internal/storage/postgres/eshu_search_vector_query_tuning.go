@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const disableJITForSearchVectorDocumentQuerySQL = `SET LOCAL jit = off`
@@ -14,20 +16,20 @@ const disableJITForSearchVectorDocumentQuerySQL = `SET LOCAL jit = off`
 // caller finishes consuming rows. Commit closes the cursor before committing;
 // Rollback is safe to defer after either a successful commit or an error.
 type searchVectorDocumentRows struct {
-	Rows
-	tx     Transaction
+	db.Rows
+	tx     db.Transaction
 	closed bool
 }
 
 func beginSearchVectorDocumentQuery(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	query string,
 	args ...any,
 ) (*searchVectorDocumentRows, error) {
-	beginner, ok := db.(Beginner)
+	beginner, ok := database.(db.Beginner)
 	if !ok {
-		rows, err := db.QueryContext(ctx, query, args...)
+		rows, err := database.QueryContext(ctx, query, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -42,8 +44,8 @@ func beginSearchVectorDocumentQuery(
 		_ = tx.Rollback()
 		return nil, fmt.Errorf("disable jit for search vector document read: %w", err)
 	}
-	queryer := ExecQueryer(tx)
-	if instrumented, ok := db.(*InstrumentedDB); ok {
+	queryer := db.ExecQueryer(tx)
+	if instrumented, ok := database.(*InstrumentedDB); ok {
 		queryer = &InstrumentedDB{
 			Inner: tx, Tracer: instrumented.Tracer,
 			Instruments: instrumented.Instruments, StoreName: instrumented.StoreName,

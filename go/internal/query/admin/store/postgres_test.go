@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func TestPostgresAdminStoreReplayFailedWorkItems_UsesConsistentPlaceholderOffsets(t *testing.T) {
@@ -210,10 +211,10 @@ func TestBuildListReducerInputInvalidFactsQuery_NoGrantsOmitsAuthorizationClause
 type recordingAdminExecQueryer struct {
 	query     string
 	queryArgs []any
-	rows      pgstatus.Rows
+	rows      db.Rows
 }
 
-func (db *recordingAdminExecQueryer) QueryContext(_ context.Context, query string, args ...any) (pgstatus.Rows, error) {
+func (db *recordingAdminExecQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.query = query
 	db.queryArgs = append([]any(nil), args...)
 	return db.rows, nil

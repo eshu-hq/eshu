@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
@@ -28,7 +30,7 @@ const maxCloudResourceChangeEvidenceString = 256
 // owned by the cloud-inventory admission handler.
 type PostgresCloudResourceChangeEvidenceLoader struct {
 	// DB executes the bounded source-fact read.
-	DB Queryer
+	DB db.Queryer
 	// Logger, when set, records bounded skip diagnostics for undecodable rows.
 	Logger *slog.Logger
 }

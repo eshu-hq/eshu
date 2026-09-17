@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -44,7 +46,7 @@ type countingCatalogDB struct {
 	catalogPayloads [][]byte
 }
 
-func (f *countingCatalogDB) Begin(context.Context) (Transaction, error) {
+func (f *countingCatalogDB) Begin(context.Context) (db.Transaction, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.beginCalls++
@@ -60,7 +62,7 @@ func (f *countingCatalogDB) ExecContext(context.Context, string, ...any) (sql.Re
 // counter. The caller holds f.mu. Each row carries an observed_at column
 // (descending with slice position, mirroring the query ORDER BY) because the
 // catalog loader scans the freshness key alongside the payload (#5134).
-func (f *countingCatalogDB) catalogRows() Rows {
+func (f *countingCatalogDB) catalogRows() db.Rows {
 	f.catalogQueries++
 	base := time.Date(2026, time.June, 22, 11, 0, 0, 0, time.UTC)
 	rows := make([][]any, 0, len(f.catalogPayloads))
@@ -70,7 +72,7 @@ func (f *countingCatalogDB) catalogRows() Rows {
 	return &queueFakeRows{rows: rows}
 }
 
-func (f *countingCatalogDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (f *countingCatalogDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if strings.Contains(query, "fact_kind = 'repository'") {
@@ -95,7 +97,7 @@ func (t *catalogTx) ExecContext(context.Context, string, ...any) (sql.Result, er
 	return fakeResult{}, nil
 }
 
-func (t *catalogTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (t *catalogTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	t.db.mu.Lock()
 	defer t.db.mu.Unlock()
 	if strings.Contains(query, "fact_kind = 'repository'") {

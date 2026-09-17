@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
@@ -30,7 +32,7 @@ import (
 // before any canonical write.
 type PostgresCloudTagEvidenceLoader struct {
 	// DB executes the bounded source-fact read.
-	DB Queryer
+	DB db.Queryer
 	// Logger, when set, records bounded skip diagnostics for undecodable rows.
 	Logger *slog.Logger
 }

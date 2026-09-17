@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 )
@@ -36,7 +38,7 @@ func (db *ec2InstanceIdentityReadinessQueueDB) ExecContext(context.Context, stri
 	return fakeResult{}, nil
 }
 
-func (db *ec2InstanceIdentityReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (db *ec2InstanceIdentityReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}

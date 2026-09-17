@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // upsertSearchVectorBuildReadyQuery upserts the vector-identity-keyed
@@ -46,12 +48,12 @@ type EshuSearchVectorBuildIdentity struct {
 // EshuSearchVectorBuildReadyStore publishes the search_vector_ready
 // completion signal for the search-vector build sweep.
 type EshuSearchVectorBuildReadyStore struct {
-	db Executor
+	db db.Executor
 }
 
 // NewEshuSearchVectorBuildReadyStore builds a search-vector-ready signal
 // publisher.
-func NewEshuSearchVectorBuildReadyStore(db Executor) EshuSearchVectorBuildReadyStore {
+func NewEshuSearchVectorBuildReadyStore(db db.Executor) EshuSearchVectorBuildReadyStore {
 	return EshuSearchVectorBuildReadyStore{db: db}
 }
 

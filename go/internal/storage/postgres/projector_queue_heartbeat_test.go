@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -191,7 +193,7 @@ func (r *recordingExecQueryer) ExecContext(_ context.Context, query string, args
 	return proofResult{}, nil
 }
 
-func (r *recordingExecQueryer) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (r *recordingExecQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	r.queries = append(r.queries, recordedExecCall{
 		query: query,
 		args:  append([]any(nil), args...),
@@ -206,7 +208,7 @@ func (r *recordingRows) Scan(...any) error { return nil }
 func (r *recordingRows) Err() error        { return nil }
 func (r *recordingRows) Close() error      { return nil }
 
-func (r *recordingExecQueryer) Begin(context.Context) (Transaction, error) {
+func (r *recordingExecQueryer) Begin(context.Context) (db.Transaction, error) {
 	r.beginCalls++
 	return recordingTransaction{parent: r}, nil
 }
@@ -226,7 +228,7 @@ func (tx recordingTransaction) ExecContext(ctx context.Context, query string, ar
 	return tx.parent.ExecContext(ctx, query, args...)
 }
 
-func (tx recordingTransaction) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx recordingTransaction) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.parent.QueryContext(ctx, query, args...)
 }
 

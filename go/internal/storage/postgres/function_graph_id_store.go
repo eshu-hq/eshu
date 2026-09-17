@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
@@ -69,11 +71,11 @@ func FunctionGraphIDSchemaSQL() string {
 // FunctionGraphIDStore persists the FunctionID->graph-uid map for the cross-repo
 // fixpoint.
 type FunctionGraphIDStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewFunctionGraphIDStore constructs a Postgres-backed FunctionID->uid store.
-func NewFunctionGraphIDStore(db ExecQueryer) FunctionGraphIDStore {
+func NewFunctionGraphIDStore(db db.ExecQueryer) FunctionGraphIDStore {
 	return FunctionGraphIDStore{db: db}
 }
 
@@ -139,7 +141,7 @@ func (s FunctionGraphIDStore) ReplaceGraphIDs(
 	if repo == "" {
 		return fmt.Errorf("function graph id repo is required")
 	}
-	if beginner, ok := s.db.(Beginner); ok {
+	if beginner, ok := s.db.(db.Beginner); ok {
 		tx, err := beginner.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin function graph id replacement transaction: %w", err)
@@ -158,7 +160,7 @@ func (s FunctionGraphIDStore) ReplaceGraphIDs(
 
 func replaceFunctionGraphIDs(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	repo string,
 	ids map[summary.FunctionID]string,
 	updatedAt time.Time,

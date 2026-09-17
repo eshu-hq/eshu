@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // DefaultWriteFenceInterval is how long a WriteFence reuses its last decision
@@ -84,7 +85,7 @@ const DefaultWriteFenceInterval = 30 * time.Second
 // that read on purpose: concurrent writers coalesce onto the single in-flight
 // check rather than each issuing their own.
 type WriteFence struct {
-	db       postgres.Queryer
+	db       db.Queryer
 	backend  graph.SchemaBackend
 	interval time.Duration
 	now      func() time.Time
@@ -96,7 +97,7 @@ type WriteFence struct {
 
 // NewWriteFence returns a fence over backend's marker. An interval at or below
 // zero falls back to DefaultWriteFenceInterval.
-func NewWriteFence(db postgres.Queryer, backend graph.SchemaBackend, interval time.Duration) *WriteFence {
+func NewWriteFence(db db.Queryer, backend graph.SchemaBackend, interval time.Duration) *WriteFence {
 	if interval <= 0 {
 		interval = DefaultWriteFenceInterval
 	}
@@ -108,7 +109,7 @@ func NewWriteFence(db postgres.Queryer, backend graph.SchemaBackend, interval ti
 // profiles that have no graph schema marker to check at all -- the same
 // profiles RequireCompatibleForRuntime skips. A nil fence admits every write,
 // so callers can wire the result unconditionally.
-func NewWriteFenceForRuntime(db postgres.Queryer, getenv func(string) string) (*WriteFence, error) {
+func NewWriteFenceForRuntime(db db.Queryer, getenv func(string) string) (*WriteFence, error) {
 	if graphCompatibilityDisabled(getenv) {
 		return nil, nil
 	}

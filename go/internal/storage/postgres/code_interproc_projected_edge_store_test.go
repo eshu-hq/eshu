@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestCodeInterprocProjectedEdgeStoreSchemaSQL proves the migration DDL
@@ -275,7 +277,7 @@ func (db ledgerHasRowsDB) ExecContext(context.Context, string, ...any) (sql.Resu
 	return nil, nil
 }
 
-func (db ledgerHasRowsDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db ledgerHasRowsDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return &ledgerHasRowsRows{exists: db.result}, nil
 }
 

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -170,7 +172,7 @@ func (db *partitionCandidateListTestDB) ExecContext(context.Context, string, ...
 	return nil, fmt.Errorf("unexpected exec")
 }
 
-func (db *partitionCandidateListTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *partitionCandidateListTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.query = query
 	db.args = append([]any(nil), args...)
 	domain := args[0].(string)

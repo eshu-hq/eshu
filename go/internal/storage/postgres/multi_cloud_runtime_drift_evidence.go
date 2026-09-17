@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
@@ -35,7 +37,7 @@ import (
 // GCP, and Azure share one drift path.
 type PostgresMultiCloudRuntimeDriftEvidenceLoader struct {
 	// DB executes the bounded source-fact reads.
-	DB Queryer
+	DB db.Queryer
 	// ConfigResolver anchors a state_snapshot:* scope to the owning repo config
 	// snapshot. Nil or unresolved ownership marks state-backed resources unknown
 	// because absence of config is not proven.

@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const activeCodeCallSymbolProofKey = "scip-go gomod github.com/acme/lib Client#Request()."
@@ -42,7 +44,7 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository(t *testi
 	}
 }
 
-func seedActiveCodeCallSymbolScope(t *testing.T, ctx context.Context, db Executor, scopeID, generationID string, observedAt time.Time) {
+func seedActiveCodeCallSymbolScope(t *testing.T, ctx context.Context, db db.Executor, scopeID, generationID string, observedAt time.Time) {
 	t.Helper()
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
@@ -65,7 +67,7 @@ INSERT INTO scope_generations (
 	}
 }
 
-func seedActiveCodeCallSymbolFact(t *testing.T, ctx context.Context, db Executor, factID, scopeID, generationID, relativePath, symbol string, observedAt time.Time) {
+func seedActiveCodeCallSymbolFact(t *testing.T, ctx context.Context, db db.Executor, factID, scopeID, generationID, relativePath, symbol string, observedAt time.Time) {
 	t.Helper()
 	if _, err := db.ExecContext(ctx, `
 INSERT INTO fact_records (

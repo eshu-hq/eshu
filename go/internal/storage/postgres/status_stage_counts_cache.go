@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -120,7 +122,7 @@ func recordStatusStageCountsCacheOutcome(ctx context.Context, instruments *telem
 // staleness risk to any consumer.
 func listStageCounts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	cache *statusStageCountsCache,
 	instruments *telemetry.Instruments,
 ) ([]statuspkg.StageStatusCount, error) {

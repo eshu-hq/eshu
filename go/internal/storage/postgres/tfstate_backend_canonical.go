@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
@@ -152,7 +154,7 @@ ORDER BY backend.repo_id ASC, fact.scope_id ASC, fact.generation_id ASC, fact.ob
 // which is intentionally version-agnostic; using LocatorHash here would
 // silently reject every drift candidate (issue #203).
 type PostgresTerraformBackendQuery struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // ListTerraformBackendsByLocator returns every sealed config-side

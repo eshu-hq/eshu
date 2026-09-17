@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
@@ -21,7 +23,7 @@ import (
 // InstrumentedDB wraps an ExecQueryer with OTEL tracing and metrics.
 // It decorates each database operation with spans and duration metrics.
 type InstrumentedDB struct {
-	Inner       ExecQueryer
+	Inner       db.ExecQueryer
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 	StoreName   string // e.g. "facts", "queue", "content", "decisions", "intents"
@@ -85,7 +87,7 @@ func (db *InstrumentedDB) ExecContext(ctx context.Context, query string, args ..
 }
 
 // QueryContext wraps the inner QueryContext with tracing and metrics.
-func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	start := time.Now()
 
 	// Create span if tracer is available

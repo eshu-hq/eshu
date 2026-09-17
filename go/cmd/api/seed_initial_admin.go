@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -88,7 +90,7 @@ type bootstrapCredentialPayload struct {
 // `eshu admin initial-credential`.
 func seedInitialAdmin(
 	ctx context.Context,
-	identityDB pgstorage.ExecQueryer,
+	identityDB db.ExecQueryer,
 	getenv func(string) string,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,

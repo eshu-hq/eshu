@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -30,7 +32,7 @@ type concurrencyProbeDB struct {
 	allEvidence []fakeExecCall
 }
 
-func (db *concurrencyProbeDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (db *concurrencyProbeDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	// The pre-batch active-generation load runs on the base handle.
 	return &queueFakeRows{rows: db.activeGenRows}, nil
 }
@@ -39,7 +41,7 @@ func (db *concurrencyProbeDB) ExecContext(context.Context, string, ...any) (sql.
 	return fakeResult{}, nil
 }
 
-func (db *concurrencyProbeDB) Begin(context.Context) (Transaction, error) {
+func (db *concurrencyProbeDB) Begin(context.Context) (db.Transaction, error) {
 	db.mu.Lock()
 	db.open++
 	db.beginCount++
@@ -55,7 +57,7 @@ type concurrencyProbeTx struct {
 	gens [][]any
 }
 
-func (tx *concurrencyProbeTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (tx *concurrencyProbeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	if strings.HasPrefix(query, listArgoCDBearingPartitionsQuery) {
 		// The memo-write path's ArgoCD-bearing-partition probe (only reached
 		// when a caller supplies a non-blank catalogFingerprint) expects a

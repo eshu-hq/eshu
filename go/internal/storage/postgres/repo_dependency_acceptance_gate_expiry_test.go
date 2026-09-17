@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -116,11 +118,11 @@ func TestReducerContentionGateRepoDependencyAcceptanceUnitGateRejectsLeaseExpire
 }
 
 type signalingRepoDependencyGateBeginner struct {
-	inner         Beginner
+	inner         db.Beginner
 	lockAttempted chan struct{}
 }
 
-func (b *signalingRepoDependencyGateBeginner) Begin(ctx context.Context) (Transaction, error) {
+func (b *signalingRepoDependencyGateBeginner) Begin(ctx context.Context) (db.Transaction, error) {
 	tx, err := b.inner.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -129,7 +131,7 @@ func (b *signalingRepoDependencyGateBeginner) Begin(ctx context.Context) (Transa
 }
 
 type signalingRepoDependencyGateTransaction struct {
-	Transaction
+	db.Transaction
 	lockAttempted chan struct{}
 	once          sync.Once
 }

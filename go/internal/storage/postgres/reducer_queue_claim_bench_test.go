@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 
@@ -251,7 +253,7 @@ func (c reducerClaimBenchmarkConn) ExecContext(ctx context.Context, query string
 	return c.conn.ExecContext(ctx, query, args...)
 }
 
-func (c reducerClaimBenchmarkConn) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (c reducerClaimBenchmarkConn) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return c.conn.QueryContext(ctx, query, args...)
 }
 
@@ -282,7 +284,7 @@ func (reducerClaimBenchmarkResult) LastInsertId() (int64, error) { return 0, nil
 
 func (reducerClaimBenchmarkResult) RowsAffected() (int64, error) { return 1, nil }
 
-func createReducerClaimBenchmarkSchema(ctx context.Context, db Executor, schemaName string) error {
+func createReducerClaimBenchmarkSchema(ctx context.Context, db db.Executor, schemaName string) error {
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		return fmt.Errorf("create schema: %w", err)
 	}
@@ -308,7 +310,7 @@ func createReducerClaimBenchmarkSchema(ctx context.Context, db Executor, schemaN
 	return nil
 }
 
-func seedReducerClaimBenchmarkQueue(ctx context.Context, db Executor, depth int) error {
+func seedReducerClaimBenchmarkQueue(ctx context.Context, db db.Executor, depth int) error {
 	now := time.Date(2026, time.June, 13, 11, 0, 0, 0, time.UTC)
 	scopeCount := reducerClaimBenchmarkScopeCount(depth)
 	if _, err := db.ExecContext(ctx, `
@@ -417,7 +419,7 @@ JOIN scope_conflict_keys ON scope_conflict_keys.scope_ordinal = benchmark_rows.s
 	return nil
 }
 
-func analyzeReducerClaimBenchmarkTables(ctx context.Context, db Executor) error {
+func analyzeReducerClaimBenchmarkTables(ctx context.Context, db db.Executor) error {
 	for _, tableName := range []string{
 		"ingestion_scopes",
 		"scope_generations",
@@ -431,7 +433,7 @@ func analyzeReducerClaimBenchmarkTables(ctx context.Context, db Executor) error 
 	return nil
 }
 
-func resetReducerClaimBenchmarkWork(ctx context.Context, db Executor, workItemID string, now time.Time) error {
+func resetReducerClaimBenchmarkWork(ctx context.Context, db db.Executor, workItemID string, now time.Time) error {
 	_, err := db.ExecContext(ctx, `
 UPDATE fact_work_items
 SET status = 'pending',

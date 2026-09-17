@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type recordingCollectorEvidenceExecer struct {
@@ -29,7 +31,7 @@ func (e *recordingCollectorEvidenceExecer) ExecContext(_ context.Context, query 
 
 // QueryContext satisfies the Queryer half of ExecQueryer. The resweep tests never
 // read the watermark, so a nil Rows is sufficient (and never iterated).
-func (e *recordingCollectorEvidenceExecer) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (e *recordingCollectorEvidenceExecer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	e.queries = append(e.queries, query)
 	return nil, nil
 }

@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -367,11 +369,11 @@ func assertRelationshipGenerationAbsent(t *testing.T, ctx context.Context, db *s
 
 type claimTokenSQLConn struct{ *sql.Conn }
 
-func (c claimTokenSQLConn) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (c claimTokenSQLConn) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return c.Conn.QueryContext(ctx, query, args...)
 }
 
-func (c claimTokenSQLConn) Begin(ctx context.Context) (Transaction, error) {
+func (c claimTokenSQLConn) Begin(ctx context.Context) (db.Transaction, error) {
 	tx, err := c.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err

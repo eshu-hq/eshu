@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const advanceSearchVectorDocumentCursorSQL = `
@@ -91,7 +93,7 @@ func (s EshuSearchVectorScopeStateStore) ResetDocumentCursor(
 	return searchVectorCursorMutationApplied(result)
 }
 
-func validateSearchVectorCursorMutation(db ExecQueryer, scopeID, generationID string) error {
+func validateSearchVectorCursorMutation(db db.ExecQueryer, scopeID, generationID string) error {
 	if db == nil {
 		return fmt.Errorf("eshu search vector scope state store requires a database")
 	}

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -49,7 +51,7 @@ func (db *recordingReducerInputInvalidFactDB) ExecContext(_ context.Context, que
 	return driverResult{}, nil
 }
 
-func (db *recordingReducerInputInvalidFactDB) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (db *recordingReducerInputInvalidFactDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("QueryContext not used by ReducerInputInvalidFactStore.WriteQuarantinedFacts")
 }
 

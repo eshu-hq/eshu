@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/semanticqueue"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -25,7 +27,7 @@ func (s SemanticExtractionQueueStore) ObservabilitySnapshot(
 
 func readSemanticExtractionObservability(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) (statuspkg.SemanticExtractionStatus, error) {
 	rows, err := queryer.QueryContext(ctx, semanticExtractionObservabilityQuery)
 	if err != nil {

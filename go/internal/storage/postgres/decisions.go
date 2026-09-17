@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
@@ -106,11 +108,11 @@ type DecisionFilter struct {
 
 // DecisionStore persists projection decisions and evidence in PostgreSQL.
 type DecisionStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewDecisionStore creates a decision store backed by the given database.
-func NewDecisionStore(db ExecQueryer) *DecisionStore {
+func NewDecisionStore(db db.ExecQueryer) *DecisionStore {
 	return &DecisionStore{db: db}
 }
 
@@ -213,7 +215,7 @@ func (s *DecisionStore) ListEvidence(ctx context.Context, decisionID string) ([]
 	return scanEvidenceRows(sqlRows)
 }
 
-func scanDecisionRows(rows Rows) ([]projector.ProjectionDecisionRow, error) {
+func scanDecisionRows(rows db.Rows) ([]projector.ProjectionDecisionRow, error) {
 	var result []projector.ProjectionDecisionRow
 	for rows.Next() {
 		var d projector.ProjectionDecisionRow
@@ -243,7 +245,7 @@ func scanDecisionRows(rows Rows) ([]projector.ProjectionDecisionRow, error) {
 	return result, rows.Err()
 }
 
-func scanEvidenceRows(rows Rows) ([]projector.ProjectionDecisionEvidenceRow, error) {
+func scanEvidenceRows(rows db.Rows) ([]projector.ProjectionDecisionEvidenceRow, error) {
 	var result []projector.ProjectionDecisionEvidenceRow
 	for rows.Next() {
 		var e projector.ProjectionDecisionEvidenceRow

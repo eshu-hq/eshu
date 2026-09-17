@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -15,7 +17,7 @@ type postgresAdmissionDecisionWriter struct {
 	store *postgres.AdmissionDecisionStore
 }
 
-func newAdmissionDecisionWriter(db postgres.ExecQueryer) postgresAdmissionDecisionWriter {
+func newAdmissionDecisionWriter(db db.ExecQueryer) postgresAdmissionDecisionWriter {
 	return postgresAdmissionDecisionWriter{
 		store: postgres.NewAdmissionDecisionStore(db),
 	}

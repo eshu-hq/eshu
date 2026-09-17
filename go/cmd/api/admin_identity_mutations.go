@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -41,13 +43,13 @@ type postgresAdminIdentityMutationAdapter struct {
 }
 
 func newPostgresAdminIdentityMutationAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 ) *postgresAdminIdentityMutationAdapter {
-	if db == nil {
+	if rawDB == nil {
 		return nil
 	}
-	identityDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	identityDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		identityDB = &pgstatus.InstrumentedDB{
 			Inner:       identityDB,

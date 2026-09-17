@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -42,7 +44,7 @@ type recordedStatement struct {
 	args  []any
 }
 
-func (r *orderedStatementRecorder) Begin(context.Context) (Transaction, error) {
+func (r *orderedStatementRecorder) Begin(context.Context) (db.Transaction, error) {
 	return r, nil
 }
 
@@ -58,7 +60,7 @@ func (r *orderedStatementRecorder) ExecContext(_ context.Context, query string, 
 	return fakeResultWithRowsAffected{rowsAffected: rowsAffected}, nil
 }
 
-func (r *orderedStatementRecorder) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (r *orderedStatementRecorder) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.statements = append(r.statements, recordedStatement{query: query, args: args})

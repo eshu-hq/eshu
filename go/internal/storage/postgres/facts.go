@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
@@ -61,19 +63,19 @@ ORDER BY observed_at ASC, fact_id ASC
 
 // FactStore persists and loads fact records from Postgres.
 type FactStore struct {
-	db            ExecQueryer
+	db            db.ExecQueryer
 	identityCache *IdentityEpochCache
 }
 
 // NewFactStore constructs a Postgres-backed fact store without identity caching.
 // Use NewFactStoreWithIdentityCache to enable the identity-fact epoch cache.
-func NewFactStore(db ExecQueryer) *FactStore {
+func NewFactStore(db db.ExecQueryer) *FactStore {
 	return &FactStore{db: db}
 }
 
 // NewFactStoreWithIdentityCache constructs a Postgres-backed fact store with
 // the identity-fact epoch cache enabled.
-func NewFactStoreWithIdentityCache(db ExecQueryer, cache *IdentityEpochCache) *FactStore {
+func NewFactStoreWithIdentityCache(db db.ExecQueryer, cache *IdentityEpochCache) *FactStore {
 	return &FactStore{db: db, identityCache: cache}
 }
 
@@ -140,7 +142,7 @@ func (s FactStore) ListFacts(
 	return loaded, nil
 }
 
-func scanFactEnvelope(rows Rows) (facts.Envelope, error) {
+func scanFactEnvelope(rows db.Rows) (facts.Envelope, error) {
 	var factID string
 	var scopeID string
 	var generationID string
@@ -218,7 +220,7 @@ func scanFactEnvelope(rows Rows) (facts.Envelope, error) {
 // multi-row INSERT. The highest fencing token wins; ties keep the last
 // occurrence to preserve the zero/equal-token overwrite semantics of the old
 // N+1 pattern.
-func upsertFacts(ctx context.Context, db ExecQueryer, envelopes []facts.Envelope) error {
+func upsertFacts(ctx context.Context, db db.ExecQueryer, envelopes []facts.Envelope) error {
 	if db == nil {
 		return fmt.Errorf("fact store database is required")
 	}

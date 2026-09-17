@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
@@ -94,7 +96,7 @@ LIMIT $3
 // scope's repository as curated-search projection inputs in bounded keyset
 // pages. It implements eshusearch.SearchDocumentSourceLoader.
 type EshuSearchDocumentSourceLoader struct {
-	db Queryer
+	db db.Queryer
 	// entityPageSize and filePageSize bound rows per keyset page. They default
 	// to the package constants; tests override them to exercise pagination
 	// without materialising production-scale fixtures.
@@ -104,7 +106,7 @@ type EshuSearchDocumentSourceLoader struct {
 
 // NewEshuSearchDocumentSourceLoader builds a content source loader over db with
 // the production page-size bounds.
-func NewEshuSearchDocumentSourceLoader(db Queryer) EshuSearchDocumentSourceLoader {
+func NewEshuSearchDocumentSourceLoader(db db.Queryer) EshuSearchDocumentSourceLoader {
 	return EshuSearchDocumentSourceLoader{
 		db:             db,
 		entityPageSize: eshuSearchDocumentEntityPageSize,

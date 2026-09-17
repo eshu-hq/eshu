@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -21,7 +23,7 @@ func (q sqlConnExecQueryer) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	return q.conn.QueryContext(ctx, query, args...)
 }
 

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 )
@@ -124,7 +126,7 @@ func (s *RelationshipStore) IncompleteActiveScopeRelationshipGenerations(
 // single indexed key read. A lookup error fails safe as not-found, and
 // request-scoped cancellation is enforced by the fence and queue layers
 // above (#6730).
-func NewAcceptedGenerationLookup(db ExecQueryer) reducer.AcceptedGenerationLookup {
+func NewAcceptedGenerationLookup(db db.ExecQueryer) reducer.AcceptedGenerationLookup {
 	store := NewSharedProjectionAcceptanceStore(db)
 	return func(key reducer.SharedProjectionAcceptanceKey) (string, bool) {
 		generationID, found, err := store.Lookup(
@@ -144,7 +146,7 @@ func NewAcceptedGenerationLookup(db ExecQueryer) reducer.AcceptedGenerationLooku
 // partition slice and returns an in-memory lookup closure for the reducer hot
 // path. This keeps the shared runner collector-agnostic while avoiding repeated
 // store calls for duplicate bounded-unit keys.
-func NewAcceptedGenerationPrefetch(db ExecQueryer) reducer.AcceptedGenerationPrefetch {
+func NewAcceptedGenerationPrefetch(db db.ExecQueryer) reducer.AcceptedGenerationPrefetch {
 	store := NewSharedProjectionAcceptanceStore(db)
 
 	return func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (reducer.AcceptedGenerationLookup, error) {

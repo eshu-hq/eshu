@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestContainerImageIdentityCutoverMigrationAcceptsDurableClaimLatchWithoutMarkerLive(
@@ -55,7 +57,7 @@ WHERE work_item_id = $1
 func proveContainerImageIdentityCutoverMigrationRerunStates(
 	t *testing.T,
 	ctx context.Context,
-	exec Executor,
+	exec db.Executor,
 	db *sql.DB,
 ) {
 	t.Helper()

@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
@@ -52,11 +54,11 @@ LIMIT $1
 // needs a curated search-document projection. It implements
 // projector.PendingSearchDocumentLister.
 type EshuSearchDocumentPendingStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewEshuSearchDocumentPendingStore builds a pending-projection lister over db.
-func NewEshuSearchDocumentPendingStore(db ExecQueryer) EshuSearchDocumentPendingStore {
+func NewEshuSearchDocumentPendingStore(db db.ExecQueryer) EshuSearchDocumentPendingStore {
 	return EshuSearchDocumentPendingStore{db: db}
 }
 

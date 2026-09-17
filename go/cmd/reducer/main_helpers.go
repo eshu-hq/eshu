@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
 	"github.com/eshu-hq/eshu/go/internal/clock"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -35,7 +37,7 @@ import (
 // settings when they are active. Extracted from buildReducerService to keep
 // main.go within the repo file-size budget.
 func configureReducerQueue(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	retryCfg runtimecfg.RetryPolicyConfig,
 	claimDomains []reducer.Domain,
 	projectorDrainGate bool,
@@ -81,7 +83,7 @@ func configureReducerQueue(
 // (#4121). Extracted from buildReducerService to keep the entrypoint within the
 // repo file-size budget.
 func configureGraphProjectionRepairQueue(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	clk clock.Clock,
 ) *postgres.GraphProjectionPhaseRepairQueueStore {
 	queue := postgres.NewGraphProjectionPhaseRepairQueueStore(database)
@@ -95,7 +97,7 @@ func configureGraphProjectionRepairQueue(
 // keep the entrypoint within the repo file-size budget.
 func graphProjectionPhaseRepairerFor(
 	queue reducer.GraphProjectionPhaseRepairQueue,
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	stateStore *postgres.GraphProjectionPhaseStateStore,
 	config reducer.GraphProjectionPhaseRepairerConfig,
 	clk clock.Clock,
@@ -117,7 +119,7 @@ func graphProjectionPhaseRepairerFor(
 // reducerGraphDrainFor returns a ReducerGraphDrain when the projector drain gate
 // is enabled, otherwise nil. Extracted from buildReducerService to keep main.go
 // within the repo file-size budget.
-func reducerGraphDrainFor(enabled bool, queryer postgres.Queryer) reducer.ReducerGraphDrain {
+func reducerGraphDrainFor(enabled bool, queryer db.Queryer) reducer.ReducerGraphDrain {
 	if !enabled {
 		return nil
 	}
@@ -230,7 +232,7 @@ func reducerDomainStrings(domains []reducer.Domain) []string {
 // confident single-owner resolutions emit a durable edge; weaker signals stay
 // provenance-only and fail-closed. It is extracted from the entrypoint so the
 // reducer command stays within the repo file-size budget.
-func incidentRepositoryCorrelationWiring(database postgres.ExecQueryer) (
+func incidentRepositoryCorrelationWiring(database db.ExecQueryer) (
 	incident.AppliedPagerDutyServiceRoutingLoader,
 	incident.BackendRepositoryResolver,
 	incident.IncidentRepositoryCorrelationWriter,
@@ -250,7 +252,7 @@ func incidentRepositoryCorrelationWiring(database postgres.ExecQueryer) (
 // disjoint-partition fan-out so operators tune both with one knob; the runner
 // clamps the value to the host CPU count.
 func codeReachabilityProjectionRunnerFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	sharedCfg reducer.SharedProjectionRunnerConfig,
 	concurrency int,
 	logger *slog.Logger,
@@ -280,7 +282,7 @@ const searchVectorSeedTimeout = 5 * time.Minute
 func seedSearchVectorScopeState(
 	seedCtx context.Context,
 	runner *searchvector.SearchVectorBuildRunner,
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	logger *slog.Logger,
 ) error {
 	if runner == nil {
@@ -329,7 +331,7 @@ func seedSearchVectorScopeState(
 // buildReducerService to keep main.go within the repo file-size budget.
 func newRepoDependencyProjectionRunner(
 	intentStore *postgres.SharedIntentStore,
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	edgeWriter *sourcecypher.EdgeWriter,
 	workQueue postgres.ReducerQueue,
 	relationshipGenerationActive maintenance.RelationshipGenerationActiveLookup,

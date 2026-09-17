@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -85,7 +87,7 @@ func newProofDomainDB(t *testing.T, now time.Time) *proofDomainDB {
 	}
 }
 
-func (db *proofDomainDB) Begin(context.Context) (Transaction, error) {
+func (db *proofDomainDB) Begin(context.Context) (db.Transaction, error) {
 	return &proofDomainTx{
 		db: db,
 		state: proofState{
@@ -163,7 +165,7 @@ func (db *proofDomainDB) ExecContext(_ context.Context, query string, args ...an
 	}
 }
 
-func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "SELECT generation.generation_id, COALESCE(generation.freshness_hint, '')"):
 		if len(args) != 1 {
@@ -300,7 +302,7 @@ func (db *proofDomainDB) claimProjectorWork(
 	leaseOwner string,
 	claimUntil time.Time,
 	sourceSystem string,
-) (Rows, error) {
+) (db.Rows, error) {
 	for key, item := range db.state.workItems {
 		if item.stage != "projector" || (item.status != "pending" && item.status != "retrying") {
 			continue
@@ -363,7 +365,7 @@ func proofPreviousGenerationExists(
 	return false
 }
 
-func (db *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string, claimUntil time.Time) (Rows, error) {
+func (db *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string, claimUntil time.Time) (db.Rows, error) {
 	for key, item := range db.state.workItems {
 		if item.stage != "reducer" || (item.status != "pending" && item.status != "retrying") {
 			continue

@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // codeValueFlowBackfillStateSchemaSQL is the durable completion marker table so
@@ -41,12 +43,12 @@ func CodeValueFlowBackfillStateSchemaSQL() string {
 // for value-flow ledger backfills so a partially failed backfill re-runs on the
 // next startup instead of being treated as done.
 type CodeValueFlowBackfillStateStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewCodeValueFlowBackfillStateStore constructs a Postgres-backed backfill-state
 // marker store.
-func NewCodeValueFlowBackfillStateStore(db ExecQueryer) CodeValueFlowBackfillStateStore {
+func NewCodeValueFlowBackfillStateStore(db db.ExecQueryer) CodeValueFlowBackfillStateStore {
 	return CodeValueFlowBackfillStateStore{db: db}
 }
 

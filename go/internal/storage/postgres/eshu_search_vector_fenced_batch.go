@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -78,7 +80,7 @@ func valueBatchFenceMode(rows []EshuSearchVectorValue) (bool, error) {
 
 func upsertEshuSearchVectorMetadataBatchFenced(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	batch []EshuSearchVectorMetadata,
 ) error {
 	const columnsPerRow = eshuSearchVectorMetadataColumnsPerRow + 2
@@ -128,7 +130,7 @@ row.failure_class,row.created_at,row.updated_at,row.last_success_at
 
 func upsertEshuSearchVectorValueBatchFenced(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	batch []EshuSearchVectorValue,
 ) error {
 	const columnsPerRow = eshuSearchVectorValueColumnsPerRow + 2

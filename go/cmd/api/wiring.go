@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel"
 
@@ -104,7 +106,7 @@ func wireAPI(
 		return nil, nil, nil, fmt.Errorf("ESHU_POSTGRES_DSN or ESHU_CONTENT_STORE_DSN is required")
 	}
 
-	db, err := sql.Open("pgx", pgDSN)
+	rawDB, err := sql.Open("pgx", pgDSN)
 	if err != nil {
 		if driver != nil {
 			_ = driver.Close(ctx)
@@ -115,9 +117,9 @@ func wireAPI(
 	// graph dial). Without this the api pool is database/sql-default unbounded, which
 	// would let a read burst exceed the whole-stack connection budget (#4456). Only
 	// the pool sizes are applied; the DSN resolved above is kept.
-	internalruntime.ConfigurePostgresPool(db, pgPoolCfg)
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
+	internalruntime.ConfigurePostgresPool(rawDB, pgPoolCfg)
+	if err := rawDB.PingContext(ctx); err != nil {
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -132,7 +134,7 @@ func wireAPI(
 	// BETWEEN identity and file-registry in the chain
 	// (identity -> bearer -> file), so the three-way ChainResolvers call is
 	// deferred to just after instruments is built instead of assembled here.
-	identityResolver := scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: db}))
+	identityResolver := scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: rawDB}))
 
 	// Build instruments before the status reader so the StatusStore can carry
 	// the shared meter provider (see newStatusStore): the status query cache
@@ -140,7 +142,7 @@ func wireAPI(
 	// operator status-serving StatusStore has Instruments wired.
 	instruments, err := telemetry.NewInstruments(otel.Meter(telemetry.DefaultSignalName))
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -154,30 +156,30 @@ func wireAPI(
 		neo4jDB,
 		query.WithNeo4jReaderObservability(logger, instruments),
 	)
-	contentReader := query.NewContentReader(db)
+	contentReader := query.NewContentReader(rawDB)
 	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
 	// indexed owner-ledger list path is mounted. Graph-disabled profiles skip
 	// this because the capability is unsupported and no graph can be read.
 	if driver != nil {
-		if err := query.BackfillCloudResourceOwnerLedger(ctx, db, neo4jReader); err != nil {
-			_ = db.Close()
+		if err := query.BackfillCloudResourceOwnerLedger(ctx, rawDB, neo4jReader); err != nil {
+			_ = rawDB.Close()
 			_ = driver.Close(ctx)
 			return nil, nil, nil, fmt.Errorf("backfill cloud resource owner ledger: %w", err)
 		}
 	}
 	statusReader := status.WithSemanticProviderProfiles(
-		newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments),
+		newStatusStore(pgstatus.SQLQueryer{DB: rawDB}, instruments),
 		semanticProviderProfiles...,
 	)
 	metricsSource, err := metricsTimeSeriesSourceFromEnv(getenv, nil)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
 		return nil, nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
 	}
-	governanceAudit := newGovernanceAuditStore(db, instruments, logger)
+	governanceAudit := newGovernanceAuditStore(rawDB, instruments, logger)
 
 	// IdP bearer-token resolver (#5162): validates an IdP-issued OAuth2
 	// access token presented as Authorization: Bearer <token> against the
@@ -185,9 +187,9 @@ func wireAPI(
 	// (nil, nil) when that env var is unset, which is what makes the
 	// three-way chain below degrade to the pre-#5162 identity -> file chain
 	// on a token-only deployment.
-	oidcBearerResolver, err := newOIDCBearerResolver(ctx, getenv, db, instruments, logger)
+	oidcBearerResolver, err := newOIDCBearerResolver(ctx, getenv, rawDB, instruments, logger)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -202,7 +204,7 @@ func wireAPI(
 	// local owner/admin identity exactly once before the router mounts any
 	// auth-gated route. Fails closed on any seeding error, matching every
 	// other wiring step in this function.
-	seedIdentityDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	seedIdentityDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		seedIdentityDB = &pgstatus.InstrumentedDB{
 			Inner:       seedIdentityDB,
@@ -212,7 +214,7 @@ func wireAPI(
 		}
 	}
 	if err := seedInitialAdmin(ctx, seedIdentityDB, getenv, instruments, logger, adminRecoveryAuditAppender(governanceAudit)); err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -224,15 +226,15 @@ func wireAPI(
 	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
 	cookieSecureMode, err := query.ValidateCookieSecureMode(getenv(query.CookieSecureModeEnv))
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
 		return nil, nil, nil, fmt.Errorf("configure cookie secure mode: %w", err)
 	}
-	browserSessionAdapter := newPostgresBrowserSessionAdapter(db, instruments)
+	browserSessionAdapter := newPostgresBrowserSessionAdapter(rawDB, instruments)
 	router, err := newRouterWithSemanticEmbedding(
-		db,
+		rawDB,
 		neo4jReader,
 		contentReader,
 		statusReader,
@@ -250,7 +252,7 @@ func wireAPI(
 		cookieSecureMode,
 	)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -266,7 +268,7 @@ func wireAPI(
 	// to open DB-backed provider secrets at token-exchange time.
 	providerSecretKeyring, err := secretcrypto.KeyringFromEnv(getenv)
 	if err != nil && !errors.Is(err, secretcrypto.ErrKeyNotConfigured) {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -311,17 +313,17 @@ func wireAPI(
 	// unconfigured) is not fatal; VerifyBootstrapCredential fails closed.
 	bootstrapMode, err := loadAuthBootstrapMode(getenv)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
 		return nil, nil, nil, fmt.Errorf("configure setup wizard: %w", err)
 	}
-	router.Setup = newSetupHandler(db, providerSecretKeyring, instruments, governanceAudit, cookieSecureMode, bootstrapMode)
+	router.Setup = newSetupHandler(rawDB, providerSecretKeyring, instruments, governanceAudit, cookieSecureMode, bootstrapMode)
 
-	oidcLoginHandler, err := newOIDCLoginHandler(getenv, db, instruments, providerSecretKeyring, logger)
+	oidcLoginHandler, err := newOIDCLoginHandler(getenv, rawDB, instruments, providerSecretKeyring, logger)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -334,9 +336,9 @@ func wireAPI(
 		oidcLoginHandler.Audit = adminRecoveryAuditAppender(governanceAudit)
 	}
 	router.OIDCLogin = oidcLoginHandler
-	oidcSessionRefreshWorker, err := newOIDCSessionRefreshWorker(getenv, db, instruments, logger)
+	oidcSessionRefreshWorker, err := newOIDCSessionRefreshWorker(getenv, rawDB, instruments, logger)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -351,9 +353,9 @@ func wireAPI(
 			)
 		}
 	}
-	samlHandler, err := newSAMLHandler(db, instruments, getenv, browserSessionAdapter, cookieSecureMode, providerSecretKeyring)
+	samlHandler, err := newSAMLHandler(rawDB, instruments, getenv, browserSessionAdapter, cookieSecureMode, providerSecretKeyring)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -370,9 +372,9 @@ func wireAPI(
 		// Governance audit for SSO callback outcomes (issue #5601).
 		samlHandler.Audit = adminRecoveryAuditAppender(governanceAudit)
 	}
-	githubLoginHandler, err := newGitHubLoginHandler(getenv, db, instruments, providerSecretKeyring)
+	githubLoginHandler, err := newGitHubLoginHandler(getenv, rawDB, instruments, providerSecretKeyring)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -384,7 +386,7 @@ func wireAPI(
 	}
 	router.GitHubLogin = githubLoginHandler
 	authProviders := &query.AuthProviderListHandler{
-		Store: newAuthProviderListStore(db, samlHandler, oidcLoginHandler, githubLoginHandler),
+		Store: newAuthProviderListStore(rawDB, samlHandler, oidcLoginHandler, githubLoginHandler),
 	}
 	if browserSessionAdapter != nil {
 		// browserSessionAdapter already implements query.SignInPolicyReadStore
@@ -405,21 +407,21 @@ func wireAPI(
 	}
 	router.AuthProviders = authProviders
 
-	providerConfigTester := newProviderConfigConnectionTester(db, providerSecretKeyring)
-	router.AdminProviderConfigReads = newAdminProviderConfigReadHandler(db, oidcLoginHandler, samlHandler, logger)
-	router.AdminProviderConfigMutations = newAdminProviderConfigMutationHandler(db, governanceAudit, providerSecretKeyring, providerConfigTester, oidcLoginHandler, samlHandler, logger)
+	providerConfigTester := newProviderConfigConnectionTester(rawDB, providerSecretKeyring)
+	router.AdminProviderConfigReads = newAdminProviderConfigReadHandler(rawDB, oidcLoginHandler, samlHandler, logger)
+	router.AdminProviderConfigMutations = newAdminProviderConfigMutationHandler(rawDB, governanceAudit, providerSecretKeyring, providerConfigTester, oidcLoginHandler, samlHandler, logger)
 
 	// Tenant sign-in policy (epic #4962, issue #4968): built before
 	// router.LocalIdentity below so its SignInPolicyReadStore can be wired
 	// into the local-login require_sso gate in the same call.
-	router.SignInPolicyReads = newSignInPolicyReadHandler(db, instruments)
-	router.SignInPolicyMutations = newSignInPolicyMutationHandler(db, instruments, governanceAudit)
+	router.SignInPolicyReads = newSignInPolicyReadHandler(rawDB, instruments)
+	router.SignInPolicyMutations = newSignInPolicyMutationHandler(rawDB, instruments, governanceAudit)
 	router.LocalIdentity.SignInPolicy = router.SignInPolicyReads.Store
 	router.LocalIdentity.Instruments = instruments
 
 	apiMux := http.NewServeMux()
 	router.Mount(apiMux)
-	browserSessionResolver := newBrowserSessionResolver(db, instruments)
+	browserSessionResolver := newBrowserSessionResolver(rawDB, instruments)
 
 	// The Ask engine's in-process runner must dispatch inner tool calls through
 	// the scoped-auth-wrapped handler (authedMux below) so each inner read
@@ -436,8 +438,8 @@ func wireAPI(
 	// (catalog-service-id resolver + incident evidence loader, both over Postgres).
 	(&serviceintelhttp.ReportHandler{
 		Entities:    router.Entities,
-		Incidents:   newIncidentEvidenceSource(db, logger),
-		SupplyChain: newSupplyChainEvidenceSource(db, logger),
+		Incidents:   newIncidentEvidenceSource(rawDB, logger),
+		SupplyChain: newSupplyChainEvidenceSource(rawDB, logger),
 	}).Mount(apiMux)
 
 	// Record per-endpoint duration/error metrics for every API route. The
@@ -451,9 +453,9 @@ func wireAPI(
 		apiHandler = oidcRateLimiter.Middleware(apiHandler)
 	}
 
-	mux, err := mountRuntimeSurface(apiHandler, "eshu-api", statusReader, prometheusHandler, db, driver)
+	mux, err := mountRuntimeSurface(apiHandler, "eshu-api", statusReader, prometheusHandler, rawDB, driver)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -488,7 +490,7 @@ func wireAPI(
 	askInnerHandler.Set(final)
 
 	cleanup := func() {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(context.Background())
 		}

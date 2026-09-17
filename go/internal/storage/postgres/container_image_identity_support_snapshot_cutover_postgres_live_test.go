@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -210,7 +212,7 @@ type autocommitReadSnapshotDB struct {
 
 func (db autocommitReadSnapshotDB) BeginReadOnlyRepeatableRead(
 	context.Context,
-) (Transaction, error) {
+) (db.Transaction, error) {
 	return autocommitReadSnapshotTransaction{db: db.activeSetSwitchingDB}, nil
 }
 
@@ -222,7 +224,7 @@ func (tx autocommitReadSnapshotTransaction) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	return tx.db.QueryContext(ctx, query, args...)
 }
 

@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -65,7 +67,7 @@ type authProviderListStore struct {
 // environments without a database; the handler then returns an empty list.
 // samlHandler and oidcHandler may be nil when those providers are not configured.
 func newAuthProviderListStore(
-	db *sql.DB,
+	rawDB *sql.DB,
 	samlHandler *query.SAMLHandler,
 	oidcHandler *query.OIDCLoginHandler,
 	githubHandler *query.GitHubLoginHandler,
@@ -83,8 +85,8 @@ func newAuthProviderListStore(
 		githubProviders = githubHandler.RegisteredProviders()
 	}
 	var identityStore *pgstatus.IdentitySubjectStore
-	if db != nil {
-		identityStore = pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db}))
+	if rawDB != nil {
+		identityStore = pgstatus.NewIdentitySubjectStore(db.ExecQueryer(pgstatus.SQLDB{DB: rawDB}))
 	}
 	return &authProviderListStore{
 		identity:             identityStore,

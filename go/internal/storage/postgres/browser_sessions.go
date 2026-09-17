@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // ErrBrowserSessionCSRFInvalid identifies an active browser session whose CSRF
@@ -23,7 +25,7 @@ var ErrBrowserSessionRefreshRequired = errors.New("browser session refresh requi
 
 // BrowserSessionStore persists hash-only browser session rows.
 type BrowserSessionStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // BrowserSessionRecord is the durable server-managed dashboard session state.
@@ -56,7 +58,7 @@ type BrowserSessionRecord struct {
 }
 
 // NewBrowserSessionStore constructs a Postgres-backed browser session store.
-func NewBrowserSessionStore(db ExecQueryer) *BrowserSessionStore {
+func NewBrowserSessionStore(db db.ExecQueryer) *BrowserSessionStore {
 	return &BrowserSessionStore{db: db}
 }
 
@@ -357,7 +359,7 @@ func validateBrowserSessionRecord(record BrowserSessionRecord) error {
 	return nil
 }
 
-func scanBrowserSession(rows Rows) (BrowserSessionRecord, bool, error) {
+func scanBrowserSession(rows db.Rows) (BrowserSessionRecord, bool, error) {
 	var record BrowserSessionRecord
 	var roleIDBytes, allowedScopeBytes, allowedRepositoryBytes []byte
 	var allowedPermissionFeatureBytes, allowedPermissionDataClassBytes []byte

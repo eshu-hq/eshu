@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -37,7 +39,7 @@ func probeQueryRow(count int, maxObservedAt time.Time, fingerprint string) queue
 }
 
 // newFactStoreWithCache creates a FactStore with a wired identity cache for testing.
-func newFactStoreWithCache(db ExecQueryer, maxBytes int64) *FactStore {
+func newFactStoreWithCache(db db.ExecQueryer, maxBytes int64) *FactStore {
 	cache, err := NewIdentityEpochCache(testInstruments(), maxBytes)
 	if err != nil {
 		panic("NewIdentityEpochCache in test: " + err.Error())

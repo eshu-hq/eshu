@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -321,7 +323,7 @@ func (db *partitionHistoryTestDB) ExecContext(context.Context, string, ...any) (
 	return nil, fmt.Errorf("unexpected exec")
 }
 
-func (db *partitionHistoryTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *partitionHistoryTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.query = query
 	db.queryArgs = append([]any(nil), args...)
 	if strings.Contains(query, "blocked_by_fence") {

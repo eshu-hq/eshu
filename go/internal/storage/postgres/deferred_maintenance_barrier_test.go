@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -424,7 +426,7 @@ type openRowsRejectingTx struct {
 	execCount  int
 }
 
-func (tx *openRowsRejectingTx) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (tx *openRowsRejectingTx) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM deferred_maintenance_barriers") {
 		return nil, errors.New("unexpected query")
 	}

@@ -6,7 +6,7 @@ package querytestutil
 import "fmt"
 
 // ScriptedRows returns canned rows for one query and satisfies the
-// pgstatus.Rows surface a Postgres-backed store scans. Data holds one slice
+// db.Rows surface a Postgres-backed store scans. Data holds one slice
 // per row, in the column order the store's SELECT lists.
 //
 // It lives here rather than in a _test.go file because two packages scan

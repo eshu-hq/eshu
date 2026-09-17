@@ -9,6 +9,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -26,11 +28,11 @@ type postgresSignInPolicyAdapter struct {
 	store *pgstatus.IdentitySubjectStore
 }
 
-func newPostgresSignInPolicyAdapter(db *sql.DB, instruments *telemetry.Instruments) *postgresSignInPolicyAdapter {
-	if db == nil {
+func newPostgresSignInPolicyAdapter(rawDB *sql.DB, instruments *telemetry.Instruments) *postgresSignInPolicyAdapter {
+	if rawDB == nil {
 		return nil
 	}
-	signInPolicyDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	signInPolicyDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		signInPolicyDB = &pgstatus.InstrumentedDB{
 			Inner:       signInPolicyDB,

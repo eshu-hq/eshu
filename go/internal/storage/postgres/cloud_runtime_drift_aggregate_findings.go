@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -144,7 +146,7 @@ func (s MultiCloudRuntimeDriftFindingStore) CountActiveFindingsAcrossProviders(
 // (decodeMultiCloudRuntimeDriftFindingPayload / decodeAWSCloudRuntimeDriftFindingPayload),
 // selected by the row's own fact_kind column so this file never has to
 // duplicate either payload's decode logic.
-func scanCloudRuntimeDriftAggregateRow(rows Rows) (CloudRuntimeDriftAggregateFindingRow, error) {
+func scanCloudRuntimeDriftAggregateRow(rows db.Rows) (CloudRuntimeDriftAggregateFindingRow, error) {
 	var factKind, factID, scopeID, generationID, sourceSystem string
 	var observedAt time.Time
 	var payload []byte

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -106,12 +108,12 @@ func CodeInterprocProjectedEdgeSchemaSQL() string {
 // projected TAINT_FLOWS_TO edge so retraction can enumerate uids from the
 // ledger instead of scanning the whole graph.
 type CodeInterprocProjectedEdgeStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewCodeInterprocProjectedEdgeStore constructs a Postgres-backed projected-edge
 // ledger.
-func NewCodeInterprocProjectedEdgeStore(db ExecQueryer) CodeInterprocProjectedEdgeStore {
+func NewCodeInterprocProjectedEdgeStore(db db.ExecQueryer) CodeInterprocProjectedEdgeStore {
 	return CodeInterprocProjectedEdgeStore{db: db}
 }
 

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 )
 
@@ -107,7 +109,7 @@ func (db *providerConfigFakeDB) ExecContext(_ context.Context, query string, arg
 	}
 }
 
-func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch query {
 	case insertProviderConfigQuery:
 		providerConfigID := args[0].(string)
@@ -293,7 +295,7 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 	}
 }
 
-func (db *providerConfigFakeDB) Begin(context.Context) (Transaction, error) {
+func (db *providerConfigFakeDB) Begin(context.Context) (db.Transaction, error) {
 	db.mu.Lock()
 	return &providerConfigFakeTx{db: db}, nil
 }
@@ -306,7 +308,7 @@ func (tx *providerConfigFakeTx) ExecContext(ctx context.Context, query string, a
 	return tx.db.ExecContext(ctx, query, args...)
 }
 
-func (tx *providerConfigFakeTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx *providerConfigFakeTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.db.QueryContext(ctx, query, args...)
 }
 

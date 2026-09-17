@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -86,7 +88,7 @@ var crossScopeProducerCollectorKindByDomain = map[reducer.Domain]scope.Collector
 // catalog consumers have now opted in: ci_cd_run_correlation and
 // supply_chain_impact.
 type CrossScopeProducerReadinessStore struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // CrossScopeProducersReady reports, for EACH producer domain the consumer

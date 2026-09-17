@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -73,7 +75,7 @@ func (s IngestionStore) MaterializeIaCReachability(
 
 func loadActiveIaCContentFiles(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	activeGenerations map[string]repositoryGenerationIdentity,
 ) (map[string][]iacreachability.File, error) {
 	if queryer == nil || len(activeGenerations) == 0 {

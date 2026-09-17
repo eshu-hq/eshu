@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const samlExternalSubjectClass = "external_saml"
@@ -202,7 +204,7 @@ func normalizeSAMLExternalSubjectResolutionRequest(
 
 func resolveActiveSAMLExternalSubject(
 	ctx context.Context,
-	db Queryer,
+	db db.Queryer,
 	request SAMLExternalSubjectResolutionRequest,
 ) (SAMLExternalSubjectAuthContext, bool, error) {
 	rows, err := db.QueryContext(
@@ -278,7 +280,7 @@ func resolveActiveSAMLExternalSubject(
 // scoped token for the same user resolve to the same role set.
 func resolveSAMLExternalSubjectRoles(
 	ctx context.Context,
-	db Queryer,
+	db db.Queryer,
 	tenantID string,
 	workspaceID string,
 	userID string,
@@ -319,7 +321,7 @@ func resolveSAMLExternalSubjectRoles(
 
 func selectKnownSAMLExternalSubject(
 	ctx context.Context,
-	db Queryer,
+	db db.Queryer,
 	request SAMLExternalSubjectResolutionRequest,
 ) (bool, error) {
 	rows, err := db.QueryContext(

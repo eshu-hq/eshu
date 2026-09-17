@@ -9,6 +9,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -47,7 +49,7 @@ type quiescenceQueryerStub struct {
 	calls        []recordedQuiescenceCall
 }
 
-func (q *quiescenceQueryerStub) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (q *quiescenceQueryerStub) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	kinds := collectorKindArgument(args)
 	q.calls = append(q.calls, recordedQuiescenceCall{query: query, kinds: kinds})
 	if q.err != nil {

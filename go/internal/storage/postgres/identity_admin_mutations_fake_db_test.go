@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // adminMutationFakeDB is a programmable ExecQueryer+Beginner that records the
@@ -63,7 +65,7 @@ func (db *adminMutationFakeDB) ExecContext(_ context.Context, query string, args
 	return affectedResult{affected: 0}, nil
 }
 
-func (db *adminMutationFakeDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *adminMutationFakeDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.queryQueries = append(db.queryQueries, query)
 	switch {
 	case strings.Contains(query, "FROM identity_roles"):
@@ -111,7 +113,7 @@ func (db *adminMutationFakeDB) QueryContext(_ context.Context, query string, arg
 	}
 }
 
-func (db *adminMutationFakeDB) Begin(context.Context) (Transaction, error) {
+func (db *adminMutationFakeDB) Begin(context.Context) (db.Transaction, error) {
 	return &adminMutationFakeTx{db: db}, nil
 }
 
@@ -125,7 +127,7 @@ func (tx *adminMutationFakeTx) ExecContext(ctx context.Context, query string, ar
 	return tx.db.ExecContext(ctx, query, args...)
 }
 
-func (tx *adminMutationFakeTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx *adminMutationFakeTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.db.QueryContext(ctx, query, args...)
 }
 

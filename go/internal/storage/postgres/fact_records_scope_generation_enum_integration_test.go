@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -70,17 +72,17 @@ func TestListScopeGenerationWorkLive(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	db := openScopeGenerationEnumProofDB(t, dsn)
+	rawDB := openScopeGenerationEnumProofDB(t, dsn)
 
-	if _, err := db.ExecContext(ctx, scopeGenerationEnumProofSchemaSQL); err != nil {
+	if _, err := rawDB.ExecContext(ctx, scopeGenerationEnumProofSchemaSQL); err != nil {
 		t.Fatalf("provision schema: %v", err)
 	}
 
 	observed := time.Date(2026, time.April, 12, 8, 0, 0, 0, time.UTC)
 	ingested := observed.Add(5 * time.Minute)
-	seedScopeGenerationEnumFixture(t, ctx, db, observed, ingested)
+	seedScopeGenerationEnumFixture(t, ctx, rawDB, observed, ingested)
 
-	works, err := NewFactStore(ExecQueryer(SQLDB{DB: db})).ListScopeGenerationWork(ctx)
+	works, err := NewFactStore(db.ExecQueryer(SQLDB{DB: rawDB})).ListScopeGenerationWork(ctx)
 	if err != nil {
 		t.Fatalf("ListScopeGenerationWork() error = %v, want nil", err)
 	}

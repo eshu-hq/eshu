@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
@@ -223,7 +225,7 @@ const (
 // operator-supplied limit, unlike the fixed RawSnapshot shape the rest of the
 // status surface composes.
 type LiveActivityStore struct {
-	queryer Queryer
+	queryer db.Queryer
 	// Instruments is left nil by NewLiveActivityStore (matching StatusStore's
 	// convention) so existing construction call sites stay source-compatible;
 	// NewInstrumentedLiveActivityStore is the wiring entry point that wants
@@ -233,14 +235,14 @@ type LiveActivityStore struct {
 
 // NewLiveActivityStore constructs a read-only live-activity store with no
 // telemetry wired.
-func NewLiveActivityStore(queryer Queryer) LiveActivityStore {
+func NewLiveActivityStore(queryer db.Queryer) LiveActivityStore {
 	return LiveActivityStore{queryer: queryer}
 }
 
 // NewInstrumentedLiveActivityStore constructs a live-activity store that
 // records eshu_dp_status_operations_live_activity_query_duration_seconds and
 // eshu_dp_status_operations_live_activity_query_errors_total on every read.
-func NewInstrumentedLiveActivityStore(queryer Queryer, instruments *telemetry.Instruments) LiveActivityStore {
+func NewInstrumentedLiveActivityStore(queryer db.Queryer, instruments *telemetry.Instruments) LiveActivityStore {
 	return LiveActivityStore{queryer: queryer, Instruments: instruments}
 }
 

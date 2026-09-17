@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -60,12 +62,12 @@ func ValueFlowFixpointComponentSchemaSQL() string {
 // ValueFlowFixpointComponentStore persists solved value-flow weak-component
 // results keyed by the reducer's content-derived component key.
 type ValueFlowFixpointComponentStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewValueFlowFixpointComponentStore constructs a Postgres-backed component
 // cache store.
-func NewValueFlowFixpointComponentStore(db ExecQueryer) ValueFlowFixpointComponentStore {
+func NewValueFlowFixpointComponentStore(db db.ExecQueryer) ValueFlowFixpointComponentStore {
 	return ValueFlowFixpointComponentStore{db: db}
 }
 

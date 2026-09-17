@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
@@ -28,8 +30,8 @@ import (
 )
 
 type bootstrapExecutor interface {
-	postgres.Executor
-	QueryContext(context.Context, string, ...any) (postgres.Rows, error)
+	db.Executor
+	QueryContext(context.Context, string, ...any) (db.Rows, error)
 }
 
 type bootstrapDB interface {

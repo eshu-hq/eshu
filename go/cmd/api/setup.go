@@ -11,6 +11,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -30,16 +32,16 @@ import (
 // fails closed and SetupNeeded still answers correctly from the row's
 // existence alone.
 func newSetupHandler(
-	db *sql.DB,
+	rawDB *sql.DB,
 	keyring *secretcrypto.Keyring,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 	cookieSecureMode query.CookieSecureMode,
 	bootstrapMode string,
 ) *query.SetupHandler {
-	var identityDB pgstorage.ExecQueryer
-	if db != nil {
-		identityDB = pgstorage.SQLDB{DB: db}
+	var identityDB db.ExecQueryer
+	if rawDB != nil {
+		identityDB = pgstorage.SQLDB{DB: rawDB}
 		if instruments != nil {
 			identityDB = &pgstorage.InstrumentedDB{
 				Inner:       identityDB,
@@ -55,7 +57,7 @@ func newSetupHandler(
 			keyring:     keyring,
 			instruments: instruments,
 		},
-		Sessions:      newBrowserSessionStore(db, instruments),
+		Sessions:      newBrowserSessionStore(rawDB, instruments),
 		Audit:         adminRecoveryAuditAppender(governanceAudit),
 		Instruments:   instruments,
 		CookieSecure:  cookieSecureMode,

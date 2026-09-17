@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -105,7 +107,7 @@ type CrossplaneRedriveIntentReplayer interface {
 type CrossplaneSatisfiedByRedriveSweeper struct {
 	// DB reads the XRD's own active generation state and the cross-scope
 	// target-discovery pages.
-	DB Queryer
+	DB db.Queryer
 	// State tracks durable claim/completion for the XRD generation being swept.
 	State CrossplaneRedriveStateStore
 	// Replayer enqueues or reopens each target scope's SATISFIED_BY intent.

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -206,12 +208,12 @@ type SharedIntentFilter struct {
 
 // SharedIntentStore persists shared projection intents in PostgreSQL.
 type SharedIntentStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewSharedIntentStore creates a shared intent store backed by the given
 // database.
-func NewSharedIntentStore(db ExecQueryer) *SharedIntentStore {
+func NewSharedIntentStore(db db.ExecQueryer) *SharedIntentStore {
 	return &SharedIntentStore{db: db}
 }
 
@@ -410,7 +412,7 @@ func (s *SharedIntentStore) ListAcceptanceUnitDomainIntents(
 	return scanSharedIntentRows(sqlRows)
 }
 
-func scanSharedIntentRows(rows Rows) ([]reducer.SharedProjectionIntentRow, error) {
+func scanSharedIntentRows(rows db.Rows) ([]reducer.SharedProjectionIntentRow, error) {
 	var result []reducer.SharedProjectionIntentRow
 	for rows.Next() {
 		var r reducer.SharedProjectionIntentRow

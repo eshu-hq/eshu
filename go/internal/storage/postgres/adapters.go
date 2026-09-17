@@ -12,34 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 )
-
-// ExecQueryer combines read and write access for storage adapters.
-type ExecQueryer interface {
-	Queryer
-	Executor
-}
-
-// Transaction is the narrow transactional surface required by durable commit
-// boundaries in storage adapters.
-type Transaction interface {
-	ExecQueryer
-	Commit() error
-	Rollback() error
-}
-
-// Beginner constructs transactions for storage adapters that need atomic writes.
-type Beginner interface {
-	Begin(context.Context) (Transaction, error)
-}
-
-// ReadOnlyRepeatableReadBeginner constructs a read-only transaction whose
-// statements share one repeatable-read snapshot.
-type ReadOnlyRepeatableReadBeginner interface {
-	BeginReadOnlyRepeatableRead(context.Context) (Transaction, error)
-}
 
 // SQLDB adapts a *sql.DB into the combined storage interface surface.
 type SQLDB struct {
@@ -64,7 +41,7 @@ func (e searchIndexTermCopyUnsupportedError) UnsupportedSearchIndexTermCopy() bo
 }
 
 // QueryContext implements Queryer against a sql.DB.
-func (db SQLDB) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (db SQLDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return db.DB.QueryContext(ctx, query, args...)
 }
 
@@ -291,7 +268,7 @@ func quoteSQLIdentifier(identifier string) string {
 }
 
 // Begin opens a transaction against the wrapped database.
-func (db SQLDB) Begin(ctx context.Context) (Transaction, error) {
+func (db SQLDB) Begin(ctx context.Context) (db.Transaction, error) {
 	tx, err := db.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -301,7 +278,7 @@ func (db SQLDB) Begin(ctx context.Context) (Transaction, error) {
 }
 
 // BeginReadOnlyRepeatableRead opens a read-only repeatable-read transaction.
-func (db SQLDB) BeginReadOnlyRepeatableRead(ctx context.Context) (Transaction, error) {
+func (db SQLDB) BeginReadOnlyRepeatableRead(ctx context.Context) (db.Transaction, error) {
 	tx, err := db.DB.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  true,
@@ -319,7 +296,7 @@ type SQLTx struct {
 }
 
 // QueryContext implements Queryer against a sql.Tx.
-func (tx SQLTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx SQLTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.Tx.QueryContext(ctx, query, args...)
 }
 

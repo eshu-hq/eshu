@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -125,11 +127,11 @@ type IaCReachabilityRow struct {
 
 // IaCReachabilityStore persists reducer-materialized IaC reachability rows.
 type IaCReachabilityStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewIaCReachabilityStore creates a Postgres-backed IaC reachability store.
-func NewIaCReachabilityStore(db ExecQueryer) *IaCReachabilityStore {
+func NewIaCReachabilityStore(db db.ExecQueryer) *IaCReachabilityStore {
 	return &IaCReachabilityStore{db: db}
 }
 
@@ -385,7 +387,7 @@ func buildFamilyFilterClause(args *[]any, families []string) string {
 	return fmt.Sprintf("AND row.family IN (%s)", placeholders)
 }
 
-func upsertIaCReachabilityBatch(ctx context.Context, db ExecQueryer, batch []IaCReachabilityRow) error {
+func upsertIaCReachabilityBatch(ctx context.Context, db db.ExecQueryer, batch []IaCReachabilityRow) error {
 	args := make([]any, 0, len(batch)*iacReachabilityColumns)
 	var values strings.Builder
 	for i, row := range batch {
@@ -431,7 +433,7 @@ func upsertIaCReachabilityBatch(ctx context.Context, db ExecQueryer, batch []IaC
 	return nil
 }
 
-func scanIaCReachabilityRow(rows Rows) (IaCReachabilityRow, error) {
+func scanIaCReachabilityRow(rows db.Rows) (IaCReachabilityRow, error) {
 	var row IaCReachabilityRow
 	var reachability, finding string
 	var evidence, limitations []byte

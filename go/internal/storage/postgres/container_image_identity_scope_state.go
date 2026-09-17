@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const containerImageIdentityActivationEpochQuery = `
@@ -25,11 +27,11 @@ WHERE state.scope_id = $1
 // ContainerImageIdentityScopeStateStore reads the generation activation epoch
 // that fences one reducer evidence pass against activation ABA.
 type ContainerImageIdentityScopeStateStore struct {
-	db Queryer
+	db db.Queryer
 }
 
 // NewContainerImageIdentityScopeStateStore constructs the lifecycle reader.
-func NewContainerImageIdentityScopeStateStore(db Queryer) ContainerImageIdentityScopeStateStore {
+func NewContainerImageIdentityScopeStateStore(db db.Queryer) ContainerImageIdentityScopeStateStore {
 	return ContainerImageIdentityScopeStateStore{db: db}
 }
 

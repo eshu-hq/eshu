@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
 
@@ -55,11 +57,11 @@ type EshuSearchDocumentRow struct {
 // store, scoped to each scope's active generation so superseded generations are
 // excluded.
 type EshuSearchDocumentStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewEshuSearchDocumentStore builds a search-document reader over db.
-func NewEshuSearchDocumentStore(db ExecQueryer) EshuSearchDocumentStore {
+func NewEshuSearchDocumentStore(db db.ExecQueryer) EshuSearchDocumentStore {
 	return EshuSearchDocumentStore{db: db}
 }
 

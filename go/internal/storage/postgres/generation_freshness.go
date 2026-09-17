@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -67,7 +69,7 @@ func (s IngestionStore) CurrentScopeGeneration(
 
 // NewGenerationFreshnessCheck returns a GenerationFreshnessCheck backed by
 // the ingestion_scopes.active_generation_id denormalized column.
-func NewGenerationFreshnessCheck(db ExecQueryer) reducer.GenerationFreshnessCheck {
+func NewGenerationFreshnessCheck(db db.ExecQueryer) reducer.GenerationFreshnessCheck {
 	return func(ctx context.Context, scopeID, generationID string) (bool, error) {
 		rows, err := db.QueryContext(ctx, isCurrentGenerationSQL, scopeID)
 		if err != nil {
@@ -96,7 +98,7 @@ func NewGenerationFreshnessCheck(db ExecQueryer) reducer.GenerationFreshnessChec
 
 // NewPriorGenerationCheck returns a check backed by scope_generations for
 // identifying first-generation writes.
-func NewPriorGenerationCheck(db ExecQueryer) reducer.PriorGenerationCheck {
+func NewPriorGenerationCheck(db db.ExecQueryer) reducer.PriorGenerationCheck {
 	return func(ctx context.Context, scopeID, generationID string) (bool, error) {
 		rows, err := db.QueryContext(ctx, priorGenerationExistsSQL, scopeID, generationID)
 		if err != nil {

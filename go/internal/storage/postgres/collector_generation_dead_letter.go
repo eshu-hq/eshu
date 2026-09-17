@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector"
 )
 
@@ -69,7 +71,7 @@ SET scope_id = EXCLUDED.scope_id,
 // CollectorGenerationDeadLetterStore persists and replays collector generation
 // commit failures that happened outside the normal scope-generation transaction.
 type CollectorGenerationDeadLetterStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 var (
@@ -79,7 +81,7 @@ var (
 
 // NewCollectorGenerationDeadLetterStore constructs a Postgres-backed collector
 // generation dead-letter store.
-func NewCollectorGenerationDeadLetterStore(db ExecQueryer) CollectorGenerationDeadLetterStore {
+func NewCollectorGenerationDeadLetterStore(db db.ExecQueryer) CollectorGenerationDeadLetterStore {
 	return CollectorGenerationDeadLetterStore{db: db}
 }
 

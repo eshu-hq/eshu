@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -258,7 +260,7 @@ func (s *WorkflowControlStore) UpsertCompletenessStates(ctx context.Context, sta
 
 func (s *WorkflowControlStore) upsertCompletenessStatesWithExecutor(
 	ctx context.Context,
-	execTarget Executor,
+	execTarget db.Executor,
 	states []workflow.CompletenessState,
 ) error {
 	if len(states) == 0 {
@@ -287,7 +289,7 @@ func (s *WorkflowControlStore) upsertCompletenessStatesWithExecutor(
 	return nil
 }
 
-func scanCollectorInstance(rows Rows) (workflow.CollectorInstance, error) {
+func scanCollectorInstance(rows db.Rows) (workflow.CollectorInstance, error) {
 	var instance workflow.CollectorInstance
 	var collectorKind string
 	var mode string

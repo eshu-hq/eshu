@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -131,7 +133,7 @@ func TestBackfillDeferredSpanRecordsFanOutAttributes(t *testing.T) {
 // so the deferred fan-out reaches one partition load and fails it deterministically.
 type failingPartitionQueryer struct{ err error }
 
-func (q failingPartitionQueryer) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (q failingPartitionQueryer) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return nil, q.err
 }
 

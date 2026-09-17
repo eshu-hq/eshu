@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 )
@@ -17,11 +19,11 @@ import (
 // GCPFreshnessStore persists GCP Cloud Asset Inventory event-driven refresh
 // triggers for later workflow handoff.
 type GCPFreshnessStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewGCPFreshnessStore constructs a Postgres-backed GCP freshness store.
-func NewGCPFreshnessStore(db ExecQueryer) *GCPFreshnessStore {
+func NewGCPFreshnessStore(db db.ExecQueryer) *GCPFreshnessStore {
 	return &GCPFreshnessStore{db: db}
 }
 
@@ -247,7 +249,7 @@ func (s *GCPFreshnessStore) MarkTriggersFailed(
 // scanGCPFreshnessTrigger scans a row shape ending in claim_fencing_token.
 // Callers that RETURNING a row without that trailing column (none currently)
 // must not use this scanner.
-func scanGCPFreshnessTrigger(rows Rows) (freshness.StoredTrigger, error) {
+func scanGCPFreshnessTrigger(rows db.Rows) (freshness.StoredTrigger, error) {
 	var stored freshness.StoredTrigger
 	var kind, parentScopeKind, status string
 	if err := rows.Scan(

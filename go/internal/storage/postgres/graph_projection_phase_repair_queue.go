@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -90,7 +92,7 @@ WHERE scope_id = $4
 // GraphProjectionPhaseRepairQueueStore persists exact readiness publications
 // that must be retried after a durable graph write succeeded.
 type GraphProjectionPhaseRepairQueueStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 
 	// Now is the injectable clock for the bookkeeping timestamps this store
 	// writes (the enqueue committed/enqueued fallback and the MarkFailed
@@ -110,7 +112,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) now() time.Time {
 }
 
 // NewGraphProjectionPhaseRepairQueueStore constructs a repair queue store.
-func NewGraphProjectionPhaseRepairQueueStore(db ExecQueryer) *GraphProjectionPhaseRepairQueueStore {
+func NewGraphProjectionPhaseRepairQueueStore(db db.ExecQueryer) *GraphProjectionPhaseRepairQueueStore {
 	return &GraphProjectionPhaseRepairQueueStore{db: db}
 }
 
@@ -234,7 +236,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) MarkFailed(
 	return nil
 }
 
-func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer, batch []reducer.GraphProjectionPhaseRepair, now time.Time) error {
+func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, db db.ExecQueryer, batch []reducer.GraphProjectionPhaseRepair, now time.Time) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -292,7 +294,7 @@ func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer,
 	return nil
 }
 
-func deleteGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer, batch []reducer.GraphProjectionPhaseRepair) error {
+func deleteGraphProjectionPhaseRepairBatch(ctx context.Context, db db.ExecQueryer, batch []reducer.GraphProjectionPhaseRepair) error {
 	args := make([]any, 0, len(batch)*graphProjectionPhaseRepairQueueDeleteKeyWidth)
 	var tuples strings.Builder
 

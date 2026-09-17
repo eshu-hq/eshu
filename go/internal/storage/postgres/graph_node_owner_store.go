@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -84,7 +86,7 @@ func NewGraphNodeOwnerStore() GraphNodeOwnerStore {
 // EnsureSchema applies the graph_node_owner DDL from the embedded migration so
 // tests and local flows can create the table without the full bootstrap. The
 // migration file is the single source of truth for the DDL.
-func (GraphNodeOwnerStore) EnsureSchema(ctx context.Context, ex Executor) error {
+func (GraphNodeOwnerStore) EnsureSchema(ctx context.Context, ex db.Executor) error {
 	if ex == nil {
 		return fmt.Errorf("graph node owner store executor is required")
 	}
@@ -123,7 +125,7 @@ func graphNodeOwnerSchemaSQL() (string, error) {
 // them to another scope. It is an operator-facing cross-scope-contention signal.
 func (s GraphNodeOwnerStore) ResolveOwnedUIDs(
 	ctx context.Context,
-	tx ExecQueryer,
+	tx db.ExecQueryer,
 	entries []GraphNodeOwnerEntry,
 	updatedAt time.Time,
 ) (owned map[string]struct{}, contendedLost int, err error) {
@@ -166,7 +168,7 @@ func (s GraphNodeOwnerStore) ResolveOwnedUIDs(
 	return owned, contendedLost, nil
 }
 
-func (s GraphNodeOwnerStore) acquireLocks(ctx context.Context, tx ExecQueryer, entries []GraphNodeOwnerEntry) error {
+func (s GraphNodeOwnerStore) acquireLocks(ctx context.Context, tx db.ExecQueryer, entries []GraphNodeOwnerEntry) error {
 	uids := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		uids = append(uids, entry.UID)
@@ -197,7 +199,7 @@ func (s GraphNodeOwnerStore) acquireLocks(ctx context.Context, tx ExecQueryer, e
 // Blank/whitespace-only uids are dropped (they cannot correspond to a real
 // graph node); an empty or all-blank input is a no-op that never touches the
 // database, matching ResolveOwnedUIDs's empty-batch behavior.
-func (GraphNodeOwnerStore) LockUIDs(ctx context.Context, tx ExecQueryer, uids []string) error {
+func (GraphNodeOwnerStore) LockUIDs(ctx context.Context, tx db.ExecQueryer, uids []string) error {
 	if tx == nil {
 		return fmt.Errorf("graph node owner store transaction is required")
 	}
@@ -218,7 +220,7 @@ func (GraphNodeOwnerStore) LockUIDs(ctx context.Context, tx ExecQueryer, uids []
 	return nil
 }
 
-func (GraphNodeOwnerStore) upsert(ctx context.Context, tx ExecQueryer, entries []GraphNodeOwnerEntry, updatedAt time.Time) error {
+func (GraphNodeOwnerStore) upsert(ctx context.Context, tx db.ExecQueryer, entries []GraphNodeOwnerEntry, updatedAt time.Time) error {
 	values := make([]string, 0, len(entries))
 	args := make([]any, 0, len(entries)*graphNodeOwnerBatchColumns)
 	for _, entry := range entries {
@@ -237,7 +239,7 @@ func (GraphNodeOwnerStore) upsert(ctx context.Context, tx ExecQueryer, entries [
 	return nil
 }
 
-func (GraphNodeOwnerStore) winningOrderKeys(ctx context.Context, tx ExecQueryer, entries []GraphNodeOwnerEntry) (map[string]string, error) {
+func (GraphNodeOwnerStore) winningOrderKeys(ctx context.Context, tx db.ExecQueryer, entries []GraphNodeOwnerEntry) (map[string]string, error) {
 	uids := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		uids = append(uids, entry.UID)

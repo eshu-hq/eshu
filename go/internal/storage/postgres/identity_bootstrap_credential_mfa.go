@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // localIdentityRecoveryCodeFactorKind is the identity_mfa_factors.factor_kind
@@ -49,7 +51,7 @@ const localIdentityRecoveryCodeFactorKind = "recovery_code"
 // credential reset (issue #5602 codex review).
 func reenrollBootstrapCredentialRecoveryFactor(
 	ctx context.Context,
-	tx Transaction,
+	tx db.Transaction,
 	userID string,
 	mfaFactorID string,
 	recoveryCodeHash string,

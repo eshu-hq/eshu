@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -125,7 +127,7 @@ type reducerAdmissionDepthReader interface {
 }
 
 func ingesterReducerIntentWriter(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	getenv func(string) string,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
@@ -151,7 +153,7 @@ type reducerAdmissionWriter struct {
 }
 
 func reducerIntentWriterWithAdmission(
-	database postgres.Queryer,
+	database db.Queryer,
 	inner projector.ReducerIntentWriter,
 	getenv func(string) string,
 	instruments *telemetry.Instruments,

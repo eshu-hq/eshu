@@ -16,7 +16,7 @@ import (
 )
 
 // bootstrapSQLDB wraps a *sql.DB so it satisfies both bootstrapDB (Close) and
-// postgres.ExecQueryer (QueryContext returns postgres.Rows, not *sql.Rows).
+// db.ExecQueryer (QueryContext returns db.Rows, not *sql.Rows).
 type bootstrapSQLDB struct {
 	postgres.SQLDB
 	raw *sql.DB

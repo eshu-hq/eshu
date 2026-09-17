@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
@@ -288,6 +290,6 @@ func (db *awsScanStatusTestDB) ExecContext(_ context.Context, query string, args
 	return result, nil
 }
 
-func (db *awsScanStatusTestDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db *awsScanStatusTestDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, sql.ErrNoRows
 }

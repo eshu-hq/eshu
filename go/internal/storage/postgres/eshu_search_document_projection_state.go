@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const eshuSearchDocumentProjectionStateSchemaSQL = `
@@ -71,7 +73,7 @@ type EshuSearchDocumentProjectionState struct {
 // EshuSearchDocumentProjectionStateStore persists projection-state rows and
 // provides the BeginBuilding / FinalizeReady / MarkFailed CAS lifecycle.
 type EshuSearchDocumentProjectionStateStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // EshuSearchDocumentProjectionStateSchemaSQL returns the Postgres DDL for
@@ -81,7 +83,7 @@ func EshuSearchDocumentProjectionStateSchemaSQL() string {
 }
 
 // NewEshuSearchDocumentProjectionStateStore constructs the projection-state store.
-func NewEshuSearchDocumentProjectionStateStore(db ExecQueryer) EshuSearchDocumentProjectionStateStore {
+func NewEshuSearchDocumentProjectionStateStore(db db.ExecQueryer) EshuSearchDocumentProjectionStateStore {
 	return EshuSearchDocumentProjectionStateStore{db: db}
 }
 

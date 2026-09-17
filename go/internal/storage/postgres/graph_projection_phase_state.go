@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -61,12 +63,12 @@ LIMIT 1
 // GraphProjectionPhaseStateStore persists graph-write readiness rows in
 // PostgreSQL.
 type GraphProjectionPhaseStateStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewGraphProjectionPhaseStateStore constructs a store backed by the provided
 // database handle.
-func NewGraphProjectionPhaseStateStore(db ExecQueryer) *GraphProjectionPhaseStateStore {
+func NewGraphProjectionPhaseStateStore(db db.ExecQueryer) *GraphProjectionPhaseStateStore {
 	return &GraphProjectionPhaseStateStore{db: db}
 }
 
@@ -142,7 +144,7 @@ func (s *GraphProjectionPhaseStateStore) PublishGraphProjectionPhases(ctx contex
 
 // NewGraphProjectionReadinessLookup performs exact readiness lookup against the
 // durable graph projection phase table.
-func NewGraphProjectionReadinessLookup(db ExecQueryer) reducer.GraphProjectionReadinessLookup {
+func NewGraphProjectionReadinessLookup(db db.ExecQueryer) reducer.GraphProjectionReadinessLookup {
 	store := NewGraphProjectionPhaseStateStore(db)
 
 	return func(key reducer.GraphProjectionPhaseKey, phase reducer.GraphProjectionPhase) (bool, bool) {
@@ -156,7 +158,7 @@ func NewGraphProjectionReadinessLookup(db ExecQueryer) reducer.GraphProjectionRe
 
 // NewGraphProjectionReadinessPrefetch batches exact phase lookups and returns
 // an in-memory lookup closure for the current runner cycle.
-func NewGraphProjectionReadinessPrefetch(db ExecQueryer) reducer.GraphProjectionReadinessPrefetch {
+func NewGraphProjectionReadinessPrefetch(db db.ExecQueryer) reducer.GraphProjectionReadinessPrefetch {
 	store := NewGraphProjectionPhaseStateStore(db)
 
 	return func(ctx context.Context, keys []reducer.GraphProjectionPhaseKey, phase reducer.GraphProjectionPhase) (reducer.GraphProjectionReadinessLookup, error) {
@@ -188,7 +190,7 @@ func NewGraphProjectionReadinessPrefetch(db ExecQueryer) reducer.GraphProjection
 	}
 }
 
-func upsertGraphProjectionPhaseStateBatch(ctx context.Context, db ExecQueryer, batch []reducer.GraphProjectionPhaseState) error {
+func upsertGraphProjectionPhaseStateBatch(ctx context.Context, db db.ExecQueryer, batch []reducer.GraphProjectionPhaseState) error {
 	if len(batch) == 0 {
 		return nil
 	}

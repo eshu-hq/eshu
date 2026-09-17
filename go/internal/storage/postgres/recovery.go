@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -110,7 +112,7 @@ WHERE status IN ('dead_letter', 'failed')
 
 // RecoveryStore implements recovery.ReplayStore over Postgres.
 type RecoveryStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 
 	// refinalizeDrainTimeout bounds the in-flight reducer drain wait in
 	// RefinalizeScopeProjections; refinalizeDrainPoll is the poll interval.
@@ -123,7 +125,7 @@ type RecoveryStore struct {
 // rebuildresetQueryer adapts Transaction to rebuildreset.Queryer. The row
 // interfaces already match, so only the entrypoint needs adapting.
 type rebuildresetQueryer struct {
-	Transaction
+	db.Transaction
 }
 
 // QueryContext implements rebuildreset.Queryer.
@@ -154,7 +156,7 @@ func WithRefinalizeDrainPollInterval(d time.Duration) RecoveryStoreOption {
 }
 
 // NewRecoveryStore constructs a Postgres-backed recovery store.
-func NewRecoveryStore(db ExecQueryer, opts ...RecoveryStoreOption) RecoveryStore {
+func NewRecoveryStore(db db.ExecQueryer, opts ...RecoveryStoreOption) RecoveryStore {
 	s := RecoveryStore{db: db}
 	for _, opt := range opts {
 		if opt != nil {
@@ -365,7 +367,7 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	if s.db == nil {
 		return recovery.RefinalizeResult{}, fmt.Errorf("recovery store database is required")
 	}
-	beginner, ok := s.db.(Beginner)
+	beginner, ok := s.db.(db.Beginner)
 	if !ok {
 		return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: database must support Begin")
 	}

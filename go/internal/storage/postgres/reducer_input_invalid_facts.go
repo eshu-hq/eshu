@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -70,11 +72,11 @@ ON CONFLICT (scope_id, generation_id, fact_id, missing_field, domain) DO NOTHING
 // (reducer.QuarantinedFactRecord) are used as-is, with no separate cmd/reducer
 // adapter required.
 type ReducerInputInvalidFactStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewReducerInputInvalidFactStore constructs a store backed by db.
-func NewReducerInputInvalidFactStore(db ExecQueryer) *ReducerInputInvalidFactStore {
+func NewReducerInputInvalidFactStore(db db.ExecQueryer) *ReducerInputInvalidFactStore {
 	return &ReducerInputInvalidFactStore{db: db}
 }
 
@@ -116,7 +118,7 @@ func (s *ReducerInputInvalidFactStore) WriteQuarantinedFacts(
 
 func insertReducerInputInvalidFactBatch(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	batch []reducer.QuarantinedFactRecord,
 ) error {
 	if len(batch) == 0 {

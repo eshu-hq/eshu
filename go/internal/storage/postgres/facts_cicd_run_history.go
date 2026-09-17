@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -435,7 +437,7 @@ func (s FactStore) listCICDRunFacts(
 	return loaded, nil
 }
 
-func scanCICDRunHistoryRows(rows Rows, operation string) ([]facts.Envelope, error) {
+func scanCICDRunHistoryRows(rows db.Rows, operation string) ([]facts.Envelope, error) {
 	defer func() { _ = rows.Close() }()
 	loaded := make([]facts.Envelope, 0)
 	for rows.Next() {

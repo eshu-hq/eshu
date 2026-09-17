@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -75,12 +77,12 @@ type SharedProjectionAcceptance struct {
 // SharedProjectionAcceptanceStore persists shared projection acceptance rows in
 // PostgreSQL.
 type SharedProjectionAcceptanceStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewSharedProjectionAcceptanceStore creates an acceptance store backed by the
 // provided database handle.
-func NewSharedProjectionAcceptanceStore(db ExecQueryer) *SharedProjectionAcceptanceStore {
+func NewSharedProjectionAcceptanceStore(db db.ExecQueryer) *SharedProjectionAcceptanceStore {
 	return &SharedProjectionAcceptanceStore{db: db}
 }
 
@@ -201,7 +203,7 @@ func (s *SharedProjectionAcceptanceStore) LookupByAcceptanceUnit(ctx context.Con
 	return generationID, true, rows.Err()
 }
 
-func upsertSharedProjectionAcceptanceBatch(ctx context.Context, db ExecQueryer, batch []SharedProjectionAcceptance) error {
+func upsertSharedProjectionAcceptanceBatch(ctx context.Context, db db.ExecQueryer, batch []SharedProjectionAcceptance) error {
 	if len(batch) == 0 {
 		return nil
 	}

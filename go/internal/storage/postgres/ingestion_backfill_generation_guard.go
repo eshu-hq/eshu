@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -82,7 +84,7 @@ type repositoryGenerationIdentity struct {
 // not use it as the partition source for the corpus-wide deferred backfill.
 func loadActiveRepositoryGenerations(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) (map[string]repositoryGenerationIdentity, error) {
 	if queryer == nil {
 		return nil, nil
@@ -144,7 +146,7 @@ LIMIT 1
 // empty string with a nil error means the scope has no generation row at all,
 // which the caller treats the same as an advanced generation: nothing to
 // publish.
-func loadActiveGenerationForScope(ctx context.Context, queryer Queryer, scopeID string) (string, error) {
+func loadActiveGenerationForScope(ctx context.Context, queryer db.Queryer, scopeID string) (string, error) {
 	rows, err := queryer.QueryContext(ctx, activeScopeGenerationQuery, scopeID)
 	if err != nil {
 		return "", err

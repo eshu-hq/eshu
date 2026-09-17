@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -32,8 +34,8 @@ type ClaimMutation = workflow.ClaimMutation
 
 // WorkflowControlStore persists workflow coordinator control-plane state.
 type WorkflowControlStore struct {
-	db                         ExecQueryer
-	beginner                   Beginner
+	db                         db.ExecQueryer
+	beginner                   db.Beginner
 	DefaultClaimLeaseTTL       time.Duration
 	DefaultHeartbeatInterval   time.Duration
 	DefaultExpiredRequeueDelay time.Duration
@@ -44,10 +46,10 @@ type WorkflowControlStore struct {
 }
 
 // NewWorkflowControlStore constructs a Postgres-backed workflow control store.
-func NewWorkflowControlStore(db ExecQueryer) *WorkflowControlStore {
-	beginner, _ := db.(Beginner)
+func NewWorkflowControlStore(database db.ExecQueryer) *WorkflowControlStore {
+	beginner, _ := database.(db.Beginner)
 	return &WorkflowControlStore{
-		db:                         db,
+		db:                         database,
 		beginner:                   beginner,
 		DefaultClaimLeaseTTL:       DefaultWorkflowClaimLeaseTTL,
 		DefaultHeartbeatInterval:   DefaultWorkflowClaimHeartbeatInterval,
@@ -84,7 +86,7 @@ func (s *WorkflowControlStore) CreateRun(ctx context.Context, run workflow.Run) 
 	return s.createRunWithExecutor(ctx, s.db, run)
 }
 
-func (s *WorkflowControlStore) createRunWithExecutor(ctx context.Context, executor Executor, run workflow.Run) error {
+func (s *WorkflowControlStore) createRunWithExecutor(ctx context.Context, executor db.Executor, run workflow.Run) error {
 	if err := run.Validate(); err != nil {
 		return fmt.Errorf("create workflow run: %w", err)
 	}

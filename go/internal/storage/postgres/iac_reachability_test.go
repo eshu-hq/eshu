@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
@@ -308,7 +310,7 @@ func (db *iacReachabilityTestDB) ExecContext(_ context.Context, query string, ar
 	}
 }
 
-func (db *iacReachabilityTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *iacReachabilityTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM iac_reachability_rows") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}

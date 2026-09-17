@@ -9,12 +9,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // ec2InstanceNodeBudgetRelPath is the committed cost budget for the
@@ -90,7 +91,7 @@ func ec2InstanceNodeFixtureRows() []map[string]any {
 	return []map[string]any{row("a", ec2OrderKeyRowA), row("b", ec2OrderKeyRowB)}
 }
 
-// ec2FakeOwnerRows is a postgres.Rows yielding (uid, source_order_key) winner
+// ec2FakeOwnerRows is a db.Rows yielding (uid, source_order_key) winner
 // pairs for the owner ledger's winners read-back query.
 type ec2FakeOwnerRows struct {
 	pairs [][2]string
@@ -101,15 +102,15 @@ func (r *ec2FakeOwnerRows) Next() bool { r.idx++; return r.idx <= len(r.pairs) }
 
 func (r *ec2FakeOwnerRows) Scan(dest ...any) error {
 	pair := r.pairs[r.idx-1]
-	*(dest[0].(*string)) = pair[0]
-	*(dest[1].(*string)) = pair[1]
+	*dest[0].(*string) = pair[0]
+	*dest[1].(*string) = pair[1]
 	return nil
 }
 
 func (r *ec2FakeOwnerRows) Err() error   { return nil }
 func (r *ec2FakeOwnerRows) Close() error { return nil }
 
-// ec2FakeOwnerTx is a fake postgres.Transaction the REAL
+// ec2FakeOwnerTx is a fake db.Transaction the REAL
 // postgres.GraphNodeOwnerStore runs its REAL SQL against: the advisory-lock
 // acquisition and the max-order-key ledger upsert land on ExecContext (both
 // succeed; results are discarded by the store), and the winners read-back
@@ -128,7 +129,7 @@ func (t *ec2FakeOwnerTx) ExecContext(context.Context, string, ...any) (sql.Resul
 	return nil, nil
 }
 
-func (t *ec2FakeOwnerTx) QueryContext(_ context.Context, _ string, args ...any) (postgres.Rows, error) {
+func (t *ec2FakeOwnerTx) QueryContext(_ context.Context, _ string, args ...any) (db.Rows, error) {
 	uids, _ := args[0].([]string)
 	pairs := make([][2]string, 0, len(uids))
 	for _, uid := range uids {
@@ -142,16 +143,16 @@ func (t *ec2FakeOwnerTx) QueryContext(_ context.Context, _ string, args ...any) 
 func (t *ec2FakeOwnerTx) Commit() error   { t.committed = true; return nil }
 func (t *ec2FakeOwnerTx) Rollback() error { t.rolledBack = true; return nil }
 
-// ec2FakeOwnerBeginner is a fake postgres.Beginner handing out ec2FakeOwnerTx
+// ec2FakeOwnerBeginner is a fake db.Beginner handing out ec2FakeOwnerTx
 // transactions configured with the same winners map. It satisfies the Gate's
-// db seam (graphowner.NewGate takes a postgres.Beginner), mirroring the
+// db seam (graphowner.NewGate takes a db.Beginner), mirroring the
 // fakeChunkBeginner seam go/internal/graphowner/gated_writer_chunk_test.go
 // established.
 type ec2FakeOwnerBeginner struct {
 	winners map[string]string
 }
 
-func (b *ec2FakeOwnerBeginner) Begin(context.Context) (postgres.Transaction, error) {
+func (b *ec2FakeOwnerBeginner) Begin(context.Context) (db.Transaction, error) {
 	return &ec2FakeOwnerTx{winners: b.winners}, nil
 }
 

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestGenerationRetentionSchemaStoresOnlySafeIdentifiers(t *testing.T) {
@@ -318,7 +320,7 @@ type generationRetentionFakeDB struct {
 	execs         []fakeExecCall
 }
 
-func (db *generationRetentionFakeDB) Begin(context.Context) (Transaction, error) {
+func (db *generationRetentionFakeDB) Begin(context.Context) (db.Transaction, error) {
 	return &generationRetentionFakeTx{db: db}, nil
 }
 
@@ -326,7 +328,7 @@ func (db *generationRetentionFakeDB) ExecContext(context.Context, string, ...any
 	return nil, sql.ErrConnDone
 }
 
-func (db *generationRetentionFakeDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db *generationRetentionFakeDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, sql.ErrConnDone
 }
 
@@ -334,7 +336,7 @@ type generationRetentionFakeTx struct {
 	db *generationRetentionFakeDB
 }
 
-func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	tx.db.queries = append(tx.db.queries, fakeQueryCall{query: query, args: args})
 	switch {
 	case strings.Contains(query, "ranked_superseded_generations"):

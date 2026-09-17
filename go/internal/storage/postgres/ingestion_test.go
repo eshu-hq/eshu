@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -327,7 +329,7 @@ type fakeTransactionalDB struct {
 	queryResponses []queueFakeRows
 }
 
-func (f *fakeTransactionalDB) Begin(context.Context) (Transaction, error) {
+func (f *fakeTransactionalDB) Begin(context.Context) (db.Transaction, error) {
 	f.beginCalls++
 	if f.beginErr != nil {
 		return nil, f.beginErr
@@ -344,7 +346,7 @@ func (f *fakeTransactionalDB) ExecContext(_ context.Context, _ string, _ ...any)
 	return nil, errors.New("unexpected ExecContext on outer db")
 }
 
-func (f *fakeTransactionalDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (f *fakeTransactionalDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	f.queries = append(f.queries, fakeQueryCall{query: query, args: args})
 	if len(f.queryResponses) == 0 {
 		// The repository catalog now loads through the store's base connection
@@ -385,7 +387,7 @@ func (f *fakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.
 	return fakeResult{}, nil
 }
 
-func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (f *fakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	f.queries = append(f.queries, fakeQueryCall{query: query, args: args})
 	if len(f.queryResponses) > 0 {
 		rows := f.queryResponses[0]

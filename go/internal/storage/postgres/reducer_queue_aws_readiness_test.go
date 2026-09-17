@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -142,7 +144,7 @@ func (db *awsRelationshipReadinessQueueDB) ExecContext(context.Context, string, 
 	return fakeResult{}, nil
 }
 
-func (db *awsRelationshipReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (db *awsRelationshipReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}

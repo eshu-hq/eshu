@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // advisoryLockManager simulates Postgres transaction-level advisory lock
@@ -87,7 +89,7 @@ func (tx *advisoryLockTx) ExecContext(_ context.Context, query string, args ...a
 	return fakeResult{}, nil
 }
 
-func (tx *advisoryLockTx) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (tx *advisoryLockTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return &queueFakeRows{}, nil
 }
 
@@ -144,7 +146,7 @@ func (db *lockAwareMaintenanceDB) ExecContext(_ context.Context, _ string, _ ...
 	return nil, stubErr("unexpected exec on outer db")
 }
 
-func (db *lockAwareMaintenanceDB) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (db *lockAwareMaintenanceDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 	if db.snapshotIdx >= len(db.snapshotRows) {
@@ -155,7 +157,7 @@ func (db *lockAwareMaintenanceDB) QueryContext(_ context.Context, _ string, _ ..
 	return rows, nil
 }
 
-func (db *lockAwareMaintenanceDB) Begin(context.Context) (Transaction, error) {
+func (db *lockAwareMaintenanceDB) Begin(context.Context) (db.Transaction, error) {
 	db.mu.Lock()
 	db.beginCount++
 	db.mu.Unlock()
@@ -202,7 +204,7 @@ func (tx *lockAwareMaintenanceTx) ExecContext(_ context.Context, query string, a
 	return fakeResult{}, nil
 }
 
-func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.HasPrefix(query, activeScopeGenerationQuery):
 		// The fan-in publication transaction's under-lock re-read of ONE scope's

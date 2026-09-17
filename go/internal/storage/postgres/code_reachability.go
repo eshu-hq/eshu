@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package postgres //nolint:filelength // 501 lines: the #6693 db-contract import (db.ExecQueryer/db.Beginner) pushed this 499-line store file one line over the cap; the store itself is unchanged and shrinks as domains leave the root package.
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
@@ -171,11 +173,11 @@ func CodeReachabilitySchemaSQL() string {
 
 // CodeReachabilityStore persists reducer-materialized code reachability rows.
 type CodeReachabilityStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewCodeReachabilityStore creates a Postgres-backed code reachability store.
-func NewCodeReachabilityStore(db ExecQueryer) *CodeReachabilityStore {
+func NewCodeReachabilityStore(db db.ExecQueryer) *CodeReachabilityStore {
 	return &CodeReachabilityStore{db: db}
 }
 
@@ -228,7 +230,7 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 	if watermark.IsZero() {
 		return fmt.Errorf("code reachability replacement requires a non-zero watermark")
 	}
-	if beginner, ok := s.db.(Beginner); ok {
+	if beginner, ok := s.db.(db.Beginner); ok {
 		tx, err := beginner.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin code reachability replacement: %w", err)
@@ -279,7 +281,7 @@ func (s *CodeReachabilityStore) ListLatestByEntities(
 	return result, rows.Err()
 }
 
-func upsertCodeReachabilityBatch(ctx context.Context, db ExecQueryer, rows []codeintel.CodeReachabilityRow) error {
+func upsertCodeReachabilityBatch(ctx context.Context, db db.ExecQueryer, rows []codeintel.CodeReachabilityRow) error {
 	values := make([]string, 0, len(rows))
 	args := make([]any, 0, len(rows)*codeReachabilityColumns)
 	for _, row := range rows {
@@ -325,7 +327,7 @@ func upsertCodeReachabilityBatch(ctx context.Context, db ExecQueryer, rows []cod
 
 func replaceCodeReachabilityRepositoryRows(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	scopeID string,
 	generationID string,
 	repositoryID string,
@@ -376,7 +378,7 @@ func replaceCodeReachabilityRepositoryRows(
 	return nil
 }
 
-func upsertCodeRootVerdictBatch(ctx context.Context, db ExecQueryer, verdicts []codeintel.CodeRootVerdictRow) error {
+func upsertCodeRootVerdictBatch(ctx context.Context, db db.ExecQueryer, verdicts []codeintel.CodeRootVerdictRow) error {
 	values := make([]string, 0, len(verdicts))
 	args := make([]any, 0, len(verdicts)*codeRootVerdictColumns)
 	for _, verdict := range verdicts {
@@ -438,7 +440,7 @@ ORDER BY row.entity_id ASC, row.confidence DESC, row.depth ASC, row.root_entity_
 	return query, args
 }
 
-func scanCodeReachabilityRow(rows Rows) (codeintel.CodeReachabilityRow, error) {
+func scanCodeReachabilityRow(rows db.Rows) (codeintel.CodeReachabilityRow, error) {
 	var row codeintel.CodeReachabilityRow
 	var evidence []byte
 	var rootKinds []byte

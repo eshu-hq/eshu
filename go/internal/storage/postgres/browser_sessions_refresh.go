@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // StaleOIDCSessionRecord is the hash-only projection of one OIDC-backed browser
@@ -155,7 +157,7 @@ func (s *BrowserSessionStore) UpdateOIDCSessionAuthProof(
 	return nil
 }
 
-func scanStaleOIDCSession(rows Rows) (StaleOIDCSessionRecord, error) {
+func scanStaleOIDCSession(rows db.Rows) (StaleOIDCSessionRecord, error) {
 	var record StaleOIDCSessionRecord
 	var roleIDBytes, allowedScopeBytes, allowedRepositoryBytes, groupHashBytes []byte
 	if err := rows.Scan(

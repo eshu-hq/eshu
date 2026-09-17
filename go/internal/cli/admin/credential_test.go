@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/crypto/bcrypt"
 
@@ -376,7 +378,7 @@ func seedIdentityFixture(
 	}
 }
 
-// fakeAdminCredDB is a minimal pgstorage.ExecQueryer for unit-testing
+// fakeAdminCredDB is a minimal db.ExecQueryer for unit-testing
 // openBootstrapCredentialPayload without a real Postgres connection.
 type fakeAdminCredDB struct {
 	sealed string
@@ -388,7 +390,7 @@ func (f *fakeAdminCredDB) ExecContext(context.Context, string, ...any) (sql.Resu
 	return nil, fmt.Errorf("unexpected ExecContext call")
 }
 
-func (f *fakeAdminCredDB) QueryContext(_ context.Context, _ string, _ ...any) (pgstorage.Rows, error) {
+func (f *fakeAdminCredDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	if !f.found {
 		return &fakeAdminCredRows{}, nil
 	}

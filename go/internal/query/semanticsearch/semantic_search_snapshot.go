@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const loadSemanticSearchSnapshotQuery = `
@@ -77,12 +77,12 @@ type SemanticSearchSnapshotStore interface {
 // PostgresSemanticSearchSnapshotStore reads the active document/vector
 // revision tuple through the relational projection state.
 type PostgresSemanticSearchSnapshotStore struct {
-	db pgstatus.Queryer
+	db db.Queryer
 }
 
 // NewPostgresSemanticSearchSnapshotStore constructs the production snapshot
 // reader.
-func NewPostgresSemanticSearchSnapshotStore(db pgstatus.Queryer) PostgresSemanticSearchSnapshotStore {
+func NewPostgresSemanticSearchSnapshotStore(db db.Queryer) PostgresSemanticSearchSnapshotStore {
 	return PostgresSemanticSearchSnapshotStore{db: db}
 }
 

@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // reducerRecordingDB records ExecContext calls for verification.
@@ -33,7 +35,7 @@ func (r *reducerRecordingDB) ExecContext(_ context.Context, query string, args .
 	return rowsAffectedResult{rowsAffected: int64(len(args) / columnsPerReducerEnqueue)}, nil
 }
 
-func (r *reducerRecordingDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (r *reducerRecordingDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, nil
 }
 

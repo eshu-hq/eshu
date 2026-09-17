@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
@@ -168,10 +170,10 @@ func newOIDCLoginHandler(
 }
 
 func newPostgresOIDCStoreAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 ) *postgresOIDCStoreAdapter {
-	oidcDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	oidcDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		oidcDB = &pgstatus.InstrumentedDB{
 			Inner:       oidcDB,

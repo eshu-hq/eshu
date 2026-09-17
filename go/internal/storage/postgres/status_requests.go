@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
@@ -115,11 +117,11 @@ WHERE ingester = $1
 
 // StatusRequestStore implements runtime.StatusRequestStore over Postgres.
 type StatusRequestStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewStatusRequestStore constructs a Postgres-backed status request store.
-func NewStatusRequestStore(db ExecQueryer) StatusRequestStore {
+func NewStatusRequestStore(db db.ExecQueryer) StatusRequestStore {
 	return StatusRequestStore{db: db}
 }
 

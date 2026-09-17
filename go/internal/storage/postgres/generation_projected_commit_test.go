@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // projectedCommitTestDB adapts a read-only fakeQueryer into the ExecQueryer
@@ -22,7 +24,7 @@ func (db *projectedCommitTestDB) ExecContext(_ context.Context, _ string, _ ...a
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *projectedCommitTestDB) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (db *projectedCommitTestDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return db.queryer.QueryContext(ctx, query, args...)
 }
 

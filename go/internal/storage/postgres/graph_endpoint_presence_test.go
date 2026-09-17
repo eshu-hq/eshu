@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -414,7 +416,7 @@ func (db *graphEndpointPresenceTestDB) ExecContext(_ context.Context, query stri
 	}
 }
 
-func (db *graphEndpointPresenceTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *graphEndpointPresenceTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.queryCount++
 	if !strings.Contains(query, "FROM graph_endpoint_presence") {
 		return nil, fmt.Errorf("unexpected query: %s", query)

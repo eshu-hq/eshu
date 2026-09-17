@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel/trace"
 
@@ -27,7 +29,7 @@ import (
 
 func buildReducerService(
 	ctx context.Context,
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	neo4jExec sourcecypher.Executor,
 	cypherExec reducer.CypherExecutor,
 	intentStore *postgres.SharedIntentStore,

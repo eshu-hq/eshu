@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -144,7 +146,7 @@ WHERE work_item_id = $6
 
 // ReducerQueue provides reducer-stage queue behavior over fact_work_items.
 type ReducerQueue struct {
-	db            ExecQueryer
+	db            db.ExecQueryer
 	LeaseOwner    string
 	LeaseDuration time.Duration
 	RetryDelay    time.Duration
@@ -204,7 +206,7 @@ var ErrReducerClaimRejected = fmt.Errorf(
 
 // NewReducerQueue constructs a Postgres-backed reducer work queue.
 func NewReducerQueue(
-	db ExecQueryer,
+	db db.ExecQueryer,
 	leaseOwner string,
 	leaseDuration time.Duration,
 ) ReducerQueue {

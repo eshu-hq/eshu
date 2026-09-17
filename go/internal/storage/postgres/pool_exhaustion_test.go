@@ -11,6 +11,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // poolExhaustionProbeDB is a Beginner that enforces a hard cap on
@@ -40,7 +42,7 @@ func newPoolExhaustionProbeDB(capacity int) *poolExhaustionProbeDB {
 	return db
 }
 
-func (db *poolExhaustionProbeDB) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (db *poolExhaustionProbeDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return &queueFakeRows{}, nil
 }
 
@@ -48,7 +50,7 @@ func (db *poolExhaustionProbeDB) ExecContext(_ context.Context, _ string, _ ...a
 	return fakeResult{}, nil
 }
 
-func (db *poolExhaustionProbeDB) Begin(ctx context.Context) (Transaction, error) {
+func (db *poolExhaustionProbeDB) Begin(ctx context.Context) (db.Transaction, error) {
 	db.mu.Lock()
 	db.beginCount++
 
@@ -95,7 +97,7 @@ type poolExhaustionProbeTx struct {
 	released bool
 }
 
-func (tx *poolExhaustionProbeTx) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (tx *poolExhaustionProbeTx) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return &queueFakeRows{}, nil
 }
 

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -102,14 +104,14 @@ type oidcSessionRefreshWorker struct {
 // have not finished security review keep it off.
 func newOIDCSessionRefreshWorker(
 	getenv func(string) string,
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (*oidcSessionRefreshWorker, error) {
 	if !boolEnv(getenv(envAuthOIDCSessionRefreshEnabled)) {
 		return nil, nil
 	}
-	if db == nil {
+	if rawDB == nil {
 		return nil, fmt.Errorf("postgres is required for oidc session refresh")
 	}
 	config, err := loadOIDCSessionRefreshConfig(getenv)
@@ -117,8 +119,8 @@ func newOIDCSessionRefreshWorker(
 		return nil, err
 	}
 
-	sessionDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
-	oidcDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	sessionDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
+	oidcDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		sessionDB = &pgstatus.InstrumentedDB{
 			Inner:       sessionDB,

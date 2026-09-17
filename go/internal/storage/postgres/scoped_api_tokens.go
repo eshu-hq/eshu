@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // ScopedAPITokenStore persists hash-only hosted API token registry rows.
 type ScopedAPITokenStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // ScopedAPITokenRecord is a hash-only hosted API token registry row.
@@ -36,7 +38,7 @@ type ScopedAPITokenRecord struct {
 }
 
 // NewScopedAPITokenStore constructs a Postgres-backed scoped API token store.
-func NewScopedAPITokenStore(db ExecQueryer) *ScopedAPITokenStore {
+func NewScopedAPITokenStore(db db.ExecQueryer) *ScopedAPITokenStore {
 	return &ScopedAPITokenStore{db: db}
 }
 
@@ -185,7 +187,7 @@ func validateScopedAPITokenRecord(record ScopedAPITokenRecord) error {
 	return nil
 }
 
-func scanScopedAPIToken(rows Rows) (ScopedAPITokenRecord, error) {
+func scanScopedAPIToken(rows db.Rows) (ScopedAPITokenRecord, error) {
 	var record ScopedAPITokenRecord
 	var expiresAt, revokedAt, lastUsedAt sql.NullTime
 	if err := rows.Scan(

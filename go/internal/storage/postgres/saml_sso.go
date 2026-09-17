@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // SAMLSSOStore persists hash-only SAML login request and replay ledgers.
 type SAMLSSOStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // SAMLAuthnRequestRecord is the durable hash-only state for one AuthnRequest.
@@ -39,7 +41,7 @@ type SAMLReplayKeyRecord struct {
 }
 
 // NewSAMLSSOStore constructs a Postgres-backed SAML SSO ledger store.
-func NewSAMLSSOStore(db ExecQueryer) *SAMLSSOStore {
+func NewSAMLSSOStore(db db.ExecQueryer) *SAMLSSOStore {
 	return &SAMLSSOStore{db: db}
 }
 

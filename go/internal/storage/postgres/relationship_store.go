@@ -10,17 +10,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
 // RelationshipStore persists relationship evidence, assertions, candidates,
 // and resolved relationships in PostgreSQL.
 type RelationshipStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewRelationshipStore constructs a Postgres-backed relationship store.
-func NewRelationshipStore(db ExecQueryer) *RelationshipStore {
+func NewRelationshipStore(db db.ExecQueryer) *RelationshipStore {
 	return &RelationshipStore{db: db}
 }
 
@@ -72,7 +74,7 @@ func (s *RelationshipStore) ListAssertions(
 	ctx context.Context,
 	relationshipType *relationships.RelationshipType,
 ) ([]relationships.Assertion, error) {
-	var sqlRows Rows
+	var sqlRows db.Rows
 	var err error
 
 	if relationshipType == nil {

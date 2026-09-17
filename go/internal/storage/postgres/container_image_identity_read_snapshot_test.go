@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func (f *fakeExecQueryer) BeginReadOnlyRepeatableRead(
 	_ context.Context,
-) (Transaction, error) {
+) (db.Transaction, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.beginReadOnlyRepeatableReadCalls++
@@ -34,7 +36,7 @@ func (tx *fakeReadOnlyRepeatableReadTransaction) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	tx.parent.mu.Lock()
 	tx.parent.transactionQueryCalls++
 	tx.parent.mu.Unlock()
@@ -302,7 +304,7 @@ func TestActiveContainerImageIdentityEmptyFilterDoesNotBeginSnapshot(t *testing.
 }
 
 type execQueryerWithoutReadSnapshot struct {
-	ExecQueryer
+	db.ExecQueryer
 }
 
-var _ ExecQueryer = execQueryerWithoutReadSnapshot{}
+var _ db.ExecQueryer = execQueryerWithoutReadSnapshot{}

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -23,11 +25,11 @@ func (ackLatencyFakeDB) ExecContext(context.Context, string, ...any) (sql.Result
 	return driverResult{}, nil
 }
 
-func (ackLatencyFakeDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (ackLatencyFakeDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("query not expected in this benchmark-style test")
 }
 
-func (f ackLatencyFakeDB) Begin(context.Context) (Transaction, error) {
+func (f ackLatencyFakeDB) Begin(context.Context) (db.Transaction, error) {
 	return ackLatencyFakeTx{}, nil
 }
 

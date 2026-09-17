@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -19,7 +21,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -38,7 +39,7 @@ func (f *fakeBootstrapDB) ExecContext(context.Context, string, ...any) (sql.Resu
 	return nil, nil
 }
 
-func (f *fakeBootstrapDB) QueryContext(context.Context, string, ...any) (postgres.Rows, error) {
+func (f *fakeBootstrapDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	app := graph.MustSchemaApplicationForBackend(graph.SchemaBackendNornicDB)
 	return &fakeBootstrapRows{
 		rows: [][]any{{app.Fingerprint, []byte(`[]`)}},

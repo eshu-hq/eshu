@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -74,7 +76,7 @@ func (db *ackScalePlanDB) ExecContext(ctx context.Context, query string, args ..
 	return db.SQLDB.ExecContext(ctx, query, args...)
 }
 
-func (db *ackScalePlanDB) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (db *ackScalePlanDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	if query == fanoutCrossScopeCompletionQuery {
 		db.explain(ctx, fmt.Sprintf("fanout_%v", args[2]), query, args...)
 	}

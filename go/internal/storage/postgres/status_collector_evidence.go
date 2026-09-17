@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -81,7 +83,7 @@ LIMIT 200
 
 func readCollectorFactEvidence(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) ([]statuspkg.CollectorFactEvidence, error) {
 	rows, err := queryer.QueryContext(ctx, collectorFactEvidenceQuery)
 	if err != nil {

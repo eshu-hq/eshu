@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -359,11 +361,11 @@ func (s *IdentitySubjectStore) ResolveLocalIdentityBreakGlass(
 	return auth, rows.Err()
 }
 
-func (s *IdentitySubjectStore) beginLocalIdentityTx(ctx context.Context) (Transaction, error) {
+func (s *IdentitySubjectStore) beginLocalIdentityTx(ctx context.Context) (db.Transaction, error) {
 	if s.db == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
-	beginner, ok := s.db.(Beginner)
+	beginner, ok := s.db.(db.Beginner)
 	if !ok {
 		return nil, ErrLocalIdentityTransactionRequired
 	}
@@ -374,7 +376,7 @@ func (s *IdentitySubjectStore) beginLocalIdentityTx(ctx context.Context) (Transa
 	return tx, nil
 }
 
-func countExistingLocalIdentityUsers(ctx context.Context, db ExecQueryer) (int64, error) {
+func countExistingLocalIdentityUsers(ctx context.Context, db db.ExecQueryer) (int64, error) {
 	rows, err := db.QueryContext(ctx, countExistingLocalIdentityUsersQuery)
 	if err != nil {
 		return 0, fmt.Errorf("count existing local identity users: %w", err)
@@ -392,7 +394,7 @@ func countExistingLocalIdentityUsers(ctx context.Context, db ExecQueryer) (int64
 
 func insertBootstrapLocalIdentity(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	record LocalIdentityBootstrapRecord,
 ) error {
 	if _, err := db.ExecContext(ctx, upsertTenantRecordQuery, record.TenantID, "active", "", record.PolicyRevisionHash, record.CreatedAt, nullTime(time.Time{})); err != nil {
@@ -430,7 +432,7 @@ func insertBootstrapLocalIdentity(
 
 func insertInvitedLocalIdentity(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	invite localIdentityInvitationRow,
 	acceptance LocalIdentityInvitationAcceptance,
 ) error {

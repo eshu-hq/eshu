@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -115,7 +117,7 @@ func (db *partitionIntentListTestDB) ExecContext(context.Context, string, ...any
 	return nil, fmt.Errorf("unexpected exec")
 }
 
-func (db *partitionIntentListTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *partitionIntentListTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.query = query
 	if !strings.Contains(query, "partition_key = $5") {
 		return nil, fmt.Errorf("query missing partition key predicate: %s", query)

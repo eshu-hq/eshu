@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestRelationshipStoreActiveScopeGenerationsComplete proves the corpus-wide
@@ -213,7 +215,7 @@ func (emptyCompletenessRowsStub) Close() error { return nil }
 
 type emptyCompletenessDBStub struct{}
 
-func (emptyCompletenessDBStub) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (emptyCompletenessDBStub) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return emptyCompletenessRowsStub{}, nil
 }
 

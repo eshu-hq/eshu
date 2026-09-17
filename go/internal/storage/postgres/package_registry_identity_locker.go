@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -24,7 +26,7 @@ const (
 // touch the same Package.uid. Transaction-scoped locks are released by
 // Postgres on commit, rollback, or connection loss.
 type PackageRegistryIdentityLocker struct {
-	DB Beginner
+	DB db.Beginner
 }
 
 // WithPackageRegistryIdentityLocks acquires deterministic advisory locks for

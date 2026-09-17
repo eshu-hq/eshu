@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -293,7 +295,7 @@ type refinalizeActivationRaceDB struct {
 }
 
 // Begin wraps the live transaction so the callback can fire between statements.
-func (d *refinalizeActivationRaceDB) Begin(ctx context.Context) (Transaction, error) {
+func (d *refinalizeActivationRaceDB) Begin(ctx context.Context) (db.Transaction, error) {
 	tx, err := d.SQLDB.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -309,7 +311,7 @@ func (d *refinalizeActivationRaceDB) fired() bool {
 }
 
 type refinalizeActivationRaceTx struct {
-	Transaction
+	db.Transaction
 	activate  func()
 	activated bool
 }
@@ -318,7 +320,7 @@ func (t *refinalizeActivationRaceTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	rows, err := t.Transaction.QueryContext(ctx, query, args...)
 	t.fire()
 	return rows, err

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -150,12 +152,12 @@ HAVING COUNT(*) > 0
 // QueueObserverStore implements telemetry.QueueObserver by querying the
 // fact_work_items table for live queue depth and oldest-item age per stage.
 type QueueObserverStore struct {
-	queryer Queryer
+	queryer db.Queryer
 	Now     func() time.Time
 }
 
 // NewQueueObserverStore returns a QueueObserver backed by Postgres.
-func NewQueueObserverStore(queryer Queryer) *QueueObserverStore {
+func NewQueueObserverStore(queryer db.Queryer) *QueueObserverStore {
 	return &QueueObserverStore{queryer: queryer}
 }
 

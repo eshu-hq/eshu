@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
@@ -34,7 +36,7 @@ const maxCloudInventoryAttributeKeys = 64
 // happens to read can still be superseded before any canonical write.
 type PostgresCloudInventoryEvidenceLoader struct {
 	// DB executes the bounded source-fact read.
-	DB Queryer
+	DB db.Queryer
 	// Logger, when set, records bounded skip diagnostics for rows the loader
 	// could not decode. Nil disables loader logging.
 	Logger *slog.Logger

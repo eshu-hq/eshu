@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -184,7 +186,7 @@ type EshuSearchVectorValueFilter struct {
 // EshuSearchVectorValueStore persists derived search-document vectors and reads
 // active-generation vectors for one scope, model, and index version.
 type EshuSearchVectorValueStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // EshuSearchVectorValuesSchemaSQL returns the Postgres DDL for vector payloads.
@@ -193,7 +195,7 @@ func EshuSearchVectorValuesSchemaSQL() string {
 }
 
 // NewEshuSearchVectorValueStore constructs the vector value store.
-func NewEshuSearchVectorValueStore(db ExecQueryer) EshuSearchVectorValueStore {
+func NewEshuSearchVectorValueStore(db db.ExecQueryer) EshuSearchVectorValueStore {
 	return EshuSearchVectorValueStore{db: db}
 }
 
@@ -275,7 +277,7 @@ func (s EshuSearchVectorValueStore) UpsertBatch(ctx context.Context, rows []Eshu
 
 // upsertEshuSearchVectorValueBatch issues one multi-row INSERT ... ON CONFLICT
 // statement for a bounded slice of already-normalized, already-validated rows.
-func upsertEshuSearchVectorValueBatch(ctx context.Context, db ExecQueryer, batch []EshuSearchVectorValue) error {
+func upsertEshuSearchVectorValueBatch(ctx context.Context, db db.ExecQueryer, batch []EshuSearchVectorValue) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -360,7 +362,7 @@ func (s EshuSearchVectorValueStore) ListActive(
 	return results, nil
 }
 
-func scanEshuSearchVectorValue(rows Rows) (EshuSearchVectorValue, error) {
+func scanEshuSearchVectorValue(rows db.Rows) (EshuSearchVectorValue, error) {
 	var row EshuSearchVectorValue
 	var dimensions int64
 	if err := rows.Scan(

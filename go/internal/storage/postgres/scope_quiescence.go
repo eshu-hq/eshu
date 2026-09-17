@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -87,7 +89,7 @@ type ProducerScopeQuiescenceReport struct {
 // An empty collectorKinds set queries nothing and returns empty sets.
 func ProducerScopeQuiescence(
 	ctx context.Context,
-	db Queryer,
+	db db.Queryer,
 	collectorKinds []string,
 ) (ProducerScopeQuiescenceReport, error) {
 	report := ProducerScopeQuiescenceReport{

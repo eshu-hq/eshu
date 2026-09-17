@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 )
 
@@ -78,11 +80,11 @@ func functionIDRepo(functionID string) string {
 // FunctionSourceStore persists value-flow param-level taint sources as interproc
 // source ports for the cross-repo fixpoint.
 type FunctionSourceStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewFunctionSourceStore constructs a Postgres-backed function source store.
-func NewFunctionSourceStore(db ExecQueryer) FunctionSourceStore {
+func NewFunctionSourceStore(db db.ExecQueryer) FunctionSourceStore {
 	return FunctionSourceStore{db: db}
 }
 
@@ -141,7 +143,7 @@ func (s FunctionSourceStore) ReplaceSources(
 	if repo == "" {
 		return fmt.Errorf("function source repo is required")
 	}
-	if beginner, ok := s.db.(Beginner); ok {
+	if beginner, ok := s.db.(db.Beginner); ok {
 		tx, err := beginner.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin function source replacement transaction: %w", err)
@@ -160,7 +162,7 @@ func (s FunctionSourceStore) ReplaceSources(
 
 func replaceFunctionSources(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	repo string,
 	sources []interproc.Source,
 	updatedAt time.Time,

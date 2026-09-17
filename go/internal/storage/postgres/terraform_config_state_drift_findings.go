@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -80,12 +82,12 @@ type TerraformConfigStateDriftEvidenceRow struct {
 // TerraformConfigStateDriftFindingStore reads active Terraform config-vs-state
 // drift reducer facts.
 type TerraformConfigStateDriftFindingStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewTerraformConfigStateDriftFindingStore constructs a Terraform
 // config-vs-state drift finding reader over the provided database adapter.
-func NewTerraformConfigStateDriftFindingStore(db ExecQueryer) TerraformConfigStateDriftFindingStore {
+func NewTerraformConfigStateDriftFindingStore(db db.ExecQueryer) TerraformConfigStateDriftFindingStore {
 	return TerraformConfigStateDriftFindingStore{db: db}
 }
 

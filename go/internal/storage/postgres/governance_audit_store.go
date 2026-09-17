@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
@@ -147,14 +149,14 @@ type GovernanceAuditQuery struct {
 
 // GovernanceAuditStore persists normalized hosted governance audit events.
 type GovernanceAuditStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 	// Logger receives the per-List warning List emits when a page holds an
 	// enum value this build's registry lacks (#6574). Nil means slog.Default.
 	Logger *slog.Logger
 }
 
 // NewGovernanceAuditStore creates a Postgres-backed governance audit store.
-func NewGovernanceAuditStore(db ExecQueryer) GovernanceAuditStore {
+func NewGovernanceAuditStore(db db.ExecQueryer) GovernanceAuditStore {
 	return GovernanceAuditStore{db: db}
 }
 

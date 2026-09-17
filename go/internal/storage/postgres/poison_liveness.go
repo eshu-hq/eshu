@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const defaultPoisonLivenessMaxRecoverAttempts = 1
@@ -69,11 +71,11 @@ type PoisonRecoveryResult struct {
 // the recovery UPDATE re-verifies status = 'dead_letter' at write time so a
 // concurrent reclaim of the same row is never clobbered.
 type PoisonLivenessStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewPoisonLivenessStore constructs a Postgres-backed poison-liveness store.
-func NewPoisonLivenessStore(db ExecQueryer) PoisonLivenessStore {
+func NewPoisonLivenessStore(db db.ExecQueryer) PoisonLivenessStore {
 	return PoisonLivenessStore{db: db}
 }
 

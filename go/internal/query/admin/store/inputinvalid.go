@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
-
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // ListReducerInputInvalidFacts implements admin.Store for the durable
@@ -83,7 +83,7 @@ WHERE quarantine.scope_id = $1
 
 func scanInputInvalidFacts(
 	ctx context.Context,
-	db pgstatus.ExecQueryer,
+	db db.ExecQueryer,
 	query string,
 	args ...any,
 ) ([]admin.InputInvalidFact, error) {

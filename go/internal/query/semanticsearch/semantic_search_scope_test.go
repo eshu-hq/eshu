@@ -12,10 +12,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 type fakeSemanticSearchScopeResolver struct {
@@ -38,7 +39,7 @@ func (q *recordingSemanticSearchScopeQueryer) QueryContext(
 	_ context.Context,
 	query string,
 	args ...any,
-) (pgstatus.Rows, error) {
+) (db.Rows, error) {
 	q.query = query
 	q.args = args
 	return q.rows, nil

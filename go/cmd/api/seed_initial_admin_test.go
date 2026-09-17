@@ -12,13 +12,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// fakeSeedDB is a minimal in-memory pgstorage.ExecQueryer + Beginner used
+// fakeSeedDB is a minimal in-memory db.ExecQueryer + Beginner used
 // only to drive seedInitialAdmin's control flow (mode selection, error
 // propagation, banner/telemetry outcome) without a real Postgres connection.
 // countRows controls what the very first QueryContext call inside
@@ -46,7 +47,7 @@ func (f *fakeSeedDB) ExecContext(_ context.Context, query string, args ...any) (
 	return fakeSeedResult{}, nil
 }
 
-func (f *fakeSeedDB) QueryContext(_ context.Context, query string, _ ...any) (pgstorage.Rows, error) {
+func (f *fakeSeedDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	f.mu.Lock()
 	f.queries = append(f.queries, query)
 	f.mu.Unlock()
@@ -64,7 +65,7 @@ func (f *fakeSeedDB) QueryContext(_ context.Context, query string, _ ...any) (pg
 	return &fakeSeedRows{}, nil
 }
 
-func (f *fakeSeedDB) Begin(context.Context) (pgstorage.Transaction, error) {
+func (f *fakeSeedDB) Begin(context.Context) (db.Transaction, error) {
 	return &fakeSeedTx{db: f}, nil
 }
 
@@ -76,7 +77,7 @@ func (tx *fakeSeedTx) ExecContext(ctx context.Context, query string, args ...any
 	return tx.db.ExecContext(ctx, query, args...)
 }
 
-func (tx *fakeSeedTx) QueryContext(ctx context.Context, query string, args ...any) (pgstorage.Rows, error) {
+func (tx *fakeSeedTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.db.QueryContext(ctx, query, args...)
 }
 

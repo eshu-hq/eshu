@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -81,15 +83,15 @@ type providerConfigMutationAdapter struct {
 }
 
 func newProviderConfigMutationAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	keyring *secretcrypto.Keyring,
 	oidcLoginHandler *query.OIDCLoginHandler,
 	samlHandler *query.SAMLHandler,
 ) *providerConfigMutationAdapter {
-	if db == nil {
+	if rawDB == nil {
 		return nil
 	}
-	store := pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db}))
+	store := pgstatus.NewIdentitySubjectStore(db.ExecQueryer(pgstatus.SQLDB{DB: rawDB}))
 	store.SetProviderSecretKeyring(keyring)
 	return &providerConfigMutationAdapter{
 		store:          store,

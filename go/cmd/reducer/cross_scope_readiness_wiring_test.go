@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -175,7 +177,7 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	// The producer-scope quiescence probe. Identified by the projector-drain
 	// fence, which no other reducer query carries. supply_chain_impact declares
 	// two producer domains, so this answers for both collector kinds: each is
@@ -206,7 +208,7 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 // requires. The transaction routes straight back to this fake.
 func (f *supplyChainReadinessWiringDB) BeginReadOnlyRepeatableRead(
 	context.Context,
-) (postgres.Transaction, error) {
+) (db.Transaction, error) {
 	return supplyChainReadinessTx{db: f}, nil
 }
 
@@ -227,7 +229,7 @@ func (t supplyChainReadinessTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	return t.db.QueryContext(ctx, query, args...)
 }
 
@@ -282,7 +284,7 @@ func (f *crossScopeReadinessWiringDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	// The producer-scope quiescence probe. Identified by the projector-drain
 	// fence, which no other reducer query carries.
 	if strings.Contains(query, "FROM fact_work_items AS projector_work") {
@@ -309,7 +311,7 @@ func (f *crossScopeReadinessWiringDB) QueryContext(
 // read-back requires. The transaction routes straight back to this fake.
 func (f *crossScopeReadinessWiringDB) BeginReadOnlyRepeatableRead(
 	context.Context,
-) (postgres.Transaction, error) {
+) (db.Transaction, error) {
 	return crossScopeReadinessTx{db: f}, nil
 }
 
@@ -330,7 +332,7 @@ func (t crossScopeReadinessTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	return t.db.QueryContext(ctx, query, args...)
 }
 
@@ -371,7 +373,7 @@ func crossScopeReadinessArtifactFactRow(scopeID, generationID string) []any {
 	}
 }
 
-// crossScopeReadinessRows is a minimal postgres.Rows over pre-built values.
+// crossScopeReadinessRows is a minimal db.Rows over pre-built values.
 type crossScopeReadinessRows struct {
 	rows  [][]any
 	index int

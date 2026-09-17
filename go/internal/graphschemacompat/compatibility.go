@@ -11,9 +11,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 const latestGraphSchemaApplicationQuery = `
@@ -59,7 +60,7 @@ type Result struct {
 }
 
 // MarkApplied records that schema bootstrap applied app successfully.
-func MarkApplied(ctx context.Context, db postgres.Executor, app graph.SchemaApplication) error {
+func MarkApplied(ctx context.Context, db db.Executor, app graph.SchemaApplication) error {
 	if db == nil {
 		return fmt.Errorf("graph schema marker executor is required")
 	}
@@ -88,7 +89,7 @@ func MarkApplied(ctx context.Context, db postgres.Executor, app graph.SchemaAppl
 // selected by ESHU_GRAPH_BACKEND.
 func RequireCompatibleForRuntime(
 	ctx context.Context,
-	db postgres.Queryer,
+	db db.Queryer,
 	getenv func(string) string,
 ) (Result, error) {
 	if graphCompatibilityDisabled(getenv) {
@@ -107,7 +108,7 @@ func RequireCompatibleForRuntime(
 
 // RequireCompatible validates that the latest applied graph schema for backend
 // is safe for the current writer.
-func RequireCompatible(ctx context.Context, db postgres.Queryer, backend graph.SchemaBackend) (Result, error) {
+func RequireCompatible(ctx context.Context, db db.Queryer, backend graph.SchemaBackend) (Result, error) {
 	if db == nil {
 		return Result{}, fmt.Errorf("graph schema compatibility queryer is required")
 	}

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/githublogin"
@@ -186,10 +188,10 @@ func newGitHubLoginHandler(
 }
 
 func newPostgresGitHubStoreAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 ) *postgresGitHubStoreAdapter {
-	githubDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	githubDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		githubDB = &pgstatus.InstrumentedDB{
 			Inner:       githubDB,

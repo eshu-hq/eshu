@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -98,12 +100,12 @@ type EshuSearchVectorPendingScope struct {
 // reference the live regression test compares the new scheduler against, so the
 // two must return an identical pending set. Do not re-wire it into production.
 type EshuSearchVectorPendingStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewEshuSearchVectorPendingStore builds the retired reference pending lister
 // used only by the #4233 equivalence regression test.
-func NewEshuSearchVectorPendingStore(db ExecQueryer) EshuSearchVectorPendingStore {
+func NewEshuSearchVectorPendingStore(db db.ExecQueryer) EshuSearchVectorPendingStore {
 	return EshuSearchVectorPendingStore{db: db}
 }
 

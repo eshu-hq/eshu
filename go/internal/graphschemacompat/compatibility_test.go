@@ -11,8 +11,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/graph"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func TestRequireCompatibleAcceptsExactGraphSchema(t *testing.T) {
@@ -213,7 +214,7 @@ func (f *fakeGraphSchemaQueryer) QueryContext(
 	_ context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	f.query = query
 	f.args = args
 	if f.err != nil {
@@ -228,7 +229,7 @@ func (nilRowsGraphSchemaQueryer) QueryContext(
 	context.Context,
 	string,
 	...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	return nil, nil
 }
 

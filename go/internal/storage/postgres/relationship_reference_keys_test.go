@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -203,6 +205,6 @@ func (r *relationshipReferenceExecRecorder) ExecContext(_ context.Context, query
 	return nil, nil
 }
 
-func (r *relationshipReferenceExecRecorder) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (r *relationshipReferenceExecRecorder) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("relationshipReferenceExecRecorder.QueryContext must not be called")
 }

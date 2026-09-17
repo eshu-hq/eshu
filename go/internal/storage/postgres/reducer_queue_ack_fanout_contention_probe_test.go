@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -112,7 +114,7 @@ func TestReducerContentionGateAckFanoutProbe(t *testing.T) {
 
 type ackFanoutProbeConn struct{ *sql.Conn }
 
-func (c ackFanoutProbeConn) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (c ackFanoutProbeConn) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return c.Conn.QueryContext(ctx, query, args...)
 }
 

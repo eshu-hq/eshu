@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const seedProjectionStateSQL = `
@@ -95,7 +97,7 @@ type SeedSearchVectorScopeStateResult struct {
 // the bounded scheduler verifies each scope and CAS-publishes ready state.
 func SeedSearchVectorScopeState(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	identity EshuSearchVectorIdentity,
 ) (SeedSearchVectorScopeStateResult, error) {
 	if db == nil {
@@ -152,7 +154,7 @@ func SeedSearchVectorScopeState(
 // countFailedGenerationRepositoryScopes counts repository scopes with no
 // active generation (status='failed' ingestion), the set seedProjectionStateSQL
 // deliberately skips.
-func countFailedGenerationRepositoryScopes(ctx context.Context, db ExecQueryer) (int64, error) {
+func countFailedGenerationRepositoryScopes(ctx context.Context, db db.ExecQueryer) (int64, error) {
 	rows, err := db.QueryContext(ctx, countFailedGenerationRepositoryScopesSQL)
 	if err != nil {
 		return 0, err

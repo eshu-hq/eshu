@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -73,7 +75,7 @@ func relationshipReferenceSourceRepoID(envelope facts.Envelope) string {
 
 func refreshRelationshipReferenceCandidateKeys(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	envelopes []facts.Envelope,
 ) error {
 	if db == nil || len(envelopes) == 0 {
@@ -106,7 +108,7 @@ func refreshRelationshipReferenceCandidateKeys(
 
 func insertRelationshipReferenceCandidateKeyBatch(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	rows []relationshipReferenceCandidateKeyRow,
 ) error {
 	if len(rows) == 0 {

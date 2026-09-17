@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
@@ -144,7 +146,7 @@ func governanceAuditLimit(limit int) int {
 	return limit
 }
 
-func scanGovernanceAuditEvent(rows Rows) (governanceaudit.Event, error) {
+func scanGovernanceAuditEvent(rows db.Rows) (governanceaudit.Event, error) {
 	var eventType, actorClass, scopeClass, decision string
 	var actorIDHash, servicePrincipalID, scopeIDHash, correlationID, policyRevisionHash sql.NullString
 	var tenantID, workspaceID sql.NullString

@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -95,7 +97,7 @@ func (s instrumentedSemanticSearchVectorValueStore) ListActive(
 }
 
 func newInstrumentedPostgresStore(
-	inner pgstatus.ExecQueryer,
+	inner db.ExecQueryer,
 	tracerName string,
 	storeName string,
 	instruments *telemetry.Instruments,

@@ -6,6 +6,8 @@ package main
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -22,7 +24,7 @@ import (
 //
 // Returning nil when a concern is disabled keeps its producers and gate at the
 // pre-gate behavior with zero extra write.
-func endpointPresenceWiring(enabled bool, db postgres.ExecQueryer) (reducer.EndpointPresenceWriter, reducer.EndpointPresenceLookup) {
+func endpointPresenceWiring(enabled bool, db db.ExecQueryer) (reducer.EndpointPresenceWriter, reducer.EndpointPresenceLookup) {
 	if !enabled {
 		return nil, nil
 	}
@@ -64,7 +66,7 @@ type endpointPresenceWirings struct {
 func newEndpointPresenceWirings(
 	getenv func(string) string,
 	secretsIAMEnabled bool,
-	db postgres.ExecQueryer,
+	db db.ExecQueryer,
 ) endpointPresenceWirings {
 	siWriter, siLookup := endpointPresenceWiring(secretsIAMEnabled, db)
 	hrWriter, hrLookup := endpointPresenceWiring(handlesRouteEndpointPresenceGateEnabled(getenv), db)

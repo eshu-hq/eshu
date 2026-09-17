@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -464,7 +466,7 @@ func (s *IdentitySubjectStore) activeProviderExists(ctx context.Context, provide
 
 // scanSingleInvitationStatus scans the optional single invitation-status row.
 // All time columns are NULLABLE so they are scanned as sql.NullTime.
-func scanSingleInvitationStatus(rows Rows, status *string, revokedAt, acceptedAt, expiresAt *sql.NullTime) (bool, error) {
+func scanSingleInvitationStatus(rows db.Rows, status *string, revokedAt, acceptedAt, expiresAt *sql.NullTime) (bool, error) {
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		return false, rows.Err()
@@ -476,7 +478,7 @@ func scanSingleInvitationStatus(rows Rows, status *string, revokedAt, acceptedAt
 }
 
 // scanStatusInserted scans a single (status, inserted) row from a RETURNING upsert.
-func scanStatusInserted(rows Rows, status *string, inserted *bool) error {
+func scanStatusInserted(rows db.Rows, status *string, inserted *bool) error {
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
@@ -491,7 +493,7 @@ func scanStatusInserted(rows Rows, status *string, inserted *bool) error {
 }
 
 // scanMappingRefStatusInserted scans a single (mapping_ref, status, inserted) row.
-func scanMappingRefStatusInserted(rows Rows, mappingRef, status *string, inserted *bool) error {
+func scanMappingRefStatusInserted(rows db.Rows, mappingRef, status *string, inserted *bool) error {
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -76,12 +78,12 @@ func DeferredBackfillPartitionMemoSchemaSQL() string {
 // backfill's per-partition (scope_id, generation_id) -> catalog_fingerprint
 // memo (issue #3624 Track 1 / B').
 type deferredBackfillPartitionMemoStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // newDeferredBackfillPartitionMemoStore constructs a store backed by the
 // provided database handle or transaction.
-func newDeferredBackfillPartitionMemoStore(db ExecQueryer) *deferredBackfillPartitionMemoStore {
+func newDeferredBackfillPartitionMemoStore(db db.ExecQueryer) *deferredBackfillPartitionMemoStore {
 	return &deferredBackfillPartitionMemoStore{db: db}
 }
 
@@ -183,7 +185,7 @@ func (s *deferredBackfillPartitionMemoStore) LookupMany(
 
 func upsertDeferredBackfillPartitionMemoBatch(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	batch []deferredBackfillPartitionMemoRow,
 ) error {
 	if len(batch) == 0 {

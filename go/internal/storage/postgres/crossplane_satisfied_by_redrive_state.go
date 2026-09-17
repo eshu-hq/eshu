@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // CrossplaneRedriveClaim identifies one XRD source-generation whose
@@ -107,12 +109,12 @@ WHERE xrd_scope_id = $2
 // CrossplaneRedriveStateStore persists the durable claim/completion state for
 // the Crossplane cross-scope SATISFIED_BY re-drive sweep (issue #5476).
 type CrossplaneRedriveStateStore struct {
-	db  ExecQueryer
+	db  db.ExecQueryer
 	Now func() time.Time
 }
 
 // NewCrossplaneRedriveStateStore constructs the redrive state store.
-func NewCrossplaneRedriveStateStore(db ExecQueryer) CrossplaneRedriveStateStore {
+func NewCrossplaneRedriveStateStore(db db.ExecQueryer) CrossplaneRedriveStateStore {
 	return CrossplaneRedriveStateStore{db: db}
 }
 

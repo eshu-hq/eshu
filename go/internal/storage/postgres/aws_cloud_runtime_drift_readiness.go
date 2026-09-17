@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // hasPendingStateSnapshotGenerationQuery reports whether any state_snapshot:*
@@ -42,7 +44,7 @@ SELECT EXISTS (
 // PostgresAWSCloudRuntimeDriftReadinessChecker implements
 // reducer.AWSCloudRuntimeDriftReadinessChecker over the shared fact store.
 type PostgresAWSCloudRuntimeDriftReadinessChecker struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // HasPendingStateSnapshotEvidence reports whether any state_snapshot:*

@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
@@ -43,11 +45,11 @@ type oidcDBProviderResolver struct {
 // wiring a resolver that can only fail is pointless — oidclogin.Service
 // simply serves env-file providers only in that case (dbProviders stays
 // nil, see WithDBProviderResolver).
-func newOIDCDBProviderResolver(db *sql.DB, keyring *secretcrypto.Keyring) oidclogin.DBProviderResolver {
-	if db == nil || keyring == nil {
+func newOIDCDBProviderResolver(rawDB *sql.DB, keyring *secretcrypto.Keyring) oidclogin.DBProviderResolver {
+	if rawDB == nil || keyring == nil {
 		return nil
 	}
-	execQueryer := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	execQueryer := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	return &oidcDBProviderResolver{
 		store:      pgstatus.NewIdentitySubjectStore(execQueryer),
 		workspaces: pgstatus.NewTenantWorkspaceGrantStore(execQueryer),

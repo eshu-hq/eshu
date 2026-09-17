@@ -9,6 +9,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // crossplaneRedriveFailingReplayer wraps a real CrossplaneRedriveIntentReplayer
@@ -139,14 +141,14 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 // crossplaneRedriveFailingReplayer's mid-fan-out replay failure above. Every
 // other call passes through to the real queryer.
 type crossplaneRedriveFailingQueryer struct {
-	real      Queryer
+	real      db.Queryer
 	failAfter int
 	calls     int
 }
 
 func (f *crossplaneRedriveFailingQueryer) QueryContext(
 	ctx context.Context, query string, args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	f.calls++
 	if f.calls == f.failAfter {
 		return nil, errors.New("injected transient xrd lookup failure")

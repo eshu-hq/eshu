@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // GetSignInPolicy reads one tenant's sign-in policy without locking. A tenant
@@ -256,7 +258,7 @@ func signInPolicyAbsoluteBeforeIdle(idleSeconds, absoluteSeconds int) bool {
 	return idleSeconds > 0 && absoluteSeconds > 0 && absoluteSeconds < idleSeconds
 }
 
-func countActiveProviderConfigs(ctx context.Context, db ExecQueryer, tenantID string) (int64, error) {
+func countActiveProviderConfigs(ctx context.Context, db db.ExecQueryer, tenantID string) (int64, error) {
 	rows, err := db.QueryContext(ctx, countActiveProviderConfigsQuery, tenantID)
 	if err != nil {
 		return 0, fmt.Errorf("count active provider configs: %w", err)
@@ -275,7 +277,7 @@ func countActiveProviderConfigs(ctx context.Context, db ExecQueryer, tenantID st
 // signInPolicyRequiresMFAForUsers reads require_mfa_for_all_users for one
 // tenant within the caller's transaction (or any ExecQueryer). Absence of a
 // row means false (the default), matching defaultSignInPolicy.
-func signInPolicyRequiresMFAForUsers(ctx context.Context, db ExecQueryer, tenantID string) (bool, error) {
+func signInPolicyRequiresMFAForUsers(ctx context.Context, db db.ExecQueryer, tenantID string) (bool, error) {
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
 		return false, nil
@@ -297,7 +299,7 @@ func signInPolicyRequiresMFAForUsers(ctx context.Context, db ExecQueryer, tenant
 
 // scanSignInPolicyRow scans one identity_sign_in_policies row. Callers set
 // TenantID afterward (the query never selects it back).
-func scanSignInPolicyRow(rows Rows) (SignInPolicy, error) {
+func scanSignInPolicyRow(rows db.Rows) (SignInPolicy, error) {
 	var (
 		policy           SignInPolicy
 		idle, absolute   sql.NullInt64

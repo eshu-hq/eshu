@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type admissionDecisionTestDB struct {
@@ -79,7 +81,7 @@ func (db *admissionDecisionTestDB) ExecContext(_ context.Context, query string, 
 	}
 }
 
-func (db *admissionDecisionTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *admissionDecisionTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM admission_decisions"):
 		domain := args[0].(string)
@@ -151,7 +153,7 @@ func mustUnmarshalAdmissionDecisionTestJSON(arg any, dest any) {
 	}
 }
 
-func admissionDecisionRowsFromDecisions(rows []AdmissionDecision) Rows {
+func admissionDecisionRowsFromDecisions(rows []AdmissionDecision) db.Rows {
 	data := make([][]any, 0, len(rows))
 	for _, decision := range rows {
 		sourceHandles, _ := json.Marshal(decision.SourceHandles)
@@ -191,7 +193,7 @@ func admissionDecisionRowsFromDecisions(rows []AdmissionDecision) Rows {
 	return &admissionDecisionRows{data: data, idx: -1}
 }
 
-func admissionDecisionRowsFromEvidence(rows []AdmissionDecisionEvidence) Rows {
+func admissionDecisionRowsFromEvidence(rows []AdmissionDecisionEvidence) db.Rows {
 	data := make([][]any, 0, len(rows))
 	for _, row := range rows {
 		detail, _ := json.Marshal(row.Detail)

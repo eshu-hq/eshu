@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const getFileContentQuery = `
@@ -79,12 +81,12 @@ type EntityContentRow struct {
 
 // ContentStore provides read and batch-write access to the Postgres content store.
 type ContentStore struct {
-	db  ExecQueryer
+	db  db.ExecQueryer
 	Now func() time.Time
 }
 
 // NewContentStore constructs a Postgres-backed content store.
-func NewContentStore(db ExecQueryer) ContentStore {
+func NewContentStore(db db.ExecQueryer) ContentStore {
 	return ContentStore{db: db}
 }
 
@@ -234,7 +236,7 @@ func (s ContentStore) now() time.Time {
 	return time.Now().UTC()
 }
 
-func scanFileContentRow(rows Rows) (FileContentRow, error) {
+func scanFileContentRow(rows db.Rows) (FileContentRow, error) {
 	var row FileContentRow
 	var commitSHA sql.NullString
 	var language sql.NullString
@@ -276,7 +278,7 @@ func scanFileContentRow(rows Rows) (FileContentRow, error) {
 	return row, nil
 }
 
-func scanEntityContentRow(rows Rows) (EntityContentRow, error) {
+func scanEntityContentRow(rows db.Rows) (EntityContentRow, error) {
 	var row EntityContentRow
 	var startByte sql.NullInt64
 	var endByte sql.NullInt64

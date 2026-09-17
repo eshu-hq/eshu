@@ -16,6 +16,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -40,7 +42,7 @@ import (
 // on those paths at all.
 type stubExecQueryer struct{}
 
-func (stubExecQueryer) QueryContext(context.Context, string, ...any) (pgstatus.Rows, error) {
+func (stubExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return emptyRows{}, nil
 }
 

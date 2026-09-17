@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/githublogin"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
@@ -30,11 +32,11 @@ type githubDBProviderResolver struct {
 
 // newGitHubDBProviderResolver constructs the resolver. Returns nil when db
 // or keyring is nil, matching newOIDCDBProviderResolver's convention.
-func newGitHubDBProviderResolver(db *sql.DB, keyring *secretcrypto.Keyring) githublogin.DBProviderResolver {
-	if db == nil || keyring == nil {
+func newGitHubDBProviderResolver(rawDB *sql.DB, keyring *secretcrypto.Keyring) githublogin.DBProviderResolver {
+	if rawDB == nil || keyring == nil {
 		return nil
 	}
-	execQueryer := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	execQueryer := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	return &githubDBProviderResolver{
 		store:      pgstatus.NewIdentitySubjectStore(execQueryer),
 		workspaces: pgstatus.NewTenantWorkspaceGrantStore(execQueryer),

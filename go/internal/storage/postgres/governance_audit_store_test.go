@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
@@ -335,7 +337,7 @@ func (db *governanceAuditMemoryDB) ExecContext(_ context.Context, query string, 
 	return nil, sql.ErrNoRows
 }
 
-func (db *governanceAuditMemoryDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db *governanceAuditMemoryDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return &queueFakeRows{}, nil
 }
 

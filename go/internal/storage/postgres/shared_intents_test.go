@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -624,7 +626,7 @@ func (db *sharedIntentTestDB) ExecContext(_ context.Context, query string, args 
 	}
 }
 
-func (db *sharedIntentTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *sharedIntentTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "SELECT EXISTS") &&
 		strings.Contains(query, "source_run_id = $3") &&
@@ -826,7 +828,7 @@ func (db *duplicateRejectingSharedIntentDB) ExecContext(_ context.Context, query
 	return sharedIntentResult{}, nil
 }
 
-func (db *duplicateRejectingSharedIntentDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db *duplicateRejectingSharedIntentDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
 }
 
@@ -1186,7 +1188,7 @@ func (db *leaseTestDB) ExecContext(_ context.Context, query string, args ...any)
 	}
 }
 
-func (db *leaseTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *leaseTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	if strings.Contains(query, "INSERT INTO shared_projection_partition_leases") {
 		// Claim lease
 		domain := args[0].(string)

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -210,7 +212,7 @@ type EshuSearchVectorStatus struct {
 // EshuSearchVectorMetadataStore persists vector metadata and reads active
 // generation vector state without touching API/MCP runtime behavior.
 type EshuSearchVectorMetadataStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // EshuSearchVectorMetadataSchemaSQL returns the Postgres DDL for vector
@@ -220,7 +222,7 @@ func EshuSearchVectorMetadataSchemaSQL() string {
 }
 
 // NewEshuSearchVectorMetadataStore constructs the vector metadata store.
-func NewEshuSearchVectorMetadataStore(db ExecQueryer) EshuSearchVectorMetadataStore {
+func NewEshuSearchVectorMetadataStore(db db.ExecQueryer) EshuSearchVectorMetadataStore {
 	return EshuSearchVectorMetadataStore{db: db}
 }
 
@@ -363,7 +365,7 @@ func (s EshuSearchVectorMetadataStore) Status(
 	return status, nil
 }
 
-func scanEshuSearchVectorMetadata(rows Rows) (EshuSearchVectorMetadata, error) {
+func scanEshuSearchVectorMetadata(rows db.Rows) (EshuSearchVectorMetadata, error) {
 	var row EshuSearchVectorMetadata
 	var stateText string
 	var failureClass string

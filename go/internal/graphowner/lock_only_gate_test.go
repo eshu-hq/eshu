@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestLockOnlyGateNilGateWritesThrough proves a nil LockOnlyGate preserves
@@ -124,7 +124,7 @@ type fakeLockOnlyStore struct {
 	err   error
 }
 
-func (f *fakeLockOnlyStore) LockUIDs(_ context.Context, _ postgres.ExecQueryer, uids []string) error {
+func (f *fakeLockOnlyStore) LockUIDs(_ context.Context, _ db.ExecQueryer, uids []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, append([]string(nil), uids...))
@@ -179,7 +179,7 @@ type orderRecordingLockOnlyStore struct {
 	order *[]string
 }
 
-func (o *orderRecordingLockOnlyStore) LockUIDs(ctx context.Context, tx postgres.ExecQueryer, uids []string) error {
+func (o *orderRecordingLockOnlyStore) LockUIDs(ctx context.Context, tx db.ExecQueryer, uids []string) error {
 	*o.order = append(*o.order, "lock")
 	return o.inner.LockUIDs(ctx, tx, uids)
 }

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // ErrSemanticSearchScopeAmbiguous means one canonical repository id maps to
@@ -47,11 +47,11 @@ LIMIT 1
 // PostgresSemanticSearchScopeResolver resolves canonical repository ids from
 // the relational repository catalog without exposing scope ids to callers.
 type PostgresSemanticSearchScopeResolver struct {
-	db pgstatus.Queryer
+	db db.Queryer
 }
 
 // NewPostgresSemanticSearchScopeResolver constructs the production resolver.
-func NewPostgresSemanticSearchScopeResolver(db pgstatus.Queryer) PostgresSemanticSearchScopeResolver {
+func NewPostgresSemanticSearchScopeResolver(db db.Queryer) PostgresSemanticSearchScopeResolver {
 	if db == nil {
 		return PostgresSemanticSearchScopeResolver{}
 	}

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // GitHubLoginStore persists hash-only GitHub OAuth2 login state (issue
@@ -18,7 +20,7 @@ import (
 // ResolveGroupRoleGrants unchanged — see cmd/api's github_login.go wiring —
 // rather than duplicating that SQL for a second provider kind.
 type GitHubLoginStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // GitHubLoginStateRecord is one server-side GitHub OAuth2 state row. There
@@ -39,7 +41,7 @@ type GitHubLoginStateRecord struct {
 }
 
 // NewGitHubLoginStore constructs a Postgres GitHub login state store.
-func NewGitHubLoginStore(db ExecQueryer) *GitHubLoginStore {
+func NewGitHubLoginStore(db db.ExecQueryer) *GitHubLoginStore {
 	return &GitHubLoginStore{db: db}
 }
 
@@ -161,7 +163,7 @@ func validateGitHubLoginState(record GitHubLoginStateRecord) error {
 	return nil
 }
 
-func scanGitHubLoginState(rows Rows) (GitHubLoginStateRecord, error) {
+func scanGitHubLoginState(rows db.Rows) (GitHubLoginStateRecord, error) {
 	var record GitHubLoginStateRecord
 	if err := rows.Scan(
 		&record.StateHash,

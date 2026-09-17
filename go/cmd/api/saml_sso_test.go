@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/samlauth"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -264,7 +266,7 @@ type samlIdentityTestQuery struct {
 	args  []any
 }
 
-func (db *samlIdentityTestDB) QueryContext(_ context.Context, query string, args ...any) (pgstatus.Rows, error) {
+func (db *samlIdentityTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.queries = append(db.queries, samlIdentityTestQuery{query: query, args: args})
 	if len(db.queryResponses) == 0 {
 		return nil, fmt.Errorf("unexpected query: %s", query)

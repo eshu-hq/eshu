@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -42,7 +44,7 @@ LIMIT $1
 
 const awsCloudScanStatusLimit = 1000
 
-func readAWSCloudScanStatuses(ctx context.Context, queryer Queryer) ([]statuspkg.AWSCloudScanStatus, bool, error) {
+func readAWSCloudScanStatuses(ctx context.Context, queryer db.Queryer) ([]statuspkg.AWSCloudScanStatus, bool, error) {
 	rows, err := queryer.QueryContext(ctx, awsCloudScanStatusQuery, awsCloudScanStatusLimit+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("list AWS cloud scan statuses: %w", err)

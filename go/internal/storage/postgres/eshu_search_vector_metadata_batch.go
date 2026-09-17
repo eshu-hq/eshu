@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const upsertEshuSearchVectorMetadataBatchPrefix = `
@@ -93,7 +95,7 @@ func (s EshuSearchVectorMetadataStore) UpsertBatch(ctx context.Context, rows []E
 // upsertEshuSearchVectorMetadataBatch issues one multi-row INSERT ... ON
 // CONFLICT statement for a bounded slice of already-normalized,
 // already-validated rows.
-func upsertEshuSearchVectorMetadataBatch(ctx context.Context, db ExecQueryer, batch []EshuSearchVectorMetadata) error {
+func upsertEshuSearchVectorMetadataBatch(ctx context.Context, db db.ExecQueryer, batch []EshuSearchVectorMetadata) error {
 	if len(batch) == 0 {
 		return nil
 	}

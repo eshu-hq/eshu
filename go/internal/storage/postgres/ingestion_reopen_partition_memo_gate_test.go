@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // fifoExecQueryer is a minimal ExecQueryer that answers QueryContext calls
@@ -26,7 +28,7 @@ func (f *fifoExecQueryer) ExecContext(context.Context, string, ...any) (sql.Resu
 	return nil, errors.New("fifoExecQueryer: unexpected ExecContext")
 }
 
-func (f *fifoExecQueryer) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (f *fifoExecQueryer) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	if len(f.responses) == 0 {
 		return nil, errors.New("fifoExecQueryer: no more staged responses")
 	}

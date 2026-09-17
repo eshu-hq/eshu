@@ -9,12 +9,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // azureResourceMaterializationBudgetRelPath is the committed cost budget for
@@ -79,7 +80,7 @@ func azureResourceFixtureRows() []map[string]any {
 	return []map[string]any{row("a", azureOrderKeyRowA), row("b", azureOrderKeyRowB)}
 }
 
-// azureFakeOwnerRows is a postgres.Rows yielding (uid, source_order_key)
+// azureFakeOwnerRows is a db.Rows yielding (uid, source_order_key)
 // winner pairs for the owner ledger's winners read-back query. Local to this
 // file per the C-14 executor split (cost_scenario_helpers_test.go is
 // orchestrator-owned); it mirrors ec2FakeOwnerRows exactly.
@@ -92,15 +93,15 @@ func (r *azureFakeOwnerRows) Next() bool { r.idx++; return r.idx <= len(r.pairs)
 
 func (r *azureFakeOwnerRows) Scan(dest ...any) error {
 	pair := r.pairs[r.idx-1]
-	*(dest[0].(*string)) = pair[0]
-	*(dest[1].(*string)) = pair[1]
+	*dest[0].(*string) = pair[0]
+	*dest[1].(*string) = pair[1]
 	return nil
 }
 
 func (r *azureFakeOwnerRows) Err() error   { return nil }
 func (r *azureFakeOwnerRows) Close() error { return nil }
 
-// azureFakeOwnerTx is a fake postgres.Transaction the REAL
+// azureFakeOwnerTx is a fake db.Transaction the REAL
 // postgres.GraphNodeOwnerStore runs its REAL SQL against, mirroring
 // ec2FakeOwnerTx: the advisory-lock acquisition and max-order-key ledger
 // upsert land on ExecContext (both succeed; results discarded), and the
@@ -116,7 +117,7 @@ func (t *azureFakeOwnerTx) ExecContext(context.Context, string, ...any) (sql.Res
 	return nil, nil
 }
 
-func (t *azureFakeOwnerTx) QueryContext(_ context.Context, _ string, args ...any) (postgres.Rows, error) {
+func (t *azureFakeOwnerTx) QueryContext(_ context.Context, _ string, args ...any) (db.Rows, error) {
 	uids, _ := args[0].([]string)
 	pairs := make([][2]string, 0, len(uids))
 	for _, uid := range uids {
@@ -130,13 +131,13 @@ func (t *azureFakeOwnerTx) QueryContext(_ context.Context, _ string, args ...any
 func (t *azureFakeOwnerTx) Commit() error   { t.committed = true; return nil }
 func (t *azureFakeOwnerTx) Rollback() error { t.rolledBack = true; return nil }
 
-// azureFakeOwnerBeginner is a fake postgres.Beginner handing out
+// azureFakeOwnerBeginner is a fake db.Beginner handing out
 // azureFakeOwnerTx transactions configured with the same winners map.
 type azureFakeOwnerBeginner struct {
 	winners map[string]string
 }
 
-func (b *azureFakeOwnerBeginner) Begin(context.Context) (postgres.Transaction, error) {
+func (b *azureFakeOwnerBeginner) Begin(context.Context) (db.Transaction, error) {
 	return &azureFakeOwnerTx{winners: b.winners}, nil
 }
 

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -35,7 +37,7 @@ func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items [
 // pass on to an operator.
 func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 	ctx context.Context,
-	executor Executor,
+	executor db.Executor,
 	items []workflow.WorkItem,
 ) (int, error) {
 	args := make([]any, 0, len(items)*workflowColumnsPerWorkItem)
@@ -202,7 +204,7 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 	return validateMutationResult(result)
 }
 
-func scanClaimedWorkflowWorkItem(rows Rows) (workflow.WorkItem, workflow.Claim, error) {
+func scanClaimedWorkflowWorkItem(rows db.Rows) (workflow.WorkItem, workflow.Claim, error) {
 	var item workflow.WorkItem
 	var claim workflow.Claim
 	var collectorKind string
@@ -281,7 +283,7 @@ func scanClaimedWorkflowWorkItem(rows Rows) (workflow.WorkItem, workflow.Claim, 
 	return item, claim, nil
 }
 
-func scanWorkflowClaim(rows Rows) (workflow.Claim, error) {
+func scanWorkflowClaim(rows db.Rows) (workflow.Claim, error) {
 	var claim workflow.Claim
 	var status string
 	var fence sql.NullInt64

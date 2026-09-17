@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
@@ -84,11 +86,11 @@ func FunctionSummarySchemaSQL() string {
 // runs. It stores only the summary package's durable Snapshot form; the
 // in-memory summary.Store remains owned by internal/parser/summary.
 type FunctionSummaryStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewFunctionSummaryStore constructs a Postgres-backed function summary store.
-func NewFunctionSummaryStore(db ExecQueryer) FunctionSummaryStore {
+func NewFunctionSummaryStore(db db.ExecQueryer) FunctionSummaryStore {
 	return FunctionSummaryStore{db: db}
 }
 
@@ -149,7 +151,7 @@ func (s FunctionSummaryStore) ReplaceSnapshot(
 	if repo == "" {
 		return fmt.Errorf("function summary repo is required")
 	}
-	if beginner, ok := s.db.(Beginner); ok {
+	if beginner, ok := s.db.(db.Beginner); ok {
 		tx, err := beginner.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin function summary replacement transaction: %w", err)
@@ -168,7 +170,7 @@ func (s FunctionSummaryStore) ReplaceSnapshot(
 
 func replaceFunctionSummaries(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	repo string,
 	snap summary.Snapshot,
 	updatedAt time.Time,
@@ -296,7 +298,7 @@ func (s FunctionSummaryStore) upsertBatch(ctx context.Context, functions []summa
 	return nil
 }
 
-func scanFunctionSummary(rows Rows) (summary.SnapshotFunction, error) {
+func scanFunctionSummary(rows db.Rows) (summary.SnapshotFunction, error) {
 	var id string
 	var effectsBytes []byte
 	var version string

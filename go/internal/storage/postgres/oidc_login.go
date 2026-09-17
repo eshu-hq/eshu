@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -20,7 +22,7 @@ const (
 // OIDCLoginStore persists hash-only OIDC login state and resolves IdP group
 // hashes through Eshu-owned role target grants.
 type OIDCLoginStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // OIDCLoginStateRecord is one server-side Authorization Code state row.
@@ -65,7 +67,7 @@ type OIDCGroupGrantResolution struct {
 }
 
 // NewOIDCLoginStore constructs a Postgres OIDC login store.
-func NewOIDCLoginStore(db ExecQueryer) *OIDCLoginStore {
+func NewOIDCLoginStore(db db.ExecQueryer) *OIDCLoginStore {
 	return &OIDCLoginStore{db: db}
 }
 
@@ -359,7 +361,7 @@ func validateOIDCGroupGrantQuery(query OIDCGroupGrantQuery) error {
 	return nil
 }
 
-func scanOIDCLoginState(rows Rows) (OIDCLoginStateRecord, error) {
+func scanOIDCLoginState(rows db.Rows) (OIDCLoginStateRecord, error) {
 	var record OIDCLoginStateRecord
 	if err := rows.Scan(
 		&record.StateHash,
@@ -378,7 +380,7 @@ func scanOIDCLoginState(rows Rows) (OIDCLoginStateRecord, error) {
 	return normalizeOIDCLoginState(record), nil
 }
 
-func scanOIDCStringColumn(rows Rows, label string) ([]string, error) {
+func scanOIDCStringColumn(rows db.Rows, label string) ([]string, error) {
 	values := make([]string, 0)
 	for rows.Next() {
 		var value string

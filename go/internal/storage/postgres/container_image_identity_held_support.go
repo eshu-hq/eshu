@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -14,13 +16,13 @@ import (
 // ContainerImageIdentityHeldSupportStore reads the bounded prior authority
 // needed only when collector completeness holds an exact image reference.
 type ContainerImageIdentityHeldSupportStore struct {
-	db Queryer
+	db db.Queryer
 }
 
 // NewContainerImageIdentityHeldSupportStore constructs the bounded prior
 // support reader.
 func NewContainerImageIdentityHeldSupportStore(
-	db Queryer,
+	db db.Queryer,
 ) ContainerImageIdentityHeldSupportStore {
 	return ContainerImageIdentityHeldSupportStore{db: db}
 }

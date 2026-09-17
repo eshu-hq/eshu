@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.opentelemetry.io/otel"
 
@@ -137,7 +139,7 @@ func wireAPI(
 		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("ESHU_POSTGRES_DSN or ESHU_CONTENT_STORE_DSN is required")
 	}
 
-	db, err := sql.Open("pgx", pgDSN)
+	rawDB, err := sql.Open("pgx", pgDSN)
 	if err != nil {
 		if driver != nil {
 			_ = driver.Close(ctx)
@@ -148,9 +150,9 @@ func wireAPI(
 	// graph dial). Without this the mcp-server pool is database/sql-default
 	// unbounded, which would let a read burst exceed the whole-stack connection
 	// budget (#4456). Only the pool sizes are applied; the DSN resolved above is kept.
-	internalruntime.ConfigurePostgresPool(db, pgPoolCfg)
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
+	internalruntime.ConfigurePostgresPool(rawDB, pgPoolCfg)
+	if err := rawDB.PingContext(ctx); err != nil {
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -164,10 +166,10 @@ func wireAPI(
 	// below: the IdP bearer resolver (#5162) needs instruments and must sit
 	// BETWEEN identity and file-registry in the chain
 	// (identity -> bearer -> file), matching cmd/api's wiring exactly.
-	identityResolver := scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: db}))
+	identityResolver := scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: rawDB}))
 	instruments, err := telemetry.NewInstruments(otel.Meter("mcp-server"))
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -176,9 +178,9 @@ func wireAPI(
 
 	// IdP bearer-token resolver (#5162): see cmd/api's identical wiring
 	// comment. Returns (nil, nil) when ESHU_AUTH_RESOURCE_URI is unset.
-	oidcBearerResolver, err := newOIDCBearerResolver(ctx, getenv, db, instruments, logger)
+	oidcBearerResolver, err := newOIDCBearerResolver(ctx, getenv, rawDB, instruments, logger)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -205,7 +207,7 @@ func wireAPI(
 	// into the credential middleware below (a nil interface when discovery is
 	// disabled, keeping 401s byte-identical), and oauthDiscoveryHandler is
 	// mounted unauthenticated on adminMux after mountRuntimeSurface.
-	identitySubjectStore := pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db}))
+	identitySubjectStore := pgstatus.NewIdentitySubjectStore(db.ExecQueryer(pgstatus.SQLDB{DB: rawDB}))
 	var oauthIssuerLister query.OAuthAuthorizationServerLister
 	if lister, ok := oidcBearerResolver.(query.OAuthAuthorizationServerLister); ok {
 		oauthIssuerLister = lister
@@ -224,22 +226,22 @@ func wireAPI(
 		neo4jDB,
 		query.WithNeo4jReaderObservability(logger, instruments),
 	)
-	contentReader := query.NewContentReader(db)
+	contentReader := query.NewContentReader(rawDB)
 	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
 	// indexed owner-ledger list path is mounted. Graph-disabled profiles skip
 	// this because the capability is unsupported and no graph can be read.
 	if driver != nil {
-		if err := query.BackfillCloudResourceOwnerLedger(ctx, db, neo4jReader); err != nil {
-			_ = db.Close()
+		if err := query.BackfillCloudResourceOwnerLedger(ctx, rawDB, neo4jReader); err != nil {
+			_ = rawDB.Close()
 			_ = driver.Close(ctx)
 			return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("backfill cloud resource owner ledger: %w", err)
 		}
 	}
 	statusReader := status.WithSemanticProviderProfiles(
-		newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments),
+		newStatusStore(pgstatus.SQLQueryer{DB: rawDB}, instruments),
 		semanticProviderProfiles...,
 	)
-	governanceAudit := pgstatus.NewGovernanceAuditStore(pgstatus.SQLDB{DB: db})
+	governanceAudit := pgstatus.NewGovernanceAuditStore(pgstatus.SQLDB{DB: rawDB})
 	// allowedReadAudit is the F-9 (#5170) allowed-read governance-audit sink:
 	// a bounded, non-blocking async appender over the SAME durable
 	// governanceAudit store the denial paths already use synchronously. It
@@ -263,7 +265,7 @@ func wireAPI(
 	componentPolicy := componentPolicyFromEnv(getenv)
 	readImpactFromWinners := query.SupplyChainImpactWinnersReadEnabled(getenv(query.SupplyChainImpactWinnersReadEnv))
 	router := newMCPQueryRouterWithSemanticEmbedding(
-		db,
+		rawDB,
 		neo4jReader,
 		contentReader,
 		statusReader,
@@ -297,8 +299,8 @@ func wireAPI(
 	// sourced from durable incident-routing evidence over Postgres.
 	(&serviceintelhttp.ReportHandler{
 		Entities:    router.Entities,
-		Incidents:   newIncidentEvidenceSource(db, logger),
-		SupplyChain: newSupplyChainEvidenceSource(db, logger),
+		Incidents:   newIncidentEvidenceSource(rawDB, logger),
+		SupplyChain: newSupplyChainEvidenceSource(rawDB, logger),
 	}).Mount(mux)
 
 	// Mount POST /api/v0/ask and wire the governed narration posture. The engine
@@ -322,9 +324,9 @@ func wireAPI(
 		query.ScopedRoutePolicyForGovernanceMode(governanceStatus),
 	)(instrumentedMux)
 
-	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, db, driver)
+	adminMux, err := mountRuntimeSurface("mcp-server", statusReader, prometheusHandler, rawDB, driver)
 	if err != nil {
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(ctx)
 		}
@@ -345,7 +347,7 @@ func wireAPI(
 		// shutdown flush still needs a live connection, and Close() is
 		// bounded (default 5s) so a stuck sink cannot hang shutdown.
 		_ = allowedReadAudit.Close()
-		_ = db.Close()
+		_ = rawDB.Close()
 		if driver != nil {
 			_ = driver.Close(context.Background())
 		}

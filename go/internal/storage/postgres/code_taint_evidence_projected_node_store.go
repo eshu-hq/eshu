@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -95,12 +97,12 @@ func CodeTaintEvidenceProjectedNodeSchemaSQL() string {
 // CodeTaintEvidence node so retraction can enumerate uids from the ledger instead
 // of scanning the whole graph.
 type CodeTaintEvidenceProjectedNodeStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewCodeTaintEvidenceProjectedNodeStore constructs a Postgres-backed projected-node
 // ledger.
-func NewCodeTaintEvidenceProjectedNodeStore(db ExecQueryer) CodeTaintEvidenceProjectedNodeStore {
+func NewCodeTaintEvidenceProjectedNodeStore(db db.ExecQueryer) CodeTaintEvidenceProjectedNodeStore {
 	return CodeTaintEvidenceProjectedNodeStore{db: db}
 }
 

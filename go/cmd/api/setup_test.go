@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// fakeSetupAdapterDB is a minimal in-memory pgstorage.ExecQueryer routing on
+// fakeSetupAdapterDB is a minimal in-memory db.ExecQueryer routing on
 // query substrings, tailored to postgresSetupAdapter's read/write shapes
 // (string-valued columns, unlike fakeSeedDB's int-only fakeSeedRows).
 type fakeSetupAdapterDB struct {
@@ -34,11 +36,11 @@ func (f *fakeSetupAdapterDB) ExecContext(_ context.Context, query string, args .
 	return fakeSetupResult{}, nil
 }
 
-// Begin satisfies pgstorage.Beginner so CompleteSetupMFA's transaction-scoped
+// Begin satisfies db.Beginner so CompleteSetupMFA's transaction-scoped
 // advisory-lock critical section can run against this fake: the transaction
 // just delegates Exec/Query to the same underlying fake so query routing and
 // exec-call recording stay in one place.
-func (f *fakeSetupAdapterDB) Begin(context.Context) (pgstorage.Transaction, error) {
+func (f *fakeSetupAdapterDB) Begin(context.Context) (db.Transaction, error) {
 	return &fakeSetupAdapterTx{db: f}, nil
 }
 
@@ -50,14 +52,14 @@ func (tx *fakeSetupAdapterTx) ExecContext(ctx context.Context, query string, arg
 	return tx.db.ExecContext(ctx, query, args...)
 }
 
-func (tx *fakeSetupAdapterTx) QueryContext(ctx context.Context, query string, args ...any) (pgstorage.Rows, error) {
+func (tx *fakeSetupAdapterTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.db.QueryContext(ctx, query, args...)
 }
 
 func (tx *fakeSetupAdapterTx) Commit() error   { return nil }
 func (tx *fakeSetupAdapterTx) Rollback() error { return nil }
 
-func (f *fakeSetupAdapterDB) QueryContext(_ context.Context, query string, _ ...any) (pgstorage.Rows, error) {
+func (f *fakeSetupAdapterDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "SELECT consumed_at IS NOT NULL"):
 		if f.consumedStateRow == nil {

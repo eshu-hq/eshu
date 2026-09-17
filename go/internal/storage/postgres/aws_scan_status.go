@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
@@ -217,12 +219,12 @@ WHERE collector_instance_id = $1
 
 // AWSScanStatusStore persists per-tuple AWS scan status for admin surfaces.
 type AWSScanStatusStore struct {
-	db  ExecQueryer
+	db  db.ExecQueryer
 	Now func() time.Time
 }
 
 // NewAWSScanStatusStore constructs the AWS scan-status store.
-func NewAWSScanStatusStore(db ExecQueryer) AWSScanStatusStore {
+func NewAWSScanStatusStore(db db.ExecQueryer) AWSScanStatusStore {
 	return AWSScanStatusStore{db: db}
 }
 

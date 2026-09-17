@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestEnsureDeferredMaintenanceBarrierEpochNeverCommittedShardDoesNotOpenNewEpoch
@@ -157,7 +159,7 @@ type alwaysFailBarrierDB struct {
 	t *testing.T
 }
 
-func (d *alwaysFailBarrierDB) Begin(context.Context) (Transaction, error) {
+func (d *alwaysFailBarrierDB) Begin(context.Context) (db.Transaction, error) {
 	d.t.Fatal("Begin called for a never-committed single-shard drain; want no DB interaction at all")
 	return nil, nil
 }
@@ -167,7 +169,7 @@ func (d *alwaysFailBarrierDB) ExecContext(context.Context, string, ...any) (sql.
 	return nil, nil
 }
 
-func (d *alwaysFailBarrierDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (d *alwaysFailBarrierDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	d.t.Fatal("QueryContext called for a never-committed single-shard drain; want no DB interaction at all")
 	return nil, nil
 }

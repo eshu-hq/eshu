@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -114,6 +116,6 @@ func (c governanceAuditBenchmarkConn) ExecContext(ctx context.Context, query str
 	return c.conn.ExecContext(ctx, query, args...)
 }
 
-func (c governanceAuditBenchmarkConn) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (c governanceAuditBenchmarkConn) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return c.conn.QueryContext(ctx, query, args...)
 }

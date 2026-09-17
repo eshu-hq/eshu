@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -30,7 +32,7 @@ type partitionLoadProbeQueryer struct {
 
 func (q *partitionLoadProbeQueryer) QueryContext(
 	_ context.Context, query string, _ ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	if query != listDeferredScopedRelationshipFactRecordsQuery {
 		return &queueFakeRows{}, nil
 	}
@@ -158,7 +160,7 @@ type errLoadProbeQueryer struct {
 
 func (q *errLoadProbeQueryer) QueryContext(
 	_ context.Context, query string, _ ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	if query != listDeferredScopedRelationshipFactRecordsQuery {
 		return &queueFakeRows{}, nil
 	}
@@ -184,7 +186,7 @@ type chunkProbeQueryer struct {
 
 func (q *chunkProbeQueryer) QueryContext(
 	_ context.Context, query string, args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	if query != listDeferredScopedRelationshipFactRecordsQuery {
 		return &queueFakeRows{}, nil
 	}

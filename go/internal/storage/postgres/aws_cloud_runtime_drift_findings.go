@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -93,12 +95,12 @@ type AWSCloudRuntimeDriftEvidenceRow struct {
 
 // AWSCloudRuntimeDriftFindingStore reads active AWS runtime drift reducer facts.
 type AWSCloudRuntimeDriftFindingStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewAWSCloudRuntimeDriftFindingStore constructs an AWS runtime drift finding
 // reader over the provided database adapter.
-func NewAWSCloudRuntimeDriftFindingStore(db ExecQueryer) AWSCloudRuntimeDriftFindingStore {
+func NewAWSCloudRuntimeDriftFindingStore(db db.ExecQueryer) AWSCloudRuntimeDriftFindingStore {
 	return AWSCloudRuntimeDriftFindingStore{db: db}
 }
 

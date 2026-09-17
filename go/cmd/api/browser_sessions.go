@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -47,13 +49,13 @@ func (a *postgresBrowserSessionAdapter) GetSignInPolicy(ctx context.Context, ten
 }
 
 func newPostgresBrowserSessionAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 ) *postgresBrowserSessionAdapter {
-	if db == nil {
+	if rawDB == nil {
 		return nil
 	}
-	sessionDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	sessionDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		sessionDB = &pgstatus.InstrumentedDB{
 			Inner:       sessionDB,
@@ -62,7 +64,7 @@ func newPostgresBrowserSessionAdapter(
 			StoreName:   "browser_sessions",
 		}
 	}
-	signInPolicyDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	signInPolicyDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		signInPolicyDB = &pgstatus.InstrumentedDB{
 			Inner:       signInPolicyDB,

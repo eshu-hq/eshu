@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
@@ -25,7 +27,7 @@ type stubAppliedRoutingQueryer struct {
 
 func (s stubAppliedRoutingQueryer) QueryContext(
 	context.Context, string, ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -217,7 +219,7 @@ func (db *activeSetSwitchingDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	rows, err := db.SQLDB.QueryContext(ctx, query, args...)
 	if err != nil || !db.shouldSwitchAfter(query) {
 		return rows, err
@@ -227,7 +229,7 @@ func (db *activeSetSwitchingDB) QueryContext(
 
 func (db *activeSetSwitchingDB) BeginReadOnlyRepeatableRead(
 	ctx context.Context,
-) (Transaction, error) {
+) (db.Transaction, error) {
 	tx, err := db.DB.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  true,
@@ -274,7 +276,7 @@ func (tx *activeSetSwitchingTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	rows, err := tx.SQLTx.QueryContext(ctx, query, args...)
 	if err != nil || !tx.parent.shouldSwitchAfter(query) {
 		return rows, err
@@ -283,7 +285,7 @@ func (tx *activeSetSwitchingTx) QueryContext(
 }
 
 type afterCloseRows struct {
-	Rows
+	db.Rows
 	afterClose func()
 	close      sync.Once
 }
@@ -370,6 +372,6 @@ WHERE scope_id = $1 AND active_generation_id = $2
 }
 
 var (
-	_ ExecQueryer = (*activeSetSwitchingDB)(nil)
-	_ Transaction = (*activeSetSwitchingTx)(nil)
+	_ db.ExecQueryer = (*activeSetSwitchingDB)(nil)
+	_ db.Transaction = (*activeSetSwitchingTx)(nil)
 )

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
@@ -334,7 +336,7 @@ func (db *decisionTestDB) ExecContext(_ context.Context, query string, args ...a
 	}
 }
 
-func (db *decisionTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *decisionTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM projection_decisions"):
 		repoID := args[0].(string)

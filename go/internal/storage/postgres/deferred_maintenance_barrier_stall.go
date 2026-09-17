@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -181,7 +183,7 @@ func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 	}
 }
 
-func deferredMaintenanceBarrierCompleted(ctx context.Context, queryer Queryer, epoch int64) (bool, error) {
+func deferredMaintenanceBarrierCompleted(ctx context.Context, queryer db.Queryer, epoch int64) (bool, error) {
 	rows, err := queryer.QueryContext(ctx, selectDeferredMaintenanceBarrierCompletedSQL, deferredMaintenanceBarrierName, epoch)
 	if err != nil {
 		return false, fmt.Errorf("query deferred maintenance barrier completion: %w", err)
@@ -212,7 +214,7 @@ func deferredMaintenanceBarrierCompleted(ctx context.Context, queryer Queryer, e
 // stall warning name the specific missing shards (see
 // missingDeferredMaintenanceBarrierShardIndexes) instead of leaving an
 // operator to correlate log silence across every shard process by hand.
-func deferredMaintenanceBarrierArrivedShardIndexes(ctx context.Context, queryer Queryer, epoch int64) ([]int, error) {
+func deferredMaintenanceBarrierArrivedShardIndexes(ctx context.Context, queryer db.Queryer, epoch int64) ([]int, error) {
 	rows, err := queryer.QueryContext(ctx, selectDeferredMaintenanceBarrierArrivedShardIndexesSQL, deferredMaintenanceBarrierName, epoch)
 	if err != nil {
 		return nil, fmt.Errorf("list deferred maintenance barrier arrived shards: %w", err)

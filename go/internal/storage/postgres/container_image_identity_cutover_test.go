@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestContainerImageIdentityCutoverExists(t *testing.T) {
@@ -46,7 +48,7 @@ func TestContainerImageIdentityCutoverExistsFailsClosed(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		queryer Queryer
+		queryer db.Queryer
 		want    string
 	}{
 		{
@@ -145,7 +147,7 @@ func (q *containerImageIdentityCutoverQueryer) QueryContext(
 	_ context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	q.query = query
 	q.args = append([]any(nil), args...)
 	if q.err != nil {

@@ -6,8 +6,8 @@ operational lessons that future storage changes still need to respect.
 ## Query And Queue Invariants
 
 - `ProjectorQueue.Ack` runs five SQL statements inside a transaction. Pass a
-  `SQLDB` or an `InstrumentedDB` wrapping a `SQLDB`; a plain `ExecQueryer`
-  without `Beginner` will cause Ack to fail.
+  `SQLDB` or an `InstrumentedDB` wrapping a `SQLDB`; a plain `db.ExecQueryer`
+  without `db.Beginner` will cause Ack to fail.
 - `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:206`).
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`
   when the same `fact_id` appears twice in one batch.

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -63,7 +65,7 @@ func (db *relationshipFamilyBinaryProofDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	if query != listDeferredScopedRelationshipFactRecordsQuery {
 		return db.SQLDB.QueryContext(ctx, query, args...)
 	}
@@ -124,7 +126,7 @@ func (s *relationshipFamilyBinaryProofFactIDs) snapshot() (map[string]struct{}, 
 	return result, s.duplicates
 }
 
-func (db *relationshipFamilyBinaryProofDB) Begin(ctx context.Context) (Transaction, error) {
+func (db *relationshipFamilyBinaryProofDB) Begin(ctx context.Context) (db.Transaction, error) {
 	tx, err := db.SQLDB.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -138,7 +140,7 @@ func (db *relationshipFamilyBinaryProofDB) Begin(ctx context.Context) (Transacti
 }
 
 type relationshipFamilyBinaryProofRows struct {
-	Rows
+	db.Rows
 	once    sync.Once
 	onScan  func(string) error
 	onClose func()
@@ -165,7 +167,7 @@ func (r *relationshipFamilyBinaryProofRows) Close() error {
 }
 
 type relationshipFamilyBinaryProofTx struct {
-	Transaction
+	db.Transaction
 	once       sync.Once
 	onDone     func()
 	writeCalls *relationshipFamilyBinaryProofOverlapTracker
@@ -185,7 +187,7 @@ func (tx *relationshipFamilyBinaryProofTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	tx.writeCalls.begin()
 	defer tx.writeCalls.end()
 	return tx.Transaction.QueryContext(ctx, query, args...)

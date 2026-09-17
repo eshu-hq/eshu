@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // activeCollectorScopesCTE selects the active generation of every readiness
@@ -129,11 +131,11 @@ WHERE NOT EXISTS (
 // both the resweep ExecContext and the watermark QueryContext, so it takes the
 // shared ExecQueryer surface.
 type CollectorEvidenceSummaryStore struct {
-	DB ExecQueryer
+	DB db.ExecQueryer
 }
 
 // NewCollectorEvidenceSummaryStore wraps a DB handle for summary maintenance.
-func NewCollectorEvidenceSummaryStore(db ExecQueryer) CollectorEvidenceSummaryStore {
+func NewCollectorEvidenceSummaryStore(db db.ExecQueryer) CollectorEvidenceSummaryStore {
 	return CollectorEvidenceSummaryStore{DB: db}
 }
 

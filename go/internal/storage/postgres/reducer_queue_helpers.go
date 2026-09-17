@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/metric"
 
@@ -121,7 +123,7 @@ func claimedAtValue(intent reducer.Intent) time.Time {
 	return intent.ClaimedAt.UTC()
 }
 
-func scanReducerIntent(rows Rows) (reducer.Intent, error) {
+func scanReducerIntent(rows db.Rows) (reducer.Intent, error) {
 	var intentID string
 	var scopeID string
 	var generationID string

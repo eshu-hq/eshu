@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -194,7 +196,7 @@ func (db *awsCheckpointStoreTestDB) ExecContext(_ context.Context, query string,
 	return result, nil
 }
 
-func (db *awsCheckpointStoreTestDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (db *awsCheckpointStoreTestDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("unexpected QueryContext")
 }
 

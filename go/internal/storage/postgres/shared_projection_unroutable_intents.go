@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -80,11 +82,11 @@ ON CONFLICT (intent_id) DO NOTHING
 // only lasting record that the intent produced no edge. See the interface doc
 // for why that inversion is deliberate.
 type SharedProjectionUnroutableIntentStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewSharedProjectionUnroutableIntentStore constructs a store backed by db.
-func NewSharedProjectionUnroutableIntentStore(db ExecQueryer) *SharedProjectionUnroutableIntentStore {
+func NewSharedProjectionUnroutableIntentStore(db db.ExecQueryer) *SharedProjectionUnroutableIntentStore {
 	return &SharedProjectionUnroutableIntentStore{db: db}
 }
 
@@ -124,7 +126,7 @@ func (s *SharedProjectionUnroutableIntentStore) WriteUnroutableIntents(
 
 func insertSharedProjectionUnroutableIntentBatch(
 	ctx context.Context,
-	db ExecQueryer,
+	db db.ExecQueryer,
 	batch []reducer.SharedProjectionUnroutableRow,
 ) error {
 	if len(batch) == 0 {

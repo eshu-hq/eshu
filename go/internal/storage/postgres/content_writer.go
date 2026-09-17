@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
 
@@ -23,7 +25,7 @@ import (
 
 // ContentWriter persists repo-local content rows into the canonical content store.
 type ContentWriter struct {
-	db               ExecQueryer
+	db               db.ExecQueryer
 	entityBatchSize  int
 	batchConcurrency int
 	Now              func() time.Time
@@ -34,7 +36,7 @@ type ContentWriter struct {
 // Batch concurrency is resolved once here so a long-running ingester does not
 // pick up live env changes mid-run; callers that want to override pass
 // WithBatchConcurrency after construction.
-func NewContentWriter(db ExecQueryer) ContentWriter {
+func NewContentWriter(db db.ExecQueryer) ContentWriter {
 	return ContentWriter{
 		db:               db,
 		batchConcurrency: contentWriterBatchConcurrencyFromEnv(),

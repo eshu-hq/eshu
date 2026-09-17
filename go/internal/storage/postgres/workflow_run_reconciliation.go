@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/metric"
 
@@ -323,7 +325,7 @@ func isRetryableWorkflowReconciliationError(err error) bool {
 	}
 }
 
-func (s *WorkflowControlStore) listWorkflowCollectorProgress(ctx context.Context, queryer Queryer, runID string) ([]workflow.CollectorRunProgress, error) {
+func (s *WorkflowControlStore) listWorkflowCollectorProgress(ctx context.Context, queryer db.Queryer, runID string) ([]workflow.CollectorRunProgress, error) {
 	rows, err := queryer.QueryContext(ctx, listWorkflowCollectorProgressQuery, runID)
 	if err != nil {
 		return nil, fmt.Errorf("list workflow collector progress: %w", err)
@@ -356,7 +358,7 @@ func (s *WorkflowControlStore) listWorkflowCollectorProgress(ctx context.Context
 
 func (s *WorkflowControlStore) listWorkflowCollectorPhaseCounts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	runID string,
 ) (map[string]map[workflow.PhasePublicationKey]int, error) {
 	rows, err := queryer.QueryContext(ctx, listWorkflowCollectorPhaseCountsQuery, runID)
@@ -397,7 +399,7 @@ func (s *WorkflowControlStore) listWorkflowCollectorPhaseCounts(
 // dead-letter observed," never as a block.
 func (s *WorkflowControlStore) listWorkflowCollectorTerminalDeadLetterCounts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	runID string,
 ) (map[string]map[workflow.PhasePublicationKey]int, error) {
 	rows, err := queryer.QueryContext(ctx, listWorkflowCollectorTerminalDeadLetterCountsQuery, runID)
@@ -430,7 +432,7 @@ func (s *WorkflowControlStore) listWorkflowCollectorTerminalDeadLetterCounts(
 	return deadLetterCounts, nil
 }
 
-func scanWorkflowRun(rows Rows) (workflow.Run, error) {
+func scanWorkflowRun(rows db.Rows) (workflow.Run, error) {
 	var run workflow.Run
 	var triggerKind string
 	var status string

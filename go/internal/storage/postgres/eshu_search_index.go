@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
@@ -57,11 +59,11 @@ type EshuSearchIndexSearchResult struct {
 // EshuSearchIndexStore reads the persisted BM25 index for active curated search
 // documents.
 type EshuSearchIndexStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // NewEshuSearchIndexStore builds a persisted search-index reader over db.
-func NewEshuSearchIndexStore(db ExecQueryer) EshuSearchIndexStore {
+func NewEshuSearchIndexStore(db db.ExecQueryer) EshuSearchIndexStore {
 	return EshuSearchIndexStore{db: db}
 }
 

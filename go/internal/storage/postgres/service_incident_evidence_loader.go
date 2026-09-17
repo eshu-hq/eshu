@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -238,12 +240,12 @@ LIMIT $2`
 // ServiceIncidentEvidenceLoader loads active incident-routing evidence scoped to
 // Eshu catalog service ids. It implements reducer.ServiceScopedIncidentEvidenceLoader.
 type ServiceIncidentEvidenceLoader struct {
-	queryer Queryer
+	queryer db.Queryer
 }
 
 // NewServiceIncidentEvidenceLoader constructs a read-only incidents evidence
 // loader over the shared query surface.
-func NewServiceIncidentEvidenceLoader(queryer Queryer) ServiceIncidentEvidenceLoader {
+func NewServiceIncidentEvidenceLoader(queryer db.Queryer) ServiceIncidentEvidenceLoader {
 	return ServiceIncidentEvidenceLoader{queryer: queryer}
 }
 
@@ -299,7 +301,7 @@ func (l ServiceIncidentEvidenceLoader) GetIncidentEvidenceForServicesBounded(
 // scanServiceIncidentEvidence scans incident-routing evidence rows into the
 // per-service result map, closing the rows. It is shared by the unbounded and
 // bounded loaders so both decode identical row shapes.
-func scanServiceIncidentEvidence(rows Rows, capacityHint int) (map[string][]reducer.ServiceIncidentRecord, error) {
+func scanServiceIncidentEvidence(rows db.Rows, capacityHint int) (map[string][]reducer.ServiceIncidentRecord, error) {
 	defer func() { _ = rows.Close() }()
 
 	byService := make(map[string][]reducer.ServiceIncidentRecord, capacityHint)

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -84,7 +86,7 @@ type fakeBeginnerExecQueryer struct {
 	rolledBack bool
 }
 
-func (f *fakeBeginnerExecQueryer) Begin(context.Context) (Transaction, error) {
+func (f *fakeBeginnerExecQueryer) Begin(context.Context) (db.Transaction, error) {
 	return &fakeTransaction{owner: f}, nil
 }
 
@@ -96,7 +98,7 @@ func (tx *fakeTransaction) ExecContext(ctx context.Context, query string, args .
 	return tx.owner.ExecContext(ctx, query, args...)
 }
 
-func (tx *fakeTransaction) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx *fakeTransaction) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.owner.QueryContext(ctx, query, args...)
 }
 
@@ -114,11 +116,11 @@ type terminalRunReplayDB struct {
 	fakeBeginnerExecQueryer
 }
 
-func (db *terminalRunReplayDB) Begin(context.Context) (Transaction, error) {
+func (db *terminalRunReplayDB) Begin(context.Context) (db.Transaction, error) {
 	return &terminalRunReplayTx{owner: db}, nil
 }
 
-func (db *terminalRunReplayDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *terminalRunReplayDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	db.mu.Lock()
 	db.queries = append(db.queries, fakeQueryCall{query: query, args: args})
 	db.mu.Unlock()
@@ -143,7 +145,7 @@ func (tx *terminalRunReplayTx) ExecContext(ctx context.Context, query string, ar
 	return tx.owner.ExecContext(ctx, query, args...)
 }
 
-func (tx *terminalRunReplayTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx *terminalRunReplayTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.owner.QueryContext(ctx, query, args...)
 }
 

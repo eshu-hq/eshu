@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -179,7 +181,7 @@ func assertOwnerLedger(t *testing.T, db *sql.DB, uid, wantKey, wantValue string)
 	}
 }
 
-// sqlTxExecQueryer adapts *sql.Tx to the postgres.ExecQueryer surface for the
+// sqlTxExecQueryer adapts *sql.Tx to the db.ExecQueryer surface for the
 // integration test (the production decorator uses the package's own tx type).
 type sqlTxExecQueryer struct{ tx *sql.Tx }
 
@@ -187,6 +189,6 @@ func (a sqlTxExecQueryer) ExecContext(ctx context.Context, query string, args ..
 	return a.tx.ExecContext(ctx, query, args...)
 }
 
-func (a sqlTxExecQueryer) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (a sqlTxExecQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return a.tx.QueryContext(ctx, query, args...)
 }

@@ -10,13 +10,14 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -233,7 +234,7 @@ func (f *graphSchemaBootstrapDB) ExecContext(_ context.Context, _ string, args .
 	return nil, nil
 }
 
-func (f *graphSchemaBootstrapDB) QueryContext(context.Context, string, ...any) (postgres.Rows, error) {
+func (f *graphSchemaBootstrapDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	if f.marked {
 		return &fakeBootstrapRows{
 			rows: [][]any{{f.app.Fingerprint, []byte(`[]`)}},

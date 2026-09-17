@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -145,7 +147,7 @@ type valueFlowProgramLoaderDB struct {
 	sources    map[string][][]any
 }
 
-func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM shared_projection_acceptance AS acceptance"):
 		return &valueFlowProgramRows{data: db.candidates, idx: -1}, nil

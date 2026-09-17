@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -95,12 +97,12 @@ type providerConfigReadAdapter struct {
 }
 
 func newProviderConfigReadAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	oidcLoginHandler *query.OIDCLoginHandler,
 	samlHandler *query.SAMLHandler,
 	logger *slog.Logger,
 ) *providerConfigReadAdapter {
-	if db == nil {
+	if rawDB == nil {
 		return nil
 	}
 	var envOIDCProviders []query.OIDCRegisteredProvider
@@ -112,7 +114,7 @@ func newProviderConfigReadAdapter(
 		envSAMLProviderIDs = samlHandler.RegisteredProviderIDs()
 	}
 	return &providerConfigReadAdapter{
-		store:              pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})),
+		store:              pgstatus.NewIdentitySubjectStore(db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})),
 		envProviderIDs:     envRegisteredProviderIDs(oidcLoginHandler, samlHandler),
 		envOIDCProviders:   envOIDCProviders,
 		envSAMLProviderIDs: envSAMLProviderIDs,

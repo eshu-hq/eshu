@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -19,7 +21,7 @@ const (
 
 // TenantWorkspaceGrantStore persists hosted tenant, workspace, and grant state.
 type TenantWorkspaceGrantStore struct {
-	db ExecQueryer
+	db db.ExecQueryer
 }
 
 // TenantRecord is the durable hosted tenant state row.
@@ -83,7 +85,7 @@ type TenantWorkspaceGrantQuery struct {
 }
 
 // NewTenantWorkspaceGrantStore constructs a Postgres tenant grant store.
-func NewTenantWorkspaceGrantStore(db ExecQueryer) *TenantWorkspaceGrantStore {
+func NewTenantWorkspaceGrantStore(db db.ExecQueryer) *TenantWorkspaceGrantStore {
 	return &TenantWorkspaceGrantStore{db: db}
 }
 
@@ -426,7 +428,7 @@ func validateGrantQuery(query TenantWorkspaceGrantQuery) error {
 	return nil
 }
 
-func scanTenantScopeGrant(rows Rows) (TenantScopeGrant, error) {
+func scanTenantScopeGrant(rows db.Rows) (TenantScopeGrant, error) {
 	var grant TenantScopeGrant
 	var expiresAt sql.NullTime
 	if err := rows.Scan(
@@ -445,7 +447,7 @@ func scanTenantScopeGrant(rows Rows) (TenantScopeGrant, error) {
 	return grant, nil
 }
 
-func scanTenantRepositoryGrant(rows Rows) (TenantRepositoryGrant, error) {
+func scanTenantRepositoryGrant(rows db.Rows) (TenantRepositoryGrant, error) {
 	var grant TenantRepositoryGrant
 	var expiresAt sql.NullTime
 	if err := rows.Scan(

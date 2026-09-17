@@ -9,6 +9,8 @@ import (
 	"log"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -213,7 +215,7 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsWithSkipSet(
 
 func listSucceededDeploymentMappingWorkItems(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) ([]reopenWorkItemRef, error) {
 	rows, err := queryer.QueryContext(ctx, listSucceededDeploymentMappingWorkItemsQuery)
 	if err != nil {

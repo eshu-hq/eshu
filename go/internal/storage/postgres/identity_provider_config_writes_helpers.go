@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // sealProviderSecret constructs the AAD from (provider_config_id,
@@ -45,7 +47,7 @@ type lockedProviderConfig struct {
 // lockProviderConfig row-locks and reads the provider config for the
 // duration of the caller's transaction. found=false when no live
 // (non-tombstoned) row matches in the tenant.
-func lockProviderConfig(ctx context.Context, tx Transaction, providerConfigID, tenantID string) (lockedProviderConfig, bool, error) {
+func lockProviderConfig(ctx context.Context, tx db.Transaction, providerConfigID, tenantID string) (lockedProviderConfig, bool, error) {
 	rows, err := tx.QueryContext(ctx, selectProviderConfigForUpdateQuery, providerConfigID, tenantID)
 	if err != nil {
 		return lockedProviderConfig{}, false, fmt.Errorf("lock provider config: %w", err)
@@ -71,7 +73,7 @@ func lockProviderConfig(ctx context.Context, tx Transaction, providerConfigID, t
 
 // scanInsertedID reports whether an ON CONFLICT ... DO NOTHING RETURNING
 // query actually inserted a row (a conflict produces zero returned rows).
-func scanInsertedID(rows Rows) (bool, error) {
+func scanInsertedID(rows db.Rows) (bool, error) {
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		return false, rows.Err()
@@ -84,7 +86,7 @@ func scanInsertedID(rows Rows) (bool, error) {
 }
 
 // scanExists reports whether a `SELECT 1 ... LIMIT 1` query matched a row.
-func scanExists(rows Rows) (bool, error) {
+func scanExists(rows db.Rows) (bool, error) {
 	defer func() { _ = rows.Close() }()
 	exists := rows.Next()
 	return exists, rows.Err()

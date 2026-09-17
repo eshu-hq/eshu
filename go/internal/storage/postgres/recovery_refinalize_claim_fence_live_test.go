@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -158,7 +160,7 @@ type claimBatchResult struct {
 
 type claimFenceConn struct{ *sql.Conn }
 
-func (c claimFenceConn) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (c claimFenceConn) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return c.Conn.QueryContext(ctx, query, args...)
 }
 
@@ -168,7 +170,7 @@ type refinalizeRetirementPauseDB struct {
 	release <-chan struct{}
 }
 
-func (d *refinalizeRetirementPauseDB) Begin(ctx context.Context) (Transaction, error) {
+func (d *refinalizeRetirementPauseDB) Begin(ctx context.Context) (db.Transaction, error) {
 	tx, err := d.SQLDB.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -177,7 +179,7 @@ func (d *refinalizeRetirementPauseDB) Begin(ctx context.Context) (Transaction, e
 }
 
 type refinalizeRetirementPauseTx struct {
-	Transaction
+	db.Transaction
 	retired chan<- struct{}
 	release <-chan struct{}
 	once    sync.Once
@@ -202,7 +204,7 @@ type refinalizeTableLockPauseDB struct {
 	release <-chan struct{}
 }
 
-func (d *refinalizeTableLockPauseDB) Begin(ctx context.Context) (Transaction, error) {
+func (d *refinalizeTableLockPauseDB) Begin(ctx context.Context) (db.Transaction, error) {
 	tx, err := d.SQLDB.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -211,7 +213,7 @@ func (d *refinalizeTableLockPauseDB) Begin(ctx context.Context) (Transaction, er
 }
 
 type refinalizeTableLockPauseTx struct {
-	Transaction
+	db.Transaction
 	locked  chan<- struct{}
 	release <-chan struct{}
 	once    sync.Once

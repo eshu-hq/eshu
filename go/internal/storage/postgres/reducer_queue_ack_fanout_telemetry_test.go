@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -106,7 +108,7 @@ func TestReducerContentionGateAckFanoutTelemetryErrors(t *testing.T) {
 	t.Logf("controlled synchronous SQLSTATE 40P01 emitted both error spans, exception events and durations; log=%v", record)
 }
 
-func ackFanoutTelemetryDB(t *testing.T, inner ExecQueryer) (*InstrumentedDB, *sdkmetric.ManualReader, *tracetest.SpanRecorder) {
+func ackFanoutTelemetryDB(t *testing.T, inner db.ExecQueryer) (*InstrumentedDB, *sdkmetric.ManualReader, *tracetest.SpanRecorder) {
 	t.Helper()
 	spans := tracetest.NewSpanRecorder()
 	tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))

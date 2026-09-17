@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -162,7 +164,7 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 	}
 }
 
-func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "WITH latest_generations AS"):
 		return newProofRows(proofLatestRelationshipFactRows(tx.state)), nil

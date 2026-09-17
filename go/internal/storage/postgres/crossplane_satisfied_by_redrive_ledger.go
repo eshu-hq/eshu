@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // recordCrossplaneRedriveTargetQuery durably records that targetScopeID has
@@ -27,12 +29,12 @@ ON CONFLICT (target_scope_id, xrd_group, xrd_claim_kind) DO NOTHING
 // CrossplaneRedriveTargetLedgerStore persists the durable "already re-driven"
 // ledger the target-discovery query's already-satisfied fence reads.
 type CrossplaneRedriveTargetLedgerStore struct {
-	db  ExecQueryer
+	db  db.ExecQueryer
 	Now func() time.Time
 }
 
 // NewCrossplaneRedriveTargetLedgerStore constructs the target ledger store.
-func NewCrossplaneRedriveTargetLedgerStore(db ExecQueryer) CrossplaneRedriveTargetLedgerStore {
+func NewCrossplaneRedriveTargetLedgerStore(db db.ExecQueryer) CrossplaneRedriveTargetLedgerStore {
 	return CrossplaneRedriveTargetLedgerStore{db: db}
 }
 
