@@ -88,6 +88,121 @@ path_target_exists() {
   esac
 }
 
+# is_doc_table_header_or_separator <col2> — true when a row's second column
+# is the stage-table header cell ("file:line"), the histogram-buckets header
+# cell ("boundary_values"), or a GFM alignment/separator row (plain `---` or
+# colon-alignment `:---`, `:---:`, `---:`). Shared by check (3)'s
+# doc_row_signals_tmp build in verify-telemetry-coverage.sh and (3b)'s
+# check_stage_table_rows below, so the two call sites classify a row
+# identically -- see cell_has_signal's header comment in the caller for what
+# happens when two independently written classifiers drift (#5855, #6681).
+is_doc_table_header_or_separator() {
+  case "$1" in
+    'file:line' | 'boundary_values') return 0 ;;
+  esac
+  [[ "$1" =~ ^[-:]+$ ]]
+}
+
+# resolve_row_cell_paths_into <array_name> <path_cell> — populate the
+# caller's array (a bash 4.3+ nameref; cleared first) with one resolved
+# path/glob token per element for a cell that may name one or more
+# comma-separated targets (e.g. "contract.go:389-470,
+# contract_z_observability_coverage.go:10"). Strips a trailing ":N" / ":N-M"
+# line-number suffix from each token and lets a bare filename with no
+# directory inherit the directory of the previous comma-separated part in
+# the same cell.
+#
+# This is the ONE shared cell-to-paths parser used by BOTH check (3)
+# (verify-telemetry-coverage.sh, building doc_row_signals_tmp -- must
+# recognize a new-stage file named in ANY position of a multi-file row) and
+# (3b) below (check_stage_table_rows, existence-checking every path in every
+# row). Before this helper existed, check (3) used a single-token regex
+# (`[^|:|[:space:]]+` anchored to require the cell close with the very next
+# pipe) that could not parse a comma-separated cell at all: the regex match
+# fails outright the moment a cell contains more than one token, so
+# doc_row_signals_tmp got NO entry for that row and every file the row names
+# -- not just the ones after the first comma -- was reported "not covered"
+# (#6681), even though (3b) already validated the same row correctly with
+# this exact comma-split/directory-inheritance logic. Factoring both call
+# sites onto one parser means they cannot silently diverge again.
+#
+# Populates an out-array via a nameref (the same pattern
+# scripts/lib/ifa_private_data_pattern.sh and ifa_family_registry.sh already
+# use), not stdout consumed through `< <(...)`, on purpose: this now runs
+# once per doc row (both (3)'s build and (3b)'s validation iterate all_rows_tmp
+# in full, ~975 rows on the real doc). An earlier version returned its
+# tokens by `printf`, read by the caller via `< <(resolve_row_cell_paths
+# ...)`; that process substitution forks a subshell per call, and doing that
+# once per row measurably cost ~11s on the real doc (#6681 review) -- the
+# same per-row-fork cost class this whole change exists to remove from the
+# old rg-per-row implementation, just reintroduced through a different
+# mechanism. A nameref makes this a plain function call: zero forks.
+resolve_row_cell_paths_into() {
+  local -n _rrcp_out="$1"
+  local path_cell="$2" raw_part part token prev_dir=""
+  local -a cell_parts
+  _rrcp_out=()
+  IFS=',' read -ra cell_parts <<<"$path_cell"
+  for raw_part in "${cell_parts[@]}"; do
+    part="$(trim_ws "$raw_part")"
+    [ -n "$part" ] || continue
+    token="${part%% *}"
+    if [[ "$token" =~ ^(.*):[0-9]+(-[0-9]+)?$ ]]; then
+      token="${BASH_REMATCH[1]}"
+    fi
+    [ -n "$token" ] || continue
+    case "$token" in
+      */*) prev_dir="${token%/*}" ;;
+      *) [ -n "$prev_dir" ] && token="${prev_dir}/${token}" ;;
+    esac
+    _rrcp_out+=("$token")
+  done
+}
+
+# path_covers_file <row_path> <file> — true if a single resolved row token
+# (as resolve_row_cell_paths_into emits it) covers a given new-stage file.
+# Used by check (3)'s coverage lookup in verify-telemetry-coverage.sh in
+# place of the old `rg -F " $file"` unanchored substring search, which had
+# two defects sharing this same "the matcher is not anchored to the whole
+# token" root cause (#6681):
+#
+#   (a) no right-hand boundary: a row naming "foo.gox" would report an
+#       unrelated new file "foo.go" as covered, because " foo.go" is a
+#       literal PREFIX of the stored line " foo.go" + "x 1" -- an exact
+#       comparison has no such boundary gap.
+#   (b) a glob row's '*' was matched as a literal character, not expanded,
+#       so a new file that genuinely satisfies the doc's glob-form coverage
+#       (e.g. "dir/*.go" covering a brand new "dir/new_file.go") was
+#       reported uncovered.
+#
+# A token containing '*' is matched via `compgen -G` against the token
+# joined with $file's own directory, NOT bash `[[ "$file" == $row_path ]]`
+# pattern matching: `[[ ]]` pattern matching lets '*' match '/' too, so
+# "dir/*.go" would then also "cover" a brand new "dir/sub/other.go" one
+# level below -- a real file a directory below the glob, which
+# path_target_exists' `compgen -G` (used by (3b) to validate this exact
+# same row) does NOT match, since shell filename globbing stops '*' at a
+# '/' boundary by default. That divergence would silently reopen the
+# (3)/(3b) mismatch class #6681 exists to close, just moved from "cannot
+# parse a comma cell" to "matches a wider set than the glob really
+# covers" (review finding, #6681). Requiring $file to actually appear in
+# the glob's real expansion keeps both checks agreeing on what a glob row
+# does and does not name.
+path_covers_file() {
+  local row_path="$1" file="$2" match
+  case "$row_path" in
+    *'*'*)
+      while IFS= read -r match; do
+        [ -n "$match" ] || continue
+        match="${match#"$repo_root"/}"
+        [ "$match" = "$file" ] && return 0
+      done < <(compgen -G "$repo_root/$row_path" 2>/dev/null || true)
+      return 1
+      ;;
+    *) [ "$file" = "$row_path" ] ;;
+  esac
+}
+
 check_stage_table_rows() {
 while IFS='|' read -ra cols; do
   n="${#cols[@]}"
@@ -110,11 +225,9 @@ while IFS='|' read -ra cols; do
   # Header row (either table shape) or a GFM separator row (plain `---`
   # or colon-alignment `:---`, `:---:`, `---:`) — recognized by content,
   # not position, so it is excluded regardless of which table it belongs
-  # to or where that table sits in the doc.
-  case "$col2" in
-    'file:line'|'boundary_values') continue ;;
-  esac
-  if [[ "$col2" =~ ^[-:]+$ ]]; then
+  # to or where that table sits in the doc. Shared with check (3)'s
+  # doc_row_signals_tmp build via is_doc_table_header_or_separator above.
+  if is_doc_table_header_or_separator "$col2"; then
     continue
   fi
 
@@ -197,35 +310,26 @@ while IFS='|' read -ra cols; do
   # A cell may name more than one target, comma-separated (e.g.
   # "contract.go:389-470, contract_z_observability_coverage.go:10"). A
   # bare filename with no directory in a later part inherits the
-  # directory of the previous part in the same cell.
+  # directory of the previous part in the same cell. Parsed by the shared
+  # resolve_row_cell_paths_into helper above, which check (3)'s
+  # doc_row_signals_tmp build also uses (#6681) -- this used to be its own,
+  # separately written comma-split loop, and check (3) had a completely
+  # different (and broken, for multi-file cells) single-token regex; one
+  # parser for both means they cannot silently diverge again. Populated into
+  # a plain array (not read via `< <(...)` process substitution) to avoid
+  # forking a subshell once per row -- see resolve_row_cell_paths_into's own
+  # comment for the measured cost of getting that wrong.
   #
-  # checked_any tracks whether the comma-split loop below ever reached a
-  # non-empty token. `IFS=',' read -ra path_parts <<<""` yields ZERO array
-  # elements for a blank path_cell, so the loop below silently runs zero
-  # times; a path_cell of only commas/whitespace ("," / " , ") yields
-  # elements that each trim to empty and get skipped by
-  # `[ -n "$part" ] || continue`, reaching the same zero-real-tokens
-  # outcome through a different shape. Both are the same "vanish instead
-  # of fail loud" bug the blank-path P1 finding reported: neither the
-  # per-token existence check nor any other check in this script ever
-  # fires for that row, so it passes forever un-anchored from a real
-  # dispatcher (#5855).
+  # checked_any tracks whether resolve_row_cell_paths_into ever populated a
+  # non-empty token. A blank path_cell, or one that is only commas/
+  # whitespace ("," / " , "), leaves the array empty, so the loop below
+  # runs zero times -- that must still fail loud as malformed rather than
+  # silently pass the row, un-anchored from a real dispatcher (#5855).
   checked_any=0
-  prev_dir=""
-  IFS=',' read -ra path_parts <<<"$path_cell"
-  for raw_part in "${path_parts[@]}"; do
-    part="$(trim_ws "$raw_part")"
-    [ -n "$part" ] || continue
-    token="${part%% *}"
-    if [[ "$token" =~ ^(.*):[0-9]+(-[0-9]+)?$ ]]; then
-      token="${BASH_REMATCH[1]}"
-    fi
+  resolve_row_cell_paths_into row_tokens "$path_cell"
+  for token in "${row_tokens[@]}"; do
     [ -n "$token" ] || continue
     checked_any=1
-    case "$token" in
-      */*) prev_dir="${token%/*}" ;;
-      *) [ -n "$prev_dir" ] && token="${prev_dir}/${token}" ;;
-    esac
     if ! path_target_exists "$token"; then
       report="${report}  - doc row \"${stage_name}\" in ${doc_path} names ${token}, which does not exist
 "
