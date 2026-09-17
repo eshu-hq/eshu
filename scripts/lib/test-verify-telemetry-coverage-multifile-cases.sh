@@ -33,6 +33,34 @@
 #       an existing glob row gets wrongly counted as covered, reopening the
 #       same (3)/(3b) divergence class from a different angle (case 44,
 #       review finding).
+#
+# Case 45 (issue acceptance criterion 2, explicit test per review) pins that
+# (3b) validates EVERY path in a multi-file cell, not just coverage in
+# general -- a non-first path that does not exist must still fail.
+
+# expect_fail_with <label> <dir> <substring> — like expect_fail, but also
+# asserts the verifier's stderr contains <substring>. expect_fail alone only
+# checks a non-zero exit, so a case meant to pin ONE SPECIFIC drift line
+# (e.g. "names <path>, which does not exist" vs. "is not covered by any
+# row") would stay green even if the verifier failed for a wholly unrelated
+# reason -- a tautological guard (#6681 review). Used only by the #6681
+# cases in this file; the pre-existing expect_fail cases elsewhere are
+# untouched. run_verifier (defined by the caller) always writes stderr to
+# /tmp/eshu-telemetry-coverage.err before returning, win or lose.
+expect_fail_with() {
+  local label="$1"
+  local dir="$2"
+  local substring="$3"
+  if run_verifier "${dir}"; then
+    record_fail "${label} (verifier unexpectedly passed)"
+    return
+  fi
+  if rg --fixed-strings --quiet -- "${substring}" /tmp/eshu-telemetry-coverage.err 2>/dev/null; then
+    record_pass "${label}"
+  else
+    record_fail "${label} (failed, but stderr did not contain: ${substring})"
+  fi
+}
 
 # Case 39 (#6681, "#6634 shape"): a new stage file named THIRD of FOUR in a
 # comma-separated multi-file doc row. multifile_a/b/d.go already exist at
@@ -166,3 +194,26 @@ printf 'package subdir\n' >"${case_glob_boundary}/go/internal/reducer/globstage6
 git -C "${case_glob_boundary}" add .
 git -C "${case_glob_boundary}" commit -q -m "add a new file one directory below an existing glob-form doc row"
 expect_fail "does not let a glob row cover a new file one directory below it" "${case_glob_boundary}"
+
+# Case 45 (#6681, issue acceptance criterion 2 -- explicit test, review
+# finding F1): cases 39-41 above prove POSITION-independent COVERAGE (check
+# (3)'s new-stage lookup); this proves check (3b) validates EVERY path in a
+# multi-file cell, not just the ones adjacent to a real dispatcher. a.go and
+# c.go are seeded first (so they are not themselves new stages -- this
+# isolates (3b) from check (3)); the doc row is added in a later commit
+# naming all three, comma-separated, with missing_b.go -- which never
+# exists on disk -- in the MIDDLE, not first. expect_fail_with pins the
+# exact drift line so this cannot pass for an unrelated reason.
+case_multifile_missing_middle="$(init_repo case-multifile-missing-middle)"
+mkdir -p "${case_multifile_missing_middle}/go/internal/reducer/multifile7"
+printf 'package multifile7\n' >"${case_multifile_missing_middle}/go/internal/reducer/multifile7/a.go"
+printf 'package multifile7\n' >"${case_multifile_missing_middle}/go/internal/reducer/multifile7/c.go"
+git -C "${case_multifile_missing_middle}" add .
+git -C "${case_multifile_missing_middle}" commit -q -m "seed two pre-existing multifile7 files"
+cat >>"${case_multifile_missing_middle}/docs/public/observability/telemetry-coverage.md" <<'MD'
+
+| multifile7 stage | go/internal/reducer/multifile7/a.go, go/internal/reducer/multifile7/missing_b.go, go/internal/reducer/multifile7/c.go | `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
+MD
+git -C "${case_multifile_missing_middle}" add .
+git -C "${case_multifile_missing_middle}" commit -q -m "add multi-file row whose middle (non-first) path does not exist"
+expect_fail_with "fails when a multi-file row's non-first path does not exist" "${case_multifile_missing_middle}" "names go/internal/reducer/multifile7/missing_b.go, which does not exist"

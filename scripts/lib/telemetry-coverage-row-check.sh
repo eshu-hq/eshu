@@ -103,9 +103,21 @@ is_doc_table_header_or_separator() {
   [[ "$1" =~ ^[-:]+$ ]]
 }
 
-# resolve_row_cell_paths_into <array_name> <path_cell> — populate the
-# caller's array (a bash 4.3+ nameref; cleared first) with one resolved
-# path/glob token per element for a cell that may name one or more
+# ROW_CELL_PATHS: output array for resolve_row_cell_paths_into below, reset
+# at the start of every call. A documented global, not a bash 4.3+ nameref
+# (`local -n`): macOS's bundled /bin/bash is 3.2, which this repo's dev
+# matrix must still run under, and 3.2 rejects `local -n` as an unknown
+# `local` option -- a hard parse-time error under `set -e`, not a silent
+# no-op (confirmed: `bash scripts/test-verify-telemetry-coverage.sh` under
+# a `/bin/bash` 3.2 shim failed 16/47 with exactly that error, #6681
+# review). Every call site below reads ROW_CELL_PATHS immediately after
+# calling resolve_row_cell_paths_into, before any other call that might
+# reuse it; this script is single-threaded with no recursion, so that
+# ordering is the only contract.
+ROW_CELL_PATHS=()
+
+# resolve_row_cell_paths_into <path_cell> — populate ROW_CELL_PATHS with one
+# resolved path/glob token per element for a cell that may name one or more
 # comma-separated targets (e.g. "contract.go:389-470,
 # contract_z_observability_coverage.go:10"). Strips a trailing ":N" / ":N-M"
 # line-number suffix from each token and lets a bare filename with no
@@ -126,24 +138,20 @@ is_doc_table_header_or_separator() {
 # this exact comma-split/directory-inheritance logic. Factoring both call
 # sites onto one parser means they cannot silently diverge again.
 #
-# Populates an out-array via a nameref (the same pattern
-# scripts/lib/ifa_private_data_pattern.sh and ifa_family_registry.sh already
-# use), not stdout consumed through `< <(...)`, on purpose: this now runs
-# once per doc row (both (3)'s build and (3b)'s validation iterate all_rows_tmp
-# in full, ~975 rows on the real doc). An earlier version returned its
-# tokens by `printf`, read by the caller via `< <(resolve_row_cell_paths
-# ...)`; that process substitution forks a subshell per call, and doing that
-# once per row measurably cost ~11s on the real doc (#6681 review) -- the
-# same per-row-fork cost class this whole change exists to remove from the
-# old rg-per-row implementation, just reintroduced through a different
-# mechanism. A nameref makes this a plain function call: zero forks.
+# Runs once per doc row from both call sites (~975 on the real doc), so it
+# must not fork: no `$(...)`/`<(...)` around the whole per-row parse (the
+# per-token `$(trim_ws ...)` below still forks, matching (3b)'s existing,
+# unchanged cost). `${cell_parts[@]+"${cell_parts[@]}"}` (not a plain
+# `"${cell_parts[@]}"`) guards the case a cell has zero comma-parts: under
+# `set -u`, bash 3.2 treats a zero-element array expansion as unset and
+# aborts, even though the array was explicitly declared (confirmed by
+# direct test on /bin/bash 3.2; a bug fixed in bash 4.4+).
 resolve_row_cell_paths_into() {
-  local -n _rrcp_out="$1"
-  local path_cell="$2" raw_part part token prev_dir=""
+  local path_cell="$1" raw_part part token prev_dir=""
   local -a cell_parts
-  _rrcp_out=()
+  ROW_CELL_PATHS=()
   IFS=',' read -ra cell_parts <<<"$path_cell"
-  for raw_part in "${cell_parts[@]}"; do
+  for raw_part in ${cell_parts[@]+"${cell_parts[@]}"}; do
     part="$(trim_ws "$raw_part")"
     [ -n "$part" ] || continue
     token="${part%% *}"
@@ -155,7 +163,7 @@ resolve_row_cell_paths_into() {
       */*) prev_dir="${token%/*}" ;;
       *) [ -n "$prev_dir" ] && token="${prev_dir}/${token}" ;;
     esac
-    _rrcp_out+=("$token")
+    ROW_CELL_PATHS+=("$token")
   done
 }
 
@@ -175,8 +183,9 @@ resolve_row_cell_paths_into() {
 #       (e.g. "dir/*.go" covering a brand new "dir/new_file.go") was
 #       reported uncovered.
 #
-# A token containing '*' is matched via `compgen -G` against the token
-# joined with $file's own directory, NOT bash `[[ "$file" == $row_path ]]`
+# A token containing '*' is matched by expanding `compgen -G
+# "$repo_root/$row_path"` and checking whether $file (made repo_root-relative
+# again) is among the real matches, NOT bash `[[ "$file" == $row_path ]]`
 # pattern matching: `[[ ]]` pattern matching lets '*' match '/' too, so
 # "dir/*.go" would then also "cover" a brand new "dir/sub/other.go" one
 # level below -- a real file a directory below the glob, which
@@ -311,23 +320,24 @@ while IFS='|' read -ra cols; do
   # "contract.go:389-470, contract_z_observability_coverage.go:10"). A
   # bare filename with no directory in a later part inherits the
   # directory of the previous part in the same cell. Parsed by the shared
-  # resolve_row_cell_paths_into helper above, which check (3)'s
-  # doc_row_signals_tmp build also uses (#6681) -- this used to be its own,
-  # separately written comma-split loop, and check (3) had a completely
-  # different (and broken, for multi-file cells) single-token regex; one
-  # parser for both means they cannot silently diverge again. Populated into
-  # a plain array (not read via `< <(...)` process substitution) to avoid
-  # forking a subshell once per row -- see resolve_row_cell_paths_into's own
-  # comment for the measured cost of getting that wrong.
+  # resolve_row_cell_paths_into helper above (into the global
+  # ROW_CELL_PATHS), which check (3)'s doc_row_signals_tmp build also uses
+  # (#6681) -- this used to be its own, separately written comma-split
+  # loop, and check (3) had a completely different (and broken, for
+  # multi-file cells) single-token regex; one parser for both means they
+  # cannot silently diverge again.
   #
   # checked_any tracks whether resolve_row_cell_paths_into ever populated a
   # non-empty token. A blank path_cell, or one that is only commas/
-  # whitespace ("," / " , "), leaves the array empty, so the loop below
+  # whitespace ("," / " , "), leaves ROW_CELL_PATHS empty, so the loop below
   # runs zero times -- that must still fail loud as malformed rather than
   # silently pass the row, un-anchored from a real dispatcher (#5855).
+  # `${ROW_CELL_PATHS[@]+"${ROW_CELL_PATHS[@]}"}`, not a plain
+  # `"${ROW_CELL_PATHS[@]}"`, guards that empty case under bash 3.2 (see
+  # resolve_row_cell_paths_into's own comment).
   checked_any=0
-  resolve_row_cell_paths_into row_tokens "$path_cell"
-  for token in "${row_tokens[@]}"; do
+  resolve_row_cell_paths_into "$path_cell"
+  for token in ${ROW_CELL_PATHS[@]+"${ROW_CELL_PATHS[@]}"}; do
     [ -n "$token" ] || continue
     checked_any=1
     if ! path_target_exists "$token"; then

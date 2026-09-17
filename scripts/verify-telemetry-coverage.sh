@@ -236,17 +236,7 @@ source "${script_dir}/lib/telemetry-coverage-row-check.sh"
 # Only built when there is a new stage file to check: this used to build
 # unconditionally, forking two `rg` per doc row (2 * 975 real-doc rows) to
 # populate a table check (3) may never read -- the common case (no new
-# stage files). Measured on the real doc (no new files, so this build was a
-# no-op either way; `time`, 3 runs, `real` seconds): unfixed avg ~101.6s
-# (105.32/97.55/102.02), fixed avg ~87.7s (86.34/86.57/90.25) -- real but
-# modest, ~14s/~14%, not the dramatic win the row count alone suggests.
-# Per-check profiling on the same run attributes that ~87.7s as: ~3.7s
-# checks (1)/(2) (untouched), ~9.8s inside (3b) itself (the pre-existing
-# `$(trim_ws ...)` per-cell fork pattern documented at cell_has_signal, not
-# added by this change), ~0s this build and check (3)'s lookup (both
-# no-ops here), and ~72.2s in check (5) below (one `git grep` per
-# instrument-field alternation over go/sdk/examples) -- the real dominant
-# cost in this script, before and after, untouched by this fix (#6681).
+# stage files). See the PR description for measured before/after timing.
 doc_row_signals_tmp="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp" "$registered_anywhere_tmp"' EXIT
 : >"$doc_row_signals_tmp"
@@ -266,11 +256,13 @@ if [ -s "$all_rows_tmp" ] && [ -s "$new_stages_tmp" ]; then
     else
       dr_signal=0
     fi
-    # Nameref array output, not `< <(resolve_row_cell_paths_into ...)`: see
-    # that function's own comment for the measured per-row subshell-fork
-    # cost of getting this wrong.
-    resolve_row_cell_paths_into dr_tokens "$dr_col2"
-    for dr_token in "${dr_tokens[@]}"; do
+    # Global-array output (ROW_CELL_PATHS), not a bash 4.3+ nameref and not
+    # `< <(resolve_row_cell_paths_into ...)`: see that function's own
+    # comment in telemetry-coverage-row-check.sh for why (bash 3.2
+    # compatibility, and the per-row subshell-fork cost of the process-
+    # substitution alternative).
+    resolve_row_cell_paths_into "$dr_col2"
+    for dr_token in ${ROW_CELL_PATHS[@]+"${ROW_CELL_PATHS[@]}"}; do
       [ -n "$dr_token" ] || continue
       printf ' %s %s\n' "$dr_token" "$dr_signal" >>"$doc_row_signals_tmp"
     done
