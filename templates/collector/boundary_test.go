@@ -16,11 +16,13 @@ import (
 // keeps a standalone collector repository standalone: no Eshu internal
 // implementation imports and no cross-collector implementation imports. Only
 // the published SDK modules plus the standard library and yaml are allowed.
+// The self-import prefix is derived from go.mod so renaming the module can
+// never desync this allowlist.
 func TestImportBoundaryRejectsCoreAndCrossCollectorImports(t *testing.T) {
 	t.Parallel()
 
 	allowedPrefixes := []string{
-		"github.com/eshu-hq/eshu-collector-template",
+		modulePath(t),
 		"github.com/eshu-hq/eshu/sdk/go/collector",
 		"github.com/eshu-hq/eshu/sdk/go/factschema",
 		"gopkg.in/yaml.v3",
@@ -76,6 +78,26 @@ func TestImportBoundaryRejectsCoreAndCrossCollectorImports(t *testing.T) {
 	if len(violations) > 0 {
 		t.Fatalf("forbidden imports:\n%s", strings.Join(violations, "\n"))
 	}
+}
+
+// modulePath reads the repository's own module path from go.mod so the
+// self-import allowlist entry tracks renames automatically.
+func modulePath(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("go.mod")
+	if err != nil {
+		t.Fatalf("os.ReadFile(go.mod) error = %v", err)
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if path, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
+			if strings.TrimSpace(path) == "" {
+				break
+			}
+			return strings.TrimSpace(path)
+		}
+	}
+	t.Fatal("go.mod declares no module path")
+	return ""
 }
 
 func isStandardOrRelative(importPath string) bool {

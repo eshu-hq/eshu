@@ -26,4 +26,4 @@ services:
       CORE_SUBMIT_URL: ${CORE_SUBMIT_URL:?set CORE_SUBMIT_URL to the target core claim endpoint}
       CORE_GRAPH_READ_URL_TEMPLATE: ${CORE_GRAPH_READ_URL_TEMPLATE:?set to the target core graph-read URL with %s for the stable key}
       CORE_API_READ_URL_TEMPLATE: ${CORE_API_READ_URL_TEMPLATE:?set to the target core API-read URL with %s for the stable key}
-      CORE_MCP_READ_COMMAND: ${CORE_MCP_READ_COMMAND:?set to the MCP read command receiving the stable key as $1}
+      CORE_MCP_READ_COMMAND: ${CORE_MCP_READ_COMMAND:?set to the MCP read command receiving the stable key as $$1}

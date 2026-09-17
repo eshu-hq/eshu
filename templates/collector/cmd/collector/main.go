@@ -36,16 +36,29 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 	inputPath := flags.String("input", "testdata/complete.json", "source JSON input file")
 	sourceURI := flags.String("source-uri", "https://example.invalid/source/template", "credential-free source URI")
 	previousDigest := flags.String("previous-digest", "", "previous report digest for unchanged detection")
+	maxRecords := flags.Int("max-records", 0, "max records per claim (0 selects the default bound)")
+	maxPayloadBytes := flags.Int("max-payload-bytes", 0, "max payload bytes per fact (0 selects the default bound)")
+	claimTimeoutSeconds := flags.Int("claim-timeout-seconds", 0, "claim timeout in seconds (0 selects the default bound)")
 	sdkStdio := flags.Bool("sdk-stdio", false, "read one collector SDK host request from stdin")
 	if err := flags.Parse(args); err != nil {
 		return err
+	}
+	limits := collector.DefaultResourceUse()
+	if *maxRecords > 0 {
+		limits.MaxRecordsPerClaim = *maxRecords
+	}
+	if *maxPayloadBytes > 0 {
+		limits.MaxPayloadBytes = *maxPayloadBytes
+	}
+	if *claimTimeoutSeconds > 0 {
+		limits.ClaimTimeoutSeconds = *claimTimeoutSeconds
 	}
 	var result sdk.Result
 	var err error
 	if *sdkStdio {
 		result, err = collectSDKStdio(stdin)
 	} else {
-		result, err = collectLocalFlags(*inputPath, *sourceURI, *previousDigest)
+		result, err = collectLocalFlags(*inputPath, *sourceURI, *previousDigest, limits)
 	}
 	if err != nil {
 		return err
@@ -55,7 +68,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 	return encoder.Encode(result)
 }
 
-func collectLocalFlags(inputPath, sourceURI, previousDigest string) (sdk.Result, error) {
+func collectLocalFlags(inputPath, sourceURI, previousDigest string, limits collector.ResourceUse) (sdk.Result, error) {
 	file, err := os.Open(inputPath)
 	if err != nil {
 		return sdk.Result{}, err
@@ -69,6 +82,7 @@ func collectLocalFlags(inputPath, sourceURI, previousDigest string) (sdk.Result,
 		ObservedAt:     time.Now().UTC(),
 		SourceURI:      sourceURI,
 		PreviousDigest: previousDigest,
+		Limits:         limits,
 	})
 }
 
@@ -93,11 +107,23 @@ func collectSDKStdio(stdin io.Reader) (sdk.Result, error) {
 	if err != nil {
 		return sdk.Result{}, err
 	}
-	sourceURI, _ := nestedString(request.Config, "source", "sourceURI")
-	if strings.TrimSpace(sourceURI) == "" {
+	// A missing key falls back to the placeholder; a present-but-malformed
+	// value fails closed instead of silently emitting against the placeholder.
+	sourceURI, present, err := nestedOptionalString(request.Config, "source", "sourceURI")
+	if err != nil {
+		return sdk.Result{}, err
+	}
+	if !present || strings.TrimSpace(sourceURI) == "" {
 		sourceURI = "https://example.invalid/source/template"
 	}
-	previousDigest, _ := nestedString(request.Config, "freshness", "previousDigest")
+	previousDigest, _, err := nestedOptionalString(request.Config, "freshness", "previousDigest")
+	if err != nil {
+		return sdk.Result{}, err
+	}
+	limits, err := nestedLimits(request.Config)
+	if err != nil {
+		return sdk.Result{}, err
+	}
 	file, err := os.Open(inputPath)
 	if err != nil {
 		return sdk.Result{}, err
@@ -115,6 +141,7 @@ func collectSDKStdio(stdin io.Reader) (sdk.Result, error) {
 		ObservedAt:     time.Now().UTC(),
 		SourceURI:      sourceURI,
 		PreviousDigest: previousDigest,
+		Limits:         limits,
 	})
 }
 
@@ -137,20 +164,81 @@ func demoClaim() sdk.Claim {
 }
 
 func nestedString(config map[string]any, keys ...string) (string, error) {
+	value, present, err := nestedOptionalString(config, keys...)
+	if err != nil {
+		return "", err
+	}
+	if !present {
+		return "", fmt.Errorf("config %q missing", strings.Join(keys, "."))
+	}
+	return value, nil
+}
+
+// nestedOptionalString separates "missing" (present=false, err=nil, caller
+// may default) from "malformed" (err non-nil, caller must fail closed).
+func nestedOptionalString(config map[string]any, keys ...string) (string, bool, error) {
 	var current any = config
 	for _, key := range keys {
 		m, ok := current.(map[string]any)
 		if !ok {
-			return "", fmt.Errorf("config %q missing", strings.Join(keys, "."))
+			return "", false, nil
 		}
 		current, ok = m[key]
 		if !ok {
-			return "", fmt.Errorf("config %q missing", strings.Join(keys, "."))
+			return "", false, nil
 		}
 	}
 	s, ok := current.(string)
 	if !ok {
-		return "", fmt.Errorf("config %q must be a string", strings.Join(keys, "."))
+		return "", true, fmt.Errorf("config %q must be a string", strings.Join(keys, "."))
 	}
-	return s, nil
+	return s, true, nil
+}
+
+// nestedLimits reads the optional limits block from config.example.yaml's
+// shape (limits.maxRecordsPerClaim, limits.maxPayloadBytes,
+// limits.claimTimeoutSeconds). Absent or partial blocks select
+// DefaultResourceUse for the missing fields; malformed values fail closed.
+func nestedLimits(config map[string]any) (collector.ResourceUse, error) {
+	limits := collector.DefaultResourceUse()
+	for _, field := range []struct {
+		key    string
+		target *int
+	}{
+		{"maxRecordsPerClaim", &limits.MaxRecordsPerClaim},
+		{"maxPayloadBytes", &limits.MaxPayloadBytes},
+		{"claimTimeoutSeconds", &limits.ClaimTimeoutSeconds},
+	} {
+		raw, present, err := nestedOptionalNumber(config, "limits", field.key)
+		if err != nil {
+			return collector.ResourceUse{}, err
+		}
+		if present {
+			*field.target = raw
+		}
+	}
+	return limits, nil
+}
+
+func nestedOptionalNumber(config map[string]any, keys ...string) (int, bool, error) {
+	var current any = config
+	for _, key := range keys {
+		m, ok := current.(map[string]any)
+		if !ok {
+			return 0, false, nil
+		}
+		current, ok = m[key]
+		if !ok {
+			return 0, false, nil
+		}
+	}
+	switch number := current.(type) {
+	case float64:
+		if number != float64(int(number)) || number <= 0 {
+			return 0, true, fmt.Errorf("config %q must be a positive integer", strings.Join(keys, "."))
+		}
+		return int(number), true, nil
+	default:
+		return 0, true, fmt.Errorf("config %q must be a number", strings.Join(keys, "."))
+	}
 }
