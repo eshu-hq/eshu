@@ -27,14 +27,14 @@
   | --- | --- |
   | `../infra/search` | 1 |
   | `../impact` | 9 |
-  | `../codeflow` | 4 |
-  | `../codeintel` | 8 |
-  | `../deadcode` | 3 |
-  | `../codequality` | 3 |
-  | `../entityresolution` | 3 |
-  | `../iacmanagement` | 7 |
+  | `../code/flow` | 4 |
+  | `../code/intel` | 8 |
+  | `../code/dead` | 3 |
+  | `../code/quality` | 3 |
+  | `../entity/resolution` | 3 |
+  | `../iac/management` | 7 |
   | `../infra/inventory` | 4 |
-  | `../servicecontext` | 4 |
+  | `../service/context` | 4 |
 
   Counts are derived from each selector's own route table, not from the tool
   registration list here. Add a row when a family is extracted -- this list went

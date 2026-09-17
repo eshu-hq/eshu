@@ -11,7 +11,7 @@
 5. `../../../dispatch_repositories.go` for the repository switch this family is
    answered ahead of.
 6. `../../../contract/route/README.md` for the dependency-neutral request contract.
-7. `../../../supplychainimpact/README.md` to see why that sibling family stays
+7. `../impact/README.md` to see why that sibling family stays
    separate: it selects requests for reducer-derived supply-chain-impact
    findings, not source-only evidence.
 

@@ -15,7 +15,7 @@ execution, response envelopes, transport, and telemetry.
 Routing remains split in the parent package. Ecosystem summaries and change
 planning enter through `dispatch_ecosystem.go`; repository reads enter through
 `dispatch_repositories.go`, while package-registry request selection lives in
-`../packageregistry` and reaches dispatch through the `packageRegistryRoute`
+`../package/registry` and reaches dispatch through the `packageRegistryRoute`
 adapter; infrastructure-search request selection lives in `../infra/search` and
 reaches dispatch through the `infraResourceSearchRoute` adapter in
 `dispatch_infra_search.go`, while the other infrastructure reads enter through
