@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/deadcode"
+	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 

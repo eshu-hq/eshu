@@ -101,8 +101,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/codeintel ./internal/mcp -count=1
-go vet ./internal/mcp/codeintel ./internal/mcp
+go test ./internal/mcp/code/intel ./internal/mcp -count=1
+go vet ./internal/mcp/code/intel ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

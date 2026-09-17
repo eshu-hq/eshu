@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/codeflow"
+	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 

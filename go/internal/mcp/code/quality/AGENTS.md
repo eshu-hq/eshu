@@ -109,8 +109,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/codequality ./internal/mcp -count=1
-go vet ./internal/mcp/codequality ./internal/mcp
+go test ./internal/mcp/code/quality ./internal/mcp -count=1
+go vet ./internal/mcp/code/quality ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

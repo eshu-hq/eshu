@@ -34,7 +34,7 @@
    Package-registry request selection itself lives in
    `go/internal/mcp/packageregistry`, CI/CD run-correlation request selection in
    `go/internal/mcp/cicd`, CODEOWNERS ownership request selection in
-   `go/internal/mcp/codeowners`, secrets/IAM posture request selection in
+   `go/internal/mcp/code/owners`, secrets/IAM posture request selection in
    `go/internal/mcp/secretsiam`, observability-coverage request selection in
    `go/internal/mcp/observabilitycoverage`, container-image identity request
    selection in `go/internal/mcp/containerimage`, supply-chain-impact request
@@ -50,11 +50,11 @@
    selection in `go/internal/mcp/kubernetes`, infrastructure-search
    request selection in `go/internal/mcp/infrasearch`, impact-analysis
    request selection in `go/internal/mcp/impact`, code-flow request
-   selection in `go/internal/mcp/codeflow`, dead-code,
+   selection in `go/internal/mcp/code/flow`, dead-code,
    complexity/quality, entity-resolution, and content request selection in
-   `go/internal/mcp/deadcode`, `go/internal/mcp/codequality`,
+   `go/internal/mcp/code/dead`, `go/internal/mcp/code/quality`,
    `go/internal/mcp/entityresolution`, and `go/internal/mcp/content`,
-   code-intelligence request selection in `go/internal/mcp/codeintel`,
+   code-intelligence request selection in `go/internal/mcp/code/intel`,
    IaC-management request selection in `go/internal/mcp/iacmanagement`,
    whose `deadCodeRoute`, `codeQualityRoute`, `entityResolutionRoute`,
    `codeIntelRoute`, `iacManagementRoute`, and `contentRoute` adapters live
@@ -160,7 +160,7 @@
 - **Change an existing tool's argument mapping** → first find where the tool is
   routed. Tools still routed by an inline `case` are mapped in `resolveRoute` in
   `dispatch.go`; tools delegated to a child selector are mapped in that child's
-  `routes.go` (for example `go/internal/mcp/codeintel/routes.go`), and
+  `routes.go` (for example `go/internal/mcp/code/intel/routes.go`), and
   `dispatch.go` holds only the delegating adapter. Then update the matching
   `tools_*.go` `InputSchema`, and update or add a test beside the mapping you
   changed. Why: the `InputSchema` is the advertised contract; mismatches between

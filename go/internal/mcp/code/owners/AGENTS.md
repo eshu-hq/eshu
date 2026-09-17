@@ -71,8 +71,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/codeowners ./internal/mcp -count=1
-go vet ./internal/mcp/codeowners ./internal/mcp
+go test ./internal/mcp/code/owners ./internal/mcp -count=1
+go vet ./internal/mcp/code/owners ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

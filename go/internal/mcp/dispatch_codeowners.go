@@ -4,7 +4,7 @@
 package mcp
 
 import (
-	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/codeowners"
+	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/code/owners"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 

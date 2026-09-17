@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"testing"
 
-	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/codequality"
+	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"
 )
 

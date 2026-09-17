@@ -14,10 +14,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 
-	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/codeintel"
-	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/codequality"
+	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
+	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
+	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 	contenttools "github.com/eshu-hq/eshu/go/internal/mcp/content"
-	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/deadcode"
 	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entityresolution"
 	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iacmanagement"
 	"github.com/eshu-hq/eshu/go/internal/mcp/routecontract"

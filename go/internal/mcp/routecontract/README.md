@@ -10,8 +10,8 @@ HTTP request without importing the parent MCP package.
 This package owns decoded argument access and the selected request value. It
 does not own tool names, family membership, or route-selection policy. Family
 packages such as `internal/mcp/admissiondecisions`, `internal/mcp/ask`,
-`internal/mcp/cicd`, `internal/mcp/codeflow`, `internal/mcp/codeowners`,
-`internal/mcp/codequality`, `internal/mcp/containerimage`, `internal/mcp/deadcode`,
+`internal/mcp/cicd`, `internal/mcp/code/flow`, `internal/mcp/code/owners`,
+`internal/mcp/code/quality`, `internal/mcp/containerimage`, `internal/mcp/code/dead`,
 `internal/mcp/entityresolution`,
 `internal/mcp/impact`, `internal/mcp/infrasearch`, `internal/mcp/kubernetes`,
 `internal/mcp/observabilitycoverage`, `internal/mcp/packageregistry`,

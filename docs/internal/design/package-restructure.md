@@ -1305,7 +1305,7 @@ The CODEOWNERS ownership route family is the third Wave 2 MCP extraction and
 the smallest: one tool, one arm of the same `repositoryRoute` switch. Its
 request builder sat in `dispatch_codeowners.go` beside a private
 `optionalIntString` helper that nothing else called. Family membership, the
-builder, and that helper now live under `internal/mcp/codeowners`, and
+builder, and that helper now live under `internal/mcp/code/owners`, and
 `dispatch_codeowners.go` keeps only the thin `codeownersRoute` adapter. Root
 keeps the tool definition and its assembly position, global fanout order,
 dispatch, authorization, transport, timeouts, response budgets, envelopes,
@@ -1677,7 +1677,7 @@ four tools -- `dispatch_taint_path`, `dispatch_reaching_def`,
 `codeFlowRoute` in `dispatch_code_flow.go`, already an isolated delegation
 consulted from `resolveRoute` ahead of the code-relationship delegation and
 the main switch. Family membership and the shared six-key request builder now
-live under `internal/mcp/codeflow`, and `dispatch_code_flow.go` keeps only
+live under `internal/mcp/code/flow`, and `dispatch_code_flow.go` keeps only
 the thin `codeFlowRoute` adapter at the same delegation position, so
 `resolveRoute` keeps 20 delegations and 49 cases -- 69 ordered arms -- on
 both sides and no other family's resolution order changes. Root keeps the
@@ -1709,7 +1709,7 @@ already-isolated delegation or fallback. Its three tools — `find_dead_code`,
 `investigate_dead_code`, and `find_cross_repo_dead_code` — were three inline
 arms sharing the `exclude_decorated_with` vocabulary and the `limit` 100
 default; family membership and the three request builders now live under
-`internal/mcp/deadcode`, and the thin `deadCodeRoute` adapter lives in
+`internal/mcp/code/dead`, and the thin `deadCodeRoute` adapter lives in
 `dispatch.go` itself — a new adapter file would have grown the root non-test
 file set past its dirgate pin of 106, which every extraction so far has held.
 The delegation is consulted with the other route delegations ahead of the
@@ -1746,7 +1746,7 @@ second to lift case arms out of `dispatch.go`'s own switch. Its three tools —
 `calculate_cyclomatic_complexity`, `find_most_complex_functions`, and
 `inspect_code_quality` — were three inline arms whose first two share the
 `POST /api/v0/code/complexity` path and handler; family membership and the
-three request builders now live under `internal/mcp/codequality`, and the
+three request builders now live under `internal/mcp/code/quality`, and the
 thin `codeQualityRoute` adapter lives in `dispatch.go` itself, beside
 `deadCodeRoute`, for the same dirgate reason. The delegation is consulted
 with the other route delegations ahead of the switch, which no caller can

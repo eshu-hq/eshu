@@ -31,7 +31,7 @@ label to a live artifact:
   so the ref equals the label. Two of those are literal case strings in
   `dispatch.go`'s own switch (`execute_language_query`,
   `trace_route_callers`). `find_dead_code` is claimed and selected by
-  `deadcodetools.Route` (`go/internal/mcp/deadcode`),
+  `deadcodetools.Route` (`go/internal/mcp/code/dead`),
   `trace_deployment_chain` and
   `trace_resource_to_code` are claimed and selected by `impacttools.Route`
   (`go/internal/mcp/impact`), and `get_code_relationship_story` and

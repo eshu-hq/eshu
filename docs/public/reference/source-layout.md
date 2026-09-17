@@ -49,11 +49,12 @@ live in the repository today.
 | `go/internal/mcp/ask/` | Ask Eshu MCP registration plus pure family membership and dependency-neutral route selection |
 | `go/internal/mcp/cicd/` | CI/CD run-correlation MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/cloud/` | cloud inventory and runtime-drift MCP tool registration definitions |
-| `go/internal/mcp/codeflow/` | code-flow MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/codeowners/` | CODEOWNERS ownership MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/codequality/` | complexity/quality MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/flow/` | code-flow MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/intel/` | code-intelligence MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/owners/` | CODEOWNERS ownership MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/quality/` | complexity/quality MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/containerimage/` | container-image identity, tag-history, and aggregate MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/deadcode/` | dead-code MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/code/dead/` | dead-code MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/documentation/` | documentation-family MCP tool registration definitions |
 | `go/internal/mcp/ecosystem/` | ecosystem, repository-context, infrastructure-impact, and change-planning MCP tool registration definitions |
 | `go/internal/mcp/entityresolution/` | entity-resolution MCP family membership and dependency-neutral route selection |
@@ -199,15 +200,17 @@ Read and operator surfaces live under:
   dependency-neutral request selection
 - `go/internal/mcp/cicd/`: CI/CD run-correlation family membership and pure
   dependency-neutral request selection
-- `go/internal/mcp/codeflow/`: code-flow family membership and pure
+- `go/internal/mcp/code/flow/`: code-flow family membership and pure
   dependency-neutral request selection
-- `go/internal/mcp/codeowners/`: CODEOWNERS ownership family membership and
+- `go/internal/mcp/code/intel/`: code-intelligence family membership and pure
+  dependency-neutral request selection
+- `go/internal/mcp/code/owners/`: CODEOWNERS ownership family membership and
   pure dependency-neutral request selection
-- `go/internal/mcp/codequality/`: complexity/quality family membership and
+- `go/internal/mcp/code/quality/`: complexity/quality family membership and
   pure dependency-neutral request selection
 - `go/internal/mcp/containerimage/`: container-image identity family membership
   and pure dependency-neutral request selection
-- `go/internal/mcp/deadcode/`: dead-code family membership and pure
+- `go/internal/mcp/code/dead/`: dead-code family membership and pure
   dependency-neutral request selection
 - `go/internal/mcp/entityresolution/`: entity-resolution family membership
   and pure dependency-neutral request selection
