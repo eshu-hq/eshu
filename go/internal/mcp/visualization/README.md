@@ -56,8 +56,8 @@ executes the request.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP route contract](../routecontract/README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP route contract](../contract/route/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [Visualization packets](../../../../docs/public/reference/visualization-packets.md)
 
 ## Verification

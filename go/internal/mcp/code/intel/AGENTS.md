@@ -3,17 +3,17 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch.go` for `resolveRoute` and the private `codeIntelRoute`
+4. `../../dispatch.go` for `resolveRoute` and the private `codeIntelRoute`
    adapter, consulted as a delegation ahead of the switch that held the eight
    arms before the extraction.
-5. `../tools_codebase.go`, `../tools_code_topic.go`,
-   `../tools_call_graph_metrics.go`, `../tools_structural_inventory.go`, and
-   `../tools_route_to_caller.go` for the eight advertised schemas. They stay
+5. `../../tools_codebase.go`, `../../tools_code_topic.go`,
+   `../../tools_call_graph_metrics.go`, `../../tools_structural_inventory.go`, and
+   `../../tools_route_to_caller.go` for the eight advertised schemas. They stay
    at the parent's root and must keep naming the same fields this builder
    selects.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. The `go/internal/query` handler behind each path, for the limit/offset
    clamps and required-field checks this package's defaults must stay
    compatible with. The handler filenames do not mirror the tool names, so

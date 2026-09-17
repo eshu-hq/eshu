@@ -60,7 +60,7 @@ authorization, query execution, response shaping, transport, or telemetry.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [Investigation workflows](../../../../docs/public/reference/investigation-workflows.md)
 - [Investigation evidence packets](../../../../docs/public/reference/investigation-evidence-packet.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)

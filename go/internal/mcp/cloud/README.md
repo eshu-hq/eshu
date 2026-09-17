@@ -51,7 +51,7 @@ authorization, query execution, or telemetry.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [Multi-cloud collector contract](../../../../docs/public/reference/multi-cloud-collector-contract.md)
 
 ## Verification

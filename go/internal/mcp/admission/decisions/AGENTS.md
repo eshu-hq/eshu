@@ -3,16 +3,16 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch_admission_decisions.go` and
-   `../dispatch_admission_decisions_contract_test.go` for the root adapter and
+4. `../../dispatch_admission_decisions.go` and
+   `../../dispatch_admission_decisions_contract_test.go` for the root adapter and
    the production-boundary proof.
-5. `../dispatch_repositories.go` for the repository switch this family is
+5. `../../dispatch_repositories.go` for the repository switch this family is
    answered ahead of.
-6. `../tools_admission_decisions.go` for the advertised schema, which stays at
+6. `../../tools_admission_decisions.go` for the advertised schema, which stays at
    root and must keep naming the same eight fields.
-7. `../routecontract/README.md` for the dependency-neutral request contract.
+7. `../../contract/route/README.md` for the dependency-neutral request contract.
 8. `go/internal/query/admission_decisions.go` for the handler that reads the
    keys this package selects: the required-key check, the state vocabulary,
    the anchor-pair rule, and the limit bound all live there. That bound is not

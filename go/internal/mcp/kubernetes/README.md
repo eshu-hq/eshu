@@ -82,7 +82,7 @@ same query handler executes the request.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP route contract](../routecontract/README.md)
+- [MCP route contract](../contract/route/README.md)
 - [Kubernetes correlation read model](../../../../docs/internal/design/388-kubernetes-correlation-readmodel.md)
 - [HTTP API reference](../../../../docs/public/reference/http-api.md)
 

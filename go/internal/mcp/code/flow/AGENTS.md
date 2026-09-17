@@ -3,17 +3,17 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch_code_flow.go` and `../dispatch_code_flow_contract_test.go` for
+4. `../../dispatch_code_flow.go` and `../../dispatch_code_flow_contract_test.go` for
    the root adapter and the production-boundary proof.
-5. `../dispatch.go` for `resolveRoute`, which consults the adapter as a
+5. `../../dispatch.go` for `resolveRoute`, which consults the adapter as a
    delegation ahead of its own switch — the same position in the chain the
    family's selector answered from before the extraction.
-6. `../tools_code_flow.go` for the four advertised schemas. They stay at the
+6. `../../tools_code_flow.go` for the four advertised schemas. They stay at the
    parent's root and must keep naming the same six fields this builder
    selects.
-7. `../routecontract/README.md` for the dependency-neutral request contract.
+7. `../../contract/route/README.md` for the dependency-neutral request contract.
 8. `go/internal/query/codequery/flow.go` for the handler behind all four paths:
    `normalize()` substitutes 25 for a nonpositive `limit`, clamps above 100,
    floors a negative `line` to 0, and rejects only a blank `repo_id`.

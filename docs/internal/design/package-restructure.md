@@ -1387,7 +1387,7 @@ named for the family. `containerImageIdentitiesRoute` and
 `containerImageTagHistoryRoute` sat in `dispatch_supply_chain.go` beside six
 supply-chain builders that stay there, while the count and inventory builders
 sat alone in `dispatch_container_image_aggregates.go`. All four now live under
-`internal/mcp/containerimage`; the aggregates file is deleted and
+`internal/mcp/container/image`; the aggregates file is deleted and
 `dispatch_container_image.go` takes its place holding only the thin
 `containerImageRoute` adapter. Root keeps the four tool definitions and their
 assembly positions, global fanout order, dispatch, authorization, transport,

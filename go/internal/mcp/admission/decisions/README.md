@@ -82,9 +82,9 @@ same query handler executes the request.
 
 ## Related docs
 
-- [MCP package](../README.md)
-- [MCP route contract](../routecontract/README.md)
-- [HTTP API reference](../../../../docs/public/reference/http-api.md)
+- [MCP package](../../README.md)
+- [MCP route contract](../../contract/route/README.md)
+- [HTTP API reference](../../../../../docs/public/reference/http-api.md)
 
 ## Verification
 

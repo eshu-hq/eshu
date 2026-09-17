@@ -49,7 +49,7 @@ authorization, query execution, response shaping, or telemetry.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [Query playbooks](../../../../docs/public/reference/query-playbooks.md)
 
 ## Verification

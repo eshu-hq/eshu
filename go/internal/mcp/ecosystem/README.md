@@ -67,7 +67,7 @@ authorization, query execution, response shaping, transport, or telemetry.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [MCP impact-analysis route selection](../impact/README.md)
 - [MCP infrastructure-search route selection](../infra/search/README.md)
 - [Source layout](../../../../docs/public/reference/source-layout.md)

@@ -3,15 +3,15 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch_supply_chain.go` and
-   `../dispatch_supply_chain_evidence_contract_test.go` for the root adapter
+4. `../../../dispatch_supply_chain.go` and
+   `../../../dispatch_supply_chain_evidence_contract_test.go` for the root adapter
    and the production-boundary proof.
-5. `../dispatch_repositories.go` for the repository switch this family is
+5. `../../../dispatch_repositories.go` for the repository switch this family is
    answered ahead of.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
-7. `../supplychainimpact/README.md` to see why that sibling family stays
+6. `../../../contract/route/README.md` for the dependency-neutral request contract.
+7. `../../../supplychainimpact/README.md` to see why that sibling family stays
    separate: it selects requests for reducer-derived supply-chain-impact
    findings, not source-only evidence.
 

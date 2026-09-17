@@ -59,8 +59,8 @@ request.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP route contract](../routecontract/README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP route contract](../contract/route/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [Ask local proof](../../../../docs/public/reference/local-testing/ask-eshu-local-proof.md)
 
 ## Verification

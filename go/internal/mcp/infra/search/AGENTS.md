@@ -3,16 +3,16 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch_infra_search.go` and `../dispatch_infra_search_contract_test.go`
+4. `../../dispatch_infra_search.go` and `../../dispatch_infra_search_contract_test.go`
    for the root adapter and the production-boundary proof.
-5. `../dispatch.go` for `resolveRoute`, where the adapter is the last
+5. `../../dispatch.go` for `resolveRoute`, where the adapter is the last
    delegation consulted before the main switch this family used to sit in.
-6. `../ecosystem/infra_search_tools.go` for the advertised schema, which stays
+6. `../../ecosystem/infra_search_tools.go` for the advertised schema, which stays
    in the ecosystem child and must keep naming the same eight fields, the
    same six `category` values, and the same 1..200 `limit` range.
-7. `../routecontract/README.md` for the dependency-neutral request contract.
+7. `../../contract/route/README.md` for the dependency-neutral request contract.
 8. `go/internal/query/infra.go` for the handler that decodes the keys this
    package selects: the scope rule, the category vocabulary, the capability
    check, and the asymmetric `limit` bound all live in `searchResources`.

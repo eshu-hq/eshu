@@ -68,7 +68,7 @@ validation, graph reads, and response shaping.
 ## Related docs
 
 - [MCP package](../README.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 - [HTTP API reference](../../../../docs/public/reference/http-api.md)
 
 ## Verification

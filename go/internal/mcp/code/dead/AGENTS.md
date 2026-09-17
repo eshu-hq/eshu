@@ -3,18 +3,18 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch.go` for `resolveRoute` and the private `deadCodeRoute`
+4. `../../dispatch.go` for `resolveRoute` and the private `deadCodeRoute`
    adapter, consulted as a delegation ahead of the switch that held the three
    arms before the extraction, and
-   `../dispatch_dead_code_contract_test.go` for the production-boundary
+   `../../dispatch_dead_code_contract_test.go` for the production-boundary
    proof.
-5. `../tools_codebase.go`, `../tools_dead_code.go`, and
-   `../tools_cross_repo_dead_code.go` for the three advertised schemas. They
+5. `../../tools_codebase.go`, `../../tools_dead_code.go`, and
+   `../../tools_cross_repo_dead_code.go` for the three advertised schemas. They
    stay at the parent's root and must keep naming the same fields this
    builder selects.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. `go/internal/query/codequery/deadcode/results.go`,
    `go/internal/query/codequery/deadcode/investigation.go`, and
    `go/internal/query/codequery/deadcode/cross_repo.go` for the handlers behind

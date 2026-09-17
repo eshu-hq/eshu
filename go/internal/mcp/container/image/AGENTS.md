@@ -3,16 +3,16 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch_container_image.go` and
-   `../dispatch_container_image_contract_test.go` for the root adapter and the
+4. `../../dispatch_container_image.go` and
+   `../../dispatch_container_image_contract_test.go` for the root adapter and the
    production-boundary proof.
-5. `../dispatch_repositories.go` for the repository switch this family is
-   answered ahead of, and `../dispatch_supply_chain.go` for the six
+5. `../../dispatch_repositories.go` for the repository switch this family is
+   answered ahead of, and `../../dispatch_supply_chain.go` for the six
    supply-chain builders that stayed behind when two of this family's builders
    left it.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../../contract/route/README.md` for the dependency-neutral request contract.
 
 ## Invariants
 
@@ -121,8 +121,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/containerimage ./internal/mcp -count=1
-go vet ./internal/mcp/containerimage ./internal/mcp
+go test ./internal/mcp/container/image ./internal/mcp -count=1
+go vet ./internal/mcp/container/image ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

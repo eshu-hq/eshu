@@ -3,19 +3,19 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch.go` for `resolveRoute`, and
-   `../dispatch_infra_resource_aggregates.go` for the private
+4. `../../dispatch.go` for `resolveRoute`, and
+   `../../dispatch_infra_resource_aggregates.go` for the private
    `infraInventoryRoute` adapter, consulted as a delegation ahead of the
    switch that held the two inline arms (`investigate_resource`,
    `analyze_infra_relationships`) before the extraction.
-5. `../tools_infra_resource_aggregates.go` (for `count_infra_resources` and
-   `get_infra_resource_inventory`) and `../ecosystem/tools.go` (for
+5. `../../tools_infra_resource_aggregates.go` (for `count_infra_resources` and
+   `get_infra_resource_inventory`) and `../../ecosystem/tools.go` (for
    `investigate_resource` and `analyze_infra_relationships`) for the four
    advertised schemas. They stay at the parent's root and must keep naming
    the same fields this builder selects.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. The `go/internal/query` handler behind each path, for the limit/offset
    clamps and required-field checks this package's defaults must stay
    compatible with. Each entry was confirmed with

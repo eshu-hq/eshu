@@ -53,7 +53,7 @@ live in the repository today.
 | `go/internal/mcp/code/intel/` | code-intelligence MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/code/owners/` | CODEOWNERS ownership MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/code/quality/` | complexity/quality MCP family membership and dependency-neutral route selection |
-| `go/internal/mcp/containerimage/` | container-image identity, tag-history, and aggregate MCP family membership and dependency-neutral route selection |
+| `go/internal/mcp/container/image/` | container-image identity, tag-history, and aggregate MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/code/dead/` | dead-code MCP family membership and dependency-neutral route selection |
 | `go/internal/mcp/documentation/` | documentation-family MCP tool registration definitions |
 | `go/internal/mcp/ecosystem/` | ecosystem, repository-context, infrastructure-impact, and change-planning MCP tool registration definitions |
@@ -210,7 +210,7 @@ Read and operator surfaces live under:
   pure dependency-neutral request selection
 - `go/internal/mcp/code/quality/`: complexity/quality family membership and
   pure dependency-neutral request selection
-- `go/internal/mcp/containerimage/`: container-image identity family membership
+- `go/internal/mcp/container/image/`: container-image identity family membership
   and pure dependency-neutral request selection
 - `go/internal/mcp/code/dead/`: dead-code family membership and pure
   dependency-neutral request selection

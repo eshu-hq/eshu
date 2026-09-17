@@ -4,7 +4,7 @@
 package mcp
 
 import (
-	containerimagetools "github.com/eshu-hq/eshu/go/internal/mcp/containerimage"
+	containerimagetools "github.com/eshu-hq/eshu/go/internal/mcp/container/image"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 

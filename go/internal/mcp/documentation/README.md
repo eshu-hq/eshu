@@ -50,7 +50,7 @@ authorization, query execution, or telemetry.
 
 - [MCP package](../README.md)
 - [Documentation updater and actuator contract](../../../../docs/public/reference/documentation-updater-actuator-contract.md)
-- [MCP tool contract](../toolcontract/README.md)
+- [MCP tool contract](../contract/tool/README.md)
 
 ## Verification
 

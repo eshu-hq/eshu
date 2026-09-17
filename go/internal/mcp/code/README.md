@@ -44,4 +44,4 @@ no I/O of its own.
 ## Related docs
 
 - [MCP architecture](../README.md)
-- [Query code family](../../../query/codequery/doc.go)
+- [Query code family](../../query/codequery/doc.go)

@@ -3,16 +3,16 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch_supply_chain_impact.go` and
-   `../dispatch_supply_chain_impact_contract_test.go` for the root adapter and
+4. `../../../dispatch_supply_chain_impact.go` and
+   `../../../dispatch_supply_chain_impact_contract_test.go` for the root adapter and
    the production-boundary proof.
-5. `../dispatch_repositories.go` for the repository switch this family is
-   answered ahead of, and `../dispatch_supply_chain.go` for the four
+5. `../../../dispatch_repositories.go` for the repository switch this family is
+   answered ahead of, and `../../../dispatch_supply_chain.go` for the four
    supply-chain builders that stayed behind when this family's two
    `dispatch_supply_chain.go` builders left it.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../../../contract/route/README.md` for the dependency-neutral request contract.
 
 ## Invariants
 

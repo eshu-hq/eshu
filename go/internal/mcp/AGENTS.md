@@ -37,7 +37,7 @@
    `go/internal/mcp/code/owners`, secrets/IAM posture request selection in
    `go/internal/mcp/secretsiam`, observability-coverage request selection in
    `go/internal/mcp/observabilitycoverage`, container-image identity request
-   selection in `go/internal/mcp/containerimage`, supply-chain-impact request
+   selection in `go/internal/mcp/container/image`, supply-chain-impact request
    selection in `go/internal/mcp/supply/chain/impact`, supply-chain evidence
    (vulnerability-scanner read contract, advisory-evidence, and
    SBOM/attestation attachment) request selection in

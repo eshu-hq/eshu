@@ -3,19 +3,19 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` for MCP routing, authorization, and transport rules.
+2. `../../AGENTS.md` for MCP routing, authorization, and transport rules.
 3. `routes.go` and `routes_test.go` for the child request-selection contract.
-4. `../dispatch.go` for `resolveRoute` and the private `codeQualityRoute`
+4. `../../dispatch.go` for `resolveRoute` and the private `codeQualityRoute`
    adapter, consulted as a delegation ahead of the switch that held the three
    arms before the extraction, and
-   `../dispatch_code_quality_contract_test.go` for the production-boundary
+   `../../dispatch_code_quality_contract_test.go` for the production-boundary
    proof.
-5. `../tools_codebase.go` and `../tools_code_quality.go` for the three
+5. `../../tools_codebase.go` and `../../tools_code_quality.go` for the three
    advertised schemas. They stay at the parent's root and must keep naming
    the same fields this builder selects; `calculate_cyclomatic_complexity`
    also advertises `path` and `scope`, which neither this builder selects nor
    the handler decodes.
-6. `../routecontract/README.md` for the dependency-neutral request contract.
+6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. `go/internal/query/codequery/handler.go` (`handleComplexity`),
    `go/internal/query/codemodel/code_complexity_page.go`, and
    `go/internal/query/codequery/inspection.go` and `go/internal/query/codequery/quality/` for the handlers behind the two paths:
