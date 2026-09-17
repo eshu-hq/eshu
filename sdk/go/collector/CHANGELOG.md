@@ -15,14 +15,16 @@ this module version lines up with core Eshu releases and the wire protocol.
 Tags for this module use the Go subdirectory-module format:
 `sdk/go/collector/vX.Y.Z`.
 
-## [Unreleased] (proposed `v0.2.0`)
+## [Unreleased]
 
-Direction for the next release: additive post-`v0.1.0` changes only.
-Verified against tag `sdk/go/collector/v0.1.0`: no `collector-sdk/v1alpha1`
-wire-protocol change and no removed or renamed exported Go identifier, so this
-stays a minor bump per the rule above. See
+## [0.2.0] - 2026-09-16
+
+Additive post-`v0.1.0` changes only. Verified against tag
+`sdk/go/collector/v0.1.0`: no `collector-sdk/v1alpha1` wire-protocol change
+and no removed or renamed exported Go identifier, so this stays a minor bump
+per the rule above. See
 [SDK Compatibility](../../../docs/public/extend/sdk-compatibility.md) for the
-version row this release will fill.
+version row for this release.
 
 ### Added
 
