@@ -65,7 +65,13 @@ package itself:
 
 - Install, enable, and readback resolve the registry's stored grants, so a
   granted core-kind manifest passes admission while an ungranted one keeps
-  the fail-closed core-owned rejection.
+  the fail-closed core-owned rejection. Install reads the target home's
+  grants before its own pre-validation, which is what makes
+  grant-first-then-install work through the operator CLI.
+- `component verify` stays policy-alone on purpose: it answers whether the
+  manifest passes trust policy without registry context, so a granted
+  core-kind manifest still fails verification there. Verify-then-install
+  is not the grant flow; grant-then-install is.
 - Collector startup loads the grant snapshot for activation and re-reads
   the registry on every emission: a grant revoked or expired during
   execution fails the next result terminal with an `InvalidResult` failure
@@ -104,6 +110,17 @@ the `grant` block; `grants` reports the `grants` list:
 render without a fraction. Failed commands carry the `error` block with the
 stable code operator scripts can branch on (`invalid_input`,
 `grant_not_found`).
+
+## End-to-end scope
+
+The operator-level end-to-end path is CLI-proven: `grant`, then `install`
+of the granted core-kind manifest, then `grants`/`list` readback, then
+`revoke-grant` failing the next admission closed. The live Compose proof
+covers the namespaced external path (source-evidence parity with the
+in-tree PagerDuty contract), not the grant path: no core-emitting
+first-party producer exists yet outside cutover, so there is no granted
+core-kind manifest for the Compose harness to run. The first granted core
+emission will arrive with the #4047 production cutover.
 
 ## Performance and observability evidence
 

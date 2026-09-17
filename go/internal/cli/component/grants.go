@@ -4,6 +4,7 @@
 package component
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -41,7 +42,19 @@ func RunGrant(
 	expiresIn time.Duration,
 	now time.Time,
 ) error {
-	if strings.TrimSpace(producerID) == "" {
+	// Issuance inputs are canonicalized before validation and storage:
+	// admission matches grants by exact string, so a padded value would
+	// otherwise pass validation yet never match — a silent inert grant.
+	producerID = strings.TrimSpace(producerID)
+	version = strings.TrimSpace(version)
+	kind = strings.TrimSpace(kind)
+	scope = strings.TrimSpace(scope)
+	cleanSchemas := make([]string, 0, len(schemaVersions))
+	for _, schemaVersion := range schemaVersions {
+		cleanSchemas = append(cleanSchemas, strings.TrimSpace(schemaVersion))
+	}
+	schemaVersions = cleanSchemas
+	if producerID == "" {
 		err := componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "producer ID is required")
 		return renderError(w, jsonOutput, "grant", err)
 	}
@@ -114,19 +127,19 @@ func RunRevokeGrant(
 		err := componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "producer ID is required")
 		return renderError(w, jsonOutput, "revoke-grant", err)
 	}
-	if err := componentcore.NewRegistry(home).RevokeGrant(producerID, version, kind, scope); err != nil {
+	registry := componentcore.NewRegistry(home)
+	if err := registry.RevokeGrant(producerID, version, kind, scope); err != nil {
 		return renderError(w, jsonOutput, "revoke-grant", err)
 	}
 	if jsonOutput {
-		payload := newCLIOutput("revoke-grant", "revoked")
-		grant := componentcore.ProducerGrant{
-			ProducerID: producerID,
-			Version:    version,
-			Kind:       kind,
-			Scope:      scope,
-			Revoked:    true,
+		// Echo the durable stored grant, not a fabricated block, so
+		// issuance and revocation outputs carry the same shape.
+		stored, err := findStoredGrant(registry, producerID, version, kind, scope)
+		if err != nil {
+			return renderError(w, jsonOutput, "revoke-grant", err)
 		}
-		payload.Grant = &grant
+		payload := newCLIOutput("revoke-grant", "revoked")
+		payload.Grant = &stored
 		return writeJSON(w, payload)
 	}
 	return writef(w, "revoked grant %s@%s kind %s scope %s\n", producerID, version, kind, scope)
@@ -171,6 +184,29 @@ func RunGrants(w io.Writer, jsonOutput bool, home string, producer string) error
 		}
 	}
 	return nil
+}
+
+// findStoredGrant returns the durable grant RevokeGrant just marked
+// revoked. Revocation succeeded, so a missing record is a registry
+// consistency failure, not a silent success.
+func findStoredGrant(registry componentcore.Registry, producerID, version, kind, scope string) (componentcore.ProducerGrant, error) {
+	grants, err := registry.ProducerGrants()
+	if err != nil {
+		return componentcore.ProducerGrant{}, fmt.Errorf("read stored grants: %w", err)
+	}
+	for _, grant := range grants {
+		if grant.ProducerID == producerID &&
+			grant.Version == version &&
+			grant.Kind == kind &&
+			grant.Scope == scope {
+			return grant, nil
+		}
+	}
+	return componentcore.ProducerGrant{}, componentcore.Errorf(
+		componentcore.ErrorCodeCorruptedRegistryState,
+		"revoked grant for %q version %q kind %q scope %q is missing from the registry",
+		producerID, version, kind, scope,
+	)
 }
 
 // validGrantVersion mirrors the manifest metadata.version rule: a semantic

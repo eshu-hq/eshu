@@ -116,6 +116,15 @@ func LoadManifest(path string) (Manifest, error) {
 	return loadManifest(path, nil)
 }
 
+// LoadManifestWithGrants loads and validates a manifest, honoring the given
+// core-issued producer grants for core-owned fact kinds. Home-aware flows
+// (CLI install) pass the registry's durable grants so grant-first-then-
+// install resolves; every other caller uses LoadManifest and stays
+// fail-closed.
+func LoadManifestWithGrants(path string, grants []ProducerGrant) (Manifest, error) {
+	return loadManifest(path, grants)
+}
+
 // loadManifest loads and validates a manifest, honoring the given
 // core-issued producer grants for core-owned fact kinds.
 func loadManifest(path string, grants []ProducerGrant) (Manifest, error) {
