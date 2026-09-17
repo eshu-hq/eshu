@@ -79,6 +79,10 @@ type fakeStatusReader struct {
 	snapshot statuspkg.RawSnapshot
 }
 
+func (r *fakeStatusReader) CheckStatusReadiness(context.Context) error {
+	return nil
+}
+
 func (r *fakeStatusReader) ReadStatusSnapshot(context.Context, time.Time) (statuspkg.RawSnapshot, error) {
 	return r.snapshot, nil
 }

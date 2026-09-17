@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -35,7 +36,7 @@ func TestCombineReadinessProbesAggregatesCausesDeterministically(t *testing.T) {
 	check := combineReadinessProbes([]ReadinessProbe{
 		{Name: "postgres", Check: func(context.Context) error { return errors.New("pool exhausted") }},
 		{Name: "graph", Check: func(context.Context) error { return errors.New("bolt refused") }},
-		{Name: "status_snapshot", Check: func(context.Context) error { return nil }},
+		{Name: "status_schema", Check: func(context.Context) error { return nil }},
 	})
 
 	err := check()
@@ -199,5 +200,39 @@ func TestNewStatusAdminMuxReadyzHealthyWithDependencyProbes(t *testing.T) {
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("GET /readyz status = %d, want %d", got, want)
+	}
+}
+
+func TestNewStatusAdminMuxReadyzDoesNotAggregateStatus(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeStatusReader{err: errors.New("status aggregation timed out")}
+	mux, err := NewStatusAdminMux("eshu-api", reader, nil)
+	if err != nil {
+		t.Fatalf("NewStatusAdminMux() error = %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("GET /readyz status = %d, want %d: %s", got, want, rec.Body.String())
+	}
+	if reader.snapshotCalls != 0 {
+		t.Fatalf("GET /readyz made %d full snapshot calls, want zero", reader.snapshotCalls)
+	}
+	for _, path := range []string{"/admin/status?format=json", "/metrics"} {
+		mux.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, path, nil))
+	}
+	if reader.snapshotCalls != 2 {
+		t.Fatalf("operator routes made %d full snapshot calls, want two", reader.snapshotCalls)
+	}
+}
+
+func TestNewStatusAdminMuxRequiresReadinessChecker(t *testing.T) {
+	t.Parallel()
+
+	reader := struct{ statuspkg.Reader }{Reader: &fakeStatusReader{}}
+	if _, err := NewStatusAdminMux("eshu-api", reader, nil); err == nil {
+		t.Fatal("NewStatusAdminMux() accepted a reader without a readiness checker")
 	}
 }

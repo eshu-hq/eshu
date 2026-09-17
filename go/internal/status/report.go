@@ -5,6 +5,7 @@ package status
 
 import (
 	"context"
+	"errors"
 	"time"
 )
 
@@ -81,6 +82,20 @@ type Reader interface {
 	// gathered according to the selection. Excluded sections are left at their
 	// zero value so callers that never render them avoid the underlying cost.
 	ReadStatusSnapshotFiltered(context.Context, time.Time, SnapshotSelection) (RawSnapshot, error)
+}
+
+// ReadinessChecker validates the status store's core schema without loading
+// the operator snapshot. It is used only by the /readyz dependency probe.
+type ReadinessChecker interface {
+	CheckStatusReadiness(context.Context) error
+}
+
+func checkReaderReadiness(ctx context.Context, reader Reader) error {
+	checker, ok := reader.(ReadinessChecker)
+	if !ok {
+		return errors.New("status reader does not support readiness checks")
+	}
+	return checker.CheckStatusReadiness(ctx)
 }
 
 // Options controls operator-health projection behavior.

@@ -78,6 +78,10 @@ type semanticProviderProfileReader struct {
 	profiles []SemanticProviderProfileStatus
 }
 
+func (r semanticProviderProfileReader) CheckStatusReadiness(ctx context.Context) error {
+	return checkReaderReadiness(ctx, r.reader)
+}
+
 func (r semanticProviderProfileReader) ReadStatusSnapshot(
 	ctx context.Context,
 	asOf time.Time,

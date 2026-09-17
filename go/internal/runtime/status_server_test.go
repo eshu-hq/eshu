@@ -189,7 +189,7 @@ func TestNewStatusAdminServerSurfacesReaderFailureThroughReadyz(t *testing.T) {
 			ServiceName: "collector-git",
 			ListenAddr:  "127.0.0.1:0",
 		},
-		&fakeStatusReader{err: errors.New("postgres unavailable")},
+		&fakeStatusReader{readinessErr: errors.New("postgres unavailable")},
 	)
 	if err != nil {
 		t.Fatalf("NewStatusAdminServer() error = %v, want nil", err)
@@ -445,15 +445,22 @@ func (s *fakeRecoveryStoreForStatus) ReplayCollectorGenerations(
 // --- existing stubs ---
 
 type fakeStatusReader struct {
-	snapshot statuspkg.RawSnapshot
-	err      error
+	snapshot      statuspkg.RawSnapshot
+	err           error
+	readinessErr  error
+	snapshotCalls int
 }
 
 func (r *fakeStatusReader) ReadStatusSnapshot(context.Context, time.Time) (statuspkg.RawSnapshot, error) {
+	r.snapshotCalls++
 	if r.err != nil {
 		return statuspkg.RawSnapshot{}, r.err
 	}
 	return r.snapshot, nil
+}
+
+func (r *fakeStatusReader) CheckStatusReadiness(context.Context) error {
+	return r.readinessErr
 }
 
 func (r *fakeStatusReader) ReadStatusSnapshotFiltered(

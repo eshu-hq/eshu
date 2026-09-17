@@ -3,6 +3,12 @@
 
 package postgres
 
+import (
+	"context"
+	"errors"
+	"fmt"
+)
+
 const (
 	scopeCountsQuery = `
 SELECT status, COUNT(*) AS count
@@ -318,3 +324,40 @@ SELECT (SELECT COUNT(*) FROM fact_work_items) AS total_count,
 FROM active_fact_work_items
 `
 )
+
+const statusReadinessSchemaQuery = `
+SELECT scopes.scope_id, work_items.status, migrations.path, migrations.variant
+FROM ingestion_scopes AS scopes
+CROSS JOIN fact_work_items AS work_items
+CROSS JOIN eshu_schema_migrations AS migrations
+LIMIT 0
+`
+
+// CheckStatusReadiness verifies the core status schema using a bounded zero-row
+// read. It does not aggregate queue or fact tables; those remain on
+// the full /admin/status and /metrics surfaces.
+func (s StatusStore) CheckStatusReadiness(ctx context.Context) error {
+	if s.queryer == nil {
+		return errors.New("status queryer is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	rows, err := s.queryer.QueryContext(ctx, statusReadinessSchemaQuery)
+	if err != nil {
+		return fmt.Errorf("check core status schema: %w", err)
+	}
+	if rows == nil {
+		return errors.New("check core status schema: no result")
+	}
+	rows.Next()
+	rowErr := rows.Err()
+	closeErr := rows.Close()
+	if rowErr != nil {
+		return fmt.Errorf("read core status schema check: %w", rowErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close core status schema check: %w", closeErr)
+	}
+	return ctx.Err()
+}

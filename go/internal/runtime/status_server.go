@@ -36,7 +36,7 @@ func WithPrometheusHandler(h http.Handler) StatusAdminOption {
 }
 
 // WithReadinessProbes registers additional dependency checks that /readyz must
-// pass before reporting ready. The status-snapshot probe (Postgres + schema)
+// pass before reporting ready. The core status-schema probe (Postgres + schema)
 // always runs as the baseline; these probes extend it, for example to verify
 // graph backend connectivity. Each probe runs under its own bounded timeout and
 // contributes its cause to the readiness failure body.

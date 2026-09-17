@@ -105,22 +105,14 @@ func runReadinessProbe(probe ReadinessProbe) (cause string) {
 	return ""
 }
 
-// statusSnapshotReadinessProbe preserves the original /readyz behavior: it reads
-// the storage-backed status snapshot, which exercises Postgres connectivity and
-// schema presence. It remains the baseline probe so default callers keep their
-// existing readiness contract.
-func statusSnapshotReadinessProbe(reader statuspkg.Reader, timeout time.Duration) ReadinessProbe {
+// statusSchemaReadinessProbe checks the core status schema without running the
+// full operator snapshot's queue and fact aggregates.
+func statusSchemaReadinessProbe(checker statuspkg.ReadinessChecker, timeout time.Duration) ReadinessProbe {
 	return ReadinessProbe{
-		Name:    "status_snapshot",
+		Name:    "status_schema",
 		Timeout: timeout,
 		Check: func(ctx context.Context) error {
-			if reader == nil {
-				return errors.New("status reader not configured")
-			}
-			if _, err := reader.ReadStatusSnapshot(ctx, time.Now().UTC()); err != nil {
-				return fmt.Errorf("read status snapshot: %w", err)
-			}
-			return nil
+			return checker.CheckStatusReadiness(ctx)
 		},
 	}
 }
@@ -128,7 +120,7 @@ func statusSnapshotReadinessProbe(reader statuspkg.Reader, timeout time.Duration
 // PostgresReadinessProbe verifies Postgres connectivity for /readyz using a
 // bounded Ping. A blocked Ping surfaces as a deadline-exceeded cause, which
 // distinguishes pool exhaustion or an unreachable database from a schema fault
-// reported by the status snapshot probe.
+// reported by the status schema probe.
 func PostgresReadinessProbe(db *sql.DB, timeout time.Duration) ReadinessProbe {
 	return ReadinessProbe{
 		Name:    "postgres",
