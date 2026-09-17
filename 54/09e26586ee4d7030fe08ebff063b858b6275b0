@@ -1,0 +1,16 @@
+scripts/lib/graph_rebuild_runtime.sh
+  h_78a442cba0b3e6 248-249,252
+scripts/test-verify-graph-rebuild-from-facts.sh
+  h_78a442cba0b3e6 381-383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5409e26586ee4d7030fe08ebff063b858b6275b0",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

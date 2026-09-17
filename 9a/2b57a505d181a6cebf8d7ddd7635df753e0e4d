@@ -1,0 +1,14 @@
+go/internal/storage/cypher/edge_writer_unroutable.go
+  h_78a442cba0b3e6 10,331-368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9a2b57a505d181a6cebf8d7ddd7635df753e0e4d",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
