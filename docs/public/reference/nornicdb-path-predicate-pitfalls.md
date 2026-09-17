@@ -17,9 +17,13 @@ so.
 The first three entries (the #6541 set) are measured on **two** builds and name
 both. They describe CURRENT behaviour on every released build. For the first and
 third, upstream fixes landed on `orneryd/NornicDB` `main` on 2026-09-13, after
-the v1.3.2 tag (`d2c8a9b4`, 2026-09-11) and after the newest published image, and
-no v1.3.3 tag, release or image exists -- so v1.3.1 and v1.3.2 both still carry
-them, and nothing here may be marked "fixed in v1.3.2". The second entry (the
+the v1.3.2 tag (`d2c8a9b4`, 2026-09-11) and after the newest published image at
+the time. A v1.3.3 tag, release and image now exist and are the pinned default;
+a live probe on the v1.3.3 artifact still reproduces the first-entry shape
+(UNWIND plus MATCH-level WHERE with trailing aggregate MATCH projects the
+literal text `r.name`, byte-identical on v1.3.2), so v1.3.1, v1.3.2 and v1.3.3
+all carry it, and nothing here may be marked "fixed" without a probe on the
+deployed digest. The third entry has not been re-probed on v1.3.3. The second entry (the
 ignored `ORDER BY` key) has no upstream fix identified either way: it was
 measured during the #6541 review on both builds and no `main` commit has been
 matched to it, so treat it as open on every build until a probe says otherwise.

@@ -19,7 +19,7 @@ schema, graph schema, and worker behavior move together.
    graph rebuild assumptions, and preserved volumes.
 
 When the release has the legacy `<release>-nornicdb-data` PVC, stop graph
-writers and protect that volume before rendering the v1.3.2 upgrade. The chart
+writers and protect that volume before rendering the v1.3.3 upgrade. The chart
 fails the live upgrade until
 `nornicdb.persistence.allowFreshVolumeMigration=true` acknowledges the fresh
 `<release>-nornicdb-v132-data` claim and graph rebuild. It keeps both managed

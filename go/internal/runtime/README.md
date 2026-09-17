@@ -274,7 +274,7 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   `ESHU_GRAPH_BACKEND=nornicdb` for all graph runtime services and that the
   telemetry overlay is never mixed into a run without an explicit base file.
 - `compose_nornicdb_image_test.go` enforces that Compose pulls the immutable
-  NornicDB v1.3.2 image by default, keeps Compose, Helm, and R-5 on the same
+  NornicDB v1.3.3 image by default, keeps Compose, Helm, and R-5 on the same
   digest, uses the `missing` pull policy, defaults to the live-proven amd64
   platform, and mounts fresh version-specific graph storage.
 

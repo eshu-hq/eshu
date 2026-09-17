@@ -27,9 +27,9 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 list_only=false
 artifacts_dir=""
-readonly expected_backend_image="timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
-readonly expected_index_digest="sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
-readonly expected_amd64_digest="sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"
+readonly expected_backend_image="timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
+readonly expected_index_digest="sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
+readonly expected_amd64_digest="sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e"
 
 usage() {
 	# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc
@@ -197,10 +197,11 @@ done
 require_eq "$(json_str "${provenance}" platform)" "kubernetes" "provenance platform"
 require_eq "$(json_str "${provenance}" backend)" "nornicdb" "provenance backend"
 require_eq "$(json_str "${provenance}" backend_image)" "${expected_backend_image}" "provenance configured backend image"
-# Upstream tagged and published v1.3.2 without updating its embedded VERSION
-# file. The immutable image identity above proves the release artifact; this
-# field records the binary's honest self-report instead of inventing v1.3.2.
-require_eq "$(json_str "${provenance}" backend_version)" "NornicDB v1.3.1" "provenance backend version"
+# Upstream's v1.3.2 tag retained a stale embedded VERSION file reporting
+# v1.3.1; v1.3.3 corrects it and self-reports v1.3.3. The immutable image
+# identity above proves the release artifact; this field records the binary's
+# honest self-report instead of inventing a version.
+require_eq "$(json_str "${provenance}" backend_version)" "NornicDB v1.3.3" "provenance backend version"
 require_eq "$(json_str "${provenance}" backend_source_revision)" "unavailable" "official image source revision status"
 
 backend_platform="$(json_str "${provenance}" backend_platform)"
@@ -210,7 +211,7 @@ backend_runtime_image_id="$(json_str "${provenance}" backend_runtime_image_id)"
 	|| die "provenance backend_runtime_image_id '${backend_runtime_image_id}' is not the expected repository"
 case "${backend_runtime_image_id}" in
 	*@"${expected_amd64_digest}"|*@"${expected_index_digest}") ;;
-	*) die "provenance backend_runtime_image_id '${backend_runtime_image_id}' matches neither the immutable v1.3.2 index nor linux/amd64 digest ${expected_amd64_digest}" ;;
+	*) die "provenance backend_runtime_image_id '${backend_runtime_image_id}' matches neither the immutable v1.3.3 index nor linux/amd64 digest ${expected_amd64_digest}" ;;
 esac
 rg --quiet '"eshu_commit"[[:space:]]*:[[:space:]]*"unknown"' "${provenance}" \
 	&& die "provenance eshu_commit is unknown (capture ran outside a checkout)"

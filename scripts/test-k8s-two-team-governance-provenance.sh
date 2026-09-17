@@ -7,8 +7,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 helper="${repo_root}/scripts/lib/k8s-two-team-governance-provenance.sh"
 driver="${repo_root}/scripts/run-k8s-two-team-governance-proof.sh"
-expected_image="timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
-expected_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"
+expected_image="timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
+expected_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e"
 
 die() {
 	printf 'test-k8s-two-team-governance-provenance: %s\n' "$*" >&2
@@ -46,7 +46,7 @@ run_capture() (
 			*'.spec.nodeName}'*) printf 'worker-a' ;;
 			*'.spec.containers[?(@.name=="nornicdb")].image}'*) printf '%s' "${configured_image}" ;;
 			*'.status.containerStatuses[?(@.name=="nornicdb")].imageID}'*) printf '%s' "${expected_image_id}" ;;
-			'exec nornicdb-pod -c nornicdb -- /app/nornicdb version') printf 'NornicDB v1.3.1\n' ;;
+			'exec nornicdb-pod -c nornicdb -- /app/nornicdb version') printf 'NornicDB v1.3.3\n' ;;
 			*) return 1 ;;
 		esac
 	}
@@ -98,8 +98,8 @@ shopt -u nullglob
 
 for case_name in tag-only wrong-digest missing-container; do
 	case "${case_name}" in
-		tag-only) configured_image='timothyswt/nornicdb-cpu-bge:v1.3.2' ;;
-		wrong-digest) configured_image='timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
+		tag-only) configured_image='timothyswt/nornicdb-cpu-bge:v1.3.3' ;;
+		wrong-digest) configured_image='timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
 		missing-container) configured_image='' ;;
 	esac
 	case_dir="${tmp_root}/${case_name}"

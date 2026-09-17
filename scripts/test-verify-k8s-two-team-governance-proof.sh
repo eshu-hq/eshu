@@ -14,10 +14,10 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-k8s-two-team-governance-proof.sh"
 fixtures="${repo_root}/tests/fixtures/governance_k8s_two_team_proof"
-expected_backend_image="timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
-expected_index_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"
-expected_amd64_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc"
-expected_arm64_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:e443f176095d4b7b647fec73f75527c5d634c414dd5645ea36a206187aacab02"
+expected_backend_image="timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
+expected_index_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"
+expected_amd64_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e"
+expected_arm64_image_id="docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:c5a247fa6f2e7ef12b31a3389402501984a8044dc5f7094c9ab0bfab3632023e"
 
 die() {
 	printf 'test-verify-k8s-two-team-governance-proof: %s\n' "$*" >&2
@@ -54,7 +54,7 @@ for expected in \
 	"\"backend_image\": \"${expected_backend_image}\"" \
 	'"backend_platform": "linux/amd64"' \
 	"\"backend_runtime_image_id\": \"${expected_amd64_image_id}\"" \
-	'"backend_version": "NornicDB v1.3.1"'; do
+	'"backend_version": "NornicDB v1.3.3"'; do
 	rg --fixed-strings --quiet "${expected}" "${fixtures}/good/provenance.json" \
 		|| die "good provenance fixture missing exact backend identity: ${expected}"
 done
@@ -143,11 +143,11 @@ bash "${verifier}" --artifacts "${index_dir}" >/dev/null \
 
 for mutation in wrong-index wrong-runtime-index wrong-runtime-repository wrong-platform-child wrong-version inferred-source-revision; do
 	case "${mutation}" in
-		wrong-index) replacement='s/v1\.3\.2@sha256:a47ae7ead/v1.3.1@sha256:a47ae7ead/' ;;
-		wrong-runtime-index) replacement='s/sha256:4256d970a1aad702b85fbd4dafa9299bb274d82090ae90eb59b88d48e9291adc/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' ;;
+		wrong-index) replacement='s/v1\.3\.3@sha256:81cedbf4/v1.3.1@sha256:81cedbf4/' ;;
+		wrong-runtime-index) replacement='s/sha256:4416241599d4abe3e608c73af44e4487e7231cacd6691339f1d941bd2547021e/sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' ;;
 		wrong-runtime-repository) replacement='s#docker-pullable://timothyswt/nornicdb-cpu-bge@#docker-pullable://example.invalid/nornicdb@#' ;;
 		wrong-platform-child) replacement="s#${expected_amd64_image_id}#${expected_arm64_image_id}#" ;;
-		wrong-version) replacement='s/NornicDB v1\.3\.1/NornicDB v1.3.0/' ;;
+		wrong-version) replacement='s/NornicDB v1\.3\.3/NornicDB v1.3.0/' ;;
 		inferred-source-revision) replacement='s/"backend_source_revision": "unavailable"/"backend_source_revision": "91289b0ed96e2bd23f3d96cb9b3f00fce30f6a0c"/' ;;
 	esac
 	mutation_dir="${tmp_dir}/${mutation}"

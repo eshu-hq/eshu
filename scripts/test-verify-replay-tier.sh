@@ -56,12 +56,12 @@ has_blast_radius_nonvacuity_guard() {
 # renamed or skipped test must not let the real-backend tier report green.
 has_projection_boundary_nonvacuity_guard() {
 	rg --quiet \
-		"^[[:space:]]*-run '.*TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch\\|TestNornicDBChainedOptionalMatchPreservesExecutorBoundary' -count=1 -v$" \
+		"^[[:space:]]*-run '.*TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch\\|TestNornicDBChainedOptionalMatchEvaluatesSecondHop' -count=1 -v$" \
 		"$1" || return 1
 	rg --quiet '^for projection_test in \\$' "$1" || return 1
 	local name
 	for name in TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
-		TestNornicDBChainedOptionalMatchPreservesExecutorBoundary; do
+		TestNornicDBChainedOptionalMatchEvaluatesSecondHop; do
 		rg --quiet "^\\t${name}[; \\\\]" "$1" || return 1
 	done
 	rg --quiet '^\trg --quiet "\^--- PASS: \$\{projection_test\} " "\$\{TIER_LOG\}"' "$1"
@@ -101,12 +101,12 @@ has_graph_endpoint_pins() {
 	done
 }
 
-# has_nornicdb_v132_image_pin binds the live gate to the released multi-arch
+# has_nornicdb_v133_image_pin binds the live gate to the released multi-arch
 # artifact proven by the restart fault cell. A tag-only check
 # would let Docker Hub retarget the proof without a repository change.
-has_nornicdb_v132_image_pin() {
+has_nornicdb_v133_image_pin() {
 	rg --quiet \
-		'^NORNICDB_IMAGE="timothyswt/nornicdb-cpu-bge:v1\.3\.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440"$' \
+		'^NORNICDB_IMAGE="timothyswt/nornicdb-cpu-bge:v1\.3\.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f"$' \
 		"$1"
 }
 
@@ -247,8 +247,8 @@ has_provenance_tombstone_nonvacuity_guard "${script}" \
 	|| fail "gate must assert the #6258 DERIVED_FROM tombstone proof RAN; go test -run exits 0 on a regex matching nothing"
 has_graph_endpoint_pins "${script}" \
 	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
-has_nornicdb_v132_image_pin "${script}" \
-	|| fail "gate must pin the exact validated NornicDB v1.3.2 multi-arch digest"
+has_nornicdb_v133_image_pin "${script}" \
+	|| fail "gate must pin the exact validated NornicDB v1.3.3 multi-arch digest"
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \
@@ -296,7 +296,7 @@ done
 # The #6262 selectors need their own standing mutation checks. Replacing either
 # exact test name must break both allowlist and PASS-line ownership.
 for projection_test in TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch \
-	TestNornicDBChainedOptionalMatchPreservesExecutorBoundary; do
+	TestNornicDBChainedOptionalMatchEvaluatesSecondHop; do
 	sed "s/${projection_test}/${projection_test}Missing/g" "${script}" \
 		>"${tmp}/script-missing-${projection_test}"
 	if has_projection_boundary_nonvacuity_guard "${tmp}/script-missing-${projection_test}"; then
@@ -334,12 +334,12 @@ done
 # A commented pin or a tag with no digest must fail. These mutations keep the
 # image name visible, which defeats a whole-file substring check.
 sed '/^NORNICDB_IMAGE=/s/^/# /' "${script}" >"${tmp}/script-no-image-pin"
-if has_nornicdb_v132_image_pin "${tmp}/script-no-image-pin"; then
+if has_nornicdb_v133_image_pin "${tmp}/script-no-image-pin"; then
 	fail "a commented NornicDB image pin must not satisfy the guard"
 fi
-sed 's/@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440//' \
+sed 's/@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f//' \
 	"${script}" >"${tmp}/script-tag-only-image"
-if has_nornicdb_v132_image_pin "${tmp}/script-tag-only-image"; then
+if has_nornicdb_v133_image_pin "${tmp}/script-tag-only-image"; then
 	fail "a tag-only NornicDB image must not satisfy the immutable digest guard"
 fi
 # Repointing a pin away from this gate's own container must fail too, for EVERY
