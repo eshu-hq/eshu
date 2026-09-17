@@ -1,0 +1,22 @@
+go/internal/reducer/supplychain/core/impact.go
+  h_78a442cba0b3e6 186
+go/internal/reducer/supplychain/core/evidence_load.go
+  h_78a442cba0b3e6 40-51,179-180,182,236-237
+go/internal/reducer/supplychain/core/anchor_probe_6702_test.go
+  h_78a442cba0b3e6 1-300
+go/internal/reducer/supplychain/core/diagnostics.go
+  h_78a442cba0b3e6 7-8,11,13,109-301
+docs/internal/evidence/6702-anchor-probe.md
+  h_78a442cba0b3e6 1-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0e1fcdb3e4c0ddf768f0c901d2779e0a3841315e",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
