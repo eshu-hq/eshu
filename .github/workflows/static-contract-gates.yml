@@ -495,12 +495,19 @@ jobs:
         run: scripts/ci/install-apt-packages.sh ripgrep jq
       # Pre-warm Go modules with retries so a dropped proxy stream fails
       # HERE, named for what it is, instead of surfacing inside whichever
-      # gate happened to be selected (#6615 follow-up to #6075). This step is
-      # unconditional -- every matrix entry shares this one job template, and
-      # several of the non-Go gates still shell out through scripts that
-      # touch the go/ module graph, so making pre-warm the default here
-      # covers today's gates and any future one added to this matrix without
-      # a second per-gate decision.
+      # gate happened to be selected (#6615 follow-up to #6075). Unconditional,
+      # not gated per-gate: actions/setup-go's go/go.sum cache has no
+      # restore-keys and saves only on a miss, so the FIRST job to finish
+      # after a go.sum change owns that key with whatever GOMODCACHE it has --
+      # every setup-go job on the key then re-downloads from the proxy until
+      # a warmed job finishes first and re-saves it (confirmed on job
+      # 102442878753, 2026-09-09: "Verify factschema-diff test mirror" saved
+      # cache 7497506231, 14,716,033 bytes, with zero `go: downloading`). The
+      # non-Go static gates in this matrix are usually the fastest finishers,
+      # so skipping pre-warm for them would let that race lose again. Measured
+      # cost: 10-44s per job on the current 14 MB entry, median 12.5s over 16
+      # go-race samples (runs 35228125254, 35224651204, 35232001790,
+      # 35231720759); expected to drop once a warmed job saves the key.
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
       - name: Run test mirror (${{ matrix.key }})

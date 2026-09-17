@@ -109,9 +109,15 @@ else
 	check "explicit module-dir warms sdk/go/collector, not go/" 1
 fi
 
-# --- (c) a module-dir with no go.mod fails fast and clearly, without ever
-#     invoking go -- the same "fail loud, not silently" bar the attempts/
-#     delay validation already holds itself to. ---
+# --- (c) a module-dir that EXISTS but has no go.mod fails fast and clearly,
+#     without ever invoking go -- the same "fail loud, not silently" bar the
+#     attempts/delay validation already holds itself to. Uses a real,
+#     existing non-Go directory (docs/) rather than a nonexistent path: a
+#     nonexistent module-dir would also fail the later `cd`, at line 78, and
+#     that different failure path masking the go.mod check's own exit-2 is
+#     exactly how this case passed for the wrong reason during the #6615 F3
+#     RED/GREEN proof, so the two paths get separate cases (this one, and
+#     (c2) below). ---
 case_c="${tmp_root}/case-c"
 install_fake_go "${case_c}/bin"
 count_file_c="${case_c}/count"
@@ -120,7 +126,7 @@ PATH="${case_c}/bin:${PATH}" \
 	FAKE_GO_PWD_LOG="${case_c}/pwd.log" \
 	FAKE_GO_COUNT_FILE="${count_file_c}" \
 	ESHU_GO_DOWNLOAD_RETRY_DELAY=0 \
-	"${target}" "does/not/exist" >"${case_c}/out.log" 2>&1 || rc=$?
+	"${target}" "docs" >"${case_c}/out.log" 2>&1 || rc=$?
 check "missing go.mod at module-dir exits nonzero" "$([ "${rc}" -ne 0 ] && echo 0 || echo 1)"
 if rg -q 'no go.mod at' "${case_c}/out.log"; then
 	check "missing go.mod at module-dir names the path" 0
@@ -131,6 +137,26 @@ if [ ! -f "${count_file_c}" ]; then
 	check "missing go.mod at module-dir never invokes go" 0
 else
 	check "missing go.mod at module-dir never invokes go" 1
+fi
+
+# --- (c2) a module-dir that does not exist AT ALL also fails fast, via the
+#     later `cd ... || exit 1` rather than the go.mod check -- a distinct
+#     failure path from (c) above, worth its own case now that (c) no longer
+#     covers it. ---
+case_c2="${tmp_root}/case-c2"
+install_fake_go "${case_c2}/bin"
+count_file_c2="${case_c2}/count"
+rc=0
+PATH="${case_c2}/bin:${PATH}" \
+	FAKE_GO_PWD_LOG="${case_c2}/pwd.log" \
+	FAKE_GO_COUNT_FILE="${count_file_c2}" \
+	ESHU_GO_DOWNLOAD_RETRY_DELAY=0 \
+	"${target}" "does/not/exist" >"${case_c2}/out.log" 2>&1 || rc=$?
+check "nonexistent module-dir exits nonzero" "$([ "${rc}" -ne 0 ] && echo 0 || echo 1)"
+if [ ! -f "${count_file_c2}" ]; then
+	check "nonexistent module-dir never invokes go" 0
+else
+	check "nonexistent module-dir never invokes go" 1
 fi
 
 # --- (d) retries: two simulated proxy drops then a success still exits 0. ---

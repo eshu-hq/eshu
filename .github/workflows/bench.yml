@@ -57,6 +57,17 @@ jobs:
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
 
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a bench-mirror
+      # failure that never ran anything (#6615 follow-up to #6075). The
+      # mirror below is a static/contract check for most of the job, but its
+      # functional case runs the real run-go-benchmarks.sh producer (`go
+      # test -bench` against ./internal/facts and
+      # ./internal/storage/postgres) to prove the producer actually emits
+      # results -- that real invocation is what needs the warm cache.
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       - name: Run bench script contract mirror
         run: scripts/test-run-go-benchmarks.sh
 
@@ -127,6 +138,15 @@ jobs:
 
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a regression
+      # that never measured anything (#6615 follow-up to #6075).
+      # verify-bench-regression.sh regenerates the current benchmark sample
+      # via run-go-benchmarks.sh (real `go test -bench`) whenever BENCH_CURRENT
+      # is unset, which it is here.
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Install benchstat
         run: go install golang.org/x/perf/cmd/benchstat@latest

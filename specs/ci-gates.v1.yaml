@@ -532,6 +532,38 @@ gates:
     requirements: []
     ci_only_reason: ""
 
+  - id: ci-go-mod-download-retry
+    name: CI Go module pre-warm retry-script test mirror
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "scripts/test-ci-go-mod-download-retry.sh"
+      # The workflow is a trigger for the same reason as
+      # ci-install-apt-packages above: this mirror asserts its own CI wiring,
+      # and a workflow-only edit that dropped the step must still select this
+      # gate.
+      - ".github/workflows/test.yml"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      # go-mod-download-retry.sh has no separate verify mode either -- it is
+      # a thin `go mod download` retry wrapper, and every job in this repo
+      # that compiles Go now depends on it (#6615). The 11-case test mirror
+      # IS this gate's verification: hermetic, off the network, via a fake
+      # `go` on PATH that records invocation directory and attempt count.
+      # Mirrors ci-install-apt-packages' shape (a static/hermetic mirror gate
+      # whose local.command IS the test script, no separate test_command)
+      # for the same reason: there is no non-mutating "real" command to pair
+      # it with that would not itself hit proxy.golang.org.
+      command: "bash scripts/test-ci-go-mod-download-retry.sh"
+      test_command: ""
+    ci:
+      workflow: test.yml
+      job: "go-core"
+    requirements: []
+    ci_only_reason: ""
+
   # ─── EXACTNESS / CONTRACT ──────────────────────────────────────────────────
 
   - id: openapi-surface
@@ -563,8 +595,11 @@ gates:
     ci:
       workflow: static-contract-gates.yml
       job: "Verify OpenAPI gate"
-    requirements:
-      - go
+    # #6615 review: verify-openapi.sh and its test mirrors only grep/rg-parse
+    # HandleFunc registrations and OpenAPI fragments; nothing in this gate's
+    # command or test_command chain (traced two levels, including sourced
+    # scripts/lib/test-verify-openapi-*-cases.sh) invokes the go toolchain.
+    requirements: []
     ci_only_reason: ""
 
   - id: route-coverage
@@ -587,8 +622,10 @@ gates:
     ci:
       workflow: static-contract-gates.yml
       job: "Verify route coverage gate"
-    requirements:
-      - go
+    # #6615 review: verify-route-coverage.sh statically compares HandleFunc
+    # registrations against *_test.go references via rg; no go toolchain
+    # invocation anywhere in its command/test_command chain.
+    requirements: []
     ci_only_reason: ""
 
   - id: edge-source-tool-coverage
@@ -613,8 +650,11 @@ gates:
     ci:
       workflow: static-contract-gates.yml
       job: "Verify edge source-tool coverage gate"
-    requirements:
-      - go
+    # #6615 review: verify-edge-source-tool-coverage.sh auto-discovers
+    # EvidenceKind constants via rg and cross-references the classifier
+    # source directly; no go toolchain invocation in its command/test_command
+    # chain.
+    requirements: []
     ci_only_reason: ""
 
   - id: evidence-continuity
@@ -914,6 +954,7 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "specs/product-claims.v1.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh surface"
       pre_push: floor
@@ -940,6 +981,7 @@ gates:
       - "specs/capability-matrix.v1.yaml"
       - "specs/capability-matrix/**"
       - "specs/surface-inventory.v1.yaml"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "cd go && go run ./cmd/capability-inventory -mode verify"
       pre_push: floor
@@ -1201,6 +1243,7 @@ gates:
       - "specs/surface-inventory.v1.yaml"
       - "specs/capability-catalog.v1.yaml"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh surface"
       test_command: ""
@@ -1241,8 +1284,11 @@ gates:
     ci:
       workflow: static-contract-gates.yml
       job: "Verify telemetry coverage gate"
-    requirements:
-      - go
+    # #6615 review: verify-telemetry-coverage.sh and its sourced
+    # scripts/lib/telemetry-coverage-{row,bucket}-check.sh statically diff
+    # instruments.go against the doc via rg; no go toolchain invocation
+    # anywhere in the chain (traced two levels).
+    requirements: []
     ci_only_reason: ""
     hook_id: go-telemetry-coverage
 
@@ -1274,8 +1320,10 @@ gates:
     ci:
       workflow: static-contract-gates.yml
       job: "Verify generate-operator-dashboard gate"
-    requirements:
-      - go
+    # #6615 review: generate-operator-dashboard.sh and its sourced
+    # scripts/lib/operator-dashboard-metrics.sh render dashboard JSON from
+    # templates; no go toolchain invocation in the chain.
+    requirements: []
     ci_only_reason: ""
 
   - id: env-registry-doc
@@ -2421,6 +2469,7 @@ gates:
       - "scripts/test-verify-replay-coverage-gate.sh"
       - "scripts/verify-replay-coverage-gate.sh"
       - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/verify-replay-coverage-gate.sh --blocking"
       pre_push: floor
@@ -3781,6 +3830,7 @@ gates:
       - "specs/authorization-replay-coverage.v1.yaml"
       - "scripts/go-test-run-guard.sh"
       - "scripts/lib/go-test-run-guard.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       # go_test_run_guard (#6055) asserts the pattern still matches all 6
       # named tests via `go test -list` before running them, so a rename or
@@ -3934,6 +3984,7 @@ gates:
       - "go/internal/githublogin/**"
       - "go/internal/query/**"
       - "go/internal/mcp/**"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/run-auth-mcp-e2e.sh"
       test_command: ""
@@ -4088,7 +4139,11 @@ gates:
     ci:
       workflow: static-contract-gates.yml
       job: "Verify tagged-builds gate"
-    requirements: []
+    # #6615 review: verify-tagged-builds.sh runs `go vet -tags <constraint>`
+    # per build-tag combination (scripts/verify-tagged-builds.sh:351) --
+    # requires the go toolchain, unlike this entry's prior `[]`.
+    requirements:
+      - go
     ci_only_reason: ""
     hook_id: ""
     # go/** is deliberately the broad trigger. A file behind a //go:build
