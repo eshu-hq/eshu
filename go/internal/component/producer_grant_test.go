@@ -4,6 +4,7 @@
 package component
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -215,5 +216,68 @@ func TestRegistryInstallStillRejectsUngrantedCoreFactKindClaim(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "dev.example.collector.ungranted") {
 		t.Fatalf("Install() error = %v, want rejection identifying the producer", err)
+	}
+}
+
+// BenchmarkAuthorizesEmission bounds the per-fact admission cost added to
+// the emission path: one linear scan over the live grant set. Fifty stored
+// grants model a crowded registry; the matching grant sits last.
+func BenchmarkAuthorizesEmission(b *testing.B) {
+	grants := make([]ProducerGrant, 0, 50)
+	for i := 0; i < 49; i++ {
+		grants = append(grants, ProducerGrant{
+			ProducerID:     fmt.Sprintf("dev.example.collector.other-%02d", i),
+			Version:        "0.1.0",
+			Kind:           "aws_resource",
+			SchemaVersions: []string{"1.0.0"},
+			Scope:          "aws",
+			ExpiresAt:      time.Now().Add(time.Hour).UTC(),
+		})
+	}
+	grants = append(grants, ProducerGrant{
+		ProducerID:     "dev.example.collector.alpha",
+		Version:        "0.1.0",
+		Kind:           "aws_resource",
+		SchemaVersions: []string{"1.0.0"},
+		Scope:          "aws",
+		ExpiresAt:      time.Now().Add(time.Hour).UTC(),
+	})
+	now := time.Now().UTC()
+
+	b.ReportAllocs()
+	for b.Loop() {
+		if !AuthorizesEmission(grants, "dev.example.collector.alpha", "0.1.0", "aws_resource", "1.0.0", []string{"aws"}, now) {
+			b.Fatal("AuthorizesEmission() = false, want true")
+		}
+	}
+}
+
+// BenchmarkProducerGrantsRead bounds the per-emission LiveGrants re-read:
+// one registry file read and decode. The file holds fifty grants.
+func BenchmarkProducerGrantsRead(b *testing.B) {
+	registry := NewRegistry(b.TempDir())
+	for i := 0; i < 50; i++ {
+		if err := registry.RecordGrant(ProducerGrant{
+			ProducerID:     fmt.Sprintf("dev.example.collector.producer-%02d", i),
+			Version:        "0.1.0",
+			Kind:           "aws_resource",
+			SchemaVersions: []string{"1.0.0"},
+			Scope:          "aws",
+			ExpiresAt:      time.Now().Add(time.Hour).UTC(),
+		}); err != nil {
+			b.Fatalf("RecordGrant() error = %v, want nil", err)
+		}
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		grants, err := registry.ProducerGrants()
+		if err != nil {
+			b.Fatalf("ProducerGrants() error = %v, want nil", err)
+		}
+		if len(grants) != 50 {
+			b.Fatalf("ProducerGrants() count = %d, want 50", len(grants))
+		}
 	}
 }

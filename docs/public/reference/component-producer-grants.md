@@ -104,3 +104,41 @@ the `grant` block; `grants` reports the `grants` list:
 render without a fraction. Failed commands carry the `error` block with the
 stable code operator scripts can branch on (`invalid_input`,
 `grant_not_found`).
+
+## Performance and observability evidence
+
+No-Regression Evidence (#6709): the grant checks add one registry file
+read plus one linear scan over the live grant set per emission result, at
+collector schedule cadence (minutes), beside a process-adapter run plus
+workflow mutations and fact writes.
+
+- Baseline (main): the checked-in PagerDuty Compose driver asserts a
+  completed `pagerduty-reference` work item with 6/6 parity facts
+  committed (extension signature equals the in-tree reference signature).
+- After (this branch): the same driver on the nornicdb v1.3.3 backend
+  reports the same terminal state — work item completed, 6/6 facts
+  committed, `fixture_parity: passed` — with the admission and
+  per-emission recheck code in the running image. Emission-path sources
+  are unchanged since that run (later commits touch CLI/docs only).
+- Input shape: `pagerduty-reference` instance, `pagerduty_account`
+  scope, complete-fixture input; crowded-registry microbenchmarks use 50
+  stored grants with the match last.
+- Microbenchmarks (Apple M4 Pro, darwin/arm64, 100k iterations):
+  `BenchmarkAuthorizesEmission` 1099 ns/op with 4 allocs/op;
+  `BenchmarkProducerGrantsRead` 39127 ns/op with 115 allocs/op.
+  Per emission result that is ~39µs of re-read plus ~1µs per fact,
+  orders of magnitude below collection cost.
+- Telemetry/log/status evidence: queue terminal state `completed` from
+  `workflow_work_items`; driver provenance pins the image commit.
+- Why safe: the checks run pre-commit on already-loaded results, change
+  no Cypher, worker, queue, lease, or batching behavior, and every
+  failure mode denies (missing, expired, revoked, or unreadable grants),
+  so the only observable behavior change is a terminal rejection where
+  emission was previously unconditional for ungranted core kinds — which
+  is the feature, proven by the revocation/expiry tests.
+
+No-Observability-Change: this change adds no metric, span, or log key.
+Grant denials surface through the existing extension-failure
+`InvalidResult` terminal channel with the producer, version, and kind in
+the message; approvals leave no dedicated trace. A dedicated
+grant-decision signal is tracked separately in #6726.
