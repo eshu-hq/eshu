@@ -275,6 +275,73 @@ func TestSourceGrantedEmissionStillEnforcesGenerationFencing(t *testing.T) {
 	assertFailure(t, err, FailureClassIdentityMismatch, true)
 }
 
+// TestGrantedPagerDutyEmissionPreservesKindAndStableKey is the #6709
+// PagerDuty parity entry proof: an authorized external producer emitting a
+// production incident kind keeps the existing kind, schema version, and
+// producer-computed stable key through the extension path, exactly what
+// downstream reducer, graph, API, and MCP truth join on.
+func TestGrantedPagerDutyEmissionPreservesKindAndStableKey(t *testing.T) {
+	t.Parallel()
+
+	manifest := testManifest()
+	manifest.Metadata.ID = "dev.eshu.examples.pagerduty-external"
+	manifest.Spec.CollectorKinds = []string{"pagerduty"}
+	manifest.Spec.EmittedFacts[0].Kind = "incident.record"
+	manifest.Spec.EmittedFacts[0].SchemaVersions = []string{"1.0.0"}
+	grants := []component.ProducerGrant{{
+		ProducerID:     manifest.Metadata.ID,
+		Version:        manifest.Metadata.Version,
+		Kind:           "incident.record",
+		SchemaVersions: []string{"1.0.0"},
+		Scope:          "pagerduty",
+		ExpiresAt:      time.Now().Add(time.Hour).UTC(),
+	}}
+	item := testWorkItem()
+	item.CollectorKind = scope.CollectorPagerDuty
+	fact := testSDKFact(item)
+	fact.Kind = "incident.record"
+	fact.SchemaVersion = "1.0.0"
+	fact.StableKey = "incident.record:pd-scope:INC123"
+	fact.SourceRef.FactKey = "incident.record:pd-scope:INC123"
+	result := completeResult(item, fact)
+	result.Claim.ComponentID = manifest.Metadata.ID
+	source, err := NewSource(Config{
+		Manifest:            manifest,
+		CollectorInstanceID: "scorecard-instance",
+		ScopeKind:           scope.KindRepository,
+		ConfigHandle:        "cfg-scorecard",
+		Config:              map[string]any{"fixture": "scorecard"},
+		Runner:              &recordingRunner{result: result},
+		Clock:               testObservedAt,
+		Grants:              grants,
+		LiveGrants:          func() []component.ProducerGrant { return grants },
+	})
+	if err != nil {
+		t.Fatalf("NewSource() error = %v, want nil", err)
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	envelopes := collectFacts(t, collected)
+	if len(envelopes) != 1 {
+		t.Fatalf("facts = %d, want 1", len(envelopes))
+	}
+	if got := envelopes[0].FactKind; got != "incident.record" {
+		t.Fatalf("FactKind = %q, want incident.record", got)
+	}
+	if got := envelopes[0].StableFactKey; got != "incident.record:pd-scope:INC123" {
+		t.Fatalf("StableFactKey = %q, want producer-computed key preserved", got)
+	}
+	if got := envelopes[0].SchemaVersion; got != "1.0.0" {
+		t.Fatalf("SchemaVersion = %q, want 1.0.0", got)
+	}
+}
+
 // TestNewSourceRejectsUngrantedCoreFactKind locks the fail-closed default:
 // a core-owned declaration without a live grant still fails construction
 // with the actionable core-owned error.
