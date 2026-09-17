@@ -7,6 +7,12 @@ verifier="${repo_root}/scripts/verify-telemetry-coverage.sh"
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
 
+# Verifier output for the current case, per suite run. These were a fixed
+# /tmp path shared by every checkout running this suite, so a concurrent run
+# could overwrite one case's stderr before its assertion read it (#6681).
+verifier_out="${tmp_root}/verifier.out"
+verifier_err="${tmp_root}/verifier.err"
+
 PASS=0
 FAIL=0
 TOTAL=0
@@ -21,13 +27,13 @@ record_fail() {
   FAIL=$((FAIL + 1))
   TOTAL=$((TOTAL + 1))
   echo "not ok - $1" >&2
-  if [ -f /tmp/eshu-telemetry-coverage.out ]; then
+  if [ -f "${verifier_out}" ]; then
     echo '--- stdout ---' >&2
-    sed -n '1,160p' /tmp/eshu-telemetry-coverage.out >&2
+    sed -n '1,160p' "${verifier_out}" >&2
   fi
-  if [ -f /tmp/eshu-telemetry-coverage.err ]; then
+  if [ -f "${verifier_err}" ]; then
     echo '--- stderr ---' >&2
-    sed -n '1,160p' /tmp/eshu-telemetry-coverage.err >&2
+    sed -n '1,160p' "${verifier_err}" >&2
   fi
 }
 
@@ -65,7 +71,7 @@ run_verifier() {
   local dir="$1"
   ESHU_TELEMETRY_COVERAGE_REPO_ROOT="${dir}" \
     ESHU_TELEMETRY_COVERAGE_BASE=HEAD~1 \
-    "${verifier}" >/tmp/eshu-telemetry-coverage.out 2>/tmp/eshu-telemetry-coverage.err
+    "${verifier}" >"${verifier_out}" 2>"${verifier_err}"
 }
 
 expect_pass() {
@@ -240,7 +246,7 @@ git -C "${case_gitdir}" commit -q -m "copy verifier into fixture scripts"
 if env -u ESHU_TELEMETRY_COVERAGE_REPO_ROOT -u GITHUB_BASE_REF \
     GIT_DIR="${case_gitdir}/.git" ESHU_TELEMETRY_COVERAGE_BASE=HEAD~1 \
     "${case_gitdir}/scripts/verify-telemetry-coverage.sh" \
-    >/tmp/eshu-telemetry-coverage.out 2>/tmp/eshu-telemetry-coverage.err; then
+    >"${verifier_out}" 2>"${verifier_err}"; then
   record_pass "resolves repo_root from script location under GIT_DIR"
 else
   record_fail "resolves repo_root from script location under GIT_DIR"
@@ -264,7 +270,7 @@ git -C "${case_mergebase}" add .
 git -C "${case_mergebase}" commit -q -m "C: unrelated change"
 if env -u ESHU_TELEMETRY_COVERAGE_BASE -u GITHUB_BASE_REF \
     ESHU_TELEMETRY_COVERAGE_REPO_ROOT="${case_mergebase}" \
-    "${verifier}" >/tmp/eshu-telemetry-coverage.out 2>/tmp/eshu-telemetry-coverage.err; then
+    "${verifier}" >"${verifier_out}" 2>"${verifier_err}"; then
   record_fail "merge-base fallback flags a stage added before HEAD~1"
 else
   record_pass "merge-base fallback flags a stage added before HEAD~1"
@@ -439,6 +445,14 @@ expect_fail "fails when a glob-form row matches no files" "${case_glob_missing}"
 # case_pass from case 1 above.
 # shellcheck source=scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh
 . "${repo_root}/scripts/lib/test-verify-telemetry-coverage-row-selection-cases.sh"
+
+# Cases 39-45 (#6681 multi-file doc-row coverage): extracted for the same
+# 500-line-cap reason as the row-selection cases above. Sourced, not
+# executed -- reuses the same init_repo/expect_pass/run_verifier/
+# record_pass/record_fail helpers, and defines expect_fail_with for its own
+# negative cases.
+# shellcheck source=scripts/lib/test-verify-telemetry-coverage-multifile-cases.sh
+. "${repo_root}/scripts/lib/test-verify-telemetry-coverage-multifile-cases.sh"
 
 if [ "${FAIL}" -ne 0 ]; then
   printf 'verify-telemetry-coverage tests FAILED: %d/%d failed\n' "${FAIL}" "${TOTAL}" >&2

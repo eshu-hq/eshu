@@ -218,30 +218,54 @@ cell_has_signal() {
   printf '%s' "$1" | rg -q "$metric_signal_pattern"
 }
 
-# doc_row_signals_tmp: per-doc-row file-path and whether the row's
-# metric column carries a real signal per cell_has_signal above. Used by the
-# new-stage check to detect rows that name a new file but leave the metric
-# column blank or TODO, which would defeat the "every stage must register
-# telemetry" policy. Format: <file> <signal> where signal is 1 or 0.
+# Sourced here (before doc_row_signals_tmp below), not at its old (3b) call
+# site further down, because check (3)'s build now uses the shared
+# resolve_row_cell_paths_into/is_doc_table_header_or_separator helpers this
+# file defines -- see its header comment for the #6681 rationale. Sourcing
+# only defines functions; check_stage_table_rows is still CALLED at its
+# original (3b) position below, once cell_has_signal exists.
+# shellcheck source=scripts/lib/telemetry-coverage-row-check.sh
+source "${script_dir}/lib/telemetry-coverage-row-check.sh"
+
+# doc_row_signals_tmp: per-resolved-path record of whether the naming row's
+# metric column carries a real signal per cell_has_signal above. Format:
+# " <resolved path or glob token> <signal>" per line, one per token
+# resolve_row_cell_paths_into emits (a comma-separated, multi-file cell
+# contributes one line per file, not one for the whole cell).
+#
+# Only built when there is a new stage file to check: this used to build
+# unconditionally, forking two `rg` per doc row (2 * 975 real-doc rows) to
+# populate a table check (3) may never read -- the common case (no new
+# stage files). See the PR description for measured before/after timing.
 doc_row_signals_tmp="$(mktemp)"
 trap 'rm -f "$doc_required_tmp" "$doc_documented_tmp" "$doc_files_tmp" "$instruments_metrics_tmp" "$new_stages_tmp" "$tmp_diff" "$all_rows_tmp" "$required_rows_tmp" "$doc_row_signals_tmp" "$doc_buckets_tmp" "$code_buckets_tmp" "$registered_anywhere_tmp"' EXIT
 : >"$doc_row_signals_tmp"
-if [ -s "$all_rows_tmp" ]; then
-  while IFS= read -r row; do
-    [ -n "$row" ] || continue
-    file_path="$(printf '%s' "$row" \
-      | rg -o '^\|[[:space:]]*[^|]+\|[[:space:]]*([^|:|[:space:]]+)(?::[0-9]+)?[[:space:]]*\|' \
-        --replace '$1' 2>/dev/null || true)"
-    [ -n "$file_path" ] || continue
-    metric_col="$(printf '%s' "$row" \
-      | rg -o '^\|[[:space:]]*[^|]+\|[[:space:]]*[^|]+\|[[:space:]]*([^|]+)' \
-        --replace '$1' 2>/dev/null || true)"
-    if cell_has_signal "$metric_col"; then
-      signal=1
+if [ -s "$all_rows_tmp" ] && [ -s "$new_stages_tmp" ]; then
+  while IFS='|' read -ra dr_cols; do
+    dr_n="${#dr_cols[@]}"
+    dr_col2="$(trim_ws "${dr_cols[2]:-}")"
+    # Skip header/separator rows (shared classifier, see (3b) below) and
+    # anything too short to be real 4-column stage-table data (a
+    # histogram-buckets row, or a malformed row (3b) already reports on its
+    # own) -- neither shape ever carries a stage file path worth recording.
+    is_doc_table_header_or_separator "$dr_col2" && continue
+    [ "$dr_n" -ge 5 ] || continue
+    dr_metric_col="$(trim_ws "${dr_cols[3]:-}")"
+    if cell_has_signal "$dr_metric_col"; then
+      dr_signal=1
     else
-      signal=0
+      dr_signal=0
     fi
-    printf ' %s %s\n' "$file_path" "$signal" >>"$doc_row_signals_tmp"
+    # Global-array output (ROW_CELL_PATHS), not a bash 4.3+ nameref and not
+    # `< <(resolve_row_cell_paths_into ...)`: see that function's own
+    # comment in telemetry-coverage-row-check.sh for why (bash 3.2
+    # compatibility, and the per-row subshell-fork cost of the process-
+    # substitution alternative).
+    resolve_row_cell_paths_into "$dr_col2"
+    for dr_token in ${ROW_CELL_PATHS[@]+"${ROW_CELL_PATHS[@]}"}; do
+      [ -n "$dr_token" ] || continue
+      printf ' %s %s\n' "$dr_token" "$dr_signal" >>"$doc_row_signals_tmp"
+    done
   done <"$all_rows_tmp"
 fi
 
@@ -280,22 +304,35 @@ done <"$instruments_metrics_tmp"
 # policy.
 while IFS= read -r file; do
   [ -n "$file" ] || continue
-  matching_rows="$(rg -F " $file" "$doc_row_signals_tmp" 2>/dev/null || true)"
-  if [ -z "$matching_rows" ]; then
+  # path_covers_file (in the row-check lib next to (3b)'s path_target_exists,
+  # using the same compgen -G glob expansion; see its header comment for the
+  # (a)/(b) defect history) does an exact or glob-aware comparison per doc
+  # token, never a substring search -- the old `rg -F " $file"` lookup here
+  # matched on an unanchored substring of the whole " <path> <signal>" line,
+  # which both (a) let an unrelated row whose path merely started with
+  # $file's text report it "covered", and (b) could never match a glob row
+  # at all, since the '*' in the stored line was compared literally (#6681).
+  covered=0
+  has_signal=0
+  while IFS= read -r dr_line; do
+    [ -n "$dr_line" ] || continue
+    dr_sig="${dr_line##* }"
+    dr_path="${dr_line% *}"
+    dr_path="${dr_path# }"
+    if path_covers_file "$dr_path" "$file"; then
+      covered=1
+      if [ "$dr_sig" = "1" ]; then
+        has_signal=1
+        break
+      fi
+    fi
+  done <"$doc_row_signals_tmp"
+  if [ "$covered" -eq 0 ]; then
     report="${report}  - new stage file ${file} is not covered by any row in ${doc_path}
 "
     drift=1
     continue
   fi
-  has_signal=0
-  while IFS= read -r m; do
-    [ -n "$m" ] || continue
-    sig="${m##* }"
-    if [ "$sig" = "1" ]; then
-      has_signal=1
-      break
-    fi
-  done <<<"$matching_rows"
   if [ "$has_signal" -eq 0 ]; then
     report="${report}  - new stage file ${file} is mentioned in ${doc_path} but the matching row has no eshu_dp_* metric or No-Observability-Change: marker
 "
@@ -304,17 +341,15 @@ while IFS= read -r file; do
 done <"$new_stages_tmp"
 
 # (3b) Reverse of (3): every row in the stage tables must name a file (or
-# glob) that actually exists on disk, and carry a real metric signal. Split
-# into scripts/lib/telemetry-coverage-row-check.sh to keep this script under
-# the repo's file-length cap (#5855); that file is registered as its own
-# trigger of the telemetry-coverage gate in specs/ci-gates.v1.yaml. See that
-# file's header comment for the full rationale (row-vanishes-before-
-# validation history) and the check_stage_table_rows/trim_ws/
-# path_target_exists definitions it provides. check_stage_table_rows expects
-# repo_root, doc_path, all_rows_tmp, and cell_has_signal (defined above) to
-# already be set, and mutates $report/$drift like the checks above.
-# shellcheck source=scripts/lib/telemetry-coverage-row-check.sh
-source "${script_dir}/lib/telemetry-coverage-row-check.sh"
+# glob) that actually exists on disk, and carry a real metric signal.
+# Defined in scripts/lib/telemetry-coverage-row-check.sh (sourced above,
+# before doc_row_signals_tmp, so its shared helpers are available to check
+# (3) too) to keep this script under the repo's file-length cap (#5855);
+# that file is registered as its own trigger of the telemetry-coverage gate
+# in specs/ci-gates.v1.yaml. See that file's header comment for the full
+# rationale. check_stage_table_rows expects repo_root, doc_path,
+# all_rows_tmp, and cell_has_signal (defined above) to already be set, and
+# mutates $report/$drift like the checks above.
 check_stage_table_rows
 
 # (5) Registered but never emitted (#5548). A synchronous instrument on the
