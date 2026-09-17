@@ -19,7 +19,7 @@ import (
 	summary "github.com/eshu-hq/eshu/go/internal/projector/code/function/summary"
 	interproc "github.com/eshu-hq/eshu/go/internal/projector/code/interproc/evidence"
 	taint "github.com/eshu-hq/eshu/go/internal/projector/code/taint/evidence"
-	"github.com/eshu-hq/eshu/go/internal/projector/container/image/identity"
+	containerimageidentity "github.com/eshu-hq/eshu/go/internal/projector/container/image/identity"
 	projectorcrossplanesatisfiedby "github.com/eshu-hq/eshu/go/internal/projector/crossplanesatisfiedby"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
@@ -148,7 +148,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := s3.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := identity.BuildContainerImageIdentityReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := containerimageidentity.BuildContainerImageIdentityReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := correlation.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
