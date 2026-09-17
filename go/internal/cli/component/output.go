@@ -28,6 +28,8 @@ type CLIOutput struct {
 	Component     *CLIComponent                     `json:"component,omitempty"`
 	Components    []CLIComponent                    `json:"components,omitempty"`
 	Activation    *CLIActivation                    `json:"activation,omitempty"`
+	Grant         *componentcore.ProducerGrant      `json:"grant,omitempty"`
+	Grants        []componentcore.ProducerGrant     `json:"grants,omitempty"`
 	Verification  *componentcore.VerificationResult `json:"verification,omitempty"`
 	Conformance   *extensionconformance.Report      `json:"conformance,omitempty"`
 	IndexReport   *componentindex.Report            `json:"index_verification,omitempty"`

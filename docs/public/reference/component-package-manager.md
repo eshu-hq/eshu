@@ -111,10 +111,14 @@ is not remote Docker Compose proof.
 
 Uninstall fails while a component has active instances.
 
+Producer-grant issuance (`grant`, `grants`, `revoke-grant`) authorizes
+first-party producers to emit core-owned fact kinds. See
+[Component Producer Grants](component-producer-grants.md).
+
 Every component subcommand accepts `--json`. JSON output uses
 `schema_version: eshu.component.cli.v1`, a command name, a status, and the
-component, activation, verification, conformance, list, or error block that
-applies to the command. The text output remains the default operator summary.
+component, activation, verification, conformance, list, grant, grants, or
+error block that applies to the command. The text output remains the default operator summary.
 
 `install --dry-run` verifies the manifest and trust policy but does not create
 `registry.json` or copy the manifest. `enable --dry-run` validates the selected
@@ -358,8 +362,8 @@ The first implementation stores:
 - copied manifests under `packages/<component-id>/<version>/manifest.yaml`
 
 Registry writes use a temporary file and rename in the same directory.
-The v1 CLI keeps that atomic-write behavior for install, enable, disable, and
-uninstall. Dry-run commands do not write either the registry file or package
+The v1 CLI keeps that atomic-write behavior for install, enable, disable,
+uninstall, grant, and revoke-grant. Dry-run commands do not write either the registry file or package
 content.
 
 ## Trust Modes

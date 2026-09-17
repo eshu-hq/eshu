@@ -151,6 +151,7 @@ nav:
       - Docs Self-Contradiction Gate: reference/docs-contradiction.md
       - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
       - Component Package Manager: reference/component-package-manager.md
+      - Component Producer Grants: reference/component-producer-grants.md
       - Fact Envelope Reference: reference/fact-envelope-reference.md
       - Fact Schema Versioning: reference/fact-schema-versioning.md
       - Reducer Guarantees: reference/reducer-guarantees.md
