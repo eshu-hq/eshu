@@ -3,11 +3,11 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants.
-3. `../intent/AGENTS.md` for the neutral intent contract.
-4. `../runtime.go` — the per-fact `buildProjection` loop that calls this
+2. `../../AGENTS.md` and `../../README.md` for projector-wide invariants.
+3. `../../intent/AGENTS.md` for the neutral intent contract.
+4. `../../runtime.go` — the per-fact `buildProjection` loop that calls this
    builder. This family is dispatched from there, NOT from
-   `../scope_generation_intents.go`.
+   `../../scope_generation_intents.go`.
 5. `go/internal/reducer/code/semantic/materialization_helpers.go` for what
    the reducer does with the intent, including its own copies of two
    predicate names used here.
@@ -69,14 +69,14 @@
   exits 0.
 - **Root integration tests live outside this directory.** The `Project` and
   `buildProjection` assertions for this domain stayed at root
-  (`../runtime_test.go`,
+  (`../../runtime_test.go`,
   `TestRuntimeProjectEnqueuesSemanticEntityMaterializationForAnnotationTypedefTypeAliasComponentAndFunction`
   and `TestBuildReducerIntentQueuesJavaScriptCallableSemanticEntities`; and
-  `../runtime_clone_removal_test.go`, the `#4854` mutation-safety and
+  `../../runtime_clone_removal_test.go`, the `#4854` mutation-safety and
   clone-vs-borrow equivalence tests). A change here can break them without
   touching a file in this directory.
 - **The root fan-out parity fixture does not cover this domain, and never
-  did.** `../scope_generation_intents_fanout_parity_test.go` only covers
+  did.** `../../scope_generation_intents_fanout_parity_test.go` only covers
   `appendScopeGenerationReducerIntents`, which this family is not part of.
   Do not treat it as a safety net for a change here.
 - **A fact with an empty `SourceRef.SourceSystem`** yields an empty
@@ -102,7 +102,7 @@
 ## Verification
 
 Use TDD. Run the focused child tests
-(`go test ./internal/projector/semanticentity/ -count=1`), the root projector
+(`go test ./internal/projector/semantic/entity/ -count=1`), the root projector
 package (`go test ./internal/projector/... -count=1`), the focused
 `TestRouteServesDataRegistry` run, `scripts/verify-package-docs.sh`,
 `scripts/verify-doc-citations.sh` when a cited test or file name changes, and
