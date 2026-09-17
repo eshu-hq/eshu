@@ -46,7 +46,11 @@ queue is a fixture property, not corpus-readiness evidence.
 
 A recorded migration with a cancelled concurrent index build was RED because
 `ApplyBootstrap` skipped the invalid index, then GREEN when the runner detected
-and rebuilt it. The documentation findings read and filter index restart tests
+and rebuilt it. A second RED test found that a failed repair retained its
+success receipt. After clearing that receipt before the rebuild, the test
+observed no receipt on failure, removed the invalid index to model a stop after
+cleanup, and then rebuilt a valid index and restored its receipt on retry.
+The documentation findings read and filter index restart tests
 also passed. A schema with `search_path = isolated, public` was RED because it
 borrowed the `public` ledger; after scoping receipts to `current_schema()`, it
 recorded 129 isolated receipts and the original cloud reopen ordering test
