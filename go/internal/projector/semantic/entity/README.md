@@ -12,7 +12,7 @@ language-specific shapes carrying real metadata. A plain Go `func` with no
 docstring, receiver, decorator or type parameter produces no intent. A bare
 TypeScript ES module does not behave that way: `Module` is in the closed
 `semanticEntityReducerTypes` set, and the per-language predicates run only for
-types absent from that set (`entity_intents.go:61`), so a module short-circuits
+types absent from that set (`intents.go:61`), so a module short-circuits
 past `isTypeScriptModuleSemanticEntity` and is admitted unconditionally. That
 is the preserved pre-extraction behaviour.
 
@@ -140,7 +140,7 @@ moved, or renamed by this extraction. Root assembly and
 `eshu_dp_reducer_intents_enqueued_total` are untouched, and the two new
 non-test files under this package emit no signal of their own —
 `payload.go` is unexported map and scalar readers that perform no I/O, and
-`entity_intents.go` is a pure trigger-and-value builder. The
+`intents.go` is a pure trigger-and-value builder. The
 telemetry-coverage rows for both were written from what the files contain.
 
 ### Move record (#6627)

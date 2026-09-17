@@ -32,7 +32,7 @@ var contentEntityBuckets = []entityBucketMapping{
 	// very bucket, so an Elixir or TSX repo read off disk does get Variable
 	// nodes -- see isElixirModuleAttributeSemanticEntity and
 	// isTypeScriptJSXComponentTypeAssertionSemanticEntity in
-	// go/internal/projector/semantic/entity/entity_intents.go, the same two predicates
+	// go/internal/projector/semantic/entity/intents.go, the same two predicates
 	// in go/internal/reducer/code/semantic/materialization_helpers.go, and the
 	// MERGE (n:Variable {uid}) in
 	// go/internal/storage/cypher/semantic_entity_statements.go. Full reasoning:
