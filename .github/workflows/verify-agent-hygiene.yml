@@ -87,6 +87,13 @@ jobs:
 
       - name: No filename stutter in added/renamed Go files
         run: |
-          base="${{ github.base_ref }}"
-          if [ -z "$base" ]; then base="HEAD~1"; else base="origin/$base"; fi
-          scripts/verify-filename-stutter.sh --range "$base"
+          # PRs scan the base..head range; direct pushes scan everything
+          # pushed (before..sha), so a multi-commit push is fully covered.
+          if [ -n "${{ github.base_ref }}" ]; then
+            range="origin/${{ github.base_ref }}"
+          elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            range="HEAD~1"
+          else
+            range="${{ github.event.before }}"
+          fi
+          scripts/verify-filename-stutter.sh --range "$range"
