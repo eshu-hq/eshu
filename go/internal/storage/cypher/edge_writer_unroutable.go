@@ -124,10 +124,11 @@ func unroutableReasonForRow(domain string, row reducer.SharedProjectionIntentRow
 // target exists, and fails the batch with a retryable error on the first
 // miss. The worker treats a WriteEdges error as a failed cycle: nothing is
 // completed, the rows stay open, and the next cycle re-selects them. A
-// failing existence probe (the backend did not answer) falls back to the
-// legacy write: an infrastructure fault must not stall a partition on work
-// that may be perfectly writable. An executor without probe capability keeps
-// today's behavior byte-identically.
+// A failing existence probe (the backend did not answer) defers the batch
+// retryably like a detected miss: writing unchecked would recreate the exact
+// silent zero-edge loss the guard exists to prevent whenever the probe fails
+// while a target is actually absent. An executor without probe capability
+// keeps today's behavior byte-identically.
 //
 // Deliberately scoped to the presence-gated MATCH-dependent domains. The
 // presence gate already terminalizes route-only legs before they reach the

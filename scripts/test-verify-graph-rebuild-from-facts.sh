@@ -342,7 +342,10 @@ fi
 # start` (v5) starts the stopped dependency closure, including the
 # bootstrap-index one-shot whose restart voids the rebuild proof (#6184 run
 # 7). Restarts go through daemon-level `docker start` on the listed containers
-# only; `ps -q` merely resolves their ids.
+# only; `ps -q` merely resolves their ids. Remove the earlier mock dir first:
+# reassigning without cleanup orphans it (only the second dir is removed at
+# the end), leaking one temp dir per run.
+rm -rf "${compose_mock_dir}"
 compose_mock_dir="$(mktemp -d)"
 : >"${compose_mock_dir}/calls"
 : >"${compose_mock_dir}/docker-calls"
