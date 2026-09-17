@@ -34,16 +34,16 @@ func TestSupplyChainImageAnchorNeverEmptyWhenResolvableEvidencePresent(t *testin
 		decoy      = "oci-registry://registry.example/6702-anchor-stability-app"
 	)
 
-	buildCorpusShape := func(drawPrefix string) []facts.Envelope {
+	buildCorpusShape := func(ciFactID, deployPrefix string) []facts.Envelope {
 		envelopes := []facts.Envelope{
 			containerImageIdentityImpactFactWithSourceRepositoryIDs(
-				drawPrefix+"-ci-row", digest, decoy, buildRepo,
+				ciFactID, digest, decoy, buildRepo,
 			),
 		}
 		for i := 0; i < 19; i++ {
 			envelopes = append(envelopes,
 				containerImageIdentityImpactFactWithSourceRepositoryIDs(
-					fmt.Sprintf("%s-deploy-%02d", drawPrefix, i), digest, decoy, deployRepo,
+					fmt.Sprintf("%s-deploy-%02d", deployPrefix, i), digest, decoy, deployRepo,
 				),
 			)
 		}
@@ -65,20 +65,29 @@ func TestSupplyChainImageAnchorNeverEmptyWhenResolvableEvidencePresent(t *testin
 		},
 	}
 
-	// "0000" puts the lone build-repo row's factID smallest (the unlucky
-	// draw); "zzzz" puts a deploy row smallest. Pre-#5887 bare factID logic
-	// picked different repositories between such draws.
-	for _, drawPrefix := range []string{"0000-draw", "zzzz-draw"} {
+	// The two draws put opposite rows smallest: pre-#5887 bare factID
+	// logic picked the build repository in the first draw and a deploying
+	// row in the second, so only the consensus fix resolves both to the
+	// deploying repository.
+	draws := []struct {
+		name         string
+		ciFactID     string
+		deployPrefix string
+	}{
+		{"build-row-smallest", "0000-ci-row", "mmmm"},
+		{"deploy-row-smallest", "zzzz-ci-row", "aaaa"},
+	}
+	for _, draw := range draws {
 		for orderName, reorder := range orders {
-			winners := bestSupplyChainImageIdentitiesByDigest(reorder(buildCorpusShape(drawPrefix)))
+			winners := bestSupplyChainImageIdentitiesByDigest(reorder(buildCorpusShape(draw.ciFactID, draw.deployPrefix)))
 			winner, ok := winners[digest]
 			if !ok {
-				t.Fatalf("draw %q order %s: no winner for digest", drawPrefix, orderName)
+				t.Fatalf("draw %q order %s: no winner for digest", draw.name, orderName)
 			}
 			if got := singleSupplyChainImageSourceRepositoryID(winner); got != deployRepo {
 				t.Fatalf(
 					"draw %q order %s: resolved repository = %q, want %q (empty would reproduce #6702 at the tier layer)",
-					drawPrefix, orderName, got, deployRepo,
+					draw.name, orderName, got, deployRepo,
 				)
 			}
 		}
