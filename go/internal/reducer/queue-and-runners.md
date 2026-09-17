@@ -84,9 +84,16 @@ boot-unique nonce to the
 configured owner prefix. The default `45s` whole-cycle deadline covers the
 Postgres repository lock, active-lease validation, graph replacement, intent
 completion, and Postgres commit. The `5m` lease must exceed that deadline plus
-the canonical graph-write timeout and a `30s` margin. Errors, cancellation, and
-ambiguous commits retain the shard lease until expiry and force the same owner
-to wait out the quarantine. Independent shards continue to run, so this safety
+the canonical graph-write timeout and a `30s` margin. Errors, cycle deadlines,
+and ambiguous commits retain the shard lease until expiry and force the same
+owner to wait out the quarantine. Cancellation of the runner's own context
+(process shutdown) is not a partition fault: the cycle releases its lease
+through a context that survives the cancellation and exits without a
+quarantine. Because every owner is process-unique, a lease a stopping process
+kept would never be reclaimed by "the same owner"; it would only hold the
+partition shut for the next process until the `5m` TTL ran out (#6747). A
+claim refused because another owner still holds the partition is logged once
+per contention episode. Independent shards continue to run, so this safety
 contract does not globally serialize repo-dependency work. Changing the worker
 count does not weaken acceptance-unit atomicity and does not inherit the main
 reducer's `ESHU_REDUCER_WORKERS` value.

@@ -59,6 +59,12 @@ type RepoDependencyProjectionRunner struct {
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
+
+	// leaseContended remembers that the last claim was refused because another
+	// owner holds this partition, so contention is logged once per episode
+	// rather than once per poll. Each fixed shard copies the runner and owns
+	// its own flag; only the runner's own goroutine touches it.
+	leaseContended bool
 }
 
 // Run drains repo-dependency work until the context is canceled.
@@ -79,6 +85,11 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 		cycleStart := time.Now()
 		result, err := r.runOneCycle(ctx)
 		if err != nil {
+			if ctx.Err() != nil {
+				// Shutdown, not a partition fault (#6747): the cycle already
+				// released its lease and there is nothing to quarantine.
+				return nil
+			}
 			consecutiveEmpty++
 			r.recordRepoDependencyCycleFailure(ctx, err, time.Since(cycleStart).Seconds())
 			delay := repoDependencyQuarantineDelay(
@@ -162,21 +173,28 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	}
 	result.LeaseClaimDurationSeconds = time.Since(claimStart).Seconds()
 	if err != nil {
+		if ctx.Err() != nil {
+			// The claim statement may have committed before the cancellation
+			// reached the client; release through a context that survives
+			// shutdown so the lease cannot outlive this process (#6747).
+			r.releasePartitionLease(ctx)
+			return PartitionProcessResult{}, repoDependencyShutdownError(ctx)
+		}
 		return PartitionProcessResult{}, fmt.Errorf("claim repo dependency lease: %w", err)
 	}
 	if !claimed {
+		r.recordRepoDependencyLeaseContended(ctx)
 		return PartitionProcessResult{LeaseAcquired: false}, nil
 	}
+	r.recordRepoDependencyLeaseAcquired(ctx)
+	// releaseLease stays false on a quarantined error on purpose: the
+	// fail-closed pause holds the partition for the lease TTL. failCycle
+	// flips it for shutdown, and releasePartitionLease runs on a context
+	// that survives the cancellation.
 	releaseLease := false
 	defer func() {
 		if releaseLease {
-			_ = r.LeaseManager.ReleasePartitionLease(
-				ctx,
-				DomainRepoDependency,
-				r.Config.partitionID(),
-				r.Config.partitionCount(),
-				r.Config.leaseOwner(),
-			)
+			r.releasePartitionLease(ctx)
 		}
 	}()
 	cycleCtx, cancelCycle := context.WithTimeout(ctx, r.Config.cycleTimeout())
@@ -189,12 +207,12 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	result.SelectionDurationSeconds = time.Since(selectionStart).Seconds()
 	if err != nil {
 		result.LeaseAcquired = true
-		return result, r.quarantineLease(err)
+		return result, r.failCycle(ctx, err, &releaseLease)
 	}
 	if acceptanceUnitID == "" {
 		result.LeaseAcquired = true
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-			return result, r.quarantineLease(heartbeatErr)
+			return result, r.failCycle(ctx, heartbeatErr, &releaseLease)
 		}
 		releaseLease = true
 		return result, nil
@@ -227,10 +245,10 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 		},
 	)
 	if gateErr != nil {
-		return processed, r.quarantineLease(gateErr)
+		return processed, r.failCycle(ctx, gateErr, &releaseLease)
 	}
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-		return processed, r.quarantineLease(heartbeatErr)
+		return processed, r.failCycle(ctx, heartbeatErr, &releaseLease)
 	}
 	if !ran {
 		result.LeaseAcquired = true
