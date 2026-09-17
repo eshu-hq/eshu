@@ -129,7 +129,7 @@ func unroutableReasonForRow(domain string, row reducer.SharedProjectionIntentRow
 // that may be perfectly writable. An executor without probe capability keeps
 // today's behavior byte-identically.
 //
-// Deliberately scoped to the two presence-gated MATCH-dependent domains. The
+// Deliberately scoped to the presence-gated MATCH-dependent domains. The
 // presence gate already terminalizes route-only legs before they reach the
 // write, so a miss here can never be a legitimate route-only row, and a retry
 // can never stall one. Other domains keep their existing contract; see the
@@ -141,8 +141,9 @@ func unroutableReasonForRow(domain string, row reducer.SharedProjectionIntentRow
 // gate proved the target committable. A miss for these rows is always worth
 // a retry, never a silent completion.
 var targetMissProbeDomains = map[string]bool{
-	reducer.DomainHandlesRoute: true,
-	reducer.DomainRunsIn:       true,
+	reducer.DomainHandlesRoute:        true,
+	reducer.DomainRunsIn:              true,
+	reducer.DomainDeployableUnitEdges: true,
 }
 
 // buildTargetPresenceProbeStatement returns the existence probe for one
@@ -201,6 +202,20 @@ func buildTargetPresenceProbeStatement(domain string, rows []map[string]any) (St
 			}
 			emit(repo, fmt.Sprintf("(:Repository {id: $r%d})-[:DEFINES]->(:Workload)", clause),
 				fmt.Sprintf("r%d", clause), repo)
+		}
+	case reducer.DomainDeployableUnitEdges:
+		// The deployable-unit template MATCHes both endpoint Repositories;
+		// the deployment node is committed by another scope's
+		// materialization with no happens-before against this batch (#6184).
+		for _, row := range rows {
+			if repo, _ := row["repo_id"].(string); repo != "" {
+				emit("s\x00"+repo, fmt.Sprintf("(:Repository {id: $s%d})", clause),
+					fmt.Sprintf("s%d", clause), repo)
+			}
+			if repo, _ := row["deployment_repo_id"].(string); repo != "" {
+				emit("t\x00"+repo, fmt.Sprintf("(:Repository {id: $t%d})", clause),
+					fmt.Sprintf("t%d", clause), repo)
+			}
 		}
 	default:
 		return Statement{}, false

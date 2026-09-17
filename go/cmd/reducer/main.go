@@ -245,7 +245,7 @@ func buildReducerService(
 		PlatformMaterializationWriter:      reducer.PostgresPlatformMaterializationWriter{DB: database},
 		PlatformGraphLocker:                platformGraphLockerForReducer(database),
 		WorkloadMaterializationReplayer:    workQueue,
-		WorkloadMaterializer:               reducer.NewWorkloadMaterializer(cypherExec),
+		WorkloadMaterializer:               newProbedWorkloadMaterializer(cypherExec, logger, instruments),
 		InfrastructurePlatformMaterializer: reducer.NewInfrastructurePlatformMaterializer(cypherExec),
 		InfrastructurePlatformLookup:       reducer.GraphInfrastructurePlatformLookup{Graph: graphReader},
 		FactLoader:                         factStore,

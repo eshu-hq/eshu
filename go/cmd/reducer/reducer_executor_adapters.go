@@ -112,9 +112,37 @@ func newReducerCypherExecutor(session cypherRunner, instruments *telemetry.Instr
 	}
 }
 
+// newProbedWorkloadMaterializer builds the workload materializer with the
+// deployment-source target probe (#6184) wired through the same executor the
+// materializer writes through. The backpressure gate forwards the probe when
+// the wrapped chain supports it; a probe failure fails open to the legacy
+// unconditional write, so wiring is always safe.
+func newProbedWorkloadMaterializer(exec reducer.CypherExecutor, logger *slog.Logger, instruments *telemetry.Instruments) *reducer.WorkloadMaterializer {
+	m := reducer.NewWorkloadMaterializer(exec)
+	if prober, ok := exec.(reducer.GraphExistenceProber); ok {
+		m.DeploymentSourceProber = prober
+		m.Logger = logger
+		m.Instruments = instruments
+	}
+	return m
+}
+
 func (e reducerCypherExecutor) ExecuteCypher(ctx context.Context, cypher string, params map[string]any) error {
 	return e.retry.Execute(ctx, sourcecypher.Statement{
 		Operation:  sourcecypher.OperationCanonicalUpsert,
+		Cypher:     cypher,
+		Parameters: params,
+	})
+}
+
+// ProbeGraphExists forwards the deployment-source target probe (#6184) to
+// the same persistent RetryingExecutor as ExecuteCypher, satisfying
+// reducer.GraphExistenceProber. Like reducerNeo4jExecutor.ExecuteProbe above,
+// the forward is what makes the capability real in production: without it the
+// materializer's assertion misses and the guard silently stays legacy.
+func (e reducerCypherExecutor) ProbeGraphExists(ctx context.Context, cypher string, params map[string]any) (bool, error) {
+	return e.retry.ExecuteProbe(ctx, sourcecypher.Statement{
+		Operation:  sourcecypher.OperationCanonicalProbe,
 		Cypher:     cypher,
 		Parameters: params,
 	})
