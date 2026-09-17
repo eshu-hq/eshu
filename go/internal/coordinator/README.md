@@ -166,7 +166,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `JiraPlanner` — implemented by `jira.WorkPlanner`; child owns private
   planning and validated membership, while root keeps scheduling and admission.
 - `PrometheusMimirPlanner` — the root interface implemented by
-  `metrics.WorkPlanner`. The child plans Prometheus/Grafana Mimir
+  `prometheus.WorkPlanner`. The child plans Prometheus/Grafana Mimir
   metric-metadata work from `configuration.targets[]`; each enabled target is
   one claimable item, while disabled or empty target sets plan no work. Root
   retains scheduling and admission. Per-scope fairness keys stay unchanged,
