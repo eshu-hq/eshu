@@ -160,7 +160,9 @@ Rules, enforced by `Config.Validate` at startup and again at the reconcile
 that reads the value:
 
 - Unset or blank keeps today's behavior: the instance buckets on the global
-  reconcile interval.
+  reconcile interval. A `configuration` that is valid JSON but not an object
+  (for example `[]` on a generic collector) has no `scan_interval` and is
+  treated as unset, not rejected.
 - The value is a Go duration string (`30s`, `90m`, `12h`). Anything else, a
   number included, fails startup.
 - It must be at least `1s` and must not be shorter than the global reconcile
@@ -173,8 +175,11 @@ that reads the value:
   may be shorter than the configured interval. Derived-target rotation for
   package-registry and vulnerability-intelligence instances indexes the same
   truncated bucket, so the page of targets and the plan key change together.
-- Freshness-triggered (webhook) planners and bootstrap instances are
-  unaffected; only the periodic scheduled planners read this field. A
+- Freshness-triggered (webhook) planners never read this field, and
+  bootstrap instances ignore it: their plan key is the fixed `bootstrap` and
+  their derived-target rotation stays on the global reconcile interval. The
+  value is still parsed and floor-checked at startup on a bootstrap instance,
+  so a bad value fails fast, but it is not logged as an override. A
   package-registry or vulnerability-intelligence instance whose derivation
   uses `planning_mode: single_pass` is already pinned to one plan key, so
   `scan_interval` is accepted there but changes nothing.

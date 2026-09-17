@@ -4,7 +4,9 @@
 package coordinator
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -32,8 +34,13 @@ func TestScanIntervalFromConfiguration(t *testing.T) {
 		{name: "unparseable duration", raw: `{"scan_interval": "twelve hours"}`, wantErr: "scan_interval"},
 		{name: "numeric value is rejected", raw: `{"scan_interval": 3600}`, wantErr: "scan_interval"},
 		{name: "null document is unset", raw: `null`, want: 0, wantSet: false},
-		{name: "array document is rejected", raw: `[]`, wantErr: "collector configuration must be a JSON object"},
-		{name: "scalar document is rejected", raw: `42`, wantErr: "collector configuration must be a JSON object"},
+		// A valid non-object document carries no scan_interval field, so it is
+		// unset: DesiredCollectorInstance.Validate accepts any valid JSON here and
+		// a generic or disabled collector may legitimately carry [] (Codex review
+		// on #6724).
+		{name: "array document is unset", raw: `[]`, want: 0, wantSet: false},
+		{name: "scalar document is unset", raw: `42`, want: 0, wantSet: false},
+		{name: "string document is unset", raw: `"text"`, want: 0, wantSet: false},
 		{name: "unclosed object", raw: `{"scan_interval": "1h"`, wantErr: "decode collector configuration"},
 	}
 	for _, tc := range cases {
@@ -66,6 +73,7 @@ func TestValidateScanIntervalAgainstReconcileInterval(t *testing.T) {
 		wantErr string
 	}{
 		{name: "unset passes", raw: `{}`},
+		{name: "array document passes", raw: `[]`},
 		{name: "equal to global passes", raw: `{"scan_interval": "30s"}`},
 		{name: "above global passes", raw: `{"scan_interval": "12h"}`},
 		{name: "zero rejected", raw: `{"scan_interval": "0s"}`, wantErr: "must be at least 1s"},
@@ -124,6 +132,17 @@ func TestServiceScanIntervalSelectsInstanceOverrideElseGlobal(t *testing.T) {
 	}
 	if defaulted != defaultReconcileInterval {
 		t.Fatalf("scanInterval(zero config) = %s, want %s", defaulted, defaultReconcileInterval)
+	}
+
+	bootstrap := testServiceAWSScheduledInstance(observedAt)
+	bootstrap.Bootstrap = true
+	bootstrap.Configuration = testServiceAWSScheduledConfigurationWithScanInterval("1h")
+	bootstrapInterval, err := service.scanInterval(bootstrap)
+	if err != nil {
+		t.Fatalf("scanInterval(bootstrap) error = %v, want nil", err)
+	}
+	if bootstrapInterval != 5*time.Minute {
+		t.Fatalf("scanInterval(bootstrap) = %s, want the global 5m0s: bootstrap instances ignore scan_interval", bootstrapInterval)
 	}
 
 	broken := testServiceAWSScheduledInstance(observedAt)
@@ -414,5 +433,109 @@ func TestDerivedTargetRotationOffsetFlipsWithThePlanKeyBucket(t *testing.T) {
 	}
 	if a, b := derivedTargetRotationOffset(inside, interval, 10), derivedTargetRotationOffset(afterEpochBoundary, interval, 10); a != b {
 		t.Fatalf("rotation offset changed inside one plan-key bucket at the epoch boundary %s: %d -> %d", epochBoundary, a, b)
+	}
+}
+
+// A bootstrap package-registry instance plans under the fixed "bootstrap" key,
+// so its derived-target rotation must stay on the global reconcile cadence even
+// when scan_interval is set; otherwise one page of targets would be held for
+// the whole override while the bootstrap run is non-terminal (Codex review on
+// #6724).
+func TestServiceRunReconcileBootstrapRotationIgnoresScanInterval(t *testing.T) {
+	t.Parallel()
+
+	first := time.Date(2026, time.June, 1, 17, 7, 0, 0, time.UTC)
+	current := first
+	instance := testServicePackageRegistryInstance(first)
+	instance.Bootstrap = true
+	instance.Configuration = `{"scan_interval": "1h", "derive_from_owned_packages": {"enabled": true, "ecosystems": ["npm"], "target_limit": 10}}`
+	planner := &fakePackageRegistryPlanner{
+		run: workflow.Run{
+			RunID:              "package_registry:collector-package-registry:schedule:bootstrap",
+			TriggerKind:        workflow.TriggerKindSchedule,
+			Status:             workflow.RunStatusCollectionPending,
+			RequestedScopeSet:  "{}",
+			RequestedCollector: string(scope.CollectorPackageRegistry),
+			CreatedAt:          first,
+			UpdatedAt:          first,
+		},
+	}
+	targetReader := &rotatingOwnedPackageTargetReader{}
+	service := Service{
+		Config: Config{
+			DeploymentMode:           deploymentModeActive,
+			ClaimsEnabled:            true,
+			ReconcileInterval:        5 * time.Minute,
+			ReapInterval:             time.Hour,
+			ClaimLeaseTTL:            time.Minute,
+			HeartbeatInterval:        20 * time.Second,
+			ExpiredClaimLimit:        10,
+			ExpiredClaimRequeueDelay: 5 * time.Second,
+			CollectorInstances: []workflow.DesiredCollectorInstance{{
+				InstanceID:    instance.InstanceID,
+				CollectorKind: scope.CollectorPackageRegistry,
+				Mode:          workflow.CollectorModeContinuous,
+				Enabled:       true,
+				Bootstrap:     true,
+				ClaimsEnabled: true,
+				Configuration: instance.Configuration,
+			}},
+		},
+		Store:                    &fakeStore{instances: []workflow.CollectorInstance{instance}},
+		PackageRegistryPlanner:   planner,
+		OwnedPackageTargetReader: targetReader,
+		Clock:                    func() time.Time { return current },
+	}
+
+	for tick := 0; tick < 2; tick++ {
+		current = first.Add(time.Duration(tick) * 5 * time.Minute)
+		if err := service.runReconcile(context.Background()); err != nil {
+			t.Fatalf("tick %d runReconcile() error = %v, want nil", tick, err)
+		}
+	}
+	if len(targetReader.requests) != 2 || len(planner.requests) != 2 {
+		t.Fatalf("requests = reader %d, planner %d; want 2 each", len(targetReader.requests), len(planner.requests))
+	}
+	for tick := 0; tick < 2; tick++ {
+		if got, want := planner.requests[tick].PlanKey, "bootstrap"; got != want {
+			t.Fatalf("tick %d plan key = %q, want %q", tick, got, want)
+		}
+		want := derivedTargetRotationOffset(first.Add(time.Duration(tick)*5*time.Minute), 5*time.Minute, 10)
+		if got := targetReader.requests[tick].RotationOffset; got != want {
+			t.Fatalf("tick %d rotation offset = %d, want %d (global 5m cadence, not the 1h override)", tick, got, want)
+		}
+	}
+}
+
+// The startup line means "this instance carries its own cadence". A bootstrap
+// instance never does, whatever its configuration says, so it must not be
+// logged as if it did (review finding on #6724).
+func TestLogScanIntervalOverridesSkipsBootstrapInstances(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	service := Service{
+		Logger: slog.New(slog.NewTextHandler(&logs, nil)),
+		Config: Config{
+			ReconcileInterval: 30 * time.Second,
+			CollectorInstances: []workflow.DesiredCollectorInstance{
+				{InstanceID: "aws-slow", CollectorKind: scope.CollectorAWS, Mode: workflow.CollectorModeContinuous, Enabled: true, Configuration: `{"scan_interval": "12h"}`},
+				{InstanceID: "git-bootstrap", CollectorKind: "git", Mode: workflow.CollectorModeContinuous, Enabled: true, Bootstrap: true, Configuration: `{"scan_interval": "12h"}`},
+				{InstanceID: "git-plain", CollectorKind: "git", Mode: workflow.CollectorModeContinuous, Enabled: true, Configuration: `{"provider": "github"}`},
+			},
+		},
+	}
+
+	service.logScanIntervalOverrides()
+
+	out := logs.String()
+	if got := strings.Count(out, "sets scan interval"); got != 1 {
+		t.Fatalf("scan interval log lines = %d, want 1; log:\n%s", got, out)
+	}
+	if !strings.Contains(out, "collector_instance_id=aws-slow") {
+		t.Fatalf("log did not name the overriding instance; log:\n%s", out)
+	}
+	if strings.Contains(out, "git-bootstrap") {
+		t.Fatalf("bootstrap instance was logged as carrying its own cadence; log:\n%s", out)
 	}
 }

@@ -30,17 +30,18 @@ const minScanInterval = time.Second
 // instance configuration document. It reports whether the field was set so a
 // caller can tell "unset, use the global interval" from "set to this value".
 // A blank string counts as unset, matching how envDuration treats a blank
-// environment variable.
+// environment variable. A valid document that is not a JSON object ([], a
+// scalar, null) has no fields at all, so it is unset too rather than an
+// error: DesiredCollectorInstance.Validate accepts any valid JSON here and a
+// generic or disabled collector may legitimately carry one. Only a document
+// that is an object but cannot be decoded is an error.
 func scanIntervalFromConfiguration(raw string) (time.Duration, bool, error) {
 	var decoded struct {
 		ScanInterval string `json:"scan_interval"`
 	}
 	normalized := strings.TrimSpace(raw)
-	if normalized == "" || normalized == "null" {
-		normalized = "{}"
-	}
 	if !strings.HasPrefix(normalized, "{") {
-		return 0, false, fmt.Errorf("collector configuration must be a JSON object")
+		return 0, false, nil
 	}
 	if err := json.Unmarshal([]byte(normalized), &decoded); err != nil {
 		return 0, false, fmt.Errorf("decode collector configuration %s: %w", scanIntervalConfigKey, err)
@@ -90,10 +91,19 @@ func validateScanInterval(raw string, reconcileInterval time.Duration) error {
 // malformed value surfaces at the reconcile that reads it instead of quietly
 // re-planning on the global cadence. Config.Validate rejects the same values
 // at startup for every desired instance.
+//
+// Bootstrap instances always get the global interval. Their plan key is the
+// fixed "bootstrap", so a wider bucket would not slow their planning; it
+// would only hold one page of derived targets for the whole override while
+// the bootstrap run is non-terminal. Ignoring the field here keeps the plan
+// key and the rotation on the same clock for them too.
 func (s Service) scanInterval(instance workflow.CollectorInstance) (time.Duration, error) {
 	global := s.Config.ReconcileInterval
 	if global <= 0 {
 		global = defaultReconcileInterval
+	}
+	if instance.Bootstrap {
+		return global, nil
 	}
 	interval, set, err := scanIntervalFromConfiguration(instance.Configuration)
 	if err != nil {
@@ -110,8 +120,10 @@ func (s Service) scanInterval(instance workflow.CollectorInstance) (time.Duratio
 // the instance mode plus the wall clock truncated to the instance's scan
 // interval, so a repeat reconcile inside one bucket reproduces the same run
 // and work-item identifiers and the store's open-target guard treats it as
-// the same plan. Truncation is against the Unix epoch, so a 12h bucket always
-// turns over at 00:00 and 12:00 UTC regardless of when the coordinator started.
+// the same plan. Truncation rounds from Go's zero time (time.Truncate), so a
+// 12h bucket always turns over at 00:00 and 12:00 UTC regardless of when the
+// coordinator started; derivedTargetRotationOffset indexes the same truncated
+// clock so a rotating instance's page and plan key change together.
 func scheduledPlanKey(instance workflow.CollectorInstance, observedAt time.Time, interval time.Duration) string {
 	if instance.Bootstrap {
 		return "bootstrap"
@@ -192,15 +204,21 @@ func (s Service) createWorkflowWorkIfNoOpenTargets(
 
 // logScanIntervalOverrides records, once at startup before the first
 // reconcile, every desired collector instance whose configuration sets
-// scan_interval, with the global reconcile interval beside it, so an operator
-// can confirm from the log alone which instances carry their own cadence and
-// what it is (#6720). Config.Validate has already rejected malformed values by
-// the time Run is called, so a decode error here is logged rather than fatal.
+// scan_interval and that will actually run on it, with the global reconcile
+// interval beside it, so an operator can confirm from the log alone which
+// instances carry their own cadence and what it is (#6720). Bootstrap
+// instances are skipped: scanInterval ignores the field for them, so logging
+// it would claim a cadence they do not have. Config.Validate has already
+// rejected malformed values by the time Run is called, so a decode error here
+// is logged rather than fatal.
 func (s Service) logScanIntervalOverrides() {
 	if s.Logger == nil {
 		return
 	}
 	for _, instance := range s.Config.CollectorInstances {
+		if instance.Bootstrap {
+			continue
+		}
 		interval, set, err := scanIntervalFromConfiguration(instance.Configuration)
 		if err != nil {
 			s.Logger.Warn(
