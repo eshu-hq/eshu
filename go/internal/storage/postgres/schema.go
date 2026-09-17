@@ -93,11 +93,15 @@ func BootstrapDefinitions() []Definition {
 func BootstrapDefinitionsWithoutContentSearchIndexes() []Definition {
 	defs := BootstrapDefinitions()
 	for i := range defs {
-		if defs[i].Name == "content_store" {
+		// These lifecycle files make conditional decisions while indexes are deferred;
+		// the full pass must revisit them after content_store builds the indexes.
+		switch defs[i].Name {
+		case "content_store", "content_substring_index_state", "content_entity_name_trgm_index":
 			defs[i].fullChecksum = migrationChecksum(defs[i].SQL)
 			defs[i].variant = "deferred"
-			defs[i].SQL = contentStoreSchemaWithoutSearchIndexesSQL
-			break
+			if defs[i].Name == "content_store" {
+				defs[i].SQL = contentStoreSchemaWithoutSearchIndexesSQL
+			}
 		}
 	}
 	return defs

@@ -159,6 +159,31 @@ func TestBootstrapDeferredContentMigrationUpgradesToFullLive(t *testing.T) {
 	if !exists {
 		t.Fatal("full bootstrap omitted the content trigram index")
 	}
+	if err := db.QueryRowContext(ctx,
+		"SELECT to_regclass('content_entities_name_trgm_idx') IS NOT NULL",
+	).Scan(&exists); err != nil {
+		t.Fatalf("inspect full entity-name index: %v", err)
+	}
+	if !exists {
+		t.Fatal("full bootstrap omitted the entity-name trigram index")
+	}
+	var state string
+	if err := db.QueryRowContext(ctx,
+		"SELECT state FROM content_substring_index_state WHERE singleton",
+	).Scan(&state); err != nil {
+		t.Fatalf("inspect content index lifecycle: %v", err)
+	}
+	if state != "ready" {
+		t.Fatalf("content index lifecycle = %q, want ready", state)
+	}
+	if err := db.QueryRowContext(ctx,
+		"SELECT eshu_require_content_substring_indexes_ready()",
+	).Scan(&exists); err != nil || !exists {
+		t.Fatalf("content index readiness check = %t, %v", exists, err)
+	}
+	if err := ApplyBootstrapWithoutContentSearchIndexes(ctx, SQLDB{DB: db}); err != nil {
+		t.Fatalf("deferred bootstrap after full schema: %v", err)
+	}
 
 	var content Definition
 	for _, def := range BootstrapDefinitions() {

@@ -9,15 +9,17 @@ while `bootstrap-index` or `ingester` populates data.
 
 ## Ownership boundary
 
-This binary owns DDL orchestration only. Postgres table definitions live in
+This binary owns schema migration orchestration, including migration-owned data
+transformations. Postgres table definitions live in
 `internal/storage/postgres/`. Graph schema bootstrap lives in
 `internal/graph/` and is applied through `graph.EnsureSchemaWithBackendStrict`
 so any rejected DDL keeps the graph marker unset for the next retry.
 The binary records each successful Postgres migration in
 `eshu_schema_migrations` and writes the graph schema application marker after
 successful graph DDL. The marker records the backend/fingerprint pair and any
-explicitly compatible older writer fingerprints. The binary writes no
-application data and does not stay resident.
+explicitly compatible older writer fingerprints. Historical migrations may
+backfill or update application tables; normal collection and indexing belong to
+other runtimes. This binary does not stay resident.
 
 ## Entry points
 

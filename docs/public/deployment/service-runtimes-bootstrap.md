@@ -6,8 +6,9 @@ runtime map.
 
 ## Schema Bootstrap
 
-`eshu-bootstrap-data-plane` applies Postgres and graph-backend schema DDL, then
-exits. It writes no application data.
+`eshu-bootstrap-data-plane` applies Postgres migrations and graph-backend
+schema DDL, then exits. Historical migrations may backfill or update application
+tables; ordinary collection and indexing run in other services.
 
 It owns this sequence:
 

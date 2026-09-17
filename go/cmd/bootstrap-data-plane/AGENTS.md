@@ -65,9 +65,9 @@
 
 ## Anti-patterns specific to this package
 
-- **Writing application data here** — this binary owns schema DDL only; it
-  must not insert rows, create graph nodes, or emit facts. Data population
-  belongs in `bootstrap-index` or the ingester.
+- **Running normal data collection here** — this binary owns schema DDL and
+  migration-owned data transformations. Repository collection, graph
+  population, and fact emission belong in `bootstrap-index` or the ingester.
 
 - **Adding a long-running loop** — the binary must exit after DDL completes.
   Adding a poll loop breaks the deployment bootstrap contract and prevents
