@@ -142,6 +142,7 @@ func (executor schemaConnectionExecutor) loadSchemaMigrationLedger(
 			return schemaMigrationLedger{}, fmt.Errorf("create schema migration ledger: %w", err)
 		}
 	}
+	// #nosec G202 -- table is quoteSQLIdentifier(current_schema()) plus a fixed suffix; migration values remain bound.
 	rows, err := executor.conn.QueryContext(ctx, "SELECT path, variant, checksum_sha256 FROM "+table)
 	if err != nil {
 		return schemaMigrationLedger{}, fmt.Errorf("read schema migration ledger: %w", err)
