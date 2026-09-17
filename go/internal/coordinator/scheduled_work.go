@@ -34,11 +34,15 @@ const minScanInterval = time.Second
 // scalar, null) has no fields at all, so it is unset too rather than an
 // error: DesiredCollectorInstance.Validate accepts any valid JSON here and a
 // generic or disabled collector may legitimately carry one. Only a document
-// that is an object but cannot be decoded is an error.
+// that is an object but cannot be decoded is an error. A key that is present
+// with a non-string value, null included, is an error rather than unset: a
+// template that meant 12h and emitted null would otherwise run on the global
+// cadence with no signal.
 func scanIntervalFromConfiguration(raw string) (time.Duration, bool, error) {
-	var decoded struct {
-		ScanInterval string `json:"scan_interval"`
-	}
+	// Decode into a map so key presence and value type are separable:
+	// encoding/json writes a JSON null into a string or RawMessage field as
+	// the zero value, which is indistinguishable from an absent key.
+	var decoded map[string]any
 	normalized := strings.TrimSpace(raw)
 	if !strings.HasPrefix(normalized, "{") {
 		return 0, false, nil
@@ -46,7 +50,18 @@ func scanIntervalFromConfiguration(raw string) (time.Duration, bool, error) {
 	if err := json.Unmarshal([]byte(normalized), &decoded); err != nil {
 		return 0, false, fmt.Errorf("decode collector configuration %s: %w", scanIntervalConfigKey, err)
 	}
-	value := strings.TrimSpace(decoded.ScanInterval)
+	rawValue, present := decoded[scanIntervalConfigKey]
+	if !present {
+		return 0, false, nil
+	}
+	text, isString := rawValue.(string)
+	if !isString {
+		// Report the JSON type, never the value: the diagnostic is "wrong
+		// type", and echoing an operator-supplied document into an error that
+		// lands in startup output and reconcile logs is not worth the risk.
+		return 0, false, fmt.Errorf("%s must be a duration string, got %s", scanIntervalConfigKey, jsonTypeName(rawValue))
+	}
+	value := strings.TrimSpace(text)
 	if value == "" {
 		return 0, false, nil
 	}
@@ -55,6 +70,27 @@ func scanIntervalFromConfiguration(raw string) (time.Duration, bool, error) {
 		return 0, false, fmt.Errorf("%s: %w", scanIntervalConfigKey, err)
 	}
 	return parsed, true, nil
+}
+
+// jsonTypeName names the JSON type encoding/json produced for a decoded
+// map value, for error messages that must not echo the value itself.
+func jsonTypeName(value any) string {
+	switch value.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "boolean"
+	case float64:
+		return "number"
+	case string:
+		return "string"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	default:
+		return fmt.Sprintf("%T", value)
+	}
 }
 
 // validateScanInterval rejects a configured scan_interval the coordinator cannot

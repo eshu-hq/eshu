@@ -163,8 +163,9 @@ that reads the value:
   reconcile interval. A `configuration` that is valid JSON but not an object
   (for example `[]` on a generic collector) has no `scan_interval` and is
   treated as unset, not rejected.
-- The value is a Go duration string (`30s`, `90m`, `12h`). Anything else, a
-  number included, fails startup.
+- The value is a Go duration string (`30s`, `90m`, `12h`). Anything else
+  fails startup, a number or an explicit `null` included; a key that is
+  present must carry a string. A blank string is treated as unset.
 - It must be at least `1s` and must not be shorter than the global reconcile
   interval. The reconcile ticker fires at the global rate, so a narrower
   per-instance bucket could not be visited as often as it promises.

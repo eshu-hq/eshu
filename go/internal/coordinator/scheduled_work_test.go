@@ -32,7 +32,13 @@ func TestScanIntervalFromConfiguration(t *testing.T) {
 		{name: "duration string", raw: `{"scan_interval": "12h"}`, want: 12 * time.Hour, wantSet: true},
 		{name: "duration with surrounding space", raw: `{"scan_interval": " 90m "}`, want: 90 * time.Minute, wantSet: true},
 		{name: "unparseable duration", raw: `{"scan_interval": "twelve hours"}`, wantErr: "scan_interval"},
-		{name: "numeric value is rejected", raw: `{"scan_interval": 3600}`, wantErr: "scan_interval"},
+		{name: "numeric value is rejected", raw: `{"scan_interval": 3600}`, wantErr: "scan_interval must be a duration string, got number"},
+		// A present key with a null value is not "unset": a template that meant
+		// 12h and emitted null would otherwise run on the global cadence with no
+		// signal (Codex review on #6724).
+		{name: "null value is rejected", raw: `{"scan_interval": null}`, wantErr: "scan_interval must be a duration string, got null"},
+		{name: "boolean value is rejected", raw: `{"scan_interval": true}`, wantErr: "scan_interval must be a duration string, got boolean"},
+		{name: "object value is rejected without echoing it", raw: `{"scan_interval": {"token": "do-not-echo"}}`, wantErr: "scan_interval must be a duration string, got object"},
 		{name: "null document is unset", raw: `null`, want: 0, wantSet: false},
 		// A valid non-object document carries no scan_interval field, so it is
 		// unset: DesiredCollectorInstance.Validate accepts any valid JSON here and
@@ -50,6 +56,9 @@ func TestScanIntervalFromConfiguration(t *testing.T) {
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("scanIntervalFromConfiguration(%q) error = %v, want containing %q", tc.raw, err, tc.wantErr)
+				}
+				if strings.Contains(err.Error(), "do-not-echo") {
+					t.Fatalf("scanIntervalFromConfiguration(%q) echoed the rejected value: %v", tc.raw, err)
 				}
 				return
 			}
@@ -81,6 +90,7 @@ func TestValidateScanIntervalAgainstReconcileInterval(t *testing.T) {
 		{name: "sub-second rejected", raw: `{"scan_interval": "500ms"}`, wantErr: "must be at least 1s"},
 		{name: "below global rejected", raw: `{"scan_interval": "10s"}`, wantErr: "must not be shorter than the reconcile interval 30s"},
 		{name: "unparseable rejected", raw: `{"scan_interval": "soon"}`, wantErr: "scan_interval"},
+		{name: "null value rejected", raw: `{"scan_interval": null}`, wantErr: "got null"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
