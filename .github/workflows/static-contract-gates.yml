@@ -493,6 +493,16 @@ jobs:
           cache-dependency-path: go/go.sum
       - name: Install ripgrep and jq
         run: scripts/ci/install-apt-packages.sh ripgrep jq
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing inside whichever
+      # gate happened to be selected (#6615 follow-up to #6075). This step is
+      # unconditional -- every matrix entry shares this one job template, and
+      # several of the non-Go gates still shell out through scripts that
+      # touch the go/ module graph, so making pre-warm the default here
+      # covers today's gates and any future one added to this matrix without
+      # a second per-gate decision.
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
       - name: Run test mirror (${{ matrix.key }})
         run: ${{ matrix.test }}
       - name: Run gate (${{ matrix.key }})

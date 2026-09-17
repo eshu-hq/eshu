@@ -132,6 +132,13 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a tool-count
+      # drift that never compiled (#6615 -- the golang.org/x/net stream
+      # error that first exposed this job's missing pre-warm).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       - name: Check ReadOnlyTools count
         working-directory: go
         # go_test_run_guard (#6055) runs `go test -list` first and fails
@@ -156,6 +163,12 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a capability
+      # drift that never ran (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run capability inventory verify
         working-directory: go
@@ -197,6 +210,12 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as an MCP test
+      # failure that never compiled (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run MCP test suite
         working-directory: go

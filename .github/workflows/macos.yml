@@ -8,6 +8,7 @@ on:
     # main runs unconditionally above as the backstop.
     paths:
       - "go/**"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/macos.yml"
   workflow_dispatch:
 
@@ -34,6 +35,12 @@ jobs:
           uname -a
           go version
           df -h
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a macOS build/test
+      # failure that never compiled anything (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Build Go CLI
         working-directory: go

@@ -101,6 +101,12 @@ jobs:
           number="$(bash scripts/resolve-required-gates-pr.sh)"
           echo "number=${number}" >> "${GITHUB_OUTPUT}"
 
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of the trusted publisher's own
+      # `go build` failing inside the step below (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       - name: Await every selected blocking gate
         id: aggregate
         continue-on-error: true
@@ -232,6 +238,12 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing inside the
+      # ruleset-verification script below (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Verify effective required-status rules
         env:

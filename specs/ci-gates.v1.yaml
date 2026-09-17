@@ -765,6 +765,7 @@ gates:
       - "sdk/go/factschema/internal/schemagen/**"
       - "go/cmd/factschema-diff/**"
       - "scripts/*verify-factschema-diff*.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/verify-factschema-diff.sh"
       pre_push: floor
@@ -801,6 +802,7 @@ gates:
       - "go/internal/payloadusage/**"
       - "go/cmd/payload-usage-manifest/**"
       - "scripts/*verify-payload-usage-manifest*.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/verify-payload-usage-manifest.sh"
       pre_push: floor
@@ -833,6 +835,7 @@ gates:
       - "examples/collector-extensions/scorecard/**"
       - "sdk/go/collector/**"
       - "sdk/go/factschema/**"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "cd examples/collector-extensions/scorecard && go test ./... -count=1"
       test_command: ""
@@ -860,6 +863,7 @@ gates:
       - "sdk/go/collector/**"
       - ".github/workflows/sdk-go.yml"
       - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "cd sdk/go/collector && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal'"
       test_command: ""
@@ -884,6 +888,7 @@ gates:
       - "sdk/go/factschema/**"
       - ".github/workflows/sdk-go.yml"
       - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "cd sdk/go/factschema && go build ./... && go test ./... -count=1 && go vet ./... && test -z \"$(gofmt -l .)\" && ! go list -deps ./... | rg -q 'eshu-hq/eshu/go/internal' && go generate ./... && test -z \"$(git status --porcelain -- .)\""
       test_command: ""
@@ -1312,6 +1317,7 @@ gates:
       - "go/internal/correlation/**"
       - "go/internal/content/shape/**"
       - "go/internal/relationships/**"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/race-graph-writes.yml"
     local:
       command: "cd go && go test -race -count=1 -timeout 600s ./cmd/ingester/... ./cmd/projector/... ./internal/storage/cypher/... ./internal/storage/nornicdb/... ./internal/reducer/... ./internal/projector/... ./internal/correlation/... ./internal/content/shape/... ./internal/relationships/..."
@@ -1332,6 +1338,7 @@ gates:
       - "go/internal/storage/postgres/**"
       - "go/internal/reducer/**"
       - "schema/data-plane/postgres/**"
+      - "scripts/ci/go-mod-download-retry.sh"
     ci:
       workflow: reducer-contention-gate.yml
       job: "reducer contention gate"
@@ -2047,6 +2054,7 @@ gates:
     triggers:
       - "go/**"
       - "scripts/dev/precommit-go.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     # Whole-module gosec here so the ci-gates runner (which passes no file list)
     # runs a real scan rather than a no-op. #4217 narrows the local security lane
     # to changed packages for speed while keeping CI authoritative.
@@ -2072,6 +2080,7 @@ gates:
       - "go/**/*.go"
       - "scripts/dev/precommit-go.sh"
       - "scripts/test-precommit-go-toolchain-isolation.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh govulncheck"
       # Self-test mirror: precommit-go.sh installs its scanners from the repo
@@ -2108,6 +2117,7 @@ gates:
       - "scripts/dev/precommit-go.sh"
       - "scripts/dev/nancy-local.sh"
       - "scripts/test-nancy-local.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     local:
       command: "bash scripts/dev/precommit-go.sh nancy"
       test_command: "bash scripts/test-nancy-local.sh"
@@ -2316,6 +2326,7 @@ gates:
       - "scripts/lib/test-golden-corpus-*.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/golden-corpus-gate.yml"
     local:
       command: "bash scripts/verify-golden-corpus-gate.sh"
@@ -3836,6 +3847,7 @@ gates:
       - "docker-compose*.yaml"
       - "docker-compose*.yml"
       - "scripts/verify_backend_conformance_live.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     ci:
       workflow: e2e-tests.yml
       job: "test"
@@ -4024,6 +4036,7 @@ gates:
     blocking: true
     triggers:
       - "go/**"
+      - "scripts/ci/go-mod-download-retry.sh"
     ci:
       workflow: macos.yml
       job: "macos"
@@ -4132,6 +4145,7 @@ gates:
       # sibling gates on the same binary, capability-inventory and
       # capability-inventory-docs, already trigger on this path.
       - "go/cmd/capability-inventory/**"
+      - "scripts/ci/go-mod-download-retry.sh"
     # The deterministic product-claims-mode verify is credential-free. The live
     # issue-state variant (ESHU_VERIFY_PRODUCT_CLAIM_ISSUES_LIVE=1 + GITHUB_TOKEN)
     # stays CI-only. #4073: narrowed from -mode docs to -mode product-claims so
@@ -4173,6 +4187,7 @@ gates:
       - "scripts/test-verify-replay-tier.sh"
       - "scripts/dev/pre-pr.sh"
       - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/verify-replay-tier.yml"
     local:
       command: "bash scripts/verify-replay-tier.sh"
@@ -4260,6 +4275,7 @@ gates:
       - "docs/public/reference/ci-gates.md"
       - ".github/workflows/**"
       - "scripts/verify-ci-gates-registry.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
     self_test_triggers:
       - "specs/ci-gates.v1.yaml"
       - "go/internal/cigates/**"

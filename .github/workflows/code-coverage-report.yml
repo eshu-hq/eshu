@@ -56,6 +56,13 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a coverage
+      # regression that never ran a test -- this is the exact failure #6615
+      # reported (sigs.k8s.io/yaml stream error, "Generate advisory Go
+      # coverage report" step, run 102179760337, all packages [setup failed]).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
       - name: Generate advisory Go coverage report
         env:
           ESHU_CODE_COVERAGE_PROFILE_OUT: ${{ github.workspace }}/go-code-coverage.out

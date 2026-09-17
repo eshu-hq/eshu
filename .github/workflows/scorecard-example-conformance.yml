@@ -18,6 +18,7 @@ on:
       - "examples/collector-extensions/scorecard/**"
       - "sdk/go/collector/**"
       - "sdk/go/factschema/**"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/scorecard-example-conformance.yml"
   push:
     branches:
@@ -44,6 +45,14 @@ jobs:
         with:
           go-version-file: examples/collector-extensions/scorecard/go.mod
           cache-dependency-path: examples/collector-extensions/scorecard/go.sum
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a conformance
+      # failure that never compiled anything (#6615 follow-up to #6075). This
+      # example is its own module (go.mod outside go/), so it warms its own
+      # directory rather than the default go/.
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh examples/collector-extensions/scorecard
 
       - name: Run scorecard example tests
         working-directory: examples/collector-extensions/scorecard

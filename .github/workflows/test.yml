@@ -146,6 +146,13 @@ jobs:
       - name: Install ripgrep
         run: scripts/ci/install-apt-packages.sh ripgrep
 
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as one of the
+      # contract verifiers below failing with no module ever compiled
+      # (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       - name: Verify CodeQL setup model
         run: |
           scripts/test-verify-codeql-setup.sh
@@ -255,9 +262,26 @@ jobs:
         if: ${{ !cancelled() }}
         run: bash scripts/test-ci-install-apt-packages.sh
 
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a build/lint
+      # failure that never compiled anything -- this job runs the whole-module
+      # `go build ./...` and `golangci-lint run ./...` that are the
+      # authoritative "does the merge result still compile" check, so a
+      # network flake here is the highest-cost place for this gap to have
+      # gone unfixed (#6615, the follow-up #6075 should have covered).
+      - name: Pre-warm Go modules
+        if: ${{ !cancelled() }}
+        run: scripts/ci/go-mod-download-retry.sh
+
       - name: Install golangci-lint
         if: ${{ !cancelled() }}
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+
+      # tools/golangci-lint-filelength is its own module (own go.mod), so the
+      # go/ pre-warm above does not touch its cache -- warm it separately.
+      - name: Pre-warm golangci-lint filelength plugin modules
+        if: ${{ !cancelled() }}
+        run: scripts/ci/go-mod-download-retry.sh tools/golangci-lint-filelength
 
       - name: Build golangci-lint filelength plugin
         if: ${{ !cancelled() }}
@@ -273,6 +297,11 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: tools/golangci-lint-filelength
         run: make test
+
+      # tools/golangci-lint-dirgate is also its own module -- warm it too.
+      - name: Pre-warm golangci-lint dirgate plugin modules
+        if: ${{ !cancelled() }}
+        run: scripts/ci/go-mod-download-retry.sh tools/golangci-lint-dirgate
 
       - name: Build golangci-lint dirgate plugin
         if: ${{ !cancelled() }}
@@ -405,7 +434,22 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # #6615: 25m had no headroom, unlike the per-binary 900s budget below,
+    # which the same job's own comment documents as sized with deliberate
+    # margin. Measured 587 completed go-race shard runs across ~150 recent
+    # test.yml runs on main and PRs (gh api .../actions/runs/<id>/jobs,
+    # 2026-09-17): overall max 24.2m, p99 21.9m, p50 17.6m; per-shard max
+    # ranged 20.8m-24.2m. The round-robin partition (NR % N) shifts which
+    # packages land in which shard as the module changes, so the shard
+    # closest to budget moves too -- shard 4 measured the widest spread here
+    # (p50 19.5m, max 23.0m), not shard 3 as in the original report. None of
+    # the 19 cancelled shard-jobs in the sample were a genuine timeout (all
+    # completed in 11m-17m, the shape of a superseded-push cancel-in-progress
+    # kill, not a wall-clock cutoff). 35m gives ~45% headroom over the
+    # observed max (24.2m) and ~60% over p99 -- enough that ordinary runner
+    # variance does not false-positive as a hang, while a genuine hang still
+    # fails in under 35 minutes rather than running unbounded.
+    timeout-minutes: 35
 
     steps:
       - name: Checkout repository

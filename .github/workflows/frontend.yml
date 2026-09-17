@@ -87,6 +87,7 @@ on:
       - "scripts/lib/auth_e2e_cli.sh"
       - "scripts/test-auth-e2e-cli.sh"
       - "scripts/run-auth-e2e.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
       - "scripts/console-auth-e2e-runtime.mjs"
       - "docker-compose.e2e.yaml"
       - "docker-compose.yaml"
@@ -229,6 +230,14 @@ jobs:
       - name: Verify the auth E2E CLI build contract
         run: bash scripts/test-auth-e2e-cli.sh
 
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as an auth E2E
+      # failure that never built the CLI (#6615 follow-up to #6075). The
+      # contract test above uses a fake `go` and never touches the network;
+      # the real build happens inside run-auth-e2e.sh below.
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
@@ -276,6 +285,12 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as an MCP auth E2E
+      # failure that never built the CLI (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       # Sibling of run-auth-e2e.sh (issue #4971), scoped to the MCP HTTP
       # transport identity story (F-9, #5170): it owns the docker-compose.e2e.yaml

@@ -26,6 +26,7 @@ on:
       - "go/internal/storage/postgres/**"
       - "go/internal/reducer/**"
       - "schema/data-plane/postgres/**"
+      - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/reducer-contention-gate.yml"
   workflow_dispatch:
 
@@ -66,6 +67,12 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+
+      # Pre-warm Go modules with retries so a dropped proxy stream fails
+      # HERE, named for what it is, instead of surfacing as a contention-gate
+      # failure that never claimed a row (#6615 follow-up to #6075).
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
 
       - name: Run reducer contention gate
         working-directory: go
