@@ -28,8 +28,10 @@ type ProducerGrant struct {
 	Scope string `json:"scope"`
 	// ExpiresAt bounds the grant lifetime. Zero means already expired.
 	ExpiresAt time.Time `json:"expires_at"`
-	// Revoked marks a withdrawn grant. Revoked grants never match.
-	Revoked bool `json:"revoked,omitempty"`
+	// Revoked marks a withdrawn grant. Revoked grants never match. The key
+	// is always present so live grants report explicit false, matching the
+	// documented CLI JSON shape and the text revoked=false column.
+	Revoked bool `json:"revoked"`
 }
 
 // RecordGrant persists a producer grant in the registry home. Re-issuing
@@ -117,7 +119,9 @@ func grantedCoreKinds(producerID, version string, scopes []string, grants []Prod
 		if grant.Revoked || !now.Before(grant.ExpiresAt) {
 			continue
 		}
-		if grant.ProducerID != producerID || grant.Version != version {
+		// Versions compare in normalized form: both spellings validate on
+		// both sides, so the v prefix is not part of grant identity.
+		if grant.ProducerID != producerID || normalizeSemver(grant.Version) != normalizeSemver(version) {
 			continue
 		}
 		if !declared[grant.Scope] {

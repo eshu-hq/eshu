@@ -57,6 +57,10 @@ stored grant revoked so the next emission fails closed.
 - Revoking an absent grant fails with `grant_not_found` instead of
   silently succeeding, so a typo cannot masquerade as a completed
   revocation.
+- Inputs canonicalize before storage and lookup: producer, version, kind,
+  scope, and schema entries are trimmed, and versions compare in
+  normalized form, so `v0.1.0` and `0.1.0` are the same grant identity
+  instead of a silent inert grant.
 
 ## Enforcement points
 

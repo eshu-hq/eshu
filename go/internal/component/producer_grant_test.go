@@ -281,3 +281,34 @@ func BenchmarkProducerGrantsRead(b *testing.B) {
 		}
 	}
 }
+
+// TestAuthorizesEmissionNormalizesVersionPrefix proves the v-prefix is not
+// part of grant identity: both spellings validate on both sides, so the
+// match compares normalized form instead of storing a silent inert grant.
+func TestAuthorizesEmissionNormalizesVersionPrefix(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	grant := ProducerGrant{
+		ProducerID:     "dev.example.collector.alpha",
+		Version:        "v0.1.0",
+		Kind:           "aws_resource",
+		SchemaVersions: []string{"1.0.0"},
+		Scope:          "aws",
+		ExpiresAt:      now.Add(time.Hour),
+	}
+	grants := []ProducerGrant{grant}
+	for _, version := range []string{"0.1.0", "v0.1.0"} {
+		if !AuthorizesEmission(grants, "dev.example.collector.alpha", version, "aws_resource", "1.0.0", []string{"aws"}, now) {
+			t.Fatalf("AuthorizesEmission(version %q) = false, want true across v-prefix spellings", version)
+		}
+	}
+	flipped := grant
+	flipped.Version = "0.1.0"
+	if !AuthorizesEmission([]ProducerGrant{flipped}, "dev.example.collector.alpha", "v0.1.0", "aws_resource", "1.0.0", []string{"aws"}, now) {
+		t.Fatal("AuthorizesEmission() = false, want true for stored 0.1.0 against manifest v0.1.0")
+	}
+	if AuthorizesEmission(grants, "dev.example.collector.alpha", "0.2.0", "aws_resource", "1.0.0", []string{"aws"}, now) {
+		t.Fatal("AuthorizesEmission(version 0.2.0) = true, want false for a different version")
+	}
+}

@@ -123,7 +123,14 @@ func RunRevokeGrant(
 	kind string,
 	scope string,
 ) error {
-	if strings.TrimSpace(producerID) == "" {
+	// Lookup fields canonicalize exactly like issuance, so a padded
+	// spelling of a stored grant revokes it instead of reporting
+	// grant_not_found.
+	producerID = strings.TrimSpace(producerID)
+	version = strings.TrimSpace(version)
+	kind = strings.TrimSpace(kind)
+	scope = strings.TrimSpace(scope)
+	if producerID == "" {
 		err := componentcore.Errorf(componentcore.ErrorCodeInvalidInput, "producer ID is required")
 		return renderError(w, jsonOutput, "revoke-grant", err)
 	}
@@ -150,6 +157,7 @@ func RunRevokeGrant(
 // including revoked and expired ones. A non-empty producer filters to one
 // producer identity.
 func RunGrants(w io.Writer, jsonOutput bool, home string, producer string) error {
+	producer = strings.TrimSpace(producer)
 	grants, err := componentcore.NewRegistry(home).ProducerGrants()
 	if err != nil {
 		return renderError(w, jsonOutput, "grants", err)

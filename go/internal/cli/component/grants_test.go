@@ -227,6 +227,7 @@ func TestRunGrantJSONPinsPayloadShape(t *testing.T) {
 		"version":     "0.1.0",
 		"kind":        "aws_resource",
 		"scope":       "aws",
+		"revoked":     false,
 	} {
 		if got := grant[key]; got != want {
 			t.Fatalf("grant.%s = %v, want %v", key, got, want)
@@ -477,5 +478,42 @@ func TestRunRevokeGrantJSONReportsStoredGrant(t *testing.T) {
 	expires, ok := grant["expires_at"].(string)
 	if !ok || expires == "" {
 		t.Fatalf("grant.expires_at = %v, want the stored expiry", grant["expires_at"])
+	}
+}
+
+// TestRunRevokeGrantTrimsLookup proves revocation canonicalizes like
+// issuance: a padded spelling of a stored grant revokes it instead of
+// reporting grant_not_found, so scripted rollback cannot mistake whitespace
+// for convergence.
+func TestRunRevokeGrantTrimsLookup(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	if err := RunGrant(
+		&bytes.Buffer{}, false, home,
+		"dev.example.collector.alpha", "0.1.0",
+		"aws_resource", []string{"1.0.0"}, "aws",
+		time.Hour, grantTestClock,
+	); err != nil {
+		t.Fatalf("RunGrant() error = %v, want nil", err)
+	}
+	out := &bytes.Buffer{}
+	err := RunRevokeGrant(out, false, home, "  dev.example.collector.alpha  ", "0.1.0", "aws_resource", "  aws  ")
+	if err != nil {
+		t.Fatalf("RunRevokeGrant() error = %v, want nil for padded spelling of a stored grant", err)
+	}
+	grants, rerr := componentcore.NewRegistry(home).ProducerGrants()
+	if rerr != nil {
+		t.Fatalf("ProducerGrants() error = %v, want nil", rerr)
+	}
+	if len(grants) != 1 || !grants[0].Revoked {
+		t.Fatalf("ProducerGrants() = %+v, want one revoked grant", grants)
+	}
+	filtered := &bytes.Buffer{}
+	if err := RunGrants(filtered, false, home, "  dev.example.collector.alpha  "); err != nil {
+		t.Fatalf("RunGrants() error = %v, want nil", err)
+	}
+	if got := filtered.String(); !strings.HasPrefix(got, "dev.example.collector.alpha\t") {
+		t.Fatalf("RunGrants(padded producer) output = %q, want the stored grant", got)
 	}
 }
