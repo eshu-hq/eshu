@@ -56,7 +56,7 @@ graph, storage, queue, or HTTP query work. `count_infra_resources`,
 `analyze_infra_relationships` keep the exact method, path, and body/query
 keys (including numeric defaults) the pre-extraction root switch arms sent,
 diffed against `git show origin/main:go/internal/mcp/dispatch.go`.
-`go test ./internal/mcp/infrainventory ./internal/mcp/... ./cmd/mcp-server -count=1`
+`go test ./internal/mcp/infra/inventory ./internal/mcp/... ./cmd/mcp-server -count=1`
 covers per-tool request selection, `resolveRoute` delegation for all four
 tools, and the route-serves-data registry.
 
