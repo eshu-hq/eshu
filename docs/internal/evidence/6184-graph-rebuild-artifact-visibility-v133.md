@@ -167,6 +167,51 @@ input/accepted/skipped/executed/route-count fields as the `group`
 entry, so an operator can tell grouped mains from sequential artifact
 writes per claim; the legs guard from `786dcdf8d` logs a WARN with
 domain/partition/sample ids plus the `SharedEdgeTargetMiss` counter on
-every deferred batch. No new metrics, spans, or dashboards; no
-telemetry coverage doc change needed (no execution-mode enumeration
-exists there).
+every deferred batch. The DS/DU guard (`107cc22ad`) reuses that same
+counter under bounded domain `workload_materialization` (materializer
+miss) alongside the EdgeWriter domains, with `deployment-source batch
+target absent, deferring pass` / `shared edge batch target absent,
+deferring batch` WARNs; no new metric names, spans, or dashboards.
+Coverage rows updated in place (no doc growth): the guard file shares
+the shared-edge target-miss row, and the batch-size signals share the
+code-call row.
+
+## Gate proof (fix `107cc22ad`: DS/DU fail-closed guard)
+
+Failing-first: 6 unit tests (3 materializer guard incl. a
+`shared_edge_target_miss_total[workload_materialization]==1`
+counter test, 3 DU presence incl. probe-shape pin). DU RED proven by
+stash (silent success pre-fix); materializer RED at API-absent level.
+Full `internal/reducer`, `internal/storage/cypher`,
+`internal/graphbackpressure`, `cmd/reducer` suites green post-fix.
+
+Live (all on the pinned v1.3.3 digest, binaries built from
+`107cc22ad`):
+
+- Run20 (fixture corpus, both passes): exit 0 — clean rebuild 82 s
+  (matches the 82–83 s runs 11–17 band, no regression),
+  pass 1 0/0 nodes/edges, pass 2 (restart) 0/0,
+  DEPLOYMENT_SOURCE 12/12. Log: `~/tmp/e6184/run20-gate.log`.
+- Run21 (3x amplified corpus, 201 scopes / 19107 facts, pass 1 only):
+  rebuild 149 s (vs 144 s run19 — within noise). Identity diff is the
+  known `workload:base` ownership tie only, mirror image of run19:
+  3 missing + 3 extra nodes, 23 missing + 22 extra edges, proven
+  byte-identical to run19's diff after normalizing copy suffixes and
+  hashes (51/51 lines). Fixed families zero-diff on both sides:
+  EvidenceArtifact 54/54, CORRELATES_DEPLOYABLE_UNIT 36/36,
+  EVIDENCES_REPOSITORY_RELATIONSHIP 54/54,
+  HAS_DEPLOYMENT_EVIDENCE 54/54, DEPLOYMENT_SOURCE 15/15.
+  Log: `~/tmp/e6184/run21-scale-gate.log`.
+- Fault-injection shards 1–4 (host binaries from `107cc22ad`,
+  fault tag): all PASS — shard 3 (the previously failing
+  `baseline-deployable-unit` form) green. Logs:
+  `~/tmp/e6184/run22-fi-shard3.log`, `run23-fi-shard1.log`,
+  `run24-fi-shard2.log`, `run25-fi-shard4.log`.
+- Determinism N=1/2/4: PASS, digests match across N
+  (`3f735f48...`), deployable_unit_edges cells converge.
+  Log: `~/tmp/e6184/run26-determinism.log`.
+
+SLO row: fixture exact-green 82 s plus 3x throughput signal 149 s
+with the tie-only diff above; FI 4/4 and determinism green on the
+fix commit. CI `required-gates-complete` remains authoritative for
+merge.
