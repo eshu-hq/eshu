@@ -59,11 +59,11 @@ func TestBuildProjectionQueuesSecurityAlertReconciliationForProviderAlert(t *tes
 
 // TestBuildProjectionQueuesSupplyChainImpactForProviderAlert previously
 // called the root buildSupplyChainImpactReducerIntent directly. That builder
-// moved into internal/projector/supplychainimpact with this extraction; the
+// moved into internal/projector/supply/chain/impact with this extraction; the
 // equivalent case (a security_alert.repository_alert fact producing the
 // "provider security alert evidence observed" reason) is now
 // TestBuildSupplyChainImpactReducerIntentReasonBySourceKind's "security
-// alert" subtest in supplychainimpact/impact_intents_test.go. The provider
+// alert" subtest in supply/chain/impact/intents_test.go. The provider
 // alert fact still reaches buildProjection through
 // TestBuildProjectionQueuesSecurityAlertReconciliationForProviderAlert above,
 // which asserts the security_alert_reconciliation intent the same fact also
