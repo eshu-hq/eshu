@@ -31,6 +31,12 @@ import (
 // golangci-lint, race-graph-writes, and golden-corpus-gate all green -- this
 // test is the guard that actually catches that regression, unconditionally,
 // without a live backend.
+//
+// The same dead-feature class covers .WithKustomizeOverlayResolver(...)
+// (#6184 runs 5-10): without it the projector's writer fails every kustomize
+// edge rebuild closed, so EXTENDS_BASE survives only when the ingester's
+// writer happens to win the shared-queue claim race for the overlay
+// materialization -- present in one rebuild leg, absent in the next.
 func TestOpenProjectorCanonicalWriterSourceWiresTerraformStateResolvers(t *testing.T) {
 	t.Parallel()
 
@@ -38,6 +44,7 @@ func TestOpenProjectorCanonicalWriterSourceWiresTerraformStateResolvers(t *testi
 	for _, call := range []string{
 		".WithTerraformStateOwnershipResolver(",
 		".WithTerraformStateConfigMatchResolver(",
+		".WithKustomizeOverlayResolver(",
 	} {
 		if !strings.Contains(source, call) {
 			t.Errorf("openProjectorCanonicalWriter source missing %s wiring call", call)

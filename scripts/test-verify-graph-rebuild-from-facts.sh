@@ -262,5 +262,149 @@ else
 fi
 rm -rf "${sequence_mock_dir}"
 
+# Schema reapplication must not resolve Compose dependencies. `up -d
+# db-migrate` re-resolves depends_on and restarts the exited bootstrap-index
+# one-shot; its restart reopens reducer work and backfills evidence facts into
+# the wiped graph, and both rebuild legs then reproduce rows the rebuild
+# command under test never issued (#6184 runs 5-6: identical pass extras in
+# both legs, neither in the baseline).
+compose_mock_dir="$(mktemp -d)"
+MOCK_BOOTSTRAP_STARTED_AT="2026-09-17T03:08:43.020746764Z"
+mock_compose() {
+	printf '%s\n' "$*" >>"${compose_mock_dir}/calls"
+	if [[ "$1" == "logs" ]]; then
+		printf 'bootstrap.graph.applied\n'
+	elif [[ "$1" == "ps" ]]; then
+		printf 'bootstrap-container-id\n'
+	fi
+	return 0
+}
+COMPOSE_CMD=(mock_compose)
+docker() {
+	if [[ "$1" == "inspect" ]]; then
+		printf '%s\n' "${MOCK_BOOTSTRAP_STARTED_AT}"
+		return 0
+	fi
+	return 0
+}
+wait_for_service_exit() { return 0; }
+
+: >"${compose_mock_dir}/calls"
+reapply_graph_schema >/dev/null 2>&1
+reapply_status=$?
+reapply_up_line="$(rg '^up ' "${compose_mock_dir}/calls" || true)"
+if [[ "${reapply_status}" -ne 0 ]]; then
+	record_fail "schema reapplication succeeds" \
+		"reapply_graph_schema returned ${reapply_status}"
+elif [[ "${reapply_up_line}" != *'--no-deps'* ]]; then
+	record_fail "schema reapplication never resolves dependencies" \
+		"up line=${reapply_up_line:-<none>}, want --no-deps db-migrate"
+else
+	record_pass "schema reapplication never resolves dependencies"
+fi
+
+# The rebuild proof is void if bootstrap-index ran again after the baseline:
+# a restart is the same container started again, so the pin must be the
+# start timestamp, not the container id (which survives a restart).
+BOOTSTRAP_STARTED_AT=""
+record_bootstrap_container >/dev/null 2>&1
+if [[ "${BOOTSTRAP_STARTED_AT}" != "${MOCK_BOOTSTRAP_STARTED_AT}" ]]; then
+	record_fail "bootstrap start is pinned after the initial run" \
+		"pinned=${BOOTSTRAP_STARTED_AT:-<empty>}, want ${MOCK_BOOTSTRAP_STARTED_AT}"
+elif ! assert_bootstrap_container_unchanged >/dev/null 2>&1; then
+	record_fail "an unchanged bootstrap start passes the tripwire" \
+		"assert failed on the pinned timestamp"
+else
+	record_pass "an unchanged bootstrap start passes the tripwire"
+fi
+
+MOCK_BOOTSTRAP_STARTED_AT="2026-09-17T03:14:06.699757153Z"
+restart_output="$(assert_bootstrap_container_unchanged 2>&1)"
+if [[ "$?" -eq 0 ]]; then
+	record_fail "a restarted bootstrap fails the tripwire" \
+		"assert passed after the start timestamp changed"
+elif [[ "${restart_output}" != *'bootstrap-index'* ]]; then
+	record_fail "a restarted bootstrap fails the tripwire" \
+		"failure names no cause: ${restart_output:-<empty>}"
+else
+	record_pass "a restarted bootstrap fails the tripwire"
+fi
+
+BOOTSTRAP_STARTED_AT=""
+if assert_bootstrap_container_unchanged >/dev/null 2>&1; then
+	record_fail "a missing bootstrap pin fails the tripwire" \
+		"assert passed with no recorded start timestamp"
+else
+	record_pass "a missing bootstrap pin fails the tripwire"
+fi
+
+# Surgical restarts must not resolve Compose dependencies: `docker compose
+# start` (v5) starts the stopped dependency closure, including the
+# bootstrap-index one-shot whose restart voids the rebuild proof (#6184 run
+# 7). Restarts go through daemon-level `docker start` on the listed containers
+# only; `ps -q` merely resolves their ids. Remove the earlier mock dir first:
+# reassigning without cleanup orphans it (only the second dir is removed at
+# the end), leaking one temp dir per run.
+rm -rf "${compose_mock_dir}"
+compose_mock_dir="$(mktemp -d)"
+: >"${compose_mock_dir}/calls"
+: >"${compose_mock_dir}/docker-calls"
+GRAPH_WRITERS=(eshu mcp-server ingester resolution-engine projector)
+API_BASE="http://localhost:1"
+wait_for_http() { return 0; }
+# An earlier block stubbed the start orchestration; restore the real lib
+# functions under test here.
+# shellcheck source=scripts/lib/graph_rebuild_runtime.sh
+source "${script_root}/lib/graph_rebuild_runtime.sh"
+MOCK_PS_IDS="cid-eshu"
+mock_compose() {
+	printf '%s\n' "$*" >>"${compose_mock_dir}/calls"
+	if [[ "$1" == "logs" ]]; then
+		printf 'bootstrap.graph.applied\n'
+	elif [[ "$1" == "ps" ]]; then
+		printf '%s\n' "${MOCK_PS_IDS}"
+	fi
+	return 0
+}
+docker() {
+	printf 'docker %s\n' "$*" >>"${compose_mock_dir}/docker-calls"
+	if [[ "$1" == "inspect" ]]; then
+		if [[ "$*" == *'State.Status'* ]]; then
+			printf 'exited\n'
+		else
+			printf '%s\n' "${MOCK_BOOTSTRAP_STARTED_AT}"
+		fi
+	fi
+	return 0
+}
+start_recovery_api >/dev/null 2>&1
+if rg -q '^(up|start)( |$)' "${compose_mock_dir}/calls"; then
+	record_fail "recovery api start resolves no dependencies" \
+		"compose calls=$(paste -sd, "${compose_mock_dir}/calls"), want ps only"
+elif ! rg -q '^ps -a( |$)' "${compose_mock_dir}/calls"; then
+	record_fail "stopped writers are visible to the restart" \
+		"ps call lists running containers only; stopped writers resolve to nothing (run 8)"
+elif ! rg -qx 'docker start cid-eshu' "${compose_mock_dir}/docker-calls"; then
+	record_fail "recovery api start resolves no dependencies" \
+		"docker calls=$(paste -sd, "${compose_mock_dir}/docker-calls"), want 'docker start cid-eshu'"
+else
+	record_pass "recovery api start resolves no dependencies"
+fi
+
+: >"${compose_mock_dir}/calls"
+: >"${compose_mock_dir}/docker-calls"
+MOCK_PS_IDS=$'cid-a\ncid-b'
+start_services >/dev/null 2>&1
+if rg -q '^(up|start)( |$)' "${compose_mock_dir}/calls"; then
+	record_fail "worker restart resolves no dependencies" \
+		"compose calls=$(paste -sd, "${compose_mock_dir}/calls"), want ps only"
+elif ! rg -qx 'docker start cid-a cid-b' "${compose_mock_dir}/docker-calls"; then
+	record_fail "worker restart resolves no dependencies" \
+		"docker calls=$(paste -sd, "${compose_mock_dir}/docker-calls"), want 'docker start cid-a cid-b'"
+else
+	record_pass "worker restart resolves no dependencies"
+fi
+rm -rf "${compose_mock_dir}"
+
 printf '\n%d passed, %d failed\n' "${pass_count}" "${fail_count}"
 [[ "${fail_count}" -eq 0 ]]

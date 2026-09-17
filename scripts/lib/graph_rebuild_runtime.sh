@@ -174,3 +174,119 @@ compare_sets() {
 	done
 	return "$failed"
 }
+
+# reapply_graph_schema runs schema bootstrap with the marker override. Without
+# it the run is a no-op: the "applied" marker is a Postgres row, Postgres was
+# preserved, and bootstrap would return before opening a graph connection,
+# leaving the rebuild to write into a backend with no indexes or constraints.
+#
+# The migrate container is recreated with --no-deps: a plain `up` re-resolves
+# depends_on and restarts the exited bootstrap-index one-shot, whose restart
+# reopens reducer work and backfills evidence facts into the wiped graph --
+# rows the rebuild command under test never issued (#6184 runs 5-6).
+reapply_graph_schema() {
+	echo "Reapplying graph schema with ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true..."
+	"${COMPOSE_CMD[@]}" rm -sf db-migrate >/dev/null 2>&1 || true
+	ESHU_GRAPH_SCHEMA_FORCE_REAPPLY=true "${COMPOSE_CMD[@]}" up -d --no-deps db-migrate >/dev/null
+	wait_for_service_exit db-migrate 600
+
+	if ! "${COMPOSE_CMD[@]}" logs db-migrate 2>&1 | rg -q 'bootstrap.graph.applied'; then
+		echo "Schema bootstrap did not apply graph schema. The marker override did not take effect:" >&2
+		"${COMPOSE_CMD[@]}" logs --tail=50 db-migrate >&2
+		return 1
+	fi
+	echo "Graph schema applied."
+}
+
+# bootstrap_container_started_at prints the bootstrap-index container's start
+# timestamp. A restart is the same container started again, so the identity pin
+# must be the start timestamp, not the container id (which survives a restart).
+bootstrap_container_started_at() {
+	local container
+	container="$("${COMPOSE_CMD[@]}" ps -a -q bootstrap-index | tr -d '\r')"
+	if [[ -z "$container" ]]; then
+		return 1
+	fi
+	docker inspect --format='{{.State.StartedAt}}' "$container" | tr -d '\r'
+}
+
+# record_bootstrap_container pins the bootstrap-index start timestamp once its
+# initial indexing run has exited. BOOTSTRAP_STARTED_AT carries the pin.
+record_bootstrap_container() {
+	BOOTSTRAP_STARTED_AT="$(bootstrap_container_started_at)" || return $?
+	if [[ -z "$BOOTSTRAP_STARTED_AT" ]]; then
+		echo "Could not resolve the bootstrap-index container start timestamp" >&2
+		return 1
+	fi
+}
+
+# assert_bootstrap_container_unchanged fails when bootstrap-index started again
+# after the pin. Its restart reopens reducer work and backfills facts, so a
+# changed pin means the graph was not rebuilt from facts by the command under
+# test; fail loudly instead of reporting the injected rows as rebuild drift.
+assert_bootstrap_container_unchanged() {
+	local current
+	if [[ -z "${BOOTSTRAP_STARTED_AT:-}" ]]; then
+		echo "Bootstrap container start was never recorded; refusing to compare snapshots" >&2
+		return 1
+	fi
+	current="$(bootstrap_container_started_at)" || {
+		echo "Could not resolve the bootstrap-index container start timestamp" >&2
+		return 1
+	}
+	if [[ "$current" != "$BOOTSTRAP_STARTED_AT" ]]; then
+		echo "bootstrap-index restarted outside the rebuild command under test; its restart reopens reducer work and backfills facts, so the graph was not rebuilt from facts by the command under test" >&2
+		return 1
+	fi
+}
+
+# start_existing_containers starts existing containers by daemon id without
+# resolving Compose dependencies. `docker compose start` is not usable here:
+# v5 starts the stopped dependency closure, including the bootstrap-index
+# one-shot (a stopped completed-dependency is still started), whose restart
+# reopens reducer work and backfills facts the rebuild command never issued
+# (#6184 run 7). `ps -a -q` only lists, stopped writers included (run 8);
+# `docker start` only starts.
+start_existing_containers() {
+	local ids id_list
+	ids="$("${COMPOSE_CMD[@]}" ps -a -q "$@" | tr -d '\r')"
+	if [[ -z "$ids" ]]; then
+		echo "No containers to start for: $*" >&2
+		return 1
+	fi
+	# shellcheck disable=SC2206
+	id_list=($ids)
+	docker start "${id_list[@]}" >/dev/null
+}
+
+# start_services restarts the stopped writers without resolving dependencies
+# (see start_existing_containers). `ingester` declares depends_on
+# bootstrap-index: service_completed_successfully, and any resolving restart
+# would re-run that one-shot: it would re-index the corpus and re-project it,
+# which both contaminates the rebuild timing and means the graph was not
+# rebuilt from facts by the command under test.
+start_services() {
+	start_existing_containers "${GRAPH_WRITERS[@]}" || return $?
+	wait_for_http "${API_BASE}/health" 120
+	assert_bootstrap_index_stopped
+}
+
+# start_recovery_api starts only the HTTP control plane. Projection workers stay
+# stopped until request_rebuild has durably reset and enqueued the generation
+# set, eliminating their claim race with the recovery transaction's in-flight
+# reducer fence.
+start_recovery_api() {
+	start_existing_containers eshu || return $?
+	wait_for_http "${API_BASE}/health" 120
+	assert_bootstrap_index_stopped
+}
+
+assert_bootstrap_index_stopped() {
+	local bootstrap_state
+	bootstrap_state="$(docker inspect --format='{{.State.Status}}' \
+		"$("${COMPOSE_CMD[@]}" ps -a -q bootstrap-index)")"
+	if [[ "$bootstrap_state" != "exited" ]]; then
+		echo "bootstrap-index is $bootstrap_state, expected exited: it restarted and would re-index the corpus, so the rebuild would not be measuring rebuild-from-facts" >&2
+		return 1
+	fi
+}

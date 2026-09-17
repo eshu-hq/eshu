@@ -6,7 +6,10 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // CypherExecutor executes one parameterised Cypher statement against the canonical graph backend.
@@ -40,6 +43,12 @@ type MaterializeResult struct {
 type WorkloadMaterializer struct {
 	executor  CypherExecutor
 	BatchSize int
+	// DeploymentSourceProber optionally guards the deployment-source batch
+	// against absent write targets (#6184); nil keeps the legacy write.
+	// Logger and Instruments are nil-safe.
+	DeploymentSourceProber GraphExistenceProber
+	Logger                 *slog.Logger
+	Instruments            *telemetry.Instruments
 }
 
 // NewWorkloadMaterializer returns a WorkloadMaterializer backed by the given
@@ -178,6 +187,11 @@ func (m *WorkloadMaterializer) Materialize(
 
 	// Batch deployment sources
 	if len(projection.DeploymentSourceRows) > 0 {
+		// Fail closed on absent write targets (#6184): a miss defers retryably
+		// instead of MERGing against nothing while counting the row written.
+		if err := checkDeploymentSourceTargets(ctx, m.DeploymentSourceProber, m.Logger, m.Instruments, projection.DeploymentSourceRows); err != nil {
+			return result, fmt.Errorf("write deployment sources: %w", err)
+		}
 		stageStarted := time.Now()
 		rows := make([]map[string]any, len(projection.DeploymentSourceRows))
 		for i, row := range projection.DeploymentSourceRows {

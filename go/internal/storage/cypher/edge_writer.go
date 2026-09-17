@@ -221,13 +221,20 @@ func (w *EdgeWriter) WriteEdges(
 		// the report instead (#5984, owner decision on PR #6008).
 		return report, nil
 	}
+	// Fail closed on absent write targets (#6184): see
+	// checkRoutedBatchTargets for the contract.
+	if err := checkRoutedBatchTargets(ctx, w, domain, evidenceSource, rows, routedRows, routeOrder); err != nil {
+		return report, err
+	}
 	writtenRows := 0
 	for _, cypher := range routeOrder {
 		writtenRows += len(routedRows[cypher])
 	}
 
-	// Collect all batches as statements.
+	// Main routes group below; artifact routes run sequentially after (see
+	// executeArtifactStatements).
 	var stmts []Statement
+	var artifactStmts []Statement
 	bs := w.batchSizeForDomain(domain)
 	for _, cypher := range routeOrder {
 		routeStatements := buildEdgeRouteStatements(cypher, routedRows[cypher], bs)
@@ -237,7 +244,7 @@ func (w *EdgeWriter) WriteEdges(
 	for _, cypher := range artifactRouteOrder {
 		routeStatements := buildBatchedStatements(cypher, artifactRows[cypher], bs)
 		annotateEdgeStatementSummaries(domain, cypher, routeStatements)
-		stmts = append(stmts, routeStatements...)
+		artifactStmts = append(artifactStmts, routeStatements...)
 	}
 
 	// Prefer atomic grouped execution except where the backend requires the SQL
@@ -255,34 +262,39 @@ func (w *EdgeWriter) WriteEdges(
 					return report, WrapRetryableNeo4jError(err)
 				}
 				duration := time.Since(start).Seconds()
-				w.recordGroupedWrite(ctx, domain, duration, stmts[i:end])
+				w.recordGroupedWrite(ctx, domain, "group", duration, stmts[i:end])
 				w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, groupSize, duration, stmts[i:end])
 				if domain == reducer.DomainCodeCalls {
 					w.recordCodeCallBatch(ctx, duration)
 				}
 			}
-			return report, nil
+		} else {
+			start := time.Now()
+			if err := ge.ExecuteGroup(ctx, stmts); err != nil {
+				return report, WrapRetryableNeo4jError(err)
+			}
+			duration := time.Since(start).Seconds()
+			w.recordGroupedWrite(ctx, domain, "group", duration, stmts)
+			w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, stmts)
 		}
-		start := time.Now()
-		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return report, WrapRetryableNeo4jError(err)
+	} else {
+		// No grouped executor: sequential auto-commit needs no split.
+		stmts = append(stmts, artifactStmts...)
+		artifactStmts = nil
+		for _, stmt := range stmts {
+			start := time.Now()
+			if err := w.executor.Execute(ctx, stmt); err != nil {
+				return report, WrapRetryableNeo4jError(err)
+			}
+			duration := time.Since(start).Seconds()
+			w.logSharedEdgeWrite(domain, evidenceSource, "single", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, []Statement{stmt})
+			if domain == reducer.DomainCodeCalls {
+				w.recordCodeCallBatch(ctx, duration)
+			}
 		}
-		duration := time.Since(start).Seconds()
-		w.recordGroupedWrite(ctx, domain, duration, stmts)
-		w.logSharedEdgeWrite(domain, evidenceSource, "group", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, stmts)
-		return report, nil
 	}
-
-	for _, stmt := range stmts {
-		start := time.Now()
-		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return report, WrapRetryableNeo4jError(err)
-		}
-		duration := time.Since(start).Seconds()
-		w.logSharedEdgeWrite(domain, evidenceSource, "single", len(rows), writtenRows, droppedRows, len(routeOrder), bs, 0, duration, []Statement{stmt})
-		if domain == reducer.DomainCodeCalls {
-			w.recordCodeCallBatch(ctx, duration)
-		}
+	if err := w.executeArtifactStatements(ctx, domain, evidenceSource, len(rows), artifactStmts, writtenRows, droppedRows, len(routeOrder), bs); err != nil {
+		return report, err
 	}
 	return report, nil
 }

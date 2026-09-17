@@ -38,6 +38,24 @@ func (e cypherExecutorGate) ExecuteCypher(ctx context.Context, query string, par
 	return e.inner.ExecuteCypher(ctx, query, params)
 }
 
+// ProbeGraphExists forwards the deployment-source target probe (#6184)
+// through the gate so the guard sees the wrapped chain's capability. The
+// probe draws one shared permit like any other materializer statement: it is
+// one fast read per deployment-source batch, and counting it under the bound
+// keeps the in-flight accounting honest.
+func (e cypherExecutorGate) ProbeGraphExists(ctx context.Context, query string, params map[string]any) (bool, error) {
+	prober, ok := e.inner.(reducer.GraphExistenceProber)
+	if !ok {
+		return false, fmt.Errorf("materializer executor %T does not support target probes", e.inner)
+	}
+	release, err := e.gate.Acquire(ctx, "materialize_cypher_probe")
+	if err != nil {
+		return false, err
+	}
+	defer release()
+	return prober.ProbeGraphExists(ctx, query, params)
+}
+
 // ExecuteCypherGroup holds one shared permit for the complete atomic group.
 func (e cypherExecutorGate) ExecuteCypherGroup(
 	ctx context.Context,

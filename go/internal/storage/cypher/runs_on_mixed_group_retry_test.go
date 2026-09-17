@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -16,18 +15,22 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// mixedRunsOnRetryExecutor records the complete group on each attempt. A
-// first-attempt commit failure represents an atomic rollback, so the writer
-// must replay every route, not only the RUNS_ON cleanup or upsert.
+// mixedRunsOnRetryExecutor records the complete main group on each attempt.
+// A first-attempt commit failure represents an atomic rollback, so the
+// writer must replay every main route, not only the RUNS_ON cleanup or
+// upsert. Evidence-artifact statements run sequentially after the main group
+// commits (#6184 run15: same-transaction MATCHes miss the main batch's
+// in-transaction MERGEs on NornicDB), so single writes are expected exactly
+// for the artifact batch.
 type mixedRunsOnRetryExecutor struct {
 	groups       [][]Statement
 	snapshots    [][]byte
-	singleWrites int
+	singleWrites []Statement
 }
 
-func (e *mixedRunsOnRetryExecutor) Execute(context.Context, Statement) error {
-	e.singleWrites++
-	return errors.New("mixed repo-dependency write must stay atomic")
+func (e *mixedRunsOnRetryExecutor) Execute(_ context.Context, stmt Statement) error {
+	e.singleWrites = append(e.singleWrites, stmt)
+	return nil
 }
 
 func (e *mixedRunsOnRetryExecutor) ExecuteGroup(_ context.Context, statements []Statement) error {
@@ -102,8 +105,8 @@ func TestEdgeWriterMixedRepoDependencyRunsOnGroupReplaysWholeCommit(t *testing.T
 	if len(report.UnroutableRows) != 0 {
 		t.Fatalf("unroutable rows = %#v, want none", report.UnroutableRows)
 	}
-	if inner.singleWrites != 0 || len(inner.groups) != 2 {
-		t.Fatalf("dispatch = %d single writes and %d group attempts, want 0 and 2", inner.singleWrites, len(inner.groups))
+	if len(inner.singleWrites) != 1 || len(inner.groups) != 2 {
+		t.Fatalf("dispatch = %d single writes and %d group attempts, want 1 and 2", len(inner.singleWrites), len(inner.groups))
 	}
 	if !bytes.Equal(inner.snapshots[0], inner.snapshots[1]) {
 		t.Fatal("replayed group differs from the failed atomic attempt")
@@ -113,12 +116,14 @@ func TestEdgeWriterMixedRepoDependencyRunsOnGroupReplaysWholeCommit(t *testing.T
 	if allStatementsAreReplaySafe(group) {
 		t.Fatal("mixed RUNS_ON group unexpectedly passed the generic replay classifier")
 	}
+	// The main group replays wholly without the evidence-artifact batch:
+	// artifacts follow sequentially after the main group commits, so the
+	// group holds exactly the four main routes in order.
 	wantQueries := []string{
 		batchCanonicalRunsOnLegacyIdentityCleanupCypher,
 		batchCanonicalRunsOnUpsertCypher,
 		batchCanonicalRepoDependencyUpsertCypher,
 		batchCanonicalDeploysFromRepoRelationshipUpsertCypher,
-		batchCanonicalRepoEvidenceArtifactUpsertCypher,
 	}
 	if len(group) != len(wantQueries) {
 		t.Fatalf("group statements = %d, want %d", len(group), len(wantQueries))
@@ -135,8 +140,15 @@ func TestEdgeWriterMixedRepoDependencyRunsOnGroupReplaysWholeCommit(t *testing.T
 	assertMixedRunsOnRouteRow(t, group[0], "service-repo", "platform_id", "platform-prod")
 	assertMixedRunsOnRouteRow(t, group[2], "service-repo", "target_repo_id", "dependency-repo")
 	assertMixedRunsOnRouteRow(t, group[3], "service-repo", "target_repo_id", "deployment-repo")
-	assertMixedRunsOnRouteRow(t, group[4], "service-repo", "target_repo_id", "dependency-repo")
-	artifactRows := group[4].Parameters["rows"].([]map[string]any)
+
+	// The artifact batch follows as one sequential statement carrying the
+	// dependency evidence identity.
+	single := inner.singleWrites[0]
+	if single.Cypher != batchCanonicalRepoEvidenceArtifactUpsertCypher || single.Operation != OperationCanonicalUpsert {
+		t.Fatalf("artifact single = operation %q, query %q; want the artifact upsert", single.Operation, single.Cypher)
+	}
+	assertMixedRunsOnRouteRow(t, single, "service-repo", "target_repo_id", "dependency-repo")
+	artifactRows := single.Parameters["rows"].([]map[string]any)
 	if artifactRows[0]["artifact_id"] == "" || artifactRows[0]["resolved_id"] != "resolved-dependency-1" {
 		t.Fatalf("artifact row = %#v, want the dependency evidence identity", artifactRows[0])
 	}

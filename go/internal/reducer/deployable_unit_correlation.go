@@ -37,6 +37,16 @@ type DeployableUnitCorrelationHandler struct {
 	// This is the shared relationship-generation fence also backing the
 	// repo-dependency lane, so main.go wires the same lookup value here.
 	ResolutionActiveLookup maintenance.RelationshipGenerationActiveLookup
+	// ResolutionsCompleteLookup backs the corpus-wide resolution-readiness
+	// gate: the intent defers while any active scope's current relationship
+	// generation is inactive, because the by-repos resolved read merges
+	// foreign scopes the own-generation check cannot see (#6184). Nil keeps
+	// the gate open for test wiring; main.go wires the Postgres lookup here.
+	ResolutionsCompleteLookup maintenance.RelationshipGenerationsCompleteLookup
+	// IncompleteScopesLookup best-effort names the scopes holding the fence
+	// on a deferral, so the error is actionable instead of opaque (#6730).
+	// Nil-safe: a nil lookup or a lookup error simply omits the holder list.
+	IncompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup
 	// CanonicalQuiescence keeps graph writes behind repository projection.
 	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 }
@@ -81,12 +91,9 @@ func (h DeployableUnitCorrelationHandler) Handle(
 	candidates, _ := ExtractWorkloadCandidates(envelopes)
 
 	// Fail closed before the resolved-relationship read: both feeds are partial
-	// until the scope's own resolution activates, and success is never reopened.
-	if !ownResolutionGenerationReady(h.ResolutionActiveLookup, intent, candidates) {
-		return Result{}, deployableUnitCorrelationResolutionNotReadyError{
-			scopeID:      intent.ScopeID,
-			generationID: intent.GenerationID,
-		}
+	// until resolutions complete corpus-wide, and success is never reopened.
+	if err := checkDeployableUnitResolutionReadiness(ctx, h.ResolutionActiveLookup, h.ResolutionsCompleteLookup, h.IncompleteScopesLookup, intent, candidates); err != nil {
+		return Result{}, err
 	}
 	if err := deployableUnitCanonicalReposReady(ctx, h.CanonicalQuiescence, intent, len(candidates) > 0); err != nil {
 		return Result{}, err
@@ -97,6 +104,12 @@ func (h DeployableUnitCorrelationHandler) Handle(
 		resolved, err = loadWorkloadResolvedRelationships(ctx, h.ResolvedLoader, intent, candidates)
 		if err != nil {
 			return Result{}, fmt.Errorf("load resolved relationships for deployable unit correlation: %w", err)
+		}
+		// Re-evaluate the corpus fence after the foreign read (#6730 Codex
+		// P1); see the loader for the check-then-read rationale and the
+		// residual-window note.
+		if err := checkDeployableUnitResolutionReadiness(ctx, h.ResolutionActiveLookup, h.ResolutionsCompleteLookup, h.IncompleteScopesLookup, intent, candidates); err != nil {
+			return Result{}, err
 		}
 		// A second, independent pass over resolved purely for diagnostics
 		// (#6149 follow-up item 6) -- ExtractDeployableUnitCorrelationRows
@@ -484,16 +497,4 @@ func deployableUnitKeys(candidate WorkloadCandidate) []string {
 		values = append(values, key)
 	}
 	return uniqueSortedStrings(values)
-}
-
-func deployableUnitCorrelationSummary(evaluatedCandidates int, summary correlation.Summary) string {
-	return fmt.Sprintf(
-		"evaluated %d deployable unit candidate(s); admitted=%d rejected=%d low_confidence=%d conflicts=%d rules=%d",
-		evaluatedCandidates,
-		summary.AdmittedCandidates,
-		summary.RejectedCandidates,
-		summary.LowConfidenceCount,
-		summary.ConflictCount,
-		summary.EvaluatedRules,
-	)
 }

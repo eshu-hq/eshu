@@ -11,7 +11,10 @@ package cypher
 // by (repo_id, path) (committed at workload-materialization). The reducer only
 // emits an intent for an exact, unambiguous handler resolution, so the MERGE
 // never attaches an edge to a guessed handler; if either MATCH finds no node
-// the MERGE is a no-op rather than an error.
+// the MERGE writes nothing for that row. That no-op is defense-in-depth only:
+// EdgeWriter probes batch target presence first (#6184) and fails the batch
+// retryably on a miss, so a missing endpoint defers the batch instead of
+// completing a silent loss.
 
 const batchCanonicalHandlesRouteEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (f:Function {uid: row.function_entity_id})

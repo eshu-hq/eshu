@@ -318,3 +318,216 @@ func TestWorkloadProjectionInputsProceedWhenOwnResolutionActive(t *testing.T) {
 		t.Fatalf("LoadWorkloadProjectionInputs() error = %v, want nil when own generation is active", err)
 	}
 }
+
+func TestDeployableUnitCorrelationHandleDefersWhileCorpusResolutionIncomplete(t *testing.T) {
+	t.Parallel()
+
+	resolvedLoader := &stubDeployableUnitResolvedLoader{}
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:     &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader: resolvedLoader,
+		// Own generation is active, but a foreign scope's resolution has not
+		// activated yet: the by-repos read would serve a partial set (#6184).
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		ResolutionsCompleteLookup: func(context.Context) (bool, error) {
+			return false, nil
+		},
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err == nil {
+		t.Fatal("Handle() error = nil, want resolution-not-ready deferral while a foreign generation is inactive")
+	}
+	var deferral deployableUnitCorrelationResolutionNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("Handle() error type = %T, want deployableUnitCorrelationResolutionNotReadyError", err)
+	}
+	if !deferral.Retryable() {
+		t.Fatal("deferral Retryable() = false, want true so the queue re-runs after activation")
+	}
+	if got, want := deferral.FailureClass(), DeployableUnitCorrelationResolutionNotReadyFailureClass; got != want {
+		t.Fatalf("deferral FailureClass() = %q, want %q", got, want)
+	}
+	if resolvedLoader.calls != 0 {
+		t.Fatalf("resolved loader calls = %d, want 0: the gate must fire before the fail-open read", resolvedLoader.calls)
+	}
+}
+
+func TestDeployableUnitCorrelationHandleProceedsWhenCorpusResolutionComplete(t *testing.T) {
+	t.Parallel()
+
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         &stubDeployableUnitResolvedLoader{},
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		ResolutionsCompleteLookup: func(context.Context) (bool, error) {
+			return true, nil
+		},
+	}
+
+	got, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil when own and corpus resolution are complete", err)
+	}
+	if got.Status != ResultStatusSucceeded {
+		t.Fatalf("Handle().Status = %q, want %q", got.Status, ResultStatusSucceeded)
+	}
+}
+
+// TestDeployableUnitCorrelationHandleSurfacesFenceLookupError pins the #6730
+// owner finding: when the corpus-wide fence lookup itself fails, the
+// deferral must name the fence failure instead of swallowing it into a
+// generic not-ready message — otherwise a Postgres outage at 3 AM reads
+// exactly like healthy backpressure.
+func TestDeployableUnitCorrelationHandleSurfacesFenceLookupError(t *testing.T) {
+	t.Parallel()
+
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         &stubDeployableUnitResolvedLoader{},
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		ResolutionsCompleteLookup: func(context.Context) (bool, error) {
+			return false, errors.New("fence store unavailable")
+		},
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err == nil {
+		t.Fatal("Handle() error = nil, want resolution-not-ready deferral on fence lookup failure")
+	}
+	var deferral deployableUnitCorrelationResolutionNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("Handle() error type = %T, want deployableUnitCorrelationResolutionNotReadyError", err)
+	}
+	if !deferral.Retryable() {
+		t.Fatal("deferral Retryable() = false, want true: a fence outage must requeue, not terminalize")
+	}
+	if !strings.Contains(err.Error(), "fence store unavailable") {
+		t.Fatalf("Handle() error = %q, want it to name the fence lookup failure", err.Error())
+	}
+}
+
+// TestDeployableUnitCorrelationHandleNamesHoldingScopes pins the #6730
+// owner finding: a fence deferral must name the scopes holding the fence,
+// so the error is actionable instead of opaque at 3 AM.
+func TestDeployableUnitCorrelationHandleNamesHoldingScopes(t *testing.T) {
+	t.Parallel()
+
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         &stubDeployableUnitResolvedLoader{},
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		ResolutionsCompleteLookup: func(context.Context) (bool, error) {
+			return false, nil
+		},
+		IncompleteScopesLookup: func(context.Context) ([]string, error) {
+			return []string{"scope-holding-a", "scope-holding-b"}, nil
+		},
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err == nil {
+		t.Fatal("Handle() error = nil, want resolution-not-ready deferral")
+	}
+	if !strings.Contains(err.Error(), "holding scopes: scope-holding-a,scope-holding-b") {
+		t.Fatalf("Handle() error = %q, want it to name the holding scopes", err.Error())
+	}
+}
+
+// TestDeployableUnitCorrelationHandleOmitsHoldersWithoutLookup pins the
+// nil-safe contract: without a holder lookup the deferral keeps its legacy
+// shape instead of failing.
+func TestDeployableUnitCorrelationHandleOmitsHoldersWithoutLookup(t *testing.T) {
+	t.Parallel()
+
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         &stubDeployableUnitResolvedLoader{},
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		ResolutionsCompleteLookup: func(context.Context) (bool, error) {
+			return false, nil
+		},
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err == nil {
+		t.Fatal("Handle() error = nil, want resolution-not-ready deferral")
+	}
+	var deferral deployableUnitCorrelationResolutionNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("Handle() error type = %T, want deployableUnitCorrelationResolutionNotReadyError", err)
+	}
+	if strings.Contains(err.Error(), "holding scopes") {
+		t.Fatalf("Handle() error = %q, want no holder section without a holder lookup", err.Error())
+	}
+}
+
+// TestDeployableUnitCorrelationHandleOmitsHoldersOnLookupError pins the
+// fail-open diagnosability contract: a holder-lookup outage must not block
+// or reshape the deferral itself.
+func TestDeployableUnitCorrelationHandleOmitsHoldersOnLookupError(t *testing.T) {
+	t.Parallel()
+
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         &stubDeployableUnitResolvedLoader{},
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		ResolutionsCompleteLookup: func(context.Context) (bool, error) {
+			return false, nil
+		},
+		IncompleteScopesLookup: func(context.Context) ([]string, error) {
+			return nil, errors.New("holder store unavailable")
+		},
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err == nil {
+		t.Fatal("Handle() error = nil, want resolution-not-ready deferral")
+	}
+	var deferral deployableUnitCorrelationResolutionNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("Handle() error type = %T, want deployableUnitCorrelationResolutionNotReadyError", err)
+	}
+	if !deferral.Retryable() {
+		t.Fatal("deferral Retryable() = false, want true")
+	}
+	if strings.Contains(err.Error(), "holding scopes") {
+		t.Fatalf("Handle() error = %q, want no holder section when the holder lookup fails", err.Error())
+	}
+}
+
+// TestDeployableUnitCorrelationHandleDefersWhenCorpusFenceFlipsAfterRead is
+// the deployable-unit half of the #6730 Codex P1: the readiness fence passes,
+// the resolved-relationship read observes a corpus that advanced mid-pass,
+// and the pass must re-evaluate the fence after that read and defer rather
+// than succeed on the mixed input.
+func TestDeployableUnitCorrelationHandleDefersWhenCorpusFenceFlipsAfterRead(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	resolvedLoader := &stubDeployableUnitResolvedLoader{}
+	handler := DeployableUnitCorrelationHandler{
+		FactLoader:             &stubDeployableUnitFactLoader{envelopes: dockerfileCandidateEnvelopes()},
+		ResolvedLoader:         resolvedLoader,
+		ResolutionActiveLookup: stubResolutionActiveLookup(map[string]bool{"generation-1": true}),
+		ResolutionsCompleteLookup: func(context.Context) (bool, error) {
+			calls++
+			return calls == 1, nil
+		},
+	}
+
+	_, err := handler.Handle(context.Background(), deployableUnitIntent("edge-api"))
+	if err == nil {
+		t.Fatal("Handle() error = nil, want resolution-not-ready deferral when the corpus fence flips after the foreign read")
+	}
+	var deferral deployableUnitCorrelationResolutionNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("Handle() error type = %T, want deployableUnitCorrelationResolutionNotReadyError", err)
+	}
+	if !deferral.Retryable() {
+		t.Fatal("deferral Retryable() = false, want true so the queue re-runs on the settled corpus")
+	}
+	if resolvedLoader.calls == 0 {
+		t.Fatal("resolved loader was never consulted: the flip must happen after the foreign read, not before the pre-read fence")
+	}
+}

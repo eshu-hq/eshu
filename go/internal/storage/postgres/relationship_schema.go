@@ -176,6 +176,84 @@ WHERE generation_id = $1
 LIMIT 1
 `
 
+// activeScopeRelationshipGenerationsCompleteSQL reports whether every active
+// scope's current relationship generation is active. An active scope holds
+// the gate in exactly two shapes:
+//
+//  1. Its current generation has a row that is not active (retired by
+//     refinalize, pending re-resolution): the by-repos resolved read filters
+//     on status = 'active', so resolving against that row's partial foreign
+//     set would vary run to run (#6184).
+//  2. Its current generation has no row yet while resolution work is still
+//     outstanding (a live reducer deployment_mapping item for the scope):
+//     the row — and its resolved rows — are forthcoming, so the current
+//     visible set is partial.
+//
+// A row-less scope with no live resolution work does NOT hold the gate. No
+// row can ever appear for it — generation rows are created only by
+// activation inside cross-repo resolution, which runs only from a
+// deployment_mapping item — and the by-repos read joins resolved rows to an
+// active generation row, so such a scope contributes nothing to the read,
+// deterministically (an orphan repo with nothing to resolve delayed every
+// workload/deployable-unit derivation corpus-wide forever, #6730). Terminal
+// items (succeeded, superseded, dead_letter) are not outstanding: a
+// succeeded item already activated its row, and a dead-lettered one is owned
+// by dead-letter handling. Only deployment_mapping items count: cross-repo
+// resolution is the sole generation-row writer. The live statuses mirror the
+// claim paths' non-terminal set. Rows for retired scopes and superseded
+// generations are excluded: only the scope's current generation can ever
+// resolve, so only it can hold the gate.
+// incompleteScopeRelationshipGenerationsPredicate matches the active scopes
+// holding the corpus fence: a retired-or-pending current generation, or no
+// generation row with live deployment_mapping work that could still produce
+// one. Shared by the boolean completeness query and the holder-listing query
+// below so the two cannot drift apart (#6730).
+const incompleteScopeRelationshipGenerationsPredicate = `
+  s.status = 'active'
+    AND (
+      EXISTS (
+        SELECT 1
+        FROM relationship_generations AS rg
+        WHERE rg.scope = s.scope_id
+          AND rg.generation_id = s.active_generation_id
+          AND rg.status <> 'active'
+      )
+      OR (
+        NOT EXISTS (
+          SELECT 1
+          FROM relationship_generations AS rg
+          WHERE rg.scope = s.scope_id
+            AND rg.generation_id = s.active_generation_id
+        )
+        AND EXISTS (
+          SELECT 1
+          FROM fact_work_items AS w
+          WHERE w.stage = 'reducer'
+            AND w.domain = 'deployment_mapping'
+            AND w.scope_id = s.scope_id
+            AND w.status IN ('pending', 'claimed', 'running', 'retrying')
+        )
+      )
+    )
+`
+
+const activeScopeRelationshipGenerationsCompleteSQL = `
+SELECT NOT EXISTS (
+  SELECT 1
+  FROM ingestion_scopes AS s
+  WHERE` + incompleteScopeRelationshipGenerationsPredicate + `
+)
+`
+
+// incompleteActiveScopeRelationshipGenerationsSQL lists the scope IDs
+// holding the corpus fence, for deferral diagnosability.
+const incompleteActiveScopeRelationshipGenerationsSQL = `
+SELECT s.scope_id
+FROM ingestion_scopes AS s
+WHERE` + incompleteScopeRelationshipGenerationsPredicate + `
+ORDER BY s.scope_id
+`
+
 const activateResolutionGenerationSQL = `
 WITH deactivate AS (
     UPDATE relationship_generations

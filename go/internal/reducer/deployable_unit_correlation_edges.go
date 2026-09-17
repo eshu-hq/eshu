@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/correlation"
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -35,14 +36,34 @@ const DeployableUnitCorrelationCanonicalNodesNotReadyFailureClass = "deployable_
 type deployableUnitCorrelationResolutionNotReadyError struct {
 	scopeID      string
 	generationID string
+	// cause carries the fence lookup failure when the deferral is outage
+	// driven rather than backpressure driven; nil for a genuinely
+	// incomplete corpus fence (see the workload-materialization twin).
+	cause error
+	// holdingScopeIDs names the scopes holding the corpus fence, best
+	// effort; empty when the holder lookup is unwired or failed.
+	holdingScopeIDs []string
 }
 
 func (e deployableUnitCorrelationResolutionNotReadyError) Error() string {
-	return fmt.Sprintf(
+	msg := fmt.Sprintf(
 		"cross-repo resolution not active for scope %s generation %s; deferring deployable unit correlation rather than evaluating against a partial resolved set",
 		e.scopeID,
 		e.generationID,
 	)
+	if e.cause != nil {
+		msg += fmt.Sprintf("; corpus fence lookup failed: %v", e.cause)
+	}
+	if len(e.holdingScopeIDs) > 0 {
+		msg += fmt.Sprintf("; holding scopes: %s", strings.Join(e.holdingScopeIDs, ","))
+	}
+	return msg
+}
+
+// Unwrap exposes the fence lookup failure to errors.Is/As without changing
+// the retryable failure class.
+func (e deployableUnitCorrelationResolutionNotReadyError) Unwrap() error {
+	return e.cause
 }
 
 func (deployableUnitCorrelationResolutionNotReadyError) Retryable() bool { return true }
@@ -96,35 +117,41 @@ func deployableUnitCanonicalReposReady(
 	}
 }
 
-// resolutionGenerationReady reports whether the relationship generation has
-// activated. Lookup errors fail closed; nil preserves isolated test wiring.
-func resolutionGenerationReady(
-	lookup maintenance.RelationshipGenerationActiveLookup,
-	generationID string,
-) bool {
-	if lookup == nil {
-		return true
-	}
-	active, err := lookup(generationID)
-	return err == nil && active
-}
-
-// ownResolutionGenerationReady requires the intent's own relationship
-// generation before a resolved-relationship read. An inactive own generation
-// means both feeds of that read are partial, and a success on that partial
-// input is never reopened (#6184), so the intent defers instead. Foreign
-// scopes are not knowable until that read, so gating on them would be
-// circular. Empty candidate sets are vacuous and do not wait on work they do
-// not consume.
-func ownResolutionGenerationReady(
-	lookup maintenance.RelationshipGenerationActiveLookup,
+// checkDeployableUnitResolutionReadiness defers the intent while the resolved
+// set it would read is partial: first the own-generation check, then the
+// corpus-wide fence covering the foreign scopes the own check cannot see.
+// Both defer with the same non-counting retry class, because success on a
+// partial input is never reopened (#6184).
+func checkDeployableUnitResolutionReadiness(
+	ctx context.Context,
+	activeLookup maintenance.RelationshipGenerationActiveLookup,
+	completeLookup maintenance.RelationshipGenerationsCompleteLookup,
+	incompleteScopesLookup maintenance.RelationshipGenerationsIncompleteScopesLookup,
 	intent Intent,
 	candidates []WorkloadCandidate,
-) bool {
-	if len(candidates) == 0 {
-		return true
+) error {
+	if !ownResolutionGenerationReady(activeLookup, intent, candidates) {
+		return deployableUnitCorrelationResolutionNotReadyError{
+			scopeID:      intent.ScopeID,
+			generationID: intent.GenerationID,
+		}
 	}
-	return resolutionGenerationReady(lookup, intent.GenerationID)
+	fenceReady, fenceErr := corpusResolutionsComplete(ctx, completeLookup, candidates)
+	if fenceErr != nil {
+		return deployableUnitCorrelationResolutionNotReadyError{
+			scopeID:      intent.ScopeID,
+			generationID: intent.GenerationID,
+			cause:        fenceErr,
+		}
+	}
+	if !fenceReady {
+		return deployableUnitCorrelationResolutionNotReadyError{
+			scopeID:         intent.ScopeID,
+			generationID:    intent.GenerationID,
+			holdingScopeIDs: maintenance.IncompleteScopeIDs(ctx, incompleteScopesLookup),
+		}
+	}
+	return nil
 }
 
 const (
@@ -454,4 +481,16 @@ func deployableUnitDecisionReason(candidate correlationmodel.Candidate) string {
 		return "deployable unit correlation not admitted"
 	}
 	return "deployable unit correlation rejected: " + strings.Join(uniqueSortedStrings(reasons), ",")
+}
+
+func deployableUnitCorrelationSummary(evaluatedCandidates int, summary correlation.Summary) string {
+	return fmt.Sprintf(
+		"evaluated %d deployable unit candidate(s); admitted=%d rejected=%d low_confidence=%d conflicts=%d rules=%d",
+		evaluatedCandidates,
+		summary.AdmittedCandidates,
+		summary.RejectedCandidates,
+		summary.LowConfidenceCount,
+		summary.ConflictCount,
+		summary.EvaluatedRules,
+	)
 }

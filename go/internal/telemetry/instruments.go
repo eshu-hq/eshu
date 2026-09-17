@@ -1301,6 +1301,12 @@ type Instruments struct {
 	// because a payload-deterministic rejection can never be retried away
 	// (#5984, PR #6008 review).
 	SharedEdgeUnroutableRows metric.Int64Counter
+	// SharedEdgeTargetMiss counts shared-edge write batches deferred because
+	// a runtime target was absent from the graph (#6184). Labels are limited
+	// to the bounded projection domain; evidence source and sample intent
+	// stay in the accompanying structured log. Each detection counts once;
+	// a batch held across retry cycles re-counts on every detection.
+	SharedEdgeTargetMiss metric.Int64Counter
 	// RationaleRetractProbeOutcomes counts the #5998 rationale EXPLAINS
 	// retract probe-guard decision by two bounded labels: outcome (skipped /
 	// deleted / unsupported / probe_error) and scope (whole_scope /
@@ -4317,7 +4323,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.SharedEdgeWriteGroups, err = meter.Int64Counter(
 		"eshu_dp_shared_edge_write_groups_total",
-		metric.WithDescription("Total grouped shared-edge write transactions by domain"),
+		metric.WithDescription("Total grouped shared-edge write transactions by domain and execution mode (group, artifact-sequential)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SharedEdgeWriteGroups counter: %w", err)
@@ -4339,6 +4345,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register SharedEdgeUnroutableRows counter: %w", err)
 	}
 
+	inst.SharedEdgeTargetMiss, err = meter.Int64Counter(
+		"eshu_dp_shared_edge_target_miss_total",
+		metric.WithDescription("Total shared-edge write batches deferred because a runtime target was absent from the graph, by domain"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SharedEdgeTargetMiss counter: %w", err)
+	}
+
 	inst.RationaleRetractProbeOutcomes, err = meter.Int64Counter(
 		"eshu_dp_rationale_retract_probe_outcomes_total",
 		metric.WithDescription("Total rationale EXPLAINS retract probe-guard decisions by bounded outcome (skipped, deleted, unsupported, probe_error) and scope (whole_scope, delta_by_file_path)"),
@@ -4350,7 +4364,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	sharedEdgeWriteGroupDurationBuckets := []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
 	inst.SharedEdgeWriteGroupDuration, err = meter.Float64Histogram(
 		"eshu_dp_shared_edge_write_group_duration_seconds",
-		metric.WithDescription("Duration of each grouped shared-edge write transaction by domain"),
+		metric.WithDescription("Duration of each grouped shared-edge write transaction by domain and execution mode (group, artifact-sequential)"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(sharedEdgeWriteGroupDurationBuckets...),
 	)
@@ -4361,7 +4375,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	sharedEdgeWriteGroupStatementBuckets := []float64{1, 2, 4, 8, 16, 32, 64, 128}
 	inst.SharedEdgeWriteGroupStatementCount, err = meter.Int64Histogram(
 		"eshu_dp_shared_edge_write_group_statement_count",
-		metric.WithDescription("Number of statements executed in each grouped shared-edge write transaction by domain"),
+		metric.WithDescription("Number of statements executed in each grouped shared-edge write transaction by domain and execution mode (group, artifact-sequential)"),
 		metric.WithExplicitBucketBoundaries(sharedEdgeWriteGroupStatementBuckets...),
 	)
 	if err != nil {
@@ -5308,6 +5322,16 @@ func AttrLimitKind(v string) attribute.KeyValue {
 // AttrDomain returns a domain attribute for metric recording.
 func AttrDomain(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionDomain, v)
+}
+
+// AttrExecutionMode returns an execution_mode attribute for shared-edge
+// write metrics. The value is a closed set — "group" for atomic grouped
+// execution, "artifact-sequential" for the post-commit evidence-artifact
+// phase — so the grouped-write instruments keep covering the whole
+// repo_dependency write instead of silently dropping the artifact phase
+// (#6184 owner finding on PR #6730).
+func AttrExecutionMode(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionExecutionMode, v)
 }
 
 // AttrPartitionKey returns a partition_key attribute for metric recording.

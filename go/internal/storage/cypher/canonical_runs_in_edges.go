@@ -12,7 +12,10 @@ package cypher
 // DEFINES (committed at workload-materialization). The reducer only emits an
 // intent for an exact, unambiguous handler resolution, so the MERGE never
 // attaches an edge to a guessed entrypoint; if either MATCH finds no node the
-// MERGE is a no-op rather than an error.
+// MERGE writes nothing for that row. That no-op is defense-in-depth only:
+// EdgeWriter probes batch target presence first (#6184) and fails the batch
+// retryably on a miss, so a missing workload defers the batch instead of
+// completing a silent loss.
 //
 // rel.ambiguous is "represented, not collapsed": the reducer cannot count a
 // repo's materialized Workloads at intent-build time, so it marks every edge
