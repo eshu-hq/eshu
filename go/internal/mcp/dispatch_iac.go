@@ -10,7 +10,7 @@ import (
 
 // iacManagementStatusBody, terraformImportPlanBody,
 // terraformConfigStateDriftFindingsBody, and replatformingOwnershipBody
-// moved to internal/mcp/iacmanagement (managementStatusBody and the inline
+// moved to internal/mcp/iac/management (managementStatusBody and the inline
 // bodies in Route) with the tools that used them. compose_replatforming_plan
 // and get_replatforming_rollups moved to internal/mcp/replatforming,
 // reached through the replatformingRoute adapter below — this file already

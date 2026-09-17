@@ -55,7 +55,7 @@
    `go/internal/mcp/code/dead`, `go/internal/mcp/code/quality`,
    `go/internal/mcp/entity/resolution`, and `go/internal/mcp/content`,
    code-intelligence request selection in `go/internal/mcp/code/intel`,
-   IaC-management request selection in `go/internal/mcp/iacmanagement`,
+   IaC-management request selection in `go/internal/mcp/iac/management`,
    whose `deadCodeRoute`, `codeQualityRoute`, `entityResolutionRoute`,
    `codeIntelRoute`, `iacManagementRoute`, and `contentRoute` adapters live
    in `dispatch.go` itself rather than dedicated adapter files (the content
