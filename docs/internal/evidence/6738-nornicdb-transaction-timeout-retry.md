@@ -68,6 +68,8 @@ cd go && go test ./cmd/reducer -run '^TestWorkloadRunsOnAtomicGroup(ReplaysCommi
 cd go && go test ./internal/storage/postgres -run '^TestReducerQueueFailRetriesGraphWriteTimeoutWithinAttemptBudget$' -count=1
 ```
 
+## Performance Evidence:
+
 A successful `ExecuteGroup` microbenchmark on an Apple M5 Max measured five
 same-machine samples. The unchanged base's median was 19.11 ns/op, 64 B/op,
 one allocation. A preliminary implementation eagerly validated the group and
@@ -76,7 +78,7 @@ timeout error. After the final code edit, the revised median was 20.64 ns/op
 (range 19.75–23.57), 64 B/op, one allocation. These nanosecond samples are a
 local no-material-regression check, not an ops-qa throughput estimate.
 
-## Rollout limit and operator signal
+## Observability Evidence:
 
 The queue now records the exact failed work as retrying
 `failure_class=graph_write_timeout` until its bounded attempt budget is
