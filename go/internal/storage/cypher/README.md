@@ -239,27 +239,24 @@ from the full `File` label population when a webhook-triggered re-index needs
 to remove files that disappeared from one repository.
 Delta canonical materializations skip `repository_cleanup` and negative
 full-generation stale cleanup. Deleted files are removed by positive
-`UNWIND $file_paths AS file_path` path-seeded chunks, changed files update in
+`IN $file_paths` worklist chunks (the prior `UNWIND $file_paths AS file_path`
+seed plus compound WHERE cost 87–216s per execution on NornicDB v1.3.3 at
+600k-node scale; see `docs/internal/evidence/6715-retract-in-worklist.md`),
+changed files update in
 place, now-empty deleted-file ancestor directories are removed leaf-first, and
 post-upsert entity cleanup is label-scoped plus `n.path IN $file_paths` so
 unchanged files and entities survive a file-scoped resync.
 
-No-Regression Evidence: Current-main full-corpus validation on NornicDB v1.1.9
-reached post-bootstrap `source_local` refresh and then retried 12 projector
-items after the delta deleted-file retract statement
-`UNWIND $file_paths AS file_path MATCH (f:File {path: file_path}) ... DETACH
-DELETE f` hit the 2 minute canonical write budget. The failing input shape was
-positive file-path worklists with source-local fact counts from hundreds to
-about 10k, while ungranted Postgres locks stayed at 0. The red tests
-`TestChunkPositiveStringSliceRetractStatementSplitsPositiveUnwindList` and
-`TestNornicDBPhaseGroupExecutorChunksDeltaDeletedFileRetractPaths` failed with
-one chunk/execute call before the fix. Green evidence:
-`GOCACHE=$WORKTREE/.gocache go test ./internal/storage/cypher ./cmd/ingester
--run 'TestChunkPositiveStringSliceRetractStatement|TestNornicDBPhaseGroupExecutor(ChunksPositiveRetractFilePaths|ChunksDeltaDeletedFileRetractPaths|DoesNotChunkNegativeRetractFilePaths|NoDrainFallsBackToExistingPath)'
--count=1` and `GOCACHE=$WORKTREE/.gocache go test ./internal/storage/cypher
-./cmd/ingester -count=1` pass. The change preserves the emitted Cypher and
-only splits the existing positive worklist into the established 25-path
-statement chunks; negative keep-list cleanup remains a single statement.
+No-Regression Evidence: chunking history — v1.1.9 full-corpus validation
+retried 12 projector items after the delta deleted-file retract hit the 2
+minute write budget; the fix split the positive worklist into 25-path chunks
+(tests `TestChunkPositiveStringSliceRetractStatementSplitsPositiveUnwindList`,
+`TestNornicDBPhaseGroupExecutorChunksDeltaDeletedFileRetractPaths`; negative
+keep-list cleanup stays a single statement). Reshaped by #6715:
+deleted-file/directory statements now seed with positive `IN $file_paths` /
+`IN $directory_paths` instead of the `UNWIND` seed, keeping the same chunks
+(UNWIND-seeded compound: 87–216s/execution on NornicDB v1.3.3; IN: 8.5–9s;
+`docs/internal/evidence/6715-retract-in-worklist.md`).
 
 No-Observability-Change: chunked delta retracts still flow through the existing
 NornicDB phase-group sequential retract path, statement summaries, retry/error
@@ -269,7 +266,8 @@ domain, runtime knob, backend branch, or new graph-write route.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
 'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath|TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks|TestCanonicalNodeWriterDeduplicatesRetractFilePaths|TestCanonicalNodeWriterKeepsEmptyDirectoryPathList'
--count=1` proves the indexed `UNWIND` seed shape, protects the current-file
+-count=1` proves the positive `IN $file_paths` worklist shape for deleted
+files (converted from the indexed `UNWIND` seed by #6715), protects the current-file
 structural refresh chunk budget, de-duplicates repeated current-file identities,
 keeps empty directory identity lists encoded as Cypher lists, and preserves
 current-file keep-list semantics.
