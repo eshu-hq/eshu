@@ -61,7 +61,7 @@ type wrapperProbeFollowsGroupCase struct {
 // FaultingExecutor (fault/executor/fault.go) is intentionally NOT in this table: it
 // only builds under the ifafaultinjection build tag, so a tag-agnostic test
 // in this file cannot reference it. Its own Probe-follows-Group invariant is
-// asserted directly in fault_executor_probe_test.go (same build tag); the
+// asserted directly in fault/executor/probe_test.go (same build tag); the
 // coverage scan below skips any file gated behind that tag, so this
 // exclusion cannot silently reappear for a future non-tag-gated type.
 var wrapperProbeFollowsGroupCases = []wrapperProbeFollowsGroupCase{

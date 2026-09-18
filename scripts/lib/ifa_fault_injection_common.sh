@@ -29,7 +29,7 @@
 # for exactly one fail-graph-write-once-then-succeed fault to path. lane MUST
 # be "queue-retry" or "executor-retry" (faultreplay.LaneQueueRetry /
 # LaneExecutorRetry); operation_match is the Cypher substring
-# go/internal/storage/faultexecutor.FaultingExecutor.onceMatches checks every
+# go/internal/storage/cypher/fault/executor.FaultingExecutor.onceMatches checks every
 # Execute/ExecuteGroup/ExecutePhaseGroup call against (see that file's
 # onceMatches). Substring, not a fixed statement_ordinal: an ordinal position
 # is not stable across this gate's combined demo-org + synth-multiscope drive,
@@ -64,7 +64,7 @@ ifa_fault_write_once_script() {
 # ifa_fault_write_restart_script writes a faultreplay v1 fault-script JSON
 # fixture for exactly one restart-backend-between-phase-groups fault to path,
 # firing after the after_phase_groups'th completed ExecuteGroup/
-# ExecutePhaseGroup call (go/internal/storage/faultexecutor.FaultingExecutor.
+# ExecutePhaseGroup call (go/internal/storage/cypher/fault/executor.FaultingExecutor.
 # maybeRestartAfterGroup). after_phase_groups=1 is deliberately the FIRST
 # completed group, not some later one: any positive ordinal proves the same
 # recovery mechanism (a real graph-backend restart between two committed
@@ -380,7 +380,7 @@ ifa_fault_assert_once_fault_marker() {
 
 
 # ifa_fault_watch_restart_sentinel polls for sentinel_path's appearance (the
-# file go/internal/storage/faultexecutor.FaultingExecutor.maybeRestartAfterGroup
+# file go/internal/storage/cypher/fault/executor.FaultingExecutor.maybeRestartAfterGroup
 # writes and then blocks on, waiting for its removal), and once seen:
 # restarts the compose project's nornicdb service (a plain `restart`, not
 # `down -v` -- this is a backend outage, not a fresh database, mirroring the

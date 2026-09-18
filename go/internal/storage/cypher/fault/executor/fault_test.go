@@ -172,7 +172,7 @@ func TestFaultingExecutorQueueRetryLaneFiresOnceThenDelegates(t *testing.T) {
 // short-circuits before inner.Execute is ever called. This is the honest
 // remaining limitation for callers that never wire an armer; go/cmd/reducer's
 // wrapIfaFaultExecutor does wire one for the real reducer binary. See
-// fault_executor_armed_retry_test.go for the armed-path proofs and
+// armed_retry_test.go for the armed-path proofs and
 // go/cmd/reducer's
 // TestWrapIfaFaultExecutorExecutorRetryLaneRetriesInPlaceBelowTheRetryingExecutor
 // for the full end-to-end proof.

@@ -30,7 +30,7 @@ func (e *offTestExecutor) Execute(context.Context, cypher.Statement) error {
 // but the identical value -- even when handed a script that would fire a
 // fault under the tagged build. This is the regression guard for issue
 // #4580 P6 S4's in-binary fault decorator never leaking into a production
-// build. Its counterpart, the tagged tests in fault_executor_test.go, assert
+// build. Its counterpart, the tagged tests in fault_test.go, assert
 // the fault actually fires under the ifafaultinjection tag.
 func TestNewFaultingExecutorExcludesFaultByDefault(t *testing.T) {
 	t.Parallel()

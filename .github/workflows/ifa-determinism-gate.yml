@@ -779,7 +779,7 @@ jobs:
       # Retryable()/FailureClass() contract fails CI even before the Docker leg.
       - name: Run tagged fault-classification unit tests
         working-directory: go
-        run: go test -tags ifafaultinjection ./internal/storage/cypher ./internal/replay/faultreplay ./cmd/reducer -count=1
+        run: go test -tags ifafaultinjection ./internal/storage/cypher ./internal/storage/cypher/fault/executor ./internal/replay/faultreplay ./cmd/reducer -count=1
 
       # No retry-to-green: a non-zero dead_letter count or a canonical graph
       # digest that diverges from the fault-free baseline is a real recovery
