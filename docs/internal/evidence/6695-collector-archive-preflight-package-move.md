@@ -14,8 +14,9 @@ later slices.
 
 Filenames are unchanged (`preflight.go` does not repeat its own `archive`
 directory, per the #6627 `cicd/run` precedent which kept `planner.go`).
-The three gitdocs callers use the explicit import alias `archivepreflight`,
-so their existing qualified names remain unchanged.
+The three gitdocs callers import the new path without an alias, so their
+selectors read `archive.*` per naming.md rule 5 (no glued name carried
+into the new home).
 
 The new `go/internal/collector/preflight` package is a documentation-only
 namespace. It adds no runtime declaration, import, or initialization. The
@@ -76,9 +77,9 @@ owning `gitrepo` package (`-run 'ZIPArchive|TARArchive|ArchiveRouting'`).
 
 - `Preflight`, `Options` normalization, warning classes, counts, JSON
   shape, resource budgets, and error behavior are unchanged.
-- `gitdocs` selectors (`archivepreflight.Preflight`, `Warning*`,
-  `Format*`, `Options`, `Result`) are byte-identical; only the import
-  lines changed (plus gofmt import ordering in one file).
+- `gitdocs` selectors are renamed `archivepreflight.*` to `archive.*`
+  (same identifiers otherwise); only the import lines and the qualifier
+  changed (plus gofmt import ordering in one file).
 - The moved README's second evidence command named
   `go test ./internal/collector -run ...`, which selects zero tests: the
   routing tests live in the `gitrepo` package. That package path is

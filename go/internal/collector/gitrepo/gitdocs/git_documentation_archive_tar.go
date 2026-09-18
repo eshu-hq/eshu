@@ -11,7 +11,7 @@ import (
 	"io"
 	"strconv"
 
-	archivepreflight "github.com/eshu-hq/eshu/go/internal/collector/preflight/archive"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/archive"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -48,7 +48,7 @@ func (r *archiveDocumentationResult) extractTARMembers(
 	ordinal := 0
 	for {
 		if err := ctx.Err(); err != nil {
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningTimeout))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningTimeout))
 			break
 		}
 		header, err := tarReader.Next()
@@ -57,14 +57,14 @@ func (r *archiveDocumentationResult) extractTARMembers(
 		}
 		if err != nil {
 			skipped++
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningMalformedContainer))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningMalformedContainer))
 			break
 		}
 		ordinal++
 		memberPath, ok := normalizeArchiveMemberPath(header.Name)
 		if !ok {
 			skipped++
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningArchivePathEscape))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningArchivePathEscape))
 			continue
 		}
 		if header.FileInfo().IsDir() {
@@ -77,12 +77,12 @@ func (r *archiveDocumentationResult) extractTARMembers(
 		}
 		if archiveMemberIsNested(memberPath) {
 			skipped++
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningArchiveNestedSkipped))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningArchiveNestedSkipped))
 			continue
 		}
 		if archiveMemberLooksCredential(memberPath) {
 			skipped++
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningCredentialFileSkipped))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningCredentialFileSkipped))
 			continue
 		}
 		format, ok := gitDocumentationFormatForPath(memberPath)
@@ -94,7 +94,7 @@ func (r *archiveDocumentationResult) extractTARMembers(
 		memberBody, ok := readArchiveTARMember(tarReader, header, documentationReadLimitBytes(format))
 		if !ok {
 			skipped++
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningResourceLimitExceeded))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningResourceLimitExceeded))
 			continue
 		}
 		supported++
@@ -130,9 +130,9 @@ func archiveTARHeaderIsUnsafe(header *tar.Header) bool {
 func archiveTARHeaderWarning(header *tar.Header) string {
 	switch header.Typeflag {
 	case tar.TypeSymlink, tar.TypeLink:
-		return string(archivepreflight.WarningArchiveSymlinkSkipped)
+		return string(archive.WarningArchiveSymlinkSkipped)
 	default:
-		return string(archivepreflight.WarningArchiveSpecialFileSkipped)
+		return string(archive.WarningArchiveSpecialFileSkipped)
 	}
 }
 
