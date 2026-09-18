@@ -12,27 +12,43 @@ Postgres pod was at its two-core CPU limit. The ops-qa Kubernetes readiness
 probe allowed one second. Full snapshot aggregation on every service's
 `/readyz` request therefore competed with reducer drain for Postgres CPU.
 
-The status store now checks three core schema relations and their required
-columns in one zero-row read. It keeps Postgres connection and schema failure
-visible through `/readyz` without computing queue, domain, or fact aggregates.
+The status store now checks the latest compiled Postgres migration receipt by
+path and checksum, and validates core status columns without scanning data rows.
+The ordered migration runner writes each receipt only after the file succeeds;
+the latest receipt is absent on a partial bootstrap. This keeps Postgres
+connection and schema failures visible through `/readyz` without computing
+queue, domain, or fact aggregates.
 The API and MCP Postgres and graph probes remain unchanged. `/admin/status`
 and `/metrics` still load full operator truth, including the projection backlog;
 `/readyz` does not claim that the corpus is fully indexed.
 
 No-Regression Evidence: On the same live ops-qa Postgres during reducer load,
-the final one-round-trip query planned in 1.669 ms, executed in 0.058 ms, and
+the pre-review zero-row query planned in 1.669 ms, executed in 0.058 ms, and
 scanned no table rows. Three direct client samples took 98.410, 99.136, and
 201.727 ms. The first three-query version passed five pooled-connection live
 checks in 595-699 ms, leaving little margin under the one-second Kubernetes
-timeout; the single query removes two network round trips. The production
-checker then passed five pooled-connection live checks in 297-395 ms, each
-within the one-second budget. This is a
-query-cost comparison with the timed-out stage-count read, not a deployed
-service latency measurement. A regression test made the
-old `/readyz` path return 503 when full aggregation timed out; it passes with
-the new schema checker and asserts zero full snapshot calls. Focused tests
-cover missing schema, canceled context, empty tables, wrapper forwarding, and
-fail-closed construction without a checker.
+timeout; the single query removed two network round trips. The pre-review
+checker passed five pooled-connection live checks in 297-395 ms. After the
+receipt check was added, the final Go checker passed its read-only ops-qa live
+test in 299.917 ms on a warmed connection under a one-second context. These
+are query and checker measurements, not deployed service latency. A regression
+test made the old `/readyz` path return 503 when full aggregation timed out; it
+passes with the new schema checker and asserts zero full snapshot calls.
+Focused tests cover missing schema, partial migration, missing receipt result,
+canceled context, empty tables, wrapper forwarding, and fail-closed
+construction without a checker.
+
+Review follow-up: the initial zero-row query would have reported ready if
+bootstrap stopped before migration 096, despite later queue and status paths
+needing its `provenance_edge_identity_upgrade_required` column. The regression
+was RED before the fix: a missing latest receipt and a missing receipt result
+both returned success. Both now fail closed. A post-edit read-only
+`EXPLAIN (ANALYZE, BUFFERS)` of the revised query on loaded ops-qa Postgres
+used one primary-key index search on `eshu_schema_migrations`; the schema-check
+branch scanned no rows (planning 0.247 ms, execution 0.058 ms). The exact
+current receipt returned true and a wrong checksum returned false. A
+deliberately misspelled status column failed at SQL analysis even though that
+branch has `LIMIT 0`.
 
 Observability Evidence: `/readyz` reports bounded schema failures under the
 `status_schema` cause. The independent `postgres` and `graph` causes remain.

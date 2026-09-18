@@ -32,10 +32,11 @@ runs a set of bounded dependency probes and returns:
 
 The API and MCP server register these probes:
 
-- **`status_schema`** — checks the core status schema (ingestion scopes, fact
-  work items, and the migration ledger) with one zero-row read. It detects
-  missing tables or columns without aggregating the reducer queue. Full backlog
-  and health reports remain available at `/admin/status` and `/metrics`.
+- **`status_schema`** — checks the latest compiled Postgres migration receipt
+  by path and checksum, and validates the core status columns without scanning
+  table rows. An incomplete migration or missing column returns `503` without
+  aggregating the reducer queue. Full backlog and health reports remain
+  available at `/admin/status` and `/metrics`.
 - **`postgres`** — a bounded `PingContext`. A failure here (especially a
   deadline) distinguishes an unreachable database or pool exhaustion from a
   schema fault.
@@ -59,7 +60,7 @@ service=eshu-api probe=readyz status=error error=graph: ...; postgres: ...
 | ----------------- | --------------------------------------------------- |
 | `postgres: ...`   | Database unreachable or connection pool exhausted   |
 | `graph: ...`      | Graph backend (Bolt) unreachable                    |
-| `status_schema: ...` | Core status schema missing, or its bounded read failing |
+| `status_schema: ...` | Current migration receipt or core schema missing, or the bounded read failing |
 
 ## Anti-flap (debounce)
 
@@ -100,8 +101,8 @@ control plane make the correct routing and restart decisions.
 
 No-Regression Evidence: probes execute only on `/readyz` hits at the Kubernetes
 probe cadence, never on the query or graph-write hot paths. The schema probe is
-one zero-row SQL query on the existing Postgres pool; the other probes check
-Postgres and Bolt connectivity. No new pool, worker, queue, or goroutine pool is
+one indexed receipt lookup plus a zero-row schema check on the existing Postgres
+pool. The other probes check Postgres and Bolt connectivity. No new pool, worker, queue, or goroutine pool is
 introduced. Verified
 by `go test ./internal/runtime ./cmd/api ./cmd/mcp-server -count=1`.
 

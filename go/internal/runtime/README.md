@@ -226,8 +226,8 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 - `/healthz` (liveness) returns `200 OK` unconditionally when no `AdminCheck`
   is wired; it is intentionally dependency-free so a transient Postgres or graph
   outage never restarts an otherwise healthy process.
-- `/readyz` (readiness) runs the bounded core status-schema probe
-  plus any probes registered via `WithReadinessProbes`. The API and MCP server
+- `/readyz` (readiness) runs the bounded migration-receipt and core
+  status-schema probe plus any probes registered via `WithReadinessProbes`. The API and MCP server
   register `PostgresReadinessProbe` (bounded `PingContext`) and
   `GraphReadinessProbe` (bounded Bolt `VerifyConnectivity`, covering both Neo4j
   and NornicDB). Each probe runs concurrently under its own bounded timeout; a
@@ -241,8 +241,9 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 
   No-Regression Evidence: dependency probes run only on `/readyz` hits at the
   Kubernetes probe cadence (default `periodSeconds: 15`), never on the query or
-  graph-write hot paths. The core schema probe runs one zero-row SQL query;
-  the other probes check connections (`PingContext` / `VerifyConnectivity`,
+  graph-write hot paths. The core schema probe runs one indexed migration
+  receipt lookup with a zero-row column check. The other probes check
+  connections (`PingContext` / `VerifyConnectivity`,
   default 2s timeout) concurrently. `TestRunReadinessProbeBoundsSlowDependency`
   confirms a blocked dependency returns in well under one second. Backend:
   NornicDB (Bolt) and

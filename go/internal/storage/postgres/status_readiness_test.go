@@ -49,7 +49,7 @@ func TestStatusReadinessOnLivePostgres(t *testing.T) {
 func TestStatusReadinessChecksCoreSchemaWithoutAggregates(t *testing.T) {
 	t.Parallel()
 
-	queryer := &recordingQueryer{}
+	queryer := &readinessQueryer{applied: true}
 	store := NewStatusStore(queryer)
 	if err := store.CheckStatusReadiness(context.Background()); err != nil {
 		t.Fatalf("CheckStatusReadiness() error = %v", err)
@@ -60,7 +60,10 @@ func TestStatusReadinessChecksCoreSchemaWithoutAggregates(t *testing.T) {
 	if !strings.Contains(strings.ToUpper(queryer.queries[0]), "LIMIT 0") {
 		t.Fatalf("readiness query can scan data rows: %s", queryer.queries[0])
 	}
-	for _, relation := range []string{"ingestion_scopes", "fact_work_items", "eshu_schema_migrations"} {
+	for _, relation := range []string{
+		"ingestion_scopes", "fact_work_items", "eshu_schema_migrations",
+		"provenance_edge_identity_upgrade_required",
+	} {
 		found := false
 		for _, query := range queryer.queries {
 			if strings.Contains(query, relation) {
@@ -73,6 +76,34 @@ func TestStatusReadinessChecksCoreSchemaWithoutAggregates(t *testing.T) {
 		if !found {
 			t.Fatalf("readiness did not check %s: %v", relation, queryer.queries)
 		}
+	}
+	definitions := BootstrapDefinitions()
+	latest := definitions[len(definitions)-1]
+	if len(queryer.args) != 1 || len(queryer.args[0]) != 2 ||
+		queryer.args[0][0] != latest.Path ||
+		queryer.args[0][1] != migrationChecksum(latest.SQL) {
+		t.Fatalf("readiness migration receipt args = %v, want latest path and checksum", queryer.args)
+	}
+}
+
+func TestStatusReadinessRejectsPartialMigration(t *testing.T) {
+	t.Parallel()
+
+	// A database stopped before the latest migration has the older status
+	// tables, but cannot serve all current queue and status queries.
+	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{false}}}}}
+	err := NewStatusStore(queryer).CheckStatusReadiness(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "migration") {
+		t.Fatalf("CheckStatusReadiness() error = %v, want missing-migration error", err)
+	}
+}
+
+func TestStatusReadinessRejectsMissingReceiptResult(t *testing.T) {
+	t.Parallel()
+
+	queryer := &fakeQueryer{responses: []fakeRows{{}}}
+	if err := NewStatusStore(queryer).CheckStatusReadiness(context.Background()); err == nil {
+		t.Fatal("CheckStatusReadiness() accepted a query without a receipt result")
 	}
 }
 
@@ -99,4 +130,16 @@ func TestStatusReadinessHonorsCanceledContext(t *testing.T) {
 	if len(queryer.queries) != 0 {
 		t.Fatalf("canceled readiness issued queries: %v", queryer.queries)
 	}
+}
+
+type readinessQueryer struct {
+	queries []string
+	args    [][]any
+	applied bool
+}
+
+func (q *readinessQueryer) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+	q.queries = append(q.queries, query)
+	q.args = append(q.args, args)
+	return &fakeRows{rows: [][]any{{q.applied}}}, nil
 }

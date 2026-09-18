@@ -57,8 +57,8 @@ See `doc.go` for the godoc contract. Key types and functions:
   `ReadStatusSnapshot` is equivalent to `ReadStatusSnapshotFiltered` with
   `FullSnapshotSelection()`, so surfaces that never render those sections (e.g.
   the index status endpoint) skip the full-table aggregates at repository scale
-- `ReadinessChecker` — separate bounded core-schema check used by `/readyz`;
-  status reports and metrics still load the full snapshot and backlog state
+- `ReadinessChecker` — separate bounded migration-receipt and core-schema check
+  used by `/readyz`; status reports and metrics still load the full snapshot and backlog state
 
 ### Snapshot sub-types
 

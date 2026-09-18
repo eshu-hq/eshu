@@ -118,8 +118,8 @@
 
 - Symptom: `/readyz` returns 503 → one of the readiness probes failed; the
   response body names the failing dependency. `status_schema: ...` means the
-  bounded core-schema read failed (check schema applied and Postgres
-  connectivity); inspect `/admin/status` and `eshu_runtime_queue_*` gauges for
+  bounded migration-receipt and core-schema read failed (check schema
+  applied and Postgres connectivity); inspect `/admin/status` and `eshu_runtime_queue_*` gauges for
   backlog pressure without making `/readyz` aggregate the queue;
   `postgres: ...` means `PingContext` failed (database unreachable or pool
   exhausted); `graph: ...` means Bolt `VerifyConnectivity` failed (graph backend
