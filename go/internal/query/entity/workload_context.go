@@ -65,7 +65,15 @@ func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereCla
 	}
 	timer := service.StartServiceQueryStage(ctx, h.Logger, operation, serviceName, "", "workload_lookup")
 	params = access.GraphParams(params)
-	whereClause = scopedWorkloadWhereClause(whereClause, access)
+	// #6786: this match used to append a scoped grant predicate here
+	// (scopedWorkloadWhereClause, retired) as a multi-line
+	// `AND ( ... OR EXISTS {...} )` WHERE group. On the pinned NornicDB
+	// v1.3.3 image that shape is unreliable and can drop the WHOLE WHERE,
+	// including the id/name anchor callers pass in whereClause, so a scoped
+	// caller's lookup for one workload could read back an unrelated one
+	// regardless of grant. The grant is decided in Go below instead, after
+	// the row (and the already-scoped FetchWorkloadRepositoryForAccess DEFINES
+	// read) resolve what repositories actually back this workload.
 	baseCypher := fmt.Sprintf(`
 		MATCH (w:Workload) WHERE %s
 		RETURN w.id as id, w.name as name, w.kind as kind, w.repo_id as repo_id
@@ -90,8 +98,10 @@ func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereCla
 		followupParams = map[string]any{"workload_id": workloadID}
 	}
 
-	preferredRepoID := querycontract.StringVal(row, "repo_id")
-	if !access.AllowsRepositoryID(preferredRepoID) {
+	rawRepoID := querycontract.StringVal(row, "repo_id")
+	directlyGranted := access.AllowsRepositoryID(rawRepoID)
+	preferredRepoID := rawRepoID
+	if !directlyGranted {
 		preferredRepoID = ""
 	}
 	timer = service.StartServiceQueryStage(ctx, h.Logger, operation, querycontract.StringVal(row, "name"), preferredRepoID, "repository_lookup")
@@ -101,6 +111,17 @@ func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereCla
 	timer.Done(ctx, slog.String("resolved_repo_id", repoID))
 	if err != nil {
 		return nil, err
+	}
+	// #6786 grant decision: admitted directly when the workload's own
+	// repo_id is granted, or admitted through DEFINES when
+	// FetchWorkloadRepositoryForAccess (a scoped, single-line-WHERE read
+	// already proven safe on NornicDB) resolved at least one granted
+	// repository defining it. Neither means the caller has no relationship
+	// to this workload at all, so it fails closed to the same not-found path
+	// an absent workload takes, rather than leaking this row's identity
+	// (id/name/kind) to an ungranted caller.
+	if access.Scoped() && !directlyGranted && repoID == "" {
+		return nil, nil
 	}
 	if repoName == "" {
 		repoName = querycontract.StringVal(row, "repo_name")
@@ -364,11 +385,4 @@ func (h *Handler) FetchWorkloadRepositoryForAccess(
 		}
 	}
 	return querycontract.StringVal(selected, "repo_id"), querycontract.StringVal(selected, "repo_name"), nil
-}
-
-// scopedWorkloadWhereClause appends the caller's workload grant predicate to
-// a Workload-anchored WHERE clause. The implementation moved to querycontract
-// for #6060; this wrapper keeps root callers unchanged.
-func scopedWorkloadWhereClause(whereClause string, access querycontract.RepositoryAccessFilter) string {
-	return querycontract.ScopedWorkloadWhereClause(whereClause, access)
 }

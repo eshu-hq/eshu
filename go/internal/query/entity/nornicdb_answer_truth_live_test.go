@@ -125,12 +125,26 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 
 // entityLiveReader is the test-only live GraphQuery for this file. The package
 // cannot import root query's Neo4jReader without a cycle.
+//
+// database defaults to "nornic" (the zero value triggers that default in
+// sessionConfig below) so this file's own construction sites, which predate
+// the field, keep running against the same NornicDB database they always
+// have; scoped_grant_live_test.go sets it explicitly per backend.
 type entityLiveReader struct {
-	driver neo4jdriver.DriverWithContext
+	driver   neo4jdriver.DriverWithContext
+	database string
+}
+
+// sessionConfigDatabase returns r.database, defaulting to "nornic" when unset.
+func (r entityLiveReader) sessionConfigDatabase() string {
+	if r.database == "" {
+		return "nornic"
+	}
+	return r.database
 }
 
 func (r entityLiveReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: "nornic"})
+	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: r.sessionConfigDatabase()})
 	defer func() { _ = session.Close(ctx) }()
 	result, err := session.Run(ctx, cypher, params)
 	if err != nil {
@@ -161,7 +175,7 @@ func (r entityLiveReader) RunSingle(ctx context.Context, cypher string, params m
 
 func (r entityLiveReader) write(ctx context.Context, t *testing.T, cypher string) {
 	t.Helper()
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: "nornic"})
+	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.sessionConfigDatabase()})
 	defer func() { _ = session.Close(ctx) }()
 	result, err := session.Run(ctx, cypher, nil)
 	if err != nil {

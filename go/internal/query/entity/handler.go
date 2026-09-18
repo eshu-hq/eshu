@@ -305,17 +305,21 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Scoped mode used to add an `AND EXISTS { MATCH ... WHERE <grant> }`
+	// block here to bound e to the caller's granted repositories. On the
+	// pinned NornicDB v1.3.3 image that multi-line `AND EXISTS {...}` group
+	// is unreliable: it can silently drop the WHOLE WHERE, including the
+	// unrelated `e.id = $entity_id` anchor, so a scoped caller's request for
+	// one entity could read back an arbitrary DIFFERENT entity (#6786). The
+	// grant is now decided in Go instead, from the single-line-WHERE
+	// OPTIONAL MATCH below (already proven safe) plus the id/repo_id checks
+	// after RunSingle: the row-id equality check just below guards
+	// e.id = $entity_id even if a future backend regresses that anchor, and
+	// the access.AllowsRepositoryID check after hydration (unchanged) is
+	// what actually fails a scoped, ungranted read closed to not-found.
 	cypher := `
 		MATCH (e) WHERE e.id = $entity_id
 	`
-	if access.Scoped() {
-		cypher += `
-		AND EXISTS {
-			MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
-			WHERE ` + access.GraphCondition("scopeRepo") + `
-		}
-	`
-	}
 	cypher += `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
 	`
@@ -348,6 +352,15 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 			return
 		}
+	}
+
+	// Defense-in-depth guard against a backend that stops honoring
+	// `e.id = $entity_id` (the exact failure #6786 proved on NornicDB
+	// v1.3.3): a row whose id does not match the requested entity is treated
+	// as no row at all, the same not-found path a genuinely absent entity
+	// takes, rather than trusted as an answer to this request.
+	if row != nil && querycontract.StringVal(row, "id") != entityID {
+		row = nil
 	}
 
 	if row == nil {

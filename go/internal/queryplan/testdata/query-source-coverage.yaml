@@ -181,7 +181,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 8a42521626d2bfb8b3d1a2021dfc86989a25e9966b07201768b9206733da0a66
+          source_sha256: 667ed692550550db65a800722de72afa112a9947fb3f4d25b667660486a685d4
           key_bound: single_key
           max_results: 1
       - {symbol: "(*Handler).ResolveEntity", count: 1, source_sha256: 065a6a0cb00655048d1dfedbb92863706fbd27dacfc2e96561a131ad9b8458d2, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
@@ -373,7 +373,7 @@ source_coverage:
       - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 9dd90cb74928ac0f21d817744349736e7e0c38a52f5faa7cbd619eda95ab9337, key_bound: single_key, max_results: 2501}}
   - file: impacttrace/impact_trace_workload_selection.go
     calls:
-      - {symbol: "ResolveTraceWorkloadSelector", count: 1, non_hot: {class: keyed_support, source_sha256: ee9afd150e614dec4e7479c1866062e0ebfd05b07b8fccd59cbc8647298c15d9, key_bound: single_key, max_results: 1}}
+      - {symbol: "ResolveTraceWorkloadSelector", count: 2, non_hot: {class: keyed_support, source_sha256: b4df440bb6e869c967a7e7233aa40362143b1c1211ebfbc0741ebe7040504776, key_bound: single_key, max_results: 51}}
   - file: entity/workload_provisioned_platforms.go
     calls:
       - {symbol: "(*Handler).FetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 7e1e17aceda366cdb64d59f03847de40e81d46d08d1420eb570511b2c4b66c31, key_bound: single_key, max_results: 51}}

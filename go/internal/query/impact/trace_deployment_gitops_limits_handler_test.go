@@ -63,6 +63,8 @@ func TestTraceDeploymentChainPropagatesGitOpsBoundsAndExcludesOmittedImages(t *t
 			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "w.name = $service_name"):
+					return []map[string]any{workload}, nil
 				case strings.Contains(cypher, "rel:DEPLOYMENT_SOURCE"):
 					return []map[string]any{{
 						"instance_id": "instance:payments-api",

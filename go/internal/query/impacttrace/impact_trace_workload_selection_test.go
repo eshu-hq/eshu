@@ -9,23 +9,25 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		switch {
 		case strings.Contains(cypher, "w.id = $service_name"):
 			return nil, nil
-		case strings.Contains(cypher, "w.name = $service_name") && strings.Contains(cypher, "SKIP 1"):
-			if !strings.Contains(cypher, "ORDER BY w.id") {
-				t.Fatalf("name selector query = %q, want deterministic ambiguity probe", cypher)
-			}
-			return map[string]any{"id": "workload:orders-b"}, nil
 		case strings.Contains(cypher, "w.name = $service_name"):
-			return map[string]any{"id": "workload:orders-a"}, nil
+			if !strings.Contains(cypher, "ORDER BY w.id") {
+				t.Fatalf("name selector query = %q, want deterministic ambiguity ordering", cypher)
+			}
+			return []map[string]any{
+				{"id": "workload:orders-a"},
+				{"id": "workload:orders-b"},
+			}, nil
 		default:
 			t.Fatalf("unexpected query: %s", cypher)
 			return nil, nil
@@ -67,16 +69,118 @@ func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 func TestResolveTraceWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
 	t.Parallel()
 
-	reader := querytestutil.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "w.id = $service_name") {
 			t.Fatalf("first query = %q, want exact id lookup", cypher)
 		}
-		return map[string]any{"id": "workload:orders"}, nil
+		return []map[string]any{{"id": "workload:orders"}}, nil
 	}}
 
 	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "workload:orders")
 	if err != nil || got != "workload:orders" {
 		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want exact workload id", got, err)
+	}
+}
+
+// scopedAuthContext returns a context carrying a scoped AuthContext granted
+// only allowedRepositoryIDs, the same shape production request middleware
+// installs for a scoped caller.
+func scopedAuthContext(allowedRepositoryIDs ...string) context.Context {
+	return queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
+		AllowedRepositoryIDs: allowedRepositoryIDs,
+	})
+}
+
+// TestResolveTraceWorkloadSelectorScopedOutOfGrantIDReturnsNotFound is the
+// #6786 regression: a scoped caller's exact-id selector for a workload it has
+// no grant to must resolve to "" (not found), never to a different,
+// unrelated workload the caller happens to be granted -- the failure this
+// package's retired Cypher-embedded grant predicate produced on NornicDB
+// v1.3.3.
+func TestResolveTraceWorkloadSelectorScopedOutOfGrantIDReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if strings.Contains(cypher, "w.id = $service_name") {
+			return []map[string]any{{
+				"id": "workload:out-of-grant", "repo_id": "repo-b", "defining": []string{},
+			}}, nil
+		}
+		return nil, nil
+	}}
+
+	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:out-of-grant")
+	if err != nil {
+		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+	}
+	if got != "" {
+		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want not-found for an ungranted workload id", got)
+	}
+}
+
+// TestResolveTraceWorkloadSelectorScopedDirectGrantAdmits proves the direct
+// admission route: the workload's own materialized repo_id is granted.
+func TestResolveTraceWorkloadSelectorScopedDirectGrantAdmits(t *testing.T) {
+	t.Parallel()
+
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if strings.Contains(cypher, "w.id = $service_name") {
+			return []map[string]any{{
+				"id": "workload:in-grant", "repo_id": "repo-a", "defining": []string{},
+			}}, nil
+		}
+		return nil, nil
+	}}
+
+	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:in-grant")
+	if err != nil || got != "workload:in-grant" {
+		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want workload:in-grant", got, err)
+	}
+}
+
+// TestResolveTraceWorkloadSelectorScopedDefinesGrantAdmits proves the
+// name-collision admission route: the workload's own repo_id names an
+// ungranted repository, but a granted repository DEFINES it.
+func TestResolveTraceWorkloadSelectorScopedDefinesGrantAdmits(t *testing.T) {
+	t.Parallel()
+
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if strings.Contains(cypher, "w.id = $service_name") {
+			return []map[string]any{{
+				"id": "workload:collision", "repo_id": "repo-other", "defining": []string{"repo-z", "repo-a"},
+			}}, nil
+		}
+		return nil, nil
+	}}
+
+	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:collision")
+	if err != nil || got != "workload:collision" {
+		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want workload:collision (DEFINES-admitted)", got, err)
+	}
+}
+
+// TestResolveTraceWorkloadSelectorCandidateBoundFailsClosed proves the
+// fail-closed behavior documented on traceWorkloadSelectorCandidateBound: a
+// name-lookup page that reaches the bound is reported as an error rather than
+// silently deciding admission/ambiguity from a possibly-truncated page.
+func TestResolveTraceWorkloadSelectorCandidateBoundFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	overBound := make([]map[string]any, traceWorkloadSelectorCandidateBound+1)
+	for i := range overBound {
+		overBound[i] = map[string]any{"id": "workload:dup", "repo_id": "repo-a", "defining": []string{}}
+	}
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if strings.Contains(cypher, "w.id = $service_name") {
+			return nil, nil
+		}
+		return overBound, nil
+	}}
+
+	_, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "orders")
+	if !errors.Is(err, errTraceWorkloadSelectorCandidatesExceedBound) {
+		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want candidate-bound error", err)
 	}
 }
 

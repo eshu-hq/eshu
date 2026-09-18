@@ -51,6 +51,8 @@ func provisioningCandidateGraphReader(workload map[string]any, rows []map[string
 		},
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
+			case strings.Contains(cypher, "w.name = $service_name"):
+				return []map[string]any{workload}, nil
 			case strings.Contains(cypher, provisioningCandidateCypherFragment):
 				return rows, nil
 			case strings.Contains(cypher, "<-[:DEFINES]-(r:Repository)"):

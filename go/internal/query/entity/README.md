@@ -49,6 +49,12 @@ which is why those two methods are exported. The remaining exports
 staying root tests that pin family behavior; new callers must prefer the
 HTTP surface or `querytestutil` doubles.
 
+NornicDB: `GetEntityContext` and `FetchWorkloadContextForOperation`'s scoped
+grant is decided in Go, not rendered as a Cypher-embedded predicate (#6786) --
+a multi-line scoped `WHERE` group was unreliable on the pinned NornicDB
+v1.3.3 image. See `querycontract`'s README for the detail and
+`querycontract.WorkloadGrantAdmitted`.
+
 ## Exported surface
 
 Exports exist only for staying callers: the root deployment-trace wrapper,

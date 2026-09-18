@@ -22,6 +22,12 @@ through imports.
 functions of the fields derive inside, evidence lists attach only when
 absent, and `deployment_truth_tier` stays caller-owned.
 
+NornicDB: `ResolveTraceWorkloadSelector`'s scoped grant is decided in Go over
+an unfiltered, bounded read, not rendered as a Cypher-embedded predicate
+(#6786) -- a multi-line scoped `WHERE` group was unreliable on the pinned
+NornicDB v1.3.3 image. See `querycontract`'s README for the detail and
+`querycontract.WorkloadGrantAdmitted`.
+
 ## Exported surface
 
 The exported surface is described in [doc.go](doc.go). Exports exist for

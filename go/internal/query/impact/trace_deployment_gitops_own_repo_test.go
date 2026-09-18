@@ -89,6 +89,9 @@ func TestTraceDeploymentChainOwnRepoAppOfAposMonorepoDoesNotLeakOtherServiceEvid
 				"w.id = $workload_id":    workload,
 			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "w.name = $service_name") {
+					return []map[string]any{workload}, nil
+				}
 				if strings.Contains(cypher, "DEFINES]-(r:Repository)") {
 					return []map[string]any{{
 						"repo_id":   "repository:app-of-apps",
@@ -202,6 +205,9 @@ func TestTraceDeploymentChainOwnRepoPartialControllerDiscoveryDoesNotLeakOtherWo
 				"w.id = $workload_id":    workload,
 			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "w.name = $service_name") {
+					return []map[string]any{workload}, nil
+				}
 				if strings.Contains(cypher, "DEFINES]-(r:Repository)") {
 					return []map[string]any{{
 						"repo_id":   "repository:app-of-apps",
@@ -323,6 +329,9 @@ func TestTraceDeploymentChainOwnRepoWorkloadCountProbeErrorFailsClosedToNoTrust(
 				"w.id = $workload_id":    workload,
 			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "w.name = $service_name") {
+					return []map[string]any{workload}, nil
+				}
 				if strings.Contains(cypher, "DEFINES]-(r:Repository)") {
 					return []map[string]any{{
 						"repo_id":   "repository:widget-config",
