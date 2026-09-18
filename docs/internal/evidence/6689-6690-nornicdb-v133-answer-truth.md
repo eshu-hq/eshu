@@ -146,8 +146,8 @@ databases.
 | --- | --- |
 | orneryd/NornicDB#400 | A function call in `RETURN` after `MATCH … WITH … MATCH` drops every row or nulls every column |
 | orneryd/NornicDB#401 | `WITH … WHERE` with `IN`, `STARTS WITH`, `ENDS WITH` or `CONTAINS` does not filter |
-| orneryd/NornicDB#402 | `[NOT] EXISTS { … }` under `UNWIND` returns no rows, or fails to parse |
-| orneryd/NornicDB#403 | Inside `EXISTS { … }`, inline property maps and node-identity `<>` are ignored |
+| orneryd/NornicDB#402 | `UNWIND … MATCH (fn …) WHERE [NOT] EXISTS { MATCH (fn)-[…]->(…) … }`, correlated on a node the statement binds after the `UNWIND`, returns no rows in either polarity, and some subquery bodies fail to parse. The same predicate without the `UNWIND` works. |
+| orneryd/NornicDB#403 | In an `EXISTS { … }` correlated on an outer node, an inline property map on the subquery pattern (`(fn)-[:R]->(:W {id:'w2'})`) is ignored, and a node-identity `<>` in the subquery's `WHERE` makes the predicate a no-op |
 | orneryd/NornicDB#404 | `n.id` on a node without an `id` property returns the internal node id, not null |
 | orneryd/NornicDB#405 | String concatenation with an `UNWIND` variable is not evaluated (`'v:' + v` stored as `v:' + 'x`) |
 | orneryd/NornicDB#406 | `row[0]` on an `UNWIND` row is not evaluated |
@@ -159,18 +159,17 @@ Where Eshu is exposed:
 
 - **#400:** the value-flow cloud sink loader. Fixed by #6761, as described
   above.
-- **#408:** `DeleteRepositoryFromGraph` in `go/internal/graph/mutations.go`.
-  Live on v1.3.3 it deleted 0 of 3 owned files where Neo4j deleted all 3. Only
-  tests call it today, so the exposure is latent.
-- **#402/#403:** `canonicalNodeFileCreateMissingCypher` and its root variant
-  (`WHERE NOT EXISTS { MATCH (:File {path: row.path}) }` under `UNWIND`) were
-  checked live and are correct. Their subquery refers only to the `UNWIND` row,
-  while the failing repro correlates on an outer node variable. Which difference
-  matters is not established.
+- **#408:** `ResetRepositorySubtreeInGraph` in `go/internal/graph/mutations.go`.
+  Its first statement ends `UNWIND owned_nodes AS owned WITH DISTINCT owned WHERE
+  owned IS NOT NULL DETACH DELETE owned`, and on v1.3.3 it deletes none of the
+  owned nodes that Neo4j deletes. Only tests call it, so the exposure is latent.
+  `DeleteRepositoryFromGraph` in the same file has neither `UNWIND` nor `WITH`.
 - The production relationship writer's `SET rel.actions = row.actions` stores
   the real list, so #407 does not apply to it.
 
-Not yet covered, tracked in #6786 (epic #6788): an audit of statements
-assembled from fragments, which the scan behind this list (Cypher written as a
-single backtick literal in non-test Go under `go/`) cannot see,
-and of production `.id` reads that #404 could affect.
+The rest of Eshu's exposure is audited in #6786 (epic #6788). That covers
+statements assembled from fragments, which the scan behind this list (Cypher
+written as a single backtick literal in non-test Go under `go/`) cannot see. It
+also covers production `.id` reads that #404 could affect, and write paths
+re-checked with Eshu's graph schema applied, since a live probe without that
+schema does not reflect how production runs.
