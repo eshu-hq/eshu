@@ -89,7 +89,7 @@ LIMIT $3
 
 // probeIdentityEpochQuery returns (count, COALESCE(max(observed_at), '-infinity'),
 // active_fingerprint) — the count+max of identity facts over all generations
-// FROM fact_records plus a collision-resistant md5 digest of the active
+// FROM fact_records plus a collision-resistant SHA-256 digest of the active
 // generation mapping from ingestion_scopes (every scope's
 // "scope_id:active_generation_id" pair, ORDER BY scope_id, joined with '|').
 // The fingerprint detects supersession (active_generation_id flip) so the
@@ -112,7 +112,7 @@ FROM (
       AND is_tombstone = FALSE
 ) f
 CROSS JOIN (
-    SELECT md5(COALESCE(string_agg(scope_id::text || ':' || active_generation_id::text, '|' ORDER BY scope_id), '')) AS fingerprint
+    SELECT encode(sha256(convert_to(COALESCE(string_agg(scope_id::text || ':' || active_generation_id::text, '|' ORDER BY scope_id), ''), 'UTF8')), 'hex') AS fingerprint
     FROM ingestion_scopes
 ) s
 `

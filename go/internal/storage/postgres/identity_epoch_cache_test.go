@@ -25,7 +25,7 @@ func testInstruments() *telemetry.Instruments {
 
 // probeQueryRow returns a single-row fake response for the epoch probe:
 // count, COALESCE(max(observed_at), ...), active_fingerprint. fingerprint is
-// a string (md5 digest in production; tests use short literals for clarity).
+// a string (SHA-256 hex digest in production; tests use short literals for clarity).
 func probeQueryRow(count int, maxObservedAt time.Time, fingerprint string) queueFakeRows {
 	return queueFakeRows{
 		rows: [][]any{{

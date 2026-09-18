@@ -7,11 +7,47 @@ import (
 	"context"
 	"database/sql"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+// TestIdentityEpochProbeOnFIPSPostgresLive checks the production epoch probe
+// against a PostgreSQL server where MD5 is unavailable. It makes no writes.
+// Set ESHU_IDENTITY_EPOCH_FIPS_LIVE=1 and ESHU_POSTGRES_DSN to run.
+func TestIdentityEpochProbeOnFIPSPostgresLive(t *testing.T) {
+	if os.Getenv("ESHU_IDENTITY_EPOCH_FIPS_LIVE") != "1" {
+		t.Skip("set ESHU_IDENTITY_EPOCH_FIPS_LIVE=1 and ESHU_POSTGRES_DSN to run")
+	}
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Fatal("ESHU_POSTGRES_DSN not set")
+	}
+	sqlDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer func() { _ = sqlDB.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	var md5Result string
+	if err := sqlDB.QueryRowContext(ctx, "SELECT md5('foo')").Scan(&md5Result); err == nil {
+		t.Skip("PostgreSQL permits MD5; run against a FIPS-configured server")
+	} else if !strings.Contains(err.Error(), "could not compute MD5 hash: unsupported") {
+		t.Fatalf("MD5 precondition returned an unexpected error: %v", err)
+	}
+
+	epoch, err := NewFactStore(SQLDB{DB: sqlDB}).probeIdentityEpoch(ctx)
+	if err != nil {
+		t.Fatalf("probe identity epoch on FIPS PostgreSQL: %v", err)
+	}
+	if len(epoch.activeFingerprint) != 64 {
+		t.Fatalf("active fingerprint length = %d, want SHA-256 hex length 64", len(epoch.activeFingerprint))
+	}
+}
 
 // TestIdentityEpochProbeIsValidSQLLive proves the probe query is valid SQL
 // against a real Postgres connection. It seeds a minimal identity fact and
@@ -62,7 +98,7 @@ func TestIdentityEpochProbeIsValidSQLLive(t *testing.T) {
 }
 
 // TestIdentityEpochProbeDetectsSupersessionLive proves the collision-resistant
-// md5 fingerprint (issue #5438 P1-B fix) detects a real active-generation
+// SHA-256 fingerprint (issue #5438 P1-B fix) detects a real active-generation
 // supersession against live Postgres. It seeds one ingestion_scope, probes
 // the epoch, then flips ONLY that scope's active_generation_id to a new
 // generation — a supersession that touches no fact_records rows, so fact

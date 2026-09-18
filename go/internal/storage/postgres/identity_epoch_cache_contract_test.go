@@ -78,7 +78,7 @@ func TestIdentityEpochIndexPredicateMatchesIdentityFactFilter(t *testing.T) {
 // TestProbeIdentityEpochQueryUsesCollisionResistantFingerprint locks the
 // active_fingerprint subquery in probeIdentityEpochQuery
 // (facts_active_container_image_identity.go) to the collision-resistant
-// md5-digest-of-ordered-mapping shape (issue #5438 P1-B). The prior shape,
+// SHA-256-digest-of-ordered-mapping shape (issue #5438 P1-B). The prior shape,
 // `sum(hashtext(scope_id || ':' || active_generation_id))`, could silently
 // fail to detect a real active-generation supersession — either via a
 // 32-bit hashtext collision between two different active mappings, or via
@@ -91,7 +91,7 @@ func TestProbeIdentityEpochQueryUsesCollisionResistantFingerprint(t *testing.T) 
 	t.Parallel()
 
 	for _, want := range []string{
-		"md5(",
+		"encode(sha256(convert_to(",
 		"string_agg(",
 		"ORDER BY scope_id",
 	} {
@@ -102,6 +102,9 @@ func TestProbeIdentityEpochQueryUsesCollisionResistantFingerprint(t *testing.T) 
 
 	if strings.Contains(probeIdentityEpochQuery, "hashtext") {
 		t.Fatalf("probeIdentityEpochQuery still uses the summed hashtext fingerprint, which can silently miss a real supersession (32-bit collision or offsetting deltas):\n%s", probeIdentityEpochQuery)
+	}
+	if strings.Contains(probeIdentityEpochQuery, "md5(") {
+		t.Fatalf("probeIdentityEpochQuery uses MD5, which fails under PostgreSQL FIPS mode:\n%s", probeIdentityEpochQuery)
 	}
 }
 
