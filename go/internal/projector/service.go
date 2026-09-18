@@ -294,10 +294,14 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 		return heartbeatErr
 	}
 
-	ackCtx, cancelAck := projectorAckContext(workCtx)
-	defer cancelAck()
-	if err := s.WorkSink.Ack(ackCtx, work, result); err != nil {
-		if s.recordClaimLostWork(ackCtx, work, start, len(factsForGeneration), err, "ack", workerID) {
+	ackCtx := context.WithoutCancel(workCtx)
+	if err := AckWhenScopeFree(workCtx, s.WorkSink, s.Heartbeater, work, result, s.ackDeferredLogger(ackCtx, work, workerID)); err != nil {
+		if s.recordSupersededWork(ackCtx, work, start, len(factsForGeneration), err, workerID) ||
+			s.recordClaimLostWork(ackCtx, work, start, len(factsForGeneration), err, "ack", workerID) {
+			return nil
+		}
+		if errors.Is(err, ErrWorkAckDeferred) { // shutdown while the scope was busy; the lease expires
+			s.recordProjectionShutdownCanceled(ackCtx, work, start, len(factsForGeneration), err, workerID)
 			return nil
 		}
 		s.recordProjectionResult(ackCtx, work, start, "ack_failed", len(factsForGeneration), err, workerID)

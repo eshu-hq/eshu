@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -60,7 +61,15 @@ type ProjectorQueue struct {
 	// on bootstrap-index's ProjectorQueue -- see
 	// runConfigStateDriftTriggerHook's doc comment for why.
 	ConfigStateDriftTrigger ConfigStateDriftTrigger
+	// AckScopeLockTimeout bounds how long Ack waits for a row lock, mainly the
+	// scope row an ingestion commit holds while streaming facts. It must stay
+	// below the caller's Ack budget. Zero uses defaultProjectorAckLockTimeout.
+	AckScopeLockTimeout time.Duration
 }
+
+// defaultProjectorAckLockTimeout leaves room inside the projector service's
+// 5 s Ack budget for the transaction's other statements.
+const defaultProjectorAckLockTimeout = 2 * time.Second
 
 // ErrProjectorClaimRejected means the projector work item's owner, attempt,
 // or claimable status changed, so heartbeat, Ack, or Fail must stop. It wraps
@@ -164,10 +173,17 @@ func (q ProjectorQueue) Ack(
 	ctx context.Context,
 	work projector.ScopeGenerationWork,
 	_ projector.Result,
-) error {
+) (err error) {
 	if err := q.validate(); err != nil {
 		return err
 	}
+	// A lock timeout rolled the transaction back, so nothing changed and the
+	// attempt still owns the work; the caller renews the lease and retries.
+	defer func() {
+		if isPostgresLockNotAvailable(err) {
+			err = fmt.Errorf("%w: %w", projector.ErrWorkAckDeferred, err)
+		}
+	}()
 
 	beginner, ok := q.database.(db.Beginner)
 	if !ok {
@@ -185,6 +201,13 @@ func (q ProjectorQueue) Ack(
 		}
 	}()
 
+	lockTimeout := q.AckScopeLockTimeout
+	if lockTimeout <= 0 {
+		lockTimeout = defaultProjectorAckLockTimeout
+	}
+	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)", lockTimeout.String()); err != nil {
+		return fmt.Errorf("ack projector work: set lock timeout: %w", err)
+	}
 	now := q.now()
 	// Ingestion commits lock scope, then generation, then work. Locking the
 	// scope first serializes same-scope commits; work precedes generation so
@@ -457,4 +480,11 @@ func (q ProjectorQueue) maxAttempts() int {
 	}
 
 	return 3
+}
+
+// isPostgresLockNotAvailable reports SQLSTATE 55P03, raised when lock_timeout
+// expires while a statement waits for a lock.
+func isPostgresLockNotAvailable(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "55P03"
 }

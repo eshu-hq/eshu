@@ -270,13 +270,12 @@ func drainProjectorWorkItem(
 		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, heartbeatErr, logger)
 	}
 
-	// Ack. An Ack failure is fatal, not isolated: Project already committed the
-	// graph/content/reducer writes, so routing an ack-write error to Fail could
-	// dead-letter successful work and mark the scope generation failed
-	// (graph-vs-scope corruption). The steady-state projector treats Ack failure
-	// as fatal; match it (#4464 review).
-	if ackErr := workSink.Ack(itemCtx, work, result); ackErr != nil {
-		if dropLostBootstrapClaim(itemCtx, work, workerID, ackErr, "ack", logger) {
+	// Ack failure is fatal, not routed to Fail: Project already committed, so
+	// Fail could dead-letter successful work (#4464). A busy scope retries with
+	// lease renewal; superseded, lost, or shutdown-deferred work is dropped.
+	if ackErr := projector.AckWhenScopeFree(itemCtx, workSink, heartbeater, work, result, nil); ackErr != nil {
+		if dropLostBootstrapClaim(itemCtx, work, workerID, ackErr, "ack", logger) ||
+			errors.Is(ackErr, projector.ErrWorkSuperseded) || errors.Is(ackErr, projector.ErrWorkAckDeferred) {
 			return nil
 		}
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), ackErr, span, instruments, logger)

@@ -106,3 +106,63 @@ func TestDrainProjectorWorkItemDropsLostClaim(t *testing.T) {
 		})
 	}
 }
+
+// deferThenAckSink defers the first Ack the way the Postgres queue does while
+// an ingestion commit holds the scope, then accepts it.
+type deferThenAckSink struct {
+	acked atomic.Int64
+}
+
+func (s *deferThenAckSink) Ack(context.Context, projector.ScopeGenerationWork, projector.Result) error {
+	if s.acked.Add(1) == 1 {
+		return fmt.Errorf("lock timeout: %w", projector.ErrWorkAckDeferred)
+	}
+	return nil
+}
+
+func (s *deferThenAckSink) Fail(context.Context, projector.ScopeGenerationWork, error) error {
+	return errors.New("unexpected Fail")
+}
+
+// TestDrainProjectorWorkItemRetriesDeferredAck proves a bootstrap worker keeps
+// its claim and retries Ack while the scope is busy, instead of aborting the
+// whole drain on the first lock timeout.
+func TestDrainProjectorWorkItemRetriesDeferredAck(t *testing.T) {
+	t.Parallel()
+
+	work := projector.ScopeGenerationWork{
+		Scope:        scope.IngestionScope{ScopeID: "scope-busy", SourceSystem: "git"},
+		Generation:   scope.ScopeGeneration{GenerationID: "generation-1"},
+		AttemptCount: 1,
+	}
+	sink := &deferThenAckSink{}
+	var heartbeats atomic.Int64
+	var completed atomic.Int64
+	err := drainProjectorWorkItem(
+		context.Background(),
+		&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
+		&fakeFactStore{},
+		&fakeProjectionRunner{},
+		sink,
+		projectorHeartbeaterFunc(func(context.Context, projector.ScopeGenerationWork) error {
+			heartbeats.Add(1)
+			return nil
+		}),
+		time.Hour,
+		0,
+		&completed,
+		nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("drainProjectorWorkItem() error = %v, want nil", err)
+	}
+	if got := sink.acked.Load(); got != 2 {
+		t.Fatalf("Ack calls = %d, want 2", got)
+	}
+	if got := heartbeats.Load(); got != 1 {
+		t.Fatalf("lease renewals = %d, want 1", got)
+	}
+	if got := completed.Load(); got != 1 {
+		t.Fatalf("completed = %d, want 1", got)
+	}
+}

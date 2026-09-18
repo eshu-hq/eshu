@@ -8,7 +8,7 @@
    `Executor`, `ExecQueryer`, `Transaction`, `Beginner`,
    `ReadOnlyRepeatableReadBeginner` (adapters and bootstrap lock stay in root)
 3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
-   and `Ack`; the five-step atomic ack transaction is the most sensitive path
+   and `Ack`; the atomic, lock-timeout-bounded ack transaction is the most sensitive path
    in this package
 4. `go/internal/storage/postgres/projector_queue_sql.go` — projector claim,
    stale-generation coalescing, duplicate-lease reclaim, and lifecycle SQL
@@ -53,10 +53,10 @@
   characters and raw control bytes before every fact INSERT. It preserves
   literal source text such as the six characters `\u0000`. Skipping this causes
   Postgres errors on repositories with binary or non-UTF-8 content.
-- **Ack atomicity and lock order (#6738)** — `Ack` runs five statements in one
-  transaction, scope first; pass `SQLDB`/`InstrumentedDB`. Same-scope paths lock
-  scope before generation/work. Heartbeat takes it `FOR NO KEY UPDATE SKIP
-  LOCKED` and must never wait (ingestion holds it while streaming). Else 40P01.
+- **Ack atomicity and lock order (#6738)** — one `Ack` transaction, scope first,
+  under a local `lock_timeout` (55P03 → `projector.ErrWorkAckDeferred`; retry via
+  `AckWhenScopeFree`). Scope precedes generation/work everywhere; Heartbeat uses
+  `FOR NO KEY UPDATE SKIP LOCKED`, never waiting on ingestion. Else 40P01.
 - **Lease fencing** — projector Heartbeat/Ack/Fail match `lease_owner` and
   `attempt_count`; zero rows is `ErrProjectorClaimRejected` (wraps
   `projector.ErrWorkClaimLost`; drop the attempt). `WorkflowControlStore` checks

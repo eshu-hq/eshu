@@ -384,8 +384,8 @@ projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same bound
   project_generation stages), `projector runtime stage completed` (build,
   canonical write, content write, intent enqueue), `projection succeeded`,
   `projection failed`, `projector work canceled during shutdown`, `projector
-  work superseded by newer generation`, and `projector work claim lost to
-  another attempt` (WARN). All events carry `scope_id`, `generation_id`,
+  work superseded by newer generation`, `projector work claim lost to another
+  attempt` and `projector ack waiting for busy scope` (WARN). All carry `scope_id`, `generation_id`,
   `source_system`, `worker_id`, `stage`, `duration_seconds`; errors add `failure_class`.
 
 ## Operational notes

@@ -239,8 +239,8 @@ scope, which repairs queue state left by older owner crashes or claim races
 without breaking the one-active-generation invariant. `Ack` runs a five-step
 atomic transaction: update scope pointer → mark owned work succeeded → supersede
 older terminal work/generations → supersede old active generation → activate
-target generation. The scope lock precedes work and generation locks; a stale
-claim rolls back every change. This keeps obsolete dead letters out of current
+target generation, under a 2 s local `lock_timeout`; a busy scope defers the
+Ack (the service renews the lease and retries). A stale claim rolls back all. This keeps obsolete dead letters out of current
 health. If `projector.IsRetryable(cause)` returns true and
 `attempt_count < MaxAttempts`, `Fail` transitions to `retrying` instead of
 `dead_letter`.
