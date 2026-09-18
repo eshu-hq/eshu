@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/tempo` collects metadata-only evidence from live Grafana
+`internal/collector/observability/tempo` collects metadata-only evidence from live Grafana
 Tempo APIs. It supports teams without source-controlled observability config and
 gives reducers freshness or drift evidence to compare against declared and
 applied observability facts.
