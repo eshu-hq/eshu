@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/diagrampreflight"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/diagram"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
@@ -91,12 +91,12 @@ func extractDiagramDocumentation(
 	}
 	addDocumentationWarnings(document.SourceMetadata, bodyWarnings...)
 
-	preflight, err := diagrampreflight.Preflight(
+	preflight, err := diagram.Preflight(
 		ctx,
 		path.Base(relativePath),
 		bytes.NewReader(body),
 		int64(len(body)),
-		diagrampreflight.Options{MaxSourceBytes: int64(DocumentationMaxBodyBytes)},
+		diagram.Options{MaxSourceBytes: int64(DocumentationMaxBodyBytes)},
 	)
 	recordDiagramPreflightMetadata(document.SourceMetadata, preflight)
 	addDocumentationWarnings(document.SourceMetadata, diagramPreflightWarnings(preflight)...)
@@ -114,7 +114,7 @@ func extractDiagramDocumentation(
 	return document, sections, links
 }
 
-func recordDiagramPreflightMetadata(metadata map[string]string, result diagrampreflight.Result) {
+func recordDiagramPreflightMetadata(metadata map[string]string, result diagram.Result) {
 	if result.Format != "" {
 		metadata["preflight_format"] = result.Format
 	}
@@ -134,7 +134,7 @@ func recordDiagramPreflightMetadata(metadata map[string]string, result diagrampr
 	}
 }
 
-func diagramPreflightWarnings(result diagrampreflight.Result) []string {
+func diagramPreflightWarnings(result diagram.Result) []string {
 	warnings := make([]string, 0, len(result.Warnings))
 	for _, warning := range result.Warnings {
 		if warning.Class != "" {

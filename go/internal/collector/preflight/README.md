@@ -13,11 +13,14 @@ The namespace owns no runtime declarations, extraction, provider access,
 fact emission, storage calls, graph writes, or telemetry. Its `archive`
 child owns only metadata-only classification of `.zip`, `.tar`, `.tar.gz`,
 and `.tgz` packages. Its `pdf` child owns only metadata-only classification
-of `.pdf` sources.
+of `.pdf` sources. Its `diagram` child owns only metadata-only
+classification of `.svg`, `.drawio`, `.excalidraw`, `.mmd`, `.mermaid`,
+`.puml`, `.plantuml`, and `.d2` sources.
 
 ## Exported surface
 
-None. This parent is documentation-only. See the `archive` and `pdf`
+None. This parent is documentation-only. See the `archive`, `pdf`, and
+`diagram`
 children for `Options`, `Result`, `Warning`, `Preflight`, and the format
 and warning constants.
 
@@ -36,14 +39,15 @@ contract.
 - Keep runtime declarations in leaf packages or the owning collector.
 - Keep extraction, fact emission, ACL handling, and telemetry behavior in the
   owning collector slice.
-- The `archive` and `pdf` leaves are preflight boundaries, not independently
-  deployable services. They must not import the collector root or a sibling
-  collector.
+- The `archive`, `pdf`, and `diagram` leaves are preflight boundaries, not
+  independently deployable services. They must not import the collector root
+  or a sibling collector.
 - A safe preflight result is necessary but not sufficient for ingestion.
 
 ## Related docs
 
 - `go/internal/collector/preflight/archive/README.md`
 - `go/internal/collector/preflight/pdf/README.md`
+- `go/internal/collector/preflight/diagram/README.md`
 - `go/internal/collector/README.md`
 - `docs/internal/design/1738-office-spreadsheet-deck-archive-ingestion.md`

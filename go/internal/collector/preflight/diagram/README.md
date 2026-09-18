@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`collector/diagrampreflight` classifies diagram documentation sources before
+`collector/preflight/diagram` classifies diagram documentation sources before
 any diagram extractor reads labels, links, or diagram text. It gives future
 documentation collectors a metadata-only guard for resource limits, malformed
 structured input, external references, include directives, active content, and
@@ -51,9 +51,9 @@ extraction attempts, warning classes, skipped references, bytes inspected,
 elapsed time, and resource outcomes through collector telemetry before enabling
 diagram ingestion.
 
-Collector Performance Evidence: `go test ./internal/collector/diagrampreflight
+Collector Performance Evidence: `go test ./internal/collector/preflight/diagram
 -count=1` proves diagram classification is bounded by source bytes, element
-count, and structured-input depth. `go test ./internal/collector -run
+count, and structured-input depth. `go test ./internal/collector/gitrepo -run
 'Diagram|DocumentationDefaultOff' -count=1` proves diagram formats remain
 outside documentation extraction by default.
 
