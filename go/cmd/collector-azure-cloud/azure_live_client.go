@@ -11,7 +11,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
 )
 
 // newAzureLiveProviderFactory builds the read-only live Resource Graph provider

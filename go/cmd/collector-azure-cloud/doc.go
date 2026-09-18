@@ -7,7 +7,7 @@
 // In fixture mode (the default), the command reads declarative Azure scope
 // targets (tenant, subscription, or management group) from environment
 // configuration, builds a non-claimed collector.Source over the
-// azurecloud.PageProvider seam, and commits reported azure_cloud_resource and
+// azure.PageProvider seam, and commits reported azure_cloud_resource and
 // azure_collection_warning facts through the shared ingestion store. With no
 // ESHU_AZURE_FIXTURE_PAGES_JSON set the command selects the zero-value
 // LiveProviderFactory, which returns ErrLiveProviderGated and never issues a

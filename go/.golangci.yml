@@ -859,7 +859,7 @@ linters:
       - path: 'internal/collector/gitrepo/gitdocs/git_documentation_'
         linters:
           - wrapcheck
-      - path: 'internal/collector/azurecloud/'
+      - path: 'internal/collector/cloud/azure/'
         linters:
           - wrapcheck
       - path: 'internal/collector/cicdrun/'

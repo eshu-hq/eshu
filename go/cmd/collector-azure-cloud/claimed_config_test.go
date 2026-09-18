@@ -12,8 +12,8 @@ import (
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -247,7 +247,7 @@ func TestBuildClaimedServiceWiresLiveClaimRuntime(t *testing.T) {
 	})
 	var gotCredentialRef string
 	fixture := azureruntime.StaticFixtureFactory(
-		azureruntime.NewFixturePageProvider(nil, azurecloud.ScopeAccess{}),
+		azureruntime.NewFixturePageProvider(nil, azure.ScopeAccess{}),
 	)
 	newAzureLiveProviderFactory = func(_ context.Context, credentialRef string) (azureruntime.PageProviderFactory, error) {
 		gotCredentialRef = credentialRef

@@ -14,14 +14,14 @@ truth.
 
 ## Status
 
-The first fixture-testable slice landed in `go/internal/collector/azurecloud`.
+The first fixture-testable slice landed in `go/internal/collector/cloud/azure`.
 It registers the Azure fact constants and schema versions in
 `go/internal/facts/azure.go`, normalizes ARM resource identity, redacts the
 provider extension payload, and emits `azure_cloud_resource` and
 `azure_collection_warning` source facts from fixture Resource Graph pages.
 
 The runtime scaffolding slice (issue #1998) has now landed in
-`go/internal/collector/azurecloud/azureruntime` and
+`go/internal/collector/cloud/azure/azureruntime` and
 `go/cmd/collector-azure-cloud`. It adds:
 
 - the `azure` scope `CollectorKind` (`scope.CollectorAzure`),
@@ -198,7 +198,7 @@ the owning ARM resource identity does not invent repository anchors. `go test
 TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
 -count=1` proves the active cross-scope image-identity fact loader includes
 Azure image-reference facts while preserving active-generation and tombstone
-predicates. `go test ./internal/collector/azurecloud -run
+predicates. `go test ./internal/collector/cloud/azure -run
 'TestCollect(EmitsDNSAndImageReferencesWhenKeyed|SkipsDNSAndImageReferencesWithoutKey|SourceLaneEmissionHandlesEmptyUnsupportedMalformedAndDuplicateRows|SourceLaneEmissionPreservesPartialScopeWarning)'
 -count=1` proves Resource Graph scan-loop emission for keyed DNS and Container
 Apps image source rows, no-key fail-closed behavior, unsupported and empty

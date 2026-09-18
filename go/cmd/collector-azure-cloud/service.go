@@ -21,8 +21,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	cassette "github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -85,7 +85,7 @@ func buildClaimedService(
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
-	metrics, err := azurecloud.NewMetrics(meter)
+	metrics, err := azure.NewMetrics(meter)
 	if err != nil {
 		return collector.ClaimedService{}, fmt.Errorf("azure collector metrics: %w", err)
 	}
@@ -154,7 +154,7 @@ func buildCollectorService(
 	if err != nil {
 		return collector.Service{}, err
 	}
-	metrics, err := azurecloud.NewMetrics(meter)
+	metrics, err := azure.NewMetrics(meter)
 	if err != nil {
 		return collector.Service{}, err
 	}
@@ -215,7 +215,7 @@ func buildProviderFactory(
 	if !ok {
 		return azureruntime.LiveProviderFactory{}, nil
 	}
-	access := azurecloud.ScopeAccess{
+	access := azure.ScopeAccess{
 		Partial:             fixture.Partial,
 		HiddenResourceCount: fixture.HiddenResourceCount,
 		Reason:              fixture.Reason,
@@ -224,11 +224,11 @@ func buildProviderFactory(
 	if err := validateSingleFixtureSourceLane(config.Targets); err != nil {
 		return nil, err
 	}
-	var resourceGraphProvider azurecloud.PageProvider
-	var resourceChangesProvider azurecloud.PageProvider
+	var resourceGraphProvider azure.PageProvider
+	var resourceChangesProvider azure.PageProvider
 	for _, target := range config.Targets {
 		switch target.SourceLane {
-		case "", azurecloud.SourceLaneResourceGraph:
+		case "", azure.SourceLaneResourceGraph:
 			if resourceGraphProvider == nil {
 				provider, err := azureruntime.NewFixturePageProviderFromFiles(access, fixture.PagePaths...)
 				if err != nil {
@@ -236,7 +236,7 @@ func buildProviderFactory(
 				}
 				resourceGraphProvider = provider
 			}
-		case azurecloud.SourceLaneResourceChanges:
+		case azure.SourceLaneResourceChanges:
 			if resourceChangesProvider == nil {
 				provider, err := azureruntime.NewFixtureResourceChangesPageProviderFromFiles(access, fixture.PagePaths...)
 				if err != nil {
@@ -250,16 +250,16 @@ func buildProviderFactory(
 	}
 	return azureruntime.PageProviderFactoryFunc(func(
 		_ context.Context,
-		_ azurecloud.Boundary,
+		_ azure.Boundary,
 		target azureruntime.TargetConfig,
-	) (azurecloud.PageProvider, error) {
+	) (azure.PageProvider, error) {
 		switch target.SourceLane {
-		case "", azurecloud.SourceLaneResourceGraph:
+		case "", azure.SourceLaneResourceGraph:
 			if resourceGraphProvider == nil {
 				return nil, fmt.Errorf("azure fixture Resource Graph provider is not configured")
 			}
 			return resourceGraphProvider, nil
-		case azurecloud.SourceLaneResourceChanges:
+		case azure.SourceLaneResourceChanges:
 			if resourceChangesProvider == nil {
 				return nil, fmt.Errorf("azure fixture resourcechanges provider is not configured")
 			}
@@ -295,10 +295,10 @@ func validateSingleFixtureSourceLane(targets []azureruntime.TargetConfig) error 
 
 func normalizeFixtureSourceLane(lane string) (string, error) {
 	switch lane {
-	case "", azurecloud.SourceLaneResourceGraph:
-		return azurecloud.SourceLaneResourceGraph, nil
-	case azurecloud.SourceLaneResourceChanges:
-		return azurecloud.SourceLaneResourceChanges, nil
+	case "", azure.SourceLaneResourceGraph:
+		return azure.SourceLaneResourceGraph, nil
+	case azure.SourceLaneResourceChanges:
+		return azure.SourceLaneResourceChanges, nil
 	default:
 		return "", fmt.Errorf("azure fixture page provider does not support source lane %q", lane)
 	}

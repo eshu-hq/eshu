@@ -3,7 +3,7 @@
 ## Read First
 
 1. `README.md` - fixture/claimed-live modes, configuration, live-call safety.
-2. `../../internal/collector/azurecloud/azureruntime/AGENTS.md` - the runtime
+2. `../../internal/collector/cloud/azure/azureruntime/AGENTS.md` - the runtime
    this binary wires; emission, claimed-source, and provider-seam rules live there.
 3. `docs/public/reference/azure-cloud-collector-contract.md` and
    `docs/public/reference/multi-cloud-collector-contract.md` - the contracts.
@@ -41,7 +41,7 @@
 
 ```bash
 cd go && go build ./...
-cd go && go test ./cmd/collector-azure-cloud/... ./internal/collector/azurecloud/... -count=1
-cd go && golangci-lint run ./cmd/collector-azure-cloud/... ./internal/collector/azurecloud/...
+cd go && go test ./cmd/collector-azure-cloud/... ./internal/collector/cloud/azure/... -count=1
+cd go && golangci-lint run ./cmd/collector-azure-cloud/... ./internal/collector/cloud/azure/...
 bash scripts/verify-performance-evidence.sh
 ```

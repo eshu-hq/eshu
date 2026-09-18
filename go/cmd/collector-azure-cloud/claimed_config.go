@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -183,8 +183,8 @@ func parseClaimedAzureConfiguration(
 		// resource_graph lane only. Reject resource_changes/arm_fallback here so an
 		// invalid live configuration fails at startup instead of acquiring claims
 		// that then fail per work item.
-		if lane := strings.TrimSpace(scopeCfg.SourceLane); lane != "" && lane != azurecloud.SourceLaneResourceGraph {
-			return azureruntime.Config{}, "", fmt.Errorf("azure scope[%d]: claimed-live supports source_lane %q only, got %q", i, azurecloud.SourceLaneResourceGraph, lane)
+		if lane := strings.TrimSpace(scopeCfg.SourceLane); lane != "" && lane != azure.SourceLaneResourceGraph {
+			return azureruntime.Config{}, "", fmt.Errorf("azure scope[%d]: claimed-live supports source_lane %q only, got %q", i, azure.SourceLaneResourceGraph, lane)
 		}
 		if credentialRef == "" {
 			credentialRef = credRef

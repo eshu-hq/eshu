@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -67,8 +67,8 @@ func TestLoadRuntimeConfigParsesSourceLane(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadRuntimeConfig: %v", err)
 	}
-	if got := config.Targets[0].SourceLane; got != azurecloud.SourceLaneResourceChanges {
-		t.Fatalf("source lane = %q, want %q", got, azurecloud.SourceLaneResourceChanges)
+	if got := config.Targets[0].SourceLane; got != azure.SourceLaneResourceChanges {
+		t.Fatalf("source lane = %q, want %q", got, azure.SourceLaneResourceChanges)
 	}
 }
 
@@ -91,7 +91,7 @@ func TestBuildProviderFactoryDefaultsToGatedLiveSeam(t *testing.T) {
 	if _, ok := factory.(azureruntime.LiveProviderFactory); !ok {
 		t.Fatalf("default factory = %T, want gated LiveProviderFactory", factory)
 	}
-	if _, err := factory.PageProvider(context.Background(), azurecloud.Boundary{}, azureruntime.TargetConfig{}); err == nil {
+	if _, err := factory.PageProvider(context.Background(), azure.Boundary{}, azureruntime.TargetConfig{}); err == nil {
 		t.Fatal("gated live factory must not return a live provider")
 	}
 }
@@ -170,7 +170,7 @@ func TestSmokeFixtureBackedSourceYieldsResourceChangeGeneration(t *testing.T) {
 		envCollectorInstanceID: "azure-collector-1",
 		envTargetsJSON:         resourceChangesTargetsJSON,
 		envFixturePagesJSON: `{"page_paths": ["` +
-			filepath.Join("..", "..", "internal", "collector", "azurecloud", "testdata", "resourcechanges_page1.json") + `"]}`,
+			filepath.Join("..", "..", "internal", "collector", "cloud", "azure", "testdata", "resourcechanges_page1.json") + `"]}`,
 	})
 	config, err := loadRuntimeConfig(getenv)
 	if err != nil {

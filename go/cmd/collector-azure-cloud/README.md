@@ -115,8 +115,8 @@ issue #3066; live transport stays off by default.
 
 ```bash
 cd go && go build ./...
-cd go && go test ./cmd/collector-azure-cloud/... ./internal/collector/azurecloud/... ./internal/workflow/ -count=1
-cd go && golangci-lint run ./cmd/collector-azure-cloud/... ./internal/collector/azurecloud/...
+cd go && go test ./cmd/collector-azure-cloud/... ./internal/collector/cloud/azure/... ./internal/workflow/ -count=1
+cd go && golangci-lint run ./cmd/collector-azure-cloud/... ./internal/collector/cloud/azure/...
 scripts/verify-package-docs.sh
 scripts/verify-performance-evidence.sh
 ```
@@ -130,7 +130,7 @@ domain: one durable workflow claim per `(azure instance, scope_id, generation)`;
 fencing and lease handoff are owned by `collector.ClaimedService` and the
 Postgres workflow control store, unchanged. The source emits one bounded
 generation per claimed work item (page loop bounded by
-`azurecloud.maxResourceGraphPages`). Fixture-proven claim handoff: matching work
+`azure.maxResourceGraphPages`). Fixture-proven claim handoff: matching work
 item collects facts with the claim's generation id and fencing token;
 unauthorized scope, mismatched instance, wrong collector kind, non-claimed
 status, non-positive fencing token, and generation/run mismatch are each
@@ -147,7 +147,7 @@ ingestion store, no new DDL, no new Cypher. Input shape: bounded fixture pages
 (2 pages / 3 rows) for the smoke test; production input is bounded per-scope
 shards within the lease and Resource Graph quota budget. Terminal counts: smoke
 run yields 1 generation with 3 resource facts and 0 warnings; the page loop is
-bounded by `azurecloud.maxResourceGraphPages` (1000). Telemetry: per-target
+bounded by `azure.maxResourceGraphPages` (1000). Telemetry: per-target
 `collector.azure.scope_scan` span and the parent package's bounded-label
 `eshu_dp_azure_*` metrics; the binary adds no goroutine fan-out, lock, or queue.
 Why safe: single-pass over a fixed target slice with the fixture/gated provider;

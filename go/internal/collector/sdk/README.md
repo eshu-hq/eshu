@@ -317,7 +317,7 @@ collector client or workflow failure kernel.
 
 Generated and vendor-owned cloud/platform clients are also intentional
 exceptions to the first-party HTTP SDK adoption target. The follow-up scan `rg
---files go/internal/collector/awscloud go/internal/collector/azurecloud
+--files go/internal/collector/awscloud go/internal/collector/cloud/azure
 go/internal/collector/gcpcloud go/internal/collector/kuberneteslive | rg
 '(^|/)(client|liveclient)\.go$|clientgo/client\.go$|awssdk/client\.go$'`
 separates AWS SDK adapters, GCP's documented unimplemented live seam, and
