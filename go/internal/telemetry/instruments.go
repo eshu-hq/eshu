@@ -544,7 +544,26 @@ type Instruments struct {
 	// bounded confidence. Label: confidence (provenance_only). The reducer never
 	// promotes conditioned evidence into exact CAN_PERFORM edges because scanner
 	// facts omit condition values and request context.
-	IAMCanPerformConditioned   metric.Int64Counter
+	IAMCanPerformConditioned metric.Int64Counter
+	// IAMCanPerformCrossScopeTargets counts exact identity-policy target ARNs the
+	// CAN_PERFORM projection looked up in sibling service scopes of the same AWS
+	// account (#6785), one data point per target per evaluation. Label: outcome
+	// (resolved — found in a scope whose CloudResource nodes committed;
+	// unresolved — absent from every settled candidate scope; not_ready — found
+	// in an uncommitted scope, or could still land in a never-activated pending
+	// scope, so the intent deferred; abandoned — still not_ready when the
+	// readiness bound expired, committed as unresolved; glob_local_only — a glob
+	// pattern that is matched only inside the permission's own scope). A rising
+	// abandoned or not_ready rate means target scopes are stuck, not that
+	// policies lost grants.
+	IAMCanPerformCrossScopeTargets metric.Int64Counter
+	// ReducerReadinessWaits counts reducer intents whose handler-level
+	// cross-scope readiness gate either deferred the intent or gave up waiting
+	// at its elapsed-time bound (#6785). Labels: domain (the reducer domain),
+	// outcome (deferred — returned a retryable readiness class; abandoned — the
+	// bound expired and the intent committed its best available answer). A
+	// steady abandoned rate names upstream nodes that never materialize.
+	ReducerReadinessWaits      metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings  metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
@@ -2934,6 +2953,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMCanPerformSkipped counter: %w", err)
+	}
+
+	inst.IAMCanPerformCrossScopeTargets, err = meter.Int64Counter(
+		"eshu_dp_iam_can_perform_cross_scope_targets_total",
+		metric.WithDescription("Total IAM CAN_PERFORM identity-policy target ARNs looked up in sibling service scopes of the same AWS account by outcome (resolved/unresolved/not_ready/abandoned/glob_local_only)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMCanPerformCrossScopeTargets counter: %w", err)
+	}
+
+	inst.ReducerReadinessWaits, err = meter.Int64Counter(
+		"eshu_dp_reducer_readiness_waits_total",
+		metric.WithDescription("Total reducer intents whose handler cross-scope readiness gate deferred (deferred) or committed at its elapsed-time bound (abandoned), by domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerReadinessWaits counter: %w", err)
 	}
 
 	inst.IAMCanPerformConditioned, err = meter.Int64Counter(

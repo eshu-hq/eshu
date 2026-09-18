@@ -91,6 +91,9 @@ var nonCountingReducerRetryFailureClasses = []string{
 	rdsposture.RDSPostureNodesNotReadyFailureClass,
 	secgroup.SecurityGroupReachabilityNodesNotReadyFailureClass,
 	reducer.WorkloadCloudRelationshipNodesNotReadyFailureClass,
+	// #6785: CAN_PERFORM waiting on sibling-scope targets, bounded by elapsed
+	// time since the repair cycle began, not by this budget.
+	reducer.IAMCanPerformTargetNotReadyFailureClass,
 	ec2blockkms.EC2BlockDeviceKMSPostureNodesNotReadyFailureClass,
 	internetexposure.EC2InternetExposureNodesNotReadyFailureClass,
 	ec2usesprofile.EC2UsesProfileNodesNotReadyFailureClass,

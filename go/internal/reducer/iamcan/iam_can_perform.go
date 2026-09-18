@@ -118,8 +118,23 @@ func ExtractIAMCanPerformEdges(
 	permissionEnvelopes []facts.Envelope,
 	resourcePolicyEnvelopeSets ...[]facts.Envelope,
 ) (IAMCanPerformResult, error) {
+	return extractIAMCanPerformEdges(resourceEnvelopes, nil, permissionEnvelopes, flattenResourcePolicyEnvelopeSets(resourcePolicyEnvelopeSets))
+}
+
+// extractIAMCanPerformEdges is ExtractIAMCanPerformEdges plus the cross-scope
+// target facts (#6785). crossScopeResources come from sibling service scopes of
+// the same account and are indexed separately: they satisfy exact-ARN target
+// matches only, never glob matching or principal/grantee lookup, because the
+// cross-scope view holds only the ARNs a statement named exactly. Their decode
+// failures are not re-reported here; the owning scope's handlers quarantine
+// them.
+func extractIAMCanPerformEdges(
+	resourceEnvelopes []facts.Envelope,
+	crossScopeResources []facts.Envelope,
+	permissionEnvelopes []facts.Envelope,
+	resourcePolicyEnvelopes []facts.Envelope,
+) (IAMCanPerformResult, error) {
 	result := IAMCanPerformResult{EdgesByMode: make(map[string]int)}
-	resourcePolicyEnvelopes := flattenResourcePolicyEnvelopeSets(resourcePolicyEnvelopeSets)
 	if len(permissionEnvelopes) == 0 && len(resourcePolicyEnvelopes) == 0 {
 		return result, nil
 	}
@@ -129,6 +144,14 @@ func ExtractIAMCanPerformEdges(
 		return IAMCanPerformResult{EdgesByMode: make(map[string]int)}, err
 	}
 	result.Quarantined = append(result.Quarantined, resourceQuarantined...)
+	targets := iamCanPerformTargetIndex{local: index}
+	if len(crossScopeResources) > 0 {
+		foreign, _, err := cloudjoin.BuildCloudResourceJoinIndex(crossScopeResources)
+		if err != nil {
+			return IAMCanPerformResult{EdgesByMode: make(map[string]int)}, err
+		}
+		targets.crossScope = foreign
+	}
 	principals, principalQuarantined, err := groupIAMCanPerformByPrincipal(index, permissionEnvelopes, &result.Tally)
 	if err != nil {
 		return IAMCanPerformResult{EdgesByMode: make(map[string]int)}, err
@@ -161,7 +184,7 @@ func ExtractIAMCanPerformEdges(
 				continue
 			}
 
-			resourceUID, mode, status := resolveIAMCanPerformTarget(index, grant, entry)
+			resourceUID, mode, status := resolveIAMCanPerformTarget(targets, grant, entry)
 			switch status {
 			case iampolicy.TargetResolved:
 				if resourceUID == principal.PrincipalUID {
@@ -170,7 +193,7 @@ func ExtractIAMCanPerformEdges(
 					result.Tally.skippedSelfLoop++
 					continue
 				}
-				resourceARN, ok := index.ARNForUID(resourceUID)
+				resourceARN, ok := targets.arnForUID(resourceUID)
 				if !ok {
 					result.Tally.skippedUnresolved++
 					continue

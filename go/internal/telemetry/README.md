@@ -69,6 +69,7 @@ when the reducer has a graph orphan observer.
 | `ProjectorAckDeferrals` | `eshu_dp_projector_ack_deferrals_total` |
 | `ReducerIntentsEnqueued` | `eshu_dp_reducer_intents_enqueued_total` |
 | `ReducerAdmissionDeferrals` | `eshu_dp_reducer_admission_deferrals_total` |
+| `ReducerReadinessWaits` | `eshu_dp_reducer_readiness_waits_total` |
 | `ReducerExecutions` | `eshu_dp_reducer_executions_total` |
 | `ReducerHeartbeatMissed` | `eshu_dp_reducer_heartbeat_missed_total` |
 | `SearchIndexMutations` | `eshu_dp_search_index_mutations_total` |
@@ -233,6 +234,7 @@ when the reducer has a graph orphan observer.
 | `IAMCanPerformEdges` | `eshu_dp_iam_can_perform_edges_total` |
 | `IAMCanPerformSkipped` | `eshu_dp_iam_can_perform_skipped_total` |
 | `IAMCanPerformConditioned` | `eshu_dp_iam_can_perform_conditioned_total` |
+| `IAMCanPerformCrossScopeTargets` | `eshu_dp_iam_can_perform_cross_scope_targets_total` |
 | `S3LogsToEdges` | `eshu_dp_s3_logs_to_edges_total` |
 | `S3LogsToSkipped` | `eshu_dp_s3_logs_to_skipped_total` |
 | `EC2UsesProfileEdges` | `eshu_dp_ec2_uses_profile_edges_total` |

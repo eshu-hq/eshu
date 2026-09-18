@@ -21,6 +21,14 @@
 // degrade to a counted skip, never to a guessed edge, so a CAN_PERFORM edge in
 // the graph is a claim an operator can act on.
 //
+// The awscloud collector emits principals and permissions into the IAM
+// service scope and every catalog target into its own service scope, so the
+// CAN_PERFORM handler resolves exact identity-policy target ARNs across the
+// sibling scopes of the same account through [CrossScopeTargetLoader]
+// (#6785). It defers, bounded by elapsed cycle time, while a target's scope has
+// not committed its CloudResource nodes, and never lets a cross-scope target
+// satisfy a glob.
+//
 // [CatalogByAction] exposes the closed CAN_PERFORM action catalog. The reducer
 // root's INVOKES_CLOUD_ACTION intent builder reads it as a defense-in-depth
 // check that a code call site can never name an action outside the reviewed
@@ -29,7 +37,7 @@
 // # Package boundary
 //
 // Imports point strictly downward: this package reaches [reducercontract],
-// [cloudjoin], [factdecode], [factload], [gpphase], [iampolicy],
+// [cloudjoin], [crossscope], [factdecode], [factload], [gpphase], [iampolicy],
 // [payloadcore], [schemadecode], internal/facts, internal/graph/edgetype,
 // internal/telemetry, internal/truth, and the factschema SDK, and never the
 // parent internal/reducer package. The reducer root keeps compatibility
@@ -43,7 +51,10 @@
 // principal_kind and resolution_mode). The CAN_PERFORM handler emits
 // eshu_dp_iam_can_perform_edges_total (by resolution_mode),
 // eshu_dp_iam_can_perform_skipped_total (by skip_reason), and
-// eshu_dp_iam_can_perform_conditioned_total (by confidence). Facts rejected
+// eshu_dp_iam_can_perform_conditioned_total (by confidence), plus
+// eshu_dp_iam_can_perform_cross_scope_targets_total (by outcome) and
+// eshu_dp_reducer_readiness_waits_total (by domain and outcome) for the
+// cross-scope target lookup and its bounded defer. Facts rejected
 // for a malformed payload increment the shared
 // eshu_dp_reducer_input_invalid_facts_total counter, and the reducer
 // executions that run these handlers stay covered by

@@ -71,6 +71,11 @@ type IAMCanPerformEdgeWriter = iamcan.IAMCanPerformEdgeWriter
 // [iamcan.IAMCanPerformMaterializationHandler].
 type IAMCanPerformMaterializationHandler = iamcan.IAMCanPerformMaterializationHandler
 
+// IAMCanPerformTargetNotReadyFailureClass is the root spelling of
+// [iamcan.IAMCanPerformTargetNotReadyFailureClass], enrolled by
+// internal/storage/postgres as a non-counting readiness class (#6785).
+const IAMCanPerformTargetNotReadyFailureClass = iamcan.IAMCanPerformTargetNotReadyFailureClass
+
 // IAMCanAssumeNodesNotReadyFailureClass is the root spelling of
 // [iamcan.IAMCanAssumeNodesNotReadyFailureClass]. internal/storage/postgres
 // names it when it classifies a queue row's readiness-gate miss.

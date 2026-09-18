@@ -95,8 +95,13 @@ type IAMCanPerformMaterializationHandler struct {
 	// PriorGenerationCheck reports whether the scope has any prior generation. Nil
 	// keeps retract behavior conservative (always retract before write).
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
-	Tracer               trace.Tracer
-	Instruments          *telemetry.Instruments
+	// CrossScopeTargets resolves exact identity-policy target ARNs from the
+	// sibling AWS service scopes of the same account, where the awscloud
+	// collector emits every catalog target (#6785). Nil keeps resolution inside
+	// the intent's own scope (test wiring).
+	CrossScopeTargets CrossScopeTargetLoader
+	Tracer            trace.Tracer
+	Instruments       *telemetry.Instruments
 }
 
 // Handle executes one IAM CAN_PERFORM materialization intent.
@@ -165,8 +170,15 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 	permissionInputs := append([]facts.Envelope{}, permissionEnvelopes...)
 	permissionInputs = append(permissionInputs, permissionBoundaryEnvelopes...)
 
+	// Cross-scope targets are sampled and loaded before extraction and before
+	// any retract, so a deferral leaves the prior generation's edges readable.
+	crossScopeResources, err := h.resolveCrossScopeTargets(ctx, intent, permissionEnvelopes)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
+
 	extractStart := time.Now()
-	result, err := ExtractIAMCanPerformEdges(resourceEnvelopes, permissionInputs, resourcePolicyEnvelopes)
+	result, err := extractIAMCanPerformEdges(resourceEnvelopes, crossScopeResources, permissionInputs, resourcePolicyEnvelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load, unsupported major, or other
 		// fatal condition factdecode.PartitionDecodeFailures did NOT quarantine) fails the
