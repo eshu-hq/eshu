@@ -171,5 +171,6 @@ Where Eshu is exposed:
   the real list, so #407 does not apply to it.
 
 Not yet covered, and not yet filed as an issue: an audit of statements
-assembled from fragments, which the literal scan behind this list cannot see,
+assembled from fragments, which the scan behind this list (Cypher written as a
+single backtick literal in non-test Go under `go/`) cannot see,
 and of production `.id` reads that #404 could affect.
