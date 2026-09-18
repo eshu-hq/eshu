@@ -64,6 +64,7 @@ above.
 | X6 | `MATCH (n) RETURN labels(n) AS l, count(*) AS c` on an empty graph | spurious `{c: 0, l: null}` row |
 | X7 | `EXISTS {…}` used as a `RETURN` column | always `false` |
 | X8 | `UNWIND … MERGE (n:L {k: v})` as the statement's final clause | `k` stored as null (a following `SET`, or `CREATE`, is correct) |
+| X9 | an `UNWIND` variable name that equals a `RETURN` alias, with a `MATCH` in between | the first `RETURN` column comes back named after the first `UNWIND` value (e.g. the literal key `'r1'`) instead of its declared alias; Neo4j returns the declared alias |
 
 ## Exposure
 
@@ -77,6 +78,7 @@ above.
 | Two read paths | X4, X5 | Affected; fixed in a separate change | Recorded in that change |
 | Repository list `is_dependency` (`querycontract.RepositoryDependencyMarkerProjection`) | X7, plus invalid scoped Cypher | Affected. Unscoped: always false on NornicDB. Scoped: a syntax error on Neo4j | Fixed in #6786; RED/GREEN in [6786-repository-dependency-marker-and-relationship-repo-anchor.md](6786-repository-dependency-marker-and-relationship-repo-anchor.md) |
 | Code relationship lookup by name and `repo_id` (`codequery/relationship_handlers.go`) | X5 | Affected: other repositories' entities are returned | Fixed in #6786; RED/GREEN in [6786-repository-dependency-marker-and-relationship-repo-anchor.md](6786-repository-dependency-marker-and-relationship-repo-anchor.md) |
+| Workload-instance retraction lookup (`cmd/reducer/workload_instance_retraction_lookup.go`, `neo4jWorkloadInstanceRetractionLookup.ListWorkloadInstances`) | X9 | Affected: `ListWorkloadInstances` returns nothing on NornicDB, so `reducer.ReconcileWorkloadInstanceRetraction` never retracts a stale `WorkloadInstance` node superseded by #5473's environment-alias canonicalization | Fixed in #6786 (renamed the `UNWIND` binding to `requested_repo_id`); live RED/GREEN in `cmd/reducer/nornicdb_workload_instance_retraction_lookup_live_test.go` |
 | Infra grant predicate `DEPLOYMENT_SOURCE` disjunct (`infraResourceScopeCoreDisjuncts`) | X5 candidate | Not affected (one-hop outbound) | Rows match on one line and multi-line |
 | Entity resolve scoped `EXISTS` (`entity.BuildResolveEntityGraphQuery`) | X5 | Unreachable: the branch never renders | Function returns early when not repository-anchored |
 | Taint backfill `CountTaintFlowsToEdges`, relationships catalog tiles, golden-corpus `CountEdges`/`CountCorrelation` | X3 | Not affected: typed counts are correct with the schema | Counts match Neo4j after a both-endpoint `DETACH DELETE` |
@@ -90,6 +92,28 @@ above.
 
 ## Upstream
 
-X1–X8 are outside orneryd/NornicDB#400–#409. Upstream reports for them are
+X1–X9 are outside orneryd/NornicDB#400–#409. Upstream reports for them are
 drafted but not yet filed; #6787 tracks upstream fixes and the re-proof on the
 next pin.
+
+## X9 fix: workload-instance retraction lookup
+
+No-Regression Evidence: the fix renames the `UNWIND` binding
+(`repo_id` -> `requested_repo_id`) and updates the one `MATCH` that reads it;
+the `RETURN` clause, its aliases, the `WHERE` filter, and the bound
+parameters (`$repo_ids`, `$evidence_source`) are byte-identical to before.
+A bound-variable rename does not change the query plan (same labels, same
+property lookups, same `DISTINCT`), so this is a correctness fix with no
+throughput or latency claim to make; the live test asserts row content, not
+timing.
+
+Observability Evidence: no new signal is needed. The lookup itself carries
+no telemetry of its own (it is a plain graph read behind
+`reducer.ReconcileWorkloadInstanceRetraction`); the caller,
+`WorkloadMaterializationHandler.Handle`
+(internal/reducer/workload_materialization_handler.go), already times and
+counts the whole instance-retraction stage (`timing.instanceRetract`,
+`instanceRetractRows`) regardless of how many rows the lookup returns, so a
+previously-silent zero-row read now correctly shows up as nonzero
+`instanceRetractRows` there once stale instances exist to retract, with no
+handler code change required.
