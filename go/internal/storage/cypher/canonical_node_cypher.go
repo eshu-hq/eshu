@@ -17,27 +17,36 @@ WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical' AND f.g
   AND (f.path IS NULL OR NOT (f.path IN $file_paths))
 DETACH DELETE f`
 
-const canonicalNodeRetractDeltaDeletedFilesCypher = `UNWIND $file_paths AS file_path
-MATCH (f:File {path: file_path})
-WHERE f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical'
+// The delta file/directory DELETE statements below seed their worklist with
+// a positive `IN $file_paths` / `IN $directory_paths` predicate, never an
+// `UNWIND ... AS ...` seed plus compound WHERE. Measured on the pinned
+// NornicDB v1.3.3 backend at 600k-node scale, the UNWIND-seeded compound
+// shape costs 87-216s per execution while the IN shape costs 0.1-9s with an
+// identical deleted row set (issue #6715). The phase-group chunker splits
+// both shapes at the same batch size, and the IN shape is the one proven
+// grouped-transaction-safe (see nornicdb-pitfalls.md), so the rewrite keeps
+// batching, replay safety, and the anchor-direction rule (every traversal
+// still expands from its bound variable).
+const canonicalNodeRetractDeltaDeletedFilesCypher = `MATCH (f:File)
+WHERE f.path IN $file_paths
+  AND f.repo_id = $repo_id AND f.evidence_source = 'projector/canonical'
 DETACH DELETE f`
 
-const canonicalNodeRetractDeltaDeletedDirectoryEdgesCypher = `UNWIND $directory_paths AS directory_path
-MATCH (d:Directory {path: directory_path})
-WHERE d.repo_id = $repo_id
+const canonicalNodeRetractDeltaDeletedDirectoryEdgesCypher = `MATCH (d:Directory)
+WHERE d.path IN $directory_paths
+  AND d.repo_id = $repo_id
   AND d.evidence_source = 'projector/canonical'
 MATCH (d)-[r:CONTAINS]-()
 DELETE r`
 
-const canonicalNodeRetractDeltaDeletedDirectoriesCypher = `UNWIND $directory_paths AS directory_path
-MATCH (d:Directory {path: directory_path})
-WHERE d.repo_id = $repo_id
+const canonicalNodeRetractDeltaDeletedDirectoriesCypher = `MATCH (d:Directory)
+WHERE d.path IN $directory_paths
+  AND d.repo_id = $repo_id
   AND d.evidence_source = 'projector/canonical'
 DETACH DELETE d`
 
-const canonicalNodeRetractDeltaEmptyDirectoriesCypher = `UNWIND $directory_paths AS directory_path
-MATCH (d:Directory)
-WHERE d.path = directory_path
+const canonicalNodeRetractDeltaEmptyDirectoriesCypher = `MATCH (d:Directory)
+WHERE d.path IN $directory_paths
   AND d.repo_id = $repo_id
   AND NOT EXISTS { MATCH (d)-[:CONTAINS]->(:File) }
   AND NOT EXISTS { MATCH (d)-[:CONTAINS]->(:Directory) }

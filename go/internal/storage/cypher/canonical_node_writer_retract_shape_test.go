@@ -199,9 +199,13 @@ DELETE r`,
 		{
 			name:   "delta deleted directory edges",
 			cypher: canonicalNodeRetractDeltaDeletedDirectoryEdgesCypher,
-			want: `UNWIND $directory_paths AS directory_path
-MATCH (d:Directory {path: directory_path})
-WHERE d.repo_id = $repo_id
+			// Positive IN worklist, not an UNWIND seed: the UNWIND-seeded
+			// compound shape costs ~90s per execution on the pinned
+			// NornicDB v1.3.3 backend at 600k-node scale (issue #6715).
+			// The traversal still expands from the bound `d`.
+			want: `MATCH (d:Directory)
+WHERE d.path IN $directory_paths
+  AND d.repo_id = $repo_id
   AND d.evidence_source = 'projector/canonical'
 MATCH (d)-[r:CONTAINS]-()
 DELETE r`,
@@ -209,9 +213,11 @@ DELETE r`,
 		{
 			name:   "delta deleted directories",
 			cypher: canonicalNodeRetractDeltaDeletedDirectoriesCypher,
-			want: `UNWIND $directory_paths AS directory_path
-MATCH (d:Directory {path: directory_path})
-WHERE d.repo_id = $repo_id
+			// Positive IN worklist (issue #6715): the UNWIND-seeded
+			// compound shape costs ~87s per execution on v1.3.3.
+			want: `MATCH (d:Directory)
+WHERE d.path IN $directory_paths
+  AND d.repo_id = $repo_id
   AND d.evidence_source = 'projector/canonical'
 DETACH DELETE d`,
 		},
