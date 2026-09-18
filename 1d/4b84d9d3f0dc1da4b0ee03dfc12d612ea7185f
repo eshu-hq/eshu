@@ -1,0 +1,19 @@
+.github/workflows/value-flow-conformance-expectation.yml
+  s_02cd429498e265::t_e73665afe7bc78 29-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1d4b84d9d3f0dc1da4b0ee03dfc12d612ea7185f",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
