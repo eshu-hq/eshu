@@ -4376,5 +4376,3 @@ non_gate_workflows:
     reason: "Discord invite bot post, not a review gate"
   - file: refresh-cassettes.yml
     reason: "scheduled/manual cassette refresh, not a PR gate"
-  - file: value-flow-conformance-expectation.yml
-    reason: "retiring (#6761): the value-flow cases run in the default live conformance corpus under the blocking e2e-tests gate on both backends; this workflow is deleted in the follow-up once this registry change is on main"

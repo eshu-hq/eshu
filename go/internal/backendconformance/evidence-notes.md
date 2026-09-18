@@ -18,13 +18,11 @@ with the single-workload check in Go. Both run in the default corpora with exact
 rows (`corpus_value_flow.go`), next to the #6689 shapes
 (`corpus_answer_truth.go`), and `TestLiveBackendConformance` passed on both
 backends. The opt-in (`ESHU_BACKEND_CONFORMANCE_VALUE_FLOW`) is removed. The
-`value-flow-conformance-expectation` workflow and gate stay, flipped to a
-positive check: both lanes must pass and must log `read case passed:` for both
-value-flow cases (`scripts/verify-value-flow-conformance-expectation.sh`, with
-its test mirror). Both lanes passed against live NornicDB v1.3.3 and Neo4j. The
-gate cannot be deleted in the same change, because `required-gates-complete`
-awaits it through the default branch's registry; retiring it is a registry-only
-change first and the workflow deletion after.
+`value-flow-conformance-expectation` gate was first flipped to a positive check
+(#6761), then retired in two steps, because `required-gates-complete` awaits
+gates through the default branch's registry: the registry row went first, then
+the workflow and its scripts. The value-flow cases are gated by the end-to-end
+matrix's live conformance step on both backends.
 
 The sections below record how the pair looked before that change. Their
 statements, case names and commands no longer exist.
