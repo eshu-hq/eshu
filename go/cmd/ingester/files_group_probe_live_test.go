@@ -94,18 +94,22 @@ func TestFileGroupProbeLive(t *testing.T) {
 	run(`CREATE (:Repository {id: $repo})`)
 	run(`CREATE (:Directory {path: $dir})`)
 
-	var logs bytes.Buffer
+	var logs, defaultLogs bytes.Buffer
 	previousLogger := slog.Default()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&defaultLogs, nil)))
 	defer slog.SetDefault(previousLogger)
 	stmt := testFileProbeStatementFor(t, repoID, dirPath, filePath)
 	if err := (ingesterNeo4jExecutor{
 		Driver: driver, DatabaseName: database, TxTimeout: 30 * time.Second,
 		ProfileFileGroups: true,
+		Logger:            slog.New(slog.NewJSONHandler(&logs, nil)),
 	}).ExecuteGroup(ctx, []sourcecypher.Statement{stmt}); err != nil {
 		t.Fatal(err)
 	}
 	gotLogs := logs.String()
+	if strings.Contains(defaultLogs.String(), "file graph") {
+		t.Fatal("probe used the process default logger instead of the executor logger")
+	}
 	for _, want := range []string{
 		`"template_id":"file.nested.first_generation"`,
 		`"outcome":"attempt_completed"`,

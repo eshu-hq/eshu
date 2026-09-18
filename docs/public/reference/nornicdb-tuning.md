@@ -66,6 +66,13 @@ ingester, and the standalone projector.
 | `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU`, clamped to `16` | Parallel chunk dispatch for canonical `entities` and `entity_containment` phases. Set to `1` only for a serial comparison. |
 | `ESHU_CANONICAL_RETRACT_BATCH` | `2000` | Nodes deleted per iteration of the bounded full-refresh retract drain loop (File, Directory, and Entity canonical retracts on NornicDB). Valid range: `1`–`10000`; ingester and projector startup reject values outside that range. Lower when a single drain iteration approaches the NornicDB write budget on very large repos (e.g. if `graph_write_timeout` appears on a retract statement at corpus scale). Does not change worker counts or per-statement timeouts. |
 
+With File-group profiling enabled, the `file graph group completed` event confirms
+that a canonical File group was selected. Other phases intentionally emit no
+File-group events; absence of this event alone cannot establish whether any
+canonical File group ran. A production-writer guard test fails if a new File
+template is missing from the diagnostic allowlist. Probe records use the
+ingester structured logger, including service and trace context when available.
+
 Two dimensions matter:
 
 - `*_BATCH_SIZE` controls rows inside one statement.

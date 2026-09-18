@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
 func TestExecuteProfiledStatementGroupLogsStatementMetadata(t *testing.T) {
@@ -101,5 +103,40 @@ func TestCanonicalFileStatementProfileUsesClosedTemplateIDs(t *testing.T) {
 	}
 	if id, rows, ok := CanonicalFileStatementProfile(Statement{Cypher: "MATCH (f:File) RETURN f"}); ok || id != "" || rows != 0 {
 		t.Fatalf("unknown query classified: (%q, %d, %t)", id, rows, ok)
+	}
+}
+
+// TestCanonicalFileWriterStatementsAllHaveProfiles protects the diagnostic
+// allowlist against new File templates emitted by the production builder.
+func TestCanonicalFileWriterStatementsAllHaveProfiles(t *testing.T) {
+	t.Parallel()
+	writer := NewCanonicalNodeWriter(&mockExecutor{}, 100, nil)
+	mat := projector.CanonicalMaterialization{
+		ScopeID: "scope", GenerationID: "generation", RepoID: "repo",
+		Files: []projector.FileRow{
+			{RepoID: "repo", Path: "/repo/root.go", RelativePath: "root.go", Name: "root.go"},
+			{RepoID: "repo", Path: "/repo/dir/nested.go", RelativePath: "dir/nested.go", DirPath: "/repo/dir", Name: "nested.go"},
+		},
+	}
+	for _, tc := range []struct {
+		name            string
+		firstGeneration bool
+		wantStatements  int
+	}{
+		{name: "first generation", firstGeneration: true, wantStatements: 2},
+		{name: "refresh", firstGeneration: false, wantStatements: 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mat.FirstGeneration = tc.firstGeneration
+			stmts := writer.buildFileStatements(mat)
+			if len(stmts) != tc.wantStatements {
+				t.Fatalf("File statements = %d, want %d", len(stmts), tc.wantStatements)
+			}
+			for _, stmt := range stmts {
+				if id, rows, ok := CanonicalFileStatementProfile(stmt); !ok || id == "" || rows != 1 {
+					t.Fatalf("File statement lacks diagnostic profile: id=%q rows=%d ok=%t", id, rows, ok)
+				}
+			}
+		})
 	}
 }

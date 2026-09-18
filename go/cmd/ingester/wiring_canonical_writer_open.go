@@ -57,6 +57,7 @@ func openIngesterCanonicalWriter(
 	parent context.Context,
 	database postgres.SQLDB,
 	getenv func(string) string,
+	logger *slog.Logger,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) (projector.CanonicalWriter, io.Closer, error) {
@@ -93,6 +94,7 @@ func openIngesterCanonicalWriter(
 		TxTimeout:              canonicalTransactionTimeout(graphBackend, getenv),
 		ProfileGroupStatements: profileGroupStatements,
 		ProfileFileGroups:      profileFileGroups,
+		Logger:                 logger,
 		Instruments:            instruments,
 	}
 

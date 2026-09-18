@@ -411,7 +411,7 @@ func TestOpenIngesterCanonicalWriterAcceptsNornicDBOnSharedBoltPath(t *testing.T
 		default:
 			return ""
 		}
-	}, nil, nil)
+	}, nil, nil, nil)
 	if closer != nil {
 		_ = closer.Close()
 	}

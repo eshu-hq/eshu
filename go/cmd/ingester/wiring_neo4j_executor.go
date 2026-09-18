@@ -25,6 +25,7 @@ type ingesterNeo4jExecutor struct {
 	TxTimeout              time.Duration
 	ProfileGroupStatements bool
 	ProfileFileGroups      bool
+	Logger                 *slog.Logger
 	Instruments            *telemetry.Instruments
 }
 
@@ -76,7 +77,7 @@ func (e ingesterNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcec
 
 	var probe *fileGroupProbe
 	if e.ProfileFileGroups {
-		probe = newFileGroupProbe(slog.Default(), stmts)
+		probe = newFileGroupProbe(e.Logger, stmts)
 	}
 	rawCounts, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
 		if probe != nil {
