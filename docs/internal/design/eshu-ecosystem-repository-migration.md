@@ -119,7 +119,7 @@ production callers and package contracts establish these destinations:
 | --- | --- |
 | `collector/servicecatalog` | Retained `eshu` Git/parser core. It normalizes repository-hosted manifests selected by Git; a future hosted catalog API collector is a different producer. |
 | `preflight/archive`, `diagrampreflight`, and `ooxmlpreflight` | Retained `eshu` parser core because Git document parsing uses them. |
-| `pdfpreflight` | Retained `eshu` parser core as a dormant format-safety classifier; it has no production caller today. |
+| `preflight/pdf` | Retained `eshu` parser core as a dormant format-safety classifier; it has no production caller today. |
 | `documentationexport` and `exportmanifestpreflight` | `eshu-ingester` document-import capability. They have no production caller today. |
 | `mediadoc` and `mediapreflight` | `eshu-ingester` document-import capability. Hosted activation remains disabled until sandbox and runtime proof pass. |
 | `ocrdoc` and `imagepreflight` | `eshu-ingester` document-import capability. Engine execution and limits move with that intake runtime. |

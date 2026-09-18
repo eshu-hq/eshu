@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`collector/pdfpreflight` classifies PDF documentation sources before any PDF
+`collector/preflight/pdf` classifies PDF documentation sources before any PDF
 extractor reads page text, links, or document metadata. It gives future
 documentation collectors a metadata-only guard for resource limits, malformed
 files, encryption, active content, embedded files, external references,
@@ -53,10 +53,10 @@ attempts, warning classes, bytes inspected, elapsed time, skipped active
 content, skipped annotations, metadata redaction, and resource outcomes through
 collector telemetry before enabling PDF ingestion.
 
-Collector Performance Evidence: `go test ./internal/collector/pdfpreflight
+Collector Performance Evidence: `go test ./internal/collector/preflight/pdf
 -count=1` proves PDF preflight is bounded by source bytes and marker-only
-classification. `go test ./internal/collector -run
-'PDF|DocumentationDefaultOff' -count=1` proves `.pdf` remains outside
+classification. `go test ./internal/collector/gitrepo -run
+'PDFDocumentationFormatsRemainDefaultOff' -count=1` proves `.pdf` remains outside
 documentation extraction by default.
 
 Collector Observability Evidence: this package emits no facts, metrics, spans,
