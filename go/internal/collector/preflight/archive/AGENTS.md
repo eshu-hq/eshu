@@ -1,10 +1,10 @@
-# AGENTS.md - collector/archivepreflight guidance for LLM assistants
+# AGENTS.md - collector/preflight/archive guidance for LLM assistants
 
 ## Read first
 
-1. `go/internal/collector/archivepreflight/README.md`
-2. `go/internal/collector/archivepreflight/doc.go`
-3. `go/internal/collector/archivepreflight/preflight.go`
+1. `go/internal/collector/preflight/archive/README.md`
+2. `go/internal/collector/preflight/archive/doc.go`
+3. `go/internal/collector/preflight/archive/preflight.go`
 4. `docs/internal/design/1738-office-spreadsheet-deck-archive-ingestion.md`
 5. `go/internal/collector/README.md`
 

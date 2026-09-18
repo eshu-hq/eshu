@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/archivepreflight"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
+	archivepreflight "github.com/eshu-hq/eshu/go/internal/collector/preflight/archive"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )

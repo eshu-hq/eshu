@@ -11,7 +11,7 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/archivepreflight"
+	archivepreflight "github.com/eshu-hq/eshu/go/internal/collector/preflight/archive"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 

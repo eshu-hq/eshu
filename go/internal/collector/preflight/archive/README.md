@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`collector/archivepreflight` classifies bundled documentation archives before
+`collector/preflight/archive` classifies bundled documentation archives before
 any archive extractor reads member content. It gives the Git documentation
 packet path and future archive collectors a metadata-only guard for resource
 limits, unsafe paths, symlinks, special files, nested archives,
@@ -51,9 +51,9 @@ warning classes in documentation fact metadata while using existing collector
 telemetry. Future archive collectors that add workers or runtime stages need
 their own bounded extraction signals.
 
-Collector Performance Evidence: `go test ./internal/collector/archivepreflight -count=1`
+Collector Performance Evidence: `go test ./internal/collector/preflight/archive -count=1`
 proves archive classification is bounded by source bytes, expanded bytes,
-entry count, and compression ratio. `go test ./internal/collector -run
+entry count, and compression ratio. `go test ./internal/collector/gitrepo -run
 'ZIPArchive|TARArchive|ArchiveRouting' -count=1` proves reviewed documentation
 packets route through preflight before ZIP, tar, or gzip-compressed tar
 extraction.

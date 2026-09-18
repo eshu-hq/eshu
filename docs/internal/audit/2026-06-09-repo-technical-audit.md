@@ -130,7 +130,7 @@ triple **[fact]**; the default graph backend is a niche third-party project
 - **[fact, strengths]** Constant-time bearer auth with public-path allowlist
   (`go/internal/query/auth.go`); archive-bomb/zip-slip protections with entry,
   size, and compression-ratio caps
-  (`go/internal/collector/archivepreflight/preflight.go`); non-root (uid
+  (`go/internal/collector/preflight/archive/preflight.go`); non-root (uid
   10001) multi-stage Docker image (`Dockerfile`); pprof forced to localhost
   (`go/internal/runtime/pprof.go:71-73`). No shell-injection or
   string-concatenated SQL patterns found in `storage/postgres`.
