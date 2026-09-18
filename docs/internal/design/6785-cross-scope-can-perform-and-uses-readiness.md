@@ -202,17 +202,17 @@ sequenceDiagram
 ```
 
 - **A later target generation.** Nothing reschedules a succeeded CAN_PERFORM
-  row. A resource added in s3 gen N+1 is picked up by the next iam generation,
-  so staleness is at most one IAM collection interval.
+  row. A resource added in s3 gen N+1, or in a target scope not yet registered
+  at all when the iam intent ran (read as settled), is picked up by the next
+  iam generation: staleness is at most one IAM collection interval.
 - **Rejected alternative: the completion fanout** (producer
   `aws_resource_materialization`, consumer `iam_can_perform`):
   - It needs a new emission CTE on the hottest ack path.
   - It is unscoped, so every AWS ack in any account would reschedule every
     account's IAM row, roughly every 2 s during a collection window.
   - The owner can override this choice.
-- **Removals.** An edge to a retracted target node goes with the node or at
-  the next iam generation's retract. USES has the same one-interval bound for
-  an instance that appears after its defer bound expired.
+- **Removals.** A retracted target's edge goes with the node or at the next
+  iam retract. USES has the same bound for an instance that appears late.
 - **Idempotency.**
   - Both writers MERGE on the endpoint pair.
   - Retract is scope-wide by `rel.scope_id` and evidence source. It is skipped
