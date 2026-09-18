@@ -100,7 +100,7 @@ measurements, not endpoint latency or loaded ops-qa measurements. Ops-qa was
 unreachable for a final live timing read after this change; rollout observation
 is still required.
 
-No-Regression Evidence: a real-Postgres regression covers changed non-minimum
+Performance and Correctness Evidence: a real-Postgres regression covers changed non-minimum
 payloads, reordered equal multisets, multiplicity changes, singleton updates,
 and tombstones. The changed query is measurably slower than the simpler SHA-256
 query on the controlled mostly-unique fixture; this cost buys the exact
