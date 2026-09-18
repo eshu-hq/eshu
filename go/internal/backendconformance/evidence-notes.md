@@ -13,8 +13,8 @@ the subscript, the two-hop `MATCH` and the `IN` predicate were all correct
 there. What emptied the statement was its projection: a function call in
 `RETURN` (`type(sinkRel)`, `labels(sinkNode)`) after a `MATCH … WITH … MATCH`
 chain drops every row (#6690, orneryd/NornicDB#400). This note first blamed the
-`IN` predicate; a stricter re-check against Neo4j showed that was wrong. The loader now runs two
-statements, `CloudSinkWorkloadRowsCypher` and `CloudSinkTargetsByPairCypher`,
+`IN` predicate; a stricter re-check against Neo4j showed that was wrong. The
+loader now runs two statements, `CloudSinkWorkloadRowsCypher` and `CloudSinkTargetsByPairCypher`,
 with the single-workload check in Go. Both run in the default corpora with exact
 rows (`corpus_value_flow.go`), next to the #6689 shapes
 (`corpus_answer_truth.go`), and `TestLiveBackendConformance` passed on both

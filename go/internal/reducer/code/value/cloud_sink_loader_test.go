@@ -283,11 +283,14 @@ func TestCloudSinkLoaderEmptyAndNilGuards(t *testing.T) {
 	}
 }
 
-// TestCloudSinkStatementsAvoidTheShapesNornicDBMisanswers pins the two
-// statements away from the shapes measured wrong on NornicDB v1.3.3 (#6690):
-// in-query aggregation and list subscripts in the first, and multi-hop MATCH
-// clauses in the second. The backend-conformance corpus runs these exact
-// statements live; this guard catches a rewrite before it gets that far.
+// TestCloudSinkStatementsAvoidTheShapesNornicDBMisanswers keeps the two
+// statements away from the shape that emptied the old single statement on
+// NornicDB v1.3.3 (#6690): an in-query aggregation followed by a WITH and a
+// further MATCH, after which a function call in RETURN drops every row
+// (orneryd/NornicDB#400). It also keeps the second statement's hops as separate
+// single-hop MATCH clauses, the form proven on both backends. The
+// backend-conformance corpus runs these exact statements live; this guard
+// catches a rewrite before it gets that far.
 func TestCloudSinkStatementsAvoidTheShapesNornicDBMisanswers(t *testing.T) {
 	t.Parallel()
 

@@ -211,10 +211,12 @@ func valueFlowScalarString(raw any) (string, bool) {
 }
 
 // CloudSinkWorkloadRowsCypher reads the raw (function, cloud action, workload)
-// rows for a batch of Function.uid values. It deliberately has no aggregation:
-// the single-workload check that used to live here as
-// collect(DISTINCT workload) / size(workloads) = 1 / workloads[0] returns wrong
-// rows on NornicDB v1.3.3 (#6690), so selectCloudSinkPairs does it in Go.
+// rows for a batch of Function.uid values. It deliberately has no aggregation
+// and no WITH: the old single statement did the single-workload check in-query
+// (collect(DISTINCT workload) / size(workloads) = 1 / workloads[0]) and then
+// matched on after that WITH, and on NornicDB v1.3.3 a function call in RETURN
+// after a MATCH ... WITH ... MATCH chain drops every row (#6690,
+// orneryd/NornicDB#400). selectCloudSinkPairs does the check in Go instead.
 //
 // It and CloudSinkTargetsByPairCypher are exported so the backend-conformance
 // corpus can pin its read cases to these exact statements by equality. See

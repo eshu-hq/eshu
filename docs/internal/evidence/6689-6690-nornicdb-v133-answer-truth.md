@@ -89,12 +89,10 @@ On Neo4j, the old single statement and the new pair return the same final row
 Backend conformance: `TestLiveBackendConformance` passed on both backends with
 the value-flow statements and the #6689 shapes in the default corpora as exact
 rows, and cleanup left no fixture nodes on either backend. The
-`value-flow-conformance-expectation` gate is flipped from its inverted
-expectation to a positive check (both lanes pass and log both value-flow cases);
-`scripts/verify-value-flow-conformance-expectation.sh` passed on both live lanes,
-and its test mirror fails when the marker check is removed. The gate stays
-because `required-gates-complete` awaits it through the default branch's
-registry.
+`value-flow-conformance-expectation` gate was first flipped from its inverted
+expectation to a positive check (#6761), then retired in two steps (#6767
+removed the registry row, #6769 the workflow and scripts). The end-to-end
+matrix's live conformance step now gates the value-flow cases on both backends.
 
 The two statements are separate autocommit reads, so `RUNS_IN` can change
 between them (PR #6761 review). The second statement therefore re-matches the
@@ -172,5 +170,6 @@ Where Eshu is exposed:
 - The production relationship writer's `SET rel.actions = row.actions` stores
   the real list, so #407 does not apply to it.
 
-A wider audit of statements assembled from fragments, and of `.id` reads for
-#404, is tracked separately.
+Not yet covered, and not yet filed as an issue: an audit of statements
+assembled from fragments, which the literal scan behind this list cannot see,
+and of production `.id` reads that #404 could affect.
