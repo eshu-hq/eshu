@@ -184,6 +184,18 @@ func (q ProjectorQueue) Ack(
 	}()
 
 	now := q.now()
+	ackResult, err := tx.ExecContext(ctx, ackProjectorWorkItemQuery,
+		now, work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner, work.AttemptCount)
+	if err != nil {
+		return fmt.Errorf("ack projector work: mark work succeeded: %w", err)
+	}
+	ackRows, err := ackResult.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("ack projector work: rows affected: %w", err)
+	}
+	if ackRows != 1 {
+		return fmt.Errorf("ack projector work: %w", ErrProjectorClaimRejected)
+	}
 	steps := []struct {
 		query string
 		op    string
@@ -208,11 +220,6 @@ func (q ProjectorQueue) Ack(
 			query: updateProjectorScopeGenerationQuery,
 			op:    "update scope active generation",
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
-		},
-		{
-			query: ackProjectorWorkItemQuery,
-			op:    "mark projector work succeeded",
-			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner},
 		},
 	}
 	for _, step := range steps {
@@ -255,6 +262,7 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 		work.Scope.ScopeID,
 		work.Generation.GenerationID,
 		q.LeaseOwner,
+		work.AttemptCount,
 	)
 	if err != nil {
 		return fmt.Errorf("heartbeat projector work: %w", err)
@@ -281,6 +289,7 @@ func (q ProjectorQueue) supersedeRunningWorkIfNewerGenerationExists(
 		work.Scope.ScopeID,
 		work.Generation.GenerationID,
 		q.LeaseOwner,
+		work.AttemptCount,
 	)
 	if err != nil {
 		return false, fmt.Errorf("supersede running projector work: %w", err)
@@ -326,9 +335,18 @@ func (q ProjectorQueue) Fail(
 			work.Scope.ScopeID,
 			work.Generation.GenerationID,
 			q.LeaseOwner,
+			work.AttemptCount,
 		}
-		if _, err := q.database.ExecContext(ctx, retryProjectorWorkQuery, args...); err != nil {
+		result, err := q.database.ExecContext(ctx, retryProjectorWorkQuery, args...)
+		if err != nil {
 			return fmt.Errorf("fail projector work: %w", err)
+		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("fail projector work: rows affected: %w", err)
+		}
+		if rowsAffected != 1 {
+			return ErrProjectorClaimRejected
 		}
 		if q.Instruments != nil && q.Instruments.ProjectorRetrySurge != nil {
 			q.Instruments.ProjectorRetrySurge.Add(ctx, 1, metric.WithAttributes(
@@ -352,11 +370,19 @@ func (q ProjectorQueue) Fail(
 		work.Scope.ScopeID,
 		work.Generation.GenerationID,
 		q.LeaseOwner,
+		work.AttemptCount,
 	}
 
-	_, err := q.database.ExecContext(ctx, failProjectorWorkQuery, args...)
+	result, err := q.database.ExecContext(ctx, failProjectorWorkQuery, args...)
 	if err != nil {
 		return fmt.Errorf("fail projector work: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("fail projector work: rows affected: %w", err)
+	}
+	if rowsAffected != 1 {
+		return ErrProjectorClaimRejected
 	}
 
 	return nil

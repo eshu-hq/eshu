@@ -289,7 +289,8 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 // row already in flight. A healthy quiet projected scope that merely aged or a
 // busy full-corpus bootstrap scope still moving through reducer work/readiness
 // is counted aging, never stuck, so the alarm does not fire on normal idle
-// installations or reducer/backfill backlog.
+// installations or reducer/backfill backlog. A newer pending or active
+// generation also owns forward progress, matching the recovery sweep's gate.
 //
 // Parameter order:
 //
@@ -297,22 +298,32 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 //	$2 stuck boundary   (now minus the activation deadline)
 //	$3 now              (lease-expiry comparison for the in-flight gate)
 const countActiveGenerationsByAgeQuery = `
+WITH eligible_intents AS MATERIALIZED (
+    SELECT intent.generation_id
+    FROM shared_projection_intents AS intent
+    WHERE intent.completed_at IS NULL
+      AND NOT (
+          intent.projection_domain = 'repo_dependency'
+          AND (intent.source_run_id = 'repo_dependency'
+               OR starts_with(intent.source_run_id, 'repo_dependency:'))
+      )
+),
+blocked_by_successor AS MATERIALIZED (
+    SELECT DISTINCT older.generation_id
+    FROM eligible_intents AS intent
+    JOIN scope_generations AS older ON older.generation_id = intent.generation_id
+    JOIN scope_generations AS newer
+      ON newer.scope_id = older.scope_id
+     AND newer.generation_id <> older.generation_id
+     AND newer.status IN ('pending', 'active')
+    WHERE older.status = 'active'
+)
 SELECT
     CASE
         WHEN generation.activated_at IS NULL THEN 'fresh'
-        WHEN generation.activated_at < $2 AND EXISTS (
-            SELECT 1
-            FROM shared_projection_intents AS intent
-            WHERE intent.generation_id = generation.generation_id
-              AND intent.completed_at IS NULL
-              AND NOT (
-                  intent.projection_domain = 'repo_dependency'
-                  AND (
-                      intent.source_run_id = 'repo_dependency'
-                      OR starts_with(intent.source_run_id, 'repo_dependency:')
-                  )
-              )
-        ) AND NOT EXISTS (
+        WHEN generation.activated_at < $2
+          AND generation.generation_id IN (SELECT generation_id FROM eligible_intents)
+          AND NOT EXISTS (
             SELECT 1
             FROM fact_work_items AS reducer_work
             WHERE reducer_work.stage = 'reducer'
@@ -339,7 +350,8 @@ SELECT
                       AND projector_work.claim_until > $3
                   )
               )
-        ) THEN 'stuck'
+        ) AND generation.generation_id NOT IN (SELECT generation_id FROM blocked_by_successor)
+          THEN 'stuck'
         WHEN generation.activated_at < $1 THEN 'aging'
         ELSE 'fresh'
     END AS age_bucket,

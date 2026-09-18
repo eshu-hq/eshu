@@ -115,6 +115,7 @@ WHERE stage = 'projector'
   AND scope_id = $2
   AND generation_id = $3
   AND lease_owner = $4
+  AND attempt_count = $5
   AND status IN ('claimed', 'running')
 `
 
@@ -127,6 +128,7 @@ WHERE stage = 'projector'
   AND scope_id = $3
   AND generation_id = $4
   AND lease_owner = $5
+  AND attempt_count = $6
   AND status IN ('claimed', 'running')
 `
 
@@ -151,6 +153,7 @@ WHERE work.stage = 'projector'
   AND work.scope_id = $2
   AND work.generation_id = $3
   AND work.lease_owner = $4
+  AND work.attempt_count = $5
   AND work.status IN ('claimed', 'running')
   AND current_generation.scope_id = work.scope_id
   AND current_generation.generation_id = work.generation_id
@@ -172,8 +175,11 @@ WHERE work.stage = 'projector'
   RETURNING work.generation_id
 )
 UPDATE scope_generations AS generation
-SET status = 'superseded',
-    superseded_at = $1
+-- An active generation remains published until successor Ack changes the scope
+-- pointer in the same transaction. Still update this row so RowsAffected
+-- reports the superseded work to Heartbeat for either generation status.
+SET status = CASE WHEN generation.status = 'pending' THEN 'superseded' ELSE generation.status END,
+    superseded_at = CASE WHEN generation.status = 'pending' THEN $1 ELSE generation.superseded_at END
 FROM superseded_work
 WHERE generation.generation_id = superseded_work.generation_id
   AND generation.status IN ('pending', 'active')
@@ -194,18 +200,33 @@ WHERE stage = 'projector'
   AND scope_id = $6
   AND generation_id = $7
   AND lease_owner = $8
+  AND attempt_count = $9
   AND status IN ('claimed', 'running')
 `
 
 const failProjectorWorkQuery = `
-WITH failed_generation AS (
-    UPDATE scope_generations
+WITH owned_work AS (
+    SELECT work_item_id, scope_id, generation_id
+    FROM fact_work_items
+    WHERE stage = 'projector'
+      AND scope_id = $5
+      AND generation_id = $6
+      AND lease_owner = $7
+      AND attempt_count = $8
+      AND status IN ('claimed', 'running')
+    FOR UPDATE
+),
+failed_generation AS (
+    UPDATE scope_generations AS generation
     SET status = 'failed'
-    WHERE generation_id = $6
-      AND status IN ('pending', 'active')
+    FROM owned_work
+    WHERE generation.generation_id = owned_work.generation_id
+      AND generation.scope_id = owned_work.scope_id
+      AND generation.status IN ('pending', 'active')
+    RETURNING generation.scope_id, generation.generation_id
 ),
 scope_update AS (
-    UPDATE ingestion_scopes
+    UPDATE ingestion_scopes AS scope
     SET status = CASE
             WHEN active_generation_id = $6 OR active_generation_id IS NULL THEN 'failed'
             ELSE status
@@ -218,9 +239,10 @@ scope_update AS (
             WHEN active_generation_id = $6 OR active_generation_id IS NULL THEN $1
             ELSE ingested_at
         END
-    WHERE scope_id = $5
+    FROM failed_generation
+    WHERE scope.scope_id = failed_generation.scope_id
 )
-UPDATE fact_work_items
+UPDATE fact_work_items AS work
 SET status = 'dead_letter',
     lease_owner = NULL,
     claim_until = NULL,
@@ -229,9 +251,6 @@ SET status = 'dead_letter',
     failure_class = $2,
     failure_message = $3,
     failure_details = $4
-WHERE stage = 'projector'
-  AND scope_id = $5
-  AND generation_id = $6
-  AND lease_owner = $7
-  AND status IN ('claimed', 'running')
+FROM owned_work
+WHERE work.work_item_id = owned_work.work_item_id
 `

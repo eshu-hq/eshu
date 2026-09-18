@@ -131,8 +131,8 @@ func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {
 		"work.lease_owner = $4",
 		"RETURNING work.generation_id",
 		"UPDATE scope_generations AS generation",
-		"status = 'superseded'",
-		"superseded_at = $1",
+		"status = CASE WHEN generation.status = 'pending' THEN 'superseded' ELSE generation.status END",
+		"superseded_at = CASE WHEN generation.status = 'pending' THEN $1 ELSE generation.superseded_at END",
 		"FROM superseded_work",
 		"generation.generation_id = superseded_work.generation_id",
 	} {

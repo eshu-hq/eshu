@@ -233,13 +233,14 @@ A scope has at most one active generation, named by
 `ingestion_scopes.active_generation_id`. Promotion happens at projection
 acknowledgement, not at commit. When a projector finishes a generation's work,
 `ProjectorQueue.Ack` (`go/internal/storage/postgres/projector_queue.go`) runs
-five ordered steps in a single transaction:
+five ordered steps in a single transaction after fencing the current claim by
+lease owner and attempt count:
 
-1. Supersede the scope's current active generation.
-2. Supersede obsolete terminal generations for the scope.
-3. Activate the target generation.
-4. Update the scope's `active_generation_id` to the target generation.
-5. Mark the projector work item succeeded.
+1. Mark the claimed projector work item succeeded, rejecting stale attempts.
+2. Supersede the scope's current active generation.
+3. Supersede obsolete terminal generations for the scope.
+4. Activate the target generation.
+5. Update the scope's `active_generation_id` to the target generation.
 
 Because these run in one transaction, a reader never observes two active
 generations for a scope, and supersession of the old generation and activation

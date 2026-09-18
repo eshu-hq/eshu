@@ -105,18 +105,18 @@ func (database *proofDomainDB) Begin(context.Context) (db.Transaction, error) {
 func (database *proofDomainDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "WHERE stage = 'projector'") && strings.Contains(query, "status = 'succeeded'"):
-		if len(args) != 4 {
-			return nil, fmt.Errorf("projector ack args = %d, want 4", len(args))
+		if len(args) != 5 {
+			return nil, fmt.Errorf("projector ack args = %d, want 5", len(args))
 		}
 		return database.updateWorkItemStatus("projector", args[1].(string), args[2].(string), args[3].(string), "succeeded")
-	case strings.Contains(query, "WHERE stage = 'projector'") && strings.Contains(query, "status = 'dead_letter'"):
-		if len(args) != 7 {
-			return nil, fmt.Errorf("projector fail args = %d, want 7", len(args))
+	case strings.Contains(query, "WITH owned_work AS") && strings.Contains(query, "status = 'dead_letter'"):
+		if len(args) != 8 {
+			return nil, fmt.Errorf("projector fail args = %d, want 8", len(args))
 		}
 		return database.updateWorkItemStatus("projector", args[4].(string), args[5].(string), args[6].(string), "dead_letter")
 	case strings.Contains(query, "WHERE stage = 'projector'") && strings.Contains(query, "status = 'retrying'"):
-		if len(args) != 8 {
-			return nil, fmt.Errorf("projector retry args = %d, want 8", len(args))
+		if len(args) != 9 {
+			return nil, fmt.Errorf("projector retry args = %d, want 9", len(args))
 		}
 		return database.retryProjectorWork(args[5].(string), args[6].(string), args[7].(string), args[4].(time.Time))
 	case strings.Contains(query, "stage = 'reducer'") && strings.Contains(query, "SET status = 'succeeded'"):

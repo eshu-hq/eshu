@@ -22,7 +22,7 @@ import (
 type ackLatencyFakeDB struct{}
 
 func (ackLatencyFakeDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
-	return driverResult{}, nil
+	return projectorRowsAffectedResult{rowsAffected: 1}, nil
 }
 
 func (ackLatencyFakeDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {

@@ -34,6 +34,10 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 	if !bytes.Contains(workflow, []byte("ESHU_POSTGRES_DSN:")) {
 		t.Fatalf("%s no longer passes a PostgreSQL DSN: the live proofs would skip in CI", workflowPath)
 	}
+	if !bytes.Contains(workflow, []byte("ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN:")) ||
+		!bytes.Contains(workflow, []byte("ESHU_GENERATION_LIVENESS_PROOF_DSN:")) {
+		t.Fatalf("%s must pass both projector and generation-liveness proof DSNs", workflowPath)
+	}
 	if !bytes.Contains(workflow, []byte("TestReducerContentionPostgresProofsRunInTheReducerContentionGate")) {
 		t.Fatalf("%s no longer names this live-proof enrollment guard; update the guard reference in lockstep", workflowPath)
 	}
@@ -68,6 +72,9 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestActiveWorkSummaryMatchesStandaloneReads",
 		"TestStatusActiveWorkQueriesPreserveSemantics",
 		"TestActiveFactWorkItemsFormsSelectTheSameRows",
+		"TestProjectorHeartbeatSupersessionPreservesActivePointer",
+		"TestProjectorQueueRejectsReclaimedSameOwnerAttempt",
+		"TestGenerationLivenessIntegration",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

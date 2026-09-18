@@ -36,7 +36,7 @@ func TestProjectorQueueAckSupersedesObsoleteTerminalGenerations(t *testing.T) {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 
-	query := db.execs[1].query
+	query := db.execs[2].query
 	for _, want := range []string{
 		"UPDATE fact_work_items AS stale",
 		"stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')",

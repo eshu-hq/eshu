@@ -225,20 +225,21 @@ same-scope projector rows and their pending or failed `scope_generations` to
 obsolete terminal failures, so durable snapshot history remains available
 without leaving stale local polling generations in the live backlog or health
 summary.
-`ProjectorQueue.Heartbeat` applies the same freshness check to a live claimed
-or running row. When a newer pending or active generation exists for the scope,
-heartbeat marks the older row and its generation `superseded` in one statement
-and returns `projector.ErrWorkSuperseded` so the worker stops without acking
-stale graph state.
+`ProjectorQueue.Heartbeat` supersedes older work when a newer generation
+exists and returns `projector.ErrWorkSuperseded` to stop stale graph writes.
+It also supersedes an unpublished pending generation. A published active
+generation and its scope pointer remain until successor Ack; if the successor
+fails, the old publication stays current. A terminal failure of the active
+generation's own re-projection still fails it and requires recovery.
 Expired `claimed` or `running` rows are ordered ahead of ordinary pending rows
 so stale leases are reclaimed before fresh work makes the status surface look
 permanently overdue. Claim also demotes expired same-scope duplicate in-flight
 rows back to `retrying` when a live sibling or a newly claimed sibling owns the
 scope, which repairs queue state left by older owner crashes or claim races
 without breaking the one-active-generation invariant. `Ack` runs a five-step
-atomic transaction: supersede stale active generation → supersede older
-terminal same-scope generations → activate target generation → update scope
-pointer → mark work succeeded. This keeps obsolete failed or dead-letter
+atomic transaction: mark owned work succeeded → supersede stale active
+generation → supersede older terminal same-scope generations → activate target
+generation → update scope pointer. This keeps obsolete failed or dead-letter
 projector rows out of current health after a newer source-local generation has
 successfully become active. If `projector.IsRetryable(cause)` returns true and
 `attempt_count < MaxAttempts`, `Fail` transitions to `retrying` instead of

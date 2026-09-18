@@ -79,6 +79,8 @@ jobs:
         working-directory: go
         env:
           ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_PROJECTOR_SUPERSESSION_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+          ESHU_GENERATION_LIVENESS_PROOF_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
         # TestReducerContentionGate* covers the claim/lease/fencing invariants and
         # the claim-batch latency guard (#4704); TestClaimBatchRankOnceRewrite runs
         # the #4703 rank-once candidate-set+order differential (0/0) against real
@@ -127,6 +129,10 @@ jobs:
         # TestReducerContentionPostgresProofsRunInTheReducerContentionGate is
         # the hermetic guard that keeps all five live PostgreSQL proof families
         # inside the -run filter below.
+        # The projector and generation-liveness proofs run against the same
+        # isolated PostgreSQL service; each test creates a private schema.
+        # TestReducerContentionPostgresProofsRunInTheReducerContentionGate
+        # guards their DSNs and enrollment in the -run filter below.
         run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows)' -race -count=1 -timeout 180s -v
       - name: Run story target-support semantics proof
         working-directory: go
