@@ -105,114 +105,15 @@ ORDER BY generation_observed_at DESC
 LIMIT 1
 `
 
-// changedSinceCountsQuery computes the exact per-category, per-classification
-// stable-fact-key counts for a changed-since diff between a prior generation and
-// the current active generation of one scope. It FULL OUTER JOINs the prior
-// generation's non-tombstone key set against the current generation's key set
-// (including tombstones) on (fact_category, stable_fact_key), then classifies
-// each key:
+// changedSinceClassificationCTEs classifies one scope across two generations.
+// A single payload per key uses one SHA-256 digest. Equal minimum digests from
+// duplicate-key groups need a sorted multiset comparison: a changed non-minimum
+// payload or duplicate multiplicity must not disappear into "unchanged".
+// Only those ambiguous keys pay for the second scan and sorted digest arrays.
+// Category and tombstone precedence match the original changed-since contract.
 //
-//   - added:      present in current (non-tombstone), absent in prior.
-//   - updated:    present in both, payload hash differs.
-//   - unchanged:  present in both, payload hash matches.
-//   - retired:    present in prior, tombstoned in the current generation.
-//   - superseded: present in prior, absent entirely from the current generation.
-//
-// The category bucket is files (fact_kind = 'file'), content_entities
-// (fact_kind = 'content_entity'), or facts (everything else). Payload identity
-// uses SHA-256 of payload::text so a changed payload is detected without a stored hash
-// column. The diff is keyed by (scope_id, generation_id, stable_fact_key),
-// matching the fact_records primary access path.
-//
-// Parameter order:
-//
-//	$1 scope_id
-//	$2 prior_generation_id
-//	$3 current_generation_id
-const changedSinceCountsQuery = `
-WITH prior_keys AS (
-    SELECT
-        CASE
-            WHEN fact_kind = 'file' THEN 'files'
-            WHEN fact_kind = 'content_entity' THEN 'content_entities'
-            ELSE 'facts'
-        END AS fact_category,
-        stable_fact_key,
-        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS payload_hash
-    FROM fact_records
-    WHERE scope_id = $1
-      AND generation_id = $2
-      AND is_tombstone = FALSE
-    GROUP BY fact_category, stable_fact_key
-),
-current_active_keys AS (
-    SELECT
-        CASE
-            WHEN fact_kind = 'file' THEN 'files'
-            WHEN fact_kind = 'content_entity' THEN 'content_entities'
-            ELSE 'facts'
-        END AS fact_category,
-        stable_fact_key,
-        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS payload_hash
-    FROM fact_records
-    WHERE scope_id = $1
-      AND generation_id = $3
-      AND is_tombstone = FALSE
-    GROUP BY fact_category, stable_fact_key
-),
-current_tombstones AS (
-    SELECT DISTINCT
-        CASE
-            WHEN fact_kind = 'file' THEN 'files'
-            WHEN fact_kind = 'content_entity' THEN 'content_entities'
-            ELSE 'facts'
-        END AS fact_category,
-        stable_fact_key
-    FROM fact_records
-    WHERE scope_id = $1
-      AND generation_id = $3
-      AND is_tombstone = TRUE
-),
-classified AS (
-    SELECT
-        COALESCE(prior.fact_category, current.fact_category) AS fact_category,
-        CASE
-            WHEN prior.stable_fact_key IS NULL THEN 'added'
-            WHEN current.stable_fact_key IS NOT NULL
-                 AND prior.payload_hash IS DISTINCT FROM current.payload_hash THEN 'updated'
-            WHEN current.stable_fact_key IS NOT NULL THEN 'unchanged'
-            WHEN tombstone.stable_fact_key IS NOT NULL THEN 'retired'
-            ELSE 'superseded'
-        END AS classification
-    FROM prior_keys AS prior
-    FULL OUTER JOIN current_active_keys AS current
-        ON current.fact_category = prior.fact_category
-       AND current.stable_fact_key = prior.stable_fact_key
-    LEFT JOIN current_tombstones AS tombstone
-        ON tombstone.fact_category = COALESCE(prior.fact_category, current.fact_category)
-       AND tombstone.stable_fact_key = COALESCE(prior.stable_fact_key, current.stable_fact_key)
-)
-SELECT fact_category, classification, COUNT(*) AS key_count
-FROM classified
-GROUP BY fact_category, classification
-ORDER BY fact_category ASC, classification ASC
-`
-
-// changedSinceSamplesQuery returns bounded, deterministic sample handles for one
-// (category, classification) bucket of a changed-since diff. It reuses the same
-// classification logic as changedSinceCountsQuery but emits the stable_fact_key
-// and an example fact_kind per key, ordered by stable_fact_key, capped by LIMIT.
-// The caller fetches limit+1 rows to detect truncation and trims back to limit.
-//
-// Parameter order:
-//
-//	$1 scope_id
-//	$2 prior_generation_id
-//	$3 current_generation_id
-//	$4 fact_category        ('files' | 'content_entities' | 'facts')
-//	$5 classification       ('added' | 'updated' | 'unchanged' | 'retired' | 'superseded')
-//	$6 limit                (sample cap; caller passes limit + 1)
-const changedSinceSamplesQuery = `
+// Parameter order: $1 scope_id, $2 prior generation, $3 current generation.
+const changedSinceClassificationCTEs = `
 WITH prior_keys AS (
     SELECT
         CASE
@@ -222,11 +123,10 @@ WITH prior_keys AS (
         END AS fact_category,
         stable_fact_key,
         MIN(fact_kind) AS fact_kind,
-        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS payload_hash
+        COUNT(*) AS row_count,
+        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS single_payload_hash
     FROM fact_records
-    WHERE scope_id = $1
-      AND generation_id = $2
-      AND is_tombstone = FALSE
+    WHERE scope_id = $1 AND generation_id = $2 AND is_tombstone = FALSE
     GROUP BY fact_category, stable_fact_key
 ),
 current_active_keys AS (
@@ -238,11 +138,10 @@ current_active_keys AS (
         END AS fact_category,
         stable_fact_key,
         MIN(fact_kind) AS fact_kind,
-        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS payload_hash
+        COUNT(*) AS row_count,
+        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS single_payload_hash
     FROM fact_records
-    WHERE scope_id = $1
-      AND generation_id = $3
-      AND is_tombstone = FALSE
+    WHERE scope_id = $1 AND generation_id = $3 AND is_tombstone = FALSE
     GROUP BY fact_category, stable_fact_key
 ),
 current_tombstones AS (
@@ -255,23 +154,22 @@ current_tombstones AS (
         stable_fact_key,
         MIN(fact_kind) AS fact_kind
     FROM fact_records
-    WHERE scope_id = $1
-      AND generation_id = $3
-      AND is_tombstone = TRUE
+    WHERE scope_id = $1 AND generation_id = $3 AND is_tombstone = TRUE
     GROUP BY fact_category, stable_fact_key
 ),
-classified AS (
+initial_classified AS MATERIALIZED (
     SELECT
         COALESCE(prior.fact_category, current.fact_category) AS fact_category,
         COALESCE(prior.stable_fact_key, current.stable_fact_key) AS stable_fact_key,
         COALESCE(current.fact_kind, tombstone.fact_kind, prior.fact_kind) AS fact_kind,
         CASE
             WHEN prior.stable_fact_key IS NULL THEN 'added'
-            WHEN current.stable_fact_key IS NOT NULL
-                 AND prior.payload_hash IS DISTINCT FROM current.payload_hash THEN 'updated'
-            WHEN current.stable_fact_key IS NOT NULL THEN 'unchanged'
-            WHEN tombstone.stable_fact_key IS NOT NULL THEN 'retired'
-            ELSE 'superseded'
+            WHEN current.stable_fact_key IS NULL AND tombstone.stable_fact_key IS NOT NULL THEN 'retired'
+            WHEN current.stable_fact_key IS NULL THEN 'superseded'
+            WHEN prior.row_count IS DISTINCT FROM current.row_count THEN 'updated'
+            WHEN prior.single_payload_hash IS DISTINCT FROM current.single_payload_hash THEN 'updated'
+            WHEN prior.row_count > 1 THEN 'needs_multiset'
+            ELSE 'unchanged'
         END AS classification
     FROM prior_keys AS prior
     FULL OUTER JOIN current_active_keys AS current
@@ -280,11 +178,88 @@ classified AS (
     LEFT JOIN current_tombstones AS tombstone
         ON tombstone.fact_category = COALESCE(prior.fact_category, current.fact_category)
        AND tombstone.stable_fact_key = COALESCE(prior.stable_fact_key, current.stable_fact_key)
+),
+suspect_keys AS MATERIALIZED (
+    SELECT fact_category, stable_fact_key
+    FROM initial_classified
+    WHERE classification = 'needs_multiset'
+),
+prior_duplicate_rows AS MATERIALIZED (
+    SELECT suspect.fact_category, fact.stable_fact_key,
+        sha256(convert_to(fact.payload::text, 'UTF8')) AS payload_hash
+    FROM fact_records AS fact
+    JOIN suspect_keys AS suspect
+        ON suspect.stable_fact_key = fact.stable_fact_key
+       AND suspect.fact_category = CASE
+           WHEN fact.fact_kind = 'file' THEN 'files'
+           WHEN fact.fact_kind = 'content_entity' THEN 'content_entities'
+           ELSE 'facts'
+       END
+    WHERE fact.scope_id = $1 AND fact.generation_id = $2 AND fact.is_tombstone = FALSE
+),
+current_duplicate_rows AS MATERIALIZED (
+    SELECT suspect.fact_category, fact.stable_fact_key,
+        sha256(convert_to(fact.payload::text, 'UTF8')) AS payload_hash
+    FROM fact_records AS fact
+    JOIN suspect_keys AS suspect
+        ON suspect.stable_fact_key = fact.stable_fact_key
+       AND suspect.fact_category = CASE
+           WHEN fact.fact_kind = 'file' THEN 'files'
+           WHEN fact.fact_kind = 'content_entity' THEN 'content_entities'
+           ELSE 'facts'
+       END
+    WHERE fact.scope_id = $1 AND fact.generation_id = $3 AND fact.is_tombstone = FALSE
+),
+prior_duplicate_hashes AS (
+    SELECT fact_category, stable_fact_key,
+        ARRAY_AGG(payload_hash ORDER BY payload_hash) AS payload_hashes
+    FROM prior_duplicate_rows
+    GROUP BY fact_category, stable_fact_key
+),
+current_duplicate_hashes AS (
+    SELECT fact_category, stable_fact_key,
+        ARRAY_AGG(payload_hash ORDER BY payload_hash) AS payload_hashes
+    FROM current_duplicate_rows
+    GROUP BY fact_category, stable_fact_key
+),
+classified AS (
+    SELECT fact_category, stable_fact_key, fact_kind, classification
+    FROM initial_classified
+    WHERE classification <> 'needs_multiset'
+    UNION ALL
+    SELECT suspect.fact_category, suspect.stable_fact_key, suspect.fact_kind,
+        CASE
+            WHEN prior_hashes.payload_hashes IS NULL
+              OR current_hashes.payload_hashes IS NULL
+              OR prior_hashes.payload_hashes IS DISTINCT FROM current_hashes.payload_hashes
+            THEN 'updated'
+            ELSE 'unchanged'
+        END AS classification
+    FROM initial_classified AS suspect
+    LEFT JOIN prior_duplicate_hashes AS prior_hashes
+        ON prior_hashes.fact_category = suspect.fact_category
+       AND prior_hashes.stable_fact_key = suspect.stable_fact_key
+    LEFT JOIN current_duplicate_hashes AS current_hashes
+        ON current_hashes.fact_category = suspect.fact_category
+       AND current_hashes.stable_fact_key = suspect.stable_fact_key
+    WHERE suspect.classification = 'needs_multiset'
 )
+`
+
+// changedSinceCountsQuery returns exact per-category and classification counts.
+const changedSinceCountsQuery = changedSinceClassificationCTEs + `
+SELECT fact_category, classification, COUNT(*) AS key_count
+FROM classified
+GROUP BY fact_category, classification
+ORDER BY fact_category ASC, classification ASC
+`
+
+// changedSinceSamplesQuery returns bounded, ordered sample handles for one
+// category and classification. The caller passes sample_limit+1 as $6.
+const changedSinceSamplesQuery = changedSinceClassificationCTEs + `
 SELECT stable_fact_key, fact_kind
 FROM classified
-WHERE fact_category = $4
-  AND classification = $5
+WHERE fact_category = $4 AND classification = $5
 ORDER BY stable_fact_key ASC
 LIMIT $6
 `

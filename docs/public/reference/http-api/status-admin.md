@@ -483,8 +483,8 @@ handles. The response carries the resolved `scope_id`, `scope_kind`,
 `unchanged`, `retired`, and `superseded`, plus bounded `samples`
 (`stable_fact_key`, `fact_kind`) per classification and a per-classification
 `truncated` flag. `added` is a key new in the current generation; `updated` is a
-key in both whose SHA-256 payload digest differs; `unchanged` is a key in both with an
-identical payload hash; `retired` is a key tombstoned in the current generation;
+key in both whose SHA-256 payload digest multiset differs; `unchanged` is a key
+in both with an identical payload digest multiset; `retired` is a key tombstoned in the current generation;
 `superseded` is a key dropped entirely on generation rollover. Retired and
 superseded are never collapsed into `unchanged`.
 
@@ -541,9 +541,9 @@ per-classification sample handles. The response carries the resolved
 exact `counts` for `added`, `updated`, `unchanged`, `retired`, and `superseded`,
 plus bounded `samples` (`stable_fact_key` carrying the `service_evidence_key`,
 `fact_kind` carrying the evidence family) per classification and a
-per-classification `truncated` flag. The classification, SHA-256-based
-updated-vs-unchanged detection, and explicit retirement match the repository-scope
-surface; retired and superseded are never collapsed into `unchanged`.
+per-classification `truncated` flag. Service payloads use stored Go MD5
+fingerprints; repository facts use SHA-256 over persisted JSONB text. Neither
+surface collapses retired or superseded into `unchanged`.
 
 An unknown `service_id` returns `service_not_found`; an unresolved
 `since_generation_id` returns `not_found`; a service with no current active
@@ -571,12 +571,12 @@ evidence families now ship the emitter, category, delta surface, and a
 nil-tolerant loader seam.
 
 Performance Evidence: the diff is bounded by the requested `sample_limit` and
-keyed by `(scope_id, generation_id, stable_fact_key)`. Counts come from one
-aggregate over `fact_records` filtered to the two generations of one scope, using
+keyed by `(scope_id, generation_id, stable_fact_key)`. Counts classify keys from the two generations of one scope, using
 the `fact_records_scope_generation_idx` index (`scope_id, generation_id`
-anchored) for each per-generation scan and a hash join on `stable_fact_key` to
-classify keys; sample reads run only for non-empty classification buckets and
-each is `ORDER BY stable_fact_key LIMIT sample_limit+1`. (The prior
+anchored) for each per-generation scan and a hash join on `stable_fact_key`.
+Equal minimum digests on duplicate-key groups trigger a sorted multiset
+comparison. Non-empty sample buckets use `ORDER BY stable_fact_key LIMIT
+sample_limit+1`. (The prior
 `fact_records_stable_key_idx` was dropped in #4859 — `EXPLAIN` on the live stack
 confirms this query anchors on `fact_records_scope_generation_idx` and hash-joins
 by `stable_fact_key` rather than probing a `stable_fact_key`-leading index.) Expected cardinality scales with

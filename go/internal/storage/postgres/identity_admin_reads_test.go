@@ -83,7 +83,7 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 			// tombstoned_at independent of status.
 			want:      []string{"mapping_ref", "provider_config_id", "role_id", "status", "effective_at", "expires_at", "tombstoned_at IS NULL"},
 			forbidden: []string{"policy_revision_hash"},
-			params:    []string{"$1", "$2"},
+			params:    []string{"$1", "$2", "$3"},
 		},
 		{
 			name:  "api_tokens",
@@ -175,7 +175,7 @@ func TestAdminIdentityReadsNilDatabase(t *testing.T) {
 	if _, err := store.ListAdminIdPProviders(nil, "tenant"); err == nil { //nolint:staticcheck
 		t.Error("ListAdminIdPProviders: expected error for nil database")
 	}
-	if _, err := store.ListAdminIdPGroupMappings(nil, "tenant", "workspace"); err == nil { //nolint:staticcheck
+	if _, err := store.ListAdminIdPGroupMappings(nil, "tenant", "workspace", ""); err == nil { //nolint:staticcheck
 		t.Error("ListAdminIdPGroupMappings: expected error for nil database")
 	}
 	if _, err := store.ListAdminAPITokens(nil, "tenant", "workspace"); err == nil { //nolint:staticcheck
@@ -251,7 +251,7 @@ func TestAdminIdentityReadsRejectBlankTenant(t *testing.T) {
 	if _, err := store.ListAdminIdPProviders(nil, ""); err == nil { //nolint:staticcheck
 		t.Error("ListAdminIdPProviders: expected error for blank tenant")
 	}
-	if _, err := store.ListAdminIdPGroupMappings(nil, "", "workspace"); err == nil { //nolint:staticcheck
+	if _, err := store.ListAdminIdPGroupMappings(nil, "", "workspace", ""); err == nil { //nolint:staticcheck
 		t.Error("ListAdminIdPGroupMappings: expected error for blank tenant")
 	}
 	if _, err := store.ListAdminAPITokens(nil, "", "workspace"); err == nil { //nolint:staticcheck

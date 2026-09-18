@@ -99,7 +99,7 @@ WITH prior_keys AS (
               WHEN fact_kind = 'content_entity' THEN 'content_entities'
               ELSE 'facts' END AS category,
          stable_fact_key,
-         MIN(md5(payload::text)) AS payload_hash
+         ARRAY_AGG(sha256(convert_to(payload::text, 'UTF8')) ORDER BY sha256(convert_to(payload::text, 'UTF8'))) AS payload_hashes
   FROM fact_records
   WHERE scope_id = '${golden_changed_since_scope_id}'
     AND generation_id = '${golden_changed_since_prior_generation}'
@@ -110,7 +110,7 @@ WITH prior_keys AS (
               WHEN fact_kind = 'content_entity' THEN 'content_entities'
               ELSE 'facts' END AS category,
          stable_fact_key,
-         MIN(md5(payload::text)) AS payload_hash
+         ARRAY_AGG(sha256(convert_to(payload::text, 'UTF8')) ORDER BY sha256(convert_to(payload::text, 'UTF8'))) AS payload_hashes
   FROM fact_records
   WHERE scope_id = '${golden_changed_since_scope_id}'
     AND generation_id = '${current}'
@@ -130,7 +130,7 @@ WITH prior_keys AS (
          COALESCE(prior.stable_fact_key, current.stable_fact_key) AS stable_fact_key,
          CASE WHEN prior.stable_fact_key IS NULL THEN 'added'
               WHEN current.stable_fact_key IS NOT NULL
-                   AND prior.payload_hash IS DISTINCT FROM current.payload_hash THEN 'updated'
+                   AND prior.payload_hashes IS DISTINCT FROM current.payload_hashes THEN 'updated'
               WHEN current.stable_fact_key IS NOT NULL THEN 'unchanged'
               WHEN tombstone.stable_fact_key IS NOT NULL THEN 'retired'
               ELSE 'superseded' END AS classification

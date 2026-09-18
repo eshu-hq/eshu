@@ -326,8 +326,8 @@ into evidence categories (files, content entities, and the remaining facts):
 | Verdict | Meaning |
 | --- | --- |
 | `added` | Key present in the current generation, absent in the prior. |
-| `updated` | Key present in both; the payload hash (`md5(payload)`) differs. |
-| `unchanged` | Key present in both; the payload hash matches. |
+| `updated` | Key present in both; the sorted multiset of SHA-256 payload digests differs. |
+| `unchanged` | Key present in both; the sorted multiset of SHA-256 payload digests matches. |
 | `retired` | Key active in the prior generation, explicitly tombstoned in the current generation. |
 | `superseded` | Key active in the prior generation, absent entirely from the current generation. |
 
@@ -385,8 +385,9 @@ per-evidence diff key:
   `live_routing`; `evidence_id` is the source fact's generation-independent
   `StableFactKey` or durable content-entity id, never the routing graph row's
   envelope `FactID`, which digests the generation), with a
-  `payload_hash` so updated-vs-unchanged is detected the same way the
-  repository-scope diff uses `md5(payload::text)`, and an `is_tombstone` flag so a
+  Go MD5 `payload_hash` over canonical JSON for service updated-vs-unchanged
+  detection. Repository-scope changed-since separately uses SHA-256 over
+  persisted JSONB text. An `is_tombstone` flag ensures a
   dropped evidence row is retired explicitly rather than silently absent. The
   rows carry an `evidence_family` column, so the delta groups by family and a new
   family appears once its rows are written without a delta-SQL change.

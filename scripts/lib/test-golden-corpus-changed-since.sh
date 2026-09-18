@@ -45,6 +45,9 @@ rg -q '^release_marker = "current"$' "${fixture_dir}/freshness.cfg" ||
 
 mock_active_generation="generation:current-2"
 golden_changed_since_validate_current
+if rg -qi 'md5\(' "${sql_log}"; then
+    fail "golden changed-since SQL still invokes FIPS-incompatible MD5"
+fi
 [[ "${golden_changed_since_current_generation}" == "generation:current-2" ]] ||
 	fail "current generation was not captured"
 [[ "${golden_changed_since_facts_added_count:-}" == "0" ]] || fail "facts added count was not captured"

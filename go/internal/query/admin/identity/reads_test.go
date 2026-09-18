@@ -60,9 +60,18 @@ func (f *fakeAdminIdentityReadStore) ListAdminIdPProviders(_ context.Context, te
 	return f.providers[tenantID], nil
 }
 
-func (f *fakeAdminIdentityReadStore) ListAdminIdPGroupMappings(_ context.Context, tenantID, workspaceID string) ([]IdPGroupMappingListItem, error) {
+func (f *fakeAdminIdentityReadStore) ListAdminIdPGroupMappings(_ context.Context, tenantID, workspaceID, afterRef string) ([]IdPGroupMappingListItem, error) {
 	f.gotTenantID, f.gotWorkspaceID = tenantID, workspaceID
-	return f.groupMappings[tenantID], nil
+	var page []IdPGroupMappingListItem
+	for _, item := range f.groupMappings[tenantID] {
+		if item.MappingRef > afterRef {
+			page = append(page, item)
+		}
+		if len(page) == identityListLimit {
+			break
+		}
+	}
+	return page, nil
 }
 
 func (f *fakeAdminIdentityReadStore) ListAdminAPITokens(_ context.Context, tenantID, workspaceID string) ([]APITokenListItem, error) {

@@ -167,9 +167,9 @@ func (a *postgresAdminIdentityReadAdapter) ListAdminIdPProviders(
 
 func (a *postgresAdminIdentityReadAdapter) ListAdminIdPGroupMappings(
 	ctx context.Context,
-	tenantID, workspaceID string,
+	tenantID, workspaceID, afterRef string,
 ) ([]query.AdminIdPGroupMappingListItem, error) {
-	items, err := a.store.ListAdminIdPGroupMappings(ctx, tenantID, workspaceID)
+	items, err := a.store.ListAdminIdPGroupMappings(ctx, tenantID, workspaceID, afterRef)
 	if err != nil {
 		return nil, err
 	}

@@ -181,29 +181,37 @@ func (s *IdentitySubjectStore) ListAdminIdPProviders(
 // identifier, not a secret. tombstoned_at IS NULL excludes
 // soft-deleted mappings that may still carry status='active'.
 const listAdminIdPGroupMappingsQuery = `
-SELECT
-    encode(sha256(convert_to(provider_config_id || ':' || tenant_id || ':' || workspace_id || ':' || role_id || ':' || external_group_hash, 'UTF8')), 'hex') AS mapping_ref,
-    provider_config_id,
-    role_id,
-    status,
-    effective_at,
-    expires_at,
-    tenant_id,
-    workspace_id
-FROM identity_provider_group_role_mappings
-WHERE tenant_id = $1 AND workspace_id = $2
-  AND tombstoned_at IS NULL
-ORDER BY provider_config_id ASC, role_id ASC, mapping_ref ASC
+WITH mapping_rows AS MATERIALIZED (
+    SELECT
+        encode(sha256(convert_to(provider_config_id || ':' || tenant_id || ':' || workspace_id || ':' || role_id || ':' || external_group_hash, 'UTF8')), 'hex') AS mapping_ref,
+        provider_config_id,
+        role_id,
+        status,
+        effective_at,
+        expires_at,
+        tenant_id,
+        workspace_id
+    FROM identity_provider_group_role_mappings
+    WHERE tenant_id = $1 AND workspace_id = $2
+      AND tombstoned_at IS NULL
+)
+SELECT mapping_ref, provider_config_id, role_id, status, effective_at,
+       expires_at, tenant_id, workspace_id
+FROM mapping_rows
+WHERE ($3 = '' OR mapping_ref > $3)
+ORDER BY mapping_ref ASC
 LIMIT 500
 `
 
 // ListAdminIdPGroupMappings returns metadata-only group→role mapping rows scoped
-// strictly to the supplied tenant and workspace. It never returns
-// external_group_hash, the hashed external group-name secret.
+// strictly to the supplied tenant and workspace. afterRef advances an
+// opaque SHA-256 keyset cursor. The read never returns external_group_hash,
+// the hashed external group-name secret.
 func (s *IdentitySubjectStore) ListAdminIdPGroupMappings(
 	ctx context.Context,
 	tenantID string,
 	workspaceID string,
+	afterRef string,
 ) ([]AdminIdPGroupMappingListItem, error) {
 	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
@@ -213,7 +221,7 @@ func (s *IdentitySubjectStore) ListAdminIdPGroupMappings(
 		return nil, errors.New("tenant_id is required")
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	rows, err := s.database.QueryContext(ctx, listAdminIdPGroupMappingsQuery, tenantID, workspaceID)
+	rows, err := s.database.QueryContext(ctx, listAdminIdPGroupMappingsQuery, tenantID, workspaceID, afterRef)
 	if err != nil {
 		return nil, fmt.Errorf("list admin idp group mappings: %w", err)
 	}

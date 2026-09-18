@@ -189,9 +189,12 @@ const AdminReads = `
       "get": {
         "tags": ["auth"],
         "summary": "List the tenant's IdP group-to-role mappings",
-        "description": "All-scopes admin route that lists the caller's own tenant/workspace external group-to-role mappings: an opaque mapping reference, provider config id, role id, status, and effective/expiry timestamps. Never returns the external group hash (the hashed group-name secret).",
+        "description": "All-scopes admin route that lists up to 500 of the caller's own tenant/workspace external group-to-role mappings per page, ordered by opaque mapping_ref. Follow next_after_ref as after_ref until the page is empty or truncated is false. Never returns the external group hash (the hashed group-name secret).",
         "operationId": "listAdminIdPGroupMappings",
         "x-scoped-token-support": true,
+        "parameters": [
+          {"name": "after_ref", "in": "query", "schema": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "description": "Optional opaque mapping_ref from the previous page's next_after_ref. Invalid cursors return 400."}
+        ],
         "responses": {
           "200": {
             "description": "The tenant's IdP group-to-role mappings.",
@@ -215,12 +218,15 @@ const AdminReads = `
                           "workspace_id": {"type": "string"}
                         }
                       }
-                    }
+                    },
+                    "truncated": {"type": "boolean", "description": "True when this page reaches the 500-row cap. A subsequent page may be empty."},
+                    "next_after_ref": {"type": "string", "description": "Last mapping_ref on a full page; empty when fewer than 500 rows were returned."}
                   }
                 }
               }
             }
           },
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}

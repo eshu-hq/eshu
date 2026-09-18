@@ -138,7 +138,7 @@ type ReadStore interface {
 	// ListAdminIdPProviders returns the tenant's configured identity providers.
 	ListAdminIdPProviders(ctx context.Context, tenantID string) ([]IdPProviderListItem, error)
 	// ListAdminIdPGroupMappings returns the tenant/workspace group->role mappings.
-	ListAdminIdPGroupMappings(ctx context.Context, tenantID, workspaceID string) ([]IdPGroupMappingListItem, error)
+	ListAdminIdPGroupMappings(ctx context.Context, tenantID, workspaceID, afterRef string) ([]IdPGroupMappingListItem, error)
 	// ListAdminAPITokens returns every user's generated tokens in the tenant/workspace.
 	ListAdminAPITokens(ctx context.Context, tenantID, workspaceID string) ([]APITokenListItem, error)
 }

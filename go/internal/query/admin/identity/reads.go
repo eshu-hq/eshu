@@ -279,7 +279,12 @@ func (h *ReadHandler) handleListIdPGroupMappings(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	items, err := h.Store.ListAdminIdPGroupMappings(r.Context(), tenantID, workspaceID)
+	afterRef := strings.TrimSpace(r.URL.Query().Get("after_ref"))
+	if afterRef != "" && !isCurrentIDPGroupMappingRef(afterRef) {
+		querycontract.WriteError(w, http.StatusBadRequest, "after_ref must be a lowercase 64-hex mapping_ref")
+		return
+	}
+	items, err := h.Store.ListAdminIdPGroupMappings(r.Context(), tenantID, workspaceID, afterRef)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "admin list idp group mappings failed", "err", err)
 		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list idp group mappings")
@@ -299,9 +304,14 @@ func (h *ReadHandler) handleListIdPGroupMappings(w http.ResponseWriter, r *http.
 		audit.AddOptionalTime(row, "expires_at", item.ExpiresAt)
 		out = append(out, row)
 	}
+	nextAfterRef := ""
+	if len(items) == identityListLimit {
+		nextAfterRef = items[len(items)-1].MappingRef
+	}
 	querycontract.WriteJSON(w, http.StatusOK, map[string]any{
 		"group_mappings": out,
 		"truncated":      len(items) == identityListLimit,
+		"next_after_ref": nextAfterRef,
 	})
 }
 
