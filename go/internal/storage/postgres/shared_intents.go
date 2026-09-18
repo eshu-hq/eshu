@@ -167,7 +167,7 @@ WITH domain_claim_lock AS (
 INSERT INTO shared_projection_partition_leases (
     projection_domain, partition_id, partition_count,
     lease_owner, lease_expires_at, updated_at
-) SELECT $1, $2, $3, $4, $5, $6
+) SELECT $1, $2, $3, $4, clock_timestamp() + ($5::double precision * INTERVAL '1 second'), $6
 FROM domain_claim_lock
 WHERE NOT EXISTS (
     SELECT 1
@@ -175,14 +175,14 @@ WHERE NOT EXISTS (
     WHERE projection_domain = $1
       AND partition_count <> $3
       AND lease_owner IS NOT NULL
-      AND (lease_expires_at IS NULL OR lease_expires_at > $6)
+      AND (lease_expires_at IS NULL OR lease_expires_at > clock_timestamp())
 )
 ON CONFLICT (projection_domain, partition_id, partition_count) DO UPDATE
 SET lease_owner = EXCLUDED.lease_owner,
     lease_expires_at = EXCLUDED.lease_expires_at,
     updated_at = EXCLUDED.updated_at
 WHERE shared_projection_partition_leases.lease_expires_at IS NULL
-   OR shared_projection_partition_leases.lease_expires_at <= $6
+   OR shared_projection_partition_leases.lease_expires_at <= clock_timestamp()
    OR shared_projection_partition_leases.lease_owner = $4
 RETURNING projection_domain
 `
@@ -277,9 +277,15 @@ func (s *SharedIntentStore) MarkIntentsCompleted(ctx context.Context, intentIDs 
 
 // ClaimPartitionLease attempts to claim a partition lease. Returns true if the
 // lease was successfully claimed, false if it is held by another worker.
+//
+// The expiry is bound as a TTL duration and computed server-side at commit
+// (clock_timestamp() + TTL), never client-side at call time: a claim parked
+// behind the domain advisory lock must keep its full TTL once granted instead
+// of burning it while blocked (#6760). Rival-row liveness is judged with the
+// same server clock so a claim blocked past a rival expiry takes the lease
+// instead of reporting a stale false negative (#6765).
 func (s *SharedIntentStore) ClaimPartitionLease(ctx context.Context, domain string, partitionID, partitionCount int, leaseOwner string, leaseTTL time.Duration) (bool, error) {
 	now := time.Now().UTC()
-	leaseExpiresAt := now.Add(leaseTTL)
 
 	rows, err := s.database.QueryContext(
 		ctx, claimPartitionLeaseSQL,
@@ -287,7 +293,7 @@ func (s *SharedIntentStore) ClaimPartitionLease(ctx context.Context, domain stri
 		partitionID,
 		partitionCount,
 		leaseOwner,
-		leaseExpiresAt,
+		leaseTTL.Seconds(),
 		now,
 	)
 	if err != nil {
