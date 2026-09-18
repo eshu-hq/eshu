@@ -77,9 +77,13 @@ kind, source system, collector kind, and generation ID. This is what makes a
 re-observation of an unchanged source cheap.
 
 The hint is a fast-path optimization, not the authority. An empty hint, or a
-missing scope ID, never triggers a skip. The comparison only looks at the latest
-pending or active generation with a hint, so a hint never resurrects a terminal
-generation.
+missing scope ID, never triggers that skip. A retry of an already published or
+terminal generation ID is also checked inside the ingestion transaction, after
+the scope lock. It rolls back the scope update and drains the fact stream before
+writing facts or enqueuing projector work. A pending same-ID retry may refresh
+its facts, but keeps the generation's original observation and ingestion times
+so it cannot reorder itself ahead of a later generation. Reprojection of a
+published generation uses the explicit recovery path, not a pending re-commit.
 
 ## How git delta sync baselines on the last projected commit
 

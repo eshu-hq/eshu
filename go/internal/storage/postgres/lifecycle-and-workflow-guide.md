@@ -168,12 +168,12 @@ seen in the triggering provider alert intent.
 non-UTF-8 content. It preserves literal source text such as the six characters
 `\u0000`.
 
-`CommitScopeGeneration` compares the incoming generation `FreshnessHint` with
-the newest pending or active generation for the same scope. When the hint is
-unchanged, the commit path logs and skips the redundant write so local polling
-can observe files without recommitting identical snapshots or superseding
-in-flight projector work. Failed generations do not satisfy this check, so a
-failed first projection can still be retried by the next snapshot.
+`CommitScopeGeneration` skips an incoming hint matching the newest pending
+or active scope generation. After locking the scope, a conflicting published or
+terminal generation ID also skips: rollback precedes fact-stream drain, so its
+facts and work cannot change. A pending same-ID retry keeps its original
+observation and ingestion times. Failed first projection needs a new snapshot;
+explicit recovery requeues projector work without a pending re-commit.
 
 `CollectorGenerationDeadLetterStore` covers the narrower failure point where a
 collector generation reaches `CommitScopeGeneration` but the durable commit

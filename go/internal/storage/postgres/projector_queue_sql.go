@@ -133,7 +133,13 @@ WHERE stage = 'projector'
 `
 
 const supersedeRunningProjectorWorkQuery = `
-WITH superseded_work AS (
+WITH locked_scope AS MATERIALIZED (
+    SELECT scope_id
+    FROM ingestion_scopes
+    WHERE scope_id = $2
+    FOR UPDATE
+),
+superseded_work AS (
 UPDATE fact_work_items AS work
 SET status = 'superseded',
     lease_owner = NULL,
@@ -148,9 +154,10 @@ SET status = 'superseded',
         'work_item_id', work.work_item_id,
         'generation_id', work.generation_id
     )
-FROM scope_generations AS current_generation
+FROM locked_scope AS scope,
+     scope_generations AS current_generation
 WHERE work.stage = 'projector'
-  AND work.scope_id = $2
+  AND work.scope_id = scope.scope_id
   AND work.generation_id = $3
   AND work.lease_owner = $4
   AND work.attempt_count = $5

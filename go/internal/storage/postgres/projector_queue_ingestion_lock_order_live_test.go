@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -25,14 +26,21 @@ func TestProjectorCompletionDoesNotDeadlockSameGenerationCommit(t *testing.T) {
 	}
 
 	operations := []struct {
-		name string
-		run  func(ProjectorQueue, context.Context, projector.ScopeGenerationWork) error
+		name      string
+		withNewer bool
+		run       func(ProjectorQueue, context.Context, projector.ScopeGenerationWork) error
 	}{
 		{name: "ack", run: func(queue ProjectorQueue, ctx context.Context, work projector.ScopeGenerationWork) error {
 			return queue.Ack(ctx, work, projector.Result{})
 		}},
 		{name: "terminal_fail", run: func(queue ProjectorQueue, ctx context.Context, work projector.ScopeGenerationWork) error {
 			return queue.Fail(ctx, work, errors.New("terminal proof failure"))
+		}},
+		{name: "heartbeat_supersede", withNewer: true, run: func(queue ProjectorQueue, ctx context.Context, work projector.ScopeGenerationWork) error {
+			if err := queue.Heartbeat(ctx, work); !errors.Is(err, projector.ErrWorkSuperseded) {
+				return fmt.Errorf("heartbeat supersession = %v, want ErrWorkSuperseded", err)
+			}
+			return nil
 		}},
 	}
 	for _, operation := range operations {
@@ -56,6 +64,15 @@ INSERT INTO fact_work_items (
           'projector', 'source_local', 'running', 1, 'proof-worker',
           now() + interval '2 minutes', now(), '{}'::jsonb, now(), now());
 `)
+			if operation.withNewer {
+				if _, err := projectorDB.ExecContext(t.Context(), `
+INSERT INTO scope_generations (
+    generation_id, scope_id, trigger_kind, observed_at, ingested_at, status
+) VALUES ('gen-new', 'scope-lock', 'push', now() + interval '1 minute',
+          now() + interval '1 minute', 'pending')`); err != nil {
+					t.Fatalf("insert newer generation: %v", err)
+				}
+			}
 			ingestDB := openLivenessProofDB(t, dsn)
 			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 			defer cancel()

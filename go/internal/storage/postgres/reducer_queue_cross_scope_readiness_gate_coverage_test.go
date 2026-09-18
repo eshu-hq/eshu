@@ -76,6 +76,8 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestProjectorQueueRejectsReclaimedSameOwnerAttempt",
 		"TestProjectorQueueRejectsAttemptReclaimedDuringLockWait",
 		"TestProjectorCompletionDoesNotDeadlockSameGenerationCommit",
+		"TestPublishedGenerationRecommitIsIdempotentLive",
+		"TestFinalizedGenerationRecommitSkipsFactsLive",
 		"TestGenerationLivenessIntegration",
 		"TestSharedIntentGenerationPendingIndexLifecycleLive",
 	} {
