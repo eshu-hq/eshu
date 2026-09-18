@@ -2357,7 +2357,7 @@
         }
       },
       "trace_route_callers": {
-        "description": "Positive Laravel route-to-caller proof through the MCP tool layer. The php_comprehensive fixture emits UserController@index; the reducer must normalize that exact Class@method token to the indexed UserController.index candidate and materialize HANDLES_ROUTE before this query can return the handler.",
+        "description": "Positive Laravel route-to-caller proof through the MCP tool layer. The php_comprehensive fixture emits UserController@index; the reducer must normalize that exact Class@method token to the indexed UserController.index candidate and materialize HANDLES_ROUTE before this query can return the handler. Zero floor: no results_field; the route-to-handler truth is carried by the required values, and callers/callees are empty for this route on the calibration runs.",
         "required_response_fields": [
           "status",
           "partial",
@@ -2513,7 +2513,7 @@
         }
       },
       "analyze_code_relationships": {
-        "description": "MCP tool coverage shape for analyze_code_relationships; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for analyze_code_relationships; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "coverage",
           "class_hierarchy",
@@ -2539,7 +2539,7 @@
         }
       },
       "find_dead_code": {
-        "description": "Lower-level dead-code candidate scan through MCP; asserts the Eshu truth envelope, bounded scan metadata, and deterministic no-provider-key language maturity metadata.",
+        "description": "Lower-level dead-code candidate scan through MCP; asserts the Eshu truth envelope, bounded scan metadata, and deterministic no-provider-key language maturity metadata. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -2566,7 +2566,7 @@
         }
       },
       "investigate_dead_code": {
-        "description": "Prompt-facing dead-code investigation packet through MCP; asserts cleanup/ambiguous/suppressed bucket counts, coverage query shape, and truth envelope.",
+        "description": "Prompt-facing dead-code investigation packet through MCP; asserts cleanup/ambiguous/suppressed bucket counts, coverage query shape, and truth envelope. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -2595,7 +2595,7 @@
         }
       },
       "find_dead_iac": {
-        "description": "MCP tool coverage shape for find_dead_iac; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for find_dead_iac; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: no results_field; orders-api has no dead-IaC finding on the calibration runs (findings is empty), so this shape proves the tool answers with its contract fields.",
         "required_response_fields": [
           "analysis_status",
           "findings",
@@ -2653,7 +2653,7 @@
         }
       },
       "get_iac_management_status": {
-        "description": "MCP tool coverage shape for get_iac_management_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_iac_management_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "account_id",
           "analysis_status",
@@ -2682,7 +2682,7 @@
         }
       },
       "explain_iac_management_status": {
-        "description": "MCP tool coverage shape for explain_iac_management_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for explain_iac_management_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: kept vacuous on purpose; the TestGoldenSnapshot* pin tables in cmd/golden-corpus-gate track backing this shape's value assertions separately, so #6785 leaves it unchanged.",
         "required_response_fields": [
           "account_id",
           "arn",
@@ -2881,7 +2881,7 @@
         }
       },
       "get_replatforming_rollups": {
-        "description": "MCP tool coverage shape for get_replatforming_rollups; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_replatforming_rollups; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: kept vacuous on purpose; the TestGoldenSnapshot* pin tables in cmd/golden-corpus-gate track backing this shape's value assertions separately, so #6785 leaves it unchanged.",
         "required_response_fields": [
           "account_id",
           "analysis_status",
@@ -2962,7 +2962,7 @@
         }
       },
       "calculate_cyclomatic_complexity": {
-        "description": "MCP tool coverage shape for calculate_cyclomatic_complexity; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for calculate_cyclomatic_complexity; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "entity_id",
           "name",
@@ -3064,7 +3064,7 @@
         }
       },
       "visualize_graph_query": {
-        "description": "MCP tool coverage shape for visualize_graph_query; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for visualize_graph_query; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "limit",
           "truncated",
@@ -3443,7 +3443,7 @@
         }
       },
       "count_repositories_by_language": {
-        "description": "MCP tool coverage shape for count_repositories_by_language; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for count_repositories_by_language; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: no results_field; the repositories page for this call is empty on the calibration runs, so this shape asserts the contract fields only.",
         "required_response_fields": [
           "file_count",
           "language",
@@ -3492,7 +3492,7 @@
         "minimum_results": 18
       },
       "get_ecosystem_overview": {
-        "description": "MCP tool coverage shape for get_ecosystem_overview; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_ecosystem_overview; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "instance_count",
           "platform_count",
@@ -3802,7 +3802,7 @@
         }
       },
       "analyze_infra_relationships": {
-        "description": "MCP tool coverage shape for analyze_infra_relationships; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for analyze_infra_relationships; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: negative-path shape; the expected MCP refusal is the assertion, so there is no result count.",
         "required_response_fields": [],
         "minimum_results": 0,
         "expected_error_contains": "entity not found",
@@ -4139,7 +4139,7 @@
         }
       },
       "explain_dependency_path": {
-        "description": "MCP tool coverage shape for explain_dependency_path; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for explain_dependency_path; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "path",
           "source",
@@ -4237,7 +4237,7 @@
         }
       },
       "compare_environments": {
-        "description": "Positive deployed comparison of the deployable-source workload across two materialized environments. The existing production Argo CD application and the public-safe staging application both pass through parser evidence, deployment-source admission, workload materialization, and canonical WorkloadInstance graph writes before this MCP assertion reads them.",
+        "description": "Positive deployed comparison of the deployable-source workload across two materialized environments. The existing production Argo CD application and the public-safe staging application both pass through parser evidence, deployment-source admission, workload materialization, and canonical WorkloadInstance graph writes before this MCP assertion reads them. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "answer_metadata",
           "changed",
@@ -4285,7 +4285,7 @@
         }
       },
       "count_infra_resources": {
-        "description": "MCP tool coverage shape for count_infra_resources; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for count_infra_resources; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "by_environment",
           "by_label",
@@ -4437,7 +4437,7 @@
         }
       },
       "count_package_registry_packages": {
-        "description": "MCP tool coverage shape for count_package_registry_packages; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for count_package_registry_packages; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "by_ecosystem",
           "scope",
@@ -4499,7 +4499,7 @@
         }
       },
       "count_ci_cd_run_correlations": {
-        "description": "MCP tool coverage shape for count_ci_cd_run_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for count_ci_cd_run_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "by_environment",
           "by_outcome",
@@ -4676,7 +4676,7 @@
         }
       },
       "count_secrets_iam_posture": {
-        "description": "Non-vacuous deployed MCP rollup proof over all four reducer-owned secrets/IAM read models for the synthetic IAM scope.",
+        "description": "Non-vacuous deployed MCP rollup proof over all four reducer-owned secrets/IAM read models for the synthetic IAM scope. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "scope_id",
           "summary"
@@ -5013,7 +5013,7 @@
         }
       },
       "count_supply_chain_impact_findings": {
-        "description": "MCP tool coverage shape for count_supply_chain_impact_findings; #5747 proves aggregate totals use the same current workload mapping as the findings list. The comprehensive profile is retained as the epic's inclusive OS-package proof; after #5735 the exact DPKG finding also qualifies for precise.",
+        "description": "MCP tool coverage shape for count_supply_chain_impact_findings; #5747 proves aggregate totals use the same current workload mapping as the findings list. The comprehensive profile is retained as the epic's inclusive OS-package proof; after #5735 the exact DPKG finding also qualifies for precise. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "affected_derived",
           "affected_exact",
@@ -5070,7 +5070,7 @@
         }
       },
       "count_security_alert_reconciliations": {
-        "description": "MCP tool coverage shape for count_security_alert_reconciliations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for count_security_alert_reconciliations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "by_provider",
           "by_provider_state",
@@ -5115,7 +5115,7 @@
         }
       },
       "count_container_image_identities": {
-        "description": "MCP tool coverage shape for count_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for count_container_image_identities; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "by_identity_strength",
           "by_outcome",
@@ -5156,7 +5156,7 @@
         }
       },
       "count_sbom_attestation_attachments": {
-        "description": "MCP tool coverage shape for count_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for count_sbom_attestation_attachments; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "by_artifact_kind",
           "by_attachment_status",
@@ -5268,7 +5268,7 @@
         }
       },
       "derive_visualization_packet": {
-        "description": "MCP tool coverage shape for derive_visualization_packet; asserts reconciled Service Story node identity and provenance fields live through the MCP tool layer.",
+        "description": "MCP tool coverage shape for derive_visualization_packet; asserts reconciled Service Story node identity and provenance fields live through the MCP tool layer. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "visualization_packet"
         ],
@@ -5584,7 +5584,7 @@
         }
       },
       "get_workload_story": {
-        "description": "MCP tool coverage shape for get_workload_story; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_workload_story; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: kept vacuous on purpose; the TestGoldenSnapshot* pin tables in cmd/golden-corpus-gate track backing this shape's value assertions separately, so #6785 leaves it unchanged.",
         "required_response_fields": [
           "evidence_boundaries",
           "name",
@@ -5753,7 +5753,7 @@
         }
       },
       "get_file_content": {
-        "description": "MCP tool coverage shape for get_file_content; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_file_content; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "content",
           "content_hash",
@@ -5769,7 +5769,7 @@
         }
       },
       "get_file_lines": {
-        "description": "MCP tool coverage shape for get_file_lines; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_file_lines; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "content",
           "content_hash",
@@ -5787,7 +5787,7 @@
         }
       },
       "get_entity_content": {
-        "description": "MCP tool coverage shape for get_entity_content; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_entity_content; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: negative-path shape; the expected MCP refusal is the assertion, so there is no result count.",
         "required_response_fields": [],
         "minimum_results": 0,
         "expected_error_contains": "entity not found",
@@ -5982,7 +5982,7 @@
         }
       },
       "check_documentation_evidence_packet_freshness": {
-        "description": "Positive deployed freshness readback for the public-safe runtime-readiness evidence packet inserted after the required drains.",
+        "description": "Positive deployed freshness readback for the public-safe runtime-readiness evidence packet inserted after the required drains. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "packet_id",
           "packet_version",
@@ -6025,7 +6025,7 @@
         ]
       },
       "resolve_query_playbook": {
-        "description": "MCP tool coverage shape for resolve_query_playbook; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for resolve_query_playbook; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "resolved",
           "schema_version"
@@ -6062,7 +6062,7 @@
         ]
       },
       "resolve_investigation_workflow": {
-        "description": "MCP tool coverage shape for resolve_investigation_workflow; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for resolve_investigation_workflow; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "resolved",
           "schema_version"
@@ -6235,7 +6235,7 @@
         }
       },
       "count_documentation_findings": {
-        "description": "Positive deployed aggregate count for the public-safe runtime-readiness documentation finding inserted after the required drains.",
+        "description": "Positive deployed aggregate count for the public-safe runtime-readiness documentation finding inserted after the required drains. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "by_freshness_state",
           "by_status",
@@ -6295,14 +6295,14 @@
         }
       },
       "list_component_extensions": {
-        "description": "MCP tool coverage shape for list_component_extensions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_component_extensions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: negative-path shape; the expected MCP refusal is the assertion, so there is no result count.",
         "truth_class": "deterministic",
         "required_response_fields": [],
         "minimum_results": 0,
         "expected_error_contains": "component extension registry is unavailable"
       },
       "get_component_extension_diagnostics": {
-        "description": "MCP tool coverage shape for get_component_extension_diagnostics; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_component_extension_diagnostics; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: negative-path shape; the expected MCP refusal is the assertion, so there is no result count.",
         "required_response_fields": [],
         "minimum_results": 0,
         "expected_error_contains": "component extension registry is unavailable",
@@ -6325,7 +6325,7 @@
         "minimum_results": 14
       },
       "get_collector_extraction_readiness": {
-        "description": "MCP tool coverage shape for get_collector_extraction_readiness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_collector_extraction_readiness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "family",
           "schema_version",
@@ -6351,7 +6351,7 @@
         "minimum_results": 178
       },
       "get_fact_schema_version": {
-        "description": "MCP tool coverage shape for get_fact_schema_version; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_fact_schema_version; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "fact_kind",
           "schema_version",
@@ -6402,7 +6402,7 @@
         "minimum_results": 2
       },
       "get_index_status": {
-        "description": "MCP tool coverage shape for get_index_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_index_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: object-shaped status with no results_field; queue_blockages is empty after the required drains, which is the healthy answer.",
         "required_response_fields": [
           "aws_materialization",
           "coordinator",
@@ -6552,7 +6552,7 @@
         "minimum_results": 7
       },
       "get_hosted_governance_status": {
-        "description": "Deployed local-no-policy governance posture with the shared token configured. Identity readiness stays true while the response explicitly reports both the missing-policy and shared-token limitations.",
+        "description": "Deployed local-no-policy governance posture with the shared token configured. Identity readiness stays true while the response explicitly reports both the missing-policy and shared-token limitations. Zero floor: kept vacuous on purpose; the TestGoldenSnapshot* pin tables in cmd/golden-corpus-gate track backing this shape's value assertions separately, so #6785 leaves it unchanged.",
         "truth_class": "deterministic",
         "required_response_fields": [
           "aggregates",
@@ -6789,7 +6789,7 @@
         }
       },
       "find_cross_repo_dead_code": {
-        "description": "Cross-repo producer dead-code classification through MCP; asserts dead/live-by-consumer/unknown/suppressed bucket counts, bounded query shape, and truth envelope without provider keys.",
+        "description": "Cross-repo producer dead-code classification through MCP; asserts dead/live-by-consumer/unknown/suppressed bucket counts, bounded query shape, and truth envelope without provider keys. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -6874,7 +6874,7 @@
         "results_field": "repositories"
       },
       "eshu index-status": {
-        "description": "CLI indexing readiness read surface; asserts the CLI golden for checkpointed indexing status.",
+        "description": "CLI indexing readiness read surface; asserts the CLI golden for checkpointed indexing status. Zero floor: CLI shape compared against its committed golden output, not a result count.",
         "command": [
           "index-status"
         ],
@@ -6885,7 +6885,7 @@
         "minimum_results": 0
       },
       "eshu trace service --json": {
-        "description": "CLI service story answer surface; shares the service-story truth class with the MCP service-story tool.",
+        "description": "CLI service story answer surface; shares the service-story truth class with the MCP service-story tool. Zero floor: CLI shape compared against its committed golden output, not a result count.",
         "command": [
           "trace",
           "service",
@@ -6904,7 +6904,7 @@
         "minimum_results": 0
       },
       "eshu playbooks list": {
-        "description": "CLI query-playbook list read surface; shares the query-playbook catalog truth class with MCP.",
+        "description": "CLI query-playbook list read surface; shares the query-playbook catalog truth class with MCP. Zero floor: CLI shape compared against its committed golden output, not a result count.",
         "command": [
           "playbooks",
           "list"
@@ -6921,7 +6921,7 @@
         "minimum_results": 0
       },
       "eshu vuln-scan repo --json": {
-        "description": "CLI supply-chain impact answer surface; shares reducer-owned findings truth with API and MCP inventory surfaces.",
+        "description": "CLI supply-chain impact answer surface; shares reducer-owned findings truth with API and MCP inventory surfaces. Zero floor: CLI shape compared against its committed golden output, not a result count.",
         "command": [
           "vuln-scan",
           "repo",
@@ -6941,7 +6941,7 @@
         "minimum_results": 0
       },
       "eshu component inventory --json": {
-        "description": "CLI component-extension inventory read surface; shares component extension registry truth class with MCP.",
+        "description": "CLI component-extension inventory read surface; shares component extension registry truth class with MCP. Zero floor: CLI shape compared against its committed golden output, not a result count.",
         "command": [
           "component",
           "inventory",
@@ -6959,7 +6959,7 @@
         "minimum_results": 0
       },
       "eshu hosted-onboard --json": {
-        "description": "CLI hosted onboarding answer artifact; shares hosted governance truth class with MCP governance status.",
+        "description": "CLI hosted onboarding answer artifact; shares hosted governance truth class with MCP governance status. Zero floor: CLI shape compared against its committed golden output, not a result count.",
         "command": [
           "hosted-onboard",
           "--team",
@@ -6982,7 +6982,7 @@
     },
     "http": {
       "POST /api/v0/impact/entity-map": {
-        "description": "Positive repository-to-workload entity map for the deployable-config fixture through the deployed HTTP query surface.",
+        "description": "Positive repository-to-workload entity map for the deployable-config fixture through the deployed HTTP query surface. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "required_response_fields": [
           "status",
           "scope",
@@ -7226,7 +7226,7 @@
         }
       },
       "GET /api/v0/status/operations": {
-        "description": "Exact deployed operations board after the required drains and the intentional dead-letter query fixture. The envelope pins the truthful degraded reason, one dead-letter, zero outstanding work, and non-empty status sections.",
+        "description": "Exact deployed operations board after the required drains and the intentional dead-letter query fixture. The envelope pins the truthful degraded reason, one dead-letter, zero outstanding work, and non-empty status sections. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -7428,7 +7428,7 @@
         }
       },
       "POST /api/v0/impact/trace-deployment-chain": {
-        "description": "Positive deployment-topology trace for the deployable-source runtime fixture; proves canonical instance, platform, and deployment-source endpoint identity against the live projected corpus.",
+        "description": "Positive deployment-topology trace for the deployable-source runtime fixture; proves canonical instance, platform, and deployment-source endpoint identity against the live projected corpus. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -7536,7 +7536,7 @@
         }
       },
       "POST /api/v0/impact/trace-deployment-chain?anchor=declared-object": {
-        "description": "#5639 declared kind+namespace+name identity anchor proof, isolated from the ArgoCD-anchor case above via a distinct query-string-suffixed key (same POST route -- Go's ServeMux match ignores the query string, so this reaches the identical handler with a different request body). The supply-chain-demo-db fixture repo (tests/fixtures/ecosystems/supply-chain-demo-db/statefulset.yaml) declares ONLY a bare StatefulSet (kind=StatefulSet, namespace=default, name=supply-chain-demo-db, image ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0) with NO ArgoCD Application, Flux, or Crossplane controller anywhere in the repo -- controller_overview.controller_count is 0 in the live response. That declared object exactly matches the UNANCHORED (no argocd.argoproj.io/tracking-id) kuberneteslive cassette fact kubernetes_live:cluster:supply-chain-demo:statefulset:default:supply-chain-demo-db on group_version_resource+namespace+name plus the image_ref intersection, so deployment_truth_tier can only have been promoted through the declared-object anchor (resolveLiveIdentityAnchors's ArgoCD half reads only argocd_application/argocd_applicationset controllers, which this repo has none of) -- never the ArgoCD tracking-id anchor the sibling shape above proves. Non-vacuous: reverting the declared-object anchor list to ArgoCD-only (pre-#5639) drops this workload's only anchor, so fetchWorkloadLiveEvidence returns false before ever querying the store and deployment_truth_tier falls back to \"\" (ClassifyDeploymentTruthTier with hasInstances=false, hasDeploymentSources=false, hasConfigEnvironments=false) -- proven via TestFetchWorkloadLiveEvidenceNoAnchorOfAnyKindNeverQueriesStore and the ArgoCD-only-anchor-list unit shape (see go/internal/query/impacttrace/impact_trace_deployment_live_evidence_identity_declared_test.go), not a second live-gate run.",
+        "description": "#5639 declared kind+namespace+name identity anchor proof, isolated from the ArgoCD-anchor case above via a distinct query-string-suffixed key (same POST route -- Go's ServeMux match ignores the query string, so this reaches the identical handler with a different request body). The supply-chain-demo-db fixture repo (tests/fixtures/ecosystems/supply-chain-demo-db/statefulset.yaml) declares ONLY a bare StatefulSet (kind=StatefulSet, namespace=default, name=supply-chain-demo-db, image ghcr.io/eshu-hq/internal-tools/db-migrator:1.0.0) with NO ArgoCD Application, Flux, or Crossplane controller anywhere in the repo -- controller_overview.controller_count is 0 in the live response. That declared object exactly matches the UNANCHORED (no argocd.argoproj.io/tracking-id) kuberneteslive cassette fact kubernetes_live:cluster:supply-chain-demo:statefulset:default:supply-chain-demo-db on group_version_resource+namespace+name plus the image_ref intersection, so deployment_truth_tier can only have been promoted through the declared-object anchor (resolveLiveIdentityAnchors's ArgoCD half reads only argocd_application/argocd_applicationset controllers, which this repo has none of) -- never the ArgoCD tracking-id anchor the sibling shape above proves. Non-vacuous: reverting the declared-object anchor list to ArgoCD-only (pre-#5639) drops this workload's only anchor, so fetchWorkloadLiveEvidence returns false before ever querying the store and deployment_truth_tier falls back to \"\" (ClassifyDeploymentTruthTier with hasInstances=false, hasDeploymentSources=false, hasConfigEnvironments=false) -- proven via TestFetchWorkloadLiveEvidenceNoAnchorOfAnyKindNeverQueriesStore and the ArgoCD-only-anchor-list unit shape (see go/internal/query/impacttrace/impact_trace_deployment_live_evidence_identity_declared_test.go), not a second live-gate run. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -7588,7 +7588,7 @@
         }
       },
       "POST /api/v0/infra/relationships": {
-        "description": "#5436: RUNS_IMAGE read-path proof. Anchored on the supply-chain-demo KubernetesWorkload (the digest-pinned Deployment from the kuberneteslive cassette), what_runs_image must resolve the RUNS_IMAGE edge to the OciImageManifest node the oci_registry cassette's image_manifest fact projects (digest sha256:abcdef...ab). Non-vacuous: the edge only exists because the kuberneteslive pod_template fact's image_refs digest matches the ociregistry image_manifest fact's digest via BuildSourceImageDigestJoinIndex (kubernetes_workload_source_image_join.go) -- neither cassette alone produces it, and before the #5436 Stage-1 allowlist entry this request was rejected 400 (unknown relationship_type).",
+        "description": "#5436: RUNS_IMAGE read-path proof. Anchored on the supply-chain-demo KubernetesWorkload (the digest-pinned Deployment from the kuberneteslive cassette), what_runs_image must resolve the RUNS_IMAGE edge to the OciImageManifest node the oci_registry cassette's image_manifest fact projects (digest sha256:abcdef...ab). Non-vacuous: the edge only exists because the kuberneteslive pod_template fact's image_refs digest matches the ociregistry image_manifest fact's digest via BuildSourceImageDigestJoinIndex (kubernetes_workload_source_image_join.go) -- neither cassette alone produces it, and before the #5436 Stage-1 allowlist entry this request was rejected 400 (unknown relationship_type). Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -7620,7 +7620,7 @@
         }
       },
       "POST /api/v0/infra/relationships?query_type=what_runs_lambda_image": {
-        "description": "#5738: AWS_lambda_function_uses_image read-path proof. #5450 (PR #5708) materialized the (:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage) edge for the supply-chain-demo Lambda function, and #5751 (P1-B/P1-C) fixed the mixed-case canonical-value lookup and the relationships-catalog entry, but the analyze_infra_relationships MCP tool's query_type enum never advertised anything but a fixed set of semantic aliases (what_deploys, what_provisions, who_consumes_xrd, module_consumers, what_runs_image) -- it had no alias for this edge at all, so an MCP caller had no declared way to reach it. The '?query_type=...' suffix on this key is a disambiguator only (getRelationships never reads the request URL's query string); it exists because query_shapes.http is a single flat map and 'POST /api/v0/infra/relationships' is already claimed by the #5436 what_runs_image entry above. Anchored on the Lambda CloudResource (uid computed by aws_resource_materialization.go's cloudResourceUID over the awscloud cassette's aws_resource fact for arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo -- account_id, region, resource_id, resource_type), what_runs_lambda_image must resolve the AWS_lambda_function_uses_image edge to the ContainerImage node the oci_registry cassette's ECR image_manifest fact projects (digest sha256:...cc, descriptor_id oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:...cc). Non-vacuous: the edge only exists because DomainAWSCloudImageMaterialization resolves the awscloud lambda_function_uses_image aws_relationship fact's resolved_image_uri against the oci_registry ECR scope manifest fixture (aws_cloud_image_join.go's containerImageNodeUIDFromDigestRef) -- neither cassette alone produces it (see rc-166's graph-materialization proof of the same edge), and before this change 'what_runs_lambda_image' was rejected 400 (unknown relationship_type), which the query-side regression test (TestInfraRelationshipsWhatRunsLambdaImageSurfacesOutgoingEdge / TestResolveInfraRelationshipTypes) also proves failing-then-green.",
+        "description": "#5738: AWS_lambda_function_uses_image read-path proof. #5450 (PR #5708) materialized the (:CloudResource)-[:AWS_lambda_function_uses_image]->(:ContainerImage) edge for the supply-chain-demo Lambda function, and #5751 (P1-B/P1-C) fixed the mixed-case canonical-value lookup and the relationships-catalog entry, but the analyze_infra_relationships MCP tool's query_type enum never advertised anything but a fixed set of semantic aliases (what_deploys, what_provisions, who_consumes_xrd, module_consumers, what_runs_image) -- it had no alias for this edge at all, so an MCP caller had no declared way to reach it. The '?query_type=...' suffix on this key is a disambiguator only (getRelationships never reads the request URL's query string); it exists because query_shapes.http is a single flat map and 'POST /api/v0/infra/relationships' is already claimed by the #5436 what_runs_image entry above. Anchored on the Lambda CloudResource (uid computed by aws_resource_materialization.go's cloudResourceUID over the awscloud cassette's aws_resource fact for arn:aws:lambda:us-east-1:123456789012:function:supply-chain-demo -- account_id, region, resource_id, resource_type), what_runs_lambda_image must resolve the AWS_lambda_function_uses_image edge to the ContainerImage node the oci_registry cassette's ECR image_manifest fact projects (digest sha256:...cc, descriptor_id oci-descriptor://123456789012.dkr.ecr.us-east-1.amazonaws.com/supply-chain-demo@sha256:...cc). Non-vacuous: the edge only exists because DomainAWSCloudImageMaterialization resolves the awscloud lambda_function_uses_image aws_relationship fact's resolved_image_uri against the oci_registry ECR scope manifest fixture (aws_cloud_image_join.go's containerImageNodeUIDFromDigestRef) -- neither cassette alone produces it (see rc-166's graph-materialization proof of the same edge), and before this change 'what_runs_lambda_image' was rejected 400 (unknown relationship_type), which the query-side regression test (TestInfraRelationshipsWhatRunsLambdaImageSurfacesOutgoingEdge / TestResolveInfraRelationshipTypes) also proves failing-then-green. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "required_response_fields": [
           "data",
@@ -7785,7 +7785,7 @@
         "results_field": "images"
       },
       "GET /api/v0/incidents/PSCD1/context": {
-        "description": "Incident context for the pagerduty supply-chain-demo incident; confirms the incident fact is read-queryable.",
+        "description": "Incident context for the pagerduty supply-chain-demo incident; confirms the incident fact is read-queryable. Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "incident",
           "query"
@@ -8066,7 +8066,7 @@
         "minimum_results": 0
       },
       "POST /api/v0/cloud/runtime-drift/findings": {
-        "description": "Provider-neutral runtime drift findings for the synthetic GCP cloud scope. Non-vacuous (Refs #5759): the sibling list_cloud_runtime_drift_findings MCP shape proved >=1 admitted orphaned finding live for this exact scope_id/provider; this HTTP entry reads the same handleCloudRuntimeDriftFindings route and ListActiveMultiCloudRuntimeDriftFindings store. minimum_results stays 0 here deliberately -- not lowered, structurally inapplicable: this shape keeps the {data,truth,error} envelope (envelope:true) with only top-level required_response_fields, and EvaluateQueryShape's minimum_results check only scans top-level RequiredResponseFields for the first array-valued field (none of data/truth/error is one; data is an object), so setting minimum_results>0 here would hard-fail every run regardless of live data, not gate on row count. required_json_paths below is this codebase's own established mechanism for proving non-vacuousness on an envelope:true shape (mirrors the what_runs_image entry's data.outgoing[].type path) and requires data.drift_findings to be a non-empty array whose elements carry a real finding_kind.",
+        "description": "Provider-neutral runtime drift findings for the synthetic GCP cloud scope. Non-vacuous (Refs #5759): the sibling list_cloud_runtime_drift_findings MCP shape proved >=1 admitted orphaned finding live for this exact scope_id/provider; this HTTP entry reads the same handleCloudRuntimeDriftFindings route and ListActiveMultiCloudRuntimeDriftFindings store. minimum_results stays 0 here deliberately -- not lowered, structurally inapplicable: this shape keeps the {data,truth,error} envelope (envelope:true) with only top-level required_response_fields, and EvaluateQueryShape's minimum_results check only scans top-level RequiredResponseFields for the first array-valued field (none of data/truth/error is one; data is an object), so setting minimum_results>0 here would hard-fail every run regardless of live data, not gate on row count. required_json_paths below is this codebase's own established mechanism for proving non-vacuousness on an envelope:true shape (mirrors the what_runs_image entry's data.outgoing[].type path) and requires data.drift_findings to be a non-empty array whose elements carry a real finding_kind. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "truth_class": "derived",
         "envelope": true,
         "request_body": {
@@ -8090,7 +8090,7 @@
         "minimum_results": 0
       },
       "POST /api/v0/cloud/runtime-drift/findings?assert=provider_aws_aggregation": {
-        "description": "Refs #5759 P1 golden proof: the SAME route, key, and store as the sibling gcp-scoped entry above (\"POST /api/v0/cloud/runtime-drift/findings\") but scope_id/provider point at the AWS scope list_aws_runtime_drift_findings already proves live has an admitted image_version_drift finding (see that entry's fixture-surgery detail: ARN re-key plus terraform_comprehensive config-owner resolution). The trailing ?assert=provider_aws_aggregation query string exists ONLY to give this entry a distinct map key from the sibling gcp entry above -- POST /api/v0/cloud/runtime-drift/findings's net/http.ServeMux route pattern matches on path only (query strings are never part of Go 1.22+ ServeMux pattern matching), and this route reads its filters from the JSON request_body, not the URL, so the query string reaches the handler unused. Before #5759's follow-up read-side aggregation, provider=aws on this NEUTRAL surface always returned an empty page (list_cloud_runtime_drift_findings/this route only ever queried reducer_multi_cloud_runtime_drift_finding, which excludeAWSOwnedRows guarantees never carries an AWS row) even though DomainAWSCloudRuntimeDrift had live findings -- a confidently-wrong empty page, not a genuinely empty one. This entry proves the aggregation: same finding_kind/drifted_attributes values the AWS-specific list_aws_runtime_drift_findings entry already proves live, now also visible through the provider-neutral surface for provider=aws. minimum_results stays 0 for the same structural reason as the sibling gcp entry (envelope:true, no top-level array field); required_json_paths/required_json_values below are the non-vacuous proof.",
+        "description": "Refs #5759 P1 golden proof: the SAME route, key, and store as the sibling gcp-scoped entry above (\"POST /api/v0/cloud/runtime-drift/findings\") but scope_id/provider point at the AWS scope list_aws_runtime_drift_findings already proves live has an admitted image_version_drift finding (see that entry's fixture-surgery detail: ARN re-key plus terraform_comprehensive config-owner resolution). The trailing ?assert=provider_aws_aggregation query string exists ONLY to give this entry a distinct map key from the sibling gcp entry above -- POST /api/v0/cloud/runtime-drift/findings's net/http.ServeMux route pattern matches on path only (query strings are never part of Go 1.22+ ServeMux pattern matching), and this route reads its filters from the JSON request_body, not the URL, so the query string reaches the handler unused. Before #5759's follow-up read-side aggregation, provider=aws on this NEUTRAL surface always returned an empty page (list_cloud_runtime_drift_findings/this route only ever queried reducer_multi_cloud_runtime_drift_finding, which excludeAWSOwnedRows guarantees never carries an AWS row) even though DomainAWSCloudRuntimeDrift had live findings -- a confidently-wrong empty page, not a genuinely empty one. This entry proves the aggregation: same finding_kind/drifted_attributes values the AWS-specific list_aws_runtime_drift_findings entry already proves live, now also visible through the provider-neutral surface for provider=aws. minimum_results stays 0 for the same structural reason as the sibling gcp entry (envelope:true, no top-level array field); required_json_paths/required_json_values below are the non-vacuous proof. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "truth_class": "derived",
         "envelope": true,
         "request_body": {
@@ -8124,7 +8124,7 @@
         "minimum_results": 2
       },
       "POST /api/v0/aws/runtime-drift/findings?assert=partial_comparability_gap": {
-        "description": "#5861 partial-comparability proof, and the corpus's only assertion of a coverage gap on a finding that still reached a verdict. The Lambda supply-chain-demo-partial is covered for two comparables: the observed side claims package_type Image while carrying no image_uri (unreadable), and version differs (7 observed vs 9 declared). One comparison RAN and proved drift while the other could not be made, so the finding is image_version_drift AND carries missing_evidence comparable_attribute:image_uri. aws_instance cannot produce this shape at all -- it is covered for one value (ami), so it is either fully readable or fully uncomparable. Without this entry the #5861 behaviour is proven by unit tests only, and a regression in replay, payload writing, or readback of the gap would ship green. Reads the same reducer rows as the MCP sibling through the HTTP route, so a readback regression on either surface alone is caught.",
+        "description": "#5861 partial-comparability proof, and the corpus's only assertion of a coverage gap on a finding that still reached a verdict. The Lambda supply-chain-demo-partial is covered for two comparables: the observed side claims package_type Image while carrying no image_uri (unreadable), and version differs (7 observed vs 9 declared). One comparison RAN and proved drift while the other could not be made, so the finding is image_version_drift AND carries missing_evidence comparable_attribute:image_uri. aws_instance cannot produce this shape at all -- it is covered for one value (ami), so it is either fully readable or fully uncomparable. Without this entry the #5861 behaviour is proven by unit tests only, and a regression in replay, payload writing, or readback of the gap would ship green. Reads the same reducer rows as the MCP sibling through the HTTP route, so a readback regression on either surface alone is caught. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "truth_class": "derived",
         "envelope": true,
         "request_body": {
@@ -8272,7 +8272,7 @@
         "results_field": "ownership"
       },
       "GET /api/v0/secrets-iam/posture-summary?scope_id=supply-chain-demo": {
-        "description": "Secrets/IAM posture summary (governed projection, default-off per ADR #1314); confirms the read surface is mounted and returns a valid summary object.",
+        "description": "Secrets/IAM posture summary (governed projection, default-off per ADR #1314); confirms the read surface is mounted and returns a valid summary object. Zero floor: object-shaped response with no results_field; this shape proves the surface is mounted and answers with its contract fields, not a result count.",
         "required_response_fields": [
           "scope_id",
           "summary"
@@ -8398,7 +8398,7 @@
         }
       },
       "GET /api/v0/metrics/timeseries?metric=queue_depth&window=1h&step=5m": {
-        "description": "Credential-free Prometheus-compatible range-source proof with a bounded queue-depth series.",
+        "description": "Credential-free Prometheus-compatible range-source proof with a bounded queue-depth series. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "required_response_fields": ["data", "truth", "error"],
         "required_json_paths": ["data.points[].t", "data.points[].v"],
@@ -8417,7 +8417,7 @@
         }
       },
       "POST /api/v0/code/dead-code": {
-        "description": "Lower-level dead-code candidate scan; asserts the truth envelope, bounded scan metadata, and deterministic no-provider-key language maturity metadata.",
+        "description": "Lower-level dead-code candidate scan; asserts the truth envelope, bounded scan metadata, and deterministic no-provider-key language maturity metadata. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "request_body": {
           "repo_id": "orders-api",
@@ -8445,7 +8445,7 @@
         }
       },
       "POST /api/v0/code/dead-code/investigate": {
-        "description": "Prompt-facing dead-code investigation packet; asserts cleanup/ambiguous/suppressed bucket counts, coverage query shape, and truth envelope.",
+        "description": "Prompt-facing dead-code investigation packet; asserts cleanup/ambiguous/suppressed bucket counts, coverage query shape, and truth envelope. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "request_body": {
           "repo_id": "orders-api",
@@ -8474,7 +8474,7 @@
         }
       },
       "POST /api/v0/code/dead-code/investigate?golden_scope=ruby_rails_app": {
-        "description": "#5378 Detector 1 (Ruby Rails route-handler) golden discrimination. WidgetsController#index is rooted, so it is suppressed as a modeled root; the LegacyReportsController#generate foil is downgraded (not a route), so it must surface as a cleanup_ready dead-code candidate. The two object-matches are closed on (name, classification): over-rooting the foil moves generate out of cleanup_ready and fails the gate (false-positive guard); under-rooting the real handler moves index out of suppressed and fails the gate (false-negative guard). #5726 extends this to two namespaced-ancestry CONFIRM guards for the #5500 P0 lexical-scope fix (evidence-5500-lexical-scope-restriction.md): Admin::ReportsController#summary uses Ruby's COMPACT COLON form (`class Admin::ReportsController < Base`, no enclosing `module Admin`) whose true base is a top-level `Base < ApplicationController`, alongside a coincidentally-named, unrelated, genuinely module-nested `Admin::Base < ActiveRecord::Base` -- the exact #5500 P0 masking shape (a first-hit lexicalExactMatch would resolve only the coincidental Admin::Base and never try bare Base, wrongly downgrading summary). Api::V1::UsersController#profile uses genuine nested module blocks whose `Base` resolves through the OUTER enclosing `Api` scope, not the immediate `Api::V1` scope, proving the walk mirrors Ruby's Module.nesting innermost-to-outermost order. Both must stay suppressed/excluded, never cleanup_ready/unused: a regression in either P0 union-accumulation or outer-scope traversal moves them into cleanup_ready and fails this gate. The golden_scope query arg only disambiguates this snapshot key; the handler reads repo_id from the body and ignores the query string. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies. #5723 adds end-to-end golden coverage for the #5494 route_unreachable downgrade via config/routes.rb, a deliberately EXACT-ONLY route surface (literal to: \"controller#action\" handlers only, so framework_semantics.rails.has_unmodeled_routes stays unset and the reducer join is allowed to downgrade). On that surface WidgetsController#index/#show, Admin::ReportsController#summary (compact-colon, joined by simple class_context \"ReportsController\"), and Api::V1::UsersController#profile are each exactly routed -> RouteEvidenceRouted -> stay suppressed/excluded with positive route evidence; OrphanedController#dangling is ancestry-confirmed (< ApplicationController) yet reached by no route, so #5494 downgrades it to route_unreachable and, having no caller, it surfaces as a cleanup_ready/unused candidate. The dangling cleanup_ready match is the route-liveness regression guard: losing the downgrade (over-keeping the unrouted action) drops it out of cleanup_ready and fails this gate, exactly as over-rooting the generate foil does.",
+        "description": "#5378 Detector 1 (Ruby Rails route-handler) golden discrimination. WidgetsController#index is rooted, so it is suppressed as a modeled root; the LegacyReportsController#generate foil is downgraded (not a route), so it must surface as a cleanup_ready dead-code candidate. The two object-matches are closed on (name, classification): over-rooting the foil moves generate out of cleanup_ready and fails the gate (false-positive guard); under-rooting the real handler moves index out of suppressed and fails the gate (false-negative guard). #5726 extends this to two namespaced-ancestry CONFIRM guards for the #5500 P0 lexical-scope fix (evidence-5500-lexical-scope-restriction.md): Admin::ReportsController#summary uses Ruby's COMPACT COLON form (`class Admin::ReportsController < Base`, no enclosing `module Admin`) whose true base is a top-level `Base < ApplicationController`, alongside a coincidentally-named, unrelated, genuinely module-nested `Admin::Base < ActiveRecord::Base` -- the exact #5500 P0 masking shape (a first-hit lexicalExactMatch would resolve only the coincidental Admin::Base and never try bare Base, wrongly downgrading summary). Api::V1::UsersController#profile uses genuine nested module blocks whose `Base` resolves through the OUTER enclosing `Api` scope, not the immediate `Api::V1` scope, proving the walk mirrors Ruby's Module.nesting innermost-to-outermost order. Both must stay suppressed/excluded, never cleanup_ready/unused: a regression in either P0 union-accumulation or outer-scope traversal moves them into cleanup_ready and fails this gate. The golden_scope query arg only disambiguates this snapshot key; the handler reads repo_id from the body and ignores the query string. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies. #5723 adds end-to-end golden coverage for the #5494 route_unreachable downgrade via config/routes.rb, a deliberately EXACT-ONLY route surface (literal to: \"controller#action\" handlers only, so framework_semantics.rails.has_unmodeled_routes stays unset and the reducer join is allowed to downgrade). On that surface WidgetsController#index/#show, Admin::ReportsController#summary (compact-colon, joined by simple class_context \"ReportsController\"), and Api::V1::UsersController#profile are each exactly routed -> RouteEvidenceRouted -> stay suppressed/excluded with positive route evidence; OrphanedController#dangling is ancestry-confirmed (< ApplicationController) yet reached by no route, so #5494 downgrades it to route_unreachable and, having no caller, it surfaces as a cleanup_ready/unused candidate. The dangling cleanup_ready match is the route-liveness regression guard: losing the downgrade (over-keeping the unrouted action) drops it out of cleanup_ready and fails this gate, exactly as over-rooting the generate foil does. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "request_body": {
           "repo_id": "ruby_rails_app",
@@ -8524,7 +8524,7 @@
         }
       },
       "POST /api/v0/code/dead-code/investigate?golden_scope=swift_vapor_app": {
-        "description": "#5378 Detector 2 (Swift Vapor route-handler) golden discrimination. routes.swift has import Vapor, so its use: healthCheck handler is rooted (swift.vapor_route_handler) and suppressed as a modeled root; plain.swift carries the identical use: shape without import Vapor, so its statusReport handler must NOT be rooted and must surface as a cleanup_ready dead-code candidate. The object-matches are closed on (name, classification): rooting the foil (dropping the per-file import Vapor gate) moves statusReport out of cleanup_ready and fails (false-positive guard); losing the healthCheck root moves it out of suppressed and fails (false-negative guard). golden_scope disambiguates the key only; repo_id comes from the body. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
+        "description": "#5378 Detector 2 (Swift Vapor route-handler) golden discrimination. routes.swift has import Vapor, so its use: healthCheck handler is rooted (swift.vapor_route_handler) and suppressed as a modeled root; plain.swift carries the identical use: shape without import Vapor, so its statusReport handler must NOT be rooted and must surface as a cleanup_ready dead-code candidate. The object-matches are closed on (name, classification): rooting the foil (dropping the per-file import Vapor gate) moves statusReport out of cleanup_ready and fails (false-positive guard); losing the healthCheck root moves it out of suppressed and fails (false-negative guard). golden_scope disambiguates the key only; repo_id comes from the body. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "request_body": {
           "repo_id": "swift_vapor_app",
@@ -8558,7 +8558,7 @@
         }
       },
       "POST /api/v0/code/dead-code/investigate?golden_scope=jenkins-ci-pipelines": {
-        "description": "#5378 Detector 3 (Jenkins Groovy pipeline entrypoint) golden discrimination. The Jenkinsfile pipeline entrypoint is rooted (groovy.jenkins_pipeline_entrypoint) and suppressed as a modeled root; the src/DeployHelper.groovy foil is an ordinary Groovy source file (not a Jenkins artifact), so its deployApp method, though it calls pipelineDeploy(, gets no dead_code_root_kind and must surface as an ambiguous (derived_candidate_only) dead-code candidate. The object-matches are closed on (name, classification): rooting the foil moves deployApp out of ambiguous and fails (false-positive guard); losing the Jenkinsfile root moves it out of suppressed and fails (false-negative guard). golden_scope disambiguates the key only; repo_id comes from the body. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies.",
+        "description": "#5378 Detector 3 (Jenkins Groovy pipeline entrypoint) golden discrimination. The Jenkinsfile pipeline entrypoint is rooted (groovy.jenkins_pipeline_entrypoint) and suppressed as a modeled root; the src/DeployHelper.groovy foil is an ordinary Groovy source file (not a Jenkins artifact), so its deployApp method, though it calls pipelineDeploy(, gets no dead_code_root_kind and must surface as an ambiguous (derived_candidate_only) dead-code candidate. The object-matches are closed on (name, classification): rooting the foil moves deployApp out of ambiguous and fails (false-positive guard); losing the Jenkinsfile root moves it out of suppressed and fails (false-negative guard). golden_scope disambiguates the key only; repo_id comes from the body. Content-store-only detector: no reducer/graph edge, so no Ifa materialized-edge row applies. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "request_body": {
           "repo_id": "jenkins-ci-pipelines",
@@ -8592,7 +8592,7 @@
         }
       },
       "POST /api/v0/code/dead-code/cross-repo": {
-        "description": "Cross-repo producer dead-code classification; asserts dead/live-by-consumer/unknown/suppressed bucket counts, bounded query shape, and truth envelope without provider keys.",
+        "description": "Cross-repo producer dead-code classification; asserts dead/live-by-consumer/unknown/suppressed bucket counts, bounded query shape, and truth envelope without provider keys. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "envelope": true,
         "request_body": {
           "repo_id": "python_comprehensive",
@@ -8631,7 +8631,7 @@
         }
       },
       "POST /api/v0/supply-chain/impact/suppressions": {
-        "description": "#5465 authenticated suppression-producer coverage. The committed body is a valid synthetic contract example. During the live gate, the helper replaces it in a temporary runtime snapshot with the exact short-lived body already created and drained, so this shape executes as an idempotent retry without creating another generation or queue item.",
+        "description": "#5465 authenticated suppression-producer coverage. The committed body is a valid synthetic contract example. During the live gate, the helper replaces it in a temporary runtime snapshot with the exact short-lived body already created and drained, so this shape executes as an idempotent retry without creating another generation or queue item. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "request_body": {
           "suppression_id": "golden-CVE-2026-00010",
           "justification": "ignored",
