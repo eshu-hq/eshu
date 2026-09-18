@@ -4,8 +4,12 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -177,14 +181,165 @@ func TestRepositoryDependencyTargetSetEmptyEdges(t *testing.T) {
 }
 
 // TestLoadRepositoryDependencyEdgesNilGraph proves loadRepositoryDependencyEdges
-// degrades to no edges rather than panicking when graph is nil.
+// degrades to no edges, untruncated, with no error, rather than panicking
+// when graph is nil.
 func TestLoadRepositoryDependencyEdgesNilGraph(t *testing.T) {
 	t.Parallel()
 
-	edges := loadRepositoryDependencyEdges(context.Background(), nil, querycontract.RepositoryAccessFilter{AllScopes: true})
-	if len(edges) != 0 {
-		t.Fatalf("nil graph produced %d edges, want 0", len(edges))
+	result := loadRepositoryDependencyEdges(context.Background(), nil, querycontract.RepositoryAccessFilter{AllScopes: true})
+	if len(result.Edges) != 0 {
+		t.Fatalf("nil graph produced %d edges, want 0", len(result.Edges))
 	}
+	if result.Truncated {
+		t.Error("nil graph reported Truncated = true, want false")
+	}
+	if result.Err != nil {
+		t.Errorf("nil graph reported Err = %v, want nil", result.Err)
+	}
+}
+
+// TestLoadRepositoryDependencyEdgesReportsQueryError proves a graph.Run
+// failure is surfaced on Err with no edges and Truncated=false, rather than
+// silently swallowed as it was before -- see
+// logRepositoryDependencyEdgesDegradation, which callers use to turn this
+// into a disclosed (not silent) is_dependency=false response.
+func TestLoadRepositoryDependencyEdgesReportsQueryError(t *testing.T) {
+	t.Parallel()
+
+	wantErr := errors.New("graph unavailable")
+	reader := querytestutil.FakeRepoGraphReader{
+		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+			return nil, wantErr
+		},
+	}
+	result := loadRepositoryDependencyEdges(context.Background(), reader, querycontract.RepositoryAccessFilter{AllScopes: true})
+	if !errors.Is(result.Err, wantErr) {
+		t.Fatalf("result.Err = %v, want %v", result.Err, wantErr)
+	}
+	if len(result.Edges) != 0 {
+		t.Errorf("result.Edges = %v, want none on error", result.Edges)
+	}
+	if result.Truncated {
+		t.Error("result.Truncated = true, want false on error")
+	}
+}
+
+// TestLoadRepositoryDependencyEdgesDetectsTruncation proves the edge
+// pre-pass over-fetches one row past repositoryDependencyClusterEdgeLimit
+// and, when the bound is hit, clips Edges to the bound and reports
+// Truncated=true -- so a caller can disclose that some true dependency
+// edges (and therefore some true is_dependency=true repos) may be missing,
+// instead of presenting the clipped set as complete.
+func TestLoadRepositoryDependencyEdgesDetectsTruncation(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]map[string]any, 0, repositoryDependencyClusterEdgeFetchLimit)
+	for i := 0; i < repositoryDependencyClusterEdgeFetchLimit; i++ {
+		rows = append(rows, map[string]any{
+			"source_id": fmt.Sprintf("repository:src-%06d", i),
+			"target_id": fmt.Sprintf("repository:dst-%06d", i),
+		})
+	}
+	reader := querytestutil.FakeRepoGraphReader{
+		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+			return rows, nil
+		},
+	}
+	result := loadRepositoryDependencyEdges(context.Background(), reader, querycontract.RepositoryAccessFilter{AllScopes: true})
+	if !result.Truncated {
+		t.Fatal("result.Truncated = false, want true for a read at the fetch-limit-plus-one bound")
+	}
+	if got, want := len(result.Edges), repositoryDependencyClusterEdgeLimit; got != want {
+		t.Fatalf("len(result.Edges) = %d, want %d (clipped to the bound, not the raw %d-row fetch)", got, want, repositoryDependencyClusterEdgeFetchLimit)
+	}
+	if result.Err != nil {
+		t.Errorf("result.Err = %v, want nil (truncation is not a query error)", result.Err)
+	}
+}
+
+// TestLoadRepositoryDependencyEdgesUntruncatedAtTheBound proves a read that
+// returns exactly repositoryDependencyClusterEdgeLimit rows (one under the
+// fetch-limit-plus-one bound) is NOT reported truncated: every edge that
+// exists was returned.
+func TestLoadRepositoryDependencyEdgesUntruncatedAtTheBound(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]map[string]any, 0, repositoryDependencyClusterEdgeLimit)
+	for i := 0; i < repositoryDependencyClusterEdgeLimit; i++ {
+		rows = append(rows, map[string]any{
+			"source_id": fmt.Sprintf("repository:src-%06d", i),
+			"target_id": fmt.Sprintf("repository:dst-%06d", i),
+		})
+	}
+	reader := querytestutil.FakeRepoGraphReader{
+		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+			return rows, nil
+		},
+	}
+	result := loadRepositoryDependencyEdges(context.Background(), reader, querycontract.RepositoryAccessFilter{AllScopes: true})
+	if result.Truncated {
+		t.Fatal("result.Truncated = true, want false for a read exactly at the bound")
+	}
+	if got, want := len(result.Edges), repositoryDependencyClusterEdgeLimit; got != want {
+		t.Fatalf("len(result.Edges) = %d, want %d", got, want)
+	}
+}
+
+// TestLogRepositoryDependencyEdgesDegradation proves the degradation logger
+// reports (and logs) degraded=true on error or truncation, and
+// degraded=false with no log line when the read was clean.
+func TestLogRepositoryDependencyEdgesDegradation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("clean read logs nothing", func(t *testing.T) {
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+		degraded := logRepositoryDependencyEdgesDegradation(context.Background(), logger, "repository_list", repositoryDependencyEdgeRead{})
+		if degraded {
+			t.Error("degraded = true for a clean read, want false")
+		}
+		if buf.Len() != 0 {
+			t.Errorf("log output for a clean read = %q, want empty", buf.String())
+		}
+	})
+
+	t.Run("error is logged and reported degraded", func(t *testing.T) {
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+		degraded := logRepositoryDependencyEdgesDegradation(context.Background(), logger, "repository_list", repositoryDependencyEdgeRead{Err: errors.New("boom")})
+		if !degraded {
+			t.Fatal("degraded = false for a read error, want true")
+		}
+		out := buf.String()
+		for _, want := range []string{"dependency-edge pre-pass degraded", "operation=repository_list", "error=true", "truncated=false"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("log output = %q, want it to contain %q", out, want)
+			}
+		}
+	})
+
+	t.Run("truncation is logged and reported degraded", func(t *testing.T) {
+		var buf bytes.Buffer
+		logger := slog.New(slog.NewTextHandler(&buf, nil))
+		edges := []repositoryDependencyEdge{{Source: "repository:a", Target: "repository:b"}}
+		degraded := logRepositoryDependencyEdgesDegradation(context.Background(), logger, "catalog_list", repositoryDependencyEdgeRead{Edges: edges, Truncated: true})
+		if !degraded {
+			t.Fatal("degraded = false for a truncated read, want true")
+		}
+		out := buf.String()
+		for _, want := range []string{"dependency-edge pre-pass degraded", "operation=catalog_list", "truncated=true", "error=false", "edge_count=1"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("log output = %q, want it to contain %q", out, want)
+			}
+		}
+	})
+
+	t.Run("nil logger reports degraded without logging", func(t *testing.T) {
+		degraded := logRepositoryDependencyEdgesDegradation(context.Background(), nil, "repository_list", repositoryDependencyEdgeRead{Truncated: true})
+		if !degraded {
+			t.Error("degraded = false for a truncated read with a nil logger, want true")
+		}
+	})
 }
 
 // nornicDBAndOrAfterWhitespace matches an AND/OR keyword immediately preceded

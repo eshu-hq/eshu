@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -199,5 +200,128 @@ func TestListRepositoriesScopedDependencyMarkerUsesScopedEdgePrePass(t *testing.
 	if !strings.Contains(capturedEdgeCypher, "s.id IN $allowed_repository_ids") ||
 		!strings.Contains(capturedEdgeCypher, "t.id IN $allowed_repository_ids") {
 		t.Fatalf("scoped edge query does not scope both endpoints to the grant:\n%s", capturedEdgeCypher)
+	}
+}
+
+// TestListRepositoriesDisclosesDegradedDependencyEvidenceOnEdgeQueryError
+// proves the response still succeeds (the primary repository page is
+// healthy) but discloses that is_dependency may be incomplete when the
+// dependency-edge pre-pass errors, rather than silently reporting every
+// repository as is_dependency=false with no indication anything went
+// wrong.
+func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *testing.T) {
+	t.Parallel()
+
+	reader := querytestutil.FakeRepoGraphReader{
+		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
+			return map[string]any{"total": int64(1)}, nil
+		},
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
+				return nil, errors.New("graph unavailable")
+			case strings.Contains(cypher, "MATCH (r:Repository)"):
+				return []map[string]any{{"id": "repository:lib", "name": "lib"}}, nil
+			default:
+				return []map[string]any{{"total": 1}}, nil
+			}
+		},
+	}
+
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=10", nil)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+
+	handler.listRepositories(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s (the primary page read is healthy; an auxiliary read error must not fail the whole request)", got, want, rec.Body.String())
+	}
+
+	var envelope querycontract.ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
+	}
+	if got, want := querycontract.BoolVal(data, "truncated"), true; got != want {
+		t.Errorf("truncated = %v, want %v (a degraded dependency read must be disclosed)", got, want)
+	}
+	reasons := querytestutil.RequireStringAnySlice(t, data, "partial_reasons")
+	if !querytestutil.AnySliceContains(reasons, repositoryDependencyEdgesDegradedReason) {
+		t.Fatalf("partial_reasons = %v, want it to contain %q", reasons, repositoryDependencyEdgesDegradedReason)
+	}
+	repositories := data["repositories"].([]any)
+	repo := repositories[0].(map[string]any)
+	if got := querycontract.BoolVal(repo, "is_dependency"); got {
+		t.Errorf("is_dependency = %v, want false (no edges could be read) -- disclosure is via partial_reasons, not by changing this field's type/shape", got)
+	}
+}
+
+// TestListRepositoriesDisclosesDegradedDependencyEvidenceOnTruncation proves
+// the same disclosure fires when the edge pre-pass hits its bound instead of
+// erroring: is_dependency for repositories within the returned edge set
+// still stays accurate, but the response marks itself truncated and names
+// the reason so a caller does not treat an is_dependency=false repository
+// outside that window as a confirmed negative.
+func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnTruncation(t *testing.T) {
+	t.Parallel()
+
+	truncatedEdgeRows := make([]map[string]any, 0, repositoryDependencyClusterEdgeFetchLimit)
+	for i := 0; i < repositoryDependencyClusterEdgeFetchLimit; i++ {
+		truncatedEdgeRows = append(truncatedEdgeRows, map[string]any{
+			"source_id": "repository:app",
+			"target_id": "repository:lib",
+		})
+	}
+	reader := querytestutil.FakeRepoGraphReader{
+		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
+			return map[string]any{"total": int64(1)}, nil
+		},
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
+				return truncatedEdgeRows, nil
+			case strings.Contains(cypher, "MATCH (r:Repository)"):
+				return []map[string]any{{"id": "repository:lib", "name": "lib"}}, nil
+			default:
+				return []map[string]any{{"total": 1}}, nil
+			}
+		},
+	}
+
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=10", nil)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+
+	handler.listRepositories(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+
+	var envelope querycontract.ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
+	}
+	if got, want := querycontract.BoolVal(data, "truncated"), true; got != want {
+		t.Errorf("truncated = %v, want %v (an edge-pre-pass truncation must be disclosed)", got, want)
+	}
+	reasons := querytestutil.RequireStringAnySlice(t, data, "partial_reasons")
+	if !querytestutil.AnySliceContains(reasons, repositoryDependencyEdgesDegradedReason) {
+		t.Fatalf("partial_reasons = %v, want it to contain %q", reasons, repositoryDependencyEdgesDegradedReason)
+	}
+	repositories := data["repositories"].([]any)
+	repo := repositories[0].(map[string]any)
+	if got := querycontract.BoolVal(repo, "is_dependency"); !got {
+		t.Errorf("is_dependency = %v, want true -- repository:lib IS within the (truncated-but-clipped) edge set, so its positive evidence stays accurate", got)
 	}
 }

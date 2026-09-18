@@ -207,10 +207,27 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	// repository_query.stage_started / repository_query.stage_completed log
 	// events (operation=repository_list, stage=dependency_cluster_edges).
 	clusterTimer := startRepositoryQueryStage(r.Context(), h.Logger, "repository_list", "", "dependency_cluster_edges")
-	dependencyEdges := loadRepositoryDependencyEdges(r.Context(), h.Neo4j, access)
-	clusters := buildRepositoryDependencyClusters(dependencyEdges)
-	dependencyTargets := repositoryDependencyTargetSet(dependencyEdges)
-	clusterTimer.Done(r.Context(), slog.Int("cluster_count", len(clusters)), slog.Int("edge_count", len(dependencyEdges)))
+	dependencyRead := loadRepositoryDependencyEdges(r.Context(), h.Neo4j, access)
+	clusters := buildRepositoryDependencyClusters(dependencyRead.Edges)
+	dependencyTargets := repositoryDependencyTargetSet(dependencyRead.Edges)
+	clusterTimer.Done(
+		r.Context(),
+		slog.Int("cluster_count", len(clusters)),
+		slog.Int("edge_count", len(dependencyRead.Edges)),
+		slog.Bool("truncated", dependencyRead.Truncated),
+		slog.Bool("error", dependencyRead.Err != nil),
+	)
+	// A failed or truncated pre-pass degrades rather than fails this
+	// otherwise-healthy page (see logRepositoryDependencyEdgesDegradation's
+	// doc comment for why), but must not silently present is_dependency or
+	// dependency_cluster grouping as complete: fold it into the same
+	// truncated/partial_reasons disclosure the page's own truncation uses.
+	dependencyDegraded := logRepositoryDependencyEdgesDegradation(r.Context(), h.Logger, "repository_list", dependencyRead)
+	responseTruncated := truncated || dependencyDegraded
+	var extraPartialReasons []string
+	if dependencyDegraded {
+		extraPartialReasons = append(extraPartialReasons, repositoryDependencyEdgesDegradedReason)
+	}
 
 	repos := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
@@ -229,7 +246,7 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, clusters))
 	}
 
-	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, responseTruncated, total, extraPartialReasons...), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 }
 
 func (h *Handler) listRepositoriesFromContent(ctx context.Context) ([]map[string]any, error) {
