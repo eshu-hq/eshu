@@ -117,9 +117,13 @@ func cloudSinkPairParams(pairs []cloudSinkPair) []map[string]any {
 // first statement classified it as single-workload. The second statement
 // therefore returns current_workload_id, every workload the function runs in
 // at that moment, on each row. A pair survives only when every such id is
-// non-empty and equal to the pair's own workload. That check and the sink
-// resolution come from one statement, so they see one snapshot; a function
-// that moved away or stopped invoking the action returns no rows at all.
+// non-empty and equal to the pair's own workload. Doing the check inside the
+// sink statement narrows the race from "between two round trips" to "during
+// one read statement"; it does not close it. Neither backend promises a
+// statement-level snapshot (Neo4j reads are read-committed), so a RUNS_IN
+// change that commits while the statement runs can still be missed, and the
+// next load corrects it. A function that moved away or stopped invoking the
+// action returns no rows at all.
 func revalidateCloudSinkRows(rows []map[string]any) ([]map[string]any, int) {
 	type pairKey struct{ uid, action, workloadID string }
 	key := func(row map[string]any) pairKey {
