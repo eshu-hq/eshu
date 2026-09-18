@@ -27,6 +27,14 @@ type ReadCase struct {
 	Cypher     string
 	Parameters map[string]any
 	MinRows    int
+	// WantRows, when non-nil, is the exact result the case must return, as a
+	// multiset: row order is ignored, and every row must match one expected
+	// row in every column. Values compare after JSON normalization, so an
+	// int64 from the driver equals an int here and a []any equals a []string.
+	// Use it for shapes where a backend can return the right number of rows
+	// with the wrong values -- a count that ignores DISTINCT, or a projection
+	// that echoes its expression text -- which MinRows cannot see.
+	WantRows []map[string]any
 }
 
 // WriteCase is one backend-neutral graph write shape.
@@ -52,14 +60,11 @@ type CaseResult struct {
 }
 
 // DefaultReadCorpus returns the deterministic read corpus used as the common
-// graph-query adapter smoke for Chunk 5 backend conformance.
-//
-// The corpus is deterministic for a given environment, but it is not fixed: the
-// value-flow cloud sink case is included only when
-// ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set to 1, true, or yes. It is absent by
-// default, not skipped, so a caller counting cases sees a different length.
+// graph-query adapter smoke for Chunk 5 backend conformance. It ends with the
+// value-flow cloud sink statements (#6690) and the answer-truth shapes (#6689),
+// which assert exact rows.
 func DefaultReadCorpus() []ReadCase {
-	return append([]ReadCase{
+	cases := append([]ReadCase{
 		{
 			Name:       "direct repository read",
 			Capability: CapabilityDirectGraphReads,
@@ -106,16 +111,14 @@ RETURN contains_count, file_count, entity_count`,
 			MinRows: 1,
 		},
 	}, valueFlowReadCases()...)
+	return append(cases, answerTruthReadCases()...)
 }
 
 // DefaultWriteCorpus returns the deterministic write corpus used as the common
-// Cypher executor smoke for Chunk 5 backend conformance.
-//
-// As with [DefaultReadCorpus], the value-flow cloud sink seed is included only
-// when ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set to 1, true, or yes, and is
-// absent by default rather than skipped.
+// Cypher executor smoke for Chunk 5 backend conformance, including the seeds
+// the value-flow and answer-truth read cases read back.
 func DefaultWriteCorpus() []WriteCase {
-	return append([]WriteCase{
+	cases := append([]WriteCase{
 		{
 			Name:       "canonical repository upsert",
 			Capability: CapabilityCanonicalWrites,
@@ -249,6 +252,7 @@ SET rel.evidence_source = 'projector/canonical',
 			},
 		},
 	}, valueFlowWriteCases()...)
+	return append(cases, answerTruthWriteCases()...)
 }
 
 // backendConformanceContainmentParams returns the deterministic fixture values
@@ -295,6 +299,11 @@ func RunReadCorpus(ctx context.Context, graph GraphQuery, cases []ReadCase) (Rep
 		}
 		if tc.MinRows > 0 && len(rows) < tc.MinRows {
 			return Report{}, fmt.Errorf("read case %q returned %d rows, want at least %d", tc.Name, len(rows), tc.MinRows)
+		}
+		if tc.WantRows != nil {
+			if err := compareReadRows(rows, tc.WantRows); err != nil {
+				return Report{}, fmt.Errorf("read case %q: %w", tc.Name, err)
+			}
 		}
 		report.Results = append(report.Results, CaseResult{
 			Name:       tc.Name,

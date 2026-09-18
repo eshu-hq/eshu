@@ -4,80 +4,28 @@
 package backendconformance
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
 
-// The value-flow pair reproduces defects that are open upstream, so it fails
-// against NornicDB by design. Gating it behind its own opt-in keeps it runnable
-// on demand — which is how anyone checks whether upstream has landed a fix —
-// without a known-broken backend blocking every unrelated change in the repo.
-//
-// The pair is not disabled and nothing about it is weakened: with the variable
-// set it runs exactly as before, and its failure still names the case.
-func TestValueFlowPairIsOptIn(t *testing.T) {
-	t.Setenv(valueFlowCasesEnv, "")
-	if valueFlowCasesEnabled() {
-		t.Fatal("value-flow cases must be off when the variable is unset")
-	}
-	for _, off := range []string{"", "0", "false", "no", " "} {
-		t.Setenv(valueFlowCasesEnv, off)
-		if valueFlowCasesEnabled() {
-			t.Fatalf("value-flow cases must stay off for %q", off)
+// TestValueFlowCasesAreInTheDefaultCorpora pins the cases into the default
+// corpora with exact rows. They used to sit behind an opt-in because the old
+// single statement failed on NornicDB; an opt-in would now only hide a
+// regression from the blocking live gate.
+func TestValueFlowCasesAreInTheDefaultCorpora(t *testing.T) {
+	for _, name := range []string{valueFlowWorkloadRowsCaseName, valueFlowTargetsCaseName} {
+		c, ok := readCaseByName(name)
+		if !ok {
+			t.Fatalf("read case %q is not in DefaultReadCorpus", name)
 		}
-	}
-	for _, on := range []string{"1", "true", "TRUE", "yes", " 1 "} {
-		t.Setenv(valueFlowCasesEnv, on)
-		if !valueFlowCasesEnabled() {
-			t.Fatalf("value-flow cases must be on for %q", on)
+		if len(c.WantRows) == 0 {
+			t.Fatalf("read case %q must assert exact rows, got none", name)
 		}
-	}
-}
-
-// Off by default, the corpora must not carry the pair at all — otherwise the
-// live run would still execute it and still go red.
-func TestValueFlowPairAbsentWhenOptOut(t *testing.T) {
-	t.Setenv(valueFlowCasesEnv, "")
-	for _, c := range DefaultReadCorpus() {
-		if strings.Contains(c.Name, "value-flow") {
-			t.Fatalf("read corpus still carries %q with the opt-in unset", c.Name)
-		}
-	}
-	for _, c := range DefaultWriteCorpus() {
-		if strings.Contains(c.Name, "value-flow") {
-			t.Fatalf("write corpus still carries %q with the opt-in unset", c.Name)
-		}
-	}
-}
-
-func TestValueFlowPairIsWiredIntoDefaults(t *testing.T) {
-	t.Setenv(valueFlowCasesEnv, "1")
-	var readFound bool
-	for _, c := range DefaultReadCorpus() {
-		if c.Name == valueFlowReadCaseName {
-			readFound = true
-			if c.MinRows < 1 {
-				t.Fatalf("value-flow read case MinRows = %d, want >= 1 so an empty result fails", c.MinRows)
-			}
-			// The Cypher itself is pinned by equality, not by fragments:
-			// TestValueFlowReadCaseEqualsTheProductionStatement in this package
-			// asserts this case's statement equals reducer.ValueFlowCloudSinkTargetsCypher
-			// outright. An earlier fragment list
-			// lived here and was defeated three times by mutations it did not
-			// enumerate -- decomposing the multi-hop MATCH, dropping the
-			// WHERE size(workloads) = 1 filter, and truncating the RETURN -- each
-			// of which keeps the name and MinRows and still returns a row on a
-			// conforming backend. A list can only bound the mutations someone
-			// thought of. This test keeps only the wiring checks that do not need
-			// the production constant, which is unexported in that package.
-		}
-	}
-	if !readFound {
-		t.Fatal("value-flow read case is not in DefaultReadCorpus")
 	}
 	var writeFound bool
 	for _, c := range DefaultWriteCorpus() {
-		if c.Name == "value-flow cloud sink seed" {
+		if c.Name == valueFlowWriteCaseName {
 			writeFound = true
 			if !c.RequireAtomicGroup {
 				t.Fatal("value-flow seed must commit atomically")
@@ -87,4 +35,96 @@ func TestValueFlowPairIsWiredIntoDefaults(t *testing.T) {
 	if !writeFound {
 		t.Fatal("value-flow seed case is not in DefaultWriteCorpus")
 	}
+}
+
+// TestValueFlowWorkloadRowsKeepTheAmbiguousFunction guards the case's intent:
+// the first statement must return the two-workload function's rows, because
+// excluding it is the loader's Go-side job. A case that expected the exclusion
+// here would pass against a backend that silently drops rows.
+func TestValueFlowWorkloadRowsKeepTheAmbiguousFunction(t *testing.T) {
+	c, ok := readCaseByName(valueFlowWorkloadRowsCaseName)
+	if !ok {
+		t.Fatalf("read case %q is absent", valueFlowWorkloadRowsCaseName)
+	}
+	workloads := map[any]struct{}{}
+	for _, row := range c.WantRows {
+		if row["function_uid"] == valueFlowTwoWorkloadFunctionUID {
+			workloads[row["workload_id"]] = struct{}{}
+		}
+	}
+	if len(workloads) != 2 {
+		t.Fatalf("two-workload function has %d expected workloads, want 2", len(workloads))
+	}
+}
+
+func TestAnswerTruthCasesAssertExactRows(t *testing.T) {
+	var found int
+	for _, c := range DefaultReadCorpus() {
+		if !strings.HasPrefix(c.Name, "answer-truth ") {
+			continue
+		}
+		found++
+		if len(c.WantRows) == 0 {
+			t.Errorf("answer-truth case %q must assert exact rows", c.Name)
+		}
+	}
+	if found != 4 {
+		t.Fatalf("answer-truth read cases = %d, want 4", found)
+	}
+}
+
+func TestCompareReadRowsIsAnExactMultiset(t *testing.T) {
+	want := []map[string]any{
+		{"id": "a", "count": 1, "labels": []string{"X"}},
+		{"id": "b", "count": 2, "labels": []string{"Y"}},
+	}
+	// Driver-typed values in a different order match.
+	got := []map[string]any{
+		{"id": "b", "count": int64(2), "labels": []any{"Y"}},
+		{"id": "a", "count": int64(1), "labels": []any{"X"}},
+	}
+	if err := compareReadRows(got, want); err != nil {
+		t.Fatalf("equal multisets reported a difference: %v", err)
+	}
+	for name, bad := range map[string][]map[string]any{
+		"missing row":      {{"id": "a", "count": 1, "labels": []string{"X"}}},
+		"extra row":        append(append([]map[string]any(nil), got...), map[string]any{"id": "c", "count": 3, "labels": []string{}}),
+		"wrong value":      {{"id": "a", "count": 3, "labels": []string{"X"}}, {"id": "b", "count": 2, "labels": []string{"Y"}}},
+		"echoed text":      {{"id": "a", "count": 1, "labels": []string{"X"}}, {"id": "source.id", "count": 2, "labels": []string{"Y"}}},
+		"duplicated row":   {{"id": "a", "count": 1, "labels": []string{"X"}}, {"id": "a", "count": 1, "labels": []string{"X"}}},
+		"missing a column": {{"id": "a", "count": 1}, {"id": "b", "count": 2, "labels": []string{"Y"}}},
+	} {
+		if err := compareReadRows(bad, want); err == nil {
+			t.Errorf("%s: compareReadRows accepted %v", name, bad)
+		}
+	}
+}
+
+// TestRunReadCorpusFailsOnWrongRows proves the runner enforces WantRows, not
+// only the comparison helper: a backend that returns the right row count with a
+// wrong value must fail the case.
+func TestRunReadCorpusFailsOnWrongRows(t *testing.T) {
+	c := ReadCase{
+		Name:       "exact",
+		Capability: CapabilityDirectGraphReads,
+		Cypher:     "MATCH (n) RETURN count(n) AS c",
+		WantRows:   []map[string]any{{"c": 1}},
+	}
+	wrong := &recordingGraphQuery{rows: []map[string]any{{"c": int64(3)}}}
+	if _, err := RunReadCorpus(context.Background(), wrong, []ReadCase{c}); err == nil {
+		t.Fatal("RunReadCorpus accepted a wrong value for an exact-row case")
+	}
+	right := &recordingGraphQuery{rows: []map[string]any{{"c": int64(1)}}}
+	if _, err := RunReadCorpus(context.Background(), right, []ReadCase{c}); err != nil {
+		t.Fatalf("RunReadCorpus rejected the exact rows: %v", err)
+	}
+}
+
+func readCaseByName(name string) (ReadCase, bool) {
+	for _, c := range DefaultReadCorpus() {
+		if c.Name == name {
+			return c, true
+		}
+	}
+	return ReadCase{}, false
 }

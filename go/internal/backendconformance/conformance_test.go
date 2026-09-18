@@ -16,8 +16,17 @@ import (
 func TestDefaultReadCorpusRunsAgainstGraphQuery(t *testing.T) {
 	t.Parallel()
 
+	// Exact-row cases get their own expected rows back; every other case gets
+	// one placeholder row, which satisfies its minimum.
+	exact := map[string][]map[string]any{}
+	for _, c := range DefaultReadCorpus() {
+		if c.WantRows != nil {
+			exact[c.Cypher] = c.WantRows
+		}
+	}
 	query := &recordingGraphQuery{
-		rows: []map[string]any{{"ok": true}},
+		rows:     []map[string]any{{"ok": true}},
+		byCypher: exact,
 	}
 	report, err := RunReadCorpus(context.Background(), query, DefaultReadCorpus())
 	if err != nil {
@@ -289,7 +298,10 @@ func TestWriteCorpusReportsExecutorErrorsWithCaseName(t *testing.T) {
 type recordingGraphQuery struct {
 	calls []recordedGraphQueryCall
 	rows  []map[string]any
-	err   error
+	// byCypher, when it has an entry for a statement, answers that statement
+	// instead of rows.
+	byCypher map[string][]map[string]any
+	err      error
 }
 
 type recordedGraphQueryCall struct {
@@ -299,6 +311,9 @@ type recordedGraphQueryCall struct {
 
 func (q *recordingGraphQuery) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 	q.calls = append(q.calls, recordedGraphQueryCall{cypher: cypher, parameters: params})
+	if rows, ok := q.byCypher[cypher]; ok {
+		return rows, q.err
+	}
 	return q.rows, q.err
 }
 
