@@ -86,6 +86,36 @@ func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereCla
 		return nil, err
 	}
 
+	// #6786 review follow-up (F3): whereClause anchors on w.id, w.name, or
+	// both (serviceLookupWhereClause's `w.name = $service_name OR
+	// w.id = $service_name`), always matched against serviceName above.
+	// Treat a row whose anchored propert(y/ies) never equal serviceName as
+	// no row at all -- the same defense-in-depth guard GetEntityContext
+	// applies -- rather than trust it just because RunSingle returned
+	// something. An OR clause admits a row that matches EITHER property,
+	// matching what the Cypher itself would have required.
+	if row != nil {
+		hasIDAnchor := strings.Contains(whereClause, "w.id =")
+		hasNameAnchor := strings.Contains(whereClause, "w.name =")
+		idMatches := hasIDAnchor && querycontract.StringVal(row, "id") == serviceName
+		nameMatches := hasNameAnchor && querycontract.StringVal(row, "name") == serviceName
+		if (hasIDAnchor || hasNameAnchor) && !idMatches && !nameMatches {
+			// #6786 review follow-up (F5): backend anchor drift, not
+			// ordinary authorization -- see the matching guard in
+			// GetEntityContext (handler.go) for why this logs.
+			if h.Logger != nil {
+				h.Logger.WarnContext(ctx,
+					"workload context graph row anchor did not match the requested selector",
+					"requested_selector", serviceName,
+					"returned_id", querycontract.StringVal(row, "id"),
+					"returned_name", querycontract.StringVal(row, "name"),
+					"reason", "backend_anchor_mismatch",
+				)
+			}
+			row = nil
+		}
+	}
+
 	if row == nil {
 		return nil, nil
 	}
@@ -366,6 +396,15 @@ func (h *Handler) FetchWorkloadRepositoryForAccess(
 			continue
 		}
 		if _, exists := seen[repoID]; exists {
+			continue
+		}
+		// #6786 review follow-up (F1): re-check every candidate against the
+		// grant in Go rather than trusting the backend's WHERE alone. This
+		// query's `<-[:DEFINES]-` MATCH pattern is itself a backward pattern
+		// with an inner WHERE, the same shape class this PR already proved
+		// NornicDB v1.3.3 can silently fail to apply; a candidate that slips
+		// through must not be admitted just because it reached this loop.
+		if !access.AllowsRepositoryID(repoID) {
 			continue
 		}
 		seen[repoID] = struct{}{}

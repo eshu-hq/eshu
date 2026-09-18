@@ -5,7 +5,6 @@ package querytestutil
 
 import (
 	"regexp"
-	"testing"
 )
 
 // nornicdbBrokenAndOrPattern matches an AND or OR keyword whose immediately
@@ -18,6 +17,22 @@ import (
 // before AND/OR, however the line got there) are unaffected.
 var nornicdbBrokenAndOrPattern = regexp.MustCompile(`[\n\t](AND|OR)\b`)
 
+// cypherAssertionT is the minimal test-reporting contract
+// AssertCypherHasNoBrokenAndOr needs: `Helper` plus `Fatalf`. `*testing.T`
+// satisfies it, so every production call site is unaffected; the sibling
+// nornicdb_and_or_whitespace_test.go's recordingT double also satisfies it,
+// which is what lets that file's seeded-violation test observe a RED case
+// fail without failing the test binary itself.
+//
+// The standard library's testing.TB carries an unexported method
+// specifically to block implementations outside package testing, so a
+// double for it cannot exist at all; this narrower interface is the
+// alternative that keeps the guard genuinely testable.
+type cypherAssertionT interface {
+	Helper()
+	Fatalf(format string, args ...any)
+}
+
 // AssertCypherHasNoBrokenAndOr fails t if cypher contains an AND/OR keyword
 // immediately preceded by a newline or tab instead of a space. Call it with
 // the exact production-rendered Cypher text a test's graph-reader double
@@ -25,7 +40,7 @@ var nornicdbBrokenAndOrPattern = regexp.MustCompile(`[\n\t](AND|OR)\b`)
 // multi-line `AND (...)`/`OR (...)` group without a leading space is
 // reintroducing the #6786 NornicDB v1.3.3 defect, and this assertion catches
 // it at the Go-string level, before a live backend has to.
-func AssertCypherHasNoBrokenAndOr(t *testing.T, cypher string) {
+func AssertCypherHasNoBrokenAndOr(t cypherAssertionT, cypher string) {
 	t.Helper()
 	if loc := nornicdbBrokenAndOrPattern.FindStringIndex(cypher); loc != nil {
 		t.Fatalf(

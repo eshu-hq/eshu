@@ -54,8 +54,9 @@ database at once; `retryLiveWrite` (entity) / `retrySelectorLiveWrite`
 `go test ./internal/query/entity ./internal/query/impacttrace` without
 `-p 1`) up to 5 times with a short backoff, rather than failing the whole
 fixture on a conflict that a NornicDB write's own commit path resolves.
-Proved with 3 consecutive green runs of that exact parallel command against
-NornicDB.
+Proved with 5 consecutive green runs of that exact parallel command against
+NornicDB (P3-c review follow-up: this reconciles an earlier draft of this
+note, which said 3; the executor actually ran 5).
 
 Pre-fix, 6 of 9 live assertions failed on NornicDB (0 of 9 on Neo4j):
 `TestLiveScopedWorkloadContextGrant/direct_grant_admits` and
@@ -122,9 +123,87 @@ No index or schema change. The one measurable regression (name-lookup path,
 grant bypass on that path (see Defect above) and stays well within the
 existing per-request budget for a rarely-hit fallback stage.
 
+## Review follow-up (F1-F5)
+
+An independent review of the initial fix (b5c6bac81) blocked on 5 findings,
+all fixed here, TDD, with live re-proof:
+
+- **F1 (P1, false-green-proof):** `FetchWorkloadRepositoryForAccess`'s
+  `<-[:DEFINES]-` MATCH carries its own inner grant `WHERE` -- itself a
+  backward-pattern shape this PR's Defect section already distrusts on
+  NornicDB -- and Go never re-checked its returned `repo_id` against the
+  grant. The original live seed's ungranted workload had NO DEFINES edge at
+  all, so the read returning zero rows proved nothing about whether the
+  WHERE actually filters. Fixed: every DEFINES candidate is now re-checked
+  with `access.AllowsRepositoryID` before admission (workload_context.go).
+  Both live seeds (`scopedGrantLiveSeed`, `selectorLiveSeed`) now give every
+  workload a DEFINES edge from its own repository, including the ungranted
+  ones, so the read has something real to filter. Unit regression:
+  `TestFetchWorkloadRepositoryForAccessDropsUngrantedRowDespiteBackendWhere`
+  and `TestGetWorkloadContextUngrantedDefinesRowReturnsNotFound`
+  (workload_repository_selection_test.go), each proven RED against the
+  pre-fix code, then GREEN.
+- **F2 (P1, live NornicDB defect in UNCHANGED code):** removing
+  GetEntityContext's EXISTS block (this PR's main fix) newly exposes scoped
+  Workload/WorkloadInstance entity-context reads to
+  `queryselector.HydrateResolvedEntityRepoIdentity`'s DEFINES-based repo
+  backfill (entity_repo_identity.go), which this PR had not touched or
+  proven. Live-probed and confirmed broken on NornicDB v1.3.3, correct on
+  Neo4j: the query's `UNWIND $entity_ids AS entity_id` loop variable
+  collided with the `RETURN entity_id` column alias, so NornicDB returned
+  the literal UNWIND value text and the literal strings `repo.id`/`repo.name`
+  instead of real data -- hydration silently never worked on that backend
+  (failed closed, no leak, but also no legitimate scoped access). Fixed:
+  renamed the loop variable to `requested_id`, project `e.id AS entity_id`
+  from the matched node, and replaced the `(repo)-[:DEFINES]->(direct:
+  Workload) WHERE direct = e` node-equality comparison with
+  `(repo)-[:DEFINES]->(e)` directly. **Intentional behavior change:** a
+  scoped caller's `GET /api/v0/entities/{id}/context` for a Workload or
+  WorkloadInstance id now returns 200 with the correct repo when in-grant
+  (previously always 404, on both backends, because the retired EXISTS block
+  never matched a non-File-contained entity for a scoped caller at all) and
+  404 when out-of-grant. Live regression added to `TestLiveScopedEntityContextGrant`
+  (`workload_entity_id_*`, `workload_instance_entity_id_*`), proven RED on
+  NornicDB / GREEN on Neo4j pre-fix, GREEN on both post-fix. Unit regression:
+  `TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate`
+  (queryselector/entity_repo_identity_test.go) updated to pin the new shape.
+- **F3 (P2-blocking, defense-in-depth parity):** the entity route's row-id
+  equality guard had no equivalent on the workload selector or workload
+  context paths. Added: `ResolveTraceWorkloadSelector`'s id-lookup now
+  requires the row's own `id` to equal the selector;
+  `admittedWorkloadCandidates` (its name-lookup path) drops any row whose
+  `name` differs from the selector; `FetchWorkloadContextForOperation`
+  rejects a base row whose anchored `id`/`name` does not equal the resolved
+  selector (including the OR-combined `w.name = $service_name OR
+  w.id = $service_name` shape `serviceLookupWhereClause` exercises). Unit
+  regressions with mismatched fake rows in impact_trace_workload_selection_test.go
+  and workload_repository_selection_test.go (via `FetchWorkloadContextForOperation`
+  callers).
+- **F4 (P2-blocking, repo MUST rule):** `AssertCypherHasNoBrokenAndOr` had no
+  seeded-violation RED/GREEN pair. Added
+  `querytestutil.TestAssertCypherHasNoBrokenAndOrSeededViolations`, table-driven
+  over the exact RED (`\n\tAND`, `\nOR`, `\n \tAND`) and GREEN (`\n\t AND`,
+  `\n  AND`, `\n\tORDER BY`, `\n\tOPTIONAL MATCH`) strings the review named,
+  using a `cypherAssertionT` recording double (`testing.TB` cannot be
+  implemented outside package `testing`).
+- **F5 (telemetry):** the Go-side grant-decision and row-id-mismatch guards
+  produced no operator signal. Added a `Warn` log (no counter -- a counter
+  needs a telemetry contract entry and docs this follow-up does not include;
+  flagged to the reviewer) at the two id/anchor-mismatch guards that signal
+  backend anchor drift specifically (`GetEntityContext`,
+  `FetchWorkloadContextForOperation`): `requested_entity_id`/
+  `returned_entity_id` and `requested_selector`/`returned_id`/`returned_name`
+  respectively, both tagged `reason=backend_anchor_mismatch`. Ordinary grant
+  denials (the common, expected case) still log nothing, to avoid noise.
+  `ResolveTraceWorkloadSelector`'s equivalent F3 guards have no logger
+  threaded through their signature; adding one is a signature change onto
+  `family_impact_trace_deployment.go`'s caller, deferred pending owner
+  direction.
+
 ## No-Observability-Change:
 
-No new metric, span, or log field. `service.StartServiceQueryStage`/
-`timer.Done` call sites and their attributes are unchanged; an operator sees
-the same `workload_lookup`/`repository_lookup`/`instance_lookup` stage timing
-as before, just against the corrected query shape.
+`service.StartServiceQueryStage`/`timer.Done` call sites and their attributes
+are unchanged; an operator sees the same `workload_lookup`/
+`repository_lookup`/`instance_lookup` stage timing as before, just against
+the corrected query shape. This no longer covers the whole diff: see F5
+above for the two new `Warn` logs the review round added.

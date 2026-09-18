@@ -50,15 +50,34 @@ func HydrateResolvedEntityRepoIdentity(
 		return false, nil
 	}
 
+	// #6786 review follow-up (F2), proven live against NornicDB v1.3.3 with
+	// schema applied: the UNWIND loop variable used to be named `entity_id`,
+	// the SAME name as the RETURN column alias below. NornicDB resolves that
+	// collision by returning the raw UNWIND value's literal text as the
+	// first column (e.g. `'wl-out'`) instead of the matched node's real id,
+	// and returns the literal property-reference text `repo.id`/`repo.name`
+	// for the coalesced columns -- garbage the caller could never match back
+	// to a request entity, so hydration silently never worked for a Workload
+	// or WorkloadInstance entity on that backend (it failed closed: Go never
+	// matched a row to an entity, so no repo_id was ever trusted, just never
+	// backfilled either). Renaming the loop variable to `requested_id` and
+	// projecting `e.id AS entity_id` from the matched node removes the
+	// collision. The `(repo:Repository)-[:DEFINES]->(direct:Workload) WHERE
+	// direct = e` node-equality comparison is also retired in favor of
+	// anchoring the DEFINES pattern directly on `e`
+	// (`(repo:Repository)-[:DEFINES]->(e)`): DEFINES edges only ever target
+	// Workload nodes in the schema, so dropping the `:Workload` label on `e`
+	// here changes nothing for a non-Workload `e` (the OPTIONAL MATCH simply
+	// finds nothing), and it removes a second pattern shape this PR has not
+	// proven safe on NornicDB independently of the alias collision.
 	query := `
-		UNWIND $entity_ids AS entity_id
-		MATCH (e) WHERE e.id = entity_id
-		OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(direct:Workload)
-		WHERE direct = e
-		` + access.GraphPredicate("repo") + `
+		UNWIND $entity_ids AS requested_id
+		MATCH (e) WHERE e.id = requested_id
+		OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(e)
+		` + access.GraphWhereClause("repo") + `
 		OPTIONAL MATCH (repoViaInstance:Repository)-[:DEFINES]->(instanceWorkload:Workload)<-[:INSTANCE_OF]-(e)
 		` + access.GraphWhereClause("repoViaInstance") + `
-		RETURN entity_id,
+		RETURN e.id AS entity_id,
 		       coalesce(repo.id, repoViaInstance.id) AS repo_id,
 		       coalesce(repo.name, repoViaInstance.name) AS repo_name
 	`

@@ -74,7 +74,15 @@ func ResolveTraceWorkloadSelector(ctx context.Context, reader querycontract.Grap
 	if err != nil {
 		return "", err
 	}
-	if idRow != nil && querycontract.WorkloadGrantAdmitted(access, querycontract.StringVal(idRow, "repo_id"), querycontract.StringSliceVal(idRow, "defining")) {
+	// #6786 review follow-up (F3): require the returned row's own id to equal
+	// the selector, the same defense-in-depth guard GetEntityContext
+	// (entity/handler.go) applies. workloadSelectorRowCypher's WHERE is a
+	// single-line `w.id = $service_name` with no embedded grant predicate, so
+	// this anchor is not the multi-line shape #6786 proved NornicDB v1.3.3
+	// can drop -- but a backend that ever regresses that anchor must not go
+	// unnoticed by falling through to a DIFFERENT in-grant workload's data.
+	if idRow != nil && querycontract.StringVal(idRow, "id") == selector &&
+		querycontract.WorkloadGrantAdmitted(access, querycontract.StringVal(idRow, "repo_id"), querycontract.StringSliceVal(idRow, "defining")) {
 		return querycontract.StringVal(idRow, "id"), nil
 	}
 
@@ -82,7 +90,7 @@ func ResolveTraceWorkloadSelector(ctx context.Context, reader querycontract.Grap
 	if err != nil {
 		return "", err
 	}
-	nameAdmitted, err := admittedWorkloadCandidates(access, nameRows)
+	nameAdmitted, err := admittedWorkloadCandidates(access, selector, nameRows)
 	if err != nil {
 		return "", err
 	}
@@ -118,16 +126,26 @@ func workloadSelectorRowCypher(whereClause string) string {
 }
 
 // admittedWorkloadCandidates filters rows (as returned by a
-// workloadSelectorRowCypher read) to those access's grant admits, in the same
-// order. It fails closed with errTraceWorkloadSelectorCandidatesExceedBound
-// when rows reached the fetch bound, rather than deciding admission/ambiguity
-// from a page that may be missing granted rows past the bound.
-func admittedWorkloadCandidates(access querycontract.RepositoryAccessFilter, rows []map[string]any) ([]map[string]any, error) {
+// workloadSelectorRowCypher name-lookup read) to those whose own `name`
+// equals selector AND access's grant admits, in the same order. The name
+// check is a defense-in-depth row-equality guard (#6786 review follow-up,
+// F3): workloadSelectorRowCypher's WHERE is a single-line
+// `w.name = $service_name` with no embedded grant predicate, so it is not
+// the multi-line shape NornicDB v1.3.3 was proven to drop, but a backend
+// that ever regressed that anchor must not silently hand back a different,
+// merely-admitted workload's data. It fails closed with
+// errTraceWorkloadSelectorCandidatesExceedBound when rows reached the fetch
+// bound, rather than deciding admission/ambiguity from a page that may be
+// missing granted rows past the bound.
+func admittedWorkloadCandidates(access querycontract.RepositoryAccessFilter, selector string, rows []map[string]any) ([]map[string]any, error) {
 	if len(rows) > traceWorkloadSelectorCandidateBound {
 		return nil, fmt.Errorf("%w: %d", errTraceWorkloadSelectorCandidatesExceedBound, len(rows))
 	}
 	admitted := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
+		if querycontract.StringVal(row, "name") != selector {
+			continue
+		}
 		repoID := querycontract.StringVal(row, "repo_id")
 		definingRepoIDs := querycontract.StringSliceVal(row, "defining")
 		if querycontract.WorkloadGrantAdmitted(access, repoID, definingRepoIDs) {

@@ -13,10 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
-	"github.com/eshu-hq/eshu/go/internal/query/service"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 
-	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -345,8 +343,25 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	// v1.3.3): a row whose id does not match the requested entity is treated
 	// as no row at all, the same not-found path a genuinely absent entity
 	// takes, rather than trusted as an answer to this request.
-	if row != nil && querycontract.StringVal(row, "id") != entityID {
-		row = nil
+	if row != nil {
+		if gotID := querycontract.StringVal(row, "id"); gotID != entityID {
+			// #6786 review follow-up (F5): this guard firing means the
+			// backend returned a DIFFERENT node than the one anchored on --
+			// backend anchor drift, not ordinary authorization, and an
+			// operator needs to see it. Log outside the `if h.Logger != nil`
+			// gate would panic on a nil Handler in tests that construct one
+			// without a logger; every other Logger use in this package
+			// checks the same way (context_content.go).
+			if h.Logger != nil {
+				h.Logger.WarnContext(r.Context(),
+					"entity context graph row id did not match the requested entity id",
+					"requested_entity_id", entityID,
+					"returned_entity_id", gotID,
+					"reason", "backend_anchor_mismatch",
+				)
+			}
+			row = nil
+		}
 	}
 
 	if row == nil {
@@ -406,78 +421,4 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	response["result_limits"] = contextResultLimits(response, entityID)
 	response["partial_reasons"] = querycontract.ContextPartialReasons(response)
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, contextTruthEnvelope(h.profile()))
-}
-
-// GetServiceContext retrieves the context for a service by name. Exported so the staying graph-read-error tests keep driving the handler; see #6060.
-func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
-	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.context_overview") {
-		querycontract.WriteContractError(
-			w,
-			r,
-			http.StatusNotImplemented,
-			"service context requires authoritative platform context truth",
-			"unsupported_capability",
-			"platform_impact.context_overview",
-			h.profile(),
-			querycontract.RequiredProfile("platform_impact.context_overview"),
-		)
-		return
-	}
-
-	serviceName := querycontract.PathParam(r, "service_name")
-	if serviceName == "" {
-		querycontract.WriteError(w, http.StatusBadRequest, "service_name is required")
-		return
-	}
-	if querycontract.RepositoryAccessFilterFromContext(r.Context()).Empty() {
-		querycontract.WriteError(w, http.StatusNotFound, "service not found")
-		return
-	}
-
-	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_context")
-	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
-		return
-	}
-
-	if ctx == nil {
-		querycontract.WriteError(w, http.StatusNotFound, "service not found")
-		return
-	}
-	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.QueryEnrichmentOptions{
-		IncludeRelatedModuleUsage: true,
-		Logger:                    h.Logger,
-		Operation:                 "service_context",
-	}); err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
-			return
-		}
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service context: %v", err))
-		return
-	}
-
-	if langBreakdown, toolBreakdown := repository.QueryServiceTechFingerprint(r.Context(), h.Neo4j, ctx); len(langBreakdown) > 0 || len(toolBreakdown) > 0 {
-		if len(langBreakdown) > 0 {
-			ctx["language_breakdown"] = langBreakdown
-		}
-		if len(toolBreakdown) > 0 {
-			ctx["source_tool_breakdown"] = toolBreakdown
-		}
-	}
-
-	// Promote "limitations" into the OpenAPI-promised "partial_reasons" field
-	// (round-11 review follow-up to #5764, PR #5936): the WorkloadContext
-	// schema this route shares with getWorkloadContext documents
-	// "partial_reasons" as always present, and getWorkloadContext already
-	// makes that true. Without this call an infrastructure-read degradation
-	// or truncation landed in "limitations" but never reached the stable
-	// partial-reason field the contract promises HTTP and MCP callers.
-	ctx["partial_reasons"] = querycontract.ContextPartialReasons(ctx)
-	querycontract.WriteSuccess(w, r, http.StatusOK, ctx, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisHybrid, "resolved from service context and platform evidence"))
 }

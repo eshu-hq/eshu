@@ -251,6 +251,20 @@ func makeDeploymentConfigInfluenceHandler() *Handler {
 				"K8sResource OR":                      {},
 				"fn.name IN":                          {},
 				"DEPLOYMENT_SOURCE":                   {},
+				// ResolveTraceWorkloadSelector's name lookup (#6786 F3: its
+				// id lookup now requires the returned row's own id to equal
+				// the selector, and "svc-1" != "test-service", so it falls
+				// through here) -- same row as the generic RunSingleByMatch
+				// entry above, keyed to the specific fragment its Run call
+				// issues.
+				"w.name = $service_name": {
+					{
+						"id":      "svc-1",
+						"name":    "test-service",
+						"kind":    "service",
+						"repo_id": "repo-1",
+					},
+				},
 			},
 		},
 		Content: querytestutil.FakePortContentStore{
@@ -324,8 +338,8 @@ func TestInvestigateDeploymentConfigInfluenceReturnsConflictForDuplicateWorkload
 		}
 		if strings.Contains(cypher, "w.name = $service_name") {
 			return []map[string]any{
-				{"id": "workload:orders-1"},
-				{"id": "workload:orders-2"},
+				{"id": "workload:orders-1", "name": "orders"},
+				{"id": "workload:orders-2", "name": "orders"},
 			}, nil
 		}
 		return nil, nil
@@ -376,6 +390,13 @@ func TestInvestigateDeploymentConfigInfluenceDisclosesSaturatedUpstreamEvidence(
 					"K8sResource OR":                      {},
 					"fn.name IN":                          {},
 					"DEPLOYMENT_SOURCE":                   {{"instance_id": "instance:test-service", "repo_id": "repo-gitops", "repo_name": "gitops"}},
+					// ResolveTraceWorkloadSelector's name lookup (#6786 F3:
+					// its id lookup now requires the returned row's own id
+					// to equal the selector, and "svc-1" != "test-service",
+					// so it falls through here).
+					"w.name = $service_name": {
+						{"id": "svc-1", "name": "test-service", "kind": "service", "repo_id": "repo-1"},
+					},
 				},
 			}
 

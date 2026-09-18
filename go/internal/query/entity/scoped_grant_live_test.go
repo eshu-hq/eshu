@@ -54,6 +54,17 @@ const scopedGrantLivePrefix = "scoped-grant-6786:"
 // to, one it does not -- plus one entity and one workload anchored to each,
 // and a name-collision workload whose OWN repo_id names the ungranted
 // repository but which the granted repository DEFINES too.
+//
+// wl-in and wl-out each carry a DEFINES edge from their OWN repo_id's
+// repository, matching production materialization (the reducer projects a
+// DEFINES edge from every workload's own repository, not only for
+// name-collision cases). #6786 review follow-up (F1): without repo-b
+// DEFINES wl-out, the live no_grant_relationship_returns_not_found case
+// below could pass on a false green -- FetchWorkloadRepositoryForAccess's
+// DEFINES read finding zero rows either because NornicDB correctly filtered
+// them, or because there was nothing to filter in the first place. Seeding
+// the ungranted DEFINES edge forces the read to prove it actually excludes
+// an ungranted candidate rather than finding an empty set trivially.
 var scopedGrantLiveSeed = []string{
 	`CREATE (:Repository {id: 'scoped-grant-6786:repo-a', name: 'repo-a'})`,
 	`CREATE (:Repository {id: 'scoped-grant-6786:repo-b', name: 'repo-b'})`,
@@ -64,10 +75,21 @@ var scopedGrantLiveSeed = []string{
 	`CREATE (:Workload {id: 'scoped-grant-6786:wl-in', name: 'wl-in', repo_id: 'scoped-grant-6786:repo-a'})`,
 	`CREATE (:Workload {id: 'scoped-grant-6786:wl-out', name: 'wl-out', repo_id: 'scoped-grant-6786:repo-b'})`,
 	`CREATE (:Workload {id: 'scoped-grant-6786:wl-collision', name: 'wl-collision', repo_id: 'scoped-grant-6786:repo-b'})`,
+	// #6786 review follow-up (F2): a WorkloadInstance of each workload, to
+	// exercise GetEntityContext's queryselector hydration path for entity
+	// types no File CONTAINS -- Workload and WorkloadInstance both resolve
+	// their repo_id through DEFINES, not REPO_CONTAINS/CONTAINS.
+	`CREATE (:WorkloadInstance {id: 'scoped-grant-6786:wli-in', name: 'wli-in'})`,
+	`CREATE (:WorkloadInstance {id: 'scoped-grant-6786:wli-out', name: 'wli-out'})`,
 	scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-a", "REPO_CONTAINS", "File", "scoped-grant-6786:file-a"),
 	scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-b", "REPO_CONTAINS", "File", "scoped-grant-6786:file-b"),
 	scopedGrantLiveEdge("File", "scoped-grant-6786:file-a", "CONTAINS", "Function", "scoped-grant-6786:fn-in"),
 	scopedGrantLiveEdge("File", "scoped-grant-6786:file-b", "CONTAINS", "Function", "scoped-grant-6786:fn-out"),
+	// Every workload's own repository DEFINES it (production shape).
+	scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-a", "DEFINES", "Workload", "scoped-grant-6786:wl-in"),
+	scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-b", "DEFINES", "Workload", "scoped-grant-6786:wl-out"),
+	scopedGrantLiveEdge("WorkloadInstance", "scoped-grant-6786:wli-in", "INSTANCE_OF", "Workload", "scoped-grant-6786:wl-in"),
+	scopedGrantLiveEdge("WorkloadInstance", "scoped-grant-6786:wli-out", "INSTANCE_OF", "Workload", "scoped-grant-6786:wl-out"),
 	// repo-a DEFINES the collision workload too, even though the workload's
 	// own repo_id names repo-b: DEFINES admission must catch this.
 	scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-a", "DEFINES", "Workload", "scoped-grant-6786:wl-collision"),
@@ -170,6 +192,56 @@ func TestLiveScopedEntityContextGrant(t *testing.T) {
 		}
 		if !strings.Contains(rec.Body.String(), `"scoped-grant-6786:fn-out"`) {
 			t.Fatalf("body = %s, want the requested entity id for an unscoped caller", rec.Body.String())
+		}
+	})
+
+	// #6786 review follow-up (F2): GetEntityContext's graph MATCH has no
+	// label filter, so a Workload or WorkloadInstance id reaches it too. No
+	// File CONTAINS either label, so the OPTIONAL MATCH the entity route
+	// itself renders never resolves repo_id for them; that job belongs to
+	// queryselector.HydrateResolvedEntityRepoIdentity's DEFINES-based
+	// backfill (entity_repo_identity.go), which is NOT part of this PR's
+	// diff but was proven live to return garbage column values on NornicDB
+	// v1.3.3 (an UNWIND variable colliding with a RETURN alias). This is an
+	// explicit, intentional behavior change from pre-#6786 semantics on
+	// Neo4j (where these ids used to 404 via a different path): a scoped
+	// caller now gets 200 with the correct repo for an in-grant Workload/
+	// WorkloadInstance id, and 404 for an out-of-grant one, on both backends.
+	t.Run("workload_entity_id_in_grant_returns_200_with_repo", func(t *testing.T) {
+		ctx := scopedRequestContext(baseCtx, "scoped-grant-6786:repo-a")
+		rec := getEntityContext(ctx, "scoped-grant-6786:wl-in")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), `"repo_id":"scoped-grant-6786:repo-a"`) {
+			t.Fatalf("body = %s, want repo_id hydrated to the granted repository", rec.Body.String())
+		}
+	})
+
+	t.Run("workload_entity_id_out_of_grant_returns_not_found", func(t *testing.T) {
+		ctx := scopedRequestContext(baseCtx, "scoped-grant-6786:repo-a")
+		rec := getEntityContext(ctx, "scoped-grant-6786:wl-out")
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404 for an out-of-grant Workload entity id; body = %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("workload_instance_entity_id_in_grant_returns_200_with_repo", func(t *testing.T) {
+		ctx := scopedRequestContext(baseCtx, "scoped-grant-6786:repo-a")
+		rec := getEntityContext(ctx, "scoped-grant-6786:wli-in")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), `"repo_id":"scoped-grant-6786:repo-a"`) {
+			t.Fatalf("body = %s, want repo_id hydrated via the INSTANCE_OF/DEFINES path to the granted repository", rec.Body.String())
+		}
+	})
+
+	t.Run("workload_instance_entity_id_out_of_grant_returns_not_found", func(t *testing.T) {
+		ctx := scopedRequestContext(baseCtx, "scoped-grant-6786:repo-a")
+		rec := getEntityContext(ctx, "scoped-grant-6786:wli-out")
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404 for an out-of-grant WorkloadInstance entity id; body = %s", rec.Code, rec.Body.String())
 		}
 	})
 }

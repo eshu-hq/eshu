@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // fakeRepoIdentityGraphQuery captures the Cypher text and params
@@ -33,11 +34,18 @@ func (f *fakeRepoIdentityGraphQuery) RunSingle(context.Context, string, map[stri
 // TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate
 // pins the workload-backfill statement's shape (UNWIND/MATCH/OPTIONAL MATCH
 // on Repository-[:DEFINES]->Workload, direct and via-instance) and proves
-// the caller's scoped access filter is spliced into both branches: the
-// direct-DEFINES branch takes GraphPredicate's leading-AND form, the
-// via-instance branch takes GraphWhereClause's own WHERE. Losing either
-// splice would let a scoped caller's workload backfill read another
-// tenant's repository identity.
+// the caller's scoped access filter is spliced into both branches, each as
+// GraphWhereClause's own WHERE. Losing either splice would let a scoped
+// caller's workload backfill read another tenant's repository identity.
+//
+// #6786 review follow-up (F2): the UNWIND loop variable is `requested_id`,
+// not `entity_id` -- the retired name collided with the RETURN column alias
+// below it and made NornicDB v1.3.3 return garbage for both (proven live;
+// see entity_repo_identity.go's doc comment on this query). The direct-
+// DEFINES branch anchors on `e` directly (`(repo)-[:DEFINES]->(e)`) rather
+// than a separate `direct` variable plus a `WHERE direct = e` node-equality
+// comparison, which is the second, independently-proven-safe half of that
+// fix.
 func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t *testing.T) {
 	t.Parallel()
 
@@ -60,12 +68,11 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 	}
 
 	for _, want := range []string{
-		"UNWIND $entity_ids AS entity_id",
-		"MATCH (e) WHERE e.id = entity_id",
-		"OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(direct:Workload)",
-		"WHERE direct = e",
+		"UNWIND $entity_ids AS requested_id",
+		"MATCH (e) WHERE e.id = requested_id",
+		"OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(e)",
 		"OPTIONAL MATCH (repoViaInstance:Repository)-[:DEFINES]->(instanceWorkload:Workload)<-[:INSTANCE_OF]-(e)",
-		"RETURN entity_id,",
+		"RETURN e.id AS entity_id,",
 		"coalesce(repo.id, repoViaInstance.id) AS repo_id",
 		"coalesce(repo.name, repoViaInstance.name) AS repo_name",
 	} {
@@ -73,15 +80,19 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 			t.Fatalf("cypher = %q, want it to contain %q", graph.gotCypher, want)
 		}
 	}
+	if strings.Contains(graph.gotCypher, "direct") {
+		t.Fatalf("cypher = %q, want the retired `direct` variable/comparison gone", graph.gotCypher)
+	}
 
-	wantPredicate := " AND (repo.id IN $allowed_repository_ids OR repo.id IN $allowed_scope_ids)"
-	if !strings.Contains(graph.gotCypher, wantPredicate) {
-		t.Fatalf("cypher = %q, want the direct-DEFINES branch to carry %q", graph.gotCypher, wantPredicate)
+	wantRepoWhere := "WHERE (repo.id IN $allowed_repository_ids OR repo.id IN $allowed_scope_ids)"
+	if !strings.Contains(graph.gotCypher, wantRepoWhere) {
+		t.Fatalf("cypher = %q, want the direct-DEFINES branch to carry %q", graph.gotCypher, wantRepoWhere)
 	}
-	wantWhere := "WHERE (repoViaInstance.id IN $allowed_repository_ids OR repoViaInstance.id IN $allowed_scope_ids)"
-	if !strings.Contains(graph.gotCypher, wantWhere) {
-		t.Fatalf("cypher = %q, want the via-instance branch to carry %q", graph.gotCypher, wantWhere)
+	wantViaInstanceWhere := "WHERE (repoViaInstance.id IN $allowed_repository_ids OR repoViaInstance.id IN $allowed_scope_ids)"
+	if !strings.Contains(graph.gotCypher, wantViaInstanceWhere) {
+		t.Fatalf("cypher = %q, want the via-instance branch to carry %q", graph.gotCypher, wantViaInstanceWhere)
 	}
+	querytestutil.AssertCypherHasNoBrokenAndOr(t, graph.gotCypher)
 
 	allowedRepoIDs, ok := graph.gotParams["allowed_repository_ids"].([]string)
 	if !ok || len(allowedRepoIDs) != 1 || allowedRepoIDs[0] != "repo-1" {

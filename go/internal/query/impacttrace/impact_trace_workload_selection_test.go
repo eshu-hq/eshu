@@ -26,8 +26,8 @@ func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 				t.Fatalf("name selector query = %q, want deterministic ambiguity ordering", cypher)
 			}
 			return []map[string]any{
-				{"id": "workload:orders-a"},
-				{"id": "workload:orders-b"},
+				{"id": "workload:orders-a", "name": "orders"},
+				{"id": "workload:orders-b", "name": "orders"},
 			}, nil
 		default:
 			t.Fatalf("unexpected query: %s", cypher)
@@ -81,6 +81,58 @@ func TestResolveTraceWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
 	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "workload:orders")
 	if err != nil || got != "workload:orders" {
 		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want exact workload id", got, err)
+	}
+}
+
+// TestResolveTraceWorkloadSelectorIDRowMismatchIsNotTrusted is the #6786
+// review follow-up (F3): a row whose own id differs from the requested
+// selector must never be trusted as an answer, even if the row itself would
+// otherwise be grant-admitted -- it falls through to the name lookup
+// (finding nothing here) rather than returning a different workload's id.
+func TestResolveTraceWorkloadSelectorIDRowMismatchIsNotTrusted(t *testing.T) {
+	t.Parallel()
+
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		switch {
+		case strings.Contains(cypher, "w.id = $service_name"):
+			return []map[string]any{{"id": "workload:different", "repo_id": "repo-a"}}, nil
+		default:
+			return nil, nil
+		}
+	}}
+
+	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "workload:requested")
+	if err != nil {
+		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+	}
+	if got != "" {
+		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want not-found for a row whose id does not match the selector", got)
+	}
+}
+
+// TestResolveTraceWorkloadSelectorNameRowMismatchIsNotTrusted is the
+// name-lookup half of F3: a name-query row whose own name differs from the
+// selector must be dropped even if it is grant-admitted.
+func TestResolveTraceWorkloadSelectorNameRowMismatchIsNotTrusted(t *testing.T) {
+	t.Parallel()
+
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		switch {
+		case strings.Contains(cypher, "w.id = $service_name"):
+			return nil, nil
+		case strings.Contains(cypher, "w.name = $service_name"):
+			return []map[string]any{{"id": "workload:mismatch", "name": "not-orders", "repo_id": "repo-a"}}, nil
+		default:
+			return nil, nil
+		}
+	}}
+
+	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "orders")
+	if err != nil {
+		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+	}
+	if got != "" {
+		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want not-found for a name-query row whose name does not match the selector", got)
 	}
 }
 

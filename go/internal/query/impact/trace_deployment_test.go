@@ -25,8 +25,8 @@ func TestTraceDeploymentChainReturnsConflictForDuplicateWorkloadName(t *testing.
 		}
 		if strings.Contains(cypher, "w.name = $service_name") {
 			return []map[string]any{
-				{"id": "workload:orders-a"},
-				{"id": "workload:orders-b"},
+				{"id": "workload:orders-a", "name": "orders"},
+				{"id": "workload:orders-b", "name": "orders"},
 			}, nil
 		}
 		return nil, nil

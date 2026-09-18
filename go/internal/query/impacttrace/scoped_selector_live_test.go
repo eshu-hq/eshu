@@ -88,6 +88,16 @@ const selectorLivePrefix = "scoped-selector-6786:"
 // workload whose own repo_id names the ungranted repository but which the
 // granted repository DEFINES too), and two distinct workloads sharing one
 // name to prove ambiguity detection survives the Go-side grant decision.
+//
+// wl-in and wl-out each carry a DEFINES edge from their OWN repo_id's
+// repository, matching production materialization. #6786 review follow-up
+// (F1): without repo-b DEFINES wl-out, OutOfGrantByIDReturnsEmpty could pass
+// on a false green -- the workloadSelectorRowCypher `collect(DISTINCT dr.id)`
+// finding zero defining ids either because it correctly excluded them, or
+// because there was nothing to collect in the first place. Seeding the
+// ungranted DEFINES edge forces the read to prove it actually surfaces an
+// ungranted defining repository for querycontract.WorkloadGrantAdmitted to
+// then correctly refuse.
 var selectorLiveSeed = []string{
 	`CREATE (:Repository {id: 'scoped-selector-6786:repo-a', name: 'repo-a'})`,
 	`CREATE (:Repository {id: 'scoped-selector-6786:repo-b', name: 'repo-b'})`,
@@ -96,6 +106,8 @@ var selectorLiveSeed = []string{
 	`CREATE (:Workload {id: 'scoped-selector-6786:wl-collision', name: 'svc-collision', repo_id: 'scoped-selector-6786:repo-b'})`,
 	`CREATE (:Workload {id: 'scoped-selector-6786:wl-amb-1', name: 'svc-ambiguous', repo_id: 'scoped-selector-6786:repo-a'})`,
 	`CREATE (:Workload {id: 'scoped-selector-6786:wl-amb-2', name: 'svc-ambiguous', repo_id: 'scoped-selector-6786:repo-a'})`,
+	selectorLiveEdge("Repository", "scoped-selector-6786:repo-a", "DEFINES", "Workload", "scoped-selector-6786:wl-in"),
+	selectorLiveEdge("Repository", "scoped-selector-6786:repo-b", "DEFINES", "Workload", "scoped-selector-6786:wl-out"),
 	selectorLiveEdge("Repository", "scoped-selector-6786:repo-a", "DEFINES", "Workload", "scoped-selector-6786:wl-collision"),
 }
 

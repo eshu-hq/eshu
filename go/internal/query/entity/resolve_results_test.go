@@ -68,7 +68,7 @@ func TestResolveEntityRanksCanonicalServiceEntitiesAheadOfAnonymousDirectories(t
 							"name":   "service-edge-api",
 						},
 					}, nil
-				case strings.Contains(cypher, "OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(direct:Workload)"):
+				case strings.Contains(cypher, "OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(e)"):
 					return []map[string]any{
 						{
 							"entity_id": "workload:service-edge-api",
@@ -172,7 +172,7 @@ func TestResolveEntityBackfillsRepoIdentityForCanonicalMatches(t *testing.T) {
 							"repo_name": "",
 						},
 					}, nil
-				case strings.Contains(cypher, "OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(direct:Workload)"):
+				case strings.Contains(cypher, "OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(e)"):
 					if got, want := params["entity_ids"], []string{
 						"workload-instance:service-edge-api:modern",
 						"workload:service-edge-api",
