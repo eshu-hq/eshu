@@ -1,7 +1,7 @@
 # #6694 Cypher naming: no-regression evidence
 
 Rename-only move of the fault-injection executor out of the `cypher`
-package root: `go/internal/storage/cypher/fault_executor*.go` (9 files,
+package root: `go/internal/storage/cypher/fault_executor*.go` (10 files,
 R073–R095) into `go/internal/storage/cypher/fault/executor/`, plus the
 `sourcecypher` → `faultexecutor` qualifier rewire in
 `go/cmd/reducer/ifa_fault_wiring.go` and the `db.Rows` readiness-fake
