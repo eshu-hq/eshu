@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -77,24 +78,33 @@ func TestRepositoryListExposesSourceBackedGroupEvidence(t *testing.T) {
 		RunSingleFn: func(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(3)}, nil
 		},
-		RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			// is_dependency (and dependency-cluster membership) are both
+			// derived in Go from the same dependency-edge pre-pass, not
+			// read off the page row (issue #6786 defect 1): repo-library is
+			// the target of an inbound DEPENDS_ON edge from a depender that
+			// is not itself in this page (repo-consumer), so repo-service
+			// stays untouched by clustering and keeps exercising the
+			// independent slug-namespace evidence tier below.
+			if strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)") {
+				return []map[string]any{
+					{"source_id": "repo-consumer", "target_id": "repo-library"},
+				}, nil
+			}
 			return []map[string]any{
 				{
-					"id":            "repo-service",
-					"name":          "payments-api",
-					"repo_slug":     "platform/payments-api",
-					"is_dependency": false,
+					"id":        "repo-service",
+					"name":      "payments-api",
+					"repo_slug": "platform/payments-api",
 				},
 				{
-					"id":            "repo-library",
-					"name":          "shared-lib",
-					"repo_slug":     "platform/shared-lib",
-					"is_dependency": true,
+					"id":        "repo-library",
+					"name":      "shared-lib",
+					"repo_slug": "platform/shared-lib",
 				},
 				{
-					"id":            "repo-unattributed",
-					"name":          "unattributed",
-					"is_dependency": false,
+					"id":   "repo-unattributed",
+					"name": "unattributed",
 				},
 			}, nil
 		},
@@ -127,15 +137,22 @@ func TestRepositoryListExposesSourceBackedGroupEvidence(t *testing.T) {
 		t.Fatalf("service group_kind = %#v, want %#v", got, want)
 	}
 
+	// repo-library is the target of an inbound DEPENDS_ON edge, so it is
+	// grouped by the dependency-cluster tier -- the primary grouping signal
+	// (issue #3504) that also feeds is_dependency -- keyed by the
+	// lexicographically smallest id in its component (repo-consumer).
 	library := repositories[1].(map[string]any)
-	if got, want := library["group_key"], "Dependencies"; got != want {
+	if got, want := library["group_key"], "repo-consumer"; got != want {
 		t.Fatalf("library group_key = %#v, want %#v", got, want)
 	}
-	if got, want := library["group_source"], "repository_dependency_flag"; got != want {
+	if got, want := library["group_source"], repositoryGroupSourceDependencyCluster; got != want {
 		t.Fatalf("library group_source = %#v, want %#v", got, want)
 	}
-	if got, want := library["group_kind"], "dependency"; got != want {
+	if got, want := library["group_kind"], "cluster"; got != want {
 		t.Fatalf("library group_kind = %#v, want %#v", got, want)
+	}
+	if got, want := querycontract.BoolVal(library, "is_dependency"), true; got != want {
+		t.Fatalf("library is_dependency = %v, want %v", got, want)
 	}
 
 	unattributed := repositories[2].(map[string]any)

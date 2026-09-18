@@ -137,6 +137,55 @@ func TestDecorateRepositoryDependencyClusterFallsToMissingEvidence(t *testing.T)
 	}
 }
 
+// TestRepositoryDependencyTargetSet proves repositoryDependencyTargetSet
+// marks exactly the repositories that appear as the TARGET of a DEPENDS_ON
+// edge (i.e. the ones some other repository depends on), matching the
+// is_dependency contract documented in openapi/components.go: "True when at
+// least one other repository depends on this one, i.e. it is the target of
+// an admitted Repository-[:DEPENDS_ON]->Repository edge." A repository that
+// only appears as a source (it depends on something else) must not be
+// marked.
+func TestRepositoryDependencyTargetSet(t *testing.T) {
+	t.Parallel()
+
+	edges := []repositoryDependencyEdge{
+		{Source: "repository:app", Target: "repository:lib"},
+		{Source: "repository:app", Target: "repository:shared"},
+		{Source: "repository:shared", Target: "repository:base"},
+	}
+	targets := repositoryDependencyTargetSet(edges)
+
+	for _, id := range []string{"repository:lib", "repository:shared", "repository:base"} {
+		if _, ok := targets[id]; !ok {
+			t.Errorf("%s missing from target set, want present (it is a DEPENDS_ON target)", id)
+		}
+	}
+	if _, ok := targets["repository:app"]; ok {
+		t.Errorf("repository:app present in target set, want absent (it only appears as a source)")
+	}
+}
+
+// TestRepositoryDependencyTargetSetEmptyEdges proves an empty or nil edge
+// list produces an empty (non-nil) target set rather than panicking.
+func TestRepositoryDependencyTargetSetEmptyEdges(t *testing.T) {
+	t.Parallel()
+
+	if targets := repositoryDependencyTargetSet(nil); len(targets) != 0 {
+		t.Fatalf("nil edge list produced %d targets, want 0", len(targets))
+	}
+}
+
+// TestLoadRepositoryDependencyEdgesNilGraph proves loadRepositoryDependencyEdges
+// degrades to no edges rather than panicking when graph is nil.
+func TestLoadRepositoryDependencyEdgesNilGraph(t *testing.T) {
+	t.Parallel()
+
+	edges := loadRepositoryDependencyEdges(context.Background(), nil, querycontract.RepositoryAccessFilter{AllScopes: true})
+	if len(edges) != 0 {
+		t.Fatalf("nil graph produced %d edges, want 0", len(edges))
+	}
+}
+
 // TestRepositoryDependencyClusterEdgeCypherScopesBothEndpoints proves the
 // bounded edge pre-pass query labels both endpoints :Repository, fixes the
 // DEPENDS_ON relationship type, bounds the result with LIMIT, and — for a scoped

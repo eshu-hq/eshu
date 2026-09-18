@@ -171,11 +171,11 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)
 		%s
-		RETURN %s, %s
+		RETURN %s
 		ORDER BY r.name, r.id
 		SKIP $offset
 		LIMIT $limit
-	`, access.GraphWhereClause("r"), querycontract.RepoProjection("r"), querycontract.RepositoryDependencyMarkerProjection("r", access))
+	`, access.GraphWhereClause("r"), querycontract.RepoProjection("r"))
 
 	rows, err := h.Neo4j.Run(r.Context(), cypher, access.GraphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
 	if err != nil {
@@ -190,38 +190,41 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		rows = rows[:page.Limit]
 	}
 
-	// Dependency-cluster pre-pass: one bounded edge query over
-	// (:Repository)-[:DEPENDS_ON]->(:Repository), then connected-component
-	// grouping in Go. This is the primary grouping signal (issue #3504):
-	// repositories that depend on each other share a cluster key, and the
-	// per-row decoration below gives that cluster precedence over the
-	// source-backed slug/owner/flag derivation. Repositories in no dependency
-	// edge fall through to honest missing_evidence rather than a name heuristic.
+	// Dependency-edge pre-pass: one bounded edge query over
+	// (:Repository)-[:DEPENDS_ON]->(:Repository), read once and used for two
+	// purposes computed in Go: connected-component clustering (the primary
+	// grouping signal, issue #3504) and the is_dependency marker (issue
+	// #6786 defect 1 -- replaces a per-row EXISTS-as-RETURN-expression that
+	// NornicDB v1.3.3 always evaluates false, and whose scoped grant
+	// predicate was invalid Cypher on Neo4j). Repositories that depend on
+	// each other share a cluster key, and the per-row decoration below gives
+	// that cluster precedence over the source-backed slug/owner/flag
+	// derivation. Repositories in no dependency edge fall through to honest
+	// missing_evidence rather than a name heuristic.
 	//
 	// The pre-pass is instrumented with the existing stage timer so operators
 	// can diagnose its duration and edge count from the
 	// repository_query.stage_started / repository_query.stage_completed log
 	// events (operation=repository_list, stage=dependency_cluster_edges).
 	clusterTimer := startRepositoryQueryStage(r.Context(), h.Logger, "repository_list", "", "dependency_cluster_edges")
-	clusterResult := loadRepositoryDependencyClusters(r.Context(), h.Neo4j, access)
-	clusters := clusterResult.clusters
-	clusterTimer.Done(r.Context(),
-		slog.Int("cluster_count", len(clusters)),
-		slog.Bool("edge_scan_skipped", clusterResult.skipped),
-	)
-	logRepositoryDependencyClusterErrors(r.Context(), h.Logger, clusterResult)
+	dependencyEdges := loadRepositoryDependencyEdges(r.Context(), h.Neo4j, access)
+	clusters := buildRepositoryDependencyClusters(dependencyEdges)
+	dependencyTargets := repositoryDependencyTargetSet(dependencyEdges)
+	clusterTimer.Done(r.Context(), slog.Int("cluster_count", len(clusters)), slog.Int("edge_count", len(dependencyEdges)))
 
 	repos := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
+		id := querycontract.StringVal(row, "id")
+		_, isDependency := dependencyTargets[id]
 		repo := map[string]any{
-			"id":            querycontract.StringVal(row, "id"),
+			"id":            id,
 			"name":          querycontract.StringVal(row, "name"),
 			"path":          querycontract.StringVal(row, "path"),
 			"local_path":    querycontract.StringVal(row, "local_path"),
 			"remote_url":    querycontract.StringVal(row, "remote_url"),
 			"repo_slug":     querycontract.StringVal(row, "repo_slug"),
 			"has_remote":    querycontract.BoolVal(row, "has_remote"),
-			"is_dependency": querycontract.BoolVal(row, "is_dependency"),
+			"is_dependency": isDependency,
 		}
 		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, clusters))
 	}

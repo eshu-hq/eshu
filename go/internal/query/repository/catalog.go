@@ -141,18 +141,29 @@ func (h *Handler) listCatalogRepositoriesFromGraph(
 ) ([]catalogRepository, bool, error) {
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)
-		RETURN %s, %s
+		RETURN %s
 		ORDER BY r.name, r.id
 		LIMIT $limit
-	`, querycontract.RepoProjection("r"), querycontract.RepositoryDependencyMarkerProjection("r", querycontract.RepositoryAccessFilter{AllScopes: true}))
+	`, querycontract.RepoProjection("r"))
 	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"limit": limit + 1})
 	if err != nil {
 		return nil, false, err
 	}
 	rows, truncated := trimCatalogRows(rows, limit)
+
+	// is_dependency is derived in Go from the same bounded, unscoped
+	// dependency-edge pre-pass the repository list uses -- see
+	// loadRepositoryDependencyEdges and issue #6786 defect 1. The catalog
+	// endpoint has always been unscoped (AllScopes: true), matching the
+	// EXISTS-based projection it replaces.
+	dependencyEdges := loadRepositoryDependencyEdges(ctx, h.Neo4j, querycontract.RepositoryAccessFilter{AllScopes: true})
+	dependencyTargets := repositoryDependencyTargetSet(dependencyEdges)
+
 	repositories := make([]catalogRepository, 0, len(rows))
 	for _, row := range rows {
-		repositories = append(repositories, catalogRepositoryFromRow(row))
+		id := querycontract.StringVal(row, "id")
+		_, isDependency := dependencyTargets[id]
+		repositories = append(repositories, catalogRepositoryFromRow(row, isDependency))
 	}
 	return repositories, truncated, nil
 }
@@ -171,7 +182,7 @@ func (h *Handler) listCatalogRepositoriesFromContent(
 	}
 	rows := make([]catalogRepository, 0, len(repositories))
 	for _, repository := range repositories {
-		rows = append(rows, catalogRepositoryFromRow(repository))
+		rows = append(rows, catalogRepositoryFromRow(repository, querycontract.BoolVal(repository, "is_dependency")))
 	}
 	return rows, truncated, nil
 }
@@ -371,7 +382,12 @@ func catalogTruth(profile querycontract.QueryProfile, basis querycontract.TruthB
 	)
 }
 
-func catalogRepositoryFromRow(row map[string]any) catalogRepository {
+// catalogRepositoryFromRow builds a catalogRepository from a graph or
+// content row. isDependency is supplied by the caller rather than read from
+// row["is_dependency"]: the graph path derives it from the dependency-edge
+// pre-pass (issue #6786 defect 1) and the content path from the row's own
+// field, so this stays a plain projection either way.
+func catalogRepositoryFromRow(row map[string]any, isDependency bool) catalogRepository {
 	return catalogRepository{
 		ID:           querycontract.StringVal(row, "id"),
 		Name:         querycontract.StringVal(row, "name"),
@@ -380,7 +396,7 @@ func catalogRepositoryFromRow(row map[string]any) catalogRepository {
 		RemoteURL:    querycontract.StringVal(row, "remote_url"),
 		RepoSlug:     querycontract.StringVal(row, "repo_slug"),
 		HasRemote:    querycontract.BoolVal(row, "has_remote"),
-		IsDependency: querycontract.BoolVal(row, "is_dependency"),
+		IsDependency: isDependency,
 	}
 }
 

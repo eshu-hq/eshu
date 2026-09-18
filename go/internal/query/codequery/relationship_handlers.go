@@ -290,8 +290,14 @@ func (h *CodeHandler) relationshipsGraphRow(
 		return nil, nil
 	}
 	if strings.TrimSpace(repoID) != "" {
-		return h.Neo4j.RunSingle(ctx, relationshipGraphRowCypher(
-			"e.name = $name AND EXISTS { MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository) WHERE repo.id = $repo_id }",
+		// Anchor on the repository instead of filtering a global name scan
+		// with a backward multi-hop EXISTS: NornicDB v1.3.3 silently ignores
+		// that EXISTS and returns a same-named entity from any repository
+		// (issue #6786 defect 2). The anchored MATCH mirrors
+		// entity.BuildResolveEntityGraphQuery's repository-anchored shape.
+		return h.Neo4j.RunSingle(ctx, relationshipGraphRowCypherAnchored(
+			"MATCH (anchorRepo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(anchorFile:File)-[:CONTAINS]->(e)",
+			"e.name = $name",
 		), map[string]any{
 			"name":    name,
 			"repo_id": repoID,

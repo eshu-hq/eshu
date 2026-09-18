@@ -7,7 +7,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 178fb18b5d240a986ef273fab8872665003e0182739921339478ba2ab32501ea
+          source_sha256: 4615dd2081673e9afe3695fea29f5c17c1c12be1b0f550f0ed9ad9cbef03974c
           label: "Repository"
           max_results: 5001
   - file: repository/catalog_workload_environments.go
@@ -557,7 +557,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 394a5d4a5b8d4ff7491b6c5577607a8b445043ffb4a28780dd53e139905f3138
+          source_sha256: 44d4fbd1d9639b947c20952bff2540834135d2d1952f47e2a18ac617b5f1ed66
           label: "Repository"
           max_results: 501
       - symbol: "queryRepositoryTotal"
@@ -592,12 +592,11 @@ source_coverage:
       - {symbol: "(*Handler).queryRepositoryGraphCoverageStats", count: 1, non_hot: {class: keyed_support, source_sha256: 8984bc7ac76d84a6c592c3294b15ce83b293c964be99fd9976d44d5d310f92e1, key_bound: single_key, max_results: 1}}
   - file: repository/dependency_cluster.go
     calls:
-      - {symbol: "probeRepositoryDependencyEdgesAbsent", count: 1, source_sha256: f89d420f7aa5540e8049311fa8e068bd801f8165937130b3b749c1a4411d3111, entry_ids: [QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT]}
-      - symbol: "loadRepositoryDependencyClusters"
+      - symbol: "loadRepositoryDependencyEdges"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 328143c73d27941bb6012889e19cb5dedae0b36eb1ad0b260c1c79ad1881857f
+          source_sha256: 163cc0393adee8af4c37e3ee61f75e2bb0369b2ff868f93f62b7c0da51dabc7a
           label: "Repository"
           max_results: 50000
   - file: repository/deployment_evidence.go

@@ -63,6 +63,7 @@ without moving its staying callers first.
   `AmbiguousRelationshipsResponse`,
   `SortRelationshipStoryCandidates`,
   `RelationshipStoryCandidateMaps`, `RelationshipGraphRowCypher`,
+  `RelationshipGraphRowCypherAnchored`,
   `BuildTransitiveRelationship*`, `NormalizeGraphRelationships`,
   `GraphEntityIDPredicate`, `RelationshipStoryProvenance`,
   `RelationshipStoryRowsAboveConfidenceFloor`,
