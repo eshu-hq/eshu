@@ -94,9 +94,11 @@ The partitioned runner handles `platform_infra`, `workload_dependency`,
   shards. A source repository stays on one shard, while unrelated repositories
   can overlap. Each process owner includes hostname, PID, and a boot nonce.
   Unsafe timing fails startup unless the `5m` lease exceeds the `45s` cycle
-  deadline plus `ESHU_CANONICAL_WRITE_TIMEOUT` and `30s`. An error,
-  cancellation, heartbeat failure, or ambiguous commit quarantines only that
-  shard until lease expiry.
+  deadline plus `ESHU_CANONICAL_WRITE_TIMEOUT` and `30s`. An error, cycle
+  deadline, heartbeat failure, or ambiguous commit quarantines only that
+  shard until lease expiry. A process shutdown that interrupts a cycle before
+  its acceptance-unit transaction opened releases the lease immediately;
+  after that point the quarantine holds, since the commit outcome is unknown.
 - `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is retained for
   compatibility but no longer changes behavior: repo-dependency retracts
   always execute their three role statements

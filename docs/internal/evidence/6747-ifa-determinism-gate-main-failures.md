@@ -39,11 +39,27 @@ other shards were written within two seconds of their resolution, the units on
 the leaked shard were never selected, and no error or readiness line appears.
 
 Deterministic reproduction with the production binaries built from
-`origin/main` (`f6a0434fa`), same compose stack and cassette as the gate
-(`run-leak-proof.sh`, kept outside the tree): hold `ACCESS EXCLUSIVE` on
-`shared_projection_intents` so the lane blocks after its claim, then send the
-reducer the harness's SIGTERM and read the lease table while the lock is still
-held.
+`origin/main` (`f6a0434fa`), same compose stack and cassette as the gate: hold
+`ACCESS EXCLUSIVE` on `shared_projection_intents` so the lane blocks after its
+claim, then send the reducer the harness's SIGTERM and read the lease table
+while the lock is still held. The sequence, from a fresh
+`docker compose up -d nornicdb postgres` on the gate's own ports with
+`scripts/lib/ifa_determinism_lifecycle.sh`'s `ifa_det_configure_runtime`
+exported, so it can be repeated without the throwaway shim:
+
+```bash
+eshu-bootstrap-data-plane
+eshu-ifa drive -cassette testdata/cassettes/workloaddependency/ifa-workload-dependency-family.json -workers 4
+eshu-projector & eshu-reducer & sleep 8
+docker compose exec -T postgres psql -U eshu -d eshu \
+  -c "BEGIN; LOCK TABLE shared_projection_intents IN ACCESS EXCLUSIVE MODE; SELECT pg_sleep(60); COMMIT;" &
+sleep 4; kill -TERM "$reducer_pid"; wait "$reducer_pid"
+docker compose exec -T postgres psql -U eshu -d eshu -tA -c \
+  "SELECT partition_id, lease_owner, lease_expires_at FROM shared_projection_partition_leases WHERE projection_domain='repo_dependency' ORDER BY 1;"
+```
+
+Before the fix every row carries the dead process's owner and an expiry five
+minutes out; after it every `lease_owner` is NULL.
 
 | binary | leases still owned after the reducer exited | shutdown log lines |
 | --- | --- | --- |
@@ -71,11 +87,19 @@ partition lease held by another owner` for each of its four shards at
 Fix (`go/internal/reducer/repo_dependency_projection_quarantine.go`,
 `repo_dependency_projection_runner.go`, `repo_dependency_projection_telemetry.go`):
 
-- A cycle error while the runner's own context is done is shutdown, not a
-  partition fault. `failCycle` releases the partition lease and returns the
-  cancellation instead of a quarantine; `runSerial` exits without recording a
-  cycle failure. Genuine errors, cycle deadlines, and heartbeat loss keep the
-  fail-closed quarantine and still hold the lease (existing tests unchanged).
+- A cycle error while the runner's own context is done, in a phase that
+  cannot have mutated anything (the claim, the selection scan, the
+  empty-cycle exit, the missing-gate exit), is shutdown, not a partition
+  fault. `failCycle` releases the partition lease and returns a shutdown error
+  instead of a quarantine; `runSerial` exits without recording a cycle
+  failure. A shutdown that lands after the acceptance-unit gate opened keeps
+  the quarantine and its log line, because the graph write or Postgres commit
+  may still be settling and `evidence-5122-repo-dependency-safety-proof.md`
+  reserves the lease TTL as that quiescence window. Genuine errors, cycle
+  deadlines, and heartbeat loss keep the fail-closed quarantine and still hold
+  the lease (existing tests unchanged). Both CI interruptions were in the
+  selection scan and the claim, so the release covers the observed failure
+  without touching the ambiguous-commit contract.
 - `releasePartitionLease` runs on `context.WithoutCancel` with a 10s bound so
   the release reaches Postgres after the cancellation, and logs a warning if it
   still fails.

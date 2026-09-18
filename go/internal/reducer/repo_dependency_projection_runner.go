@@ -85,9 +85,11 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 		cycleStart := time.Now()
 		result, err := r.runOneCycle(ctx)
 		if err != nil {
-			if ctx.Err() != nil {
-				// Shutdown, not a partition fault (#6747): the cycle already
-				// released its lease and there is nothing to quarantine.
+			if errors.Is(err, errRepoDependencyShutdown) {
+				// Shutdown before any mutation (#6747): the cycle already
+				// released its lease and there is nothing to quarantine. A
+				// shutdown inside the acceptance-unit gate arrives as a
+				// quarantine instead and is recorded below like any other.
 				return nil
 			}
 			consecutiveEmpty++
@@ -219,7 +221,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	}
 	if r.AcceptanceUnitGate == nil {
 		result.LeaseAcquired = true
-		return result, r.quarantineLease(errors.New("repo dependency projection runner: acceptance unit gate is required"))
+		return result, r.failCycle(ctx, errors.New("repo dependency projection runner: acceptance unit gate is required"), &releaseLease)
 	}
 
 	var (
@@ -244,11 +246,15 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 			return processErr
 		},
 	)
+	// From here on the gate has opened: a cancelled graph write or an
+	// ambiguous Postgres commit may still be settling, so even a shutdown
+	// keeps the quarantine and its lease (evidence-5122 safety proof); the
+	// prompt release above is only for the phases before this point.
 	if gateErr != nil {
-		return processed, r.failCycle(ctx, gateErr, &releaseLease)
+		return processed, r.quarantineLease(gateErr)
 	}
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-		return processed, r.failCycle(ctx, heartbeatErr, &releaseLease)
+		return processed, r.quarantineLease(heartbeatErr)
 	}
 	if !ran {
 		result.LeaseAcquired = true

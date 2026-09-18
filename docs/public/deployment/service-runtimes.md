@@ -117,8 +117,11 @@ configuration.
   Each process appends its hostname, PID, and a boot-unique nonce to the
   configured lease-owner prefix. The default `5m` lease must exceed the `45s`
   whole-cycle deadline plus `ESHU_CANONICAL_WRITE_TIMEOUT` and a `30s` margin.
-  Failed, canceled, or ambiguous cycles retain the shard lease until expiry;
-  independent shards continue to run.
+  Failed, deadline-exceeded, or ambiguous cycles retain the shard lease until
+  expiry. Process shutdown that interrupts a cycle before its acceptance-unit
+  transaction opened releases the lease immediately; shutdown after that
+  point keeps the quarantine, because the commit outcome is unknown.
+  Independent shards continue to run.
 - `ESHU_REPO_DEPENDENCY_RETRACT_STATEMENT_TIMING` is retained for
   compatibility but no longer changes behavior: repo-dependency retract
   statements always run sequentially with per-statement timing logs (grouped

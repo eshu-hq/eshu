@@ -21,19 +21,30 @@ import (
 // dead backend.
 const repoDependencyLeaseReleaseTimeout = 10 * time.Second
 
-// repoDependencyShutdownError names a cycle cut short by the runner's own
-// context ending. It wraps the cancellation so callers can errors.Is it and
-// never wraps a quarantine: the process is going away, so holding the
-// partition for the lease TTL would only strand the next owner (#6747).
+// errRepoDependencyShutdown marks a cycle cut short by the runner's own
+// context ending before anything could have been mutated. runSerial treats it
+// as a clean stop rather than a cycle failure.
+var errRepoDependencyShutdown = errors.New("repo dependency projection cycle interrupted by shutdown")
+
+// repoDependencyShutdownError wraps both the shutdown marker and the
+// cancellation so callers can errors.Is either. It never wraps a quarantine:
+// the process is going away, so holding the partition for the lease TTL
+// would only strand the next owner (#6747).
 func repoDependencyShutdownError(ctx context.Context) error {
-	return fmt.Errorf("repo dependency projection cycle interrupted by shutdown: %w", ctx.Err())
+	return fmt.Errorf("%w: %w", errRepoDependencyShutdown, ctx.Err())
 }
 
-// failCycle classifies a cycle error against the runner's parent context. A
-// parent cancellation is shutdown: the caller releases its partition lease
-// and returns the cancellation. Everything else keeps the fail-closed
-// quarantine, which deliberately holds the lease for the TTL so an uncertain
-// owner cannot re-enter before the backend has quiesced.
+// failCycle classifies a cycle error against the runner's parent context for
+// the phases that cannot have mutated anything: the selection scan, the
+// empty-cycle exit, and the missing-gate exit. A parent cancellation there is
+// shutdown: the caller releases its partition lease and returns the
+// cancellation. Everything else keeps the fail-closed quarantine, which
+// deliberately holds the lease for the TTL so an uncertain owner cannot
+// re-enter before the backend has quiesced. Errors from inside or after the
+// acceptance-unit gate never go through here: once the gate has opened, a
+// cancelled graph write or an ambiguous Postgres commit may still be
+// settling, and evidence-5122-repo-dependency-safety-proof.md reserves the
+// lease TTL as that quiescence window even across a process stop.
 func (r *RepoDependencyProjectionRunner) failCycle(ctx context.Context, err error, releaseLease *bool) error {
 	if err == nil {
 		return nil
