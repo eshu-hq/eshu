@@ -15,6 +15,7 @@ import (
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	"github.com/eshu-hq/eshu/go/internal/projector/cicd/run/correlation"
 	iamprofile "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/iam/instance/profile"
+	iamperform "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/iam/perform"
 	iamtrust "github.com/eshu-hq/eshu/go/internal/projector/cloud/aws/iam/trust"
 	inventory "github.com/eshu-hq/eshu/go/internal/projector/cloud/inventory"
 	awsdrift "github.com/eshu-hq/eshu/go/internal/projector/cloud/runtime/drift/aws"
@@ -48,7 +49,7 @@ import (
 //
 // It builds one shared reducerIntentFactIndex over inputFacts and passes it to
 // every builder below instead of the raw slice (issue #4875): inputFacts is
-// immutable once a scope generation is claimed for projection, so all 44
+// immutable once a scope generation is claimed for projection, so all 45
 // builders can safely share the same read-only lookup. intent.NewFactLookup
 // builds that lookup in two O(N) passes, first counting facts per kind and then
 // filling exact-capacity position slices. Root builds it once so each builder
@@ -119,6 +120,9 @@ func appendScopeGenerationReducerIntents(
 		intents = append(intents, intent)
 	}
 	if intent, ok := iamtrust.BuildIAMCanAssumeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+		intents = append(intents, intent)
+	}
+	if intent, ok := iamperform.BuildIAMCanPerformMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := s3.BuildLogsToMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

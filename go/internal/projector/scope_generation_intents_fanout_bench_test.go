@@ -14,18 +14,19 @@ import (
 // fanOutBenchmarkFixture builds a large, realistic-shaped inputFacts slice
 // for BenchmarkAppendScopeGenerationReducerIntentsFanOut (issue #4875's
 // Prove-Theory-First shim). It reuses fanOutParityFixture's trigger facts
-// (so the benchmark exercises the same 42 emitted intents across 44 builder
+// (so the benchmark exercises the same 43 emitted intents across 45 builder
 // probes that the accuracy test pins) and pads the generation with decoyCount
 // source-code-domain decoy facts of many distinct kinds, none of which any
 // reducer-intent builder probe matches.
 //
 // This mirrors the dominant real-world shape the issue describes: a
 // source-heavy repository generation carries thousands of code/content facts
-// and at most a handful of cloud/k8s/supply-chain facts, so most of the 44
+// and at most a handful of cloud/k8s/supply-chain facts, so most of the 45
 // probes scan the ENTIRE generation and find nothing. The pre-#4875
-// full-scan implementation pays O(44*N) on such a generation; the shared
-// reducerIntentFactIndex should reduce that to O(N) index construction plus
-// O(1)-to-O(matches) per probe.
+// full-scan implementation paid O(44*N) on such a generation (44 was the probe
+// count at that time; the shared reducerIntentFactIndex reduces this to O(N)
+// index construction plus O(1)-to-O(matches) per probe regardless of probe
+// count).
 func fanOutBenchmarkFixture(scopeValue scope.IngestionScope, generation scope.ScopeGeneration, decoyCount int) []facts.Envelope {
 	triggers := fanOutParityFixture(scopeValue, generation)
 	inputFacts := make([]facts.Envelope, 0, len(triggers)+decoyCount)
