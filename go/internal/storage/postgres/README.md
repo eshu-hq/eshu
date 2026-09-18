@@ -2580,16 +2580,16 @@ on the ingestion/reducer hot path; each is a single admin-dashboard-triggered
 read scoped strictly to the caller's own tenant (and workspace where the table
 carries one), resolved from the all-scope `AuthContext`, never cross-tenant.
 
-No-Regression Evidence: all are net-new SELECTs that add no predicate to any
-existing query and modify no existing index or write path, so there is no prior
-baseline to regress. Backend PostgreSQL 16. Input shape: exactly one
-`tenant_id` (and `workspace_id`) per call — never a scan over tenants. Every
-query filters on `tenant_id` first and is bounded `LIMIT 500`, so the terminal
-row count per call is at most 500 rows. `ListAdminRoles` issues exactly two
-bounded reads (roles, then grants for the same tenant) stitched in memory — a
-fixed 2-query cost, not an N+1 over roles. The group-mapping row reference is an
-in-SQL `md5()` digest over the composite key, computed per returned row only. No
-unbounded fan-out, no cross-tenant scan.
+Read contract and proof: These admin SELECTs add no index or write path. The
+mapping list now uses SHA-256 refs and a cursor; a PostgreSQL 18.6 fixture
+walked 501 rows in two pages, excluding another tenant and a tombstone.
+Each call applies tenant (and workspace where applicable) predicates;
+the results stay scoped to that caller. Each SELECT returns at most 500 rows. `ListAdminRoles`
+issues exactly two bounded reads (roles, then grants for the same tenant),
+a fixed 2-query cost. The mapping list's materialized CTE hashes all
+eligible tenant/workspace rows before cursor filtering and sorting, so
+per-page work scales with that row count rather than the 500-row cap.
+The fixture proves paging correctness, not loaded ops-qa latency.
 
 Observability Evidence: the queries run on the `InstrumentedDB`-wrapped pool, so
 per-statement latency/error spans and metrics are inherited without per-call
@@ -2633,8 +2633,8 @@ serializes on that single row only, not the table. Grant and create validate the
 referenced role/provider is active in the tenant with a bounded
 `SELECT 1 ... LIMIT 1` before writing, so an unknown or tombstoned role/provider
 is rejected rather than fabricating a row. The delete resolves the opaque
-`mapping_ref` with an in-SQL `md5()` digest match anchored to the caller's
-tenant/workspace; no cross-tenant scan and no unbounded fan-out.
+`mapping_ref` with a tenant/workspace-scoped SHA-256 digest. FIPS rejects Postgres `md5()`; saved 32-hex refs must be
+refreshed through list (64-hex) before delete, which returns 409 for a stale ref; no cross-tenant scan or fan-out.
 
 Observability Evidence: the statements run on the `InstrumentedDB`-wrapped pool,
 so per-statement latency/error spans and metrics are inherited without per-call

@@ -109,9 +109,9 @@ const (
 // rather than letting it vanish into unchanged.
 type ServiceOwnershipEvidence struct {
 	OwnerRef string
-	// Payload is the durable evidence body whose hash drives updated-vs-unchanged
-	// classification. It is hashed with md5(payload json) exactly as #1799 hashes
-	// fact payloads.
+	// Payload is the durable evidence body whose Go MD5 fingerprint drives this
+	// service evidence classification. The Postgres changed-since query separately
+	// uses SHA-256 over persisted JSONB text.
 	Payload map[string]any
 	// Retired records an owner that was explicitly removed in this
 	// re-materialization. It is written as a tombstone row so the delta reports it
@@ -175,9 +175,9 @@ func ServiceOwnershipEvidenceKey(serviceID, ownerRef string) string {
 }
 
 // ServiceEvidencePayloadHash returns the md5 hex digest of the canonical JSON
-// encoding of an evidence payload. It matches the repository-scope changed-since
-// contract, which detects updated-vs-unchanged with md5(payload::text). A nil or
-// empty payload hashes deterministically so an empty row never looks updated.
+// encoding of an evidence payload. It is separate from the repository-scope
+// changed-since SQL digest, which uses SHA-256 over persisted JSONB text. A nil
+// or empty payload hashes deterministically so an empty row never looks updated.
 func ServiceEvidencePayloadHash(payload map[string]any) string {
 	encoded, err := json.Marshal(canonicalizeEvidencePayload(payload))
 	if err != nil {

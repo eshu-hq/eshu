@@ -25,7 +25,7 @@ sql_log="${case_dir}/sql.log"
 pg() {
 	local sql="$1"
 	printf '%s\n-- statement boundary --\n' "${sql}" >>"${sql_log}"
-	if [[ "${sql}" == *"WITH prior_keys AS"* ]]; then
+	if [[ "${sql}" == *"prior_keys AS"* ]]; then
 		printf '2|1|1|superseded|1|0|13|4|0|0\n'
 		return
 	fi
@@ -45,6 +45,11 @@ rg -q '^release_marker = "current"$' "${fixture_dir}/freshness.cfg" ||
 
 mock_active_generation="generation:current-2"
 golden_changed_since_validate_current
+if rg -qi 'md5\(' "${sql_log}"; then
+    fail "golden changed-since SQL still invokes FIPS-incompatible MD5"
+fi
+hash_call_count="$(rg -o 'sha256\(' "${sql_log}" | wc -l | tr -d ' ')"
+[[ "${hash_call_count}" == "2" ]] || fail "golden changed-since SQL hashes each generation more than once (${hash_call_count} calls)"
 [[ "${golden_changed_since_current_generation}" == "generation:current-2" ]] ||
 	fail "current generation was not captured"
 [[ "${golden_changed_since_facts_added_count:-}" == "0" ]] || fail "facts added count was not captured"
@@ -129,7 +134,7 @@ hostile_missing_sentinel() {
 hostile_non_numeric_counts() {
 	golden_changed_since_prior_generation="generation:prior"
 	pg() {
-		if [[ "$1" == *"WITH prior_keys AS"* ]]; then
+		if [[ "$1" == *"prior_keys AS"* ]]; then
 			printf '2|1|1|superseded|1|0|not-a-count|4|0|0\n'
 		else
 			printf 'generation:current\n'
@@ -141,7 +146,7 @@ hostile_non_numeric_counts() {
 hostile_updated_sample_overflow() {
 	golden_changed_since_prior_generation="generation:prior"
 	pg() {
-		if [[ "$1" == *"WITH prior_keys AS"* ]]; then
+		if [[ "$1" == *"prior_keys AS"* ]]; then
 			printf '2|1|1|superseded|1|0|201|4|0|0\n'
 		else
 			printf 'generation:current\n'
@@ -161,7 +166,19 @@ assert_subprocess_fails "multi-row prior" hostile_multi_row_prior
 assert_subprocess_fails "unsafe generation id" hostile_unsafe_generation_id
 assert_subprocess_fails "repeat mutation" hostile_repeat_mutation
 assert_subprocess_fails "missing sentinel" hostile_missing_sentinel
-assert_subprocess_fails "non-numeric facts count" hostile_non_numeric_counts
-assert_subprocess_fails "updated sample overflow" hostile_updated_sample_overflow
+assert_subprocess_fails_with_message() {
+	local name="$1" case_function="$2" expected="$3" output
+	if output="$("${case_function}" 2>&1)"; then
+		fail "hostile case unexpectedly passed: ${name}"
+	fi
+	if ! rg -Fq -- "${expected}" <<<"${output}"; then
+		fail "hostile case failed for the wrong reason: ${name}: ${output}"
+	fi
+}
+
+assert_subprocess_fails_with_message "non-numeric facts count" hostile_non_numeric_counts \
+	"repository facts updated count must be one non-negative integer"
+assert_subprocess_fails_with_message "updated sample overflow" hostile_updated_sample_overflow \
+	"repository facts updated count must fit the bounded sample"
 
 printf 'PASS: golden repository changed-since leaf helper\n'

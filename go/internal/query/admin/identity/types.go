@@ -138,7 +138,7 @@ type ReadStore interface {
 	// ListAdminIdPProviders returns the tenant's configured identity providers.
 	ListAdminIdPProviders(ctx context.Context, tenantID string) ([]IdPProviderListItem, error)
 	// ListAdminIdPGroupMappings returns the tenant/workspace group->role mappings.
-	ListAdminIdPGroupMappings(ctx context.Context, tenantID, workspaceID string) ([]IdPGroupMappingListItem, error)
+	ListAdminIdPGroupMappings(ctx context.Context, tenantID, workspaceID, afterRef string) ([]IdPGroupMappingListItem, error)
 	// ListAdminAPITokens returns every user's generated tokens in the tenant/workspace.
 	ListAdminAPITokens(ctx context.Context, tenantID, workspaceID string) ([]APITokenListItem, error)
 }
@@ -233,7 +233,7 @@ type IdPGroupMappingCreateRequest struct {
 }
 
 // IdPGroupMappingDeleteRequest tombstones one external group->role mapping
-// identified by its opaque MappingRef (an md5 digest over the composite key).
+// identified by its opaque MappingRef (a SHA-256 digest over the composite key).
 // The store resolves the ref tenant-scoped; the raw group name is never needed.
 type IdPGroupMappingDeleteRequest struct {
 	MappingRef  string
@@ -245,7 +245,7 @@ type IdPGroupMappingDeleteRequest struct {
 // IdPGroupMappingCreateResult reports the outcome of a mapping create.
 // ProviderValid/RoleValid are false when the provider config or role does not
 // exist (or is not active) in the tenant. MappingRef is the opaque reference for
-// the created/activated row (same md5 form the read path returns).
+// the created/activated row (same SHA-256 form the read path returns).
 type IdPGroupMappingCreateResult struct {
 	ProviderValid bool
 	RoleValid     bool

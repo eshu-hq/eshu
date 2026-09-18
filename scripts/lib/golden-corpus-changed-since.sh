@@ -94,27 +94,35 @@ WHERE scope_id = '${golden_changed_since_scope_id}';
 		die "repository changed-since current generation did not advance"
 
 	state="$(pg "
-WITH prior_keys AS (
+WITH prior_rows AS MATERIALIZED (
   SELECT CASE WHEN fact_kind = 'file' THEN 'files'
               WHEN fact_kind = 'content_entity' THEN 'content_entities'
               ELSE 'facts' END AS category,
          stable_fact_key,
-         MIN(md5(payload::text)) AS payload_hash
+         sha256(convert_to(payload::text, 'UTF8')) AS payload_hash
   FROM fact_records
   WHERE scope_id = '${golden_changed_since_scope_id}'
     AND generation_id = '${golden_changed_since_prior_generation}'
     AND is_tombstone = FALSE
-  GROUP BY category, stable_fact_key
-), current_keys AS (
+), current_rows AS MATERIALIZED (
   SELECT CASE WHEN fact_kind = 'file' THEN 'files'
               WHEN fact_kind = 'content_entity' THEN 'content_entities'
               ELSE 'facts' END AS category,
          stable_fact_key,
-         MIN(md5(payload::text)) AS payload_hash
+         sha256(convert_to(payload::text, 'UTF8')) AS payload_hash
   FROM fact_records
   WHERE scope_id = '${golden_changed_since_scope_id}'
     AND generation_id = '${current}'
     AND is_tombstone = FALSE
+), prior_keys AS (
+  SELECT category, stable_fact_key,
+         ARRAY_AGG(payload_hash ORDER BY payload_hash) AS payload_hashes
+  FROM prior_rows
+  GROUP BY category, stable_fact_key
+), current_keys AS (
+  SELECT category, stable_fact_key,
+         ARRAY_AGG(payload_hash ORDER BY payload_hash) AS payload_hashes
+  FROM current_rows
   GROUP BY category, stable_fact_key
 ), current_tombstones AS (
   SELECT DISTINCT CASE WHEN fact_kind = 'file' THEN 'files'
@@ -130,7 +138,7 @@ WITH prior_keys AS (
          COALESCE(prior.stable_fact_key, current.stable_fact_key) AS stable_fact_key,
          CASE WHEN prior.stable_fact_key IS NULL THEN 'added'
               WHEN current.stable_fact_key IS NOT NULL
-                   AND prior.payload_hash IS DISTINCT FROM current.payload_hash THEN 'updated'
+                   AND prior.payload_hashes IS DISTINCT FROM current.payload_hashes THEN 'updated'
               WHEN current.stable_fact_key IS NOT NULL THEN 'unchanged'
               WHEN tombstone.stable_fact_key IS NOT NULL THEN 'retired'
               ELSE 'superseded' END AS classification

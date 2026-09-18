@@ -100,7 +100,7 @@ const AdminMutations = `
       "delete": {
         "tags": ["auth"],
         "summary": "Delete an IdP group to role mapping",
-        "description": "All-scopes admin route that tombstones one external group to role mapping resolved by its opaque mapping_ref within the caller's own tenant/workspace. Idempotent: an already-deleted or absent mapping is a safe no-op. The raw external group name is never needed or returned. Emits a governance audit event.",
+        "description": "All-scopes admin route that tombstones one external group to role mapping resolved by its opaque mapping_ref within the caller's own tenant/workspace. Idempotent: an already-deleted or absent mapping is a safe no-op. A stale 32-hex MD5 ref returns 409; list mappings again and retry with its current SHA-256 ref. The raw external group name is never needed or returned. Emits a governance audit event.",
         "operationId": "deleteAdminIdPGroupMapping",
         "x-scoped-token-support": true,
         "parameters": [{"name": "mapping_ref", "in": "path", "required": true, "schema": {"type": "string"}}],
@@ -121,6 +121,7 @@ const AdminMutations = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }

@@ -189,9 +189,12 @@ const AdminReads = `
       "get": {
         "tags": ["auth"],
         "summary": "List the tenant's IdP group-to-role mappings",
-        "description": "All-scopes admin route that lists the caller's own tenant/workspace external group-to-role mappings: an opaque mapping reference, provider config id, role id, status, and effective/expiry timestamps. Never returns the external group hash (the hashed group-name secret).",
+        "description": "All-scopes admin route that lists up to 500 of the caller's own tenant/workspace external group-to-role mappings per page, ordered by opaque mapping_ref. Follow next_after_ref as after_ref until the page is empty or truncated is false. Never returns the external group hash (the hashed group-name secret).",
         "operationId": "listAdminIdPGroupMappings",
         "x-scoped-token-support": true,
+        "parameters": [
+          {"name": "after_ref", "in": "query", "schema": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "description": "Optional opaque mapping_ref from the previous page's next_after_ref, read without normalization; omit it for the first page. A present value that is not a lowercase 64-hex ref (including an empty, padded, or repeated one) and an undecodable query string return 400."}
+        ],
         "responses": {
           "200": {
             "description": "The tenant's IdP group-to-role mappings.",
@@ -215,12 +218,15 @@ const AdminReads = `
                           "workspace_id": {"type": "string"}
                         }
                       }
-                    }
+                    },
+                    "truncated": {"type": "boolean", "description": "True when this page reaches the 500-row cap. A subsequent page may be empty."},
+                    "next_after_ref": {"type": "string", "description": "Last mapping_ref on a full page; empty when fewer than 500 rows were returned."}
                   }
                 }
               }
             }
           },
+          "400": {"$ref": "#/components/responses/BadRequest"},
           "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}
@@ -229,7 +235,7 @@ const AdminReads = `
       "post": {
         "tags": ["auth"],
         "summary": "Create an IdP group to role mapping",
-        "description": "All-scopes admin route that idempotently activates an external group to role mapping within the caller's own tenant/workspace. The provider config and role must exist and be active in the tenant. The raw external_group name is hashed server-side with the same hash the OIDC login path uses to read mappings and is never stored or returned; only the opaque mapping_ref (an md5 over the composite key) is returned. Optional workspace_id must match the caller's workspace. Emits a governance audit event.",
+        "description": "All-scopes admin route that idempotently activates an external group to role mapping within the caller's own tenant/workspace. The provider config and role must exist and be active in the tenant. The raw external_group name is hashed server-side with the same hash the OIDC login path uses to read mappings and is never stored or returned; only the opaque 64-hex SHA-256 mapping_ref over the composite key is returned. Optional workspace_id must match the caller's workspace. Emits a governance audit event.",
         "operationId": "createAdminIdPGroupMapping",
         "x-scoped-token-support": true,
         "requestBody": {

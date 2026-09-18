@@ -144,7 +144,7 @@ WHERE tenant_id = $1
 // tenant, workspace, role), so a concurrent re-create converges on one row. The
 // external_group_hash ($2) is precomputed by the handler with the same hash the
 // OIDC login path uses; the raw group name never reaches this layer. The
-// RETURNING clause emits the opaque mapping_ref (md5 over the composite key,
+// RETURNING clause emits the opaque mapping_ref (SHA-256 over the composite key,
 // matching the read path) so the API can address the mapping without the hash.
 const createAdminIdPGroupMappingQuery = `
 INSERT INTO identity_provider_group_role_mappings (
@@ -171,13 +171,13 @@ SET status = 'active',
     tombstoned_at = NULL,
     updated_at = EXCLUDED.updated_at
 RETURNING
-    md5(provider_config_id || ':' || tenant_id || ':' || workspace_id || ':' || role_id || ':' || external_group_hash) AS mapping_ref,
+    encode(sha256(convert_to(provider_config_id || ':' || tenant_id || ':' || workspace_id || ':' || role_id || ':' || external_group_hash, 'UTF8')), 'hex') AS mapping_ref,
     status,
     (xmax = 0) AS inserted
 `
 
 // deleteAdminIdPGroupMappingQuery tombstones one active group->role mapping
-// resolved by its opaque mapping_ref (an md5 digest over the composite key,
+// resolved by its opaque mapping_ref (a SHA-256 digest over the composite key,
 // computed the same way as the read path). The digest match is anchored to the
 // caller's tenant/workspace, so an admin can never delete a mapping in another
 // tenant even if a ref collides. It is a no-op against an already-deleted or
@@ -191,6 +191,6 @@ WHERE tenant_id = $1
   AND workspace_id = $2
   AND status = 'active'
   AND tombstoned_at IS NULL
-  AND md5(provider_config_id || ':' || tenant_id || ':' || workspace_id || ':' || role_id || ':' || external_group_hash) = $4
+  AND encode(sha256(convert_to(provider_config_id || ':' || tenant_id || ':' || workspace_id || ':' || role_id || ':' || external_group_hash, 'UTF8')), 'hex') = $4
 RETURNING provider_config_id
 `

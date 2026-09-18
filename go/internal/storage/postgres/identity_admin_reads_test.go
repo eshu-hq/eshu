@@ -83,7 +83,7 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 			// tombstoned_at independent of status.
 			want:      []string{"mapping_ref", "provider_config_id", "role_id", "status", "effective_at", "expires_at", "tombstoned_at IS NULL"},
 			forbidden: []string{"policy_revision_hash"},
-			params:    []string{"$1", "$2"},
+			params:    []string{"$1", "$2", "$3"},
 		},
 		{
 			name:  "api_tokens",
@@ -113,18 +113,11 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 				}
 			}
 			// The external_group_hash column is the hashed group-name secret. It
-			// may appear only inside the mapping_ref md5() digest input (which is
+			// may appear only inside the mapping_ref SHA-256 digest input (which is
 			// one-way and opaque) and must never be SELECTed as a bare output
 			// column. Assert it is not selected bare in any form.
 			if tc.name == "idp_group_mappings" {
-				if strings.Contains(tc.query, "external_group_hash,") ||
-					strings.Contains(tc.query, "external_group_hash AS") ||
-					strings.Contains(tc.query, "external_group_hash\n") {
-					t.Errorf("idp_group_mappings query must not select external_group_hash as an output column")
-				}
-				// The only permitted occurrence is inside md5(... external_group_hash).
-				if strings.Contains(tc.query, "external_group_hash") &&
-					!strings.Contains(tc.query, "external_group_hash) AS mapping_ref") {
+				if !mappingGroupHashOnlyInDigest(tc.query) {
 					t.Errorf("idp_group_mappings query exposes external_group_hash outside the mapping_ref digest")
 				}
 			}
@@ -140,6 +133,27 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 				t.Errorf("%s query must scope by tenant_id = $1", tc.name)
 			}
 		})
+	}
+}
+
+func mappingGroupHashOnlyInDigest(query string) bool {
+	return strings.Count(query, "external_group_hash") == 1 &&
+		strings.Contains(query, "external_group_hash, 'UTF8')), 'hex') AS mapping_ref")
+}
+
+func TestAdminGroupHashGuardRejectsSameLineColumn(t *testing.T) {
+	t.Parallel()
+
+	if !mappingGroupHashOnlyInDigest(listAdminIdPGroupMappingsQuery) {
+		t.Fatal("current mapping query should keep the group hash inside its digest")
+	}
+	seeded := strings.Replace(listAdminIdPGroupMappingsQuery,
+		"AS mapping_ref,", "AS mapping_ref, external_group_hash,", 1)
+	if seeded == listAdminIdPGroupMappingsQuery {
+		t.Fatal("failed to seed a raw group hash output column")
+	}
+	if mappingGroupHashOnlyInDigest(seeded) {
+		t.Fatal("guard accepted a same-line raw group hash output column")
 	}
 }
 
@@ -161,7 +175,7 @@ func TestAdminIdentityReadsNilDatabase(t *testing.T) {
 	if _, err := store.ListAdminIdPProviders(nil, "tenant"); err == nil { //nolint:staticcheck
 		t.Error("ListAdminIdPProviders: expected error for nil database")
 	}
-	if _, err := store.ListAdminIdPGroupMappings(nil, "tenant", "workspace"); err == nil { //nolint:staticcheck
+	if _, err := store.ListAdminIdPGroupMappings(nil, "tenant", "workspace", ""); err == nil { //nolint:staticcheck
 		t.Error("ListAdminIdPGroupMappings: expected error for nil database")
 	}
 	if _, err := store.ListAdminAPITokens(nil, "tenant", "workspace"); err == nil { //nolint:staticcheck
@@ -237,7 +251,7 @@ func TestAdminIdentityReadsRejectBlankTenant(t *testing.T) {
 	if _, err := store.ListAdminIdPProviders(nil, ""); err == nil { //nolint:staticcheck
 		t.Error("ListAdminIdPProviders: expected error for blank tenant")
 	}
-	if _, err := store.ListAdminIdPGroupMappings(nil, "", "workspace"); err == nil { //nolint:staticcheck
+	if _, err := store.ListAdminIdPGroupMappings(nil, "", "workspace", ""); err == nil { //nolint:staticcheck
 		t.Error("ListAdminIdPGroupMappings: expected error for blank tenant")
 	}
 	if _, err := store.ListAdminAPITokens(nil, "", "workspace"); err == nil { //nolint:staticcheck

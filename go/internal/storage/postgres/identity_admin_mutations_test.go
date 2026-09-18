@@ -71,16 +71,16 @@ func TestAdminMutationQueriesAreTenantScopedAndIdempotent(t *testing.T) {
 				"ON CONFLICT (provider_config_id, external_group_hash, tenant_id, workspace_id, role_id)",
 				"DO UPDATE",
 				"status = 'active'",
-				"md5(",
+				"sha256(",
 				"(xmax = 0)",
 			},
-			// The RETURNING clause emits only the md5 mapping_ref and status; it
+			// The RETURNING clause emits only the SHA-256 mapping_ref and status; it
 			// must never SELECT the raw external_group value (only its hash column
-			// participates inside md5()).
+			// participates inside SHA-256).
 			forbidden: []string{"external_group_value", "external_group AS", "AS external_group_hash"},
 		},
 		{
-			name:  "delete idp group mapping resolves md5 ref tenant scoped",
+			name:  "delete idp group mapping resolves SHA-256 ref tenant scoped",
 			query: deleteAdminIdPGroupMappingQuery,
 			mustHave: []string{
 				"UPDATE identity_provider_group_role_mappings",
@@ -88,7 +88,7 @@ func TestAdminMutationQueriesAreTenantScopedAndIdempotent(t *testing.T) {
 				"workspace_id = $2",
 				"status = 'active'",
 				"tombstoned_at IS NULL",
-				"md5(",
+				"sha256(",
 				"= $4",
 			},
 			forbidden: []string{"external_group AS", "external_group_value"},

@@ -95,7 +95,7 @@ type AdminIdPGroupMappingDelete struct {
 // AdminIdPGroupMappingCreateResult reports the outcome of a mapping create.
 // ProviderValid/RoleValid are false when the provider config or role does not
 // exist or is not active in the tenant. MappingRef is the opaque reference for
-// the activated row (same md5 form the read path returns).
+// the activated row (same SHA-256 form the read path returns).
 type AdminIdPGroupMappingCreateResult struct {
 	ProviderValid bool
 	RoleValid     bool

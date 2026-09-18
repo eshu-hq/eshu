@@ -378,6 +378,11 @@ func (h *MutationHandler) handleDeleteIdPGroupMapping(w http.ResponseWriter, r *
 		querycontract.WriteError(w, http.StatusBadRequest, "mapping_ref is required")
 		return
 	}
+	if isLegacyIDPGroupMappingRef(mappingRef) {
+		h.audit(r, eventType, governanceaudit.DecisionDenied, "idp_group_mapping_ref_stale", "")
+		querycontract.WriteError(w, http.StatusConflict, "mapping_ref is stale; list group mappings again and use the current ref")
+		return
+	}
 	result, err := h.Store.DeleteAdminIdPGroupMapping(r.Context(), IdPGroupMappingDeleteRequest{
 		MappingRef:  mappingRef,
 		TenantID:    tenantID,
