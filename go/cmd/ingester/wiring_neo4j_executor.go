@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,8 @@ type ingesterNeo4jExecutor struct {
 	DatabaseName           string
 	TxTimeout              time.Duration
 	ProfileGroupStatements bool
+	ProfileFileGroups      bool
+	Logger                 *slog.Logger
 	Instruments            *telemetry.Instruments
 }
 
@@ -72,7 +75,26 @@ func (e ingesterNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcec
 		_ = session.Close(ctx)
 	}()
 
+	var probe *fileGroupProbe
+	if e.ProfileFileGroups {
+		probe = newFileGroupProbe(e.Logger, stmts)
+	}
 	rawCounts, err := session.ExecuteWrite(ctx, func(tx neo4jdriver.ManagedTransaction) (any, error) {
+		if probe != nil {
+			return probe.runAttempt(ctx, stmts, func(ctx context.Context, stmt sourcecypher.Statement) (fileResultConsumer, error) {
+				result, runErr := tx.Run(ctx, stmt.Cypher, stmt.Parameters)
+				if runErr != nil {
+					return nil, runErr
+				}
+				return func(ctx context.Context) (fileResult, error) {
+					summary, consumeErr := result.Consume(ctx)
+					if consumeErr != nil {
+						return fileResult{}, consumeErr
+					}
+					return ingesterStatementRetractionCounts(stmt, summary), nil
+				}, nil
+			})
+		}
 		counts := make([]sourcecypher.StatementRetractionCounts, 0, len(stmts))
 		err := sourcecypher.ExecuteProfiledStatementGroup(ctx, stmts, func(ctx context.Context, stmt sourcecypher.Statement) error {
 			result, runErr := tx.Run(ctx, stmt.Cypher, stmt.Parameters)
@@ -91,6 +113,9 @@ func (e ingesterNeo4jExecutor) ExecuteGroup(ctx context.Context, stmts []sourcec
 		}
 		return counts, nil
 	}, e.transactionConfigurers()...)
+	if probe != nil {
+		probe.finish(ctx, err)
+	}
 	if err != nil {
 		return err
 	}
@@ -196,6 +221,27 @@ func neo4jProfileGroupStatements(getenv func(string) string) (bool, error) {
 		return false, fmt.Errorf("parse ESHU_NEO4J_PROFILE_GROUP_STATEMENTS=%q: %w", raw, err)
 	}
 	return enabled, nil
+}
+
+func ingesterGroupProfileOptions(
+	backend runtimecfg.GraphBackend,
+	getenv func(string) string,
+) (bool, bool, error) {
+	group, err := neo4jProfileGroupStatements(getenv)
+	if err != nil {
+		return false, false, err
+	}
+	if backend != runtimecfg.GraphBackendNornicDB {
+		return group, false, nil
+	}
+	file, err := fileGroupTimingEnabled(getenv)
+	if err != nil {
+		return false, false, err
+	}
+	if group && file {
+		return false, false, fmt.Errorf("%s and ESHU_NEO4J_PROFILE_GROUP_STATEMENTS cannot both be enabled", fileGroupTimingEnv)
+	}
+	return group, file, nil
 }
 
 type ingesterNeo4jDriverCloser struct {

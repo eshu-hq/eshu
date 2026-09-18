@@ -57,6 +57,7 @@ ingester, and the standalone projector.
 | `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | Broad grouped-statement cap for phases without a narrower cap. |
 | `ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS` | `5` | Grouped-statement cap for `phase=files`. |
 | `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | Rows per file-upsert statement. |
+| `ESHU_NORNICDB_PROFILE_FILE_GROUPS` | `false` | Ingester-only diagnostic logging for canonical File groups. Emits one record per statement attempt and one final group record with fixed template ID, group call ID, row count, Run wall time, Consume wall time when called, and post-callback wall time after a successful callback. Does not log query text, parameters, paths, or raw errors. Post-callback time can include driver retries and transport; it is not an exact commit timer. Disable after capture. Cannot be enabled alongside the older grouped-write profiler. |
 | `ESHU_NORNICDB_STRUCTURAL_EDGE_PHASE_GROUP_STATEMENTS` | `5` | Grouped-statement cap for `phase=structural_edges` (IMPORTS, HAS_PARAMETER, class/nested containment, and the Atlantis/Flux/GitLab/Helm family edges). Its statements are row-batched at the writer batch size, so the broad 500 cap let one scope commit roughly 73,500 rows in a single transaction (issue #6070). |
 | `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS` | `25` | Grouped-statement cap for canonical entity phases before label-specific caps apply. |
 | `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | Default rows per canonical entity statement before label-specific caps apply. |
@@ -64,6 +65,13 @@ ingester, and the standalone projector.
 | `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS` | `Function=5,K8sResource=1,Struct=15,Variable=5` | Label-specific grouped-statement caps. |
 | `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU`, clamped to `16` | Parallel chunk dispatch for canonical `entities` and `entity_containment` phases. Set to `1` only for a serial comparison. |
 | `ESHU_CANONICAL_RETRACT_BATCH` | `2000` | Nodes deleted per iteration of the bounded full-refresh retract drain loop (File, Directory, and Entity canonical retracts on NornicDB). Valid range: `1`–`10000`; ingester and projector startup reject values outside that range. Lower when a single drain iteration approaches the NornicDB write budget on very large repos (e.g. if `graph_write_timeout` appears on a retract statement at corpus scale). Does not change worker counts or per-statement timeouts. |
+
+With File-group profiling enabled, the `file graph group completed` event confirms
+that a canonical File group was selected. Other phases intentionally emit no
+File-group events; absence of this event alone cannot establish whether any
+canonical File group ran. A production-writer guard test fails if a new File
+template is missing from the diagnostic allowlist. Probe records use the
+ingester structured logger, including service and trace context when available.
 
 Two dimensions matter:
 

@@ -57,6 +57,7 @@ func openIngesterCanonicalWriter(
 	parent context.Context,
 	database postgres.SQLDB,
 	getenv func(string) string,
+	logger *slog.Logger,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) (projector.CanonicalWriter, io.Closer, error) {
@@ -83,7 +84,7 @@ func openIngesterCanonicalWriter(
 		return nil, nil, err
 	}
 
-	profileGroupStatements, err := neo4jProfileGroupStatements(getenv)
+	profileGroupStatements, profileFileGroups, err := ingesterGroupProfileOptions(graphBackend, getenv)
 	if err != nil {
 		return failAfterDriverOpen(err)
 	}
@@ -92,6 +93,8 @@ func openIngesterCanonicalWriter(
 		DatabaseName:           cfg.DatabaseName,
 		TxTimeout:              canonicalTransactionTimeout(graphBackend, getenv),
 		ProfileGroupStatements: profileGroupStatements,
+		ProfileFileGroups:      profileFileGroups,
+		Logger:                 logger,
 		Instruments:            instruments,
 	}
 

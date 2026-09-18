@@ -75,3 +75,31 @@ func logProfiledStatement(
 	}
 	logger.InfoContext(ctx, "neo4j grouped statement attempt completed", attrs...)
 }
+
+// CanonicalFileStatementProfile returns a closed file template ID and row count.
+// Unknown statements are excluded from the opt-in files-phase probe. The query
+// text and row values must never be copied into diagnostic events.
+func CanonicalFileStatementProfile(stmt Statement) (string, int, bool) {
+	var id string
+	switch stmt.Cypher {
+	case canonicalNodeFileUpdateExistingCypher:
+		id = "file.nested.update_existing"
+	case canonicalNodeFileCreateMissingCypher:
+		id = "file.nested.create_missing"
+	case canonicalNodeFileFirstGenerationMergeCypher:
+		id = "file.nested.first_generation"
+	case canonicalNodeRootFileUpdateExistingCypher:
+		id = "file.root.update_existing"
+	case canonicalNodeRootFileCreateMissingCypher:
+		id = "file.root.create_missing"
+	case canonicalNodeRootFileFirstGenerationMergeCypher:
+		id = "file.root.first_generation"
+	default:
+		return "", 0, false
+	}
+	rows, ok := statementRowsCount(stmt)
+	if !ok {
+		return "", 0, false
+	}
+	return id, rows, true
+}

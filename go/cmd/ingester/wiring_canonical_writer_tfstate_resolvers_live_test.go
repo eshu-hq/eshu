@@ -60,7 +60,7 @@ func TestOpenIngesterCanonicalWriterWiresTerraformStateResolversLive(t *testing.
 		}
 	}
 
-	writer, closer, err := openIngesterCanonicalWriter(context.Background(), postgres.SQLDB{}, getenv, nil, nil)
+	writer, closer, err := openIngesterCanonicalWriter(context.Background(), postgres.SQLDB{}, getenv, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("openIngesterCanonicalWriter() error = %v, want nil", err)
 	}
