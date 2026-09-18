@@ -90,6 +90,10 @@ export async function loadCapabilityCatalog(
   if (opts.owner) params.set("owner", opts.owner);
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
   if (opts.offset !== undefined) params.set("offset", String(opts.offset));
+  // The console matrix renders proof_signals counts, so it needs the full
+  // per-entry detail; the API defaults to a compact view for MCP callers
+  // (#6795).
+  params.set("view", "full");
   const query = params.toString();
   const path = query === "" ? "/api/v0/capabilities" : `/api/v0/capabilities?${query}`;
   try {

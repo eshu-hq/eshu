@@ -12,12 +12,17 @@ const InvestigationWorkflows = `
       "get": {
         "tags": ["query"],
         "summary": "List guided investigation workflows",
-        "description": "Returns the deterministic guided investigation workflow catalog. This is workflow-plan truth from static catalog data, not a live graph query.",
+        "description": "Returns the deterministic guided investigation workflow catalog. This is workflow-plan truth from static catalog data, not a live graph query. The default (compact) response returns id/name/version/domain/description per workflow with deterministic limit/offset paging (#6795); pass view=full for the complete shape (input shape, required/optional evidence, output packet, tool groups, starter prompts, and missing-evidence routing).",
         "operationId": "listInvestigationWorkflows",
         "x-scoped-token-support": true,
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 200, "default": 20}, "description": "Maximum number of workflows to return."},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0, "default": 0}, "description": "Number of workflows to skip for paging."},
+          {"name": "view", "in": "query", "required": false, "schema": {"type": "string", "enum": ["compact", "full"], "default": "compact"}, "description": "compact (default) returns id/name/version/domain/description; full returns the complete workflow shape."}
+        ],
         "responses": {
           "200": {
-            "description": "Guided investigation workflow catalog",
+            "description": "Guided investigation workflow catalog page",
             "content": {
               "application/json": {
                 "schema": {
@@ -26,12 +31,17 @@ const InvestigationWorkflows = `
                     "schema_version": {"type": "string"},
                     "workflows": {"type": "array", "items": {"type": "object"}},
                     "versions": {"type": "array", "items": {"type": "object"}},
-                    "count": {"type": "integer"}
+                    "count": {"type": "integer"},
+                    "total": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
                   }
                 }
               }
             }
-          }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"}
         }
       }
     },

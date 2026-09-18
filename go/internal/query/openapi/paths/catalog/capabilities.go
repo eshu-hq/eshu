@@ -9,14 +9,16 @@ const Capabilities = `
       "get": {
         "tags": ["capabilities"],
         "summary": "List the capability maturity catalog",
-        "description": "Returns the reconciled capability catalog from the embedded, generated artifact: per-capability maturity, public surfaces, proof signals, owner package, known gaps, linked issues, and role/grant/data-class authorization metadata. The read is static, bounded, and exact in every profile, and backs the MCP get_capability_catalog tool and the console capability matrix. Supports optional maturity and owner_package filters with deterministic limit/offset paging.",
+        "description": "Returns the reconciled capability catalog from the embedded, generated artifact: per-capability maturity, public surfaces, owner package, known gaps, linked issues, and per-capability authorization metadata. The read is static, bounded, and exact in every profile, and backs the MCP get_capability_catalog tool and the console capability matrix. Supports optional maturity and owner_package filters with deterministic limit/offset paging. The default (compact) response omits per-capability profiles/proof_signals and the top-level authorization catalog to keep a default page small for MCP clients (#6795); pass view=full and/or include_authorization=true to opt into that detail.",
         "operationId": "listCapabilities",
         "x-scoped-token-support": true,
         "parameters": [
           {"name": "maturity", "in": "query", "required": false, "schema": {"type": "string", "enum": ["general_availability", "experimental", "preview", "gated", "degraded", "not_implemented"]}, "description": "Optional maturity filter."},
           {"name": "owner", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Optional owner_package filter (exact match)."},
-          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 200}, "description": "Maximum number of capabilities to return."},
-          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0, "default": 0}, "description": "Number of capabilities to skip for paging."}
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 12}, "description": "Maximum number of capabilities to return."},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer", "minimum": 0, "default": 0}, "description": "Number of capabilities to skip for paging."},
+          {"name": "view", "in": "query", "required": false, "schema": {"type": "string", "enum": ["compact", "full"], "default": "compact"}, "description": "compact (default) omits per-entry profiles and proof_signals; full returns the complete entry shape."},
+          {"name": "include_authorization", "in": "query", "required": false, "schema": {"type": "boolean", "default": false}, "description": "When true, includes the full top-level role/grant/data-class authorization catalog. Default false: the field is present but empty."}
         ],
         "responses": {
           "200": {
