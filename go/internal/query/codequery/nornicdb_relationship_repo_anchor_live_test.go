@@ -1,0 +1,257 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+//go:build live_nornicdb_answer_truth
+
+// Live answer-truth proof for issue #6786 defect 2: the repo-filtered
+// relationship lookup at relationship_handlers.go's name+repo_id branch.
+// relationshipGraphRowCypher spliced a backward multi-hop EXISTS
+// ("e.name = $name AND EXISTS { MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository) WHERE repo.id = $repo_id }")
+// into a bare `MATCH (e) WHERE ...` scan. On NornicDB v1.3.3 that backward
+// multi-hop EXISTS is ignored, so a same-named entity in a DIFFERENT
+// repository still matches and RunSingle returns whichever row comes back
+// first, regardless of the requested repo_id. Neo4j evaluates the EXISTS
+// correctly.
+//
+// This test seeds two repositories that each contain a Function named "Run"
+// and asks for "Run" scoped to each repository in turn. The defect's
+// signature is that both requests resolve to the SAME entity id on NornicDB
+// (the repo_id filter is a no-op), while the fixed anchor-on-repository
+// shape (MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(file:File)-[:CONTAINS]->(e))
+// must resolve each request to its own repository's entity on both backends.
+//
+// GraphBackend is left unset on the handler so the request dispatches through
+// the default (Neo4j-labelled) relationshipsGraphRow path even though the
+// backing store is the live NornicDB container -- the exact reachable shape
+// #6786 proved live, and the one this test exercises and fixes.
+//
+// Run against isolated containers on the pinned images:
+//
+//	docker run -d --name eshu-6786-fix2-nornic -p 127.0.0.1:27900:7687 \
+//	  -e NORNICDB_NO_AUTH=true -e NORNICDB_ASYNC_WRITES_ENABLED=false \
+//	  -e NORNICDB_EMBEDDING_ENABLED=false -e NORNICDB_HEIMDALL_ENABLED=false \
+//	  -e NORNICDB_SEARCH_BM25_ENABLED=false -e NORNICDB_SEARCH_VECTOR_ENABLED=false \
+//	  -e NORNICDB_QDRANT_GRPC_ENABLED=false -e NORNICDB_PERSIST_SEARCH_INDEXES=false \
+//	  timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf48898f4c37d05c325fee76b6d797b43e290e3a8a4e9eea936f0ec827f
+//	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27900 ESHU_LIVE_GRAPH_BACKEND=nornicdb \
+//	  go test ./internal/query/codequery -tags live_nornicdb_answer_truth \
+//	  -run TestLiveRelationshipRepoAnchorAnswerTruth -count=1 -v
+//
+//	docker run -d --name eshu-6786-fix2-neo4j -p 127.0.0.1:27910:7687 \
+//	  -e NEO4J_AUTH=none neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f
+//	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27910 ESHU_LIVE_GRAPH_BACKEND=neo4j \
+//	  go test ./internal/query/codequery -tags live_nornicdb_answer_truth \
+//	  -run TestLiveRelationshipRepoAnchorAnswerTruth -count=1 -v
+//
+// Call-contract note (eshu-mcp-call-rigor): the request drives the real
+// POST /api/v0/code/relationships handler with an explicit repo_id scope (the
+// canonical scope for this tool) and reads the entity from the standard
+// {data, truth, error} envelope's "data" payload.
+package codequery
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	eshugraph "github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+)
+
+const (
+	relAnchorRepoA = "repository:6786-relanchor-repo-a"
+	relAnchorRepoB = "repository:6786-relanchor-repo-b"
+	relAnchorFnA   = "repository:6786-relanchor-fn-run-a"
+	relAnchorFnB   = "repository:6786-relanchor-fn-run-b"
+)
+
+// relAnchorSeed builds two repositories that each contain their own File and
+// a Function named "Run", so a name-only match without repository anchoring
+// is genuinely ambiguous between them.
+var relAnchorSeed = []string{
+	`CREATE (:Repository {id: '` + relAnchorRepoA + `', name: 'relanchor-repo-a'})`,
+	`CREATE (:Repository {id: '` + relAnchorRepoB + `', name: 'relanchor-repo-b'})`,
+	`CREATE (:File {id: 'repository:6786-relanchor-file-a', relative_path: 'a.go', language: 'go'})`,
+	`CREATE (:File {id: 'repository:6786-relanchor-file-b', relative_path: 'b.go', language: 'go'})`,
+	`CREATE (:Function {id: '` + relAnchorFnA + `', name: 'Run', language: 'go'})`,
+	`CREATE (:Function {id: '` + relAnchorFnB + `', name: 'Run', language: 'go'})`,
+	relAnchorEdge("Repository", relAnchorRepoA, "REPO_CONTAINS", "File", "repository:6786-relanchor-file-a"),
+	relAnchorEdge("Repository", relAnchorRepoB, "REPO_CONTAINS", "File", "repository:6786-relanchor-file-b"),
+	relAnchorEdge("File", "repository:6786-relanchor-file-a", "CONTAINS", "Function", relAnchorFnA),
+	relAnchorEdge("File", "repository:6786-relanchor-file-b", "CONTAINS", "Function", relAnchorFnB),
+}
+
+func relAnchorEdge(fromLabel, fromID, relType, toLabel, toID string) string {
+	return `MATCH (a:` + fromLabel + ` {id: '` + fromID + `'}) MATCH (b:` + toLabel + ` {id: '` + toID + `'}) CREATE (a)-[:` + relType + `]->(b)`
+}
+
+const relAnchorCleanup = `MATCH (n) WHERE n.id STARTS WITH 'repository:6786-relanchor-' DETACH DELETE n`
+
+func TestLiveRelationshipRepoAnchorAnswerTruth(t *testing.T) {
+	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
+	if uri == "" {
+		t.Fatal("ESHU_NEO4J_URI is required")
+	}
+	backend := strings.TrimSpace(strings.ToLower(os.Getenv("ESHU_LIVE_GRAPH_BACKEND")))
+	if backend == "" {
+		t.Fatal("ESHU_LIVE_GRAPH_BACKEND is required (nornicdb|neo4j)")
+	}
+	database := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE"))
+	if database == "" {
+		if backend == "nornicdb" {
+			database = "nornic"
+		} else {
+			database = "neo4j"
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	driver, err := neo4jdriver.NewDriverWithContext(uri, neo4jdriver.NoAuth())
+	if err != nil {
+		t.Fatalf("open driver: %v", err)
+	}
+	defer func() { _ = driver.Close(context.Background()) }()
+	if err := driver.VerifyConnectivity(ctx); err != nil {
+		t.Fatalf("verify connectivity: %v", err)
+	}
+
+	reader := codequeryLiveReader{driver: driver, database: database}
+	reader.write(ctx, t, relAnchorCleanup)
+	defer reader.write(context.Background(), t, relAnchorCleanup)
+
+	schemaBackend := eshugraph.SchemaBackendNeo4j
+	if backend == "nornicdb" {
+		schemaBackend = eshugraph.SchemaBackendNornicDB
+	}
+	if err := eshugraph.EnsureSchemaWithBackend(ctx, reader, nil, schemaBackend); err != nil {
+		t.Fatalf("apply schema: %v", err)
+	}
+
+	for _, stmt := range relAnchorSeed {
+		reader.write(ctx, t, stmt)
+	}
+
+	// GraphBackend intentionally left unset: defect 2 lives on the default
+	// (non-NornicDB-dispatched) relationshipsGraphRow path, which is exactly
+	// what runs here against the live NornicDB container.
+	handler := &CodeHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+
+	entityA, repoIDA := queryRunRelationshipEntity(t, handler, relAnchorRepoA)
+	entityB, repoIDB := queryRunRelationshipEntity(t, handler, relAnchorRepoB)
+
+	if entityA == entityB {
+		t.Fatalf("querying \"Run\" scoped to repo A (%s) and repo B (%s) resolved to the SAME entity %q -- repo_id filter is not being applied", relAnchorRepoA, relAnchorRepoB, entityA)
+	}
+	if entityA != relAnchorFnA {
+		t.Errorf("repo A entity_id = %q, want %q", entityA, relAnchorFnA)
+	}
+	if entityB != relAnchorFnB {
+		t.Errorf("repo B entity_id = %q, want %q", entityB, relAnchorFnB)
+	}
+	if repoIDA != relAnchorRepoA {
+		t.Errorf("repo A response repo_id = %q, want %q", repoIDA, relAnchorRepoA)
+	}
+	if repoIDB != relAnchorRepoB {
+		t.Errorf("repo B response repo_id = %q, want %q", repoIDB, relAnchorRepoB)
+	}
+}
+
+// queryRunRelationshipEntity drives the real POST /api/v0/code/relationships
+// handler for name="Run" scoped to repoID and returns the resolved
+// entity_id and repo_id from the response envelope's data payload.
+func queryRunRelationshipEntity(t *testing.T, handler *CodeHandler, repoID string) (entityID string, responseRepoID string) {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{"name": "Run", "repo_id": repoID})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/relationships", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	handler.handleRelationships(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("repo_id=%s: status = %d, want 200, body=%s", repoID, rec.Code, rec.Body.String())
+	}
+	var envelope querycontract.ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("repo_id=%s: json.Unmarshal() error = %v", repoID, err)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("repo_id=%s: response data is not an object: %#v", repoID, envelope.Data)
+	}
+	return querycontract.StringVal(data, "entity_id"), querycontract.StringVal(data, "repo_id")
+}
+
+// codequeryLiveReader is the test-only live GraphQuery + graph.CypherExecutor
+// for this file. The package cannot import root query's Neo4jReader without a
+// cycle (same rationale as entity's entityLiveReader).
+type codequeryLiveReader struct {
+	driver   neo4jdriver.DriverWithContext
+	database string
+}
+
+func (r codequeryLiveReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: r.database})
+	defer func() { _ = session.Close(ctx) }()
+	result, err := session.Run(ctx, cypher, params)
+	if err != nil {
+		return nil, err
+	}
+	records, err := result.Collect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		row := make(map[string]any, len(record.Keys))
+		for i, key := range record.Keys {
+			row[key] = record.Values[i]
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+func (r codequeryLiveReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
+	rows, err := r.Run(ctx, cypher, params)
+	if err != nil || len(rows) == 0 {
+		return nil, err
+	}
+	return rows[0], nil
+}
+
+// ExecuteCypher implements graph.CypherExecutor so this reader can also drive
+// graph.EnsureSchemaWithBackend.
+func (r codequeryLiveReader) ExecuteCypher(ctx context.Context, stmt eshugraph.CypherStatement) error {
+	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
+	defer func() { _ = session.Close(ctx) }()
+	result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters)
+	if err != nil {
+		return err
+	}
+	_, err = result.Consume(ctx)
+	return err
+}
+
+func (r codequeryLiveReader) write(ctx context.Context, t *testing.T, cypher string) {
+	t.Helper()
+	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
+	defer func() { _ = session.Close(ctx) }()
+	result, err := session.Run(ctx, cypher, nil)
+	if err != nil {
+		t.Fatalf("write %q: %v", cypher, err)
+	}
+	if _, err := result.Consume(ctx); err != nil {
+		t.Fatalf("consume %q: %v", cypher, err)
+	}
+}

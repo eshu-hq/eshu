@@ -16,44 +16,40 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
-// TestListRepositoriesScopedDependencyMarkerFiltersDepender proves that the
-// EXISTS subquery used to derive is_dependency applies the caller's tenant
-// access predicate to the depending Repository node (the one that holds the
-// outbound DEPENDS_ON edge). A scoped caller must not learn dependency-marker
-// truth about in-scope repositories based on depending nodes that are outside
-// their grant.
-func TestListRepositoriesScopedDependencyMarkerFiltersDepender(t *testing.T) {
+// TestListRepositoriesPageCypherHasNoDependencyMarkerExpression proves the
+// repository list page query no longer renders a per-row
+// EXISTS-as-RETURN-expression for is_dependency (issue #6786 defect 1): on
+// NornicDB v1.3.3 an EXISTS used as a RETURN expression is always false, and
+// the scoped caller's grant predicate used to be spliced directly after the
+// MATCH pattern with no WHERE keyword, which Neo4j rejects as a SyntaxError.
+// is_dependency is now derived in Go from the separate, already-scoped
+// dependency-edge pre-pass (loadRepositoryDependencyEdges), so the page
+// query's RETURN carries no EXISTS, DEPENDS_ON, or is_dependency text at
+// all.
+func TestListRepositoriesPageCypherHasNoDependencyMarkerExpression(t *testing.T) {
 	t.Parallel()
 
-	var capturedListCypher string
+	var capturedPageCypher string
 	reader := querytestutil.FakeRepoGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(1)}, nil
 		},
-		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if strings.Contains(cypher, "MATCH (r:Repository)") && strings.Contains(cypher, "DEPENDS_ON") {
-				capturedListCypher = cypher
-				return []map[string]any{
-					{"id": "repository:lib", "name": "lib", "is_dependency": true},
-				}, nil
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
+				return []map[string]any{}, nil
+			case strings.Contains(cypher, "MATCH (r:Repository)"):
+				capturedPageCypher = cypher
+				return []map[string]any{{"id": "repository:lib", "name": "lib"}}, nil
+			default:
+				return []map[string]any{{"total": 1}}, nil
 			}
-			// COUNT query for total
-			return []map[string]any{{"total": 1}}, nil
 		},
 	}
 
 	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=10", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
-		Mode:                 queryauth.AuthModeScoped,
-		TenantID:             "tenant-a",
-		WorkspaceID:          "workspace-a",
-		SubjectClass:         "team",
-		SubjectIDHash:        "sha256:team-a",
-		PolicyRevisionHash:   "sha256:policy",
-		AllowedRepositoryIDs: []string{"repository:lib"},
-	}))
 	rec := httptest.NewRecorder()
 
 	handler.listRepositories(rec, req)
@@ -61,44 +57,44 @@ func TestListRepositoriesScopedDependencyMarkerFiltersDepender(t *testing.T) {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-
-	// The EXISTS inner MATCH must scope the depending node to the caller's grant.
-	// It must contain the $allowed_repository_ids predicate inside the EXISTS block.
-	if capturedListCypher == "" {
-		t.Fatal("list cypher was not captured; check that the fake matched the MATCH (r:Repository) + DEPENDS_ON query")
+	if capturedPageCypher == "" {
+		t.Fatal("page cypher was not captured; check that the fake matched the MATCH (r:Repository) query")
 	}
-	existsIdx := strings.Index(capturedListCypher, "EXISTS")
-	if existsIdx < 0 {
-		t.Fatalf("list cypher has no EXISTS block:\n%s", capturedListCypher)
-	}
-	existsBlock := capturedListCypher[existsIdx:]
-	if !strings.Contains(existsBlock, "allowed_repository_ids") {
-		t.Fatalf("EXISTS block does not scope the depending repo to $allowed_repository_ids — scoped callers can see markers from out-of-scope dependers:\n%s", capturedListCypher)
+	for _, forbidden := range []string{"EXISTS", "DEPENDS_ON", "is_dependency"} {
+		if strings.Contains(capturedPageCypher, forbidden) {
+			t.Errorf("page cypher still contains %q, want it removed in favor of the Go-derived marker:\n%s", forbidden, capturedPageCypher)
+		}
 	}
 }
 
 // TestListRepositoriesMarksDependencyFromInboundEdge proves the repositories
-// list query derives is_dependency from an inbound DEPENDS_ON edge rather than
-// reading a Repository node property that no writer populates. A "dependency
-// repo" is a repository other repositories depend on, i.e. the target of an
-// admitted (:Repository)-[:DEPENDS_ON]->(:Repository) edge.
+// list response derives is_dependency from the bounded dependency-edge
+// pre-pass rather than a per-row graph expression: a repository that is the
+// target of an admitted inbound DEPENDS_ON edge is marked true, one that
+// only has an outbound edge (or none) is marked false.
 func TestListRepositoriesMarksDependencyFromInboundEdge(t *testing.T) {
 	t.Parallel()
 
-	var capturedListCypher string
+	var capturedEdgeCypher string
 	reader := querytestutil.FakeRepoGraphReader{
 		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 			return map[string]any{"total": int64(2)}, nil
 		},
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-			if strings.Contains(cypher, "MATCH (r:Repository)") {
-				capturedListCypher = cypher
+			switch {
+			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
+				capturedEdgeCypher = cypher
 				return []map[string]any{
-					{"id": "repository:lib", "name": "lib", "is_dependency": true},
-					{"id": "repository:app", "name": "app", "is_dependency": false},
+					{"source_id": "repository:app", "target_id": "repository:lib"},
 				}, nil
+			case strings.Contains(cypher, "MATCH (r:Repository)"):
+				return []map[string]any{
+					{"id": "repository:lib", "name": "lib"},
+					{"id": "repository:app", "name": "app"},
+				}, nil
+			default:
+				return nil, nil
 			}
-			return nil, nil
 		},
 	}
 
@@ -112,17 +108,8 @@ func TestListRepositoriesMarksDependencyFromInboundEdge(t *testing.T) {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-
-	// The dependency marker must come from an inbound DEPENDS_ON edge existence
-	// check, not from the phantom Repository node property.
-	if strings.Contains(capturedListCypher, "coalesce(r.is_dependency") {
-		t.Fatalf("list cypher still reads phantom r.is_dependency node property:\n%s", capturedListCypher)
-	}
-	if !strings.Contains(capturedListCypher, "<-[:DEPENDS_ON]-") {
-		t.Fatalf("list cypher does not derive is_dependency from inbound DEPENDS_ON edge:\n%s", capturedListCypher)
-	}
-	if !strings.Contains(capturedListCypher, "as is_dependency") {
-		t.Fatalf("list cypher does not alias the dependency marker as is_dependency:\n%s", capturedListCypher)
+	if capturedEdgeCypher == "" {
+		t.Fatal("dependency-edge pre-pass cypher was not issued")
 	}
 
 	var envelope querycontract.ResponseEnvelope
@@ -150,6 +137,67 @@ func TestListRepositoriesMarksDependencyFromInboundEdge(t *testing.T) {
 		t.Fatalf("repository:lib is_dependency = false, want true (inbound DEPENDS_ON target)")
 	}
 	if markers["repository:app"] {
-		t.Fatalf("repository:app is_dependency = true, want false (no inbound DEPENDS_ON)")
+		t.Fatalf("repository:app is_dependency = true, want false (outbound edge only, not a target)")
+	}
+}
+
+// TestListRepositoriesScopedDependencyMarkerUsesScopedEdgePrePass proves
+// that a scoped caller's is_dependency marker comes from the same
+// dependency-edge pre-pass query dependency-cluster grouping already scopes
+// to both endpoints ($allowed_repository_ids / $allowed_scope_ids on both s
+// and t), so a scoped caller cannot learn dependency-marker truth from an
+// edge whose depending repository is outside their grant.
+func TestListRepositoriesScopedDependencyMarkerUsesScopedEdgePrePass(t *testing.T) {
+	t.Parallel()
+
+	var capturedEdgeCypher string
+	reader := querytestutil.FakeRepoGraphReader{
+		RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
+			return map[string]any{"total": int64(1)}, nil
+		},
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
+				capturedEdgeCypher = cypher
+				// The fake graph honors no predicate itself; it returns the
+				// edge unconditionally so the assertion below is purely
+				// about the rendered Cypher text, matching the existing
+				// dependency_cluster_test.go pattern for the same query.
+				return []map[string]any{
+					{"source_id": "repository:outside", "target_id": "repository:lib"},
+				}, nil
+			case strings.Contains(cypher, "MATCH (r:Repository)"):
+				return []map[string]any{{"id": "repository:lib", "name": "lib"}}, nil
+			default:
+				return []map[string]any{{"total": 1}}, nil
+			}
+		},
+	}
+
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=10", nil)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
+		TenantID:             "tenant-a",
+		WorkspaceID:          "workspace-a",
+		SubjectClass:         "team",
+		SubjectIDHash:        "sha256:team-a",
+		PolicyRevisionHash:   "sha256:policy",
+		AllowedRepositoryIDs: []string{"repository:lib"},
+	}))
+	rec := httptest.NewRecorder()
+
+	handler.listRepositories(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	if capturedEdgeCypher == "" {
+		t.Fatal("dependency-edge pre-pass cypher was not issued for the scoped caller")
+	}
+	if !strings.Contains(capturedEdgeCypher, "s.id IN $allowed_repository_ids") ||
+		!strings.Contains(capturedEdgeCypher, "t.id IN $allowed_repository_ids") {
+		t.Fatalf("scoped edge query does not scope both endpoints to the grant:\n%s", capturedEdgeCypher)
 	}
 }

@@ -55,9 +55,10 @@ type repositoryDependencyEdge struct {
 // "(s:Repository)-[:DEPENDS_ON]->(t:Repository)" verbatim. The queryplan
 // validator's unlabeledMatchPattern check does NOT gate this query:
 // validateCypherEntry runs only for registered manifest entries, and
-// loadRepositoryDependencyClusters is a non_hot_reason callsite in
-// queryplan/testdata/query-source-coverage.yaml. Update those tests, not the
-// validator, if this shape ever changes deliberately.
+// loadRepositoryDependencyEdges (formerly loadRepositoryDependencyClusters,
+// renamed by #6786 when it started backing is_dependency too) is a non_hot
+// callsite in queryplan/testdata/query-source-coverage.yaml. Update those
+// tests, not the validator, if this shape ever changes deliberately.
 //
 // The relationship-type-index win recorded in cypher-performance.md for bare
 // MATCH ()-[r:VERB]->() count(r) aggregates does not transfer to a shape that
@@ -98,64 +99,26 @@ func repositoryDependencyClusterEdgeCypher(access querycontract.RepositoryAccess
 	`, where, repositoryDependencyClusterEdgeLimit)
 }
 
-// RepositoryDependencyEdgeCountCypher is the whole-graph DEPENDS_ON cardinality
-// probe that gates the repository dependency-cluster edge pre-pass. It is
-// exported so the query-plan manifest (QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT) can
-// bind the exact production statement and freeze its relationship-type-index
-// plan. The bare relationship-type count is answered from the relationship-type
-// index on NornicDB (measured 0.09s on a production-scale graph), while the
-// Repository-anchored edge scan below expands every Repository's full adjacency
-// to look for DEPENDS_ON even when none exist (measured 5.3-6.4s at several
-// hundred repositories with zero DEPENDS_ON edges). The probe is unscoped and
-// therefore only issued for unscoped (shared, admin, local) callers; scoped
-// callers keep the grant-predicated scan so no statement on the repository list
-// path runs without their grant.
-const RepositoryDependencyEdgeCountCypher = `MATCH ()-[r:DEPENDS_ON]->() RETURN count(r) AS edge_count`
-
-// repositoryDependencyClusterResult is the outcome of the dependency-cluster
-// pre-pass. clusters maps repository id to cluster key; skipped reports that
-// the edge scan was not run because the graph holds no DEPENDS_ON edges;
-// probeErr and edgeErr carry failures for telemetry instead of being dropped.
-type repositoryDependencyClusterResult struct {
-	clusters map[string]string
-	skipped  bool
-	probeErr error
-	edgeErr  error
-}
-
-// loadRepositoryDependencyClusters runs the bounded edge pre-pass and returns
-// the map from repository id to its dependency-cluster key (the
-// lexicographically smallest repository id in the connected component).
-// Repositories that do not participate in any in-scope DEPENDS_ON edge are
-// absent from the map and fall through to the non-cluster grouping path.
+// loadRepositoryDependencyEdges runs the bounded, correctly-scoped
+// (:Repository)-[:DEPENDS_ON]->(:Repository) edge pre-pass and returns the
+// parsed edge list. On query error it returns nil so callers degrade to
+// "no known edges" (non-cluster grouping, is_dependency=false) rather than
+// failing the whole repository list.
 //
-// A cheap DEPENDS_ON cardinality probe runs first; when it proves the graph has
-// no DEPENDS_ON edges the edge scan is skipped, which is exact because an empty
-// edge set yields an empty cluster map. A probe failure does not suppress the
-// scan (the probe is only an optimization). On edge-scan error the map is empty
-// so the caller degrades to non-cluster grouping rather than failing the whole
-// repository list, and the error is returned on the result for telemetry.
-func loadRepositoryDependencyClusters(ctx context.Context, graph querycontract.GraphQuery, access querycontract.RepositoryAccessFilter) repositoryDependencyClusterResult {
-	result := repositoryDependencyClusterResult{clusters: map[string]string{}}
+// This is the single graph read that backs both dependency-cluster grouping
+// (buildRepositoryDependencyClusters) and the is_dependency marker
+// (repositoryDependencyTargetSet) -- issue #6786 defect 1 replaced a
+// per-row `EXISTS { MATCH (r)<-[:DEPENDS_ON]-(dep:Repository)... }` RETURN
+// expression (always false on NornicDB v1.3.3, and invalid Cypher on Neo4j
+// when the scoped grant predicate was spliced in) with this already-bounded,
+// already-scoped edge read, computed once in Go for both purposes.
+func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.GraphQuery, access querycontract.RepositoryAccessFilter) []repositoryDependencyEdge {
 	if graph == nil {
-		return result
-	}
-	// The probe is unscoped, so it only runs for callers who may already see the
-	// whole graph. Scoped callers never issue a statement without their grant
-	// predicate; they go straight to the scoped edge scan.
-	if !access.Scoped() {
-		noEdges, err := probeRepositoryDependencyEdgesAbsent(ctx, graph)
-		if err != nil {
-			result.probeErr = err
-		} else if noEdges {
-			result.skipped = true
-			return result
-		}
+		return nil
 	}
 	rows, err := graph.Run(ctx, repositoryDependencyClusterEdgeCypher(access), access.GraphParams(nil))
 	if err != nil {
-		result.edgeErr = err
-		return result
+		return nil
 	}
 	edges := make([]repositoryDependencyEdge, 0, len(rows))
 	for _, row := range rows {
@@ -166,40 +129,23 @@ func loadRepositoryDependencyClusters(ctx context.Context, graph querycontract.G
 		}
 		edges = append(edges, repositoryDependencyEdge{Source: source, Target: target})
 	}
-	result.clusters = buildRepositoryDependencyClusters(edges)
-	return result
+	return edges
 }
 
-// probeRepositoryDependencyEdgesAbsent runs the DEPENDS_ON cardinality probe
-// and reports whether it proves the graph holds no DEPENDS_ON edges. It is a
-// separate symbol so the query-source coverage manifest can register the probe
-// as a hot, plan-checked call independent of the edge scan.
-func probeRepositoryDependencyEdgesAbsent(ctx context.Context, graph querycontract.GraphQuery) (bool, error) {
-	rows, err := graph.Run(ctx, RepositoryDependencyEdgeCountCypher, nil)
-	if err != nil {
-		return false, err
+// repositoryDependencyTargetSet returns the set of repository ids that are
+// the target of at least one edge in edges -- i.e. the repositories some
+// other (grant-admitted) repository depends on. This is the is_dependency
+// marker: "True when at least one other repository depends on this one, i.e.
+// it is the target of an admitted Repository-[:DEPENDS_ON]->Repository edge"
+// (openapi components.go). Deriving it here from the edges the caller already
+// fetched for clustering avoids a second graph round trip and keeps both
+// signals consistent with the same scoped, bounded edge read.
+func repositoryDependencyTargetSet(edges []repositoryDependencyEdge) map[string]struct{} {
+	targets := make(map[string]struct{}, len(edges))
+	for _, edge := range edges {
+		targets[edge.Target] = struct{}{}
 	}
-	return len(rows) > 0 && dependencyEdgeCountIsZero(rows[0]), nil
-}
-
-// dependencyEdgeCountIsZero reports whether the probe row proves the graph has
-// no DEPENDS_ON edges. Only a present, recognized integer zero counts: a
-// missing column or an unrecognized value type returns false so the edge scan
-// still runs, because skipping on an unreadable probe would silently drop real
-// cluster evidence.
-func dependencyEdgeCountIsZero(row map[string]any) bool {
-	switch n := row["edge_count"].(type) {
-	case int64:
-		return n == 0
-	case int:
-		return n == 0
-	case int32:
-		return n == 0
-	case float64:
-		return n == 0
-	default:
-		return false
-	}
+	return targets
 }
 
 // buildRepositoryDependencyClusters computes connected components over the
