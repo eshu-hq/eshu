@@ -132,12 +132,18 @@ WHERE stage = 'projector'
   AND status IN ('claimed', 'running')
 `
 
+// supersedeRunningProjectorWorkQuery runs on every heartbeat. It must never
+// wait on the scope row: ingestion holds that row while it streams facts, and a
+// waiting heartbeat would let the lease lapse. SKIP LOCKED defers supersession
+// to a later heartbeat while ingestion, Ack, or Fail owns the scope, and the
+// caller then renews the lease. NO KEY UPDATE still conflicts with those scope
+// writers but not with foreign-key KEY SHARE locks from unrelated child inserts.
 const supersedeRunningProjectorWorkQuery = `
 WITH locked_scope AS MATERIALIZED (
     SELECT scope_id
     FROM ingestion_scopes
     WHERE scope_id = $2
-    FOR UPDATE
+    FOR NO KEY UPDATE SKIP LOCKED
 ),
 superseded_work AS (
 UPDATE fact_work_items AS work

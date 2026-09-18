@@ -225,12 +225,11 @@ same-scope projector rows and their pending or failed `scope_generations` to
 obsolete terminal failures, so durable snapshot history remains available
 without leaving stale local polling generations in the live backlog or health
 summary.
-`ProjectorQueue.Heartbeat` supersedes older work when a newer generation
-exists and returns `projector.ErrWorkSuperseded` to stop stale graph writes.
-It also supersedes an unpublished pending generation. A published active
-generation and its scope pointer remain until successor Ack; if the successor
-fails, the old publication stays current. A terminal failure of the active
-generation's own re-projection still fails it and requires recovery.
+`ProjectorQueue.Heartbeat` supersedes older work when a newer generation exists
+and returns `projector.ErrWorkSuperseded`; only a pending generation is demoted,
+so a published one keeps its scope pointer until successor Ack. Heartbeat never
+waits on the scope row: during an ingestion commit it renews the lease and
+supersedes later. The service drops attempts rejected as stale.
 Expired `claimed` or `running` rows are ordered ahead of ordinary pending rows
 so stale leases are reclaimed before fresh work makes the status surface look
 permanently overdue. Claim also demotes expired same-scope duplicate in-flight

@@ -552,6 +552,7 @@ type stubProjectorWorkSink struct {
 	ackErr     error
 	beforeAck  func(context.Context)
 	failAfter  int
+	failErr    error
 }
 
 func (s *stubProjectorWorkSink) Ack(ctx context.Context, _ ScopeGenerationWork, _ Result) error {
@@ -573,7 +574,7 @@ func (s *stubProjectorWorkSink) Fail(_ context.Context, _ ScopeGenerationWork, e
 	defer s.mu.Unlock()
 	s.failCalls++
 	s.failedWith = err
-	return nil
+	return s.failErr
 }
 
 type stubProjectorWorkHeartbeater struct {

@@ -252,7 +252,9 @@ Because these run in one transaction, a reader never observes two active
 generations for a scope, and supersession of the old generation and activation
 of the new one are atomic. If a newer generation arrives while a projector is
 still working, the heartbeat path supersedes the in-flight work
-(`ErrWorkSuperseded`) so stale projection cannot overwrite newer truth.
+(`ErrWorkSuperseded`) so stale projection cannot overwrite newer truth. While
+the newer generation's ingestion commit is still open, the heartbeat renews its
+lease and supersedes on the next heartbeat after that commit.
 
 A failed first-generation attempt leaves no active generation. Projection uses
 `IngestionScope.PreviousGenerationExists` (not the presence of an active

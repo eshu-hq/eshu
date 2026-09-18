@@ -91,6 +91,10 @@ func TestProjectorQueueHeartbeatRejectsStaleClaim(t *testing.T) {
 	if !errors.Is(err, ErrProjectorClaimRejected) {
 		t.Fatalf("Heartbeat() error = %v, want %v", err, ErrProjectorClaimRejected)
 	}
+	// The projector service drops a lost claim only when it can see this.
+	if !errors.Is(err, projector.ErrWorkClaimLost) {
+		t.Fatalf("Heartbeat() error = %v, want projector.ErrWorkClaimLost", err)
+	}
 }
 
 func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {

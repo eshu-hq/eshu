@@ -73,6 +73,7 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestStatusActiveWorkQueriesPreserveSemantics",
 		"TestActiveFactWorkItemsFormsSelectTheSameRows",
 		"TestProjectorHeartbeatSupersessionPreservesActivePointer",
+		"TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope",
 		"TestProjectorQueueRejectsReclaimedSameOwnerAttempt",
 		"TestProjectorQueueRejectsAttemptReclaimedDuringLockWait",
 		"TestProjectorCompletionDoesNotDeadlockSameGenerationCommit",

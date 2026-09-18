@@ -237,7 +237,8 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	factsForGeneration, err := s.FactStore.LoadFacts(projectCtx, work)
 	if err != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-			if s.recordSupersededWork(workCtx, work, start, 0, heartbeatErr, workerID) {
+			if s.recordSupersededWork(workCtx, work, start, 0, heartbeatErr, workerID) ||
+				s.recordClaimLostWork(workCtx, work, start, 0, heartbeatErr, "heartbeat", true, workerID) {
 				return nil
 			}
 			return errors.Join(err, heartbeatErr)
@@ -248,6 +249,9 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 		}
 		s.recordProjectionResult(workCtx, work, start, "failed", 0, err, workerID)
 		if failErr := s.WorkSink.Fail(workCtx, work, err); failErr != nil {
+			if s.recordClaimLostWork(workCtx, work, start, 0, failErr, "fail", false, workerID) {
+				return nil
+			}
 			return errors.Join(err, fmt.Errorf("fail projector work: %w", failErr))
 		}
 		return nil
@@ -262,7 +266,8 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	result, err := s.Runner.Project(projectCtx, scopeValue, work.Generation, factsForGeneration)
 	if err != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-			if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) {
+			if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) ||
+				s.recordClaimLostWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, "heartbeat", true, workerID) {
 				return nil
 			}
 			return errors.Join(err, heartbeatErr)
@@ -273,13 +278,17 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 		}
 		s.recordProjectionResult(workCtx, work, start, "failed", len(factsForGeneration), err, workerID)
 		if failErr := s.WorkSink.Fail(workCtx, work, err); failErr != nil {
+			if s.recordClaimLostWork(workCtx, work, start, len(factsForGeneration), failErr, "fail", false, workerID) {
+				return nil
+			}
 			return errors.Join(err, fmt.Errorf("fail projector work: %w", failErr))
 		}
 		return nil
 	}
 	s.recordWorkStage(projectCtx, work, "project_generation", projectStart, len(factsForGeneration), workerID)
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-		if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) {
+		if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) ||
+			s.recordClaimLostWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, "heartbeat", true, workerID) {
 			return nil
 		}
 		return heartbeatErr
@@ -288,6 +297,9 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	ackCtx, cancelAck := projectorAckContext(workCtx)
 	defer cancelAck()
 	if err := s.WorkSink.Ack(ackCtx, work, result); err != nil {
+		if s.recordClaimLostWork(ackCtx, work, start, len(factsForGeneration), err, "ack", true, workerID) {
+			return nil
+		}
 		s.recordProjectionResult(ackCtx, work, start, "ack_failed", len(factsForGeneration), err, workerID)
 		return fmt.Errorf("ack projector work: %w", err)
 	}

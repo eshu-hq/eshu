@@ -63,8 +63,10 @@ type ProjectorQueue struct {
 }
 
 // ErrProjectorClaimRejected means the projector work item's owner, attempt,
-// or claimable status changed, so heartbeat, Ack, or Fail must stop.
-var ErrProjectorClaimRejected = errors.New("projector work claim rejected")
+// or claimable status changed, so heartbeat, Ack, or Fail must stop. It wraps
+// projector.ErrWorkClaimLost so the projector service drops the stale attempt
+// instead of stopping its other workers.
+var ErrProjectorClaimRejected = fmt.Errorf("projector work claim rejected: %w", projector.ErrWorkClaimLost)
 
 // NewProjectorQueue constructs a Postgres-backed projector work queue.
 func NewProjectorQueue(
