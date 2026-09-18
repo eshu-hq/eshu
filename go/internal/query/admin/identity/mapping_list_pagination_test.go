@@ -84,14 +84,20 @@ func TestListGroupMappingsRejectsNonCanonicalCursors(t *testing.T) {
 	t.Parallel()
 
 	valid := fmt.Sprintf("%064x", 0xabcdef)
-	store := &fakeAdminIdentityReadStore{
-		groupMappings: map[string][]IdPGroupMappingListItem{"tenant_a": {{
-			MappingRef: valid, TenantID: "tenant_a", WorkspaceID: "workspace_a",
-		}}},
+	// Each parallel subtest gets its own store and mux. The fake records the
+	// last tenant and workspace it was asked for, so sharing one across
+	// parallel subtests is a data race under -race.
+	newMux := func() *http.ServeMux {
+		store := &fakeAdminIdentityReadStore{
+			groupMappings: map[string][]IdPGroupMappingListItem{"tenant_a": {{
+				MappingRef: valid, TenantID: "tenant_a", WorkspaceID: "workspace_a",
+			}}},
+		}
+		handler := &ReadHandler{Store: store}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+		return mux
 	}
-	handler := &ReadHandler{Store: store}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
 
 	const path = "/api/v0/auth/admin/idp-group-mappings"
 	cases := []struct {
@@ -112,7 +118,7 @@ func TestListGroupMappingsRejectsNonCanonicalCursors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path+tc.query,
+			newMux().ServeHTTP(rec, adminRequest(t, http.MethodGet, path+tc.query,
 				allScopeAdminAuth("tenant_a", "workspace_a")))
 			if rec.Code != tc.want {
 				t.Fatalf("after_ref %q: status=%d, want %d (body %s)", tc.query, rec.Code, tc.want, rec.Body.String())
