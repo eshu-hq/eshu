@@ -169,8 +169,9 @@ func BuildRetractCodeCallEdgeStatementsByFilePath(filePaths []string, evidenceSo
 // deleteOrphanPlatformNodesCypher constant in canonical.go.
 
 // isCanonicalRunsOnReplaySafeGroup is the narrow exception for the two
-// RUNS_ON canonicalization writers. It runs only after a commit-conflict error;
-// successful writes keep the same Cypher, transaction count, and hot path.
+// RUNS_ON canonicalization writers. It gates commit-conflict retries and
+// durable transaction-timeout deferral; successful writes keep the same Cypher,
+// transaction count, and hot path.
 func isCanonicalRunsOnReplaySafeGroup(stmts []Statement) bool {
 	if len(stmts) == 3 {
 		group := make([]reducer.CypherGroupStatement, len(stmts))

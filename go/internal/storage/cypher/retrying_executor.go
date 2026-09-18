@@ -13,8 +13,9 @@ import (
 	"strings"
 	"time"
 
-	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/metric"
+
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -57,6 +58,7 @@ func (r *RetryingExecutor) Execute(ctx context.Context, stmt Statement) error {
 		string(stmt.Operation),
 		func() error { return r.Inner.Execute(ctx, stmt) },
 		func(err error) string { return classifyRetryableGraphWriteError(err, stmt) },
+		nil,
 	)
 }
 
@@ -76,6 +78,8 @@ func (r *RetryingExecutor) Execute(ctx context.Context, stmt Statement) error {
 // additionally covers Neo.ClientError.Transaction.TransactionCommitFailed
 // when the typed code or fallback message classifies as a NornicDB commit-time
 // UNIQUE conflict on a MERGE-shaped group.
+// An exact NornicDB client transaction timeout on a recognized atomic RUNS_ON
+// group goes to the durable queue after rollback, without another local attempt.
 func (r *RetryingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) error {
 	ge, ok := r.Inner.(GroupExecutor)
 	if !ok {
@@ -86,6 +90,7 @@ func (r *RetryingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) 
 		groupOperationLabel(stmts),
 		func() error { return ge.ExecuteGroup(ctx, stmts) },
 		func(err error) string { return classifyRetryableGraphWriteGroupError(err, stmts) },
+		stmts,
 	)
 }
 
@@ -118,12 +123,15 @@ func (r *RetryingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bo
 // runWithRetry centralizes the retry loop for both Execute and ExecuteGroup.
 // classify returns a bounded reason for errors that are safe to retry; do
 // performs the work. Both callers share the same exponential-backoff-with-
-// jitter cadence and the same retry-budget exhaustion behavior.
+// jitter cadence and the same retry-budget exhaustion behavior. The optional
+// timeoutReplayGroup is validated only after NornicDB returns its exact
+// rollback-complete transaction timeout.
 func (r *RetryingExecutor) runWithRetry(
 	ctx context.Context,
 	operationLabel string,
 	do func() error,
 	classify func(error) string,
+	timeoutReplayGroup []Statement,
 ) error {
 	maxRetries := r.MaxRetries
 	if maxRetries <= 0 {
@@ -139,6 +147,17 @@ func (r *RetryingExecutor) runWithRetry(
 		lastErr = do()
 		if lastErr == nil {
 			return nil
+		}
+		if isNornicDBTransactionTimedOutClientConfiguration(lastErr) ||
+			hasNornicDBTransactionTimeoutInUnknownOutcome(lastErr) {
+			if !hasUnknownTransactionOutcome(lastErr) &&
+				len(timeoutReplayGroup) > 0 && isCanonicalRunsOnReplaySafeGroup(timeoutReplayGroup) {
+				return &neo4jRetryableError{
+					inner: lastErr,
+					code:  nornicDBTransactionTimedOutClientConfigurationCode,
+				}
+			}
+			return lastErr
 		}
 		retryReason := classify(lastErr)
 		if retryReason == "" {
@@ -419,36 +438,6 @@ func isNornicDBCommitTimeUniqueConflictError(err error) bool {
 	}
 
 	return isNornicDBCommitTimeUniqueConflict(err.Error())
-}
-
-// isNornicDBCommitTimeUniqueConflict matches NornicDB's commit-time UNIQUE
-// constraint violations across binary versions. Older NornicDB releases
-// wrap the failure as "failed to commit implicit transaction: constraint
-// violation:..."; timothyswt/nornicdb-amd64-cpu:v1.0.45 and later surface a
-// Neo4jError with code Neo.ClientError.Transaction.TransactionCommitFailed
-// and body "commit failed: constraint violation:...". Both shapes describe
-// the same race-on-commit class and are safe to retry on a MERGE-shaped
-// write where MERGE re-execution will match the now-committed node.
-func isNornicDBCommitTimeUniqueConflict(msg string) bool {
-	if !isNornicDBUniqueConflictBody(msg) {
-		return false
-	}
-	return strings.Contains(msg, "failed to commit implicit transaction") ||
-		strings.Contains(msg, "commit failed") ||
-		strings.Contains(msg, "TransactionCommitFailed")
-}
-
-func isNornicDBUniqueConflictBody(msg string) bool {
-	if !strings.Contains(msg, "constraint violation") {
-		return false
-	}
-	if !strings.Contains(msg, "UNIQUE on") {
-		return false
-	}
-	if !strings.Contains(msg, "already exists") {
-		return false
-	}
-	return true
 }
 
 var whereClausePattern = regexp.MustCompile(`(?is)\bWHERE\b(.*?)(?:\bDETACH\s+DELETE\b|\bDELETE\b|\bREMOVE\b|\bRETURN\b|\z)`)
