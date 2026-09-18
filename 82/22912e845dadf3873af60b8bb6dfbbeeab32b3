@@ -1,0 +1,25 @@
+docs/public/reference/http-api/dashboard-sessions.md
+  s_50762adbc98aa0::t_ff2ac615b6ba88 46
+go/internal/query/admin/identity/mapping_list_pagination_test.go
+  s_50762adbc98aa0::t_da46f5ad7a73a2 80-82,103
+go/internal/query/admin/identity/mapping_ref.go
+  s_50762adbc98aa0::t_24281a92154476 36-39,51
+go/internal/query/openapi/paths/auth/admin_reads.go
+  s_50762adbc98aa0::t_9802f3b8702441 196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8222912e845dadf3873af60b8bb6dfbbeeab32b3",
+  "prompts": {},
+  "sessions": {
+    "s_50762adbc98aa0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a0d372a-a12a-4663-abff-5a088032f48b",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
