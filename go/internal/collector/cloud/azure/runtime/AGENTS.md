@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/cloud/azure/azureruntime guidance
+# AGENTS.md - internal/collector/cloud/azure/runtime guidance
 
 ## Read First
 

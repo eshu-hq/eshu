@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package azureruntime wires the Azure cloud collector into the shared collector
+// Package runtime wires the Azure cloud collector into the shared collector
 // runtime. It implements collector.Source for one or more declarative Azure
 // scope targets (tenant, subscription, or management group), reads Resource
 // Graph inventory or fixture resourcechanges pages through the
@@ -46,4 +46,4 @@
 // name only in
 // TargetConfig.CredentialRef, never inlined. Provider identifiers and credential
 // references remain control input only; they must not be copied into telemetry.
-package azureruntime
+package runtime

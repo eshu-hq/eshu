@@ -2,7 +2,7 @@
 
 Runtime binary for the Azure cloud collector. It runs in two modes:
 
-- **fixture** (default): wires the `azureruntime.Source` into the shared
+- **fixture** (default): wires the `runtime.Source` into the shared
   `collector.Service` and commits Azure source facts through the Postgres
   ingestion store. The live seam stays gated (issue #1998 scaffolding).
 - **claimed-live** (`-mode claimed-live`): selects one enabled, claim-enabled
@@ -88,7 +88,7 @@ Claimed-live wires the live Resource Graph provider, which serves the
 ## Live-call safety
 
 In fixture mode with `ESHU_AZURE_FIXTURE_PAGES_JSON` unset, the binary selects
-the zero-value `azureruntime.LiveProviderFactory`, which returns
+the zero-value `runtime.LiveProviderFactory`, which returns
 `ErrLiveProviderGated`. No default code path and no test issues a live Azure
 request. Live transport is reached only in `-mode claimed-live`, which is opt-in
 and requires an explicit `live_collection_enabled=true` collector instance and a

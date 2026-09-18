@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/runtime"
 )
 
 const (
@@ -48,38 +48,38 @@ type fixturePagesConfig struct {
 	Message             string   `json:"message"`
 }
 
-// loadRuntimeConfig builds the declarative azureruntime.Config from environment
+// loadRuntimeConfig builds the declarative runtime.Config from environment
 // variables. Targets are JSON; credentials are referenced by name only.
-func loadRuntimeConfig(getenv func(string) string) (azureruntime.Config, error) {
+func loadRuntimeConfig(getenv func(string) string) (runtime.Config, error) {
 	collectorID := strings.TrimSpace(getenv(envCollectorInstanceID))
 	if collectorID == "" {
-		return azureruntime.Config{}, fmt.Errorf("%s is required", envCollectorInstanceID)
+		return runtime.Config{}, fmt.Errorf("%s is required", envCollectorInstanceID)
 	}
 	rawTargets := strings.TrimSpace(getenv(envTargetsJSON))
 	if rawTargets == "" {
-		return azureruntime.Config{}, fmt.Errorf("%s is required", envTargetsJSON)
+		return runtime.Config{}, fmt.Errorf("%s is required", envTargetsJSON)
 	}
 	var decoded []targetJSON
 	if err := json.Unmarshal([]byte(rawTargets), &decoded); err != nil {
-		return azureruntime.Config{}, fmt.Errorf("decode %s: %w", envTargetsJSON, err)
+		return runtime.Config{}, fmt.Errorf("decode %s: %w", envTargetsJSON, err)
 	}
-	targets := make([]azureruntime.TargetConfig, 0, len(decoded))
+	targets := make([]runtime.TargetConfig, 0, len(decoded))
 	for _, target := range decoded {
 		targets = append(targets, mapTarget(target))
 	}
 	pollInterval, err := parsePollInterval(getenv(envPollInterval))
 	if err != nil {
-		return azureruntime.Config{}, err
+		return runtime.Config{}, err
 	}
-	return azureruntime.Config{
+	return runtime.Config{
 		CollectorInstanceID: collectorID,
 		PollInterval:        pollInterval,
 		Targets:             targets,
 	}, nil
 }
 
-func mapTarget(target targetJSON) azureruntime.TargetConfig {
-	return azureruntime.TargetConfig{
+func mapTarget(target targetJSON) runtime.TargetConfig {
+	return runtime.TargetConfig{
 		TenantID:           strings.TrimSpace(target.TenantID),
 		ScopeKind:          strings.TrimSpace(target.ScopeKind),
 		ProviderScopeID:    strings.TrimSpace(target.ProviderScopeID),

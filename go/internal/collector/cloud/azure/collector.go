@@ -34,7 +34,7 @@ type PageProvider interface {
 
 // ResourceChangesProvider yields Resource Graph resourcechanges pages for one
 // bounded scope. Implementations are fixture-only in this slice; live Azure
-// transport remains gated in azureruntime.LiveProviderFactory.
+// transport remains gated in runtime.LiveProviderFactory.
 type ResourceChangesProvider interface {
 	// NextResourceChangesPage returns the resourcechanges page for the given
 	// $skipToken. The empty token requests the first page.

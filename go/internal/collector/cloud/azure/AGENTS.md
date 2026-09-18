@@ -41,8 +41,8 @@
 - MUST keep every source file under 500 lines; split before the cap.
 - MUST keep this package the pure fixture-driven fact engine. The
   `collector.Source` implementation, the `cmd/collector-azure-cloud` binary, and
-  the `PageProviderFactory` seam live in the sibling `azureruntime` package
-  (`go/internal/collector/cloud/azure/azureruntime`); see its `AGENTS.md`.
+  the `PageProviderFactory` seam live in the sibling `runtime` package
+  (`go/internal/collector/cloud/azure/runtime`); see its `AGENTS.md`.
 - MUST NOT add Helm values, chart wiring, claim-driven workflow scheduling, or
   a live-calling default provider in this fact engine. Claimed-live scheduling
   and default-off chart activation are implemented in their owning packages;

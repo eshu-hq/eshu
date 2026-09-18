@@ -11,7 +11,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/runtime"
 )
 
 // newAzureLiveProviderFactory builds the read-only live Resource Graph provider
@@ -30,7 +30,7 @@ var newAzureLiveProviderFactory = defaultAzureLiveProviderFactory
 func defaultAzureLiveProviderFactory(
 	_ context.Context,
 	credentialRef string,
-) (azureruntime.PageProviderFactory, error) {
+) (runtime.PageProviderFactory, error) {
 	if strings.TrimSpace(credentialRef) == "" {
 		return nil, errors.New("azure live credential_ref is required")
 	}
@@ -38,9 +38,9 @@ func defaultAzureLiveProviderFactory(
 	if err != nil {
 		return nil, fmt.Errorf("azure default credential unavailable: %w", err)
 	}
-	client, err := azureruntime.NewAzureSDKResourceGraphClientFromCredential(credential, nil)
+	client, err := runtime.NewAzureSDKResourceGraphClientFromCredential(credential, nil)
 	if err != nil {
 		return nil, err
 	}
-	return azureruntime.LiveProviderFactory{ResourceGraphClient: client}, nil
+	return runtime.LiveProviderFactory{ResourceGraphClient: client}, nil
 }

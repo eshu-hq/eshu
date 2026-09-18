@@ -19,7 +19,7 @@ Adapter code may merge only when default wiring stays inert and tests prove the
 seam is explicitly injected, read-only, bounded, and sanitized. Today both
 binaries use fixture/file-backed defaults that make **zero** live calls. The GCP
 live seam exists as an explicit-injection `gcpruntime.LiveClient`. The Azure
-zero-value `azureruntime.LiveProviderFactory{}` returns
+zero-value `runtime.LiveProviderFactory{}` returns
 `ErrLiveProviderGated`. Azure also has a separate opt-in
 `collector-azure-cloud -mode claimed-live` path: it needs an enabled,
 claim-enabled `azure` instance with `live_collection_enabled=true`, a workflow
@@ -33,7 +33,7 @@ credential is read-only. The Helm chart exposes that path only when
 | Provider | Live seam | Auth model to verify | Least-privilege scope |
 | --- | --- | --- | --- |
 | GCP | `gcpruntime.LiveClient` (`go/internal/collector/gcpcloud/gcpruntime/liveclient.go`); `CredentialRef` is a name only. | Workload Identity Federation / ADC for a dedicated service account. No long-lived JSON keys mounted. | Cloud Asset Inventory read-only (`roles/cloudasset.viewer`) at the configured org/folder/project parent only. No `assets.export`, no IAM write, no data-plane reader roles. |
-| Azure | `azureruntime.LiveProviderFactory` (`go/internal/collector/cloud/azure/azureruntime/live_provider.go`). Its zero value is inert for fixture/default mode. The opt-in `collector-azure-cloud -mode claimed-live` path resolves the ambient credential and injects a Resource Graph client. ARM fallback is an unwired injectable seam, outside claimed-live and #3066 smoke scope. | Operator prerequisite: managed/workload identity with read-only Azure RBAC at the configured scope. The runtime does not verify the grant; the smoke must prove it. No client-secret string in env. | Expected operator grant: `Reader` at the configured subscription/management-group scope. Claimed-live serves Resource Graph reads only; it has no `Contributor`, provider-registration, write, or delete path. |
+| Azure | `runtime.LiveProviderFactory` (`go/internal/collector/cloud/azure/runtime/live_provider.go`). Its zero value is inert for fixture/default mode. The opt-in `collector-azure-cloud -mode claimed-live` path resolves the ambient credential and injects a Resource Graph client. ARM fallback is an unwired injectable seam, outside claimed-live and #3066 smoke scope. | Operator prerequisite: managed/workload identity with read-only Azure RBAC at the configured scope. The runtime does not verify the grant; the smoke must prove it. No client-secret string in env. | Expected operator grant: `Reader` at the configured subscription/management-group scope. Claimed-live serves Resource Graph reads only; it has no `Contributor`, provider-registration, write, or delete path. |
 
 Threat-model checks: privilege creep (read-only inventory, not secret *values*);
 credential *reference* vs material (names only — never bytes — in struct fields,

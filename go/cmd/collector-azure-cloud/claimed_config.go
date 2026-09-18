@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
-	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -39,7 +39,7 @@ type claimedRuntimeConfig struct {
 	PollInterval      time.Duration
 	ClaimLeaseTTL     time.Duration
 	HeartbeatInterval time.Duration
-	Source            azureruntime.Config
+	Source            runtime.Config
 	CredentialRef     string
 }
 
@@ -88,7 +88,7 @@ func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig,
 	if err != nil {
 		return claimedRuntimeConfig{}, err
 	}
-	pollInterval, err := envDuration(getenv, envPollInterval, azureruntime.DefaultPollInterval)
+	pollInterval, err := envDuration(getenv, envPollInterval, runtime.DefaultPollInterval)
 	if err != nil {
 		return claimedRuntimeConfig{}, err
 	}
@@ -161,37 +161,37 @@ func validateAzureInstance(instance workflow.DesiredCollectorInstance) error {
 
 func parseClaimedAzureConfiguration(
 	instance workflow.DesiredCollectorInstance,
-) (azureruntime.Config, string, error) {
+) (runtime.Config, string, error) {
 	var decoded claimedAzureConfiguration
 	if err := json.Unmarshal([]byte(strings.TrimSpace(instance.Configuration)), &decoded); err != nil {
-		return azureruntime.Config{}, "", fmt.Errorf("decode azure collector configuration: %w", err)
+		return runtime.Config{}, "", fmt.Errorf("decode azure collector configuration: %w", err)
 	}
 	if !decoded.LiveCollectionEnabled {
-		return azureruntime.Config{}, "", fmt.Errorf("claim-enabled azure command requires live_collection_enabled=true")
+		return runtime.Config{}, "", fmt.Errorf("claim-enabled azure command requires live_collection_enabled=true")
 	}
 	var credentialRef string
-	targets := make([]azureruntime.TargetConfig, 0, len(decoded.Scopes))
+	targets := make([]runtime.TargetConfig, 0, len(decoded.Scopes))
 	for i, scopeCfg := range decoded.Scopes {
 		if !scopeCfg.Enabled {
 			continue
 		}
 		credRef := strings.TrimSpace(scopeCfg.CredentialRef)
 		if credRef == "" {
-			return azureruntime.Config{}, "", fmt.Errorf("azure scope[%d]: credential_ref is required", i)
+			return runtime.Config{}, "", fmt.Errorf("azure scope[%d]: credential_ref is required", i)
 		}
 		// Claimed-live wires the live Resource Graph provider, which serves the
 		// resource_graph lane only. Reject resource_changes/arm_fallback here so an
 		// invalid live configuration fails at startup instead of acquiring claims
 		// that then fail per work item.
 		if lane := strings.TrimSpace(scopeCfg.SourceLane); lane != "" && lane != azure.SourceLaneResourceGraph {
-			return azureruntime.Config{}, "", fmt.Errorf("azure scope[%d]: claimed-live supports source_lane %q only, got %q", i, azure.SourceLaneResourceGraph, lane)
+			return runtime.Config{}, "", fmt.Errorf("azure scope[%d]: claimed-live supports source_lane %q only, got %q", i, azure.SourceLaneResourceGraph, lane)
 		}
 		if credentialRef == "" {
 			credentialRef = credRef
 		} else if credentialRef != credRef {
-			return azureruntime.Config{}, "", fmt.Errorf("azure live command requires one credential_ref per collector instance")
+			return runtime.Config{}, "", fmt.Errorf("azure live command requires one credential_ref per collector instance")
 		}
-		targets = append(targets, azureruntime.TargetConfig{
+		targets = append(targets, runtime.TargetConfig{
 			TenantID:           strings.TrimSpace(scopeCfg.TenantID),
 			ScopeKind:          strings.TrimSpace(scopeCfg.ScopeKind),
 			ProviderScopeID:    strings.TrimSpace(scopeCfg.ProviderScopeID),
@@ -203,14 +203,14 @@ func parseClaimedAzureConfiguration(
 		})
 	}
 	if len(targets) == 0 {
-		return azureruntime.Config{}, "", fmt.Errorf("claim-enabled azure command requires at least one enabled scope")
+		return runtime.Config{}, "", fmt.Errorf("claim-enabled azure command requires at least one enabled scope")
 	}
-	config := azureruntime.Config{
+	config := runtime.Config{
 		CollectorInstanceID: strings.TrimSpace(instance.InstanceID),
 		Targets:             targets,
 	}
 	if err := config.Validate(); err != nil {
-		return azureruntime.Config{}, "", fmt.Errorf("azure collector configuration: %w", err)
+		return runtime.Config{}, "", fmt.Errorf("azure collector configuration: %w", err)
 	}
 	return config, credentialRef, nil
 }

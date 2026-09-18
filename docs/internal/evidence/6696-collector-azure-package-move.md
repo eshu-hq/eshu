@@ -1,11 +1,11 @@
 # #6696 azure collector package move: no-regression evidence
 
 In-tree prep only: `go/internal/collector/azurecloud/*` (17 root non-test
-Go files plus tests, testdata, and the `azureruntime` subtree) moves to
+Go files plus tests, testdata, and the `runtime` subtree) moves to
 `go/internal/collector/cloud/azure/*`, package `azurecloud` to `azure`.
 Importers repointed without aliases or shims (`go/cmd/collector-azure-cloud`
-files including a testdata path fix, `azureruntime` internal references).
-`azureruntime` keeps its name (package `runtime` would shadow stdlib).
+files including a testdata path fix, `runtime` internal references).
+`runtime` keeps its name (package `runtime` would shadow stdlib).
 A new docs-only parent trio `collector/cloud/{doc.go,README.md,AGENTS.md}`
 provides the prep namespace. No repo cutover (cutover follows #4047/#6707,
 not this issue). AWS/GCP untouched.
@@ -24,9 +24,9 @@ not this issue). AWS/GCP untouched.
 - Input shape: `go test -count=1` on the old paths (base) and the new
   paths (branch).
 - Baseline measurement: `collector/azurecloud` ok 0.988s,
-  `azurecloud/azureruntime` ok 1.116s.
+  `azurecloud/runtime` ok 1.116s.
 - After measurement: `collector/cloud/azure` ok 0.260s,
-  `cloud/azure/azureruntime` ok 0.393s, `collector` (ratchet + routing)
+  `cloud/azure/runtime` ok 0.393s, `collector` (ratchet + routing)
   ok 0.574s; factschema module (`factschema`, `aws/v1`, `ociregistry/v1`)
   green.
 - Terminal counts: all test-bearing touched packages green, zero failures.

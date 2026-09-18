@@ -1,4 +1,4 @@
-# internal/collector/cloud/azure/azureruntime
+# internal/collector/cloud/azure/runtime
 
 Fixture-driven runtime wiring for the Azure cloud collector. This package turns
 the parent `azure` fact engine into a `collector.Source` that the shared

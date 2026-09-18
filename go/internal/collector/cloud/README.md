@@ -13,7 +13,7 @@ The namespace owns no runtime declarations, provider access, fact emission,
 storage calls, graph writes, or telemetry. Its `azure` child owns only the
 fixture-testable Azure fact engine (`azure` package: Resource Graph page
 parsing, ARM identity normalization, extension redaction, bounded fact
-emission) and its runtime wiring (`azureruntime` package: declarative scope
+emission) and its runtime wiring (`runtime` package: declarative scope
 targets, fixture/live page-provider seam, claimed-source resolution). The
 `azure` child makes no live Azure calls by default, commits no facts, writes
 no graph truth, and answers no queries. Reducers own canonical CloudResource

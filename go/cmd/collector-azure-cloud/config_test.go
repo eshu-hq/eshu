@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
-	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/runtime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -84,14 +84,14 @@ func TestLoadRuntimeConfigRequiresInstanceAndTargets(t *testing.T) {
 }
 
 func TestBuildProviderFactoryDefaultsToGatedLiveSeam(t *testing.T) {
-	factory, err := buildProviderFactory(azureruntime.Config{}, envFunc(map[string]string{}))
+	factory, err := buildProviderFactory(runtime.Config{}, envFunc(map[string]string{}))
 	if err != nil {
 		t.Fatalf("buildProviderFactory: %v", err)
 	}
-	if _, ok := factory.(azureruntime.LiveProviderFactory); !ok {
+	if _, ok := factory.(runtime.LiveProviderFactory); !ok {
 		t.Fatalf("default factory = %T, want gated LiveProviderFactory", factory)
 	}
-	if _, err := factory.PageProvider(context.Background(), azure.Boundary{}, azureruntime.TargetConfig{}); err == nil {
+	if _, err := factory.PageProvider(context.Background(), azure.Boundary{}, runtime.TargetConfig{}); err == nil {
 		t.Fatal("gated live factory must not return a live provider")
 	}
 }
@@ -145,7 +145,7 @@ func TestSmokeFixtureBackedSourceYieldsGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildProviderFactory: %v", err)
 	}
-	source := &azureruntime.Source{Config: config, ProviderFactory: factory}
+	source := &runtime.Source{Config: config, ProviderFactory: factory}
 	collected, ok, err := source.Next(context.Background())
 	if err != nil || !ok {
 		t.Fatalf("Next ok=%v err=%v", ok, err)
@@ -184,7 +184,7 @@ func TestSmokeFixtureBackedSourceYieldsResourceChangeGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewKey: %v", err)
 	}
-	source := &azureruntime.Source{
+	source := &runtime.Source{
 		Config:          config,
 		ProviderFactory: factory,
 		RedactionKey:    key,

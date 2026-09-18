@@ -39,10 +39,10 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
 
 - No live Azure Resource Graph or ARM calls. The `PageProvider` seam is fed by
   fixtures under `testdata/`. The live client remains gated in the sibling
-  `azureruntime` package.
+  `runtime` package.
 - No durable commit, claim scheduling, Helm values, chart wiring, runtime
   profiles, reducer admission, graph projection, or API/MCP readback. Runtime
-  wiring lives in `azureruntime` and `cmd/collector-azure-cloud`; reducer and
+  wiring lives in `runtime` and `cmd/collector-azure-cloud`; reducer and
   readback work lives in the reducer, storage, query, and MCP packages.
 
 ## Current fact emission
@@ -53,7 +53,7 @@ and the [Multi-Cloud Runtime Collector Contract](../../../../docs/public/referen
   pairs each tagged resource with one tag-evidence fact whose values are keyed
   fingerprints (`FingerprintTagValues`); without a key, tag values are never
   fingerprinted or carried and no tag observation fact is emitted. The runtime
-  source threads the key from `azureruntime.Source.RedactionKey`, loaded by the
+  source threads the key from `runtime.Source.RedactionKey`, loaded by the
   `collector-azure-cloud` binary from `ESHU_AZURE_REDACTION_KEY_FILE`; a blank
   or unreadable configured file fails closed.
 - `azure_cloud_relationship` emits provenance-only `managed_by` evidence from

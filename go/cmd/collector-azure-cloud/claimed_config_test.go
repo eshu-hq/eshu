@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
-	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/runtime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -246,10 +246,10 @@ func TestBuildClaimedServiceWiresLiveClaimRuntime(t *testing.T) {
 		newAzureLiveProviderFactory = oldFactory
 	})
 	var gotCredentialRef string
-	fixture := azureruntime.StaticFixtureFactory(
-		azureruntime.NewFixturePageProvider(nil, azure.ScopeAccess{}),
+	fixture := runtime.StaticFixtureFactory(
+		runtime.NewFixturePageProvider(nil, azure.ScopeAccess{}),
 	)
-	newAzureLiveProviderFactory = func(_ context.Context, credentialRef string) (azureruntime.PageProviderFactory, error) {
+	newAzureLiveProviderFactory = func(_ context.Context, credentialRef string) (runtime.PageProviderFactory, error) {
 		gotCredentialRef = credentialRef
 		return fixture, nil
 	}
@@ -276,8 +276,8 @@ func TestBuildClaimedServiceWiresLiveClaimRuntime(t *testing.T) {
 	if got, want := gotCredentialRef, "azure-read-only-spn"; got != want {
 		t.Fatalf("credential ref = %q, want %q", got, want)
 	}
-	if _, ok := service.Source.(*azureruntime.Source); !ok {
-		t.Fatalf("Source type = %T, want *azureruntime.Source", service.Source)
+	if _, ok := service.Source.(*runtime.Source); !ok {
+		t.Fatalf("Source type = %T, want *runtime.Source", service.Source)
 	}
 }
 

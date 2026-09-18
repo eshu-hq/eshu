@@ -22,7 +22,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
-	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/azureruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure/runtime"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	cassette "github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -94,7 +94,7 @@ func buildClaimedService(
 	committer := newAzureStatusCommitter(ingestion, metrics)
 	return collector.ClaimedService{
 		ControlStore: postgres.NewWorkflowControlStore(database),
-		Source: &azureruntime.Source{
+		Source: &runtime.Source{
 			Config:          config.Source,
 			ProviderFactory: factory,
 			Metrics:         metrics,
@@ -165,7 +165,7 @@ func buildCollectorService(
 	committer := postgres.NewIngestionStore(database)
 	committer.Logger = logger
 	return collector.Service{
-		Source: &azureruntime.Source{
+		Source: &runtime.Source{
 			Config:          config,
 			ProviderFactory: factory,
 			Metrics:         metrics,
@@ -205,15 +205,15 @@ func loadRedactionKey(path string) (redact.Key, error) {
 // provider is for local proof and smoke tests only; the default is the gated
 // live seam, which is inert until a real read-only adapter is injected.
 func buildProviderFactory(
-	config azureruntime.Config,
+	config runtime.Config,
 	getenv func(string) string,
-) (azureruntime.PageProviderFactory, error) {
+) (runtime.PageProviderFactory, error) {
 	fixture, ok, err := loadFixturePagesConfig(getenv)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
-		return azureruntime.LiveProviderFactory{}, nil
+		return runtime.LiveProviderFactory{}, nil
 	}
 	access := azure.ScopeAccess{
 		Partial:             fixture.Partial,
@@ -230,7 +230,7 @@ func buildProviderFactory(
 		switch target.SourceLane {
 		case "", azure.SourceLaneResourceGraph:
 			if resourceGraphProvider == nil {
-				provider, err := azureruntime.NewFixturePageProviderFromFiles(access, fixture.PagePaths...)
+				provider, err := runtime.NewFixturePageProviderFromFiles(access, fixture.PagePaths...)
 				if err != nil {
 					return nil, err
 				}
@@ -238,7 +238,7 @@ func buildProviderFactory(
 			}
 		case azure.SourceLaneResourceChanges:
 			if resourceChangesProvider == nil {
-				provider, err := azureruntime.NewFixtureResourceChangesPageProviderFromFiles(access, fixture.PagePaths...)
+				provider, err := runtime.NewFixtureResourceChangesPageProviderFromFiles(access, fixture.PagePaths...)
 				if err != nil {
 					return nil, err
 				}
@@ -248,10 +248,10 @@ func buildProviderFactory(
 			return nil, fmt.Errorf("azure fixture page provider does not support source lane %q", target.SourceLane)
 		}
 	}
-	return azureruntime.PageProviderFactoryFunc(func(
+	return runtime.PageProviderFactoryFunc(func(
 		_ context.Context,
 		_ azure.Boundary,
-		target azureruntime.TargetConfig,
+		target runtime.TargetConfig,
 	) (azure.PageProvider, error) {
 		switch target.SourceLane {
 		case "", azure.SourceLaneResourceGraph:
@@ -270,7 +270,7 @@ func buildProviderFactory(
 	}), nil
 }
 
-func validateSingleFixtureSourceLane(targets []azureruntime.TargetConfig) error {
+func validateSingleFixtureSourceLane(targets []runtime.TargetConfig) error {
 	var fixtureLane string
 	for _, target := range targets {
 		lane, err := normalizeFixtureSourceLane(target.SourceLane)
