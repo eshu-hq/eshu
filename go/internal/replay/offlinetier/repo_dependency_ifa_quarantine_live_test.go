@@ -18,14 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const repoDependencyQuarantineProofDSNEnv = "ESHU_REPO_DEPENDENCY_QUARANTINE_PROOF_DSN"
@@ -53,9 +52,9 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	artifactIDs := repoDependencyIfaArtifactIDs(t, rows)
 	acceptedGeneration := repoDependencyIfaAcceptedGeneration(rows)
 	acquireRepoDependencyIfaExclusiveBackend(ctx, t, exec, artifactIDs)
-	database, cleanupDB := openRepoDependencyQuarantineProofDB(ctx, t, dsn)
+	sqlDB, cleanupDB := openRepoDependencyQuarantineProofDB(ctx, t, dsn)
 	defer cleanupDB()
-	database := postgres.SQLDB{DB: database}
+	database := postgres.SQLDB{DB: sqlDB}
 	store := postgres.NewSharedIntentStore(database)
 	gate := postgres.NewRepoDependencyAcceptanceUnitGate(database)
 	t.Cleanup(func() {
@@ -65,13 +64,13 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 		assertRepoDependencyIfaCleanup(cleanupCtx, t, exec, artifactIDs)
 	})
 	baseWriter := cypher.NewEdgeWriter(&cypher.RetryingExecutor{Inner: exec}, 0)
-	prepareRepoDependencyQuarantinePhase(ctx, t, database, store, exec, odu, artifactIDs, rows)
+	prepareRepoDependencyQuarantinePhase(ctx, t, sqlDB, store, exec, odu, artifactIDs, rows)
 	runRepoDependencyQuarantineUntil(ctx, t, store, gate, baseWriter, acceptedGeneration, "baseline", 1, func() bool {
-		return repoDependencyQuarantinePendingCount(ctx, t, database) == 0
+		return repoDependencyQuarantinePendingCount(ctx, t, sqlDB) == 0
 	})
 	baseline := readRepoDependencyIfaSnapshot(ctx, t, exec, artifactIDs)
 	assertRepoDependencyIfaSnapshot(t, baseline, expectedEdges)
-	prepareRepoDependencyQuarantinePhase(ctx, t, database, store, exec, odu, artifactIDs, rows)
+	prepareRepoDependencyQuarantinePhase(ctx, t, sqlDB, store, exec, odu, artifactIDs, rows)
 	const faultAcceptanceUnit = "repository:source-05"
 	faultShard := repoDependencyQuarantineShard(faultAcceptanceUnit, 4)
 	overlapWriter := &repoDependencyOverlapWriter{inner: baseWriter, delay: 250 * time.Millisecond}
@@ -90,7 +89,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 		if faultWriter.failureCount() != 1 {
 			return false
 		}
-		state := repoDependencyQuarantineCompletionState(ctx, t, database)
+		state := repoDependencyQuarantineCompletionState(ctx, t, sqlDB)
 		if state[faultAcceptanceUnit] {
 			return false
 		}
@@ -99,7 +98,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 				return false
 			}
 		}
-		return len(state) == len(rows) && repoDependencyQuarantineOnlyActiveLease(ctx, t, database, faultShard)
+		return len(state) == len(rows) && repoDependencyQuarantineOnlyActiveLease(ctx, t, sqlDB, faultShard)
 	})
 	stopRun()
 	assertRepoDependencyQuarantineRunnerStopped(t, runDone)
@@ -107,7 +106,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	if got := overlapWriter.maxConcurrent(); got < 4 {
 		t.Fatalf("max concurrent graph writes=%d, want >=4", got)
 	}
-	lease := readRepoDependencyQuarantinedLease(ctx, t, database)
+	lease := readRepoDependencyQuarantinedLease(ctx, t, sqlDB)
 	if lease.partitionID != faultShard || lease.partitionCount != 4 {
 		t.Fatalf("quarantined lease partition=%d-of-%d, want %d-of-4", lease.partitionID, lease.partitionCount, faultShard)
 	}
@@ -126,15 +125,15 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	); err != nil {
 		t.Fatalf("wrong-owner release probe: %v", err)
 	}
-	if got := readRepoDependencyQuarantinedLease(ctx, t, database).owner; got != lease.owner {
+	if got := readRepoDependencyQuarantinedLease(ctx, t, sqlDB).owner; got != lease.owner {
 		t.Fatalf("wrong-owner release changed lease owner from %q to %q", lease.owner, got)
 	}
 	postFault := readRepoDependencyIfaSnapshot(ctx, t, exec, artifactIDs)
 	if !repoDependencyQuarantineContainsFaultEdge(postFault, rows, faultAcceptanceUnit) {
 		t.Fatalf("fault acceptance unit %q graph write was not committed before response loss", faultAcceptanceUnit)
 	}
-	pendingAfterFault := repoDependencyQuarantinePendingCount(ctx, t, database)
-	if _, err := database.ExecContext(ctx, `
+	pendingAfterFault := repoDependencyQuarantinePendingCount(ctx, t, sqlDB)
+	if _, err := sqlDB.ExecContext(ctx, `
 		UPDATE shared_projection_partition_leases
 		SET lease_expires_at = CURRENT_TIMESTAMP - INTERVAL '1 second'
 		WHERE projection_domain = $1
@@ -146,7 +145,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	}
 
 	runRepoDependencyQuarantineUntil(ctx, t, store, gate, baseWriter, acceptedGeneration, "odu-quarantine-owner-b", 4, func() bool {
-		return repoDependencyQuarantinePendingCount(ctx, t, database) == 0
+		return repoDependencyQuarantinePendingCount(ctx, t, sqlDB) == 0
 	})
 	finalSnapshot := readRepoDependencyIfaSnapshot(ctx, t, exec, artifactIDs)
 	assertRepoDependencyIfaSnapshot(t, finalSnapshot, expectedEdges)
@@ -158,7 +157,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	if err := store.UpsertIntents(ctx, rows); err != nil {
 		t.Fatalf("replay completed Odù intents: %v", err)
 	}
-	if got := repoDependencyQuarantinePendingCount(ctx, t, database); got != 0 {
+	if got := repoDependencyQuarantinePendingCount(ctx, t, sqlDB); got != 0 {
 		t.Fatalf("duplicate replay reopened %d completed intents", got)
 	}
 	afterDuplicate := readRepoDependencyIfaSnapshot(ctx, t, exec, artifactIDs)
@@ -306,12 +305,12 @@ func startRepoDependencyQuarantineRunner(
 			done <- errors.New("repo-dependency workload replay database was not registered")
 			return done
 		}
-		database, err := sql.Open("pgx", dsn)
+		sqlDB, err := sql.Open("pgx", dsn)
 		if err != nil {
 			done <- fmt.Errorf("open process-death workload replay database: %w", err)
 			return done
 		}
-		database = postgres.SQLDB{DB: database}
+		database = postgres.SQLDB{DB: sqlDB}
 	}
 	runner := reducer.RepoDependencyProjectionRunner{
 		IntentReader:                    store,
