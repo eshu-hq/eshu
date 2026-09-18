@@ -244,7 +244,7 @@ export ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG="${ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG:-5
 export ESHU_TEMPO_FRESHNESS_PROBE="${ESHU_TEMPO_FRESHNESS_PROBE:-false}"
 
 cd go
-go test ./internal/collector/tempo \
+go test ./internal/collector/observability/tempo \
   -run TestLiveTempoObservedTraceSignalEvidence -count=1 -v
 ```
 
@@ -255,7 +255,7 @@ cd go
 go test ./internal/collector/grafana \
   ./internal/collector/prometheusmimir \
   ./internal/collector/loki \
-  ./internal/collector/tempo \
+  ./internal/collector/observability/tempo \
   -run 'TestLive.*Observed.*Evidence' -count=1 -v
 ```
 

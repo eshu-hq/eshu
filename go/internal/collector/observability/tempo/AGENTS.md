@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/tempo guidance
+# AGENTS.md - internal/collector/observability/tempo guidance
 
 ## Read first
 

@@ -223,7 +223,7 @@ evidence (No-Regression and No-Observability-Change) for this section lives in
   safe provider failures, retry-after parsing, and common status classification
 - `pagerduty` subpackage — PagerDuty incident, lifecycle, related change-event,
   and optional live configuration source facts for downstream correlation.
-- `tempo` subpackage — live Tempo trace-signal metadata collection for source
+- `observability/tempo` subpackage — live Tempo trace-signal metadata collection for source
   instances, tag names, bounded tag values, and coverage warnings.
 - `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
   reported-confidence run, job, step, artifact, trigger, environment, and

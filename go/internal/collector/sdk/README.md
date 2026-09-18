@@ -70,7 +70,7 @@ the shared request and failure kernel instead of copying it.
 
 No-Regression Evidence: `go test ./internal/collector/sdk
 ./internal/collector/jira ./internal/collector/pagerduty
-./internal/collector/grafana ./internal/collector/tempo -count=1` covers SDK
+./internal/collector/grafana ./internal/collector/observability/tempo -count=1` covers SDK
 base URL validation, retry-after parsing, bounded HTTP retries, safe HTTP
 errors, and the four adopters' existing pagination, redaction, warning,
 rate-limit, and provider failure behavior.

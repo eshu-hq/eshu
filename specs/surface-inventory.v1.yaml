@@ -228,15 +228,15 @@ surfaces:
   - category: collector
     name: tempo
     readiness: implemented
-    owner: internal/collector/tempo
+    owner: internal/collector/observability/tempo
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
     collector_contract:
       fact_kinds: *observability_fact_kinds
       projection_surfaces: [observability_coverage_correlation]
       read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
-      proof_gates: [cd go && go test ./cmd/collector-tempo ./internal/collector/tempo ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/tempo/testdata, docs/public/reference/observability-evidence.md]
+      proof_gates: [cd go && go test ./cmd/collector-tempo ./internal/collector/observability/tempo ./internal/reducer ./internal/query ./internal/mcp -count=1]
+      fixture_refs: [go/internal/collector/observability/tempo/testdata, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
   # --- Pre-promotion collector lanes (not production-promoted; each row records
   #     its remaining proof). See collector-reducer-readiness.md "Gated Source Families". ---

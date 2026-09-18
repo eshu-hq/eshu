@@ -2046,7 +2046,7 @@
       "category": "collector",
       "name": "tempo",
       "readiness": "implemented",
-      "owner": "internal/collector/tempo",
+      "owner": "internal/collector/observability/tempo",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
@@ -2080,11 +2080,11 @@
           "list_observability_coverage"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-tempo ./internal/collector/tempo ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-tempo ./internal/collector/observability/tempo ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/observability-evidence.md",
-          "go/internal/collector/tempo/testdata"
+          "go/internal/collector/observability/tempo/testdata"
         ],
         "truth_profile": "provider_gated"
       }

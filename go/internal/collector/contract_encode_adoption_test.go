@@ -36,7 +36,7 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "tempo/envelope.go",
+			path: "observability/tempo/envelope.go",
 			calls: []string{
 				"EncodeObservabilitySourceInstance",
 				"EncodeObservabilityObservedTraceSignal",

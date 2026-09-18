@@ -61,6 +61,6 @@ instruments.
 
 ## Related Docs
 
-- `go/internal/collector/tempo/README.md`
+- `go/internal/collector/observability/tempo/README.md`
 - `docs/public/reference/environment-collectors.md`
 - `docs/public/deployment/service-runtimes-collectors.md`
