@@ -256,6 +256,8 @@ func buildReducerService(
 		InfrastructurePlatformLookup:       reducer.GraphInfrastructurePlatformLookup{Graph: graphReader},
 		FactLoader:                         factStore,
 		CrossScopeProducerReadiness:        postgres.CrossScopeProducerReadinessStore{DB: database},
+		IAMCanPerformCrossScopeTargets:     iamCanPerformCrossScopeTargetsFor(database, factStore),
+		WorkloadInstanceExistence:          workloadInstanceExistenceFor(graphReader),
 		CrossScopeReadinessLogger:          logger,
 		AdmissionDecisionWriter:            admissionDecisionWriter,
 		CodeCallIntentWriter:               codeCallIntentWriter,
@@ -348,12 +350,10 @@ func buildReducerService(
 		ServiceDocumentationEvidenceLoader: serviceDocumentationEvidenceLoader,
 		ServiceIncidentEvidenceLoader:      serviceIncidentEvidenceLoader,
 		// ServiceRuntimeInstanceLoader sources the runtime evidence family (#1986)
-		// from the canonical graph's WorkloadInstance/Platform nodes for each
-		// correlated service's repository. It is wired only alongside
-		// ServiceMaterializationWriter so the runtime family stays purely additive
-		// to the ownership/deployment lineage; the loader anchors on the
-		// workload_instance_repo_id index and runs once per
-		// service-catalog-correlation intent.
+		// from the graph's WorkloadInstance/Platform nodes per correlated
+		// service's repository. It is wired only alongside
+		// ServiceMaterializationWriter so the runtime family stays additive; it
+		// anchors on workload_instance_repo_id, once per correlation intent.
 		ServiceRuntimeInstanceLoader: reducer.GraphServiceRuntimeInstanceLoader{Graph: graphReader},
 		// ServiceVulnerabilityAdvisoryLoader sources the vulnerabilities evidence
 		// family (#1990, #2127) from active reducer_supply_chain_impact_finding facts

@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
@@ -24,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -61,6 +63,14 @@ type DefaultHandlers struct {
 	// not wired it keeps the pre-#5709 behaviour of committing whatever the
 	// cross-scope load resolved, rather than stranding every consumer.
 	CrossScopeProducerReadiness CrossScopeProducerReadiness
+
+	// IAMCanPerformCrossScopeTargets resolves exact CAN_PERFORM targets from
+	// sibling AWS service scopes of the same account (#6785). Nil keeps
+	// resolution same-scope (test wiring).
+	IAMCanPerformCrossScopeTargets iamcan.CrossScopeTargetLoader
+	// WorkloadInstanceExistence lets the USES handler defer, bounded, until
+	// its WorkloadInstance endpoints exist (#6785). Nil disables the gate.
+	WorkloadInstanceExistence workloadinstance.ExistenceLookup
 
 	// CrossScopeReadinessLogger records each cross-scope readiness deferral as
 	// its own structured line. Optional: nil silences it, and the deferral is

@@ -50,11 +50,12 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 	if handlers.FactLoader != nil && handlers.WorkloadCloudRelationshipEdgeWriter != nil {
 		workloadCloud := workloadCloudRelationshipMaterializationDomainDefinition()
 		workloadCloud.Handler = WorkloadCloudRelationshipMaterializationHandler{
-			FactLoader:           handlers.FactLoader,
-			EdgeWriter:           handlers.WorkloadCloudRelationshipEdgeWriter,
-			ReadinessLookup:      handlers.ReadinessLookup,
-			PriorGenerationCheck: handlers.PriorGenerationCheck,
-			Instruments:          handlers.Instruments,
+			FactLoader:                handlers.FactLoader,
+			EdgeWriter:                handlers.WorkloadCloudRelationshipEdgeWriter,
+			ReadinessLookup:           handlers.ReadinessLookup,
+			PriorGenerationCheck:      handlers.PriorGenerationCheck,
+			WorkloadInstanceExistence: handlers.WorkloadInstanceExistence,
+			Instruments:               handlers.Instruments,
 		}
 		definitions = append(definitions, workloadCloud)
 	}
