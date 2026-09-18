@@ -1572,30 +1572,29 @@ committed zero nodes.
   `PhaseGroupExecutor` phase lets NornicDB validate the unique `path` after the
   delete commits and before the new id owns that path.
 - `RetryingExecutor.Execute` retries commit-time UNIQUE conflicts for a
-  MERGE-shaped statement. `ExecuteGroup` retries that conflict and typed
-  NornicDB relationship-update snapshot conflicts when every statement in the
-  group is MERGE-shaped, sharing the same
-  `runWithRetry` loop as `Execute` (`retrying_executor.go:52`). Driver-
-  level `session.ExecuteWrite` continues to handle Neo.TransientError.*
-  codes for the group path; the Eshu retry layer adds coverage for
-  Neo.ClientError.Transaction.TransactionCommitFailed when the message
-  classifies as a NornicDB commit-time UNIQUE conflict. The pinned backend can
-  report the same commit failure as Neo.ClientError.Statement.SyntaxError for
-  `MERGE ... ON CREATE SET`; that code is retryable only with the exact commit
-  UNIQUE body and the existing MERGE guard. Mixed groups
-  containing non-MERGE statements are not retried, preserving
-  idempotency safety.
+  MERGE-shaped statement. `ExecuteGroup` retries those and typed NornicDB
+  relationship-update snapshot conflicts only for replay-safe groups; both
+  use the `runWithRetry` loop in `retrying_executor.go`. Driver-level
+  `session.ExecuteWrite` handles Neo.TransientError.* codes. The Eshu layer
+  recognizes exact NornicDB commit-UNIQUE bodies, including the pinned
+  backend's Statement.SyntaxError compatibility shape, under the MERGE guard.
+  Mixed non-MERGE groups stay terminal except the two exact atomic RUNS_ON
+  groups proven replay-safe by `isCanonicalRunsOnReplaySafeGroup`. For those
+  groups only, NornicDB v1.3.3's typed rollback-complete transaction timeout
+  defers once to the bounded queue as `graph_write_timeout`, without another
+  local attempt. A timeout nested under a connectivity failure or driver
+  execution limit cannot borrow that rollback guarantee.
 - `ExecuteOnlyExecutor` intentionally hides `GroupExecutor`. Use it when the
   caller must not hold a large atomic transaction (e.g., during source-local
   ingestion that runs concurrently with canonical projection).
 - `isNornicDBMergeUniqueConflict` treats commit-time unique constraint
   violations on MERGE Cypher as retryable because a concurrent writer may have
   created the intended node between match and commit
-  (`retrying_executor.go:212`). `isNornicDBCommitTimeUniqueConflict`
+  (`retrying_executor.go`). `isNornicDBCommitTimeUniqueConflict`
   matches both the older `failed to commit implicit transaction:...`
   wrapping and the v1.0.45+ `commit failed: constraint violation:...` /
   `TransactionCommitFailed` wrapping so the classifier stays current
-  across pinned binaries (`retrying_executor.go:227`).
+  across pinned binaries (`retryable_error.go`).
 - Historical No-Regression Evidence (#6003 follow-up): the baseline workload determinism
   run on former source-built NornicDB revision `3722b483c02c` dead-lettered one losing
   Platform batch and retained one nonterminal fact row. After the classifier

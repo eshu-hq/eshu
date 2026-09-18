@@ -17,8 +17,9 @@ const (
 	nornicDBV131WriteConflictDelimiter   = ": conflict detected: "
 	nornicDBWriteConflictSuffix          = " changed after transaction start"
 
-	nornicDBRestartTransactionStartCode = "Neo.ClientError.Transaction.TransactionStartFailed"
-	nornicDBRestartTransactionStartMsg  = "failed to write WAL tx begin: wal: closed"
+	nornicDBRestartTransactionStartCode                = "Neo.ClientError.Transaction.TransactionStartFailed"
+	nornicDBRestartTransactionStartMsg                 = "failed to write WAL tx begin: wal: closed"
+	nornicDBTransactionTimedOutClientConfigurationCode = "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration"
 	// nornicDBEngineClosedTransactionStartMsg is the SECOND spelling NornicDB
 	// uses for the same begin-side teardown, reported when the engine itself is
 	// already closed rather than only its WAL. Observed live in the
@@ -265,6 +266,53 @@ func WrapRetryableNeo4jError(err error) error {
 	return err
 }
 
+// isNornicDBTransactionTimedOutClientConfiguration identifies the exact typed
+// error emitted after NornicDB rolls back an explicit transaction that reached
+// the configured timeout. It is durable-queue retryable only when its outer
+// error chain preserves the known rollback outcome.
+func isNornicDBTransactionTimedOutClientConfiguration(err error) bool {
+	var neo4jErr *neo4jdriver.Neo4jError
+	return errors.As(err, &neo4jErr) &&
+		neo4jErr.Code == nornicDBTransactionTimedOutClientConfigurationCode
+}
+
+// hasNornicDBTransactionTimeoutInUnknownOutcome detects typed timeouts inside
+// driver wrappers that do not implement Unwrap. Their outer outcome remains
+// unknown, so the timeout cannot grant durable replay permission.
+func hasNornicDBTransactionTimeoutInUnknownOutcome(err error) bool {
+	if err == nil {
+		return false
+	}
+	if isNornicDBTransactionTimedOutClientConfiguration(err) {
+		return true
+	}
+	var connectivityErr *neo4jdriver.ConnectivityError
+	if errors.As(err, &connectivityErr) &&
+		hasNornicDBTransactionTimeoutInUnknownOutcome(connectivityErr.Inner) {
+		return true
+	}
+	var transactionLimit *neo4jdriver.TransactionExecutionLimit
+	if errors.As(err, &transactionLimit) {
+		for _, attemptErr := range transactionLimit.Errors {
+			if hasNornicDBTransactionTimeoutInUnknownOutcome(attemptErr) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasUnknownTransactionOutcome rejects an outer connection failure or driver
+// execution limit that cannot borrow a nested timeout's rollback guarantee.
+func hasUnknownTransactionOutcome(err error) bool {
+	var connectivityErr *neo4jdriver.ConnectivityError
+	if errors.As(err, &connectivityErr) {
+		return true
+	}
+	var transactionLimit *neo4jdriver.TransactionExecutionLimit
+	return errors.As(err, &transactionLimit)
+}
+
 func isMalformedNeo4jConnectivityError(err error) bool {
 	var connectivityErr *neo4jdriver.ConnectivityError
 	return errors.As(err, &connectivityErr) && connectivityErr.Inner == nil
@@ -377,4 +425,34 @@ func isNornicDBStoreClosedStatementFailure(err error) bool {
 	return errors.As(err, &neo4jErr) &&
 		neo4jErr.Code == nornicDBStatementSyntaxErrorCode &&
 		strings.Contains(neo4jErr.Msg, nornicDBStoreClosedMsg)
+}
+
+// isNornicDBCommitTimeUniqueConflict matches NornicDB's commit-time UNIQUE
+// constraint violations across binary versions. Older NornicDB releases
+// wrap the failure as "failed to commit implicit transaction: constraint
+// violation:..."; timothyswt/nornicdb-amd64-cpu:v1.0.45 and later surface a
+// Neo4jError with code Neo.ClientError.Transaction.TransactionCommitFailed
+// and body "commit failed: constraint violation:...". Both shapes describe
+// the same race-on-commit class and are safe to retry on a MERGE-shaped
+// write where MERGE re-execution will match the now-committed node.
+func isNornicDBCommitTimeUniqueConflict(msg string) bool {
+	if !isNornicDBUniqueConflictBody(msg) {
+		return false
+	}
+	return strings.Contains(msg, "failed to commit implicit transaction") ||
+		strings.Contains(msg, "commit failed") ||
+		strings.Contains(msg, "TransactionCommitFailed")
+}
+
+func isNornicDBUniqueConflictBody(msg string) bool {
+	if !strings.Contains(msg, "constraint violation") {
+		return false
+	}
+	if !strings.Contains(msg, "UNIQUE on") {
+		return false
+	}
+	if !strings.Contains(msg, "already exists") {
+		return false
+	}
+	return true
 }

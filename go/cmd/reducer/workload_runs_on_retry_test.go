@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -109,6 +110,121 @@ func TestWorkloadRunsOnAtomicGroupReplaysCommitConflicts(t *testing.T) {
 				runner.canonical["confidence"] != 0.9 ||
 				runner.canonical["source_tool"] != nil {
 				t.Fatalf("final canonical RUNS_ON tuple = %v", runner.canonical)
+			}
+		})
+	}
+}
+
+func TestWorkloadRunsOnAtomicGroupDefersNornicDBTransactionTimeoutToDurableRetry(t *testing.T) {
+	runner := &runsOnConflictRunner{
+		conflict: &neo4jdriver.Neo4jError{
+			Code: "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration",
+			Msg:  "transaction timed out",
+		},
+		legacyPresent: true,
+	}
+	materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil))
+	projection := &reducer.ProjectionResult{RuntimePlatformRows: []reducer.RuntimePlatformRow{{
+		Environment:  "production",
+		Confidence:   0.9,
+		InstanceID:   "workload-instance:my-api:production",
+		PlatformID:   "platform:kubernetes:none:production:production:none",
+		PlatformKind: "kubernetes",
+		PlatformName: "production",
+	}}}
+
+	_, err := materializer.Materialize(context.Background(), projection)
+	if err == nil {
+		t.Fatal("Materialize() error = nil, want durable retryable timeout")
+	}
+	if runner.groupAttempts != 1 {
+		t.Fatalf("group attempts = %d, want 1: timeout must bypass local retry", runner.groupAttempts)
+	}
+	if !reducer.IsRetryable(err) {
+		t.Fatalf("Materialize() error = %v, want durable retryable timeout", err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) || classified.FailureClass() != cypher.GraphWriteTimeoutFailureClass {
+		t.Fatalf("Materialize() error = %v, want failure_class=%s", err, cypher.GraphWriteTimeoutFailureClass)
+	}
+}
+
+func TestWorkloadRunsOnAtomicGroupDoesNotDeferTimeoutNestedInUnknownOutcome(t *testing.T) {
+	timeoutErr := &neo4jdriver.Neo4jError{
+		Code: "Neo.ClientError.Transaction.TransactionTimedOutClientConfiguration",
+		Msg:  "transaction timed out",
+	}
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "connection lost during commit",
+			err: &neo4jdriver.ConnectivityError{
+				Inner: fmt.Errorf("Connection lost during commit: %w", timeoutErr),
+			},
+		},
+		{
+			name: "transport interrupted with nested timeout",
+			err: &neo4jdriver.ConnectivityError{
+				Inner: fmt.Errorf("transport interrupted: %w", timeoutErr),
+			},
+		},
+		{
+			name: "driver transaction execution limit",
+			err: &neo4jdriver.TransactionExecutionLimit{
+				Cause:  "timeout",
+				Errors: []error{timeoutErr},
+			},
+		},
+		{
+			name: "wrapped driver limit and typed timeout",
+			err: fmt.Errorf("%w: %w", &neo4jdriver.TransactionExecutionLimit{
+				Cause:  "timeout",
+				Errors: []error{timeoutErr},
+			}, timeoutErr),
+		},
+		{
+			name: "transaction limit inside connectivity error",
+			err: &neo4jdriver.ConnectivityError{
+				Inner: &neo4jdriver.TransactionExecutionLimit{
+					Cause:  "timeout",
+					Errors: []error{timeoutErr},
+				},
+			},
+		},
+		{
+			name: "connectivity error inside transaction limit",
+			err: &neo4jdriver.TransactionExecutionLimit{
+				Cause: "timeout",
+				Errors: []error{&neo4jdriver.ConnectivityError{
+					Inner: fmt.Errorf("transport interrupted: %w", timeoutErr),
+				}},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runner := &runsOnConflictRunner{conflict: tt.err, legacyPresent: true}
+			materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil))
+			projection := &reducer.ProjectionResult{RuntimePlatformRows: []reducer.RuntimePlatformRow{{
+				Environment:  "production",
+				Confidence:   0.9,
+				InstanceID:   "workload-instance:my-api:production",
+				PlatformID:   "platform:kubernetes:none:production:production:none",
+				PlatformKind: "kubernetes",
+				PlatformName: "production",
+			}}}
+
+			_, err := materializer.Materialize(context.Background(), projection)
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("Materialize() error = %v, want original unknown-outcome error", err)
+			}
+			if runner.groupAttempts != 1 {
+				t.Fatalf("group attempts = %d, want one attempt", runner.groupAttempts)
+			}
+			if reducer.IsRetryable(err) {
+				t.Fatalf("Materialize() error = %v, want terminal unknown-outcome error", err)
 			}
 		})
 	}
