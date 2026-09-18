@@ -89,9 +89,8 @@ func TestLiveBackendConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run %s live read corpus: %v", backend, err)
 	}
-	// One line per case, so a reader (and the value-flow conformance gate,
-	// scripts/verify-value-flow-conformance-expectation.sh) can see which cases
-	// actually ran on this backend rather than inferring it from a pass.
+	// One line per case, so a reader can see which cases actually ran on this
+	// backend rather than inferring it from a pass.
 	for _, result := range report.Results {
 		t.Logf("read case passed: %s (%d rows)", result.Name, result.Rows)
 	}

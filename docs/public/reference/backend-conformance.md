@@ -84,18 +84,10 @@ They are part of the default corpus, so the end-to-end matrix runs them on both
 backends on every change that selects it. A backend regression on any of these
 shapes fails the blocking live check instead of reaching an API or MCP answer.
 
-The `Value Flow Conformance Expectation` workflow also runs the live corpus on
-both backends whenever the value-flow loader or this package changes, and
-requires each lane to pass and to log both value-flow cases as run:
-
-```bash
-scripts/verify-value-flow-conformance-expectation.sh neo4j
-scripts/verify-value-flow-conformance-expectation.sh nornicdb
-```
-
-It ran with the expectation inverted until #6690, while the old single-statement
-query returned zero rows on NornicDB. Both lanes bind the same Bolt port, so run
-one stack at a time.
+The value-flow cases used to have their own workflow, which ran them with the
+expectation inverted while the old single-statement query returned zero rows on
+NornicDB. After #6690 they pass on both backends, so that workflow is retired
+and the end-to-end matrix is their gate.
 
 ## Profile Matrix
 
