@@ -9,10 +9,9 @@
 // write corpora, run them against Neo4j, NornicDB, Compose, or remote proof
 // environments, and report case results without changing the matrix contract.
 //
-// One pair of cases is opt-in. The value-flow cloud sink read and seed
-// reproduce defects that are open upstream, so they are included only when
-// ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set to 1, true, or yes. They are
-// absent from the corpora by default rather than present-and-skipped, which
-// means [DefaultReadCorpus] and [DefaultWriteCorpus] vary in length with the
-// process environment. A live run that omits them says so in its output.
+// Read cases assert either a minimum row count or, through
+// [ReadCase.WantRows], the exact rows. The exact-row cases cover the value-flow
+// cloud sink statements the reducer runs and the aggregation and
+// optional-match shapes that older NornicDB builds answered wrongly with no
+// error, so a backend regression on them fails the live run.
 package backendconformance

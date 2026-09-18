@@ -32,18 +32,6 @@ func TestLiveBackendConformance(t *testing.T) {
 		t.Skipf("set %s=1 to run live backend conformance", liveConformanceEnv)
 	}
 
-	// A green run must never be mistaken for full coverage. The value-flow pair
-	// is absent from the corpora unless its own opt-in is set, so say so in the
-	// run output -- otherwise this test passes while a capability it is
-	// supposed to prove was never exercised, and nothing anywhere records it.
-	if valueFlowCasesEnabled() {
-		t.Logf("value-flow cloud sink pair: INCLUDED (%s is set)", valueFlowCasesEnv)
-	} else {
-		t.Logf("value-flow cloud sink pair: OMITTED -- %s is not set, so this run does "+
-			"NOT prove the value-flow cloud sink query. Set %s=1 to include it.",
-			valueFlowCasesEnv, valueFlowCasesEnv)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), liveTestTimeout)
 	defer cancel()
 
@@ -97,8 +85,15 @@ func TestLiveBackendConformance(t *testing.T) {
 
 	readCtx, readCancel := context.WithTimeout(ctx, liveReadTimeout)
 	defer readCancel()
-	if _, err := RunReadCorpus(readCtx, executor, DefaultReadCorpus()); err != nil {
+	report, err := RunReadCorpus(readCtx, executor, DefaultReadCorpus())
+	if err != nil {
 		t.Fatalf("run %s live read corpus: %v", backend, err)
+	}
+	// One line per case, so a reader (and the value-flow conformance gate,
+	// scripts/verify-value-flow-conformance-expectation.sh) can see which cases
+	// actually ran on this backend rather than inferring it from a pass.
+	for _, result := range report.Results {
+		t.Logf("read case passed: %s (%d rows)", result.Name, result.Rows)
 	}
 }
 
@@ -241,38 +236,43 @@ func (e liveCypherExecutor) ExecutePhaseGroup(ctx context.Context, stmts []sourc
 func cleanupLiveCorpus(ctx context.Context, executor liveCypherExecutor) error {
 	cleanup := []sourcecypher.Statement{
 		{
-			// The value-flow chain, newest first so DETACH DELETE never has to
-			// rely on ordering. These are seeded by valueFlowWriteCases and
-			// none of them hang off Repository, so the Repository cleanup below
-			// does not reach them.
+			// The value-flow and answer-truth fixtures. None of them hang off
+			// a Repository that the Repository cleanup below reaches through
+			// an edge, so each label is retracted by its fixture ids.
 			Operation:  sourcecypher.OperationCanonicalRetract,
-			Cypher:     `MATCH (s:CloudResource {id: $sink_id}) DETACH DELETE s`,
-			Parameters: map[string]any{"sink_id": valueFlowSinkID},
+			Cypher:     `MATCH (n:CloudResource) WHERE n.id IN $ids DETACH DELETE n`,
+			Parameters: map[string]any{"ids": []string{valueFlowSinkID, valueFlowPrincipalID}},
+		},
+		{
+			Operation: sourcecypher.OperationCanonicalRetract,
+			Cypher:    `MATCH (n:WorkloadInstance) WHERE n.id IN $ids DETACH DELETE n`,
+			Parameters: map[string]any{"ids": []string{
+				valueFlowInstanceID, answerTruthInstanceOne, answerTruthInstanceTwo,
+			}},
+		},
+		{
+			Operation: sourcecypher.OperationCanonicalRetract,
+			Cypher:    `MATCH (n:Workload) WHERE n.id IN $ids DETACH DELETE n`,
+			Parameters: map[string]any{"ids": []string{
+				valueFlowWorkloadID, valueFlowSecondWorkloadID, answerTruthWorkloadID,
+			}},
 		},
 		{
 			Operation:  sourcecypher.OperationCanonicalRetract,
-			Cypher:     `MATCH (p:CloudResource {id: $principal_id}) DETACH DELETE p`,
-			Parameters: map[string]any{"principal_id": valueFlowPrincipalID},
+			Cypher:     `MATCH (n:Platform) WHERE n.id IN $ids DETACH DELETE n`,
+			Parameters: map[string]any{"ids": []string{answerTruthPlatformID}},
 		},
 		{
 			Operation:  sourcecypher.OperationCanonicalRetract,
-			Cypher:     `MATCH (i:WorkloadInstance {id: $instance_id}) DETACH DELETE i`,
-			Parameters: map[string]any{"instance_id": valueFlowInstanceID},
+			Cypher:     `MATCH (a:CloudAction) WHERE a.action IN $actions DETACH DELETE a`,
+			Parameters: map[string]any{"actions": []string{valueFlowAction, valueFlowDeniedAction}},
 		},
 		{
-			Operation:  sourcecypher.OperationCanonicalRetract,
-			Cypher:     `MATCH (w:Workload {id: $workload_id}) DETACH DELETE w`,
-			Parameters: map[string]any{"workload_id": valueFlowWorkloadID},
-		},
-		{
-			Operation:  sourcecypher.OperationCanonicalRetract,
-			Cypher:     `MATCH (a:CloudAction {action: $action}) DETACH DELETE a`,
-			Parameters: map[string]any{"action": valueFlowAction},
-		},
-		{
-			Operation:  sourcecypher.OperationCanonicalRetract,
-			Cypher:     `MATCH (fn:Function {uid: $function_uid}) DETACH DELETE fn`,
-			Parameters: map[string]any{"function_uid": valueFlowFunctionUID},
+			Operation: sourcecypher.OperationCanonicalRetract,
+			Cypher:    `MATCH (fn:Function) WHERE fn.uid IN $uids DETACH DELETE fn`,
+			Parameters: map[string]any{"uids": []string{
+				valueFlowFunctionUID, valueFlowTwoWorkloadFunctionUID, valueFlowDeniedFunctionUID,
+			}},
 		},
 		{
 			Operation: sourcecypher.OperationCanonicalRetract,

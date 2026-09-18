@@ -1,34 +1,24 @@
 name: Value Flow Conformance Expectation
 
-# Runs the value-flow cloud sink conformance pair on both backends with the
-# expectation inverted (#6192).
+# Runs the value-flow cloud sink conformance cases on both backends and
+# requires both lanes to pass (#6192, #6690).
 #
-# The pair is gated behind ESHU_BACKEND_CONFORMANCE_VALUE_FLOW because it fails
-# against NornicDB by design — it reproduces four measured divergences that
-# empty the production valueFlowCloudSinkTargetsCypher query. Nothing set that
-# variable anywhere, so the pair was absent from every run that happened on its
-# own, and the day upstream fixes the underlying defects nothing would have
-# changed and nobody would have found out.
+# This job used to run the pair with the expectation inverted: the old
+# single-statement cloud sink query returned zero rows on NornicDB, so the
+# NornicDB lane had to fail naming the case. #6690 replaced it with two
+# statements and a Go-side single-workload check that return the exact rows on
+# the pinned NornicDB image and on Neo4j, and both statements now sit in the
+# default conformance corpus with exact-row assertions. Both lanes are now
+# expected to pass, and scripts/verify-value-flow-conformance-expectation.sh
+# fails a lane that goes green without logging both value-flow cases.
 #
-# A scheduled job that is red by design gets muted inside a month, and a muted
-# job is worse than no job because it still looks like coverage. So this one
-# asserts the CURRENT, documented behaviour instead: the NornicDB lane fails
-# with the message corpus.go emits, and the Neo4j lane passes. Green means
-# "still broken, as documented". Red means upstream landed and the opt-in can
-# come off — scripts/verify-value-flow-conformance-expectation.sh prints the
-# one-step repair when that happens.
+# The job stays because required-gates-complete awaits it for these triggers
+# through the default branch's registry. Retiring it is a registry-only change
+# first, then the workflow deletion.
 #
-# Both lanes run in ONE job, sequentially, because they are one observation.
-# Neo4j-passes plus NornicDB-fails-with-that-exact-message is what separates a
-# backend defect from a broken fixture; a green Neo4j lane sitting in a
-# different job is a fact nobody reads. They also both bind
+# Both lanes run in ONE job, sequentially: they both bind
 # bolt://localhost:7687, so the first stack comes down before the second goes
-# up.
-#
-# The control runs FIRST. A failing step skips the rest of the job, so putting
-# NornicDB first would mean the one run that most needs its control never got
-# one. This order also skips the NornicDB lane when the control has already
-# said the fixture is broken.
+# up. Neo4j runs first, so a broken fixture shows up on the control lane.
 
 on:
   push:
@@ -47,6 +37,7 @@ on:
     paths:
       - "go/internal/backendconformance/**"
       - "go/internal/reducer/code/value/cloud_sink_loader.go"
+      - "go/internal/reducer/code/value/cloud_sink_pairs.go"
       - "docker-compose.yaml"
       - "docker-compose.neo4j.yml"
       - "scripts/verify_backend_conformance_live.sh"
@@ -119,7 +110,7 @@ jobs:
           docker compose -f docker-compose.neo4j.yml logs neo4j
           exit 1
 
-      - name: Neo4j lane — the positive control, expected to pass
+      - name: Neo4j lane — expected to pass, running both value-flow cases
         env:
           DEFAULT_DATABASE: neo4j
           ESHU_NEO4J_DATABASE: neo4j
@@ -148,7 +139,7 @@ jobs:
           docker compose -f docker-compose.yaml logs nornicdb
           exit 1
 
-      - name: NornicDB lane — expected to fail, naming the value-flow read case
+      - name: NornicDB lane — expected to pass, running both value-flow cases
         env:
           DEFAULT_DATABASE: nornic
           ESHU_NEO4J_DATABASE: nornic

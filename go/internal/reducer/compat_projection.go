@@ -208,9 +208,15 @@ type CodeInterprocStaleEvidenceRetractor = cleanup.InterprocStaleEvidenceRetract
 // the value-flow fixpoint. See [value.GraphCloudSinkTargetLoader].
 type GraphValueFlowCloudSinkTargetLoader = value.GraphCloudSinkTargetLoader
 
-// ValueFlowCloudSinkTargetsCypher is the bounded Cypher query cloud sink
-// target loading runs. See [value.CloudSinkTargetsCypher].
-const ValueFlowCloudSinkTargetsCypher = value.CloudSinkTargetsCypher
+// ValueFlowCloudSinkWorkloadRowsCypher is the first of the two bounded Cypher
+// statements cloud sink target loading runs. See
+// [value.CloudSinkWorkloadRowsCypher].
+const ValueFlowCloudSinkWorkloadRowsCypher = value.CloudSinkWorkloadRowsCypher
+
+// ValueFlowCloudSinkTargetsByPairCypher is the second of the two bounded Cypher
+// statements cloud sink target loading runs. See
+// [value.CloudSinkTargetsByPairCypher].
+const ValueFlowCloudSinkTargetsByPairCypher = value.CloudSinkTargetsByPairCypher
 
 // ValueFlowFixpointComponentStore is the durable weak-component cache store
 // port. See [value.FixpointComponentStore].

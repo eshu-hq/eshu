@@ -154,6 +154,7 @@ func TestValueFlowExpectationIsRequiredForItsOwnTriggers(t *testing.T) {
 	selecting := map[string]string{
 		"go/internal/backendconformance/**":                         "go/internal/backendconformance/corpus_value_flow.go",
 		"go/internal/reducer/code/value/cloud_sink_loader.go":       "go/internal/reducer/code/value/cloud_sink_loader.go",
+		"go/internal/reducer/code/value/cloud_sink_pairs.go":        "go/internal/reducer/code/value/cloud_sink_pairs.go",
 		"docker-compose.yaml":                                       "docker-compose.yaml",
 		"docker-compose.neo4j.yml":                                  "docker-compose.neo4j.yml",
 		"scripts/verify_backend_conformance_live.sh":                "scripts/verify_backend_conformance_live.sh",

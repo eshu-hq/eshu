@@ -46,11 +46,14 @@
 - **Add a new write case** → append to `DefaultWriteCorpus` in
   `corpus.go`, run the local default tests, then run the live opt-in via
   `scripts/verify_backend_conformance_live.sh` against both Neo4j and
-  NornicDB Compose lanes. Add `ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1` to
-  that run when you need the value-flow pair too; it is absent from the
-  corpora without it, so a green run does not cover it. **Add a matching retract to `cleanupLiveCorpus`
+  NornicDB Compose lanes. **Add a matching retract to `cleanupLiveCorpus`
   in `live_test.go` in the same change** — a write case with no cleanup
   leaks its fixtures permanently on a persistent developer database.
+
+- **Prefer `WantRows` for any shape a backend can misanswer with the right
+  row count** (a count that ignores DISTINCT, a projection that echoes its
+  expression text). `MinRows` cannot see those. Compare `corpus_answer_truth.go`
+  and `corpus_value_flow.go`; both pass on NornicDB v1.3.3 and Neo4j.
 
 - **Both corpora are `append(...)` calls**, so a related read/write pair
   that is large or has its own rationale can live in its own
@@ -126,15 +129,14 @@
 
 ## Citing a conformance env var in public docs registers it
 
-`ESHU_BACKEND_CONFORMANCE_VALUE_FLOW` is in `go/internal/envregistry` only
-because `docs/public/reference/backend-conformance.md` cites it. The
-`docs-cli-env-refs` gate requires a code owner for every env reference under
-`docs/public/`, and its debt baseline is frozen against a ceiling that can never
-grow — so a new public citation cannot be baselined and must be registered.
+The `docs-cli-env-refs` gate requires a code owner in `go/internal/envregistry`
+for every env reference under `docs/public/`, and its debt baseline is frozen
+against a ceiling that can never grow -- so a new public citation cannot be
+baselined and must be registered.
 
 `ESHU_BACKEND_CONFORMANCE_LIVE` is deliberately NOT registered: it is cited
 nowhere under `docs/public/`, so it is outside that gate's contract. The moment
 anyone adds it to a public page — and the obvious place is the page already
 documenting the live check — the gate fires and it cannot be baselined either.
-Register it in the `backend-conformance` subsystem alongside its sibling rather
-than rediscovering this during a preflight.
+Register it in a `backend-conformance` subsystem rather than rediscovering this
+during a preflight.

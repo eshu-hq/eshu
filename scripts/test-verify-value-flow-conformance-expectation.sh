@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
-# Test mirror for scripts/verify-value-flow-conformance-expectation.sh (#6192).
+# Test mirror for scripts/verify-value-flow-conformance-expectation.sh (#6192,
+# #6690).
 #
-# The gate it mirrors needs two live Bolt backends, so nothing about it can be
-# proven on a laptop or on a credential-free runner by running it for real.
-# What CAN be proven, and is what actually decides whether the gate is worth
-# having, is that every verdict is reachable and that none of them is reached
-# for the wrong reason. Each case below drives the gate with a stub lane whose
-# output and exit code are fixed, so the verdict is the only variable.
+# The gate it mirrors needs a live Bolt backend per lane, so it cannot be
+# proven on a credential-free runner by running it for real. What can be proven
+# is that every verdict is reachable and that none is reached for the wrong
+# reason. Each case drives the gate with a stub lane whose output and exit code
+# are fixed, so the verdict is the only variable.
 #
-# The cases that matter most are the negative ones. An expected-fail gate is
-# easy to write so that it passes on any failure at all, or on the right failure
-# with a second one hiding behind it — either way a false green wearing the
-# costume of a gate. Cases 3, 4 and 5 are what rule that out.
+# The negative cases matter most: a positive gate is easy to write so that it
+# passes on any exit 0, including a run that never executed the value-flow
+# cases. Cases 3 and 4 rule that out.
 #
 # Fast, credential-free, Docker-free, network-free.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 gate="${repo_root}/scripts/verify-value-flow-conformance-expectation.sh"
-corpus_source="${repo_root}/go/internal/backendconformance/corpus.go"
 corpus_value_flow="${repo_root}/go/internal/backendconformance/corpus_value_flow.go"
 live_test_source="${repo_root}/go/internal/backendconformance/live_test.go"
 workflow="${repo_root}/.github/workflows/value-flow-conformance-expectation.yml"
@@ -40,13 +38,13 @@ record_fail() {
 work_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-value-flow-expectation.XXXXXX")"
 trap 'rm -rf "${work_dir}"' EXIT
 
-# The exact case name and message shape the gate matches on. Kept here as
-# independent literals rather than read out of the gate, so a change to the
-# gate's needle has to be made in two places and cannot pass this mirror by
-# agreeing with itself.
-case_name='value-flow cloud sink aggregation and subscript projection'
-expected_failure="read case \"${case_name}\" returned 0 rows, want at least 1"
-included_banner='  value-flow cloud sink pair: INCLUDED (ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is set)'
+# The case names, kept here as independent literals rather than read out of the
+# gate, so a change to the gate's markers has to be made in two places and
+# cannot pass this mirror by agreeing with itself.
+rows_case='value-flow cloud action workload rows'
+targets_case='value-flow cloud sink targets by pair'
+rows_marker="    live_test.go:96: read case passed: ${rows_case} (4 rows)"
+targets_marker="    live_test.go:96: read case passed: ${targets_case} (1 rows)"
 
 # make_stub <name> <exit-code> <line>... — write a stub live-conformance driver
 # that prints the given lines and exits with the given code. Built with printf,
@@ -59,7 +57,6 @@ make_stub() {
 	{
 		printf '#!/usr/bin/env bash\n'
 		printf 'printf "%%s\\n" "backend=${ESHU_GRAPH_BACKEND:-unset}"\n'
-		printf 'printf "%%s\\n" "value_flow=${ESHU_BACKEND_CONFORMANCE_VALUE_FLOW:-unset}"\n'
 		local line
 		for line in "$@"; do
 			printf 'printf "%%s\\n" %q\n' "${line}"
@@ -121,227 +118,98 @@ else
 	record_fail "gate script is missing 'set -euo pipefail'"
 fi
 
-# ── 1. nornicdb lane fails as documented → the gate passes ─────────────────
+# ── 1. A passing lane that ran both cases → the gate passes ────────────────
 
-stub="$(make_stub nornicdb-documented 1 "${included_banner}" "${expected_failure}")"
-run_gate nornicdb "${stub}"
-expect_status "nornicdb lane failing with the documented message passes the gate" 0
-expect_output "the documented nornicdb failure is reported as such" \
-	'failed as documented'
-expect_output "the observed exit code is printed for the evidence note" \
-	'nornicdb lane: observed exit code 1'
+for lane in nornicdb neo4j; do
+	stub="$(make_stub "pass-${lane}" 0 \
+		"${rows_marker}" "${targets_marker}" "--- PASS: TestLiveBackendConformance (0.11s)" "ok")"
+	run_gate "${lane}" "${stub}"
+	expect_status "${lane} lane passing with both value-flow cases → gate passes" 0
+	expect_output "${lane} lane: the gate says both cases ran" "both value-flow cases ran"
+	# ── 2. The gate hands the driver the backend it claims to test ─────────
+	expect_output "${lane} lane: the gate sets ESHU_GRAPH_BACKEND" "backend=${lane}"
+done
 
-# ── 2. The gate sets the opt-in and the backend it claims to ───────────────
+# ── 3. A failing lane → the gate fails, for either backend ─────────────────
 
-expect_output "the gate runs the lane it was asked for" 'backend=nornicdb'
-expect_output "the gate sets the value-flow opt-in" 'value_flow=1'
+for lane in nornicdb neo4j; do
+	stub="$(make_stub "fail-${lane}" 1 \
+		"    corpus: read case \"${rows_case}\": returned rows differ from the exact expected rows" \
+		"--- FAIL: TestLiveBackendConformance (0.11s)")"
+	run_gate "${lane}" "${stub}"
+	expect_status "${lane} lane red → gate fails" 1
+	expect_output "${lane} lane red: the gate names the lane" "${lane} lane FAILED"
+done
 
-# ── 3. nornicdb lane failing for a DIFFERENT reason → the gate fails ───────
+# ── 4. A green run that never ran the value-flow cases → the gate fails ────
 #
-# This is the case that separates a gate from a rubber stamp. A broken fixture,
-# a failed seed, and a refused Bolt connection all exit non-zero; if any of them
-# satisfied the expectation, the gate would go green while proving nothing.
+# This is the case that separates the gate from a rubber stamp: exit 0 with the
+# cases missing must not count.
 
-stub="$(make_stub nornicdb-other-failure 1 \
-	"${included_banner}" \
-	'dial tcp 127.0.0.1:7687: connect: connection refused')"
+stub="$(make_stub "pass-no-markers" 0 "--- PASS: TestLiveBackendConformance (0.11s)" "ok")"
 run_gate nornicdb "${stub}"
-expect_status "nornicdb lane failing for another reason fails the gate" 1
-expect_output "an off-message failure says the message was missing" \
-	'WITHOUT naming the value-flow read case'
+expect_status "green run with neither value-flow case → gate fails" 1
+expect_output "the gate names the missing case" "WITHOUT running a value-flow case"
 
-# ── 4. A second failure behind the documented one → the gate fails ─────────
-#
-# The documented shape has exactly one failure in it. A run can carry a second
-# one in two ways, and they need different checks because neither sees the
-# other.
-#
-# TestLiveBackendConformance calls t.Fatalf from two deferred closures, and a
-# defer runs AFTER the read-corpus t.Fatalf has already recorded the documented
-# failure, so both messages land in the same run. go test prints ONE "--- FAIL:"
-# line per test however many messages that test recorded — checked against a
-# real go test -v run of that exact shape — so counting failed tests is blind
-# to this one, and the gate has to name the two co-occurring messages instead.
-
-stub="$(make_stub nornicdb-and-cleanup-failure 1 \
-	"${included_banner}" \
-	"    live_test.go:101: run nornicdb live read corpus: ${expected_failure}" \
-	'    live_test.go:78: cleanup live corpus fixture: execute write group: write tx failed' \
-	'--- FAIL: TestLiveBackendConformance (3.23s)')"
-run_gate nornicdb "${stub}"
-expect_status "the documented failure plus a cleanup failure fails the gate" 1
-# Match the gate's own verdict, not the marker. The gate echoes the lane log, so
-# the marker is in the output either way and asserting on it would pass without
-# the gate having noticed anything.
-expect_output "the co-occurring cleanup failure is named in the verdict" \
-	'recorded a second failure: "cleanup live corpus fixture:"'
-
-stub="$(make_stub nornicdb-and-close-failure 1 \
-	"${included_banner}" \
-	"    live_test.go:101: run nornicdb live read corpus: ${expected_failure}" \
-	'    live_test.go:63: close Bolt driver: context deadline exceeded' \
-	'--- FAIL: TestLiveBackendConformance (3.23s)')"
-run_gate nornicdb "${stub}"
-expect_status "the documented failure plus a driver-close failure fails the gate" 1
-expect_output "the co-occurring close failure is named in the verdict" \
-	'recorded a second failure: "close Bolt driver:"'
-
-# The other way is a SECOND FAILING TEST, whose failure text is its own and so
-# cannot be enumerated ahead of time. Counting "--- FAIL:" lines is what catches
-# that one.
-#
-# This is DEFENCE IN DEPTH, not a reachable shape today, and the difference is
-# worth stating so the check is not read as proof the shape was observed.
-# scripts/verify_backend_conformance_live.sh runs three `go test` invocations on
-# the nornicdb lane, but under `set -euo pipefail` with none of them guarded, so
-# a failing TestLiveBackendConformance exits the driver at the first one and the
-# other two never run. A second "--- FAIL:" therefore cannot co-occur with the
-# documented message unless that driver is restructured to run all three
-# unconditionally -- which is exactly when this check starts earning its keep.
-
-stub="$(make_stub nornicdb-second-failing-test 1 \
-	"${included_banner}" \
-	"    live_test.go:101: run nornicdb live read corpus: ${expected_failure}" \
-	'--- FAIL: TestLiveBackendConformance (3.23s)' \
-	'--- FAIL: TestLiveNornicDBRetryConflictClassificationContract (0.41s)')"
-run_gate nornicdb "${stub}"
-expect_status "a second failing test fails the gate" 1
-expect_output "a second failing test is named as such" 'more than one test failed'
-
-# And the shape the gate exists to accept still passes, so neither check above
-# rejects a clean documented red. These lines are the nornicdb transcript
-# recorded in go/internal/backendconformance/evidence-notes.md.
-
-stub="$(make_stub nornicdb-real-transcript 1 \
-	"${included_banner}" \
-	"    live_test.go:101: run nornicdb live read corpus: ${expected_failure}" \
-	'--- FAIL: TestLiveBackendConformance (3.23s)' \
-	'FAIL' \
-	'FAIL	github.com/eshu-hq/eshu/go/internal/backendconformance	3.512s' \
-	'FAIL')"
-run_gate nornicdb "${stub}"
-expect_status "the real one-failure transcript still passes the gate" 0
-expect_output "the real transcript is still reported as documented" 'failed as documented'
-
-# ── 5. The pair never ran → the gate fails ─────────────────────────────────
-#
-# With the opt-in unset the pair is ABSENT from the corpus rather than skipped,
-# so a run without the INCLUDED banner proves nothing either way. Asserting the
-# banner is what stops a green neo4j lane from being read as a positive control
-# when the case was never in the corpus.
-
-stub="$(make_stub neo4j-omitted 0 \
-	'  value-flow cloud sink pair: OMITTED -- ESHU_BACKEND_CONFORMANCE_VALUE_FLOW is not set.')"
+stub="$(make_stub "pass-one-marker" 0 "${rows_marker}" "--- PASS: TestLiveBackendConformance (0.11s)")"
 run_gate neo4j "${stub}"
-expect_status "a lane that omitted the pair fails the gate" 1
-expect_output "an omitted pair is named as such" 'never included the value-flow pair'
+expect_status "green run with only one value-flow case → gate fails" 1
+expect_output "the gate names the case that did not run" "${targets_case}"
 
-# ── 6. nornicdb lane PASSES → upstream landed, and the gate says so ────────
-
-stub="$(make_stub nornicdb-upstream-fixed 0 "${included_banner}" \
-	'ok  github.com/eshu-hq/eshu/go/internal/backendconformance  3.9s')"
-run_gate nornicdb "${stub}"
-expect_status "a passing nornicdb lane fails the gate" 1
-expect_output "the upstream-landed verdict names the one-step repair" \
-	'valueFlowCasesEnabled'
-expect_output "the upstream-landed verdict names the file to edit" \
-	'go/internal/backendconformance/corpus_value_flow.go'
-
-# ── 7. neo4j positive control ──────────────────────────────────────────────
-
-stub="$(make_stub neo4j-documented 0 "${included_banner}" \
-	'ok  github.com/eshu-hq/eshu/go/internal/backendconformance  3.7s')"
-run_gate neo4j "${stub}"
-expect_status "neo4j lane passing passes the gate" 0
-expect_output "the neo4j observed exit code is printed" 'neo4j lane: observed exit code 0'
-expect_output "the gate runs the neo4j lane" 'backend=neo4j'
-
-stub="$(make_stub neo4j-broken 1 "${included_banner}" "${expected_failure}")"
-run_gate neo4j "${stub}"
-expect_status "neo4j lane failing fails the gate" 1
-expect_output "a failed control says the other lane proves nothing" \
-	'positive control'
-
-# ── 8. Usage errors are distinguishable from gate verdicts ─────────────────
+# ── 5. Usage errors are distinguishable from gate verdicts ─────────────────
 
 set +e
-"${gate}" > "${work_dir}/usage.txt" 2>&1
+"${gate}" > /dev/null 2>&1
 usage_status=$?
+"${gate}" sqlite > /dev/null 2>&1
+bad_lane_status=$?
+"${gate}" nornicdb "${work_dir}/does-not-exist" > /dev/null 2>&1
+bad_driver_status=$?
 set -e
-if [[ "${usage_status}" -eq 2 ]]; then
-	record_pass "a missing lane argument exits 2, not 1"
+if [[ "${usage_status}" -eq 2 && "${bad_lane_status}" -eq 2 ]]; then
+	record_pass "missing or unknown lane is a usage error (exit 2)"
 else
-	record_fail "a missing lane argument should exit 2, got ${usage_status}"
+	record_fail "usage errors: want exit 2/2, got ${usage_status}/${bad_lane_status}"
+fi
+if [[ "${bad_driver_status}" -eq 1 ]]; then
+	record_pass "a non-executable driver fails the gate (exit 1)"
+else
+	record_fail "non-executable driver: want exit 1, got ${bad_driver_status}"
 fi
 
-set +e
-"${gate}" postgres > "${work_dir}/usage.txt" 2>&1
-usage_status=$?
-set -e
-if [[ "${usage_status}" -eq 2 ]]; then
-	record_pass "an unknown lane exits 2, not 1"
-else
-	record_fail "an unknown lane should exit 2, got ${usage_status}"
-fi
-
-# ── 9. The needle still matches what the corpus actually emits ─────────────
+# ── 6. The markers still match what the corpus and live test emit ──────────
 #
-# The gate rests entirely on one string. If corpus.go's format string or the
-# case name changes and the gate's needle does not, every nornicdb run becomes
-# an off-message failure and the gate fails loudly — but only once someone runs
-# it against a live backend. These two checks move that discovery to here.
+# The gate rests on two case names and one log format. If either changes and
+# the gate's markers do not, every live run becomes a "never ran" failure, but
+# only once someone runs it against a backend. These checks move that here.
 
-if rg --fixed-strings --quiet -- 'read case %q returned %d rows, want at least %d' "${corpus_source}"; then
-	record_pass "corpus.go still emits the message shape the gate matches"
+if rg --fixed-strings --quiet -- "valueFlowWorkloadRowsCaseName = \"${rows_case}\"" "${corpus_value_flow}"; then
+	record_pass "valueFlowWorkloadRowsCaseName still matches the gate's marker"
 else
-	record_fail "corpus.go no longer emits 'read case %q returned %d rows, want at least %d'; update the gate's needle"
+	record_fail "valueFlowWorkloadRowsCaseName no longer equals \"${rows_case}\"; update the gate"
 fi
-if rg --fixed-strings --quiet -- "valueFlowReadCaseName  = \"${case_name}\"" "${corpus_value_flow}"; then
-	record_pass "the read case name the gate matches is still the corpus constant"
+if rg --fixed-strings --quiet -- "valueFlowTargetsCaseName      = \"${targets_case}\"" "${corpus_value_flow}"; then
+	record_pass "valueFlowTargetsCaseName still matches the gate's marker"
 else
-	record_fail "valueFlowReadCaseName no longer equals \"${case_name}\"; update the gate's needle"
+	record_fail "valueFlowTargetsCaseName no longer equals \"${targets_case}\"; update the gate"
 fi
+if rg --fixed-strings --quiet -- 't.Logf("read case passed: %s (%d rows)", result.Name, result.Rows)' "${live_test_source}"; then
+	record_pass "live_test.go still logs the marker format the gate matches"
+else
+	record_fail "live_test.go no longer logs 'read case passed: <name> (<n> rows)'; update the gate"
+fi
+for case_name in "${rows_case}" "${targets_case}"; do
+	if rg --fixed-strings --quiet -- "read case passed: ${case_name}" "${gate}"; then
+		record_pass "the gate requires the \"${case_name}\" marker"
+	else
+		record_fail "the gate does not require the \"${case_name}\" marker"
+	fi
+done
 
-# The gate names two failures that can land alongside the documented one, and it
-# names them because they are the two live_test.go raises from a DEFERRED
-# closure — a defer runs after the read-corpus failure is already recorded, so
-# only those two can co-occur. That list was derived by reading the failures
-# live_test.go can raise, so it goes stale the moment someone adds another one.
-# Pin the set here. A new entry is not automatically a gate change; it is a
-# prompt to work out whether the new failure can co-occur, and to extend
-# cooccurring_failures in the gate if it can.
-known_live_test_failures="$(
-	LC_ALL=C rg --only-matching --no-line-number --replace '$1' \
-		't\.Fatalf\("([^"]*)"' "${live_test_source}" | LC_ALL=C sort -u
-)"
-expected_live_test_failures="$(
-	printf '%s\n' \
-		'clean live corpus fixture: %v' \
-		'cleanup live corpus fixture: %v' \
-		'close Bolt driver: %v' \
-		'load graph backend: %v' \
-		'open Bolt driver: %v' \
-		'run %s live read corpus: %v' \
-		'run %s live write corpus attempt %d: %v'
-)"
-if [[ "${known_live_test_failures}" == "${expected_live_test_failures}" ]]; then
-	record_pass "live_test.go still raises only the failures the gate's co-occurrence list was derived from"
-else
-	record_fail "live_test.go's t.Fatalf set changed. Work out whether any new one can be
-recorded ALONGSIDE the read-corpus failure (a t.Fatalf in a deferred closure can;
-one on the straight-line path cannot, because the first Fatalf ends the test),
-then extend cooccurring_failures in the gate and this list together.
-want:
-${expected_live_test_failures}
-got:
-${known_live_test_failures}"
-fi
-
-# ── 10. Both lanes are wired into the same CI job ───────────────────────────
+# ── 7. Both lanes are wired into the same CI job ───────────────────────────
 #
-# The positive control is only a control if it runs alongside the lane it
-# controls for. Matched as live code, so commenting a lane out fails here
-# rather than leaving the job green with half its evidence.
+# Matched as live code, so commenting a lane out fails here rather than leaving
+# the job green with half its evidence.
 
 live_code_has() {
 	local needle="$1" file="$2" line stripped
@@ -354,7 +222,7 @@ live_code_has() {
 }
 
 if [[ -f "${workflow}" ]]; then
-	record_pass "the expectation workflow exists"
+	record_pass "the value-flow workflow exists"
 	for lane in nornicdb neo4j; do
 		if live_code_has "verify-value-flow-conformance-expectation.sh ${lane}" "${workflow}"; then
 			record_pass "the workflow runs the ${lane} lane as live code"
@@ -362,10 +230,10 @@ if [[ -f "${workflow}" ]]; then
 			record_fail "the workflow does not run the ${lane} lane as live code"
 		fi
 	done
-	if [[ "$(rg --count '^  [a-z0-9_-]+:$' "${workflow}" || true)" != "" ]]; then
-		record_pass "the workflow parses as a job map"
+	if live_code_has "ESHU_BACKEND_CONFORMANCE_VALUE_FLOW" "${workflow}"; then
+		record_fail "the workflow still sets the retired ESHU_BACKEND_CONFORMANCE_VALUE_FLOW opt-in"
 	else
-		record_fail "the workflow declares no jobs"
+		record_pass "the workflow no longer sets the retired opt-in"
 	fi
 else
 	record_fail "missing ${workflow}"

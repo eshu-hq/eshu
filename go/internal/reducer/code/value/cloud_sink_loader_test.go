@@ -6,6 +6,7 @@ package value
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,98 +14,187 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
-type recordingCloudSinkGraph struct {
-	rows          []map[string]any
-	rowsByCall    [][]map[string]any
-	seenCypher    string
-	seenCyphers   []string
-	seenParams    map[string]any
-	seenParamSets []map[string]any
+// statementCloudSinkGraph answers the two cloud sink statements separately so a
+// test can seed the raw workload rows and the sink rows independently, and can
+// see exactly which pairs the loader sent to the second statement.
+type statementCloudSinkGraph struct {
+	workloadRows []map[string]any
+	sinkRows     []map[string]any
+	calls        []cloudSinkGraphCall
 }
 
-func (g *recordingCloudSinkGraph) Run(
+type cloudSinkGraphCall struct {
+	cypher string
+	params map[string]any
+}
+
+func (g *statementCloudSinkGraph) Run(
 	_ context.Context,
 	cypher string,
 	params map[string]any,
 ) ([]map[string]any, error) {
-	g.seenCypher = cypher
-	g.seenCyphers = append(g.seenCyphers, cypher)
-	g.seenParams = params
-	g.seenParamSets = append(g.seenParamSets, params)
-	if len(g.rowsByCall) > 0 {
-		rows := g.rowsByCall[0]
-		g.rowsByCall = g.rowsByCall[1:]
-		return append([]map[string]any(nil), rows...), nil
+	g.calls = append(g.calls, cloudSinkGraphCall{cypher: cypher, params: params})
+	switch cypher {
+	case CloudSinkWorkloadRowsCypher:
+		return append([]map[string]any(nil), g.workloadRows...), nil
+	case CloudSinkTargetsByPairCypher:
+		return append([]map[string]any(nil), g.sinkRows...), nil
+	default:
+		return nil, fmt.Errorf("unexpected cypher:\n%s", cypher)
 	}
-	return append([]map[string]any(nil), g.rows...), nil
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testing.T) {
+func (g *statementCloudSinkGraph) callsFor(cypher string) []cloudSinkGraphCall {
+	var out []cloudSinkGraphCall
+	for _, call := range g.calls {
+		if call.cypher == cypher {
+			out = append(out, call)
+		}
+	}
+	return out
+}
+
+// sentPairs flattens every pair the loader bound to the second statement.
+func (g *statementCloudSinkGraph) sentPairs(t *testing.T) []cloudSinkPair {
+	t.Helper()
+	var pairs []cloudSinkPair
+	for _, call := range g.callsFor(CloudSinkTargetsByPairCypher) {
+		raw, ok := call.params["pairs"].([]map[string]any)
+		if !ok {
+			t.Fatalf("pairs param type = %T, want []map[string]any", call.params["pairs"])
+		}
+		for _, p := range raw {
+			pairs = append(pairs, cloudSinkPair{
+				FunctionUID: p["function_uid"].(string),
+				Action:      p["action"].(string),
+				WorkloadID:  p["workload_id"].(string),
+			})
+		}
+	}
+	return pairs
+}
+
+func workloadRow(uid, action, workloadID string) map[string]any {
+	return map[string]any{"function_uid": uid, "action": action, "workload_id": workloadID}
+}
+
+// iamSinkRow is a sink row for a pair still bound to its one workload wl-1.
+func iamSinkRow(uid string) map[string]any {
+	return revalidatedSinkRow(uid, "s3:GetObject", "wl-1", "wl-1")
+}
+
+func TestCloudSinkLoaderResolvesSingleWorkloadFunction(t *testing.T) {
 	t.Parallel()
 
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
-	graph := &recordingCloudSinkGraph{rows: []map[string]any{
-		{
-			"function_uid": "uid-handler",
-			"sink_rel":     "CAN_PERFORM",
-			"sink_labels":  []string{"CloudResource"},
-		},
-	}}
-	loader := GraphCloudSinkTargetLoader{Graph: graph}
-
-	targets, err := loader.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{fn: "uid-handler"})
+	graph := &statementCloudSinkGraph{
+		workloadRows: []map[string]any{workloadRow("uid-handler", "s3:GetObject", "wl-1")},
+		sinkRows:     []map[string]any{iamSinkRow("uid-handler")},
+	}
+	targets, err := GraphCloudSinkTargetLoader{Graph: graph}.LoadCloudSinkTargets(
+		context.Background(), map[summary.FunctionID]string{fn: "uid-handler"})
 	if err != nil {
 		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
 	}
-	if len(targets) != 1 {
-		t.Fatalf("targets len = %d, want 1: %+v", len(targets), targets)
+	want := []CloudSinkTarget{{
+		FunctionID: fn,
+		Kind:       string(exposure.SinkIAMPrivilegedAction),
+		Label:      "IAM effective privileged action",
+	}}
+	if !reflect.DeepEqual(targets, want) {
+		t.Fatalf("targets = %+v, want %+v", targets, want)
 	}
-	if targets[0].FunctionID != fn || targets[0].Kind != string(exposure.SinkIAMPrivilegedAction) ||
-		targets[0].Label != "IAM effective privileged action" {
-		t.Fatalf("target = %+v, want correlated IAM cloud-action target", targets[0])
+	if got, want := graph.sentPairs(t), []cloudSinkPair{{"uid-handler", "s3:GetObject", "wl-1"}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("pairs sent = %+v, want %+v", got, want)
 	}
-	if len(graph.seenCyphers) != 1 {
-		t.Fatalf("graph calls = %d, want one bridge-aware permission read", len(graph.seenCyphers))
+	uidCalls := graph.callsFor(CloudSinkWorkloadRowsCypher)
+	if len(uidCalls) != 1 {
+		t.Fatalf("workload-row calls = %d, want 1", len(uidCalls))
 	}
-	cypher := graph.seenCyphers[0]
-	for _, want := range []string{
-		"MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)",
-		"fn.uid IN $function_uids",
-		"RUNS_IN",
-		"INSTANCE_OF",
-		"USES",
-		"CAN_PERFORM",
-		"WHERE size(workloads) = 1",
-		"action.action IN sinkRel.actions",
-	} {
-		if !strings.Contains(cypher, want) {
-			t.Fatalf("cloud-action permission query missing %q:\n%s", want, cypher)
-		}
-	}
-	if _, ok := graph.seenParams["sink_rels"]; ok {
-		t.Fatalf("cloud-action permission query should not pass unused sink_rels param: %+v", graph.seenParams)
+	if uids, ok := uidCalls[0].params["function_uids"].([]string); !ok || !reflect.DeepEqual(uids, []string{"uid-handler"}) {
+		t.Fatalf("function_uids = %#v, want []string{\"uid-handler\"}", uidCalls[0].params["function_uids"])
 	}
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIaCSinks(t *testing.T) {
+// TestCloudSinkLoaderSelectsPairsFailClosed covers the Go-side replacement for
+// the old collect(DISTINCT workload) / size(workloads) = 1 filter.
+func TestCloudSinkLoaderSelectsPairsFailClosed(t *testing.T) {
+	t.Parallel()
+
+	rows := []map[string]any{
+		// One workload, reached through two RUNS_IN rows: still one workload.
+		workloadRow("uid-dup", "s3:GetObject", "wl-1"),
+		workloadRow("uid-dup", "s3:GetObject", "wl-1"),
+		// Two workloads: ambiguous, so excluded.
+		workloadRow("uid-two", "s3:GetObject", "wl-1"),
+		workloadRow("uid-two", "s3:GetObject", "wl-2"),
+		// A workload with no id cannot be anchored, and makes the pair
+		// ambiguous even alongside an identified workload.
+		workloadRow("uid-blank", "s3:GetObject", ""),
+		workloadRow("uid-mixed", "s3:GetObject", "wl-1"),
+		workloadRow("uid-mixed", "s3:GetObject", " "),
+		// An action with no name can never match an allowed-action list.
+		workloadRow("uid-noaction", "", "wl-1"),
+		// Two actions on one workload are two independent pairs.
+		workloadRow("uid-multi", "sqs:SendMessage", "wl-3"),
+		workloadRow("uid-multi", "s3:PutObject", "wl-3"),
+		// Values reach the second statement exactly as stored; only the
+		// emptiness test trims.
+		workloadRow("uid-padded", " s3:Padded ", " wl-4"),
+	}
+	pairs, stats := selectCloudSinkPairs(rows)
+	want := []cloudSinkPair{
+		{"uid-dup", "s3:GetObject", "wl-1"},
+		{"uid-multi", "s3:PutObject", "wl-3"},
+		{"uid-multi", "sqs:SendMessage", "wl-3"},
+		{"uid-padded", " s3:Padded ", " wl-4"},
+	}
+	if !reflect.DeepEqual(pairs, want) {
+		t.Fatalf("pairs = %+v, want %+v", pairs, want)
+	}
+	wantStats := cloudSinkPairStats{MultiWorkloadDropped: 1, UnresolvedDropped: 3}
+	if stats != wantStats {
+		t.Fatalf("stats = %+v, want %+v", stats, wantStats)
+	}
+}
+
+func TestCloudSinkLoaderSkipsSinkQueryWhenNoPairSurvives(t *testing.T) {
 	t.Parallel()
 
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
-	graph := &recordingCloudSinkGraph{rows: []map[string]any{
-		{
-			"function_uid": "uid-handler",
-			"sink_rel":     "WRITES_CONFIG",
-			"sink_labels":  []string{"ConfigKey"},
+	graph := &statementCloudSinkGraph{
+		workloadRows: []map[string]any{
+			workloadRow("uid-handler", "s3:GetObject", "wl-1"),
+			workloadRow("uid-handler", "s3:GetObject", "wl-2"),
 		},
-		{
-			"function_uid": "uid-handler",
-			"sink_rel":     "DECLARES_IAC_MISCONFIG",
-			"sink_labels":  []string{"TerraformResource"},
-		},
-	}}
-	loader := GraphCloudSinkTargetLoader{Graph: graph}
+		sinkRows: []map[string]any{iamSinkRow("uid-handler")},
+	}
+	targets, err := GraphCloudSinkTargetLoader{Graph: graph}.LoadCloudSinkTargets(
+		context.Background(), map[summary.FunctionID]string{fn: "uid-handler"})
+	if err != nil {
+		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
+	}
+	if len(targets) != 0 {
+		t.Fatalf("a function in two workloads produced targets: %+v", targets)
+	}
+	if calls := graph.callsFor(CloudSinkTargetsByPairCypher); len(calls) != 0 {
+		t.Fatalf("sink statement ran %d times with no surviving pair", len(calls))
+	}
+}
 
-	targets, err := loader.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{fn: "uid-handler"})
+func TestCloudSinkLoaderDoesNotPromoteCatalogOnlyConfigAndIaCSinks(t *testing.T) {
+	t.Parallel()
+
+	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
+	graph := &statementCloudSinkGraph{
+		workloadRows: []map[string]any{workloadRow("uid-handler", "s3:GetObject", "wl-1")},
+		sinkRows: []map[string]any{
+			withSink(revalidatedSinkRow("uid-handler", "s3:GetObject", "wl-1", "wl-1"), "WRITES_CONFIG", "ConfigKey"),
+			withSink(revalidatedSinkRow("uid-handler", "s3:GetObject", "wl-1", "wl-1"), "DECLARES_IAC_MISCONFIG", "TerraformResource"),
+		},
+	}
+	targets, err := GraphCloudSinkTargetLoader{Graph: graph}.LoadCloudSinkTargets(
+		context.Background(), map[summary.FunctionID]string{fn: "uid-handler"})
 	if err != nil {
 		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
 	}
@@ -119,21 +209,13 @@ func TestGraphValueFlowCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIa
 	}
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T) {
+func TestCloudSinkLoaderSkipsAmbiguousGraphUID(t *testing.T) {
 	t.Parallel()
 
 	first := summary.NewFunctionID("repo-a", "pkg", "", "first")
 	second := summary.NewFunctionID("repo-a", "pkg", "", "second")
-	graph := &recordingCloudSinkGraph{rows: []map[string]any{
-		{
-			"function_uid": "uid-shared",
-			"sink_rel":     "CAN_PERFORM",
-			"sink_labels":  []string{"CloudResource"},
-		},
-	}}
-	loader := GraphCloudSinkTargetLoader{Graph: graph}
-
-	targets, err := loader.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{
+	graph := &statementCloudSinkGraph{}
+	targets, err := GraphCloudSinkTargetLoader{Graph: graph}.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{
 		first:  "uid-shared",
 		second: "uid-shared",
 	})
@@ -143,42 +225,50 @@ func TestGraphValueFlowCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T)
 	if len(targets) != 0 {
 		t.Fatalf("ambiguous graph uid produced targets: %+v", targets)
 	}
-	if len(graph.seenParamSets) != 0 {
-		t.Fatalf("ambiguous graph uid should not issue graph query, params=%+v", graph.seenParamSets)
+	if len(graph.calls) != 0 {
+		t.Fatalf("ambiguous graph uid should not issue graph queries, calls=%d", len(graph.calls))
 	}
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderChunksFunctionUIDs(t *testing.T) {
+func TestCloudSinkLoaderChunksBothStatements(t *testing.T) {
 	t.Parallel()
 
-	graphIDs := make(map[summary.FunctionID]string, valueFlowCloudSinkTargetBatchLimit+1)
-	for i := 0; i < valueFlowCloudSinkTargetBatchLimit+1; i++ {
-		graphIDs[summary.NewFunctionID("repo-a", "pkg", "", fmt.Sprintf("fn%d", i))] = fmt.Sprintf("uid-%d", i)
+	n := valueFlowCloudSinkTargetBatchLimit + 1
+	graphIDs := make(map[summary.FunctionID]string, n)
+	rows := make([]map[string]any, 0, n)
+	for i := 0; i < n; i++ {
+		uid := fmt.Sprintf("uid-%04d", i)
+		graphIDs[summary.NewFunctionID("repo-a", "pkg", "", fmt.Sprintf("fn%d", i))] = uid
+		rows = append(rows, workloadRow(uid, "s3:GetObject", "wl-1"))
 	}
-	graph := &recordingCloudSinkGraph{}
-	loader := GraphCloudSinkTargetLoader{Graph: graph}
-
-	if _, err := loader.LoadCloudSinkTargets(context.Background(), graphIDs); err != nil {
+	graph := &statementCloudSinkGraph{workloadRows: rows}
+	if _, err := (GraphCloudSinkTargetLoader{Graph: graph}).LoadCloudSinkTargets(context.Background(), graphIDs); err != nil {
 		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
 	}
-	if len(graph.seenParamSets) != 2 {
-		t.Fatalf("graph calls = %d, want 2 chunks", len(graph.seenParamSets))
+	uidCalls := graph.callsFor(CloudSinkWorkloadRowsCypher)
+	if len(uidCalls) != 2 {
+		t.Fatalf("workload-row calls = %d, want 2 chunks", len(uidCalls))
 	}
-	for _, params := range graph.seenParamSets {
-		uids, ok := params["function_uids"].([]string)
-		if !ok {
-			t.Fatalf("function_uids param type = %T, want []string", params["function_uids"])
+	for _, call := range uidCalls {
+		if uids := call.params["function_uids"].([]string); len(uids) > valueFlowCloudSinkTargetBatchLimit {
+			t.Fatalf("uid chunk size = %d, want <= %d", len(uids), valueFlowCloudSinkTargetBatchLimit)
 		}
-		if len(uids) > valueFlowCloudSinkTargetBatchLimit {
-			t.Fatalf("chunk size = %d, want <= %d", len(uids), valueFlowCloudSinkTargetBatchLimit)
-		}
+	}
+	// The fake returns every row on each chunk call, so both chunks yield the
+	// same uids; the loader must still send each pair once.
+	pairCalls := graph.callsFor(CloudSinkTargetsByPairCypher)
+	if len(pairCalls) != 2 {
+		t.Fatalf("pair calls = %d, want 2 chunks", len(pairCalls))
+	}
+	if got := len(graph.sentPairs(t)); got != n {
+		t.Fatalf("pairs sent = %d, want %d", got, n)
 	}
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderEmptyAndNilGuards(t *testing.T) {
+func TestCloudSinkLoaderEmptyAndNilGuards(t *testing.T) {
 	t.Parallel()
 
-	loader := GraphCloudSinkTargetLoader{Graph: &recordingCloudSinkGraph{}}
+	loader := GraphCloudSinkTargetLoader{Graph: &statementCloudSinkGraph{}}
 	targets, err := loader.LoadCloudSinkTargets(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("empty graph id map returned error: %v", err)
@@ -187,9 +277,99 @@ func TestGraphValueFlowCloudSinkTargetLoaderEmptyAndNilGuards(t *testing.T) {
 		t.Fatalf("empty graph id map targets = %+v, want nil", targets)
 	}
 
-	nilGraph := GraphCloudSinkTargetLoader{}
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
-	if _, err := nilGraph.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{fn: "uid-handler"}); err == nil {
+	if _, err := (GraphCloudSinkTargetLoader{}).LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{fn: "uid-handler"}); err == nil {
 		t.Fatal("nil graph must error rather than silently drop cloud sinks")
+	}
+}
+
+// TestCloudSinkStatementsAvoidTheShapesNornicDBMisanswers pins the two
+// statements away from the shapes measured wrong on NornicDB v1.3.3 (#6690):
+// in-query aggregation and list subscripts in the first, and multi-hop MATCH
+// clauses in the second. The backend-conformance corpus runs these exact
+// statements live; this guard catches a rewrite before it gets that far.
+func TestCloudSinkStatementsAvoidTheShapesNornicDBMisanswers(t *testing.T) {
+	t.Parallel()
+
+	for _, banned := range []string{"collect(", "DISTINCT", "size(", "[0]", "WITH "} {
+		if strings.Contains(CloudSinkWorkloadRowsCypher, banned) {
+			t.Errorf("workload-row statement contains %q:\n%s", banned, CloudSinkWorkloadRowsCypher)
+		}
+	}
+	if !strings.HasPrefix(CloudSinkTargetsByPairCypher, "UNWIND $pairs AS pair\n") {
+		t.Errorf("sink statement must start with UNWIND $pairs:\n%s", CloudSinkTargetsByPairCypher)
+	}
+	for _, line := range strings.Split(CloudSinkTargetsByPairCypher, "\n") {
+		if strings.HasPrefix(line, "MATCH ") && strings.Count(line, "]-") > 1 {
+			t.Errorf("sink statement has a multi-hop MATCH: %q", line)
+		}
+	}
+}
+
+func withSink(row map[string]any, rel, label string) map[string]any {
+	row["sink_rel"] = rel
+	row["sink_labels"] = []string{label}
+	return row
+}
+
+func revalidatedSinkRow(uid, action, workloadID, currentID string) map[string]any {
+	return map[string]any{
+		"function_uid":        uid,
+		"action":              action,
+		"workload_id":         workloadID,
+		"current_workload_id": currentID,
+		"sink_rel":            "CAN_PERFORM",
+		"sink_labels":         []string{"CloudResource"},
+	}
+}
+
+// TestCloudSinkLoaderRevalidatesTheWorkloadInTheSinkRead covers the window
+// between the two statements: they run as separate autocommit reads, so
+// RUNS_IN can change after the first one classified a pair. The second
+// statement returns every workload the function runs in now, on every row,
+// and only a pair whose current workloads are exactly its own survives.
+func TestCloudSinkLoaderRevalidatesTheWorkloadInTheSinkRead(t *testing.T) {
+	t.Parallel()
+
+	stable := summary.NewFunctionID("repo-a", "pkg", "", "stable")
+	gained := summary.NewFunctionID("repo-a", "pkg", "", "gained")
+	nullID := summary.NewFunctionID("repo-a", "pkg", "", "nullid")
+	graph := &statementCloudSinkGraph{
+		workloadRows: []map[string]any{
+			workloadRow("uid-stable", "s3:GetObject", "wl-1"),
+			workloadRow("uid-gained", "s3:GetObject", "wl-1"),
+			workloadRow("uid-nullid", "s3:GetObject", "wl-1"),
+		},
+		sinkRows: []map[string]any{
+			// Still exactly one workload, reached through two edges.
+			revalidatedSinkRow("uid-stable", "s3:GetObject", "wl-1", "wl-1"),
+			revalidatedSinkRow("uid-stable", "s3:GetObject", "wl-1", "wl-1"),
+			// Gained a second workload after the first read.
+			revalidatedSinkRow("uid-gained", "s3:GetObject", "wl-1", "wl-1"),
+			revalidatedSinkRow("uid-gained", "s3:GetObject", "wl-1", "wl-2"),
+			// Gained a workload with no id: cannot be proven single.
+			revalidatedSinkRow("uid-nullid", "s3:GetObject", "wl-1", "wl-1"),
+			revalidatedSinkRow("uid-nullid", "s3:GetObject", "wl-1", ""),
+		},
+	}
+	targets, err := GraphCloudSinkTargetLoader{Graph: graph}.LoadCloudSinkTargets(
+		context.Background(), map[summary.FunctionID]string{
+			stable: "uid-stable", gained: "uid-gained", nullID: "uid-nullid",
+		})
+	if err != nil {
+		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
+	}
+	want := []CloudSinkTarget{{
+		FunctionID: stable,
+		Kind:       string(exposure.SinkIAMPrivilegedAction),
+		Label:      "IAM effective privileged action",
+	}}
+	if !reflect.DeepEqual(targets, want) {
+		t.Fatalf("targets = %+v, want only the function whose workload did not change %+v", targets, want)
+	}
+
+	rows, dropped := revalidateCloudSinkRows(graph.sinkRows)
+	if len(rows) != 2 || dropped != 2 {
+		t.Fatalf("revalidateCloudSinkRows kept %d rows and dropped %d groups, want 2 and 2", len(rows), dropped)
 	}
 }

@@ -1,43 +1,25 @@
 #!/usr/bin/env bash
-# Run one lane of the value-flow cloud sink conformance pair and check it
-# against the behaviour this repository has measured and written down (#6192).
+# Run one lane of the value-flow cloud sink conformance cases and check that
+# they ran and passed (#6192, #6690).
 #
-# The pair reproduces four NornicDB divergences that empty the production query
-# valueFlowCloudSinkTargetsCypher. It is opt-in behind
-# ESHU_BACKEND_CONFORMANCE_VALUE_FLOW because it fails on NornicDB by design,
-# and nothing set that variable anywhere, so nothing ran the pair on its own.
-# This script is what runs it, with the expectation inverted so the normal
-# result is green:
+# History. The value-flow cloud sink loader used to run one statement that
+# returned zero rows on NornicDB. Its conformance pair sat behind an opt-in, and
+# this gate ran it with the expectation inverted: the NornicDB lane had to fail
+# naming the case, the Neo4j lane had to pass. #6690 replaced that statement with
+# two statements and a Go-side single-workload check. Both statements return the
+# exact expected rows on the pinned NornicDB v1.3.3 image and on Neo4j, and both
+# now sit in the default conformance corpus with exact-row assertions. So both
+# lanes are now expected to PASS.
 #
-#   nornicdb lane — expected to FAIL, naming the value-flow read case.
-#   neo4j lane    — expected to PASS.
+# The gate still exists because required-gates-complete awaits it for its
+# triggers through the default branch's registry; retiring it takes a
+# registry-only change first and the workflow deletion after. Until then it is a
+# focused positive check: both backends must pass the live corpus, and the run
+# must show that the two value-flow cases actually ran.
 #
-# Green means "still broken upstream, exactly as documented". Red means
-# something changed and somebody needs to look: either upstream landed a fix
-# (see "When upstream lands" below) or the fixture broke.
-#
-# Three things keep this honest rather than decorative.
-#
-# It matches the MESSAGE, not the exit code. A non-zero exit can come from a
-# broken fixture, a failed seed, or a connection error, and an expected-fail
-# that passes for the wrong reason is a false green wearing the costume of a
-# gate. The nornicdb lane only counts when the run names the value-flow read
-# case and its row shortfall.
-#
-# It requires that message to be the ONLY failure. TestLiveBackendConformance
-# calls t.Fatalf from two deferred closures — the corpus cleanup and the driver
-# close — and a defer runs after the read-corpus t.Fatalf has already recorded
-# the documented failure, so both messages land in the same run. Matching the
-# documented message alone would let a cleanup or close regression ride in
-# behind it and still report green.
-#
-# The neo4j lane is the positive control, and it belongs in the same CI job as
-# the nornicdb lane. Without it, a broken fixture and the backend defect the
-# pair exists to detect produce the same observation: a red nornicdb lane with
-# every hermetic guard green. That ambiguity was real rather than theoretical.
-# An earlier recorded measurement went stale when the read case's bound
-# parameter changed from function_uid to function_uids, and a wrong parameter
-# key empties the result on BOTH backends.
+# It checks the run, not only the exit code. A green run that never executed the
+# value-flow cases would prove nothing about them, so the lane only counts when
+# TestLiveBackendConformance logs "read case passed: <name>" for both cases.
 #
 # Usage:
 #   scripts/verify-value-flow-conformance-expectation.sh nornicdb
@@ -52,45 +34,20 @@
 # without a Bolt endpoint. Callers with a live backend should never pass it.
 #
 # Exit codes:
-#   0 — the lane behaved as documented.
+#   0 — the lane passed and ran both value-flow cases.
 #   1 — it did not, and the message says which way.
 #   2 — usage error.
-#
-# When upstream lands
-# -------------------
-# The nornicdb lane going green here is the signal, and the repair is one
-# change: delete valueFlowCasesEnabled and its callers in
-# go/internal/backendconformance/corpus_value_flow.go so the pair joins the
-# default corpora, which puts it back under the blocking e2e live-conformance
-# gate on both backends. This script, its test mirror, its workflow, and its
-# registry gate have nothing left to assert at that point and come out with it.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# The exact text corpus.go emits when the read case comes back empty. Matched
-# as a fixed string rather than a pattern: this one observation is what the
-# whole gate rests on, so a regex that quietly stopped matching would look
-# exactly like the defect having been fixed.
-expected_nornicdb_failure='read case "value-flow cloud sink aggregation and subscript projection" returned 0 rows, want at least 1'
-
-# The failures that can be recorded ALONGSIDE the one above, rather than instead
-# of it. Both come from a deferred closure in live_test.go — cleanupLiveCorpus
-# and driver.Close — and a defer runs after the read-corpus t.Fatalf has already
-# recorded the documented failure, so the run carries two. Every other t.Fatalf
-# in that test sits on the straight-line path, where the first one ends the test
-# and the documented message never appears at all; those are already caught by
-# the needle check. The test mirror pins live_test.go's failure set so this list
-# cannot quietly go stale when someone adds another deferred failure.
-cooccurring_failures=(
-	'cleanup live corpus fixture:'
-	'close Bolt driver:'
+# The markers TestLiveBackendConformance logs for the two value-flow read cases
+# (go/internal/backendconformance/corpus_value_flow.go). Matched as fixed
+# strings: a pattern that quietly stopped matching would read as "never ran".
+required_markers=(
+	'read case passed: value-flow cloud action workload rows'
+	'read case passed: value-flow cloud sink targets by pair'
 )
-
-# The driver prints this before it runs anything. Without it a green neo4j lane
-# proves nothing, because the pair is ABSENT from the corpus when the opt-in is
-# unset rather than skipped — the run would pass having never touched the case.
-included_banner='value-flow cloud sink pair: INCLUDED'
 
 fail() {
 	printf 'verify-value-flow-conformance-expectation: %s\n' "$*" >&2
@@ -115,80 +72,34 @@ esac
 log_file="$(mktemp "${TMPDIR:-/tmp}/value-flow-expectation.XXXXXX")"
 trap 'rm -f "${log_file}"' EXIT
 
-printf '== value-flow conformance expectation: %s lane ==\n' "${lane}"
+printf '== value-flow conformance: %s lane ==\n' "${lane}"
 
 # Capture the driver's own status directly. Reading $? after a pipe reports the
 # pipe's last stage instead, which is how a failing gate comes to read as
 # exit 0.
 set +e
-ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1 \
-	ESHU_GRAPH_BACKEND="${lane}" \
-	"${driver}" > "${log_file}" 2>&1
+ESHU_GRAPH_BACKEND="${lane}" "${driver}" > "${log_file}" 2>&1
 observed_exit=$?
 set -e
 
 cat "${log_file}"
 printf '\n%s lane: observed exit code %d\n' "${lane}" "${observed_exit}"
 
-rg --fixed-strings --quiet -- "${included_banner}" "${log_file}" ||
-	fail "${lane} lane never included the value-flow pair (no \"${included_banner}\" line).
-  With the opt-in unset the pair is absent from the corpus rather than skipped,
-  so this run proved nothing about the value-flow cloud sink query."
+if [[ "${observed_exit}" -ne 0 ]]; then
+	fail "${lane} lane FAILED (exit ${observed_exit}).
+  Since #6690 the value-flow cloud sink statements return their exact rows on
+  both the pinned NornicDB image and Neo4j, so a red lane is a regression, a
+  broken fixture, or an environment failure. Read the run output above; a
+  read case that returned the wrong rows prints both the returned and the
+  expected rows."
+fi
 
-case "${lane}" in
-	nornicdb)
-		if [[ "${observed_exit}" -eq 0 ]]; then
-			fail "nornicdb lane PASSED, and it is documented as failing.
-  Upstream has most likely landed a fix for orneryd/NornicDB#297, #298, #301
-  or #302. Confirm that, then take the pair off its opt-in: delete
-  valueFlowCasesEnabled and its callers in
-  go/internal/backendconformance/corpus_value_flow.go so the pair runs in the
-  default corpora, and remove this gate with it."
-		fi
-		rg --fixed-strings --quiet -- "${expected_nornicdb_failure}" "${log_file}" ||
-			fail "nornicdb lane failed (exit ${observed_exit}) WITHOUT naming the value-flow read case.
-  Expected to find: ${expected_nornicdb_failure}
-  A different failure is a broken fixture, a failed seed, or a connection error,
-  not the backend divergence this gate tracks. Read the run output above."
+for marker in "${required_markers[@]}"; do
+	rg --fixed-strings --quiet -- "${marker}" "${log_file}" ||
+		fail "${lane} lane passed WITHOUT running a value-flow case: no \"${marker}\" line.
+  A green run that never executed the case proves nothing about it. Check that
+  the case is still in DefaultReadCorpus and that TestLiveBackendConformance
+  still logs each passing read case."
+done
 
-		# The documented shape has exactly ONE failure in it. Naming the read
-		# case is not enough on its own: a second failure in the same run makes
-		# the red mean something else as well, and the gate would report green
-		# over it.
-		for marker in "${cooccurring_failures[@]}"; do
-			if rg --fixed-strings --quiet -- "${marker}" "${log_file}"; then
-				fail "nornicdb lane named the value-flow read case, but also recorded a second failure: \"${marker}\"
-  That one comes from a deferred closure in TestLiveBackendConformance, so it
-  lands in the same run as the documented failure rather than replacing it.
-  Only the read-case row shortfall is expected here. Read the run output above:
-  a cleanup or driver-close regression is riding in behind an expected red."
-			fi
-		done
-
-		# A second FAILING TEST is the case the message check cannot see, because
-		# its failure text is its own. go test prints one "--- FAIL:" line per
-		# test — however many messages that test recorded — so more than one of
-		# them means more than one test failed. That also makes this check blind
-		# to the co-occurring messages above, which is why both exist.
-		failed_tests="$(rg --count-matches '^[[:space:]]*--- FAIL: ' "${log_file}" || true)"
-		if [[ "${failed_tests:-0}" -gt 1 ]]; then
-			fail "nornicdb lane named the value-flow read case, but more than one test failed (${failed_tests} \"--- FAIL:\" lines).
-  Only TestLiveBackendConformance is documented as failing here. Its driver runs
-  three go test invocations but exits at the first failure under set -euo
-  pipefail, so reaching this message means either that driver changed or a
-  second test failed alongside the documented one. Read the run output above:
-  something other than the backend divergence this gate tracks is red."
-		fi
-
-		printf '%s lane: failed as documented, naming the value-flow read case.\n' "${lane}"
-		;;
-	neo4j)
-		if [[ "${observed_exit}" -ne 0 ]]; then
-			fail "neo4j lane FAILED (exit ${observed_exit}), and it is the positive control.
-  Neo4j serves this query, so a red here says the fixture, the seed, or the
-  environment is broken — which also means the nornicdb lane's red proves
-  nothing this run. Fix the control before reading the other lane."
-		fi
-		printf '%s lane: passed, so the fixture and the seed are sound.\n' "${lane}"
-		;;
-esac
+printf '%s lane: passed, and both value-flow cases ran.\n' "${lane}"
