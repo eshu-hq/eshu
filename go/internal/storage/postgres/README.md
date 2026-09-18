@@ -2583,8 +2583,8 @@ carries one), resolved from the all-scope `AuthContext`, never cross-tenant.
 Read contract and proof: These admin SELECTs add no index or write path. The
 mapping list now uses SHA-256 refs and a cursor; a PostgreSQL 18.6 fixture
 walked 501 rows in two pages, excluding another tenant and a tombstone.
-Each call scopes to one tenant (and workspace where applicable), never a
-cross-tenant scan. Every list returns at most 500 rows. `ListAdminRoles`
+Each call applies tenant (and workspace where applicable) predicates;
+the results stay scoped to that caller. Each SELECT returns at most 500 rows. `ListAdminRoles`
 issues exactly two bounded reads (roles, then grants for the same tenant),
 a fixed 2-query cost. The mapping list's materialized CTE hashes all
 eligible tenant/workspace rows before cursor filtering and sorting, so
