@@ -28,11 +28,12 @@ backends:
           NornicDB builds (#6689): count(DISTINCT) and collect(DISTINCT) over repeated
           rows, a node-only anchor followed by two OPTIONAL MATCHes, and an OPTIONAL
           MATCH after an aggregating WITH. All of them return the exact rows on the
-          pinned v1.3.3 image and on Neo4j. One divergence remains measured on v1.3.3
-          and is avoided rather than relied on: `x IN rel.list` evaluated after a
-          WITH that binds a node through a list subscript (`workloads[0] AS workload`)
-          drops every row, and the result changes with the RETURN items (#6690). The
-          value-flow cloud sink loader no longer uses that shape; its two statements
+          pinned v1.3.3 image and on Neo4j. Divergences measured on v1.3.3 are
+          avoided rather than relied on: a function call in RETURN after a MATCH ...
+          WITH ... MATCH chain drops every row (orneryd/NornicDB#400, the #6690 cause),
+          and WITH ... WHERE with IN / STARTS WITH / ENDS WITH / CONTAINS does not
+          filter (orneryd/NornicDB#401). The value-flow cloud sink loader does not use
+          either shape; its two statements
           run in the default corpus with exact rows. See
           go/internal/backendconformance/corpus_answer_truth.go,
           corpus_value_flow.go, and evidence-notes.md.

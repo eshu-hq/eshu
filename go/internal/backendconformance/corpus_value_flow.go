@@ -17,11 +17,11 @@ import (
 // pairs with exactly one, took the workload with a subscript, and matched on to
 // the cloud resources. It returned zero rows on NornicDB with no error, which
 // silently emptied every value-flow cloud sink projection. On the pinned v1.3.3
-// image the aggregation and subscript were fixed upstream, but
-// `action.action IN sinkRel.actions` evaluated after the subscript-bound
-// workload dropped every row, and the result also depended on the RETURN items
-// (#6690). That pair ran here behind an opt-in with a CI gate that expected it
-// to fail.
+// image the aggregation, subscript and IN predicate were all correct; what
+// emptied it was the projection: a function call in RETURN (type(), labels())
+// after a MATCH ... WITH ... MATCH chain drops every row (#6690,
+// orneryd/NornicDB#400). That pair ran here behind an opt-in with a CI gate that
+// expected it to fail.
 //
 // The loader now reads raw (function, action, workload) rows, does the
 // single-workload check in Go, and resolves the surviving pairs with an
