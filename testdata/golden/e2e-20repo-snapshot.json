@@ -156,9 +156,9 @@
         "note": "vault secret metadata path nodes; 0 if no secret-path facts in corpus"
       },
       "Platform": {
-        "min": 0,
+        "min": 4,
         "max": 10,
-        "note": "CI/CD and deployment platform nodes; 0 if platform-correlation collector not active"
+        "note": "CI/CD and deployment platform nodes; observed 4 identically across 3 independent B-7 runs (#6785), floor raised from 0 to catch a platform-correlation regression"
       },
       "DocumentationSection": {
         "min": 0,
@@ -188,9 +188,9 @@
         "note": "File->Module import edges from the projector's import extractor (#5691). This floor was 0 until that producer existed, so a corpus carrying zero IMPORTS edges passed the gate on every run -- the exact defect #5552's deployed proof found. Parsing the corpus fixtures yields 63 distinct (file, module) pairs, concentrated in python_comprehensive (27), go_comprehensive (19) and php_comprehensive (7); the floor sits near half that, so a per-language parser change does not false-fail while a producer regression still does."
       },
       "CALLS": {
-        "min": 0,
+        "min": 29,
         "max": 200000,
-        "note": "inter-function call edges from code-call materialization; 0 if semantic extraction is not active"
+        "note": "inter-function call edges from code-call materialization; observed 29 identically across 3 independent B-7 runs (#6785), floor raised from 0 to catch a semantic-extraction regression"
       },
       "DEPENDS_ON": {
         "min": 1,
@@ -263,44 +263,44 @@
         "note": "Function -[:INVOKES_CLOUD_ACTION]-> CloudAction from the go_comprehensive cloud_actions.go AWS-SDK call site; required as rc-10"
       },
       "USES": {
-        "min": 0,
+        "min": 2,
         "max": 100,
-        "note": "WorkloadInstance\u2192CloudResource workload-cloud binding; 0 if workload-cloud materializer not active for corpus"
+        "note": "WorkloadInstance\u2192CloudResource workload-cloud binding (#6785 CAN_PERFORM/value-flow fixture). The awscloud cassette's deployable-source-app-role aws_iam_role fact anchors workload:deployable-source in both its prod and stage environments (two facts sharing one CloudResource identity), and this domain's crossScopeCorrelationReopenDomains membership repairs the cross-scope WorkloadInstance-materialization race, so USES converges to 2 (one edge per environment) once the maintenance-pass reopen runs; floor raised from 0 accordingly."
       },
       "GRANTS_ACCESS_TO": {
         "min": 0,
         "max": 100,
-        "note": "CloudResource\u2192ExternalPrincipal IAM grant edges from aws_cloud S3 external-principal path"
+        "note": "CloudResource\u2192ExternalPrincipal IAM grant edges from aws_cloud S3 external-principal path; 0 if the awscloud cassette carries no S3 bucket policy statement granting a cross-account/external principal (observed 0 across 3 independent B-7 runs, #6785)"
       },
       "CAN_ASSUME": {
         "min": 0,
         "max": 100,
-        "note": "IAM role assumption edges from cloud or vault collector"
+        "note": "IAM role assumption edges from cloud or vault collector; 0 if no aws_iam_permission fact with policy_source=trust is in the cassette (observed 0 across 3 independent B-7 runs, #6785; the cassette's #6785 fixture facts are policy_source=inline, which CAN_PERFORM consumes, not CAN_ASSUME)"
       },
       "CAN_PERFORM": {
-        "min": 0,
+        "min": 1,
         "max": 200,
-        "note": "IAM capability edges from cloud permission projection"
+        "note": "IAM capability edges from cloud permission projection. The #6785 fixture (awscloud cassette's deployable-source-app-role inline aws_iam_permission granting s3:putobject on scd-upload-receipts) plus the projector's BuildIAMCanPerformMaterializationReducerIntent (previously missing -- nothing enqueued this domain's intent) proved deployable-source-app-role -[:CAN_PERFORM]-> scd-upload-receipts observed identically across 3 independent B-7 runs; floor raised from 0 to 1, the #6785 target."
       },
       "DEPLOYMENT_SOURCE": {
-        "min": 0,
+        "min": 7,
         "max": 20,
-        "note": "Repository that is the source of truth for a deployed workload"
+        "note": "Repository that is the source of truth for a deployed workload; observed 7 identically across 3 independent B-7 runs (#6785), floor raised from 0"
       },
       "DISCOVERS_CONFIG_IN": {
-        "min": 0,
+        "min": 1,
         "max": 100,
-        "note": "config discovery edges from the Terraform or k8s collector"
+        "note": "config discovery edges from the Terraform or k8s collector; observed 1 identically across 3 independent B-7 runs (#6785), floor raised from 0"
       },
       "PROVISIONS_PLATFORM": {
-        "min": 0,
+        "min": 2,
         "max": 20,
-        "note": "Repository\u2192Platform CI/CD platform provisioning; 0 if platform-correlation collector not active"
+        "note": "Repository\u2192Platform CI/CD platform provisioning; observed 2 identically across 3 independent B-7 runs (#6785), floor raised from 0"
       },
       "PROVISIONS_DEPENDENCY_FOR": {
-        "min": 0,
+        "min": 1,
         "max": 100,
-        "note": "Repository\u2192Repository service materialization dependency edges"
+        "note": "Repository\u2192Repository service materialization dependency edges; observed 1 identically across 3 independent B-7 runs (#6785), floor raised from 0"
       },
       "SECRETS_IAM_USES_SERVICE_ACCOUNT": {
         "min": 0,
@@ -2999,7 +2999,8 @@
           "results",
           "truncated"
         ],
-        "minimum_results": 0
+        "results_field": "results",
+        "minimum_results": 10
       },
       "inspect_code_quality": {
         "description": "MCP tool coverage shape for inspect_code_quality; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -3106,7 +3107,8 @@
           "limit",
           "truncated"
         ],
-        "minimum_results": 0,
+        "results_field": "bundles",
+        "minimum_results": 1,
         "arguments": {
           "query": "go",
           "limit": 10
@@ -3133,7 +3135,8 @@
           "total",
           "truncated"
         ],
-        "minimum_results": 0
+        "results_field": "repositories",
+        "minimum_results": 31
       },
       "execute_language_query": {
         "description": "Positive Python language-query proof for the fetch_remote decorator fixture. The deployed response resolves the function through the graph and enriches its semantic profile from indexed content, so the source backend is pinned to hybrid_graph_and_content.",
@@ -3470,7 +3473,8 @@
           "repository_count",
           "truncated"
         ],
-        "minimum_results": 0,
+        "results_field": "repositories",
+        "minimum_results": 5,
         "arguments": {
           "language": "go",
           "limit": 10
@@ -3484,7 +3488,8 @@
           "offset",
           "truncated"
         ],
-        "minimum_results": 0
+        "results_field": "languages",
+        "minimum_results": 18
       },
       "get_ecosystem_overview": {
         "description": "MCP tool coverage shape for get_ecosystem_overview; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -3711,7 +3716,8 @@
           "results",
           "truncated"
         ],
-        "minimum_results": 0,
+        "results_field": "results",
+        "minimum_results": 10,
         "arguments": {
           "query": "bucket",
           "limit": 10
@@ -3990,14 +3996,15 @@
           "packages",
           "truncated"
         ],
-        "minimum_results": 0,
+        "results_field": "packages",
+        "minimum_results": 1,
         "arguments": {
           "ecosystem": "go",
           "limit": 10
         }
       },
       "list_package_registry_versions": {
-        "description": "MCP tool coverage shape for list_package_registry_versions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_package_registry_versions; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). The npm://registry.npmjs.org/supply-chain-demo-lib package_id has no package_registry version fact in the cassette (the corpus's only PackageVersion fact anchors github.com/acme/lib-common, a Go module, not this npm package), so 0 versions is the correct result for this filter (observed 0 across 3 independent B-7 runs, #6785).",
         "required_response_fields": [
           "collector_readiness",
           "count",
@@ -4072,7 +4079,8 @@
           "server_content_available",
           "summary"
         ],
-        "minimum_results": 0,
+        "results_field": "languages",
+        "minimum_results": 2,
         "arguments": {
           "repo_id": "orders-api"
         }
@@ -4092,7 +4100,8 @@
           "unobserved_push",
           "verdict"
         ],
-        "minimum_results": 0,
+        "results_field": "outstanding_by_stage",
+        "minimum_results": 1,
         "arguments": {
           "repo_id": "orders-api"
         }
@@ -4379,7 +4388,7 @@
         }
       },
       "list_package_registry_correlations": {
-        "description": "MCP tool coverage shape for list_package_registry_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_package_registry_correlations; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). The npm://registry.npmjs.org/supply-chain-demo-lib package_id has no package_registry correlation fact in the cassette (the corpus's only PackageVersion/PackageArtifact/RegistryEvent facts anchor github.com/acme/lib-common, a Go module, not this npm package), so 0 correlations is the correct result for this filter (observed 0 across 3 independent B-7 runs, #6785).",
         "required_response_fields": [
           "collector_readiness",
           "correlations",
@@ -4525,7 +4534,8 @@
           "scope",
           "truncated"
         ],
-        "minimum_results": 0
+        "results_field": "buckets",
+        "minimum_results": 3
       },
       "list_service_catalog_correlations": {
         "description": "Exact repo-local Backstage component correlation after the service changed-since fixture advances its owner.",
@@ -4892,7 +4902,8 @@
           "readiness",
           "version"
         ],
-        "minimum_results": 0,
+        "results_field": "evidence",
+        "minimum_results": 8,
         "required_json_values": {
           "input.workload_id": "workload:deployable-config",
           "finding.repository_id": "repository:r_217415d9",
@@ -5857,7 +5868,8 @@
           "source_backend",
           "truncated"
         ],
-        "minimum_results": 0,
+        "results_field": "results",
+        "minimum_results": 8,
         "arguments": {
           "query": "runtime",
           "limit": 10
@@ -5949,7 +5961,8 @@
           "bounded_excerpt",
           "current_truth"
         ],
-        "minimum_results": 0,
+        "results_field": "linked_entities",
+        "minimum_results": 1,
         "required_json_paths": [
           "linked_entities[]",
           "bounded_excerpt.text"
@@ -6003,7 +6016,7 @@
           "versions"
         ],
         "results_field": "playbooks",
-        "minimum_results": 1,
+        "minimum_results": 16,
         "result_item_required_fields": [
           "id",
           "name",
@@ -6040,7 +6053,7 @@
           "workflows"
         ],
         "results_field": "workflows",
-        "minimum_results": 1,
+        "minimum_results": 3,
         "result_item_required_fields": [
           "id",
           "name",
@@ -6081,7 +6094,8 @@
           "truth",
           "validation"
         ],
-        "minimum_results": 0,
+        "results_field": "graph_answers",
+        "minimum_results": 14,
         "required_json_values": {
           "reducer_decisions[].state": "admitted",
           "reducer_decisions[].domain": "supply_chain_impact"
@@ -6112,7 +6126,8 @@
           "truth",
           "validation"
         ],
-        "minimum_results": 0,
+        "results_field": "reproduce",
+        "minimum_results": 1,
         "arguments": {
           "scope_id": "supply-chain-demo",
           "generation_id": "golden-corpus",
@@ -6306,7 +6321,8 @@
           "total_count",
           "truncated"
         ],
-        "minimum_results": 0
+        "results_field": "families",
+        "minimum_results": 14
       },
       "get_collector_extraction_readiness": {
         "description": "MCP tool coverage shape for get_collector_extraction_readiness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6331,7 +6347,8 @@
           "total_count",
           "truncated"
         ],
-        "minimum_results": 0
+        "results_field": "fact_schema_versions",
+        "minimum_results": 178
       },
       "get_fact_schema_version": {
         "description": "MCP tool coverage shape for get_fact_schema_version; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6355,7 +6372,8 @@
           "updated_at",
           "version"
         ],
-        "minimum_results": 0
+        "results_field": "collectors",
+        "minimum_results": 16
       },
       "list_ingesters": {
         "description": "MCP tool coverage shape for list_ingesters; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6364,7 +6382,8 @@
           "ingesters",
           "version"
         ],
-        "minimum_results": 0
+        "results_field": "ingesters",
+        "minimum_results": 1
       },
       "get_ingester_status": {
         "description": "MCP tool coverage shape for get_ingester_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6379,7 +6398,8 @@
           "stage_summaries",
           "version"
         ],
-        "minimum_results": 0
+        "results_field": "stage_summaries",
+        "minimum_results": 2
       },
       "get_index_status": {
         "description": "MCP tool coverage shape for get_index_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6413,7 +6433,8 @@
           "summary",
           "version"
         ],
-        "minimum_results": 0
+        "results_field": "checks",
+        "minimum_results": 6
       },
       "get_collector_readiness": {
         "description": "MCP tool coverage shape for get_collector_readiness; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6423,7 +6444,8 @@
           "readiness",
           "version"
         ],
-        "minimum_results": 0
+        "results_field": "readiness",
+        "minimum_results": 23
       },
       "get_operator_control_plane": {
         "description": "MCP tool coverage shape for get_operator_control_plane; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6438,7 +6460,8 @@
           "scoped",
           "version"
         ],
-        "minimum_results": 0
+        "results_field": "collector_families",
+        "minimum_results": 23
       },
       "list_dead_letter_work_items": {
         "description": "MCP tool coverage for the bounded operator dead-letter list. The harness inserts exactly one public-safe synthetic row after every required drain, so the query is non-vacuous without weakening residual_max=0 pipeline health.",
@@ -6525,7 +6548,8 @@
           "state",
           "version"
         ],
-        "minimum_results": 0
+        "results_field": "causes",
+        "minimum_results": 7
       },
       "get_hosted_governance_status": {
         "description": "Deployed local-no-policy governance posture with the shared token configured. Identity readiness stays true while the response explicitly reports both the missing-policy and shared-token limitations.",
@@ -6578,7 +6602,8 @@
           "supported_provider_profile_states",
           "supported_states"
         ],
-        "minimum_results": 0
+        "results_field": "supported_states",
+        "minimum_results": 5
       },
       "get_answer_narration_status": {
         "description": "MCP tool coverage shape for get_answer_narration_status; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6599,7 +6624,8 @@
           "updated_at",
           "validator_reason_codes"
         ],
-        "minimum_results": 0,
+        "results_field": "supported_states",
+        "minimum_results": 4,
         "required_json_values": {
           "state": "provider_unavailable",
           "reason": "provider_unavailable",
@@ -6626,7 +6652,7 @@
           "version"
         ],
         "results_field": "capabilities",
-        "minimum_results": 1,
+        "minimum_results": 20,
         "result_item_required_fields": [
           "capability",
           "display_name",
@@ -6650,7 +6676,8 @@
           "truncated",
           "version"
         ],
-        "minimum_results": 0
+        "results_field": "surfaces",
+        "minimum_results": 200
       },
       "trace_exposure_path": {
         "description": "Non-vacuous deployed MCP proof for the api-svc Flask list_orders handler. The source must resolve and classify as an HTTP handler; until a graph-backed cloud-sink bridge is reachable, the tool must return an explicit bounded unresolved result rather than inventing a path.",
@@ -6732,7 +6759,7 @@
         }
       },
       "list_relationship_edges": {
-        "description": "MCP tool coverage shape for list_relationship_edges; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_relationship_edges; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). 0 for verb=DEPENDS_ON is correct, not a gap: the relationships/edges catalog's DEPENDS_ON entry (query/relationships_catalog_cypher.go) is scoped to sourceLabel Workload (a runtime Workload-to-Workload dependency), while the corpus's 5 DEPENDS_ON edges (edge_counts.DEPENDS_ON) are Repository→Repository cross-repo dependency edges from code-import and package-consumption domains -- a different source label the catalog's DEPENDS_ON verb entry does not match. The POST /api/v0/relationships/edges endpoint itself is proven non-vacuous by the sibling assert=deploys-from shape (minimum_results 1); this shape's own DEPENDS_ON filter is genuinely empty for this corpus's Workload graph (observed 0 across 3 independent B-7 runs, #6785).",
         "required_response_fields": [
           "detail",
           "edges",
@@ -6755,7 +6782,8 @@
           "ref",
           "truncated"
         ],
-        "minimum_results": 0,
+        "results_field": "entries",
+        "minimum_results": 2,
         "arguments": {
           "repo_id": "orders-api"
         }
@@ -7666,7 +7694,9 @@
           "collector_families",
           "dead_letters",
           "retry_policies"
-        ]
+        ],
+        "results_field": "collector_families",
+        "minimum_results": 23
       },
       "GET /api/v0/evidence/bundle": {
         "description": "Live evidence_bundle.v1 artifact (#4045); confirms the route composes and validates a share-safe bundle from the same status providers as GET /api/v0/status/index, GET /api/v0/status/pipeline, and GET /api/v0/status/collectors. Asserted values are the composer's own constants (schema_version, redaction profile, live identity profile, source repository) and StampValidation's post-Validate status, none of which vary with corpus content, so this shape holds regardless of the 20-repo corpus's specific counts.",
@@ -7682,6 +7712,8 @@
           "bounds",
           "validation"
         ],
+        "results_field": "reproduce",
+        "minimum_results": 4,
         "required_json_paths": [
           "contents.pipeline_state",
           "contents.semantic_provider_state"
@@ -7960,7 +7992,8 @@
           "readiness",
           "version"
         ],
-        "minimum_results": 0,
+        "results_field": "evidence",
+        "minimum_results": 8,
         "required_json_values": {
           "outcome": "finding_explained",
           "input.subject_digest": "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
@@ -8087,7 +8120,8 @@
           "correlations",
           "count"
         ],
-        "minimum_results": 0
+        "results_field": "correlations",
+        "minimum_results": 2
       },
       "POST /api/v0/aws/runtime-drift/findings?assert=partial_comparability_gap": {
         "description": "#5861 partial-comparability proof, and the corpus's only assertion of a coverage gap on a finding that still reached a verdict. The Lambda supply-chain-demo-partial is covered for two comparables: the observed side claims package_type Image while carrying no image_uri (unreadable), and version differs (7 observed vs 9 declared). One comparison RAN and proved drift while the other could not be made, so the finding is image_version_drift AND carries missing_evidence comparable_attribute:image_uri. aws_instance cannot produce this shape at all -- it is covered for one value (ami), so it is either fully readable or fully uncomparable. Without this entry the #5861 behaviour is proven by unit tests only, and a regression in replay, payload writing, or readback of the gap would ship green. Reads the same reducer rows as the MCP sibling through the HTTP route, so a readback regression on either surface alone is caught.",
@@ -8150,7 +8184,8 @@
           "facts",
           "count"
         ],
-        "minimum_results": 0
+        "results_field": "facts",
+        "minimum_results": 12
       },
       "GET /api/v0/package-registry/packages?ecosystem=go&limit=50": {
         "description": "Package registry packages (npm ecosystem); confirms package projection is queryable.",
@@ -8245,7 +8280,7 @@
         "minimum_results": 0
       },
       "GET /api/v0/ci-cd/run-correlations?limit=50&scope_id=supply-chain-demo": {
-        "description": "CI/CD run correlations for a scope; confirms the ci-cd read surface is mounted and queryable.",
+        "description": "CI/CD run correlations for a scope; confirms the ci-cd read surface is mounted and queryable. Filters by scope_id (unlike the sibling repository_id-filtered shapes above, which do have matches), and no ci_cd_run_correlation fact in the cassette carries scope_id=supply-chain-demo verbatim, so 0 correlations is the correct, deterministic result for this specific filter (observed 0 across 3 independent B-7 runs, #6785); minimum_results stays 0 rather than switching to a repository_id filter that would duplicate the shapes above.",
         "required_response_fields": [
           "correlations",
           "count"
@@ -8306,7 +8341,7 @@
         }
       },
       "GET /api/v0/semantic/code-hints?provider_profile_id=semantic-code-default&limit=25": {
-        "description": "Semantic code hints; confirms optional semantic code-hint facts project to the mounted semantic evidence read surface.",
+        "description": "Semantic code hints; confirms optional semantic code-hint facts project to the mounted semantic evidence read surface. minimum_results stays 0 DELIBERATELY, matching the sibling mcp:list_semantic_code_hints shape's documented reason (#5693): semantic.code_hint has a producer proven end-to-end into the read answer, but no runtime process calls it in this corpus, so there are no code hints to assert (observed 0 across 3 independent B-7 runs, #6785).",
         "truth_class": "optional_semantic",
         "required_response_fields": [
           "code_hints",
