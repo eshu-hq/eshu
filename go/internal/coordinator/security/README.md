@@ -11,7 +11,7 @@ coordinator root.
 
 The namespace owns no runtime declarations, scheduling, artifact access,
 workflow persistence, or telemetry. Its `alert` child owns only the
-planning request and deterministic planner for configured hosted provider
+planning request and deterministic planner for configured provider
 security-alert targets.
 
 ## Exported surface

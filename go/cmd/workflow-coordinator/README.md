@@ -61,7 +61,7 @@ flowchart TB
    Terraform-state, OCI registry (`oci/registry`), package registry,
    vulnerability installed
    advisory target readers, the `cicd/run` planner (aliased as `cicdrun`),
-   `securityalert`, `sbom/attestation`, `scanner/worker` (aliased as
+   `security/alert`, `sbom/attestation`, `scanner/worker` (aliased as
    `scannerworker`), `gcp`, `grafana`,
    `loki`, `jira`, `pagerduty`, `metrics`,
    `tempo`, `vault/live` (aliased as `coordinatorvaultlive`), and `extension`
