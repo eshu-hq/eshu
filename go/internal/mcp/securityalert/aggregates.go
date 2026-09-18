@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package securityalerttools
 
-// securityAlertReconciliationAggregateTools returns the cheap-summary
-// aggregate tools shipped alongside the existing
-// list_security_alert_reconciliations list tool. They give callers an O(1)
-// answer to ecosystem-level questions like "how many alerts per provider?"
-// without paging through the list endpoint.
-func securityAlertReconciliationAggregateTools() []ToolDefinition {
-	return []ToolDefinition{
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
+)
+
+// ReconciliationAggregateTools returns the cheap-summary aggregate tools
+// shipped alongside the existing list_security_alert_reconciliations list
+// tool. They give callers an O(1) answer to ecosystem-level questions like
+// "how many alerts per provider?" without paging through the list endpoint.
+func ReconciliationAggregateTools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "count_security_alert_reconciliations",
 			Description: "Return reducer-owned provider security alert reconciliation totals for one optional scope without paging through individual reconciliation rows. Provides total reconciliations, rollups by reconciliation_status, provider, provider_state, source_freshness, and provider-source coverage. Use before list_security_alert_reconciliations when the question is a count, not a list.",
