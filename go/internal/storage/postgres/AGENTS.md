@@ -58,9 +58,9 @@
   scope before generation/work. Heartbeat takes it `FOR NO KEY UPDATE SKIP
   LOCKED` and must never wait (ingestion holds it while streaming). Else 40P01.
 - **Lease fencing** — projector Heartbeat/Ack/Fail match `lease_owner` and
-  `attempt_count`; `WorkflowControlStore` checks `lease_owner`. Zero rows returns
-  `ErrProjectorClaimRejected` (wraps `projector.ErrWorkClaimLost`; the service
-  drops the attempt) or `ErrWorkflowClaimRejected`. Never retry Ack or Fail.
+  `attempt_count`; zero rows is `ErrProjectorClaimRejected` (wraps
+  `projector.ErrWorkClaimLost`; drop the attempt). `WorkflowControlStore` checks
+  `lease_owner`; callers stop on `ErrWorkflowClaimRejected`. Never retry acks.
 - **Projector scope ordering** — `ProjectorQueue.Claim` must preserve one
   active source-local generation per `scope_id`. Keep the oldest-ready-row
   subquery with `FOR UPDATE SKIP LOCKED`; without it, parallel claimers can skip

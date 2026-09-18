@@ -222,7 +222,7 @@ WITH locked_scope AS MATERIALIZED (
     SELECT scope_id
     FROM ingestion_scopes
     WHERE scope_id = $5
-    FOR UPDATE
+    FOR NO KEY UPDATE
 ),
 owned_work AS MATERIALIZED (
     SELECT work.work_item_id, work.scope_id, work.generation_id

@@ -172,7 +172,8 @@ non-UTF-8 content. It preserves literal source text such as the six characters
 or active scope generation. After locking the scope, a conflicting published or
 terminal generation ID also skips: rollback precedes fact-stream drain, so its
 facts and work cannot change. A pending same-ID retry keeps its original
-observation and ingestion times. Failed first projection needs a new snapshot;
+observation and ingestion times. Failed generations do not satisfy the hint
+check, so the next snapshot retries a failed first projection;
 explicit recovery requeues projector work without a pending re-commit.
 
 `CollectorGenerationDeadLetterStore` covers the narrower failure point where a

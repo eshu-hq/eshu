@@ -10,9 +10,6 @@ import (
 	"log/slog"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
-
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -54,9 +51,9 @@ func (s Service) recordSupersededWork(
 
 // recordClaimLostWork reports whether err means another attempt owns the work
 // item. The stale attempt drops the item without stopping other workers; the
-// current owner acks or fails it. When countResult is true it also records the
-// claim_lost projection outcome, which callers skip when an outcome was already
-// recorded for this attempt.
+// current owner acks or fails it. Like superseded work, a lost claim is not a
+// projection outcome, so it is logged but not counted in
+// eshu_dp_projections_completed_total, whose success ratio feeds the SLO.
 func (s Service) recordClaimLostWork(
 	ctx context.Context,
 	work ScopeGenerationWork,
@@ -64,20 +61,12 @@ func (s Service) recordClaimLostWork(
 	factCount int,
 	err error,
 	operation string,
-	countResult bool,
 	workerID int,
 ) bool {
 	if !errors.Is(err, ErrWorkClaimLost) {
 		return false
 	}
 	ctx = context.WithoutCancel(ctx)
-	if countResult && s.Instruments != nil {
-		s.Instruments.ProjectionsCompleted.Add(ctx, 1, metric.WithAttributes(
-			telemetry.AttrScopeKind(string(work.Scope.ScopeKind)),
-			attribute.String("queue", "projector"),
-			attribute.String("status", "claim_lost"),
-		))
-	}
 	if s.Logger == nil {
 		return true
 	}
