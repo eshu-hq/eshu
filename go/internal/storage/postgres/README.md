@@ -2580,16 +2580,16 @@ on the ingestion/reducer hot path; each is a single admin-dashboard-triggered
 read scoped strictly to the caller's own tenant (and workspace where the table
 carries one), resolved from the all-scope `AuthContext`, never cross-tenant.
 
-No-Regression Evidence: all are net-new SELECTs that add no predicate to any
-existing query and modify no existing index or write path, so there is no prior
-baseline to regress. Backend PostgreSQL 16. Input shape: exactly one
-`tenant_id` (and `workspace_id`) per call — never a scan over tenants. Every
-query filters on `tenant_id` first and is bounded `LIMIT 500`, so the terminal
-row count per call is at most 500 rows. `ListAdminRoles` issues exactly two
-bounded reads (roles, then grants for the same tenant) stitched in memory — a
-fixed 2-query cost, not an N+1 over roles. The group-mapping row reference is an
-in-SQL SHA-256 digest over the composite key, computed per returned row only. No
-unbounded fan-out, no cross-tenant scan.
+Read contract and proof: These admin SELECTs add no index or write path. The
+mapping list now uses SHA-256 refs and a cursor; a PostgreSQL 18.6 fixture
+walked 501 rows in two pages, excluding another tenant and a tombstone.
+Each call scopes to one tenant (and workspace where applicable), never a
+cross-tenant scan. Every list returns at most 500 rows. `ListAdminRoles`
+issues exactly two bounded reads (roles, then grants for the same tenant),
+a fixed 2-query cost. The mapping list's materialized CTE hashes all
+eligible tenant/workspace rows before cursor filtering and sorting, so
+per-page work scales with that row count rather than the 500-row cap.
+The fixture proves paging correctness, not loaded ops-qa latency.
 
 Observability Evidence: the queries run on the `InstrumentedDB`-wrapped pool, so
 per-statement latency/error spans and metrics are inherited without per-call
