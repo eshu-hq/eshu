@@ -170,7 +170,7 @@ Where Eshu is exposed:
 - The production relationship writer's `SET rel.actions = row.actions` stores
   the real list, so #407 does not apply to it.
 
-Not yet covered, and not yet filed as an issue: an audit of statements
+Not yet covered, tracked in #6786 (epic #6788): an audit of statements
 assembled from fragments, which the scan behind this list (Cypher written as a
 single backtick literal in non-test Go under `go/`) cannot see,
 and of production `.id` reads that #404 could affect.
