@@ -33,10 +33,10 @@ func isCurrentIDPGroupMappingRef(ref string) bool {
 }
 
 // afterRefCursor reads the after_ref keyset cursor from the raw query without
-// normalization, as the route contract documents: an absent or empty value is
-// the first page; a query string that does not decode, a repeated after_ref, or
-// a value that is not a current 64-hex mapping_ref answers 400 and returns
-// false after writing the error.
+// normalization, as the route contract documents: an absent after_ref is the
+// first page; a query string that does not decode, a repeated after_ref, or a
+// present value (including an empty one) that is not a current 64-hex
+// mapping_ref answers 400 and returns false after writing the error.
 func afterRefCursor(w http.ResponseWriter, r *http.Request) (string, bool) {
 	values, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
@@ -48,7 +48,7 @@ func afterRefCursor(w http.ResponseWriter, r *http.Request) (string, bool) {
 	case len(refs) > 1:
 		querycontract.WriteError(w, http.StatusBadRequest, "after_ref must be supplied at most once")
 		return "", false
-	case len(refs) == 0 || refs[0] == "":
+	case len(refs) == 0:
 		return "", true
 	case !isCurrentIDPGroupMappingRef(refs[0]):
 		querycontract.WriteError(w, http.StatusBadRequest, "after_ref must be a lowercase 64-hex mapping_ref")

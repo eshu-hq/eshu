@@ -77,8 +77,9 @@ func TestListGroupMappingsPagesPastLimit(t *testing.T) {
 
 // TestListGroupMappingsRejectsNonCanonicalCursors pins the documented cursor
 // contract: after_ref is read from the raw query without normalization, so a
-// padded, whitespace-only, repeated, or unescapable value is a 400 rather than a
-// silently accepted first page. An absent or empty after_ref is the first page.
+// present-but-empty, padded, whitespace-only, repeated, or unescapable value is
+// a 400 rather than a silently accepted first page, matching the OpenAPI
+// pattern ^[0-9a-f]{64}$. Only an absent after_ref is the first page.
 func TestListGroupMappingsRejectsNonCanonicalCursors(t *testing.T) {
 	t.Parallel()
 
@@ -99,7 +100,7 @@ func TestListGroupMappingsRejectsNonCanonicalCursors(t *testing.T) {
 		want  int
 	}{
 		{name: "absent", query: "", want: http.StatusOK},
-		{name: "empty", query: "?after_ref=", want: http.StatusOK},
+		{name: "present but empty", query: "?after_ref=", want: http.StatusBadRequest},
 		{name: "valid", query: "?after_ref=" + valid, want: http.StatusOK},
 		{name: "whitespace only", query: "?after_ref=%20", want: http.StatusBadRequest},
 		{name: "padded valid", query: "?after_ref=%20" + valid + "%20", want: http.StatusBadRequest},

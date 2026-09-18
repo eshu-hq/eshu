@@ -193,7 +193,7 @@ const AdminReads = `
         "operationId": "listAdminIdPGroupMappings",
         "x-scoped-token-support": true,
         "parameters": [
-          {"name": "after_ref", "in": "query", "schema": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "description": "Optional opaque mapping_ref from the previous page's next_after_ref, read without normalization. Invalid, padded, or repeated cursors and an undecodable query string return 400."}
+          {"name": "after_ref", "in": "query", "schema": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "description": "Optional opaque mapping_ref from the previous page's next_after_ref, read without normalization; omit it for the first page. A present value that is not a lowercase 64-hex ref (including an empty, padded, or repeated one) and an undecodable query string return 400."}
         ],
         "responses": {
           "200": {
