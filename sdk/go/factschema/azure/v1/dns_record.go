@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // A fully typed, CLOSED schema: the collector emitter
-// (azurecloud.NewDNSRecordEnvelope) fingerprints the record name and every
+// (azure.NewDNSRecordEnvelope) fingerprints the record name and every
 // target value before emission, so the payload's full shape is already
 // known. DNS names are sensitive; the fingerprinted fields never carry raw
 // text.

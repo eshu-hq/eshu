@@ -271,15 +271,15 @@ surfaces:
   - category: collector
     name: azure
     readiness: gated
-    owner: internal/collector/azurecloud
+    owner: internal/collector/cloud/azure
     docs: [reference/collector-reducer-readiness.md, reference/azure-cloud-collector-contract.md]
     notes: "Fixture-driven with claimed-live wiring; sanitized real-tenant live proof remains gated (issue #3066)."
     collector_contract:
       fact_kinds: [azure_cloud_relationship, azure_cloud_resource, azure_collection_warning, azure_dns_record, azure_identity_observation, azure_image_reference, azure_resource_change, azure_tag_observation]
       projection_surfaces: [cloud_asset_resolution, supply_chain_impact]
       read_surfaces: [GET /api/v0/cloud/inventory, GET /api/v0/cloud/resources, get_cloud_inventory]
-      proof_gates: [cd go && go test ./cmd/collector-azure-cloud ./internal/collector/azurecloud ./internal/reducer ./internal/query -count=1]
-      fixture_refs: [go/internal/collector/azurecloud/testdata, docs/public/reference/azure-cloud-collector-contract.md]
+      proof_gates: [cd go && go test ./cmd/collector-azure-cloud ./internal/collector/cloud/azure ./internal/reducer ./internal/query -count=1]
+      fixture_refs: [go/internal/collector/cloud/azure/testdata, docs/public/reference/azure-cloud-collector-contract.md]
       truth_profile: provider_gated
   - category: collector
     name: vault_live

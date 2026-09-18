@@ -137,7 +137,7 @@ func addAWSImageReference(byRef map[string]containerImageRefEvidence, envelope f
 // owning_normalized_id, owning_resource_type, tag_digest_confidence) is
 // routed through factdecode.PartitionDecodeFailures for quarantine; ImageReference and
 // ImageDigest stay optional pointer reads because the collector emits
-// digest-only or reference-only evidence (see azurecloud.NewImageReferenceEnvelope).
+// digest-only or reference-only evidence (see azure.NewImageReferenceEnvelope).
 func addAzureImageReference(byRef map[string]containerImageRefEvidence, envelope facts.Envelope) (factdecode.QuarantinedFact, bool, error) {
 	reference, err := schemadecode.DecodeAzureImageReference(envelope)
 	if err != nil {

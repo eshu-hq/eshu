@@ -18,7 +18,7 @@ import "encoding/json"
 //
 //   - Required (identity): RelationshipType, SourceARMResourceID,
 //     TargetARMResourceID — matching the collector emitter
-//     (azurecloud.NewRelationshipEnvelope), which validates all three
+//     (azure.NewRelationshipEnvelope), which validates all three
 //     non-empty. A missing identity field dead-letters as input_invalid.
 //   - Optional (common): SourceNormalizedResourceID,
 //     TargetNormalizedResourceID, TargetResourceType, SupportState — always

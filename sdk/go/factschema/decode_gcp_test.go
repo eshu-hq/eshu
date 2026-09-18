@@ -110,7 +110,7 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	// envelope is built, so this map is the tag fact's unconditional evidence.
 	{FactKindGCPTagObservation, "tag_value_fingerprints"}: {},
 	// azure_tag_observation.tag_value_fingerprints:
-	// azurecloud.NewTagObservationEnvelope rejects an observation with zero
+	// azure.NewTagObservationEnvelope rejects an observation with zero
 	// fingerprinted tag values before the envelope is built.
 	{FactKindAzureTagObservation, "tag_value_fingerprints"}: {},
 	// file.parsed_file_data: fileFactEnvelope

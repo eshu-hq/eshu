@@ -8,7 +8,7 @@ package v1
 // docs/internal/design/contract-system-v1.md).
 //
 // A fully typed, CLOSED schema: the collector emitter
-// (azurecloud.NewWarningEnvelope) reports an explicit partial,
+// (azure.NewWarningEnvelope) reports an explicit partial,
 // permission-hidden, truncation, throttle, fallback, stale, unsupported, or
 // redaction coverage outcome as evidence — the payload's full shape is
 // already known. This is how the Azure collector reports incomplete

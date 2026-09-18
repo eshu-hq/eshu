@@ -11,7 +11,7 @@ import (
 
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -23,16 +23,16 @@ import (
 func TestStatusCommitterForwardsFactsAndRecordsClaim(t *testing.T) {
 	t.Parallel()
 
-	metrics, err := azurecloud.NewMetrics(metricnoop.NewMeterProvider().Meter("test"))
+	metrics, err := azure.NewMetrics(metricnoop.NewMeterProvider().Meter("test"))
 	if err != nil {
-		t.Fatalf("azurecloud.NewMetrics: %v", err)
+		t.Fatalf("azure.NewMetrics: %v", err)
 	}
 	inner := &recordingCommitter{}
 	committer := newAzureStatusCommitter(inner, metrics)
 
 	scopeValue := scope.IngestionScope{
 		ScopeID:       "azure:tenant-abc:subscription:11111111:microsoft.compute:eastus:resource_graph",
-		SourceSystem:  azurecloud.CollectorKind,
+		SourceSystem:  azure.CollectorKind,
 		ScopeKind:     scope.KindAccount,
 		CollectorKind: scope.CollectorAzure,
 		PartitionKey:  "tenant-abc:subscription:11111111",
@@ -70,7 +70,7 @@ func TestStatusCommitterForwardsFactsAndRecordsClaim(t *testing.T) {
 func TestStatusCommitterRejectsNonClaimedInner(t *testing.T) {
 	t.Parallel()
 
-	committer := newAzureStatusCommitter(&plainCommitter{}, azurecloud.NopMetrics{})
+	committer := newAzureStatusCommitter(&plainCommitter{}, azure.NopMetrics{})
 	stream := make(chan facts.Envelope)
 	close(stream)
 	err := committer.CommitClaimedScopeGeneration(

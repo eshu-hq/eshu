@@ -8,7 +8,7 @@ import (
 	"errors"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/azurecloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/cloud/azure"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -26,11 +26,11 @@ import (
 // names.
 type azureStatusCommitter struct {
 	inner   collector.Committer
-	metrics azurecloud.Metrics
+	metrics azure.Metrics
 }
 
 // newAzureStatusCommitter wraps inner so commit outcomes record claim status.
-func newAzureStatusCommitter(inner collector.Committer, metrics azurecloud.Metrics) azureStatusCommitter {
+func newAzureStatusCommitter(inner collector.Committer, metrics azure.Metrics) azureStatusCommitter {
 	return azureStatusCommitter{inner: inner, metrics: metrics}
 }
 
@@ -92,10 +92,10 @@ func (c azureStatusCommitter) recordOutcome(ctx context.Context, commitErr error
 		return
 	}
 	if commitErr != nil {
-		c.metrics.RecordClaim(ctx, azurecloud.ClaimStatusFailed)
+		c.metrics.RecordClaim(ctx, azure.ClaimStatusFailed)
 		return
 	}
-	c.metrics.RecordClaim(ctx, azurecloud.ClaimStatusSucceeded)
+	c.metrics.RecordClaim(ctx, azure.ClaimStatusSucceeded)
 }
 
 var (

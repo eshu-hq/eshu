@@ -14,18 +14,18 @@ truth.
 
 ## Status
 
-The first fixture-testable slice landed in `go/internal/collector/azurecloud`.
+The first fixture-testable slice landed in `go/internal/collector/cloud/azure`.
 It registers the Azure fact constants and schema versions in
 `go/internal/facts/azure.go`, normalizes ARM resource identity, redacts the
 provider extension payload, and emits `azure_cloud_resource` and
 `azure_collection_warning` source facts from fixture Resource Graph pages.
 
 The runtime scaffolding slice (issue #1998) has now landed in
-`go/internal/collector/azurecloud/azureruntime` and
+`go/internal/collector/cloud/azure/runtime` and
 `go/cmd/collector-azure-cloud`. It adds:
 
 - the `azure` scope `CollectorKind` (`scope.CollectorAzure`),
-- a non-claimed `collector.Source` (`azureruntime.Source`) that yields one
+- a non-claimed `collector.Source` (`runtime.Source`) that yields one
   collected generation per declarative tenant/subscription/management-group
   scope target by reading Resource Graph pages through the existing
   `PageProvider` seam with `$skipToken` resume,
@@ -34,7 +34,7 @@ The runtime scaffolding slice (issue #1998) has now landed in
   referenced by name only.
 
 The **fixture mode** default still performs **no live Azure calls**. The live
-Resource Graph client is a documented seam (`azureruntime.LiveProviderFactory`)
+Resource Graph client is a documented seam (`runtime.LiveProviderFactory`)
 that is gated by construction: its zero value returns `ErrLiveProviderGated`, and
 live Resource Graph reads require explicit injection of a read-only client. The
 owned default live query avoids the full ARM `properties` bag, SDK rows are
@@ -53,7 +53,7 @@ mirrors GCP. **Live smoke proof against a real tenant remains gated**; promotion
 to `implemented` requires an operator-run live proof.
 
 The allowlisted ARM fallback seam is also implemented behind
-`azureruntime.LiveProviderFactory`. It remains non-default and requires explicit
+`runtime.LiveProviderFactory`. It remains non-default and requires explicit
 in-process injection of a separate read-only `LiveARMFallbackClient`, exact
 resource-type `LiveARMFallbackRule` entries, fixed API versions, and bounded
 extension fields. The SDK wrapper exposes only Azure Resource Manager
@@ -198,7 +198,7 @@ the owning ARM resource identity does not invent repository anchors. `go test
 TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations
 -count=1` proves the active cross-scope image-identity fact loader includes
 Azure image-reference facts while preserving active-generation and tombstone
-predicates. `go test ./internal/collector/azurecloud -run
+predicates. `go test ./internal/collector/cloud/azure -run
 'TestCollect(EmitsDNSAndImageReferencesWhenKeyed|SkipsDNSAndImageReferencesWithoutKey|SourceLaneEmissionHandlesEmptyUnsupportedMalformedAndDuplicateRows|SourceLaneEmissionPreservesPartialScopeWarning)'
 -count=1` proves Resource Graph scan-loop emission for keyed DNS and Container
 Apps image source rows, no-key fail-closed behavior, unsupported and empty
@@ -421,7 +421,7 @@ The first code PRs must prove these cases before any live smoke:
 3. Add an allowlisted ARM fallback adapter with read-only mocked `GET`
    responses. **(done behind explicit injection; ARM-fallback live activation
    remains gated — claimed-live serves the `resource_graph` lane only.)**
-4. Add the collector runtime and source fact emission. **(done: `azureruntime.Source`
+4. Add the collector runtime and source fact emission. **(done: `runtime.Source`
    + `collector-azure-cloud` over a fixture/gated `PageProvider`, plus the
    claim-driven `-mode claimed-live` runtime through `collector.ClaimedService`
    with fixture-proven claim handoff; real-tenant proof remains gated by issue

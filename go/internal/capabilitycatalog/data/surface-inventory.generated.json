@@ -1338,7 +1338,7 @@
       "category": "collector",
       "name": "azure",
       "readiness": "gated",
-      "owner": "internal/collector/azurecloud",
+      "owner": "internal/collector/cloud/azure",
       "docs": [
         "reference/collector-reducer-readiness.md",
         "reference/azure-cloud-collector-contract.md"
@@ -1365,11 +1365,11 @@
           "get_cloud_inventory"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-azure-cloud ./internal/collector/azurecloud ./internal/reducer ./internal/query -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-azure-cloud ./internal/collector/cloud/azure ./internal/reducer ./internal/query -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/azure-cloud-collector-contract.md",
-          "go/internal/collector/azurecloud/testdata"
+          "go/internal/collector/cloud/azure/testdata"
         ],
         "truth_profile": "provider_gated"
       }
