@@ -2588,7 +2588,7 @@ query filters on `tenant_id` first and is bounded `LIMIT 500`, so the terminal
 row count per call is at most 500 rows. `ListAdminRoles` issues exactly two
 bounded reads (roles, then grants for the same tenant) stitched in memory — a
 fixed 2-query cost, not an N+1 over roles. The group-mapping row reference is an
-in-SQL `md5()` digest over the composite key, computed per returned row only. No
+in-SQL SHA-256 digest over the composite key, computed per returned row only. No
 unbounded fan-out, no cross-tenant scan.
 
 Observability Evidence: the queries run on the `InstrumentedDB`-wrapped pool, so
@@ -2633,8 +2633,8 @@ serializes on that single row only, not the table. Grant and create validate the
 referenced role/provider is active in the tenant with a bounded
 `SELECT 1 ... LIMIT 1` before writing, so an unknown or tombstoned role/provider
 is rejected rather than fabricating a row. The delete resolves the opaque
-`mapping_ref` with an in-SQL `md5()` digest match anchored to the caller's
-tenant/workspace; no cross-tenant scan and no unbounded fan-out.
+`mapping_ref` with a tenant/workspace-scoped SHA-256 digest. FIPS rejects Postgres `md5()`; saved 32-hex refs must be
+refreshed through list (64-hex) before delete, which returns 409 for a stale ref; no cross-tenant scan or fan-out.
 
 Observability Evidence: the statements run on the `InstrumentedDB`-wrapped pool,
 so per-statement latency/error spans and metrics are inherited without per-call

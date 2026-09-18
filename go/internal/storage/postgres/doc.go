@@ -332,7 +332,7 @@
 // resolves the prior generation named by since_generation_id or observed at or
 // before since_observed_at, then diffs the two fact_records sets keyed by
 // (scope_id, generation_id, stable_fact_key) via a FULL OUTER JOIN on
-// (fact_category, stable_fact_key) using md5(payload::text) for payload
+// (fact_category, stable_fact_key) using SHA-256 of payload::text for payload
 // identity. Counts are exact per category and verdict (added, updated,
 // unchanged, retired, superseded); sample reads run only for non-empty buckets
 // and are ordered by stable_fact_key and capped at the sample limit plus one to

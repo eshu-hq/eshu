@@ -425,7 +425,7 @@ func TestComputeChangedSinceDeltaCountsQueryUsesPayloadHashAndFullOuterJoin(t *t
 	}
 	countsQuery := queryer.queries[2]
 	for _, want := range []string{
-		"md5(payload::text)",
+		"sha256(convert_to(payload::text, 'UTF8'))",
 		"FULL OUTER JOIN",
 		"is_tombstone = TRUE",
 		"GROUP BY fact_category, classification",

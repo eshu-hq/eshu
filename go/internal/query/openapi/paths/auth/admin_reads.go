@@ -229,7 +229,7 @@ const AdminReads = `
       "post": {
         "tags": ["auth"],
         "summary": "Create an IdP group to role mapping",
-        "description": "All-scopes admin route that idempotently activates an external group to role mapping within the caller's own tenant/workspace. The provider config and role must exist and be active in the tenant. The raw external_group name is hashed server-side with the same hash the OIDC login path uses to read mappings and is never stored or returned; only the opaque mapping_ref (an md5 over the composite key) is returned. Optional workspace_id must match the caller's workspace. Emits a governance audit event.",
+        "description": "All-scopes admin route that idempotently activates an external group to role mapping within the caller's own tenant/workspace. The provider config and role must exist and be active in the tenant. The raw external_group name is hashed server-side with the same hash the OIDC login path uses to read mappings and is never stored or returned; only the opaque 64-hex SHA-256 mapping_ref over the composite key is returned. Optional workspace_id must match the caller's workspace. Emits a governance audit event.",
         "operationId": "createAdminIdPGroupMapping",
         "x-scoped-token-support": true,
         "requestBody": {

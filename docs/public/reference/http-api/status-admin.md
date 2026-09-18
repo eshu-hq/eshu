@@ -483,7 +483,7 @@ handles. The response carries the resolved `scope_id`, `scope_kind`,
 `unchanged`, `retired`, and `superseded`, plus bounded `samples`
 (`stable_fact_key`, `fact_kind`) per classification and a per-classification
 `truncated` flag. `added` is a key new in the current generation; `updated` is a
-key in both whose `md5(payload)` differs; `unchanged` is a key in both with an
+key in both whose SHA-256 payload digest differs; `unchanged` is a key in both with an
 identical payload hash; `retired` is a key tombstoned in the current generation;
 `superseded` is a key dropped entirely on generation rollover. Retired and
 superseded are never collapsed into `unchanged`.
@@ -541,7 +541,7 @@ per-classification sample handles. The response carries the resolved
 exact `counts` for `added`, `updated`, `unchanged`, `retired`, and `superseded`,
 plus bounded `samples` (`stable_fact_key` carrying the `service_evidence_key`,
 `fact_kind` carrying the evidence family) per classification and a
-per-classification `truncated` flag. The classification, `md5`-based
+per-classification `truncated` flag. The classification, SHA-256-based
 updated-vs-unchanged detection, and explicit retirement match the repository-scope
 surface; retired and superseded are never collapsed into `unchanged`.
 

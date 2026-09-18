@@ -176,13 +176,13 @@ func (s *IdentitySubjectStore) ListAdminIdPProviders(
 
 // listAdminIdPGroupMappingsQuery selects metadata-only mapping columns for the
 // caller's tenant/workspace. external_group_hash is never selected; a stable
-// md5 digest over the composite primary key forms a non-secret MappingRef so an
-// admin can address a row without the hashed group name. md5 here is a
-// non-cryptographic row identifier, not a secret. tombstoned_at IS NULL excludes
+// SHA-256 digest over the composite primary key forms a non-secret MappingRef so
+// an admin can address a row without the hashed group name. The digest is a row
+// identifier, not a secret. tombstoned_at IS NULL excludes
 // soft-deleted mappings that may still carry status='active'.
 const listAdminIdPGroupMappingsQuery = `
 SELECT
-    md5(provider_config_id || ':' || tenant_id || ':' || workspace_id || ':' || role_id || ':' || external_group_hash) AS mapping_ref,
+    encode(sha256(convert_to(provider_config_id || ':' || tenant_id || ':' || workspace_id || ':' || role_id || ':' || external_group_hash, 'UTF8')), 'hex') AS mapping_ref,
     provider_config_id,
     role_id,
     status,

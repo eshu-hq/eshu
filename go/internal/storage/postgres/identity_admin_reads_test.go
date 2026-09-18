@@ -4,6 +4,7 @@
 package postgres
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -113,18 +114,18 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 				}
 			}
 			// The external_group_hash column is the hashed group-name secret. It
-			// may appear only inside the mapping_ref md5() digest input (which is
+			// may appear only inside the mapping_ref SHA-256 digest input (which is
 			// one-way and opaque) and must never be SELECTed as a bare output
 			// column. Assert it is not selected bare in any form.
 			if tc.name == "idp_group_mappings" {
-				if strings.Contains(tc.query, "external_group_hash,") ||
+				if regexp.MustCompile(`(?m)^\s*external_group_hash\s*,`).MatchString(tc.query) ||
 					strings.Contains(tc.query, "external_group_hash AS") ||
 					strings.Contains(tc.query, "external_group_hash\n") {
 					t.Errorf("idp_group_mappings query must not select external_group_hash as an output column")
 				}
-				// The only permitted occurrence is inside md5(... external_group_hash).
+				// The only permitted occurrence is inside the SHA-256 digest input.
 				if strings.Contains(tc.query, "external_group_hash") &&
-					!strings.Contains(tc.query, "external_group_hash) AS mapping_ref") {
+					!strings.Contains(tc.query, "external_group_hash, 'UTF8')), 'hex') AS mapping_ref") {
 					t.Errorf("idp_group_mappings query exposes external_group_hash outside the mapping_ref digest")
 				}
 			}

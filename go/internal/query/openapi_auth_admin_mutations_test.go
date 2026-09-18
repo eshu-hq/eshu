@@ -78,4 +78,13 @@ func TestOpenAPIAuthAdminMutationPaths(t *testing.T) {
 	if !strings.Contains(string(createRaw), "never stored or returned") {
 		t.Fatalf("create mapping must document external_group as never stored or returned: %s", string(createRaw))
 	}
+	deleteMapping := querytestutil.MustMapField(t,
+		querytestutil.MustMapField(t, paths, "/api/v0/auth/admin/idp-group-mappings/{mapping_ref}"), "delete")
+	responses := querytestutil.MustMapField(t, deleteMapping, "responses")
+	if _, ok := responses["409"]; !ok {
+		t.Fatal("delete mapping must document 409 for a stale legacy ref")
+	}
+	if !strings.Contains(deleteMapping["description"].(string), "list mappings again") {
+		t.Fatal("delete mapping must document how to refresh a legacy ref")
+	}
 }

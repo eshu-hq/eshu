@@ -233,7 +233,7 @@ type IdPGroupMappingCreateRequest struct {
 }
 
 // IdPGroupMappingDeleteRequest tombstones one external group->role mapping
-// identified by its opaque MappingRef (an md5 digest over the composite key).
+// identified by its opaque MappingRef (a SHA-256 digest over the composite key).
 // The store resolves the ref tenant-scoped; the raw group name is never needed.
 type IdPGroupMappingDeleteRequest struct {
 	MappingRef  string
@@ -245,7 +245,7 @@ type IdPGroupMappingDeleteRequest struct {
 // IdPGroupMappingCreateResult reports the outcome of a mapping create.
 // ProviderValid/RoleValid are false when the provider config or role does not
 // exist (or is not active) in the tenant. MappingRef is the opaque reference for
-// the created/activated row (same md5 form the read path returns).
+// the created/activated row (same SHA-256 form the read path returns).
 type IdPGroupMappingCreateResult struct {
 	ProviderValid bool
 	RoleValid     bool

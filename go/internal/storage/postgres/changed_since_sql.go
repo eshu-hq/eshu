@@ -120,7 +120,7 @@ LIMIT 1
 //
 // The category bucket is files (fact_kind = 'file'), content_entities
 // (fact_kind = 'content_entity'), or facts (everything else). Payload identity
-// uses md5(payload::text) so a changed payload is detected without a stored hash
+// uses SHA-256 of payload::text so a changed payload is detected without a stored hash
 // column. The diff is keyed by (scope_id, generation_id, stable_fact_key),
 // matching the fact_records primary access path.
 //
@@ -138,7 +138,7 @@ WITH prior_keys AS (
             ELSE 'facts'
         END AS fact_category,
         stable_fact_key,
-        MIN(md5(payload::text)) AS payload_hash
+        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS payload_hash
     FROM fact_records
     WHERE scope_id = $1
       AND generation_id = $2
@@ -153,7 +153,7 @@ current_active_keys AS (
             ELSE 'facts'
         END AS fact_category,
         stable_fact_key,
-        MIN(md5(payload::text)) AS payload_hash
+        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS payload_hash
     FROM fact_records
     WHERE scope_id = $1
       AND generation_id = $3
@@ -222,7 +222,7 @@ WITH prior_keys AS (
         END AS fact_category,
         stable_fact_key,
         MIN(fact_kind) AS fact_kind,
-        MIN(md5(payload::text)) AS payload_hash
+        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS payload_hash
     FROM fact_records
     WHERE scope_id = $1
       AND generation_id = $2
@@ -238,7 +238,7 @@ current_active_keys AS (
         END AS fact_category,
         stable_fact_key,
         MIN(fact_kind) AS fact_kind,
-        MIN(md5(payload::text)) AS payload_hash
+        MIN(sha256(convert_to(payload::text, 'UTF8'))) AS payload_hash
     FROM fact_records
     WHERE scope_id = $1
       AND generation_id = $3
