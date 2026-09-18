@@ -26,10 +26,10 @@ flowchart LR
 ```
 
 The default test path validates contracts without a live database. The live
-script opts into the same corpora against Neo4j or NornicDB. One pair — the
-value-flow cloud sink read and seed — is itself opt-in behind
-`ESHU_BACKEND_CONFORMANCE_VALUE_FLOW`, and is absent from the corpora rather
-than skipped when that variable is unset.
+script opts into the same corpora against Neo4j or NornicDB. Read cases assert a
+minimum row count or, with `WantRows`, the exact rows; the exact-row cases pin
+the reducer's value-flow cloud sink statements (#6690) and the aggregation and
+optional-match shapes older NornicDB builds answered wrongly (#6689).
 
 The package keeps two contracts together:
 
@@ -42,9 +42,7 @@ The package keeps two contracts together:
 Default Go tests validate the matrix and harness without starting Neo4j or
 NornicDB. `scripts/verify_backend_conformance_live.sh` turns on the opt-in live
 test and runs the corpora against a real Bolt endpoint for the NornicDB and
-Neo4j Compose lanes. It prints whether the value-flow pair is INCLUDED or
-OMITTED before it runs, because a run without
-`ESHU_BACKEND_CONFORMANCE_VALUE_FLOW` proves strictly less than one with it.
+Neo4j Compose lanes; the end-to-end workflow runs it on both backends.
 
 The live write corpus includes the source-local shape that matters for canonical
 projection parity: repository, directory, file, function, and

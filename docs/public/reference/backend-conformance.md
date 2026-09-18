@@ -67,46 +67,22 @@ GitHub Actions runs this live check in the end-to-end matrix before
 `bootstrap-index`, so both official backends prove the shared read/write corpus
 against a clean graph service.
 
-### One pair is opt-in
+### Exact-row cases
 
-The value-flow cloud sink read and seed reproduce defects that are open upstream
-in NornicDB, so they are **not** in the corpus by default — left in, they would
-red-line the blocking live gate on every unrelated change. Set
-`ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1` to include them:
+Most read cases assert a minimum row count. Some shapes can return the right
+number of rows with the wrong values, so those cases carry the exact expected
+rows instead, compared as a multiset (row order is ignored):
 
-```bash
-ESHU_BACKEND_CONFORMANCE_VALUE_FLOW=1 \
-  ESHU_GRAPH_BACKEND=nornicdb ./scripts/verify_backend_conformance_live.sh
-```
+- the value-flow cloud sink statements the reducer runs, pinned to the
+  production constants by equality (#6690);
+- the aggregation and optional-match shapes that returned wrong answers with no
+  error on older NornicDB builds: `count(DISTINCT)` and `collect(DISTINCT)` over
+  repeated rows, a node-only anchor followed by two `OPTIONAL MATCH` clauses, and
+  an `OPTIONAL MATCH` after an aggregating `WITH` (#6689).
 
-The pair is absent from the corpus when the variable is unset, not skipped, so
-a default run proves strictly less than a run with it. The script prints
-`value-flow cloud sink pair: INCLUDED` or `OMITTED` before it runs anything —
-read that line before treating a green live check as full coverage. The pair
-passes on Neo4j, so setting the variable there is a regression detector rather
-than a known failure.
-
-### CI runs the pair with the expectation inverted
-
-Being opt-in used to mean nothing ran it: no job, no schedule, no local default.
-The `Value Flow Conformance Expectation` workflow closes that. It runs both
-backends in one job and asserts the behaviour that is actually documented —
-the NornicDB lane fails naming the read case, the Neo4j lane passes as the
-positive control:
-
-```bash
-scripts/verify-value-flow-conformance-expectation.sh neo4j
-scripts/verify-value-flow-conformance-expectation.sh nornicdb
-```
-
-Green means the upstream defects are still there, as documented. Red means one
-of the two lanes changed and somebody needs to look — most likely because
-upstream landed a fix, in which case the script prints the one-step repair.
-Both lanes bind the same Bolt port, so run one stack at a time.
-
-The NornicDB lane matches the failure message, not the exit code. A broken
-fixture, a failed seed, and a refused connection all exit non-zero, and an
-expected-fail that accepts any of them proves nothing.
+They are part of the default corpus, so the end-to-end matrix runs them on both
+backends on every change that selects it. A backend regression on any of these
+shapes fails the blocking live check instead of reaching an API or MCP answer.
 
 ## Profile Matrix
 
