@@ -1786,15 +1786,15 @@ candidate/skipped/loaded counts. A high skip ratio against a stable catalog is
 the operator-visible signal the memo is effective; a skip ratio that collapses to
 zero signals a catalog churn or a memo-write regression.
 
-### Cross-scope completion and correlation reopen (#5423 / #5710 / #5426 / #5837 / #5699 / #5740)
+### Cross-scope completion and correlation reopen (#5423 / #5710 / #5426 / #5837 / #5699 / #5740 / #6785)
 
 `CrossScopeCorrelationReopenDomains` (`ingestion_reopen_correlation.go`) is the
 single source of truth for reducer domains that still need blanket replay after
-a maintenance pass: `deployable_unit_correlation`,
-`kubernetes_correlation_materialization`, `container_image_identity`, and
-`aws_cloud_runtime_drift`. Container image identity needs this replay when a
-cloud image-reference decision succeeds before the matching OCI registry
-generation activates. Both runtimes consume the list — the
+a maintenance pass: `deployable_unit_correlation`, `kubernetes_correlation_materialization`,
+`container_image_identity`, `aws_cloud_runtime_drift`, and
+`workload_cloud_relationship_materialization`. Container image identity needs
+this replay when a cloud image-reference decision succeeds before the matching
+OCI registry generation activates. Both runtimes consume the list — the
 ingester on every shard drain through `reopenMaintenanceWorkItemsInTransaction`,
 and `eshu-bootstrap-index` once through its `correlation_reopen` phase.
 

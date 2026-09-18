@@ -400,3 +400,94 @@ func TestExtractWorkloadCloudRelationshipRowsPromotesIssue6785DeployableSourceRo
 		t.Fatalf("skipped[missing_workload_anchor] = %d, want %d (the bucket fact)", got, want)
 	}
 }
+
+// TestWorkloadCloudRelationshipMaterializationHandleConvergesOnReopenedReplay
+// is the #6785 idempotency proof for adding this domain to
+// crossScopeCorrelationReopenDomains
+// (internal/storage/postgres/ingestion_reopen_correlation.go): a reopen
+// replays the SAME succeeded work item's SAME (scope, generation) against the
+// reducer a second time, not a new generation, so Handle must converge rather
+// than duplicate or diverge. Both calls here share the intent unchanged (no
+// simulated AttemptCount bump, matching shouldSkipRetract's own
+// intent.AttemptCount <= 1 branch, which is what a freshly reopened work item's
+// attempt_count = 0 reset -> first claim actually presents) and a
+// PriorGenerationCheck stub returning false -- the real corpus shape this
+// domain hits in the golden-corpus gate, where the AWS cloud scope has exactly
+// one generation. Under that shape shouldSkipRetract skips the retract on
+// EVERY call and relies on the writer's static-token MERGE identity alone for
+// idempotency (proven separately by
+// TestWorkloadCloudRelationshipWriterUsesExistingEndpoints in
+// internal/storage/cypher, which pins the Cypher to
+// "MERGE (instance)-[rel:USES]->(resource)" with no node-creating MERGE). This
+// test proves the Go-side half of that contract: extraction is a pure function
+// of the input facts, so both calls hand the writer the byte-identical single
+// row -- never a duplicate, a dropped edge, or a different resolution_mode --
+// regardless of whether the first call ran before or after the graph's
+// WorkloadInstance node materialized.
+func TestWorkloadCloudRelationshipMaterializationHandleConvergesOnReopenedReplay(t *testing.T) {
+	t.Parallel()
+
+	envelope := workloadCloudAWSResourceEnvelope("aws:123456789012:us-east-1:iam:role:deployable-source-app-role", map[string]any{
+		"arn":                 "arn:aws:iam::123456789012:role/deployable-source-app-role",
+		"resource_id":         "arn:aws:iam::123456789012:role/deployable-source-app-role",
+		"resource_type":       "aws_iam_role",
+		"name":                "deployable-source-app-role",
+		"account_id":          "123456789012",
+		"region":              "us-east-1",
+		"service_kind":        "iam",
+		"correlation_anchors": []any{"arn:aws:iam::123456789012:role/deployable-source-app-role"},
+		"workload_id":         "workload:deployable-source",
+		"environment":         "prod",
+		"attributes":          map[string]any{},
+	})
+
+	writer := &recordingWorkloadCloudRelationshipWriter{}
+	handler := WorkloadCloudRelationshipMaterializationHandler{
+		FactLoader:           &stubFactLoader{envelopes: []facts.Envelope{envelope}},
+		EdgeWriter:           writer,
+		ReadinessLookup:      readyLookup(true, true),
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
+	}
+	intent := workloadCloudRelationshipIntent()
+
+	firstResult, err := handler.Handle(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("first Handle() error = %v", err)
+	}
+	secondResult, err := handler.Handle(context.Background(), intent)
+	if err != nil {
+		t.Fatalf("reopened second Handle() error = %v", err)
+	}
+
+	if firstResult.CanonicalWrites != 1 || secondResult.CanonicalWrites != 1 {
+		t.Fatalf(
+			"CanonicalWrites = %d then %d, want 1 then 1 (a reopened replay must re-derive exactly the same row)",
+			firstResult.CanonicalWrites, secondResult.CanonicalWrites,
+		)
+	}
+	if writer.writeCalls != 2 {
+		t.Fatalf("writeCalls = %d, want 2 (one per Handle call)", writer.writeCalls)
+	}
+	if writer.retractCalls != 0 {
+		t.Fatalf(
+			"retractCalls = %d, want 0 (no prior generation on either call, so shouldSkipRetract skips both -- "+
+				"idempotency here rests entirely on the writer's static-token MERGE)",
+			writer.retractCalls,
+		)
+	}
+	if len(writer.writtenRows) != 2 {
+		t.Fatalf("writtenRows accumulated = %d, want 2 (one row per Handle call)", len(writer.writtenRows))
+	}
+	first, second := writer.writtenRows[0], writer.writtenRows[1]
+	for _, key := range []string{"workload_id", "cloud_resource_uid", "environment", "resolution_mode", "relationship_type"} {
+		if anyToString(first[key]) != anyToString(second[key]) {
+			t.Fatalf(
+				"row[%q] diverged across the reopened replay: first=%q second=%q (extraction must be deterministic)",
+				key, anyToString(first[key]), anyToString(second[key]),
+			)
+		}
+	}
+	if got, want := anyToString(first["workload_id"]), "workload:deployable-source"; got != want {
+		t.Fatalf("workload_id = %q, want %q", got, want)
+	}
+}
