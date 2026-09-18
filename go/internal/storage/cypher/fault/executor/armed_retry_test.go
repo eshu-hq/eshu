@@ -3,7 +3,7 @@
 
 //go:build ifafaultinjection
 
-package cypher
+package executor
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // fakeExecutorRetryArmer is a minimal ExecutorRetryArmer test double that
@@ -43,7 +44,7 @@ func TestFaultingExecutorExecutorRetryLaneArmsBelowTheSeamAndDelegatesWhenWired(
 	arm := &fakeExecutorRetryArmer{}
 	fe.SetExecutorRetryArmer(arm)
 
-	if err := fe.Execute(context.Background(), Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
+	if err := fe.Execute(context.Background(), cypher.Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
 		t.Fatalf("expected Execute to delegate to inner and succeed when armed, got %v", err)
 	}
 	if got := arm.armCount.Load(); got != 1 {
@@ -58,7 +59,7 @@ func TestFaultingExecutorExecutorRetryLaneArmsBelowTheSeamAndDelegatesWhenWired(
 
 	// A second call must not re-arm or re-fire; the once-fault already
 	// consumed itself via the CompareAndSwap gate.
-	if err := fe.Execute(context.Background(), Statement{Cypher: "MERGE (b) RETURN b"}); err != nil {
+	if err := fe.Execute(context.Background(), cypher.Statement{Cypher: "MERGE (b) RETURN b"}); err != nil {
 		t.Fatalf("call 2: expected success, got %v", err)
 	}
 	if got := arm.armCount.Load(); got != 1 {
@@ -77,7 +78,7 @@ func TestFaultingExecutorExecuteGroupExecutorRetryLaneArmsAndDelegates(t *testin
 	arm := &fakeExecutorRetryArmer{}
 	fe.SetExecutorRetryArmer(arm)
 
-	stmts := []Statement{{Cypher: "MERGE (a) RETURN a"}}
+	stmts := []cypher.Statement{{Cypher: "MERGE (a) RETURN a"}}
 	if err := fe.ExecuteGroup(context.Background(), stmts); err != nil {
 		t.Fatalf("ExecuteGroup() error = %v, want nil after arming and delegation", err)
 	}

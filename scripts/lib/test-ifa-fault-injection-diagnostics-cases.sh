@@ -450,9 +450,9 @@ test_ifa_fault_failure_artifact_contract() {
 	if rg --fixed-strings --quiet -- "rg '^NORNICDB_'" "${diagnostics_lib}"; then
 		fail "NornicDB environment capture reverted to an open prefix match"
 	fi
-	rg --fixed-strings --quiet -- "'go/internal/storage/cypher/fault_executor*.go'" "${workflow}" \
+	rg --fixed-strings --quiet -- "'go/internal/storage/cypher/fault/executor/*.go'" "${workflow}" \
 		|| fail "workflow does not trigger on every fault-executor module"
-	rg --fixed-strings --quiet -- '"go/internal/storage/cypher/fault_executor*.go"' "${repo_root}/specs/ci-gates.v1.yaml" \
+	rg --fixed-strings --quiet -- '"go/internal/storage/cypher/fault/executor/*.go"' "${repo_root}/specs/ci-gates.v1.yaml" \
 		|| fail "CI registry does not trigger on every fault-executor module"
 }
 

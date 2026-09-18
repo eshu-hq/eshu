@@ -3,7 +3,7 @@
 
 //go:build ifafaultinjection
 
-package cypher
+package executor
 
 import (
 	"context"
@@ -15,13 +15,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // The once-fired marker: how a gate running in a separate process learns that
 // the scripted fail-graph-write-once-then-succeed fault actually fired, and
 // which statement it hit.
 //
-// Split out of fault_executor.go to keep that file under the repo's 500-line
+// Split out of fault.go to keep that file under the repo's 500-line
 // cap. This is the whole marker unit -- the suffix, the match resolution, and
 // the write -- so the pieces stay together.
 //
@@ -48,7 +49,7 @@ const onceFiredMarkerSuffix = ".once-fired"
 //
 // Ordinal-matched faults target the call rather than a statement, so they
 // return the first statement as the best available description.
-func (fe *FaultingExecutor) onceMatchedStatement(ordinal int, stmts []Statement) (string, bool) {
+func (fe *FaultingExecutor) onceMatchedStatement(ordinal int, stmts []cypher.Statement) (string, bool) {
 	if fe.onceMatch != "" {
 		for i := range stmts {
 			if strings.Contains(stmts[i].Cypher, fe.onceMatch) {
@@ -116,9 +117,9 @@ const (
 // submitted group, or distinguish projection, scheduling, and backend causes
 // by itself.
 type restartTriggerRecord struct {
-	GroupOrdinal int         `json:"group_ordinal"`
-	Surface      string      `json:"surface"`
-	Statements   []Statement `json:"statements"`
+	GroupOrdinal int                `json:"group_ordinal"`
+	Surface      string             `json:"surface"`
+	Statements   []cypher.Statement `json:"statements"`
 }
 
 // writeRestartTriggerRecord atomically publishes the acknowledged executor
@@ -127,7 +128,7 @@ type restartTriggerRecord struct {
 func (fe *FaultingExecutor) writeRestartTriggerRecord(
 	groupOrdinal int,
 	surface string,
-	statements []Statement,
+	statements []cypher.Statement,
 ) error {
 	if len(statements) > maxRestartTriggerStatements {
 		return fmt.Errorf(
@@ -188,7 +189,7 @@ func (fe *FaultingExecutor) maybeRestartAfterGroup(
 	ctx context.Context,
 	groupOrdinal int,
 	surface string,
-	statements []Statement,
+	statements []cypher.Statement,
 ) error {
 	if fe.restartAfterGroups == 0 || groupOrdinal != fe.restartAfterGroups {
 		return nil

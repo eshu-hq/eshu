@@ -3,7 +3,7 @@
 
 //go:build ifafaultinjection
 
-package cypher
+package executor
 
 import (
 	"context"
@@ -16,26 +16,27 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 func intPtr(v int) *int       { return &v }
 func strPtr(v string) *string { return &v }
 
-// faultRecordingExecutor is a minimal Executor (+ optional GroupExecutor) fake
+// faultRecordingExecutor is a minimal Executor (+ optional cypher.GroupExecutor) fake
 // that records every call it receives, for asserting how many times
 // FaultingExecutor actually delegated.
 type faultRecordingExecutor struct {
 	mu          sync.Mutex
-	executes    []Statement
-	groups      [][]Statement
-	probes      []Statement
+	executes    []cypher.Statement
+	groups      [][]cypher.Statement
+	probes      []cypher.Statement
 	supportsGrp bool
 	failNext    error
 	probeFound  bool
 	probeErr    error
 }
 
-func (e *faultRecordingExecutor) Execute(_ context.Context, stmt Statement) error {
+func (e *faultRecordingExecutor) Execute(_ context.Context, stmt cypher.Statement) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.executes = append(e.executes, stmt)
@@ -47,7 +48,7 @@ func (e *faultRecordingExecutor) Execute(_ context.Context, stmt Statement) erro
 	return nil
 }
 
-func (e *faultRecordingExecutor) ExecuteGroup(_ context.Context, stmts []Statement) error {
+func (e *faultRecordingExecutor) ExecuteGroup(_ context.Context, stmts []cypher.Statement) error {
 	if !e.supportsGrp {
 		return errors.New("faultRecordingExecutor: group support disabled for this test")
 	}
@@ -74,7 +75,7 @@ func (e *faultRecordingExecutor) groupCount() int {
 // errFaultingExecutorInnerNoGroup when inner does not support grouped
 // writes. It deliberately does NOT embed *faultRecordingExecutor: Go
 // promotes an embedded pointer's methods, which would silently satisfy
-// GroupExecutor via promotion and defeat the point of this fake.
+// cypher.GroupExecutor via promotion and defeat the point of this fake.
 type faultExecuteOnlyRecordingExecutor struct {
 	inner *faultRecordingExecutor
 }
@@ -83,15 +84,15 @@ func newFaultExecuteOnlyRecordingExecutor() *faultExecuteOnlyRecordingExecutor {
 	return &faultExecuteOnlyRecordingExecutor{inner: &faultRecordingExecutor{}}
 }
 
-func (e *faultExecuteOnlyRecordingExecutor) Execute(ctx context.Context, stmt Statement) error {
+func (e *faultExecuteOnlyRecordingExecutor) Execute(ctx context.Context, stmt cypher.Statement) error {
 	return e.inner.Execute(ctx, stmt)
 }
 
 // mustFaultingExecutor constructs a FaultingExecutor and type-asserts the
 // concrete type back out of NewFaultingExecutor's Executor return, so tests
 // can reach the inspector methods (OnceThenSucceedFired, RestartFired) and
-// the GroupExecutor/PhaseGroupExecutor surface directly.
-func mustFaultingExecutor(t *testing.T, inner Executor, script faultreplay.Script, sentinelPath string) *FaultingExecutor {
+// the cypher.GroupExecutor/PhaseGroupExecutor surface directly.
+func mustFaultingExecutor(t *testing.T, inner cypher.Executor, script faultreplay.Script, sentinelPath string) *FaultingExecutor {
 	t.Helper()
 	got, err := NewFaultingExecutor(inner, script, sentinelPath)
 	if err != nil {
@@ -131,17 +132,25 @@ func TestFaultingExecutorQueueRetryLaneFiresOnceThenDelegates(t *testing.T) {
 	fe := mustFaultingExecutor(t, inner, script, "")
 
 	ctx := context.Background()
-	if err := fe.Execute(ctx, Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
+	if err := fe.Execute(ctx, cypher.Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
 		t.Fatalf("call 1: expected success, got %v", err)
 	}
-	err := fe.Execute(ctx, Statement{Cypher: "MERGE (b) RETURN b"})
+	err := fe.Execute(ctx, cypher.Statement{Cypher: "MERGE (b) RETURN b"})
 	if err == nil {
 		t.Fatal("call 2: expected the scripted fault to fire, got nil error")
 	}
-	if isTransientNeo4jError(err) {
-		t.Fatalf("queue-retry lane error must NOT classify as transient (isTransientNeo4jError), got %q", err.Error())
+	// The queue-retry lane error must NOT be shaped transient: a real
+	// cypher.RetryingExecutor must surface it without a retry attempt,
+	// proving the parent package's transient classifier rejects it.
+	retryProbe := &faultRecordingExecutor{failNext: err}
+	retrying := &cypher.RetryingExecutor{Inner: retryProbe, MaxRetries: 3, BaseDelay: time.Millisecond}
+	if rerr := retrying.Execute(ctx, cypher.Statement{Cypher: "MERGE (b) RETURN b"}); rerr == nil {
+		t.Fatal("expected the queue-retry lane error to surface through RetryingExecutor")
 	}
-	if err := fe.Execute(ctx, Statement{Cypher: "MERGE (c) RETURN c"}); err != nil {
+	if got := retryProbe.executeCount(); got != 1 {
+		t.Fatalf("queue-retry lane error must NOT classify as transient (no retry), inner called %d times, want 1", got)
+	}
+	if err := fe.Execute(ctx, cypher.Statement{Cypher: "MERGE (c) RETURN c"}); err != nil {
 		t.Fatalf("call 3: expected success (fault fires only once), got %v", err)
 	}
 
@@ -157,13 +166,13 @@ func TestFaultingExecutorQueueRetryLaneFiresOnceThenDelegates(t *testing.T) {
 // proves the pre-#5048 fallback still applies whenever no
 // ExecutorRetryArmer is wired (SetExecutorRetryArmer never called, the zero
 // value): this decorator wraps ABOVE any RetryingExecutor sitting below it,
-// so even though the executor-retry lane's error is shaped to satisfy
-// isTransientNeo4jError, wrapping a RetryingExecutor as inner here proves
+// so even though the executor-retry lane's error is shaped to satisfy the
+// parent package's transient-error classifier, wrapping a RetryingExecutor as inner here proves
 // that RetryingExecutor never sees or retries it -- the fault
 // short-circuits before inner.Execute is ever called. This is the honest
 // remaining limitation for callers that never wire an armer; go/cmd/reducer's
 // wrapIfaFaultExecutor does wire one for the real reducer binary. See
-// fault_executor_armed_retry_test.go for the armed-path proofs and
+// armed_retry_test.go for the armed-path proofs and
 // go/cmd/reducer's
 // TestWrapIfaFaultExecutorExecutorRetryLaneRetriesInPlaceBelowTheRetryingExecutor
 // for the full end-to-end proof.
@@ -171,16 +180,24 @@ func TestFaultingExecutorExecutorRetryLaneWithoutArmerFallsBackAboveTheSeam(t *t
 	t.Parallel()
 
 	base := &faultRecordingExecutor{}
-	retrying := &RetryingExecutor{Inner: base, MaxRetries: 3, BaseDelay: time.Millisecond}
+	retrying := &cypher.RetryingExecutor{Inner: base, MaxRetries: 3, BaseDelay: time.Millisecond}
 	script := onceThenSucceedScript(faultreplay.LaneExecutorRetry, intPtr(1), nil)
 	fe := mustFaultingExecutor(t, retrying, script, "")
 
-	err := fe.Execute(context.Background(), Statement{Cypher: "MERGE (a) RETURN a"})
+	err := fe.Execute(context.Background(), cypher.Statement{Cypher: "MERGE (a) RETURN a"})
 	if err == nil {
 		t.Fatal("expected the scripted fault to fire on the first call")
 	}
-	if !isTransientNeo4jError(err) {
-		t.Fatalf("executor-retry lane error must be shaped transient (isTransientNeo4jError), got %q", err.Error())
+	// The executor-retry lane error must be shaped transient: a real
+	// cypher.RetryingExecutor must retry it in place and recover, proving
+	// the parent package's transient classifier accepts the injected shape.
+	retryProbe := &faultRecordingExecutor{failNext: err}
+	retryProver := &cypher.RetryingExecutor{Inner: retryProbe, MaxRetries: 3, BaseDelay: time.Millisecond}
+	if rerr := retryProver.Execute(context.Background(), cypher.Statement{Cypher: "MERGE (a) RETURN a"}); rerr != nil {
+		t.Fatalf("executor-retry lane error must be shaped transient (retried in place), got %v", rerr)
+	}
+	if got := retryProbe.executeCount(); got != 2 {
+		t.Fatalf("expected one in-place retry of the transient-shaped error, inner called %d times, want 2", got)
 	}
 	if got := base.executeCount(); got != 0 {
 		t.Fatalf("RetryingExecutor's inner base executor must NEVER be called for the fired attempt "+
@@ -202,13 +219,13 @@ func TestFaultingExecutorMatchesByOperationSubstring(t *testing.T) {
 	fe := mustFaultingExecutor(t, inner, script, "")
 
 	ctx := context.Background()
-	if err := fe.Execute(ctx, Statement{Cypher: "MERGE (f:File) RETURN f"}); err != nil {
+	if err := fe.Execute(ctx, cypher.Statement{Cypher: "MERGE (f:File) RETURN f"}); err != nil {
 		t.Fatalf("non-matching statement: expected success, got %v", err)
 	}
-	if err := fe.Execute(ctx, Statement{Cypher: "MERGE (r:CloudResource) RETURN r"}); err == nil {
+	if err := fe.Execute(ctx, cypher.Statement{Cypher: "MERGE (r:CloudResource) RETURN r"}); err == nil {
 		t.Fatal("matching statement: expected the scripted fault to fire")
 	}
-	if err := fe.Execute(ctx, Statement{Cypher: "MERGE (r:CloudResource) RETURN r"}); err != nil {
+	if err := fe.Execute(ctx, cypher.Statement{Cypher: "MERGE (r:CloudResource) RETURN r"}); err != nil {
 		t.Fatalf("second matching statement: expected success (fault fires only once), got %v", err)
 	}
 }
@@ -224,7 +241,7 @@ func TestFaultingExecutorExecuteGroupFiresOnceThenDelegates(t *testing.T) {
 	fe := mustFaultingExecutor(t, inner, script, "")
 
 	ctx := context.Background()
-	stmts := []Statement{{Cypher: "MERGE (a) RETURN a"}, {Cypher: "MERGE (b) RETURN b"}}
+	stmts := []cypher.Statement{{Cypher: "MERGE (a) RETURN a"}, {Cypher: "MERGE (b) RETURN b"}}
 	if err := fe.ExecuteGroup(ctx, stmts); err == nil {
 		t.Fatal("expected the scripted fault to fire on the first ExecuteGroup call")
 	}
@@ -238,13 +255,13 @@ func TestFaultingExecutorExecuteGroupFiresOnceThenDelegates(t *testing.T) {
 
 // TestFaultingExecutorExecuteGroupErrorsWhenInnerLacksGroupSupport proves
 // ExecuteGroup fails closed (a clear error, not a silent no-op or panic) when
-// the wrapped executor does not implement GroupExecutor.
+// the wrapped executor does not implement cypher.GroupExecutor.
 func TestFaultingExecutorExecuteGroupErrorsWhenInnerLacksGroupSupport(t *testing.T) {
 	t.Parallel()
 
 	inner := newFaultExecuteOnlyRecordingExecutor()
 	fe := mustFaultingExecutor(t, inner, faultreplay.Script{Version: faultreplay.CurrentVersion}, "")
-	if err := fe.ExecuteGroup(context.Background(), []Statement{{Cypher: "MERGE (a) RETURN a"}}); !errors.Is(err, errFaultingExecutorInnerNoGroup) {
+	if err := fe.ExecuteGroup(context.Background(), []cypher.Statement{{Cypher: "MERGE (a) RETURN a"}}); !errors.Is(err, errFaultingExecutorInnerNoGroup) {
 		t.Fatalf("expected errFaultingExecutorInnerNoGroup, got %v", err)
 	}
 }
@@ -272,7 +289,7 @@ func TestFaultingExecutorRestartBackendBlocksUntilSentinelRemoved(t *testing.T) 
 
 	done := make(chan error, 1)
 	go func() {
-		done <- fe.ExecuteGroup(context.Background(), []Statement{{Cypher: "MERGE (a) RETURN a"}})
+		done <- fe.ExecuteGroup(context.Background(), []cypher.Statement{{Cypher: "MERGE (a) RETURN a"}})
 	}()
 
 	deadline := time.Now().Add(2 * time.Second)
@@ -335,7 +352,7 @@ func TestFaultingExecutorRestartBackendRespectsContextCancellation(t *testing.T)
 	defer cancel()
 
 	start := time.Now()
-	err := fe.ExecuteGroup(ctx, []Statement{{Cypher: "MERGE (a) RETURN a"}})
+	err := fe.ExecuteGroup(ctx, []cypher.Statement{{Cypher: "MERGE (a) RETURN a"}})
 	elapsed := time.Since(start)
 	if err == nil {
 		t.Fatal("expected an error once the context deadline expired while the sentinel still exists")
@@ -414,7 +431,7 @@ func TestFaultingExecutorIgnoresWorkSourceSeamFaultKinds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFaultingExecutor: %v", err)
 	}
-	if err := fe.Execute(context.Background(), Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
+	if err := fe.Execute(context.Background(), cypher.Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
 		t.Fatalf("expected a pass-through Execute with no scripted graph-executor fault, got %v", err)
 	}
 }
@@ -445,13 +462,13 @@ func TestFaultingExecutorCallOrdinalIsSharedAcrossExecuteAndExecuteGroup(t *test
 	fe := mustFaultingExecutor(t, inner, script, "")
 
 	ctx := context.Background()
-	if err := fe.Execute(ctx, Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
+	if err := fe.Execute(ctx, cypher.Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
 		t.Fatalf("call 1 (Execute): expected success, got %v", err)
 	}
-	if err := fe.ExecuteGroup(ctx, []Statement{{Cypher: "MERGE (b) RETURN b"}}); err == nil {
+	if err := fe.ExecuteGroup(ctx, []cypher.Statement{{Cypher: "MERGE (b) RETURN b"}}); err == nil {
 		t.Fatal("call 2 (ExecuteGroup): expected the scripted fault to fire")
 	}
-	if err := fe.Execute(ctx, Statement{Cypher: "MERGE (c) RETURN c"}); err != nil {
+	if err := fe.Execute(ctx, cypher.Statement{Cypher: "MERGE (c) RETURN c"}); err != nil {
 		t.Fatalf("call 3 (Execute): expected success, got %v", err)
 	}
 }
@@ -479,7 +496,7 @@ func TestFaultingExecutorConcurrentCallsFireExactlyOnce(t *testing.T) {
 	for i := 0; i < callers; i++ {
 		go func() {
 			defer wg.Done()
-			if err := fe.Execute(context.Background(), Statement{Cypher: "MERGE (a:MATCHALL) RETURN a"}); err != nil {
+			if err := fe.Execute(context.Background(), cypher.Statement{Cypher: "MERGE (a:MATCHALL) RETURN a"}); err != nil {
 				failures.Add(1)
 			}
 		}()

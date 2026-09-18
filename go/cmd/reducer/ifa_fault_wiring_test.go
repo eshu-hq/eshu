@@ -16,6 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	faultexecutor "github.com/eshu-hq/eshu/go/internal/storage/cypher/fault/executor"
 )
 
 type ifaWiringTestExecutor struct{}
@@ -89,7 +90,7 @@ func TestWrapIfaFaultExecutorErrorsOnInvalidScript(t *testing.T) {
 }
 
 // TestWrapIfaFaultExecutorWrapsWithFaultingExecutorForValidScript proves a
-// valid fault script produces a *sourcecypher.FaultingExecutor and derives
+// valid fault script produces a *faultexecutor.FaultingExecutor and derives
 // the restart sentinel path from the script path by the documented
 // convention (<script path>.restart-sentinel).
 func TestWrapIfaFaultExecutorWrapsWithFaultingExecutorForValidScript(t *testing.T) {
@@ -121,9 +122,9 @@ func TestWrapIfaFaultExecutorWrapsWithFaultingExecutorForValidScript(t *testing.
 	if err != nil {
 		t.Fatalf("wrapIfaFaultExecutor: %v", err)
 	}
-	fe, ok := got.(*sourcecypher.FaultingExecutor)
+	fe, ok := got.(*faultexecutor.FaultingExecutor)
 	if !ok {
-		t.Fatalf("expected *sourcecypher.FaultingExecutor, got %T", got)
+		t.Fatalf("expected *faultexecutor.FaultingExecutor, got %T", got)
 	}
 	if err := fe.Execute(context.Background(), sourcecypher.Statement{Cypher: "MERGE (a) RETURN a"}); err == nil {
 		t.Fatal("expected the scripted fault to fire on the first call")
@@ -176,9 +177,9 @@ func TestWrapIfaFaultExecutorExecutorRetryLaneRetriesInPlaceBelowTheRetryingExec
 	if err != nil {
 		t.Fatalf("wrapIfaFaultExecutor: %v", err)
 	}
-	fe, ok := wrapped.(*sourcecypher.FaultingExecutor)
+	fe, ok := wrapped.(*faultexecutor.FaultingExecutor)
 	if !ok {
-		t.Fatalf("expected *sourcecypher.FaultingExecutor, got %T", wrapped)
+		t.Fatalf("expected *faultexecutor.FaultingExecutor, got %T", wrapped)
 	}
 
 	if err := fe.Execute(context.Background(), sourcecypher.Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {

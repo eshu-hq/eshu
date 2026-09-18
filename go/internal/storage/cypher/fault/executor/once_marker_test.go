@@ -3,7 +3,7 @@
 
 //go:build ifafaultinjection
 
-package cypher
+package executor
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // TestFaultingExecutorWritesOnceFiredMarker is the #5974 proof: when the
@@ -41,7 +42,7 @@ func TestFaultingExecutorWritesOnceFiredMarker(t *testing.T) {
 
 	// A non-matching write must not create the marker: the marker means "the
 	// fault fired", not "a graph write happened".
-	if err := fe.Execute(context.Background(), Statement{Cypher: "MERGE (r:CloudResource) RETURN r"}); err != nil {
+	if err := fe.Execute(context.Background(), cypher.Statement{Cypher: "MERGE (r:CloudResource) RETURN r"}); err != nil {
 		t.Fatalf("non-matching write: %v", err)
 	}
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
@@ -49,7 +50,7 @@ func TestFaultingExecutorWritesOnceFiredMarker(t *testing.T) {
 	}
 
 	// The matching write fires the fault and must leave the marker behind.
-	err := fe.Execute(context.Background(), Statement{Cypher: match + " SET rel.confidence = 0.95"})
+	err := fe.Execute(context.Background(), cypher.Statement{Cypher: match + " SET rel.confidence = 0.95"})
 	if err == nil {
 		t.Fatal("expected the scripted fault to fire on the matching write")
 	}
@@ -77,7 +78,7 @@ func TestFaultingExecutorOnceMarkerSkippedWithoutSentinelPath(t *testing.T) {
 	script := onceThenSucceedScript(faultreplay.LaneQueueRetry, intPtr(1), nil)
 	fe := mustFaultingExecutor(t, inner, script, "")
 
-	if err := fe.Execute(context.Background(), Statement{Cypher: "MERGE (a) RETURN a"}); err == nil {
+	if err := fe.Execute(context.Background(), cypher.Statement{Cypher: "MERGE (a) RETURN a"}); err == nil {
 		t.Fatal("expected the scripted fault to fire")
 	}
 	if !fe.OnceThenSucceedFired() {
@@ -110,7 +111,7 @@ func TestFaultingExecutorMarkerNamesTheMatchingStatementInAGroup(t *testing.T) {
 	fe := mustFaultingExecutor(t, inner, script, sentinel)
 
 	// The targeted statement is deliberately last, behind two decoys.
-	err := fe.ExecuteGroup(context.Background(), []Statement{
+	err := fe.ExecuteGroup(context.Background(), []cypher.Statement{
 		{Cypher: "MERGE (r:CloudResource {uid: row.uid}) RETURN r"},
 		{Cypher: "MERGE (a)-[:HAS_COLUMN]->(b) RETURN a"},
 		{Cypher: match + " SET rel.confidence = 0.95"},

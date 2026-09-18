@@ -3,13 +3,16 @@
 
 //go:build !ifafaultinjection
 
-package cypher
+package executor
 
-import "github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+import (
+	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+)
 
 // NewFaultingExecutor is a no-op in every normal build: it ignores script
 // and sentinelPath entirely and returns inner unchanged. See
-// fault_executor.go (tag: ifafaultinjection) for the counterpart this build
+// fault.go (tag: ifafaultinjection) for the counterpart this build
 // tag excludes -- the build-tag-gated in-binary fault decorator (issue #4580
 // P6 S4) that makes go/cmd/reducer inject fail-graph-write-once-then-succeed
 // and restart-backend-between-phase-groups faults for the (deferred) Docker
@@ -19,6 +22,6 @@ import "github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
 // signature, so this decorator costs nothing outside the opt-in tag. Mirrors
 // cloud_resource_node_writer_teeth_off.go's tag-split pattern for issue
 // #4396's determinism-matrix teeth.
-func NewFaultingExecutor(inner Executor, _ faultreplay.Script, _ string) (Executor, error) {
+func NewFaultingExecutor(inner cypher.Executor, _ faultreplay.Script, _ string) (cypher.Executor, error) {
 	return inner, nil
 }

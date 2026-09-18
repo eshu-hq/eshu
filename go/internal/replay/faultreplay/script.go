@@ -52,7 +52,7 @@ const (
 // retrying intent. Both lanes model a real transient graph write; a script
 // that does not say which lane it expects cannot assert which recovery path
 // ran. The hermetic runner (faultreplay) and the in-binary decorator
-// (cypher.FaultingExecutor) realize the lanes differently -- see their type
+// (faultexecutor.FaultingExecutor) realize the lanes differently -- see their type
 // docs -- but a fault-free-identical drain with zero dead letters is the shared
 // assertion.
 const (

@@ -58,7 +58,7 @@ the reducer's `RetryingExecutor`) or `queue-retry` (a transient error that
 surfaces to `WorkSink.Fail` and is re-queued as a retrying intent). A script
 that does not say which lane it expects cannot assert which recovery path
 actually ran (proven in P6 T1). The hermetic runner and the in-binary
-`cypher.FaultingExecutor` realize the lanes differently: the hermetic runner
+`faultexecutor.FaultingExecutor` realize the lanes differently: the hermetic runner
 drives the re-queue with `RedeliverOnce` (its `queue-retry` error may be a plain
 non-`RetryableError`), while the in-binary decorator relies on the real reducer
 queue, so its `queue-retry` error is a retryable `graph_write_timeout` error
@@ -221,7 +221,7 @@ that path being race-clean, not merely green.
 
 - No-Regression Evidence: the hermetic runner and schema are a net-new package
   imported only by tests. The in-binary fault decorator
-  (`go/internal/storage/cypher/fault_executor.go`) and its reducer wiring
+  (`go/internal/storage/cypher/fault/executor/fault.go`) and its reducer wiring
   (`go/cmd/reducer/ifa_fault_wiring.go`, `main.go`) are gated behind the
   `ifafaultinjection` build tag with no-op `_off.go` defaults, so the default
   `eshu-reducer` binary is byte-free of them — `go tool nm` on the untagged

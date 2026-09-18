@@ -30,7 +30,7 @@ than there are entries here.
 4. fail-graph-write-once-then-succeed      -- the tagged
    (-tags ifafaultinjection) eshu-reducer with ESHU_IFA_FAULT_SCRIPT
    pointed at a queue-retry fault script that fails the CloudResource
-   MERGE exactly once via go/internal/storage/cypher.FaultingExecutor.
+   MERGE exactly once via go/internal/storage/cypher/fault/executor.FaultingExecutor.
 5. restart-backend-between-phase-groups    -- the same tagged reducer
    with a fault script that pauses after the first completed graph-write
    group; this gate restarts the nornicdb Compose service while the

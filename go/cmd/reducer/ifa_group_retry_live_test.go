@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	faultexecutor "github.com/eshu-hq/eshu/go/internal/storage/cypher/fault/executor"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -91,9 +92,9 @@ func TestReducerGroupedRetrySeamLiveNornicDB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("wrap fault executor: %v", err)
 	}
-	faulting, ok := wrapped.(*sourcecypher.FaultingExecutor)
+	faulting, ok := wrapped.(*faultexecutor.FaultingExecutor)
 	if !ok {
-		t.Fatalf("wrapped executor type = %T, want *cypher.FaultingExecutor", wrapped)
+		t.Fatalf("wrapped executor type = %T, want *faultexecutor.FaultingExecutor", wrapped)
 	}
 	grouped, ok := wrapped.(sourcecypher.GroupExecutor)
 	if !ok {

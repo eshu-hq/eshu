@@ -3,7 +3,7 @@
 
 //go:build ifafaultinjection
 
-package cypher
+package executor
 
 import (
 	"errors"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // classifiedIface mirrors the postgres classifiedFailure / reducer
@@ -52,8 +53,8 @@ func TestFaultOnceErrorsModelARealTransientGraphWrite(t *testing.T) {
 			if !errors.As(tc.err, &c) {
 				t.Fatalf("fault error must self-classify (FailureClass) so the retrying row is labeled honestly, not defaulted to projection_bug on a dead letter")
 			}
-			if got := c.FailureClass(); got != GraphWriteTimeoutFailureClass {
-				t.Fatalf("fault error FailureClass() = %q, want %q (the class a real exhausted-transient graph write carries)", got, GraphWriteTimeoutFailureClass)
+			if got := c.FailureClass(); got != cypher.GraphWriteTimeoutFailureClass {
+				t.Fatalf("fault error FailureClass() = %q, want %q (the class a real exhausted-transient graph write carries)", got, cypher.GraphWriteTimeoutFailureClass)
 			}
 		})
 	}
@@ -64,16 +65,19 @@ func TestFaultOnceErrorsModelARealTransientGraphWrite(t *testing.T) {
 // WrapRetryableNeo4jError produces for a real driver-exhausted transient graph
 // write, so the fault is a faithful stand-in rather than an invented shape.
 func TestFaultOnceErrorsMatchRealTransientContract(t *testing.T) {
-	real := WrapRetryableNeo4jError(&neo4jdriver.TransactionExecutionLimit{
-		Cause:  "timeout (exceeded max retry time: 30s)",
-		Errors: []error{newNeo4jError("Neo.TransientError.Transaction.DeadlockDetected", "deadlock cycle")},
+	real := cypher.WrapRetryableNeo4jError(&neo4jdriver.TransactionExecutionLimit{
+		Cause: "timeout (exceeded max retry time: 30s)",
+		Errors: []error{&neo4jdriver.Neo4jError{
+			Code: "Neo.TransientError.Transaction.DeadlockDetected",
+			Msg:  "deadlock cycle",
+		}},
 	})
 	if !reducer.IsRetryable(real) {
 		t.Fatalf("sanity: a real exhausted-transient graph write must be reducer-retryable")
 	}
 	var rc classifiedIface
-	if !errors.As(real, &rc) || rc.FailureClass() != GraphWriteTimeoutFailureClass {
-		t.Fatalf("sanity: a real transient graph write must self-classify as %q", GraphWriteTimeoutFailureClass)
+	if !errors.As(real, &rc) || rc.FailureClass() != cypher.GraphWriteTimeoutFailureClass {
+		t.Fatalf("sanity: a real transient graph write must self-classify as %q", cypher.GraphWriteTimeoutFailureClass)
 	}
 
 	// The injected fault errors must match that contract exactly.

@@ -14,11 +14,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	faultexecutor "github.com/eshu-hq/eshu/go/internal/storage/cypher/fault/executor"
 )
 
 // ifaFaultScriptEnv names the fault-script path environment variable. Set
 // only under the ifafaultinjection build tag; reading it (and the
-// sourcecypher.FaultingExecutor decorator it wires in) is unreachable from
+// faultexecutor.FaultingExecutor decorator it wires in) is unreachable from
 // any untagged build (see ifa_fault_wiring_off.go). This is issue #4580
 // Layer 4 / P6 slice S4's in-binary fault-injection entry point for the
 // (separate, deferred) Docker gate verify-ifa-fault-injection.sh.
@@ -48,7 +49,7 @@ func wrapIfaFaultExecutor(inner sourcecypher.Executor, getenv func(string) strin
 	if err != nil {
 		return nil, fmt.Errorf("load %s=%q: %w", ifaFaultScriptEnv, path, err)
 	}
-	faulting, err := sourcecypher.NewFaultingExecutor(inner, script, path+ifaFaultSentinelSuffix)
+	faulting, err := faultexecutor.NewFaultingExecutor(inner, script, path+ifaFaultSentinelSuffix)
 	if err != nil {
 		return nil, fmt.Errorf("build ifa faulting executor from %s=%q: %w", ifaFaultScriptEnv, path, err)
 	}
@@ -58,7 +59,7 @@ func wrapIfaFaultExecutor(inner sourcecypher.Executor, getenv func(string) strin
 	// returns nil when inner is not the reducer's own executor chain (for
 	// example a test stub), in which case the fault decorator keeps its
 	// pre-#5048 fallback behavior for every lane.
-	if fe, ok := faulting.(*sourcecypher.FaultingExecutor); ok {
+	if fe, ok := faulting.(*faultexecutor.FaultingExecutor); ok {
 		if armed := armExecutorRetrySeam(inner); armed != nil {
 			fe.SetExecutorRetryArmer(armed)
 		}
@@ -127,7 +128,7 @@ type ifaExecutorRetryFaultToken struct {
 	armed atomic.Bool
 }
 
-// Arm implements sourcecypher.ExecutorRetryArmer. It binds one fire-once
+// Arm implements faultexecutor.ExecutorRetryArmer. It binds one fire-once
 // token to the returned context instead of globally arming the shared executor.
 func (a *ifaExecutorRetryArmedExecutor) Arm(ctx context.Context) context.Context {
 	token := &ifaExecutorRetryFaultToken{}
@@ -157,7 +158,7 @@ func (a *ifaExecutorRetryArmedExecutor) ExecuteGroup(ctx context.Context, stmts 
 }
 
 // ExecuteProbe forwards to inner unconditionally, consuming no fault token:
-// mirroring sourcecypher.FaultingExecutor.ExecuteProbe (#5998 review, same
+// mirroring faultexecutor.FaultingExecutor.ExecuteProbe (#5998 review, same
 // wrapper-audit pass), no fault kind in the Layer 4 vocabulary targets a
 // read-only probe, only the mutating Execute/ExecuteGroup seams above. It
 // still fails closed via inner's own capability check rather than adding a
