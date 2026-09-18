@@ -6,6 +6,7 @@ package value
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 
@@ -18,14 +19,24 @@ import (
 // functions already known to the value-flow fixpoint.
 type GraphCloudSinkTargetLoader struct {
 	Graph GraphQueryRunner
+	// Logger, when set, receives one structured line per load with the
+	// candidate, dropped, and resolved counts. Nil disables it.
+	Logger *slog.Logger
 }
 
 const valueFlowCloudSinkTargetBatchLimit = 500
 
 // LoadCloudSinkTargets converts materialized Function -> CloudAction graph
 // edges plus correlated principal permissions into function-level fixpoint
-// targets. The query is bounded by the durable Function.uid snapshot and follows
-// the materialized INVOKES_CLOUD_ACTION bridge before matching IAM reachability.
+// targets.
+//
+// It runs two statements with the single-workload check between them in Go
+// (#6690): CloudSinkWorkloadRowsCypher reads raw (function, action, workload)
+// rows bounded by the durable Function.uid snapshot, selectCloudSinkPairs keeps
+// the pairs that run in exactly one workload, and CloudSinkTargetsByPairCypher
+// resolves those pairs through the workload's instances and principals to the
+// cloud resources they may act on. Both statements run in batches of
+// valueFlowCloudSinkTargetBatchLimit.
 func (l GraphCloudSinkTargetLoader) LoadCloudSinkTargets(
 	ctx context.Context,
 	graphIDs map[summary.FunctionID]string,
@@ -41,18 +52,44 @@ func (l GraphCloudSinkTargetLoader) LoadCloudSinkTargets(
 	if len(functionUIDs) == 0 {
 		return nil, nil
 	}
-	var rows []map[string]any
+	var workloadRows []map[string]any
 	for start := 0; start < len(functionUIDs); start += valueFlowCloudSinkTargetBatchLimit {
 		end := min(start+valueFlowCloudSinkTargetBatchLimit, len(functionUIDs))
-		chunkRows, err := l.Graph.Run(ctx, CloudSinkTargetsCypher, map[string]any{
+		chunkRows, err := l.Graph.Run(ctx, CloudSinkWorkloadRowsCypher, map[string]any{
 			"function_uids": functionUIDs[start:end],
+		})
+		if err != nil {
+			return nil, fmt.Errorf("load value-flow cloud action workloads: %w", err)
+		}
+		workloadRows = append(workloadRows, chunkRows...)
+	}
+
+	pairs, stats := selectCloudSinkPairs(workloadRows)
+	var sinkRows []map[string]any
+	for start := 0; start < len(pairs); start += valueFlowCloudSinkTargetBatchLimit {
+		end := min(start+valueFlowCloudSinkTargetBatchLimit, len(pairs))
+		chunkRows, err := l.Graph.Run(ctx, CloudSinkTargetsByPairCypher, map[string]any{
+			"pairs": cloudSinkPairParams(pairs[start:end]),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("load graph-backed value-flow cloud sink targets: %w", err)
 		}
-		rows = append(rows, chunkRows...)
+		sinkRows = append(sinkRows, chunkRows...)
 	}
-	return valueFlowCloudSinkTargetsFromRows(rows, functionByUID), nil
+	targets := valueFlowCloudSinkTargetsFromRows(sinkRows, functionByUID)
+	if l.Logger != nil {
+		l.Logger.Info(
+			"value-flow cloud sink targets loaded",
+			"function_count", len(functionUIDs),
+			"workload_row_count", len(workloadRows),
+			"single_workload_pair_count", len(pairs),
+			"multi_workload_pair_dropped_count", stats.MultiWorkloadDropped,
+			"unresolved_pair_dropped_count", stats.UnresolvedDropped,
+			"sink_row_count", len(sinkRows),
+			"cloud_sink_target_count", len(targets),
+		)
+	}
+	return targets, nil
 }
 
 func functionIDsByGraphUID(graphIDs map[summary.FunctionID]string) (map[string]summary.FunctionID, []string) {
@@ -171,24 +208,35 @@ func valueFlowScalarString(raw any) (string, bool) {
 	}
 }
 
-// CloudSinkTargetsCypher resolves which cloud resources a function's
-// cloud action can reach.
+// CloudSinkWorkloadRowsCypher reads the raw (function, cloud action, workload)
+// rows for a batch of Function.uid values. It deliberately has no aggregation:
+// the single-workload check that used to live here as
+// collect(DISTINCT workload) / size(workloads) = 1 / workloads[0] returns wrong
+// rows on NornicDB v1.3.3 (#6690), so selectCloudSinkPairs does it in Go.
 //
-// It is exported so the backend-conformance corpus can pin its read case to this
-// exact statement by equality rather than by a list of fragments. That case
-// exists to detect this query returning zero rows on a non-conforming backend,
-// so any difference between the two means the case is proving something else.
-// See go/internal/backendconformance/corpus_value_flow.go.
-const CloudSinkTargetsCypher = `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
+// It and CloudSinkTargetsByPairCypher are exported so the backend-conformance
+// corpus can pin its read cases to these exact statements by equality. See
+// go/internal/backendconformance/corpus_value_flow.go.
+const CloudSinkWorkloadRowsCypher = `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
 WHERE fn.uid IN $function_uids
 MATCH (fn)-[:RUNS_IN]->(workload:Workload)
-WITH fn, action, collect(DISTINCT workload) AS workloads
-WHERE size(workloads) = 1
-WITH fn, action, workloads[0] AS workload
-MATCH (workload)<-[:INSTANCE_OF]-(instance:WorkloadInstance)-[:USES]->(principal:CloudResource)
-MATCH (principal)-[sinkRel:CAN_PERFORM]->(sinkNode:CloudResource)
-WHERE action.action IN sinkRel.actions
 RETURN fn.uid AS function_uid,
+       action.action AS action,
+       workload.id AS workload_id`
+
+// CloudSinkTargetsByPairCypher resolves which cloud resources each
+// single-workload (function, action) pair can reach: the workload's instances,
+// the principals those instances use, and the resources each principal may
+// perform the action on. It starts from UNWIND $pairs and anchors on the unique
+// Workload.id, and keeps every hop a separate single-hop MATCH, which is the
+// form that answers correctly on NornicDB v1.3.3 and on Neo4j.
+const CloudSinkTargetsByPairCypher = `UNWIND $pairs AS pair
+MATCH (workload:Workload {id: pair.workload_id})
+MATCH (workload)<-[:INSTANCE_OF]-(instance:WorkloadInstance)
+MATCH (instance)-[:USES]->(principal:CloudResource)
+MATCH (principal)-[sinkRel:CAN_PERFORM]->(sinkNode:CloudResource)
+WHERE pair.action IN sinkRel.actions
+RETURN pair.function_uid AS function_uid,
        type(sinkRel) AS sink_rel,
        labels(sinkNode) AS sink_labels,
        sinkNode.is_internet AS sink_is_internet

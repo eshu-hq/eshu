@@ -47,7 +47,11 @@
 // single RUNS_IN workload fan-out and WorkloadInstance USES CloudResource
 // principal to a matching CAN_PERFORM action; ambiguous runtime identity
 // stays empty) for functions already known to the fixpoint's Function.uid
-// snapshot, via [CloudSinkTargetsCypher]. A cloud sink bridge is
+// snapshot. It reads raw (function, action, workload) rows with
+// [CloudSinkWorkloadRowsCypher], keeps the pairs that run in exactly one
+// workload in Go, and resolves those through [CloudSinkTargetsByPairCypher];
+// the single-statement aggregation it replaces returned no rows on NornicDB
+// v1.3.3 (#6690). A cloud sink bridge is
 // attached only to observed parameter ports for that FunctionID — a graph
 // edge without parameter evidence stays visible as no value-flow finding
 // rather than fabricating precision.
