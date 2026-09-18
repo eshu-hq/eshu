@@ -13,6 +13,8 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestStatusReadinessOnLivePostgres exercises the production checker with a
@@ -25,22 +27,22 @@ func TestStatusReadinessOnLivePostgres(t *testing.T) {
 	if dsn == "" {
 		t.Fatal("ESHU_POSTGRES_DSN not set")
 	}
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open Postgres: %v", err)
 	}
-	defer func() { _ = db.Close() }()
-	db.SetMaxOpenConns(1)
+	defer func() { _ = database.Close() }()
+	database.SetMaxOpenConns(1)
 	connectCtx, connectCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer connectCancel()
-	if err := db.PingContext(connectCtx); err != nil {
+	if err := database.PingContext(connectCtx); err != nil {
 		t.Fatalf("connect to live Postgres: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	started := time.Now()
-	if err := NewStatusStore(SQLQueryer{DB: db}).CheckStatusReadiness(ctx); err != nil {
+	if err := NewStatusStore(SQLQueryer{DB: database}).CheckStatusReadiness(ctx); err != nil {
 		t.Fatalf("CheckStatusReadiness() within one second: %v", err)
 	}
 	t.Logf("core schema readiness completed in %s", time.Since(started))
@@ -138,7 +140,7 @@ type readinessQueryer struct {
 	applied bool
 }
 
-func (q *readinessQueryer) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (q *readinessQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	q.queries = append(q.queries, query)
 	q.args = append(q.args, args)
 	return &fakeRows{rows: [][]any{{q.applied}}}, nil
