@@ -26,7 +26,7 @@ var _ sourcecypher.ProbeExecutor = reducerNeo4jExecutor{}
 // not embed *fakeNeo4jSession: Go promotes an embedded pointer's methods,
 // which would silently satisfy cypherProber via promotion and defeat the
 // point of this fake (mirrors faultExecuteOnlyRecordingExecutor in
-// internal/storage/cypher/fault_executor_test.go).
+// internal/storage/cypher/fault/executor/fault_test.go).
 type runCypherOnlySession struct {
 	calls []fakeCypherCall
 }

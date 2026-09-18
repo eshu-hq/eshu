@@ -221,7 +221,7 @@ that path being race-clean, not merely green.
 
 - No-Regression Evidence: the hermetic runner and schema are a net-new package
   imported only by tests. The in-binary fault decorator
-  (`go/internal/storage/cypher/fault_executor.go`) and its reducer wiring
+  (`go/internal/storage/cypher/fault/executor/fault.go`) and its reducer wiring
   (`go/cmd/reducer/ifa_fault_wiring.go`, `main.go`) are gated behind the
   `ifafaultinjection` build tag with no-op `_off.go` defaults, so the default
   `eshu-reducer` binary is byte-free of them — `go tool nm` on the untagged

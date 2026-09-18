@@ -3,26 +3,27 @@
 
 //go:build !ifafaultinjection
 
-package cypher
+package executor
 
 import (
 	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // offTestExecutor is a trivial Executor whose identity a test can compare
 // against NewFaultingExecutor's return value to prove passthrough.
 type offTestExecutor struct{ calls int }
 
-func (e *offTestExecutor) Execute(context.Context, Statement) error {
+func (e *offTestExecutor) Execute(context.Context, cypher.Statement) error {
 	e.calls++
 	return nil
 }
 
 // TestNewFaultingExecutorExcludesFaultByDefault proves the ifafaultinjection
-// build tag's real decorator (fault_executor.go) is absent from every normal
+// build tag's real decorator (fault.go) is absent from every normal
 // build: this test file carries the !ifafaultinjection build tag, so it runs
 // in the default `go test` and CI lane, where NewFaultingExecutor must
 // return inner completely unchanged -- not merely behaviorally equivalent,
@@ -51,14 +52,14 @@ func TestNewFaultingExecutorExcludesFaultByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFaultingExecutor: %v", err)
 	}
-	if got != Executor(inner) {
+	if got != cypher.Executor(inner) {
 		t.Fatalf("expected NewFaultingExecutor to return inner unchanged outside the ifafaultinjection build tag, got a different value %#v", got)
 	}
 
 	// Calling Execute the scripted number of times must never fail: outside
 	// the tag, there is no fault to fire at all.
 	for i := 0; i < 3; i++ {
-		if err := got.Execute(context.Background(), Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
+		if err := got.Execute(context.Background(), cypher.Statement{Cypher: "MERGE (a) RETURN a"}); err != nil {
 			t.Fatalf("call %d: expected success (no fault outside the build tag), got %v", i+1, err)
 		}
 	}

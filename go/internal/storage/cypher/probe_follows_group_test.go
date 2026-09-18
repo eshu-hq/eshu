@@ -58,7 +58,7 @@ type wrapperProbeFollowsGroupCase struct {
 // decorator that forwards ExecuteGroup but not ExecuteProbe would simply be
 // absent from this table and this test would stay green).
 //
-// FaultingExecutor (fault_executor.go) is intentionally NOT in this table: it
+// FaultingExecutor (fault/executor/fault.go) is intentionally NOT in this table: it
 // only builds under the ifafaultinjection build tag, so a tag-agnostic test
 // in this file cannot reference it. Its own Probe-follows-Group invariant is
 // asserted directly in fault_executor_probe_test.go (same build tag); the

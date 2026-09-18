@@ -18,7 +18,7 @@ to this change rather than relying on PR/commit prose.
   `newReducerNeo4jExecutor`/`newReducerCypherExecutor`, replacing the deleted
   per-call `executeReducerCypherWithRetry` that rebuilt a fresh
   `RetryingExecutor` on every `Execute`.
-- `internal/storage/cypher/fault_executor.go`: the `FaultingExecutor` gains an
+- `internal/storage/cypher/fault/executor/fault.go`: the `FaultingExecutor` gains an
   optional `ExecutorRetryArmer`; for the `executor-retry` lane it arms the armer
   and delegates through `inner.Execute` instead of returning the shaped error,
   so the induced failure reaches the persistent `RetryingExecutor` below the

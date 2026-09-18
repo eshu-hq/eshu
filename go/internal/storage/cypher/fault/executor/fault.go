@@ -3,7 +3,7 @@
 
 //go:build ifafaultinjection
 
-package cypher
+package executor
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 var (
@@ -34,7 +35,7 @@ var (
 // faults from the Layer 4 fault-script vocabulary
 // (go/internal/replay/faultreplay): fail-graph-write-once-then-succeed (both
 // lanes) and restart-backend-between-phase-groups. It exists ONLY under the
-// ifafaultinjection build tag (see fault_executor_off.go); no production,
+// ifafaultinjection build tag (see off.go); no production,
 // CI, or default-tag build ever links this decorator or the fault-script
 // reader that constructs it (go/cmd/reducer's ifa_fault_wiring.go, same
 // tag). This is issue #4580 Layer 4 / P6 slice S4 -- the in-binary decorator
@@ -96,7 +97,7 @@ var (
 // way via errFaultingExecutorInnerNoProbe and, unlike the other three methods,
 // injects no scripted fault -- see its doc comment.
 type FaultingExecutor struct {
-	inner Executor
+	inner cypher.Executor
 
 	// fail-graph-write-once-then-succeed state.
 	onceOrdinal int    // 0 => match by substring instead of ordinal.
@@ -168,7 +169,7 @@ func (fe *FaultingExecutor) SetExecutorRetryArmer(arm ExecutorRetryArmer) {
 // fault creates when it pauses and polls for removal. It MUST be non-empty
 // when the script contains that fault kind; construction fails closed
 // otherwise rather than silently building an unusable fault.
-func NewFaultingExecutor(inner Executor, script faultreplay.Script, sentinelPath string) (Executor, error) {
+func NewFaultingExecutor(inner cypher.Executor, script faultreplay.Script, sentinelPath string) (cypher.Executor, error) {
 	fe := &FaultingExecutor{inner: inner}
 	for _, f := range script.Faults {
 		if err := fe.applyFault(f, sentinelPath); err != nil {
@@ -236,9 +237,9 @@ func (fe *FaultingExecutor) RestartFired() bool {
 // Execute applies the scripted fail-graph-write-once-then-succeed fault (by
 // shared call ordinal or operation-match against stmt.Cypher) before
 // delegating to inner. See the type doc for which lane this actually reaches.
-func (fe *FaultingExecutor) Execute(ctx context.Context, stmt Statement) error {
+func (fe *FaultingExecutor) Execute(ctx context.Context, stmt cypher.Statement) error {
 	ordinal := int(fe.callOrdinal.Add(1))
-	armedCtx, err := fe.maybeFailOnce(ctx, ordinal, []Statement{stmt}, true)
+	armedCtx, err := fe.maybeFailOnce(ctx, ordinal, []cypher.Statement{stmt}, true)
 	if err != nil {
 		return err
 	}
@@ -250,8 +251,8 @@ func (fe *FaultingExecutor) Execute(ctx context.Context, stmt Statement) error {
 // the group has committed, advances the phase-group ordinal and applies the
 // restart-backend-between-phase-groups fault. Returns
 // errFaultingExecutorInnerNoGroup if inner does not support grouped writes.
-func (fe *FaultingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement) error {
-	ge, ok := fe.inner.(GroupExecutor)
+func (fe *FaultingExecutor) ExecuteGroup(ctx context.Context, stmts []cypher.Statement) error {
+	ge, ok := fe.inner.(cypher.GroupExecutor)
 	if !ok {
 		return errFaultingExecutorInnerNoGroup
 	}
@@ -274,8 +275,8 @@ func (fe *FaultingExecutor) ExecuteGroup(ctx context.Context, stmts []Statement)
 // ExecutePhaseGroup mirrors ExecuteGroup for the narrower PhaseGroupExecutor
 // surface (bootstrap-index and ingester's bounded per-phase writers). Returns
 // errFaultingExecutorInnerNoPhaseGroup if inner does not support it.
-func (fe *FaultingExecutor) ExecutePhaseGroup(ctx context.Context, stmts []Statement) error {
-	pge, ok := fe.inner.(PhaseGroupExecutor)
+func (fe *FaultingExecutor) ExecutePhaseGroup(ctx context.Context, stmts []cypher.Statement) error {
+	pge, ok := fe.inner.(cypher.PhaseGroupExecutor)
 	if !ok {
 		return errFaultingExecutorInnerNoPhaseGroup
 	}
@@ -303,8 +304,8 @@ func (fe *FaultingExecutor) ExecutePhaseGroup(ctx context.Context, stmts []State
 // inner does not implement ProbeExecutor, mirroring ExecuteGroup's guard, so a
 // caller that already type-asserted ProbeExecutor at this layer gets a clear
 // unsupported error instead of a silent skip.
-func (fe *FaultingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (bool, error) {
-	pe, ok := fe.inner.(ProbeExecutor)
+func (fe *FaultingExecutor) ExecuteProbe(ctx context.Context, stmt cypher.Statement) (bool, error) {
+	pe, ok := fe.inner.(cypher.ProbeExecutor)
 	if !ok {
 		return false, errFaultingExecutorInnerNoProbe
 	}
@@ -329,7 +330,7 @@ func (fe *FaultingExecutor) ExecuteProbe(ctx context.Context, stmt Statement) (b
 func (fe *FaultingExecutor) maybeFailOnce(
 	ctx context.Context,
 	ordinal int,
-	stmts []Statement,
+	stmts []cypher.Statement,
 	allowArm bool,
 ) (context.Context, error) {
 	if fe.onceLane == "" {
@@ -363,7 +364,7 @@ func (fe *FaultingExecutor) maybeFailOnce(
 // graph-write call (Execute or ExecuteGroup, sharing one ordinal sequence),
 // or a call carrying at least one statement whose Cypher text contains the
 // scripted substring.
-func (fe *FaultingExecutor) onceMatches(ordinal int, stmts []Statement) bool {
+func (fe *FaultingExecutor) onceMatches(ordinal int, stmts []cypher.Statement) bool {
 	_, ok := fe.onceMatchedStatement(ordinal, stmts)
 	return ok
 }
@@ -398,14 +399,15 @@ func (*ifaFaultQueueRetryError) Retryable() bool { return true }
 // FailureClass records the graph-write-timeout class a real exhausted-transient
 // graph write carries (see *neo4jRetryableError.FailureClass), so the retrying
 // row is labeled honestly rather than defaulting to projection_bug.
-func (*ifaFaultQueueRetryError) FailureClass() string { return GraphWriteTimeoutFailureClass }
+func (*ifaFaultQueueRetryError) FailureClass() string { return cypher.GraphWriteTimeoutFailureClass }
 
 // ifaFaultExecutorRetryShapedError is returned once for the executor-retry
 // lane's fallback path: ExecuteGroup/ExecutePhaseGroup always, or the
 // single-statement Execute path when no ExecutorRetryArmer is wired (see
-// maybeFailOnce). Its message contains "TransientError" so
-// isTransientNeo4jError (and therefore the single/group retry classifiers)
-// classifies it as retryable when a RetryingExecutor sits below this decorator.
+// maybeFailOnce). Its message contains "TransientError" so the parent
+// package's isTransientNeo4jError (and therefore the single/group retry
+// classifiers) classifies it as retryable when a RetryingExecutor sits
+// below this decorator.
 // On the fallback
 // path it surfaces to
 // WorkSink.Fail exactly like the queue-retry lane rather than being retried
@@ -439,5 +441,5 @@ func (*ifaFaultExecutorRetryShapedError) Retryable() bool { return true }
 // labeled identically to the queue-retry lane and to a real transient graph
 // write.
 func (*ifaFaultExecutorRetryShapedError) FailureClass() string {
-	return GraphWriteTimeoutFailureClass
+	return cypher.GraphWriteTimeoutFailureClass
 }

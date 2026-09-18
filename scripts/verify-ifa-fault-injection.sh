@@ -48,7 +48,7 @@
 # handler-side trigger.
 #
 # fail-terminal (a thirty-fourth possible cell) is deliberately NOT included: it
-# has no live seam either -- go/internal/storage/cypher/fault_executor.go's
+# has no live seam either -- go/internal/storage/cypher/fault/executor/fault.go's
 # applyFault leaves it explicitly inert at the graph-executor seam ("a
 # different decorator owns them"), and that different decorator is the SAME
 # hermetic-only FaultingWorkSource cells 2/3/6/7/8/9/17/20/23/26/29/32 already can't use live.

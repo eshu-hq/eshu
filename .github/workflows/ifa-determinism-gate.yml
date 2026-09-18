@@ -315,7 +315,7 @@ on:
       # and the Docker gate that proves real recovery (zero dead letters, graph
       # identical to the fault-free baseline). A change to any of these must
       # re-run the fault matrix.
-      - 'go/internal/storage/cypher/fault_executor*.go'
+      - 'go/internal/storage/cypher/fault/executor/*.go'
       - 'go/internal/replay/faultreplay/**'
       - 'go/cmd/reducer/ifa_fault_wiring.go'
       - 'go/cmd/reducer/ifa_fault_wiring_off.go'

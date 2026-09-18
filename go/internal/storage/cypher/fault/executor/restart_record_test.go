@@ -3,7 +3,7 @@
 
 //go:build ifafaultinjection
 
-package cypher
+package executor
 
 import (
 	"bytes"
@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 type restartGroupRecordingExecutor struct {
@@ -24,7 +25,7 @@ type restartGroupRecordingExecutor struct {
 
 func (e *restartGroupRecordingExecutor) ExecutePhaseGroup(
 	ctx context.Context,
-	statements []Statement,
+	statements []cypher.Statement,
 ) error {
 	return e.ExecuteGroup(ctx, statements)
 }
@@ -44,13 +45,13 @@ func TestFaultingExecutorRestartRecordsTriggerGroupBeforeSentinel(t *testing.T) 
 		}},
 	}
 	fe := mustFaultingExecutor(t, inner, script, sentinel)
-	firstGroup := []Statement{{
-		Operation:  OperationCanonicalUpsert,
+	firstGroup := []cypher.Statement{{
+		Operation:  cypher.OperationCanonicalUpsert,
 		Cypher:     "MERGE (n {uid: 'first-group'})",
 		Parameters: map[string]any{"scope_id": "scope-a"},
 	}}
-	statements := []Statement{{
-		Operation:  OperationCanonicalUpsert,
+	statements := []cypher.Statement{{
+		Operation:  cypher.OperationCanonicalUpsert,
 		Cypher:     "UNWIND $rows AS row MERGE (n {uid: row.uid})",
 		Parameters: map[string]any{"scope_id": "scope-a", "rows": []any{map[string]any{"uid": "node-1"}}},
 		Drain:      true,
@@ -88,7 +89,7 @@ func TestFaultingExecutorRestartRecordsTriggerGroupBeforeSentinel(t *testing.T) 
 		t.Fatalf("trigger statements = %d, want 1", len(record.Statements))
 	}
 	got := record.Statements[0]
-	if got.Operation != OperationCanonicalUpsert || got.Cypher != statements[0].Cypher || !got.Drain || got.DrainVar != "n" {
+	if got.Operation != cypher.OperationCanonicalUpsert || got.Cypher != statements[0].Cypher || !got.Drain || got.DrainVar != "n" {
 		t.Fatalf("trigger statement metadata = %+v, want %+v", got, statements[0])
 	}
 	rows, ok := got.Parameters["rows"].([]any)
@@ -124,11 +125,11 @@ func TestFaultingExecutorRestartTriggerRecordIsBounded(t *testing.T) {
 	t.Parallel()
 
 	fe := &FaultingExecutor{sentinelPath: filepath.Join(t.TempDir(), "restart.sentinel")}
-	tooMany := make([]Statement, maxRestartTriggerStatements+1)
+	tooMany := make([]cypher.Statement, maxRestartTriggerStatements+1)
 	if err := fe.writeRestartTriggerRecord(1, restartSurfaceExecuteGroup, tooMany); err == nil {
 		t.Fatal("expected an oversized statement group to fail closed")
 	}
-	tooLarge := []Statement{{
+	tooLarge := []cypher.Statement{{
 		Cypher:     "RETURN $payload",
 		Parameters: map[string]any{"payload": strings.Repeat("x", maxRestartTriggerRecordBytes)},
 	}}

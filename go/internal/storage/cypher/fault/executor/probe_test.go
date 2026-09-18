@@ -3,7 +3,7 @@
 
 //go:build ifafaultinjection
 
-package cypher
+package executor
 
 import (
 	"context"
@@ -11,13 +11,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/replay/faultreplay"
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // ExecuteProbe records the call and returns a scripted found/error pair, for
 // asserting FaultingExecutor.ExecuteProbe forwards unconditionally (#5998; see
 // FaultingExecutor.ExecuteProbe's doc comment for why no fault kind targets
 // this seam).
-func (e *faultRecordingExecutor) ExecuteProbe(_ context.Context, stmt Statement) (bool, error) {
+func (e *faultRecordingExecutor) ExecuteProbe(_ context.Context, stmt cypher.Statement) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.probes = append(e.probes, stmt)
@@ -43,7 +44,7 @@ func TestFaultingExecutorExecuteProbeForwardsUnconditionally(t *testing.T) {
 	script := onceThenSucceedScript(faultreplay.LaneQueueRetry, intPtr(1), nil)
 	fe := mustFaultingExecutor(t, inner, script, "")
 
-	found, err := fe.ExecuteProbe(context.Background(), Statement{Cypher: "MATCH (r) RETURN r LIMIT 1"})
+	found, err := fe.ExecuteProbe(context.Background(), cypher.Statement{Cypher: "MATCH (r) RETURN r LIMIT 1"})
 	if err != nil {
 		t.Fatalf("ExecuteProbe() error = %v, want nil (no fault targets this seam)", err)
 	}
@@ -62,29 +63,29 @@ func TestFaultingExecutorExecuteProbeForwardsUnconditionally(t *testing.T) {
 // counterpart of TestWrapperProbeFollowsGroup (probe_follows_group_test.go),
 // which cannot reference FaultingExecutor since it only builds under this
 // tag. Asserts the same #5998 review F7 invariant: a wrapper that exposes
-// GroupExecutor must expose ProbeExecutor too.
+// cypher.GroupExecutor must expose cypher.ProbeExecutor too.
 func TestFaultingExecutorProbeFollowsGroup(t *testing.T) {
 	t.Parallel()
 
 	fe := mustFaultingExecutor(t, &faultRecordingExecutor{supportsGrp: true}, faultreplay.Script{Version: faultreplay.CurrentVersion}, "")
 
-	var wrapped Executor = fe
-	_, gotGroup := wrapped.(GroupExecutor)
-	_, gotProbe := wrapped.(ProbeExecutor)
+	var wrapped cypher.Executor = fe
+	_, gotGroup := wrapped.(cypher.GroupExecutor)
+	_, gotProbe := wrapped.(cypher.ProbeExecutor)
 	if !gotGroup || !gotProbe {
-		t.Fatalf("FaultingExecutor: GroupExecutor=%v, ProbeExecutor=%v, want both true", gotGroup, gotProbe)
+		t.Fatalf("FaultingExecutor: cypher.GroupExecutor=%v, cypher.ProbeExecutor=%v, want both true", gotGroup, gotProbe)
 	}
 }
 
 // TestFaultingExecutorExecuteProbeErrorsWhenInnerLacksProbeSupport proves
 // ExecuteProbe fails closed with errFaultingExecutorInnerNoProbe (not a silent
-// "not found") when the wrapped executor does not implement ProbeExecutor.
+// "not found") when the wrapped executor does not implement cypher.ProbeExecutor.
 func TestFaultingExecutorExecuteProbeErrorsWhenInnerLacksProbeSupport(t *testing.T) {
 	t.Parallel()
 
 	inner := newFaultExecuteOnlyRecordingExecutor()
 	fe := mustFaultingExecutor(t, inner, faultreplay.Script{Version: faultreplay.CurrentVersion}, "")
-	found, err := fe.ExecuteProbe(context.Background(), Statement{Cypher: "MATCH (r) RETURN r LIMIT 1"})
+	found, err := fe.ExecuteProbe(context.Background(), cypher.Statement{Cypher: "MATCH (r) RETURN r LIMIT 1"})
 	if !errors.Is(err, errFaultingExecutorInnerNoProbe) {
 		t.Fatalf("ExecuteProbe() error = %v, want errFaultingExecutorInnerNoProbe", err)
 	}

@@ -230,10 +230,10 @@ require_lib "marker-write prefix declared once in shell" 'IFA_ONCE_MARKER_WRITE_
 # makes the search silently match nothing -- which reads exactly like "the
 # marker write never failed".
 go_marker_prefix="$(rg --no-filename -o 'OnceFiredMarkerWriteFailedPrefix = "([^"]+)"' -r '$1' \
-	"${repo_root}/go/internal/storage/cypher/fault_executor_marker.go" | head -1)"
+	"${repo_root}/go/internal/storage/cypher/fault/executor/marker.go" | head -1)"
 shell_marker_prefix="$(rg --no-filename -o 'IFA_ONCE_MARKER_WRITE_FAILED_PREFIX="([^"]+)"' -r '$1' \
 	"${fault_lib}" | head -1)"
-[[ -n "${go_marker_prefix}" ]] || fail "could not read OnceFiredMarkerWriteFailedPrefix from fault_executor_marker.go"
+[[ -n "${go_marker_prefix}" ]] || fail "could not read OnceFiredMarkerWriteFailedPrefix from fault/executor/marker.go"
 [[ "${go_marker_prefix}" == "${shell_marker_prefix}" ]] \
 	|| fail "marker-write prefix drift: Go has ${go_marker_prefix@Q}, shell has ${shell_marker_prefix@Q} -- the gate's grep would silently find nothing"
 
@@ -354,8 +354,8 @@ require_lib "dead-letter-count function signature" 'ifa_fault_dead_letter_count(
 
 # The tagged-build-only fault decorator files this gate is the first live
 # integration test of must actually exist where the design says they do.
-fault_executor="${repo_root}/go/internal/storage/cypher/fault_executor.go"
-fault_executor_off="${repo_root}/go/internal/storage/cypher/fault_executor_off.go"
+fault_executor="${repo_root}/go/internal/storage/cypher/fault/executor/fault.go"
+fault_executor_off="${repo_root}/go/internal/storage/cypher/fault/executor/off.go"
 reducer_wiring="${repo_root}/go/cmd/reducer/ifa_fault_wiring.go"
 reducer_wiring_off="${repo_root}/go/cmd/reducer/ifa_fault_wiring_off.go"
 for f in "${fault_executor}" "${fault_executor_off}" "${reducer_wiring}" "${reducer_wiring_off}"; do
