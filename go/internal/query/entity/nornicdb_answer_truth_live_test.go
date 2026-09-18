@@ -11,7 +11,11 @@
 // relationship instead of the real ones. The test drives the real handler
 // against a seed whose right answer is known by construction.
 //
-// Run against an isolated container on the pinned image:
+// Run against an isolated container on the pinned image (ESHU_LIVE_GRAPH_BACKEND
+// defaults to nornicdb and ESHU_LIVE_GRAPH_DATABASE to "nornic" -- see
+// liveGraphBackend, live_schema_helper_test.go -- so this reproduces the
+// original NornicDB-only invocation unchanged; pass both to also run this
+// same test against Neo4j, which #6784 does):
 //
 //	docker run -d --name eshu-answer-truth -e NORNICDB_NO_AUTH=true \
 //	  -e NORNICDB_EMBEDDING_ENABLED=false -p 127.0.0.1:27687:7687 \
@@ -32,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -66,6 +71,8 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 	if uri == "" {
 		t.Fatal("ESHU_NEO4J_URI is required")
 	}
+	backend, database := liveGraphBackend()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	driver, err := neo4jdriver.NewDriverWithContext(uri, neo4jdriver.NoAuth())
@@ -77,7 +84,11 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 		t.Fatalf("verify connectivity: %v", err)
 	}
 
-	reader := entityLiveReader{driver: driver}
+	if err := graph.EnsureSchemaWithBackendStrict(ctx, liveSchemaExecutor{driver: driver, database: database}, nil, backend); err != nil {
+		t.Fatalf("apply schema: %v", err)
+	}
+
+	reader := entityLiveReader{driver: driver, database: database}
 	reader.write(ctx, t, entityAnswerTruthCleanup)
 	for _, stmt := range entityAnswerTruthSeed {
 		reader.write(ctx, t, stmt)
@@ -123,13 +134,13 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 	}
 }
 
-// entityLiveReader is the test-only live GraphQuery for this file. The package
-// cannot import root query's Neo4jReader without a cycle.
+// entityLiveReader is the test-only live GraphQuery for this file and its
+// sibling scoped_grant_live_test.go. The package cannot import root query's
+// Neo4jReader without a cycle.
 //
 // database defaults to "nornic" (the zero value triggers that default in
-// sessionConfig below) so this file's own construction sites, which predate
-// the field, keep running against the same NornicDB database they always
-// have; scoped_grant_live_test.go sets it explicitly per backend.
+// sessionConfig below) when a construction site does not set it explicitly;
+// every construction site in this package now does, via liveGraphBackend.
 type entityLiveReader struct {
 	driver   neo4jdriver.DriverWithContext
 	database string
