@@ -107,6 +107,16 @@ query on the controlled mostly-unique fixture; this cost buys the exact
 duplicate-key classification required by the changed-since contract. The
 reducer edit changes comments only.
 
+The golden-corpus verifier also now hashes each payload once in materialized
+row CTEs before sorting the digest arrays. On the same local PostgreSQL 18.6
+158,525-row prior-generation fixture, its former aggregate expression took
+438.539 and 395.007 ms; the materialized hash-once form took 264.349 and
+264.542 ms in alternating runs. This measures verifier SQL only, not B-7 wall
+time. A seeded four-call SQL-log assertion failed before the helper change and
+passed with two SHA-256 call sites afterward. The final B-7 hash-once rerun
+passed 560 required checks on 31 repositories with zero required failures
+and two advisory timing warnings in 199 seconds.
+
 The modified SQL keeps existing Postgres query spans and
 `eshu_dp_postgres_query_duration_seconds`; the stale-ref rejection has a
 specific governance audit reason. No new worker, queue, index, or migration is

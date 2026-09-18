@@ -25,7 +25,7 @@ sql_log="${case_dir}/sql.log"
 pg() {
 	local sql="$1"
 	printf '%s\n-- statement boundary --\n' "${sql}" >>"${sql_log}"
-	if [[ "${sql}" == *"WITH prior_keys AS"* ]]; then
+	if [[ "${sql}" == *"prior_keys AS"* ]]; then
 		printf '2|1|1|superseded|1|0|13|4|0|0\n'
 		return
 	fi
@@ -48,6 +48,8 @@ golden_changed_since_validate_current
 if rg -qi 'md5\(' "${sql_log}"; then
     fail "golden changed-since SQL still invokes FIPS-incompatible MD5"
 fi
+hash_call_count="$(rg -o 'sha256\(' "${sql_log}" | wc -l | tr -d ' ')"
+[[ "${hash_call_count}" == "2" ]] || fail "golden changed-since SQL hashes each generation more than once (${hash_call_count} calls)"
 [[ "${golden_changed_since_current_generation}" == "generation:current-2" ]] ||
 	fail "current generation was not captured"
 [[ "${golden_changed_since_facts_added_count:-}" == "0" ]] || fail "facts added count was not captured"

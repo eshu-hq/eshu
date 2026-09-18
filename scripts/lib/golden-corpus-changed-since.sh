@@ -94,27 +94,35 @@ WHERE scope_id = '${golden_changed_since_scope_id}';
 		die "repository changed-since current generation did not advance"
 
 	state="$(pg "
-WITH prior_keys AS (
+WITH prior_rows AS MATERIALIZED (
   SELECT CASE WHEN fact_kind = 'file' THEN 'files'
               WHEN fact_kind = 'content_entity' THEN 'content_entities'
               ELSE 'facts' END AS category,
          stable_fact_key,
-         ARRAY_AGG(sha256(convert_to(payload::text, 'UTF8')) ORDER BY sha256(convert_to(payload::text, 'UTF8'))) AS payload_hashes
+         sha256(convert_to(payload::text, 'UTF8')) AS payload_hash
   FROM fact_records
   WHERE scope_id = '${golden_changed_since_scope_id}'
     AND generation_id = '${golden_changed_since_prior_generation}'
     AND is_tombstone = FALSE
-  GROUP BY category, stable_fact_key
-), current_keys AS (
+), current_rows AS MATERIALIZED (
   SELECT CASE WHEN fact_kind = 'file' THEN 'files'
               WHEN fact_kind = 'content_entity' THEN 'content_entities'
               ELSE 'facts' END AS category,
          stable_fact_key,
-         ARRAY_AGG(sha256(convert_to(payload::text, 'UTF8')) ORDER BY sha256(convert_to(payload::text, 'UTF8'))) AS payload_hashes
+         sha256(convert_to(payload::text, 'UTF8')) AS payload_hash
   FROM fact_records
   WHERE scope_id = '${golden_changed_since_scope_id}'
     AND generation_id = '${current}'
     AND is_tombstone = FALSE
+), prior_keys AS (
+  SELECT category, stable_fact_key,
+         ARRAY_AGG(payload_hash ORDER BY payload_hash) AS payload_hashes
+  FROM prior_rows
+  GROUP BY category, stable_fact_key
+), current_keys AS (
+  SELECT category, stable_fact_key,
+         ARRAY_AGG(payload_hash ORDER BY payload_hash) AS payload_hashes
+  FROM current_rows
   GROUP BY category, stable_fact_key
 ), current_tombstones AS (
   SELECT DISTINCT CASE WHEN fact_kind = 'file' THEN 'files'
