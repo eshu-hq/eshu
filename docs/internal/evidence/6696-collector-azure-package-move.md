@@ -5,7 +5,7 @@ Go files plus tests, testdata, and the `runtime` subtree) moves to
 `go/internal/collector/cloud/azure/*`, package `azurecloud` to `azure`.
 Importers repointed without aliases or shims (`go/cmd/collector-azure-cloud`
 files including a testdata path fix, `runtime` internal references).
-`runtime` keeps its name (package `runtime` would shadow stdlib).
+Renamed `azureruntime` to `runtime`; no importing file uses stdlib `runtime`, so no shadowing occurs.
 A new docs-only parent trio `collector/cloud/{doc.go,README.md,AGENTS.md}`
 provides the prep namespace. No repo cutover (cutover follows #4047/#6707,
 not this issue). AWS/GCP untouched.
