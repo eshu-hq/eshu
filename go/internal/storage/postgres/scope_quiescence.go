@@ -89,7 +89,7 @@ type ProducerScopeQuiescenceReport struct {
 // An empty collectorKinds set queries nothing and returns empty sets.
 func ProducerScopeQuiescence(
 	ctx context.Context,
-	db db.Queryer,
+	database db.Queryer,
 	collectorKinds []string,
 ) (ProducerScopeQuiescenceReport, error) {
 	report := ProducerScopeQuiescenceReport{
@@ -99,11 +99,11 @@ func ProducerScopeQuiescence(
 	if len(collectorKinds) == 0 {
 		return report, nil
 	}
-	if db == nil {
+	if database == nil {
 		return ProducerScopeQuiescenceReport{}, fmt.Errorf("producer scope quiescence: querier is required")
 	}
 
-	rows, err := db.QueryContext(ctx, producerScopeQuiescenceSQL, pgarray.StringArray(collectorKinds))
+	rows, err := database.QueryContext(ctx, producerScopeQuiescenceSQL, pgarray.StringArray(collectorKinds))
 	if err != nil {
 		return ProducerScopeQuiescenceReport{}, fmt.Errorf("query producer scope quiescence: %w", err)
 	}

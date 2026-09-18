@@ -16,7 +16,7 @@ func TestReducerQueueReplayWorkloadMaterializationDirtiesInFlightWork(t *testing
 	db := &fakeExecQueryer{
 		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}},
 	}
-	queue := ReducerQueue{db: db}
+	queue := ReducerQueue{database: db}
 
 	replayed, err := queue.ReplayWorkloadMaterialization(
 		context.Background(),

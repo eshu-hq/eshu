@@ -77,13 +77,13 @@ type SharedProjectionAcceptance struct {
 // SharedProjectionAcceptanceStore persists shared projection acceptance rows in
 // PostgreSQL.
 type SharedProjectionAcceptanceStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewSharedProjectionAcceptanceStore creates an acceptance store backed by the
 // provided database handle.
-func NewSharedProjectionAcceptanceStore(db db.ExecQueryer) *SharedProjectionAcceptanceStore {
-	return &SharedProjectionAcceptanceStore{db: db}
+func NewSharedProjectionAcceptanceStore(database db.ExecQueryer) *SharedProjectionAcceptanceStore {
+	return &SharedProjectionAcceptanceStore{database: database}
 }
 
 // SharedProjectionAcceptanceSchemaSQL returns the DDL for the acceptance
@@ -94,7 +94,7 @@ func SharedProjectionAcceptanceSchemaSQL() string {
 
 // EnsureSchema applies the acceptance DDL.
 func (s *SharedProjectionAcceptanceStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, sharedProjectionAcceptanceSchemaSQL)
+	_, err := s.database.ExecContext(ctx, sharedProjectionAcceptanceSchemaSQL)
 	return err
 }
 
@@ -109,7 +109,7 @@ func (s *SharedProjectionAcceptanceStore) Upsert(ctx context.Context, rows []Sha
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := upsertSharedProjectionAcceptanceBatch(ctx, s.db, rows[i:end]); err != nil {
+		if err := upsertSharedProjectionAcceptanceBatch(ctx, s.database, rows[i:end]); err != nil {
 			return err
 		}
 	}
@@ -119,7 +119,7 @@ func (s *SharedProjectionAcceptanceStore) Upsert(ctx context.Context, rows []Sha
 
 // Lookup returns the accepted generation for one exact bounded-unit key.
 func (s *SharedProjectionAcceptanceStore) Lookup(ctx context.Context, scopeID, acceptanceUnitID, sourceRunID string) (string, bool, error) {
-	rows, err := s.db.QueryContext(ctx, lookupSharedProjectionAcceptanceSQL, scopeID, acceptanceUnitID, sourceRunID)
+	rows, err := s.database.QueryContext(ctx, lookupSharedProjectionAcceptanceSQL, scopeID, acceptanceUnitID, sourceRunID)
 	if err != nil {
 		return "", false, fmt.Errorf("query shared projection acceptance: %w", err)
 	}
@@ -159,7 +159,7 @@ LIMIT 1
 // autovacuum/ANALYZE freshness. A table that has never been analyzed reports 0.
 // It satisfies telemetry.AcceptanceObserver.
 func (s *SharedProjectionAcceptanceStore) AcceptanceRowCount(ctx context.Context) (int64, error) {
-	rows, err := s.db.QueryContext(ctx, sharedProjectionAcceptanceRowEstimateSQL)
+	rows, err := s.database.QueryContext(ctx, sharedProjectionAcceptanceRowEstimateSQL)
 	if err != nil {
 		return 0, fmt.Errorf("query shared projection acceptance row estimate: %w", err)
 	}
@@ -182,7 +182,7 @@ func (s *SharedProjectionAcceptanceStore) AcceptanceRowCount(ctx context.Context
 // while the scope-aware bounded-unit contract is wired through the caller
 // stack.
 func (s *SharedProjectionAcceptanceStore) LookupByAcceptanceUnit(ctx context.Context, acceptanceUnitID, sourceRunID string) (string, bool, error) {
-	rows, err := s.db.QueryContext(ctx, lookupSharedProjectionAcceptanceByUnitSQL, acceptanceUnitID, sourceRunID)
+	rows, err := s.database.QueryContext(ctx, lookupSharedProjectionAcceptanceByUnitSQL, acceptanceUnitID, sourceRunID)
 	if err != nil {
 		return "", false, fmt.Errorf("query shared projection acceptance by unit: %w", err)
 	}
@@ -203,7 +203,7 @@ func (s *SharedProjectionAcceptanceStore) LookupByAcceptanceUnit(ctx context.Con
 	return generationID, true, rows.Err()
 }
 
-func upsertSharedProjectionAcceptanceBatch(ctx context.Context, db db.ExecQueryer, batch []SharedProjectionAcceptance) error {
+func upsertSharedProjectionAcceptanceBatch(ctx context.Context, database db.ExecQueryer, batch []SharedProjectionAcceptance) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -233,7 +233,7 @@ func upsertSharedProjectionAcceptanceBatch(ctx context.Context, db db.ExecQuerye
 	}
 
 	query := upsertSharedProjectionAcceptanceBatchPrefix + values.String() + upsertSharedProjectionAcceptanceBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert shared projection acceptance batch (%d rows): %w", len(batch), err)
 	}
 

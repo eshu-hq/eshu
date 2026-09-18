@@ -224,17 +224,17 @@ type AdmissionDecisionFilter struct {
 // AdmissionDecisionStore persists shared reducer admission decisions and their
 // evidence handles.
 type AdmissionDecisionStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewAdmissionDecisionStore creates an admission decision store backed by db.
-func NewAdmissionDecisionStore(db db.ExecQueryer) *AdmissionDecisionStore {
-	return &AdmissionDecisionStore{db: db}
+func NewAdmissionDecisionStore(database db.ExecQueryer) *AdmissionDecisionStore {
+	return &AdmissionDecisionStore{database: database}
 }
 
 // EnsureSchema applies the admission decision DDL.
 func (s *AdmissionDecisionStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, admissionDecisionSchemaSQL)
+	_, err := s.database.ExecContext(ctx, admissionDecisionSchemaSQL)
 	return err
 }
 
@@ -260,7 +260,7 @@ func (s *AdmissionDecisionStore) UpsertDecision(ctx context.Context, d Admission
 	if d.FreshnessObservedAt != nil {
 		observedAt = *d.FreshnessObservedAt
 	}
-	_, err = s.db.ExecContext(
+	_, err = s.database.ExecContext(
 		ctx, upsertAdmissionDecisionSQL,
 		d.DecisionID,
 		d.Domain,
@@ -303,7 +303,7 @@ func (s *AdmissionDecisionStore) InsertEvidence(ctx context.Context, rows []Admi
 		if err != nil {
 			return err
 		}
-		if _, err := s.db.ExecContext(
+		if _, err := s.database.ExecContext(
 			ctx, upsertAdmissionDecisionEvidenceSQL,
 			row.EvidenceID,
 			row.DecisionID,
@@ -328,7 +328,7 @@ func (s *AdmissionDecisionStore) ListDecisions(ctx context.Context, f AdmissionD
 	if f.State != nil {
 		state = string(*f.State)
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx, listAdmissionDecisionsSQL,
 		f.Domain,
 		f.ScopeID,
@@ -353,7 +353,7 @@ func (s *AdmissionDecisionStore) ListEvidence(
 	decisionID string,
 	limit int,
 ) ([]AdmissionDecisionEvidence, error) {
-	rows, err := s.db.QueryContext(ctx, listAdmissionDecisionEvidenceSQL, decisionID, admissionDecisionLimit(limit))
+	rows, err := s.database.QueryContext(ctx, listAdmissionDecisionEvidenceSQL, decisionID, admissionDecisionLimit(limit))
 	if err != nil {
 		return nil, fmt.Errorf("query admission decision evidence: %w", err)
 	}

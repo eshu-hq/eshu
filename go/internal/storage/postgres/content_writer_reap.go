@@ -150,7 +150,7 @@ func (w ContentWriter) reapStaleContentEntities(ctx context.Context, repoID stri
 			freshIDs = append(freshIDs, freshIDsByPath[path]...)
 		}
 
-		if _, err := w.db.ExecContext(
+		if _, err := w.database.ExecContext(
 			ctx, reapStaleContentEntitiesSQL,
 			repoID, pgarray.StringArray(chunkPaths), pgarray.StringArray(freshIDs),
 		); err != nil {

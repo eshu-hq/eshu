@@ -86,20 +86,20 @@ func FunctionSummarySchemaSQL() string {
 // runs. It stores only the summary package's durable Snapshot form; the
 // in-memory summary.Store remains owned by internal/parser/summary.
 type FunctionSummaryStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewFunctionSummaryStore constructs a Postgres-backed function summary store.
-func NewFunctionSummaryStore(db db.ExecQueryer) FunctionSummaryStore {
-	return FunctionSummaryStore{db: db}
+func NewFunctionSummaryStore(database db.ExecQueryer) FunctionSummaryStore {
+	return FunctionSummaryStore{database: database}
 }
 
 // EnsureSchema applies the function summary DDL.
 func (s FunctionSummaryStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("function summary store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, functionSummarySchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, functionSummarySchemaSQL); err != nil {
 		return fmt.Errorf("ensure function summary schema: %w", err)
 	}
 	return nil
@@ -110,7 +110,7 @@ func (s FunctionSummaryStore) EnsureSchema(ctx context.Context) error {
 // racing writes for the same function converge on the last committed snapshot
 // row rather than inserting duplicates.
 func (s FunctionSummaryStore) UpsertSnapshot(ctx context.Context, snap summary.Snapshot, updatedAt time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("function summary store database is required")
 	}
 	if updatedAt.IsZero() {
@@ -141,7 +141,7 @@ func (s FunctionSummaryStore) ReplaceSnapshot(
 	snap summary.Snapshot,
 	updatedAt time.Time,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("function summary store database is required")
 	}
 	if updatedAt.IsZero() {
@@ -151,7 +151,7 @@ func (s FunctionSummaryStore) ReplaceSnapshot(
 	if repo == "" {
 		return fmt.Errorf("function summary repo is required")
 	}
-	if beginner, ok := s.db.(db.Beginner); ok {
+	if beginner, ok := s.database.(db.Beginner); ok {
 		tx, err := beginner.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin function summary replacement transaction: %w", err)
@@ -165,12 +165,12 @@ func (s FunctionSummaryStore) ReplaceSnapshot(
 		}
 		return nil
 	}
-	return replaceFunctionSummaries(ctx, s.db, repo, snap, updatedAt.UTC())
+	return replaceFunctionSummaries(ctx, s.database, repo, snap, updatedAt.UTC())
 }
 
 func replaceFunctionSummaries(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	repo string,
 	snap summary.Snapshot,
 	updatedAt time.Time,
@@ -183,13 +183,13 @@ func replaceFunctionSummaries(
 			return fmt.Errorf("function summary repo %q does not match replacement repo %q", got, repo)
 		}
 	}
-	if _, err := db.ExecContext(ctx, deleteFunctionSummariesForRepoSQL, repo, updatedAt); err != nil {
+	if _, err := database.ExecContext(ctx, deleteFunctionSummariesForRepoSQL, repo, updatedAt); err != nil {
 		return fmt.Errorf("delete stale function summaries for repo %q: %w", repo, err)
 	}
 	if len(snap.Functions) == 0 {
 		return nil
 	}
-	store := FunctionSummaryStore{db: db}
+	store := FunctionSummaryStore{database: database}
 	for i := 0; i < len(snap.Functions); i += functionSummaryBatchSize {
 		end := i + functionSummaryBatchSize
 		if end > len(snap.Functions) {
@@ -205,10 +205,10 @@ func replaceFunctionSummaries(
 // LoadSnapshot reloads all persisted summaries in deterministic function_id
 // order so summary.Load can rebuild the exact in-memory Store state.
 func (s FunctionSummaryStore) LoadSnapshot(ctx context.Context) (summary.Snapshot, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return summary.Snapshot{}, fmt.Errorf("function summary store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, loadFunctionSummariesSQL)
+	rows, err := s.database.QueryContext(ctx, loadFunctionSummariesSQL)
 	if err != nil {
 		return summary.Snapshot{}, fmt.Errorf("load function summaries: %w", err)
 	}
@@ -231,13 +231,13 @@ func (s FunctionSummaryStore) LoadSnapshot(ctx context.Context) (summary.Snapsho
 // LoadRepoSnapshot reloads persisted summaries for one repository in
 // deterministic function_id order.
 func (s FunctionSummaryStore) LoadRepoSnapshot(ctx context.Context, repo string) (summary.Snapshot, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return summary.Snapshot{}, fmt.Errorf("function summary store database is required")
 	}
 	if strings.TrimSpace(repo) == "" {
 		return summary.Snapshot{}, fmt.Errorf("function summary repository is required")
 	}
-	rows, err := s.db.QueryContext(ctx, loadFunctionSummariesByRepoSQL, strings.TrimSpace(repo))
+	rows, err := s.database.QueryContext(ctx, loadFunctionSummariesByRepoSQL, strings.TrimSpace(repo))
 	if err != nil {
 		return summary.Snapshot{}, fmt.Errorf("load function summaries for repo %q: %w", repo, err)
 	}
@@ -292,7 +292,7 @@ func (s FunctionSummaryStore) upsertBatch(ctx context.Context, functions []summa
 		)
 	}
 	query := upsertFunctionSummaryBatchPrefix + strings.Join(values, ", ") + upsertFunctionSummaryBatchSuffix
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert function summaries: %w", err)
 	}
 	return nil

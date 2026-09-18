@@ -34,7 +34,7 @@ type ClaimMutation = workflow.ClaimMutation
 
 // WorkflowControlStore persists workflow coordinator control-plane state.
 type WorkflowControlStore struct {
-	db                         db.ExecQueryer
+	database                   db.ExecQueryer
 	beginner                   db.Beginner
 	DefaultClaimLeaseTTL       time.Duration
 	DefaultHeartbeatInterval   time.Duration
@@ -49,7 +49,7 @@ type WorkflowControlStore struct {
 func NewWorkflowControlStore(database db.ExecQueryer) *WorkflowControlStore {
 	beginner, _ := database.(db.Beginner)
 	return &WorkflowControlStore{
-		db:                         database,
+		database:                   database,
 		beginner:                   beginner,
 		DefaultClaimLeaseTTL:       DefaultWorkflowClaimLeaseTTL,
 		DefaultHeartbeatInterval:   DefaultWorkflowClaimHeartbeatInterval,
@@ -64,14 +64,14 @@ func WorkflowControlSchemaSQL() string {
 
 // EnsureSchema applies the workflow control-plane schema DDL.
 func (s *WorkflowControlStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
-	_, err := s.db.ExecContext(ctx, workflowControlSchemaSQL)
+	_, err := s.database.ExecContext(ctx, workflowControlSchemaSQL)
 	if err != nil {
 		return fmt.Errorf("ensure workflow control schema: %w", err)
 	}
-	_, err = s.db.ExecContext(ctx, workflowCoordinatorStateSchemaSQL)
+	_, err = s.database.ExecContext(ctx, workflowCoordinatorStateSchemaSQL)
 	if err != nil {
 		return fmt.Errorf("ensure workflow coordinator state schema: %w", err)
 	}
@@ -80,10 +80,10 @@ func (s *WorkflowControlStore) EnsureSchema(ctx context.Context) error {
 
 // CreateRun upserts one durable workflow run.
 func (s *WorkflowControlStore) CreateRun(ctx context.Context, run workflow.Run) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
-	return s.createRunWithExecutor(ctx, s.db, run)
+	return s.createRunWithExecutor(ctx, s.database, run)
 }
 
 func (s *WorkflowControlStore) createRunWithExecutor(ctx context.Context, executor db.Executor, run workflow.Run) error {
@@ -111,7 +111,7 @@ func (s *WorkflowControlStore) createRunWithExecutor(ctx context.Context, execut
 
 // EnqueueWorkItems inserts workflow work items in batches.
 func (s *WorkflowControlStore) EnqueueWorkItems(ctx context.Context, items []workflow.WorkItem) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
 	if len(items) == 0 {
@@ -148,7 +148,7 @@ func (s *WorkflowControlStore) ClaimNextEligible(
 	now time.Time,
 	leaseDuration time.Duration,
 ) (workflow.WorkItem, workflow.Claim, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return workflow.WorkItem{}, workflow.Claim{}, false, fmt.Errorf("workflow control store database is required")
 	}
 	if err := validateClaimSelector(selector); err != nil {
@@ -159,7 +159,7 @@ func (s *WorkflowControlStore) ClaimNextEligible(
 		return workflow.WorkItem{}, workflow.Claim{}, false, err
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		claimNextWorkflowWorkItemQuery,
 		string(selector.CollectorKind),
@@ -231,14 +231,14 @@ func (s *WorkflowControlStore) ReapExpiredClaims(
 	limit int,
 	requeueDelay time.Duration,
 ) ([]workflow.Claim, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("workflow control store database is required")
 	}
 	if limit <= 0 {
 		return nil, fmt.Errorf("expired claim limit must be positive")
 	}
 	effectiveRequeueDelay := s.effectiveExpiredRequeueDelay(requeueDelay)
-	rows, err := s.db.QueryContext(ctx, reapExpiredWorkflowClaimsQuery, asOf.UTC(), limit, asOf.UTC().Add(effectiveRequeueDelay))
+	rows, err := s.database.QueryContext(ctx, reapExpiredWorkflowClaimsQuery, asOf.UTC(), limit, asOf.UTC().Add(effectiveRequeueDelay))
 	if err != nil {
 		return nil, fmt.Errorf("reap expired workflow claims: %w", err)
 	}

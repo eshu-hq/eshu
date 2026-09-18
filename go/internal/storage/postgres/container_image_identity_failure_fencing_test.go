@@ -19,7 +19,7 @@ func TestReducerQueueFailContainerImageIdentityBindsTerminalAttempt(t *testing.T
 	now := time.Date(2026, time.July, 30, 19, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -59,7 +59,7 @@ func TestReducerQueueFailContainerImageIdentityBindsRetryAttempt(t *testing.T) {
 	now := time.Date(2026, time.July, 30, 19, 1, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:             db,
+		database:       db,
 		LeaseOwner:     "reducer",
 		LeaseDuration:  time.Minute,
 		RetryDelay:     time.Second,

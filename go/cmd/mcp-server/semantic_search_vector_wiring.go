@@ -27,7 +27,7 @@ const (
 
 type instrumentedSemanticSearchScopeResolver struct {
 	resolver query.PostgresSemanticSearchScopeResolver
-	db       *pgstatus.InstrumentedDB
+	database *pgstatus.InstrumentedDB
 }
 
 func (r instrumentedSemanticSearchScopeResolver) ResolveSemanticSearchScope(
@@ -45,24 +45,24 @@ func (r instrumentedSemanticSearchScopeResolver) ResolveSemanticSearchRepository
 }
 
 func newInstrumentedSemanticSearchScopeResolver(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 ) instrumentedSemanticSearchScopeResolver {
 	instrumentedDB := newInstrumentedPostgresStore(
-		pgstatus.SQLDB{DB: db},
+		pgstatus.SQLDB{DB: database},
 		"mcp-server",
 		semanticSearchScopeStoreName,
 		instruments,
 	)
 	return instrumentedSemanticSearchScopeResolver{
 		resolver: query.NewPostgresSemanticSearchScopeResolver(instrumentedDB),
-		db:       instrumentedDB,
+		database: instrumentedDB,
 	}
 }
 
 type instrumentedSemanticSearchVectorMetadataStore struct {
-	store pgstatus.EshuSearchVectorMetadataStore
-	db    *pgstatus.InstrumentedDB
+	store    pgstatus.EshuSearchVectorMetadataStore
+	database *pgstatus.InstrumentedDB
 }
 
 func (s instrumentedSemanticSearchVectorMetadataStore) ListActive(
@@ -73,13 +73,13 @@ func (s instrumentedSemanticSearchVectorMetadataStore) ListActive(
 }
 
 type instrumentedSemanticSearchVectorValueStore struct {
-	store pgstatus.EshuSearchVectorValueStore
-	db    *pgstatus.InstrumentedDB
+	store    pgstatus.EshuSearchVectorValueStore
+	database *pgstatus.InstrumentedDB
 }
 
 type instrumentedSemanticSearchSnapshotStore struct {
-	store query.PostgresSemanticSearchSnapshotStore
-	db    *pgstatus.InstrumentedDB
+	store    query.PostgresSemanticSearchSnapshotStore
+	database *pgstatus.InstrumentedDB
 }
 
 func (s instrumentedSemanticSearchSnapshotStore) Load(
@@ -138,14 +138,14 @@ func newContentHybridRanker(config searchembedruntime.Config) query.ContentResul
 }
 
 func newSemanticSearchHybrid(
-	db *sql.DB,
+	database *sql.DB,
 	config searchembedruntime.Config,
 	instruments *telemetry.Instruments,
 ) query.SemanticSearchHybridStore {
 	if !config.Enabled {
 		return nil
 	}
-	sqlDB := pgstatus.SQLDB{DB: db}
+	sqlDB := pgstatus.SQLDB{DB: database}
 	metadataDB := newInstrumentedPostgresStore(
 		sqlDB,
 		"mcp-server",
@@ -171,18 +171,18 @@ func newSemanticSearchHybrid(
 	vectorConfig.VectorIndexVersion = config.VectorIndexVersion
 	vectorConfig.VectorRetrieval = config.VectorRetrieval
 	return query.NewCachedPersistedLocalSemanticSearchHybrid(
-		query.NewPostgresSemanticSearchIndexStore(db),
+		query.NewPostgresSemanticSearchIndexStore(database),
 		instrumentedSemanticSearchVectorMetadataStore{
-			store: pgstatus.NewEshuSearchVectorMetadataStore(metadataDB),
-			db:    metadataDB,
+			store:    pgstatus.NewEshuSearchVectorMetadataStore(metadataDB),
+			database: metadataDB,
 		},
 		instrumentedSemanticSearchVectorValueStore{
-			store: pgstatus.NewEshuSearchVectorValueStore(valueDB),
-			db:    valueDB,
+			store:    pgstatus.NewEshuSearchVectorValueStore(valueDB),
+			database: valueDB,
 		},
 		instrumentedSemanticSearchSnapshotStore{
-			store: query.NewPostgresSemanticSearchSnapshotStore(snapshotDB),
-			db:    snapshotDB,
+			store:    query.NewPostgresSemanticSearchSnapshotStore(snapshotDB),
+			database: snapshotDB,
 		},
 		config.Embedder,
 		vectorConfig,

@@ -73,7 +73,7 @@ func (s *BrowserSessionStore) ListSessionsBySubject(
 	limit int,
 	offset int,
 ) ([]BrowserSessionListItem, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("browser session store database is required")
 	}
 	subjectIDHash = strings.TrimSpace(subjectIDHash)
@@ -93,7 +93,7 @@ func (s *BrowserSessionStore) ListSessionsBySubject(
 		offset = 0
 	}
 	// Request limit+1 rows to detect whether more pages exist.
-	rows, err := s.db.QueryContext(ctx, listBrowserSessionsBySubjectQuery, subjectIDHash, sessionHash, limit+1, offset)
+	rows, err := s.database.QueryContext(ctx, listBrowserSessionsBySubjectQuery, subjectIDHash, sessionHash, limit+1, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list browser sessions by subject: %w", err)
 	}

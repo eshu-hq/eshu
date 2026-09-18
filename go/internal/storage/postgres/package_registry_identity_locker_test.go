@@ -80,8 +80,8 @@ type recordingPackageRegistryIdentityLockDB struct {
 	tx *recordingPackageRegistryIdentityLockTx
 }
 
-func (db *recordingPackageRegistryIdentityLockDB) Begin(context.Context) (db.Transaction, error) {
-	return db.tx, nil
+func (database *recordingPackageRegistryIdentityLockDB) Begin(context.Context) (db.Transaction, error) {
+	return database.tx, nil
 }
 
 type recordingPackageRegistryIdentityLockTx struct {

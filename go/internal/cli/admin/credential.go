@@ -65,11 +65,11 @@ type BootstrapCredentialPayload struct {
 // persist it.
 func RetrieveInitialCredential(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	keyring *secretcrypto.Keyring,
 ) (BootstrapCredentialPayload, error) {
-	auditAppender := newAdminCredentialAuditAppender(db)
-	store := pgstorage.NewIdentitySubjectStore(db)
+	auditAppender := newAdminCredentialAuditAppender(database)
+	store := pgstorage.NewIdentitySubjectStore(database)
 	payload, keyID, err := openBootstrapCredentialPayload(ctx, store, keyring)
 	auditBootstrapCredentialRetrieved(ctx, auditAppender, keyID, err)
 	if err != nil {
@@ -95,7 +95,7 @@ func RetrieveInitialCredential(
 // persist it.
 func ResetInitialCredential(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	keyring *secretcrypto.Keyring,
 	username string,
 ) (BootstrapCredentialPayload, error) {
@@ -103,8 +103,8 @@ func ResetInitialCredential(
 	// RetrieveInitialCredential: every return below — including the early
 	// username-recovery refusal that runs before a replacement secret is
 	// even generated — records exactly one durable reset event.
-	auditAppender := newAdminCredentialAuditAppender(db)
-	payload, keyID, err := resetInitialCredential(ctx, db, keyring, username)
+	auditAppender := newAdminCredentialAuditAppender(database)
+	payload, keyID, err := resetInitialCredential(ctx, database, keyring, username)
 	auditBootstrapCredentialReset(ctx, auditAppender, keyID, err)
 	if err != nil {
 		return BootstrapCredentialPayload{}, err
@@ -124,11 +124,11 @@ func ResetInitialCredential(
 // event the exported wrapper appends on every return.
 func resetInitialCredential(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	keyring *secretcrypto.Keyring,
 	username string,
 ) (BootstrapCredentialPayload, string, error) {
-	store := pgstorage.NewIdentitySubjectStore(db)
+	store := pgstorage.NewIdentitySubjectStore(database)
 
 	auditKeyID := ""
 	username = strings.TrimSpace(username)

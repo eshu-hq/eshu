@@ -23,7 +23,7 @@ func (s *IdentitySubjectStore) CreateLocalIdentityAPIToken(
 	ctx context.Context,
 	token LocalIdentityAPITokenCreate,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("identity subject store database is required")
 	}
 	token = normalizeLocalIdentityAPITokenCreate(token)
@@ -31,7 +31,7 @@ func (s *IdentitySubjectStore) CreateLocalIdentityAPIToken(
 		return err
 	}
 	query, subjectID := localIdentityAPITokenInsertQuery(token)
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		query,
 		token.TokenID,
@@ -56,7 +56,7 @@ func (s *IdentitySubjectStore) RevokeLocalIdentityAPIToken(
 	ctx context.Context,
 	revoke LocalIdentityAPITokenRevoke,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("identity subject store database is required")
 	}
 	revoke = normalizeLocalIdentityAPITokenRevoke(revoke)
@@ -64,7 +64,7 @@ func (s *IdentitySubjectStore) RevokeLocalIdentityAPIToken(
 		return err
 	}
 	query, args := revokeLocalIdentityAPITokenExec(revoke)
-	result, err := s.db.ExecContext(ctx, query, args...)
+	result, err := s.database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("revoke local identity api token: %w", err)
 	}

@@ -203,7 +203,7 @@ type EshuSearchVectorScopeState struct {
 // EshuSearchVectorScopeStateStore persists per-scope vector build state and
 // provides the #4233 bounded ListPendingSearchVectorScopes query.
 type EshuSearchVectorScopeStateStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // EshuSearchVectorScopeStateSchemaSQL returns the Postgres DDL for the
@@ -213,8 +213,8 @@ func EshuSearchVectorScopeStateSchemaSQL() string {
 }
 
 // NewEshuSearchVectorScopeStateStore constructs the vector scope state store.
-func NewEshuSearchVectorScopeStateStore(db db.ExecQueryer) EshuSearchVectorScopeStateStore {
-	return EshuSearchVectorScopeStateStore{db: db}
+func NewEshuSearchVectorScopeStateStore(database db.ExecQueryer) EshuSearchVectorScopeStateStore {
+	return EshuSearchVectorScopeStateStore{database: database}
 }
 
 // BeginBuilding starts or re-starts a vector build for the given
@@ -227,7 +227,7 @@ func (s EshuSearchVectorScopeStateStore) BeginBuilding(
 	identity EshuSearchVectorIdentity,
 	projectionRevision int64,
 ) (fence int64, err error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("eshu search vector scope state store requires a database")
 	}
 	if scopeID == "" {
@@ -238,7 +238,7 @@ func (s EshuSearchVectorScopeStateStore) BeginBuilding(
 	}
 
 	now := time.Now().UTC()
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		beginBuildingVectorScopeStateSQL,
 		scopeID,
@@ -272,7 +272,7 @@ func (s EshuSearchVectorScopeStateStore) FinalizeReady(
 	identity EshuSearchVectorIdentity,
 	projectionRevision, fence int64,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, fmt.Errorf("eshu search vector scope state store requires a database")
 	}
 	if scopeID == "" {
@@ -283,7 +283,7 @@ func (s EshuSearchVectorScopeStateStore) FinalizeReady(
 	}
 
 	now := time.Now().UTC()
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		finalizeReadyVectorScopeStateSQL,
 		scopeID,
@@ -314,7 +314,7 @@ func (s EshuSearchVectorScopeStateStore) ListPendingSearchVectorScopes(
 	ctx context.Context,
 	req EshuSearchVectorPendingRequest,
 ) ([]EshuSearchVectorPendingScope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("eshu search vector scope state store requires a database")
 	}
 	if req.EmbeddingModelID == "" {
@@ -337,7 +337,7 @@ func (s EshuSearchVectorScopeStateStore) ListPendingSearchVectorScopes(
 		limit = eshuSearchVectorPendingMaxLimit
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listPendingSearchVectorScopesScopedSQL,
 		req.ProviderProfileID,
@@ -375,7 +375,7 @@ func (s EshuSearchVectorScopeStateStore) ScopeVectorComplete(
 	scopeID, generationID string,
 	identity EshuSearchVectorIdentity,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, fmt.Errorf("eshu search vector scope state store requires a database")
 	}
 	if scopeID == "" {
@@ -387,7 +387,7 @@ func (s EshuSearchVectorScopeStateStore) ScopeVectorComplete(
 
 	rows, err := beginSearchVectorDocumentQuery(
 		ctx,
-		s.db,
+		s.database,
 		scopeVectorCompleteSQL,
 		scopeID,
 		generationID,

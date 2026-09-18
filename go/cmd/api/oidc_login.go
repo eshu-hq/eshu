@@ -69,7 +69,7 @@ type fallbackOIDCGrantResolver struct {
 
 func newOIDCLoginHandler(
 	getenv func(string) string,
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	providerSecretKeyring *secretcrypto.Keyring,
 	logger *slog.Logger,
@@ -95,7 +95,7 @@ func newOIDCLoginHandler(
 	if configPath == "" && !enabled {
 		return nil, nil
 	}
-	if db == nil {
+	if database == nil {
 		return nil, fmt.Errorf("postgres is required for oidc login")
 	}
 
@@ -146,9 +146,9 @@ func newOIDCLoginHandler(
 	}
 	config = normalized
 
-	store := newPostgresOIDCStoreAdapter(db, instruments)
+	store := newPostgresOIDCStoreAdapter(database, instruments)
 	var serviceOptions []oidclogin.Option
-	if resolver := newOIDCDBProviderResolver(db, providerSecretKeyring); resolver != nil {
+	if resolver := newOIDCDBProviderResolver(database, providerSecretKeyring); resolver != nil {
 		serviceOptions = append(serviceOptions, oidclogin.WithDBProviderResolver(resolver))
 	}
 	service := oidclogin.NewService(
@@ -164,7 +164,7 @@ func newOIDCLoginHandler(
 	}
 	return &query.OIDCLoginHandler{
 		Service:              oidcServiceAdapter{service},
-		SessionIssuer:        newBrowserSessionHandler(db, instruments, cookieSecureMode),
+		SessionIssuer:        newBrowserSessionHandler(database, instruments, cookieSecureMode),
 		SessionRefreshWindow: sessionRefreshWindow,
 	}, nil
 }

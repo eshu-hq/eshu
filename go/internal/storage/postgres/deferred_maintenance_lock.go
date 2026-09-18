@@ -51,8 +51,8 @@ func deferredMaintenanceRepoLockKeyFromID(repoID string) string {
 
 // acquireDeferredMaintenanceRepoSharedLock fences a commit against deferred
 // maintenance for one repository partition only.
-func acquireDeferredMaintenanceRepoSharedLock(ctx context.Context, db db.ExecQueryer, repoKey string) error {
-	_, err := db.ExecContext(ctx, deferredMaintenancePartitionedSharedLockSQL, deferredMaintenanceLockNamespace, repoKey)
+func acquireDeferredMaintenanceRepoSharedLock(ctx context.Context, database db.ExecQueryer, repoKey string) error {
+	_, err := database.ExecContext(ctx, deferredMaintenancePartitionedSharedLockSQL, deferredMaintenanceLockNamespace, repoKey)
 	return err
 }
 
@@ -62,10 +62,10 @@ func acquireDeferredMaintenanceRepoSharedLock(ctx context.Context, db db.ExecQue
 // deadlock between concurrent maintenance leaders and commits that touch
 // overlapping repository sets. Duplicate keys are collapsed so a key is locked
 // at most once per transaction.
-func acquireDeferredMaintenanceRepoExclusiveLocks(ctx context.Context, db db.ExecQueryer, repoKeys []string) error {
+func acquireDeferredMaintenanceRepoExclusiveLocks(ctx context.Context, database db.ExecQueryer, repoKeys []string) error {
 	ordered := sortedUniqueRepoKeys(repoKeys)
 	for _, repoKey := range ordered {
-		if _, err := db.ExecContext(
+		if _, err := database.ExecContext(
 			ctx,
 			deferredMaintenancePartitionedExclusiveLockSQL,
 			deferredMaintenanceLockNamespace,

@@ -97,21 +97,21 @@ func CodeTaintEvidenceProjectedNodeSchemaSQL() string {
 // CodeTaintEvidence node so retraction can enumerate uids from the ledger instead
 // of scanning the whole graph.
 type CodeTaintEvidenceProjectedNodeStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewCodeTaintEvidenceProjectedNodeStore constructs a Postgres-backed projected-node
 // ledger.
-func NewCodeTaintEvidenceProjectedNodeStore(db db.ExecQueryer) CodeTaintEvidenceProjectedNodeStore {
-	return CodeTaintEvidenceProjectedNodeStore{db: db}
+func NewCodeTaintEvidenceProjectedNodeStore(database db.ExecQueryer) CodeTaintEvidenceProjectedNodeStore {
+	return CodeTaintEvidenceProjectedNodeStore{database: database}
 }
 
 // EnsureSchema applies the projected-node ledger DDL.
 func (s CodeTaintEvidenceProjectedNodeStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code taint evidence projected node store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, codeTaintEvidenceProjectedNodeSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, codeTaintEvidenceProjectedNodeSchemaSQL); err != nil {
 		return fmt.Errorf("ensure code taint evidence projected node schema: %w", err)
 	}
 	return nil
@@ -128,7 +128,7 @@ func (s CodeTaintEvidenceProjectedNodeStore) RecordProjectedNodes(
 	nodeUIDs []string,
 	updatedAt time.Time,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code taint evidence projected node store database is required")
 	}
 	if updatedAt.IsZero() {
@@ -184,7 +184,7 @@ func (s CodeTaintEvidenceProjectedNodeStore) upsertBatch(
 		args = append(args, evidenceSource, scopeID, generationID, uid, updatedAt)
 	}
 	query := upsertCodeTaintEvidenceProjectedNodeBatchPrefix + strings.Join(values, ", ") + upsertCodeTaintEvidenceProjectedNodeBatchSuffix
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert code taint evidence projected nodes: %w", err)
 	}
 	return nil
@@ -197,10 +197,10 @@ func (s CodeTaintEvidenceProjectedNodeStore) ListNodeUIDsForScopes(
 	evidenceSource string,
 	scopeIDs []string,
 ) ([]string, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("code taint evidence projected node store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listCodeTaintEvidenceNodeUIDsForScopesSQL, evidenceSource, scopeIDs)
+	rows, err := s.database.QueryContext(ctx, listCodeTaintEvidenceNodeUIDsForScopesSQL, evidenceSource, scopeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list code taint evidence node uids for scopes: %w", err)
 	}
@@ -228,13 +228,13 @@ func (s CodeTaintEvidenceProjectedNodeStore) ListStaleNodeUIDs(
 	currentGenerationID string,
 	limit int,
 ) ([]string, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("code taint evidence projected node store database is required")
 	}
 	if limit <= 0 {
 		return nil, nil
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx, listStaleCodeTaintEvidenceNodeUIDsSQL,
 		evidenceSource, scopeID, currentGenerationID, limit,
 	)
@@ -263,10 +263,10 @@ func (s CodeTaintEvidenceProjectedNodeStore) PruneForScopes(
 	evidenceSource string,
 	scopeIDs []string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code taint evidence projected node store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, pruneCodeTaintEvidenceForScopesSQL, evidenceSource, scopeIDs); err != nil {
+	if _, err := s.database.ExecContext(ctx, pruneCodeTaintEvidenceForScopesSQL, evidenceSource, scopeIDs); err != nil {
 		return fmt.Errorf("prune code taint evidence projected nodes for scopes: %w", err)
 	}
 	return nil
@@ -283,13 +283,13 @@ func (s CodeTaintEvidenceProjectedNodeStore) PruneStaleForUIDs(
 	currentGenerationID string,
 	uids []string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code taint evidence projected node store database is required")
 	}
 	if len(uids) == 0 {
 		return nil
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx, pruneStaleCodeTaintEvidenceForUIDsSQL,
 		evidenceSource, scopeID, currentGenerationID, uids,
 	); err != nil {
@@ -304,10 +304,10 @@ func (s CodeTaintEvidenceProjectedNodeStore) LedgerHasRowsForSource(
 	ctx context.Context,
 	evidenceSource string,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, fmt.Errorf("code taint evidence projected node store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, codeTaintEvidenceHasRowsForSourceSQL, evidenceSource)
+	rows, err := s.database.QueryContext(ctx, codeTaintEvidenceHasRowsForSourceSQL, evidenceSource)
 	if err != nil {
 		return false, fmt.Errorf("check code taint evidence rows for source: %w", err)
 	}

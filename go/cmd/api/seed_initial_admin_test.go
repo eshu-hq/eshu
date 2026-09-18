@@ -66,19 +66,19 @@ func (f *fakeSeedDB) QueryContext(_ context.Context, query string, _ ...any) (db
 }
 
 func (f *fakeSeedDB) Begin(context.Context) (db.Transaction, error) {
-	return &fakeSeedTx{db: f}, nil
+	return &fakeSeedTx{database: f}, nil
 }
 
 type fakeSeedTx struct {
-	db *fakeSeedDB
+	database *fakeSeedDB
 }
 
 func (tx *fakeSeedTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return tx.db.ExecContext(ctx, query, args...)
+	return tx.database.ExecContext(ctx, query, args...)
 }
 
 func (tx *fakeSeedTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	return tx.db.QueryContext(ctx, query, args...)
+	return tx.database.QueryContext(ctx, query, args...)
 }
 
 func (tx *fakeSeedTx) Commit() error   { return nil }
@@ -167,9 +167,9 @@ func testGetenv(values map[string]string) func(string) string {
 func TestSeedInitialAdminSkipsWhenModeDisabled(t *testing.T) {
 	banner := withBootstrapBannerCapture(t)
 
-	db := &fakeSeedDB{}
+	database := &fakeSeedDB{}
 	audit := &fakeAuditAppender{}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "disabled",
 	}), nil, nil, audit)
 	if err != nil {
@@ -178,8 +178,8 @@ func TestSeedInitialAdminSkipsWhenModeDisabled(t *testing.T) {
 	if banner.Len() != 0 {
 		t.Fatalf("banner written for disabled mode: %q", banner.String())
 	}
-	if len(db.execs) != 0 {
-		t.Fatalf("disabled mode issued %d DB execs, want 0", len(db.execs))
+	if len(database.execs) != 0 {
+		t.Fatalf("disabled mode issued %d DB execs, want 0", len(database.execs))
 	}
 	if !auditEventsContain(audit.events, bootstrapAuditReasonModeDisabled) {
 		t.Fatalf("no durable audit event for disabled mode choice: %#v", audit.events)
@@ -187,16 +187,16 @@ func TestSeedInitialAdminSkipsWhenModeDisabled(t *testing.T) {
 }
 
 func TestSeedInitialAdminSkipsWhenModeSSOOnly(t *testing.T) {
-	db := &fakeSeedDB{}
+	database := &fakeSeedDB{}
 	audit := &fakeAuditAppender{}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "sso-only",
 	}), nil, nil, audit)
 	if err != nil {
 		t.Fatalf("seedInitialAdmin() error = %v, want nil for sso-only mode", err)
 	}
-	if len(db.execs) != 0 {
-		t.Fatalf("sso-only mode issued %d DB execs, want 0", len(db.execs))
+	if len(database.execs) != 0 {
+		t.Fatalf("sso-only mode issued %d DB execs, want 0", len(database.execs))
 	}
 	if !auditEventsContain(audit.events, bootstrapAuditReasonModeSSOOnly) {
 		t.Fatalf("no durable audit event for sso-only mode choice: %#v", audit.events)
@@ -204,8 +204,8 @@ func TestSeedInitialAdminSkipsWhenModeSSOOnly(t *testing.T) {
 }
 
 func TestSeedInitialAdminRejectsInvalidMode(t *testing.T) {
-	db := &fakeSeedDB{}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	database := &fakeSeedDB{}
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "bogus",
 	}), nil, nil, nil)
 	if err == nil {
@@ -216,9 +216,9 @@ func TestSeedInitialAdminRejectsInvalidMode(t *testing.T) {
 func TestSeedInitialAdminEnvSeedPrintsOnlyRecoveryCodeNotPassword(t *testing.T) {
 	banner := withBootstrapBannerCapture(t)
 
-	db := &fakeSeedDB{countRows: 0}
+	database := &fakeSeedDB{countRows: 0}
 	audit := &fakeAuditAppender{}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_ADMIN_USERNAME": "operator",
 		"ESHU_ADMIN_PASSWORD": "correct-horse-battery-staple",
 	}), nil, nil, audit)
@@ -244,8 +244,8 @@ func TestSeedInitialAdminEnvSeedPrintsOnlyRecoveryCodeNotPassword(t *testing.T) 
 }
 
 func TestSeedInitialAdminGeneratedRequiresDEK(t *testing.T) {
-	db := &fakeSeedDB{countRows: 0}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	database := &fakeSeedDB{countRows: 0}
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
 	}), nil, nil, nil)
 	if err == nil {
@@ -273,8 +273,8 @@ const composeDevDEK = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 func TestSeedInitialAdminGeneratedSucceedsWithComposeDevDEK(t *testing.T) {
 	banner := withBootstrapBannerCapture(t)
 
-	db := &fakeSeedDB{countRows: 0}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	database := &fakeSeedDB{countRows: 0}
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
 		"ESHU_AUTH_SECRET_ENC_KEY": composeDevDEK,
 	}), nil, nil, nil)
@@ -290,9 +290,9 @@ func TestSeedInitialAdminGeneratedSealsAndPrintsFullBundle(t *testing.T) {
 	banner := withBootstrapBannerCapture(t)
 
 	dek := "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" // base64 of 32 raw bytes
-	db := &fakeSeedDB{countRows: 0}
+	database := &fakeSeedDB{countRows: 0}
 	audit := &fakeAuditAppender{}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
 		"ESHU_AUTH_SECRET_ENC_KEY": dek,
 		"ESHU_ADMIN_USERNAME":      "owner",
@@ -304,8 +304,8 @@ func TestSeedInitialAdminGeneratedSealsAndPrintsFullBundle(t *testing.T) {
 	if !strings.Contains(out, "owner") || !strings.Contains(out, "password:") || !strings.Contains(out, "recovery code:") {
 		t.Fatalf("banner missing expected fields: %q", out)
 	}
-	if !fakeSeedExecsContain(db.queries, "identity_bootstrap_credentials") {
-		t.Fatalf("generated mode did not persist a sealed bootstrap credential row: %#v", db.queries)
+	if !fakeSeedExecsContain(database.queries, "identity_bootstrap_credentials") {
+		t.Fatalf("generated mode did not persist a sealed bootstrap credential row: %#v", database.queries)
 	}
 	if !auditEventsContain(audit.events, bootstrapAuditReasonModeGenerated) {
 		t.Fatalf("no durable audit event for generated mode choice: %#v", audit.events)
@@ -327,9 +327,9 @@ func TestSeedInitialAdminGeneratedCredentialConflictPrintsNoBanner(t *testing.T)
 	banner := withBootstrapBannerCapture(t)
 
 	dek := "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-	db := &fakeSeedDB{countRows: 0, credentialConflict: true}
+	database := &fakeSeedDB{countRows: 0, credentialConflict: true}
 	audit := &fakeAuditAppender{}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
 		"ESHU_AUTH_SECRET_ENC_KEY": dek,
 		"ESHU_ADMIN_USERNAME":      "owner",
@@ -352,9 +352,9 @@ func TestSeedInitialAdminAlreadyProvisionedSkipsGenerateAndBanner(t *testing.T) 
 	banner := withBootstrapBannerCapture(t)
 
 	dek := "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-	db := &fakeSeedDB{countRows: 1} // an identity already exists
+	database := &fakeSeedDB{countRows: 1} // an identity already exists
 	audit := &fakeAuditAppender{}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
 		"ESHU_AUTH_SECRET_ENC_KEY": dek,
 	}), nil, nil, audit)
@@ -364,7 +364,7 @@ func TestSeedInitialAdminAlreadyProvisionedSkipsGenerateAndBanner(t *testing.T) 
 	if banner.Len() != 0 {
 		t.Fatalf("banner printed when an identity already existed: %q", banner.String())
 	}
-	if fakeSeedExecsContain(db.queries, "identity_bootstrap_credentials") {
+	if fakeSeedExecsContain(database.queries, "identity_bootstrap_credentials") {
 		t.Fatal("GenerateBootstrapCredential ran even though identities already existed")
 	}
 	if !auditEventsContain(audit.events, bootstrapAuditReasonModeSealed) {
@@ -381,8 +381,8 @@ func TestSeedInitialAdminAlreadyProvisionedSkipsGenerateAndBanner(t *testing.T) 
 // fail closed on a missing DEK it no longer needs) and never resolves a
 // keyring or seals anything.
 func TestSeedInitialAdminGeneratedSkipsCryptoWhenAlreadyProvisioned(t *testing.T) {
-	db := &fakeSeedDB{countRows: 1}
-	err := seedInitialAdmin(context.Background(), db, testGetenv(map[string]string{
+	database := &fakeSeedDB{countRows: 1}
+	err := seedInitialAdmin(context.Background(), database, testGetenv(map[string]string{
 		"ESHU_AUTH_BOOTSTRAP_MODE": "generated",
 		// Deliberately no ESHU_AUTH_SECRET_ENC_KEY: the early exists-check
 		// must short-circuit before the DEK is ever required.
@@ -390,8 +390,8 @@ func TestSeedInitialAdminGeneratedSkipsCryptoWhenAlreadyProvisioned(t *testing.T
 	if err != nil {
 		t.Fatalf("seedInitialAdmin() error = %v, want nil (no DEK required once already provisioned)", err)
 	}
-	if len(db.execs) != 0 {
-		t.Fatalf("no writes expected once already provisioned: %#v", db.execs)
+	if len(database.execs) != 0 {
+		t.Fatalf("no writes expected once already provisioned: %#v", database.execs)
 	}
 }
 

@@ -46,14 +46,14 @@ type latencyExecQueryer struct {
 	execCount   int
 }
 
-func (db *latencyExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	time.Sleep(db.stmtLatency)
+func (database *latencyExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	time.Sleep(database.stmtLatency)
 	return &queueFakeRows{}, nil
 }
 
-func (db *latencyExecQueryer) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
-	time.Sleep(db.stmtLatency)
-	db.execCount++
+func (database *latencyExecQueryer) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+	time.Sleep(database.stmtLatency)
+	database.execCount++
 	return fakeResult{}, nil
 }
 

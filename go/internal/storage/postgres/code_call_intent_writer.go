@@ -19,14 +19,14 @@ type CodeCallIntentWriter = SharedIntentAcceptanceWriter
 
 // NewCodeCallIntentWriter creates a code-call writer backed by the provided
 // database handle.
-func NewCodeCallIntentWriter(db db.ExecQueryer) *CodeCallIntentWriter {
-	return NewSharedIntentAcceptanceWriter(db)
+func NewCodeCallIntentWriter(database db.ExecQueryer) *CodeCallIntentWriter {
+	return NewSharedIntentAcceptanceWriter(database)
 }
 
 // NewCodeCallIntentWriterWithInstruments creates a code-call writer backed by
 // the provided database handle and optional metrics instruments.
-func NewCodeCallIntentWriterWithInstruments(db db.ExecQueryer, instruments *telemetry.Instruments) *CodeCallIntentWriter {
-	return NewSharedIntentAcceptanceWriterWithInstruments(db, instruments)
+func NewCodeCallIntentWriterWithInstruments(database db.ExecQueryer, instruments *telemetry.Instruments) *CodeCallIntentWriter {
+	return NewSharedIntentAcceptanceWriterWithInstruments(database, instruments)
 }
 
 func recordSharedAcceptanceUpsertMetrics(

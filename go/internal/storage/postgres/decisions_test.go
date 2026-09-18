@@ -21,8 +21,8 @@ import (
 func TestDecisionStoreUpsertAndList(t *testing.T) {
 	t.Parallel()
 
-	db := newDecisionTestDB()
-	store := NewDecisionStore(db)
+	database := newDecisionTestDB()
+	store := NewDecisionStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -65,8 +65,8 @@ func TestDecisionStoreUpsertAndList(t *testing.T) {
 func TestDecisionStoreUpsertOverwrites(t *testing.T) {
 	t.Parallel()
 
-	db := newDecisionTestDB()
-	store := NewDecisionStore(db)
+	database := newDecisionTestDB()
+	store := NewDecisionStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -115,8 +115,8 @@ func TestDecisionStoreUpsertOverwrites(t *testing.T) {
 func TestDecisionStoreFilterByType(t *testing.T) {
 	t.Parallel()
 
-	db := newDecisionTestDB()
-	store := NewDecisionStore(db)
+	database := newDecisionTestDB()
+	store := NewDecisionStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -159,8 +159,8 @@ func TestDecisionStoreFilterByType(t *testing.T) {
 func TestDecisionStoreEvidenceInsertAndList(t *testing.T) {
 	t.Parallel()
 
-	db := newDecisionTestDB()
-	store := NewDecisionStore(db)
+	database := newDecisionTestDB()
+	store := NewDecisionStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -206,8 +206,8 @@ func TestDecisionStoreEvidenceInsertAndList(t *testing.T) {
 func TestDecisionStoreEmptyEvidenceInsert(t *testing.T) {
 	t.Parallel()
 
-	db := newDecisionTestDB()
-	store := NewDecisionStore(db)
+	database := newDecisionTestDB()
+	store := NewDecisionStore(database)
 	ctx := context.Background()
 
 	// Should be a no-op, not an error.
@@ -219,8 +219,8 @@ func TestDecisionStoreEmptyEvidenceInsert(t *testing.T) {
 func TestDecisionStoreListDecisionsDefaultLimit(t *testing.T) {
 	t.Parallel()
 
-	db := newDecisionTestDB()
-	store := NewDecisionStore(db)
+	database := newDecisionTestDB()
+	store := NewDecisionStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -290,7 +290,7 @@ func newDecisionTestDB() *decisionTestDB {
 	}
 }
 
-func (db *decisionTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *decisionTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "INSERT INTO projection_decisions"):
 		row := projector.ProjectionDecisionRow{
@@ -310,7 +310,7 @@ func (db *decisionTestDB) ExecContext(_ context.Context, query string, args ...a
 				row.ProvenanceSummary = m
 			}
 		}
-		db.decisions[row.DecisionID] = row
+		database.decisions[row.DecisionID] = row
 		return proofResult{}, nil
 
 	case strings.Contains(query, "INSERT INTO projection_decision_evidence"):
@@ -328,7 +328,7 @@ func (db *decisionTestDB) ExecContext(_ context.Context, query string, args ...a
 				row.Detail = m
 			}
 		}
-		db.evidence[row.EvidenceID] = row
+		database.evidence[row.EvidenceID] = row
 		return proofResult{}, nil
 
 	default:
@@ -336,7 +336,7 @@ func (db *decisionTestDB) ExecContext(_ context.Context, query string, args ...a
 	}
 }
 
-func (db *decisionTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+func (database *decisionTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM projection_decisions"):
 		repoID := args[0].(string)
@@ -351,7 +351,7 @@ func (db *decisionTestDB) QueryContext(_ context.Context, query string, args ...
 		}
 
 		var rows [][]any
-		for _, d := range db.decisions {
+		for _, d := range database.decisions {
 			if d.RepositoryID != repoID || d.SourceRunID != runID {
 				continue
 			}
@@ -382,7 +382,7 @@ func (db *decisionTestDB) QueryContext(_ context.Context, query string, args ...
 		// Collect matching evidence, then sort by (created_at, evidence_id) to
 		// match the real SQL ORDER BY and avoid map-iteration non-determinism.
 		var matched []projector.ProjectionDecisionEvidenceRow
-		for _, e := range db.evidence {
+		for _, e := range database.evidence {
 			if e.DecisionID != decisionID {
 				continue
 			}

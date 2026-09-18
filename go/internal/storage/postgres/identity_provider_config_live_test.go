@@ -225,19 +225,19 @@ func providerConfigLiveProofDSN() string {
 func openProviderConfigLiveSchema(t *testing.T, ctx context.Context, dsn string) (*sql.DB, string) {
 	t.Helper()
 	schemaName := fmt.Sprintf("provider_config_live_%d", time.Now().UnixNano())
-	db := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+	database := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
+	if _, err := database.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create provider config live schema: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
+		_, _ = database.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 	})
 	for _, defName := range []string{"ingestion_scopes", "tenant_workspace_grants", "identity_subjects", "provider_config_sealed_secret"} {
-		if _, err := db.ExecContext(ctx, MigrationSQL(defName)); err != nil {
+		if _, err := database.ExecContext(ctx, MigrationSQL(defName)); err != nil {
 			t.Fatalf("apply migration %q: %v", defName, err)
 		}
 	}
-	return db, schemaName
+	return database, schemaName
 }
 
 // openProviderConfigLiveSchemaConn opens a pgx handle capped at one
@@ -248,23 +248,23 @@ func openProviderConfigLiveSchema(t *testing.T, ctx context.Context, dsn string)
 // separate backend sessions whose FOR UPDATE locks can actually contend.
 func openProviderConfigLiveSchemaConn(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	t.Cleanup(func() { _ = database.Close() })
+	if _, err := database.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}
-	return db
+	return database
 }
 
-func seedProviderConfigLiveTenant(t *testing.T, ctx context.Context, db *sql.DB, tenantID string) {
+func seedProviderConfigLiveTenant(t *testing.T, ctx context.Context, database *sql.DB, tenantID string) {
 	t.Helper()
 	now := time.Now().UTC()
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO tenants (tenant_id, status, policy_revision_hash, created_at, updated_at)
 VALUES ($1, 'active', 'seed_policy_rev', $2, $2)
 ON CONFLICT (tenant_id) DO NOTHING`, tenantID, now); err != nil {

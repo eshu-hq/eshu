@@ -44,7 +44,7 @@ func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	run workflow.Run,
 	items []workflow.WorkItem,
 ) (workflow.RunAdmission, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return workflow.RunAdmission{}, fmt.Errorf("workflow control store database is required")
 	}
 	if s.beginner == nil {

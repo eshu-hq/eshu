@@ -37,8 +37,8 @@ type leaseRowsErrorDB struct {
 	rowsErr error
 }
 
-func (db leaseRowsErrorDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	return &leaseRowsErrorRows{err: db.rowsErr}, nil
+func (database leaseRowsErrorDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	return &leaseRowsErrorRows{err: database.rowsErr}, nil
 }
 
 func (leaseRowsErrorDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {

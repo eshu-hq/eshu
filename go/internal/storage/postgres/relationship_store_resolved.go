@@ -35,7 +35,7 @@ func (s *RelationshipStore) GetResolvedRelationshipsForRepos(
 		args[i] = repoID
 	}
 	placeholderList := strings.Join(placeholders, ", ")
-	sqlRows, err := s.db.QueryContext(ctx, fmt.Sprintf(listResolvedByReposSQL, placeholderList, placeholderList), args...)
+	sqlRows, err := s.database.QueryContext(ctx, fmt.Sprintf(listResolvedByReposSQL, placeholderList, placeholderList), args...)
 	if err != nil {
 		return nil, fmt.Errorf("list resolved by repos: %w", err)
 	}
@@ -113,7 +113,7 @@ func (s *RelationshipStore) ActivateResolutionGenerationForClaim(
 	claimedAt time.Time,
 ) error {
 	now := time.Now().UTC()
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		activateResolutionGenerationForClaimSQL,
 		generationID,

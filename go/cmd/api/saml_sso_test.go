@@ -77,7 +77,7 @@ func TestResolveSAMLPrincipalUsesDurableIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadSAMLProviderConfigs() error = %v", err)
 	}
-	db := &samlIdentityTestDB{
+	database := &samlIdentityTestDB{
 		queryResponses: []samlIdentityTestRows{{
 			rows: [][]any{{
 				"tenant_durable",
@@ -90,7 +90,7 @@ func TestResolveSAMLPrincipalUsesDurableIdentity(t *testing.T) {
 		}},
 	}
 	store := &postgresSAMLStore{
-		identity:  pgstatus.NewIdentitySubjectStore(db),
+		identity:  pgstatus.NewIdentitySubjectStore(database),
 		providers: providers,
 	}
 
@@ -123,14 +123,14 @@ func TestResolveSAMLPrincipalDeniesKnownDurableSubject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadSAMLProviderConfigs() error = %v", err)
 	}
-	db := &samlIdentityTestDB{
+	database := &samlIdentityTestDB{
 		queryResponses: []samlIdentityTestRows{
 			{},
 			{rows: [][]any{{"external_identity_saml"}}},
 		},
 	}
 	store := &postgresSAMLStore{
-		identity:  pgstatus.NewIdentitySubjectStore(db),
+		identity:  pgstatus.NewIdentitySubjectStore(database),
 		providers: providers,
 	}
 
@@ -145,7 +145,7 @@ func TestResolveSAMLPrincipalDeniesKnownDurableSubject(t *testing.T) {
 	if ok || auth.TenantID != "" {
 		t.Fatalf("ResolveSAMLPrincipal() auth = %#v ok = %t, want durable denial without auth-rule fallback", auth, ok)
 	}
-	if got := len(db.queries); got != 2 {
+	if got := len(database.queries); got != 2 {
 		t.Fatalf("durable identity query count = %d, want resolution plus known-subject check", got)
 	}
 }
@@ -157,11 +157,11 @@ func TestResolveSAMLPrincipalDeniesUnknownDurableSubject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadSAMLProviderConfigs() error = %v", err)
 	}
-	db := &samlIdentityTestDB{
+	database := &samlIdentityTestDB{
 		queryResponses: []samlIdentityTestRows{{}, {}},
 	}
 	store := &postgresSAMLStore{
-		identity:  pgstatus.NewIdentitySubjectStore(db),
+		identity:  pgstatus.NewIdentitySubjectStore(database),
 		providers: providers,
 	}
 
@@ -176,7 +176,7 @@ func TestResolveSAMLPrincipalDeniesUnknownDurableSubject(t *testing.T) {
 	if ok || auth.TenantID != "" {
 		t.Fatalf("ResolveSAMLPrincipal() auth = %#v ok = %t, want durable denial for unmapped subject", auth, ok)
 	}
-	if got := len(db.queries); got != 2 {
+	if got := len(database.queries); got != 2 {
 		t.Fatalf("durable identity query count = %d, want resolution plus known-subject check", got)
 	}
 }
@@ -188,9 +188,9 @@ func TestGetSAMLProviderRequiresActiveDurableProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadSAMLProviderConfigs() error = %v", err)
 	}
-	db := &samlIdentityTestDB{queryResponses: []samlIdentityTestRows{{}}}
+	database := &samlIdentityTestDB{queryResponses: []samlIdentityTestRows{{}}}
 	store := &postgresSAMLStore{
-		identity:  pgstatus.NewIdentitySubjectStore(db),
+		identity:  pgstatus.NewIdentitySubjectStore(database),
 		providers: providers,
 	}
 
@@ -201,11 +201,11 @@ func TestGetSAMLProviderRequiresActiveDurableProvider(t *testing.T) {
 	if ok || cfg.ProviderConfigID != "" {
 		t.Fatalf("GetSAMLProvider() cfg = %#v ok = %t, want disabled without active provider row", cfg, ok)
 	}
-	if got := len(db.queries); got != 1 {
+	if got := len(database.queries); got != 1 {
 		t.Fatalf("active provider query count = %d, want 1", got)
 	}
-	if !strings.Contains(db.queries[0].query, "pc.provider_kind = 'external_saml'") {
-		t.Fatalf("active provider query did not require external_saml kind:\n%s", db.queries[0].query)
+	if !strings.Contains(database.queries[0].query, "pc.provider_kind = 'external_saml'") {
+		t.Fatalf("active provider query did not require external_saml kind:\n%s", database.queries[0].query)
 	}
 }
 
@@ -266,17 +266,17 @@ type samlIdentityTestQuery struct {
 	args  []any
 }
 
-func (db *samlIdentityTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	db.queries = append(db.queries, samlIdentityTestQuery{query: query, args: args})
-	if len(db.queryResponses) == 0 {
+func (database *samlIdentityTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.queries = append(database.queries, samlIdentityTestQuery{query: query, args: args})
+	if len(database.queryResponses) == 0 {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	rows := db.queryResponses[0]
-	db.queryResponses = db.queryResponses[1:]
+	rows := database.queryResponses[0]
+	database.queryResponses = database.queryResponses[1:]
 	return &rows, nil
 }
 
-func (db *samlIdentityTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *samlIdentityTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return nil, errors.New("unexpected exec")
 }
 

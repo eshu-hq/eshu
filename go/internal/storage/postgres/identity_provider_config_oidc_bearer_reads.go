@@ -74,10 +74,10 @@ type OIDCBearerProviderRow struct {
 // provider config must not take every other enabled provider's bearer
 // validation down with it.
 func (s *IdentitySubjectStore) ListActiveOIDCBearerProviders(ctx context.Context) ([]OIDCBearerProviderRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("identity subject store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, selectActiveOIDCBearerProvidersQuery)
+	rows, err := s.database.QueryContext(ctx, selectActiveOIDCBearerProvidersQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list active oidc bearer providers: %w", err)
 	}

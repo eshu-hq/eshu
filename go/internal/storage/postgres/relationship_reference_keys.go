@@ -75,10 +75,10 @@ func relationshipReferenceSourceRepoID(envelope facts.Envelope) string {
 
 func refreshRelationshipReferenceCandidateKeys(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	envelopes []facts.Envelope,
 ) error {
-	if db == nil || len(envelopes) == 0 {
+	if database == nil || len(envelopes) == 0 {
 		return nil
 	}
 
@@ -86,7 +86,7 @@ func refreshRelationshipReferenceCandidateKeys(
 	if len(factIDs) == 0 {
 		return nil
 	}
-	if _, err := db.ExecContext(ctx, deleteRelationshipReferenceCandidateKeysSQL, pgarray.StringArray(factIDs)); err != nil {
+	if _, err := database.ExecContext(ctx, deleteRelationshipReferenceCandidateKeysSQL, pgarray.StringArray(factIDs)); err != nil {
 		return fmt.Errorf("delete relationship reference candidate keys: %w", err)
 	}
 
@@ -99,7 +99,7 @@ func refreshRelationshipReferenceCandidateKeys(
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := insertRelationshipReferenceCandidateKeyBatch(ctx, db, rows[start:end]); err != nil {
+		if err := insertRelationshipReferenceCandidateKeyBatch(ctx, database, rows[start:end]); err != nil {
 			return err
 		}
 	}
@@ -108,7 +108,7 @@ func refreshRelationshipReferenceCandidateKeys(
 
 func insertRelationshipReferenceCandidateKeyBatch(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	rows []relationshipReferenceCandidateKeyRow,
 ) error {
 	if len(rows) == 0 {
@@ -132,7 +132,7 @@ func insertRelationshipReferenceCandidateKeyBatch(
 		)
 		args = append(args, row.FactID, row.ScopeID, row.GenerationID, row.SourceRepoID, row.ReferenceKey)
 	}
-	if _, err := db.ExecContext(ctx, insertRelationshipReferenceCandidateKeyPrefix+values.String()+insertRelationshipReferenceCandidateKeySuffix, args...); err != nil {
+	if _, err := database.ExecContext(ctx, insertRelationshipReferenceCandidateKeyPrefix+values.String()+insertRelationshipReferenceCandidateKeySuffix, args...); err != nil {
 		return fmt.Errorf("insert relationship reference candidate key batch (%d rows): %w", len(rows), err)
 	}
 	return nil

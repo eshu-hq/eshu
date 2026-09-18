@@ -57,12 +57,12 @@ type EshuSearchDocumentRow struct {
 // store, scoped to each scope's active generation so superseded generations are
 // excluded.
 type EshuSearchDocumentStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewEshuSearchDocumentStore builds a search-document reader over db.
-func NewEshuSearchDocumentStore(db db.ExecQueryer) EshuSearchDocumentStore {
-	return EshuSearchDocumentStore{db: db}
+func NewEshuSearchDocumentStore(database db.ExecQueryer) EshuSearchDocumentStore {
+	return EshuSearchDocumentStore{database: database}
 }
 
 // ListActiveDocuments returns the curated documents for the scope's active
@@ -73,7 +73,7 @@ func (s EshuSearchDocumentStore) ListActiveDocuments(
 	ctx context.Context,
 	filter EshuSearchDocumentFilter,
 ) ([]EshuSearchDocumentRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("eshu search document store database is required")
 	}
 	filter = normalizeEshuSearchDocumentFilter(filter)
@@ -82,7 +82,7 @@ func (s EshuSearchDocumentStore) ListActiveDocuments(
 	}
 
 	query, args := buildEshuSearchDocumentQuery(filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active eshu search documents: %w", err)
 	}

@@ -312,7 +312,7 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 	instruments *telemetry.Instruments,
 	domains []string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("ingestion store db is required")
 	}
 
@@ -322,13 +322,13 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 		defer span.End()
 	}
 
-	queue := ReducerQueue{db: s.db, Now: s.Now}
+	queue := ReducerQueue{database: s.database, Now: s.Now}
 	for _, domain := range domains {
 		domain = strings.TrimSpace(domain)
 		if domain == "" {
 			continue
 		}
-		workItemIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, s.db, domain)
+		workItemIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
 		if err != nil {
 			return err
 		}

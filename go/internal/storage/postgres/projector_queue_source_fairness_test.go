@@ -55,7 +55,7 @@ func TestProjectorQueueClaimDoesNotFillWorkersFromOneNoisySource(t *testing.T) {
 	insertProjectorSourceFairnessWork(t, ctx, db, "aws-scope-00", "aws-gen-00", now.Add(time.Hour))
 
 	queue := ProjectorQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "projector-source-fairness",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now.Add(2 * time.Hour) },
@@ -149,7 +149,7 @@ func TestReducerQueueBatchDoesNotStarveNewerSourceWithinDomain(t *testing.T) {
 	}
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "reducer-source-fairness",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return quietBase.Add(2 * time.Hour) },

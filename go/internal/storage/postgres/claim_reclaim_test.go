@@ -40,7 +40,7 @@ func TestProjectorQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) 
 	}
 
 	queue := ProjectorQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "projector-1",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },
@@ -185,7 +185,7 @@ func TestReducerQueueClaimIncludesExpiredLeaseReclaimPredicates(t *testing.T) {
 	}
 
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

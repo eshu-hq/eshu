@@ -362,7 +362,7 @@ CREATE INDEX IF NOT EXISTS identity_token_metadata_active_idx
 // IdentitySubjectStore owns identity subject schema and local identity lifecycle
 // writes for the user-management rollout.
 type IdentitySubjectStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 	// providerSecretKeyring seals provider-config write-only secrets (#4966).
 	// It is nil when no DEK is configured (ESHU_AUTH_SECRET_ENC_KEY(_FILE)
 	// unset); provider-config writes that carry a secret fail closed in that
@@ -388,8 +388,8 @@ type IdentitySubjectStore struct {
 }
 
 // NewIdentitySubjectStore constructs a Postgres identity subject store.
-func NewIdentitySubjectStore(db db.ExecQueryer) *IdentitySubjectStore {
-	return &IdentitySubjectStore{db: db}
+func NewIdentitySubjectStore(database db.ExecQueryer) *IdentitySubjectStore {
+	return &IdentitySubjectStore{database: database}
 }
 
 // SetProviderSecretKeyring wires the keyring used to seal provider-config
@@ -422,10 +422,10 @@ func IdentitySubjectSchemaSQL() string {
 
 // EnsureSchema applies the identity subject schema.
 func (s *IdentitySubjectStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("identity subject store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, IdentitySubjectSchemaSQL()); err != nil {
+	if _, err := s.database.ExecContext(ctx, IdentitySubjectSchemaSQL()); err != nil {
 		return fmt.Errorf("ensure identity subject schema: %w", err)
 	}
 	return nil

@@ -107,7 +107,7 @@ func TestProofDomainCloudAssetResolutionFlowsCollectorToReducerIntent(t *testing
 	}
 
 	projectorQueue := ProjectorQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "projector-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -116,7 +116,7 @@ func TestProofDomainCloudAssetResolutionFlowsCollectorToReducerIntent(t *testing
 	canonicalWriter := &recordingCanonicalWriter{}
 	contentWriter := &recordingContentWriter{}
 	reducerQueue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

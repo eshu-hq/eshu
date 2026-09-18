@@ -78,18 +78,18 @@ func DeferredBackfillPartitionMemoSchemaSQL() string {
 // backfill's per-partition (scope_id, generation_id) -> catalog_fingerprint
 // memo (issue #3624 Track 1 / B').
 type deferredBackfillPartitionMemoStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // newDeferredBackfillPartitionMemoStore constructs a store backed by the
 // provided database handle or transaction.
-func newDeferredBackfillPartitionMemoStore(db db.ExecQueryer) *deferredBackfillPartitionMemoStore {
-	return &deferredBackfillPartitionMemoStore{db: db}
+func newDeferredBackfillPartitionMemoStore(database db.ExecQueryer) *deferredBackfillPartitionMemoStore {
+	return &deferredBackfillPartitionMemoStore{database: database}
 }
 
 // EnsureSchema applies the partition memo DDL.
 func (s *deferredBackfillPartitionMemoStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, deferredBackfillPartitionMemoSchemaSQL)
+	_, err := s.database.ExecContext(ctx, deferredBackfillPartitionMemoSchemaSQL)
 	return err
 }
 
@@ -129,7 +129,7 @@ func (s *deferredBackfillPartitionMemoStore) Upsert(
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := upsertDeferredBackfillPartitionMemoBatch(ctx, s.db, rows[i:end]); err != nil {
+		if err := upsertDeferredBackfillPartitionMemoBatch(ctx, s.database, rows[i:end]); err != nil {
 			return err
 		}
 	}
@@ -156,7 +156,7 @@ func (s *deferredBackfillPartitionMemoStore) LookupMany(
 		generationIDs = append(generationIDs, partition.GenerationID)
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		lookupDeferredBackfillPartitionMemosQuery,
 		pgarray.StringArray(scopeIDs),
@@ -185,7 +185,7 @@ func (s *deferredBackfillPartitionMemoStore) LookupMany(
 
 func upsertDeferredBackfillPartitionMemoBatch(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	batch []deferredBackfillPartitionMemoRow,
 ) error {
 	if len(batch) == 0 {
@@ -223,7 +223,7 @@ func upsertDeferredBackfillPartitionMemoBatch(
 	}
 
 	query := upsertDeferredBackfillPartitionMemoBatchPrefix + values.String() + upsertDeferredBackfillPartitionMemoBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert deferred backfill partition memo batch (%d rows): %w", len(batch), err)
 	}
 	return nil

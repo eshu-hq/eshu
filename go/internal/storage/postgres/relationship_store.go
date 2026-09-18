@@ -18,17 +18,17 @@ import (
 // RelationshipStore persists relationship evidence, assertions, candidates,
 // and resolved relationships in PostgreSQL.
 type RelationshipStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewRelationshipStore constructs a Postgres-backed relationship store.
-func NewRelationshipStore(db db.ExecQueryer) *RelationshipStore {
-	return &RelationshipStore{db: db}
+func NewRelationshipStore(database db.ExecQueryer) *RelationshipStore {
+	return &RelationshipStore{database: database}
 }
 
 // EnsureSchema applies the relationship DDL.
 func (s *RelationshipStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, relationshipSchemaSQL)
+	_, err := s.database.ExecContext(ctx, relationshipSchemaSQL)
 	return err
 }
 
@@ -49,7 +49,7 @@ func (s *RelationshipStore) UpsertAssertions(
 		)
 		srcEntityID := coalesceNullable(a.SourceEntityID, a.SourceRepoID)
 		tgtEntityID := coalesceNullable(a.TargetEntityID, a.TargetRepoID)
-		if _, err := s.db.ExecContext(
+		if _, err := s.database.ExecContext(
 			ctx, upsertAssertionSQL,
 			assertionID,
 			a.SourceRepoID,
@@ -78,9 +78,9 @@ func (s *RelationshipStore) ListAssertions(
 	var err error
 
 	if relationshipType == nil {
-		sqlRows, err = s.db.QueryContext(ctx, listAssertionsSQL)
+		sqlRows, err = s.database.QueryContext(ctx, listAssertionsSQL)
 	} else {
-		sqlRows, err = s.db.QueryContext(ctx, listAssertionsByTypeSQL, string(*relationshipType))
+		sqlRows, err = s.database.QueryContext(ctx, listAssertionsByTypeSQL, string(*relationshipType))
 	}
 	if err != nil {
 		return nil, fmt.Errorf("list assertions: %w", err)
@@ -117,7 +117,7 @@ func (s *RelationshipStore) CreateGeneration(
 ) (string, error) {
 	now := time.Now().UTC()
 	genID := relationshipDigest("generation", scopeID, runID, fmt.Sprintf("%d", now.UnixNano()))
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx, createGenerationSQL,
 		genID, scopeID, emptyToNil(runID), now,
 	); err != nil {
@@ -133,7 +133,7 @@ func (s *RelationshipStore) CommitGeneration(
 	scopeID string,
 ) error {
 	now := time.Now().UTC()
-	_, err := s.db.ExecContext(ctx, activateGenerationSQL, now, generationID, scopeID)
+	_, err := s.database.ExecContext(ctx, activateGenerationSQL, now, generationID, scopeID)
 	if err != nil {
 		return fmt.Errorf("commit generation: %w", err)
 	}
@@ -149,7 +149,7 @@ func (s *RelationshipStore) ActivateResolutionGeneration(
 	scopeID string,
 ) error {
 	now := time.Now().UTC()
-	_, err := s.db.ExecContext(
+	_, err := s.database.ExecContext(
 		ctx, activateResolutionGenerationSQL,
 		generationID, scopeID, now, now,
 	)
@@ -181,7 +181,7 @@ func (s *RelationshipStore) ListScopeRepositoryIDs(
 	scopeID string,
 	generationID string,
 ) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, scopeRepositoryIDsSQL, scopeID, generationID)
+	rows, err := s.database.QueryContext(ctx, scopeRepositoryIDsSQL, scopeID, generationID)
 	if err != nil {
 		return nil, fmt.Errorf("list scope repository IDs: %w", err)
 	}
@@ -210,7 +210,7 @@ func (s *RelationshipStore) IsGenerationActive(
 	ctx context.Context,
 	generationID string,
 ) (bool, error) {
-	rows, err := s.db.QueryContext(ctx, relationshipGenerationActiveSQL, generationID)
+	rows, err := s.database.QueryContext(ctx, relationshipGenerationActiveSQL, generationID)
 	if err != nil {
 		return false, fmt.Errorf("query relationship generation active: %w", err)
 	}
@@ -260,7 +260,7 @@ func (s *RelationshipStore) ListEvidenceFacts(
 	ctx context.Context,
 	generationID string,
 ) ([]relationships.EvidenceFact, error) {
-	sqlRows, err := s.db.QueryContext(ctx, listEvidenceFactsByGenerationSQL, generationID)
+	sqlRows, err := s.database.QueryContext(ctx, listEvidenceFactsByGenerationSQL, generationID)
 	if err != nil {
 		return nil, fmt.Errorf("list evidence facts: %w", err)
 	}
@@ -316,7 +316,7 @@ func (s *RelationshipStore) UpsertCandidates(
 		if err != nil {
 			return fmt.Errorf("marshal candidate details: %w", err)
 		}
-		if _, err := s.db.ExecContext(
+		if _, err := s.database.ExecContext(
 			ctx, insertCandidateSQL,
 			candidateID,
 			generationID,
@@ -352,7 +352,7 @@ func (s *RelationshipStore) UpsertResolved(
 		if err != nil {
 			return fmt.Errorf("marshal resolved details: %w", err)
 		}
-		if _, err := s.db.ExecContext(
+		if _, err := s.database.ExecContext(
 			ctx, insertResolvedSQL,
 			resolvedID,
 			generationID,
@@ -379,7 +379,7 @@ func (s *RelationshipStore) GetResolvedRelationships(
 	ctx context.Context,
 	scopeID string,
 ) ([]relationships.ResolvedRelationship, error) {
-	sqlRows, err := s.db.QueryContext(ctx, listResolvedSQL, scopeID)
+	sqlRows, err := s.database.QueryContext(ctx, listResolvedSQL, scopeID)
 	if err != nil {
 		return nil, fmt.Errorf("list resolved: %w", err)
 	}
@@ -431,7 +431,7 @@ func (s *RelationshipStore) GetResolvedRelationshipsForGeneration(
 	scopeID string,
 	generationID string,
 ) ([]relationships.ResolvedRelationship, error) {
-	sqlRows, err := s.db.QueryContext(ctx, listResolvedByGenerationSQL, scopeID, generationID)
+	sqlRows, err := s.database.QueryContext(ctx, listResolvedByGenerationSQL, scopeID, generationID)
 	if err != nil {
 		return nil, fmt.Errorf("list resolved by generation: %w", err)
 	}

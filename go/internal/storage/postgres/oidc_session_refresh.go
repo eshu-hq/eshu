@@ -34,7 +34,7 @@ func (s *OIDCLoginStore) ResolveActiveRoleGrants(
 	ctx context.Context,
 	query OIDCRoleGrantQuery,
 ) (OIDCGroupGrantResolution, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return OIDCGroupGrantResolution{}, false, errors.New("oidc login store database is required")
 	}
 	query = normalizeOIDCRoleGrantQuery(query)
@@ -60,7 +60,7 @@ func (s *OIDCLoginStore) ResolveActiveRoleGrants(
 	if err != nil {
 		return OIDCGroupGrantResolution{}, false, err
 	}
-	features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, query.TenantID, roles, query.AsOf)
+	features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.database, query.TenantID, roles, query.AsOf)
 	if err != nil {
 		// Fails closed (refresh denied -> session revoked). Log for operator triage.
 		slog.ErrorContext(ctx, "oidc session permission grant resolution failed during refresh; session denied",
@@ -81,7 +81,7 @@ func (s *OIDCLoginStore) resolveActiveRoles(
 	ctx context.Context,
 	query OIDCRoleGrantQuery,
 ) ([]string, string, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		resolveOIDCActiveRolesQuery,
 		query.TenantID,
@@ -132,7 +132,7 @@ func (s *OIDCLoginStore) ExternalSubjectActive(
 	providerConfigID string,
 	subjectIDHash string,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, errors.New("oidc login store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
@@ -140,7 +140,7 @@ func (s *OIDCLoginStore) ExternalSubjectActive(
 	if providerConfigID == "" || subjectIDHash == "" {
 		return false, errors.New("oidc subject lookup requires provider config id and subject hash")
 	}
-	rows, err := s.db.QueryContext(ctx, externalSubjectActiveQuery, providerConfigID, subjectIDHash)
+	rows, err := s.database.QueryContext(ctx, externalSubjectActiveQuery, providerConfigID, subjectIDHash)
 	if err != nil {
 		return false, fmt.Errorf("resolve oidc external subject active: %w", err)
 	}

@@ -43,21 +43,21 @@ func CodeValueFlowBackfillStateSchemaSQL() string {
 // for value-flow ledger backfills so a partially failed backfill re-runs on the
 // next startup instead of being treated as done.
 type CodeValueFlowBackfillStateStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewCodeValueFlowBackfillStateStore constructs a Postgres-backed backfill-state
 // marker store.
-func NewCodeValueFlowBackfillStateStore(db db.ExecQueryer) CodeValueFlowBackfillStateStore {
-	return CodeValueFlowBackfillStateStore{db: db}
+func NewCodeValueFlowBackfillStateStore(database db.ExecQueryer) CodeValueFlowBackfillStateStore {
+	return CodeValueFlowBackfillStateStore{database: database}
 }
 
 // EnsureSchema applies the backfill-state marker DDL.
 func (s CodeValueFlowBackfillStateStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code value flow backfill state store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, codeValueFlowBackfillStateSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, codeValueFlowBackfillStateSchemaSQL); err != nil {
 		return fmt.Errorf("ensure code value flow backfill state schema: %w", err)
 	}
 	return nil
@@ -65,10 +65,10 @@ func (s CodeValueFlowBackfillStateStore) EnsureSchema(ctx context.Context) error
 
 // IsComplete returns true when the backfill key has been marked complete.
 func (s CodeValueFlowBackfillStateStore) IsComplete(ctx context.Context, key string) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, fmt.Errorf("code value flow backfill state store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, isCodeValueFlowBackfillCompleteSQL, key)
+	rows, err := s.database.QueryContext(ctx, isCodeValueFlowBackfillCompleteSQL, key)
 	if err != nil {
 		return false, fmt.Errorf("check code value flow backfill complete: %w", err)
 	}
@@ -86,10 +86,10 @@ func (s CodeValueFlowBackfillStateStore) IsComplete(ctx context.Context, key str
 // MarkComplete records the backfill key as complete, idempotent via ON CONFLICT
 // DO NOTHING.
 func (s CodeValueFlowBackfillStateStore) MarkComplete(ctx context.Context, key string, at time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code value flow backfill state store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, markCodeValueFlowBackfillCompleteSQL, key, at.UTC()); err != nil {
+	if _, err := s.database.ExecContext(ctx, markCodeValueFlowBackfillCompleteSQL, key, at.UTC()); err != nil {
 		return fmt.Errorf("mark code value flow backfill complete: %w", err)
 	}
 	return nil

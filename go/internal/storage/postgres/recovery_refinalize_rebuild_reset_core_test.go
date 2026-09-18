@@ -22,24 +22,24 @@ import (
 // lease it would otherwise yank, terminal failures the replay endpoint owns, and
 // any row belonging to a generation this refinalize does not cover.
 func TestRefinalizeRebuildResetDeletesOnlySucceededReducerWorkForAffectedGenerations(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeID, activeGeneration, retiredGeneration := refinalizeResetScope(t, ctx, db, suffix)
+	scopeID, activeGeneration, retiredGeneration := refinalizeResetScope(t, ctx, database, suffix)
 
 	// fact_work_items_reducer_live_lease_uniq allows one live lease per
 	// (conflict_domain, conflict_key), and both in-flight statuses would land on
 	// the same key within one scope, so `running` gets its own in-set scope. Both
 	// scopes are refinalized, so both in-flight rows are inside the affected set
 	// and their survival is a real assertion rather than an out-of-set accident.
-	otherScopeID, otherGeneration, _ := refinalizeResetScope(t, ctx, db, suffix+"-second")
+	otherScopeID, otherGeneration, _ := refinalizeResetScope(t, ctx, database, suffix+"-second")
 
-	succeeded := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activeGeneration, "succeeded-entity", "succeeded")
-	claimed := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activeGeneration, "claimed-entity", "claimed")
-	running := seedRefinalizeResetReducerWork(t, ctx, db, otherScopeID, otherGeneration, "running-entity", "running")
-	deadLetter := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activeGeneration, "dead-entity", "dead_letter")
-	retired := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, retiredGeneration, "retired-entity", "succeeded")
+	succeeded := seedRefinalizeResetReducerWork(t, ctx, database, scopeID, activeGeneration, "succeeded-entity", "succeeded")
+	claimed := seedRefinalizeResetReducerWork(t, ctx, database, scopeID, activeGeneration, "claimed-entity", "claimed")
+	running := seedRefinalizeResetReducerWork(t, ctx, database, otherScopeID, otherGeneration, "running-entity", "running")
+	deadLetter := seedRefinalizeResetReducerWork(t, ctx, database, scopeID, activeGeneration, "dead-entity", "dead_letter")
+	retired := seedRefinalizeResetReducerWork(t, ctx, database, scopeID, retiredGeneration, "retired-entity", "succeeded")
 
-	store := NewRecoveryStore(SQLDB{DB: db})
+	store := NewRecoveryStore(SQLDB{DB: database})
 	result, err := store.RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{
 		ScopeIDs: []string{scopeID, otherScopeID},
 	}, time.Now().UTC())
@@ -47,7 +47,7 @@ func TestRefinalizeRebuildResetDeletesOnlySucceededReducerWorkForAffectedGenerat
 		t.Fatalf("RefinalizeScopeProjections() error = %v, want nil", err)
 	}
 
-	if got := refinalizeResetWorkItemStatus(t, ctx, db, succeeded); got != "" {
+	if got := refinalizeResetWorkItemStatus(t, ctx, database, succeeded); got != "" {
 		t.Fatalf("succeeded reducer work for the refinalized generation survived as %q; "+
 			"the re-projection cannot reopen it (ON CONFLICT DO NOTHING), so the domain never re-runs", got)
 	}
@@ -57,12 +57,12 @@ func TestRefinalizeRebuildResetDeletesOnlySucceededReducerWorkForAffectedGenerat
 		"dead_letter":        deadLetter,
 		"retired generation": retired,
 	} {
-		if got := refinalizeResetWorkItemStatus(t, ctx, db, workItemID); got == "" {
+		if got := refinalizeResetWorkItemStatus(t, ctx, database, workItemID); got == "" {
 			t.Fatalf("%s reducer work item was deleted; the reset must touch only succeeded rows "+
 				"in the generations being refinalized", name)
 		}
 	}
-	if got, want := refinalizeResetWorkItemStatus(t, ctx, db, claimed), "claimed"; got != want {
+	if got, want := refinalizeResetWorkItemStatus(t, ctx, database, claimed), "claimed"; got != want {
 		t.Fatalf("claimed work item status = %q, want %q: a rebuild must not disturb a live lease", got, want)
 	}
 	if got, want := result.ReducerWorkDeleted, 1; got != want {
@@ -76,12 +76,12 @@ func TestRefinalizeRebuildResetDeletesOnlySucceededReducerWorkForAffectedGenerat
 // reopen a completed row, so a rebuild has to clear completed_at here or the
 // shared edge families (CALLS, INHERITS, the SQL table edges) stay missing.
 func TestRefinalizeRebuildResetReopensSharedIntentsForAffectedGenerationsOnly(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeID, activeGeneration, retiredGeneration := refinalizeResetScope(t, ctx, db, suffix)
+	scopeID, activeGeneration, retiredGeneration := refinalizeResetScope(t, ctx, database, suffix)
 
 	completed := time.Now().UTC()
-	store := NewSharedIntentStore(SQLDB{DB: db})
+	store := NewSharedIntentStore(SQLDB{DB: database})
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			IntentID:         "refinalize-reset-active-intent-" + suffix,
@@ -114,7 +114,7 @@ func TestRefinalizeRebuildResetReopensSharedIntentsForAffectedGenerationsOnly(t 
 		t.Fatalf("seed shared intents: %v", err)
 	}
 
-	recoveryStore := NewRecoveryStore(SQLDB{DB: db})
+	recoveryStore := NewRecoveryStore(SQLDB{DB: database})
 	result, err := recoveryStore.RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{
 		ScopeIDs: []string{scopeID},
 	}, time.Now().UTC())
@@ -122,11 +122,11 @@ func TestRefinalizeRebuildResetReopensSharedIntentsForAffectedGenerationsOnly(t 
 		t.Fatalf("RefinalizeScopeProjections() error = %v, want nil", err)
 	}
 
-	if completedAt := refinalizeResetIntentCompletedAt(t, ctx, db, rows[0].IntentID); completedAt != nil {
+	if completedAt := refinalizeResetIntentCompletedAt(t, ctx, database, rows[0].IntentID); completedAt != nil {
 		t.Fatalf("shared intent for the refinalized generation is still completed at %v; "+
 			"the partition worker only drains completed_at IS NULL, so its edges never rebuild", *completedAt)
 	}
-	if completedAt := refinalizeResetIntentCompletedAt(t, ctx, db, rows[1].IntentID); completedAt == nil {
+	if completedAt := refinalizeResetIntentCompletedAt(t, ctx, database, rows[1].IntentID); completedAt == nil {
 		t.Fatal("shared intent for a generation outside the refinalize was reopened; " +
 			"the reset must be scoped to the generations being rebuilt")
 	}
@@ -137,11 +137,11 @@ func TestRefinalizeRebuildResetReopensSharedIntentsForAffectedGenerationsOnly(t 
 
 // refinalizeResetIntentCompletedAt reads one intent's completed_at, returning nil for a
 // reopened row.
-func refinalizeResetIntentCompletedAt(t *testing.T, ctx context.Context, db *sql.DB, intentID string) *time.Time {
+func refinalizeResetIntentCompletedAt(t *testing.T, ctx context.Context, database *sql.DB, intentID string) *time.Time {
 	t.Helper()
 
 	var completedAt sql.NullTime
-	if err := db.QueryRowContext(
+	if err := database.QueryRowContext(
 		ctx,
 		`SELECT completed_at FROM shared_projection_intents WHERE intent_id = $1`, intentID,
 	).Scan(&completedAt); err != nil {
@@ -161,13 +161,13 @@ func refinalizeResetIntentCompletedAt(t *testing.T, ctx context.Context, db *sql
 // the edge Cypher is MATCH-only, so it matches nothing, writes nothing, and still
 // acks succeeded. Deleting the rows re-arms the gates to first-ingest behavior.
 func TestRefinalizeRebuildResetClearsReadinessPhaseStateForAffectedGenerationsOnly(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeID, activeGeneration, retiredGeneration := refinalizeResetScope(t, ctx, db, suffix)
+	scopeID, activeGeneration, retiredGeneration := refinalizeResetScope(t, ctx, database, suffix)
 
 	now := time.Now().UTC()
 	for _, generationID := range []string{activeGeneration, retiredGeneration} {
-		if _, err := db.ExecContext(
+		if _, err := database.ExecContext(
 			ctx, `
 			INSERT INTO graph_projection_phase_state
 			  (scope_id, acceptance_unit_id, source_run_id, generation_id, keyspace, phase, committed_at, updated_at)
@@ -178,7 +178,7 @@ func TestRefinalizeRebuildResetClearsReadinessPhaseStateForAffectedGenerationsOn
 		}
 	}
 
-	store := NewRecoveryStore(SQLDB{DB: db})
+	store := NewRecoveryStore(SQLDB{DB: database})
 	result, err := store.RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{
 		ScopeIDs: []string{scopeID},
 	}, now)
@@ -186,11 +186,11 @@ func TestRefinalizeRebuildResetClearsReadinessPhaseStateForAffectedGenerationsOn
 		t.Fatalf("RefinalizeScopeProjections() error = %v, want nil", err)
 	}
 
-	if refinalizeResetPhaseRowCount(t, ctx, db, scopeID, activeGeneration) != 0 {
+	if refinalizeResetPhaseRowCount(t, ctx, database, scopeID, activeGeneration) != 0 {
 		t.Fatal("readiness phase row for the refinalized generation survived; " +
 			"a stale 'canonical nodes committed' lets work commit into a wiped graph and ack succeeded")
 	}
-	if refinalizeResetPhaseRowCount(t, ctx, db, scopeID, retiredGeneration) != 1 {
+	if refinalizeResetPhaseRowCount(t, ctx, database, scopeID, retiredGeneration) != 1 {
 		t.Fatal("readiness phase row outside the refinalize was cleared; the reset must be generation-scoped")
 	}
 	if got, want := result.ReadinessPhasesCleared, 1; got != want {
@@ -199,11 +199,11 @@ func TestRefinalizeRebuildResetClearsReadinessPhaseStateForAffectedGenerationsOn
 }
 
 // refinalizeResetPhaseRowCount counts readiness phase rows for one scope generation.
-func refinalizeResetPhaseRowCount(t *testing.T, ctx context.Context, db *sql.DB, scopeID, generationID string) int {
+func refinalizeResetPhaseRowCount(t *testing.T, ctx context.Context, database *sql.DB, scopeID, generationID string) int {
 	t.Helper()
 
 	var count int
-	if err := db.QueryRowContext(
+	if err := database.QueryRowContext(
 		ctx,
 		`SELECT count(*) FROM graph_projection_phase_state WHERE scope_id = $1 AND generation_id = $2`,
 		scopeID, generationID,
@@ -231,17 +231,17 @@ func refinalizeResetPhaseRowCount(t *testing.T, ctx context.Context, db *sql.DB,
 // alone keeps the fixture clear of the one-active-generation-per-scope partial
 // index without weakening the race.
 func TestRefinalizeRebuildResetBindsTheGenerationSetItRead(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeID, snapshotGeneration, activatedGeneration := refinalizeResetScope(t, ctx, db, suffix)
+	scopeID, snapshotGeneration, activatedGeneration := refinalizeResetScope(t, ctx, database, suffix)
 
-	snapshotWork := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, snapshotGeneration, "snapshot-entity", "succeeded")
-	activatedWork := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activatedGeneration, "activated-entity", "succeeded")
+	snapshotWork := seedRefinalizeResetReducerWork(t, ctx, database, scopeID, snapshotGeneration, "snapshot-entity", "succeeded")
+	activatedWork := seedRefinalizeResetReducerWork(t, ctx, database, scopeID, activatedGeneration, "activated-entity", "succeeded")
 
 	raceDB := &refinalizeActivationRaceDB{
-		SQLDB: SQLDB{DB: db},
+		SQLDB: SQLDB{DB: database},
 		activate: func() {
-			if _, err := db.ExecContext(
+			if _, err := database.ExecContext(
 				ctx,
 				`UPDATE ingestion_scopes SET active_generation_id = $2 WHERE scope_id = $1`,
 				scopeID, activatedGeneration,
@@ -262,12 +262,12 @@ func TestRefinalizeRebuildResetBindsTheGenerationSetItRead(t *testing.T) {
 		t.Fatal("the concurrent activation never ran, so this test proved nothing about the race")
 	}
 
-	if got := refinalizeResetWorkItemStatus(t, ctx, db, snapshotWork); got != "" {
+	if got := refinalizeResetWorkItemStatus(t, ctx, database, snapshotWork); got != "" {
 		t.Fatalf("succeeded reducer work for the generation this refinalize enqueued survived as %q; "+
 			"a later statement read a different generation and reset that one instead, leaving the "+
 			"rebuilt generation deduplicated", got)
 	}
-	if got := refinalizeResetWorkItemStatus(t, ctx, db, activatedWork); got == "" {
+	if got := refinalizeResetWorkItemStatus(t, ctx, database, activatedWork); got == "" {
 		t.Fatal("the reset deleted reducer work for a generation activated mid-transaction; that " +
 			"generation was never enqueued for re-projection, so its state is gone and never replayed")
 	}
@@ -275,7 +275,7 @@ func TestRefinalizeRebuildResetBindsTheGenerationSetItRead(t *testing.T) {
 		t.Fatalf("result.ReducerWorkDeleted = %d, want %d", got, want)
 	}
 	if got := refinalizeResetWorkItemStatus(
-		t, ctx, db, "refinalize_"+scopeID+"_"+snapshotGeneration,
+		t, ctx, database, "refinalize_"+scopeID+"_"+snapshotGeneration,
 	); got != "pending" {
 		t.Fatalf("projector work item for the read generation = %q, want %q", got, "pending")
 	}
@@ -352,13 +352,13 @@ func (t *refinalizeActivationRaceTx) fire() {
 // leave the same state rather than double-delete, error, or reopen work it has
 // already handed back to the pipeline.
 func TestRefinalizeRebuildResetConvergesAcrossTwoCalls(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeID, activeGeneration, _ := refinalizeResetScope(t, ctx, db, suffix)
+	scopeID, activeGeneration, _ := refinalizeResetScope(t, ctx, database, suffix)
 
-	seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activeGeneration, "converge-entity", "succeeded")
+	seedRefinalizeResetReducerWork(t, ctx, database, scopeID, activeGeneration, "converge-entity", "succeeded")
 
-	store := NewRecoveryStore(SQLDB{DB: db})
+	store := NewRecoveryStore(SQLDB{DB: database})
 	filter := recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}}
 
 	first, err := store.RefinalizeScopeProjections(ctx, filter, time.Now().UTC())

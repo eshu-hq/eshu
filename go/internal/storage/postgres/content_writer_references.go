@@ -51,7 +51,7 @@ func (w ContentWriter) deleteContentReferenceBatch(ctx context.Context, batch []
 
 	query := "DELETE FROM content_file_references WHERE (repo_id, relative_path) IN (" +
 		values.String() + ")"
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("delete stale content_file_references batch (%d files): %w", len(batch), err)
 	}
 	return nil
@@ -123,7 +123,7 @@ func (w ContentWriter) upsertPreparedContentReferenceBatch(
 	}
 
 	query := upsertContentReferencePrefix + values.String() + upsertContentReferenceSuffix
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert content_file_references batch (%d references): %w", len(batch), err)
 	}
 	return nil

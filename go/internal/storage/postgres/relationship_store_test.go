@@ -23,8 +23,8 @@ import (
 func TestRelationshipStoreUpsertAndListAssertions(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	assertions := []relationships.Assertion{
@@ -60,8 +60,8 @@ func TestRelationshipStoreUpsertAndListAssertions(t *testing.T) {
 func TestRelationshipStoreUpsertAssertionsEmpty(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	if err := store.UpsertAssertions(ctx, nil); err != nil {
@@ -72,8 +72,8 @@ func TestRelationshipStoreUpsertAssertionsEmpty(t *testing.T) {
 func TestRelationshipStoreListAssertionsByType(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	assertions := []relationships.Assertion{
@@ -115,8 +115,8 @@ func TestRelationshipStoreListAssertionsByType(t *testing.T) {
 func TestRelationshipStoreGenerationLifecycle(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	genID, err := store.CreateGeneration(ctx, "repo_deps", "run-001")
@@ -134,7 +134,7 @@ func TestRelationshipStoreGenerationLifecycle(t *testing.T) {
 		t.Fatalf("CommitGeneration: %v", err)
 	}
 
-	gen, ok := db.generations[genID]
+	gen, ok := database.generations[genID]
 	if !ok {
 		t.Fatal("generation not found in db")
 	}
@@ -146,8 +146,8 @@ func TestRelationshipStoreGenerationLifecycle(t *testing.T) {
 func TestRelationshipStoreUpsertAndGetResolved(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	genID, err := store.CreateGeneration(ctx, "repo_deps", "run-002")
@@ -216,8 +216,8 @@ func TestRelationshipStoreResolvedUpsertIgnoresIdentityConflict(t *testing.T) {
 func TestRelationshipStoreActivateResolutionGenerationSupersedesOlderActiveGeneration(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	if err := store.ActivateResolutionGeneration(ctx, "gen-old", "repo_deps"); err != nil {
@@ -227,10 +227,10 @@ func TestRelationshipStoreActivateResolutionGenerationSupersedesOlderActiveGener
 		t.Fatalf("ActivateResolutionGeneration(new): %v", err)
 	}
 
-	if got, want := db.generations["gen-old"].status, "superseded"; got != want {
+	if got, want := database.generations["gen-old"].status, "superseded"; got != want {
 		t.Fatalf("old generation status = %q, want %q", got, want)
 	}
-	if got, want := db.generations["gen-new"].status, "active"; got != want {
+	if got, want := database.generations["gen-new"].status, "active"; got != want {
 		t.Fatalf("new generation status = %q, want %q", got, want)
 	}
 }
@@ -238,8 +238,8 @@ func TestRelationshipStoreActivateResolutionGenerationSupersedesOlderActiveGener
 func TestRelationshipStoreClaimFencedActivationRejectsLostClaim(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{execResults: []sql.Result{zeroRowsResult{}}}
-	store := NewRelationshipStore(db)
+	database := &fakeExecQueryer{execResults: []sql.Result{zeroRowsResult{}}}
+	store := NewRelationshipStore(database)
 	claimedAt := time.Date(2026, time.September, 14, 12, 0, 0, 0, time.UTC)
 	err := store.ActivateResolutionGenerationForClaim(
 		context.Background(), "gen-stale", "scope-stale", "intent-stale", claimedAt,
@@ -247,10 +247,10 @@ func TestRelationshipStoreClaimFencedActivationRejectsLostClaim(t *testing.T) {
 	if !errors.Is(err, reducercontract.ErrExecutionClaimRejected) {
 		t.Fatalf("ActivateResolutionGenerationForClaim() error = %v, want claim rejected", err)
 	}
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec calls = %d, want %d", got, want)
 	}
-	query := db.execs[0].query
+	query := database.execs[0].query
 	for _, fragment := range []string{
 		"FROM fact_work_items",
 		"work_item_id = $5",
@@ -268,8 +268,8 @@ func TestRelationshipStoreClaimFencedActivationRejectsLostClaim(t *testing.T) {
 func TestRelationshipStoreGetResolvedRelationshipsForGeneration(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	if err := store.ActivateResolutionGeneration(ctx, "gen-old", "repo_deps"); err != nil {
@@ -324,8 +324,8 @@ func TestRelationshipStoreGetResolvedRelationshipsForGeneration(t *testing.T) {
 func TestRelationshipStoreGetResolvedRelationshipsForRepos(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	if err := store.ActivateResolutionGeneration(ctx, "gen-infra", "scope-infra"); err != nil {
@@ -390,8 +390,8 @@ func TestRelationshipStoreGetResolvedRelationshipsForRepos(t *testing.T) {
 func TestRelationshipStoreUpsertEvidenceFacts(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	genID, err := store.CreateGeneration(ctx, "repo_deps", "run-003")
@@ -414,16 +414,16 @@ func TestRelationshipStoreUpsertEvidenceFacts(t *testing.T) {
 	if err := store.UpsertEvidenceFacts(ctx, genID, evidence); err != nil {
 		t.Fatalf("UpsertEvidenceFacts: %v", err)
 	}
-	if len(db.evidenceFacts) != 1 {
-		t.Errorf("evidence count = %d, want 1", len(db.evidenceFacts))
+	if len(database.evidenceFacts) != 1 {
+		t.Errorf("evidence count = %d, want 1", len(database.evidenceFacts))
 	}
 }
 
 func TestRelationshipStoreUpsertEvidenceFactsUsesStableContentIdentity(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	genID, err := store.CreateGeneration(ctx, "repo_deps", "run-003b")
@@ -457,7 +457,7 @@ func TestRelationshipStoreUpsertEvidenceFactsUsesStableContentIdentity(t *testin
 		t.Fatalf("UpsertEvidenceFacts(second): %v", err)
 	}
 
-	if got, want := len(db.evidenceFacts), 2; got != want {
+	if got, want := len(database.evidenceFacts), 2; got != want {
 		t.Fatalf("evidence count after reordered replay = %d, want %d", got, want)
 	}
 }
@@ -465,8 +465,8 @@ func TestRelationshipStoreUpsertEvidenceFactsUsesStableContentIdentity(t *testin
 func TestRelationshipStoreUpsertEvidenceFactsDedupesRepeatedInput(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	genID, err := store.CreateGeneration(ctx, "repo_deps", "run-003c")
@@ -493,10 +493,10 @@ func TestRelationshipStoreUpsertEvidenceFactsDedupesRepeatedInput(t *testing.T) 
 		t.Fatalf("UpsertEvidenceFacts: %v", err)
 	}
 
-	if got, want := len(db.evidenceFacts), 1; got != want {
+	if got, want := len(database.evidenceFacts), 1; got != want {
 		t.Fatalf("evidence count = %d, want %d", got, want)
 	}
-	if got, want := db.insertCounts["relationship_evidence_facts"], 1; got != want {
+	if got, want := database.insertCounts["relationship_evidence_facts"], 1; got != want {
 		t.Fatalf("relationship evidence insert count = %d, want %d", got, want)
 	}
 }
@@ -504,8 +504,8 @@ func TestRelationshipStoreUpsertEvidenceFactsDedupesRepeatedInput(t *testing.T) 
 func TestRelationshipStoreUpsertCandidates(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	genID, err := store.CreateGeneration(ctx, "repo_deps", "run-004")
@@ -530,16 +530,16 @@ func TestRelationshipStoreUpsertCandidates(t *testing.T) {
 	if err := store.UpsertCandidates(ctx, genID, candidates); err != nil {
 		t.Fatalf("UpsertCandidates: %v", err)
 	}
-	if len(db.candidates) != 1 {
-		t.Errorf("candidate count = %d, want 1", len(db.candidates))
+	if len(database.candidates) != 1 {
+		t.Errorf("candidate count = %d, want 1", len(database.candidates))
 	}
 }
 
 func TestRelationshipStoreEmptyUpserts(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	store := NewRelationshipStore(database)
 	ctx := context.Background()
 
 	if err := store.UpsertEvidenceFacts(ctx, "gen-1", nil); err != nil {
@@ -687,14 +687,14 @@ func newRelationshipTestDB() *relationshipTestDB {
 	}
 }
 
-func (db *relationshipTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *relationshipTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "INSERT INTO relationship_assertions"):
-		db.insertCounts["relationship_assertions"]++
+		database.insertCounts["relationship_assertions"]++
 		now := args[9].(time.Time)
 		srcEntity := nullableToString(args[3])
 		tgtEntity := nullableToString(args[4])
-		db.assertions[args[0].(string)] = assertionRecord{
+		database.assertions[args[0].(string)] = assertionRecord{
 			sourceRepoID:   args[1].(string),
 			targetRepoID:   args[2].(string),
 			sourceEntityID: srcEntity,
@@ -708,13 +708,13 @@ func (db *relationshipTestDB) ExecContext(_ context.Context, query string, args 
 		return proofResult{}, nil
 
 	case strings.Contains(query, "INSERT INTO relationship_generations"):
-		db.insertCounts["relationship_generations"]++
+		database.insertCounts["relationship_generations"]++
 		if strings.Contains(query, "run_id") {
 			runID := ""
 			if args[2] != nil {
 				runID = args[2].(string)
 			}
-			db.generations[args[0].(string)] = generationRecord{
+			database.generations[args[0].(string)] = generationRecord{
 				scope:  args[1].(string),
 				runID:  runID,
 				status: "pending",
@@ -722,14 +722,14 @@ func (db *relationshipTestDB) ExecContext(_ context.Context, query string, args 
 			return proofResult{}, nil
 		}
 		scope := args[1].(string)
-		for id, gen := range db.generations {
+		for id, gen := range database.generations {
 			if gen.scope != scope || id == args[0].(string) || gen.status != "active" {
 				continue
 			}
 			gen.status = "superseded"
-			db.generations[id] = gen
+			database.generations[id] = gen
 		}
-		db.generations[args[0].(string)] = generationRecord{
+		database.generations[args[0].(string)] = generationRecord{
 			scope:  scope,
 			status: "active",
 		}
@@ -738,25 +738,25 @@ func (db *relationshipTestDB) ExecContext(_ context.Context, query string, args 
 	case strings.Contains(query, "UPDATE relationship_generations"):
 		genID := args[1].(string)
 		scope := args[2].(string)
-		for id, gen := range db.generations {
+		for id, gen := range database.generations {
 			if gen.scope != scope || id == genID || gen.status != "active" {
 				continue
 			}
 			gen.status = "superseded"
-			db.generations[id] = gen
+			database.generations[id] = gen
 		}
-		if gen, ok := db.generations[genID]; ok {
+		if gen, ok := database.generations[genID]; ok {
 			now := args[0].(time.Time)
 			gen.status = "active"
 			gen.activatedAt = &now
-			db.generations[genID] = gen
+			database.generations[genID] = gen
 		}
 		return proofResult{}, nil
 
 	case strings.Contains(query, "INSERT INTO relationship_evidence_facts"):
-		db.insertCounts["relationship_evidence_facts"]++
+		database.insertCounts["relationship_evidence_facts"]++
 		details := parseJSONBytes(args[10])
-		db.evidenceFacts[args[0].(string)] = evidenceRecord{
+		database.evidenceFacts[args[0].(string)] = evidenceRecord{
 			generationID:   args[1].(string),
 			evidenceKind:   args[2].(string),
 			relType:        args[3].(string),
@@ -771,9 +771,9 @@ func (db *relationshipTestDB) ExecContext(_ context.Context, query string, args 
 		return proofResult{}, nil
 
 	case strings.Contains(query, "INSERT INTO relationship_candidates"):
-		db.insertCounts["relationship_candidates"]++
+		database.insertCounts["relationship_candidates"]++
 		details := parseJSONBytes(args[10])
-		db.candidates[args[0].(string)] = candidateRecord{
+		database.candidates[args[0].(string)] = candidateRecord{
 			generationID:   args[1].(string),
 			sourceRepoID:   nullableToString(args[2]),
 			targetRepoID:   nullableToString(args[3]),
@@ -789,7 +789,7 @@ func (db *relationshipTestDB) ExecContext(_ context.Context, query string, args 
 
 	case strings.Contains(query, "INSERT INTO resolved_relationships"):
 		details := parseJSONBytes(args[11])
-		db.resolved[args[0].(string)] = resolvedRecord{
+		database.resolved[args[0].(string)] = resolvedRecord{
 			generationID:     args[1].(string),
 			sourceRepoID:     nullableToString(args[2]),
 			targetRepoID:     nullableToString(args[3]),
@@ -809,26 +809,26 @@ func (db *relationshipTestDB) ExecContext(_ context.Context, query string, args 
 	}
 }
 
-func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+func (database *relationshipTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM relationship_assertions") && strings.Contains(query, "WHERE relationship_type"):
 		relType := args[0].(string)
-		return db.queryAssertions(func(a assertionRecord) bool {
+		return database.queryAssertions(func(a assertionRecord) bool {
 			return a.relType == relType
 		}), nil
 
 	case strings.Contains(query, "FROM relationship_assertions"):
-		return db.queryAssertions(func(_ assertionRecord) bool { return true }), nil
+		return database.queryAssertions(func(_ assertionRecord) bool { return true }), nil
 
 	case strings.Contains(query, "SELECT s.scope_id"):
-		return newRelationshipRows(db.incompleteActiveScopeRows()), nil
+		return newRelationshipRows(database.incompleteActiveScopeRows()), nil
 
 	case strings.Contains(query, "FROM ingestion_scopes"):
-		return newRelationshipRows([][]any{{db.activeScopeGenerationsComplete()}}), nil
+		return newRelationshipRows([][]any{{database.activeScopeGenerationsComplete()}}), nil
 
 	case strings.Contains(query, "FROM relationship_generations") && strings.Contains(query, "status = 'active'"):
 		generationID := args[0].(string)
-		if gen, ok := db.generations[generationID]; ok && gen.status == "active" {
+		if gen, ok := database.generations[generationID]; ok && gen.status == "active" {
 			return newRelationshipRows([][]any{{int64(1)}}), nil
 		}
 		return newRelationshipRows(nil), nil
@@ -840,16 +840,16 @@ func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args
 				repoIDs[repoID] = struct{}{}
 			}
 		}
-		return db.queryResolvedForRepos(repoIDs), nil
+		return database.queryResolvedForRepos(repoIDs), nil
 
 	case strings.Contains(query, "FROM resolved_relationships") && strings.Contains(query, "g.generation_id = $2"):
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
-		return db.queryResolved(scopeID, generationID), nil
+		return database.queryResolved(scopeID, generationID), nil
 
 	case strings.Contains(query, "FROM resolved_relationships"):
 		scopeID := args[0].(string)
-		return db.queryResolved(scopeID, ""), nil
+		return database.queryResolved(scopeID, ""), nil
 
 	default:
 		return nil, fmt.Errorf("unexpected query: %s", query)
@@ -863,14 +863,14 @@ func (db *relationshipTestDB) QueryContext(_ context.Context, query string, args
 // outstanding. A row-less scope with no live resolution work never holds the
 // gate: no row can appear for it, and the by-repos read cannot see it.
 // Retired scopes and superseded generations never hold the gate.
-func (db *relationshipTestDB) activeScopeGenerationsComplete() bool {
-	for scopeID, scope := range db.scopes {
+func (database *relationshipTestDB) activeScopeGenerationsComplete() bool {
+	for scopeID, scope := range database.scopes {
 		if scope.status != "active" {
 			continue
 		}
 		hasRow := false
 		rowActive := false
-		for generationID, gen := range db.generations {
+		for generationID, gen := range database.generations {
 			if gen.scope == scopeID && generationID == scope.activeGenerationID {
 				hasRow = true
 				rowActive = gen.status == "active"
@@ -883,7 +883,7 @@ func (db *relationshipTestDB) activeScopeGenerationsComplete() bool {
 			}
 			continue
 		}
-		for _, item := range db.workItems {
+		for _, item := range database.workItems {
 			if item.scopeID == scopeID && item.stage == "reducer" &&
 				item.domain == "deployment_mapping" && liveWorkItemStatus(item.status) {
 				return false
@@ -896,15 +896,15 @@ func (db *relationshipTestDB) activeScopeGenerationsComplete() bool {
 // incompleteActiveScopeRows lists the fake scopes holding the completeness
 // gate with the same per-scope predicate as activeScopeGenerationsComplete,
 // sorted for stable assertions (mirrors the listing query's ORDER BY).
-func (db *relationshipTestDB) incompleteActiveScopeRows() [][]any {
+func (database *relationshipTestDB) incompleteActiveScopeRows() [][]any {
 	var ids []string
-	for scopeID, scope := range db.scopes {
+	for scopeID, scope := range database.scopes {
 		if scope.status != "active" {
 			continue
 		}
 		hasRow := false
 		rowActive := false
-		for generationID, gen := range db.generations {
+		for generationID, gen := range database.generations {
 			if gen.scope == scopeID && generationID == scope.activeGenerationID {
 				hasRow = true
 				rowActive = gen.status == "active"
@@ -917,7 +917,7 @@ func (db *relationshipTestDB) incompleteActiveScopeRows() [][]any {
 			}
 			continue
 		}
-		for _, item := range db.workItems {
+		for _, item := range database.workItems {
 			if item.scopeID == scopeID && item.stage == "reducer" &&
 				item.domain == "deployment_mapping" && liveWorkItemStatus(item.status) {
 				ids = append(ids, scopeID)
@@ -933,15 +933,15 @@ func (db *relationshipTestDB) incompleteActiveScopeRows() [][]any {
 	return rows
 }
 
-func (db *relationshipTestDB) queryAssertions(filter func(assertionRecord) bool) *relationshipRows {
+func (database *relationshipTestDB) queryAssertions(filter func(assertionRecord) bool) *relationshipRows {
 	var rows [][]any
 	// Sort by updatedAt for deterministic ordering.
 	type kv struct {
 		key string
 		val assertionRecord
 	}
-	sorted := make([]kv, 0, len(db.assertions))
-	for k, v := range db.assertions {
+	sorted := make([]kv, 0, len(database.assertions))
+	for k, v := range database.assertions {
 		sorted = append(sorted, kv{k, v})
 	}
 	sort.Slice(sorted, func(i, j int) bool {
@@ -969,13 +969,13 @@ func (db *relationshipTestDB) queryAssertions(filter func(assertionRecord) bool)
 	return newRelationshipRows(rows)
 }
 
-func (db *relationshipTestDB) queryResolved(scopeID string, generationID string) *relationshipRows {
+func (database *relationshipTestDB) queryResolved(scopeID string, generationID string) *relationshipRows {
 	// Find active generation for scope.
 	var activeGenID string
 	if generationID != "" {
 		activeGenID = generationID
 	} else {
-		for genID, gen := range db.generations {
+		for genID, gen := range database.generations {
 			if gen.scope == scopeID && gen.status == "active" {
 				activeGenID = genID
 				break
@@ -991,8 +991,8 @@ func (db *relationshipTestDB) queryResolved(scopeID string, generationID string)
 		key string
 		val resolvedRecord
 	}
-	sorted := make([]kv, 0, len(db.resolved))
-	for k, v := range db.resolved {
+	sorted := make([]kv, 0, len(database.resolved))
+	for k, v := range database.resolved {
 		sorted = append(sorted, kv{k, v})
 	}
 	sort.Slice(sorted, func(i, j int) bool {
@@ -1008,14 +1008,14 @@ func (db *relationshipTestDB) queryResolved(scopeID string, generationID string)
 	return newRelationshipRows(rows)
 }
 
-func (db *relationshipTestDB) queryResolvedForRepos(repoIDs map[string]struct{}) *relationshipRows {
+func (database *relationshipTestDB) queryResolvedForRepos(repoIDs map[string]struct{}) *relationshipRows {
 	var rows [][]any
 	type kv struct {
 		key string
 		val resolvedRecord
 	}
-	sorted := make([]kv, 0, len(db.resolved))
-	for k, v := range db.resolved {
+	sorted := make([]kv, 0, len(database.resolved))
+	for k, v := range database.resolved {
 		sorted = append(sorted, kv{k, v})
 	}
 	sort.Slice(sorted, func(i, j int) bool {
@@ -1023,7 +1023,7 @@ func (db *relationshipTestDB) queryResolvedForRepos(repoIDs map[string]struct{})
 	})
 	for _, item := range sorted {
 		r := item.val
-		gen, ok := db.generations[r.generationID]
+		gen, ok := database.generations[r.generationID]
 		if !ok || gen.status != "active" {
 			continue
 		}

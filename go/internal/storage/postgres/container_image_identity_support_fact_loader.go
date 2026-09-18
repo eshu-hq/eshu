@@ -119,7 +119,7 @@ func (s FactStore) listCurrentContainerImageIdentitySupportFacts(
 	ctx context.Context,
 	filter containerImageIdentitySupportFactFilter,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	filter.normalize()
@@ -127,7 +127,7 @@ func (s FactStore) listCurrentContainerImageIdentitySupportFacts(
 		return nil, nil
 	}
 	var loaded []facts.Envelope
-	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer db.Queryer) error {
+	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
 		var loadErr error
 		loaded, loadErr = listCurrentContainerImageIdentitySupportFactsFrom(
 			ctx, queryer, filter,

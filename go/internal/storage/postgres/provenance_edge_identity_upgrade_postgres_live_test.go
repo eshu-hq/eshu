@@ -183,7 +183,7 @@ WHERE work_item_id = $1
 		t.Fatalf("claim provenance upgrade for new reducer failure: %v", err)
 	}
 	newFailureQueue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "new-reducer-failure",
 		LeaseDuration: time.Minute,
 		MaxAttempts:   1,
@@ -227,7 +227,7 @@ WHERE work_item_id = $1
 		t.Fatalf("claim provenance upgrade for new reducer ACK: %v", err)
 	}
 	newSuccessQueue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "new-reducer",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now.Add(2 * time.Minute) },
@@ -313,7 +313,7 @@ WHERE work_item_id = $1
 		t.Fatalf("claim %s for new reducer: %v", workItemID, err)
 	}
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    newOwner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

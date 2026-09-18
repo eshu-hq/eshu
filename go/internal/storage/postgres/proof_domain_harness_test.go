@@ -87,56 +87,56 @@ func newProofDomainDB(t *testing.T, now time.Time) *proofDomainDB {
 	}
 }
 
-func (db *proofDomainDB) Begin(context.Context) (db.Transaction, error) {
+func (database *proofDomainDB) Begin(context.Context) (db.Transaction, error) {
 	return &proofDomainTx{
-		db: db,
+		database: database,
 		state: proofState{
-			scopes:            cloneScopes(db.state.scopes),
-			scopeStatuses:     cloneStrings(db.state.scopeStatuses),
-			activeGenerations: cloneStrings(db.state.activeGenerations),
-			generations:       cloneGenerations(db.state.generations),
-			facts:             cloneFacts(db.state.facts),
-			evidenceFacts:     cloneEvidenceFacts(db.state.evidenceFacts),
-			workItems:         cloneWorkItems(db.state.workItems),
+			scopes:            cloneScopes(database.state.scopes),
+			scopeStatuses:     cloneStrings(database.state.scopeStatuses),
+			activeGenerations: cloneStrings(database.state.activeGenerations),
+			generations:       cloneGenerations(database.state.generations),
+			facts:             cloneFacts(database.state.facts),
+			evidenceFacts:     cloneEvidenceFacts(database.state.evidenceFacts),
+			workItems:         cloneWorkItems(database.state.workItems),
 		},
 	}, nil
 }
 
-func (db *proofDomainDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *proofDomainDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "WHERE stage = 'projector'") && strings.Contains(query, "status = 'succeeded'"):
 		if len(args) != 4 {
 			return nil, fmt.Errorf("projector ack args = %d, want 4", len(args))
 		}
-		return db.updateWorkItemStatus("projector", args[1].(string), args[2].(string), args[3].(string), "succeeded")
+		return database.updateWorkItemStatus("projector", args[1].(string), args[2].(string), args[3].(string), "succeeded")
 	case strings.Contains(query, "WHERE stage = 'projector'") && strings.Contains(query, "status = 'dead_letter'"):
 		if len(args) != 7 {
 			return nil, fmt.Errorf("projector fail args = %d, want 7", len(args))
 		}
-		return db.updateWorkItemStatus("projector", args[4].(string), args[5].(string), args[6].(string), "dead_letter")
+		return database.updateWorkItemStatus("projector", args[4].(string), args[5].(string), args[6].(string), "dead_letter")
 	case strings.Contains(query, "WHERE stage = 'projector'") && strings.Contains(query, "status = 'retrying'"):
 		if len(args) != 8 {
 			return nil, fmt.Errorf("projector retry args = %d, want 8", len(args))
 		}
-		return db.retryProjectorWork(args[5].(string), args[6].(string), args[7].(string), args[4].(time.Time))
+		return database.retryProjectorWork(args[5].(string), args[6].(string), args[7].(string), args[4].(time.Time))
 	case strings.Contains(query, "stage = 'reducer'") && strings.Contains(query, "SET status = 'succeeded'"):
 		if len(args) != 4 {
 			return nil, fmt.Errorf("reducer ack args = %d, want 4", len(args))
 		}
-		return db.updateWorkItemStatusByID(args[1].(string), args[2].(string), "succeeded")
+		return database.updateWorkItemStatusByID(args[1].(string), args[2].(string), "succeeded")
 	case strings.Contains(query, "stage = 'reducer'") && strings.Contains(query, "SET status = 'retrying'"):
 		if len(args) != 8 {
 			return nil, fmt.Errorf("reducer retry args = %d, want 8", len(args))
 		}
-		return db.retryReducerWork(args[5].(string), args[6].(string), args[4].(time.Time))
+		return database.retryReducerWork(args[5].(string), args[6].(string), args[4].(time.Time))
 	case strings.Contains(query, "stage = 'reducer'") && strings.Contains(query, "SET status = 'dead_letter'"):
 		if len(args) != 7 {
 			return nil, fmt.Errorf("reducer fail args = %d, want 7", len(args))
 		}
-		return db.updateWorkItemStatusByID(args[4].(string), args[5].(string), "dead_letter")
+		return database.updateWorkItemStatusByID(args[4].(string), args[5].(string), "dead_letter")
 	case strings.Contains(query, "INSERT INTO fact_work_items") && strings.Contains(query, "'reducer'"):
 		workItemID := args[0].(string)
-		if _, exists := db.state.workItems[workItemID]; exists {
+		if _, exists := database.state.workItems[workItemID]; exists {
 			return proofResult{}, nil
 		}
 		payload, err := unmarshalPayload(args[7].([]byte))
@@ -158,25 +158,25 @@ func (db *proofDomainDB) ExecContext(_ context.Context, query string, args ...an
 		if len(payload) > 0 {
 			workItem.payload = args[7].([]byte)
 		}
-		db.state.workItems[workItem.workItemID] = workItem
+		database.state.workItems[workItem.workItemID] = workItem
 		return proofResult{}, nil
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
 	}
 }
 
-func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+func (database *proofDomainDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "SELECT generation.generation_id, COALESCE(generation.freshness_hint, '')"):
 		if len(args) != 1 {
 			return nil, fmt.Errorf("active generation freshness args = %d, want 1", len(args))
 		}
 		scopeID := args[0].(string)
-		activeGenerationID := db.state.activeGenerations[scopeID]
+		activeGenerationID := database.state.activeGenerations[scopeID]
 		if activeGenerationID == "" {
 			return newProofRows(nil), nil
 		}
-		generation, ok := db.state.generations[activeGenerationID]
+		generation, ok := database.state.generations[activeGenerationID]
 		if !ok {
 			return newProofRows(nil), nil
 		}
@@ -185,30 +185,30 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 			generation.FreshnessHint,
 		}}), nil
 	case strings.Contains(query, "FROM ingestion_scopes") && strings.Contains(query, "GROUP BY status"):
-		return newProofRows(proofScopeCountRows(db.state.scopeStatuses)), nil
+		return newProofRows(proofScopeCountRows(database.state.scopeStatuses)), nil
 	case strings.Contains(query, "FROM scope_generations") && strings.Contains(query, "GROUP BY status"):
-		return newProofRows(proofGenerationCountRows(db.state.generations)), nil
+		return newProofRows(proofGenerationCountRows(database.state.generations)), nil
 	case query == producerActivityQuery:
 		return newProofRows([][]any{{false, nil}}), nil
 	case strings.Contains(query, "JOIN ingestion_scopes") && strings.Contains(query, "current_active_generation_id"):
 		return newProofRows(
-			proofGenerationTransitionRows(db.state.generations, db.state.activeGenerations, db.now),
+			proofGenerationTransitionRows(database.state.generations, database.state.activeGenerations, database.now),
 		), nil
 	case strings.Contains(query, "FROM fact_work_items") && strings.Contains(query, "GROUP BY stage, status"):
-		return newProofRows(proofStageCountRows(db.state.workItems)), nil
+		return newProofRows(proofStageCountRows(database.state.workItems)), nil
 	case strings.Contains(query, "GROUP BY domain") && strings.Contains(query, "oldest_outstanding_age_seconds"):
 		if len(args) != 1 {
 			return nil, fmt.Errorf("domain backlog args = %d, want 1", len(args))
 		}
 		return newProofRows(
-			proofDomainBacklogRows(db.state.workItems, args[0].(time.Time)),
+			proofDomainBacklogRows(database.state.workItems, args[0].(time.Time)),
 		), nil
 	case strings.Contains(query, "AS total_count"):
 		if len(args) != 1 {
 			return nil, fmt.Errorf("queue snapshot args = %d, want 1", len(args))
 		}
 		return newProofRows([][]any{
-			proofQueueSnapshotRow(db.state.workItems, args[0].(time.Time)),
+			proofQueueSnapshotRow(database.state.workItems, args[0].(time.Time)),
 		}), nil
 	case strings.Contains(query, "oldest_blocked_age_seconds"):
 		return newProofRows(nil), nil
@@ -234,13 +234,13 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		// the scope's active generation and that generation is active. No
 		// is_tombstone predicate, matching the concrete query.
 		return newProofRows(
-			proofActiveGenerationFactRows(db.state, false, proofActiveRepositoryFactKind),
+			proofActiveGenerationFactRows(database.state, false, proofActiveRepositoryFactKind),
 		), nil
 	case query == listActiveContainerImageIdentityFactsQuery:
 		// Supersession plus is_tombstone = FALSE: an active-generation
 		// tombstone is still excluded here, unlike the repository read.
 		return newProofRows(
-			proofActiveGenerationFactRows(db.state, true, nil),
+			proofActiveGenerationFactRows(database.state, true, nil),
 		), nil
 	case query == collectorFactEvidenceQuery:
 		// Collector fact evidence is observability-only data the proof harness
@@ -253,29 +253,29 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		// The repository catalog now loads through the store's base connection
 		// (issue #3481 shared cache) instead of the per-commit transaction, so
 		// the outer harness connection must serve the catalog read too.
-		return newProofRows(proofRepositoryCatalogRows(db.state.facts)), nil
+		return newProofRows(proofRepositoryCatalogRows(database.state.facts)), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))
 		}
 		scopeID, _ := args[0].(string)
 		generationID, _ := args[1].(string)
-		return newProofRows(proofFactRows(db.state.facts, scopeID, generationID)), nil
+		return newProofRows(proofFactRows(database.state.facts, scopeID, generationID)), nil
 	case strings.Contains(query, "stage = 'reducer'"):
 		if len(args) != 7 {
 			return nil, fmt.Errorf("reducer claim args = %d, want 7", len(args))
 		}
 		waitForProjectorDrain, _ := args[4].(bool)
-		if waitForProjectorDrain && proofProjectorWorkOutstanding(db.state.workItems) {
+		if waitForProjectorDrain && proofProjectorWorkOutstanding(database.state.workItems) {
 			return newProofRows(nil), nil
 		}
-		return db.claimReducerWork(args[0].(time.Time), args[2].(string), args[3].(time.Time))
+		return database.claimReducerWork(args[0].(time.Time), args[2].(string), args[3].(time.Time))
 	case strings.Contains(query, "stage = 'projector'"):
 		if len(args) != 4 {
 			return nil, fmt.Errorf("projector claim args = %d, want 4", len(args))
 		}
 		sourceSystem, _ := args[3].(string)
-		return db.claimProjectorWork(args[0].(time.Time), args[1].(string), args[2].(time.Time), sourceSystem)
+		return database.claimProjectorWork(args[0].(time.Time), args[1].(string), args[2].(time.Time), sourceSystem)
 	default:
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return newProofRows(nil), nil
@@ -297,20 +297,20 @@ func proofProjectorWorkOutstanding(items map[string]proofWorkItem) bool {
 	return false
 }
 
-func (db *proofDomainDB) claimProjectorWork(
+func (database *proofDomainDB) claimProjectorWork(
 	now time.Time,
 	leaseOwner string,
 	claimUntil time.Time,
 	sourceSystem string,
 ) (db.Rows, error) {
-	for key, item := range db.state.workItems {
+	for key, item := range database.state.workItems {
 		if item.stage != "projector" || (item.status != "pending" && item.status != "retrying") {
 			continue
 		}
 		if !item.visibleAt.IsZero() && item.visibleAt.After(now) {
 			continue
 		}
-		scopeRow, ok := db.state.scopes[item.scopeID]
+		scopeRow, ok := database.state.scopes[item.scopeID]
 		if !ok {
 			return nil, fmt.Errorf("scope %q not found", item.scopeID)
 		}
@@ -322,9 +322,9 @@ func (db *proofDomainDB) claimProjectorWork(
 		item.leaseOwner = leaseOwner
 		item.claimUntil = claimUntil
 		item.updatedAt = now
-		db.state.workItems[key] = item
+		database.state.workItems[key] = item
 
-		generationRow, ok := db.state.generations[item.generationID]
+		generationRow, ok := database.state.generations[item.generationID]
 		if !ok {
 			return nil, fmt.Errorf("generation %q not found", item.generationID)
 		}
@@ -334,8 +334,8 @@ func (db *proofDomainDB) claimProjectorWork(
 			scopeRow.SourceSystem,
 			string(scopeRow.ScopeKind),
 			scopeRow.ParentScopeID,
-			db.state.activeGenerations[scopeRow.ScopeID],
-			proofPreviousGenerationExists(db.state.generations, scopeRow.ScopeID, generationRow.GenerationID),
+			database.state.activeGenerations[scopeRow.ScopeID],
+			proofPreviousGenerationExists(database.state.generations, scopeRow.ScopeID, generationRow.GenerationID),
 			string(scopeRow.CollectorKind),
 			scopeRow.PartitionKey,
 			generationRow.GenerationID,
@@ -365,8 +365,8 @@ func proofPreviousGenerationExists(
 	return false
 }
 
-func (db *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string, claimUntil time.Time) (db.Rows, error) {
-	for key, item := range db.state.workItems {
+func (database *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string, claimUntil time.Time) (db.Rows, error) {
+	for key, item := range database.state.workItems {
 		if item.stage != "reducer" || (item.status != "pending" && item.status != "retrying") {
 			continue
 		}
@@ -378,8 +378,8 @@ func (db *proofDomainDB) claimReducerWork(now time.Time, leaseOwner string, clai
 		item.leaseOwner = leaseOwner
 		item.claimUntil = claimUntil
 		item.updatedAt = now
-		db.state.workItems[key] = item
-		db.reducerClaims++
+		database.state.workItems[key] = item
+		database.reducerClaims++
 		return newProofRows([][]any{{
 			item.workItemID,
 			item.scopeID,

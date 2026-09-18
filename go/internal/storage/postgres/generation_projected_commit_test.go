@@ -20,12 +20,12 @@ type projectedCommitTestDB struct {
 	queryer *fakeQueryer
 }
 
-func (db *projectedCommitTestDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+func (database *projectedCommitTestDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *projectedCommitTestDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	return db.queryer.QueryContext(ctx, query, args...)
+func (database *projectedCommitTestDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return database.queryer.QueryContext(ctx, query, args...)
 }
 
 func TestUpsertScopeGenerationQueryPersistsSourceCommitSHA(t *testing.T) {
@@ -43,7 +43,7 @@ func TestLastProjectedCommitSHAReturnsLatestProjectedSHA(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{"c0ffee"}}}}}
-	store := IngestionStore{db: &projectedCommitTestDB{queryer: queryer}}
+	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
 	sha, err := store.LastProjectedCommitSHA(context.Background(), "git-repository-scope:acme/app")
 	if err != nil {
@@ -80,7 +80,7 @@ func TestLastProjectedCommitSHAEmptyWhenNoProjectedGeneration(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}}}
-	store := IngestionStore{db: &projectedCommitTestDB{queryer: queryer}}
+	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
 	sha, err := store.LastProjectedCommitSHA(context.Background(), "git-repository-scope:acme/app")
 	if err != nil {
@@ -95,7 +95,7 @@ func TestLastProjectedCommitSHABlankScopeReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{}
-	store := IngestionStore{db: &projectedCommitTestDB{queryer: queryer}}
+	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
 	sha, err := store.LastProjectedCommitSHA(context.Background(), "  ")
 	if err != nil {

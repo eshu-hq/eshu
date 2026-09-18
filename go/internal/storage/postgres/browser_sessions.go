@@ -25,7 +25,7 @@ var ErrBrowserSessionRefreshRequired = errors.New("browser session refresh requi
 
 // BrowserSessionStore persists hash-only browser session rows.
 type BrowserSessionStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // BrowserSessionRecord is the durable server-managed dashboard session state.
@@ -58,8 +58,8 @@ type BrowserSessionRecord struct {
 }
 
 // NewBrowserSessionStore constructs a Postgres-backed browser session store.
-func NewBrowserSessionStore(db db.ExecQueryer) *BrowserSessionStore {
-	return &BrowserSessionStore{db: db}
+func NewBrowserSessionStore(database db.ExecQueryer) *BrowserSessionStore {
+	return &BrowserSessionStore{database: database}
 }
 
 // BrowserSessionSchemaSQL returns the browser session registry DDL.
@@ -69,10 +69,10 @@ func BrowserSessionSchemaSQL() string {
 
 // EnsureSchema applies the browser session registry schema.
 func (s *BrowserSessionStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("browser session store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, browserSessionSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, browserSessionSchemaSQL); err != nil {
 		return fmt.Errorf("ensure browser session schema: %w", err)
 	}
 	return nil
@@ -80,7 +80,7 @@ func (s *BrowserSessionStore) EnsureSchema(ctx context.Context) error {
 
 // CreateSession creates or replaces one hash-only browser session row.
 func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserSessionRecord) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("browser session store database is required")
 	}
 	record = normalizeBrowserSessionRecord(record)
@@ -111,7 +111,7 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 	if err != nil {
 		return err
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		createBrowserSessionQuery,
 		record.SessionHash,
@@ -162,7 +162,7 @@ func (s *BrowserSessionStore) ResolveSessionHash(
 	asOf time.Time,
 	idleTimeout time.Duration,
 ) (BrowserSessionRecord, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return BrowserSessionRecord{}, false, errors.New("browser session store database is required")
 	}
 	sessionHash = strings.TrimSpace(sessionHash)
@@ -176,7 +176,7 @@ func (s *BrowserSessionStore) ResolveSessionHash(
 	if idleTimeout <= 0 {
 		return BrowserSessionRecord{}, false, errors.New("session idle timeout is required")
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		revokeStaleOIDCBrowserSessionQuery,
 		sessionHash,
@@ -194,7 +194,7 @@ func (s *BrowserSessionStore) ResolveSessionHash(
 	if requireCSRF && csrfTokenHash == "" {
 		return BrowserSessionRecord{}, false, ErrBrowserSessionCSRFInvalid
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		resolveBrowserSessionQuery,
 		sessionHash,
@@ -232,7 +232,7 @@ func (s *BrowserSessionStore) RevokeSession(
 	sessionHash string,
 	revokedAt time.Time,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("browser session store database is required")
 	}
 	sessionHash = strings.TrimSpace(sessionHash)
@@ -242,7 +242,7 @@ func (s *BrowserSessionStore) RevokeSession(
 	if revokedAt.IsZero() {
 		return errors.New("session revoked_at is required")
 	}
-	if _, err := s.db.ExecContext(ctx, revokeBrowserSessionQuery, sessionHash, revokedAt.UTC()); err != nil {
+	if _, err := s.database.ExecContext(ctx, revokeBrowserSessionQuery, sessionHash, revokedAt.UTC()); err != nil {
 		return fmt.Errorf("revoke browser session: %w", err)
 	}
 	return nil
@@ -256,7 +256,7 @@ func (s *BrowserSessionStore) SwitchSessionWorkspace(
 	workspaceID string,
 	switchedAt time.Time,
 ) (BrowserSessionRecord, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return BrowserSessionRecord{}, false, errors.New("browser session store database is required")
 	}
 	sessionHash = strings.TrimSpace(sessionHash)
@@ -268,7 +268,7 @@ func (s *BrowserSessionStore) SwitchSessionWorkspace(
 	if switchedAt.IsZero() {
 		return BrowserSessionRecord{}, false, errors.New("session switched_at is required")
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		switchBrowserSessionWorkspaceQuery,
 		sessionHash,

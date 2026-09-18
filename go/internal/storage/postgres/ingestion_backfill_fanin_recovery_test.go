@@ -33,14 +33,14 @@ import (
 // advanceFanInProofGeneration activates a NEW generation for the shared proof
 // scope, modelling an ingester committing a fresh snapshot while a deferred
 // maintenance pass is mid-flight.
-func advanceFanInProofGeneration(t *testing.T, ctx context.Context, db *sql.DB, generationID string, ingestedAt time.Time) {
+func advanceFanInProofGeneration(t *testing.T, ctx context.Context, database *sql.DB, generationID string, ingestedAt time.Time) {
 	t.Helper()
-	if _, err := db.ExecContext(ctx,
+	if _, err := database.ExecContext(ctx,
 		"INSERT INTO scope_generations (generation_id, scope_id, ingested_at) VALUES ($1, $2, $3)",
 		generationID, fanInProofScopeID, ingestedAt); err != nil {
 		t.Fatalf("seed advanced generation %q: %v", generationID, err)
 	}
-	if _, err := db.ExecContext(ctx,
+	if _, err := database.ExecContext(ctx,
 		"UPDATE ingestion_scopes SET active_generation_id = $1 WHERE scope_id = $2",
 		generationID, fanInProofScopeID); err != nil {
 		t.Fatalf("activate advanced generation %q: %v", generationID, err)
@@ -56,12 +56,12 @@ func advanceFanInProofGeneration(t *testing.T, ctx context.Context, db *sql.DB, 
 // error, because nothing went wrong.
 func TestDeferredBackfillFanInSkipsPartitionWhoseGenerationAdvanced(t *testing.T) {
 	ctx := context.Background()
-	db := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
+	database := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
 
 	base := time.Date(2026, time.August, 15, 9, 0, 0, 0, time.UTC)
-	seedFanInProofSharedPartition(t, ctx, db, 2, base)
+	seedFanInProofSharedPartition(t, ctx, database, 2, base)
 
-	adapter := SQLDB{DB: db}
+	adapter := SQLDB{DB: database}
 	// Two repositories at one per batch: ordinals 1 and 2 are the evidence
 	// batches, ordinal 3 is the first fan-in transaction.
 	hooked := &failOnNthBeginner{inner: adapter}
@@ -69,7 +69,7 @@ func TestDeferredBackfillFanInSkipsPartitionWhoseGenerationAdvanced(t *testing.T
 		if ordinal != 3 {
 			return
 		}
-		advanceFanInProofGeneration(t, ctx, db, "gen-advanced", base.Add(time.Hour))
+		advanceFanInProofGeneration(t, ctx, database, "gen-advanced", base.Add(time.Hour))
 	}
 
 	store := NewIngestionStore(hooked)
@@ -81,14 +81,14 @@ func TestDeferredBackfillFanInSkipsPartitionWhoseGenerationAdvanced(t *testing.T
 		t.Fatalf("BackfillAllRelationshipEvidence() error = %v, want nil (an advanced generation is a skip, not a failure)", err)
 	}
 
-	if got := countFanInProofPhaseRows(t, ctx, db); got != 0 {
+	if got := countFanInProofPhaseRows(t, ctx, database); got != 0 {
 		t.Fatalf("graph_projection_phase_state rows for the superseded generation = %d, want 0", got)
 	}
-	if got := countFanInProofMemoRows(t, ctx, db); got != 0 {
+	if got := countFanInProofMemoRows(t, ctx, database); got != 0 {
 		t.Fatalf("deferred_backfill_partition_memo rows for the superseded generation = %d, want 0", got)
 	}
 	var advancedRows int
-	if err := db.QueryRowContext(ctx,
+	if err := database.QueryRowContext(ctx,
 		"SELECT count(*) FROM graph_projection_phase_state WHERE generation_id = $1", "gen-advanced",
 	).Scan(&advancedRows); err != nil {
 		t.Fatalf("count readiness rows for the advanced generation: %v", err)
@@ -106,12 +106,12 @@ func TestDeferredBackfillFanInSkipsPartitionWhoseGenerationAdvanced(t *testing.T
 // no-op.
 func TestDeferredBackfillFanInFailureLeavesEvidenceRecoverable(t *testing.T) {
 	ctx := context.Background()
-	db := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
+	database := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
 
 	base := time.Date(2026, time.August, 15, 9, 0, 0, 0, time.UTC)
-	seedFanInProofSharedPartition(t, ctx, db, 2, base)
+	seedFanInProofSharedPartition(t, ctx, database, 2, base)
 
-	adapter := SQLDB{DB: db}
+	adapter := SQLDB{DB: database}
 	fingerprint := fanInProofCatalogFingerprint(t, ctx, adapter)
 
 	// Ordinals 1 and 2 are the evidence batches; ordinal 3 is the fan-in.
@@ -129,19 +129,19 @@ func TestDeferredBackfillFanInFailureLeavesEvidenceRecoverable(t *testing.T) {
 		t.Fatalf("BackfillAllRelationshipEvidence() error = %v, want the injected fan-in failure", err)
 	}
 
-	evidenceAfterFailure := countEvidenceRows(t, ctx, db)
+	evidenceAfterFailure := countEvidenceRows(t, ctx, database)
 	if evidenceAfterFailure == 0 {
 		t.Fatal("no evidence rows survived the failed pass; this test cannot prove the recoverable direction")
 	}
-	if got := countFanInProofMemoRows(t, ctx, db); got != 0 {
+	if got := countFanInProofMemoRows(t, ctx, database); got != 0 {
 		t.Fatalf("deferred_backfill_partition_memo rows after a failed fan-in = %d, want 0", got)
 	}
-	if got := countFanInProofPhaseRows(t, ctx, db); got != 0 {
+	if got := countFanInProofPhaseRows(t, ctx, database); got != 0 {
 		t.Fatalf("graph_projection_phase_state rows after a failed fan-in = %d, want 0", got)
 	}
 	assertFanInProofGateLoads(t, ctx, adapter, fingerprint)
 
-	assertFanInProofRerunConverges(t, ctx, db, base, evidenceAfterFailure)
+	assertFanInProofRerunConverges(t, ctx, database, base, evidenceAfterFailure)
 }
 
 // TestDeferredBackfillCrashBetweenBatchesAndFanInConverges covers the window the
@@ -158,12 +158,12 @@ func TestDeferredBackfillFanInFailureLeavesEvidenceRecoverable(t *testing.T) {
 // defeat the whole redesign.
 func TestDeferredBackfillCrashBetweenBatchesAndFanInConverges(t *testing.T) {
 	ctx := context.Background()
-	db := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
+	database := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
 
 	base := time.Date(2026, time.August, 15, 9, 0, 0, 0, time.UTC)
-	seedFanInProofSharedPartition(t, ctx, db, 3, base)
+	seedFanInProofSharedPartition(t, ctx, database, 3, base)
 
-	adapter := SQLDB{DB: db}
+	adapter := SQLDB{DB: database}
 	fingerprint := fanInProofCatalogFingerprint(t, ctx, adapter)
 
 	store := NewIngestionStore(adapter)
@@ -174,19 +174,19 @@ func TestDeferredBackfillCrashBetweenBatchesAndFanInConverges(t *testing.T) {
 		t.Fatal("the evidence phase contributed no partitions; the fixture is not exercising the batch path")
 	}
 
-	evidenceAfterCrash := countEvidenceRows(t, ctx, db)
+	evidenceAfterCrash := countEvidenceRows(t, ctx, database)
 	if evidenceAfterCrash == 0 {
 		t.Fatal("the evidence phase committed no evidence rows; this test cannot prove the crash window")
 	}
-	if got := countFanInProofMemoRows(t, ctx, db); got != 0 {
+	if got := countFanInProofMemoRows(t, ctx, database); got != 0 {
 		t.Fatalf("deferred_backfill_partition_memo rows after a crash before publication = %d, want 0", got)
 	}
-	if got := countFanInProofPhaseRows(t, ctx, db); got != 0 {
+	if got := countFanInProofPhaseRows(t, ctx, database); got != 0 {
 		t.Fatalf("graph_projection_phase_state rows after a crash before publication = %d, want 0", got)
 	}
 	assertFanInProofGateLoads(t, ctx, adapter, fingerprint)
 
-	assertFanInProofRerunConverges(t, ctx, db, base, evidenceAfterCrash)
+	assertFanInProofRerunConverges(t, ctx, database, base, evidenceAfterCrash)
 }
 
 // runFanInProofEvidencePhaseOnly drives the real evidence-batch half of the pass
@@ -249,13 +249,13 @@ func runFanInProofEvidencePhaseOnly(
 func assertFanInProofRerunConverges(
 	t *testing.T,
 	ctx context.Context,
-	db *sql.DB,
+	database *sql.DB,
 	base time.Time,
 	evidenceBefore int,
 ) {
 	t.Helper()
 
-	recovery := NewIngestionStore(SQLDB{DB: db})
+	recovery := NewIngestionStore(SQLDB{DB: database})
 	recovery.Now = func() time.Time { return base.Add(time.Minute) }
 	recovery.maintenanceBatchSize = 1
 	recovery.maintenanceWorkers = 1
@@ -263,13 +263,13 @@ func assertFanInProofRerunConverges(
 		t.Fatalf("recovery BackfillAllRelationshipEvidence() error = %v, want nil", err)
 	}
 
-	if got := countFanInProofPhaseRows(t, ctx, db); got != 1 {
+	if got := countFanInProofPhaseRows(t, ctx, database); got != 1 {
 		t.Fatalf("graph_projection_phase_state rows after recovery = %d, want exactly 1", got)
 	}
-	if got := countFanInProofMemoRows(t, ctx, db); got != 1 {
+	if got := countFanInProofMemoRows(t, ctx, database); got != 1 {
 		t.Fatalf("deferred_backfill_partition_memo rows after recovery = %d, want exactly 1", got)
 	}
-	if got := countEvidenceRows(t, ctx, db); got != evidenceBefore {
+	if got := countEvidenceRows(t, ctx, database); got != evidenceBefore {
 		t.Fatalf(
 			"recovery pass changed the evidence row count from %d to %d, want no change; re-upserting content-addressed evidence must be a no-op",
 			evidenceBefore, got,
@@ -288,7 +288,7 @@ func assertFanInProofRerunConverges(
 // COALESCE fallback to the newest generation applies.
 func TestFanInActiveGenerationMatchesCorpusLoader(t *testing.T) {
 	ctx := context.Background()
-	db := openFanInProofSchema(t, ctx, fanInProofDSN(t), 2)
+	database := openFanInProofSchema(t, ctx, fanInProofDSN(t), 2)
 
 	base := time.Date(2026, time.August, 15, 9, 0, 0, 0, time.UTC)
 
@@ -326,20 +326,20 @@ func TestFanInActiveGenerationMatchesCorpusLoader(t *testing.T) {
 	}
 
 	for _, fixture := range fixtures {
-		if _, err := db.ExecContext(ctx,
+		if _, err := database.ExecContext(ctx,
 			"INSERT INTO ingestion_scopes (scope_id, active_generation_id) VALUES ($1, NULL)", fixture.scopeID); err != nil {
 			t.Fatalf("seed scope %q: %v", fixture.scopeID, err)
 		}
 		for i, generationID := range fixture.generationIDs {
 			ingestedAt := base.Add(time.Duration(i) * time.Hour)
-			if _, err := db.ExecContext(ctx,
+			if _, err := database.ExecContext(ctx,
 				"INSERT INTO scope_generations (generation_id, scope_id, ingested_at) VALUES ($1, $2, $3)",
 				generationID, fixture.scopeID, ingestedAt); err != nil {
 				t.Fatalf("seed generation %q: %v", generationID, err)
 			}
 			// A repository fact under EVERY generation, so the corpus-wide
 			// loader can resolve the repo whichever generation ends up active.
-			if _, err := db.ExecContext(ctx, `
+			if _, err := database.ExecContext(ctx, `
 INSERT INTO fact_records
   (fact_id, scope_id, generation_id, fact_kind, stable_fact_key, source_system, source_fact_key, observed_at, ingested_at, payload)
 VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
@@ -349,7 +349,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 			}
 		}
 		if fixture.activate != "" {
-			if _, err := db.ExecContext(ctx,
+			if _, err := database.ExecContext(ctx,
 				"UPDATE ingestion_scopes SET active_generation_id = $1 WHERE scope_id = $2",
 				fixture.activate, fixture.scopeID); err != nil {
 				t.Fatalf("activate %q: %v", fixture.activate, err)
@@ -357,7 +357,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 		}
 	}
 
-	adapter := SQLDB{DB: db}
+	adapter := SQLDB{DB: database}
 	corpus, err := loadActiveRepositoryGenerations(ctx, adapter)
 	if err != nil {
 		t.Fatalf("loadActiveRepositoryGenerations() error = %v, want nil", err)

@@ -87,14 +87,14 @@ type GenerationRetentionResult struct {
 // GenerationRetentionStore prunes superseded source-local generation history in
 // bounded transactions while preserving active reads and changed-since truth.
 type GenerationRetentionStore struct {
-	db  db.ExecQueryer
-	Now func() time.Time
+	database db.ExecQueryer
+	Now      func() time.Time
 }
 
 // NewGenerationRetentionStore constructs a Postgres-backed retention cleanup
 // store. The supplied database must support transactions when cleanup runs.
-func NewGenerationRetentionStore(db db.ExecQueryer) GenerationRetentionStore {
-	return GenerationRetentionStore{db: db}
+func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionStore {
+	return GenerationRetentionStore{database: database}
 }
 
 // PruneSupersededGenerations deletes one bounded batch of superseded
@@ -104,10 +104,10 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	ctx context.Context,
 	policy GenerationRetentionPolicy,
 ) (GenerationRetentionResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return GenerationRetentionResult{}, errors.New("generation retention database is required")
 	}
-	beginner, ok := s.db.(db.Beginner)
+	beginner, ok := s.database.(db.Beginner)
 	if !ok {
 		return GenerationRetentionResult{}, errors.New("generation retention database must support Begin")
 	}

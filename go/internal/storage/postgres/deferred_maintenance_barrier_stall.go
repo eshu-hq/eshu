@@ -119,7 +119,7 @@ func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 	epoch int64,
 	config DeferredMaintenanceBarrierConfig,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("ingestion store db is required")
 	}
 
@@ -128,7 +128,7 @@ func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 	waitStartedAt := s.now()
 	nextStallLogAt := waitStartedAt.Add(deferredMaintenanceBarrierStallLogInterval)
 	for {
-		completed, err := deferredMaintenanceBarrierCompleted(ctx, s.db, epoch)
+		completed, err := deferredMaintenanceBarrierCompleted(ctx, s.database, epoch)
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func (s IngestionStore) waitDeferredMaintenanceBarrierCompletion(
 		}
 		if s.Logger != nil {
 			if now := s.now(); !now.Before(nextStallLogAt) {
-				arrivedIndexes, listErr := deferredMaintenanceBarrierArrivedShardIndexes(ctx, s.db, epoch)
+				arrivedIndexes, listErr := deferredMaintenanceBarrierArrivedShardIndexes(ctx, s.database, epoch)
 				logArgs := []any{
 					telemetry.PhaseAttr("deferred_maintenance_barrier"),
 					"epoch", epoch,

@@ -20,21 +20,21 @@ import (
 func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
 	for _, status := range []string{"pending", "retrying", "claimed", "running"} {
 		t.Run(status, func(t *testing.T) {
-			db, ctx := refinalizeRebuildResetLiveDB(t)
+			database, ctx := refinalizeRebuildResetLiveDB(t)
 			suffix := testSuffix(t)
-			scopeID, activeGeneration, _ := refinalizeResetScope(t, ctx, db, suffix)
-			workItemID := seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activeGeneration, "claim-fence-"+status, status)
+			scopeID, activeGeneration, _ := refinalizeResetScope(t, ctx, database, suffix)
+			workItemID := seedRefinalizeResetReducerWork(t, ctx, database, scopeID, activeGeneration, "claim-fence-"+status, status)
 			if status == "claimed" || status == "running" {
-				armLiveLease(t, ctx, db, workItemID, -time.Minute)
+				armLiveLease(t, ctx, database, workItemID, -time.Minute)
 			}
-			seedActiveRelationshipGeneration(t, ctx, db, activeGeneration, scopeID)
+			seedActiveRelationshipGeneration(t, ctx, database, activeGeneration, scopeID)
 
 			retired := make(chan struct{})
 			release := make(chan struct{})
 			var releaseOnce sync.Once
 			releaseRecovery := func() { releaseOnce.Do(func() { close(release) }) }
 			t.Cleanup(releaseRecovery)
-			racingDB := &refinalizeRetirementPauseDB{SQLDB: SQLDB{DB: db}, retired: retired, release: release}
+			racingDB := &refinalizeRetirementPauseDB{SQLDB: SQLDB{DB: database}, retired: retired, release: release}
 			recoveryDone := make(chan error, 1)
 			go func() {
 				_, err := NewRecoveryStore(racingDB).RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}}, time.Now().UTC())
@@ -49,7 +49,7 @@ func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
 				t.Fatal("refinalize did not reach retirement pause")
 			}
 
-			claimConn, err := db.Conn(ctx)
+			claimConn, err := database.Conn(ctx)
 			if err != nil {
 				t.Fatalf("open dedicated claim connection: %v", err)
 			}
@@ -73,13 +73,13 @@ func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
 				t.Fatalf("ClaimBatch returned before recovery commit: intents=%#v err=%v", result.intents, result.err)
 			case <-time.After(250 * time.Millisecond):
 			}
-			assertBackendWaitingOnFactWorkItemsLock(t, ctx, db, claimPID, "RowExclusiveLock")
+			assertBackendWaitingOnFactWorkItemsLock(t, ctx, database, claimPID, "RowExclusiveLock")
 
 			releaseRecovery()
 			if err := <-recoveryDone; err != nil {
 				t.Fatalf("RefinalizeScopeProjections() error = %v", err)
 			}
-			if got := relationshipGenerationStatus(t, ctx, db, activeGeneration); got != "superseded" {
+			if got := relationshipGenerationStatus(t, ctx, database, activeGeneration); got != "superseded" {
 				t.Fatalf("relationship generation status = %q, want superseded", got)
 			}
 			select {
@@ -98,11 +98,11 @@ func TestRefinalizeRetirementBlocksReducerClaimBatchUntilCommit(t *testing.T) {
 }
 
 func TestConcurrentRefinalizesSerializeWithoutDeadlock(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeID, activeGeneration, _ := refinalizeResetScope(t, ctx, db, suffix)
-	seedRefinalizeResetReducerWork(t, ctx, db, scopeID, activeGeneration, "concurrent-fence", "succeeded")
-	seedActiveRelationshipGeneration(t, ctx, db, activeGeneration, scopeID)
+	scopeID, activeGeneration, _ := refinalizeResetScope(t, ctx, database, suffix)
+	seedRefinalizeResetReducerWork(t, ctx, database, scopeID, activeGeneration, "concurrent-fence", "succeeded")
+	seedActiveRelationshipGeneration(t, ctx, database, activeGeneration, scopeID)
 
 	locked := make(chan struct{})
 	release := make(chan struct{})
@@ -112,7 +112,7 @@ func TestConcurrentRefinalizesSerializeWithoutDeadlock(t *testing.T) {
 	firstDone := make(chan error, 1)
 	go func() {
 		_, err := NewRecoveryStore(&refinalizeTableLockPauseDB{
-			SQLDB: SQLDB{DB: db}, locked: locked, release: release,
+			SQLDB: SQLDB{DB: database}, locked: locked, release: release,
 		}).RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}}, time.Now().UTC())
 		firstDone <- err
 	}()
@@ -124,7 +124,7 @@ func TestConcurrentRefinalizesSerializeWithoutDeadlock(t *testing.T) {
 		t.Fatal("first refinalize did not acquire EXCLUSIVE fence")
 	}
 
-	secondConn, err := db.Conn(ctx)
+	secondConn, err := database.Conn(ctx)
 	if err != nil {
 		t.Fatalf("open second recovery connection: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestConcurrentRefinalizesSerializeWithoutDeadlock(t *testing.T) {
 		_, err := NewRecoveryStore(claimFenceConn{Conn: secondConn}).RefinalizeScopeProjections(ctx, recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}}, time.Now().UTC())
 		secondDone <- err
 	}()
-	assertBackendWaitingOnFactWorkItemsLock(t, ctx, db, secondPID, "ExclusiveLock")
+	assertBackendWaitingOnFactWorkItemsLock(t, ctx, database, secondPID, "ExclusiveLock")
 
 	releaseFirst()
 	for _, done := range []<-chan error{firstDone, secondDone} {
@@ -232,12 +232,12 @@ func (t *refinalizeTableLockPauseTx) ExecContext(ctx context.Context, query stri
 	return result, err
 }
 
-func assertBackendWaitingOnFactWorkItemsLock(t *testing.T, ctx context.Context, db *sql.DB, pid int, mode string) {
+func assertBackendWaitingOnFactWorkItemsLock(t *testing.T, ctx context.Context, database *sql.DB, pid int, mode string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		var waiting int
-		err := db.QueryRowContext(ctx, `
+		err := database.QueryRowContext(ctx, `
 SELECT COUNT(*)
 FROM pg_locks
 WHERE pid = $1

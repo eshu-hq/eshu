@@ -155,14 +155,14 @@ func (s *IdentitySubjectStore) EnableLocalIdentityBreakGlass(
 	ctx context.Context,
 	window LocalIdentityBreakGlassWindow,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("identity subject store database is required")
 	}
 	window = normalizeBreakGlassWindow(window)
 	if err := validateBreakGlassWindow(window); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		enableLocalIdentityBreakGlassQuery,
 		window.RecoveryID,

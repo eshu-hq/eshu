@@ -222,7 +222,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitDomainIntents(
 	key reducer.SharedProjectionAcceptanceKey,
 	domain string,
 ) (bool, error) {
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		hasCompletedAcceptanceUnitDomainIntentsSQL,
 		key.ScopeID,
@@ -253,7 +253,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunDomainIntents(
 	key reducer.SharedProjectionAcceptanceKey,
 	domain string,
 ) (bool, error) {
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		hasCompletedAcceptanceUnitSourceRunDomainIntentsSQL,
 		key.ScopeID,
@@ -285,7 +285,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIn
 	partitionKey string,
 	domain string,
 ) (bool, error) {
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		hasCompletedAcceptanceUnitSourceRunPartitionDomainIntentsSQL,
 		key.ScopeID,
@@ -321,7 +321,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunGenerationPartiti
 	partitionKey string,
 	domain string,
 ) (bool, error) {
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		hasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntentsSQL,
 		key.ScopeID,
@@ -358,7 +358,7 @@ func (s *SharedIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainInte
 		return false, nil
 	}
 
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		hasCompletedAcceptanceUnitSourceRunRefreshDomainIntentsSQL,
 		key.ScopeID,
@@ -440,7 +440,7 @@ func (s *SharedIntentStore) queryCodeCallProjectionFence(
 	query string,
 	args ...any,
 ) (bool, error) {
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		query,
 		args...,

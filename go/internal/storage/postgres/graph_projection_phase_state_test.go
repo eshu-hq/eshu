@@ -19,8 +19,8 @@ import (
 func TestGraphProjectionPhaseStateStoreUpsertAndLookup(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphProjectionPhaseStateTestDB()
-	store := NewGraphProjectionPhaseStateStore(db)
+	database := newGraphProjectionPhaseStateTestDB()
+	store := NewGraphProjectionPhaseStateStore(database)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	key := reducer.GraphProjectionPhaseKey{
@@ -56,8 +56,8 @@ func TestGraphProjectionPhaseStateStoreUpsertAndLookup(t *testing.T) {
 func TestGraphProjectionPhaseStateStoreLookupNotFound(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphProjectionPhaseStateTestDB()
-	store := NewGraphProjectionPhaseStateStore(db)
+	database := newGraphProjectionPhaseStateTestDB()
+	store := NewGraphProjectionPhaseStateStore(database)
 	key := reducer.GraphProjectionPhaseKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
@@ -119,7 +119,7 @@ func newGraphProjectionPhaseStateTestDB() *graphProjectionPhaseStateTestDB {
 	}
 }
 
-func (db *graphProjectionPhaseStateTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *graphProjectionPhaseStateTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "INSERT INTO graph_projection_phase_state"):
 		const columnsPerRow = 8
@@ -134,7 +134,7 @@ func (db *graphProjectionPhaseStateTestDB) ExecContext(_ context.Context, query 
 				committedAt:      args[i+6].(time.Time),
 				updatedAt:        args[i+7].(time.Time),
 			}
-			db.rows[graphProjectionPhaseStateCompositeKey(row)] = row
+			database.rows[graphProjectionPhaseStateCompositeKey(row)] = row
 		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "CREATE TABLE") || strings.Contains(query, "CREATE INDEX"):
@@ -144,7 +144,7 @@ func (db *graphProjectionPhaseStateTestDB) ExecContext(_ context.Context, query 
 	}
 }
 
-func (db *graphProjectionPhaseStateTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+func (database *graphProjectionPhaseStateTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM graph_projection_phase_state"):
 		if len(args) != 6 {
@@ -158,7 +158,7 @@ func (db *graphProjectionPhaseStateTestDB) QueryContext(_ context.Context, query
 			keyspace:         args[4].(string),
 			phase:            args[5].(string),
 		})
-		_, ok := db.rows[key]
+		_, ok := database.rows[key]
 		if !ok {
 			return &graphProjectionBoolRows{idx: -1}, nil
 		}

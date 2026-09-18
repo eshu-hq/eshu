@@ -32,8 +32,8 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 	// repository-catalog reload with an empty result, so the backfill finds no
 	// cross-repo evidence and commits with no further queries.
 	backfillTx := &fakeTx{}
-	db := &fakeTransactionalDB{tx: commitTx, txs: []*fakeTx{commitTx, backfillTx}}
-	store := NewIngestionStore(db)
+	database := &fakeTransactionalDB{tx: commitTx, txs: []*fakeTx{commitTx, backfillTx}}
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	scopeValue := scope.IngestionScope{
@@ -75,7 +75,7 @@ func TestIngestionStoreCommitScopeGenerationPersistsProjectionInput(t *testing.T
 	// Two Begin() calls: the atomic commit above, plus the post-commit
 	// relationship backfill transaction it triggers for the newly onboarded
 	// repo-123 (issue #4451, § T8).
-	if got, want := db.beginCalls, 2; got != want {
+	if got, want := database.beginCalls, 2; got != want {
 		t.Fatalf("begin call count = %d, want %d", got, want)
 	}
 	if !commitTx.committed {
@@ -127,9 +127,9 @@ func TestIngestionStoreCommitScopeGenerationLogsCommitStages(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
-	db := &fakeTransactionalDB{tx: &fakeTx{}}
+	database := &fakeTransactionalDB{tx: &fakeTx{}}
 	var logs bytes.Buffer
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 	store.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 
@@ -184,14 +184,14 @@ func TestIngestionStoreCommitScopeGenerationLogsCommitStages(t *testing.T) {
 func TestIngestionStoreCommitScopeGenerationRollsBackOnProjectorEnqueueFailure(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeTransactionalDB{
+	database := &fakeTransactionalDB{
 		tx: &fakeTx{
 			execErrors: map[int]error{
 				3: errors.New("insert projector work failed"),
 			},
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 
 	scopeValue := scope.IngestionScope{
 		ScopeID:       "scope-123",
@@ -216,10 +216,10 @@ func TestIngestionStoreCommitScopeGenerationRollsBackOnProjectorEnqueueFailure(t
 	if !strings.Contains(err.Error(), "enqueue projector work") {
 		t.Fatalf("CommitScopeGeneration() error = %q, want enqueue projector work context", err)
 	}
-	if db.tx.committed {
+	if database.tx.committed {
 		t.Fatal("transaction committed = true, want false")
 	}
-	if !db.tx.rolledBack {
+	if !database.tx.rolledBack {
 		t.Fatal("transaction rolledBack = false, want true")
 	}
 }
@@ -254,8 +254,8 @@ func TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction(t *t
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 10, 10, 30, 0, 0, time.UTC)
-	db := &fakeTransactionalDB{tx: &fakeTx{}}
-	store := NewIngestionStore(db)
+	database := &fakeTransactionalDB{tx: &fakeTx{}}
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	scopeValue := scope.IngestionScope{
@@ -300,22 +300,22 @@ func TestIngestionStoreCommitClaimedScopeGenerationFencesClaimInTransaction(t *t
 	if err != nil {
 		t.Fatalf("CommitClaimedScopeGeneration() error = %v, want nil", err)
 	}
-	if got, want := db.beginCalls, 1; got != want {
+	if got, want := database.beginCalls, 1; got != want {
 		t.Fatalf("begin call count = %d, want %d", got, want)
 	}
 	// The fact_records upsert now runs as a query (INSERT ... RETURNING
 	// fact_id), not a plain exec (issue #4444 review, codex P1), so it no
 	// longer appears in db.tx.execs.
-	if got, want := len(db.tx.execs), 6; got != want {
+	if got, want := len(database.tx.execs), 6; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	if got := db.tx.execs[0].query; !strings.Contains(got, "WITH candidate AS") || !strings.Contains(got, "workflow_claims") || !strings.Contains(got, "status = 'active'") {
+	if got := database.tx.execs[0].query; !strings.Contains(got, "WITH candidate AS") || !strings.Contains(got, "workflow_claims") || !strings.Contains(got, "status = 'active'") {
 		t.Fatalf("first exec query = %q, want active claim fence mutation", got)
 	}
-	if got := db.tx.execs[1].query; !strings.Contains(got, "pg_advisory_xact_lock_shared") {
+	if got := database.tx.execs[1].query; !strings.Contains(got, "pg_advisory_xact_lock_shared") {
 		t.Fatalf("second exec query = %q, want shared maintenance barrier after claim fence", got)
 	}
-	if !db.tx.committed {
+	if !database.tx.committed {
 		t.Fatal("transaction committed = false, want true")
 	}
 }

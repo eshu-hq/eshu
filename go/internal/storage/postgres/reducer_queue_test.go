@@ -200,7 +200,7 @@ func TestReducerQueueClaimCanWaitForProjectorDrain(t *testing.T) {
 		},
 	}
 	queue := ReducerQueue{
-		db:                               db,
+		database:                         db,
 		LeaseOwner:                       "test-owner",
 		LeaseDuration:                    30 * time.Second,
 		Now:                              func() time.Time { return now },
@@ -242,7 +242,7 @@ func TestReducerQueueClaimGatesSemanticEntitiesOnGlobalProjectorDrain(t *testing
 		},
 	}
 	queue := ReducerQueue{
-		db:                               db,
+		database:                         db,
 		LeaseOwner:                       "test-owner",
 		LeaseDuration:                    30 * time.Second,
 		Now:                              func() time.Time { return now },
@@ -291,7 +291,7 @@ func TestReducerQueueClaimPassesExpectedSourceLocalProjectors(t *testing.T) {
 		},
 	}
 	queue := ReducerQueue{
-		db:                            db,
+		database:                      db,
 		LeaseOwner:                    "test-owner",
 		LeaseDuration:                 30 * time.Second,
 		Now:                           func() time.Time { return now },
@@ -317,7 +317,7 @@ func TestReducerQueueClaimPassesSemanticEntityClaimLimit(t *testing.T) {
 		},
 	}
 	queue := ReducerQueue{
-		db:                               db,
+		database:                         db,
 		LeaseOwner:                       "test-owner",
 		LeaseDuration:                    30 * time.Second,
 		Now:                              func() time.Time { return now },
@@ -344,7 +344,7 @@ func TestReducerQueueClaimGatesAWSRelationshipsOnCanonicalCloudResourceReadiness
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -382,7 +382,7 @@ func TestReducerQueueClaimCanFilterByDomain(t *testing.T) {
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "sql-lane",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -407,7 +407,7 @@ func TestReducerQueueClaimRejectsUnknownDomainFilter(t *testing.T) {
 	t.Parallel()
 
 	queue := ReducerQueue{
-		db:            &fakeExecQueryer{},
+		database:      &fakeExecQueryer{},
 		LeaseOwner:    "bad-lane",
 		LeaseDuration: time.Minute,
 		ClaimDomain:   reducer.Domain("not_a_domain"),

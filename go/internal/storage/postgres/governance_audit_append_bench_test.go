@@ -35,15 +35,15 @@ func BenchmarkGovernanceAuditStoreAppendSingleEvent(b *testing.B) {
 	}
 
 	ctx := context.Background()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		b.Fatalf("open postgres: %v", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	sqlConn, err := db.Conn(ctx)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	sqlConn, err := database.Conn(ctx)
 	if err != nil {
-		_ = db.Close()
+		_ = database.Close()
 		b.Fatalf("open dedicated postgres connection: %v", err)
 	}
 	conn := governanceAuditBenchmarkConn{conn: sqlConn}
@@ -52,7 +52,7 @@ func BenchmarkGovernanceAuditStoreAppendSingleEvent(b *testing.B) {
 	cleanup := func() {
 		_, _ = conn.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 		_ = sqlConn.Close()
-		_ = db.Close()
+		_ = database.Close()
 	}
 	if _, err := conn.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		cleanup()

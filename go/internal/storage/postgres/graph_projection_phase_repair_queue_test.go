@@ -19,8 +19,8 @@ import (
 func TestGraphProjectionPhaseRepairQueueStoreEnqueueAndListDue(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphProjectionPhaseRepairQueueTestDB()
-	store := NewGraphProjectionPhaseRepairQueueStore(db)
+	database := newGraphProjectionPhaseRepairQueueTestDB()
+	store := NewGraphProjectionPhaseRepairQueueStore(database)
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
 	repair := reducer.GraphProjectionPhaseRepair{
 		Key: reducer.GraphProjectionPhaseKey{
@@ -56,8 +56,8 @@ func TestGraphProjectionPhaseRepairQueueStoreEnqueueAndListDue(t *testing.T) {
 func TestGraphProjectionPhaseRepairQueueStoreDelete(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphProjectionPhaseRepairQueueTestDB()
-	store := NewGraphProjectionPhaseRepairQueueStore(db)
+	database := newGraphProjectionPhaseRepairQueueTestDB()
+	store := NewGraphProjectionPhaseRepairQueueStore(database)
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
 	repair := reducer.GraphProjectionPhaseRepair{
 		Key: reducer.GraphProjectionPhaseKey{
@@ -92,8 +92,8 @@ func TestGraphProjectionPhaseRepairQueueStoreDelete(t *testing.T) {
 func TestGraphProjectionPhaseRepairQueueStoreMarkFailed(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphProjectionPhaseRepairQueueTestDB()
-	store := NewGraphProjectionPhaseRepairQueueStore(db)
+	database := newGraphProjectionPhaseRepairQueueTestDB()
+	store := NewGraphProjectionPhaseRepairQueueStore(database)
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
 	repair := reducer.GraphProjectionPhaseRepair{
 		Key: reducer.GraphProjectionPhaseKey{
@@ -165,7 +165,7 @@ func newGraphProjectionPhaseRepairQueueTestDB() *graphProjectionPhaseRepairQueue
 	}
 }
 
-func (db *graphProjectionPhaseRepairQueueTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *graphProjectionPhaseRepairQueueTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "INSERT INTO graph_projection_phase_repair_queue"):
 		const columnsPerRow = 11
@@ -184,7 +184,7 @@ func (db *graphProjectionPhaseRepairQueueTestDB) ExecContext(_ context.Context, 
 				lastError:        args[i+10].(string),
 				updatedAt:        args[i+7].(time.Time),
 			}
-			db.rows[graphProjectionPhaseRepairQueueCompositeKey(row)] = row
+			database.rows[graphProjectionPhaseRepairQueueCompositeKey(row)] = row
 		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "DELETE FROM graph_projection_phase_repair_queue"):
@@ -197,7 +197,7 @@ func (db *graphProjectionPhaseRepairQueueTestDB) ExecContext(_ context.Context, 
 				keyspace:         args[i+4].(string),
 				phase:            args[i+5].(string),
 			})
-			delete(db.rows, key)
+			delete(database.rows, key)
 		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "UPDATE graph_projection_phase_repair_queue"):
@@ -209,12 +209,12 @@ func (db *graphProjectionPhaseRepairQueueTestDB) ExecContext(_ context.Context, 
 			keyspace:         args[7].(string),
 			phase:            args[8].(string),
 		})
-		row := db.rows[key]
+		row := database.rows[key]
 		row.nextAttemptAt = args[0].(time.Time)
 		row.lastError = args[1].(string)
 		row.updatedAt = args[2].(time.Time)
 		row.attempts++
-		db.rows[key] = row
+		database.rows[key] = row
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "CREATE TABLE") || strings.Contains(query, "CREATE INDEX"):
 		return sharedIntentResult{}, nil
@@ -223,13 +223,13 @@ func (db *graphProjectionPhaseRepairQueueTestDB) ExecContext(_ context.Context, 
 	}
 }
 
-func (db *graphProjectionPhaseRepairQueueTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+func (database *graphProjectionPhaseRepairQueueTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM graph_projection_phase_repair_queue"):
 		now := args[0].(time.Time)
 		limit := args[1].(int)
-		rows := make([]graphProjectionPhaseRepairQueueRow, 0, len(db.rows))
-		for _, row := range db.rows {
+		rows := make([]graphProjectionPhaseRepairQueueRow, 0, len(database.rows))
+		for _, row := range database.rows {
 			if row.nextAttemptAt.After(now) {
 				continue
 			}

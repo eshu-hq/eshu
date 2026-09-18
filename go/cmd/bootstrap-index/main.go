@@ -181,24 +181,24 @@ func run(
 		}()
 	}
 
-	db, err := openDBFn(ctx, getenv)
+	database, err := openDBFn(ctx, getenv)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
+		if closeErr := database.Close(); closeErr != nil {
 			err = errors.Join(err, closeErr)
 		}
 	}()
 
-	if err = schemaFn(ctx, db); err != nil {
+	if err = schemaFn(ctx, database); err != nil {
 		return err
 	}
-	if err = graphSchemaFn(ctx, db, getenv, logger); err != nil {
+	if err = graphSchemaFn(ctx, database, getenv, logger); err != nil {
 		return err
 	}
 
-	gd, err := graphFn(ctx, db, getenv, tracer, instruments)
+	gd, err := graphFn(ctx, database, getenv, tracer, instruments)
 	if err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func run(
 		}
 	}()
 
-	cd, err := collectorFn(ctx, db, getenv, tracer, instruments, logger)
+	cd, err := collectorFn(ctx, database, getenv, tracer, instruments, logger)
 	if err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func run(
 	// Build projector deps before starting collector so both can run concurrently.
 	// The Postgres projector queue uses FOR UPDATE SKIP LOCKED, so concurrent
 	// collection (producing queue items) and projection (claiming them) is safe.
-	pd, err := projectorFn(ctx, db, gd.writer, getenv, tracer, instruments, logger)
+	pd, err := projectorFn(ctx, database, gd.writer, getenv, tracer, instruments, logger)
 	if err != nil {
 		return err
 	}
@@ -264,7 +264,7 @@ func run(
 	logger.InfoContext(ctx, "content substring index finalization started", "index_state", "building")
 	finalizeCtx, cancelFinalize := context.WithTimeout(ctx, contentSearchIndexFinalizationTimeout)
 	defer cancelFinalize()
-	if err := finalizeContentSearchIndexesFn(finalizeCtx, db); err != nil {
+	if err := finalizeContentSearchIndexesFn(finalizeCtx, database); err != nil {
 		logger.ErrorContext(
 			ctx,
 			"content substring index finalization failed",

@@ -63,13 +63,13 @@ LIMIT 1
 // GraphProjectionPhaseStateStore persists graph-write readiness rows in
 // PostgreSQL.
 type GraphProjectionPhaseStateStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewGraphProjectionPhaseStateStore constructs a store backed by the provided
 // database handle.
-func NewGraphProjectionPhaseStateStore(db db.ExecQueryer) *GraphProjectionPhaseStateStore {
-	return &GraphProjectionPhaseStateStore{db: db}
+func NewGraphProjectionPhaseStateStore(database db.ExecQueryer) *GraphProjectionPhaseStateStore {
+	return &GraphProjectionPhaseStateStore{database: database}
 }
 
 // GraphProjectionPhaseStateSchemaSQL returns the DDL for graph readiness state.
@@ -79,7 +79,7 @@ func GraphProjectionPhaseStateSchemaSQL() string {
 
 // EnsureSchema applies the graph readiness DDL.
 func (s *GraphProjectionPhaseStateStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, graphProjectionPhaseStateSchemaSQL)
+	_, err := s.database.ExecContext(ctx, graphProjectionPhaseStateSchemaSQL)
 	return err
 }
 
@@ -94,7 +94,7 @@ func (s *GraphProjectionPhaseStateStore) Upsert(ctx context.Context, rows []redu
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := upsertGraphProjectionPhaseStateBatch(ctx, s.db, rows[i:end]); err != nil {
+		if err := upsertGraphProjectionPhaseStateBatch(ctx, s.database, rows[i:end]); err != nil {
 			return err
 		}
 	}
@@ -108,7 +108,7 @@ func (s *GraphProjectionPhaseStateStore) Lookup(
 	key reducer.GraphProjectionPhaseKey,
 	phase reducer.GraphProjectionPhase,
 ) (bool, bool, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		lookupGraphProjectionPhaseStateSQL,
 		key.ScopeID,
@@ -144,8 +144,8 @@ func (s *GraphProjectionPhaseStateStore) PublishGraphProjectionPhases(ctx contex
 
 // NewGraphProjectionReadinessLookup performs exact readiness lookup against the
 // durable graph projection phase table.
-func NewGraphProjectionReadinessLookup(db db.ExecQueryer) reducer.GraphProjectionReadinessLookup {
-	store := NewGraphProjectionPhaseStateStore(db)
+func NewGraphProjectionReadinessLookup(database db.ExecQueryer) reducer.GraphProjectionReadinessLookup {
+	store := NewGraphProjectionPhaseStateStore(database)
 
 	return func(key reducer.GraphProjectionPhaseKey, phase reducer.GraphProjectionPhase) (bool, bool) {
 		ready, found, err := store.Lookup(context.Background(), key, phase)
@@ -158,8 +158,8 @@ func NewGraphProjectionReadinessLookup(db db.ExecQueryer) reducer.GraphProjectio
 
 // NewGraphProjectionReadinessPrefetch batches exact phase lookups and returns
 // an in-memory lookup closure for the current runner cycle.
-func NewGraphProjectionReadinessPrefetch(db db.ExecQueryer) reducer.GraphProjectionReadinessPrefetch {
-	store := NewGraphProjectionPhaseStateStore(db)
+func NewGraphProjectionReadinessPrefetch(database db.ExecQueryer) reducer.GraphProjectionReadinessPrefetch {
+	store := NewGraphProjectionPhaseStateStore(database)
 
 	return func(ctx context.Context, keys []reducer.GraphProjectionPhaseKey, phase reducer.GraphProjectionPhase) (reducer.GraphProjectionReadinessLookup, error) {
 		readyByKey := make(map[string]bool, len(keys))
@@ -190,7 +190,7 @@ func NewGraphProjectionReadinessPrefetch(db db.ExecQueryer) reducer.GraphProject
 	}
 }
 
-func upsertGraphProjectionPhaseStateBatch(ctx context.Context, db db.ExecQueryer, batch []reducer.GraphProjectionPhaseState) error {
+func upsertGraphProjectionPhaseStateBatch(ctx context.Context, database db.ExecQueryer, batch []reducer.GraphProjectionPhaseState) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -235,7 +235,7 @@ func upsertGraphProjectionPhaseStateBatch(ctx context.Context, db db.ExecQueryer
 	}
 
 	query := upsertGraphProjectionPhaseStateBatchPrefix + values.String() + upsertGraphProjectionPhaseStateBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert graph projection phase state batch (%d rows): %w", len(batch), err)
 	}
 	return nil

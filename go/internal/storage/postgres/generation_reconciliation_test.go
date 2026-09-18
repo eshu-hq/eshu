@@ -26,7 +26,7 @@ func TestLastFullProjectionAtReturnsTimestamp(t *testing.T) {
 
 	want := time.Date(2026, 6, 13, 9, 0, 0, 0, time.UTC)
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{{want}}}}}
-	store := IngestionStore{db: &projectedCommitTestDB{queryer: queryer}}
+	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
 	got, ok, err := store.LastFullProjectionAt(context.Background(), "git-repository-scope:acme/app")
 	if err != nil {
@@ -57,7 +57,7 @@ func TestLastFullProjectionAtAbsentWhenNoFullGeneration(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{responses: []fakeRows{{rows: [][]any{}}}}
-	store := IngestionStore{db: &projectedCommitTestDB{queryer: queryer}}
+	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
 	_, ok, err := store.LastFullProjectionAt(context.Background(), "git-repository-scope:acme/app")
 	if err != nil {
@@ -72,7 +72,7 @@ func TestLastFullProjectionAtBlankScopeAbsent(t *testing.T) {
 	t.Parallel()
 
 	queryer := &fakeQueryer{}
-	store := IngestionStore{db: &projectedCommitTestDB{queryer: queryer}}
+	store := IngestionStore{database: &projectedCommitTestDB{queryer: queryer}}
 
 	_, ok, err := store.LastFullProjectionAt(context.Background(), "  ")
 	if err != nil {

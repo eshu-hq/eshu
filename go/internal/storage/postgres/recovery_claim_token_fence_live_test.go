@@ -25,17 +25,17 @@ import (
 // last_attempt_at must still advance and fence every side effect from the old
 // execution without disturbing the current claim.
 func TestReducerExactClaimFenceRejectsSameOwnerStaleAttempt(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
+	scopeID, generationID, _ := refinalizeResetScope(t, ctx, database, suffix)
 	fixedNow := time.Now().UTC().Truncate(time.Microsecond).Add(5 * time.Second)
-	workItemID := seedClaimTokenDeploymentWork(t, ctx, db, scopeID, generationID, "same-owner", fixedNow)
+	workItemID := seedClaimTokenDeploymentWork(t, ctx, database, scopeID, generationID, "same-owner", fixedNow)
 
-	queue := NewReducerQueue(SQLDB{DB: db}, "same-owner-worker", time.Minute)
+	queue := NewReducerQueue(SQLDB{DB: database}, "same-owner-worker", time.Minute)
 	queue.ClaimDomain = reducer.DomainDeploymentMapping
 	queue.Now = func() time.Time { return fixedNow }
 	stale := claimTokenClaimOne(t, ctx, queue)
-	expireClaimTokenLease(t, ctx, db, workItemID)
+	expireClaimTokenLease(t, ctx, database, workItemID)
 	current := claimTokenClaimOne(t, ctx, queue)
 
 	if stale.ClaimedAt == nil || current.ClaimedAt == nil {
@@ -45,14 +45,14 @@ func TestReducerExactClaimFenceRejectsSameOwnerStaleAttempt(t *testing.T) {
 		t.Fatalf("same-clock takeover ClaimedAt = %s, want stale ClaimedAt + 1us = %s", got, want)
 	}
 
-	wantCurrent := readClaimTokenWorkState(t, ctx, db, workItemID)
+	wantCurrent := readClaimTokenWorkState(t, ctx, database, workItemID)
 	assertRejectedWithoutClaimMutation := func(name string, wantErr error, operation func() error) {
 		t.Helper()
 		err := operation()
 		if !errors.Is(err, wantErr) {
 			t.Fatalf("%s error = %v, want %v", name, err, wantErr)
 		}
-		if got := readClaimTokenWorkState(t, ctx, db, workItemID); got != wantCurrent {
+		if got := readClaimTokenWorkState(t, ctx, database, workItemID); got != wantCurrent {
 			t.Fatalf("%s mutated current claim:\n got: %+v\nwant: %+v", name, got, wantCurrent)
 		}
 	}
@@ -70,13 +70,13 @@ func TestReducerExactClaimFenceRejectsSameOwnerStaleAttempt(t *testing.T) {
 		return queue.Fail(ctx, stale, errors.New("permanent reducer failure"))
 	})
 
-	store := NewRelationshipStore(SQLDB{DB: db})
+	store := NewRelationshipStore(SQLDB{DB: database})
 	assertRejectedWithoutClaimMutation("stale claim-fenced activation", reducer.ErrExecutionClaimRejected, func() error {
 		return store.ActivateResolutionGenerationForClaim(
 			ctx, generationID, scopeID, workItemID, stale.ClaimedAt.UTC(),
 		)
 	})
-	assertRelationshipGenerationAbsent(t, ctx, db, generationID)
+	assertRelationshipGenerationAbsent(t, ctx, database, generationID)
 
 	if err := store.ActivateResolutionGenerationForClaim(
 		ctx, generationID, scopeID, workItemID, current.ClaimedAt.UTC(),
@@ -84,7 +84,7 @@ func TestReducerExactClaimFenceRejectsSameOwnerStaleAttempt(t *testing.T) {
 		t.Fatalf("current claim activation error = %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(),
+		_, _ = database.ExecContext(context.Background(),
 			`DELETE FROM relationship_generations WHERE generation_id = $1`, generationID)
 	})
 }
@@ -94,20 +94,20 @@ func TestReducerExactClaimFenceRejectsSameOwnerStaleAttempt(t *testing.T) {
 // The current row may commit, but the aggregate result must still reject and
 // the same-owner takeover must remain claimed.
 func TestReducerExactClaimFenceAckBatchRejectsPartialStaleSet(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeA, generationA, _ := refinalizeResetScope(t, ctx, db, suffix+"-a")
-	scopeB, generationB, _ := refinalizeResetScope(t, ctx, db, suffix+"-b")
+	scopeA, generationA, _ := refinalizeResetScope(t, ctx, database, suffix+"-a")
+	scopeB, generationB, _ := refinalizeResetScope(t, ctx, database, suffix+"-b")
 	fixedNow := time.Now().UTC().Truncate(time.Microsecond).Add(5 * time.Second)
-	idA := seedClaimTokenDeploymentWork(t, ctx, db, scopeA, generationA, "batch-current", fixedNow)
-	idB := seedClaimTokenDeploymentWork(t, ctx, db, scopeB, generationB, "batch-takeover", fixedNow)
+	idA := seedClaimTokenDeploymentWork(t, ctx, database, scopeA, generationA, "batch-current", fixedNow)
+	idB := seedClaimTokenDeploymentWork(t, ctx, database, scopeB, generationB, "batch-takeover", fixedNow)
 
-	queue := NewReducerQueue(SQLDB{DB: db}, "batch-same-owner", time.Minute)
+	queue := NewReducerQueue(SQLDB{DB: database}, "batch-same-owner", time.Minute)
 	queue.ClaimDomain = reducer.DomainDeploymentMapping
 	queue.Now = func() time.Time { return fixedNow }
 	first := claimTokenClaimMany(t, ctx, queue, 2)
 	firstByID := claimTokenIntentsByID(t, first, idA, idB)
-	expireClaimTokenLease(t, ctx, db, idB)
+	expireClaimTokenLease(t, ctx, database, idB)
 	takeover := claimTokenClaimOne(t, ctx, queue)
 	if takeover.IntentID != idB {
 		t.Fatalf("takeover intent = %q, want %q", takeover.IntentID, idB)
@@ -121,10 +121,10 @@ func TestReducerExactClaimFenceAckBatchRejectsPartialStaleSet(t *testing.T) {
 	if !errors.Is(err, ErrReducerClaimRejected) {
 		t.Fatalf("AckBatch(partial stale set) error = %v, want %v", err, ErrReducerClaimRejected)
 	}
-	if got := readClaimTokenWorkState(t, ctx, db, idA).status; got != "succeeded" {
+	if got := readClaimTokenWorkState(t, ctx, database, idA).status; got != "succeeded" {
 		t.Fatalf("current batch row status = %q, want succeeded", got)
 	}
-	stateB := readClaimTokenWorkState(t, ctx, db, idB)
+	stateB := readClaimTokenWorkState(t, ctx, database, idB)
 	if stateB.status != "claimed" || !stateB.lastAttemptAt.Equal(*takeover.ClaimedAt) {
 		t.Fatalf("takeover row after partial AckBatch = %+v, want current claimed token %s", stateB, takeover.ClaimedAt)
 	}
@@ -134,15 +134,15 @@ func TestReducerExactClaimFenceAckBatchRejectsPartialStaleSet(t *testing.T) {
 // EXCLUSIVE table fence blocks claim-fenced publication's ROW SHARE lock. Once
 // recovery commits retirement, the expired execution must resume and reject.
 func TestRecoveryClaimFenceRecoveryWinsAgainstActivation(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
-	workItemID := seedClaimTokenDeploymentWork(t, ctx, db, scopeID, generationID, "recovery-wins", time.Now().UTC())
-	queue := NewReducerQueue(SQLDB{DB: db}, "recovery-wins-worker", time.Minute)
+	scopeID, generationID, _ := refinalizeResetScope(t, ctx, database, suffix)
+	workItemID := seedClaimTokenDeploymentWork(t, ctx, database, scopeID, generationID, "recovery-wins", time.Now().UTC())
+	queue := NewReducerQueue(SQLDB{DB: database}, "recovery-wins-worker", time.Minute)
 	queue.ClaimDomain = reducer.DomainDeploymentMapping
 	claim := claimTokenClaimOne(t, ctx, queue)
-	expireClaimTokenLease(t, ctx, db, workItemID)
-	seedActiveRelationshipGeneration(t, ctx, db, generationID, scopeID)
+	expireClaimTokenLease(t, ctx, database, workItemID)
+	seedActiveRelationshipGeneration(t, ctx, database, generationID, scopeID)
 
 	locked := make(chan struct{})
 	release := make(chan struct{})
@@ -152,7 +152,7 @@ func TestRecoveryClaimFenceRecoveryWinsAgainstActivation(t *testing.T) {
 	recoveryDone := make(chan error, 1)
 	go func() {
 		_, err := NewRecoveryStore(&refinalizeTableLockPauseDB{
-			SQLDB: SQLDB{DB: db}, locked: locked, release: release,
+			SQLDB: SQLDB{DB: database}, locked: locked, release: release,
 		}).RefinalizeScopeProjections(
 			ctx, recovery.RefinalizeFilter{ScopeIDs: []string{scopeID}}, time.Now().UTC(),
 		)
@@ -160,7 +160,7 @@ func TestRecoveryClaimFenceRecoveryWinsAgainstActivation(t *testing.T) {
 	}()
 	claimTokenAwaitSignal(t, locked, recoveryDone, "recovery EXCLUSIVE fence")
 
-	activationConn := claimTokenOpenConn(t, ctx, db)
+	activationConn := claimTokenOpenConn(t, ctx, database)
 	activationPID := claimTokenBackendPID(t, ctx, activationConn)
 	activationDone := make(chan error, 1)
 	go func() {
@@ -169,7 +169,7 @@ func TestRecoveryClaimFenceRecoveryWinsAgainstActivation(t *testing.T) {
 				ctx, generationID, scopeID, workItemID, claim.ClaimedAt.UTC(),
 			)
 	}()
-	assertBackendWaitingOnFactWorkItemsLock(t, ctx, db, activationPID, "RowShareLock")
+	assertBackendWaitingOnFactWorkItemsLock(t, ctx, database, activationPID, "RowShareLock")
 
 	releaseRecovery()
 	if err := claimTokenAwaitError(t, recoveryDone, "recovery"); err != nil {
@@ -178,7 +178,7 @@ func TestRecoveryClaimFenceRecoveryWinsAgainstActivation(t *testing.T) {
 	if err := claimTokenAwaitError(t, activationDone, "activation"); !errors.Is(err, reducer.ErrExecutionClaimRejected) {
 		t.Fatalf("post-recovery activation error = %v, want %v", err, reducer.ErrExecutionClaimRejected)
 	}
-	if got := relationshipGenerationStatus(t, ctx, db, generationID); got != "superseded" {
+	if got := relationshipGenerationStatus(t, ctx, database, generationID); got != "superseded" {
 		t.Fatalf("relationship generation status = %q, want superseded", got)
 	}
 }
@@ -188,17 +188,17 @@ func TestRecoveryClaimFenceRecoveryWinsAgainstActivation(t *testing.T) {
 // expires, recovery waits for that transaction, then acquires EXCLUSIVE and
 // retires the now-committed generation.
 func TestRecoveryClaimFenceActivationWinsBeforeRecovery(t *testing.T) {
-	db, ctx := refinalizeRebuildResetLiveDB(t)
+	database, ctx := refinalizeRebuildResetLiveDB(t)
 	suffix := testSuffix(t)
-	scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
-	workItemID := seedClaimTokenDeploymentWork(t, ctx, db, scopeID, generationID, "activation-wins", time.Now().UTC())
-	queue := NewReducerQueue(SQLDB{DB: db}, "activation-wins-worker", time.Minute)
+	scopeID, generationID, _ := refinalizeResetScope(t, ctx, database, suffix)
+	workItemID := seedClaimTokenDeploymentWork(t, ctx, database, scopeID, generationID, "activation-wins", time.Now().UTC())
+	queue := NewReducerQueue(SQLDB{DB: database}, "activation-wins-worker", time.Minute)
 	queue.ClaimDomain = reducer.DomainDeploymentMapping
 	claim := claimTokenClaimOne(t, ctx, queue)
-	seedActiveRelationshipGeneration(t, ctx, db, generationID, scopeID)
-	setClaimTokenLeaseTTL(t, ctx, db, workItemID, time.Second)
+	seedActiveRelationshipGeneration(t, ctx, database, generationID, scopeID)
+	setClaimTokenLeaseTTL(t, ctx, database, workItemID, time.Second)
 
-	activationConn := claimTokenOpenConn(t, ctx, db)
+	activationConn := claimTokenOpenConn(t, ctx, database)
 	activated := make(chan struct{})
 	release := make(chan struct{})
 	var releaseOnce sync.Once
@@ -215,9 +215,9 @@ func TestRecoveryClaimFenceActivationWinsBeforeRecovery(t *testing.T) {
 		)
 	}()
 	claimTokenAwaitSignal(t, activated, activationDone, "claim-fenced activation")
-	claimTokenAwaitLeaseExpiry(t, ctx, db, workItemID)
+	claimTokenAwaitLeaseExpiry(t, ctx, database, workItemID)
 
-	recoveryConn := claimTokenOpenConn(t, ctx, db)
+	recoveryConn := claimTokenOpenConn(t, ctx, database)
 	recoveryPID := claimTokenBackendPID(t, ctx, recoveryConn)
 	recoveryDone := make(chan error, 1)
 	go func() {
@@ -227,7 +227,7 @@ func TestRecoveryClaimFenceActivationWinsBeforeRecovery(t *testing.T) {
 			)
 		recoveryDone <- err
 	}()
-	assertBackendWaitingOnFactWorkItemsLock(t, ctx, db, recoveryPID, "ExclusiveLock")
+	assertBackendWaitingOnFactWorkItemsLock(t, ctx, database, recoveryPID, "ExclusiveLock")
 
 	releaseActivation()
 	if err := claimTokenAwaitError(t, activationDone, "activation"); err != nil {
@@ -236,7 +236,7 @@ func TestRecoveryClaimFenceActivationWinsBeforeRecovery(t *testing.T) {
 	if err := claimTokenAwaitError(t, recoveryDone, "recovery"); err != nil {
 		t.Fatalf("recovery error = %v", err)
 	}
-	if got := relationshipGenerationStatus(t, ctx, db, generationID); got != "superseded" {
+	if got := relationshipGenerationStatus(t, ctx, database, generationID); got != "superseded" {
 		t.Fatalf("relationship generation status = %q, want superseded", got)
 	}
 }
@@ -261,12 +261,12 @@ type claimTokenWorkState struct {
 func seedClaimTokenDeploymentWork(
 	t *testing.T,
 	ctx context.Context,
-	db *sql.DB,
+	database *sql.DB,
 	scopeID, generationID, entityKey string,
 	now time.Time,
 ) string {
 	t.Helper()
-	queue := NewReducerQueue(SQLDB{DB: db}, "claim-token-seed", time.Minute)
+	queue := NewReducerQueue(SQLDB{DB: database}, "claim-token-seed", time.Minute)
 	queue.Now = func() time.Time { return now }
 	intent := projector.ReducerIntent{
 		ScopeID:      scopeID,
@@ -315,10 +315,10 @@ func claimTokenIntentsByID(t *testing.T, intents []reducer.Intent, ids ...string
 	return byID
 }
 
-func readClaimTokenWorkState(t *testing.T, ctx context.Context, db *sql.DB, workItemID string) claimTokenWorkState {
+func readClaimTokenWorkState(t *testing.T, ctx context.Context, database *sql.DB, workItemID string) claimTokenWorkState {
 	t.Helper()
 	var state claimTokenWorkState
-	err := db.QueryRowContext(ctx, `
+	err := database.QueryRowContext(ctx, `
 SELECT status, COALESCE(lease_owner, ''), claim_until, last_attempt_at,
        attempt_count, visible_at, failure_class, failure_message, updated_at
 FROM fact_work_items
@@ -339,14 +339,14 @@ WHERE work_item_id = $1`, workItemID).Scan(
 	return state
 }
 
-func expireClaimTokenLease(t *testing.T, ctx context.Context, db *sql.DB, workItemID string) {
+func expireClaimTokenLease(t *testing.T, ctx context.Context, database *sql.DB, workItemID string) {
 	t.Helper()
-	setClaimTokenLeaseTTL(t, ctx, db, workItemID, -time.Second)
+	setClaimTokenLeaseTTL(t, ctx, database, workItemID, -time.Second)
 }
 
-func setClaimTokenLeaseTTL(t *testing.T, ctx context.Context, db *sql.DB, workItemID string, ttl time.Duration) {
+func setClaimTokenLeaseTTL(t *testing.T, ctx context.Context, database *sql.DB, workItemID string, ttl time.Duration) {
 	t.Helper()
-	if _, err := db.ExecContext(ctx,
+	if _, err := database.ExecContext(ctx,
 		`UPDATE fact_work_items SET claim_until = clock_timestamp() + $2::interval WHERE work_item_id = $1`,
 		workItemID, ttl.String(),
 	); err != nil {
@@ -354,10 +354,10 @@ func setClaimTokenLeaseTTL(t *testing.T, ctx context.Context, db *sql.DB, workIt
 	}
 }
 
-func assertRelationshipGenerationAbsent(t *testing.T, ctx context.Context, db *sql.DB, generationID string) {
+func assertRelationshipGenerationAbsent(t *testing.T, ctx context.Context, database *sql.DB, generationID string) {
 	t.Helper()
 	var count int
-	if err := db.QueryRowContext(ctx,
+	if err := database.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM relationship_generations WHERE generation_id = $1`, generationID,
 	).Scan(&count); err != nil {
 		t.Fatalf("count relationship generation: %v", err)
@@ -417,9 +417,9 @@ func (d *claimTokenActivationPauseDB) ExecContext(
 	return result, nil
 }
 
-func claimTokenOpenConn(t *testing.T, ctx context.Context, db *sql.DB) *sql.Conn {
+func claimTokenOpenConn(t *testing.T, ctx context.Context, database *sql.DB) *sql.Conn {
 	t.Helper()
-	conn, err := db.Conn(ctx)
+	conn, err := database.Conn(ctx)
 	if err != nil {
 		t.Fatalf("open dedicated connection: %v", err)
 	}
@@ -458,12 +458,12 @@ func claimTokenAwaitError(t *testing.T, done <-chan error, label string) error {
 	}
 }
 
-func claimTokenAwaitLeaseExpiry(t *testing.T, ctx context.Context, db *sql.DB, workItemID string) {
+func claimTokenAwaitLeaseExpiry(t *testing.T, ctx context.Context, database *sql.DB, workItemID string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		var expired bool
-		if err := db.QueryRowContext(ctx,
+		if err := database.QueryRowContext(ctx,
 			`SELECT claim_until <= clock_timestamp() FROM fact_work_items WHERE work_item_id = $1`, workItemID,
 		).Scan(&expired); err != nil {
 			t.Fatalf("read claim lease expiry: %v", err)

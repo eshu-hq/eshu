@@ -65,7 +65,7 @@ func TestProjectorQueueAckInvokesCrossplaneRedriveHookAfterCommit(t *testing.T) 
 	fake := crossplaneRedriveHookOrderFake{log: &log, sweepErr: errors.New("injected sweep failure")}
 
 	queue := ProjectorQueue{
-		db:                fake,
+		database:          fake,
 		LeaseOwner:        "test-owner",
 		LeaseDuration:     time.Minute,
 		CrossplaneRedrive: fake,
@@ -113,7 +113,7 @@ func TestProjectorQueueAckSkipsHookWhenNilCrossplaneRedrive(t *testing.T) {
 	fake := crossplaneRedriveHookOrderFake{log: &log}
 
 	queue := ProjectorQueue{
-		db:            fake,
+		database:      fake,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		// CrossplaneRedrive intentionally left nil.

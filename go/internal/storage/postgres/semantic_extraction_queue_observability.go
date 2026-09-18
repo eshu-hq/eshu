@@ -19,10 +19,10 @@ import (
 func (s SemanticExtractionQueueStore) ObservabilitySnapshot(
 	ctx context.Context,
 ) (statuspkg.SemanticExtractionStatus, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return statuspkg.SemanticExtractionStatus{}, fmt.Errorf("semantic extraction queue store db is required")
 	}
-	return readSemanticExtractionObservability(ctx, s.db)
+	return readSemanticExtractionObservability(ctx, s.database)
 }
 
 func readSemanticExtractionObservability(

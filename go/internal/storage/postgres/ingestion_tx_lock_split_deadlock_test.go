@@ -74,8 +74,8 @@ func (d beginCountingDB) Begin(ctx context.Context) (db.Transaction, error) {
 func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 	dsn := ingestionTxLockSplitProofDSN(t)
 	ctx := context.Background()
-	db, schemaName := openIngestionTxLockSplitProofSchema(t, dsn)
-	adapter := SQLDB{DB: db}
+	database, schemaName := openIngestionTxLockSplitProofSchema(t, dsn)
+	adapter := SQLDB{DB: database}
 
 	const repoCount = 6
 	const rounds = 20

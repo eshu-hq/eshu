@@ -131,7 +131,7 @@ func (s FactStore) ListActiveJVMReachabilityFacts(
 	ctx context.Context,
 	filter reducer.JVMReachabilityFactFilter,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
@@ -178,7 +178,7 @@ func (s FactStore) listActiveJVMReachabilityFactsPage(
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveJVMReachabilityFactsQuery,
 		repositoryIDs,

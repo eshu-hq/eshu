@@ -34,48 +34,48 @@ func TestGraphNodeOwnerStoreIntegration(t *testing.T) {
 		t.Skip("ESHU_POSTGRES_DSN not set")
 	}
 	ctx := context.Background()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	defer func() { _ = db.Close() }()
+	defer func() { _ = database.Close() }()
 
 	store := NewGraphNodeOwnerStore()
-	if err := store.EnsureSchema(ctx, db); err != nil {
+	if err := store.EnsureSchema(ctx, database); err != nil {
 		t.Fatalf("ensure schema: %v", err)
 	}
 
 	t.Run("single_writer_owns", func(t *testing.T) {
 		uid := ownerTestUID(t, "single")
-		owned := resolveInTx(t, db, store, []GraphNodeOwnerEntry{ownerEntry(uid, "1000-a", "a")})
+		owned := resolveInTx(t, database, store, []GraphNodeOwnerEntry{ownerEntry(uid, "1000-a", "a")})
 		if _, ok := owned[uid]; !ok {
 			t.Fatalf("sole writer must own uid, owned=%v", owned)
 		}
-		assertOwnerLedger(t, db, uid, "1000-a", "a")
+		assertOwnerLedger(t, database, uid, "1000-a", "a")
 	})
 
 	t.Run("cross_batch_max_resolution", func(t *testing.T) {
 		uid := ownerTestUID(t, "crossbatch")
 		// low first
-		lowOwned := resolveInTx(t, db, store, []GraphNodeOwnerEntry{ownerEntry(uid, "1000-low", "low")})
+		lowOwned := resolveInTx(t, database, store, []GraphNodeOwnerEntry{ownerEntry(uid, "1000-low", "low")})
 		if _, ok := lowOwned[uid]; !ok {
 			t.Fatal("low writer should own on first insert")
 		}
 		// high next — wins
-		highOwned := resolveInTx(t, db, store, []GraphNodeOwnerEntry{ownerEntry(uid, "2000-high", "high")})
+		highOwned := resolveInTx(t, database, store, []GraphNodeOwnerEntry{ownerEntry(uid, "2000-high", "high")})
 		if _, ok := highOwned[uid]; !ok {
 			t.Fatal("high writer should own (greater order key)")
 		}
-		assertOwnerLedger(t, db, uid, "2000-high", "high")
+		assertOwnerLedger(t, database, uid, "2000-high", "high")
 		// low again — now loses (not owned), ledger unchanged
-		lowAgain, lost := resolveInTxWithLost(t, db, store, []GraphNodeOwnerEntry{ownerEntry(uid, "1000-low", "low")})
+		lowAgain, lost := resolveInTxWithLost(t, database, store, []GraphNodeOwnerEntry{ownerEntry(uid, "1000-low", "low")})
 		if _, ok := lowAgain[uid]; ok {
 			t.Fatal("low writer must NOT own after high won")
 		}
 		if lost != 1 {
 			t.Fatalf("contendedLost = %d, want 1", lost)
 		}
-		assertOwnerLedger(t, db, uid, "2000-high", "high")
+		assertOwnerLedger(t, database, uid, "2000-high", "high")
 	})
 
 	t.Run("concurrent_converges_to_max", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestGraphNodeOwnerStoreIntegration(t *testing.T) {
 				i, k := i, k
 				go func() {
 					defer wg.Done()
-					_, errs[i] = resolveInTxErr(ctx, db, store, []GraphNodeOwnerEntry{ownerEntry(uid, k, k)})
+					_, errs[i] = resolveInTxErr(ctx, database, store, []GraphNodeOwnerEntry{ownerEntry(uid, k, k)})
 				}()
 			}
 			wg.Wait()
@@ -99,7 +99,7 @@ func TestGraphNodeOwnerStoreIntegration(t *testing.T) {
 					t.Fatalf("trial %d writer %d: %v", trial, i, e)
 				}
 			}
-			assertOwnerLedger(t, db, uid, "4000-d", "4000-d")
+			assertOwnerLedger(t, database, uid, "4000-d", "4000-d")
 		}
 	})
 }
@@ -115,23 +115,23 @@ func ownerTestUID(t *testing.T, tag string) string {
 	return uid
 }
 
-func resolveInTx(t *testing.T, db *sql.DB, store GraphNodeOwnerStore, entries []GraphNodeOwnerEntry) map[string]struct{} {
+func resolveInTx(t *testing.T, database *sql.DB, store GraphNodeOwnerStore, entries []GraphNodeOwnerEntry) map[string]struct{} {
 	t.Helper()
-	owned, _ := resolveInTxWithLost(t, db, store, entries)
+	owned, _ := resolveInTxWithLost(t, database, store, entries)
 	return owned
 }
 
-func resolveInTxWithLost(t *testing.T, db *sql.DB, store GraphNodeOwnerStore, entries []GraphNodeOwnerEntry) (map[string]struct{}, int) {
+func resolveInTxWithLost(t *testing.T, database *sql.DB, store GraphNodeOwnerStore, entries []GraphNodeOwnerEntry) (map[string]struct{}, int) {
 	t.Helper()
-	owned, lost, err := resolveInTxErrLost(context.Background(), db, store, entries)
+	owned, lost, err := resolveInTxErrLost(context.Background(), database, store, entries)
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
 	return owned, lost
 }
 
-func resolveInTxErr(ctx context.Context, db *sql.DB, store GraphNodeOwnerStore, entries []GraphNodeOwnerEntry) (map[string]struct{}, error) {
-	owned, _, err := resolveInTxErrLost(ctx, db, store, entries)
+func resolveInTxErr(ctx context.Context, database *sql.DB, store GraphNodeOwnerStore, entries []GraphNodeOwnerEntry) (map[string]struct{}, error) {
+	owned, _, err := resolveInTxErrLost(ctx, database, store, entries)
 	return owned, err
 }
 
@@ -139,8 +139,8 @@ func resolveInTxErr(ctx context.Context, db *sql.DB, store GraphNodeOwnerStore, 
 // a tx, resolve ownership (which holds the advisory locks), then commit (which
 // releases them). In production the graph write happens between resolve and
 // commit; here there is no graph write, but the lock lifetime is identical.
-func resolveInTxErrLost(ctx context.Context, db *sql.DB, store GraphNodeOwnerStore, entries []GraphNodeOwnerEntry) (map[string]struct{}, int, error) {
-	tx, err := db.BeginTx(ctx, nil)
+func resolveInTxErrLost(ctx context.Context, database *sql.DB, store GraphNodeOwnerStore, entries []GraphNodeOwnerEntry) (map[string]struct{}, int, error) {
+	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -161,11 +161,11 @@ func resolveInTxErrLost(ctx context.Context, db *sql.DB, store GraphNodeOwnerSto
 	return owned, lost, nil
 }
 
-func assertOwnerLedger(t *testing.T, db *sql.DB, uid, wantKey, wantValue string) {
+func assertOwnerLedger(t *testing.T, database *sql.DB, uid, wantKey, wantValue string) {
 	t.Helper()
 	var key string
 	var rawRow []byte
-	if err := db.QueryRowContext(context.Background(),
+	if err := database.QueryRowContext(context.Background(),
 		"SELECT source_order_key, winning_row FROM graph_node_owner WHERE uid = $1", uid).Scan(&key, &rawRow); err != nil {
 		t.Fatalf("read ledger for %q: %v", uid, err)
 	}

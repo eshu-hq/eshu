@@ -262,8 +262,8 @@ func (s IngestionStore) markDeferredMaintenanceBarrierComplete(
 // stall warning — naming arrived and missing shard indexes — if the wait runs
 // long. See that file's doc comment for the unbounded-wait rationale.
 
-func acquireDeferredMaintenanceStateBarrier(ctx context.Context, db db.ExecQueryer) error {
-	_, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", deferredMaintenanceBarrierStateLockKey)
+func acquireDeferredMaintenanceStateBarrier(ctx context.Context, database db.ExecQueryer) error {
+	_, err := database.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1)", deferredMaintenanceBarrierStateLockKey)
 	return err
 }
 

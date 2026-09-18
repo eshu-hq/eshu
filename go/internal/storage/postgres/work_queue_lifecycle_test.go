@@ -24,9 +24,9 @@ func TestReducerQueueFailClassifiesGraphWriteTimeoutAfterAttemptBudget(t *testin
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{}
+	database := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -49,16 +49,16 @@ func TestReducerQueueFailClassifiesGraphWriteTimeoutAfterAttemptBudget(t *testin
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.execs[0].query, "status = 'dead_letter'") {
-		t.Fatalf("exhausted timeout should dead-letter, query:\n%s", db.execs[0].query)
+	if !strings.Contains(database.execs[0].query, "status = 'dead_letter'") {
+		t.Fatalf("exhausted timeout should dead-letter, query:\n%s", database.execs[0].query)
 	}
-	if got, want := db.execs[0].args[1], "graph_write_timeout"; got != want {
+	if got, want := database.execs[0].args[1], "graph_write_timeout"; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
-	if got, want := db.execs[0].args[3], "semantic label=Annotation rows=10"; got != want {
+	if got, want := database.execs[0].args[3], "semantic label=Annotation rows=10"; got != want {
 		t.Fatalf("failure details = %v, want %v", got, want)
 	}
 }
@@ -67,9 +67,9 @@ func TestReducerQueueAckAndFailUpdateClaimedWork(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{}
+	database := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -82,7 +82,7 @@ func TestReducerQueueAckAndFailUpdateClaimedWork(t *testing.T) {
 	if err := queue.Fail(context.Background(), intent, errors.New("boom")); err != nil {
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
-	if got, want := len(db.execs), 2; got != want {
+	if got, want := len(database.execs), 2; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 }

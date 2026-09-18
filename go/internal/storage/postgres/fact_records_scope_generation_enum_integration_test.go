@@ -114,25 +114,25 @@ func TestListScopeGenerationWorkLive(t *testing.T) {
 
 func openScopeGenerationEnumProofDB(t *testing.T, dsn string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = db.Exec("DROP TABLE IF EXISTS fact_records, scope_generations, ingestion_scopes CASCADE")
-		_ = db.Close()
+		_, _ = database.Exec("DROP TABLE IF EXISTS fact_records, scope_generations, ingestion_scopes CASCADE")
+		_ = database.Close()
 	})
-	if err := db.Ping(); err != nil {
+	if err := database.Ping(); err != nil {
 		t.Fatalf("ping db: %v", err)
 	}
 	// Start from a clean slate so a prior aborted run does not leak tables.
-	if _, err := db.Exec("DROP TABLE IF EXISTS fact_records, scope_generations, ingestion_scopes CASCADE"); err != nil {
+	if _, err := database.Exec("DROP TABLE IF EXISTS fact_records, scope_generations, ingestion_scopes CASCADE"); err != nil {
 		t.Fatalf("reset schema: %v", err)
 	}
-	return db
+	return database
 }
 
-func seedScopeGenerationEnumFixture(t *testing.T, ctx context.Context, db *sql.DB, observed, ingested time.Time) {
+func seedScopeGenerationEnumFixture(t *testing.T, ctx context.Context, database *sql.DB, observed, ingested time.Time) {
 	t.Helper()
 	scopes := []struct {
 		scopeID, source, kind, collector, gen string
@@ -141,13 +141,13 @@ func seedScopeGenerationEnumFixture(t *testing.T, ctx context.Context, db *sql.D
 		{"scope-b", "github", "repository", "collector-github", "gen-b1"},
 	}
 	for _, s := range scopes {
-		if _, err := db.ExecContext(ctx,
+		if _, err := database.ExecContext(ctx,
 			`INSERT INTO ingestion_scopes (scope_id, source_system, scope_kind, active_generation_id, collector_kind, partition_key, payload)
 			 VALUES ($1,$2,$3,$4,$5,'', '{}'::jsonb)`,
 			s.scopeID, s.source, s.kind, s.gen, s.collector); err != nil {
 			t.Fatalf("insert scope %s: %v", s.scopeID, err)
 		}
-		if _, err := db.ExecContext(ctx,
+		if _, err := database.ExecContext(ctx,
 			`INSERT INTO scope_generations (generation_id, scope_id, observed_at, ingested_at, status, trigger_kind, freshness_hint)
 			 VALUES ($1,$2,$3,$4,'accepted','scheduled','')`,
 			s.gen, s.scopeID, observed, ingested); err != nil {
@@ -158,7 +158,7 @@ func seedScopeGenerationEnumFixture(t *testing.T, ctx context.Context, db *sql.D
 	// earlier) whose facts still linger. active_generation_id points at gen-a1, so
 	// the enumeration must pick gen-a1 and skip gen-a0 — re-draining a superseded
 	// generation would not match the baseline graph.
-	if _, err := db.ExecContext(ctx,
+	if _, err := database.ExecContext(ctx,
 		`INSERT INTO scope_generations (generation_id, scope_id, observed_at, ingested_at, status, trigger_kind, freshness_hint)
 		 VALUES ('gen-a0','scope-a',$1,$2,'superseded','scheduled','')`,
 		observed.Add(-time.Hour), ingested.Add(-time.Hour)); err != nil {
@@ -169,12 +169,12 @@ func seedScopeGenerationEnumFixture(t *testing.T, ctx context.Context, db *sql.D
 	// terminal (failed) with a fact. latestGenerationCTE falls back to that newest
 	// generation, so the terminal-status filter must drop scope-c entirely —
 	// otherwise CommitScopeGeneration would abort on the terminal status.
-	if _, err := db.ExecContext(ctx,
+	if _, err := database.ExecContext(ctx,
 		`INSERT INTO ingestion_scopes (scope_id, source_system, scope_kind, active_generation_id, collector_kind, partition_key, payload)
 		 VALUES ('scope-c','git','repository',NULL,'collector-git','', '{}'::jsonb)`); err != nil {
 		t.Fatalf("insert scope-c: %v", err)
 	}
-	if _, err := db.ExecContext(ctx,
+	if _, err := database.ExecContext(ctx,
 		`INSERT INTO scope_generations (generation_id, scope_id, observed_at, ingested_at, status, trigger_kind, freshness_hint)
 		 VALUES ('gen-c1','scope-c',$1,$2,'failed','scheduled','')`,
 		observed, ingested); err != nil {
@@ -192,7 +192,7 @@ func seedScopeGenerationEnumFixture(t *testing.T, ctx context.Context, db *sql.D
 		{"fact-c1", "scope-c", "gen-c1"},
 	}
 	for _, f := range factRows {
-		if _, err := db.ExecContext(ctx,
+		if _, err := database.ExecContext(ctx,
 			`INSERT INTO fact_records (fact_id, scope_id, generation_id) VALUES ($1,$2,$3)`,
 			f.factID, f.scopeID, f.gen); err != nil {
 			t.Fatalf("insert fact %s: %v", f.factID, err)

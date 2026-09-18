@@ -159,7 +159,7 @@ func (q ReducerQueue) ReopenSucceeded(
 		return false, errors.New("reducer work item id is required")
 	}
 
-	result, err := q.db.ExecContext(ctx, reopenSucceededReducerWorkQuery, q.now(), workItemID)
+	result, err := q.database.ExecContext(ctx, reopenSucceededReducerWorkQuery, q.now(), workItemID)
 	if err != nil {
 		return false, fmt.Errorf("reopen succeeded reducer work: %w", err)
 	}
@@ -193,7 +193,7 @@ func (q ReducerQueue) ReplayDomain(
 		return false, fmt.Errorf("reducer replay domain: %w", err)
 	}
 
-	result, err := q.db.ExecContext(
+	result, err := q.database.ExecContext(
 		ctx,
 		replaySucceededReducerDomainQuery,
 		q.now(),
@@ -244,7 +244,7 @@ func (q ReducerQueue) ReplayWorkloadMaterialization(
 	}
 	workItemID := reducerWorkItemID(intent)
 
-	result, err := q.db.ExecContext(ctx, scheduleWorkloadMaterializationReplayQuery, q.now(), workItemID)
+	result, err := q.database.ExecContext(ctx, scheduleWorkloadMaterializationReplayQuery, q.now(), workItemID)
 	if err != nil {
 		return false, fmt.Errorf("schedule workload materialization replay: %w", err)
 	}
@@ -270,7 +270,7 @@ func (q ReducerQueue) workloadMaterializationReplayScheduled(
 	ctx context.Context,
 	workItemID string,
 ) (bool, error) {
-	rows, err := q.db.QueryContext(ctx, workloadMaterializationReplayScheduledQuery, workItemID)
+	rows, err := q.database.QueryContext(ctx, workloadMaterializationReplayScheduledQuery, workItemID)
 	if err != nil {
 		return false, fmt.Errorf("check workload materialization replay after enqueue conflict: %w", err)
 	}
@@ -357,7 +357,7 @@ func (q ReducerQueue) CountInFlightByDomain(
 		return 0, fmt.Errorf("count in-flight reducer work: %w", err)
 	}
 
-	rows, err := q.db.QueryContext(
+	rows, err := q.database.QueryContext(
 		ctx,
 		countInFlightReducerWorkByDomainQuery,
 		string(domain),
@@ -386,7 +386,7 @@ func (q ReducerQueue) CountInFlightByDomain(
 }
 
 func (q ReducerQueue) validateDB() error {
-	if q.db == nil {
+	if q.database == nil {
 		return errors.New("reducer queue database is required")
 	}
 

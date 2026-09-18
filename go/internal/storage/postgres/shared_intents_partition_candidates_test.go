@@ -30,7 +30,7 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 	if mustPostgresTestPartitionForKey(t, otherKey, partitionCount) == selectedPartition {
 		otherKey = "code-calls:v1:files:repo-a:src/other_partition.go"
 	}
-	db := &partitionCandidateListTestDB{rows: []partitionCandidateListRow{
+	database := &partitionCandidateListTestDB{rows: []partitionCandidateListRow{
 		{
 			Intent: reducer.SharedProjectionIntentRow{
 				IntentID:         "same-partition",
@@ -62,7 +62,7 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 			PartitionHash:    reducer.PartitionHashForKey(otherKey),
 		},
 	}}
-	store := NewSharedIntentStore(db)
+	store := NewSharedIntentStore(database)
 
 	got, err := store.ListPendingDomainPartitionIntents(
 		ctx,
@@ -89,8 +89,8 @@ func TestSharedIntentStoreListPendingDomainPartitionIntents(t *testing.T) {
 		"created_at ASC",
 		"intent_id ASC",
 	} {
-		if !strings.Contains(db.query, want) {
-			t.Fatalf("query missing %q:\n%s", want, db.query)
+		if !strings.Contains(database.query, want) {
+			t.Fatalf("query missing %q:\n%s", want, database.query)
 		}
 	}
 }
@@ -100,7 +100,7 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Date(2026, time.June, 16, 9, 15, 0, 0, time.UTC)
-	db := &partitionCandidateListTestDB{rows: []partitionCandidateListRow{
+	database := &partitionCandidateListTestDB{rows: []partitionCandidateListRow{
 		{
 			Intent: reducer.SharedProjectionIntentRow{
 				IntentID:         "legacy-unhashed",
@@ -130,7 +130,7 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 			PartitionHash:    reducer.PartitionHashForKey("code-calls:v1:files:repo-b:src/hashed.go"),
 		},
 	}}
-	store := NewSharedIntentStore(db)
+	store := NewSharedIntentStore(database)
 
 	got, err := store.ListPendingDomainUnhashedIntents(ctx, reducer.DomainCodeCalls, 10)
 	if err != nil {
@@ -150,8 +150,8 @@ func TestSharedIntentStoreListPendingDomainUnhashedIntents(t *testing.T) {
 		"created_at ASC",
 		"intent_id ASC",
 	} {
-		if !strings.Contains(db.query, want) {
-			t.Fatalf("query missing %q:\n%s", want, db.query)
+		if !strings.Contains(database.query, want) {
+			t.Fatalf("query missing %q:\n%s", want, database.query)
 		}
 	}
 }
@@ -168,18 +168,18 @@ type partitionCandidateListTestDB struct {
 	rows  []partitionCandidateListRow
 }
 
-func (db *partitionCandidateListTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *partitionCandidateListTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return nil, fmt.Errorf("unexpected exec")
 }
 
-func (db *partitionCandidateListTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	db.query = query
-	db.args = append([]any(nil), args...)
+func (database *partitionCandidateListTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.query = query
+	database.args = append([]any(nil), args...)
 	domain := args[0].(string)
 	unhashedOnly := strings.Contains(query, "partition_hash IS NULL")
 	limit := args[len(args)-1].(int)
-	rows := make([]reducer.SharedProjectionIntentRow, 0, len(db.rows))
-	for _, candidate := range db.rows {
+	rows := make([]reducer.SharedProjectionIntentRow, 0, len(database.rows))
+	for _, candidate := range database.rows {
 		if candidate.Intent.ProjectionDomain != domain || candidate.Intent.CompletedAt != nil {
 			continue
 		}
@@ -356,8 +356,8 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 		})
 	}
 
-	db := &partitionCandidateListTestDB{rows: rows}
-	store := NewSharedIntentStore(db)
+	database := &partitionCandidateListTestDB{rows: rows}
+	store := NewSharedIntentStore(database)
 
 	got, err := store.ListPendingDomainPartitionIntents(
 		ctx,
@@ -383,8 +383,8 @@ func TestListPendingDomainPartitionIntentsRefreshFirst(t *testing.T) {
 	for _, want := range []string{
 		"is_refresh_intent DESC",
 	} {
-		if !strings.Contains(db.query, want) {
-			t.Fatalf("query missing index-backed refresh-priority sort %q:\n%s", want, db.query)
+		if !strings.Contains(database.query, want) {
+			t.Fatalf("query missing index-backed refresh-priority sort %q:\n%s", want, database.query)
 		}
 	}
 }
@@ -467,8 +467,8 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 		PartitionHash:    reducer.PartitionHashForKey(refreshKey),
 	})
 
-	db := &partitionCandidateListTestDB{rows: rows}
-	store := NewSharedIntentStore(db)
+	database := &partitionCandidateListTestDB{rows: rows}
+	store := NewSharedIntentStore(database)
 
 	got, err := store.ListPendingDomainPartitionIntents(
 		ctx,
@@ -495,8 +495,8 @@ func TestListPendingDomainPartitionIntentsRefreshFirstLaterTimestamp(t *testing.
 		"ORDER BY is_refresh_intent DESC",
 		"created_at ASC",
 	} {
-		if !strings.Contains(db.query, want) {
-			t.Fatalf("query missing refresh-first-primary sort %q:\n%s", want, db.query)
+		if !strings.Contains(database.query, want) {
+			t.Fatalf("query missing refresh-first-primary sort %q:\n%s", want, database.query)
 		}
 	}
 }

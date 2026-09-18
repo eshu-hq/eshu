@@ -52,7 +52,7 @@ func runProofProjectorCycleWithWriters(
 	}
 
 	projectorQueue := ProjectorQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "projector-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    time.Second,
@@ -65,7 +65,7 @@ func runProofProjectorCycleWithWriters(
 		Runner: projector.Runtime{
 			CanonicalWriter: canonicalWriter,
 			ContentWriter:   contentWriter,
-			IntentWriter:    ReducerQueue{db: db, LeaseOwner: "reducer-1", LeaseDuration: time.Minute, Now: func() time.Time { return now }},
+			IntentWriter:    ReducerQueue{database: db, LeaseOwner: "reducer-1", LeaseDuration: time.Minute, Now: func() time.Time { return now }},
 			RetryInjector:   retryInjector,
 		},
 		WorkSink: projectorQueue,

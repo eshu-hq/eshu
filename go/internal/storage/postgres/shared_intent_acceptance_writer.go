@@ -19,15 +19,15 @@ import (
 // and their authoritative bounded-unit acceptance rows when the backing
 // database supports transactions.
 type SharedIntentAcceptanceWriter struct {
-	db          db.ExecQueryer
+	database    db.ExecQueryer
 	beginner    db.Beginner
 	instruments *telemetry.Instruments
 }
 
 // NewSharedIntentAcceptanceWriter creates a writer backed by the provided
 // database handle.
-func NewSharedIntentAcceptanceWriter(db db.ExecQueryer) *SharedIntentAcceptanceWriter {
-	return NewSharedIntentAcceptanceWriterWithInstruments(db, nil)
+func NewSharedIntentAcceptanceWriter(database db.ExecQueryer) *SharedIntentAcceptanceWriter {
+	return NewSharedIntentAcceptanceWriterWithInstruments(database, nil)
 }
 
 // NewSharedIntentAcceptanceWriterWithInstruments creates a writer backed by
@@ -37,7 +37,7 @@ func NewSharedIntentAcceptanceWriterWithInstruments(
 	instruments *telemetry.Instruments,
 ) *SharedIntentAcceptanceWriter {
 	writer := &SharedIntentAcceptanceWriter{
-		db:          database,
+		database:    database,
 		instruments: instruments,
 	}
 	if beginner, ok := database.(db.Beginner); ok {
@@ -65,7 +65,7 @@ func (w *SharedIntentAcceptanceWriter) UpsertIntents(
 		if len(repoLockKeys) > 0 {
 			return fmt.Errorf("repo-dependency shared intent acceptance requires transactions")
 		}
-		return upsertSharedIntentArtifacts(ctx, w.db, rows, acceptanceRows, w.instruments)
+		return upsertSharedIntentArtifacts(ctx, w.database, rows, acceptanceRows, w.instruments)
 	}
 
 	tx, err := w.beginner.Begin(ctx)
@@ -105,17 +105,17 @@ func repoDependencyAcceptanceUnitIDs(rows []reducer.SharedProjectionIntentRow) [
 
 func upsertSharedIntentArtifacts(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	intentRows []reducer.SharedProjectionIntentRow,
 	acceptanceRows []SharedProjectionAcceptance,
 	instruments *telemetry.Instruments,
 ) error {
-	if err := NewSharedIntentStore(db).UpsertIntents(ctx, intentRows); err != nil {
+	if err := NewSharedIntentStore(database).UpsertIntents(ctx, intentRows); err != nil {
 		return fmt.Errorf("upsert shared intents: %w", err)
 	}
 
 	start := time.Now()
-	if err := NewSharedProjectionAcceptanceStore(db).Upsert(ctx, acceptanceRows); err != nil {
+	if err := NewSharedProjectionAcceptanceStore(database).Upsert(ctx, acceptanceRows); err != nil {
 		return fmt.Errorf("upsert shared projection acceptance: %w", err)
 	}
 	recordSharedAcceptanceUpsertMetrics(ctx, instruments, len(acceptanceRows), time.Since(start))

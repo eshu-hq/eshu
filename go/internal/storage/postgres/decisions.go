@@ -108,18 +108,18 @@ type DecisionFilter struct {
 
 // DecisionStore persists projection decisions and evidence in PostgreSQL.
 type DecisionStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewDecisionStore creates a decision store backed by the given database.
-func NewDecisionStore(db db.ExecQueryer) *DecisionStore {
-	return &DecisionStore{db: db}
+func NewDecisionStore(database db.ExecQueryer) *DecisionStore {
+	return &DecisionStore{database: database}
 }
 
 // EnsureSchema applies the projection decision DDL. This is a no-op in test
 // mocks and runs the real DDL against Postgres in production.
 func (s *DecisionStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, decisionSchemaSQL)
+	_, err := s.database.ExecContext(ctx, decisionSchemaSQL)
 	return err
 }
 
@@ -130,7 +130,7 @@ func (s *DecisionStore) UpsertDecision(ctx context.Context, d projector.Projecti
 		return fmt.Errorf("marshal provenance: %w", err)
 	}
 
-	_, err = s.db.ExecContext(
+	_, err = s.database.ExecContext(
 		ctx, upsertDecisionSQL,
 		d.DecisionID,
 		d.DecisionType,
@@ -163,7 +163,7 @@ func (s *DecisionStore) InsertEvidence(ctx context.Context, rows []projector.Pro
 			factID = *e.FactID
 		}
 
-		_, err = s.db.ExecContext(
+		_, err = s.database.ExecContext(
 			ctx, upsertEvidenceSQL,
 			e.EvidenceID,
 			e.DecisionID,
@@ -189,7 +189,7 @@ func (s *DecisionStore) ListDecisions(ctx context.Context, f DecisionFilter) ([]
 		decisionType = *f.DecisionType
 	}
 
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx, listDecisionsSQL,
 		f.RepositoryID,
 		f.SourceRunID,
@@ -206,7 +206,7 @@ func (s *DecisionStore) ListDecisions(ctx context.Context, f DecisionFilter) ([]
 
 // ListEvidence returns persisted evidence for one decision.
 func (s *DecisionStore) ListEvidence(ctx context.Context, decisionID string) ([]projector.ProjectionDecisionEvidenceRow, error) {
-	sqlRows, err := s.db.QueryContext(ctx, listEvidenceSQL, decisionID)
+	sqlRows, err := s.database.QueryContext(ctx, listEvidenceSQL, decisionID)
 	if err != nil {
 		return nil, err
 	}

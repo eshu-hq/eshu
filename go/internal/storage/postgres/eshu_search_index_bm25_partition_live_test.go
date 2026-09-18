@@ -19,10 +19,10 @@ import (
 )
 
 func TestEshuSearchIndexBM25PartitionedTermsPrunedAndOrderEquivalentLive(t *testing.T) {
-	db, ctx := openSearchIndexPartitionProofDB(t)
-	controlConn, _ := searchIndexPartitionProofConn(t, ctx, db)
+	database, ctx := openSearchIndexPartitionProofDB(t)
+	controlConn, _ := searchIndexPartitionProofConn(t, ctx, database)
 	defer func() { _ = controlConn.Close() }()
-	candidateConn, _ := searchIndexPartitionProofConn(t, ctx, db)
+	candidateConn, _ := searchIndexPartitionProofConn(t, ctx, database)
 	defer func() { _ = candidateConn.Close() }()
 
 	createBM25PartitionProofSchema(t, ctx, controlConn, false)

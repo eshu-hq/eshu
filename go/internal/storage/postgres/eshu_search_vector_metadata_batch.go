@@ -56,7 +56,7 @@ func (s EshuSearchVectorMetadataStore) UpsertBatch(ctx context.Context, rows []E
 	if len(rows) == 0 {
 		return nil
 	}
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("eshu search vector metadata database is required")
 	}
 
@@ -81,9 +81,9 @@ func (s EshuSearchVectorMetadataStore) UpsertBatch(ctx context.Context, rows []E
 		batch := normalized[start:end]
 		var err error
 		if fenced {
-			err = upsertEshuSearchVectorMetadataBatchFenced(ctx, s.db, batch)
+			err = upsertEshuSearchVectorMetadataBatchFenced(ctx, s.database, batch)
 		} else {
-			err = upsertEshuSearchVectorMetadataBatch(ctx, s.db, batch)
+			err = upsertEshuSearchVectorMetadataBatch(ctx, s.database, batch)
 		}
 		if err != nil {
 			return err
@@ -95,7 +95,7 @@ func (s EshuSearchVectorMetadataStore) UpsertBatch(ctx context.Context, rows []E
 // upsertEshuSearchVectorMetadataBatch issues one multi-row INSERT ... ON
 // CONFLICT statement for a bounded slice of already-normalized,
 // already-validated rows.
-func upsertEshuSearchVectorMetadataBatch(ctx context.Context, db db.ExecQueryer, batch []EshuSearchVectorMetadata) error {
+func upsertEshuSearchVectorMetadataBatch(ctx context.Context, database db.ExecQueryer, batch []EshuSearchVectorMetadata) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -138,7 +138,7 @@ func upsertEshuSearchVectorMetadataBatch(ctx context.Context, db db.ExecQueryer,
 	}
 
 	query := upsertEshuSearchVectorMetadataBatchPrefix + values.String() + upsertEshuSearchVectorMetadataBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert eshu search vector metadata batch (%d rows): %w", len(batch), err)
 	}
 	return nil

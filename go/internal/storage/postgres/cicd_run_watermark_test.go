@@ -38,13 +38,13 @@ func TestCICDRunWatermarkSchemaSQL(t *testing.T) {
 func TestCICDRunWatermarkStoreSaveThenLoadRoundTrips(t *testing.T) {
 	t.Parallel()
 
-	db := &cicdWatermarkTestDB{
+	database := &cicdWatermarkTestDB{
 		execResults: []sql.Result{cicdWatermarkRowsResult{rowsAffected: 1}},
 		queryRows: [][]any{
 			{"200", "generation-1", int64(5), time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)},
 		},
 	}
-	store := NewCICDRunWatermarkStore(db)
+	store := NewCICDRunWatermarkStore(database)
 	key := runwatermark.Key{ScopeID: "ci-cd:github-actions:example/repo", Repository: "example/repo"}
 
 	if err := store.Save(context.Background(), runwatermark.Watermark{
@@ -68,8 +68,8 @@ func TestCICDRunWatermarkStoreSaveThenLoadRoundTrips(t *testing.T) {
 func TestCICDRunWatermarkStoreLoadMissReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
-	db := &cicdWatermarkTestDB{}
-	store := NewCICDRunWatermarkStore(db)
+	database := &cicdWatermarkTestDB{}
+	store := NewCICDRunWatermarkStore(database)
 	_, ok, err := store.Load(context.Background(), runwatermark.Key{ScopeID: "scope-1", Repository: "octo/repo"})
 	if err != nil {
 		t.Fatalf("Load() error = %v, want nil", err)
@@ -86,8 +86,8 @@ func TestCICDRunWatermarkStoreLoadMissReturnsNotFound(t *testing.T) {
 func TestCICDRunWatermarkStoreSaveRejectsOlderFence(t *testing.T) {
 	t.Parallel()
 
-	db := &cicdWatermarkTestDB{execResults: []sql.Result{cicdWatermarkRowsResult{rowsAffected: 0}}}
-	store := NewCICDRunWatermarkStore(db)
+	database := &cicdWatermarkTestDB{execResults: []sql.Result{cicdWatermarkRowsResult{rowsAffected: 0}}}
+	store := NewCICDRunWatermarkStore(database)
 	err := store.Save(context.Background(), runwatermark.Watermark{
 		Key:          runwatermark.Key{ScopeID: "scope-1", Repository: "octo/repo"},
 		LastRunID:    "100",
@@ -97,10 +97,10 @@ func TestCICDRunWatermarkStoreSaveRejectsOlderFence(t *testing.T) {
 	if !errors.Is(err, runwatermark.ErrStaleFence) {
 		t.Fatalf("Save() error = %v, want ErrStaleFence", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("exec count = %d, want 1", len(db.execs))
+	if len(database.execs) != 1 {
+		t.Fatalf("exec count = %d, want 1", len(database.execs))
 	}
-	query := db.execs[0].query
+	query := database.execs[0].query
 	for _, want := range []string{
 		"ON CONFLICT (scope_id, repository) DO UPDATE",
 		"WHERE cicd_run_watermarks.fencing_token <= EXCLUDED.fencing_token",
@@ -153,18 +153,18 @@ type cicdWatermarkTestDB struct {
 	queryRows   [][]any
 }
 
-func (db *cicdWatermarkTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.execs = append(db.execs, cicdWatermarkExec{query: query, args: args})
-	if len(db.execResults) == 0 {
+func (database *cicdWatermarkTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execs = append(database.execs, cicdWatermarkExec{query: query, args: args})
+	if len(database.execResults) == 0 {
 		return cicdWatermarkRowsResult{rowsAffected: 1}, nil
 	}
-	result := db.execResults[0]
-	db.execResults = db.execResults[1:]
+	result := database.execResults[0]
+	database.execResults = database.execResults[1:]
 	return result, nil
 }
 
-func (db *cicdWatermarkTestDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
-	return &cicdWatermarkFakeRows{rows: db.queryRows}, nil
+func (database *cicdWatermarkTestDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
+	return &cicdWatermarkFakeRows{rows: database.queryRows}, nil
 }
 
 type cicdWatermarkExec struct {

@@ -21,14 +21,14 @@ import (
 // yields a handler whose store is nil, so each route returns 503 rather than
 // panicking. The audit appender is shared with the read/recovery paths.
 func newAdminIdentityMutationHandler(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 ) *query.AdminIdentityMutationHandler {
 	handler := &query.AdminIdentityMutationHandler{
 		Audit: adminRecoveryAuditAppender(governanceAudit),
 	}
-	if store := newPostgresAdminIdentityMutationAdapter(db, instruments); store != nil {
+	if store := newPostgresAdminIdentityMutationAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
 	return handler

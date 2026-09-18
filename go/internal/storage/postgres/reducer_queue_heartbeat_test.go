@@ -19,7 +19,7 @@ func TestReducerQueueHeartbeatRenewsClaim(t *testing.T) {
 	now := time.Date(2026, time.April, 23, 17, 30, 0, 0, time.UTC)
 	db := &fakeExecQueryer{execResults: []sql.Result{fakeResult{}}}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -65,7 +65,7 @@ func TestReducerQueueHeartbeatRejectsMissingClaim(t *testing.T) {
 
 	db := &fakeExecQueryer{execResults: []sql.Result{zeroRowsResult{}}}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 	}

@@ -34,15 +34,15 @@ type gcpRelationshipReadinessQueueDB struct {
 	claimQueries int
 }
 
-func (db *gcpRelationshipReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *gcpRelationshipReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *gcpRelationshipReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (database *gcpRelationshipReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	db.claimQueries++
+	database.claimQueries++
 
 	if !strings.Contains(query, "gcp_relationship_materialization") {
 		return nil, fmt.Errorf("claim query missing gcp relationship readiness gate:\n%s", query)
@@ -57,11 +57,11 @@ func (db *gcpRelationshipReadinessQueueDB) QueryContext(_ context.Context, query
 		"cloud_resource_uid",
 		"canonical_nodes_committed",
 	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
-	if hasReadinessGate && !db.phaseReady {
+	if hasReadinessGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.status)
+	status := strings.TrimSpace(database.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -74,18 +74,18 @@ func (db *gcpRelationshipReadinessQueueDB) QueryContext(_ context.Context, query
 		"gcp:my-project:us-central1:compute",
 		"gen-gcp-1",
 		string(reducer.DomainGCPRelationshipMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"gcp_resource_materialization:gcp:my-project:us-central1:compute","reason":"gcp runtime relationship facts observed","fact_id":"fact-gcp-rel-1","source_system":"gcp"}`),
 	}}}, nil
 }
 
-func gcpRelationshipReadinessQueue(db *gcpRelationshipReadinessQueueDB, now time.Time) ReducerQueue {
+func gcpRelationshipReadinessQueue(database *gcpRelationshipReadinessQueueDB, now time.Time) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -104,12 +104,12 @@ func TestReducerQueueClaimWaitsForGCPRelationshipReadinessBehavior(t *testing.T)
 	t.Parallel()
 
 	now := time.Date(2026, time.July, 1, 11, 10, 0, 0, time.UTC)
-	db := &gcpRelationshipReadinessQueueDB{
+	database := &gcpRelationshipReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		status:     "pending",
 	}
-	queue := gcpRelationshipReadinessQueue(db, now)
+	queue := gcpRelationshipReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
@@ -119,7 +119,7 @@ func TestReducerQueueClaimWaitsForGCPRelationshipReadinessBehavior(t *testing.T)
 		t.Fatalf("Claim() claimed %q before GCP resource-node readiness, want unclaimed waiting work", intent.IntentID)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)
@@ -166,9 +166,9 @@ func TestReducerQueueFailDefersGCPRelationshipReadinessPastAttemptBudget(t *test
 	t.Parallel()
 
 	now := time.Date(2026, time.July, 2, 11, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{}
+	database := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -185,11 +185,11 @@ func TestReducerQueueFailDefersGCPRelationshipReadinessPastAttemptBudget(t *test
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 
-	query := db.execs[0].query
+	query := database.execs[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'retrying'",
@@ -201,14 +201,14 @@ func TestReducerQueueFailDefersGCPRelationshipReadinessPastAttemptBudget(t *test
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], reducer.GCPRelationshipNodesNotReadyFailureClass; got != want {
+	if got, want := database.execs[0].args[1], reducer.GCPRelationshipNodesNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	// Exponential backoff (#4450): AttemptCount=42 (a non-counting readiness
 	// class keeps retrying indefinitely) drives the exponential term far past
 	// MaxRetryDelay's default 1-hour fallback (unset here), so the delay
 	// clamps to defaultRetryMaxDelayFallback rather than doubling forever.
-	if got, want := db.execs[0].args[4], now.Add(defaultRetryMaxDelayFallback); got != want {
+	if got, want := database.execs[0].args[4], now.Add(defaultRetryMaxDelayFallback); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
 	}
 }
@@ -221,13 +221,13 @@ func TestReducerQueueClaimDoesNotCountGCPRelationshipReadinessDefers(t *testing.
 	t.Parallel()
 
 	now := time.Date(2026, time.July, 2, 12, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: nil},
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },
@@ -239,7 +239,7 @@ func TestReducerQueueClaimDoesNotCountGCPRelationshipReadinessDefers(t *testing.
 		t.Fatal("Claim() claimed = true, want false from empty rows")
 	}
 
-	assertGCPRelationshipReadinessClaimDoesNotCountAttempt(t, db.queries[0].query)
+	assertGCPRelationshipReadinessClaimDoesNotCountAttempt(t, database.queries[0].query)
 }
 
 // TestClaimBatchDoesNotCountGCPRelationshipReadinessDefers asserts the batch
@@ -250,13 +250,13 @@ func TestClaimBatchDoesNotCountGCPRelationshipReadinessDefers(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.July, 2, 12, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: nil},
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -266,7 +266,7 @@ func TestClaimBatchDoesNotCountGCPRelationshipReadinessDefers(t *testing.T) {
 		t.Fatalf("ClaimBatch() error = %v", err)
 	}
 
-	assertGCPRelationshipReadinessClaimDoesNotCountAttempt(t, db.queries[0].query)
+	assertGCPRelationshipReadinessClaimDoesNotCountAttempt(t, database.queries[0].query)
 }
 
 func assertGCPRelationshipReadinessClaimDoesNotCountAttempt(t *testing.T, query string) {

@@ -41,7 +41,7 @@ func TestReducerContentionGateRepoDependencyAcceptanceUnitGateRejectsLeaseExpire
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	db, cleanup := openSharedIntentRescaleProofDB(t, ctx, dsn)
+	database, cleanup := openSharedIntentRescaleProofDB(t, ctx, dsn)
 	defer cleanup()
 
 	const (
@@ -49,13 +49,13 @@ func TestReducerContentionGateRepoDependencyAcceptanceUnitGateRejectsLeaseExpire
 		repoID = "repository:gate-expiry-proof"
 		owner  = "process-a/worker-0-of-4"
 	)
-	store := NewSharedIntentStore(SQLDB{DB: db})
+	store := NewSharedIntentStore(SQLDB{DB: database})
 	claimed, err := store.ClaimPartitionLease(ctx, domain, 0, 4, owner, 30*time.Second)
 	if err != nil || !claimed {
 		t.Fatalf("claim owner lease = %v, %v; want true, nil", claimed, err)
 	}
 
-	blocker, err := db.BeginTx(ctx, nil)
+	blocker, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin repository-lock blocker: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestReducerContentionGateRepoDependencyAcceptanceUnitGateRejectsLeaseExpire
 
 	lockAttempted := make(chan struct{})
 	gate := NewRepoDependencyAcceptanceUnitGate(&signalingRepoDependencyGateBeginner{
-		inner:         SQLDB{DB: db},
+		inner:         SQLDB{DB: database},
 		lockAttempted: lockAttempted,
 	})
 	key := reducer.RepoDependencyAcceptanceUnitGateKey{
@@ -93,7 +93,7 @@ func TestReducerContentionGateRepoDependencyAcceptanceUnitGateRejectsLeaseExpire
 		t.Fatal("gate did not attempt the blocked repository lock")
 	}
 	var expiresAt time.Time
-	if err := db.QueryRowContext(ctx, `
+	if err := database.QueryRowContext(ctx, `
 		UPDATE shared_projection_partition_leases
 		SET lease_expires_at = clock_timestamp() + interval '200 milliseconds'
 		WHERE projection_domain = $1 AND partition_id = 0 AND partition_count = 4
@@ -101,7 +101,7 @@ func TestReducerContentionGateRepoDependencyAcceptanceUnitGateRejectsLeaseExpire
 	`, domain).Scan(&expiresAt); err != nil {
 		t.Fatalf("set lease expiry after gate transaction began: %v", err)
 	}
-	waitForPostgresWallClockAfter(t, ctx, db, expiresAt)
+	waitForPostgresWallClockAfter(t, ctx, database, expiresAt)
 	if err := blocker.Commit(); err != nil {
 		t.Fatalf("release repository-lock blocker: %v", err)
 	}
@@ -143,13 +143,13 @@ func (tx *signalingRepoDependencyGateTransaction) ExecContext(ctx context.Contex
 	return tx.Transaction.ExecContext(ctx, query, args...)
 }
 
-func waitForPostgresWallClockAfter(t *testing.T, ctx context.Context, db *sql.DB, after time.Time) {
+func waitForPostgresWallClockAfter(t *testing.T, ctx context.Context, database *sql.DB, after time.Time) {
 	t.Helper()
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		var elapsed bool
-		if err := db.QueryRowContext(ctx, "SELECT clock_timestamp() > $1", after).Scan(&elapsed); err != nil {
+		if err := database.QueryRowContext(ctx, "SELECT clock_timestamp() > $1", after).Scan(&elapsed); err != nil {
 			t.Fatalf("read Postgres wall clock: %v", err)
 		}
 		if elapsed {
@@ -170,9 +170,9 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 			name = "batch_ack"
 		}
 		t.Run(name, func(t *testing.T) {
-			db, ctx := refinalizeRebuildResetLiveDB(t)
+			database, ctx := refinalizeRebuildResetLiveDB(t)
 			suffix := testSuffix(t)
-			scopeID, generationID, _ := refinalizeResetScope(t, ctx, db, suffix)
+			scopeID, generationID, _ := refinalizeResetScope(t, ctx, database, suffix)
 			repoID, entityKey := "repo:fence-"+suffix, "repo:fence-"+suffix
 			now := time.Now().UTC()
 			row := reducer.SharedProjectionIntentRow{
@@ -182,16 +182,16 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 				GenerationID: generationID, CreatedAt: now,
 				Payload: map[string]any{"repo_id": repoID, "platform_id": "platform:kubernetes:test", "relationship_type": "RUNS_ON", "evidence_source": reducer.CrossRepoEvidenceSource},
 			}
-			if err := NewSharedIntentAcceptanceWriter(SQLDB{DB: db}).UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{row}); err != nil {
+			if err := NewSharedIntentAcceptanceWriter(SQLDB{DB: database}).UpsertIntents(ctx, []reducer.SharedProjectionIntentRow{row}); err != nil {
 				t.Fatalf("seed RUNS_ON intent: %v", err)
 			}
-			phaseStore := NewGraphProjectionPhaseStateStore(SQLDB{DB: db})
+			phaseStore := NewGraphProjectionPhaseStateStore(SQLDB{DB: database})
 			legacyKey := reducer.GraphProjectionPhaseKey{ScopeID: scopeID, AcceptanceUnitID: repoID, SourceRunID: generationID, GenerationID: generationID, Keyspace: reducer.GraphProjectionKeyspaceServiceUID}
 			if err := phaseStore.Upsert(ctx, []reducer.GraphProjectionPhaseState{{Key: legacyKey, Phase: reducer.GraphProjectionPhaseWorkloadMaterialization, CommittedAt: now, UpdatedAt: now}}); err != nil {
 				t.Fatalf("seed stale workload phase: %v", err)
 			}
 
-			queue := NewReducerQueue(SQLDB{DB: db}, "fence-proof-"+suffix, time.Minute)
+			queue := NewReducerQueue(SQLDB{DB: database}, "fence-proof-"+suffix, time.Minute)
 			queue.ClaimDomain = reducer.DomainWorkloadMaterialization
 			if _, err := queue.Enqueue(ctx, []projector.ReducerIntent{{ScopeID: scopeID, GenerationID: generationID, Domain: reducer.DomainWorkloadMaterialization, EntityKey: entityKey, Reason: "pre-fence pass", SourceSystem: "reducer"}}); err != nil {
 				t.Fatalf("enqueue stale workload pass: %v", err)
@@ -202,22 +202,22 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 			}
 
 			writer := &causalFenceEdgeWriter{}
-			runner := causalFenceRunner(db, queue, writer, suffix)
+			runner := causalFenceRunner(database, queue, writer, suffix)
 			stop := startCausalFenceRunner(ctx, t, runner)
 			var fence string
 			waitForCausalFence(t, ctx, func() bool {
 				var repo string
 				var dirty bool
-				err := db.QueryRowContext(ctx, `SELECT COALESCE(payload->>'repo_dependency_readiness_fence',''), COALESCE(payload->>'repo_dependency_readiness_repo_id',''), cross_scope_replay_required FROM fact_work_items WHERE work_item_id=$1`, stale.IntentID).Scan(&fence, &repo, &dirty)
+				err := database.QueryRowContext(ctx, `SELECT COALESCE(payload->>'repo_dependency_readiness_fence',''), COALESCE(payload->>'repo_dependency_readiness_repo_id',''), cross_scope_replay_required FROM fact_work_items WHERE work_item_id=$1`, stale.IntentID).Scan(&fence, &repo, &dirty)
 				return err == nil && fence != "" && repo == repoID && dirty
 			})
 			stop()
-			if writer.writeCount() != 0 || writer.retractCount() != 0 || sharedIntentCompleted(t, ctx, db, row.IntentID) {
+			if writer.writeCount() != 0 || writer.retractCount() != 0 || sharedIntentCompleted(t, ctx, database, row.IntentID) {
 				t.Fatal("RUNS_ON retracted, projected, or completed before token-scoped workload readiness")
 			}
 
 			ackCausalFence(t, ctx, queue, stale, batchAck)
-			if state := readClaimTokenWorkState(t, ctx, db, stale.IntentID); state.status != "pending" {
+			if state := readClaimTokenWorkState(t, ctx, database, stale.IntentID); state.status != "pending" {
 				t.Fatalf("stale ACK status = %q, want pending", state.status)
 			}
 			fresh, ok, err := queue.Claim(ctx)
@@ -235,7 +235,7 @@ func TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive(t *testing
 			ackCausalFence(t, ctx, queue, fresh, batchAck)
 
 			stop = startCausalFenceRunner(ctx, t, runner)
-			waitForCausalFence(t, ctx, func() bool { return sharedIntentCompleted(t, ctx, db, row.IntentID) })
+			waitForCausalFence(t, ctx, func() bool { return sharedIntentCompleted(t, ctx, database, row.IntentID) })
 			stop()
 			if writer.writeCount() != 1 {
 				t.Fatalf("RUNS_ON write count = %d, want 1 after token readiness", writer.writeCount())
@@ -282,19 +282,19 @@ func (w *causalFenceEdgeWriter) retractCount() int {
 	return w.retracts
 }
 
-func causalFenceRunner(db *sql.DB, queue ReducerQueue, writer reducer.SharedProjectionEdgeWriter, suffix string) *reducer.RepoDependencyProjectionRunner {
-	store := NewSharedIntentStore(SQLDB{DB: db})
+func causalFenceRunner(database *sql.DB, queue ReducerQueue, writer reducer.SharedProjectionEdgeWriter, suffix string) *reducer.RepoDependencyProjectionRunner {
+	store := NewSharedIntentStore(SQLDB{DB: database})
 	const partitionCount = 1_000_000_000
 	partitionID := int(crc32.ChecksumIEEE([]byte(suffix)) % partitionCount)
 	return &reducer.RepoDependencyProjectionRunner{
 		IntentReader:                    store,
 		LeaseManager:                    store,
-		AcceptanceUnitGate:              NewRepoDependencyAcceptanceUnitGate(SQLDB{DB: db}),
+		AcceptanceUnitGate:              NewRepoDependencyAcceptanceUnitGate(SQLDB{DB: database}),
 		EdgeWriter:                      writer,
 		WorkloadMaterializationReplayer: queue,
-		WorkloadReadinessPrefetch:       NewGraphProjectionReadinessPrefetch(SQLDB{DB: db}),
-		AcceptedGen:                     NewAcceptedGenerationLookup(SQLDB{DB: db}),
-		AcceptedGenPrefetch:             NewAcceptedGenerationPrefetch(SQLDB{DB: db}),
+		WorkloadReadinessPrefetch:       NewGraphProjectionReadinessPrefetch(SQLDB{DB: database}),
+		AcceptedGen:                     NewAcceptedGenerationLookup(SQLDB{DB: database}),
+		AcceptedGenPrefetch:             NewAcceptedGenerationPrefetch(SQLDB{DB: database}),
 		Config: reducer.RepoDependencyProjectionRunnerConfig{
 			LeaseOwner:            "fence-runner-" + suffix,
 			PollInterval:          time.Millisecond,
@@ -349,10 +349,10 @@ func ackCausalFence(t *testing.T, ctx context.Context, queue ReducerQueue, inten
 	}
 }
 
-func sharedIntentCompleted(t *testing.T, ctx context.Context, db *sql.DB, intentID string) bool {
+func sharedIntentCompleted(t *testing.T, ctx context.Context, database *sql.DB, intentID string) bool {
 	t.Helper()
 	var completed bool
-	if err := db.QueryRowContext(ctx, `SELECT completed_at IS NOT NULL FROM shared_projection_intents WHERE intent_id=$1`, intentID).Scan(&completed); err != nil {
+	if err := database.QueryRowContext(ctx, `SELECT completed_at IS NOT NULL FROM shared_projection_intents WHERE intent_id=$1`, intentID).Scan(&completed); err != nil {
 		t.Fatalf("read shared intent completion: %v", err)
 	}
 	return completed

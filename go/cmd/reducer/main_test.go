@@ -48,8 +48,8 @@ func (stubCypherReader) RunSingle(_ context.Context, _ string, _ map[string]any)
 func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	database := &fakeReducerDB{}
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
@@ -192,13 +192,13 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 func TestBuildReducerServiceWiresSearchVectorBuildRunnerWhenLocalEmbedderEnabled(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeReducerDB{}
+	database := &fakeReducerDB{}
 	service, err := buildReducerService(
 		context.Background(),
-		db,
+		database,
 		stubGraphExecutor{},
 		stubCypherExecutor{},
-		postgres.NewSharedIntentStore(db),
+		postgres.NewSharedIntentStore(database),
 		stubCypherReader{},
 		stubCypherReader{},
 		func(key string) string {
@@ -250,13 +250,13 @@ func TestBuildReducerServiceWiresSharedEdgeGroupBatchOverrides(t *testing.T) {
 	}
 	getenv := func(key string) string { return env[key] }
 
-	db := &fakeReducerDB{}
+	database := &fakeReducerDB{}
 	service, err := buildReducerService(
 		context.Background(),
-		db,
+		database,
 		stubGraphExecutor{},
 		stubCypherExecutor{},
-		postgres.NewSharedIntentStore(db),
+		postgres.NewSharedIntentStore(database),
 		stubCypherReader{},
 		stubCypherReader{},
 		getenv,
@@ -284,13 +284,13 @@ func TestBuildReducerServiceWiresRepoDependencyRetractStatementTiming(t *testing
 	}
 	getenv := func(key string) string { return env[key] }
 
-	db := &fakeReducerDB{}
+	database := &fakeReducerDB{}
 	service, err := buildReducerService(
 		context.Background(),
-		db,
+		database,
 		stubGraphExecutor{},
 		stubCypherExecutor{},
-		postgres.NewSharedIntentStore(db),
+		postgres.NewSharedIntentStore(database),
 		stubCypherReader{},
 		stubCypherReader{},
 		getenv,
@@ -315,14 +315,14 @@ func TestBuildReducerServiceWiresRepoDependencyRetractStatementTiming(t *testing
 func TestBuildReducerServiceWiresPostgresWorkloadIdentityWriter(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	database := &fakeReducerDB{}
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
 	// Startup backfills already wrote MarkComplete rows; reset so the
 	// assertions below count only exec calls from processing the intent.
-	db.execs = nil
+	database.execs = nil
 
 	intent := reducer.Intent{
 		IntentID:        "intent-1",
@@ -345,13 +345,13 @@ func TestBuildReducerServiceWiresPostgresWorkloadIdentityWriter(t *testing.T) {
 	if got, want := result.Status, reducer.ResultStatusSucceeded; got != want {
 		t.Fatalf("Executor.Execute().Status = %q, want %q", got, want)
 	}
-	if got, want := len(db.execs), 2; got != want {
+	if got, want := len(database.execs), 2; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)
 	}
-	if got := db.execs[0].query; !strings.Contains(got, "INSERT INTO fact_records") {
+	if got := database.execs[0].query; !strings.Contains(got, "INSERT INTO fact_records") {
 		t.Fatalf("ExecContext query = %q, want fact_records insert", got)
 	}
-	if got := db.execs[1].query; !strings.Contains(got, "INSERT INTO graph_projection_phase_state") {
+	if got := database.execs[1].query; !strings.Contains(got, "INSERT INTO graph_projection_phase_state") {
 		t.Fatalf("ExecContext query = %q, want graph_projection_phase_state insert", got)
 	}
 }
@@ -359,14 +359,14 @@ func TestBuildReducerServiceWiresPostgresWorkloadIdentityWriter(t *testing.T) {
 func TestBuildReducerServiceWiresPostgresCloudAssetResolutionWriter(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
+	database := &fakeReducerDB{}
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(string) string { return "" }, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("buildReducerService() error = %v, want nil", err)
 	}
 	// Startup backfills already wrote MarkComplete rows; reset so the
 	// assertions below count only exec calls from processing the intent.
-	db.execs = nil
+	database.execs = nil
 
 	intent := reducer.Intent{
 		IntentID:        "intent-2",
@@ -389,13 +389,13 @@ func TestBuildReducerServiceWiresPostgresCloudAssetResolutionWriter(t *testing.T
 	if got, want := result.Status, reducer.ResultStatusSucceeded; got != want {
 		t.Fatalf("Executor.Execute().Status = %q, want %q", got, want)
 	}
-	if got, want := len(db.execs), 2; got != want {
+	if got, want := len(database.execs), 2; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)
 	}
-	if got := db.execs[0].query; !strings.Contains(got, "INSERT INTO fact_records") {
+	if got := database.execs[0].query; !strings.Contains(got, "INSERT INTO fact_records") {
 		t.Fatalf("ExecContext query = %q, want fact_records insert", got)
 	}
-	if got := db.execs[1].query; !strings.Contains(got, "INSERT INTO graph_projection_phase_state") {
+	if got := database.execs[1].query; !strings.Contains(got, "INSERT INTO graph_projection_phase_state") {
 		t.Fatalf("ExecContext query = %q, want graph_projection_phase_state insert", got)
 	}
 }
@@ -403,8 +403,8 @@ func TestBuildReducerServiceWiresPostgresCloudAssetResolutionWriter(t *testing.T
 func TestBuildReducerServiceWiresRetryConfigFromEnv(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+	database := &fakeReducerDB{}
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(name string) string {
 		switch name {
 		case reducerRetryDelayEnv:
 			return "2m"

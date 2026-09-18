@@ -28,9 +28,9 @@ type latencyBackfillDB struct {
 	stmtLatency   time.Duration
 }
 
-func (db *latencyBackfillDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	time.Sleep(db.stmtLatency)
-	rows, err := db.rowsFor(query, args)
+func (database *latencyBackfillDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	time.Sleep(database.stmtLatency)
+	rows, err := database.rowsFor(query, args)
 	if err != nil {
 		return nil, err
 	}
@@ -53,12 +53,12 @@ func (db *latencyBackfillDB) QueryContext(_ context.Context, query string, args 
 // first person to benchmark the fan-in's real cost, which requires a non-empty
 // fingerprint precisely to measure that probe, gets a named error telling them
 // what to add instead of a confusing arity mismatch.
-func (db *latencyBackfillDB) rowsFor(query string, args []any) ([][]any, error) {
+func (database *latencyBackfillDB) rowsFor(query string, args []any) ([][]any, error) {
 	switch {
 	case strings.HasPrefix(query, activeRepositoryGenerationsQuery):
-		return db.activeGenRows, nil
+		return database.activeGenRows, nil
 	case strings.HasPrefix(query, activeScopeGenerationQuery):
-		return db.activeGenerationRowFor(args), nil
+		return database.activeGenerationRowFor(args), nil
 	default:
 		return nil, fmt.Errorf(
 			"latencyBackfillDB: unrecognized query, add its column shape to rowsFor before benchmarking this path: %s",
@@ -70,7 +70,7 @@ func (db *latencyBackfillDB) rowsFor(query string, args []any) ([][]any, error) 
 // activeGenerationRowFor projects the seeded (repo_id, scope_id, generation_id)
 // rows down to the single generation column loadActiveGenerationForScope scans,
 // for the scope bound as $1.
-func (db *latencyBackfillDB) activeGenerationRowFor(args []any) [][]any {
+func (database *latencyBackfillDB) activeGenerationRowFor(args []any) [][]any {
 	if len(args) == 0 {
 		return nil
 	}
@@ -78,7 +78,7 @@ func (db *latencyBackfillDB) activeGenerationRowFor(args []any) [][]any {
 	if !ok {
 		return nil
 	}
-	for _, row := range db.activeGenRows {
+	for _, row := range database.activeGenRows {
 		if len(row) < 3 {
 			continue
 		}
@@ -100,20 +100,20 @@ func firstLine(query string) string {
 	return "(empty query)"
 }
 
-func (db *latencyBackfillDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
-	time.Sleep(db.stmtLatency)
+func (database *latencyBackfillDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+	time.Sleep(database.stmtLatency)
 	return fakeResult{}, nil
 }
 
-func (db *latencyBackfillDB) Begin(context.Context) (db.Transaction, error) {
-	return &latencyBackfillTx{db: db}, nil
+func (database *latencyBackfillDB) Begin(context.Context) (db.Transaction, error) {
+	return &latencyBackfillTx{database: database}, nil
 }
 
-type latencyBackfillTx struct{ db *latencyBackfillDB }
+type latencyBackfillTx struct{ database *latencyBackfillDB }
 
 func (tx *latencyBackfillTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	time.Sleep(tx.db.stmtLatency)
-	rows, err := tx.db.rowsFor(query, args)
+	time.Sleep(tx.database.stmtLatency)
+	rows, err := tx.database.rowsFor(query, args)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (tx *latencyBackfillTx) QueryContext(_ context.Context, query string, args 
 }
 
 func (tx *latencyBackfillTx) ExecContext(context.Context, string, ...any) (sql.Result, error) {
-	time.Sleep(tx.db.stmtLatency)
+	time.Sleep(tx.database.stmtLatency)
 	return fakeResult{}, nil
 }
 
@@ -149,8 +149,8 @@ func benchmarkDeferredBackfill(b *testing.B, workers int) {
 			Rationale:        "module reference",
 		}}
 	}
-	db := &latencyBackfillDB{activeGenRows: activeGen, stmtLatency: 50 * time.Microsecond}
-	store := NewIngestionStore(db)
+	database := &latencyBackfillDB{activeGenRows: activeGen, stmtLatency: 50 * time.Microsecond}
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return time.Unix(0, 0).UTC() }
 	store.maintenanceBatchSize = 8
 	store.maintenanceWorkers = workers

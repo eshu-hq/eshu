@@ -20,8 +20,8 @@ import (
 func TestSharedIntentAcceptanceWriterUpsertIntentsUsesTransactionWhenAvailable(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentAcceptanceWriterDB()
-	writer := NewSharedIntentAcceptanceWriter(db)
+	database := newSharedIntentAcceptanceWriterDB()
+	writer := NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -46,28 +46,28 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsUsesTransactionWhenAvailable(t
 		t.Fatalf("UpsertIntents() error = %v, want nil", err)
 	}
 
-	if got, want := db.beginCalls, 1; got != want {
+	if got, want := database.beginCalls, 1; got != want {
 		t.Fatalf("beginCalls = %d, want %d", got, want)
 	}
-	if db.tx == nil {
+	if database.tx == nil {
 		t.Fatal("transaction was not captured")
 	}
-	if got, want := db.tx.commitCalls, 1; got != want {
+	if got, want := database.tx.commitCalls, 1; got != want {
 		t.Fatalf("commitCalls = %d, want %d", got, want)
 	}
-	if got, want := db.tx.intentWrites, 1; got != want {
+	if got, want := database.tx.intentWrites, 1; got != want {
 		t.Fatalf("intentWrites = %d, want %d", got, want)
 	}
-	if got, want := db.tx.acceptanceWrites, 1; got != want {
+	if got, want := database.tx.acceptanceWrites, 1; got != want {
 		t.Fatalf("acceptanceWrites = %d, want %d", got, want)
 	}
-	if got, want := db.tx.repoLockKeys, []string{"repository:source"}; !slices.Equal(got, want) {
+	if got, want := database.tx.repoLockKeys, []string{"repository:source"}; !slices.Equal(got, want) {
 		t.Fatalf("repoLockKeys = %v, want %v", got, want)
 	}
-	if got, want := db.tx.operations, []string{"lock:repository:source", "intents", "acceptance"}; !slices.Equal(got, want) {
+	if got, want := database.tx.operations, []string{"lock:repository:source", "intents", "acceptance"}; !slices.Equal(got, want) {
 		t.Fatalf("operations = %v, want %v", got, want)
 	}
-	if got, want := len(db.execs), 0; got != want {
+	if got, want := len(database.execs), 0; got != want {
 		t.Fatalf("base exec count = %d, want %d", got, want)
 	}
 }
@@ -75,8 +75,8 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsUsesTransactionWhenAvailable(t
 func TestSharedIntentAcceptanceWriterUpsertIntentsFallsBackWithoutTransactions(t *testing.T) {
 	t.Parallel()
 
-	db := &sharedIntentAcceptanceWriterNoTxDB{}
-	writer := NewSharedIntentAcceptanceWriter(db)
+	database := &sharedIntentAcceptanceWriterNoTxDB{}
+	writer := NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -98,10 +98,10 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsFallsBackWithoutTransactions(t
 		t.Fatalf("UpsertIntents() error = %v, want nil", err)
 	}
 
-	if got, want := db.intentWrites, 1; got != want {
+	if got, want := database.intentWrites, 1; got != want {
 		t.Fatalf("intentWrites = %d, want %d", got, want)
 	}
-	if got, want := db.acceptanceWrites, 1; got != want {
+	if got, want := database.acceptanceWrites, 1; got != want {
 		t.Fatalf("acceptanceWrites = %d, want %d", got, want)
 	}
 }
@@ -109,8 +109,8 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsFallsBackWithoutTransactions(t
 func TestSharedIntentAcceptanceWriterRejectsRepoDependencyWithoutTransaction(t *testing.T) {
 	t.Parallel()
 
-	db := &sharedIntentAcceptanceWriterNoTxDB{}
-	writer := NewSharedIntentAcceptanceWriter(db)
+	database := &sharedIntentAcceptanceWriterNoTxDB{}
+	writer := NewSharedIntentAcceptanceWriter(database)
 	rows := []reducer.SharedProjectionIntentRow{
 		{
 			IntentID:         "intent-repo-dependency",
@@ -130,10 +130,10 @@ func TestSharedIntentAcceptanceWriterRejectsRepoDependencyWithoutTransaction(t *
 	if err == nil || !strings.Contains(err.Error(), "requires transactions") {
 		t.Fatalf("UpsertIntents() error = %v, want transaction requirement", err)
 	}
-	if got := db.intentWrites; got != 0 {
+	if got := database.intentWrites; got != 0 {
 		t.Fatalf("intentWrites = %d, want 0", got)
 	}
-	if got := db.acceptanceWrites; got != 0 {
+	if got := database.acceptanceWrites; got != 0 {
 		t.Fatalf("acceptanceWrites = %d, want 0", got)
 	}
 }
@@ -141,8 +141,8 @@ func TestSharedIntentAcceptanceWriterRejectsRepoDependencyWithoutTransaction(t *
 func TestSharedIntentAcceptanceWriterLocksDistinctRepoDependenciesInSortedOrder(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentAcceptanceWriterDB()
-	writer := NewSharedIntentAcceptanceWriter(db)
+	database := newSharedIntentAcceptanceWriterDB()
+	writer := NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	rows := []reducer.SharedProjectionIntentRow{
 		sharedIntentAcceptanceWriterRow("intent-b", reducer.DomainRepoDependency, "repository:repo-b", now),
@@ -155,10 +155,10 @@ func TestSharedIntentAcceptanceWriterLocksDistinctRepoDependenciesInSortedOrder(
 		t.Fatalf("UpsertIntents() error = %v, want nil", err)
 	}
 
-	if got, want := db.tx.repoLockKeys, []string{"repository:repo-a", "repository:repo-b"}; !slices.Equal(got, want) {
+	if got, want := database.tx.repoLockKeys, []string{"repository:repo-a", "repository:repo-b"}; !slices.Equal(got, want) {
 		t.Fatalf("repoLockKeys = %v, want %v", got, want)
 	}
-	if got, want := db.tx.operations, []string{
+	if got, want := database.tx.operations, []string{
 		"lock:repository:repo-a",
 		"lock:repository:repo-b",
 		"intents",
@@ -179,8 +179,8 @@ func TestSharedIntentAcceptanceWriterPreservesDisjointRepoConcurrency(t *testing
 		t.Fatalf("hold repo-a acceptance gate: %v", err)
 	}
 
-	db := &sharedIntentAcceptanceWriterLockDB{mgr: mgr}
-	writer := NewSharedIntentAcceptanceWriter(db)
+	database := &sharedIntentAcceptanceWriterLockDB{mgr: mgr}
+	writer := NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	sameRepoDone := make(chan error, 1)
 	go func() {
@@ -239,8 +239,8 @@ func sharedIntentAcceptanceWriterRow(
 func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMissingAcceptanceIdentity(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentAcceptanceWriterDB()
-	writer := NewSharedIntentAcceptanceWriter(db)
+	database := newSharedIntentAcceptanceWriterDB()
+	writer := NewSharedIntentAcceptanceWriter(database)
 
 	rows := []reducer.SharedProjectionIntentRow{
 		{
@@ -261,7 +261,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMissingAcceptanceIdenti
 	if !strings.Contains(err.Error(), "missing acceptance identity") {
 		t.Fatalf("UpsertIntents() error = %v, want missing acceptance identity", err)
 	}
-	if got, want := db.beginCalls, 0; got != want {
+	if got, want := database.beginCalls, 0; got != want {
 		t.Fatalf("beginCalls = %d, want %d", got, want)
 	}
 }
@@ -269,8 +269,8 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMissingAcceptanceIdenti
 func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMixedGenerationAcceptanceKey(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentAcceptanceWriterDB()
-	writer := NewSharedIntentAcceptanceWriter(db)
+	database := newSharedIntentAcceptanceWriterDB()
+	writer := NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -307,7 +307,7 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMixedGenerationAcceptan
 	if !strings.Contains(err.Error(), "mixed generations") {
 		t.Fatalf("UpsertIntents() error = %v, want mixed generations", err)
 	}
-	if got, want := db.beginCalls, 0; got != want {
+	if got, want := database.beginCalls, 0; got != want {
 		t.Fatalf("beginCalls = %d, want %d", got, want)
 	}
 }
@@ -315,9 +315,9 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRejectsMixedGenerationAcceptan
 func TestSharedIntentAcceptanceWriterUpsertIntentsRollsBackWhenAcceptanceWriteFails(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentAcceptanceWriterDB()
-	db.tx = &sharedIntentAcceptanceWriterTx{failAcceptanceWrite: true}
-	writer := NewSharedIntentAcceptanceWriter(db)
+	database := newSharedIntentAcceptanceWriterDB()
+	database.tx = &sharedIntentAcceptanceWriterTx{failAcceptanceWrite: true}
+	writer := NewSharedIntentAcceptanceWriter(database)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -342,13 +342,13 @@ func TestSharedIntentAcceptanceWriterUpsertIntentsRollsBackWhenAcceptanceWriteFa
 	if !strings.Contains(err.Error(), "upsert shared projection acceptance") {
 		t.Fatalf("UpsertIntents() error = %v, want shared projection acceptance failure", err)
 	}
-	if db.tx == nil {
+	if database.tx == nil {
 		t.Fatal("transaction was not captured")
 	}
-	if got, want := db.tx.commitCalls, 0; got != want {
+	if got, want := database.tx.commitCalls, 0; got != want {
 		t.Fatalf("commitCalls = %d, want %d", got, want)
 	}
-	if got, want := db.tx.rollbackCalls, 1; got != want {
+	if got, want := database.tx.rollbackCalls, 1; got != want {
 		t.Fatalf("rollbackCalls = %d, want %d", got, want)
 	}
 }
@@ -363,20 +363,20 @@ func newSharedIntentAcceptanceWriterDB() *sharedIntentAcceptanceWriterDB {
 	return &sharedIntentAcceptanceWriterDB{}
 }
 
-func (db *sharedIntentAcceptanceWriterDB) Begin(context.Context) (db.Transaction, error) {
-	db.beginCalls++
-	if db.tx == nil {
-		db.tx = &sharedIntentAcceptanceWriterTx{}
+func (database *sharedIntentAcceptanceWriterDB) Begin(context.Context) (db.Transaction, error) {
+	database.beginCalls++
+	if database.tx == nil {
+		database.tx = &sharedIntentAcceptanceWriterTx{}
 	}
-	return db.tx, nil
+	return database.tx, nil
 }
 
-func (db *sharedIntentAcceptanceWriterDB) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
-	db.execs = append(db.execs, query)
+func (database *sharedIntentAcceptanceWriterDB) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
+	database.execs = append(database.execs, query)
 	return sharedIntentResult{}, nil
 }
 
-func (db *sharedIntentAcceptanceWriterDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+func (database *sharedIntentAcceptanceWriterDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
 }
 
@@ -438,19 +438,19 @@ type sharedIntentAcceptanceWriterNoTxDB struct {
 	acceptanceWrites int
 }
 
-func (db *sharedIntentAcceptanceWriterNoTxDB) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
+func (database *sharedIntentAcceptanceWriterNoTxDB) ExecContext(_ context.Context, query string, _ ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "INSERT INTO shared_projection_intents"):
-		db.intentWrites++
+		database.intentWrites++
 	case strings.Contains(query, "INSERT INTO shared_projection_acceptance"):
-		db.acceptanceWrites++
+		database.acceptanceWrites++
 	default:
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
 	}
 	return sharedIntentResult{}, nil
 }
 
-func (db *sharedIntentAcceptanceWriterNoTxDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+func (database *sharedIntentAcceptanceWriterNoTxDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
 }
 
@@ -458,9 +458,9 @@ type sharedIntentAcceptanceWriterLockDB struct {
 	mgr *advisoryLockManager
 }
 
-func (db *sharedIntentAcceptanceWriterLockDB) Begin(context.Context) (db.Transaction, error) {
+func (database *sharedIntentAcceptanceWriterLockDB) Begin(context.Context) (db.Transaction, error) {
 	return &sharedIntentAcceptanceWriterLockTx{
-		advisoryLockTx: &advisoryLockTx{mgr: db.mgr},
+		advisoryLockTx: &advisoryLockTx{mgr: database.mgr},
 	}, nil
 }
 

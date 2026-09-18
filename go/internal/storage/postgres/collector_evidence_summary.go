@@ -135,8 +135,8 @@ type CollectorEvidenceSummaryStore struct {
 }
 
 // NewCollectorEvidenceSummaryStore wraps a DB handle for summary maintenance.
-func NewCollectorEvidenceSummaryStore(db db.ExecQueryer) CollectorEvidenceSummaryStore {
-	return CollectorEvidenceSummaryStore{DB: db}
+func NewCollectorEvidenceSummaryStore(database db.ExecQueryer) CollectorEvidenceSummaryStore {
+	return CollectorEvidenceSummaryStore{DB: database}
 }
 
 // RebuildAllCollectorEvidence reconciles the entire collector_evidence_summary

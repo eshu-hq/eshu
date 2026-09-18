@@ -34,11 +34,11 @@ func (e ContainerImageIdentityClaimedExecer) ExecContainerImageIdentityClaimed(
 
 func execContainerImageIdentityClaimed(
 	ctx context.Context,
-	db db.Queryer,
+	database db.Queryer,
 	query string,
 	args ...any,
 ) (int, bool, error) {
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, false, err
 	}

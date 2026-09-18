@@ -28,7 +28,7 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (idempotency_key) DO NOTHING
 RETURNING idempotency_key
 `
-	insertRows, err := s.db.QueryContext(ctx, insert, key, fingerprint, admin.ReplayRequestStatusInProgress, now.UTC())
+	insertRows, err := s.database.QueryContext(ctx, insert, key, fingerprint, admin.ReplayRequestStatusInProgress, now.UTC())
 	if err != nil {
 		return admin.ReplayIdempotencyClaim{}, fmt.Errorf("claim replay idempotency: %w", err)
 	}
@@ -49,7 +49,7 @@ SELECT request_fingerprint, status, replayed_count, work_item_ids
 FROM admin_replay_requests
 WHERE idempotency_key = $1
 `
-	rows, err := s.db.QueryContext(ctx, selectExisting, key)
+	rows, err := s.database.QueryContext(ctx, selectExisting, key)
 	if err != nil {
 		return admin.ReplayIdempotencyClaim{}, fmt.Errorf("load replay idempotency: %w", err)
 	}
@@ -112,7 +112,7 @@ SET status = $2,
 WHERE idempotency_key = $1
   AND status = $6
 `
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		update,
 		key,

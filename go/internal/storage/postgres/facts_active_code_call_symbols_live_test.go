@@ -24,15 +24,15 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository(t *testi
 	}
 
 	ctx := context.Background()
-	db, _ := openFactCrossBatchFencingSchema(t, ctx, dsn)
+	database, _ := openFactCrossBatchFencingSchema(t, ctx, dsn)
 	now := time.Now().UTC()
-	seedActiveCodeCallSymbolScope(t, ctx, db, "repository:repo-api", "generation-api", now)
-	seedActiveCodeCallSymbolScope(t, ctx, db, "repository:repo-lib", "generation-lib", now)
-	seedActiveCodeCallSymbolFact(t, ctx, db, "fact-api-caller", "repository:repo-api", "generation-api", "api.go", "scip-go gomod github.com/acme/api Handler#Serve().", now)
-	seedActiveCodeCallSymbolFact(t, ctx, db, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.go", activeCodeCallSymbolProofKey, now.Add(time.Second))
-	seedActiveCodeCallSymbolFact(t, ctx, db, "fact-lib-stale", "repository:repo-lib", "generation-lib-stale", "old_client.go", activeCodeCallSymbolProofKey, now.Add(-time.Second))
+	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-api", "generation-api", now)
+	seedActiveCodeCallSymbolScope(t, ctx, database, "repository:repo-lib", "generation-lib", now)
+	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-api-caller", "repository:repo-api", "generation-api", "api.go", "scip-go gomod github.com/acme/api Handler#Serve().", now)
+	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-active", "repository:repo-lib", "generation-lib", "client.go", activeCodeCallSymbolProofKey, now.Add(time.Second))
+	seedActiveCodeCallSymbolFact(t, ctx, database, "fact-lib-stale", "repository:repo-lib", "generation-lib-stale", "old_client.go", activeCodeCallSymbolProofKey, now.Add(-time.Second))
 
-	loaded, err := NewFactStore(SQLDB{DB: db}).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{activeCodeCallSymbolProofKey})
+	loaded, err := NewFactStore(SQLDB{DB: database}).LoadActiveCodeCallSymbolDefinitionFacts(ctx, []string{activeCodeCallSymbolProofKey})
 	if err != nil {
 		t.Fatalf("LoadActiveCodeCallSymbolDefinitionFacts() error = %v, want nil", err)
 	}
@@ -44,22 +44,22 @@ func TestReducerContentionGateActiveCodeCallSymbolLoaderCrossRepository(t *testi
 	}
 }
 
-func seedActiveCodeCallSymbolScope(t *testing.T, ctx context.Context, db db.Executor, scopeID, generationID string, observedAt time.Time) {
+func seedActiveCodeCallSymbolScope(t *testing.T, ctx context.Context, database db.Executor, scopeID, generationID string, observedAt time.Time) {
 	t.Helper()
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, collector_kind,
     partition_key, observed_at, ingested_at, status, active_generation_id
 ) VALUES ($1, 'repository', 'git', $1, 'git', $1, $3, $3, 'active', $2)`, scopeID, generationID, observedAt); err != nil {
 		t.Fatalf("insert scope %q: %v", scopeID, err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO scope_generations (
     generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, activated_at
 ) VALUES ($1, $2, 'snapshot', $3, $3, 'active', $3)`, generationID, scopeID, observedAt); err != nil {
 		t.Fatalf("insert generation %q: %v", generationID, err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO scope_generations (
     generation_id, scope_id, trigger_kind, observed_at, ingested_at, status
 ) VALUES ($1, $2, 'snapshot', $3, $3, 'superseded')`, generationID+"-stale", scopeID, observedAt.Add(-time.Minute)); err != nil {
@@ -67,9 +67,9 @@ INSERT INTO scope_generations (
 	}
 }
 
-func seedActiveCodeCallSymbolFact(t *testing.T, ctx context.Context, db db.Executor, factID, scopeID, generationID, relativePath, symbol string, observedAt time.Time) {
+func seedActiveCodeCallSymbolFact(t *testing.T, ctx context.Context, database db.Executor, factID, scopeID, generationID, relativePath, symbol string, observedAt time.Time) {
 	t.Helper()
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO fact_records (
     fact_id, scope_id, generation_id, fact_kind, stable_fact_key,
     source_system, source_fact_key, observed_at, ingested_at, payload

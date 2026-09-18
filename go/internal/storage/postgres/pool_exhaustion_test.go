@@ -37,22 +37,22 @@ type poolExhaustionProbeDB struct {
 }
 
 func newPoolExhaustionProbeDB(capacity int) *poolExhaustionProbeDB {
-	db := &poolExhaustionProbeDB{capacity: capacity}
-	db.cond = sync.NewCond(&db.mu)
-	return db
+	database := &poolExhaustionProbeDB{capacity: capacity}
+	database.cond = sync.NewCond(&database.mu)
+	return database
 }
 
-func (db *poolExhaustionProbeDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
+func (database *poolExhaustionProbeDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return &queueFakeRows{}, nil
 }
 
-func (db *poolExhaustionProbeDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+func (database *poolExhaustionProbeDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *poolExhaustionProbeDB) Begin(ctx context.Context) (db.Transaction, error) {
-	db.mu.Lock()
-	db.beginCount++
+func (database *poolExhaustionProbeDB) Begin(ctx context.Context) (db.Transaction, error) {
+	database.mu.Lock()
+	database.beginCount++
 
 	// Monitor context expiration in a goroutine. Must broadcast under mu
 	// to avoid a lost wakeup: if ctx fires between the (open >= capacity)
@@ -62,38 +62,38 @@ func (db *poolExhaustionProbeDB) Begin(ctx context.Context) (db.Transaction, err
 	go func() {
 		select {
 		case <-ctx.Done():
-			db.mu.Lock()
-			db.cond.Broadcast()
-			db.mu.Unlock()
+			database.mu.Lock()
+			database.cond.Broadcast()
+			database.mu.Unlock()
 		case <-done:
 		}
 	}()
 
 	wasBlocked := false
 	// Wait while pool is full and context is still alive.
-	for db.open >= db.capacity {
+	for database.open >= database.capacity {
 		wasBlocked = true
-		db.cond.Wait()
+		database.cond.Wait()
 		if ctx.Err() != nil {
-			db.mu.Unlock()
+			database.mu.Unlock()
 			return nil, ctx.Err()
 		}
 	}
 
-	db.open++
-	if db.open > db.peakOpen {
-		db.peakOpen = db.open
+	database.open++
+	if database.open > database.peakOpen {
+		database.peakOpen = database.open
 	}
 	if wasBlocked {
-		db.blockedAny = true
+		database.blockedAny = true
 	}
-	db.mu.Unlock()
+	database.mu.Unlock()
 
-	return &poolExhaustionProbeTx{db: db}, nil
+	return &poolExhaustionProbeTx{database: database}, nil
 }
 
 type poolExhaustionProbeTx struct {
-	db       *poolExhaustionProbeDB
+	database *poolExhaustionProbeDB
 	released bool
 }
 
@@ -109,13 +109,13 @@ func (tx *poolExhaustionProbeTx) Commit() error   { return tx.release() }
 func (tx *poolExhaustionProbeTx) Rollback() error { return tx.release() }
 
 func (tx *poolExhaustionProbeTx) release() error {
-	tx.db.mu.Lock()
+	tx.database.mu.Lock()
 	if !tx.released {
-		tx.db.open--
+		tx.database.open--
 		tx.released = true
-		tx.db.cond.Signal() // wake one blocked waiter
+		tx.database.cond.Signal() // wake one blocked waiter
 	}
-	tx.db.mu.Unlock()
+	tx.database.mu.Unlock()
 	return nil
 }
 
@@ -127,7 +127,7 @@ func TestPoolExhaustionNPlusOneBlocksThenProceeds(t *testing.T) {
 	t.Parallel()
 
 	const capacity = 5
-	db := newPoolExhaustionProbeDB(capacity)
+	database := newPoolExhaustionProbeDB(capacity)
 
 	var wg sync.WaitGroup
 	errs := make([]error, capacity+1)
@@ -143,7 +143,7 @@ func TestPoolExhaustionNPlusOneBlocksThenProceeds(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 
-			tx, err := db.Begin(ctx)
+			tx, err := database.Begin(ctx)
 			if err != nil {
 				errs[id] = fmt.Errorf("goroutine %d Begin: %w", id, err)
 				return
@@ -168,18 +168,18 @@ func TestPoolExhaustionNPlusOneBlocksThenProceeds(t *testing.T) {
 	}
 
 	// Peak open must equal capacity (all capacity slots were filled).
-	if db.peakOpen != capacity {
-		t.Fatalf("peakOpen = %d, want capacity %d", db.peakOpen, capacity)
+	if database.peakOpen != capacity {
+		t.Fatalf("peakOpen = %d, want capacity %d", database.peakOpen, capacity)
 	}
 
 	// At least one goroutine must have blocked (the N+1th).
-	if !db.blockedAny {
+	if !database.blockedAny {
 		t.Fatal("expected at least one caller to block when pool was at capacity")
 	}
 
 	// All goroutines must have acquired a transaction.
-	if db.beginCount != capacity+1 {
-		t.Fatalf("beginCount = %d, want %d", db.beginCount, capacity+1)
+	if database.beginCount != capacity+1 {
+		t.Fatalf("beginCount = %d, want %d", database.beginCount, capacity+1)
 	}
 }
 
@@ -190,7 +190,7 @@ func TestPoolExhaustionContextTimeoutSurfacesWhenStuck(t *testing.T) {
 	t.Parallel()
 
 	const capacity = 2
-	db := newPoolExhaustionProbeDB(capacity)
+	database := newPoolExhaustionProbeDB(capacity)
 
 	startGate := make(chan struct{})
 
@@ -203,7 +203,7 @@ func TestPoolExhaustionContextTimeoutSurfacesWhenStuck(t *testing.T) {
 		go func() {
 			defer holdersWg.Done()
 			<-startGate
-			tx, _ := db.Begin(context.Background())
+			tx, _ := database.Begin(context.Background())
 			holdersAcquired <- struct{}{} // signal slot acquired
 			<-holdersDone
 			_ = tx.Rollback()
@@ -221,7 +221,7 @@ func TestPoolExhaustionContextTimeoutSurfacesWhenStuck(t *testing.T) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
-		_, err := db.Begin(ctx)
+		_, err := database.Begin(ctx)
 		nPlusOneDone <- err
 	}()
 

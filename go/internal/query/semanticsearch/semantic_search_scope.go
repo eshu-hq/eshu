@@ -47,15 +47,15 @@ LIMIT 1
 // PostgresSemanticSearchScopeResolver resolves canonical repository ids from
 // the relational repository catalog without exposing scope ids to callers.
 type PostgresSemanticSearchScopeResolver struct {
-	db db.Queryer
+	database db.Queryer
 }
 
 // NewPostgresSemanticSearchScopeResolver constructs the production resolver.
-func NewPostgresSemanticSearchScopeResolver(db db.Queryer) PostgresSemanticSearchScopeResolver {
-	if db == nil {
+func NewPostgresSemanticSearchScopeResolver(database db.Queryer) PostgresSemanticSearchScopeResolver {
+	if database == nil {
 		return PostgresSemanticSearchScopeResolver{}
 	}
-	return PostgresSemanticSearchScopeResolver{db: db}
+	return PostgresSemanticSearchScopeResolver{database: database}
 }
 
 // ResolveSemanticSearchScope returns the sole active scope for repoID. An
@@ -65,14 +65,14 @@ func (r PostgresSemanticSearchScopeResolver) ResolveSemanticSearchScope(
 	ctx context.Context,
 	repoID string,
 ) (string, error) {
-	if r.db == nil {
+	if r.database == nil {
 		return "", fmt.Errorf("semantic search scope resolver requires a database")
 	}
 	repoID = strings.TrimSpace(repoID)
 	if repoID == "" {
 		return "", fmt.Errorf("semantic search scope resolver requires a repository id")
 	}
-	rows, err := r.db.QueryContext(ctx, resolveSemanticSearchScopeQuery, repoID)
+	rows, err := r.database.QueryContext(ctx, resolveSemanticSearchScopeQuery, repoID)
 	if err != nil {
 		return "", fmt.Errorf("resolve semantic search repository scope: %w", err)
 	}
@@ -109,14 +109,14 @@ func (r PostgresSemanticSearchScopeResolver) ResolveSemanticSearchRepositoryForS
 	ctx context.Context,
 	scopeID string,
 ) (string, error) {
-	if r.db == nil {
+	if r.database == nil {
 		return "", fmt.Errorf("semantic search scope resolver requires a database")
 	}
 	scopeID = strings.TrimSpace(scopeID)
 	if scopeID == "" {
 		return "", fmt.Errorf("semantic search scope resolver requires a scope id")
 	}
-	rows, err := r.db.QueryContext(ctx, resolveSemanticSearchRepositoryForScopeQuery, scopeID)
+	rows, err := r.database.QueryContext(ctx, resolveSemanticSearchRepositoryForScopeQuery, scopeID)
 	if err != nil {
 		return "", fmt.Errorf("resolve semantic search scope repository: %w", err)
 	}

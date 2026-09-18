@@ -19,7 +19,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 		name         string
 		scopeID      string
 		generationID string
-		db           *generationFreshnessTestDB
+		database     *generationFreshnessTestDB
 		wantCurrent  bool
 		wantErr      bool
 	}{
@@ -27,7 +27,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			name:         "current when generation matches active",
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
-			db: &generationFreshnessTestDB{
+			database: &generationFreshnessTestDB{
 				scopes: map[string]sql.NullString{
 					"scope-123": {String: "gen-abc", Valid: true},
 				},
@@ -38,7 +38,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			name:         "stale when generation does not match active",
 			scopeID:      "scope-123",
 			generationID: "gen-old",
-			db: &generationFreshnessTestDB{
+			database: &generationFreshnessTestDB{
 				scopes: map[string]sql.NullString{
 					"scope-123": {String: "gen-new", Valid: true},
 				},
@@ -49,7 +49,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			name:         "current when scope not found",
 			scopeID:      "scope-unknown",
 			generationID: "gen-abc",
-			db: &generationFreshnessTestDB{
+			database: &generationFreshnessTestDB{
 				scopes: map[string]sql.NullString{},
 			},
 			wantCurrent: true,
@@ -58,7 +58,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			name:         "current when active_generation_id is NULL",
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
-			db: &generationFreshnessTestDB{
+			database: &generationFreshnessTestDB{
 				scopes: map[string]sql.NullString{
 					"scope-123": {Valid: false},
 				},
@@ -69,7 +69,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 			name:         "error propagated from database",
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
-			db: &generationFreshnessTestDB{
+			database: &generationFreshnessTestDB{
 				queryErr: fmt.Errorf("connection refused"),
 			},
 			wantCurrent: false,
@@ -81,7 +81,7 @@ func TestGenerationFreshnessCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			check := NewGenerationFreshnessCheck(tt.db)
+			check := NewGenerationFreshnessCheck(tt.database)
 			gotCurrent, err := check(context.Background(), tt.scopeID, tt.generationID)
 
 			if tt.wantErr {
@@ -107,7 +107,7 @@ func TestPriorGenerationCheck(t *testing.T) {
 		name         string
 		scopeID      string
 		generationID string
-		db           *generationFreshnessTestDB
+		database     *generationFreshnessTestDB
 		wantPrior    bool
 		wantErr      bool
 	}{
@@ -115,7 +115,7 @@ func TestPriorGenerationCheck(t *testing.T) {
 			name:         "false for first generation",
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
-			db: &generationFreshnessTestDB{
+			database: &generationFreshnessTestDB{
 				generations: map[string][]string{"scope-123": {"gen-abc"}},
 			},
 		},
@@ -123,7 +123,7 @@ func TestPriorGenerationCheck(t *testing.T) {
 			name:         "true when another generation exists",
 			scopeID:      "scope-123",
 			generationID: "gen-new",
-			db: &generationFreshnessTestDB{
+			database: &generationFreshnessTestDB{
 				generations: map[string][]string{"scope-123": {"gen-old", "gen-new"}},
 			},
 			wantPrior: true,
@@ -132,13 +132,13 @@ func TestPriorGenerationCheck(t *testing.T) {
 			name:         "false when scope unknown",
 			scopeID:      "scope-unknown",
 			generationID: "gen-abc",
-			db:           &generationFreshnessTestDB{},
+			database:     &generationFreshnessTestDB{},
 		},
 		{
 			name:         "error propagated from database",
 			scopeID:      "scope-123",
 			generationID: "gen-abc",
-			db: &generationFreshnessTestDB{
+			database: &generationFreshnessTestDB{
 				queryErr: fmt.Errorf("connection refused"),
 			},
 			wantErr: true,
@@ -149,7 +149,7 @@ func TestPriorGenerationCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			check := NewPriorGenerationCheck(tt.db)
+			check := NewPriorGenerationCheck(tt.database)
 			gotPrior, err := check(context.Background(), tt.scopeID, tt.generationID)
 
 			if tt.wantErr {
@@ -171,12 +171,12 @@ func TestPriorGenerationCheck(t *testing.T) {
 func TestIngestionStoreCurrentScopeGeneration(t *testing.T) {
 	t.Parallel()
 
-	db := &generationFreshnessTestDB{
+	database := &generationFreshnessTestDB{
 		currentGenerations: map[string]currentGenerationRow{
 			"scope-123": {generationID: "gen-abc", freshnessHint: "fingerprint-abc"},
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	current, found, err := store.CurrentScopeGeneration(context.Background(), "scope-123")
 	if err != nil {
 		t.Fatalf("CurrentScopeGeneration() error = %v, want nil", err)
@@ -216,25 +216,25 @@ type generationFreshnessTestDB struct {
 	queryErr           error
 }
 
-func (db *generationFreshnessTestDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+func (database *generationFreshnessTestDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *generationFreshnessTestDB) QueryContext(_ context.Context, _ string, args ...any) (db.Rows, error) {
-	if db.queryErr != nil {
-		return nil, db.queryErr
+func (database *generationFreshnessTestDB) QueryContext(_ context.Context, _ string, args ...any) (db.Rows, error) {
+	if database.queryErr != nil {
+		return nil, database.queryErr
 	}
 
 	switch len(args) {
 	case 1:
 		scopeID := args[0].(string)
-		if current, ok := db.currentGenerations[scopeID]; ok {
+		if current, ok := database.currentGenerations[scopeID]; ok {
 			return &generationFreshnessTestRows{
 				data: [][]any{{current.generationID, current.freshnessHint}},
 				idx:  -1,
 			}, nil
 		}
-		activeGen, found := db.scopes[scopeID]
+		activeGen, found := database.scopes[scopeID]
 		if !found {
 			return &generationFreshnessTestRows{data: nil, idx: -1}, nil
 		}
@@ -246,7 +246,7 @@ func (db *generationFreshnessTestDB) QueryContext(_ context.Context, _ string, a
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
 		exists := false
-		for _, candidate := range db.generations[scopeID] {
+		for _, candidate := range database.generations[scopeID] {
 			if candidate != generationID {
 				exists = true
 				break

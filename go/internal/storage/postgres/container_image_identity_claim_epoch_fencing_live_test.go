@@ -66,7 +66,7 @@ $function$
 	}
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -166,7 +166,7 @@ func TestContainerImageIdentityCurrentBatchClaimAdvancesAndSucceedsLive(
 	}
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

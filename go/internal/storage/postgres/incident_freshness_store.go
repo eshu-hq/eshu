@@ -18,13 +18,13 @@ import (
 // IncidentFreshnessStore persists incident-source webhook refresh triggers for
 // later workflow coordinator handoff.
 type IncidentFreshnessStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewIncidentFreshnessStore constructs a Postgres-backed incident freshness
 // trigger store.
-func NewIncidentFreshnessStore(db db.ExecQueryer) *IncidentFreshnessStore {
-	return &IncidentFreshnessStore{db: db}
+func NewIncidentFreshnessStore(database db.ExecQueryer) *IncidentFreshnessStore {
+	return &IncidentFreshnessStore{database: database}
 }
 
 // IncidentFreshnessSchemaSQL returns the DDL for incident freshness triggers.
@@ -34,10 +34,10 @@ func IncidentFreshnessSchemaSQL() string {
 
 // EnsureSchema applies the incident freshness trigger schema.
 func (s *IncidentFreshnessStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("incident freshness store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, incidentFreshnessSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, incidentFreshnessSchemaSQL); err != nil {
 		return fmt.Errorf("ensure incident freshness schema: %w", err)
 	}
 	return nil
@@ -50,14 +50,14 @@ func (s *IncidentFreshnessStore) StoreIncidentFreshnessTrigger(
 	trigger webhook.IncidentFreshnessTrigger,
 	receivedAt time.Time,
 ) (webhook.StoredIncidentFreshnessTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return webhook.StoredIncidentFreshnessTrigger{}, errors.New("incident freshness store database is required")
 	}
 	stored, err := webhook.NewStoredIncidentFreshnessTrigger(trigger, receivedAt)
 	if err != nil {
 		return webhook.StoredIncidentFreshnessTrigger{}, err
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		storeIncidentFreshnessTriggerQuery,
 		stored.TriggerID,
@@ -101,7 +101,7 @@ func (s *IncidentFreshnessStore) ClaimQueuedTriggers(
 	claimedAt time.Time,
 	limit int,
 ) ([]webhook.StoredIncidentFreshnessTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("incident freshness store database is required")
 	}
 	owner = strings.TrimSpace(owner)
@@ -114,7 +114,7 @@ func (s *IncidentFreshnessStore) ClaimQueuedTriggers(
 	if limit <= 0 {
 		return nil, errors.New("incident freshness claim limit must be positive")
 	}
-	rows, err := s.db.QueryContext(ctx, claimQueuedIncidentFreshnessTriggersQuery, limit, owner, claimedAt.UTC())
+	rows, err := s.database.QueryContext(ctx, claimQueuedIncidentFreshnessTriggersQuery, limit, owner, claimedAt.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("claim incident freshness triggers: %w", err)
 	}
@@ -136,7 +136,7 @@ func (s *IncidentFreshnessStore) ClaimQueuedTriggers(
 // MarkTriggersHandedOff records successful workflow handoff for claimed
 // incident freshness triggers.
 func (s *IncidentFreshnessStore) MarkTriggersHandedOff(ctx context.Context, triggerIDs []string, handedOffAt time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("incident freshness store database is required")
 	}
 	cleaned := cleanTriggerIDs(triggerIDs)
@@ -147,7 +147,7 @@ func (s *IncidentFreshnessStore) MarkTriggersHandedOff(ctx context.Context, trig
 		return errors.New("incident freshness handed_off_at is required")
 	}
 	args := triggerIDArgs(cleaned, handedOffAt.UTC())
-	if _, err := s.db.ExecContext(ctx, buildMarkIncidentFreshnessTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, buildMarkIncidentFreshnessTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark incident freshness triggers handed off: %w", err)
 	}
 	return nil
@@ -162,7 +162,7 @@ func (s *IncidentFreshnessStore) MarkTriggersFailed(
 	failureClass string,
 	failureMessage string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("incident freshness store database is required")
 	}
 	cleaned := cleanTriggerIDs(triggerIDs)
@@ -177,7 +177,7 @@ func (s *IncidentFreshnessStore) MarkTriggersFailed(
 		return errors.New("incident freshness failure class is required")
 	}
 	args := triggerIDArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
-	if _, err := s.db.ExecContext(ctx, buildMarkIncidentFreshnessTriggersFailedQuery(len(cleaned)), args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, buildMarkIncidentFreshnessTriggersFailedQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark incident freshness triggers failed: %w", err)
 	}
 	return nil

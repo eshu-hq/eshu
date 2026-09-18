@@ -20,8 +20,8 @@ func TestIngestionStoreCommitScopeGenerationTakesSharedMaintenanceBarrier(t *tes
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
-	db := &fakeTransactionalDB{tx: &fakeTx{}}
-	store := NewIngestionStore(db)
+	database := &fakeTransactionalDB{tx: &fakeTx{}}
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	scopeValue := scope.IngestionScope{
@@ -43,10 +43,10 @@ func TestIngestionStoreCommitScopeGenerationTakesSharedMaintenanceBarrier(t *tes
 	if err := store.CommitScopeGeneration(context.Background(), scopeValue, generation, nil); err != nil {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
-	if len(db.tx.execs) == 0 {
+	if len(database.tx.execs) == 0 {
 		t.Fatal("transaction execs = 0, want shared maintenance barrier lock before writes")
 	}
-	first := db.tx.execs[0]
+	first := database.tx.execs[0]
 	if !strings.Contains(first.query, "pg_advisory_xact_lock_shared") {
 		t.Fatalf("first transaction exec = %q, want shared advisory maintenance barrier", first.query)
 	}
@@ -79,7 +79,7 @@ func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBa
 			{rows: [][]any{{"work-item-1", "scope-infra", "gen-infra"}}},
 		},
 	}
-	db := &fakeTransactionalDB{
+	database := &fakeTransactionalDB{
 		txs: []*fakeTx{batchTx, deferredFanInFakeTx("gen-infra"), reopenTx},
 		queryResponses: []queueFakeRows{
 			// Snapshot reads: catalog, latest facts, active generations.
@@ -88,13 +88,13 @@ func TestIngestionStoreRunDeferredRelationshipMaintenanceTakesPerRepoExclusiveBa
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	if err := store.RunDeferredRelationshipMaintenance(context.Background(), nil, nil); err != nil {
 		t.Fatalf("RunDeferredRelationshipMaintenance() error = %v, want nil", err)
 	}
-	if got, want := db.beginCalls, 3; got != want {
+	if got, want := database.beginCalls, 3; got != want {
 		t.Fatalf("begin call count = %d, want %d (one evidence batch + one fan-in publication + one reopen transaction)", got, want)
 	}
 	tx := batchTx
@@ -129,13 +129,13 @@ func TestIngestionStoreShardDrainBarrierNonLeaderWaitsForCompletion(t *testing.T
 			{rows: [][]any{{1}}},
 		},
 	}
-	db := &fakeTransactionalDB{
+	database := &fakeTransactionalDB{
 		tx: tx,
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{sql.NullTime{Time: now.Add(time.Second), Valid: true}}}},
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
@@ -169,10 +169,10 @@ func TestIngestionStoreShardDrainBarrierNonLeaderWaitsForCompletion(t *testing.T
 	if got := tx.execs[2].query; !strings.Contains(got, "INSERT INTO deferred_maintenance_barrier_arrivals") {
 		t.Fatalf("third exec = %q, want shard arrival insert", got)
 	}
-	if got := len(db.queries); got != 1 {
+	if got := len(database.queries); got != 1 {
 		t.Fatalf("completion wait queries = %d, want 1", got)
 	}
-	if got := db.queries[0].query; !strings.Contains(got, "SELECT completed_at") {
+	if got := database.queries[0].query; !strings.Contains(got, "SELECT completed_at") {
 		t.Fatalf("completion wait query = %q, want completed_at lookup", got)
 	}
 }
@@ -207,7 +207,7 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 	// Completion transaction marks the barrier complete after maintenance.
 	completionTx := &fakeTx{}
 	fanInTx := deferredFanInFakeTx("gen-infra")
-	db := &fakeTransactionalDB{
+	database := &fakeTransactionalDB{
 		txs: []*fakeTx{barrierTx, batchTx, fanInTx, reopenTx, completionTx},
 		queryResponses: []queueFakeRows{
 			// Backfill snapshot reads on the store db: catalog, facts, active gens.
@@ -216,7 +216,7 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
@@ -232,7 +232,7 @@ func TestIngestionStoreShardDrainBarrierLeaderRunsMaintenanceAfterAllShardsArriv
 		t.Fatalf("not all transactions committed: barrier=%v batch=%v reopen=%v completion=%v",
 			barrierTx.committed, batchTx.committed, reopenTx.committed, completionTx.committed)
 	}
-	if got, want := db.beginCalls, 5; got != want {
+	if got, want := database.beginCalls, 5; got != want {
 		t.Fatalf("begin call count = %d, want %d (arrival + evidence batch + fan-in publication + reopen + completion)", got, want)
 	}
 	// Barrier state lock (global, brief, released on arrival commit) is taken in
@@ -320,8 +320,8 @@ func TestIngestionStoreShardDrainBarrierRejectsShardCountChangeDuringOpenEpoch(t
 			{rows: [][]any{{int64(7), 3, sql.NullTime{}}}},
 		},
 	}
-	db := &fakeTransactionalDB{tx: tx}
-	store := NewIngestionStore(db)
+	database := &fakeTransactionalDB{tx: tx}
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(

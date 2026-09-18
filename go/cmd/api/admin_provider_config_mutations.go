@@ -34,7 +34,7 @@ import (
 // the issue #5604 enable-time login-readiness guard — see
 // query.AdminProviderConfigMutationHandler.ReadStore's doc comment.
 func newAdminProviderConfigMutationHandler(
-	db *sql.DB,
+	database *sql.DB,
 	governanceAudit query.GovernanceAuditSummaryReader,
 	keyring *secretcrypto.Keyring,
 	tester query.ProviderConfigConnectionTester,
@@ -46,10 +46,10 @@ func newAdminProviderConfigMutationHandler(
 		Audit:  adminRecoveryAuditAppender(governanceAudit),
 		Tester: tester,
 	}
-	if store := newProviderConfigMutationAdapter(db, keyring, oidcLoginHandler, samlHandler); store != nil {
+	if store := newProviderConfigMutationAdapter(database, keyring, oidcLoginHandler, samlHandler); store != nil {
 		handler.Store = store
 	}
-	if readStore := newProviderConfigReadAdapter(db, oidcLoginHandler, samlHandler, logger); readStore != nil {
+	if readStore := newProviderConfigReadAdapter(database, oidcLoginHandler, samlHandler, logger); readStore != nil {
 		handler.ReadStore = readStore
 	}
 	return handler

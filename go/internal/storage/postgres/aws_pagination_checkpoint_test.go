@@ -51,8 +51,8 @@ func TestAWSPaginationCheckpointSchemaSQL(t *testing.T) {
 func TestAWSPaginationCheckpointStoreSaveRejectsOlderFence(t *testing.T) {
 	t.Parallel()
 
-	db := &awsCheckpointStoreTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 0}}}
-	store := NewAWSPaginationCheckpointStore(db)
+	database := &awsCheckpointStoreTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 0}}}
+	store := NewAWSPaginationCheckpointStore(database)
 	err := store.Save(context.Background(), checkpoint.Checkpoint{
 		Key:        testAWSCheckpointKey(),
 		PageToken:  "token-1",
@@ -62,10 +62,10 @@ func TestAWSPaginationCheckpointStoreSaveRejectsOlderFence(t *testing.T) {
 	if !errors.Is(err, checkpoint.ErrStaleFence) {
 		t.Fatalf("Save() error = %v, want ErrStaleFence", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("exec count = %d, want 1", len(db.execs))
+	if len(database.execs) != 1 {
+		t.Fatalf("exec count = %d, want 1", len(database.execs))
 	}
-	query := db.execs[0].query
+	query := database.execs[0].query
 	for _, want := range []string{
 		"ON CONFLICT (collector_instance_id, account_id, region, service_kind, resource_parent, operation) DO UPDATE",
 		"WHERE aws_scan_pagination_checkpoints.fencing_token <= EXCLUDED.fencing_token",
@@ -79,8 +79,8 @@ func TestAWSPaginationCheckpointStoreSaveRejectsOlderFence(t *testing.T) {
 func TestAWSPaginationCheckpointStoreExpireStaleScopesByGeneration(t *testing.T) {
 	t.Parallel()
 
-	db := &awsCheckpointStoreTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 3}}}
-	store := NewAWSPaginationCheckpointStore(db)
+	database := &awsCheckpointStoreTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 3}}}
+	store := NewAWSPaginationCheckpointStore(database)
 	expired, err := store.ExpireStale(context.Background(), testAWSCheckpointScope())
 	if err != nil {
 		t.Fatalf("ExpireStale() error = %v, want nil", err)
@@ -88,7 +88,7 @@ func TestAWSPaginationCheckpointStoreExpireStaleScopesByGeneration(t *testing.T)
 	if expired != 3 {
 		t.Fatalf("ExpireStale() = %d, want 3", expired)
 	}
-	query := db.execs[0].query
+	query := database.execs[0].query
 	for _, want := range []string{
 		"DELETE FROM aws_scan_pagination_checkpoints",
 		"collector_instance_id = $1",
@@ -112,13 +112,13 @@ func TestAWSPaginationCheckpointStoreRecordsStableEventKinds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewInstruments() error = %v, want nil", err)
 	}
-	db := &awsCheckpointStoreTestDB{
+	database := &awsCheckpointStoreTestDB{
 		execResults: []sql.Result{
 			awsCheckpointRowsResult{rowsAffected: 1},
 			awsCheckpointRowsResult{rowsAffected: 1},
 		},
 	}
-	store := NewAWSPaginationCheckpointStore(db)
+	store := NewAWSPaginationCheckpointStore(database)
 	store.Instruments = instruments
 
 	if err := store.Complete(context.Background(), testAWSCheckpointKey()); err != nil {
@@ -186,17 +186,17 @@ type awsCheckpointStoreTestDB struct {
 	execResults []sql.Result
 }
 
-func (db *awsCheckpointStoreTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.execs = append(db.execs, awsCheckpointExec{query: query, args: args})
-	if len(db.execResults) == 0 {
+func (database *awsCheckpointStoreTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execs = append(database.execs, awsCheckpointExec{query: query, args: args})
+	if len(database.execResults) == 0 {
 		return awsCheckpointRowsResult{rowsAffected: 1}, nil
 	}
-	result := db.execResults[0]
-	db.execResults = db.execResults[1:]
+	result := database.execResults[0]
+	database.execResults = database.execResults[1:]
 	return result, nil
 }
 
-func (db *awsCheckpointStoreTestDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+func (database *awsCheckpointStoreTestDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("unexpected QueryContext")
 }
 

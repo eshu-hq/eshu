@@ -71,12 +71,12 @@ type PoisonRecoveryResult struct {
 // the recovery UPDATE re-verifies status = 'dead_letter' at write time so a
 // concurrent reclaim of the same row is never clobbered.
 type PoisonLivenessStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewPoisonLivenessStore constructs a Postgres-backed poison-liveness store.
-func NewPoisonLivenessStore(db db.ExecQueryer) PoisonLivenessStore {
-	return PoisonLivenessStore{db: db}
+func NewPoisonLivenessStore(database db.ExecQueryer) PoisonLivenessStore {
+	return PoisonLivenessStore{database: database}
 }
 
 // CountPoisonDeadLetters buckets the current poison dead-letter class into
@@ -85,12 +85,12 @@ func NewPoisonLivenessStore(db db.ExecQueryer) PoisonLivenessStore {
 // status = 'dead_letter'), so cost is proportional to the dead_letter subset,
 // not the full fact_work_items table.
 func (s PoisonLivenessStore) CountPoisonDeadLetters(ctx context.Context, now time.Time) (PoisonStuckCounts, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return PoisonStuckCounts{}, errors.New("poison liveness database is required")
 	}
 	now = now.UTC()
 
-	rows, err := s.db.QueryContext(ctx, countPoisonDeadLettersQuery, now)
+	rows, err := s.database.QueryContext(ctx, countPoisonDeadLettersQuery, now)
 	if err != nil {
 		return PoisonStuckCounts{}, fmt.Errorf("count poison dead letters: %w", err)
 	}
@@ -125,13 +125,13 @@ func (s PoisonLivenessStore) RecoverPoisonDeadLetters(
 	policy PoisonLivenessPolicy,
 	now time.Time,
 ) (PoisonRecoveryResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return PoisonRecoveryResult{}, errors.New("poison liveness database is required")
 	}
 	policy = policy.Normalize()
 	now = now.UTC()
 
-	rows, err := s.db.QueryContext(ctx, recoverPoisonDeadLettersQuery, now, policy.MaxRecoverAttempts, policy.BatchLimit)
+	rows, err := s.database.QueryContext(ctx, recoverPoisonDeadLettersQuery, now, policy.MaxRecoverAttempts, policy.BatchLimit)
 	if err != nil {
 		return PoisonRecoveryResult{}, fmt.Errorf("recover poison dead letters: %w", err)
 	}

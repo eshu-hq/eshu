@@ -63,14 +63,14 @@ func (s *IdentitySubjectStore) CreateLocalIdentityInvitation(
 	ctx context.Context,
 	record LocalIdentityInvitationRecord,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("identity subject store database is required")
 	}
 	record = normalizeInvitationRecord(record)
 	if err := validateInvitationRecord(record); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		createLocalIdentityInvitationQuery,
 		record.InviteID,
@@ -152,14 +152,14 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	ctx context.Context,
 	attempt LocalIdentityAuthenticationAttempt,
 ) (LocalIdentityAuthenticationResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return LocalIdentityAuthenticationResult{}, errors.New("identity subject store database is required")
 	}
 	attempt = normalizeAuthenticationAttempt(attempt)
 	if attempt.SubjectIDHash == "" || attempt.Password == "" {
 		return LocalIdentityAuthenticationResult{Status: LocalIdentityAuthInvalid}, nil
 	}
-	row, ok, err := selectLocalIdentityCredential(ctx, s.db, attempt.SubjectIDHash, attempt.Now)
+	row, ok, err := selectLocalIdentityCredential(ctx, s.database, attempt.SubjectIDHash, attempt.Now)
 	if err != nil {
 		return LocalIdentityAuthenticationResult{}, err
 	}
@@ -222,7 +222,7 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	// the require_sso fail-closed stance for non-admins.
 	mfaRequiredAtLogin := row.HasAdminRole
 	if !row.HasAdminRole {
-		requireMFAForAllUsers, err := signInPolicyRequiresMFAForUsers(ctx, s.db, row.TenantID)
+		requireMFAForAllUsers, err := signInPolicyRequiresMFAForUsers(ctx, s.database, row.TenantID)
 		if err != nil {
 			slog.ErrorContext(ctx, "local login mfa-for-all policy read failed; login denied",
 				"subject_class", "local_user", "tenant_id", row.TenantID, "error", err)
@@ -266,7 +266,7 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 			if !verified {
 				return s.recordFailedLocalIdentityAttempt(ctx, row, attempt.Now)
 			}
-		} else if err := consumeLocalIdentityRecoveryCode(ctx, s.db, row.UserID, attempt); err != nil {
+		} else if err := consumeLocalIdentityRecoveryCode(ctx, s.database, row.UserID, attempt); err != nil {
 			if errors.Is(err, errLocalIdentityRecoveryCodeInvalid) {
 				return s.recordFailedLocalIdentityAttempt(ctx, row, attempt.Now)
 			}
@@ -294,7 +294,7 @@ func (s *IdentitySubjectStore) resolveLocalIdentityRoles(
 	if asOf.IsZero() {
 		asOf = time.Now()
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		resolveLocalIdentityRolesQuery,
 		tenantID,
@@ -327,14 +327,14 @@ func (s *IdentitySubjectStore) ResolveLocalIdentityBreakGlass(
 	ctx context.Context,
 	attempt LocalIdentityBreakGlassAttempt,
 ) (LocalIdentityAuthContext, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return LocalIdentityAuthContext{}, errors.New("identity subject store database is required")
 	}
 	attempt.BreakGlassCodeHash = strings.TrimSpace(attempt.BreakGlassCodeHash)
 	if attempt.Now.IsZero() {
 		attempt.Now = time.Now().UTC()
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		consumeLocalIdentityBreakGlassQuery,
 		attempt.BreakGlassCodeHash,
@@ -362,10 +362,10 @@ func (s *IdentitySubjectStore) ResolveLocalIdentityBreakGlass(
 }
 
 func (s *IdentitySubjectStore) beginLocalIdentityTx(ctx context.Context) (db.Transaction, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
-	beginner, ok := s.db.(db.Beginner)
+	beginner, ok := s.database.(db.Beginner)
 	if !ok {
 		return nil, ErrLocalIdentityTransactionRequired
 	}
@@ -376,8 +376,8 @@ func (s *IdentitySubjectStore) beginLocalIdentityTx(ctx context.Context) (db.Tra
 	return tx, nil
 }
 
-func countExistingLocalIdentityUsers(ctx context.Context, db db.ExecQueryer) (int64, error) {
-	rows, err := db.QueryContext(ctx, countExistingLocalIdentityUsersQuery)
+func countExistingLocalIdentityUsers(ctx context.Context, database db.ExecQueryer) (int64, error) {
+	rows, err := database.QueryContext(ctx, countExistingLocalIdentityUsersQuery)
 	if err != nil {
 		return 0, fmt.Errorf("count existing local identity users: %w", err)
 	}
@@ -394,16 +394,16 @@ func countExistingLocalIdentityUsers(ctx context.Context, db db.ExecQueryer) (in
 
 func insertBootstrapLocalIdentity(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	record LocalIdentityBootstrapRecord,
 ) error {
-	if _, err := db.ExecContext(ctx, upsertTenantRecordQuery, record.TenantID, "active", "", record.PolicyRevisionHash, record.CreatedAt, nullTime(time.Time{})); err != nil {
+	if _, err := database.ExecContext(ctx, upsertTenantRecordQuery, record.TenantID, "active", "", record.PolicyRevisionHash, record.CreatedAt, nullTime(time.Time{})); err != nil {
 		return fmt.Errorf("upsert bootstrap tenant: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, upsertWorkspaceRecordQuery, record.TenantID, record.WorkspaceID, "active", "", record.PolicyRevisionHash, record.CreatedAt, nullTime(time.Time{})); err != nil {
+	if _, err := database.ExecContext(ctx, upsertWorkspaceRecordQuery, record.TenantID, record.WorkspaceID, "active", "", record.PolicyRevisionHash, record.CreatedAt, nullTime(time.Time{})); err != nil {
 		return fmt.Errorf("upsert bootstrap workspace: %w", err)
 	}
-	if err := insertLocalIdentityUserCredential(ctx, db, localIdentityUserCredentialRecord{
+	if err := insertLocalIdentityUserCredential(ctx, database, localIdentityUserCredentialRecord{
 		UserID:                 record.UserID,
 		SubjectIDHash:          record.SubjectIDHash,
 		ProfileHandleHash:      record.ProfileHandleHash,
@@ -416,10 +416,10 @@ func insertBootstrapLocalIdentity(
 	}); err != nil {
 		return err
 	}
-	if err := insertLocalIdentityMFA(ctx, db, record.UserID, record.MFAFactorID, record.MFAFactorKind, record.MFACredentialHandle, record.RecoveryCodeHashes, record.CreatedAt); err != nil {
+	if err := insertLocalIdentityMFA(ctx, database, record.UserID, record.MFAFactorID, record.MFAFactorKind, record.MFACredentialHandle, record.RecoveryCodeHashes, record.CreatedAt); err != nil {
 		return err
 	}
-	return assignLocalIdentityRole(ctx, db, localIdentityRoleAssignment{
+	return assignLocalIdentityRole(ctx, database, localIdentityRoleAssignment{
 		TenantID:           record.TenantID,
 		WorkspaceID:        record.WorkspaceID,
 		UserID:             record.UserID,
@@ -432,11 +432,11 @@ func insertBootstrapLocalIdentity(
 
 func insertInvitedLocalIdentity(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	invite localIdentityInvitationRow,
 	acceptance LocalIdentityInvitationAcceptance,
 ) error {
-	if err := insertLocalIdentityUserCredential(ctx, db, localIdentityUserCredentialRecord{
+	if err := insertLocalIdentityUserCredential(ctx, database, localIdentityUserCredentialRecord{
 		UserID:                 acceptance.UserID,
 		SubjectIDHash:          acceptance.SubjectIDHash,
 		ProfileHandleHash:      acceptance.ProfileHandleHash,
@@ -449,11 +449,11 @@ func insertInvitedLocalIdentity(
 		return err
 	}
 	if acceptance.MFAFactorID != "" {
-		if err := insertLocalIdentityMFA(ctx, db, acceptance.UserID, acceptance.MFAFactorID, acceptance.MFAFactorKind, acceptance.MFACredentialHandle, acceptance.RecoveryCodeHashes, acceptance.AcceptedAt); err != nil {
+		if err := insertLocalIdentityMFA(ctx, database, acceptance.UserID, acceptance.MFAFactorID, acceptance.MFAFactorKind, acceptance.MFACredentialHandle, acceptance.RecoveryCodeHashes, acceptance.AcceptedAt); err != nil {
 			return err
 		}
 	}
-	return assignLocalIdentityRole(ctx, db, localIdentityRoleAssignment{
+	return assignLocalIdentityRole(ctx, database, localIdentityRoleAssignment{
 		TenantID:           invite.TenantID,
 		WorkspaceID:        invite.WorkspaceID,
 		UserID:             acceptance.UserID,

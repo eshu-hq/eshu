@@ -24,7 +24,7 @@ import (
 func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeBootstrapDB{}
+	database := &fakeBootstrapDB{}
 	schemaApplied := false
 	graphSchemaEnsured := false
 	graphOpened := false
@@ -33,7 +33,7 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 		context.Background(),
 		func(string) string { return "" },
 		func(context.Context, func(string) string) (bootstrapDB, error) {
-			return db, nil
+			return database, nil
 		},
 		func(context.Context, bootstrapDB) error {
 			schemaApplied = true
@@ -91,14 +91,14 @@ func TestRunEnsuresGraphSchemaBeforeOpeningGraph(t *testing.T) {
 func TestRunReturnsGraphSchemaErrorBeforeOpeningGraph(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeBootstrapDB{}
+	database := &fakeBootstrapDB{}
 	graphSchemaErr := errors.New("graph schema failed")
 
 	err := run(
 		context.Background(),
 		func(string) string { return "" },
 		func(context.Context, func(string) string) (bootstrapDB, error) {
-			return db, nil
+			return database, nil
 		},
 		func(context.Context, bootstrapDB) error {
 			return nil
@@ -132,12 +132,12 @@ func TestEnsureBootstrapGraphSchemaAppliesAndMarksMissingMarker(t *testing.T) {
 	t.Parallel()
 
 	app := graph.MustSchemaApplicationForBackend(graph.SchemaBackendNornicDB)
-	db := &graphSchemaBootstrapDB{app: app, missingUntilMarked: true}
+	database := &graphSchemaBootstrapDB{app: app, missingUntilMarked: true}
 	executor := &recordingGraphSchemaExecutor{}
 	closed := false
 	err := ensureBootstrapGraphSchemaWithOpener(
 		context.Background(),
-		db,
+		database,
 		func(string) string { return "" },
 		nil,
 		func(context.Context, func(string) string) (graph.SchemaBackend, graph.CypherExecutor, func() error, error) {
@@ -153,7 +153,7 @@ func TestEnsureBootstrapGraphSchemaAppliesAndMarksMissingMarker(t *testing.T) {
 	if executor.count == 0 {
 		t.Fatal("graph schema executor was not called")
 	}
-	if !db.marked {
+	if !database.marked {
 		t.Fatal("graph schema marker was not written")
 	}
 	if !closed {
@@ -164,7 +164,7 @@ func TestEnsureBootstrapGraphSchemaAppliesAndMarksMissingMarker(t *testing.T) {
 func TestEnsureBootstrapGraphSchemaRejectsIncompatibleMarkerWithoutOpeningGraph(t *testing.T) {
 	t.Parallel()
 
-	db := &graphSchemaBootstrapDB{
+	database := &graphSchemaBootstrapDB{
 		app: graph.MustSchemaApplicationForBackend(graph.SchemaBackendNornicDB),
 		rows: [][]any{{
 			"different-fingerprint",
@@ -174,7 +174,7 @@ func TestEnsureBootstrapGraphSchemaRejectsIncompatibleMarkerWithoutOpeningGraph(
 	opened := false
 	err := ensureBootstrapGraphSchemaWithOpener(
 		context.Background(),
-		db,
+		database,
 		func(string) string { return "" },
 		nil,
 		func(context.Context, func(string) string) (graph.SchemaBackend, graph.CypherExecutor, func() error, error) {
@@ -188,7 +188,7 @@ func TestEnsureBootstrapGraphSchemaRejectsIncompatibleMarkerWithoutOpeningGraph(
 	if opened {
 		t.Fatal("graph schema opener called for incompatible marker")
 	}
-	if db.marked {
+	if database.marked {
 		t.Fatal("graph schema marker was written for incompatible marker")
 	}
 }
@@ -197,11 +197,11 @@ func TestEnsureBootstrapGraphSchemaDoesNotMarkAfterApplyFailure(t *testing.T) {
 	t.Parallel()
 
 	app := graph.MustSchemaApplicationForBackend(graph.SchemaBackendNornicDB)
-	db := &graphSchemaBootstrapDB{app: app, missingUntilMarked: true}
+	database := &graphSchemaBootstrapDB{app: app, missingUntilMarked: true}
 	executor := &recordingGraphSchemaExecutor{err: errors.New("schema apply failed")}
 	err := ensureBootstrapGraphSchemaWithOpener(
 		context.Background(),
-		db,
+		database,
 		func(string) string { return "" },
 		nil,
 		func(context.Context, func(string) string) (graph.SchemaBackend, graph.CypherExecutor, func() error, error) {
@@ -211,7 +211,7 @@ func TestEnsureBootstrapGraphSchemaDoesNotMarkAfterApplyFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("ensureBootstrapGraphSchemaWithOpener() error = nil, want apply error")
 	}
-	if db.marked {
+	if database.marked {
 		t.Fatal("graph schema marker was written after apply failure")
 	}
 }

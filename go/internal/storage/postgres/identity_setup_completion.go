@@ -131,10 +131,10 @@ func (s *IdentitySubjectStore) CompleteSetupMFA(
 // owner from an existing row in the same request.
 func selectBootstrapCredentialConsumedState(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	tenantID, workspaceID, subjectIDHash string,
 ) (bool, error) {
-	rows, err := db.QueryContext(ctx, selectBootstrapCredentialConsumedStateQuery, tenantID, workspaceID, subjectIDHash)
+	rows, err := database.QueryContext(ctx, selectBootstrapCredentialConsumedStateQuery, tenantID, workspaceID, subjectIDHash)
 	if err != nil {
 		return false, fmt.Errorf("select bootstrap credential consumed state: %w", err)
 	}

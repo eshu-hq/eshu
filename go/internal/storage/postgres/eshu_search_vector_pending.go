@@ -100,13 +100,13 @@ type EshuSearchVectorPendingScope struct {
 // reference the live regression test compares the new scheduler against, so the
 // two must return an identical pending set. Do not re-wire it into production.
 type EshuSearchVectorPendingStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewEshuSearchVectorPendingStore builds the retired reference pending lister
 // used only by the #4233 equivalence regression test.
-func NewEshuSearchVectorPendingStore(db db.ExecQueryer) EshuSearchVectorPendingStore {
-	return EshuSearchVectorPendingStore{db: db}
+func NewEshuSearchVectorPendingStore(database db.ExecQueryer) EshuSearchVectorPendingStore {
+	return EshuSearchVectorPendingStore{database: database}
 }
 
 // ListPendingSearchVectorScopes returns active scopes with missing ready vector
@@ -115,7 +115,7 @@ func (s EshuSearchVectorPendingStore) ListPendingSearchVectorScopes(
 	ctx context.Context,
 	req EshuSearchVectorPendingRequest,
 ) ([]EshuSearchVectorPendingScope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("eshu search vector pending store requires a database")
 	}
 	if req.EmbeddingModelID == "" {
@@ -138,7 +138,7 @@ func (s EshuSearchVectorPendingStore) ListPendingSearchVectorScopes(
 		limit = eshuSearchVectorPendingMaxLimit
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listPendingEshuSearchVectorScopesSQL,
 		EshuSearchDocumentFactKind,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres //nolint:filelength // 501 lines: the #6693 db-contract import (db.ExecQueryer/db.Beginner) pushed this 499-line store file one line over the cap; the store itself is unchanged and shrinks as domains leave the root package.
+package postgres
 
 import (
 	"context"
@@ -173,17 +173,17 @@ func CodeReachabilitySchemaSQL() string {
 
 // CodeReachabilityStore persists reducer-materialized code reachability rows.
 type CodeReachabilityStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewCodeReachabilityStore creates a Postgres-backed code reachability store.
-func NewCodeReachabilityStore(db db.ExecQueryer) *CodeReachabilityStore {
-	return &CodeReachabilityStore{db: db}
+func NewCodeReachabilityStore(database db.ExecQueryer) *CodeReachabilityStore {
+	return &CodeReachabilityStore{database: database}
 }
 
 // EnsureSchema applies the code reachability DDL.
 func (s *CodeReachabilityStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, codeReachabilitySchemaSQL)
+	_, err := s.database.ExecContext(ctx, codeReachabilitySchemaSQL)
 	return err
 }
 
@@ -197,7 +197,7 @@ func (s *CodeReachabilityStore) Upsert(ctx context.Context, rows []codeintel.Cod
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := upsertCodeReachabilityBatch(ctx, s.db, rows[i:end]); err != nil {
+		if err := upsertCodeReachabilityBatch(ctx, s.database, rows[i:end]); err != nil {
 			return err
 		}
 	}
@@ -230,7 +230,7 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 	if watermark.IsZero() {
 		return fmt.Errorf("code reachability replacement requires a non-zero watermark")
 	}
-	if beginner, ok := s.db.(db.Beginner); ok {
+	if beginner, ok := s.database.(db.Beginner); ok {
 		tx, err := beginner.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin code reachability replacement: %w", err)
@@ -244,7 +244,7 @@ func (s *CodeReachabilityStore) ReplaceRepositoryRows(
 		}
 		return nil
 	}
-	return replaceCodeReachabilityRepositoryRows(ctx, s.db, scopeID, generationID, repositoryID, rows, verdicts, watermark.UTC(), truncated)
+	return replaceCodeReachabilityRepositoryRows(ctx, s.database, scopeID, generationID, repositoryID, rows, verdicts, watermark.UTC(), truncated)
 }
 
 // ListLatestByEntities returns the strongest active-generation reachability row
@@ -261,7 +261,7 @@ func (s *CodeReachabilityStore) ListLatestByEntities(
 	}
 
 	query, args := buildListLatestCodeReachabilityByEntitiesQuery(repositoryID, entityIDs)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query latest code reachability rows: %w", err)
 	}
@@ -281,7 +281,7 @@ func (s *CodeReachabilityStore) ListLatestByEntities(
 	return result, rows.Err()
 }
 
-func upsertCodeReachabilityBatch(ctx context.Context, db db.ExecQueryer, rows []codeintel.CodeReachabilityRow) error {
+func upsertCodeReachabilityBatch(ctx context.Context, database db.ExecQueryer, rows []codeintel.CodeReachabilityRow) error {
 	values := make([]string, 0, len(rows))
 	args := make([]any, 0, len(rows)*codeReachabilityColumns)
 	for _, row := range rows {
@@ -318,7 +318,7 @@ func upsertCodeReachabilityBatch(ctx context.Context, db db.ExecQueryer, rows []
 	}
 
 	query := upsertCodeReachabilityBatchPrefix + strings.Join(values, ", ") + upsertCodeReachabilityBatchSuffix
-	_, err := db.ExecContext(ctx, query, args...)
+	_, err := database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("upsert code reachability rows: %w", err)
 	}
@@ -327,7 +327,7 @@ func upsertCodeReachabilityBatch(ctx context.Context, db db.ExecQueryer, rows []
 
 func replaceCodeReachabilityRepositoryRows(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	scopeID string,
 	generationID string,
 	repositoryID string,
@@ -340,10 +340,10 @@ func replaceCodeReachabilityRepositoryRows(
 	// insert reachability -> insert verdicts -> upsert watermark. The delete
 	// pair fully clears the partition before re-insert so a shrinking snapshot
 	// (fewer roots after a downgrade) never leaves stale rows behind.
-	if _, err := db.ExecContext(ctx, deleteCodeReachabilityRepositoryRowsSQL, scopeID, generationID, repositoryID); err != nil {
+	if _, err := database.ExecContext(ctx, deleteCodeReachabilityRepositoryRowsSQL, scopeID, generationID, repositoryID); err != nil {
 		return fmt.Errorf("delete code reachability rows: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, deleteCodeRootVerdictsRepositoryRowsSQL, scopeID, generationID, repositoryID); err != nil {
+	if _, err := database.ExecContext(ctx, deleteCodeRootVerdictsRepositoryRowsSQL, scopeID, generationID, repositoryID); err != nil {
 		return fmt.Errorf("delete code root verdicts: %w", err)
 	}
 	if len(rows) > 0 {
@@ -352,7 +352,7 @@ func replaceCodeReachabilityRepositoryRows(
 			if end > len(rows) {
 				end = len(rows)
 			}
-			if err := upsertCodeReachabilityBatch(ctx, db, rows[i:end]); err != nil {
+			if err := upsertCodeReachabilityBatch(ctx, database, rows[i:end]); err != nil {
 				return err
 			}
 		}
@@ -363,7 +363,7 @@ func replaceCodeReachabilityRepositoryRows(
 			if end > len(verdicts) {
 				end = len(verdicts)
 			}
-			if err := upsertCodeRootVerdictBatch(ctx, db, verdicts[i:end]); err != nil {
+			if err := upsertCodeRootVerdictBatch(ctx, database, verdicts[i:end]); err != nil {
 				return err
 			}
 		}
@@ -372,13 +372,13 @@ func replaceCodeReachabilityRepositoryRows(
 	// reachability + verdict replacement. A crash before commit leaves the
 	// pre-upgrade epoch (0) in place, so the repo is re-scheduled — "epoch
 	// stamped but verdicts absent" is impossible.
-	if _, err := db.ExecContext(ctx, upsertCodeReachabilityRepositoryWatermarkSQL, scopeID, generationID, repositoryID, truncated, watermark, CodeReachabilityVerdictSchemaEpoch); err != nil {
+	if _, err := database.ExecContext(ctx, upsertCodeReachabilityRepositoryWatermarkSQL, scopeID, generationID, repositoryID, truncated, watermark, CodeReachabilityVerdictSchemaEpoch); err != nil {
 		return fmt.Errorf("upsert code reachability watermark: %w", err)
 	}
 	return nil
 }
 
-func upsertCodeRootVerdictBatch(ctx context.Context, db db.ExecQueryer, verdicts []codeintel.CodeRootVerdictRow) error {
+func upsertCodeRootVerdictBatch(ctx context.Context, database db.ExecQueryer, verdicts []codeintel.CodeRootVerdictRow) error {
 	values := make([]string, 0, len(verdicts))
 	args := make([]any, 0, len(verdicts)*codeRootVerdictColumns)
 	for _, verdict := range verdicts {
@@ -407,7 +407,7 @@ func upsertCodeRootVerdictBatch(ctx context.Context, db db.ExecQueryer, verdicts
 	}
 
 	query := upsertCodeRootVerdictBatchPrefix + strings.Join(values, ", ") + upsertCodeRootVerdictBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert code root verdicts: %w", err)
 	}
 	return nil
@@ -471,31 +471,4 @@ func scanCodeReachabilityRow(rows db.Rows) (codeintel.CodeReachabilityRow, error
 		return codeintel.CodeReachabilityRow{}, fmt.Errorf("unmarshal code reachability root kinds: %w", err)
 	}
 	return row, nil
-}
-
-func cleanCodeReachabilityEntityIDs(entityIDs []string) []string {
-	seen := make(map[string]struct{}, len(entityIDs))
-	cleaned := make([]string, 0, len(entityIDs))
-	for _, entityID := range entityIDs {
-		entityID = strings.TrimSpace(entityID)
-		if entityID == "" {
-			continue
-		}
-		if _, ok := seen[entityID]; ok {
-			continue
-		}
-		seen[entityID] = struct{}{}
-		cleaned = append(cleaned, entityID)
-	}
-	return cleaned
-}
-
-func strongerCodeReachabilityRow(left, right codeintel.CodeReachabilityRow) bool {
-	if left.Confidence != right.Confidence {
-		return left.Confidence > right.Confidence
-	}
-	if left.Depth != right.Depth {
-		return left.Depth < right.Depth
-	}
-	return left.RootEntityID < right.RootEntityID
 }

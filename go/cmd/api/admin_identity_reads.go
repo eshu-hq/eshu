@@ -24,16 +24,16 @@ import (
 // rather than panicking. logger is the API's structured logger, threaded to the
 // audit reader's store so its unknown-enum warn (#6574) lands in the API log.
 func newAdminIdentityReadHandler(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 	logger *slog.Logger,
 ) *query.AdminIdentityReadHandler {
 	handler := &query.AdminIdentityReadHandler{}
-	if store := newPostgresAdminIdentityReadAdapter(db, instruments); store != nil {
+	if store := newPostgresAdminIdentityReadAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
-	if reader := newAdminGovernanceAuditReader(db, instruments, governanceAudit, logger); reader != nil {
+	if reader := newAdminGovernanceAuditReader(database, instruments, governanceAudit, logger); reader != nil {
 		handler.Audit = reader
 	}
 	return handler

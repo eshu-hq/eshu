@@ -20,9 +20,9 @@ type PostgresAdmissionDecisionReadStore struct {
 
 // NewPostgresAdmissionDecisionReadStore creates a Postgres-backed admission
 // decision read store.
-func NewPostgresAdmissionDecisionReadStore(db db.ExecQueryer) PostgresAdmissionDecisionReadStore {
+func NewPostgresAdmissionDecisionReadStore(database db.ExecQueryer) PostgresAdmissionDecisionReadStore {
 	return PostgresAdmissionDecisionReadStore{
-		store: postgres.NewAdmissionDecisionStore(db),
+		store: postgres.NewAdmissionDecisionStore(database),
 	}
 }
 

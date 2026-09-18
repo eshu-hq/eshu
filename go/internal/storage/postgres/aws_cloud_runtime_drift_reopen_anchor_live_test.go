@@ -94,7 +94,7 @@ func TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive(t 
 	seedAWSResourceFactMinimal(t, ctx, sqlDB, awsScopeID, awsGenerationID, arn, "aws_lambda_function", clock)
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: sqlDB},
+		database:      SQLDB{DB: sqlDB},
 		LeaseOwner:    "reducer-reopen-anchor",
 		LeaseDuration: time.Minute,
 		RetryDelay:    time.Minute,

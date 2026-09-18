@@ -29,15 +29,15 @@ type observabilityCoverageReadinessQueueDB struct {
 	claimQueries int
 }
 
-func (db *observabilityCoverageReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *observabilityCoverageReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *observabilityCoverageReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (database *observabilityCoverageReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	db.claimQueries++
+	database.claimQueries++
 
 	// The same readiness gate must cover the observability coverage domain.
 	if !strings.Contains(query, "observability_coverage_materialization") {
@@ -50,11 +50,11 @@ func (db *observabilityCoverageReadinessQueueDB) QueryContext(_ context.Context,
 		"cloud_resource_uid",
 		"canonical_nodes_committed",
 	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
-	if hasReadinessGate && !db.phaseReady {
+	if hasReadinessGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.status)
+	status := strings.TrimSpace(database.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -67,18 +67,18 @@ func (db *observabilityCoverageReadinessQueueDB) QueryContext(_ context.Context,
 		"aws:123456789012:us-east-1:lambda",
 		"gen-aws-1",
 		string(reducer.DomainObservabilityCoverageMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:123456789012:us-east-1:lambda","reason":"aws observability resource facts observed","fact_id":"fact-alarm-1","source_system":"aws"}`),
 	}}}, nil
 }
 
-func observabilityCoverageReadinessQueue(db *observabilityCoverageReadinessQueueDB, now time.Time) ReducerQueue {
+func observabilityCoverageReadinessQueue(database *observabilityCoverageReadinessQueueDB, now time.Time) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -89,12 +89,12 @@ func TestReducerQueueClaimWaitsForObservabilityCoverageReadinessBehavior(t *test
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 31, 11, 10, 0, 0, time.UTC)
-	db := &observabilityCoverageReadinessQueueDB{
+	database := &observabilityCoverageReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		status:     "pending",
 	}
-	queue := observabilityCoverageReadinessQueue(db, now)
+	queue := observabilityCoverageReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
@@ -104,7 +104,7 @@ func TestReducerQueueClaimWaitsForObservabilityCoverageReadinessBehavior(t *test
 		t.Fatalf("Claim() claimed %q before canonical readiness, want unclaimed waiting work", intent.IntentID)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)

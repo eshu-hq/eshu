@@ -65,7 +65,7 @@ func (s FactStore) ListActiveCICDWorkflowImageFacts(
 	ctx context.Context,
 	repositoryIDs []string,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	repositoryIDs = cleanStringFilterValues(repositoryIDs)
@@ -73,7 +73,7 @@ func (s FactStore) ListActiveCICDWorkflowImageFacts(
 		return nil, nil
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveCICDWorkflowImageFactsQuery,
 		pgarray.Array(repositoryIDs),

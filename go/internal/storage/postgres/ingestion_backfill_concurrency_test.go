@@ -32,29 +32,29 @@ type concurrencyProbeDB struct {
 	allEvidence []fakeExecCall
 }
 
-func (db *concurrencyProbeDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (database *concurrencyProbeDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	// The pre-batch active-generation load runs on the base handle.
-	return &queueFakeRows{rows: db.activeGenRows}, nil
+	return &queueFakeRows{rows: database.activeGenRows}, nil
 }
 
-func (db *concurrencyProbeDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *concurrencyProbeDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *concurrencyProbeDB) Begin(context.Context) (db.Transaction, error) {
-	db.mu.Lock()
-	db.open++
-	db.beginCount++
-	if db.open > db.peakOpen {
-		db.peakOpen = db.open
+func (database *concurrencyProbeDB) Begin(context.Context) (db.Transaction, error) {
+	database.mu.Lock()
+	database.open++
+	database.beginCount++
+	if database.open > database.peakOpen {
+		database.peakOpen = database.open
 	}
-	db.mu.Unlock()
-	return &concurrencyProbeTx{db: db, gens: db.activeGenRows}, nil
+	database.mu.Unlock()
+	return &concurrencyProbeTx{database: database, gens: database.activeGenRows}, nil
 }
 
 type concurrencyProbeTx struct {
-	db   *concurrencyProbeDB
-	gens [][]any
+	database *concurrencyProbeDB
+	gens     [][]any
 }
 
 func (tx *concurrencyProbeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
@@ -106,24 +106,24 @@ func (tx *concurrencyProbeTx) activeGenerationRowsForScope(args []any) [][]any {
 func (tx *concurrencyProbeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	// Simulate per-statement work so overlapping batches actually overlap in time.
 	time.Sleep(time.Millisecond)
-	tx.db.mu.Lock()
-	tx.db.allEvidence = append(tx.db.allEvidence, fakeExecCall{query: query, args: args})
-	tx.db.mu.Unlock()
+	tx.database.mu.Lock()
+	tx.database.allEvidence = append(tx.database.allEvidence, fakeExecCall{query: query, args: args})
+	tx.database.mu.Unlock()
 	return fakeResult{}, nil
 }
 
 func (tx *concurrencyProbeTx) Commit() error {
-	tx.db.mu.Lock()
-	tx.db.open--
-	tx.db.committed++
-	tx.db.mu.Unlock()
+	tx.database.mu.Lock()
+	tx.database.open--
+	tx.database.committed++
+	tx.database.mu.Unlock()
 	return nil
 }
 
 func (tx *concurrencyProbeTx) Rollback() error {
-	tx.db.mu.Lock()
-	tx.db.open--
-	tx.db.mu.Unlock()
+	tx.database.mu.Lock()
+	tx.database.open--
+	tx.database.mu.Unlock()
 	return nil
 }
 

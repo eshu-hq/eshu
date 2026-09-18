@@ -97,13 +97,13 @@ ORDER BY function_id ASC, param_index ASC, kind ASC
 // ValueFlowProgramInputStore loads bounded runtime inputs for value-flow Program
 // assembly from active code-call projection state and persisted summaries.
 type ValueFlowProgramInputStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewValueFlowProgramInputStore constructs a Postgres-backed value-flow Program
 // input loader.
-func NewValueFlowProgramInputStore(db db.ExecQueryer) ValueFlowProgramInputStore {
-	return ValueFlowProgramInputStore{db: db}
+func NewValueFlowProgramInputStore(database db.ExecQueryer) ValueFlowProgramInputStore {
+	return ValueFlowProgramInputStore{database: database}
 }
 
 // LoadPendingValueFlowProgramInputs loads active-generation value-flow Program
@@ -112,7 +112,7 @@ func (s ValueFlowProgramInputStore) LoadPendingValueFlowProgramInputs(
 	ctx context.Context,
 	limit int,
 ) ([]reducer.ValueFlowProgramInput, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("value-flow program input store database is required")
 	}
 	if limit <= 0 {
@@ -145,7 +145,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramCandidates(
 	ctx context.Context,
 	limit int,
 ) ([]valueFlowProgramCandidate, error) {
-	rows, err := s.db.QueryContext(ctx, listPendingValueFlowProgramInputsSQL, limit)
+	rows, err := s.database.QueryContext(ctx, listPendingValueFlowProgramInputsSQL, limit)
 	if err != nil {
 		return nil, fmt.Errorf("query pending value-flow program inputs: %w", err)
 	}
@@ -203,7 +203,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramCallEdges(
 	ctx context.Context,
 	candidate valueFlowProgramCandidate,
 ) ([]reducer.ValueFlowCallEdge, int, map[string]struct{}, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listValueFlowProgramCallEdgesSQL,
 		candidate.scopeID,
@@ -252,7 +252,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramSummaries(
 	repos map[string]struct{},
 ) (map[summary.FunctionID]summary.Effects, error) {
 	out := make(map[summary.FunctionID]summary.Effects)
-	store := NewFunctionSummaryStore(s.db)
+	store := NewFunctionSummaryStore(s.database)
 	for _, repo := range sortedValueFlowProgramRepos(repos) {
 		snap, err := store.LoadRepoSnapshot(ctx, repo)
 		if err != nil {
@@ -271,7 +271,7 @@ func (s ValueFlowProgramInputStore) loadValueFlowProgramSources(
 ) ([]interproc.Source, error) {
 	var out []interproc.Source
 	for _, repo := range sortedValueFlowProgramRepos(repos) {
-		rows, err := s.db.QueryContext(ctx, listValueFlowProgramSourcesSQL, repo)
+		rows, err := s.database.QueryContext(ctx, listValueFlowProgramSourcesSQL, repo)
 		if err != nil {
 			return nil, fmt.Errorf("query value-flow program sources: %w", err)
 		}

@@ -100,7 +100,7 @@ func (r githubGrantResolverAdapter) ResolveGroupGrants(
 
 func newGitHubLoginHandler(
 	getenv func(string) string,
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	providerSecretKeyring *secretcrypto.Keyring,
 ) (*query.GitHubLoginHandler, error) {
@@ -123,7 +123,7 @@ func newGitHubLoginHandler(
 	if configPath == "" && !enabled {
 		return nil, nil
 	}
-	if db == nil {
+	if database == nil {
 		return nil, fmt.Errorf("postgres is required for github login")
 	}
 
@@ -163,10 +163,10 @@ func newGitHubLoginHandler(
 	}
 	config = normalized
 
-	store := newPostgresGitHubStoreAdapter(db, instruments)
-	oidcStoreForGrants := newPostgresOIDCStoreAdapter(db, instruments).store
+	store := newPostgresGitHubStoreAdapter(database, instruments)
+	oidcStoreForGrants := newPostgresOIDCStoreAdapter(database, instruments).store
 	var serviceOptions []githublogin.Option
-	if resolver := newGitHubDBProviderResolver(db, providerSecretKeyring); resolver != nil {
+	if resolver := newGitHubDBProviderResolver(database, providerSecretKeyring); resolver != nil {
 		serviceOptions = append(serviceOptions, githublogin.WithDBProviderResolver(resolver))
 	}
 	service := githublogin.NewService(
@@ -182,7 +182,7 @@ func newGitHubLoginHandler(
 	}
 	return &query.GitHubLoginHandler{
 		Service:              githubServiceAdapter{service},
-		SessionIssuer:        newBrowserSessionHandler(db, instruments, cookieSecureMode),
+		SessionIssuer:        newBrowserSessionHandler(database, instruments, cookieSecureMode),
 		SessionRefreshWindow: sessionRefreshWindow,
 	}, nil
 }

@@ -45,13 +45,13 @@ type recordingReducerInputInvalidFactDB struct {
 	args       [][]any
 }
 
-func (db *recordingReducerInputInvalidFactDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.statements = append(db.statements, query)
-	db.args = append(db.args, args)
+func (database *recordingReducerInputInvalidFactDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.statements = append(database.statements, query)
+	database.args = append(database.args, args)
 	return driverResult{}, nil
 }
 
-func (db *recordingReducerInputInvalidFactDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
+func (database *recordingReducerInputInvalidFactDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("QueryContext not used by ReducerInputInvalidFactStore.WriteQuarantinedFacts")
 }
 
@@ -63,8 +63,8 @@ func (driverResult) RowsAffected() (int64, error) { return 0, nil }
 func TestReducerInputInvalidFactStoreWriteBatchesAndUsesConflictDoNothing(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingReducerInputInvalidFactDB{}
-	store := NewReducerInputInvalidFactStore(db)
+	database := &recordingReducerInputInvalidFactDB{}
+	store := NewReducerInputInvalidFactStore(database)
 	now := time.Now().UTC()
 
 	// One row over the batch size forces two statements, proving the batching
@@ -87,10 +87,10 @@ func TestReducerInputInvalidFactStoreWriteBatchesAndUsesConflictDoNothing(t *tes
 		t.Fatalf("WriteQuarantinedFacts() error = %v", err)
 	}
 
-	if len(db.statements) != 2 {
-		t.Fatalf("statement count = %d, want 2 batches for %d rows over batch size %d", len(db.statements), len(records), reducerInputInvalidFactBatchSize)
+	if len(database.statements) != 2 {
+		t.Fatalf("statement count = %d, want 2 batches for %d rows over batch size %d", len(database.statements), len(records), reducerInputInvalidFactBatchSize)
 	}
-	for i, stmt := range db.statements {
+	for i, stmt := range database.statements {
 		if !strings.Contains(stmt, "INSERT INTO reducer_input_invalid_facts") {
 			t.Fatalf("statement[%d] missing INSERT INTO reducer_input_invalid_facts: %s", i, stmt)
 		}
@@ -98,18 +98,18 @@ func TestReducerInputInvalidFactStoreWriteBatchesAndUsesConflictDoNothing(t *tes
 			t.Fatalf("statement[%d] missing the idempotent ON CONFLICT DO NOTHING clause: %s", i, stmt)
 		}
 	}
-	if len(db.args[0]) != reducerInputInvalidFactBatchSize*reducerInputInvalidFactColumnsPerRow {
-		t.Fatalf("first batch arg count = %d, want %d", len(db.args[0]), reducerInputInvalidFactBatchSize*reducerInputInvalidFactColumnsPerRow)
+	if len(database.args[0]) != reducerInputInvalidFactBatchSize*reducerInputInvalidFactColumnsPerRow {
+		t.Fatalf("first batch arg count = %d, want %d", len(database.args[0]), reducerInputInvalidFactBatchSize*reducerInputInvalidFactColumnsPerRow)
 	}
-	if len(db.args[1]) != reducerInputInvalidFactColumnsPerRow {
-		t.Fatalf("second batch arg count = %d, want %d (one leftover row)", len(db.args[1]), reducerInputInvalidFactColumnsPerRow)
+	if len(database.args[1]) != reducerInputInvalidFactColumnsPerRow {
+		t.Fatalf("second batch arg count = %d, want %d (one leftover row)", len(database.args[1]), reducerInputInvalidFactColumnsPerRow)
 	}
 
 	// Empty input must be a true no-op: no statements at all.
 	if err := store.WriteQuarantinedFacts(context.Background(), nil); err != nil {
 		t.Fatalf("WriteQuarantinedFacts(nil) error = %v", err)
 	}
-	if len(db.statements) != 2 {
-		t.Fatalf("statement count after empty write = %d, want unchanged 2", len(db.statements))
+	if len(database.statements) != 2 {
+		t.Fatalf("statement count after empty write = %d, want unchanged 2", len(database.statements))
 	}
 }

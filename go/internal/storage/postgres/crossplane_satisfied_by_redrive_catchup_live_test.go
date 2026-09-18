@@ -45,7 +45,7 @@ func (f *crossplaneRedriveFailingReplayer) ReplayCrossplaneSatisfiedByMaterializ
 // remaining targets the failed attempt never reached.
 func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	database := crossplaneRedriveProofConn(t, dsn, schema)
 	ctx := context.Background()
 	now := time.Now().UTC()
 
@@ -61,19 +61,19 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	// target-c is never reached by the failed attempt.
 	targets := []string{"scope-claim-catchup-a", "scope-claim-catchup-b", "scope-claim-catchup-c"}
 
-	seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, xrdGenerationID, group, claimKind, now)
+	seedCrossplaneRedriveXRD(ctx, t, database, xrdScopeID, xrdGenerationID, group, claimKind, now)
 	for i, targetScopeID := range targets {
 		generationID := targetScopeID + "-gen-001"
-		seedCrossplaneRedriveClaimScope(ctx, t, db, targetScopeID, generationID, group, claimKind, 1, now.Add(time.Duration(i)*time.Second))
+		seedCrossplaneRedriveClaimScope(ctx, t, database, targetScopeID, generationID, group, claimKind, 1, now.Add(time.Duration(i)*time.Second))
 	}
 
-	realReducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
+	realReducerQueue := NewReducerQueue(SQLDB{DB: database}, "test-owner", time.Minute)
 	failingReplayer := &crossplaneRedriveFailingReplayer{real: realReducerQueue, failAfter: 2}
 
 	shortLease := 300 * time.Millisecond
 	failingSweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:            SQLQueryer{DB: db},
-		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+		DB:            SQLQueryer{DB: database},
+		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: database}),
 		Replayer:      failingReplayer,
 		Owner:         "projector",
 		LeaseDuration: shortLease,
@@ -88,17 +88,17 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	// The row must be left 'claimed', not 'completed' and not rolled back to
 	// 'queued' -- a crash/error must not silently discard the in-progress
 	// claim.
-	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGenerationID, "claimed")
+	assertCrossplaneRedriveStateStatus(ctx, t, database, xrdScopeID, xrdGenerationID, "claimed")
 
 	// Only target-a succeeded before the injected failure on call 2
 	// (target-b); target-c was never attempted. None of the three carry a
 	// ledger entry: enqueuing an intent (this test never runs the actual
 	// reducer handler) must never write the ledger -- only a handler that
 	// actually commits an edge does (see crossplane_satisfied_by_redrive_ledger_live_test.go).
-	assertCrossplaneRedriveTargetPending(ctx, t, db, targets[0], targets[0]+"-gen-001", true)
-	assertCrossplaneRedriveLedgerEntry(ctx, t, db, targets[0], group, claimKind, false)
-	assertCrossplaneRedriveLedgerEntry(ctx, t, db, targets[1], group, claimKind, false)
-	assertCrossplaneRedriveLedgerEntry(ctx, t, db, targets[2], group, claimKind, false)
+	assertCrossplaneRedriveTargetPending(ctx, t, database, targets[0], targets[0]+"-gen-001", true)
+	assertCrossplaneRedriveLedgerEntry(ctx, t, database, targets[0], group, claimKind, false)
+	assertCrossplaneRedriveLedgerEntry(ctx, t, database, targets[1], group, claimKind, false)
+	assertCrossplaneRedriveLedgerEntry(ctx, t, database, targets[2], group, claimKind, false)
 
 	// Wait past the short lease, then run the catch-up path with a sweeper
 	// wired to the REAL (non-failing) replayer -- exactly what
@@ -106,8 +106,8 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	time.Sleep(shortLease + 200*time.Millisecond)
 
 	catchUpSweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:            SQLQueryer{DB: db},
-		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+		DB:            SQLQueryer{DB: database},
+		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: database}),
 		Replayer:      realReducerQueue,
 		Owner:         "projector",
 		LeaseDuration: time.Minute,
@@ -128,10 +128,10 @@ func TestCrossplaneRedriveSweepMidFanOutFailureRecoveredByCatchUpLive(t *testing
 	// reducer handler, so the ledger (correctly) stays empty throughout; see
 	// crossplane_satisfied_by_redrive_ledger_live_test.go for the ledger's
 	// own write-timing proof.
-	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGenerationID, "completed")
+	assertCrossplaneRedriveStateStatus(ctx, t, database, xrdScopeID, xrdGenerationID, "completed")
 	for _, targetScopeID := range targets {
-		assertCrossplaneRedriveLedgerEntry(ctx, t, db, targetScopeID, group, claimKind, false)
-		assertCrossplaneRedriveTargetPending(ctx, t, db, targetScopeID, targetScopeID+"-gen-001", true)
+		assertCrossplaneRedriveLedgerEntry(ctx, t, database, targetScopeID, group, claimKind, false)
+		assertCrossplaneRedriveTargetPending(ctx, t, database, targetScopeID, targetScopeID+"-gen-001", true)
 	}
 }
 
@@ -171,7 +171,7 @@ func (f *crossplaneRedriveFailingQueryer) QueryContext(
 // even looked for.
 func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing.T) {
 	dsn, schema := crossplaneRedriveProofSchema(t)
-	db := crossplaneRedriveProofConn(t, dsn, schema)
+	database := crossplaneRedriveProofConn(t, dsn, schema)
 	ctx := context.Background()
 	now := time.Now().UTC()
 
@@ -184,20 +184,20 @@ func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing
 	targetScopeID := "scope-claim-lookup-fail-a"
 	targetGenerationID := targetScopeID + "-gen-001"
 
-	seedCrossplaneRedriveXRD(ctx, t, db, xrdScopeID, xrdGenerationID, group, claimKind, now)
-	seedCrossplaneRedriveClaimScope(ctx, t, db, targetScopeID, targetGenerationID, group, claimKind, 1, now)
+	seedCrossplaneRedriveXRD(ctx, t, database, xrdScopeID, xrdGenerationID, group, claimKind, now)
+	seedCrossplaneRedriveClaimScope(ctx, t, database, targetScopeID, targetGenerationID, group, claimKind, 1, now)
 
-	realReducerQueue := NewReducerQueue(SQLDB{DB: db}, "test-owner", time.Minute)
+	realReducerQueue := NewReducerQueue(SQLDB{DB: database}, "test-owner", time.Minute)
 
 	shortLease := 300 * time.Millisecond
 	// failAfter=1: the FIRST QueryContext call issued against s.DB is
 	// loadActiveXRDJoinKeys. EnsureQueued/ClaimExact run against s.State's
 	// own db handle (a separate ExecQueryer object below), so they are
 	// unaffected by this wrapper.
-	failingQueryer := &crossplaneRedriveFailingQueryer{real: SQLQueryer{DB: db}, failAfter: 1}
+	failingQueryer := &crossplaneRedriveFailingQueryer{real: SQLQueryer{DB: database}, failAfter: 1}
 	failingSweeper := CrossplaneSatisfiedByRedriveSweeper{
 		DB:            failingQueryer,
-		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: database}),
 		Replayer:      realReducerQueue,
 		Owner:         "projector",
 		LeaseDuration: shortLease,
@@ -212,10 +212,10 @@ func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing
 
 	// The row must exist and be 'claimed' -- created and claimed BEFORE the
 	// failed lookup ran, not left absent as it was before this fix.
-	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGenerationID, "claimed")
+	assertCrossplaneRedriveStateStatus(ctx, t, database, xrdScopeID, xrdGenerationID, "claimed")
 
 	// Nothing was enqueued: the lookup never even determined a join key.
-	assertCrossplaneRedriveTargetPending(ctx, t, db, targetScopeID, targetGenerationID, false)
+	assertCrossplaneRedriveTargetPending(ctx, t, database, targetScopeID, targetGenerationID, false)
 
 	// Wait past the short lease, then run the catch-up path with a sweeper
 	// wired to a REAL (non-failing) DB queryer -- exactly what
@@ -223,8 +223,8 @@ func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing
 	time.Sleep(shortLease + 200*time.Millisecond)
 
 	catchUpSweeper := CrossplaneSatisfiedByRedriveSweeper{
-		DB:            SQLQueryer{DB: db},
-		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: db}),
+		DB:            SQLQueryer{DB: database},
+		State:         NewCrossplaneRedriveStateStore(SQLDB{DB: database}),
 		Replayer:      realReducerQueue,
 		Owner:         "projector",
 		LeaseDuration: time.Minute,
@@ -240,13 +240,13 @@ func TestCrossplaneRedriveSweepXRDLookupFailureRecoveredByCatchUpLive(t *testing
 		t.Fatalf("expected the reclaimed sweep to complete, got outcome %q", results[0].Outcome)
 	}
 
-	assertCrossplaneRedriveStateStatus(ctx, t, db, xrdScopeID, xrdGenerationID, "completed")
-	assertCrossplaneRedriveTargetPending(ctx, t, db, targetScopeID, targetGenerationID, true)
+	assertCrossplaneRedriveStateStatus(ctx, t, database, xrdScopeID, xrdGenerationID, "completed")
+	assertCrossplaneRedriveTargetPending(ctx, t, database, targetScopeID, targetGenerationID, true)
 }
 
-func assertCrossplaneRedriveStateStatus(ctx context.Context, t *testing.T, db *sql.DB, xrdScopeID, xrdGenerationID, expectedStatus string) {
+func assertCrossplaneRedriveStateStatus(ctx context.Context, t *testing.T, database *sql.DB, xrdScopeID, xrdGenerationID, expectedStatus string) {
 	t.Helper()
-	rows, err := db.QueryContext(ctx, `
+	rows, err := database.QueryContext(ctx, `
 		SELECT status FROM crossplane_satisfied_by_redrive_state
 		WHERE xrd_scope_id = $1 AND xrd_generation_id = $2
 	`, xrdScopeID, xrdGenerationID)
@@ -266,9 +266,9 @@ func assertCrossplaneRedriveStateStatus(ctx context.Context, t *testing.T, db *s
 	}
 }
 
-func assertCrossplaneRedriveLedgerEntry(ctx context.Context, t *testing.T, db *sql.DB, targetScopeID, group, claimKind string, expectExists bool) {
+func assertCrossplaneRedriveLedgerEntry(ctx context.Context, t *testing.T, database *sql.DB, targetScopeID, group, claimKind string, expectExists bool) {
 	t.Helper()
-	rows, err := db.QueryContext(ctx, `
+	rows, err := database.QueryContext(ctx, `
 		SELECT 1 FROM crossplane_satisfied_by_redrive_target_ledger
 		WHERE target_scope_id = $1 AND xrd_group = $2 AND xrd_claim_kind = $3
 	`, targetScopeID, group, claimKind)
@@ -282,9 +282,9 @@ func assertCrossplaneRedriveLedgerEntry(ctx context.Context, t *testing.T, db *s
 	}
 }
 
-func assertCrossplaneRedriveTargetPending(ctx context.Context, t *testing.T, db *sql.DB, scopeID, generationID string, expectExists bool) {
+func assertCrossplaneRedriveTargetPending(ctx context.Context, t *testing.T, database *sql.DB, scopeID, generationID string, expectExists bool) {
 	t.Helper()
-	rows, err := db.QueryContext(ctx, `
+	rows, err := database.QueryContext(ctx, `
 		SELECT 1 FROM fact_work_items
 		WHERE scope_id = $1 AND generation_id = $2
 		  AND stage = 'reducer' AND domain = 'crossplane_satisfied_by_materialization'

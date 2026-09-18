@@ -66,7 +66,7 @@ func (s sleepingConfigStateDriftTrigger) TriggerConfigStateDrift(ctx context.Con
 func measureAck(t *testing.T, trigger ConfigStateDriftTrigger, n int) time.Duration {
 	t.Helper()
 	queue := ProjectorQueue{
-		db:                      ackLatencyFakeDB{},
+		database:                ackLatencyFakeDB{},
 		LeaseOwner:              "latency-test",
 		LeaseDuration:           time.Minute,
 		ConfigStateDriftTrigger: trigger,

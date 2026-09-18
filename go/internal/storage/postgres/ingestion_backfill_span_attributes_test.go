@@ -110,8 +110,8 @@ func TestBackfillDeferredSpanRecordsFanOutAttributes(t *testing.T) {
 			{rows: activeGens},
 		},
 	}
-	db := newBackfillTxDB(inner)
-	store := NewIngestionStore(db)
+	database := newBackfillTxDB(inner)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 	store.maintenanceWorkers = 2
 

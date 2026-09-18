@@ -390,7 +390,7 @@ func (s FactStore) listCICDRunFacts(
 	artifactTombstoneKeys []string,
 	includeScopeSnapshot bool,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	keys, err := cleanCICDRunHistoryKeys(providers, runIDs, runAttempts)
@@ -406,7 +406,7 @@ func (s FactStore) listCICDRunFacts(
 	}
 
 	providers, runIDs, runAttempts = splitCICDRunHistoryKeys(keys)
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listCICDRunFactsForRunKeysQuery,
 		strings.TrimSpace(scopeID),

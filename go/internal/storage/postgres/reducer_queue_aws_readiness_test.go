@@ -20,7 +20,7 @@ func TestReducerQueueClaimWaitsForAWSRelationshipReadinessBehavior(t *testing.T)
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 31, 10, 10, 0, 0, time.UTC)
-	db := &awsRelationshipReadinessQueueDB{
+	database := &awsRelationshipReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		item: awsRelationshipQueueItem{
@@ -28,7 +28,7 @@ func TestReducerQueueClaimWaitsForAWSRelationshipReadinessBehavior(t *testing.T)
 			attemptCount: 0,
 		},
 	}
-	queue := awsRelationshipReadinessQueue(db, now)
+	queue := awsRelationshipReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
@@ -37,11 +37,11 @@ func TestReducerQueueClaimWaitsForAWSRelationshipReadinessBehavior(t *testing.T)
 	if claimed {
 		t.Fatalf("Claim() claimed %q before canonical readiness, want unclaimed waiting work", intent.IntentID)
 	}
-	if db.claimQueries != 1 {
-		t.Fatalf("claim queries = %d, want 1", db.claimQueries)
+	if database.claimQueries != 1 {
+		t.Fatalf("claim queries = %d, want 1", database.claimQueries)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)
@@ -61,7 +61,7 @@ func TestReducerQueueClaimWaitsForRetryingAWSRelationshipReadinessBehavior(t *te
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 31, 10, 20, 0, 0, time.UTC)
-	db := &awsRelationshipReadinessQueueDB{
+	database := &awsRelationshipReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		item: awsRelationshipQueueItem{
@@ -69,7 +69,7 @@ func TestReducerQueueClaimWaitsForRetryingAWSRelationshipReadinessBehavior(t *te
 			attemptCount: 2,
 		},
 	}
-	queue := awsRelationshipReadinessQueue(db, now)
+	queue := awsRelationshipReadinessQueue(database, now)
 
 	if intent, claimed, err := queue.Claim(context.Background()); err != nil {
 		t.Fatalf("Claim() error = %v", err)
@@ -77,7 +77,7 @@ func TestReducerQueueClaimWaitsForRetryingAWSRelationshipReadinessBehavior(t *te
 		t.Fatalf("Claim() claimed retrying intent %q before readiness, want waiting", intent.IntentID)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)
@@ -94,7 +94,7 @@ func TestReducerQueueClaimAWSRelationshipAlreadyReadyBehavior(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 31, 10, 25, 0, 0, time.UTC)
-	db := &awsRelationshipReadinessQueueDB{
+	database := &awsRelationshipReadinessQueueDB{
 		now:        now,
 		phaseReady: true,
 		item: awsRelationshipQueueItem{
@@ -102,7 +102,7 @@ func TestReducerQueueClaimAWSRelationshipAlreadyReadyBehavior(t *testing.T) {
 			attemptCount: 0,
 		},
 	}
-	queue := awsRelationshipReadinessQueue(db, now)
+	queue := awsRelationshipReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
@@ -119,9 +119,9 @@ func TestReducerQueueClaimAWSRelationshipAlreadyReadyBehavior(t *testing.T) {
 	}
 }
 
-func awsRelationshipReadinessQueue(db *awsRelationshipReadinessQueueDB, now time.Time) ReducerQueue {
+func awsRelationshipReadinessQueue(database *awsRelationshipReadinessQueueDB, now time.Time) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -140,15 +140,15 @@ type awsRelationshipReadinessQueueDB struct {
 	claimQueries int
 }
 
-func (db *awsRelationshipReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *awsRelationshipReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *awsRelationshipReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (database *awsRelationshipReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	db.claimQueries++
+	database.claimQueries++
 
 	hasReadinessGate := queryHasBoundedReadinessRequirement(
 		query,
@@ -156,11 +156,11 @@ func (db *awsRelationshipReadinessQueueDB) QueryContext(_ context.Context, query
 		"cloud_resource_uid",
 		"canonical_nodes_committed",
 	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
-	if hasReadinessGate && !db.phaseReady {
+	if hasReadinessGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.item.status)
+	status := strings.TrimSpace(database.item.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -173,11 +173,11 @@ func (db *awsRelationshipReadinessQueueDB) QueryContext(_ context.Context, query
 		"aws:123456789012:us-east-1:lambda",
 		"gen-aws-1",
 		string(reducer.DomainAWSRelationshipMaterialization),
-		db.item.attemptCount + 1,
+		database.item.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:123456789012:us-east-1:lambda","reason":"aws runtime relationship facts observed","fact_id":"fact-rel-1","source_system":"aws"}`),
 	}}}, nil
 }

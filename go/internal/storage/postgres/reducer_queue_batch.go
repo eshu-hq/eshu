@@ -24,7 +24,7 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Inte
 	}
 
 	now := q.now()
-	rows, err := q.db.QueryContext(
+	rows, err := q.database.QueryContext(
 		ctx,
 		claimReducerWorkBatchQuery,
 		now,
@@ -93,7 +93,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 			q.LeaseOwner,
 			targetIntents,
 		)
-		result, err := q.db.ExecContext(ctx, query, args...)
+		result, err := q.database.ExecContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf(
 				"batch ack reducer work (%d target items): %w",
@@ -113,7 +113,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 			q.LeaseOwner,
 			cicdIntents,
 		)
-		result, err := q.db.ExecContext(ctx, query, args...)
+		result, err := q.database.ExecContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf(
 				"batch ack reducer work (%d CI/CD items): %w",
@@ -140,7 +140,7 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 
 		query := ackReducerWorkBatchQuery()
 
-		result, err := q.db.ExecContext(ctx, query, now, q.LeaseOwner, ids, claimedAt)
+		result, err := q.database.ExecContext(ctx, query, now, q.LeaseOwner, ids, claimedAt)
 		if err != nil {
 			return fmt.Errorf(
 				"batch ack reducer work (%d unrelated items): %w",

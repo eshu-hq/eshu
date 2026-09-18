@@ -23,12 +23,12 @@ func TestCICDSupportPaginationKeepsLegacySnapshotAcrossV3CutoverPostgresLive(t *
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+	t.Cleanup(func() { _ = database.Close() })
+	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
 		t.Fatalf("apply bootstrap: %v", err)
 	}
 
@@ -38,17 +38,17 @@ func TestCICDSupportPaginationKeepsLegacySnapshotAcrossV3CutoverPostgresLive(t *
 		supportCount = listFactsByKindPageSize + 1
 	)
 	digest := "sha256:" + strings.Repeat("72", 32)
-	cleanupContainerImageIdentitySupportFactsLive(t, ctx, db, scopeID)
+	cleanupContainerImageIdentitySupportFactsLive(t, ctx, database, scopeID)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
-		cleanupContainerImageIdentitySupportFactsLive(t, cleanupCtx, db, scopeID)
+		cleanupContainerImageIdentitySupportFactsLive(t, cleanupCtx, database, scopeID)
 	})
 	seedContainerImageIdentityLegacyCutoverSnapshotLive(
-		t, ctx, db, scopeID, generationID, digest, supportCount,
+		t, ctx, database, scopeID, generationID, digest, supportCount,
 	)
 
-	switchingDB := &activeSetSwitchingDB{SQLDB: SQLDB{DB: db}, scopeID: scopeID}
+	switchingDB := &activeSetSwitchingDB{SQLDB: SQLDB{DB: database}, scopeID: scopeID}
 	loaded, err := NewFactStore(switchingDB).ListActiveCICDRunCorrelationFacts(
 		ctx, []string{digest}, nil,
 	)
@@ -75,12 +75,12 @@ func TestSBOMSupportLoadKeepsEmptyGenerationSnapshotPostgresLive(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+	t.Cleanup(func() { _ = database.Close() })
+	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
 		t.Fatalf("apply bootstrap: %v", err)
 	}
 
@@ -90,14 +90,14 @@ func TestSBOMSupportLoadKeepsEmptyGenerationSnapshotPostgresLive(t *testing.T) {
 		generationBID = "generation:snapshot-populated-b-live"
 	)
 	digest := "sha256:" + strings.Repeat("70", 32)
-	cleanupContainerImageIdentitySupportFactsLive(t, ctx, db, scopeID)
+	cleanupContainerImageIdentitySupportFactsLive(t, ctx, database, scopeID)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
-		cleanupContainerImageIdentitySupportFactsLive(t, cleanupCtx, db, scopeID)
+		cleanupContainerImageIdentitySupportFactsLive(t, cleanupCtx, database, scopeID)
 	})
-	seedContainerImageIdentitySnapshotSetsLive(t, ctx, db, scopeID, generationAID, digest, 1)
-	if _, err := db.ExecContext(ctx, `
+	seedContainerImageIdentitySnapshotSetsLive(t, ctx, database, scopeID, generationAID, digest, 1)
+	if _, err := database.ExecContext(ctx, `
 DELETE FROM container_image_identity_supports
 WHERE set_id = decode(repeat('a1', 32), 'hex');
 UPDATE container_image_identity_support_sets
@@ -106,7 +106,7 @@ WHERE set_id = decode(repeat('a1', 32), 'hex');
 `); err != nil {
 		t.Fatalf("make active support set empty: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO scope_generations (
     generation_id, scope_id, trigger_kind, observed_at, ingested_at, status, payload
 ) VALUES ($2, $1, 'test', clock_timestamp(), clock_timestamp(), 'pending', '{}'::jsonb);
@@ -116,11 +116,11 @@ INSERT INTO scope_generations (
 
 	switchAction := func(switchCtx context.Context) error {
 		return activateContainerImageIdentitySnapshotGenerationLive(
-			switchCtx, db, scopeID, generationBID, "b2", "c2",
+			switchCtx, database, scopeID, generationBID, "b2", "c2",
 		)
 	}
 	autocommitSwitch := &activeSetSwitchingDB{
-		SQLDB:            SQLDB{DB: db},
+		SQLDB:            SQLDB{DB: database},
 		scopeID:          scopeID,
 		switchAfterQuery: func(_ string, queryNumber int) bool { return queryNumber == 1 },
 		switchAction:     switchAction,
@@ -135,13 +135,13 @@ INSERT INTO scope_generations (
 		t.Fatalf("autocommit control rows = %d, want 1 from generation B", len(autocommitLoaded))
 	}
 	if err := activateContainerImageIdentitySnapshotGenerationLive(
-		ctx, db, scopeID, generationAID, "a1", "c1",
+		ctx, database, scopeID, generationAID, "a1", "c1",
 	); err != nil {
 		t.Fatalf("restore empty generation A: %v", err)
 	}
 
 	switchingDB := &activeSetSwitchingDB{
-		SQLDB:            SQLDB{DB: db},
+		SQLDB:            SQLDB{DB: database},
 		scopeID:          scopeID,
 		switchAfterQuery: func(_ string, queryNumber int) bool { return queryNumber == 1 },
 		switchAction:     switchAction,
@@ -162,13 +162,13 @@ INSERT INTO scope_generations (
 
 func activateContainerImageIdentitySnapshotGenerationLive(
 	ctx context.Context,
-	db *sql.DB,
+	database *sql.DB,
 	scopeID string,
 	generationID string,
 	setByte string,
 	hashByte string,
 ) error {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -210,14 +210,14 @@ type autocommitReadSnapshotDB struct {
 	*activeSetSwitchingDB
 }
 
-func (db autocommitReadSnapshotDB) BeginReadOnlyRepeatableRead(
+func (database autocommitReadSnapshotDB) BeginReadOnlyRepeatableRead(
 	context.Context,
 ) (db.Transaction, error) {
-	return autocommitReadSnapshotTransaction{db: db.activeSetSwitchingDB}, nil
+	return autocommitReadSnapshotTransaction{database: database.activeSetSwitchingDB}, nil
 }
 
 type autocommitReadSnapshotTransaction struct {
-	db *activeSetSwitchingDB
+	database *activeSetSwitchingDB
 }
 
 func (tx autocommitReadSnapshotTransaction) QueryContext(
@@ -225,7 +225,7 @@ func (tx autocommitReadSnapshotTransaction) QueryContext(
 	query string,
 	args ...any,
 ) (db.Rows, error) {
-	return tx.db.QueryContext(ctx, query, args...)
+	return tx.database.QueryContext(ctx, query, args...)
 }
 
 func (tx autocommitReadSnapshotTransaction) ExecContext(
@@ -233,7 +233,7 @@ func (tx autocommitReadSnapshotTransaction) ExecContext(
 	query string,
 	args ...any,
 ) (sql.Result, error) {
-	return tx.db.ExecContext(ctx, query, args...)
+	return tx.database.ExecContext(ctx, query, args...)
 }
 
 func (autocommitReadSnapshotTransaction) Commit() error   { return nil }
@@ -242,14 +242,14 @@ func (autocommitReadSnapshotTransaction) Rollback() error { return nil }
 func seedContainerImageIdentityLegacyCutoverSnapshotLive(
 	t *testing.T,
 	ctx context.Context,
-	db *sql.DB,
+	database *sql.DB,
 	scopeID string,
 	generationID string,
 	digest string,
 	supportCount int,
 ) {
 	t.Helper()
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin legacy-cutover snapshot seed: %v", err)
 	}

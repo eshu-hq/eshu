@@ -96,7 +96,7 @@ LIMIT $3
 // scope's repository as curated-search projection inputs in bounded keyset
 // pages. It implements eshusearch.SearchDocumentSourceLoader.
 type EshuSearchDocumentSourceLoader struct {
-	db db.Queryer
+	database db.Queryer
 	// entityPageSize and filePageSize bound rows per keyset page. They default
 	// to the package constants; tests override them to exercise pagination
 	// without materialising production-scale fixtures.
@@ -106,9 +106,9 @@ type EshuSearchDocumentSourceLoader struct {
 
 // NewEshuSearchDocumentSourceLoader builds a content source loader over db with
 // the production page-size bounds.
-func NewEshuSearchDocumentSourceLoader(db db.Queryer) EshuSearchDocumentSourceLoader {
+func NewEshuSearchDocumentSourceLoader(database db.Queryer) EshuSearchDocumentSourceLoader {
 	return EshuSearchDocumentSourceLoader{
-		db:             db,
+		database:       database,
 		entityPageSize: eshuSearchDocumentEntityPageSize,
 		filePageSize:   eshuSearchDocumentFilePageSize,
 	}
@@ -145,7 +145,7 @@ func (l EshuSearchDocumentSourceLoader) StreamSearchDocumentSources(
 	generationID string,
 	page func(eshusearch.SearchDocumentProjectionInput) error,
 ) error {
-	if l.db == nil {
+	if l.database == nil {
 		return fmt.Errorf("eshu search document source loader requires a database")
 	}
 	if page == nil {
@@ -173,7 +173,7 @@ func (l EshuSearchDocumentSourceLoader) StreamSearchDocumentSources(
 
 // resolveRepoID resolves the repository id for the scope once.
 func (l EshuSearchDocumentSourceLoader) resolveRepoID(ctx context.Context, scopeID string) (string, error) {
-	rows, err := l.db.QueryContext(ctx, resolveEshuSearchDocumentRepoIDQuery, scopeID)
+	rows, err := l.database.QueryContext(ctx, resolveEshuSearchDocumentRepoIDQuery, scopeID)
 	if err != nil {
 		return "", fmt.Errorf("resolve search document repo id: %w", err)
 	}
@@ -227,7 +227,7 @@ func (l EshuSearchDocumentSourceLoader) loadEntityPage(
 	cursor string,
 	pageSize int,
 ) ([]searchdocs.ContentEntity, string, error) {
-	rows, err := l.db.QueryContext(ctx, loadEshuSearchDocumentEntitiesPageQuery, repoID, cursor, pageSize)
+	rows, err := l.database.QueryContext(ctx, loadEshuSearchDocumentEntitiesPageQuery, repoID, cursor, pageSize)
 	if err != nil {
 		return nil, "", fmt.Errorf("load search document content entities: %w", err)
 	}
@@ -307,7 +307,7 @@ func (l EshuSearchDocumentSourceLoader) loadFilePage(
 	cursor string,
 	pageSize int,
 ) ([]searchdocs.ContentFile, string, bool, error) {
-	rows, err := l.db.QueryContext(ctx, loadEshuSearchDocumentFilesPageQuery, repoID, cursor, pageSize)
+	rows, err := l.database.QueryContext(ctx, loadEshuSearchDocumentFilesPageQuery, repoID, cursor, pageSize)
 	if err != nil {
 		return nil, "", false, fmt.Errorf("load search document content files: %w", err)
 	}

@@ -59,12 +59,12 @@ type EshuSearchIndexSearchResult struct {
 // EshuSearchIndexStore reads the persisted BM25 index for active curated search
 // documents.
 type EshuSearchIndexStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewEshuSearchIndexStore builds a persisted search-index reader over db.
-func NewEshuSearchIndexStore(db db.ExecQueryer) EshuSearchIndexStore {
-	return EshuSearchIndexStore{db: db}
+func NewEshuSearchIndexStore(database db.ExecQueryer) EshuSearchIndexStore {
+	return EshuSearchIndexStore{database: database}
 }
 
 // Search ranks active search documents using persisted BM25 postings. It joins
@@ -74,7 +74,7 @@ func (s EshuSearchIndexStore) Search(
 	ctx context.Context,
 	search EshuSearchIndexSearch,
 ) (EshuSearchIndexSearchResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return EshuSearchIndexSearchResult{}, fmt.Errorf("eshu search index database is required")
 	}
 	search = normalizeEshuSearchIndexSearch(search)
@@ -91,7 +91,7 @@ func (s EshuSearchIndexStore) Search(
 	}
 
 	query, args := buildEshuSearchIndexQuery(search, terms, termKeys)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return EshuSearchIndexSearchResult{}, fmt.Errorf("search persisted eshu search index: %w", err)
 	}
@@ -132,7 +132,7 @@ func (s EshuSearchIndexStore) loadStats(
 	ctx context.Context,
 	scopeID string,
 ) (EshuSearchIndexSearchResult, error) {
-	rows, err := s.db.QueryContext(ctx, eshuSearchIndexStatsQuery, scopeID)
+	rows, err := s.database.QueryContext(ctx, eshuSearchIndexStatsQuery, scopeID)
 	if err != nil {
 		return EshuSearchIndexSearchResult{}, fmt.Errorf("load eshu search index stats: %w", err)
 	}

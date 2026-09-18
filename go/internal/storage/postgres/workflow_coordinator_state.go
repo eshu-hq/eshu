@@ -168,7 +168,7 @@ func (s *WorkflowControlStore) ReconcileCollectorInstances(
 	observedAt time.Time,
 	desired []workflow.DesiredCollectorInstance,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
 	for _, instance := range desired {
@@ -177,7 +177,7 @@ func (s *WorkflowControlStore) ReconcileCollectorInstances(
 		}
 	}
 
-	execTarget := s.db
+	execTarget := s.database
 	commit := func() error { return nil }
 	rollback := func() error { return nil }
 	if s.beginner != nil {
@@ -227,10 +227,10 @@ func (s *WorkflowControlStore) ReconcileCollectorInstances(
 
 // ListCollectorInstances returns the current durable collector instance state.
 func (s *WorkflowControlStore) ListCollectorInstances(ctx context.Context) ([]workflow.CollectorInstance, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("workflow control store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listCollectorInstancesQuery)
+	rows, err := s.database.QueryContext(ctx, listCollectorInstancesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list collector instances: %w", err)
 	}
@@ -252,10 +252,10 @@ func (s *WorkflowControlStore) ListCollectorInstances(ctx context.Context) ([]wo
 
 // UpsertCompletenessStates stores reducer-facing checkpoint state per run.
 func (s *WorkflowControlStore) UpsertCompletenessStates(ctx context.Context, states []workflow.CompletenessState) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
-	return s.upsertCompletenessStatesWithExecutor(ctx, s.db, states)
+	return s.upsertCompletenessStatesWithExecutor(ctx, s.database, states)
 }
 
 func (s *WorkflowControlStore) upsertCompletenessStatesWithExecutor(

@@ -102,30 +102,30 @@ func NewCachedPersistedLocalSemanticSearchHybrid(
 // NewPostgresSemanticSearchIndexStore constructs the Postgres-backed curated
 // search-document index store. Forwards unchanged to
 // semanticsearch.NewPostgresSemanticSearchIndexStore.
-func NewPostgresSemanticSearchIndexStore(db *sql.DB) semanticsearch.PostgresSemanticSearchIndexStore {
-	return semanticsearch.NewPostgresSemanticSearchIndexStore(db)
+func NewPostgresSemanticSearchIndexStore(database *sql.DB) semanticsearch.PostgresSemanticSearchIndexStore {
+	return semanticsearch.NewPostgresSemanticSearchIndexStore(database)
 }
 
 // NewPostgresSemanticSearchScopeResolver constructs the Postgres-backed
 // repository-to-scope resolver. Forwards unchanged to
 // semanticsearch.NewPostgresSemanticSearchScopeResolver.
-func NewPostgresSemanticSearchScopeResolver(db db.Queryer) PostgresSemanticSearchScopeResolver {
-	return semanticsearch.NewPostgresSemanticSearchScopeResolver(db)
+func NewPostgresSemanticSearchScopeResolver(database db.Queryer) PostgresSemanticSearchScopeResolver {
+	return semanticsearch.NewPostgresSemanticSearchScopeResolver(database)
 }
 
 // NewPostgresSemanticSearchSnapshotStore constructs the Postgres-backed corpus
 // snapshot store. Forwards unchanged to
 // semanticsearch.NewPostgresSemanticSearchSnapshotStore.
-func NewPostgresSemanticSearchSnapshotStore(db db.Queryer) PostgresSemanticSearchSnapshotStore {
-	return semanticsearch.NewPostgresSemanticSearchSnapshotStore(db)
+func NewPostgresSemanticSearchSnapshotStore(database db.Queryer) PostgresSemanticSearchSnapshotStore {
+	return semanticsearch.NewPostgresSemanticSearchSnapshotStore(database)
 }
 
 // NewPostgresSearchVectorReadyStore constructs the Postgres-backed
 // search-vector-ready watermark reader. Forwards unchanged to
 // semanticsearch.NewPostgresSearchVectorReadyStore.
 func NewPostgresSearchVectorReadyStore(
-	db semanticsearch.SearchVectorReadyQueryer,
+	database semanticsearch.SearchVectorReadyQueryer,
 	identity SearchVectorBuildIdentity,
 ) semanticsearch.PostgresSearchVectorReadyStore {
-	return semanticsearch.NewPostgresSearchVectorReadyStore(db, identity)
+	return semanticsearch.NewPostgresSearchVectorReadyStore(database, identity)
 }

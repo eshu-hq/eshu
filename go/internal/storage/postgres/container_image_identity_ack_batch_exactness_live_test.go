@@ -76,7 +76,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 			}
 
 			queue := ReducerQueue{
-				db:            SQLDB{DB: db},
+				database:      SQLDB{DB: db},
 				LeaseOwner:    owner,
 				LeaseDuration: time.Minute,
 				Now:           func() time.Time { return now },
@@ -200,7 +200,7 @@ func TestContainerImageIdentityAckBatchAttemptExactnessLive(t *testing.T) {
 		}
 
 		queue := ReducerQueue{
-			db:            SQLDB{DB: db},
+			database:      SQLDB{DB: db},
 			LeaseOwner:    owner,
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now },
@@ -295,7 +295,7 @@ WHERE work_item_id = $1
 			t.Fatalf("advance all-stale batch epoch: %v", err)
 		}
 		queue := ReducerQueue{
-			db: SQLDB{DB: db}, LeaseOwner: leaseOwner,
+			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
 		err := queue.AckBatch(ctx, []reducer.Intent{{
@@ -356,7 +356,7 @@ WHERE work_item_id = $1
 			t.Fatalf("mark valid unrelated batch row: %v", err)
 		}
 		queue := ReducerQueue{
-			db: SQLDB{DB: db}, LeaseOwner: leaseOwner,
+			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
 		err := queue.AckBatch(ctx, []reducer.Intent{
@@ -418,7 +418,7 @@ WHERE work_item_id = $1
 			t.Fatalf("advance partial stale epoch: %v", err)
 		}
 		queue := ReducerQueue{
-			db: SQLDB{DB: db}, LeaseOwner: leaseOwner,
+			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
 		if err := queue.AckBatch(ctx, []reducer.Intent{
@@ -456,7 +456,7 @@ WHERE work_item_id = $1
 		)
 		insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeID, generation)
 		queue := ReducerQueue{
-			db: SQLDB{DB: db}, LeaseOwner: leaseOwner,
+			database: SQLDB{DB: db}, LeaseOwner: leaseOwner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 		}
 		err := queue.AckBatch(ctx, []reducer.Intent{

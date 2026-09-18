@@ -143,7 +143,7 @@ func (s FactStore) ListFactsByKind(
 	generationID string,
 	factKinds []string,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
@@ -183,7 +183,7 @@ func (s FactStore) ListFactsByKindAndPayloadValue(
 	payloadKey string,
 	payloadValues []string,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
@@ -248,7 +248,7 @@ func (s FactStore) listFactsByKindPage(
 		}
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list facts by kind: %w", err)
 	}
@@ -302,7 +302,7 @@ func (s FactStore) listFactsByKindAndPayloadValuePage(
 		}
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list facts by kind and payload value: %w", err)
 	}

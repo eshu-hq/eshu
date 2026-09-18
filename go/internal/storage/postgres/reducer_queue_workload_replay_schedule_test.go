@@ -20,7 +20,7 @@ func TestReducerQueueReplayWorkloadMaterializationAcceptsConcurrentScheduler(t *
 		},
 		queryResponses: []queueFakeRows{{rows: [][]any{{true}}}},
 	}
-	queue := ReducerQueue{db: db}
+	queue := ReducerQueue{database: db}
 
 	replayed, err := queue.ReplayWorkloadMaterialization(
 		context.Background(),
@@ -44,7 +44,7 @@ func TestReducerQueueReplayWorkloadMaterializationForFenceRetriesConcurrentInser
 		rowsAffectedResult{},
 		rowsAffectedResult{rowsAffected: 1},
 	}}
-	queue := ReducerQueue{db: db}
+	queue := ReducerQueue{database: db}
 
 	replayed, err := queue.ReplayWorkloadMaterializationForFence(
 		context.Background(), "scope-1", "gen-1", "repo:service-gha", "repository:service-gha", "fence-1",
@@ -70,7 +70,7 @@ func TestReducerQueueReplayWorkloadMaterializationForFenceRejectsTerminalWork(t 
 		rowsAffectedResult{},
 		rowsAffectedResult{},
 	}}
-	queue := ReducerQueue{db: db}
+	queue := ReducerQueue{database: db}
 
 	replayed, err := queue.ReplayWorkloadMaterializationForFence(
 		context.Background(), "scope-1", "gen-1", "repo:service-gha", "repository:service-gha", "fence-1",
@@ -93,7 +93,7 @@ func TestReducerQueueReplayWorkloadMaterializationRejectsTerminalWork(t *testing
 		},
 		queryResponses: []queueFakeRows{{rows: [][]any{{false}}}},
 	}
-	queue := ReducerQueue{db: db}
+	queue := ReducerQueue{database: db}
 
 	replayed, err := queue.ReplayWorkloadMaterialization(
 		context.Background(),

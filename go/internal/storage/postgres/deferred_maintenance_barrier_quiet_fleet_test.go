@@ -240,8 +240,8 @@ func TestIngestionStoreShardDrainBarrierQuietRestartOpensExactlyOneEpochAcrossMa
 	const safetyDeadline = 5 * time.Second
 
 	state := newQuietFleetBarrierState()
-	db := &quietFleetDB{state: state}
-	store := NewIngestionStore(db)
+	database := &quietFleetDB{state: state}
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return time.Date(2026, time.July, 27, 9, 0, 0, 0, time.UTC) }
 
 	var wg sync.WaitGroup

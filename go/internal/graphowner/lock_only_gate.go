@@ -100,8 +100,8 @@ type graphNodeOwnerLocker interface {
 // for Write*. Wrapper types forward Retract* directly to the underlying
 // writer, unchanged from pre-#5062 behavior.
 type LockOnlyGate struct {
-	db    db.Beginner
-	store graphNodeOwnerLocker
+	database db.Beginner
+	store    graphNodeOwnerLocker
 
 	// Instruments records the #5101 lock-only observability signals
 	// (eshu_dp_lock_only_gate_locked_rows_total,
@@ -117,8 +117,8 @@ type LockOnlyGate struct {
 // the #5007 owner ledger uses. A nil db yields a pass-through gate (no
 // locking), matching NewGate's pass-through behavior for a deployment without
 // Postgres.
-func NewLockOnlyGate(db db.Beginner) *LockOnlyGate {
-	return &LockOnlyGate{db: db, store: postgres.NewGraphNodeOwnerStore()}
+func NewLockOnlyGate(database db.Beginner) *LockOnlyGate {
+	return &LockOnlyGate{database: database, store: postgres.NewGraphNodeOwnerStore()}
 }
 
 // write runs the #5062 lock-only critical section over rows in chunks of at
@@ -137,7 +137,7 @@ func (g *LockOnlyGate) write(
 	if len(rows) == 0 {
 		return underlying(ctx, rows, scopeID, generationID, evidenceSource)
 	}
-	if g == nil || g.db == nil {
+	if g == nil || g.database == nil {
 		// No Postgres wired: write through unchanged. This is the pass-through
 		// path, not a serialization workaround — a Postgres-backed reducer
 		// always wires the lock-only gate; only a backend without it falls
@@ -175,7 +175,7 @@ func (g *LockOnlyGate) writeChunk(
 		return fmt.Errorf("graphowner: lock-only %s: %w", family, err)
 	}
 
-	tx, err := g.db.Begin(ctx)
+	tx, err := g.database.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("graphowner: begin lock-only transaction for %s: %w", family, err)
 	}

@@ -71,8 +71,8 @@ func refusedReply() markerReply {
 
 // newTestFence returns a fence over a controllable clock so the interval can be
 // crossed without sleeping.
-func newTestFence(db db.Queryer, clock *time.Time) *WriteFence {
-	fence := NewWriteFence(db, graph.SchemaBackendNornicDB, time.Minute)
+func newTestFence(database db.Queryer, clock *time.Time) *WriteFence {
+	fence := NewWriteFence(database, graph.SchemaBackendNornicDB, time.Minute)
 	fence.now = func() time.Time { return *clock }
 	return fence
 }
@@ -84,9 +84,9 @@ func newTestFence(db db.Queryer, clock *time.Time) *WriteFence {
 func TestWriteFenceRefusesAWriterAfterTheAppliedSchemaChangesUnderIt(t *testing.T) {
 	t.Parallel()
 
-	db := &scriptedMarkerQueryer{replies: []markerReply{admittedReply(t), refusedReply()}}
+	database := &scriptedMarkerQueryer{replies: []markerReply{admittedReply(t), refusedReply()}}
 	clock := time.Unix(1_800_000_000, 0).UTC()
-	fence := newTestFence(db, &clock)
+	fence := newTestFence(database, &clock)
 
 	if err := fence.Check(context.Background()); err != nil {
 		t.Fatalf("first Check() error = %v, want nil; this writer is the one the marker admits", err)
@@ -107,16 +107,16 @@ func TestWriteFenceRefusesAWriterAfterTheAppliedSchemaChangesUnderIt(t *testing.
 func TestWriteFenceReusesItsDecisionWithinTheInterval(t *testing.T) {
 	t.Parallel()
 
-	db := &scriptedMarkerQueryer{replies: []markerReply{admittedReply(t), refusedReply()}}
+	database := &scriptedMarkerQueryer{replies: []markerReply{admittedReply(t), refusedReply()}}
 	clock := time.Unix(1_800_000_000, 0).UTC()
-	fence := newTestFence(db, &clock)
+	fence := newTestFence(database, &clock)
 
 	for i := 0; i < 5; i++ {
 		if err := fence.Check(context.Background()); err != nil {
 			t.Fatalf("Check() %d error = %v, want nil", i, err)
 		}
 	}
-	if got := db.callCount(); got != 1 {
+	if got := database.callCount(); got != 1 {
 		t.Fatalf("marker read %d times inside one interval, want 1", got)
 	}
 
@@ -124,7 +124,7 @@ func TestWriteFenceReusesItsDecisionWithinTheInterval(t *testing.T) {
 	if err := fence.Check(context.Background()); !errors.Is(err, ErrIncompatible) {
 		t.Fatalf("Check() past the interval = %v, want ErrIncompatible", err)
 	}
-	if got := db.callCount(); got != 2 {
+	if got := database.callCount(); got != 2 {
 		t.Fatalf("marker read %d times across two intervals, want 2", got)
 	}
 }
@@ -137,13 +137,13 @@ func TestWriteFenceHoldsItsDecisionWhenTheMarkerCannotBeRead(t *testing.T) {
 	t.Parallel()
 
 	unreadable := markerReply{err: errors.New("dial tcp: connection refused")}
-	db := &scriptedMarkerQueryer{replies: []markerReply{
+	database := &scriptedMarkerQueryer{replies: []markerReply{
 		admittedReply(t),
 		unreadable,
 		refusedReply(),
 	}}
 	clock := time.Unix(1_800_000_000, 0).UTC()
-	fence := newTestFence(db, &clock)
+	fence := newTestFence(database, &clock)
 
 	if err := fence.Check(context.Background()); err != nil {
 		t.Fatalf("first Check() error = %v, want nil", err)
@@ -155,13 +155,13 @@ func TestWriteFenceHoldsItsDecisionWhenTheMarkerCannotBeRead(t *testing.T) {
 	}
 	// The retry is rate limited too: a failed read still advances the interval,
 	// so an outage costs one query per interval rather than one per write.
-	if got := db.callCount(); got != 2 {
+	if got := database.callCount(); got != 2 {
 		t.Fatalf("marker read %d times, want 2", got)
 	}
 	if err := fence.Check(context.Background()); err != nil {
 		t.Fatalf("Check() immediately after a failed read = %v, want nil", err)
 	}
-	if got := db.callCount(); got != 2 {
+	if got := database.callCount(); got != 2 {
 		t.Fatalf("marker read %d times after a failed read inside the interval, want 2", got)
 	}
 
@@ -176,12 +176,12 @@ func TestWriteFenceHoldsItsDecisionWhenTheMarkerCannotBeRead(t *testing.T) {
 func TestWriteFenceKeepsRefusingWhileTheMarkerIsUnreadable(t *testing.T) {
 	t.Parallel()
 
-	db := &scriptedMarkerQueryer{replies: []markerReply{
+	database := &scriptedMarkerQueryer{replies: []markerReply{
 		refusedReply(),
 		{err: errors.New("dial tcp: connection refused")},
 	}}
 	clock := time.Unix(1_800_000_000, 0).UTC()
-	fence := newTestFence(db, &clock)
+	fence := newTestFence(database, &clock)
 
 	if err := fence.Check(context.Background()); !errors.Is(err, ErrIncompatible) {
 		t.Fatalf("first Check() = %v, want ErrIncompatible", err)
@@ -225,8 +225,8 @@ func TestNewWriteFenceForRuntimeSkipsProfilesWithoutAMarker(t *testing.T) {
 func TestNewWriteFenceForRuntimeUsesTheSelectedBackend(t *testing.T) {
 	t.Parallel()
 
-	db := &scriptedMarkerQueryer{replies: []markerReply{refusedReply()}}
-	fence, err := NewWriteFenceForRuntime(db, func(key string) string {
+	database := &scriptedMarkerQueryer{replies: []markerReply{refusedReply()}}
+	fence, err := NewWriteFenceForRuntime(database, func(key string) string {
 		if key == "ESHU_GRAPH_BACKEND" {
 			return "neo4j"
 		}

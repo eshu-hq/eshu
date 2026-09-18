@@ -42,10 +42,10 @@ func (s IngestionStore) CurrentScopeGeneration(
 	ctx context.Context,
 	scopeID string,
 ) (CurrentScopeGeneration, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return CurrentScopeGeneration{}, false, fmt.Errorf("ingestion store db is required")
 	}
-	rows, err := s.db.QueryContext(ctx, activeGenerationFreshnessQuery, scopeID)
+	rows, err := s.database.QueryContext(ctx, activeGenerationFreshnessQuery, scopeID)
 	if err != nil {
 		return CurrentScopeGeneration{}, false, fmt.Errorf("query current generation for scope %s: %w", scopeID, err)
 	}
@@ -69,9 +69,9 @@ func (s IngestionStore) CurrentScopeGeneration(
 
 // NewGenerationFreshnessCheck returns a GenerationFreshnessCheck backed by
 // the ingestion_scopes.active_generation_id denormalized column.
-func NewGenerationFreshnessCheck(db db.ExecQueryer) reducer.GenerationFreshnessCheck {
+func NewGenerationFreshnessCheck(database db.ExecQueryer) reducer.GenerationFreshnessCheck {
 	return func(ctx context.Context, scopeID, generationID string) (bool, error) {
-		rows, err := db.QueryContext(ctx, isCurrentGenerationSQL, scopeID)
+		rows, err := database.QueryContext(ctx, isCurrentGenerationSQL, scopeID)
 		if err != nil {
 			return false, fmt.Errorf("query active generation for scope %s: %w", scopeID, err)
 		}
@@ -98,9 +98,9 @@ func NewGenerationFreshnessCheck(db db.ExecQueryer) reducer.GenerationFreshnessC
 
 // NewPriorGenerationCheck returns a check backed by scope_generations for
 // identifying first-generation writes.
-func NewPriorGenerationCheck(db db.ExecQueryer) reducer.PriorGenerationCheck {
+func NewPriorGenerationCheck(database db.ExecQueryer) reducer.PriorGenerationCheck {
 	return func(ctx context.Context, scopeID, generationID string) (bool, error) {
-		rows, err := db.QueryContext(ctx, priorGenerationExistsSQL, scopeID, generationID)
+		rows, err := database.QueryContext(ctx, priorGenerationExistsSQL, scopeID, generationID)
 		if err != nil {
 			return false, fmt.Errorf("query prior generation for scope %s: %w", scopeID, err)
 		}

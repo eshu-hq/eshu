@@ -77,7 +77,7 @@ func TestReducerClaimFencesConcurrentClaimersOnSharedConflictKey(t *testing.T) {
 	for i := range queues {
 		claimerDB := openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)
 		queues[i] = ReducerQueue{
-			db:            SQLDB{DB: claimerDB},
+			database:      SQLDB{DB: claimerDB},
 			LeaseOwner:    fmt.Sprintf("conflict-claimer-%d", i),
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now.Add(2 * time.Hour) },
@@ -178,7 +178,7 @@ func TestReducerClaimAllowsConcurrentClaimersOnDisjointConflictKeys(t *testing.T
 		// run concurrently rather than serializing on a shared pooled connection.
 		claimerDB := openReducerFairnessClaimerDB(t, ctx, dsn, schemaName)
 		q := ReducerQueue{
-			db:            SQLDB{DB: claimerDB},
+			database:      SQLDB{DB: claimerDB},
 			LeaseOwner:    fmt.Sprintf("disjoint-claimer-%d", i),
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now.Add(2 * time.Hour) },
@@ -243,7 +243,7 @@ func TestReducerClaimFencedSiblingBecomesClaimableAfterAck(t *testing.T) {
 
 	claimAt := now.Add(2 * time.Hour)
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "converge-claimer",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return claimAt },

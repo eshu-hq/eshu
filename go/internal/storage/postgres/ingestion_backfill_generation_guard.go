@@ -21,14 +21,14 @@ func (s IngestionStore) shouldSkipUnchangedGeneration(
 	scopeID string,
 	freshnessHint string,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, nil
 	}
 	if strings.TrimSpace(scopeID) == "" || strings.TrimSpace(freshnessHint) == "" {
 		return false, nil
 	}
 
-	rows, err := s.db.QueryContext(ctx, activeGenerationFreshnessQuery, scopeID)
+	rows, err := s.database.QueryContext(ctx, activeGenerationFreshnessQuery, scopeID)
 	if err != nil {
 		return false, err
 	}

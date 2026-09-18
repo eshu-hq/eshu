@@ -49,13 +49,13 @@ func decodeProviderConfiguration(ctx context.Context, logger *slog.Logger, provi
 // handler whose store is nil, so each route returns 503 rather than
 // panicking. logger may be nil.
 func newAdminProviderConfigReadHandler(
-	db *sql.DB,
+	database *sql.DB,
 	oidcLoginHandler *query.OIDCLoginHandler,
 	samlHandler *query.SAMLHandler,
 	logger *slog.Logger,
 ) *query.AdminProviderConfigReadHandler {
 	handler := &query.AdminProviderConfigReadHandler{}
-	if store := newProviderConfigReadAdapter(db, oidcLoginHandler, samlHandler, logger); store != nil {
+	if store := newProviderConfigReadAdapter(database, oidcLoginHandler, samlHandler, logger); store != nil {
 		handler.Store = store
 	}
 	return handler

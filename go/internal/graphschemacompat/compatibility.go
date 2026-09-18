@@ -60,8 +60,8 @@ type Result struct {
 }
 
 // MarkApplied records that schema bootstrap applied app successfully.
-func MarkApplied(ctx context.Context, db db.Executor, app graph.SchemaApplication) error {
-	if db == nil {
+func MarkApplied(ctx context.Context, database db.Executor, app graph.SchemaApplication) error {
+	if database == nil {
 		return fmt.Errorf("graph schema marker executor is required")
 	}
 	compatible := app.CompatibleFingerprints
@@ -72,7 +72,7 @@ func MarkApplied(ctx context.Context, db db.Executor, app graph.SchemaApplicatio
 	if err != nil {
 		return fmt.Errorf("encode compatible graph schema fingerprints: %w", err)
 	}
-	if _, err := db.ExecContext(
+	if _, err := database.ExecContext(
 		ctx,
 		markGraphSchemaAppliedQuery,
 		string(app.Backend),
@@ -89,7 +89,7 @@ func MarkApplied(ctx context.Context, db db.Executor, app graph.SchemaApplicatio
 // selected by ESHU_GRAPH_BACKEND.
 func RequireCompatibleForRuntime(
 	ctx context.Context,
-	db db.Queryer,
+	database db.Queryer,
 	getenv func(string) string,
 ) (Result, error) {
 	if graphCompatibilityDisabled(getenv) {
@@ -103,13 +103,13 @@ func RequireCompatibleForRuntime(
 	if err != nil {
 		return Result{}, err
 	}
-	return RequireCompatible(ctx, db, backend)
+	return RequireCompatible(ctx, database, backend)
 }
 
 // RequireCompatible validates that the latest applied graph schema for backend
 // is safe for the current writer.
-func RequireCompatible(ctx context.Context, db db.Queryer, backend graph.SchemaBackend) (Result, error) {
-	if db == nil {
+func RequireCompatible(ctx context.Context, database db.Queryer, backend graph.SchemaBackend) (Result, error) {
+	if database == nil {
 		return Result{}, fmt.Errorf("graph schema compatibility queryer is required")
 	}
 
@@ -118,7 +118,7 @@ func RequireCompatible(ctx context.Context, db db.Queryer, backend graph.SchemaB
 		return Result{}, err
 	}
 
-	rows, err := db.QueryContext(ctx, latestGraphSchemaApplicationQuery, string(backend))
+	rows, err := database.QueryContext(ctx, latestGraphSchemaApplicationQuery, string(backend))
 	if err != nil {
 		return Result{}, fmt.Errorf("query graph schema compatibility marker: %w", err)
 	}

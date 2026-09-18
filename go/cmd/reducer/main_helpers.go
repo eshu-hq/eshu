@@ -141,20 +141,20 @@ func reducerGraphDrainFor(enabled bool, queryer db.Queryer) reducer.ReducerGraph
 func registerReducerObservableGauges(
 	instruments *telemetry.Instruments,
 	meter metric.Meter,
-	db *sql.DB,
+	database *sql.DB,
 	activeWorkers *atomic.Int64,
 	graphOrphanObserver telemetry.GraphOrphanObserver,
 	graphReader query.GraphQuery,
 	getenv func(string) string,
 ) error {
-	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: db})
+	queueObserver := postgres.NewQueueObserverStore(postgres.SQLQueryer{DB: database})
 	queueObserver.Now = clock.System().Now // explicit seam (#4121); == time.Now()
 	workerObserver := reducerWorkerObserver{active: activeWorkers}
 	if err := telemetry.RegisterObservableGauges(instruments, meter, queueObserver, workerObserver); err != nil {
 		return fmt.Errorf("register observable gauges: %w", err)
 	}
 
-	acceptanceObserver := postgres.NewSharedProjectionAcceptanceStore(postgres.SQLDB{DB: db})
+	acceptanceObserver := postgres.NewSharedProjectionAcceptanceStore(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterAcceptanceObservableGauges(instruments, meter, acceptanceObserver); err != nil {
 		return fmt.Errorf("register acceptance observable gauge: %w", err)
 	}
@@ -162,12 +162,12 @@ func registerReducerObservableGauges(
 		return fmt.Errorf("register graph orphan observable gauge: %w", err)
 	}
 
-	workflowFamilyQueueObserver := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: db})
+	workflowFamilyQueueObserver := postgres.NewWorkflowControlStore(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterWorkflowFamilyQueueDepthObservableGauge(instruments, meter, workflowFamilyQueueObserver); err != nil {
 		return fmt.Errorf("register workflow family queue depth observable gauge: %w", err)
 	}
 
-	activeGenerationObserver := activeGenerationAgeObserverFor(postgres.SQLDB{DB: db}, loadGenerationLivenessConfig(getenv))
+	activeGenerationObserver := activeGenerationAgeObserverFor(postgres.SQLDB{DB: database}, loadGenerationLivenessConfig(getenv))
 	if err := telemetry.RegisterActiveGenerationAgeObservableGauge(instruments, meter, activeGenerationObserver); err != nil {
 		return fmt.Errorf("register active generation age observable gauge: %w", err)
 	}
@@ -175,7 +175,7 @@ func registerReducerObservableGauges(
 	// The poison stuck-gauge is wired unconditionally (unlike the recovery
 	// runner) so the dead-letter/poison class is always visible to an operator
 	// regardless of whether bounded auto-retry is enabled (#4740).
-	poisonObserver := poisonLivenessObserverFor(postgres.SQLDB{DB: db})
+	poisonObserver := poisonLivenessObserverFor(postgres.SQLDB{DB: database})
 	if err := telemetry.RegisterPoisonLivenessObservableGauges(instruments, meter, poisonObserver); err != nil {
 		return fmt.Errorf("register poison liveness observable gauges: %w", err)
 	}

@@ -75,13 +75,13 @@ type MultiCloudRuntimeDriftEvidenceRow struct {
 // MultiCloudRuntimeDriftFindingStore reads active multi-cloud runtime drift
 // reducer facts for the unmanaged-resource and runtime-drift query surfaces.
 type MultiCloudRuntimeDriftFindingStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewMultiCloudRuntimeDriftFindingStore constructs a multi-cloud runtime drift
 // finding reader over the provided database adapter.
-func NewMultiCloudRuntimeDriftFindingStore(db db.ExecQueryer) MultiCloudRuntimeDriftFindingStore {
-	return MultiCloudRuntimeDriftFindingStore{db: db}
+func NewMultiCloudRuntimeDriftFindingStore(database db.ExecQueryer) MultiCloudRuntimeDriftFindingStore {
+	return MultiCloudRuntimeDriftFindingStore{database: database}
 }
 
 // ListActiveFindings returns one page of active multi-cloud runtime drift
@@ -90,7 +90,7 @@ func (s MultiCloudRuntimeDriftFindingStore) ListActiveFindings(
 	ctx context.Context,
 	filter MultiCloudRuntimeDriftFindingFilter,
 ) ([]MultiCloudRuntimeDriftFindingRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("multi cloud runtime drift finding store database is required")
 	}
 	filter = normalizeMultiCloudRuntimeDriftFindingFilter(filter)
@@ -98,7 +98,7 @@ func (s MultiCloudRuntimeDriftFindingStore) ListActiveFindings(
 		return nil, err
 	}
 	query, args := buildMultiCloudRuntimeDriftFindingQuery(false, filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active multi cloud runtime drift findings: %w", err)
 	}
@@ -135,7 +135,7 @@ func (s MultiCloudRuntimeDriftFindingStore) CountActiveFindings(
 	ctx context.Context,
 	filter MultiCloudRuntimeDriftFindingFilter,
 ) (int, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("multi cloud runtime drift finding store database is required")
 	}
 	filter = normalizeMultiCloudRuntimeDriftFindingFilter(filter)
@@ -143,7 +143,7 @@ func (s MultiCloudRuntimeDriftFindingStore) CountActiveFindings(
 		return 0, err
 	}
 	query, args := buildMultiCloudRuntimeDriftFindingQuery(true, filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("count active multi cloud runtime drift findings: %w", err)
 	}

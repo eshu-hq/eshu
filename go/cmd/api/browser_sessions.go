@@ -81,12 +81,12 @@ func newPostgresBrowserSessionAdapter(
 }
 
 func newBrowserSessionHandler(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	cookieSecureMode query.CookieSecureMode,
 ) *query.BrowserSessionHandler {
 	handler := &query.BrowserSessionHandler{CookieSecure: cookieSecureMode}
-	if store := newPostgresBrowserSessionAdapter(db, instruments); store != nil {
+	if store := newPostgresBrowserSessionAdapter(database, instruments); store != nil {
 		handler.Store = store
 		// The same adapter instance also resolves the per-tenant session
 		// timeout override (issue #4968, epic #4962) — it already wraps the
@@ -99,10 +99,10 @@ func newBrowserSessionHandler(
 }
 
 func newBrowserSessionResolver(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 ) query.BrowserSessionResolver {
-	resolver := newPostgresBrowserSessionAdapter(db, instruments)
+	resolver := newPostgresBrowserSessionAdapter(database, instruments)
 	if resolver == nil {
 		return nil
 	}
@@ -110,10 +110,10 @@ func newBrowserSessionResolver(
 }
 
 func newBrowserSessionStore(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 ) query.BrowserSessionStore {
-	store := newPostgresBrowserSessionAdapter(db, instruments)
+	store := newPostgresBrowserSessionAdapter(database, instruments)
 	if store == nil {
 		return nil
 	}
@@ -308,8 +308,8 @@ func (a *postgresBrowserSessionAdapter) ListSessionsBySubject(
 
 // newBrowserSessionListHandler builds a BrowserSessionListHandler backed by
 // the postgres store when a database connection is available.
-func newBrowserSessionListHandler(db *sql.DB, instruments *telemetry.Instruments) *query.BrowserSessionListHandler {
-	adapter := newPostgresBrowserSessionAdapter(db, instruments)
+func newBrowserSessionListHandler(database *sql.DB, instruments *telemetry.Instruments) *query.BrowserSessionListHandler {
+	adapter := newPostgresBrowserSessionAdapter(database, instruments)
 	if adapter == nil {
 		return &query.BrowserSessionListHandler{}
 	}
@@ -317,8 +317,8 @@ func newBrowserSessionListHandler(db *sql.DB, instruments *telemetry.Instruments
 }
 
 // newProfileHandler builds a ProfileHandler backed by the local identity store.
-func newProfileHandler(db *sql.DB, instruments *telemetry.Instruments, governanceAudit query.GovernanceAuditSummaryReader) *query.ProfileHandler {
-	store := newPostgresLocalIdentityAdapter(db, instruments)
+func newProfileHandler(database *sql.DB, instruments *telemetry.Instruments, governanceAudit query.GovernanceAuditSummaryReader) *query.ProfileHandler {
+	store := newPostgresLocalIdentityAdapter(database, instruments)
 	if store == nil {
 		return &query.ProfileHandler{}
 	}

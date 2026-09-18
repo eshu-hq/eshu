@@ -95,13 +95,13 @@ type AWSCloudRuntimeDriftEvidenceRow struct {
 
 // AWSCloudRuntimeDriftFindingStore reads active AWS runtime drift reducer facts.
 type AWSCloudRuntimeDriftFindingStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewAWSCloudRuntimeDriftFindingStore constructs an AWS runtime drift finding
 // reader over the provided database adapter.
-func NewAWSCloudRuntimeDriftFindingStore(db db.ExecQueryer) AWSCloudRuntimeDriftFindingStore {
-	return AWSCloudRuntimeDriftFindingStore{db: db}
+func NewAWSCloudRuntimeDriftFindingStore(database db.ExecQueryer) AWSCloudRuntimeDriftFindingStore {
+	return AWSCloudRuntimeDriftFindingStore{database: database}
 }
 
 // ListActiveFindings returns one page of active AWS runtime drift findings for
@@ -110,7 +110,7 @@ func (s AWSCloudRuntimeDriftFindingStore) ListActiveFindings(
 	ctx context.Context,
 	filter AWSCloudRuntimeDriftFindingFilter,
 ) ([]AWSCloudRuntimeDriftFindingRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("aws cloud runtime drift finding store database is required")
 	}
 	if filter.Scoped && len(filter.AllowedScopeIDs) == 0 {
@@ -121,7 +121,7 @@ func (s AWSCloudRuntimeDriftFindingStore) ListActiveFindings(
 		return nil, err
 	}
 	query, args := buildAWSCloudRuntimeDriftFindingQuery(false, filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active AWS runtime drift findings: %w", err)
 	}
@@ -158,7 +158,7 @@ func (s AWSCloudRuntimeDriftFindingStore) CountActiveFindings(
 	ctx context.Context,
 	filter AWSCloudRuntimeDriftFindingFilter,
 ) (int, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("aws cloud runtime drift finding store database is required")
 	}
 	if filter.Scoped && len(filter.AllowedScopeIDs) == 0 {
@@ -169,7 +169,7 @@ func (s AWSCloudRuntimeDriftFindingStore) CountActiveFindings(
 		return 0, err
 	}
 	query, args := buildAWSCloudRuntimeDriftFindingQuery(true, filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("count active AWS runtime drift findings: %w", err)
 	}

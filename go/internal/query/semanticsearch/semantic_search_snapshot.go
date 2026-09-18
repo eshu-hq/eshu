@@ -77,13 +77,13 @@ type SemanticSearchSnapshotStore interface {
 // PostgresSemanticSearchSnapshotStore reads the active document/vector
 // revision tuple through the relational projection state.
 type PostgresSemanticSearchSnapshotStore struct {
-	db db.Queryer
+	database db.Queryer
 }
 
 // NewPostgresSemanticSearchSnapshotStore constructs the production snapshot
 // reader.
-func NewPostgresSemanticSearchSnapshotStore(db db.Queryer) PostgresSemanticSearchSnapshotStore {
-	return PostgresSemanticSearchSnapshotStore{db: db}
+func NewPostgresSemanticSearchSnapshotStore(database db.Queryer) PostgresSemanticSearchSnapshotStore {
+	return PostgresSemanticSearchSnapshotStore{database: database}
 }
 
 // Load returns an empty, non-cacheable snapshot when the active document or
@@ -92,14 +92,14 @@ func (s PostgresSemanticSearchSnapshotStore) Load(
 	ctx context.Context,
 	request SemanticSearchSnapshotRequest,
 ) (SemanticSearchSnapshot, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return SemanticSearchSnapshot{}, fmt.Errorf("semantic search snapshot store requires a database")
 	}
 	request = normalizeSemanticSearchSnapshotRequest(request)
 	if err := validateSemanticSearchSnapshotRequest(request); err != nil {
 		return SemanticSearchSnapshot{}, err
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		loadSemanticSearchSnapshotQuery,
 		request.ScopeID,

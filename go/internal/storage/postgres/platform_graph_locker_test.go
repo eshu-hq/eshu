@@ -80,8 +80,8 @@ type recordingPlatformGraphLockDB struct {
 	tx *recordingPlatformGraphLockTx
 }
 
-func (db *recordingPlatformGraphLockDB) Begin(context.Context) (db.Transaction, error) {
-	return db.tx, nil
+func (database *recordingPlatformGraphLockDB) Begin(context.Context) (db.Transaction, error) {
+	return database.tx, nil
 }
 
 type recordingPlatformGraphLockTx struct {

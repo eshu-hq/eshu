@@ -53,7 +53,7 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocuments(
 	ctx context.Context,
 	filter EshuSearchVectorDocumentFilter,
 ) ([]EshuSearchDocumentRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("eshu search document store database is required")
 	}
 	filter = normalizeEshuSearchVectorDocumentFilter(filter)
@@ -62,7 +62,7 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocuments(
 	}
 
 	query, args := buildEshuSearchVectorDocumentQuery(filter)
-	rows, err := beginSearchVectorDocumentQuery(ctx, s.db, query, args...)
+	rows, err := beginSearchVectorDocumentQuery(ctx, s.database, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list pending eshu search vector documents: %w", err)
 	}
@@ -103,7 +103,7 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocumentsForScopes(
 	ctx context.Context,
 	filter EshuSearchVectorDocumentBatchFilter,
 ) ([]EshuSearchDocumentRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("eshu search document store database is required")
 	}
 	filter = normalizeEshuSearchVectorDocumentBatchFilter(filter)
@@ -112,7 +112,7 @@ func (s EshuSearchDocumentStore) ListPendingVectorDocumentsForScopes(
 	}
 
 	query, args := buildEshuSearchVectorDocumentBatchQuery(filter)
-	rows, err := beginSearchVectorDocumentQuery(ctx, s.db, query, args...)
+	rows, err := beginSearchVectorDocumentQuery(ctx, s.database, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list batched pending eshu search vector documents: %w", err)
 	}

@@ -21,7 +21,7 @@ func (s *postgresStore) ListReducerInputInvalidFacts(
 	f admin.InputInvalidFactListFilter,
 ) ([]admin.InputInvalidFact, error) {
 	query, args := buildListReducerInputInvalidFactsQuery(f)
-	return scanInputInvalidFacts(ctx, s.db, query, args...)
+	return scanInputInvalidFacts(ctx, s.database, query, args...)
 }
 
 func buildListReducerInputInvalidFactsQuery(f admin.InputInvalidFactListFilter) (string, []any) {
@@ -83,11 +83,11 @@ WHERE quarantine.scope_id = $1
 
 func scanInputInvalidFacts(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	query string,
 	args ...any,
 ) ([]admin.InputInvalidFact, error) {
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query reducer input_invalid facts: %w", err)
 	}

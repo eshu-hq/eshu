@@ -58,7 +58,7 @@ func (s GovernanceAuditStore) appendBatch(
 		)
 	}
 	query := insertGovernanceAuditEventsPrefix + values.String() + insertGovernanceAuditEventsSuffix
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("append governance audit events (%d rows): %w", len(events), err)
 	}
 	return nil

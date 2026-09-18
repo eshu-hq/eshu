@@ -24,7 +24,7 @@ type postgresLocalIdentityAdapter struct {
 }
 
 func newLocalIdentityHandler(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 	cookieSecureMode query.CookieSecureMode,
@@ -33,10 +33,10 @@ func newLocalIdentityHandler(
 		Audit:        adminRecoveryAuditAppender(governanceAudit),
 		CookieSecure: cookieSecureMode,
 	}
-	if store := newPostgresLocalIdentityAdapter(db, instruments); store != nil {
+	if store := newPostgresLocalIdentityAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
-	handler.Sessions = newBrowserSessionStore(db, instruments)
+	handler.Sessions = newBrowserSessionStore(database, instruments)
 	return handler
 }
 

@@ -37,7 +37,7 @@ const deferredMaintenanceBarrierLockKey int64 = 0x45534855444d42
 // repository catalog cache. It is nil only for stores constructed without
 // NewIngestionStore, in which case the catalog falls back to a per-commit load.
 type IngestionStore struct {
-	db          db.ExecQueryer
+	database    db.ExecQueryer
 	beginner    db.Beginner
 	Now         func() time.Time
 	Logger      *slog.Logger
@@ -77,7 +77,7 @@ type IngestionStore struct {
 // reloads stay O(1) across the lifetime of the store (issue #3481).
 func NewIngestionStore(database db.ExecQueryer) IngestionStore {
 	store := IngestionStore{
-		db:                     database,
+		database:               database,
 		catalogCache:           newRepositoryCatalogCache(),
 		maintenanceWorkers:     deferredBackfillWorkerCount(),
 		idleMaintenanceLogGate: &deferredMaintenanceIdleLogGate{},
@@ -329,7 +329,7 @@ func (s IngestionStore) commitScopeGeneration(
 		slog.Int("fact_count", factStats.Rows),
 		slog.Int("batch_count", factStats.Batches),
 	)
-	queue := ProjectorQueue{db: tx, Now: s.now}
+	queue := ProjectorQueue{database: tx, Now: s.now}
 	stageStart = time.Now()
 	if err := queue.Enqueue(ctx, scopeValue.ScopeID, generation.GenerationID); err != nil {
 		return err
@@ -466,7 +466,7 @@ func (s IngestionStore) now() time.Time {
 
 func upsertIngestionScope(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	scopeValue scope.IngestionScope,
 	generation scope.ScopeGeneration,
 ) error {
@@ -475,7 +475,7 @@ func upsertIngestionScope(
 		return fmt.Errorf("marshal scope payload: %w", err)
 	}
 
-	_, err = db.ExecContext(
+	_, err = database.ExecContext(
 		ctx,
 		upsertIngestionScopeQuery,
 		scopeValue.ScopeID,
@@ -500,10 +500,10 @@ func upsertIngestionScope(
 
 func upsertScopeGeneration(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	generation scope.ScopeGeneration,
 ) error {
-	_, err := db.ExecContext(
+	_, err := database.ExecContext(
 		ctx,
 		upsertScopeGenerationQuery,
 		generation.GenerationID,

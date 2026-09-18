@@ -31,7 +31,7 @@ func TestReopenSucceededReducerWorkItemsReplaysListedItems(t *testing.T) {
 			rowsAffectedResult{rowsAffected: 1},
 		},
 	}
-	store := IngestionStore{db: db, Now: func() time.Time { return now }}
+	store := IngestionStore{database: db, Now: func() time.Time { return now }}
 
 	err := store.ReopenSucceededReducerWorkItems(
 		context.Background(), nil, nil, []string{"deployable_unit_correlation"},
@@ -61,7 +61,7 @@ func TestReopenSucceededReducerWorkItemsSkipsBlankDomains(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	store := IngestionStore{db: db, Now: time.Now}
+	store := IngestionStore{database: db, Now: time.Now}
 
 	err := store.ReopenSucceededReducerWorkItems(
 		context.Background(), nil, nil, []string{"", "   "},
@@ -107,7 +107,7 @@ func TestReopenSucceededReducerWorkItemsPropagatesReopenError(t *testing.T) {
 		},
 		execErrors: []error{errors.New("boom")},
 	}
-	store := IngestionStore{db: db, Now: func() time.Time { return now }}
+	store := IngestionStore{database: db, Now: func() time.Time { return now }}
 
 	err := store.ReopenSucceededReducerWorkItems(
 		context.Background(), nil, nil, []string{"deployable_unit_correlation"},

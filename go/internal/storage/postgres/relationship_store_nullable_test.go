@@ -62,8 +62,8 @@ type strictResolvedQueryDB struct {
 	rows db.Rows
 }
 
-func (db strictResolvedQueryDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
-	return db.rows, nil
+func (database strictResolvedQueryDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
+	return database.rows, nil
 }
 
 func (strictResolvedQueryDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {

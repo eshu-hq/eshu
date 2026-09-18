@@ -67,14 +67,14 @@ WHERE cicd_run_watermarks.fencing_token <= EXCLUDED.fencing_token
 // run watermark must be readable by a LATER generation to detect a gap
 // against an EARLIER generation's progress.
 type CICDRunWatermarkStore struct {
-	db  db.ExecQueryer
-	Now func() time.Time
+	database db.ExecQueryer
+	Now      func() time.Time
 }
 
 // NewCICDRunWatermarkStore constructs a watermark store over the shared
 // data-plane database.
-func NewCICDRunWatermarkStore(db db.ExecQueryer) CICDRunWatermarkStore {
-	return CICDRunWatermarkStore{db: db}
+func NewCICDRunWatermarkStore(database db.ExecQueryer) CICDRunWatermarkStore {
+	return CICDRunWatermarkStore{database: database}
 }
 
 // CICDRunWatermarkSchemaSQL returns the DDL for CI/CD run watermark rows.
@@ -84,10 +84,10 @@ func CICDRunWatermarkSchemaSQL() string {
 
 // EnsureSchema applies the CI/CD run watermark DDL.
 func (s CICDRunWatermarkStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("ci/cd run watermark database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, cicdRunWatermarkSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, cicdRunWatermarkSchemaSQL); err != nil {
 		return fmt.Errorf("ensure ci/cd run watermark schema: %w", err)
 	}
 	return nil
@@ -99,13 +99,13 @@ func (s CICDRunWatermarkStore) Load(
 	ctx context.Context,
 	key runwatermark.Key,
 ) (runwatermark.Watermark, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return runwatermark.Watermark{}, false, fmt.Errorf("ci/cd run watermark database is required")
 	}
 	if err := key.Validate(); err != nil {
 		return runwatermark.Watermark{}, false, err
 	}
-	rows, err := s.db.QueryContext(ctx, loadCICDRunWatermarkQuery, key.ScopeID, key.Repository)
+	rows, err := s.database.QueryContext(ctx, loadCICDRunWatermarkQuery, key.ScopeID, key.Repository)
 	if err != nil {
 		return runwatermark.Watermark{}, false, fmt.Errorf("load ci/cd run watermark: %w", err)
 	}
@@ -138,7 +138,7 @@ func (s CICDRunWatermarkStore) Load(
 // row's is rejected with runwatermark.ErrStaleFence; a fencing token equal
 // to the stored row's succeeds (idempotent redelivery).
 func (s CICDRunWatermarkStore) Save(ctx context.Context, value runwatermark.Watermark) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("ci/cd run watermark database is required")
 	}
 	if err := value.Validate(); err != nil {
@@ -148,7 +148,7 @@ func (s CICDRunWatermarkStore) Save(ctx context.Context, value runwatermark.Wate
 	if updatedAt.IsZero() {
 		updatedAt = s.now()
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		saveCICDRunWatermarkQuery,
 		value.Key.ScopeID,

@@ -159,7 +159,7 @@ func (s *CodeReachabilityStore) LoadPendingCodeReachabilityInputs(
 	if limit <= 0 {
 		limit = 10
 	}
-	rows, err := s.db.QueryContext(ctx, listPendingCodeReachabilityInputsSQL, limit, CodeReachabilityVerdictSchemaEpoch)
+	rows, err := s.database.QueryContext(ctx, listPendingCodeReachabilityInputsSQL, limit, CodeReachabilityVerdictSchemaEpoch)
 	if err != nil {
 		return nil, fmt.Errorf("query pending code reachability inputs: %w", err)
 	}
@@ -247,7 +247,7 @@ func (s *CodeReachabilityStore) loadCodeReachabilityRoots(
 	ctx context.Context,
 	repositoryID string,
 ) ([]codeintel.CodeReachabilityRoot, error) {
-	rows, err := s.db.QueryContext(ctx, listCodeReachabilityRootsSQL, repositoryID)
+	rows, err := s.database.QueryContext(ctx, listCodeReachabilityRootsSQL, repositoryID)
 	if err != nil {
 		return nil, fmt.Errorf("query code reachability roots: %w", err)
 	}
@@ -282,7 +282,7 @@ func (s *CodeReachabilityStore) loadCodeReachabilityRailsRouteFacts(
 	ctx context.Context,
 	repositoryID string,
 ) (codeintel.RubyRailsRouteFacts, error) {
-	rows, err := s.db.QueryContext(ctx, listCodeReachabilityRailsRouteFactsSQL, repositoryID)
+	rows, err := s.database.QueryContext(ctx, listCodeReachabilityRailsRouteFactsSQL, repositoryID)
 	if err != nil {
 		return codeintel.RubyRailsRouteFacts{}, fmt.Errorf("query code reachability rails route facts: %w", err)
 	}
@@ -314,7 +314,7 @@ func (s *CodeReachabilityStore) loadCodeReachabilityRubyClasses(
 	ctx context.Context,
 	repositoryID string,
 ) ([]codeintel.RubyClassEntity, error) {
-	rows, err := s.db.QueryContext(ctx, listCodeReachabilityRubyClassesSQL, repositoryID)
+	rows, err := s.database.QueryContext(ctx, listCodeReachabilityRubyClassesSQL, repositoryID)
 	if err != nil {
 		return nil, fmt.Errorf("query code reachability ruby classes: %w", err)
 	}
@@ -346,7 +346,7 @@ func (s *CodeReachabilityStore) loadCodeReachabilityEdges(
 	sourceRunID string,
 	generationID string,
 ) ([]codeintel.CodeReachabilityEdge, error) {
-	rows, err := s.db.QueryContext(ctx, listCodeReachabilityEdgesSQL, scopeID, repositoryID, sourceRunID, generationID)
+	rows, err := s.database.QueryContext(ctx, listCodeReachabilityEdgesSQL, scopeID, repositoryID, sourceRunID, generationID)
 	if err != nil {
 		return nil, fmt.Errorf("query code reachability edges: %w", err)
 	}

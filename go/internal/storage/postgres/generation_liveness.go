@@ -64,12 +64,12 @@ type GenerationLivenessResult struct {
 // bounded statements against Postgres. All writes are idempotent under
 // concurrent reducer workers and retries; the conflict domain is scope_id.
 type GenerationLivenessStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewGenerationLivenessStore constructs a Postgres-backed liveness store.
-func NewGenerationLivenessStore(db db.ExecQueryer) GenerationLivenessStore {
-	return GenerationLivenessStore{db: db}
+func NewGenerationLivenessStore(database db.ExecQueryer) GenerationLivenessStore {
+	return GenerationLivenessStore{database: database}
 }
 
 // RecoverWedgedGenerations retires orphaned older active generations and
@@ -84,7 +84,7 @@ func (s GenerationLivenessStore) RecoverWedgedGenerations(
 	policy GenerationLivenessPolicy,
 	now time.Time,
 ) (GenerationLivenessResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return GenerationLivenessResult{}, errors.New("generation liveness database is required")
 	}
 	policy = policy.Normalize()
@@ -133,7 +133,7 @@ func (s GenerationLivenessStore) collectScopeGenerationPairs(
 	op string,
 	args ...any,
 ) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -163,7 +163,7 @@ func (s GenerationLivenessStore) CountActiveGenerationsByAge(
 	policy GenerationLivenessPolicy,
 	now time.Time,
 ) (map[string]int64, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("generation liveness database is required")
 	}
 	policy = policy.Normalize()
@@ -172,7 +172,7 @@ func (s GenerationLivenessStore) CountActiveGenerationsByAge(
 	agingBoundary := now.Add(-policy.ActivationDeadline / 2)
 	stuckBoundary := now.Add(-policy.ActivationDeadline)
 
-	rows, err := s.db.QueryContext(ctx, countActiveGenerationsByAgeQuery, agingBoundary, stuckBoundary, now)
+	rows, err := s.database.QueryContext(ctx, countActiveGenerationsByAgeQuery, agingBoundary, stuckBoundary, now)
 	if err != nil {
 		return nil, fmt.Errorf("count active generations by age: %w", err)
 	}

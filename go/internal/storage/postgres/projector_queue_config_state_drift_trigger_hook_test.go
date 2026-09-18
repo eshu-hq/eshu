@@ -72,7 +72,7 @@ func TestProjectorQueueAckInvokesConfigStateDriftTriggerAfterCommitForStateSnaps
 	fake := configStateDriftTriggerHookFake{log: &log, triggerArgs: &triggerArgs, triggerErr: errors.New("injected trigger failure")}
 
 	queue := ProjectorQueue{
-		db:                      fake,
+		database:                fake,
 		LeaseOwner:              "test-owner",
 		LeaseDuration:           time.Minute,
 		ConfigStateDriftTrigger: fake,
@@ -130,7 +130,7 @@ func TestProjectorQueueAckRecordsConfigStateDriftRuntimeTriggerFailureCounter(t 
 	inst, reader := newEnqueueInstruments(t)
 
 	queue := ProjectorQueue{
-		db:                      fake,
+		database:                fake,
 		LeaseOwner:              "test-owner",
 		LeaseDuration:           time.Minute,
 		ConfigStateDriftTrigger: fake,
@@ -168,7 +168,7 @@ func TestProjectorQueueAckDoesNotRecordFailureCounterOnSuccessfulTrigger(t *test
 	inst, reader := newEnqueueInstruments(t)
 
 	queue := ProjectorQueue{
-		db:                      fake,
+		database:                fake,
 		LeaseOwner:              "test-owner",
 		LeaseDuration:           time.Minute,
 		ConfigStateDriftTrigger: fake,
@@ -203,7 +203,7 @@ func TestProjectorQueueAckSkipsConfigStateDriftTriggerForNonStateSnapshotScope(t
 	fake := configStateDriftTriggerHookFake{log: &log, triggerArgs: &triggerArgs}
 
 	queue := ProjectorQueue{
-		db:                      fake,
+		database:                fake,
 		LeaseOwner:              "test-owner",
 		LeaseDuration:           time.Minute,
 		ConfigStateDriftTrigger: fake,
@@ -242,7 +242,7 @@ func TestProjectorQueueAckRefusesConfigStateDriftTriggerWhenLeaseOwnerIsBootstra
 	inst, reader := newEnqueueInstruments(t)
 
 	queue := ProjectorQueue{
-		db: fake,
+		database: fake,
 		// The SAME exported constant cmd/bootstrap-index/wiring.go passes to
 		// postgres.NewProjectorQueue -- not a re-typed literal, so a rename
 		// of the constant's value cannot desync this test from the guard it
@@ -288,7 +288,7 @@ func TestProjectorQueueAckSkipsConfigStateDriftTriggerWhenNilTrigger(t *testing.
 	fake := configStateDriftTriggerHookFake{log: &log, triggerArgs: &triggerArgs}
 
 	queue := ProjectorQueue{
-		db:            fake,
+		database:      fake,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		// ConfigStateDriftTrigger intentionally left nil.

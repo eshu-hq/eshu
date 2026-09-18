@@ -41,7 +41,7 @@ func TestContainerImageIdentityClaimLatchSurvivesServiceRetryAndRejectsLegacyCal
 	)
 
 	queue := &ReducerQueue{
-		db:             SQLDB{DB: db},
+		database:       SQLDB{DB: db},
 		LeaseOwner:     owner,
 		LeaseDuration:  time.Minute,
 		RetryDelay:     time.Second,
@@ -127,7 +127,7 @@ WHERE work_item_id = $4
 	)
 
 	retryQueue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now.Add(5 * time.Second) },

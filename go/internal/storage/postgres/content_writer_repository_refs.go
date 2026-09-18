@@ -78,7 +78,7 @@ func (w ContentWriter) upsertRepositoryRefs(
 	if len(rows) == 0 {
 		return nil
 	}
-	if _, err := w.db.ExecContext(ctx, deleteRepositoryRefsQuery, repoID); err != nil {
+	if _, err := w.database.ExecContext(ctx, deleteRepositoryRefsQuery, repoID); err != nil {
 		return fmt.Errorf("delete repository_refs for %q: %w", repoID, err)
 	}
 
@@ -107,7 +107,7 @@ func (w ContentWriter) upsertRepositoryRefs(
 	}
 
 	query := upsertRepositoryRefBatchPrefix + values.String() + upsertRepositoryRefBatchSuffix
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert repository_refs batch (%d refs): %w", len(rows), err)
 	}
 	return nil

@@ -139,7 +139,7 @@ func (s FactStore) ListOSPackageAdvisoryTargets(
 	ctx context.Context,
 	filter workflow.OSPackageAdvisoryTargetFilter,
 ) ([]workflow.OSPackageAdvisoryTarget, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	ecosystems := cleanStringFilterValues(filter.Ecosystems)
@@ -147,7 +147,7 @@ func (s FactStore) ListOSPackageAdvisoryTargets(
 		return nil, nil
 	}
 	limit := ownedPackageDependencyTargetLimit(filter.Limit)
-	rows, err := s.db.QueryContext(ctx, listOSPackageAdvisoryTargetsQuery(), ecosystems, limit, filter.RotationOffset)
+	rows, err := s.database.QueryContext(ctx, listOSPackageAdvisoryTargetsQuery(), ecosystems, limit, filter.RotationOffset)
 	if err != nil {
 		return nil, fmt.Errorf("list OS package advisory targets: %w", err)
 	}
@@ -198,7 +198,7 @@ func (s FactStore) ListSBOMComponentAdvisoryTargets(
 	ctx context.Context,
 	filter workflow.SBOMComponentAdvisoryTargetFilter,
 ) ([]workflow.SBOMComponentAdvisoryTarget, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	ecosystems := cleanStringFilterValues(filter.Ecosystems)
@@ -206,7 +206,7 @@ func (s FactStore) ListSBOMComponentAdvisoryTargets(
 		return nil, nil
 	}
 	limit := ownedPackageDependencyTargetLimit(filter.Limit)
-	rows, err := s.db.QueryContext(ctx, listSBOMComponentAdvisoryTargetsQuery(), ecosystems, limit, filter.RotationOffset)
+	rows, err := s.database.QueryContext(ctx, listSBOMComponentAdvisoryTargetsQuery(), ecosystems, limit, filter.RotationOffset)
 	if err != nil {
 		return nil, fmt.Errorf("list SBOM component advisory targets: %w", err)
 	}

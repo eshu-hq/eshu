@@ -4,6 +4,7 @@
 package db_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -24,7 +25,15 @@ var (
 )
 
 // TestRootAdaptersSatisfyContracts keeps the compile-time assertions above
-// reachable from `go test -list`.
+// reachable from `go test -list` and pins the SQLDB.Begin shape at runtime
+// so a signature drift that somehow still satisfies db.Beginner is caught.
 func TestRootAdaptersSatisfyContracts(t *testing.T) {
-	t.Helper()
+	t.Parallel()
+	m, ok := reflect.TypeFor[postgres.SQLDB]().MethodByName("Begin")
+	if !ok {
+		t.Fatal("SQLDB.Begin method not found")
+	}
+	if got := m.Type.NumOut(); got != 2 {
+		t.Fatalf("SQLDB.Begin outputs = %d, want 2", got)
+	}
 }

@@ -40,7 +40,7 @@ func TestReducerQueueClaimDoesNotCountCrossScopeReadinessDefers(t *testing.T) {
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },

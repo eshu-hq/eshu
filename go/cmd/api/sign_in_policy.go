@@ -48,9 +48,9 @@ func newPostgresSignInPolicyAdapter(rawDB *sql.DB, instruments *telemetry.Instru
 // admin). Nil-safe: a nil database yields a handler whose store is nil, so
 // each route returns 503 rather than panicking, matching
 // newAdminProviderConfigReadHandler's convention.
-func newSignInPolicyReadHandler(db *sql.DB, instruments *telemetry.Instruments) *query.SignInPolicyReadHandler {
+func newSignInPolicyReadHandler(database *sql.DB, instruments *telemetry.Instruments) *query.SignInPolicyReadHandler {
 	handler := &query.SignInPolicyReadHandler{}
-	if store := newPostgresSignInPolicyAdapter(db, instruments); store != nil {
+	if store := newPostgresSignInPolicyAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
 	return handler
@@ -58,7 +58,7 @@ func newSignInPolicyReadHandler(db *sql.DB, instruments *telemetry.Instruments) 
 
 // newSignInPolicyMutationHandler wires the admin sign-in policy write route.
 func newSignInPolicyMutationHandler(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 ) *query.SignInPolicyMutationHandler {
@@ -66,7 +66,7 @@ func newSignInPolicyMutationHandler(
 		Audit:       adminRecoveryAuditAppender(governanceAudit),
 		Instruments: instruments,
 	}
-	if store := newPostgresSignInPolicyAdapter(db, instruments); store != nil {
+	if store := newPostgresSignInPolicyAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
 	return handler

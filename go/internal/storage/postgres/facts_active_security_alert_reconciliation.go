@@ -62,7 +62,7 @@ func (s FactStore) ListActiveSecurityAlertReconciliationFacts(
 	ctx context.Context,
 	filter securityalert.SecurityAlertReconciliationFactFilter,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
@@ -94,7 +94,7 @@ func (s FactStore) listActiveSecurityAlertReconciliationFactsPage(
 	filter securityalert.SecurityAlertReconciliationFactFilter,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveSecurityAlertReconciliationFactsQuery,
 		filter.RepositoryIDs,

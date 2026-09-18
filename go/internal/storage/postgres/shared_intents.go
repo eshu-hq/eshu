@@ -208,18 +208,18 @@ type SharedIntentFilter struct {
 
 // SharedIntentStore persists shared projection intents in PostgreSQL.
 type SharedIntentStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewSharedIntentStore creates a shared intent store backed by the given
 // database.
-func NewSharedIntentStore(db db.ExecQueryer) *SharedIntentStore {
-	return &SharedIntentStore{db: db}
+func NewSharedIntentStore(database db.ExecQueryer) *SharedIntentStore {
+	return &SharedIntentStore{database: database}
 }
 
 // EnsureSchema applies the shared projection intent DDL.
 func (s *SharedIntentStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, sharedIntentSchemaSQL)
+	_, err := s.database.ExecContext(ctx, sharedIntentSchemaSQL)
 	return err
 }
 
@@ -232,7 +232,7 @@ func (s *SharedIntentStore) ListIntents(ctx context.Context, f SharedIntentFilte
 		projDomain = *f.ProjectionDomain
 	}
 
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx, listSharedIntentsSQL,
 		f.RepositoryID,
 		f.SourceRunID,
@@ -252,7 +252,7 @@ func (s *SharedIntentStore) ListIntents(ctx context.Context, f SharedIntentFilte
 func (s *SharedIntentStore) ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]reducer.SharedProjectionIntentRow, error) {
 	l := max(limit, 1)
 
-	sqlRows, err := s.db.QueryContext(ctx, listPendingDomainIntentsSQL, domain, l)
+	sqlRows, err := s.database.QueryContext(ctx, listPendingDomainIntentsSQL, domain, l)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (s *SharedIntentStore) MarkIntentsCompleted(ctx context.Context, intentIDs 
 		return nil
 	}
 
-	_, err := s.db.ExecContext(ctx, markIntentsCompletedSQL, completedAt, intentIDs)
+	_, err := s.database.ExecContext(ctx, markIntentsCompletedSQL, completedAt, intentIDs)
 	if err != nil {
 		return err
 	}
@@ -281,7 +281,7 @@ func (s *SharedIntentStore) ClaimPartitionLease(ctx context.Context, domain stri
 	now := time.Now().UTC()
 	leaseExpiresAt := now.Add(leaseTTL)
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx, claimPartitionLeaseSQL,
 		domain,
 		partitionID,
@@ -314,7 +314,7 @@ func (s *SharedIntentStore) ClaimPartitionLease(ctx context.Context, domain stri
 func (s *SharedIntentStore) ReleasePartitionLease(ctx context.Context, domain string, partitionID, partitionCount int, leaseOwner string) error {
 	now := time.Now().UTC()
 
-	_, err := s.db.ExecContext(
+	_, err := s.database.ExecContext(
 		ctx, releasePartitionLeaseSQL,
 		domain,
 		partitionID,
@@ -339,7 +339,7 @@ func (s *SharedIntentStore) ListPendingAcceptanceUnitIntents(
 ) ([]reducer.SharedProjectionIntentRow, error) {
 	l := max(limit, 1)
 
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		listPendingAcceptanceUnitIntentsSQL,
 		key.ScopeID,
@@ -367,7 +367,7 @@ func (s *SharedIntentStore) ListPendingAcceptanceUnitPartitionIntents(
 ) ([]reducer.SharedProjectionIntentRow, error) {
 	l := max(limit, 1)
 
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		listPendingAcceptanceUnitPartitionIntentsSQL,
 		key.ScopeID,
@@ -397,7 +397,7 @@ func (s *SharedIntentStore) ListAcceptanceUnitDomainIntents(
 ) ([]reducer.SharedProjectionIntentRow, error) {
 	l := max(limit, 1)
 
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		listAcceptanceUnitDomainIntentsSQL,
 		acceptanceUnitID,

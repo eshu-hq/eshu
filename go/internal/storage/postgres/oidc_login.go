@@ -22,7 +22,7 @@ const (
 // OIDCLoginStore persists hash-only OIDC login state and resolves IdP group
 // hashes through Eshu-owned role target grants.
 type OIDCLoginStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // OIDCLoginStateRecord is one server-side Authorization Code state row.
@@ -67,8 +67,8 @@ type OIDCGroupGrantResolution struct {
 }
 
 // NewOIDCLoginStore constructs a Postgres OIDC login store.
-func NewOIDCLoginStore(db db.ExecQueryer) *OIDCLoginStore {
-	return &OIDCLoginStore{db: db}
+func NewOIDCLoginStore(database db.ExecQueryer) *OIDCLoginStore {
+	return &OIDCLoginStore{database: database}
 }
 
 // OIDCLoginSchemaSQL returns the OIDC login state and mapping DDL.
@@ -78,10 +78,10 @@ func OIDCLoginSchemaSQL() string {
 
 // EnsureSchema applies the OIDC login schema.
 func (s *OIDCLoginStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("oidc login store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, oidcLoginSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, oidcLoginSchemaSQL); err != nil {
 		return fmt.Errorf("ensure oidc login schema: %w", err)
 	}
 	return nil
@@ -89,14 +89,14 @@ func (s *OIDCLoginStore) EnsureSchema(ctx context.Context) error {
 
 // CreateState writes one hash-only OIDC login state row.
 func (s *OIDCLoginStore) CreateState(ctx context.Context, record OIDCLoginStateRecord) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("oidc login store database is required")
 	}
 	record = normalizeOIDCLoginState(record)
 	if err := validateOIDCLoginState(record); err != nil {
 		return err
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		createOIDCLoginStateQuery,
 		record.StateHash,
@@ -131,7 +131,7 @@ func (s *OIDCLoginStore) ConsumeState(
 	stateHash string,
 	consumedAt time.Time,
 ) (OIDCLoginStateRecord, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return OIDCLoginStateRecord{}, false, errors.New("oidc login store database is required")
 	}
 	stateHash = strings.TrimSpace(stateHash)
@@ -139,7 +139,7 @@ func (s *OIDCLoginStore) ConsumeState(
 	if stateHash == "" || consumedAt.IsZero() {
 		return OIDCLoginStateRecord{}, false, errors.New("oidc state hash and consumed_at are required")
 	}
-	rows, err := s.db.QueryContext(ctx, consumeOIDCLoginStateQuery, stateHash, consumedAt)
+	rows, err := s.database.QueryContext(ctx, consumeOIDCLoginStateQuery, stateHash, consumedAt)
 	if err != nil {
 		return OIDCLoginStateRecord{}, false, fmt.Errorf("consume oidc login state: %w", err)
 	}
@@ -166,7 +166,7 @@ func (s *OIDCLoginStore) ResolveGroupRoleGrants(
 	ctx context.Context,
 	query OIDCGroupGrantQuery,
 ) (OIDCGroupGrantResolution, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return OIDCGroupGrantResolution{}, false, errors.New("oidc login store database is required")
 	}
 	query = normalizeOIDCGroupGrantQuery(query)
@@ -185,7 +185,7 @@ func (s *OIDCLoginStore) ResolveGroupRoleGrants(
 	if err != nil {
 		return OIDCGroupGrantResolution{}, false, err
 	}
-	features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, query.TenantID, roles, query.AsOf)
+	features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.database, query.TenantID, roles, query.AsOf)
 	if err != nil {
 		// Fails closed (login denied). Log distinctly for operator triage.
 		slog.ErrorContext(ctx, "oidc session permission grant resolution failed; login denied",
@@ -206,7 +206,7 @@ func (s *OIDCLoginStore) resolveOIDCRoles(
 	ctx context.Context,
 	query OIDCGroupGrantQuery,
 ) ([]string, string, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		resolveOIDCGroupRolesQuery,
 		query.TenantID,
@@ -252,7 +252,7 @@ func (s *OIDCLoginStore) resolveOIDCScopes(
 	query OIDCGroupGrantQuery,
 	roles []string,
 ) ([]string, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		resolveOIDCRoleScopeTargetsQuery,
 		query.TenantID,
@@ -273,7 +273,7 @@ func (s *OIDCLoginStore) resolveOIDCRepositories(
 	query OIDCGroupGrantQuery,
 	roles []string,
 ) ([]string, error) {
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		resolveOIDCRoleRepositoryTargetsQuery,
 		query.TenantID,

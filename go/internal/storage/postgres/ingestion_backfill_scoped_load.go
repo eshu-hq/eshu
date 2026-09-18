@@ -244,8 +244,8 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 	// rows into (the exact issue #4770/#4816 bug this return value exists to
 	// prevent).
 	var skippedPartitions map[scopeGenerationPartition]struct{}
-	if s.db != nil {
-		memoStore := newDeferredBackfillPartitionMemoStore(s.db)
+	if s.database != nil {
+		memoStore := newDeferredBackfillPartitionMemoStore(s.database)
 		fingerprint := deferredCatalogFingerprint(params)
 		gateResult, err := applyDeferredPartitionMemoGate(ctx, memoStore, partitions, fingerprint, instruments)
 		if err != nil {

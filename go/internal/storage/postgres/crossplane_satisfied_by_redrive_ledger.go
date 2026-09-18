@@ -29,13 +29,13 @@ ON CONFLICT (target_scope_id, xrd_group, xrd_claim_kind) DO NOTHING
 // CrossplaneRedriveTargetLedgerStore persists the durable "already re-driven"
 // ledger the target-discovery query's already-satisfied fence reads.
 type CrossplaneRedriveTargetLedgerStore struct {
-	db  db.ExecQueryer
-	Now func() time.Time
+	database db.ExecQueryer
+	Now      func() time.Time
 }
 
 // NewCrossplaneRedriveTargetLedgerStore constructs the target ledger store.
-func NewCrossplaneRedriveTargetLedgerStore(db db.ExecQueryer) CrossplaneRedriveTargetLedgerStore {
-	return CrossplaneRedriveTargetLedgerStore{db: db}
+func NewCrossplaneRedriveTargetLedgerStore(database db.ExecQueryer) CrossplaneRedriveTargetLedgerStore {
+	return CrossplaneRedriveTargetLedgerStore{database: database}
 }
 
 func (s CrossplaneRedriveTargetLedgerStore) now() time.Time {
@@ -55,13 +55,13 @@ func (s CrossplaneRedriveTargetLedgerStore) RecordRedriven(
 	group string,
 	claimKind string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("crossplane redrive target ledger database is required")
 	}
 	if targetScopeID == "" || group == "" || claimKind == "" {
 		return errors.New("crossplane redrive target ledger requires scope id, group, and claim kind")
 	}
-	if _, err := s.db.ExecContext(ctx, recordCrossplaneRedriveTargetQuery, targetScopeID, group, claimKind, s.now()); err != nil {
+	if _, err := s.database.ExecContext(ctx, recordCrossplaneRedriveTargetQuery, targetScopeID, group, claimKind, s.now()); err != nil {
 		return fmt.Errorf("record crossplane redrive target: %w", err)
 	}
 	return nil

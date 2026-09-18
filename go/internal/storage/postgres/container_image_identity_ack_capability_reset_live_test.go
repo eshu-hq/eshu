@@ -38,7 +38,7 @@ func (q sqlConnExecQueryer) ExecContext(
 func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundariesLive(
 	t *testing.T,
 ) {
-	db := openContainerImageIdentityAckCapabilityProofDB(t)
+	database := openContainerImageIdentityAckCapabilityProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	now := time.Date(2026, time.July, 30, 13, 0, 0, 0, time.UTC)
@@ -50,12 +50,12 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		scopeID := fmt.Sprintf("repository:5854-ack-reset-%d", index)
 		generationID := fmt.Sprintf("generation:5854-ack-reset-%d", index)
 		workItemID := fmt.Sprintf("ack-5854-reset-%d", index)
-		seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
-		seedContainerImageIdentityAckGeneration(t, ctx, db, scopeID, generationID)
+		seedContainerImageIdentityAckScope(t, ctx, database, scopeID)
+		seedContainerImageIdentityAckGeneration(t, ctx, database, scopeID, generationID)
 		seedContainerImageIdentityAckWorkItem(
 			t,
 			ctx,
-			db,
+			database,
 			workItemID,
 			scopeID,
 			generationID,
@@ -63,15 +63,15 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 			now.Add(time.Minute),
 			now,
 		)
-		insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeID, generationID)
+		insertContainerImageIdentityCutoverMarker(t, ctx, database, scopeID, generationID)
 	}
 
-	conn, err := db.Conn(ctx)
+	conn, err := database.Conn(ctx)
 	if err != nil {
 		t.Fatalf("reserve ACK attempt fence reset connection: %v", err)
 	}
 	connQueue := ReducerQueue{
-		db:            sqlConnExecQueryer{conn: conn},
+		database:      sqlConnExecQueryer{conn: conn},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -102,7 +102,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		t.Fatalf("begin attempt-bound ACK rollback transaction: %v", err)
 	}
 	rollbackQueue := ReducerQueue{
-		db:            SQLTx{Tx: rollbackTx},
+		database:      SQLTx{Tx: rollbackTx},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -137,7 +137,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		t.Fatalf("begin attempt-bound ACK commit transaction: %v", err)
 	}
 	commitQueue := ReducerQueue{
-		db:            SQLTx{Tx: commitTx},
+		database:      SQLTx{Tx: commitTx},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -176,7 +176,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		t.Fatalf("create attempt-bound ACK savepoint: %v", err)
 	}
 	savepointQueue := ReducerQueue{
-		db:            SQLTx{Tx: savepointTx},
+		database:      SQLTx{Tx: savepointTx},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -211,7 +211,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		t.Fatalf("return ACK attempt fence connection to pool: %v", err)
 	}
 
-	result, legacyErr = db.ExecContext(
+	result, legacyErr = database.ExecContext(
 		ctx,
 		legacyContainerImageIdentityAckQuery,
 		now,
@@ -236,7 +236,7 @@ func TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundaries
 		assertContainerImageIdentityAckWorkItemState(
 			t,
 			ctx,
-			db,
+			database,
 			workItemID,
 			wantStatus,
 			wantOwner,

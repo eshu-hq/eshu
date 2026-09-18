@@ -83,8 +83,8 @@ func TestSearchVectorDocumentQueryRollsBackAfterCommitFailure(t *testing.T) {
 func TestSearchVectorDocumentQueryFallsBackWithoutBeginner(t *testing.T) {
 	t.Parallel()
 
-	db := &searchVectorFallbackDB{}
-	rows, err := beginSearchVectorDocumentQuery(context.Background(), db, "SELECT 1")
+	database := &searchVectorFallbackDB{}
+	rows, err := beginSearchVectorDocumentQuery(context.Background(), database, "SELECT 1")
 	if err != nil {
 		t.Fatalf("beginSearchVectorDocumentQuery fallback error = %v", err)
 	}
@@ -92,8 +92,8 @@ func TestSearchVectorDocumentQueryFallsBackWithoutBeginner(t *testing.T) {
 		t.Fatalf("fallback rows Commit error = %v", err)
 	}
 	rows.Rollback() // A transaction-less committed result remains safe to clean up.
-	if db.queries != 1 {
-		t.Fatalf("fallback queries = %d, want 1", db.queries)
+	if database.queries != 1 {
+		t.Fatalf("fallback queries = %d, want 1", database.queries)
 	}
 }
 
@@ -106,8 +106,8 @@ func TestSearchVectorDocumentQueryDisablesJITLocally(t *testing.T) {
 	t.Parallel()
 
 	tx := &searchVectorTuningTx{}
-	db := &searchVectorTuningDB{tx: tx}
-	store := NewEshuSearchDocumentStore(db)
+	database := &searchVectorTuningDB{tx: tx}
+	store := NewEshuSearchDocumentStore(database)
 	_, err := store.ListPendingVectorDocumentsForScopes(context.Background(), EshuSearchVectorDocumentBatchFilter{
 		Scopes:            []EshuSearchVectorDocumentScope{{ScopeID: "scope-a", GenerationID: "gen-a"}},
 		ProviderProfileID: "local", SourceClass: "search_documents",

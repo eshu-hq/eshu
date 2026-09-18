@@ -44,16 +44,16 @@ type adminMutationFakeDB struct {
 	tenantArgs   []string
 }
 
-func (db *adminMutationFakeDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.execQueries = append(db.execQueries, query)
+func (database *adminMutationFakeDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execQueries = append(database.execQueries, query)
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok {
-			db.tenantArgs = append(db.tenantArgs, s)
+			database.tenantArgs = append(database.tenantArgs, s)
 		}
 	}
 	// revoke role assignment affects one row only when an active row exists.
 	if strings.Contains(query, "UPDATE identity_membership_roles") {
-		if db.deleteMatches {
+		if database.deleteMatches {
 			return affectedResult{affected: 1}, nil
 		}
 		return affectedResult{affected: 0}, nil
@@ -65,46 +65,46 @@ func (db *adminMutationFakeDB) ExecContext(_ context.Context, query string, args
 	return affectedResult{affected: 0}, nil
 }
 
-func (db *adminMutationFakeDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	db.queryQueries = append(db.queryQueries, query)
+func (database *adminMutationFakeDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.queryQueries = append(database.queryQueries, query)
 	switch {
 	case strings.Contains(query, "FROM identity_roles"):
-		if db.roleActive {
+		if database.roleActive {
 			return &scalarRows{data: [][]any{{1}}}, nil
 		}
 		return &scalarRows{}, nil
 	case strings.Contains(query, "FROM identity_tenant_memberships"):
-		if db.memberActive {
+		if database.memberActive {
 			return &scalarRows{data: [][]any{{1}}}, nil
 		}
 		return &scalarRows{}, nil
 	case strings.Contains(query, "FROM identity_provider_configs"):
-		if db.providerActive {
+		if database.providerActive {
 			return &scalarRows{data: [][]any{{1}}}, nil
 		}
 		return &scalarRows{}, nil
 	case strings.Contains(query, "FROM identity_invitations"):
-		if !db.inviteFound {
+		if !database.inviteFound {
 			return &scalarRows{}, nil
 		}
 		var revoked, accepted, expires any
-		if db.inviteRevoked {
+		if database.inviteRevoked {
 			revoked = time.Now().UTC()
 		}
-		if db.inviteAccepted {
+		if database.inviteAccepted {
 			accepted = time.Now().UTC()
 		}
-		if db.inviteExpired {
+		if database.inviteExpired {
 			// One hour in the past — clearly expired relative to any RevokedAt.
 			expires = time.Now().UTC().Add(-time.Hour)
 		}
-		return &scalarRows{data: [][]any{{db.inviteStatus, revoked, accepted, expires}}}, nil
+		return &scalarRows{data: [][]any{{database.inviteStatus, revoked, accepted, expires}}}, nil
 	case strings.Contains(query, "INSERT INTO identity_membership_roles"):
-		return &scalarRows{data: [][]any{{db.upsertStatus, db.upsertInserted}}}, nil
+		return &scalarRows{data: [][]any{{database.upsertStatus, database.upsertInserted}}}, nil
 	case strings.Contains(query, "INSERT INTO identity_provider_group_role_mappings"):
-		return &scalarRows{data: [][]any{{db.upsertRef, db.upsertStatus, db.upsertInserted}}}, nil
+		return &scalarRows{data: [][]any{{database.upsertRef, database.upsertStatus, database.upsertInserted}}}, nil
 	case strings.Contains(query, "UPDATE identity_provider_group_role_mappings"):
-		if db.deleteMatches {
+		if database.deleteMatches {
 			return &scalarRows{data: [][]any{{"prov_1"}}}, nil
 		}
 		return &scalarRows{}, nil
@@ -113,22 +113,22 @@ func (db *adminMutationFakeDB) QueryContext(_ context.Context, query string, arg
 	}
 }
 
-func (db *adminMutationFakeDB) Begin(context.Context) (db.Transaction, error) {
-	return &adminMutationFakeTx{db: db}, nil
+func (database *adminMutationFakeDB) Begin(context.Context) (db.Transaction, error) {
+	return &adminMutationFakeTx{database: database}, nil
 }
 
 // adminMutationFakeTx delegates to the parent fake so the invitation revoke
 // read-then-write path runs against the same canned state.
 type adminMutationFakeTx struct {
-	db *adminMutationFakeDB
+	database *adminMutationFakeDB
 }
 
 func (tx *adminMutationFakeTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return tx.db.ExecContext(ctx, query, args...)
+	return tx.database.ExecContext(ctx, query, args...)
 }
 
 func (tx *adminMutationFakeTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	return tx.db.QueryContext(ctx, query, args...)
+	return tx.database.QueryContext(ctx, query, args...)
 }
 
 func (tx *adminMutationFakeTx) Commit() error   { return nil }

@@ -92,7 +92,7 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 	ctx context.Context,
 	digests []string,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	digests = cleanStringFilterValues(digests)
@@ -101,7 +101,7 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 	}
 
 	var loaded []facts.Envelope
-	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer db.Queryer) error {
+	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
 		var legacyFacts []facts.Envelope
 		var cursorFactID string
 		for {

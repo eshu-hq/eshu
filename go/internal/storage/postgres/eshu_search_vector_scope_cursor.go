@@ -51,14 +51,14 @@ func (s EshuSearchVectorScopeStateStore) AdvanceDocumentCursor(
 	projectionRevision, fence int64,
 	documentID string,
 ) (bool, error) {
-	if err := validateSearchVectorCursorMutation(s.db, scopeID, generationID); err != nil {
+	if err := validateSearchVectorCursorMutation(s.database, scopeID, generationID); err != nil {
 		return false, err
 	}
 	documentID = strings.TrimSpace(documentID)
 	if documentID == "" {
 		return false, fmt.Errorf("advance eshu search vector document cursor requires document id")
 	}
-	result, err := s.db.ExecContext(ctx, advanceSearchVectorDocumentCursorSQL,
+	result, err := s.database.ExecContext(ctx, advanceSearchVectorDocumentCursorSQL,
 		scopeID, generationID,
 		identity.ProviderProfileID, identity.SourceClass,
 		identity.EmbeddingModelID, identity.VectorIndexVersion,
@@ -78,10 +78,10 @@ func (s EshuSearchVectorScopeStateStore) ResetDocumentCursor(
 	identity EshuSearchVectorIdentity,
 	projectionRevision, fence int64,
 ) (bool, error) {
-	if err := validateSearchVectorCursorMutation(s.db, scopeID, generationID); err != nil {
+	if err := validateSearchVectorCursorMutation(s.database, scopeID, generationID); err != nil {
 		return false, err
 	}
-	result, err := s.db.ExecContext(ctx, resetSearchVectorDocumentCursorSQL,
+	result, err := s.database.ExecContext(ctx, resetSearchVectorDocumentCursorSQL,
 		scopeID, generationID,
 		identity.ProviderProfileID, identity.SourceClass,
 		identity.EmbeddingModelID, identity.VectorIndexVersion,
@@ -93,8 +93,8 @@ func (s EshuSearchVectorScopeStateStore) ResetDocumentCursor(
 	return searchVectorCursorMutationApplied(result)
 }
 
-func validateSearchVectorCursorMutation(db db.ExecQueryer, scopeID, generationID string) error {
-	if db == nil {
+func validateSearchVectorCursorMutation(database db.ExecQueryer, scopeID, generationID string) error {
+	if database == nil {
 		return fmt.Errorf("eshu search vector scope state store requires a database")
 	}
 	if strings.TrimSpace(scopeID) == "" {

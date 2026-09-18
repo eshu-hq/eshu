@@ -27,7 +27,7 @@ func newAdmissionDecisionTestDB() *admissionDecisionTestDB {
 	}
 }
 
-func (db *admissionDecisionTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *admissionDecisionTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "INSERT INTO admission_decisions"):
 		decision := AdmissionDecision{
@@ -58,7 +58,7 @@ func (db *admissionDecisionTestDB) ExecContext(_ context.Context, query string, 
 		mustUnmarshalAdmissionDecisionTestJSON(args[16], &decision.SourceHandles)
 		mustUnmarshalAdmissionDecisionTestJSON(args[19], &decision.CanonicalWrite)
 		mustUnmarshalAdmissionDecisionTestJSON(args[20], &decision.RecommendedAction)
-		db.decisions[decision.DecisionID] = decision
+		database.decisions[decision.DecisionID] = decision
 		return result{}, nil
 
 	case strings.Contains(query, "INSERT INTO admission_decision_evidence"):
@@ -70,7 +70,7 @@ func (db *admissionDecisionTestDB) ExecContext(_ context.Context, query string, 
 			CreatedAt:    args[5].(time.Time),
 		}
 		mustUnmarshalAdmissionDecisionTestJSON(args[4], &row.Detail)
-		db.evidence[row.EvidenceID] = row
+		database.evidence[row.EvidenceID] = row
 		return result{}, nil
 
 	case strings.Contains(query, "CREATE TABLE"):
@@ -81,7 +81,7 @@ func (db *admissionDecisionTestDB) ExecContext(_ context.Context, query string, 
 	}
 }
 
-func (db *admissionDecisionTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+func (database *admissionDecisionTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM admission_decisions"):
 		domain := args[0].(string)
@@ -92,7 +92,7 @@ func (db *admissionDecisionTestDB) QueryContext(_ context.Context, query string,
 		anchorID := args[5].(string)
 		limit := args[6].(int)
 		rows := make([]AdmissionDecision, 0)
-		for _, decision := range db.decisions {
+		for _, decision := range database.decisions {
 			if decision.Domain != domain || decision.ScopeID != scopeID || decision.GenerationID != generationID {
 				continue
 			}
@@ -122,7 +122,7 @@ func (db *admissionDecisionTestDB) QueryContext(_ context.Context, query string,
 		decisionID := args[0].(string)
 		limit := args[1].(int)
 		rows := make([]AdmissionDecisionEvidence, 0)
-		for _, evidence := range db.evidence {
+		for _, evidence := range database.evidence {
 			if evidence.DecisionID == decisionID {
 				rows = append(rows, evidence)
 			}

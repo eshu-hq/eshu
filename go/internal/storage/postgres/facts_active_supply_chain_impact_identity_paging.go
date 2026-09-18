@@ -94,7 +94,7 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	ctx context.Context,
 	filter reducer.SupplyChainImpactFactFilter,
 ) ([]facts.Envelope, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, false, fmt.Errorf("fact store database is required")
 	}
 	normalizeSupplyChainImpactFactFilter(&filter)
@@ -104,7 +104,7 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 
 	var loaded []facts.Envelope
 	var truncated bool
-	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer db.Queryer) error {
+	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
 		state := supplyChainImpactPagingState{seenFactIDs: make(map[string]struct{})}
 		for !state.legacyDone || !state.identityDone {
 			if loadErr := loadActiveSupplyChainImpactFactPagePair(

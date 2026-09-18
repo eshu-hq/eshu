@@ -30,15 +30,15 @@ type s3LogsToReadinessQueueDB struct {
 	claimQueries int
 }
 
-func (db *s3LogsToReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *s3LogsToReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *s3LogsToReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (database *s3LogsToReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	db.claimQueries++
+	database.claimQueries++
 
 	// The same cloud_resource_uid readiness gate must cover the S3 LOGS_TO
 	// domain — both endpoints are S3 CloudResource nodes published under that
@@ -53,11 +53,11 @@ func (db *s3LogsToReadinessQueueDB) QueryContext(_ context.Context, query string
 		"cloud_resource_uid",
 		"canonical_nodes_committed",
 	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
-	if hasReadinessGate && !db.phaseReady {
+	if hasReadinessGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.status)
+	status := strings.TrimSpace(database.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -70,18 +70,18 @@ func (db *s3LogsToReadinessQueueDB) QueryContext(_ context.Context, query string
 		"aws:111111111111:us-east-1:s3",
 		"gen-aws-1",
 		string(reducer.DomainS3LogsToMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:111111111111:us-east-1:s3","reason":"s3 bucket access logging observed","fact_id":"fact-logging-1","source_system":"aws"}`),
 	}}}, nil
 }
 
-func s3LogsToReadinessQueue(db *s3LogsToReadinessQueueDB, now time.Time) ReducerQueue {
+func s3LogsToReadinessQueue(database *s3LogsToReadinessQueueDB, now time.Time) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -92,12 +92,12 @@ func TestReducerQueueClaimWaitsForS3LogsToReadinessBehavior(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 31, 11, 10, 0, 0, time.UTC)
-	db := &s3LogsToReadinessQueueDB{
+	database := &s3LogsToReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		status:     "pending",
 	}
-	queue := s3LogsToReadinessQueue(db, now)
+	queue := s3LogsToReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
@@ -107,7 +107,7 @@ func TestReducerQueueClaimWaitsForS3LogsToReadinessBehavior(t *testing.T) {
 		t.Fatalf("Claim() claimed %q before canonical readiness, want unclaimed waiting work", intent.IntentID)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)

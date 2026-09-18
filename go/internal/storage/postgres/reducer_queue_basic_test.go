@@ -47,7 +47,7 @@ func TestReducerQueueEnqueueAndClaimRoundTrip(t *testing.T) {
 	}
 
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -119,7 +119,7 @@ func TestReducerQueueEnqueueCountReflectsRowsAffectedNotAttemptCount(t *testing.
 		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 0}},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -145,7 +145,7 @@ func TestReducerQueueEnqueueRejectsUnknownDomain(t *testing.T) {
 
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
 	queue := ReducerQueue{
-		db:            &fakeExecQueryer{},
+		database:      &fakeExecQueryer{},
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -194,7 +194,7 @@ func TestReducerQueueFailRetriesRetryableErrorWithinAttemptBudget(t *testing.T) 
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -244,7 +244,7 @@ func TestReducerQueueFailMarksRetryableErrorTerminalWhenAttemptBudgetExhausted(t
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -297,7 +297,7 @@ func TestReducerQueueFailDeadLettersTerminalWithTriageClass(t *testing.T) {
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -327,7 +327,7 @@ func TestReducerQueueFailRetriesGraphWriteTimeoutWithinAttemptBudget(t *testing.
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -387,7 +387,7 @@ func TestReducerQueueFailRetriesReadinessBacklogKeepsOwnFailureClass(t *testing.
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,

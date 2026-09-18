@@ -97,10 +97,10 @@ type SeedSearchVectorScopeStateResult struct {
 // the bounded scheduler verifies each scope and CAS-publishes ready state.
 func SeedSearchVectorScopeState(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	identity EshuSearchVectorIdentity,
 ) (SeedSearchVectorScopeStateResult, error) {
-	if db == nil {
+	if database == nil {
 		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("eshu search vector scope state seed requires a database")
 	}
 	if identity.ProviderProfileID == "" {
@@ -116,14 +116,14 @@ func SeedSearchVectorScopeState(
 		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("eshu search vector scope state seed requires vector index version")
 	}
 
-	skipped, err := countFailedGenerationRepositoryScopes(ctx, db)
+	skipped, err := countFailedGenerationRepositoryScopes(ctx, database)
 	if err != nil {
 		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("count failed-generation repository scopes: %w", err)
 	}
 
 	// Step 1: seed projection_state rows for every repository scope with a
 	// real (non-failed) generation.
-	res, err := db.ExecContext(ctx, seedProjectionStateSQL)
+	res, err := database.ExecContext(ctx, seedProjectionStateSQL)
 	if err != nil {
 		return SeedSearchVectorScopeStateResult{}, fmt.Errorf("seed eshu search document projection state: %w", err)
 	}
@@ -134,7 +134,7 @@ func SeedSearchVectorScopeState(
 
 	// Step 2: seed conservative building rows. Exact readiness is deliberately
 	// deferred to the bounded scheduler so reducer startup stays index-bounded.
-	if _, err := db.ExecContext(
+	if _, err := database.ExecContext(
 		ctx,
 		seedVectorScopeStateSQL,
 		identity.ProviderProfileID,
@@ -154,8 +154,8 @@ func SeedSearchVectorScopeState(
 // countFailedGenerationRepositoryScopes counts repository scopes with no
 // active generation (status='failed' ingestion), the set seedProjectionStateSQL
 // deliberately skips.
-func countFailedGenerationRepositoryScopes(ctx context.Context, db db.ExecQueryer) (int64, error) {
-	rows, err := db.QueryContext(ctx, countFailedGenerationRepositoryScopesSQL)
+func countFailedGenerationRepositoryScopes(ctx context.Context, database db.ExecQueryer) (int64, error) {
+	rows, err := database.QueryContext(ctx, countFailedGenerationRepositoryScopesSQL)
 	if err != nil {
 		return 0, err
 	}

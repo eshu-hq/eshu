@@ -76,21 +76,21 @@ func ProjectedSourceEdgeSchemaSQL() string {
 // CodeInterprocProjectedEdgeStore: the same superset-ledger pattern, keyed by
 // an arbitrary evidence_source rather than a single hardcoded edge kind.
 type ProjectedSourceEdgeStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewProjectedSourceEdgeStore constructs a Postgres-backed projected-source-edge
 // ledger.
-func NewProjectedSourceEdgeStore(db db.ExecQueryer) ProjectedSourceEdgeStore {
-	return ProjectedSourceEdgeStore{db: db}
+func NewProjectedSourceEdgeStore(database db.ExecQueryer) ProjectedSourceEdgeStore {
+	return ProjectedSourceEdgeStore{database: database}
 }
 
 // EnsureSchema applies the projected-source-edge ledger DDL.
 func (s ProjectedSourceEdgeStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("projected source edge store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, projectedSourceEdgeSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, projectedSourceEdgeSchemaSQL); err != nil {
 		return fmt.Errorf("ensure projected source edge schema: %w", err)
 	}
 	return nil
@@ -113,7 +113,7 @@ func (s ProjectedSourceEdgeStore) RecordProjectedSources(
 	sourceUIDs []string,
 	updatedAt time.Time,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("projected source edge store database is required")
 	}
 	if updatedAt.IsZero() {
@@ -169,7 +169,7 @@ func (s ProjectedSourceEdgeStore) upsertBatch(
 		args = append(args, evidenceSource, scopeID, generationID, uid, updatedAt)
 	}
 	query := upsertProjectedSourceEdgeBatchPrefix + strings.Join(values, ", ") + upsertProjectedSourceEdgeBatchSuffix
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert projected source edges: %w", err)
 	}
 	return nil
@@ -183,10 +183,10 @@ func (s ProjectedSourceEdgeStore) ListSourceUIDsForScopes(
 	evidenceSource string,
 	scopeIDs []string,
 ) ([]string, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("projected source edge store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listProjectedSourceUIDsForScopesSQL, evidenceSource, scopeIDs)
+	rows, err := s.database.QueryContext(ctx, listProjectedSourceUIDsForScopesSQL, evidenceSource, scopeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list projected source uids for scopes: %w", err)
 	}
@@ -212,10 +212,10 @@ func (s ProjectedSourceEdgeStore) PruneForScopes(
 	evidenceSource string,
 	scopeIDs []string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("projected source edge store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, pruneProjectedSourceEdgeForScopesSQL, evidenceSource, scopeIDs); err != nil {
+	if _, err := s.database.ExecContext(ctx, pruneProjectedSourceEdgeForScopesSQL, evidenceSource, scopeIDs); err != nil {
 		return fmt.Errorf("prune projected source edges for scopes: %w", err)
 	}
 	return nil

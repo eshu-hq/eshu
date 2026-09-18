@@ -23,13 +23,13 @@ func TestRequireCompatibleAcceptsExactGraphSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SchemaApplicationForBackend() error = %v, want nil", err)
 	}
-	db := &fakeGraphSchemaQueryer{
+	database := &fakeGraphSchemaQueryer{
 		rows: fakeGraphSchemaRows{
 			values: [][]any{{app.Fingerprint, []byte(`[]`)}},
 		},
 	}
 
-	result, err := RequireCompatible(context.Background(), db, graph.SchemaBackendNornicDB)
+	result, err := RequireCompatible(context.Background(), database, graph.SchemaBackendNornicDB)
 	if err != nil {
 		t.Fatalf("RequireCompatible() error = %v, want nil", err)
 	}
@@ -51,13 +51,13 @@ func TestRequireCompatibleRejectsLatestIncompatibleGraphSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SchemaApplicationForBackend() error = %v, want nil", err)
 	}
-	db := &fakeGraphSchemaQueryer{
+	database := &fakeGraphSchemaQueryer{
 		rows: fakeGraphSchemaRows{
 			values: [][]any{{"different-fingerprint", []byte(`["older-compatible"]`)}},
 		},
 	}
 
-	_, err = RequireCompatible(context.Background(), db, graph.SchemaBackendNornicDB)
+	_, err = RequireCompatible(context.Background(), database, graph.SchemaBackendNornicDB)
 	if err == nil {
 		t.Fatal("RequireCompatible() error = nil, want incompatible schema error")
 	}
@@ -80,7 +80,7 @@ func TestRequireCompatibleAcceptsLatestCompatibleGraphSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SchemaApplicationForBackend() error = %v, want nil", err)
 	}
-	db := &fakeGraphSchemaQueryer{
+	database := &fakeGraphSchemaQueryer{
 		rows: fakeGraphSchemaRows{
 			values: [][]any{{
 				"future-additive-fingerprint",
@@ -89,14 +89,14 @@ func TestRequireCompatibleAcceptsLatestCompatibleGraphSchema(t *testing.T) {
 		},
 	}
 
-	result, err := RequireCompatible(context.Background(), db, graph.SchemaBackendNornicDB)
+	result, err := RequireCompatible(context.Background(), database, graph.SchemaBackendNornicDB)
 	if err != nil {
 		t.Fatalf("RequireCompatible() error = %v, want nil", err)
 	}
 	if got, want := result.AppliedFingerprint, "future-additive-fingerprint"; got != want {
 		t.Fatalf("AppliedFingerprint = %q, want %q", got, want)
 	}
-	if got := db.args[0]; got != string(graph.SchemaBackendNornicDB) {
+	if got := database.args[0]; got != string(graph.SchemaBackendNornicDB) {
 		t.Fatalf("backend query arg = %q, want %q", got, graph.SchemaBackendNornicDB)
 	}
 }
@@ -139,7 +139,7 @@ func TestRequireCompatibleRejectsNilRows(t *testing.T) {
 func TestRequireCompatibleForRuntimeSkipsLocalLightweightProfile(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeGraphSchemaQueryer{
+	database := &fakeGraphSchemaQueryer{
 		err: errors.New("compatibility marker should not be queried"),
 	}
 	getenv := func(key string) string {
@@ -149,18 +149,18 @@ func TestRequireCompatibleForRuntimeSkipsLocalLightweightProfile(t *testing.T) {
 		return ""
 	}
 
-	if _, err := RequireCompatibleForRuntime(context.Background(), db, getenv); err != nil {
+	if _, err := RequireCompatibleForRuntime(context.Background(), database, getenv); err != nil {
 		t.Fatalf("RequireCompatibleForRuntime() error = %v, want nil", err)
 	}
-	if db.query != "" {
-		t.Fatalf("compatibility query = %q, want no query", db.query)
+	if database.query != "" {
+		t.Fatalf("compatibility query = %q, want no query", database.query)
 	}
 }
 
 func TestMarkAppliedRecordsCompatibleFingerprints(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeGraphSchemaExecutor{}
+	database := &fakeGraphSchemaExecutor{}
 	app := graph.SchemaApplication{
 		Backend:                graph.SchemaBackendNornicDB,
 		Fingerprint:            "current-fingerprint",
@@ -168,19 +168,19 @@ func TestMarkAppliedRecordsCompatibleFingerprints(t *testing.T) {
 		CompatibleFingerprints: []string{"older-fingerprint"},
 	}
 
-	if err := MarkApplied(context.Background(), db, app); err != nil {
+	if err := MarkApplied(context.Background(), database, app); err != nil {
 		t.Fatalf("MarkApplied() error = %v, want nil", err)
 	}
-	if got := db.args[0]; got != string(graph.SchemaBackendNornicDB) {
+	if got := database.args[0]; got != string(graph.SchemaBackendNornicDB) {
 		t.Fatalf("backend arg = %q, want %q", got, graph.SchemaBackendNornicDB)
 	}
-	if got := db.args[1]; got != "current-fingerprint" {
+	if got := database.args[1]; got != "current-fingerprint" {
 		t.Fatalf("fingerprint arg = %q, want current-fingerprint", got)
 	}
-	if got := db.args[2]; got != 42 {
+	if got := database.args[2]; got != 42 {
 		t.Fatalf("statement count arg = %v, want 42", got)
 	}
-	if got := db.args[3]; got != `["older-fingerprint"]` {
+	if got := database.args[3]; got != `["older-fingerprint"]` {
 		t.Fatalf("compatible fingerprint arg = %q, want JSON list", got)
 	}
 }
@@ -188,17 +188,17 @@ func TestMarkAppliedRecordsCompatibleFingerprints(t *testing.T) {
 func TestMarkAppliedNormalizesNilCompatibleFingerprints(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeGraphSchemaExecutor{}
+	database := &fakeGraphSchemaExecutor{}
 	app := graph.SchemaApplication{
 		Backend:        graph.SchemaBackendNornicDB,
 		Fingerprint:    "current-fingerprint",
 		StatementCount: 42,
 	}
 
-	if err := MarkApplied(context.Background(), db, app); err != nil {
+	if err := MarkApplied(context.Background(), database, app); err != nil {
 		t.Fatalf("MarkApplied() error = %v, want nil", err)
 	}
-	if got := db.args[3]; got != `[]` {
+	if got := database.args[3]; got != `[]` {
 		t.Fatalf("compatible fingerprint arg = %q, want empty JSON list", got)
 	}
 }

@@ -274,7 +274,7 @@ func (q ReducerQueue) failIntent(
 			args = append(args, intent.ClaimEpoch)
 		}
 		args = append(args, claimedAtValue(intent))
-		result, err := q.db.ExecContext(ctx, query, args...)
+		result, err := q.database.ExecContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("fail reducer work: %w", err)
 		}
@@ -313,7 +313,7 @@ func (q ReducerQueue) failIntent(
 		args = append(args, intent.ClaimEpoch)
 	}
 	args = append(args, claimedAtValue(intent))
-	result, err := q.db.ExecContext(ctx, query, args...)
+	result, err := q.database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("fail reducer work: %w", err)
 	}

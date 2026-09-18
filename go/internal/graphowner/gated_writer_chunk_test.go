@@ -123,7 +123,7 @@ func TestGateWriteChunksCriticalSectionAtLockChunkSize(t *testing.T) {
 
 	beginner := &fakeChunkBeginner{}
 	store := &fakeChunkStore{}
-	gate := &Gate{db: beginner, store: store}
+	gate := &Gate{database: beginner, store: store}
 
 	var written []map[string]any
 	underlying := func(_ context.Context, chunkRows []map[string]any, _ string) error {

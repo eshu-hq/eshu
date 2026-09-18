@@ -18,7 +18,7 @@ import (
 // (see Copilot review of PR #196). Routing through validateShared with an
 // explicit side label fixes that without duplicating the check bodies.
 func (q ReducerQueue) validateShared(side string) error {
-	if q.db == nil {
+	if q.database == nil {
 		return fmt.Errorf("reducer queue database is required for %s", side)
 	}
 	if q.ClaimDomain != "" && len(q.ClaimDomains) > 0 {

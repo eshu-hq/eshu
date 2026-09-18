@@ -28,14 +28,14 @@ func (s SemanticExtractionQueueStore) SucceedClaim(
 	responseHash string,
 	budget semanticqueue.BudgetDecision,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("semantic extraction queue store db is required")
 	}
 	budgetMetadata, err := json.Marshal(budget)
 	if err != nil {
 		return fmt.Errorf("marshal semantic extraction success budget metadata: %w", err)
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		succeedSemanticQueueJobQuery,
 		now.UTC(),

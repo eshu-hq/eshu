@@ -128,13 +128,13 @@ WHERE keyspace = $1
 // materializers upsert presence per committed node uid, and the projection gate
 // reads it through MissingUIDs.
 type GraphEndpointPresenceStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewGraphEndpointPresenceStore constructs a store backed by the provided
 // database handle.
-func NewGraphEndpointPresenceStore(db db.ExecQueryer) *GraphEndpointPresenceStore {
-	return &GraphEndpointPresenceStore{db: db}
+func NewGraphEndpointPresenceStore(database db.ExecQueryer) *GraphEndpointPresenceStore {
+	return &GraphEndpointPresenceStore{database: database}
 }
 
 // GraphEndpointPresenceSchemaSQL returns the DDL for the endpoint-presence table.
@@ -144,7 +144,7 @@ func GraphEndpointPresenceSchemaSQL() string {
 
 // EnsureSchema applies the endpoint-presence DDL.
 func (s *GraphEndpointPresenceStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, graphEndpointPresenceSchemaSQL)
+	_, err := s.database.ExecContext(ctx, graphEndpointPresenceSchemaSQL)
 	return err
 }
 
@@ -174,7 +174,7 @@ func (s *GraphEndpointPresenceStore) Upsert(ctx context.Context, rows []reducer.
 		if end > len(cleaned) {
 			end = len(cleaned)
 		}
-		if err := upsertGraphEndpointPresenceBatch(ctx, s.db, cleaned[i:end]); err != nil {
+		if err := upsertGraphEndpointPresenceBatch(ctx, s.database, cleaned[i:end]); err != nil {
 			return err
 		}
 	}
@@ -190,7 +190,7 @@ func (s *GraphEndpointPresenceStore) RetractScope(ctx context.Context, scopeIDs 
 	if len(cleaned) == 0 {
 		return nil
 	}
-	if _, err := s.db.ExecContext(ctx, retractGraphEndpointPresenceByScopeSQL, cleaned); err != nil {
+	if _, err := s.database.ExecContext(ctx, retractGraphEndpointPresenceByScopeSQL, cleaned); err != nil {
 		return fmt.Errorf("retract graph endpoint presence for %d scope(s): %w", len(cleaned), err)
 	}
 	return nil
@@ -216,7 +216,7 @@ func (s *GraphEndpointPresenceStore) RetractStaleRepoGenerations(
 	if keyspaceValue == "" || scope == "" || generation == "" || len(repos) == 0 {
 		return nil
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx, retractStaleGraphEndpointPresenceSQL, keyspaceValue, scope, repos, generation,
 	); err != nil {
 		return fmt.Errorf(
@@ -247,7 +247,7 @@ func (s *GraphEndpointPresenceStore) MissingUIDs(
 		return nil, nil
 	}
 
-	rows, err := s.db.QueryContext(ctx, presentGraphEndpointUIDsSQL, keyspaceValue, distinct)
+	rows, err := s.database.QueryContext(ctx, presentGraphEndpointUIDsSQL, keyspaceValue, distinct)
 	if err != nil {
 		return nil, fmt.Errorf("query graph endpoint presence: %w", err)
 	}
@@ -277,7 +277,7 @@ func (s *GraphEndpointPresenceStore) MissingUIDs(
 	return missing, nil
 }
 
-func upsertGraphEndpointPresenceBatch(ctx context.Context, db db.ExecQueryer, batch []reducer.EndpointPresenceRow) error {
+func upsertGraphEndpointPresenceBatch(ctx context.Context, database db.ExecQueryer, batch []reducer.EndpointPresenceRow) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -313,7 +313,7 @@ func upsertGraphEndpointPresenceBatch(ctx context.Context, db db.ExecQueryer, ba
 	}
 
 	query := upsertGraphEndpointPresenceBatchPrefix + values.String() + upsertGraphEndpointPresenceBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert graph endpoint presence batch (%d rows): %w", len(batch), err)
 	}
 	return nil

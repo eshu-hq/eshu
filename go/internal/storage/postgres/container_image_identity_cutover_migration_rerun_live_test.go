@@ -17,7 +17,7 @@ import (
 func TestContainerImageIdentityCutoverMigrationAcceptsDurableClaimLatchWithoutMarkerLive(
 	t *testing.T,
 ) {
-	db := openContainerImageIdentityAckCapabilityProofDB(t)
+	database := openContainerImageIdentityAckCapabilityProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 
@@ -28,13 +28,13 @@ func TestContainerImageIdentityCutoverMigrationAcceptsDurableClaimLatchWithoutMa
 		owner        = "reducer-5854-unmarked-claim-latch"
 	)
 	now := time.Date(2026, time.July, 31, 13, 30, 0, 0, time.UTC)
-	seedContainerImageIdentityAckScope(t, ctx, db, scopeID)
-	seedContainerImageIdentityAckGeneration(t, ctx, db, scopeID, generationID)
+	seedContainerImageIdentityAckScope(t, ctx, database, scopeID)
+	seedContainerImageIdentityAckGeneration(t, ctx, database, scopeID, generationID)
 	seedContainerImageIdentityAckWorkItem(
-		t, ctx, db, workItemID, scopeID, generationID,
+		t, ctx, database, workItemID, scopeID, generationID,
 		owner, now.Add(time.Minute), now,
 	)
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 UPDATE fact_work_items
 SET container_image_identity_v2_required = TRUE,
     container_image_identity_v2_authorized_status = 'claimed'
@@ -43,14 +43,14 @@ WHERE work_item_id = $1
 		t.Fatalf("seed durable pre-marker claim latch: %v", err)
 	}
 
-	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
 		t.Fatalf("reapply migration with valid pre-marker claim latch: %v", err)
 	}
 	assertContainerImageIdentityClaimLatchState(
-		t, ctx, db, workItemID, "claimed", 1, true, "claimed",
+		t, ctx, database, workItemID, "claimed", 1, true, "claimed",
 	)
 	assertContainerImageIdentityAckOrderingMarkerCount(
-		t, ctx, db, scopeID, generationID, 0,
+		t, ctx, database, scopeID, generationID, 0,
 	)
 }
 
@@ -58,7 +58,7 @@ func proveContainerImageIdentityCutoverMigrationRerunStates(
 	t *testing.T,
 	ctx context.Context,
 	exec db.Executor,
-	db *sql.DB,
+	database *sql.DB,
 ) {
 	t.Helper()
 
@@ -71,7 +71,7 @@ func proveContainerImageIdentityCutoverMigrationRerunStates(
 		"dead_letter",
 		"superseded",
 	} {
-		if _, err := db.ExecContext(ctx, `
+		if _, err := database.ExecContext(ctx, `
 UPDATE fact_work_items
 SET status = $1,
     container_image_identity_v2_authorized_status = $1
@@ -96,7 +96,7 @@ WHERE scope_id = 'repository:5854-cutover-migration'
 			gotAuthorized string
 			gotRequired   bool
 		)
-		if err := db.QueryRowContext(ctx, `
+		if err := database.QueryRowContext(ctx, `
 SELECT
     status,
     container_image_identity_v2_authorized_status,
@@ -120,7 +120,7 @@ WHERE scope_id = 'repository:5854-cutover-migration'
 		}
 	}
 
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 ALTER TABLE fact_work_items
 DROP CONSTRAINT fact_work_items_container_image_identity_v2_status_check
 `); err != nil {
@@ -144,7 +144,7 @@ DROP CONSTRAINT fact_work_items_container_image_identity_v2_status_check
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := db.ExecContext(ctx, `
+			if _, err := database.ExecContext(ctx, `
 UPDATE fact_work_items
 SET status = $1,
     container_image_identity_v2_authorized_status = $2
@@ -174,7 +174,7 @@ WHERE scope_id = 'repository:5854-cutover-migration'
 			}
 
 			var gotStatus, gotAuthorized string
-			if err := db.QueryRowContext(ctx, `
+			if err := database.QueryRowContext(ctx, `
 SELECT status, container_image_identity_v2_authorized_status
 FROM fact_work_items
 WHERE scope_id = 'repository:5854-cutover-migration'

@@ -31,7 +31,7 @@ func (s *IdentitySubjectStore) EnableProviderConfig(
 	ctx context.Context,
 	enable ProviderConfigEnable,
 ) (ProviderConfigWriteResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ProviderConfigWriteResult{}, errors.New("identity subject store database is required")
 	}
 	providerConfigID := strings.TrimSpace(enable.ProviderConfigID)
@@ -128,7 +128,7 @@ func (s *IdentitySubjectStore) setProviderConfigStatus(
 	providerConfigID, tenantID, targetStatus string,
 	now time.Time,
 ) (ProviderConfigWriteResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ProviderConfigWriteResult{}, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)

@@ -59,7 +59,7 @@ func TestIdentitySubjectStoreListAPITokensBySubjectQuerySecurity(t *testing.T) {
 func TestIdentitySubjectStoreListAPITokensBySubjectNilDatabase(t *testing.T) {
 	t.Parallel()
 
-	store := &IdentitySubjectStore{db: nil}
+	store := &IdentitySubjectStore{database: nil}
 	_, err := store.ListAPITokensBySubject(nil, "", time.Now()) //nolint:staticcheck
 	if err == nil {
 		t.Fatal("expected error for nil database, got nil")
@@ -72,7 +72,7 @@ func TestIdentitySubjectStoreListAPITokensBySubjectRejectsBlankInputs(t *testing
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	store := &IdentitySubjectStore{db: db}
+	store := &IdentitySubjectStore{database: db}
 	now := time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC)
 
 	if _, err := store.ListAPITokensBySubject(nil, "", now); err == nil { //nolint:staticcheck

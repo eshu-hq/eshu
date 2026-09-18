@@ -117,7 +117,7 @@ func (s FactStore) LoadActiveCodeCallSymbolDefinitionFacts(
 	ctx context.Context,
 	symbolKeys []string,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
@@ -162,7 +162,7 @@ func (s FactStore) listActiveCodeCallSymbolDefinitionFactsPage(
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveCodeCallSymbolDefinitionFactsQuery,
 		symbolKeys,

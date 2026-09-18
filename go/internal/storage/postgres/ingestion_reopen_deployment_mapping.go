@@ -179,7 +179,7 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsWithSkipSet(
 	instruments *telemetry.Instruments,
 	skippedPartitions map[scopeGenerationPartition]struct{},
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("ingestion store db is required")
 	}
 
@@ -189,13 +189,13 @@ func (s IngestionStore) reopenDeploymentMappingWorkItemsWithSkipSet(
 		defer span.End()
 	}
 
-	items, err := listSucceededDeploymentMappingWorkItems(ctx, s.db)
+	items, err := listSucceededDeploymentMappingWorkItems(ctx, s.database)
 	if err != nil {
 		return err
 	}
 	gateResult := applyReopenPartitionMemoGate(ctx, "deployment_mapping", items, skippedPartitions, instruments)
 
-	queue := ReducerQueue{db: s.db, Now: s.Now}
+	queue := ReducerQueue{database: s.database, Now: s.Now}
 	for _, item := range gateResult.ToReopen {
 		if _, err := queue.ReopenSucceeded(ctx, item.WorkItemID); err != nil {
 			return fmt.Errorf("reopen deployment_mapping work items: %w", err)

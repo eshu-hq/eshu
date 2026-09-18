@@ -19,7 +19,7 @@ func TestReducerAckCoalescesPendingCompletionEventsPerDomainLive(t *testing.T) {
 	now := time.Date(2026, time.August, 2, 12, 0, 0, 0, time.UTC)
 	const owner = "coalesced-ack-owner"
 	queue := ReducerQueue{
-		db: SQLDB{DB: db}, LeaseOwner: owner,
+		database: SQLDB{DB: db}, LeaseOwner: owner,
 		LeaseDuration: time.Minute, Now: func() time.Time { return now },
 	}
 
@@ -91,7 +91,7 @@ FOR EACH ROW EXECUTE FUNCTION reject_completion_event()
 		t.Fatalf("install completion-event rejection: %v", err)
 	}
 	queue := ReducerQueue{
-		db: SQLDB{DB: db}, LeaseOwner: owner,
+		database: SQLDB{DB: db}, LeaseOwner: owner,
 		LeaseDuration: time.Minute, Now: func() time.Time { return now },
 	}
 	if err := queue.Ack(ctx, reducer.Intent{

@@ -112,20 +112,20 @@ func TestActiveContainerImageIdentityLoadersUseOneReadSnapshot(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			db := &fakeExecQueryer{queryResponses: test.responses}
-			if err := test.load(NewFactStore(db)); err != nil {
+			database := &fakeExecQueryer{queryResponses: test.responses}
+			if err := test.load(NewFactStore(database)); err != nil {
 				t.Fatalf("load active facts: %v", err)
 			}
-			if db.beginReadOnlyRepeatableReadCalls != 1 {
-				t.Fatalf("read-only repeatable-read begins = %d, want 1", db.beginReadOnlyRepeatableReadCalls)
+			if database.beginReadOnlyRepeatableReadCalls != 1 {
+				t.Fatalf("read-only repeatable-read begins = %d, want 1", database.beginReadOnlyRepeatableReadCalls)
 			}
-			if db.transactionQueryCalls != test.wantQueries {
-				t.Fatalf("transaction queries = %d, want %d", db.transactionQueryCalls, test.wantQueries)
+			if database.transactionQueryCalls != test.wantQueries {
+				t.Fatalf("transaction queries = %d, want %d", database.transactionQueryCalls, test.wantQueries)
 			}
-			if db.transactionCommitCalls != 1 || db.transactionRollbackCalls != 0 {
+			if database.transactionCommitCalls != 1 || database.transactionRollbackCalls != 0 {
 				t.Fatalf(
 					"transaction completion = commit:%d rollback:%d, want 1/0",
-					db.transactionCommitCalls, db.transactionRollbackCalls,
+					database.transactionCommitCalls, database.transactionRollbackCalls,
 				)
 			}
 		})
@@ -134,9 +134,9 @@ func TestActiveContainerImageIdentityLoadersUseOneReadSnapshot(t *testing.T) {
 
 func TestActiveContainerImageIdentityLoaderFailsClosedWithoutReadSnapshot(t *testing.T) {
 	inner := &fakeExecQueryer{queryResponses: []queueFakeRows{{}}}
-	db := execQueryerWithoutReadSnapshot{ExecQueryer: inner}
+	database := execQueryerWithoutReadSnapshot{ExecQueryer: inner}
 
-	_, err := NewFactStore(db).ListActiveCICDRunCorrelationFacts(
+	_, err := NewFactStore(database).ListActiveCICDRunCorrelationFacts(
 		context.Background(), []string{"sha256:snapshot"}, nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "read-only repeatable-read transactions") {
@@ -148,35 +148,35 @@ func TestActiveContainerImageIdentityLoaderFailsClosedWithoutReadSnapshot(t *tes
 }
 
 func TestActiveContainerImageIdentityLoaderRollsBackOnQueryFailure(t *testing.T) {
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{err: errors.New("query boom")}}}
+	database := &fakeExecQueryer{queryResponses: []queueFakeRows{{err: errors.New("query boom")}}}
 
-	_, err := NewFactStore(db).ListActiveCICDRunCorrelationFacts(
+	_, err := NewFactStore(database).ListActiveCICDRunCorrelationFacts(
 		context.Background(), []string{"sha256:snapshot"}, nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "query boom") {
 		t.Fatalf("loader error = %v, want query failure", err)
 	}
-	if db.transactionCommitCalls != 0 || db.transactionRollbackCalls != 1 {
+	if database.transactionCommitCalls != 0 || database.transactionRollbackCalls != 1 {
 		t.Fatalf(
 			"transaction completion = commit:%d rollback:%d, want 0/1",
-			db.transactionCommitCalls, db.transactionRollbackCalls,
+			database.transactionCommitCalls, database.transactionRollbackCalls,
 		)
 	}
 }
 
 func TestActiveContainerImageIdentityLoaderReturnsBeginFailure(t *testing.T) {
-	db := &fakeExecQueryer{beginReadOnlyRepeatableReadErr: errors.New("begin boom")}
+	database := &fakeExecQueryer{beginReadOnlyRepeatableReadErr: errors.New("begin boom")}
 
-	_, err := NewFactStore(db).ListActiveCICDRunCorrelationFacts(
+	_, err := NewFactStore(database).ListActiveCICDRunCorrelationFacts(
 		context.Background(), []string{"sha256:snapshot"}, nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "begin boom") {
 		t.Fatalf("loader error = %v, want begin failure", err)
 	}
-	if len(db.queries) != 0 || db.transactionCommitCalls != 0 || db.transactionRollbackCalls != 0 {
+	if len(database.queries) != 0 || database.transactionCommitCalls != 0 || database.transactionRollbackCalls != 0 {
 		t.Fatalf(
 			"work after begin failure = queries:%d commit:%d rollback:%d, want 0/0/0",
-			len(db.queries), db.transactionCommitCalls, db.transactionRollbackCalls,
+			len(database.queries), database.transactionCommitCalls, database.transactionRollbackCalls,
 		)
 	}
 }
@@ -186,21 +186,21 @@ func TestActiveContainerImageIdentityLoaderRollsBackOnCommitFailure(t *testing.T
 		"repository:snapshot", "sha256:snapshot", 1,
 		time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC),
 	)
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses:       []queueFakeRows{{rows: [][]any{row}}},
 		transactionCommitErr: errors.New("commit boom"),
 	}
 
-	loaded, err := NewFactStore(db).ListActiveCICDRunCorrelationFacts(
+	loaded, err := NewFactStore(database).ListActiveCICDRunCorrelationFacts(
 		context.Background(), []string{"sha256:snapshot"}, nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "commit boom") {
 		t.Fatalf("loader error = %v, want commit failure", err)
 	}
-	if db.transactionCommitCalls != 1 || db.transactionRollbackCalls != 1 {
+	if database.transactionCommitCalls != 1 || database.transactionRollbackCalls != 1 {
 		t.Fatalf(
 			"transaction completion = commit:%d rollback:%d, want 1/1",
-			db.transactionCommitCalls, db.transactionRollbackCalls,
+			database.transactionCommitCalls, database.transactionRollbackCalls,
 		)
 	}
 	if loaded != nil {
@@ -213,12 +213,12 @@ func TestSupplyChainIdentityLoaderReturnsNoDataOnCommitFailure(t *testing.T) {
 		"repository:snapshot", "sha256:snapshot", 1,
 		time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC),
 	))
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses:       []queueFakeRows{{rows: [][]any{row}}},
 		transactionCommitErr: errors.New("commit boom"),
 	}
 
-	loaded, truncated, err := NewFactStore(db).ListActiveSupplyChainImpactFacts(
+	loaded, truncated, err := NewFactStore(database).ListActiveSupplyChainImpactFacts(
 		context.Background(),
 		reducer.SupplyChainImpactFactFilter{SubjectDigests: []string{"sha256:snapshot"}},
 	)
@@ -231,12 +231,12 @@ func TestSupplyChainIdentityLoaderReturnsNoDataOnCommitFailure(t *testing.T) {
 }
 
 func TestActiveContainerImageIdentityLoaderJoinsRollbackFailure(t *testing.T) {
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses:         []queueFakeRows{{err: errors.New("query boom")}},
 		transactionRollbackErr: errors.New("rollback boom"),
 	}
 
-	_, err := NewFactStore(db).ListActiveCICDRunCorrelationFacts(
+	_, err := NewFactStore(database).ListActiveCICDRunCorrelationFacts(
 		context.Background(), []string{"sha256:snapshot"}, nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "query boom") ||
@@ -246,12 +246,12 @@ func TestActiveContainerImageIdentityLoaderJoinsRollbackFailure(t *testing.T) {
 }
 
 func TestActiveContainerImageIdentityLoaderIgnoresAlreadyRolledBackCleanup(t *testing.T) {
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses:         []queueFakeRows{{err: errors.New("query boom")}},
 		transactionRollbackErr: sql.ErrTxDone,
 	}
 
-	_, err := NewFactStore(db).ListActiveCICDRunCorrelationFacts(
+	_, err := NewFactStore(database).ListActiveCICDRunCorrelationFacts(
 		context.Background(), []string{"sha256:snapshot"}, nil,
 	)
 	if err == nil || !strings.Contains(err.Error(), "query boom") {
@@ -267,38 +267,38 @@ func TestSBOMReadSnapshotRollsBackOnCrossStreamCollision(t *testing.T) {
 		"repository:snapshot", "sha256:snapshot", 1,
 		time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC),
 	)
-	db := &fakeExecQueryer{queryResponses: []queueFakeRows{
+	database := &fakeExecQueryer{queryResponses: []queueFakeRows{
 		{rows: [][]any{row}},
 		{rows: [][]any{row}},
 	}}
 
-	_, err := NewFactStore(db).ListActiveSBOMAttestationAttachmentFacts(
+	_, err := NewFactStore(database).ListActiveSBOMAttestationAttachmentFacts(
 		context.Background(), []string{"sha256:snapshot"},
 	)
 	if err == nil || !strings.Contains(err.Error(), "duplicate fact ID") {
 		t.Fatalf("loader error = %v, want cross-stream duplicate rejection", err)
 	}
-	if db.transactionCommitCalls != 0 || db.transactionRollbackCalls != 1 {
+	if database.transactionCommitCalls != 0 || database.transactionRollbackCalls != 1 {
 		t.Fatalf(
 			"transaction completion = commit:%d rollback:%d, want 0/1",
-			db.transactionCommitCalls, db.transactionRollbackCalls,
+			database.transactionCommitCalls, database.transactionRollbackCalls,
 		)
 	}
 }
 
 func TestActiveContainerImageIdentityEmptyFilterDoesNotBeginSnapshot(t *testing.T) {
-	db := &fakeExecQueryer{}
+	database := &fakeExecQueryer{}
 
-	loaded, err := NewFactStore(db).ListActiveCICDRunCorrelationFacts(
+	loaded, err := NewFactStore(database).ListActiveCICDRunCorrelationFacts(
 		context.Background(), []string{"", "  "}, nil,
 	)
 	if err != nil {
 		t.Fatalf("empty-filter load: %v", err)
 	}
-	if len(loaded) != 0 || db.beginReadOnlyRepeatableReadCalls != 0 || len(db.queries) != 0 {
+	if len(loaded) != 0 || database.beginReadOnlyRepeatableReadCalls != 0 || len(database.queries) != 0 {
 		t.Fatalf(
 			"empty-filter work = rows:%d begin:%d queries:%d, want 0/0/0",
-			len(loaded), db.beginReadOnlyRepeatableReadCalls, len(db.queries),
+			len(loaded), database.beginReadOnlyRepeatableReadCalls, len(database.queries),
 		)
 	}
 }

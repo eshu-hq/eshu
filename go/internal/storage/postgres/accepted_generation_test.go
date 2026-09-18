@@ -19,7 +19,7 @@ import (
 func TestNewAcceptedGenerationLookupUsesAcceptanceTable(t *testing.T) {
 	t.Parallel()
 
-	db := &acceptanceQueryCapturingDB{
+	database := &acceptanceQueryCapturingDB{
 		rows: []sharedProjectionAcceptanceRow{
 			{
 				scopeID:          "scope:git:repo-1",
@@ -31,7 +31,7 @@ func TestNewAcceptedGenerationLookupUsesAcceptanceTable(t *testing.T) {
 		},
 	}
 
-	lookup := NewAcceptedGenerationLookup(db)
+	lookup := NewAcceptedGenerationLookup(database)
 	gotGeneration, gotFound := lookup(reducer.SharedProjectionAcceptanceKey{
 		ScopeID:          "scope:git:repo-1",
 		AcceptanceUnitID: "repository:r_test",
@@ -45,35 +45,35 @@ func TestNewAcceptedGenerationLookupUsesAcceptanceTable(t *testing.T) {
 		t.Fatalf("generation = %q, want %q", gotGeneration, "gen-test")
 	}
 
-	if db.lastQuery == "" {
+	if database.lastQuery == "" {
 		t.Fatal("no query was executed")
 	}
-	if strings.Contains(db.lastQuery, "FROM fact_work_items") {
+	if strings.Contains(database.lastQuery, "FROM fact_work_items") {
 		t.Fatal("compatibility lookup must not query fact_work_items")
 	}
-	if !strings.Contains(db.lastQuery, "FROM shared_projection_acceptance") {
+	if !strings.Contains(database.lastQuery, "FROM shared_projection_acceptance") {
 		t.Fatal("compatibility lookup should query shared_projection_acceptance")
 	}
-	if !strings.Contains(db.lastQuery, "WHERE scope_id = $1") {
+	if !strings.Contains(database.lastQuery, "WHERE scope_id = $1") {
 		t.Fatal("lookup should filter by scope_id")
 	}
-	if !strings.Contains(db.lastQuery, "AND acceptance_unit_id = $2") {
+	if !strings.Contains(database.lastQuery, "AND acceptance_unit_id = $2") {
 		t.Fatal("lookup should filter by acceptance_unit_id")
 	}
-	if !strings.Contains(db.lastQuery, "AND source_run_id = $3") {
+	if !strings.Contains(database.lastQuery, "AND source_run_id = $3") {
 		t.Fatal("lookup should filter by source_run_id")
 	}
-	if len(db.lastArgs) != 3 {
-		t.Fatalf("len(args) = %d, want 3", len(db.lastArgs))
+	if len(database.lastArgs) != 3 {
+		t.Fatalf("len(args) = %d, want 3", len(database.lastArgs))
 	}
-	if db.lastArgs[0] != "scope:git:repo-1" {
-		t.Fatalf("arg[0] = %v, want scope:git:repo-1", db.lastArgs[0])
+	if database.lastArgs[0] != "scope:git:repo-1" {
+		t.Fatalf("arg[0] = %v, want scope:git:repo-1", database.lastArgs[0])
 	}
-	if db.lastArgs[1] != "repository:r_test" {
-		t.Fatalf("arg[1] = %v, want repository:r_test", db.lastArgs[1])
+	if database.lastArgs[1] != "repository:r_test" {
+		t.Fatalf("arg[1] = %v, want repository:r_test", database.lastArgs[1])
 	}
-	if db.lastArgs[2] != "run-test" {
-		t.Fatalf("arg[2] = %v, want run-test", db.lastArgs[2])
+	if database.lastArgs[2] != "run-test" {
+		t.Fatalf("arg[2] = %v, want run-test", database.lastArgs[2])
 	}
 }
 
@@ -98,7 +98,7 @@ func TestNewAcceptedGenerationLookupReturnsFalseOnStoreError(t *testing.T) {
 func TestNewAcceptedGenerationPrefetchCachesByAcceptanceKey(t *testing.T) {
 	t.Parallel()
 
-	db := &acceptanceQueryCapturingDB{
+	database := &acceptanceQueryCapturingDB{
 		rows: []sharedProjectionAcceptanceRow{
 			{
 				scopeID:          "scope:git:repo-1",
@@ -110,7 +110,7 @@ func TestNewAcceptedGenerationPrefetchCachesByAcceptanceKey(t *testing.T) {
 		},
 	}
 
-	prefetch := NewAcceptedGenerationPrefetch(db)
+	prefetch := NewAcceptedGenerationPrefetch(database)
 	lookup, err := prefetch(context.Background(), []reducer.SharedProjectionIntentRow{
 		{
 			ScopeID:          "scope:git:repo-1",
@@ -148,22 +148,22 @@ type acceptanceQueryCapturingDB struct {
 	lastArgs  []any
 }
 
-func (db *acceptanceQueryCapturingDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+func (database *acceptanceQueryCapturingDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *acceptanceQueryCapturingDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	db.lastQuery = query
-	db.lastArgs = args
-	return queryAcceptanceRows(db.rows, query, args...)
+func (database *acceptanceQueryCapturingDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.lastQuery = query
+	database.lastArgs = args
+	return queryAcceptanceRows(database.rows, query, args...)
 }
 
 type acceptanceStoreErrorDB struct{}
 
-func (db *acceptanceStoreErrorDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+func (database *acceptanceStoreErrorDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *acceptanceStoreErrorDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
+func (database *acceptanceStoreErrorDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("boom")
 }

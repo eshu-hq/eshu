@@ -103,11 +103,11 @@ func newInstrumentedReducerDB(
 	t.Helper()
 
 	inst, reader := newManualReaderInstruments(t)
-	db := &postgres.InstrumentedDB{
+	database := &postgres.InstrumentedDB{
 		Inner:       fake,
 		Tracer:      nil,
 		Instruments: inst,
 		StoreName:   "reducer",
 	}
-	return db, reader
+	return database, reader
 }

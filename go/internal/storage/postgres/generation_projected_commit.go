@@ -41,11 +41,11 @@ LIMIT 1
 // the caller's concern: a SHA pruned by a shallow fetch is unreachable and the
 // caller must fall back to a full snapshot rather than a broken delta.
 func (s IngestionStore) LastProjectedCommitSHA(ctx context.Context, scopeID string) (string, error) {
-	if s.db == nil || strings.TrimSpace(scopeID) == "" {
+	if s.database == nil || strings.TrimSpace(scopeID) == "" {
 		return "", nil
 	}
 
-	rows, err := s.db.QueryContext(ctx, lastProjectedCommitSHAQuery, scopeID)
+	rows, err := s.database.QueryContext(ctx, lastProjectedCommitSHAQuery, scopeID)
 	if err != nil {
 		return "", err
 	}
@@ -87,11 +87,11 @@ LIMIT 1
 // reconciliation policy as immediately due, so its first observation establishes
 // the baseline. A blank scopeID returns (zero, false) without querying.
 func (s IngestionStore) LastFullProjectionAt(ctx context.Context, scopeID string) (time.Time, bool, error) {
-	if s.db == nil || strings.TrimSpace(scopeID) == "" {
+	if s.database == nil || strings.TrimSpace(scopeID) == "" {
 		return time.Time{}, false, nil
 	}
 
-	rows, err := s.db.QueryContext(ctx, lastFullProjectionAtQuery, scopeID)
+	rows, err := s.database.QueryContext(ctx, lastFullProjectionAtQuery, scopeID)
 	if err != nil {
 		return time.Time{}, false, err
 	}

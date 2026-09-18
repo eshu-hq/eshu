@@ -91,11 +91,11 @@ ORDER BY corpus.scope_id, corpus.generation_id
 // facts into a fresh graph database at a configured worker count N so the
 // canonical graph can be compared across N.
 func (s FactStore) ListScopeGenerationWork(ctx context.Context) ([]projector.ScopeGenerationWork, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("list scope generation work: fact store database is required")
 	}
 
-	rows, err := s.db.QueryContext(ctx, listScopeGenerationWorkQuery)
+	rows, err := s.database.QueryContext(ctx, listScopeGenerationWorkQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list scope generation work: %w", err)
 	}

@@ -51,7 +51,7 @@ func TestProjectorQueueClaimReturnsScopeGenerationWork(t *testing.T) {
 	}
 
 	queue := ProjectorQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "projector-1",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },
@@ -114,7 +114,7 @@ func TestProjectorQueueClaimPopulatesScopeMetadataFromPayload(t *testing.T) {
 	}
 
 	queue := ProjectorQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "projector-1",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },
@@ -138,8 +138,8 @@ func TestProjectorQueueEnqueueInsertsProjectorStageWork(t *testing.T) {
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ProjectorQueue{
-		db:  db,
-		Now: func() time.Time { return now },
+		database: db,
+		Now:      func() time.Time { return now },
 	}
 
 	err := queue.Enqueue(
@@ -167,7 +167,7 @@ func TestProjectorQueueFailRetriesGraphWriteTimeoutWithinAttemptBudget(t *testin
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ProjectorQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "projector-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,

@@ -80,11 +80,11 @@ func (s FactStore) loadIncidentRoutingDeclaredEvidence(
 	if len(serviceNames) == 0 {
 		return nil, nil
 	}
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("incident routing declaration database is required")
 	}
 
-	rows, err := s.db.QueryContext(ctx, listIncidentRoutingDeclaredEvidenceQuery, serviceNames)
+	rows, err := s.database.QueryContext(ctx, listIncidentRoutingDeclaredEvidenceQuery, serviceNames)
 	if err != nil {
 		return nil, fmt.Errorf("list incident routing declared evidence: %w", err)
 	}

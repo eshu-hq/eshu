@@ -87,7 +87,7 @@ func (s *RelationshipStore) insertEvidenceFactBatch(
 	}
 	sb.WriteString(insertEvidenceFactBatchSuffix)
 
-	if _, err := s.db.ExecContext(ctx, sb.String(), args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, sb.String(), args...); err != nil {
 		return fmt.Errorf("insert evidence fact batch (%d rows): %w", len(facts), err)
 	}
 	return nil

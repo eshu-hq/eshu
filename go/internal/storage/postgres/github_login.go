@@ -20,7 +20,7 @@ import (
 // ResolveGroupRoleGrants unchanged — see cmd/api's github_login.go wiring —
 // rather than duplicating that SQL for a second provider kind.
 type GitHubLoginStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // GitHubLoginStateRecord is one server-side GitHub OAuth2 state row. There
@@ -41,8 +41,8 @@ type GitHubLoginStateRecord struct {
 }
 
 // NewGitHubLoginStore constructs a Postgres GitHub login state store.
-func NewGitHubLoginStore(db db.ExecQueryer) *GitHubLoginStore {
-	return &GitHubLoginStore{db: db}
+func NewGitHubLoginStore(database db.ExecQueryer) *GitHubLoginStore {
+	return &GitHubLoginStore{database: database}
 }
 
 // GitHubLoginSchemaSQL returns the GitHub login state DDL.
@@ -52,10 +52,10 @@ func GitHubLoginSchemaSQL() string {
 
 // EnsureSchema applies the GitHub login schema.
 func (s *GitHubLoginStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("github login store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, githubLoginSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, githubLoginSchemaSQL); err != nil {
 		return fmt.Errorf("ensure github login schema: %w", err)
 	}
 	return nil
@@ -63,14 +63,14 @@ func (s *GitHubLoginStore) EnsureSchema(ctx context.Context) error {
 
 // CreateState writes one hash-only GitHub login state row.
 func (s *GitHubLoginStore) CreateState(ctx context.Context, record GitHubLoginStateRecord) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("github login store database is required")
 	}
 	record = normalizeGitHubLoginState(record)
 	if err := validateGitHubLoginState(record); err != nil {
 		return err
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		createGitHubLoginStateQuery,
 		record.StateHash,
@@ -103,7 +103,7 @@ func (s *GitHubLoginStore) ConsumeState(
 	stateHash string,
 	consumedAt time.Time,
 ) (GitHubLoginStateRecord, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return GitHubLoginStateRecord{}, false, errors.New("github login store database is required")
 	}
 	stateHash = strings.TrimSpace(stateHash)
@@ -111,7 +111,7 @@ func (s *GitHubLoginStore) ConsumeState(
 	if stateHash == "" || consumedAt.IsZero() {
 		return GitHubLoginStateRecord{}, false, errors.New("github state hash and consumed_at are required")
 	}
-	rows, err := s.db.QueryContext(ctx, consumeGitHubLoginStateQuery, stateHash, consumedAt)
+	rows, err := s.database.QueryContext(ctx, consumeGitHubLoginStateQuery, stateHash, consumedAt)
 	if err != nil {
 		return GitHubLoginStateRecord{}, false, fmt.Errorf("consume github login state: %w", err)
 	}

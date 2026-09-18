@@ -63,28 +63,28 @@ ORDER BY observed_at ASC, fact_id ASC
 
 // FactStore persists and loads fact records from Postgres.
 type FactStore struct {
-	db            db.ExecQueryer
+	database      db.ExecQueryer
 	identityCache *IdentityEpochCache
 }
 
 // NewFactStore constructs a Postgres-backed fact store without identity caching.
 // Use NewFactStoreWithIdentityCache to enable the identity-fact epoch cache.
-func NewFactStore(db db.ExecQueryer) *FactStore {
-	return &FactStore{db: db}
+func NewFactStore(database db.ExecQueryer) *FactStore {
+	return &FactStore{database: database}
 }
 
 // NewFactStoreWithIdentityCache constructs a Postgres-backed fact store with
 // the identity-fact epoch cache enabled.
-func NewFactStoreWithIdentityCache(db db.ExecQueryer, cache *IdentityEpochCache) *FactStore {
-	return &FactStore{db: db, identityCache: cache}
+func NewFactStoreWithIdentityCache(database db.ExecQueryer, cache *IdentityEpochCache) *FactStore {
+	return &FactStore{database: database, identityCache: cache}
 }
 
 // CountFacts returns the number of facts for a scope generation without loading them.
 func (s FactStore) CountFacts(ctx context.Context, scopeID, generationID string) (int, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("fact store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, countFactsQuery, scopeID, generationID)
+	rows, err := s.database.QueryContext(ctx, countFactsQuery, scopeID, generationID)
 	if err != nil {
 		return 0, fmt.Errorf("count facts: %w", err)
 	}
@@ -100,7 +100,7 @@ func (s FactStore) CountFacts(ctx context.Context, scopeID, generationID string)
 
 // UpsertFacts persists fact envelopes into fact_records.
 func (s FactStore) UpsertFacts(ctx context.Context, envelopes []facts.Envelope) error {
-	return upsertFacts(ctx, s.db, envelopes)
+	return upsertFacts(ctx, s.database, envelopes)
 }
 
 // LoadFacts satisfies the projector fact-store contract.
@@ -117,11 +117,11 @@ func (s FactStore) ListFacts(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
-	rows, err := s.db.QueryContext(ctx, listFactsQuery, scopeID, generationID)
+	rows, err := s.database.QueryContext(ctx, listFactsQuery, scopeID, generationID)
 	if err != nil {
 		return nil, fmt.Errorf("list facts: %w", err)
 	}
@@ -220,8 +220,8 @@ func scanFactEnvelope(rows db.Rows) (facts.Envelope, error) {
 // multi-row INSERT. The highest fencing token wins; ties keep the last
 // occurrence to preserve the zero/equal-token overwrite semantics of the old
 // N+1 pattern.
-func upsertFacts(ctx context.Context, db db.ExecQueryer, envelopes []facts.Envelope) error {
-	if db == nil {
+func upsertFacts(ctx context.Context, database db.ExecQueryer, envelopes []facts.Envelope) error {
+	if database == nil {
 		return fmt.Errorf("fact store database is required")
 	}
 
@@ -232,7 +232,7 @@ func upsertFacts(ctx context.Context, db db.ExecQueryer, envelopes []facts.Envel
 		if end > len(envelopes) {
 			end = len(envelopes)
 		}
-		if err := upsertFactBatch(ctx, db, envelopes[i:end]); err != nil {
+		if err := upsertFactBatch(ctx, database, envelopes[i:end]); err != nil {
 			return err
 		}
 	}

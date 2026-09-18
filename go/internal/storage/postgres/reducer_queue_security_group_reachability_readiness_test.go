@@ -29,15 +29,15 @@ type securityGroupReachabilityReadinessQueueDB struct {
 	claimQueries int
 }
 
-func (db *securityGroupReachabilityReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *securityGroupReachabilityReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *securityGroupReachabilityReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (database *securityGroupReachabilityReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	db.claimQueries++
+	database.claimQueries++
 
 	if !strings.Contains(query, "security_group_reachability_materialization") {
 		return nil, fmt.Errorf("claim query missing security group reachability readiness gate:\n%s", query)
@@ -74,7 +74,7 @@ func (db *securityGroupReachabilityReadinessQueueDB) QueryContext(_ context.Cont
 		"cloud_resource_uid",
 		"canonical_nodes_committed",
 	)
-	if hasTripleGate && !db.phaseReady {
+	if hasTripleGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
@@ -83,18 +83,18 @@ func (db *securityGroupReachabilityReadinessQueueDB) QueryContext(_ context.Cont
 		"aws:111122223333:us-east-1",
 		"gen-sg-1",
 		string(reducer.DomainSecurityGroupReachabilityMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:111122223333:us-east-1","reason":"aws security group rule facts observed","fact_id":"fact-rule-1","source_system":"aws"}`),
 	}}}, nil
 }
 
-func securityGroupReachabilityReadinessQueue(db *securityGroupReachabilityReadinessQueueDB, now time.Time) ReducerQueue {
+func securityGroupReachabilityReadinessQueue(database *securityGroupReachabilityReadinessQueueDB, now time.Time) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -105,8 +105,8 @@ func TestReducerQueueClaimWaitsForSecurityGroupReachabilityTripleReadiness(t *te
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
-	db := &securityGroupReachabilityReadinessQueueDB{now: now, phaseReady: false}
-	queue := securityGroupReachabilityReadinessQueue(db, now)
+	database := &securityGroupReachabilityReadinessQueueDB{now: now, phaseReady: false}
+	queue := securityGroupReachabilityReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
@@ -116,7 +116,7 @@ func TestReducerQueueClaimWaitsForSecurityGroupReachabilityTripleReadiness(t *te
 		t.Fatalf("Claim() claimed %q before all three node phases committed, want unclaimed", intent.IntentID)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)

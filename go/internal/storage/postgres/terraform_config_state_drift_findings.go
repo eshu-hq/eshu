@@ -82,13 +82,13 @@ type TerraformConfigStateDriftEvidenceRow struct {
 // TerraformConfigStateDriftFindingStore reads active Terraform config-vs-state
 // drift reducer facts.
 type TerraformConfigStateDriftFindingStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewTerraformConfigStateDriftFindingStore constructs a Terraform
 // config-vs-state drift finding reader over the provided database adapter.
-func NewTerraformConfigStateDriftFindingStore(db db.ExecQueryer) TerraformConfigStateDriftFindingStore {
-	return TerraformConfigStateDriftFindingStore{db: db}
+func NewTerraformConfigStateDriftFindingStore(database db.ExecQueryer) TerraformConfigStateDriftFindingStore {
+	return TerraformConfigStateDriftFindingStore{database: database}
 }
 
 // ListActiveFindings returns one page of active Terraform config-vs-state
@@ -97,7 +97,7 @@ func (s TerraformConfigStateDriftFindingStore) ListActiveFindings(
 	ctx context.Context,
 	filter TerraformConfigStateDriftFindingFilter,
 ) ([]TerraformConfigStateDriftFindingRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("terraform config state drift finding store database is required")
 	}
 	if filter.Scoped && len(filter.AllowedScopeIDs) == 0 {
@@ -108,7 +108,7 @@ func (s TerraformConfigStateDriftFindingStore) ListActiveFindings(
 		return nil, err
 	}
 	query, args := buildTerraformConfigStateDriftFindingQuery(false, filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active terraform config state drift findings: %w", err)
 	}
@@ -145,7 +145,7 @@ func (s TerraformConfigStateDriftFindingStore) CountActiveFindings(
 	ctx context.Context,
 	filter TerraformConfigStateDriftFindingFilter,
 ) (int, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("terraform config state drift finding store database is required")
 	}
 	if filter.Scoped && len(filter.AllowedScopeIDs) == 0 {
@@ -156,7 +156,7 @@ func (s TerraformConfigStateDriftFindingStore) CountActiveFindings(
 		return 0, err
 	}
 	query, args := buildTerraformConfigStateDriftFindingQuery(true, filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("count active terraform config state drift findings: %w", err)
 	}

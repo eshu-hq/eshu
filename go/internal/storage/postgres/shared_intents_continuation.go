@@ -33,7 +33,7 @@ func (s *SharedIntentStore) ListPendingDomainIntentsAfter(
 	limit int,
 ) ([]reducer.SharedProjectionIntentRow, error) {
 	l := max(limit, 1)
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		listPendingDomainIntentsAfterSQL,
 		domain,

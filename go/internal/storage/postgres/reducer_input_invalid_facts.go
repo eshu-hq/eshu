@@ -72,12 +72,12 @@ ON CONFLICT (scope_id, generation_id, fact_id, missing_field, domain) DO NOTHING
 // (reducer.QuarantinedFactRecord) are used as-is, with no separate cmd/reducer
 // adapter required.
 type ReducerInputInvalidFactStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewReducerInputInvalidFactStore constructs a store backed by db.
-func NewReducerInputInvalidFactStore(db db.ExecQueryer) *ReducerInputInvalidFactStore {
-	return &ReducerInputInvalidFactStore{db: db}
+func NewReducerInputInvalidFactStore(database db.ExecQueryer) *ReducerInputInvalidFactStore {
+	return &ReducerInputInvalidFactStore{database: database}
 }
 
 // ReducerInputInvalidFactSchemaSQL returns the DDL for the durable
@@ -88,7 +88,7 @@ func ReducerInputInvalidFactSchemaSQL() string {
 
 // EnsureSchema applies the reducer_input_invalid_facts DDL.
 func (s *ReducerInputInvalidFactStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, reducerInputInvalidFactSchemaSQL)
+	_, err := s.database.ExecContext(ctx, reducerInputInvalidFactSchemaSQL)
 	return err
 }
 
@@ -109,7 +109,7 @@ func (s *ReducerInputInvalidFactStore) WriteQuarantinedFacts(
 		if end > len(records) {
 			end = len(records)
 		}
-		if err := insertReducerInputInvalidFactBatch(ctx, s.db, records[i:end]); err != nil {
+		if err := insertReducerInputInvalidFactBatch(ctx, s.database, records[i:end]); err != nil {
 			return err
 		}
 	}
@@ -118,7 +118,7 @@ func (s *ReducerInputInvalidFactStore) WriteQuarantinedFacts(
 
 func insertReducerInputInvalidFactBatch(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	batch []reducer.QuarantinedFactRecord,
 ) error {
 	if len(batch) == 0 {
@@ -152,7 +152,7 @@ func insertReducerInputInvalidFactBatch(
 	}
 
 	query := insertReducerInputInvalidFactBatchPrefix + values.String() + insertReducerInputInvalidFactBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("insert reducer input_invalid fact batch (%d rows): %w", len(batch), err)
 	}
 	return nil

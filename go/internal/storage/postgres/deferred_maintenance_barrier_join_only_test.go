@@ -106,7 +106,7 @@ func TestIngestionStoreShardDrainBarrierNeverCommittedShardJoinsAlreadyOpenEpoch
 	}
 	completionTx := &fakeTx{}
 	fanInTx := deferredFanInFakeTx("gen-infra")
-	db := &fakeTransactionalDB{
+	database := &fakeTransactionalDB{
 		txs: []*fakeTx{barrierTx, batchTx, fanInTx, reopenTx, completionTx},
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
@@ -114,7 +114,7 @@ func TestIngestionStoreShardDrainBarrierNeverCommittedShardJoinsAlreadyOpenEpoch
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
@@ -189,8 +189,8 @@ func (d *alwaysFailBarrierDB) QueryContext(context.Context, string, ...any) (db.
 func TestIngestionStoreShardDrainBarrierSingleShardNeverCommittedSkipsMaintenance(t *testing.T) {
 	t.Parallel()
 
-	db := &alwaysFailBarrierDB{t: t}
-	store := NewIngestionStore(db)
+	database := &alwaysFailBarrierDB{t: t}
+	store := NewIngestionStore(database)
 
 	for poll := 0; poll < 5; poll++ {
 		err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(
@@ -223,7 +223,7 @@ func TestIngestionStoreShardDrainBarrierSingleShardHasCommittedRunsMaintenance(t
 		},
 	}
 	fanInTx := deferredFanInFakeTx("gen-infra")
-	db := &fakeTransactionalDB{
+	database := &fakeTransactionalDB{
 		txs: []*fakeTx{batchTx, fanInTx, reopenTx},
 		queryResponses: []queueFakeRows{
 			{rows: [][]any{{[]byte(`{"repo_id":"repo-infra","name":"infra-repo"}`), catalogFakeObservedAt}}},
@@ -231,7 +231,7 @@ func TestIngestionStoreShardDrainBarrierSingleShardHasCommittedRunsMaintenance(t
 			{rows: [][]any{{"repo-infra", "scope-infra", "gen-infra"}}},
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	err := store.RunDeferredRelationshipMaintenanceAfterShardDrain(

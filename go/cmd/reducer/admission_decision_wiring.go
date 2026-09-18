@@ -17,9 +17,9 @@ type postgresAdmissionDecisionWriter struct {
 	store *postgres.AdmissionDecisionStore
 }
 
-func newAdmissionDecisionWriter(db db.ExecQueryer) postgresAdmissionDecisionWriter {
+func newAdmissionDecisionWriter(database db.ExecQueryer) postgresAdmissionDecisionWriter {
 	return postgresAdmissionDecisionWriter{
-		store: postgres.NewAdmissionDecisionStore(db),
+		store: postgres.NewAdmissionDecisionStore(database),
 	}
 }
 

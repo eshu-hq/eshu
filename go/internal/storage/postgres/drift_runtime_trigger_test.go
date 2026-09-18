@@ -27,7 +27,7 @@ func TestConfigStateDriftRuntimeTriggerEnqueuesOneIntentForActivatedGeneration(t
 	db := &fakeExecQueryer{}
 	inst, reader := newEnqueueInstruments(t)
 	trigger := ConfigStateDriftRuntimeTrigger{
-		Queue:       ReducerQueue{db: db},
+		Queue:       ReducerQueue{database: db},
 		Instruments: inst,
 	}
 
@@ -96,7 +96,7 @@ func TestConfigStateDriftRuntimeTriggerCounterReflectsActualInsertionNotAttempt(
 	}
 	inst, reader := newEnqueueInstruments(t)
 	trigger := ConfigStateDriftRuntimeTrigger{
-		Queue:       ReducerQueue{db: db},
+		Queue:       ReducerQueue{database: db},
 		Instruments: inst,
 	}
 

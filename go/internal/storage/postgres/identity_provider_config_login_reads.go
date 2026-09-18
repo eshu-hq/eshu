@@ -45,7 +45,7 @@ func (s *IdentitySubjectStore) GetActiveProviderConfigForLogin(
 	ctx context.Context,
 	providerConfigID, tenantID string,
 ) (ProviderConfigConnectionTestMaterial, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ProviderConfigConnectionTestMaterial{}, false, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
@@ -53,7 +53,7 @@ func (s *IdentitySubjectStore) GetActiveProviderConfigForLogin(
 	if providerConfigID == "" || tenantID == "" {
 		return ProviderConfigConnectionTestMaterial{}, false, errors.New("provider_config_id and tenant_id are required")
 	}
-	rows, err := s.db.QueryContext(ctx, selectActiveProviderConfigForLoginQuery, providerConfigID, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectActiveProviderConfigForLoginQuery, providerConfigID, tenantID)
 	if err != nil {
 		return ProviderConfigConnectionTestMaterial{}, false, fmt.Errorf("select active provider config for login: %w", err)
 	}

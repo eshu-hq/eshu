@@ -146,7 +146,7 @@ WHERE work_item_id = $6
 
 // ReducerQueue provides reducer-stage queue behavior over fact_work_items.
 type ReducerQueue struct {
-	db            db.ExecQueryer
+	database      db.ExecQueryer
 	LeaseOwner    string
 	LeaseDuration time.Duration
 	RetryDelay    time.Duration
@@ -206,12 +206,12 @@ var ErrReducerClaimRejected = fmt.Errorf(
 
 // NewReducerQueue constructs a Postgres-backed reducer work queue.
 func NewReducerQueue(
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	leaseOwner string,
 	leaseDuration time.Duration,
 ) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    leaseOwner,
 		LeaseDuration: leaseDuration,
 	}
@@ -317,7 +317,7 @@ func (q ReducerQueue) enqueueReducerBatch(
 
 	query := enqueueReducerBatchPrefix + values.String() + enqueueReducerBatchSuffix
 
-	result, err := q.db.ExecContext(ctx, query, args...)
+	result, err := q.database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("enqueue reducer batch (%d intents): %w", len(batch), err)
 	}
@@ -336,7 +336,7 @@ func (q ReducerQueue) Claim(ctx context.Context) (reducer.Intent, bool, error) {
 	}
 
 	now := q.now()
-	rows, err := q.db.QueryContext(
+	rows, err := q.database.QueryContext(
 		ctx,
 		claimReducerWorkQuery,
 		now,
@@ -387,7 +387,7 @@ func (q ReducerQueue) Heartbeat(ctx context.Context, intent reducer.Intent) erro
 	}
 
 	now := q.now()
-	result, err := q.db.ExecContext(
+	result, err := q.database.ExecContext(
 		ctx,
 		heartbeatReducerWorkQuery,
 		now.Add(q.LeaseDuration),
@@ -429,7 +429,7 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, _ reducer.
 		args = append(args, intent.ClaimEpoch)
 	}
 	args = append(args, claimedAtValue(intent))
-	result, err := q.db.ExecContext(ctx, query, args...)
+	result, err := q.database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("ack reducer work: %w", err)
 	}

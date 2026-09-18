@@ -350,10 +350,10 @@ func TestSemanticSearchHandlerRejectsAmbiguousRepositoryScope(t *testing.T) {
 func TestPostgresSemanticSearchScopeResolverUsesExactCanonicalRepositoryID(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingSemanticSearchScopeQueryer{rows: &querytestutil.ScriptedRows{
+	database := &recordingSemanticSearchScopeQueryer{rows: &querytestutil.ScriptedRows{
 		Data: [][]any{{"git-repository-scope:repo-payments"}},
 	}}
-	resolver := PostgresSemanticSearchScopeResolver{db: db}
+	resolver := PostgresSemanticSearchScopeResolver{database: database}
 
 	scopeID, err := resolver.ResolveSemanticSearchScope(context.Background(), "repository:r_payments")
 	if err != nil {
@@ -368,14 +368,14 @@ func TestPostgresSemanticSearchScopeResolverUsesExactCanonicalRepositoryID(t *te
 		"payload->>'repo_id' = $1",
 		"LIMIT 2",
 	} {
-		if !strings.Contains(db.query, fragment) {
-			t.Errorf("resolver query missing %q:\n%s", fragment, db.query)
+		if !strings.Contains(database.query, fragment) {
+			t.Errorf("resolver query missing %q:\n%s", fragment, database.query)
 		}
 	}
-	if strings.Contains(db.query, "LIKE") {
-		t.Errorf("resolver query must use exact repository identity, not prefix matching:\n%s", db.query)
+	if strings.Contains(database.query, "LIKE") {
+		t.Errorf("resolver query must use exact repository identity, not prefix matching:\n%s", database.query)
 	}
-	if got, want := db.args, []any{"repository:r_payments"}; !semanticSearchAnySlicesEqual(got, want) {
+	if got, want := database.args, []any{"repository:r_payments"}; !semanticSearchAnySlicesEqual(got, want) {
 		t.Fatalf("query args = %#v, want %#v", got, want)
 	}
 }
@@ -383,10 +383,10 @@ func TestPostgresSemanticSearchScopeResolverUsesExactCanonicalRepositoryID(t *te
 func TestPostgresSemanticSearchScopeResolverValidatesDirectActiveScope(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingSemanticSearchScopeQueryer{rows: &querytestutil.ScriptedRows{
+	database := &recordingSemanticSearchScopeQueryer{rows: &querytestutil.ScriptedRows{
 		Data: [][]any{{"repository:r_payments"}},
 	}}
-	resolver := PostgresSemanticSearchScopeResolver{db: db}
+	resolver := PostgresSemanticSearchScopeResolver{database: database}
 
 	repoID, err := resolver.ResolveSemanticSearchRepositoryForScope(
 		context.Background(),
@@ -404,11 +404,11 @@ func TestPostgresSemanticSearchScopeResolverValidatesDirectActiveScope(t *testin
 		"scope_id = $1",
 		"LIMIT 1",
 	} {
-		if !strings.Contains(db.query, fragment) {
-			t.Errorf("direct scope query missing %q:\n%s", fragment, db.query)
+		if !strings.Contains(database.query, fragment) {
+			t.Errorf("direct scope query missing %q:\n%s", fragment, database.query)
 		}
 	}
-	if got, want := db.args, []any{"git-repository-scope:repo-payments"}; !semanticSearchAnySlicesEqual(got, want) {
+	if got, want := database.args, []any{"git-repository-scope:repo-payments"}; !semanticSearchAnySlicesEqual(got, want) {
 		t.Fatalf("query args = %#v, want %#v", got, want)
 	}
 }
@@ -416,7 +416,7 @@ func TestPostgresSemanticSearchScopeResolverValidatesDirectActiveScope(t *testin
 func TestPostgresSemanticSearchScopeResolverRejectsBlankDirectScopeMetadata(t *testing.T) {
 	t.Parallel()
 
-	resolver := PostgresSemanticSearchScopeResolver{db: &recordingSemanticSearchScopeQueryer{
+	resolver := PostgresSemanticSearchScopeResolver{database: &recordingSemanticSearchScopeQueryer{
 		rows: &querytestutil.ScriptedRows{Data: [][]any{{""}}},
 	}}
 
@@ -432,7 +432,7 @@ func TestPostgresSemanticSearchScopeResolverRejectsBlankDirectScopeMetadata(t *t
 func TestPostgresSemanticSearchScopeResolverRejectsMultipleActiveScopes(t *testing.T) {
 	t.Parallel()
 
-	resolver := PostgresSemanticSearchScopeResolver{db: &recordingSemanticSearchScopeQueryer{
+	resolver := PostgresSemanticSearchScopeResolver{database: &recordingSemanticSearchScopeQueryer{
 		rows: &querytestutil.ScriptedRows{Data: [][]any{
 			{"git-repository-scope:repo-payments-a"},
 			{"git-repository-scope:repo-payments-b"},

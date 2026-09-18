@@ -140,7 +140,7 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 	}
 
 	projectorQueue := ProjectorQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "projector-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -149,7 +149,7 @@ func TestProofDomainWorkloadIdentityFlowsCollectorToReducerIntent(t *testing.T) 
 	canonicalWriter := &recordingCanonicalWriter{}
 	contentWriter := &recordingContentWriter{}
 	reducerQueue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

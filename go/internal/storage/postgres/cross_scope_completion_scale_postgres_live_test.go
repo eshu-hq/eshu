@@ -28,7 +28,7 @@ func TestCrossScopeCompletionProductionShapeConvergesLive(t *testing.T) {
 	)
 	seedCrossScopeCompletionScale(t, ctx, db, scopeCount, generationsEach, leaseOwner)
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    leaseOwner,
 		LeaseDuration: time.Minute,
 	}

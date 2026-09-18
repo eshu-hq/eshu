@@ -23,7 +23,7 @@ func TestReducerQueueClaimCanFilterByMultipleDomains(t *testing.T) {
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "code-graph-lane",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -64,7 +64,7 @@ func TestClaimBatchCanFilterByMultipleDomains(t *testing.T) {
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "code-graph-lane",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

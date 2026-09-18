@@ -14,7 +14,7 @@ import (
 )
 
 // upsertFactBatch inserts one batch of facts using a multi-row INSERT query.
-func upsertFactBatch(ctx context.Context, db db.ExecQueryer, batch []facts.Envelope) error {
+func upsertFactBatch(ctx context.Context, database db.ExecQueryer, batch []facts.Envelope) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -24,7 +24,7 @@ func upsertFactBatch(ctx context.Context, db db.ExecQueryer, batch []facts.Envel
 		return err
 	}
 
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert fact batch (%d facts): %w", len(batch), err)
 	}
 
@@ -49,7 +49,7 @@ func upsertFactBatch(ctx context.Context, db db.ExecQueryer, batch []facts.Envel
 // correctly protected.
 func upsertFactBatchReturningAccepted(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	batch []facts.Envelope,
 ) (map[string]struct{}, error) {
 	if len(batch) == 0 {
@@ -61,7 +61,7 @@ func upsertFactBatchReturningAccepted(
 		return nil, err
 	}
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("upsert fact batch returning accepted (%d facts): %w", len(batch), err)
 	}
@@ -213,14 +213,14 @@ RETURNING fact_id
 // immediately rather than after the entire generation commits.
 func upsertStreamingFacts(
 	ctx context.Context,
-	db db.ExecQueryer,
+	database db.ExecQueryer,
 	factStream <-chan facts.Envelope,
 	scopeID string,
 	generationID string,
 	afterBatch func([]facts.Envelope) error,
 ) (factUpsertStats, error) {
 	var stats factUpsertStats
-	if db == nil {
+	if database == nil {
 		return stats, fmt.Errorf("fact store database is required")
 	}
 	if factStream == nil {
@@ -247,7 +247,7 @@ func upsertStreamingFacts(
 
 		if len(batch) >= factBatchSize {
 			batch = deduplicateEnvelopes(batch)
-			accepted, err := upsertFactBatchReturningAccepted(ctx, db, batch)
+			accepted, err := upsertFactBatchReturningAccepted(ctx, database, batch)
 			if err != nil {
 				return stats, err
 			}
@@ -268,7 +268,7 @@ func upsertStreamingFacts(
 	// Flush remaining
 	if len(batch) > 0 {
 		batch = deduplicateEnvelopes(batch)
-		accepted, err := upsertFactBatchReturningAccepted(ctx, db, batch)
+		accepted, err := upsertFactBatchReturningAccepted(ctx, database, batch)
 		if err != nil {
 			return stats, err
 		}

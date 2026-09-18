@@ -34,11 +34,11 @@ type ec2InstanceIdentityReadinessQueueDB struct {
 	attemptCount int
 }
 
-func (db *ec2InstanceIdentityReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *ec2InstanceIdentityReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *ec2InstanceIdentityReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (database *ec2InstanceIdentityReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
@@ -51,11 +51,11 @@ func (db *ec2InstanceIdentityReadinessQueueDB) QueryContext(_ context.Context, q
 		"cloud_resource_uid",
 		"canonical_nodes_committed",
 	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
-	if hasReadinessGate && !db.phaseReady {
+	if hasReadinessGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.status)
+	status := strings.TrimSpace(database.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -68,11 +68,11 @@ func (db *ec2InstanceIdentityReadinessQueueDB) QueryContext(_ context.Context, q
 		"aws:123456789012:us-east-1:ec2",
 		"gen-aws-1",
 		string(reducer.DomainEC2InstanceIdentityMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"ec2_instance_node_materialization:aws:123456789012:us-east-1:ec2","reason":"aws resource facts observed for ec2 instance identity projection","fact_id":"fact-aws-resource-1","source_system":"aws"}`),
 	}}}, nil
 }
@@ -121,13 +121,13 @@ func TestReducerQueueClaimWaitsForEC2InstanceIdentityReadinessBehavior(t *testin
 	t.Parallel()
 
 	now := time.Date(2026, time.July, 24, 14, 0, 0, 0, time.UTC)
-	db := &ec2InstanceIdentityReadinessQueueDB{
+	database := &ec2InstanceIdentityReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		status:     "pending",
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -141,7 +141,7 @@ func TestReducerQueueClaimWaitsForEC2InstanceIdentityReadinessBehavior(t *testin
 		t.Fatalf("Claim() claimed %q before canonical readiness, want unclaimed waiting work", intent.IntentID)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)
@@ -196,9 +196,9 @@ func TestReducerQueueFailDefersEC2InstanceIdentityReadinessPastAttemptBudget(t *
 	t.Parallel()
 
 	now := time.Date(2026, time.July, 24, 11, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{}
+	database := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -215,11 +215,11 @@ func TestReducerQueueFailDefersEC2InstanceIdentityReadinessPastAttemptBudget(t *
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 
-	query := db.execs[0].query
+	query := database.execs[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'retrying'",
@@ -231,14 +231,14 @@ func TestReducerQueueFailDefersEC2InstanceIdentityReadinessPastAttemptBudget(t *
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass; got != want {
+	if got, want := database.execs[0].args[1], ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	// Exponential backoff (#4450): AttemptCount=42 (a non-counting readiness
 	// class keeps retrying indefinitely) drives the exponential term far past
 	// MaxRetryDelay's default 1-hour fallback (unset here), so the delay
 	// clamps to defaultRetryMaxDelayFallback rather than doubling forever.
-	if got, want := db.execs[0].args[4], now.Add(defaultRetryMaxDelayFallback); got != want {
+	if got, want := database.execs[0].args[4], now.Add(defaultRetryMaxDelayFallback); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
 	}
 }
@@ -251,13 +251,13 @@ func TestReducerQueueClaimDoesNotCountEC2InstanceIdentityReadinessDefers(t *test
 	t.Parallel()
 
 	now := time.Date(2026, time.July, 24, 12, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: nil},
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },
@@ -269,7 +269,7 @@ func TestReducerQueueClaimDoesNotCountEC2InstanceIdentityReadinessDefers(t *test
 		t.Fatal("Claim() claimed = true, want false from empty rows")
 	}
 
-	assertEC2InstanceIdentityReadinessClaimDoesNotCountAttempt(t, db.queries[0].query)
+	assertEC2InstanceIdentityReadinessClaimDoesNotCountAttempt(t, database.queries[0].query)
 }
 
 // TestClaimBatchDoesNotCountEC2InstanceIdentityReadinessDefers asserts the
@@ -280,13 +280,13 @@ func TestClaimBatchDoesNotCountEC2InstanceIdentityReadinessDefers(t *testing.T) 
 	t.Parallel()
 
 	now := time.Date(2026, time.July, 24, 12, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: nil},
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -296,7 +296,7 @@ func TestClaimBatchDoesNotCountEC2InstanceIdentityReadinessDefers(t *testing.T) 
 		t.Fatalf("ClaimBatch() error = %v", err)
 	}
 
-	assertEC2InstanceIdentityReadinessClaimDoesNotCountAttempt(t, db.queries[0].query)
+	assertEC2InstanceIdentityReadinessClaimDoesNotCountAttempt(t, database.queries[0].query)
 }
 
 func assertEC2InstanceIdentityReadinessClaimDoesNotCountAttempt(t *testing.T, query string) {

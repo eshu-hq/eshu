@@ -34,15 +34,15 @@ type ec2InstanceNodeReadinessQueueDB struct {
 	claimQueries int
 }
 
-func (db *ec2InstanceNodeReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *ec2InstanceNodeReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *ec2InstanceNodeReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+func (database *ec2InstanceNodeReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	db.claimQueries++
+	database.claimQueries++
 
 	// The durable gate must resolve the cloud_resource_uid canonical-nodes phase by
 	// the work item's own entity_key, so the EC2 node domain's distinct entity key
@@ -57,11 +57,11 @@ func (db *ec2InstanceNodeReadinessQueueDB) QueryContext(_ context.Context, query
 	if !hasCloudResourceGate {
 		return nil, fmt.Errorf("claim query missing entity-key-joined cloud_resource_uid readiness gate:\n%s", query)
 	}
-	if !db.phaseReady {
+	if !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.status)
+	status := strings.TrimSpace(database.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -78,18 +78,18 @@ func (db *ec2InstanceNodeReadinessQueueDB) QueryContext(_ context.Context, query
 		// resolves the phase the EC2 node domain publishes under that key. PR-B swaps
 		// this domain for the real ec2_uses_profile_materialization clause.
 		string(reducer.DomainAWSRelationshipMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"ec2_instance_node_materialization:aws:123456789012:us-east-1:ec2","reason":"ec2 instance posture facts observed","fact_id":"fact-ec2-1","source_system":"aws"}`),
 	}}}, nil
 }
 
-func ec2InstanceNodeReadinessQueue(db *ec2InstanceNodeReadinessQueueDB, now time.Time) ReducerQueue {
+func ec2InstanceNodeReadinessQueue(database *ec2InstanceNodeReadinessQueueDB, now time.Time) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -105,12 +105,12 @@ func TestReducerQueueClaimWaitsForEC2InstanceNodeReadinessBehavior(t *testing.T)
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 1, 12, 10, 0, 0, time.UTC)
-	db := &ec2InstanceNodeReadinessQueueDB{
+	database := &ec2InstanceNodeReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		status:     "pending",
 	}
-	queue := ec2InstanceNodeReadinessQueue(db, now)
+	queue := ec2InstanceNodeReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
@@ -119,11 +119,11 @@ func TestReducerQueueClaimWaitsForEC2InstanceNodeReadinessBehavior(t *testing.T)
 	if claimed {
 		t.Fatalf("Claim() claimed %q before EC2 instance nodes committed, want unclaimed waiting work", intent.IntentID)
 	}
-	if db.claimQueries != 1 {
-		t.Fatalf("claim queries = %d, want 1", db.claimQueries)
+	if database.claimQueries != 1 {
+		t.Fatalf("claim queries = %d, want 1", database.claimQueries)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)
@@ -140,12 +140,12 @@ func TestReducerQueueClaimEC2InstanceNodeAlreadyReadyBehavior(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 1, 12, 25, 0, 0, time.UTC)
-	db := &ec2InstanceNodeReadinessQueueDB{
+	database := &ec2InstanceNodeReadinessQueueDB{
 		now:        now,
 		phaseReady: true,
 		status:     "pending",
 	}
-	queue := ec2InstanceNodeReadinessQueue(db, now)
+	queue := ec2InstanceNodeReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {

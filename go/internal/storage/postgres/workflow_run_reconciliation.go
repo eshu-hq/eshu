@@ -130,10 +130,10 @@ WHERE run_id = $1
 // ReconcileWorkflowRuns derives run status and completeness rows from durable
 // workflow work-item progress and reducer-owned phase truth.
 func (s *WorkflowControlStore) ReconcileWorkflowRuns(ctx context.Context, observedAt time.Time) (int, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("workflow control store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listWorkflowRunsForReconciliationQuery)
+	rows, err := s.database.QueryContext(ctx, listWorkflowRunsForReconciliationQuery)
 	if err != nil {
 		return 0, fmt.Errorf("list workflow runs for reconciliation: %w", err)
 	}
@@ -178,8 +178,8 @@ func (s *WorkflowControlStore) reconcileWorkflowRun(ctx context.Context, run wor
 }
 
 func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run workflow.Run, observedAt time.Time) error {
-	queryTarget := s.db
-	execTarget := s.db
+	queryTarget := s.database
+	execTarget := s.database
 	commit := func() error { return nil }
 	rollback := func() error { return nil }
 	if s.beginner != nil {

@@ -109,7 +109,7 @@ func (s FactStore) ListOwnedPackageDependencyTargets(
 	ctx context.Context,
 	filter workflow.OwnedPackageDependencyTargetFilter,
 ) ([]workflow.OwnedPackageDependencyTarget, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	ecosystems := cleanStringFilterValues(filter.Ecosystems)
@@ -118,7 +118,7 @@ func (s FactStore) ListOwnedPackageDependencyTargets(
 	}
 	limit := ownedPackageDependencyTargetLimit(filter.Limit)
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listOwnedPackageDependencyTargetsQuery(filter.VersionSpecific),
 		ecosystems,

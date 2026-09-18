@@ -22,7 +22,7 @@ func (s *IdentitySubjectStore) ResolveSAMLExternalSubject(
 	ctx context.Context,
 	request SAMLExternalSubjectResolutionRequest,
 ) (SAMLExternalSubjectResolutionResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return SAMLExternalSubjectResolutionResult{}, errors.New("identity subject store database is required")
 	}
 	request = normalizeSAMLExternalSubjectResolutionRequest(request)
@@ -33,7 +33,7 @@ func (s *IdentitySubjectStore) ResolveSAMLExternalSubject(
 		return SAMLExternalSubjectResolutionResult{}, errors.New("saml external subject resolution time is required")
 	}
 
-	auth, ok, err := resolveActiveSAMLExternalSubject(ctx, s.db, request)
+	auth, ok, err := resolveActiveSAMLExternalSubject(ctx, s.database, request)
 	if err != nil {
 		return SAMLExternalSubjectResolutionResult{}, err
 	}
@@ -44,7 +44,7 @@ func (s *IdentitySubjectStore) ResolveSAMLExternalSubject(
 			KnownSubject: true,
 		}, nil
 	}
-	known, err := selectKnownSAMLExternalSubject(ctx, s.db, request)
+	known, err := selectKnownSAMLExternalSubject(ctx, s.database, request)
 	if err != nil {
 		return SAMLExternalSubjectResolutionResult{}, err
 	}
@@ -57,14 +57,14 @@ func (s *IdentitySubjectStore) HasActiveSAMLProviderConfig(
 	ctx context.Context,
 	providerConfigID string,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
 	if providerConfigID == "" {
 		return false, nil
 	}
-	rows, err := s.db.QueryContext(ctx, selectActiveSAMLProviderConfigQuery, providerConfigID)
+	rows, err := s.database.QueryContext(ctx, selectActiveSAMLProviderConfigQuery, providerConfigID)
 	if err != nil {
 		return false, fmt.Errorf("select active saml provider config: %w", err)
 	}
@@ -94,7 +94,7 @@ func (s *IdentitySubjectStore) HasActiveSAMLProviderConfigForTenant(
 	providerConfigID string,
 	tenantID string,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
@@ -102,7 +102,7 @@ func (s *IdentitySubjectStore) HasActiveSAMLProviderConfigForTenant(
 	if providerConfigID == "" || tenantID == "" {
 		return false, nil
 	}
-	rows, err := s.db.QueryContext(ctx, selectActiveSAMLProviderConfigForTenantQuery, providerConfigID, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectActiveSAMLProviderConfigForTenantQuery, providerConfigID, tenantID)
 	if err != nil {
 		return false, fmt.Errorf("select active saml provider config for tenant: %w", err)
 	}
@@ -130,7 +130,7 @@ func (s *IdentitySubjectStore) HasActiveOIDCProviderConfigForTenant(
 	providerConfigID string,
 	tenantID string,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
@@ -138,7 +138,7 @@ func (s *IdentitySubjectStore) HasActiveOIDCProviderConfigForTenant(
 	if providerConfigID == "" || tenantID == "" {
 		return false, nil
 	}
-	rows, err := s.db.QueryContext(ctx, selectActiveOIDCProviderConfigForTenantQuery, providerConfigID, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectActiveOIDCProviderConfigForTenantQuery, providerConfigID, tenantID)
 	if err != nil {
 		return false, fmt.Errorf("select active oidc provider config for tenant: %w", err)
 	}
@@ -167,7 +167,7 @@ func (s *IdentitySubjectStore) HasActiveGitHubProviderConfigForTenant(
 	providerConfigID string,
 	tenantID string,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
@@ -175,7 +175,7 @@ func (s *IdentitySubjectStore) HasActiveGitHubProviderConfigForTenant(
 	if providerConfigID == "" || tenantID == "" {
 		return false, nil
 	}
-	rows, err := s.db.QueryContext(ctx, selectActiveGitHubProviderConfigForTenantQuery, providerConfigID, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectActiveGitHubProviderConfigForTenantQuery, providerConfigID, tenantID)
 	if err != nil {
 		return false, fmt.Errorf("select active github provider config for tenant: %w", err)
 	}
@@ -204,10 +204,10 @@ func normalizeSAMLExternalSubjectResolutionRequest(
 
 func resolveActiveSAMLExternalSubject(
 	ctx context.Context,
-	db db.Queryer,
+	database db.Queryer,
 	request SAMLExternalSubjectResolutionRequest,
 ) (SAMLExternalSubjectAuthContext, bool, error) {
-	rows, err := db.QueryContext(
+	rows, err := database.QueryContext(
 		ctx,
 		resolveSAMLExternalSubjectQuery,
 		request.ProviderConfigID,
@@ -250,7 +250,7 @@ func resolveActiveSAMLExternalSubject(
 	}
 	// Non-admin sessions must carry a permission-catalog snapshot so the
 	// catalog enforces them identically to a scoped token for the same roles.
-	roles, err := resolveSAMLExternalSubjectRoles(ctx, db, auth.TenantID, auth.WorkspaceID, userID, request.Now)
+	roles, err := resolveSAMLExternalSubjectRoles(ctx, database, auth.TenantID, auth.WorkspaceID, userID, request.Now)
 	if err != nil {
 		// Fails closed (no session issued). Log distinctly so an operator can
 		// tell a permission-catalog resolution outage from any other login 500.
@@ -258,7 +258,7 @@ func resolveActiveSAMLExternalSubject(
 			"subject_class", samlExternalSubjectClass, "tenant_id", auth.TenantID, "error", err)
 		return SAMLExternalSubjectAuthContext{}, false, err
 	}
-	features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, db, auth.TenantID, roles, request.Now)
+	features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, database, auth.TenantID, roles, request.Now)
 	if err != nil {
 		slog.ErrorContext(ctx, "saml session permission grant resolution failed; login denied",
 			"subject_class", samlExternalSubjectClass, "tenant_id", auth.TenantID, "role_count", len(roles), "error", err)
@@ -280,7 +280,7 @@ func resolveActiveSAMLExternalSubject(
 // scoped token for the same user resolve to the same role set.
 func resolveSAMLExternalSubjectRoles(
 	ctx context.Context,
-	db db.Queryer,
+	database db.Queryer,
 	tenantID string,
 	workspaceID string,
 	userID string,
@@ -292,7 +292,7 @@ func resolveSAMLExternalSubjectRoles(
 	if tenantID == "" || workspaceID == "" || userID == "" {
 		return nil, nil
 	}
-	rows, err := db.QueryContext(
+	rows, err := database.QueryContext(
 		ctx,
 		resolveLocalIdentityRolesQuery,
 		tenantID,
@@ -321,10 +321,10 @@ func resolveSAMLExternalSubjectRoles(
 
 func selectKnownSAMLExternalSubject(
 	ctx context.Context,
-	db db.Queryer,
+	database db.Queryer,
 	request SAMLExternalSubjectResolutionRequest,
 ) (bool, error) {
-	rows, err := db.QueryContext(
+	rows, err := database.QueryContext(
 		ctx,
 		selectKnownSAMLExternalSubjectQuery,
 		request.ProviderConfigID,

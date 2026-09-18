@@ -26,13 +26,13 @@ import (
 func TestProjectorQueueHeartbeatRenewsClaim(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{
+	database := &recordingExecQueryer{
 		results: []sql.Result{
 			projectorRowsAffectedResult{rowsAffected: 0},
 			projectorRowsAffectedResult{rowsAffected: 1},
 		},
 	}
-	queue := NewProjectorQueue(db, "projector-1", 30*time.Second)
+	queue := NewProjectorQueue(database, "projector-1", 30*time.Second)
 	queue.Now = func() time.Time {
 		return time.Date(2026, time.April, 12, 14, 30, 0, 0, time.UTC)
 	}
@@ -48,10 +48,10 @@ func TestProjectorQueueHeartbeatRenewsClaim(t *testing.T) {
 		t.Fatalf("Heartbeat() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 2; got != want {
+	if got, want := len(database.execs), 2; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	query := db.execs[1].query
+	query := database.execs[1].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'running'",
@@ -62,7 +62,7 @@ func TestProjectorQueueHeartbeatRenewsClaim(t *testing.T) {
 			t.Fatalf("Heartbeat() query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[1].args[0], queue.Now().Add(queue.LeaseDuration); got != want {
+	if got, want := database.execs[1].args[0], queue.Now().Add(queue.LeaseDuration); got != want {
 		t.Fatalf("claim_until arg = %v, want %v", got, want)
 	}
 }
@@ -70,13 +70,13 @@ func TestProjectorQueueHeartbeatRenewsClaim(t *testing.T) {
 func TestProjectorQueueHeartbeatRejectsStaleClaim(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{
+	database := &recordingExecQueryer{
 		results: []sql.Result{
 			projectorRowsAffectedResult{rowsAffected: 0},
 			projectorRowsAffectedResult{rowsAffected: 0},
 		},
 	}
-	queue := NewProjectorQueue(db, "projector-1", 30*time.Second)
+	queue := NewProjectorQueue(database, "projector-1", 30*time.Second)
 	work := projector.ScopeGenerationWork{
 		Scope: scope.IngestionScope{ScopeID: "scope-123"},
 		Generation: scope.ScopeGeneration{
@@ -96,12 +96,12 @@ func TestProjectorQueueHeartbeatRejectsStaleClaim(t *testing.T) {
 func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{
+	database := &recordingExecQueryer{
 		results: []sql.Result{
 			projectorRowsAffectedResult{rowsAffected: 1},
 		},
 	}
-	queue := NewProjectorQueue(db, "projector-1", 30*time.Second)
+	queue := NewProjectorQueue(database, "projector-1", 30*time.Second)
 	queue.Now = func() time.Time {
 		return time.Date(2026, time.April, 12, 14, 30, 0, 0, time.UTC)
 	}
@@ -116,11 +116,11 @@ func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {
 	if !errors.Is(err, projector.ErrWorkSuperseded) {
 		t.Fatalf("Heartbeat() error = %v, want %v", err, projector.ErrWorkSuperseded)
 	}
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 
-	supersedeWorkQuery := db.execs[0].query
+	supersedeWorkQuery := database.execs[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items AS work",
 		"status = 'superseded'",

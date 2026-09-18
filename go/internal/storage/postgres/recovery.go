@@ -112,7 +112,7 @@ WHERE status IN ('dead_letter', 'failed')
 
 // RecoveryStore implements recovery.ReplayStore over Postgres.
 type RecoveryStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 
 	// refinalizeDrainTimeout bounds the in-flight reducer drain wait in
 	// RefinalizeScopeProjections; refinalizeDrainPoll is the poll interval.
@@ -156,8 +156,8 @@ func WithRefinalizeDrainPollInterval(d time.Duration) RecoveryStoreOption {
 }
 
 // NewRecoveryStore constructs a Postgres-backed recovery store.
-func NewRecoveryStore(db db.ExecQueryer, opts ...RecoveryStoreOption) RecoveryStore {
-	s := RecoveryStore{db: db}
+func NewRecoveryStore(database db.ExecQueryer, opts ...RecoveryStoreOption) RecoveryStore {
+	s := RecoveryStore{database: database}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&s)
@@ -254,13 +254,13 @@ func (s RecoveryStore) ReplayFailedWorkItems(
 	filter recovery.ReplayFilter,
 	now time.Time,
 ) (recovery.ReplayResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return recovery.ReplayResult{}, fmt.Errorf("recovery store database is required")
 	}
 
 	query, args := buildReplayFailedWorkItemsQuery(filter, now)
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return recovery.ReplayResult{}, fmt.Errorf("replay failed work items: %w", err)
 	}
@@ -293,14 +293,14 @@ func (s RecoveryStore) CountDeadLetterBacklog(
 	ctx context.Context,
 	filter recovery.ReplayFilter,
 ) (int, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("recovery store database is required")
 	}
 
 	predicate := buildReplayPredicate(filter, 1)
 	query := fmt.Sprintf(countDeadLetterBacklogTemplate, predicate.clause)
 
-	rows, err := s.db.QueryContext(ctx, query, predicate.args...)
+	rows, err := s.database.QueryContext(ctx, query, predicate.args...)
 	if err != nil {
 		return 0, fmt.Errorf("count dead letter backlog: %w", err)
 	}
@@ -326,11 +326,11 @@ func (s RecoveryStore) ReplayCollectorGenerations(
 	filter recovery.CollectorGenerationReplayFilter,
 	now time.Time,
 ) (recovery.CollectorGenerationReplayResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return recovery.CollectorGenerationReplayResult{}, fmt.Errorf("recovery store database is required")
 	}
 
-	result, err := NewCollectorGenerationDeadLetterStore(s.db).ReplayGenerationDeadLetters(ctx, collector.GenerationDeadLetterReplayFilter{
+	result, err := NewCollectorGenerationDeadLetterStore(s.database).ReplayGenerationDeadLetters(ctx, collector.GenerationDeadLetterReplayFilter{
 		ScopeIDs:      filter.ScopeIDs,
 		FailureClass:  filter.FailureClass,
 		CollectorKind: scope.CollectorKind(filter.CollectorKind),
@@ -364,10 +364,10 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 	filter recovery.RefinalizeFilter,
 	now time.Time,
 ) (recovery.RefinalizeResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return recovery.RefinalizeResult{}, fmt.Errorf("recovery store database is required")
 	}
-	beginner, ok := s.db.(db.Beginner)
+	beginner, ok := s.database.(db.Beginner)
 	if !ok {
 		return recovery.RefinalizeResult{}, fmt.Errorf("refinalize scope projections: database must support Begin")
 	}

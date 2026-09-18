@@ -29,7 +29,7 @@ func TestReducerQueueClaimBypassesSemanticGlobalCapWhenDisabled(t *testing.T) {
 		},
 	}
 	queue := ReducerQueue{
-		db:                               db,
+		database:                         db,
 		LeaseOwner:                       "semantic-worker",
 		LeaseDuration:                    time.Minute,
 		Now:                              func() time.Time { return now },
@@ -61,7 +61,7 @@ func TestReducerQueueClaimBatchBypassesSemanticGlobalCapWhenDisabled(t *testing.
 		},
 	}
 	queue := ReducerQueue{
-		db:                               db,
+		database:                         db,
 		LeaseOwner:                       "semantic-worker",
 		LeaseDuration:                    time.Minute,
 		Now:                              func() time.Time { return now },

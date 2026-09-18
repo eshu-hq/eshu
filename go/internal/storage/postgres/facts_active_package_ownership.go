@@ -67,7 +67,7 @@ LIMIT $3
 // No-Observability-Change: reuses the existing FactStore query path and its
 // established storage instrumentation; no new query span or metric is added.
 func (s FactStore) ListActivePackageOwnershipFacts(ctx context.Context) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
@@ -101,7 +101,7 @@ func (s FactStore) listActivePackageOwnershipFactsPage(
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActivePackageOwnershipFactsQuery,
 		cursor,

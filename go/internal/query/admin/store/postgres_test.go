@@ -21,12 +21,12 @@ import (
 func TestPostgresAdminStoreReplayFailedWorkItems_UsesConsistentPlaceholderOffsets(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingAdminExecQueryer{
+	database := &recordingAdminExecQueryer{
 		rows: &recordingAdminRows{},
 	}
 	store := &postgresStore{
-		db:  db,
-		now: func() time.Time { return time.Unix(1700000000, 0).UTC() },
+		database: database,
+		now:      func() time.Time { return time.Unix(1700000000, 0).UTC() },
 	}
 
 	_, err := store.ReplayFailedWorkItems(context.Background(), admin.ReplayWorkItemFilter{
@@ -38,29 +38,29 @@ func TestPostgresAdminStoreReplayFailedWorkItems_UsesConsistentPlaceholderOffset
 		t.Fatalf("ReplayFailedWorkItems() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.queryArgs), 3; got != want {
+	if got, want := len(database.queryArgs), 3; got != want {
 		t.Fatalf("len(queryArgs) = %d, want %d", got, want)
 	}
-	if got, want := maxPlaceholderIndex(db.query), len(db.queryArgs); got != want {
-		t.Fatalf("max placeholder index = %d, want %d; query = %s", got, want, db.query)
+	if got, want := maxPlaceholderIndex(database.query), len(database.queryArgs); got != want {
+		t.Fatalf("max placeholder index = %d, want %d; query = %s", got, want, database.query)
 	}
-	if !strings.Contains(db.query, "work_item_id = ANY($2)") {
-		t.Fatalf("query = %q, want work_item_id selector to use $2", db.query)
+	if !strings.Contains(database.query, "work_item_id = ANY($2)") {
+		t.Fatalf("query = %q, want work_item_id selector to use $2", database.query)
 	}
-	if !strings.Contains(db.query, "LIMIT $3") {
-		t.Fatalf("query = %q, want limit selector to use $3", db.query)
+	if !strings.Contains(database.query, "LIMIT $3") {
+		t.Fatalf("query = %q, want limit selector to use $3", database.query)
 	}
 }
 
 func TestPostgresAdminStoreReplayFailedWorkItems_PreservesRetrySemantics(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingAdminExecQueryer{
+	database := &recordingAdminExecQueryer{
 		rows: &recordingAdminRows{},
 	}
 	store := &postgresStore{
-		db:  db,
-		now: func() time.Time { return time.Unix(1700000000, 0).UTC() },
+		database: database,
+		now:      func() time.Time { return time.Unix(1700000000, 0).UTC() },
 	}
 
 	_, err := store.ReplayFailedWorkItems(context.Background(), admin.ReplayWorkItemFilter{
@@ -72,11 +72,11 @@ func TestPostgresAdminStoreReplayFailedWorkItems_PreservesRetrySemantics(t *test
 		t.Fatalf("ReplayFailedWorkItems() error = %v, want nil", err)
 	}
 
-	if strings.Contains(db.query, "attempt_count = 0") {
-		t.Fatalf("replay query resets retry evidence:\n%s", db.query)
+	if strings.Contains(database.query, "attempt_count = 0") {
+		t.Fatalf("replay query resets retry evidence:\n%s", database.query)
 	}
-	if !strings.Contains(db.query, "attempt_count = GREATEST(work.attempt_count, 1)") {
-		t.Fatalf("replay query missing retry-preserving attempt_count:\n%s", db.query)
+	if !strings.Contains(database.query, "attempt_count = GREATEST(work.attempt_count, 1)") {
+		t.Fatalf("replay query missing retry-preserving attempt_count:\n%s", database.query)
 	}
 }
 
@@ -85,10 +85,10 @@ func TestPostgresAdminStoreListDeadLetterWorkItems_BuildsBoundedFilteredQuery(t 
 
 	after := time.Date(2026, 7, 6, 13, 0, 0, 0, time.UTC)
 	before := after.Add(time.Hour)
-	db := &recordingAdminExecQueryer{
+	database := &recordingAdminExecQueryer{
 		rows: &recordingAdminRows{},
 	}
-	store := &postgresStore{db: db}
+	store := &postgresStore{database: database}
 
 	_, err := store.ListDeadLetterWorkItems(context.Background(), admin.DeadLetterListFilter{
 		FailureClass:         "projection_bug",
@@ -120,14 +120,14 @@ func TestPostgresAdminStoreListDeadLetterWorkItems_BuildsBoundedFilteredQuery(t 
 		"LIMIT $9",
 	}
 	for _, fragment := range requiredFragments {
-		if !strings.Contains(db.query, fragment) {
-			t.Fatalf("query missing %q:\n%s", fragment, db.query)
+		if !strings.Contains(database.query, fragment) {
+			t.Fatalf("query missing %q:\n%s", fragment, database.query)
 		}
 	}
-	if got, want := maxPlaceholderIndex(db.query), len(db.queryArgs); got != want {
-		t.Fatalf("max placeholder index = %d, want %d; query = %s", got, want, db.query)
+	if got, want := maxPlaceholderIndex(database.query), len(database.queryArgs); got != want {
+		t.Fatalf("max placeholder index = %d, want %d; query = %s", got, want, database.query)
 	}
-	if got, want := db.queryArgs[8], 11; got != want {
+	if got, want := database.queryArgs[8], 11; got != want {
 		t.Fatalf("limit arg = %#v, want %#v", got, want)
 	}
 }
@@ -145,10 +145,10 @@ func TestPostgresAdminStoreListDeadLetterWorkItems_BuildsBoundedFilteredQuery(t 
 func TestBuildListReducerInputInvalidFactsQuery_AuthorizesViaIngestionScopes(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingAdminExecQueryer{
+	database := &recordingAdminExecQueryer{
 		rows: &recordingAdminRows{},
 	}
-	store := &postgresStore{db: db}
+	store := &postgresStore{database: database}
 
 	_, err := store.ListReducerInputInvalidFacts(context.Background(), admin.InputInvalidFactListFilter{
 		ScopeID:              "scope-a",
@@ -175,14 +175,14 @@ func TestBuildListReducerInputInvalidFactsQuery_AuthorizesViaIngestionScopes(t *
 		"LIMIT $7",
 	}
 	for _, fragment := range requiredFragments {
-		if !strings.Contains(db.query, fragment) {
-			t.Fatalf("query missing %q:\n%s", fragment, db.query)
+		if !strings.Contains(database.query, fragment) {
+			t.Fatalf("query missing %q:\n%s", fragment, database.query)
 		}
 	}
-	if got, want := maxPlaceholderIndex(db.query), len(db.queryArgs); got != want {
-		t.Fatalf("max placeholder index = %d, want %d; query = %s", got, want, db.query)
+	if got, want := maxPlaceholderIndex(database.query), len(database.queryArgs); got != want {
+		t.Fatalf("max placeholder index = %d, want %d; query = %s", got, want, database.query)
 	}
-	if got, want := db.queryArgs[6], 11; got != want {
+	if got, want := database.queryArgs[6], 11; got != want {
 		t.Fatalf("limit arg = %#v, want %#v", got, want)
 	}
 }
@@ -214,10 +214,10 @@ type recordingAdminExecQueryer struct {
 	rows      db.Rows
 }
 
-func (db *recordingAdminExecQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
-	db.query = query
-	db.queryArgs = append([]any(nil), args...)
-	return db.rows, nil
+func (database *recordingAdminExecQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.query = query
+	database.queryArgs = append([]any(nil), args...)
+	return database.rows, nil
 }
 
 func (*recordingAdminExecQueryer) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {

@@ -61,7 +61,7 @@ WHERE work_item_id = $4
 	)
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

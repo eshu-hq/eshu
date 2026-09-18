@@ -79,7 +79,7 @@ func TestClaimBatchDoesNotStarveNewerDomainsBehindOlderBacklog(t *testing.T) {
 	}
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "fairness-test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return starvedBase.Add(2 * time.Hour) },
@@ -225,7 +225,7 @@ INSERT INTO scope_generations (
 	}
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "fairness-p1-test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now.Add(time.Hour) },

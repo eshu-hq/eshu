@@ -63,14 +63,14 @@ func (s *IdentitySubjectStore) GetActiveSAMLProviderConfigForLogin(
 	ctx context.Context,
 	providerConfigID string,
 ) (ProviderConfigConnectionTestMaterial, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ProviderConfigConnectionTestMaterial{}, false, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
 	if providerConfigID == "" {
 		return ProviderConfigConnectionTestMaterial{}, false, errors.New("provider_config_id is required")
 	}
-	rows, err := s.db.QueryContext(ctx, selectActiveSAMLProviderConfigForLoginQuery, providerConfigID)
+	rows, err := s.database.QueryContext(ctx, selectActiveSAMLProviderConfigForLoginQuery, providerConfigID)
 	if err != nil {
 		return ProviderConfigConnectionTestMaterial{}, false, fmt.Errorf("select active saml provider config for login: %w", err)
 	}

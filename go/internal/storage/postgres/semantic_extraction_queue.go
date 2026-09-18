@@ -90,17 +90,17 @@ func SemanticExtractionJobSchemaSQL() string {
 
 // SemanticExtractionQueueStore persists semantic extraction queue records.
 type SemanticExtractionQueueStore struct {
-	db db.ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewSemanticExtractionQueueStore creates a semantic extraction queue store.
-func NewSemanticExtractionQueueStore(db db.ExecQueryer) SemanticExtractionQueueStore {
-	return SemanticExtractionQueueStore{db: db}
+func NewSemanticExtractionQueueStore(database db.ExecQueryer) SemanticExtractionQueueStore {
+	return SemanticExtractionQueueStore{database: database}
 }
 
 // ApplyPlan upserts the queue records produced by a planning pass.
 func (s SemanticExtractionQueueStore) ApplyPlan(ctx context.Context, plan semanticqueue.Plan) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("semantic extraction queue store db is required")
 	}
 	records := planRecords(plan)
@@ -111,7 +111,7 @@ func (s SemanticExtractionQueueStore) ApplyPlan(ctx context.Context, plan semant
 	if err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert semantic extraction jobs: %w", err)
 	}
 	return nil
@@ -123,10 +123,10 @@ func (s SemanticExtractionQueueStore) StatusSummary(
 	scopeID string,
 	generationID string,
 ) (semanticqueue.Summary, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return semanticqueue.Summary{}, errors.New("semantic extraction queue store db is required")
 	}
-	rows, err := s.db.QueryContext(ctx, semanticQueueStatusSummaryQuery, scopeID, generationID)
+	rows, err := s.database.QueryContext(ctx, semanticQueueStatusSummaryQuery, scopeID, generationID)
 	if err != nil {
 		return semanticqueue.Summary{}, fmt.Errorf("query semantic queue status summary: %w", err)
 	}
@@ -155,7 +155,7 @@ func (s SemanticExtractionQueueStore) ClaimNext(
 	now time.Time,
 	leaseFor time.Duration,
 ) (semanticqueue.Record, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return semanticqueue.Record{}, false, errors.New("semantic extraction queue store db is required")
 	}
 	if strings.TrimSpace(leaseOwner) == "" {
@@ -164,7 +164,7 @@ func (s SemanticExtractionQueueStore) ClaimNext(
 	if leaseFor <= 0 {
 		return semanticqueue.Record{}, false, errors.New("lease duration must be positive")
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		claimSemanticQueueJobQuery,
 		scopeID,
@@ -219,10 +219,10 @@ func (s SemanticExtractionQueueStore) RetryClaim(
 	nextAttempt time.Time,
 	failure semanticqueue.Failure,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("semantic extraction queue store db is required")
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		retrySemanticQueueJobQuery,
 		now.UTC(),
@@ -248,10 +248,10 @@ func (s SemanticExtractionQueueStore) DeadLetterClaim(
 	now time.Time,
 	failure semanticqueue.Failure,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("semantic extraction queue store db is required")
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		deadLetterSemanticQueueJobQuery,
 		now.UTC(),

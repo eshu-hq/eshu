@@ -122,7 +122,7 @@ func timeUnboundedCorrelationReopen(
 	domains []string,
 ) (time.Duration, int) {
 	t.Helper()
-	queue := ReducerQueue{db: SQLDB{DB: db}, Now: store.Now}
+	queue := ReducerQueue{database: SQLDB{DB: db}, Now: store.Now}
 	start := time.Now()
 	reopened := 0
 	for _, domain := range domains {

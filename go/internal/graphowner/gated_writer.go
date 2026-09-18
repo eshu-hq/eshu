@@ -67,8 +67,8 @@ type graphNodeOwnerResolver interface {
 // determinism then depends on the ledger being present, which the reducer wires
 // on the Postgres-backed path.
 type Gate struct {
-	db    db.Beginner
-	store graphNodeOwnerResolver
+	database db.Beginner
+	store    graphNodeOwnerResolver
 
 	// Instruments records the #5007 cross-scope ownership contention counter
 	// (eshu_dp_cross_scope_ownership_contended_rows_total). Optional: nil
@@ -81,8 +81,8 @@ type Gate struct {
 
 // NewGate returns a Gate backed by the owner ledger over db. A nil db yields a
 // pass-through gate (no ownership resolution).
-func NewGate(db db.Beginner) *Gate {
-	return &Gate{db: db, store: postgres.NewGraphNodeOwnerStore()}
+func NewGate(database db.Beginner) *Gate {
+	return &Gate{database: database, store: postgres.NewGraphNodeOwnerStore()}
 }
 
 // write runs the #5007 per-uid critical section over rows in chunks of at
@@ -119,7 +119,7 @@ func (g *Gate) write(
 	if len(rows) == 0 {
 		return underlying(ctx, rows, evidenceSource)
 	}
-	if g == nil || g.db == nil {
+	if g == nil || g.database == nil {
 		// No ledger wired: write through unchanged. This is the pass-through
 		// path, not a serialization workaround — a Postgres-backed reducer
 		// always wires the ledger; only a backend without it falls here.
@@ -162,7 +162,7 @@ func (g *Gate) writeChunk(
 		return 0, 0, err
 	}
 
-	tx, err := g.db.Begin(ctx)
+	tx, err := g.database.Begin(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("graphowner: begin owner ledger transaction: %w", err)
 	}

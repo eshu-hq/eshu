@@ -160,33 +160,33 @@ func TestNewRouterWiresLocalSemanticHybridVectorStoresWithPostgresInstrumentatio
 	if !ok {
 		t.Fatalf("hybrid.Metadata = %T, want instrumented vector metadata store", hybrid.Metadata)
 	}
-	if metadata.db.StoreName != semanticSearchVectorMetadataStoreName {
-		t.Fatalf("metadata store name = %q, want %q", metadata.db.StoreName, semanticSearchVectorMetadataStoreName)
+	if metadata.database.StoreName != semanticSearchVectorMetadataStoreName {
+		t.Fatalf("metadata store name = %q, want %q", metadata.database.StoreName, semanticSearchVectorMetadataStoreName)
 	}
-	if metadata.db.Instruments != instruments {
+	if metadata.database.Instruments != instruments {
 		t.Fatal("metadata store instruments do not match API instruments")
 	}
 	values, ok := hybrid.Values.(instrumentedSemanticSearchVectorValueStore)
 	if !ok {
 		t.Fatalf("hybrid.Values = %T, want instrumented vector value store", hybrid.Values)
 	}
-	if values.db.StoreName != semanticSearchVectorValueStoreName {
-		t.Fatalf("value store name = %q, want %q", values.db.StoreName, semanticSearchVectorValueStoreName)
+	if values.database.StoreName != semanticSearchVectorValueStoreName {
+		t.Fatalf("value store name = %q, want %q", values.database.StoreName, semanticSearchVectorValueStoreName)
 	}
-	if values.db.Instruments != instruments {
+	if values.database.Instruments != instruments {
 		t.Fatal("value store instruments do not match API instruments")
 	}
 	snapshots, ok := hybrid.Snapshots.(instrumentedSemanticSearchSnapshotStore)
 	if !ok {
 		t.Fatalf("hybrid.Snapshots = %T, want instrumented snapshot store", hybrid.Snapshots)
 	}
-	if snapshots.db.StoreName != semanticSearchSnapshotStoreName {
-		t.Fatalf("snapshot store name = %q, want %q", snapshots.db.StoreName, semanticSearchSnapshotStoreName)
+	if snapshots.database.StoreName != semanticSearchSnapshotStoreName {
+		t.Fatalf("snapshot store name = %q, want %q", snapshots.database.StoreName, semanticSearchSnapshotStoreName)
 	}
-	if snapshots.db.Instruments != instruments {
+	if snapshots.database.Instruments != instruments {
 		t.Fatal("snapshot store instruments do not match API instruments")
 	}
-	if snapshots.db.Tracer == nil {
+	if snapshots.database.Tracer == nil {
 		t.Fatal("snapshot store tracer = nil, want Postgres child spans")
 	}
 }
@@ -223,13 +223,13 @@ func TestNewRouterWiresSemanticSearchScopeResolverWithPostgresInstrumentation(t 
 	if !ok {
 		t.Fatalf("ScopeResolver = %T, want instrumented resolver", router.SemanticSearch.ScopeResolver)
 	}
-	if got, want := resolver.db.StoreName, semanticSearchScopeStoreName; got != want {
+	if got, want := resolver.database.StoreName, semanticSearchScopeStoreName; got != want {
 		t.Fatalf("scope resolver store name = %q, want %q", got, want)
 	}
-	if resolver.db.Instruments != instruments {
+	if resolver.database.Instruments != instruments {
 		t.Fatal("scope resolver instruments do not match API instruments")
 	}
-	if resolver.db.Tracer == nil {
+	if resolver.database.Tracer == nil {
 		t.Fatal("scope resolver tracer = nil, want Postgres child spans")
 	}
 }

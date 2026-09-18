@@ -39,12 +39,12 @@ import (
 func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 	t.Parallel()
 
-	db := &crossScopeReadinessWiringDB{}
+	database := &crossScopeReadinessWiringDB{}
 	logged := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logged, nil))
 	service, err := buildReducerService(
-		context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{},
-		postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{},
+		context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{},
+		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
 		func(string) string { return "" }, nil, nil, logger, nil,
 	)
 	if err != nil {
@@ -74,7 +74,7 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 			got, reducer.CrossScopeProducerNotReadyFailureClass,
 		)
 	}
-	if !db.probedProducerQuiescence {
+	if !database.probedProducerQuiescence {
 		t.Fatal("the producer-quiescence probe never ran: the readiness store is not wired")
 	}
 
@@ -111,12 +111,12 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact(t *testing.T) {
 	t.Parallel()
 
-	db := &supplyChainReadinessWiringDB{}
+	database := &supplyChainReadinessWiringDB{}
 	logged := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logged, nil))
 	service, err := buildReducerService(
-		context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{},
-		postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{},
+		context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{},
+		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
 		func(string) string { return "" }, nil, nil, logger, nil,
 	)
 	if err != nil {
@@ -146,7 +146,7 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
 			got, reducer.CrossScopeProducerNotReadyFailureClass,
 		)
 	}
-	if !db.probedProducerQuiescence {
+	if !database.probedProducerQuiescence {
 		t.Fatal("the producer-quiescence probe never ran: the readiness store is not wired")
 	}
 
@@ -209,12 +209,12 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 func (f *supplyChainReadinessWiringDB) BeginReadOnlyRepeatableRead(
 	context.Context,
 ) (db.Transaction, error) {
-	return supplyChainReadinessTx{db: f}, nil
+	return supplyChainReadinessTx{database: f}, nil
 }
 
 // supplyChainReadinessTx is a pass-through transaction over the fake database.
 type supplyChainReadinessTx struct {
-	db *supplyChainReadinessWiringDB
+	database *supplyChainReadinessWiringDB
 }
 
 func (t supplyChainReadinessTx) ExecContext(
@@ -222,7 +222,7 @@ func (t supplyChainReadinessTx) ExecContext(
 	query string,
 	args ...any,
 ) (sql.Result, error) {
-	return t.db.ExecContext(ctx, query, args...)
+	return t.database.ExecContext(ctx, query, args...)
 }
 
 func (t supplyChainReadinessTx) QueryContext(
@@ -230,7 +230,7 @@ func (t supplyChainReadinessTx) QueryContext(
 	query string,
 	args ...any,
 ) (db.Rows, error) {
-	return t.db.QueryContext(ctx, query, args...)
+	return t.database.QueryContext(ctx, query, args...)
 }
 
 func (supplyChainReadinessTx) Commit() error { return nil }
@@ -312,12 +312,12 @@ func (f *crossScopeReadinessWiringDB) QueryContext(
 func (f *crossScopeReadinessWiringDB) BeginReadOnlyRepeatableRead(
 	context.Context,
 ) (db.Transaction, error) {
-	return crossScopeReadinessTx{db: f}, nil
+	return crossScopeReadinessTx{database: f}, nil
 }
 
 // crossScopeReadinessTx is a pass-through transaction over the fake database.
 type crossScopeReadinessTx struct {
-	db *crossScopeReadinessWiringDB
+	database *crossScopeReadinessWiringDB
 }
 
 func (t crossScopeReadinessTx) ExecContext(
@@ -325,7 +325,7 @@ func (t crossScopeReadinessTx) ExecContext(
 	query string,
 	args ...any,
 ) (sql.Result, error) {
-	return t.db.ExecContext(ctx, query, args...)
+	return t.database.ExecContext(ctx, query, args...)
 }
 
 func (t crossScopeReadinessTx) QueryContext(
@@ -333,7 +333,7 @@ func (t crossScopeReadinessTx) QueryContext(
 	query string,
 	args ...any,
 ) (db.Rows, error) {
-	return t.db.QueryContext(ctx, query, args...)
+	return t.database.QueryContext(ctx, query, args...)
 }
 
 func (crossScopeReadinessTx) Commit() error { return nil }
