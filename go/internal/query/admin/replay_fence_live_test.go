@@ -83,7 +83,9 @@ INSERT INTO fact_work_items (
     ('replay-succeeded', 'replay-scope', 'gen', 'reducer', 'container_image_identity', 'succeeded', 3,
      '2026-09-18T00:00:00Z', null, null, now(), now(), 7, true, 'succeeded', true, 'succeeded'),
     ('dead-failed', 'dead-scope', 'gen', 'reducer', 'container_image_identity', 'failed', 3,
-     '2026-09-18T00:00:00Z', 'projection_bug', 'old failure', now(), now(), 7, true, 'failed', true, 'failed');
+     '2026-09-18T00:00:00Z', 'projection_bug', 'old failure', now(), now(), 7, true, 'failed', true, 'failed'),
+    ('dead-plain', 'dead-scope', 'gen', 'reducer', 'container_image_identity', 'failed', 3,
+     '2026-09-18T00:00:00Z', 'projection_bug', 'old failure', now(), now(), 7, false, '', false, '');
 `); err != nil {
 		t.Fatalf("seed temporary identity work items: %v", err)
 	}
@@ -120,11 +122,67 @@ INSERT INTO fact_work_items (
 		t.Fatalf("repeat replay = %d items, %v; want empty and no error", len(items), err)
 	}
 
-	items, err = adminStore.DeadLetterWorkItems(ctx, admin.DeadLetterFilter{WorkItemIDs: []string{"dead-failed"}})
-	if err != nil || len(items) != 1 {
-		t.Fatalf("dead-letter guarded failure = %d items, %v", len(items), err)
+	items, err = adminStore.DeadLetterWorkItems(ctx, admin.DeadLetterFilter{WorkItemIDs: []string{"dead-failed", "dead-plain"}})
+	if err != nil || len(items) != 2 {
+		t.Fatalf("dead-letter guarded and plain failures = %d items, %v", len(items), err)
 	}
 	checkIdentityWorkItem(t, ctx, db, "dead-failed", "dead_letter", "dead_letter", "dead_letter")
+	checkIdentityWorkItem(t, ctx, db, "dead-plain", "dead_letter", "", "")
+
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO ingestion_scopes VALUES ('skip-scope', 'skip-repo');
+INSERT INTO fact_work_items (
+    work_item_id, scope_id, generation_id, stage, domain, status, attempt_count,
+    last_attempt_at, created_at, updated_at, container_image_identity_claim_epoch,
+    container_image_identity_v2_required, container_image_identity_v2_authorized_status,
+    container_image_identity_v3_required, container_image_identity_v3_authorized_status
+) VALUES
+    ('skip-both-pending', 'skip-scope', 'gen', 'reducer', 'container_image_identity', 'pending', 3,
+     '2026-09-18T00:00:00Z', now(), now(), 7, true, 'pending', true, 'pending'),
+    ('skip-v2-retrying', 'skip-scope', 'gen', 'reducer', 'container_image_identity', 'retrying', 3,
+     '2026-09-18T00:00:00Z', now(), now(), 7, true, 'retrying', false, ''),
+    ('skip-v3-failed', 'skip-scope', 'gen', 'reducer', 'container_image_identity', 'failed', 3,
+     '2026-09-18T00:00:00Z', now(), now(), 7, false, '', true, 'failed'),
+    ('skip-plain-pending', 'skip-scope', 'gen', 'reducer', 'container_image_identity', 'pending', 3,
+     '2026-09-18T00:00:00Z', now(), now(), 7, false, '', false, ''),
+    ('skip-claimed', 'skip-scope', 'gen', 'reducer', 'container_image_identity', 'claimed', 3,
+     '2026-09-18T00:00:00Z', now(), now(), 7, true, 'claimed', true, 'claimed'),
+    ('skip-running', 'skip-scope', 'gen', 'reducer', 'container_image_identity', 'running', 3,
+     '2026-09-18T00:00:00Z', now(), now(), 7, true, 'running', true, 'running'),
+    ('skip-succeeded', 'skip-scope', 'gen', 'reducer', 'container_image_identity', 'succeeded', 3,
+     '2026-09-18T00:00:00Z', now(), now(), 7, true, 'succeeded', true, 'succeeded'),
+    ('skip-superseded', 'skip-scope', 'gen', 'reducer', 'container_image_identity', 'superseded', 3,
+     '2026-09-18T00:00:00Z', now(), now(), 7, true, 'superseded', true, 'superseded');
+UPDATE fact_work_items SET lease_owner='worker', claim_until=now()+interval '10 minutes'
+WHERE work_item_id IN ('skip-claimed', 'skip-running');`); err != nil {
+		t.Fatalf("seed skip work items: %v", err)
+	}
+	items, err = adminStore.SkipRepositoryWorkItems(ctx, "skip-repo", "operator skip")
+	if err != nil || len(items) != 4 {
+		t.Fatalf("skip eligible repository work = %d items, %v; want four", len(items), err)
+	}
+	for _, test := range []struct{ id, status, v2, v3 string }{
+		{"skip-both-pending", "dead_letter", "dead_letter", "dead_letter"},
+		{"skip-v2-retrying", "dead_letter", "dead_letter", ""},
+		{"skip-v3-failed", "dead_letter", "", "dead_letter"},
+		{"skip-plain-pending", "dead_letter", "", ""},
+		{"skip-claimed", "claimed", "claimed", "claimed"},
+		{"skip-running", "running", "running", "running"},
+		{"skip-succeeded", "succeeded", "succeeded", "succeeded"},
+		{"skip-superseded", "superseded", "superseded", "superseded"},
+	} {
+		checkIdentityWorkItem(t, ctx, db, test.id, test.status, test.v2, test.v3)
+	}
+	items, err = adminStore.SkipRepositoryWorkItems(ctx, "skip-repo", "repeat skip")
+	if err != nil || len(items) != 0 {
+		t.Fatalf("repeat skip = %d items, %v; want empty", len(items), err)
+	}
+	for _, id := range []string{"skip-claimed", "skip-running"} {
+		var owner string
+		if err := db.QueryRowContext(ctx, "SELECT lease_owner FROM fact_work_items WHERE work_item_id=$1", id).Scan(&owner); err != nil || owner != "worker" {
+			t.Fatalf("%s lease owner = %q, %v; want worker", id, owner, err)
+		}
+	}
 
 	var eventCount int
 	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM fact_replay_events").Scan(&eventCount); err != nil || eventCount != 4 {
@@ -153,19 +211,15 @@ FROM fact_work_items WHERE work_item_id = $1`, id).Scan(&gotStatus, &gotV2, &got
 	}
 }
 
-// TestAdminStoreTerminalMutationsRecheckStatusLive proves a row claimed after
-// selection cannot be reset by a competing admin replay or dead-letter action.
-func TestAdminStoreTerminalMutationsRecheckStatusLive(t *testing.T) {
-	for _, deadLetter := range []bool{false, true} {
-		name := "replay"
-		if deadLetter {
-			name = "dead-letter"
-		}
-		t.Run(name, func(t *testing.T) { runAdminStoreTerminalRecheckLive(t, deadLetter) })
+// TestAdminStoreMutationsRecheckStatusLive proves an admin mutation cannot
+// overwrite a worker claim or a newer eligible status after selection.
+func TestAdminStoreMutationsRecheckStatusLive(t *testing.T) {
+	for _, mode := range []string{"replay", "dead-letter", "skip", "skip-retrying"} {
+		t.Run(mode, func(t *testing.T) { runAdminStoreStatusRecheckLive(t, mode) })
 	}
 }
 
-func runAdminStoreTerminalRecheckLive(t *testing.T, deadLetter bool) {
+func runAdminStoreStatusRecheckLive(t *testing.T, mode string) {
 	if os.Getenv("ESHU_ADMIN_REPLAY_FENCE_LIVE") != "1" {
 		t.Skip("set ESHU_ADMIN_REPLAY_FENCE_LIVE=1 with an isolated Postgres DSN")
 	}
@@ -212,6 +266,8 @@ CREATE TABLE `+schema+`.fact_replay_events (
     scope_id text NOT NULL, generation_id text NOT NULL,
     failure_class text, operator_note text, created_at timestamptz NOT NULL
 );
+CREATE TABLE `+schema+`.ingestion_scopes (scope_id text PRIMARY KEY, source_key text NOT NULL);
+INSERT INTO `+schema+`.ingestion_scopes VALUES ('scope', 'repo');
 INSERT INTO `+schema+`.fact_work_items (
     work_item_id, scope_id, generation_id, stage, domain, status,
     attempt_count, failure_class, failure_message, created_at, updated_at,
@@ -221,6 +277,11 @@ INSERT INTO `+schema+`.fact_work_items (
           'dead_letter', 3, 'projection_bug', 'old FIPS failure', now(), now(),
           true, 'dead_letter', true, 'dead_letter');`); err != nil {
 		t.Fatal(err)
+	}
+	if mode == "skip" || mode == "skip-retrying" {
+		if _, err := adminDB.ExecContext(ctx, "UPDATE "+schema+".fact_work_items SET status='pending', container_image_identity_v2_authorized_status='pending', container_image_identity_v3_authorized_status='pending' WHERE work_item_id='race'"); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	claimDB, err := sql.Open("pgx", dsn)
@@ -249,11 +310,18 @@ INSERT INTO `+schema+`.fact_work_items (
 		t.Fatal(err)
 	}
 	defer func() { _ = claimTx.Rollback() }()
-	if _, err := claimTx.ExecContext(ctx, `UPDATE fact_work_items
+	workerTransition := `UPDATE fact_work_items
 SET status='claimed', container_image_identity_v2_authorized_status='claimed',
     container_image_identity_v3_authorized_status='claimed',
     lease_owner='worker', claim_until=now()+interval '10 minutes'
-WHERE work_item_id='race'`); err != nil {
+WHERE work_item_id='race'`
+	if mode == "skip-retrying" {
+		workerTransition = `UPDATE fact_work_items
+SET status='retrying', container_image_identity_v2_authorized_status='retrying',
+    container_image_identity_v3_authorized_status='retrying'
+WHERE work_item_id='race'`
+	}
+	if _, err := claimTx.ExecContext(ctx, workerTransition); err != nil {
 		t.Fatal(err)
 	}
 	type outcome struct {
@@ -265,11 +333,14 @@ WHERE work_item_id='race'`); err != nil {
 		adminStore := store.NewStore(replayDB)
 		var items []admin.WorkItem
 		var mutationErr error
-		if deadLetter {
+		switch mode {
+		case "dead-letter":
 			items, mutationErr = adminStore.DeadLetterWorkItems(ctx, admin.DeadLetterFilter{
 				WorkItemIDs: []string{"race"}, Stage: "reducer", FailureClass: "projection_bug", Limit: 1,
 			})
-		} else {
+		case "skip", "skip-retrying":
+			items, mutationErr = adminStore.SkipRepositoryWorkItems(ctx, "repo", "operator skip")
+		default:
 			items, mutationErr = adminStore.ReplayFailedWorkItems(ctx, admin.ReplayWorkItemFilter{
 				WorkItemIDs: []string{"race"}, Stage: "reducer", FailureClass: "projection_bug", Limit: 1,
 			})
@@ -290,7 +361,12 @@ WHERE work_item_id='race'`); err != nil {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if !waiting {
-		t.Fatal("admin mutation never waited for the competing claim row lock")
+		select {
+		case result := <-finished:
+			t.Fatalf("admin mutation finished before competing claim committed: %d items, %v", result.count, result.err)
+		default:
+			t.Fatal("admin mutation never waited for the competing claim row lock")
+		}
 	}
 	if err := claimTx.Commit(); err != nil {
 		t.Fatal(err)
@@ -299,11 +375,17 @@ WHERE work_item_id='race'`); err != nil {
 	if result.err != nil || result.count != 0 {
 		t.Fatalf("admin mutation after competing claim = %d items, %v; want no mutation", result.count, result.err)
 	}
-	var status, owner string
+	var status string
+	var owner sql.NullString
 	if err := claimDB.QueryRowContext(ctx, "SELECT status,lease_owner FROM fact_work_items WHERE work_item_id='race'").Scan(&status, &owner); err != nil {
 		t.Fatal(err)
 	}
-	if status != "claimed" || owner != "worker" {
-		t.Fatalf("competing claim was stolen: status=%s owner=%s", status, owner)
+	wantStatus := "claimed"
+	wantOwner := "worker"
+	if mode == "skip-retrying" {
+		wantStatus, wantOwner = "retrying", ""
+	}
+	if status != wantStatus || owner.String != wantOwner {
+		t.Fatalf("competing status change was overwritten: status=%s owner=%s; want %s/%s", status, owner.String, wantStatus, wantOwner)
 	}
 }

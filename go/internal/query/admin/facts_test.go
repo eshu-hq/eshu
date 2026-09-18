@@ -138,7 +138,7 @@ func TestAdminHandler_DeadLetter_NoSelector(t *testing.T) {
 func TestAdminHandler_Skip(t *testing.T) {
 	store := &stubAdminStore{
 		skipped: []WorkItem{
-			{WorkItemID: "wi-1", Status: "skipped"},
+			{WorkItemID: "wi-1", Status: "dead_letter"},
 		},
 	}
 	h := &Handler{Store: store}

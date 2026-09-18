@@ -218,6 +218,7 @@ const Admin = `
       "post": {
         "tags": ["admin"],
         "summary": "Skip repository work items",
+        "description": "Dead-letters at most 100 pending, retrying, or failed work items for a repository or scope. Claimed, running, succeeded, superseded, and already dead-lettered items are left unchanged. The response count includes only rows transitioned by this call.",
         "responses": {
           "200": {"description": "Skip request results"},
           "400": {"$ref": "#/components/responses/BadRequest"},

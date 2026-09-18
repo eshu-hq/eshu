@@ -10,11 +10,13 @@ The failed request left its idempotency key `in_progress`, so recovery must
 inspect the item and use a fresh key after the fixed image is deployed.
 
 The admin store now moves the authorized statuses in the same row UPDATE as the
-status transition. Replay sets them to `pending`; dead-letter sets them
-to `dead_letter`. Each remains empty when its cutover guard is not required.
-The claim epoch, last attempt time, existing attempt-count floor, and selector
-and limit semantics are preserved. The shared admin UPDATE also rechecks terminal
-status on its target row after it obtains the row lock. A concurrent worker can
+status transition. Replay sets them to `pending`; dead-letter and repository
+skip set them to `dead_letter`. Each remains empty when its cutover guard is
+not required. Replay and dead-letter preserve claim epoch, last attempt time,
+the existing attempt-count floor, selectors, and limits. Skip preserves
+repository matching, newest-first order, and its 100-row cap while narrowing
+eligibility to unclaimed, actionable rows. The shared replay/dead-letter
+UPDATE rechecks terminal status on its target row after it obtains the row lock. A concurrent worker can
 claim a row after the selection CTE reads it; the target recheck prevents admin
 replay or dead-letter from clearing that newer lease. The reducer's existing
 replay path uses the same status authorization rule.
@@ -28,7 +30,17 @@ SQLSTATE 23514; after it, the test passed. A second local PostgreSQL contention
 proof held a competing claim row lock until each admin mutation waited for it.
 Before the target-row predicate, replay stole the newer claim (one item
 replayed); after it, replay and dead-letter each changed zero items and the
-claim owner remained intact.
+claim owner remained intact. The repository skip regression first failed the
+v2 status check. Adding only the matching authorization assignments still
+skipped all eight rows, including claimed, running, succeeded, and superseded
+work, and stole a concurrent claim. The final status selection and locked-row
+recheck skip only pending, retrying, or failed rows; a concurrent transition
+from pending to retrying is also left alone. The live test covers both
+guards, each guard separately, neither guard, repeat skip, and claim ownership.
+The dead-letter test also covers an unguarded failed row. Removing the skip
+selected-status predicate as a seeded violation made the pending-to-retrying
+contention test fail with one skipped row; restoring it returned the test to
+green.
 
 For the operator-only UPDATE cost, eight paired `EXPLAIN (ANALYZE, BUFFERS)`
 passes on the same local PostgreSQL 18 Alpine container reset 145 unguarded
@@ -42,12 +54,20 @@ Focused proof commands, after the final code edit:
 
 ```bash
 ESHU_ADMIN_REPLAY_FENCE_LIVE=1 ESHU_POSTGRES_DSN=<isolated-loopback-Postgres> \
-  go test ./internal/query/admin -run '^TestAdminStore(IdentityFenceMutations|TerminalMutationsRecheckStatus)Live$' -count=1
+  go test ./internal/query/admin -run '^TestAdminStore(IdentityFenceMutations|MutationsRecheckStatus)Live$' -count=1
 go test ./internal/query/admin/... -count=1
 ```
 
 Observability Evidence: Existing `admin_replay_requests` and `fact_replay_events`
-record replay attempts and outcomes. `/admin/status` exposes queue and
-per-domain dead-letter counts; reducer queue telemetry exposes claim, retry,
+record replay attempts and outcomes. Skip returns the count and changed rows,
+so an operator can see a partial action and repeat it after in-flight work
+settles. `/admin/status` exposes queue and per-domain dead-letter counts; reducer queue telemetry exposes claim, retry,
 and completion. The ops-qa replay and terminal-state readback remain a separate
 deployed verification step after this change reaches the cluster.
+
+For skip selection, a scratch `EXPLAIN (ANALYZE, BUFFERS)` on 13,263 local
+fixture work rows kept the same `(scope_id, status, updated_at)` index path.
+The original selector read 133 candidate rows and returned its 100-row cap;
+the eligible-status selector read and returned 57 rows for that scope. The
+first run incurred local buffer reads, so the observed 0.129 ms versus
+0.051 ms executions are not a comparable speedup claim.

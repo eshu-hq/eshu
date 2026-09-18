@@ -690,9 +690,9 @@ console or API defect.
 - `POST /api/v0/admin/decisions/query`
 - `POST /api/v0/admin/replay-events/query`
 
-The recovery handler owns replay, dead-letter, skip, backfill, and decision
-inspection. Mount those controls only on runtimes that are allowed to operate
-the durable queue.
+The recovery handler owns replay, dead-letter, skip, backfill, and decisions;
+mount it only where durable queue mutation is allowed. Skip dead-letters at most
+100 pending, retrying, or failed repository rows; other statuses stay, and `count` is changed rows.
 
 ### Safe Replay Workflow
 

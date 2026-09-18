@@ -43,6 +43,8 @@ func (s *postgresStore) ListWorkItems(ctx context.Context, f admin.WorkItemFilte
 	return scanWorkItems(ctx, s.database, query, args...)
 }
 
+// DeadLetterWorkItems moves terminal failures to dead letter while preserving
+// required identity status authorizations and newer worker claims.
 func (s *postgresStore) DeadLetterWorkItems(ctx context.Context, f admin.DeadLetterFilter) ([]admin.WorkItem, error) {
 	now := s.time()
 	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 2, `
@@ -65,19 +67,28 @@ SET status = 'dead_letter',
 	return scanWorkItems(ctx, s.database, query, args...)
 }
 
+// SkipRepositoryWorkItems dead-letters only unclaimed, actionable rows for one
+// repository or scope and rechecks their status after the target row is locked.
 func (s *postgresStore) SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]admin.WorkItem, error) {
 	now := s.time()
 	const query = `
 WITH selected AS (
-    SELECT work.work_item_id
+    SELECT work.work_item_id, work.status AS selected_status
     FROM fact_work_items AS work
     JOIN ingestion_scopes AS scope ON scope.scope_id = work.scope_id
-    WHERE scope.scope_id = $1 OR scope.source_key = $1
+    WHERE (scope.scope_id = $1 OR scope.source_key = $1)
+      AND work.status IN ('pending', 'retrying', 'failed')
     ORDER BY work.updated_at DESC, work.work_item_id ASC
     LIMIT 100
 ), updated AS (
     UPDATE fact_work_items AS work
     SET status = 'dead_letter',
+        container_image_identity_v2_authorized_status = CASE
+            WHEN work.container_image_identity_v2_required THEN 'dead_letter' ELSE ''
+        END,
+        container_image_identity_v3_authorized_status = CASE
+            WHEN work.container_image_identity_v3_required THEN 'dead_letter' ELSE ''
+        END,
         lease_owner = NULL,
         claim_until = NULL,
         visible_at = $2,
@@ -87,6 +98,9 @@ WITH selected AS (
         updated_at = $2
     FROM selected
     WHERE work.work_item_id = selected.work_item_id
+      -- Recheck the locked row against both the selected state and eligibility.
+      AND work.status = selected.selected_status
+      AND work.status IN ('pending', 'retrying', 'failed')
     RETURNING
         work.work_item_id,
         work.scope_id,
@@ -107,6 +121,8 @@ SELECT * FROM updated ORDER BY updated_at DESC, work_item_id ASC
 	return scanWorkItems(ctx, s.database, query, repoID, now, strings.TrimSpace(note))
 }
 
+// ReplayFailedWorkItems requeues terminal work and records replay events while
+// preserving required identity status authorizations and newer worker claims.
 func (s *postgresStore) ReplayFailedWorkItems(ctx context.Context, f admin.ReplayWorkItemFilter) ([]admin.WorkItem, error) {
 	now := s.time()
 	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 1, `
