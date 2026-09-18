@@ -81,4 +81,39 @@ func TestEvaluateQueryShapeResultCountLogging(t *testing.T) {
 			t.Errorf("detail = %q, want array_counts to report the real 2-element cloud_resources count", f.Detail)
 		}
 	})
+	// #6785 review F4: json.Unmarshal of `null` into a slice succeeds with a
+	// zero length, so a null field used to print as "0 results" / "error:0".
+	// A null value is absent, not an empty array.
+	t.Run("null top-level field is absent from array_counts", func(t *testing.T) {
+		t.Parallel()
+
+		body := []byte(`{"data": [{"id":"a"}], "error": null}`)
+		f := EvaluateQueryShape("mcp:envelope", QueryShape{RequiredResponseFields: []string{"data", "error"}}, body)
+		if !f.OK {
+			t.Fatalf("presence-only shape must pass: %s", f.Detail)
+		}
+		if strings.Contains(f.Detail, "error:") {
+			t.Fatalf("detail = %q, reports a count for a null field", f.Detail)
+		}
+		if !strings.Contains(f.Detail, "data:1") {
+			t.Errorf("detail = %q, want the real data:1 count", f.Detail)
+		}
+	})
+
+	t.Run("null results_field without bounds is reported as null, not 0 results", func(t *testing.T) {
+		t.Parallel()
+
+		body := []byte(`{"findings": null}`)
+		shape := QueryShape{RequiredResponseFields: []string{"findings"}, ResultsField: "findings"}
+		f := EvaluateQueryShape("http:findings", shape, body)
+		if !f.OK {
+			t.Fatalf("shape with no bounds must pass: %s", f.Detail)
+		}
+		if strings.Contains(f.Detail, "has 0 results") {
+			t.Fatalf("detail = %q, reports 0 results for a null field", f.Detail)
+		}
+		if !strings.Contains(f.Detail, "null") {
+			t.Errorf("detail = %q, want it to say the field is null", f.Detail)
+		}
+	})
 }

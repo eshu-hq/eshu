@@ -4,6 +4,7 @@
 package goldengate
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -305,8 +306,10 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 	// failure when needsArrayResult required it (handled above); here it is
 	// just noted as non-array rather than reported as "0 results".
 	arrayFieldIsArray := needsArrayResult
+	arrayFieldIsNull := false
 	if arrayField != "" && !needsArrayResult {
-		arrayFieldIsArray = json.Unmarshal(resp[arrayField], &items) == nil
+		arrayFieldIsNull = isJSONNull(resp[arrayField])
+		arrayFieldIsArray = !arrayFieldIsNull && json.Unmarshal(resp[arrayField], &items) == nil
 	}
 
 	detail := fmt.Sprintf("fields %v present", shape.RequiredResponseFields)
@@ -316,6 +319,8 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 	switch {
 	case arrayField != "" && arrayFieldIsArray:
 		detail = fmt.Sprintf("%q has %d results; item fields %v present", arrayField, len(items), shape.ResultItemRequiredFields)
+	case arrayField != "" && arrayFieldIsNull:
+		detail = fmt.Sprintf("%q is null (absent, not an empty array); item fields %v present", arrayField, shape.ResultItemRequiredFields)
 	case arrayField != "":
 		detail = fmt.Sprintf("%q is not an array-valued field (non-array); item fields %v present", arrayField, shape.ResultItemRequiredFields)
 	default:
@@ -336,6 +341,11 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 func arrayFieldCounts(resp map[string]json.RawMessage) map[string]int {
 	counts := make(map[string]int, len(resp))
 	for field, raw := range resp {
+		if isJSONNull(raw) {
+			// json.Unmarshal accepts null into a slice with length 0; a null
+			// field is absent, so it must not print as a zero count (#6785 F4).
+			continue
+		}
 		var items []json.RawMessage
 		if err := json.Unmarshal(raw, &items); err != nil {
 			continue
@@ -343,6 +353,12 @@ func arrayFieldCounts(resp map[string]json.RawMessage) map[string]int {
 		counts[field] = len(items)
 	}
 	return counts
+}
+
+// isJSONNull reports whether raw is the JSON literal null (ignoring
+// surrounding whitespace).
+func isJSONNull(raw json.RawMessage) bool {
+	return string(bytes.TrimSpace(raw)) == "null"
 }
 
 // formatArrayCounts renders counts as a sorted, deterministic "{field:n,...}"
