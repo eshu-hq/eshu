@@ -101,7 +101,7 @@ group like this:
 - **Document parsers are not collectors.** Markdown/DOCX/PPTX/XLSX/PDF/
   notebook parsing lives in `go/internal/parser` helpers invoked by the Git
   snapshot; what lives in `collector/` are the six **preflight** families
-  (`archivepreflight`, `imagepreflight`, `mediapreflight`,
+  (`preflight/archive`, `imagepreflight`, `mediapreflight`,
   `diagrampreflight`, `ooxmlpreflight`, `pdfpreflight`) — safety classifiers
   that emit metadata-only warnings *before* any extraction is allowed. Their
   distinctive failure mode is deliberate refusal: unsafe paths, nested
