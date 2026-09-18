@@ -54,9 +54,12 @@ WITH selected AS (
     UPDATE fact_work_items AS work
 `)
 	builder.WriteString(updateClause)
+	// Recheck the locked target row: another worker may claim a row after the
+	// selection CTE reads its terminal status but before this UPDATE can lock it.
 	builder.WriteString(`
     FROM selected
     WHERE work.work_item_id = selected.work_item_id
+      AND work.status IN ('dead_letter', 'failed')
     RETURNING
         work.work_item_id,
         work.scope_id,

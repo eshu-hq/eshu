@@ -178,7 +178,8 @@ func (h *Handler) deadLetter(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// skip marks one repository's actionable work items as intentionally skipped.
+// skip dead-letters one repository's pending, retrying, or failed work items.
+// Claimed, running, succeeded, superseded, and already dead-lettered work is left alone.
 // POST /api/v0/admin/skip
 func (h *Handler) skip(w http.ResponseWriter, r *http.Request) {
 	if h.Store == nil {
