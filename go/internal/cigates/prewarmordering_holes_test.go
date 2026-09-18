@@ -301,9 +301,6 @@ func TestCheckSetupGoPrewarmOrdering_CommittedWorkflows_NoError(t *testing.T) {
 }
 
 // mustLoadCommittedRegistryForPrewarmTest loads the real specs/ci-gates.v1.yaml.
-// A separate small helper rather than reusing loadCommittedRegistry
-// (valueflow_required_test.go) because that helper also returns a repoRoot
-// string this test already has and does not need duplicated.
 func mustLoadCommittedRegistryForPrewarmTest(t *testing.T, repoRoot string) *cigates.Registry {
 	t.Helper()
 	reg, err := cigates.Load(filepath.Join(repoRoot, "specs", "ci-gates.v1.yaml"))

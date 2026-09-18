@@ -3911,57 +3911,6 @@ gates:
       - postgres
     ci_only_reason: "requires Docker Compose service stack"
 
-  - id: value-flow-conformance-expectation
-    name: Value-flow conformance cases (both backends)
-    category: exactness
-    tier: ci-heavy
-    blocking: true
-    # Runs the value-flow cloud sink conformance cases on both backends and
-    # requires both lanes to pass and to log both cases as run. It ran with the
-    # expectation inverted until #6690 replaced the single statement NornicDB
-    # misanswered; both statements now return exact rows on both backends. It
-    # stays until a registry-only change retires it, because
-    # required-gates-complete awaits it through the default branch's registry.
-    #
-    # Keep these triggers byte-identical to the pull_request paths in
-    # .github/workflows/value-flow-conformance-expectation.yml. This gate is
-    # blocking, so a trigger the workflow does not mirror selects a gate GitHub
-    # never starts, and required-gates-complete then waits for it forever.
-    # TestValueFlowExpectationRegistryAndWorkflowTriggersMatch
-    # (go/internal/cigates/valueflow_required_test.go) holds the two lists to
-    # set equality, and proves each trigger selects the gate through
-    # RequiredGates -- Select() cannot, because it drops every ci-heavy gate
-    # before it looks at a trigger.
-    triggers:
-      - "go/internal/backendconformance/**"
-      - "go/internal/reducer/code/value/cloud_sink_loader.go"
-      - "go/internal/reducer/code/value/cloud_sink_pairs.go"
-      - "docker-compose.yaml"
-      - "docker-compose.neo4j.yml"
-      - "scripts/verify_backend_conformance_live.sh"
-      - "scripts/verify-value-flow-conformance-expectation.sh"
-      - "scripts/test-verify-value-flow-conformance-expectation.sh"
-      - "scripts/ci/install-apt-packages.sh"
-      - "scripts/ci/go-mod-download-retry.sh"
-      - ".github/workflows/value-flow-conformance-expectation.yml"
-    local:
-      # No local command: each lane needs its own live Bolt endpoint, both on
-      # the same port, so there is nothing credential-free to run here. The
-      # test mirror is the part that runs anywhere, and it is where every
-      # verdict the gate can reach is proven reachable.
-      command: ""
-      test_command: "bash scripts/test-verify-value-flow-conformance-expectation.sh"
-    ci:
-      workflow: value-flow-conformance-expectation.yml
-      job: "Value flow conformance expectation"
-    # The Neo4j lane has no requirement of its own to declare: it comes up from
-    # docker-compose.neo4j.yml, so `docker` covers it.
-    requirements:
-      - go
-      - docker
-      - nornicdb
-    ci_only_reason: ""
-
   - id: auth-mcp-e2e
     name: MCP-identity auth E2E (browser + scripted OAuth, fresh stack)
     category: exactness
@@ -4427,3 +4376,5 @@ non_gate_workflows:
     reason: "Discord invite bot post, not a review gate"
   - file: refresh-cassettes.yml
     reason: "scheduled/manual cassette refresh, not a PR gate"
+  - file: value-flow-conformance-expectation.yml
+    reason: "retiring (#6761): the value-flow cases run in the default live conformance corpus under the blocking e2e-tests gate on both backends; this workflow is deleted in the follow-up once this registry change is on main"
