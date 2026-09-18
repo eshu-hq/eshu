@@ -33,9 +33,11 @@ It imports neither the collector root nor a sibling collector. No dirgate
 ledger row changes: nothing pinned is touched, and no collector-root file
 repeats the new `preflight/pdf` path, so no naming finding is introduced.
 
-Zero Go importers outside itself: `git grep "collector/pdfpreflight"`
-over `*.go` at the base returns no hits, and the full-tree `pdfpreflight`
-census is the five own files plus one row each in the telemetry-coverage
+Zero Go importers outside itself: `rg -l "collector/pdfpreflight" go
+--glob '*.go'` at the base returns no hits (the bare name appears only in
+the leaf's own three Go files), and the same `rg` census on the rebased
+HEAD is empty — the old path is fully vacated. The remaining `pdfpreflight`
+mentions are the five own files plus one row each in the telemetry-coverage
 table, the architecture review, the ecosystem-migration table, and the
 1737 visual-media design doc — all repointed in this slice. No
 `.golangci.yml`, surface-inventory, replay, or command wiring changes are
