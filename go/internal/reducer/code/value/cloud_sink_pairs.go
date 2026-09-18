@@ -35,8 +35,10 @@ type cloudSinkPairStats struct {
 // workload id.
 //
 // This is the Go-side form of the single-statement filter
-// `collect(DISTINCT workload) ... WHERE size(workloads) = 1 ... workloads[0]`,
-// which NornicDB v1.3.3 misanswers (#6690). Workloads are compared by id, which
+// `collect(DISTINCT workload) ... WHERE size(workloads) = 1 ... workloads[0]`.
+// Keeping it in Go keeps the statements free of a MATCH ... WITH ... MATCH
+// chain, after which NornicDB v1.3.3 drops every row when RETURN calls a
+// function (#6690, orneryd/NornicDB#400). Workloads are compared by id, which
 // is their unique identity (workload_id constraint). Duplicate RUNS_IN rows to
 // the same workload therefore count once, and a workload with no id makes its
 // pair unresolved rather than silently narrowing it to the identified one. The

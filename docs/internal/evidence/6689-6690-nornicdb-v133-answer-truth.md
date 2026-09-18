@@ -48,17 +48,30 @@ correct on the v1.3.3 release image. No #6689 statement changes.
 Root-Cause Evidence: on v1.3.3, cutting `CloudSinkTargetsCypher` clause by
 clause on a seed with one single-workload function, one two-workload function
 and one function whose action is not allowed: the aggregation, the
-`size(workloads) = 1` filter, the `workloads[0]` subscript and the two-hop
-`MATCH` each returned the right rows. Adding
-`WHERE action.action IN sinkRel.actions` after the subscript-bound workload
-returned 0 rows. The same predicate after a `WITH` passed the disallowed
-function too; `any(x IN sinkRel.actions WHERE x = action.action)` was correct
-with a narrow `RETURN` and returned 0 rows with the production `RETURN` items;
-replacing the subscript with `UNWIND workloads AS workload` also returned 0 rows.
-The same `IN` predicate without the subscript binding (plain `WITH`, or
-`collect` then `UNWIND` with no filter) was correct. The single-statement form is
-therefore not safe to build on, and the loader now runs two statements with the
-single-workload check in Go.
+`size(workloads) = 1` filter, the `workloads[0]` subscript, the two-hop `MATCH`
+and `WHERE action.action IN sinkRel.actions` each returned the right rows. What
+emptied the statement is its projection. After a `MATCH … WITH … MATCH` chain,
+any function call in `RETURN` (`type(sinkRel)`, `labels(sinkNode)`) drops every
+row when two `MATCH` clauses precede the `WITH`, and nulls every column when one
+does. The narrow `RETURN fn.uid, sinkNode.id` returned the correct row. Filed
+upstream as orneryd/NornicDB#400.
+
+Correction (2026-09-18): this section first blamed the `IN` predicate after the
+subscript-bound workload. A stricter re-check proved that wrong: fresh
+containers, Bolt and HTTP, Neo4j 2026.08.1 side by side, 6 of 6 runs. The `IN`
+predicate is correct on v1.3.3 in every variant. The observations that led
+there are explained by other defects:
+
+- The `any(x IN sinkRel.actions …)` and `UNWIND workloads AS workload` variants
+  still carried the production `RETURN` items, so #400 emptied them too.
+- The `WITH … WHERE action.action IN sinkRel.actions` variant passed the
+  disallowed function. That is a separate defect: `WITH … WHERE` with `IN`,
+  `STARTS WITH`, `ENDS WITH` or `CONTAINS` does not filter (orneryd/NornicDB#401).
+
+The two-statement loader is not exposed to either. Its sink statement starts
+from `UNWIND` with no `WITH` before its `RETURN`, and its single-workload check
+runs in Go. The `NOT EXISTS` alternative it rules out is
+orneryd/NornicDB#402 (`[NOT] EXISTS` under `UNWIND` returns no rows).
 
 Live proof through the real loader (`TestLiveCloudSinkLoader`,
 `go/internal/reducer/code/value/cloud_sink_loader_live_test.go`):
@@ -76,12 +89,10 @@ On Neo4j, the old single statement and the new pair return the same final row
 Backend conformance: `TestLiveBackendConformance` passed on both backends with
 the value-flow statements and the #6689 shapes in the default corpora as exact
 rows, and cleanup left no fixture nodes on either backend. The
-`value-flow-conformance-expectation` gate is flipped from its inverted
-expectation to a positive check (both lanes pass and log both value-flow cases);
-`scripts/verify-value-flow-conformance-expectation.sh` passed on both live lanes,
-and its test mirror fails when the marker check is removed. The gate stays
-because `required-gates-complete` awaits it through the default branch's
-registry.
+`value-flow-conformance-expectation` gate was first flipped from its inverted
+expectation to a positive check (#6761), then retired in two steps (#6767
+removed the registry row, #6769 the workflow and scripts). The end-to-end
+matrix's live conformance step now gates the value-flow cases on both backends.
 
 The two statements are separate autocommit reads, so `RUNS_IN` can change
 between them (PR #6761 review). The second statement therefore re-matches the
@@ -123,19 +134,40 @@ loaded` line per load with `function_count`, `workload_row_count`,
 `cloud_sink_target_count`, wired through `cmd/reducer/value_flow_wiring.go`.
 Graph read errors are wrapped and fail the reducer pass, as before.
 
-## Other NornicDB v1.3.3 write defects seen while seeding
+## Other NornicDB v1.3.3 defects found during this work
 
-None of these shapes appears in an Eshu production writer (checked with `rg`
-over non-test Go under `go/internal` and `go/cmd`); they are recorded for the
-upstream report and so seeds avoid them:
+These were first seen on NornicDB alone while seeding test data. Each was later
+confirmed against Neo4j 2026.08.1 before it was filed upstream. The check used
+fresh containers, ran over Bolt and HTTP with identical results, used a minimal
+repro and a Cypher-manual citation, and reproduced on at least 4 fresh
+databases.
 
-- a single-quoted literal concatenated inside an inline `CREATE` property map
-  (`CREATE (:V {id: 'v:' + v})`) stores the mangled text `v:' + 'x`; a
-  double-quoted literal, and `SET n.k = "p:" + row.id`, are correct;
-- a list subscript over an `UNWIND` row inside a `CREATE` map
-  (`{id: row[0]}`) stores a list, not the element;
-- `SET r.actions = [row.act]` stores the literal `["row.act"]`; the production
-  shape `SET rel.actions = row.actions` stores the real list;
-- `UNWIND $rows AS row WITH row WHERE … CREATE …` writes nothing;
-- `MATCH … WHERE x.id STARTS WITH … CREATE (…)-[:R]->(…)` wrote no edges in a
-  two-node probe while the same statement with `IN` or `MERGE` wrote both.
+| Upstream | Defect |
+| --- | --- |
+| orneryd/NornicDB#400 | A function call in `RETURN` after `MATCH … WITH … MATCH` drops every row or nulls every column |
+| orneryd/NornicDB#401 | `WITH … WHERE` with `IN`, `STARTS WITH`, `ENDS WITH` or `CONTAINS` does not filter |
+| orneryd/NornicDB#402 | `UNWIND … MATCH (fn …) WHERE [NOT] EXISTS { MATCH (fn)-[…]->(…) … }`, correlated on a node the statement binds after the `UNWIND`, returns no rows in either polarity, and some subquery bodies fail to parse. The same predicate without the `UNWIND` works. |
+| orneryd/NornicDB#403 | In an `EXISTS { … }` correlated on an outer node, an inline property map on the subquery pattern (`(fn)-[:R]->(:W {id:'w2'})`) is ignored, and a node-identity `<>` in the subquery's `WHERE` makes the predicate a no-op |
+| orneryd/NornicDB#404 | `n.id` on a node without an `id` property returns the internal node id, not null |
+| orneryd/NornicDB#405 | String concatenation with an `UNWIND` variable is not evaluated (`'v:' + v` stored as `v:' + 'x`) |
+| orneryd/NornicDB#406 | `row[0]` on an `UNWIND` row is not evaluated |
+| orneryd/NornicDB#407 | A list literal wrapping a variable or property (`[row.act]`) is stored as its expression text |
+| orneryd/NornicDB#408 | After `UNWIND … AS v WITH v`, the rest of the statement is ignored |
+| orneryd/NornicDB#409 | `MATCH … WHERE … STARTS WITH / ENDS WITH …` followed by `CREATE` writes nothing |
+
+Where Eshu is exposed:
+
+- **#400:** the value-flow cloud sink loader. Fixed by #6761, as described
+  above.
+- **#408:** `ResetRepositorySubtreeInGraph` in `go/internal/graph/mutations.go`.
+  Its first statement ends `UNWIND owned_nodes AS owned WITH DISTINCT owned WHERE
+  owned IS NOT NULL DETACH DELETE owned`, and on v1.3.3 it deletes none of the
+  owned nodes that Neo4j deletes. Only tests call it, so the exposure is latent.
+  `DeleteRepositoryFromGraph` in the same file has neither `UNWIND` nor `WITH`.
+- The production relationship writer's `SET rel.actions = row.actions` stores
+  the real list, so #407 does not apply to it.
+
+The rest of Eshu's exposure is audited in #6786 (epic #6788). That covers
+statements assembled from fragments, which the scan behind this list (Cypher
+written as a single backtick literal in non-test Go under `go/`) cannot see. It
+also covers production `.id` reads that #404 could affect.

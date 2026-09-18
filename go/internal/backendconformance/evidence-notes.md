@@ -9,11 +9,12 @@ Measured on the pinned image
 
 The single-statement `CloudSinkTargetsCypher` still returned zero rows on
 v1.3.3. Cut clause by clause, the aggregation, the `size(workloads) = 1` filter,
-the subscript and the two-hop `MATCH` were all correct there; the remaining
-divergence was `action.action IN sinkRel.actions` after the subscript-bound
-workload, which dropped every row as a `MATCH` predicate, passed every row after
-a `WITH`, and changed with the `RETURN` items (#6690). The loader now runs two
-statements, `CloudSinkWorkloadRowsCypher` and `CloudSinkTargetsByPairCypher`,
+the subscript, the two-hop `MATCH` and the `IN` predicate were all correct
+there. What emptied the statement was its projection: a function call in
+`RETURN` (`type(sinkRel)`, `labels(sinkNode)`) after a `MATCH … WITH … MATCH`
+chain drops every row (#6690, orneryd/NornicDB#400). This note first blamed the
+`IN` predicate; a stricter re-check against Neo4j showed that was wrong. The
+loader now runs two statements, `CloudSinkWorkloadRowsCypher` and `CloudSinkTargetsByPairCypher`,
 with the single-workload check in Go. Both run in the default corpora with exact
 rows (`corpus_value_flow.go`), next to the #6689 shapes
 (`corpus_answer_truth.go`), and `TestLiveBackendConformance` passed on both
