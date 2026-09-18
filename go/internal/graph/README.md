@@ -5,7 +5,7 @@
 `graph` owns the source-local graph write contract and the Cypher builders
 used by backend adapters and schema bootstrap. It defines the `Writer` port,
 the `Materialization` and `Record` input types, canonical entity merge
-builders, batched UNWIND helpers, file and repository deletion mutations, and
+builders, batched UNWIND helpers, and
 the `EnsureSchema` constraint and index contract for both Neo4j and NornicDB
 dialects.
 
@@ -31,7 +31,6 @@ graph/
   cypher.go      — CypherStatement, CypherExecutor
   entity.go      — EntityProps, BuildEntityMergeStatement, MergeEntity, validators
   batch.go       — BatchEntityRow, BatchFileRow, BatchRelationshipRow, batch helpers
-  mutations.go   — DeleteFileFromGraph, DeleteRepositoryFromGraph, ResetRepositorySubtreeInGraph
   schema.go      — SchemaBackend, EnsureSchema, EnsureSchemaWithBackend
                    and EnsureSchemaWithBackendStrict
   schema_application.go — schema fingerprint and compatibility policy helpers
@@ -43,7 +42,7 @@ graph/
 ## Ownership boundary
 
 `graph` owns the write contract, entity merge builders, UNWIND helpers,
-deletion mutations, and the schema DDL contract. It does not own backend
+and the schema DDL contract. It does not own backend
 drivers, connection pooling, or telemetry instrumentation. Those live in
 `internal/storage/cypher`, `internal/storage/neo4j`, and their NornicDB
 equivalents. Backend dialect differences belong only in the schema dialect
@@ -95,16 +94,6 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
 - `BatchMergeRelationships(ctx, executor, rows, batchSize)` — batch-merges
   relationships. All rows must share source label, target label, and
   relationship type.
-
-### Mutations
-
-- `DeleteFileFromGraph(ctx, executor, filePath)` — deletes a file node and
-  its contained entities; prunes orphaned parent directories in a second
-  statement.
-- `DeleteRepositoryFromGraph(ctx, executor, repoIdentifier) (bool, error)` —
-  removes the `Repository` node and its entire owned subtree.
-- `ResetRepositorySubtreeInGraph(ctx, executor, repoIdentifier) (bool, error)` —
-  deletes the owned subtree while preserving the `Repository` node itself.
 
 ### Schema
 
@@ -320,12 +309,6 @@ knob was added.
   `Class`, the projector derives `uid` from the same `(repo, path, type, name,
   line)` tuple before graph write, and NornicDB enforces the generated `uid`
   constraint plus lookup index. Neo4j keeps the direct composite constraint.
-- `DeleteFileFromGraph` runs two sequential `ExecuteCypher` calls
-  (`mutations.go:29`, `:41`). If the second call fails, orphaned directories
-  may remain until the next deletion or schema repair.
-- `ResetRepositorySubtreeInGraph` preserves the `Repository` node;
-  `DeleteRepositoryFromGraph` removes it. Choosing the wrong one during
-  re-ingestion will leave a stale or missing root node.
 - The schema contract is the checked-in Go-owned truth for node labels,
   constraints, performance indexes, and full-text indexes. Changes here must
   update the active ADR chunk status row.
@@ -347,4 +330,4 @@ knob was added.
 - `docs/public/reference/backend-conformance.md` — NornicDB
   compatibility dialect evidence
 - `go/internal/storage/cypher/README.md` — canonical write adapters that
-  implement `Writer` and use the batch/mutation helpers
+  implement `Writer` and use the batch helpers
