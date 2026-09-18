@@ -1,0 +1,19 @@
+go/internal/reducer/workload_cloud_relationship_materialization_test.go
+  s_0328684b451b6b::t_3937e1b668af1f 324-402
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3b1994572d25e6a88abe23c498dad61544f38be3",
+  "prompts": {},
+  "sessions": {
+    "s_0328684b451b6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22956e3d-93a2-490b-ba95-830405a3edf2",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
