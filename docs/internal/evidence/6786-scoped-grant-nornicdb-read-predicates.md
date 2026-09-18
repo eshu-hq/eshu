@@ -43,6 +43,20 @@ repository `DEFINES` too:
 - `go/internal/query/impacttrace/scoped_selector_live_test.go`
   (`TestLiveResolveTraceWorkloadSelector*`)
 
+Both select the backend/database via `ESHU_LIVE_GRAPH_BACKEND`
+(`nornicdb`|`neo4j`) and `ESHU_LIVE_GRAPH_DATABASE`, the shared env contract
+#6784 uses to run this package's and `entity`'s live tests together. Because
+`go test` schedules different packages' tests concurrently by default, both
+packages' schema-apply and seed/cleanup writes can land on the same live
+database at once; `retryLiveWrite` (entity) / `retrySelectorLiveWrite`
+(impacttrace) retry a Neo4j/NornicDB-classified transient error (e.g.
+`Neo.TransientError.Transaction.Outdated`, observed live under
+`go test ./internal/query/entity ./internal/query/impacttrace` without
+`-p 1`) up to 5 times with a short backoff, rather than failing the whole
+fixture on a conflict that a NornicDB write's own commit path resolves.
+Proved with 3 consecutive green runs of that exact parallel command against
+NornicDB.
+
 Pre-fix, 6 of 9 live assertions failed on NornicDB (0 of 9 on Neo4j):
 `TestLiveScopedWorkloadContextGrant/direct_grant_admits` and
 `.../no_grant_relationship_returns_not_found` both returned the SAME

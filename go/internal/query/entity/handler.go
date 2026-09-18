@@ -83,21 +83,27 @@ const serviceLookupWhereClause = "w.name = $service_name OR w.id = $service_name
 // resolution Cypher for req, or ("", nil) when req carries no RepoID: global
 // resolution never touches the graph. Exported for the staying queryplan
 // production-binding tests that pin builder bytes; see #6060.
+//
+// access is accepted but unused: the function returns before it would ever
+// matter. It used to also render a global (non-repository-anchored) query
+// with a scoped grant, but that whole path -- guarded by
+// `!repositoryAnchored`, which is unreachable past the early return two lines
+// below -- was dead code (#6786 review follow-up), including the last
+// tab-indented `AND EXISTS {...}` block in this file: the same
+// newline/tab-before-AND shape that made NornicDB v1.3.3 drop a live WHERE
+// clause elsewhere in this file, just never executed here. Removed rather
+// than left as inert bait for a future edit to "fix" the early return and
+// revive it.
 func BuildResolveEntityGraphQuery(
 	req ResolveEntityRequest,
 	limit int,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
-	repositoryAnchored := req.RepoID != ""
-	if !repositoryAnchored {
+	if req.RepoID == "" {
 		return "", nil
 	}
-	cypher := `MATCH (e) WHERE e.name = $name`
-	params := map[string]any{"name": req.Name}
-	if repositoryAnchored {
-		cypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e) WHERE e.name = $name`
-		params["repo_id"] = req.RepoID
-	}
+	cypher := `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e) WHERE e.name = $name`
+	params := map[string]any{"name": req.Name, "repo_id": req.RepoID}
 
 	if req.Type != "" {
 		graphLabel, semanticKey, semanticValue, ok := resolveGraphEntityType(req.Type)
@@ -111,26 +117,6 @@ func BuildResolveEntityGraphQuery(
 		}
 	}
 
-	if !repositoryAnchored && access.Scoped() {
-		cypher += `
-			AND EXISTS {
-				MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
-				WHERE ` + access.GraphCondition("scopeRepo") + `
-			}
-		`
-		params = access.GraphParams(params)
-	}
-
-	if !repositoryAnchored {
-		cypher += `
-			OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
-		`
-		if access.Scoped() {
-			cypher += `
-			WHERE ` + access.GraphCondition("r") + `
-		`
-		}
-	}
 	cypher += `
 		RETURN e.id as id, labels(e) as labels, e.name as name,
 		       f.relative_path as file_path,

@@ -214,7 +214,7 @@ source_coverage:
           max_results: 101
   - file: entity/workload_context.go
     calls:
-      - {symbol: "(*Handler).FetchWorkloadContextForOperation", count: 1, source_sha256: 422d958032fe8d37bc12c7ed086b19a9e94eaa208a3addc15aae4645714e0192, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*Handler).FetchWorkloadContextForOperation", count: 1, source_sha256: 218797cb80246932627f8e0194737a119f14558fef1b38b99a59ed2711c51e25, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*Handler).FetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: aab68aaa4a2e5e26719f79357b03b32b7e518c691a6c1ff2bacb33ceea427c11, key_bound: single_key, max_results: 51}}
   - file: entity/workload_platform.go
     calls:

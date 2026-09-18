@@ -175,13 +175,17 @@ func (r entityLiveReader) RunSingle(ctx context.Context, cypher string, params m
 
 func (r entityLiveReader) write(ctx context.Context, t *testing.T, cypher string) {
 	t.Helper()
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.sessionConfigDatabase()})
-	defer func() { _ = session.Close(ctx) }()
-	result, err := session.Run(ctx, cypher, nil)
+	err := retryLiveWrite(ctx, func() error {
+		session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.sessionConfigDatabase()})
+		defer func() { _ = session.Close(ctx) }()
+		result, runErr := session.Run(ctx, cypher, nil)
+		if runErr != nil {
+			return runErr
+		}
+		_, runErr = result.Consume(ctx)
+		return runErr
+	})
 	if err != nil {
 		t.Fatalf("write %q: %v", cypher, err)
-	}
-	if _, err := result.Consume(ctx); err != nil {
-		t.Fatalf("consume %q: %v", cypher, err)
 	}
 }

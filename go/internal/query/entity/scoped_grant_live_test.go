@@ -24,11 +24,11 @@
 // each test run; the id prefix is unique per run):
 //
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27880 \
-//	  ESHU_LIVE_GRAPH_BACKEND=nornicdb ESHU_NEO4J_DATABASE=nornic \
+//	  ESHU_LIVE_GRAPH_BACKEND=nornicdb ESHU_LIVE_GRAPH_DATABASE=nornic \
 //	  go test ./internal/query/entity -tags live_nornicdb_answer_truth \
 //	  -run TestLiveScoped -count=1 -v
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27890 \
-//	  ESHU_LIVE_GRAPH_BACKEND=neo4j ESHU_NEO4J_DATABASE=neo4j \
+//	  ESHU_LIVE_GRAPH_BACKEND=neo4j ESHU_LIVE_GRAPH_DATABASE=neo4j \
 //	  go test ./internal/query/entity -tags live_nornicdb_answer_truth \
 //	  -run TestLiveScoped -count=1 -v
 package entity

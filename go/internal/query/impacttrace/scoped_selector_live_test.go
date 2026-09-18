@@ -23,11 +23,11 @@
 // each test run; the id prefix is unique per run):
 //
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27880 \
-//	  ESHU_LIVE_GRAPH_BACKEND=nornicdb ESHU_NEO4J_DATABASE=nornic \
+//	  ESHU_LIVE_GRAPH_BACKEND=nornicdb ESHU_LIVE_GRAPH_DATABASE=nornic \
 //	  go test ./internal/query/impacttrace -tags live_nornicdb_answer_truth \
 //	  -run TestLiveResolveTraceWorkloadSelector -count=1 -v
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27890 \
-//	  ESHU_LIVE_GRAPH_BACKEND=neo4j ESHU_NEO4J_DATABASE=neo4j \
+//	  ESHU_LIVE_GRAPH_BACKEND=neo4j ESHU_LIVE_GRAPH_DATABASE=neo4j \
 //	  go test ./internal/query/impacttrace -tags live_nornicdb_answer_truth \
 //	  -run TestLiveResolveTraceWorkloadSelector -count=1 -v
 package impacttrace
@@ -44,6 +44,41 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
+
+// selectorLiveWriteMaxAttempts and selectorLiveWriteRetryBaseDelay mirror
+// entity's liveWriteMaxAttempts/liveWriteRetryBaseDelay (that helper is
+// unexported to its own package): they bound retries for a transient write
+// conflict (e.g. NornicDB/Neo4j's Neo.TransientError.Transaction.Outdated) a
+// live schema apply or seed write can hit when this package's and entity's
+// live tests run as separate, concurrently-scheduled Go packages against the
+// SAME live database (#6784 runs them that way in CI).
+const (
+	selectorLiveWriteMaxAttempts    = 5
+	selectorLiveWriteRetryBaseDelay = 75 * time.Millisecond
+)
+
+// retrySelectorLiveWrite runs op up to selectorLiveWriteMaxAttempts times,
+// retrying only when op's error is a Neo4j/NornicDB-classified transient
+// error (neo4jdriver.IsRetryable). Any other error, or exhausting every
+// attempt, returns immediately with that error.
+func retrySelectorLiveWrite(ctx context.Context, op func() error) error {
+	var lastErr error
+	for attempt := 1; attempt <= selectorLiveWriteMaxAttempts; attempt++ {
+		lastErr = op()
+		if lastErr == nil {
+			return nil
+		}
+		if !neo4jdriver.IsRetryable(lastErr) || attempt == selectorLiveWriteMaxAttempts {
+			return lastErr
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(attempt) * selectorLiveWriteRetryBaseDelay):
+		}
+	}
+	return lastErr
+}
 
 const selectorLivePrefix = "scoped-selector-6786:"
 
@@ -111,14 +146,18 @@ func (r selectorLiveReader) RunSingle(ctx context.Context, cypher string, params
 
 func (r selectorLiveReader) write(ctx context.Context, t *testing.T, cypher string) {
 	t.Helper()
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
-	defer func() { _ = session.Close(ctx) }()
-	result, err := session.Run(ctx, cypher, nil)
+	err := retrySelectorLiveWrite(ctx, func() error {
+		session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
+		defer func() { _ = session.Close(ctx) }()
+		result, runErr := session.Run(ctx, cypher, nil)
+		if runErr != nil {
+			return runErr
+		}
+		_, runErr = result.Consume(ctx)
+		return runErr
+	})
 	if err != nil {
 		t.Fatalf("write %q: %v", cypher, err)
-	}
-	if _, err := result.Consume(ctx); err != nil {
-		t.Fatalf("consume %q: %v", cypher, err)
 	}
 }
 
@@ -130,14 +169,16 @@ type selectorLiveSchemaExecutor struct {
 }
 
 func (e selectorLiveSchemaExecutor) ExecuteCypher(ctx context.Context, stmt graph.CypherStatement) error {
-	session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: e.database})
-	defer func() { _ = session.Close(ctx) }()
-	result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters)
-	if err != nil {
+	return retrySelectorLiveWrite(ctx, func() error {
+		session := e.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: e.database})
+		defer func() { _ = session.Close(ctx) }()
+		result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters)
+		if err != nil {
+			return err
+		}
+		_, err = result.Consume(ctx)
 		return err
-	}
-	_, err = result.Consume(ctx)
-	return err
+	})
 }
 
 // selectorLiveGraphBackend resolves the schema dialect and default database
@@ -145,7 +186,7 @@ func (e selectorLiveSchemaExecutor) ExecuteCypher(ctx context.Context, stmt grap
 // its own package and this package cannot import it).
 func selectorLiveGraphBackend() (graph.SchemaBackend, string) {
 	backend := strings.ToLower(strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_BACKEND")))
-	database := strings.TrimSpace(os.Getenv("ESHU_NEO4J_DATABASE"))
+	database := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE"))
 	if backend == "neo4j" {
 		if database == "" {
 			database = "neo4j"
