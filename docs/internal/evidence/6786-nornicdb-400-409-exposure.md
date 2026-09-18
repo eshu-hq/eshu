@@ -1,7 +1,7 @@
-# #6786: Eshu exposure to NornicDB v1.3.3 defects (orneryd/NornicDB#400–#409 and eight related shapes)
+# #6786: Eshu exposure to NornicDB v1.3.3 defects (orneryd/NornicDB#400–#409 and ten related shapes)
 
 This records which production Cypher paths hit the NornicDB v1.3.3 defects in
-orneryd/NornicDB#400–#409, plus eight more shapes (X1–X8) found during the
+orneryd/NornicDB#400–#409, plus ten more shapes (X1–X10) found during the
 audit. It covers what each classification rests on and what changed. Tracking:
 #6786 (epic #6788). Background: [#6689/#6690 answer truth](6689-6690-nornicdb-v133-answer-truth.md).
 
@@ -64,7 +64,8 @@ above.
 | X6 | `MATCH (n) RETURN labels(n) AS l, count(*) AS c` on an empty graph | spurious `{c: 0, l: null}` row |
 | X7 | `EXISTS {…}` used as a `RETURN` column | always `false` |
 | X8 | `UNWIND … MERGE (n:L {k: v})` as the statement's final clause | `k` stored as null (a following `SET`, or `CREATE`, is correct) |
-| X9 | an `UNWIND` variable name that equals a `RETURN` alias, with a `MATCH` in between | the first `RETURN` column comes back named after the first `UNWIND` value (e.g. the literal key `'r1'`) instead of its declared alias; Neo4j returns the declared alias |
+| X9 | the `UNWIND` variable's name reused as a `RETURN` alias, with a `MATCH` between them (`UNWIND $ids AS repo_id MATCH … RETURN i.repo_id AS repo_id`) | that column comes back named after the first `UNWIND` value (`'r1'`) on every row, so a reader looking up the alias finds nothing |
+| X10 | node-identity comparison in an `OPTIONAL MATCH … WHERE` (`OPTIONAL MATCH (repo)-[:DEFINES]->(direct:Workload) WHERE direct = e`) | the projected properties come back as expression text (`"repo.id"`) |
 
 ## Exposure
 
@@ -75,10 +76,11 @@ above.
 | `graph.DeleteRepositoryFromGraph`, `graph.DeleteFileFromGraph` | #408 (claimed earlier) | Not affected; test-only callers. Deleted | Same nodes and edges as Neo4j after the delete |
 | Canonical File update-existing (`canonicalNodeFileUpdateExistingCypher`, root variant) | #408 (`MATCH`-seeded `WITH`) | Not affected with the schema applied | Two-generation writes match Neo4j row for row |
 | Canonical File create-missing (`canonicalNodeFileCreateMissingCypher`, root variant) | #402, #403 | Affected, latent. The `NOT EXISTS` guard is a no-op with or without the schema, but the graph stays correct because update-existing runs first with the same rows | Read-only twin returns the existing file on NornicDB (2 rows vs 1) |
+| Reducer workload-instance retraction lookup (`cmd/reducer/workload_instance_retraction_lookup.go`) | X9 | Affected: `ListWorkloadInstances` returns nothing on NornicDB, so stale WorkloadInstance nodes are never retracted | Fixed in #6786 (UNWIND variable renamed); live RED/GREEN in the branch's live test |
+| Entity repo-identity hydration (`queryselector/entity_repo_identity.go`) | X9, X10 | Affected, fails closed: no repository identity is hydrated on NornicDB | Fixed in a separate change |
 | Two read paths | X4, X5 | Affected; fixed in a separate change | Recorded in that change |
 | Repository list `is_dependency` (`querycontract.RepositoryDependencyMarkerProjection`) | X7, plus invalid scoped Cypher | Affected. Unscoped: always false on NornicDB. Scoped: a syntax error on Neo4j | Fixed in #6786; RED/GREEN in [6786-repository-dependency-marker-and-relationship-repo-anchor.md](6786-repository-dependency-marker-and-relationship-repo-anchor.md) |
 | Code relationship lookup by name and `repo_id` (`codequery/relationship_handlers.go`) | X5 | Affected: other repositories' entities are returned | Fixed in #6786; RED/GREEN in [6786-repository-dependency-marker-and-relationship-repo-anchor.md](6786-repository-dependency-marker-and-relationship-repo-anchor.md) |
-| Workload-instance retraction lookup (`cmd/reducer/workload_instance_retraction_lookup.go`, `neo4jWorkloadInstanceRetractionLookup.ListWorkloadInstances`) | X9 | Affected: `ListWorkloadInstances` returns nothing on NornicDB, so `reducer.ReconcileWorkloadInstanceRetraction` never retracts a stale `WorkloadInstance` node superseded by #5473's environment-alias canonicalization | Fixed in #6786 (renamed the `UNWIND` binding to `requested_repo_id`); live RED/GREEN in `cmd/reducer/nornicdb_workload_instance_retraction_lookup_live_test.go` |
 | Infra grant predicate `DEPLOYMENT_SOURCE` disjunct (`infraResourceScopeCoreDisjuncts`) | X5 candidate | Not affected (one-hop outbound) | Rows match on one line and multi-line |
 | Entity resolve scoped `EXISTS` (`entity.BuildResolveEntityGraphQuery`) | X5 | Unreachable: the branch never renders | Function returns early when not repository-anchored |
 | Taint backfill `CountTaintFlowsToEdges`, relationships catalog tiles, golden-corpus `CountEdges`/`CountCorrelation` | X3 | Not affected: typed counts are correct with the schema | Counts match Neo4j after a both-endpoint `DETACH DELETE` |
@@ -87,33 +89,12 @@ above.
 | Language query Directory branch (`language/cypher.go`) | #408, #404 | Not affected | Rows match (`entity_id` null on both) |
 | Orphan sweep Module composite read (`orphan_sweep_queries.go`) | #408 (`MATCH`-seeded `WITH`) | Not affected | Rows match |
 | Every Cypher literal with `AND`/`OR` directly after a newline or tab | X4 | Only the two read paths above and the unreachable resolve branch; the four other scan hits are Postgres SQL | Static scan of all production Go Cypher literals |
-| Every other production statement | #401, #405, #406, #407, #409, X1, X2, X6, X8 | No production statement has the shape | Static audit; X8 scan found only one statement ending in a relationship `MERGE`, which is correct |
+| Workload dependency lookup, Kubernetes runtime probe | X9 candidates | Not affected: the reused `UNWIND` variable is not a `RETURN` alias | Rows match |
+| Every other production statement | #401, #405, #406, #407, #409, X1, X2, X6, X8, X9, X10 | No production statement has the shape | Static audit; X8 scan found only one statement ending in a relationship `MERGE`, which is correct |
 | #404 | `.id` on node-only `MATCH` | No reachable exposure | Labels that can lack `id`: File, Directory, Module, Environment, CodeownerTeam, Rationale, DocumentationSection, KustomizeOverlay, ShellCommand, Parameter |
 
 ## Upstream
 
-X1–X9 are outside orneryd/NornicDB#400–#409. Upstream reports for them are
+X1–X10 are outside orneryd/NornicDB#400–#409. Upstream reports for them are
 drafted but not yet filed; #6787 tracks upstream fixes and the re-proof on the
 next pin.
-
-## X9 fix: workload-instance retraction lookup
-
-No-Regression Evidence: the fix renames the `UNWIND` binding
-(`repo_id` -> `requested_repo_id`) and updates the one `MATCH` that reads it;
-the `RETURN` clause, its aliases, the `WHERE` filter, and the bound
-parameters (`$repo_ids`, `$evidence_source`) are byte-identical to before.
-A bound-variable rename does not change the query plan (same labels, same
-property lookups, same `DISTINCT`), so this is a correctness fix with no
-throughput or latency claim to make; the live test asserts row content, not
-timing.
-
-Observability Evidence: no new signal is needed. The lookup itself carries
-no telemetry of its own (it is a plain graph read behind
-`reducer.ReconcileWorkloadInstanceRetraction`); the caller,
-`WorkloadMaterializationHandler.Handle`
-(internal/reducer/workload_materialization_handler.go), already times and
-counts the whole instance-retraction stage (`timing.instanceRetract`,
-`instanceRetractRows`) regardless of how many rows the lookup returns, so a
-previously-silent zero-row read now correctly shows up as nonzero
-`instanceRetractRows` there once stale instances exist to retract, with no
-handler code change required.
