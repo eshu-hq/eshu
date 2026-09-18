@@ -74,9 +74,11 @@ A successful `ExecuteGroup` microbenchmark on an Apple M5 Max measured five
 same-machine samples. The unchanged base's median was 19.11 ns/op, 64 B/op,
 one allocation. A preliminary implementation eagerly validated the group and
 regressed to 28.53 ns/op median; its validation was moved behind the exact
-timeout error. After the final code edit, the revised median was 20.64 ns/op
-(range 19.75–23.57), 64 B/op, one allocation. These nanosecond samples are a
-local no-material-regression check, not an ops-qa throughput estimate.
+timeout error. After the timeout-classifier edit, the revised median was 20.64 ns/op
+(range 19.75–23.57). After the nested-wrapper guard edit, a fresh five-sample
+run measured 18.28 ns/op median (range 17.99–18.73). Both runs held at
+64 B/op and one allocation. These nanosecond samples are a local
+no-material-regression check, not an ops-qa throughput estimate.
 
 ## Observability Evidence:
 
