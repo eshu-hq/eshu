@@ -1,0 +1,21 @@
+docs/public/reference/ci-gates.md
+  s_02cd429498e265::t_2b99d6d26294a7 11
+specs/ci-gates.v1.yaml
+  s_02cd429498e265::t_0634716e0623b4 4379-4380
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "28da7b82e3f444f4e56392a2a49e07ed6be0def2",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
