@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/archivepreflight"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/archive"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
@@ -123,12 +123,12 @@ func extractArchiveDocumentation(
 	result := archiveDocumentationResult{
 		outerDocument: archiveDocumentPayload(repo, outerID, relativePath, revisionID, digest, commitSHA, body, archiveFormat),
 	}
-	preflight, err := archivepreflight.Preflight(
+	preflight, err := archive.Preflight(
 		ctx,
 		path.Base(relativePath),
 		bytes.NewReader(body),
 		int64(len(body)),
-		archivepreflight.Options{
+		archive.Options{
 			MaxSourceBytes:      int64(documentationReadLimitBytes(GitDocumentationFormat{Format: archiveFormat})),
 			MaxExpandedBytes:    archiveMaxExpandedBytes,
 			MaxEntries:          archiveMaxEntries,
@@ -141,21 +141,21 @@ func extractArchiveDocumentation(
 		return result
 	}
 	switch preflight.Format {
-	case archivepreflight.FormatZIP:
+	case archive.FormatZIP:
 		reader, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
 		if err != nil {
-			addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archivepreflight.WarningMalformedContainer))
+			addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archive.WarningMalformedContainer))
 			return result
 		}
 		result.extractZIPMembers(ctx, repo, outerID, relativePath, revisionID, commitSHA, reader)
-	case archivepreflight.FormatTAR:
+	case archive.FormatTAR:
 		result.extractTARMembers(ctx, repo, outerID, relativePath, revisionID, commitSHA, bytes.NewReader(body))
-	case archivepreflight.FormatTARGZ:
+	case archive.FormatTARGZ:
 		if err := result.extractTARGZMembers(ctx, repo, outerID, relativePath, revisionID, commitSHA, body); err != nil {
-			addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archivepreflight.WarningMalformedContainer))
+			addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archive.WarningMalformedContainer))
 		}
 	default:
-		addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archivepreflight.WarningUnsupportedFormat))
+		addDocumentationWarnings(result.outerDocument.SourceMetadata, string(archive.WarningUnsupportedFormat))
 	}
 	return result
 }
@@ -206,13 +206,13 @@ func (r *archiveDocumentationResult) extractZIPMembers(
 	supported := 0
 	for ordinal, file := range reader.File {
 		if err := ctx.Err(); err != nil {
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningTimeout))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningTimeout))
 			break
 		}
 		memberPath, ok := normalizeArchiveMemberPath(file.Name)
 		if !ok {
 			skipped++
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningArchivePathEscape))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningArchivePathEscape))
 			continue
 		}
 		if file.FileInfo().IsDir() {
@@ -225,12 +225,12 @@ func (r *archiveDocumentationResult) extractZIPMembers(
 		}
 		if archiveMemberIsNested(memberPath) {
 			skipped++
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningArchiveNestedSkipped))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningArchiveNestedSkipped))
 			continue
 		}
 		if archiveMemberLooksCredential(memberPath) {
 			skipped++
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningCredentialFileSkipped))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningCredentialFileSkipped))
 			continue
 		}
 		format, ok := gitDocumentationFormatForPath(memberPath)
@@ -242,7 +242,7 @@ func (r *archiveDocumentationResult) extractZIPMembers(
 		memberBody, ok := readArchiveZIPMember(file, documentationReadLimitBytes(format))
 		if !ok {
 			skipped++
-			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archivepreflight.WarningResourceLimitExceeded))
+			addDocumentationWarnings(r.outerDocument.SourceMetadata, string(archive.WarningResourceLimitExceeded))
 			continue
 		}
 		supported++

@@ -731,7 +731,7 @@ land at the same call sites.
 | Cassette replay AGENTS | go/internal/replay/cassette/AGENTS.md | `No-Observability-Change: agent instructions file, no runtime stage` | replay cassette |
 | Documentation export | go/internal/collector/documentationexport/*.go | `No-Observability-Change: git-source collector metrics (FactsEmitted, RepoSnapshotDuration, CollectorSnapshotStageDuration) cover documentation export throughput` | collector documentation |
 | Diagram preflight | go/internal/collector/diagrampreflight/*.go | `No-Observability-Change: git-source collector metrics cover diagram preflight throughput` | collector preflight |
-| Archive preflight | go/internal/collector/archivepreflight/*.go | `No-Observability-Change: git-source collector metrics cover archive preflight throughput` | collector preflight |
+| Archive preflight | go/internal/collector/preflight/archive/*.go | `No-Observability-Change: git-source collector metrics cover archive preflight throughput` | collector preflight |
 | Export manifest preflight | go/internal/collector/exportmanifestpreflight/*.go | `No-Observability-Change: git-source collector metrics cover export-manifest preflight throughput` | collector preflight |
 | Image preflight | go/internal/collector/imagepreflight/*.go | `No-Observability-Change: git-source collector metrics cover image preflight throughput` | collector preflight |
 | Media preflight | go/internal/collector/mediapreflight/*.go | `No-Observability-Change: git-source collector metrics cover media preflight throughput` | collector preflight |

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package archivepreflight
+package archive
 
 import (
 	"archive/tar"

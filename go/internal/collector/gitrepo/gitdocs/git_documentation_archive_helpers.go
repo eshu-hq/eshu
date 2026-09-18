@@ -12,11 +12,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/archivepreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/archive"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func recordArchivePreflightMetadata(metadata map[string]string, result archivepreflight.Result) {
+func recordArchivePreflightMetadata(metadata map[string]string, result archive.Result) {
 	metadata["archive_format"] = result.Format
 	metadata["entry_count"] = strconv.Itoa(result.EntryCount)
 	metadata["regular_file_count"] = strconv.Itoa(result.RegularFileCount)
@@ -29,7 +29,7 @@ func recordArchivePreflightMetadata(metadata map[string]string, result archivepr
 	metadata["special_file_count"] = strconv.Itoa(result.SpecialFileCount)
 }
 
-func archivePreflightWarningStrings(result archivepreflight.Result) []string {
+func archivePreflightWarningStrings(result archive.Result) []string {
 	warnings := make([]string, 0, len(result.Warnings))
 	for _, warning := range result.Warnings {
 		if warning.Count > 0 {
@@ -39,14 +39,14 @@ func archivePreflightWarningStrings(result archivepreflight.Result) []string {
 	return warnings
 }
 
-func archivePreflightHasFatalWarning(result archivepreflight.Result) bool {
+func archivePreflightHasFatalWarning(result archive.Result) bool {
 	for _, warning := range result.Warnings {
 		switch warning.Class {
-		case archivepreflight.WarningMalformedContainer,
-			archivepreflight.WarningResourceLimitExceeded,
-			archivepreflight.WarningCompressionRatioExceeded,
-			archivepreflight.WarningTimeout,
-			archivepreflight.WarningArchivePathEscape:
+		case archive.WarningMalformedContainer,
+			archive.WarningResourceLimitExceeded,
+			archive.WarningCompressionRatioExceeded,
+			archive.WarningTimeout,
+			archive.WarningArchivePathEscape:
 			return true
 		}
 	}
@@ -87,9 +87,9 @@ func archiveZipModeIsUnsafe(mode fs.FileMode) bool {
 
 func archiveZipModeWarning(mode fs.FileMode) string {
 	if mode&fs.ModeSymlink != 0 {
-		return string(archivepreflight.WarningArchiveSymlinkSkipped)
+		return string(archive.WarningArchiveSymlinkSkipped)
 	}
-	return string(archivepreflight.WarningArchiveSpecialFileSkipped)
+	return string(archive.WarningArchiveSpecialFileSkipped)
 }
 
 func archiveMemberIsNested(name string) bool {
@@ -156,7 +156,7 @@ func archiveUnsupportedWarning(memberPath string) string {
 	case ".xls":
 		return "unsupported_legacy_binary"
 	default:
-		return string(archivepreflight.WarningUnsupportedFormat)
+		return string(archive.WarningUnsupportedFormat)
 	}
 }
 
