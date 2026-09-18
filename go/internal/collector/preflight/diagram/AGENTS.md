@@ -1,10 +1,10 @@
-# AGENTS.md - collector/diagrampreflight guidance for LLM assistants
+# AGENTS.md - collector/preflight/diagram guidance for LLM assistants
 
 ## Read first
 
-1. `go/internal/collector/diagrampreflight/README.md`
-2. `go/internal/collector/diagrampreflight/doc.go`
-3. `go/internal/collector/diagrampreflight/preflight.go`
+1. `go/internal/collector/preflight/diagram/README.md`
+2. `go/internal/collector/preflight/diagram/doc.go`
+3. `go/internal/collector/preflight/diagram/preflight.go`
 4. `docs/internal/design/1737-visual-media-documentation-ingestion.md`
 5. `go/internal/collector/README.md`
 

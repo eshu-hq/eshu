@@ -102,7 +102,7 @@ group like this:
   notebook parsing lives in `go/internal/parser` helpers invoked by the Git
   snapshot; what lives in `collector/` are the six **preflight** families
   (`preflight/archive`, `imagepreflight`, `mediapreflight`,
-  `diagrampreflight`, `ooxmlpreflight`, `preflight/pdf`) — safety classifiers
+  `preflight/diagram`, `ooxmlpreflight`, `preflight/pdf`) — safety classifiers
   that emit metadata-only warnings *before* any extraction is allowed. Their
   distinctive failure mode is deliberate refusal: unsafe paths, nested
   archives, credential-looking members become warnings, never content.
