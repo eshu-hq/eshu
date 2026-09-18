@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -183,6 +184,32 @@ func TestLoadRepositoryDependencyEdgesNilGraph(t *testing.T) {
 	edges := loadRepositoryDependencyEdges(context.Background(), nil, querycontract.RepositoryAccessFilter{AllScopes: true})
 	if len(edges) != 0 {
 		t.Fatalf("nil graph produced %d edges, want 0", len(edges))
+	}
+}
+
+// nornicDBAndOrAfterWhitespace matches an AND/OR keyword immediately preceded
+// by a newline or tab. NornicDB v1.3.3 mis-evaluates the whole WHERE clause
+// when this happens (proven live, schema applied, Go driver): the character
+// immediately before AND/OR must be a space, not a bare newline or tab from
+// gofmt-style multi-line formatting. "\n  AND" and "\n\t AND" (a space after
+// the tab) are fine; "\n\t\t\tAND" and "\nAND" are not.
+var nornicDBAndOrAfterWhitespace = regexp.MustCompile(`[\n\t](AND|OR)\b`)
+
+// TestRepositoryDependencyClusterEdgeCypherAndOrPrecededBySpace proves the
+// scoped edge pre-pass query's "WHERE %s AND %s" join keeps AND on the same
+// line as its left operand (immediately preceded by a space from the format
+// string), never directly after the query's leading "\n\t\tWHERE" newline
+// and tabs.
+func TestRepositoryDependencyClusterEdgeCypherAndOrPrecededBySpace(t *testing.T) {
+	t.Parallel()
+
+	scoped := querycontract.RepositoryAccessFilter{
+		AllowedRepositoryIDs: []string{"repository:a"},
+		Allowed:              map[string]struct{}{"repository:a": {}},
+	}
+	cypher := repositoryDependencyClusterEdgeCypher(scoped)
+	if loc := nornicDBAndOrAfterWhitespace.FindString(cypher); loc != "" {
+		t.Fatalf("edge cypher has %q immediately after a newline/tab, which NornicDB v1.3.3 mis-evaluates:\n%s", loc, cypher)
 	}
 }
 
