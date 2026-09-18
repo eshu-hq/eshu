@@ -12,13 +12,14 @@ collection behavior stays in the owning collector packages.
 The namespace owns no runtime declarations, extraction, provider access,
 fact emission, storage calls, graph writes, or telemetry. Its `archive`
 child owns only metadata-only classification of `.zip`, `.tar`, `.tar.gz`,
-and `.tgz` packages.
+and `.tgz` packages. Its `pdf` child owns only metadata-only classification
+of `.pdf` sources.
 
 ## Exported surface
 
-None. This parent is documentation-only. See the `archive` child for
-`Options`, `Result`, `Warning`, `Preflight`, and the format and warning
-constants.
+None. This parent is documentation-only. See the `archive` and `pdf`
+children for `Options`, `Result`, `Warning`, `Preflight`, and the format
+and warning constants.
 
 ## Dependencies
 
@@ -35,12 +36,14 @@ contract.
 - Keep runtime declarations in leaf packages or the owning collector.
 - Keep extraction, fact emission, ACL handling, and telemetry behavior in the
   owning collector slice.
-- The `archive` leaf is a preflight boundary, not an independently deployable
-  service. It must not import the collector root or a sibling collector.
+- The `archive` and `pdf` leaves are preflight boundaries, not independently
+  deployable services. They must not import the collector root or a sibling
+  collector.
 - A safe preflight result is necessary but not sufficient for ingestion.
 
 ## Related docs
 
 - `go/internal/collector/preflight/archive/README.md`
+- `go/internal/collector/preflight/pdf/README.md`
 - `go/internal/collector/README.md`
 - `docs/internal/design/1738-office-spreadsheet-deck-archive-ingestion.md`

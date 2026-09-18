@@ -146,7 +146,7 @@ security review proves page-text extraction quality, cancellation behavior,
 malformed-input handling, and memory bounds. `pdfcpu` is the preferred Go
 candidate for that validation lane because its public API and CLI support PDF
 validation, encryption handling, metadata/content extraction surfaces, and
-context-aware reads. The already landed `pdfpreflight` package remains the
+context-aware reads. The already landed `preflight/pdf` package remains the
 default-off first guard and uses only bounded standard-library marker scans.
 
 ### 7.2 Diagrams
