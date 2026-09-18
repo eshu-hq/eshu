@@ -170,6 +170,4 @@ Where Eshu is exposed:
 The rest of Eshu's exposure is audited in #6786 (epic #6788). That covers
 statements assembled from fragments, which the scan behind this list (Cypher
 written as a single backtick literal in non-test Go under `go/`) cannot see. It
-also covers production `.id` reads that #404 could affect, and write paths
-re-checked with Eshu's graph schema applied, since a live probe without that
-schema does not reflect how production runs.
+also covers production `.id` reads that #404 could affect.
