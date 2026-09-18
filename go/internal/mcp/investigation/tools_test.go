@@ -35,10 +35,10 @@ func TestToolsPreserveInvestigationRegistrationContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal investigation tools: %v", err)
 	}
-	if got, want := len(encoded), 4824; got != want {
+	if got, want := len(encoded), 5301; got != want {
 		t.Fatalf("serialized investigation definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "393e7901eda034e7a18a8a043895e2cde337dc0b103f994126bcc7ae972b8a82"
+	const wantDefinitionsHash = "037a7e23bc18e37df495af1412b81d44f619e3c3151bd0bb9c5e70a77ccb3d9c"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("investigation definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}

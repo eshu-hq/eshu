@@ -6,7 +6,14 @@ package mcp
 func queryPlaybookRoute(toolName string, args map[string]any) (*route, bool) {
 	switch toolName {
 	case "list_query_playbooks":
-		return &route{method: "GET", path: "/api/v0/query-playbooks"}, true
+		query := map[string]string{
+			"limit":  intString(args, "limit", 20),
+			"offset": intString(args, "offset", 0),
+		}
+		if view := str(args, "view"); view != "" {
+			query["view"] = view
+		}
+		return &route{method: "GET", path: "/api/v0/query-playbooks", query: query}, true
 	case "resolve_query_playbook":
 		return &route{
 			method: "POST",

@@ -6,7 +6,14 @@ package mcp
 func investigationWorkflowRoute(toolName string, args map[string]any) (*route, bool) {
 	switch toolName {
 	case "list_investigation_workflows":
-		return &route{method: "GET", path: "/api/v0/investigation-workflows"}, true
+		query := map[string]string{
+			"limit":  intString(args, "limit", 20),
+			"offset": intString(args, "offset", 0),
+		}
+		if view := str(args, "view"); view != "" {
+			query["view"] = view
+		}
+		return &route{method: "GET", path: "/api/v0/investigation-workflows", query: query}, true
 	case "resolve_investigation_workflow":
 		return &route{
 			method: "POST",

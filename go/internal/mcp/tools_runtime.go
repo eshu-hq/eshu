@@ -190,7 +190,7 @@ func runtimeTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_capability_catalog",
-			Description: "Return the reconciled Eshu capability catalog: per-capability maturity, public surfaces, proof signals, owner package, known gaps, linked issues, and role/grant/data-class authorization metadata, with optional maturity and owner filters and bounded paging.",
+			Description: "Return the reconciled Eshu capability catalog: per-capability maturity, public surfaces, owner package, known gaps, linked issues, and per-capability authorization metadata, with optional maturity and owner filters and bounded paging. Default (compact) view omits per-capability runtime profiles and proof signals and the top-level role/grant/data-class authorization catalog; pass view=full and/or include_authorization=true to opt into that detail.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -205,12 +205,22 @@ func runtimeTools() []ToolDefinition {
 					"limit": map[string]any{
 						"type":        "integer",
 						"description": "Maximum number of capabilities to return (1-500).",
-						"default":     200,
+						"default":     12,
 					},
 					"offset": map[string]any{
 						"type":        "integer",
 						"description": "Number of capabilities to skip for paging.",
 						"default":     0,
+					},
+					"view": map[string]any{
+						"type":        "string",
+						"description": "compact (default: no profiles or proof_signals per entry) or full (complete entry detail).",
+						"enum":        []string{"compact", "full"},
+					},
+					"include_authorization": map[string]any{
+						"type":        "boolean",
+						"description": "When true, includes the full top-level role/grant/data-class authorization catalog (default false: the field is present but empty).",
+						"default":     false,
 					},
 				},
 				"required": []string{},

@@ -30,7 +30,7 @@ func TestToolsPreserveQueryPlaybookRegistrationContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal query playbook tools: %v", err)
 	}
-	const wantDefinitionsHash = "ec0199c133c68ffcf2d425e7db2e0faa308102599792952fc6016d590bb15a90"
+	const wantDefinitionsHash = "8dfc3c38f977063c9cb1a0c4feed287cc4fda2c72a500c8b1d62d61a847f69ca"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("query playbook tool definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}

@@ -155,7 +155,7 @@ func TestCapabilityCatalogRuntimeToolOmitsEmptyFilters(t *testing.T) {
 	if _, ok := route.query["owner"]; ok {
 		t.Fatal("empty owner must not be forwarded")
 	}
-	if got, want := route.query["limit"], "200"; got != want {
+	if got, want := route.query["limit"], "12"; got != want {
 		t.Fatalf("default limit = %q, want %q", got, want)
 	}
 }
