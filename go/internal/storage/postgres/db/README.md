@@ -60,6 +60,19 @@ No-Observability-Change: hoisting these interfaces adds no metric, span, log
 field, status field, worker, queue, lease, retry, or durable write. SQL
 text, migration checksums, ledger keys, and lock behavior are untouched.
 
+No-Regression Evidence (#6693): baseline 72addebef vs hoist head, measured
+locally with `go build ./...` (exit 0), `go vet ./...` (exit 0), and
+recursive `go test` green for `storage/postgres/...` plus every touched
+importer package (entrypoints, graphschemacompat, graphowner, query,
+admin/store, cli/admin, cmd/*). Input shape: 7 interfaces hoisted with
+byte-identical method sets, ~440 importer files requalified, zero SQL-text
+diffs, zero migration changes. Backend: local unit tests only — no live
+Postgres was reachable, so live query-plan/latency proof is deferred to CI
+(the required-gates aggregate is the blocking authority). Why safe: the
+change is a mechanical package requalification — no call graph, query, plan,
+batching, concurrency, or ordering change is possible in this diff shape;
+generated collector entrypoints were regenerated and their gate is green.
+
 ## Gotchas / invariants
 
 - A store constructor takes `db.ExecQueryer` (or the narrower `db.Queryer` /
