@@ -48,6 +48,9 @@ func selectCloudSinkPairs(rows []map[string]any) ([]cloudSinkPair, cloudSinkPair
 	for _, row := range rows {
 		uid := strings.TrimSpace(payloadcore.AnyToString(row["function_uid"]))
 		if uid == "" {
+			// Unreachable from LoadCloudSinkTargets: the statement matches
+			// fn.uid against the non-empty requested uids. Not a pair, so
+			// not counted in the pair stats.
 			continue
 		}
 		// The action and workload id travel to the second statement exactly
@@ -103,4 +106,42 @@ func cloudSinkPairParams(pairs []cloudSinkPair) []map[string]any {
 		})
 	}
 	return out
+}
+
+// revalidateCloudSinkRows keeps the CloudSinkTargetsByPairCypher rows whose
+// (function, action, workload) pair still runs in exactly that one workload,
+// and reports how many pairs it dropped.
+//
+// The two statements run as separate reads, so RUNS_IN can change between
+// them: a function can gain a second workload, or one without an id, after the
+// first statement classified it as single-workload. The second statement
+// therefore returns current_workload_id, every workload the function runs in
+// at that moment, on each row. A pair survives only when every such id is
+// non-empty and equal to the pair's own workload. That check and the sink
+// resolution come from one statement, so they see one snapshot; a function
+// that moved away or stopped invoking the action returns no rows at all.
+func revalidateCloudSinkRows(rows []map[string]any) ([]map[string]any, int) {
+	type pairKey struct{ uid, action, workloadID string }
+	key := func(row map[string]any) pairKey {
+		return pairKey{
+			uid:        strings.TrimSpace(payloadcore.AnyToString(row["function_uid"])),
+			action:     payloadcore.AnyToString(row["action"]),
+			workloadID: payloadcore.AnyToString(row["workload_id"]),
+		}
+	}
+	stale := map[pairKey]struct{}{}
+	for _, row := range rows {
+		k := key(row)
+		current := payloadcore.AnyToString(row["current_workload_id"])
+		if strings.TrimSpace(current) == "" || current != k.workloadID {
+			stale[k] = struct{}{}
+		}
+	}
+	kept := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if _, bad := stale[key(row)]; !bad {
+			kept = append(kept, row)
+		}
+	}
+	return kept, len(stale)
 }

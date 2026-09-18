@@ -76,6 +76,7 @@ func (l GraphCloudSinkTargetLoader) LoadCloudSinkTargets(
 		}
 		sinkRows = append(sinkRows, chunkRows...)
 	}
+	sinkRows, revalidationDropped := revalidateCloudSinkRows(sinkRows)
 	targets := valueFlowCloudSinkTargetsFromRows(sinkRows, functionByUID)
 	if l.Logger != nil {
 		l.Logger.Info(
@@ -85,6 +86,7 @@ func (l GraphCloudSinkTargetLoader) LoadCloudSinkTargets(
 			"single_workload_pair_count", len(pairs),
 			"multi_workload_pair_dropped_count", stats.MultiWorkloadDropped,
 			"unresolved_pair_dropped_count", stats.UnresolvedDropped,
+			"revalidation_pair_dropped_count", revalidationDropped,
 			"sink_row_count", len(sinkRows),
 			"cloud_sink_target_count", len(targets),
 		)
@@ -227,16 +229,29 @@ RETURN fn.uid AS function_uid,
 // CloudSinkTargetsByPairCypher resolves which cloud resources each
 // single-workload (function, action) pair can reach: the workload's instances,
 // the principals those instances use, and the resources each principal may
-// perform the action on. It starts from UNWIND $pairs and anchors on the unique
-// Workload.id, and keeps every hop a separate single-hop MATCH, which is the
-// form that answers correctly on NornicDB v1.3.3 and on Neo4j.
+// perform the action on.
+//
+// It runs as a separate read from CloudSinkWorkloadRowsCypher, so it re-checks
+// the pair against the graph as it is now rather than trusting the first read:
+// it re-matches the function, its action and the claimed workload, and returns
+// current_workload_id, every workload the function runs in at this moment, on
+// each row. revalidateCloudSinkRows drops a pair unless all of those are the
+// claimed workload. The check is rows, not a subquery or an aggregate: on
+// NornicDB v1.3.3 a NOT EXISTS subquery for the same check returned no rows at
+// all (#6690). It starts from UNWIND $pairs, anchors on the unique Function.uid
+// and Workload.id, and keeps every hop a separate single-hop MATCH.
 const CloudSinkTargetsByPairCypher = `UNWIND $pairs AS pair
-MATCH (workload:Workload {id: pair.workload_id})
+MATCH (fn:Function {uid: pair.function_uid})-[:INVOKES_CLOUD_ACTION]->(:CloudAction {action: pair.action})
+MATCH (fn)-[:RUNS_IN]->(workload:Workload {id: pair.workload_id})
+MATCH (fn)-[:RUNS_IN]->(current:Workload)
 MATCH (workload)<-[:INSTANCE_OF]-(instance:WorkloadInstance)
 MATCH (instance)-[:USES]->(principal:CloudResource)
 MATCH (principal)-[sinkRel:CAN_PERFORM]->(sinkNode:CloudResource)
 WHERE pair.action IN sinkRel.actions
 RETURN pair.function_uid AS function_uid,
+       pair.action AS action,
+       pair.workload_id AS workload_id,
+       current.id AS current_workload_id,
        type(sinkRel) AS sink_rel,
        labels(sinkNode) AS sink_labels,
        sinkNode.is_internet AS sink_is_internet

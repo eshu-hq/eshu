@@ -83,6 +83,17 @@ and its test mirror fails when the marker check is removed. The gate stays
 because `required-gates-complete` awaits it through the default branch's
 registry.
 
+The two statements are separate autocommit reads, so `RUNS_IN` can change
+between them (PR #6761 review). The second statement therefore re-matches the
+function, its action and the claimed workload, and returns every workload the
+function runs in now on each row; the loader drops a pair unless all of them are
+the claimed workload. A `NOT EXISTS { (fn)-[:RUNS_IN]->(other) WHERE other <>
+workload }` form of the same check was correct on Neo4j and returned no rows at
+all on NornicDB v1.3.3, so the check is carried in rows instead. The live loader
+test changes `RUNS_IN` between the two reads (fn-one gains a second workload):
+without the revalidation it returned the fn-one target on v1.3.3 (FAIL), with it
+it returns none on v1.3.3 and on Neo4j.
+
 ## Performance and observability
 
 No-Regression Evidence: `CloudSinkWorkloadRowsCypher` anchors on
@@ -93,18 +104,22 @@ No-Regression Evidence: `CloudSinkWorkloadRowsCypher` anchors on
 `nornicdb_workload_id_lookup` index), with every hop a single-hop `MATCH`. Both
 run in batches of 500. Measured on NornicDB v1.3.3 over HTTP, one full batch of
 500 functions (50 of them in two workloads), with those indexes present, 15
-repetitions after one warm-up: the old single statement took median 1.2 ms
-(min 1.1, max 1.4) and returned 0 rows, so its timing is not a comparable
-answer; the new path (statement 1, Go grouping, statement 2) took median 6.2 ms
-(min 5.6, max 7.8) and returned 550 workload rows, 450 pairs and 450 sink rows,
-the exact expected result. Statement 1 alone took median 2.1 ms. The loader runs
-once per value-flow fixpoint load, so the cost is two bounded, index-anchored
-round trips per 500-function batch.
+repetitions after one warm-up, on a fresh container with the revalidating
+second statement: the old single statement took median 1.3 ms (min 1.1,
+max 1.5) and returned 0 rows, so its timing is not a comparable answer; the new
+path (statement 1, Go grouping, statement 2, Go revalidation) took median 8.5 ms
+(min 6.6, max 10.4) and returned 550 workload rows, 450 pairs and 450 sink rows,
+the exact expected result. Statement 1 alone took median 2.3 ms. Before the
+revalidation columns were added the same path measured 6.2 ms median; the extra
+`MATCH (fn)-[:RUNS_IN]->(current)` hop adds one row per current workload. The
+loader runs once per value-flow fixpoint load, so the cost is two bounded,
+index-anchored round trips per 500-function batch.
 
 Observability Evidence: the loader logs one `value-flow cloud sink targets
 loaded` line per load with `function_count`, `workload_row_count`,
 `single_workload_pair_count`, `multi_workload_pair_dropped_count`,
-`unresolved_pair_dropped_count`, `sink_row_count` and
+`unresolved_pair_dropped_count`, `revalidation_pair_dropped_count`,
+`sink_row_count` and
 `cloud_sink_target_count`, wired through `cmd/reducer/value_flow_wiring.go`.
 Graph read errors are wrapped and fail the reducer pass, as before.
 

@@ -25,7 +25,9 @@ import (
 //
 // The loader now reads raw (function, action, workload) rows, does the
 // single-workload check in Go, and resolves the surviving pairs with an
-// UNWIND-first chain of single-hop MATCHes. Both statements answer correctly on
+// UNWIND-first chain of single-hop MATCHes that also re-reads each function's
+// current workloads, so a pair whose RUNS_IN changed between the two reads is
+// dropped rather than trusted. Both statements answer correctly on
 // NornicDB v1.3.3 and on Neo4j, so they run in the default corpora, where a
 // regression on either backend fails the blocking live-conformance gate.
 //
@@ -48,8 +50,11 @@ const (
 // Every workload row must come back, including both rows for the two-workload
 // function; excluding it is the loader's job, not the statement's.
 //
-// The second resolves the two pairs the loader would keep from those rows. Only
-// the allowed action reaches the sink.
+// The second resolves pairs and re-reads each function's current workloads on
+// every row. The allowed single-workload pair reaches the sink with one current
+// workload; the denied action returns nothing; the two-workload pair returns
+// both current workloads, which is what lets the loader drop a pair whose
+// RUNS_IN changed after the first read.
 func valueFlowReadCases() []ReadCase {
 	return []ReadCase{
 		{
@@ -74,21 +79,36 @@ func valueFlowReadCases() []ReadCase {
 			Cypher:     reducer.ValueFlowCloudSinkTargetsByPairCypher,
 			Parameters: map[string]any{
 				// []map[string]any, matching the production call site's
-				// cloudSinkPairParams.
+				// cloudSinkPairParams. The two-workload pair stands in for a
+				// pair the first read classified before RUNS_IN changed: the
+				// statement must return the function's current second workload
+				// so the loader can drop it.
 				"pairs": []map[string]any{
 					{"function_uid": valueFlowFunctionUID, "action": valueFlowAction, "workload_id": valueFlowWorkloadID},
 					{"function_uid": valueFlowDeniedFunctionUID, "action": valueFlowDeniedAction, "workload_id": valueFlowWorkloadID},
+					{"function_uid": valueFlowTwoWorkloadFunctionUID, "action": valueFlowAction, "workload_id": valueFlowWorkloadID},
 				},
 			},
 			WantRows: []map[string]any{
-				{
-					"function_uid":     valueFlowFunctionUID,
-					"sink_rel":         "CAN_PERFORM",
-					"sink_labels":      []string{"CloudResource"},
-					"sink_is_internet": false,
-				},
+				valueFlowTargetRow(valueFlowFunctionUID, valueFlowWorkloadID),
+				valueFlowTargetRow(valueFlowTwoWorkloadFunctionUID, valueFlowWorkloadID),
+				valueFlowTargetRow(valueFlowTwoWorkloadFunctionUID, valueFlowSecondWorkloadID),
 			},
 		},
+	}
+}
+
+// valueFlowTargetRow is one expected CloudSinkTargetsByPairCypher row for a
+// pair bound to valueFlowWorkloadID, seen with the given current workload.
+func valueFlowTargetRow(functionUID, currentWorkloadID string) map[string]any {
+	return map[string]any{
+		"function_uid":        functionUID,
+		"action":              valueFlowAction,
+		"workload_id":         valueFlowWorkloadID,
+		"current_workload_id": currentWorkloadID,
+		"sink_rel":            "CAN_PERFORM",
+		"sink_labels":         []string{"CloudResource"},
+		"sink_is_internet":    false,
 	}
 }
 

@@ -119,11 +119,13 @@ func TestLiveNornicDBAnswerTruth(t *testing.T) {
 
 	t.Run("A1 A2 graph-summary repo counts", func(t *testing.T) {
 		want := map[string]int{"workload_count": 1, "platform_count": 1, "dependency_count": 1}
+		seen := map[string]bool{}
 		for _, entry := range graphSummaryRepoEcosystemCounts {
 			expected, checked := want[entry.field]
 			if !checked {
 				continue
 			}
+			seen[entry.field] = true
 			row, err := reader.RunSingle(ctx, entry.cypher, repoParams)
 			if err != nil {
 				t.Fatalf("%s: %v", entry.field, err)
@@ -131,6 +133,13 @@ func TestLiveNornicDBAnswerTruth(t *testing.T) {
 			t.Logf("%s row: %v", entry.field, row)
 			if got := IntVal(row, "count"); got != expected {
 				t.Fatalf("%s = %d, want %d (row %v)", entry.field, got, expected, row)
+			}
+		}
+		// A field dropped from the production table must fail here, not
+		// silently stop being checked.
+		for field := range want {
+			if !seen[field] {
+				t.Errorf("graphSummaryRepoEcosystemCounts no longer has %q; the #6689 row is unchecked", field)
 			}
 		}
 	})

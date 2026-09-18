@@ -131,6 +131,46 @@ func TestLiveCloudSinkLoader(t *testing.T) {
 	if !reflect.DeepEqual(targets, want) {
 		t.Fatalf("targets = %+v, want %+v", targets, want)
 	}
+
+	// The two statements are separate autocommit reads. Change RUNS_IN in the
+	// window between them: after the first read has classified fn-one as
+	// single-workload, fn-one also starts running in vw-2 (which has its own
+	// instance and the same principal). The sink read must see that and drop
+	// fn-one rather than trust the first read.
+	racing := &cloudSinkRacingGraph{
+		inner: graph,
+		betweenReads: func() {
+			graph.write(ctx, t, `MATCH (f:Function {uid: 'answer-truth-valueflow:vf-one'}) MATCH (w:Workload {id: 'answer-truth-valueflow:vw-2'}) CREATE (f)-[:RUNS_IN]->(w)`)
+		},
+	}
+	raced, err := GraphCloudSinkTargetLoader{Graph: racing}.LoadCloudSinkTargets(ctx, graphIDs)
+	if err != nil {
+		t.Fatalf("LoadCloudSinkTargets with RUNS_IN changed between reads: %v", err)
+	}
+	t.Logf("targets after RUNS_IN changed between reads: %+v", raced)
+	if !racing.fired {
+		t.Fatal("the RUNS_IN change never ran between the two reads")
+	}
+	if len(raced) != 0 {
+		t.Fatalf("targets = %+v, want none: fn-one runs in two workloads by the time the sink read runs", raced)
+	}
+}
+
+// cloudSinkRacingGraph runs betweenReads once, right after the first cloud
+// sink statement returns and before the second one starts.
+type cloudSinkRacingGraph struct {
+	inner        cloudSinkLiveGraph
+	betweenReads func()
+	fired        bool
+}
+
+func (g *cloudSinkRacingGraph) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	rows, err := g.inner.Run(ctx, cypher, params)
+	if err == nil && cypher == CloudSinkWorkloadRowsCypher && !g.fired {
+		g.fired = true
+		g.betweenReads()
+	}
+	return rows, err
 }
 
 type cloudSinkLiveGraph struct {

@@ -78,8 +78,9 @@ func workloadRow(uid, action, workloadID string) map[string]any {
 	return map[string]any{"function_uid": uid, "action": action, "workload_id": workloadID}
 }
 
+// iamSinkRow is a sink row for a pair still bound to its one workload wl-1.
 func iamSinkRow(uid string) map[string]any {
-	return map[string]any{"function_uid": uid, "sink_rel": "CAN_PERFORM", "sink_labels": []string{"CloudResource"}}
+	return revalidatedSinkRow(uid, "s3:GetObject", "wl-1", "wl-1")
 }
 
 func TestCloudSinkLoaderResolvesSingleWorkloadFunction(t *testing.T) {
@@ -188,8 +189,8 @@ func TestCloudSinkLoaderDoesNotPromoteCatalogOnlyConfigAndIaCSinks(t *testing.T)
 	graph := &statementCloudSinkGraph{
 		workloadRows: []map[string]any{workloadRow("uid-handler", "s3:GetObject", "wl-1")},
 		sinkRows: []map[string]any{
-			{"function_uid": "uid-handler", "sink_rel": "WRITES_CONFIG", "sink_labels": []string{"ConfigKey"}},
-			{"function_uid": "uid-handler", "sink_rel": "DECLARES_IAC_MISCONFIG", "sink_labels": []string{"TerraformResource"}},
+			withSink(revalidatedSinkRow("uid-handler", "s3:GetObject", "wl-1", "wl-1"), "WRITES_CONFIG", "ConfigKey"),
+			withSink(revalidatedSinkRow("uid-handler", "s3:GetObject", "wl-1", "wl-1"), "DECLARES_IAC_MISCONFIG", "TerraformResource"),
 		},
 	}
 	targets, err := GraphCloudSinkTargetLoader{Graph: graph}.LoadCloudSinkTargets(
@@ -302,5 +303,73 @@ func TestCloudSinkStatementsAvoidTheShapesNornicDBMisanswers(t *testing.T) {
 		if strings.HasPrefix(line, "MATCH ") && strings.Count(line, "]-") > 1 {
 			t.Errorf("sink statement has a multi-hop MATCH: %q", line)
 		}
+	}
+}
+
+func withSink(row map[string]any, rel, label string) map[string]any {
+	row["sink_rel"] = rel
+	row["sink_labels"] = []string{label}
+	return row
+}
+
+func revalidatedSinkRow(uid, action, workloadID, currentID string) map[string]any {
+	return map[string]any{
+		"function_uid":        uid,
+		"action":              action,
+		"workload_id":         workloadID,
+		"current_workload_id": currentID,
+		"sink_rel":            "CAN_PERFORM",
+		"sink_labels":         []string{"CloudResource"},
+	}
+}
+
+// TestCloudSinkLoaderRevalidatesTheWorkloadInTheSinkRead covers the window
+// between the two statements: they run as separate autocommit reads, so
+// RUNS_IN can change after the first one classified a pair. The second
+// statement returns every workload the function runs in now, on every row,
+// and only a pair whose current workloads are exactly its own survives.
+func TestCloudSinkLoaderRevalidatesTheWorkloadInTheSinkRead(t *testing.T) {
+	t.Parallel()
+
+	stable := summary.NewFunctionID("repo-a", "pkg", "", "stable")
+	gained := summary.NewFunctionID("repo-a", "pkg", "", "gained")
+	nullID := summary.NewFunctionID("repo-a", "pkg", "", "nullid")
+	graph := &statementCloudSinkGraph{
+		workloadRows: []map[string]any{
+			workloadRow("uid-stable", "s3:GetObject", "wl-1"),
+			workloadRow("uid-gained", "s3:GetObject", "wl-1"),
+			workloadRow("uid-nullid", "s3:GetObject", "wl-1"),
+		},
+		sinkRows: []map[string]any{
+			// Still exactly one workload, reached through two edges.
+			revalidatedSinkRow("uid-stable", "s3:GetObject", "wl-1", "wl-1"),
+			revalidatedSinkRow("uid-stable", "s3:GetObject", "wl-1", "wl-1"),
+			// Gained a second workload after the first read.
+			revalidatedSinkRow("uid-gained", "s3:GetObject", "wl-1", "wl-1"),
+			revalidatedSinkRow("uid-gained", "s3:GetObject", "wl-1", "wl-2"),
+			// Gained a workload with no id: cannot be proven single.
+			revalidatedSinkRow("uid-nullid", "s3:GetObject", "wl-1", "wl-1"),
+			revalidatedSinkRow("uid-nullid", "s3:GetObject", "wl-1", ""),
+		},
+	}
+	targets, err := GraphCloudSinkTargetLoader{Graph: graph}.LoadCloudSinkTargets(
+		context.Background(), map[summary.FunctionID]string{
+			stable: "uid-stable", gained: "uid-gained", nullID: "uid-nullid",
+		})
+	if err != nil {
+		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
+	}
+	want := []CloudSinkTarget{{
+		FunctionID: stable,
+		Kind:       string(exposure.SinkIAMPrivilegedAction),
+		Label:      "IAM effective privileged action",
+	}}
+	if !reflect.DeepEqual(targets, want) {
+		t.Fatalf("targets = %+v, want only the function whose workload did not change %+v", targets, want)
+	}
+
+	rows, dropped := revalidateCloudSinkRows(graph.sinkRows)
+	if len(rows) != 2 || dropped != 2 {
+		t.Fatalf("revalidateCloudSinkRows kept %d rows and dropped %d groups, want 2 and 2", len(rows), dropped)
 	}
 }
