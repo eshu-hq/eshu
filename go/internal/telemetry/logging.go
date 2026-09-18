@@ -163,6 +163,37 @@ func AcceptanceAttrs(scopeID, unitID, sourceRunID, generationID string) []slog.A
 	}
 }
 
+// File-group diagnostic keys are emitted only by the opt-in NornicDB
+// files-phase probe. IDs and indices correlate attempts within one process;
+// template IDs and outcomes use closed vocabularies. None carries query text,
+// parameters, file paths, or raw driver errors.
+const (
+	// LogKeyFileGroupCallID correlates one process-local ExecuteGroup call.
+	LogKeyFileGroupCallID = "group_call_id"
+	// LogKeyFileGroupAttempt counts managed transaction callback invocations.
+	LogKeyFileGroupAttempt = "attempt"
+	// LogKeyFileGroupStatementIndex is the one-based position in a callback.
+	LogKeyFileGroupStatementIndex = "statement_index"
+	// LogKeyFileGroupStatementCount is the fixed group size.
+	LogKeyFileGroupStatementCount = "statement_count"
+	// LogKeyFileGroupTemplateID names one of six fixed File Cypher templates.
+	LogKeyFileGroupTemplateID = "template_id"
+	// LogKeyFileGroupRowCount is the number of rows passed to one statement.
+	LogKeyFileGroupRowCount = "row_count"
+	// LogKeyFileGroupRunDuration measures tx.Run wall time in seconds.
+	LogKeyFileGroupRunDuration = "run_duration_s"
+	// LogKeyFileGroupConsumeDuration measures Result.Consume wall time when called.
+	LogKeyFileGroupConsumeDuration = "consume_duration_s"
+	// LogKeyFileGroupOutcome is a closed statement or group result.
+	LogKeyFileGroupOutcome = "outcome"
+	// LogKeyFileGroupAttempts counts callbacks observed before ExecuteWrite returned.
+	LogKeyFileGroupAttempts = "attempts"
+	// LogKeyFileGroupDuration measures the whole ExecuteWrite call in seconds.
+	LogKeyFileGroupDuration = "duration_s"
+	// LogKeyFileGroupPostCallbackDuration measures time after a successful callback.
+	LogKeyFileGroupPostCallbackDuration = "post_callback_duration_s"
+)
+
 // Pipeline phase constants for structured log correlation across the full
 // ingestion pipeline. Every log line should carry one of these so operators
 // can filter by phase when tracing end-to-end.

@@ -64,6 +64,7 @@ operator triage contract.
 | `resource.fingerprint`, `resource.identity_kind`, `resource.type` | Correlate cloud or infrastructure resources without exposing raw ARNs, Terraform addresses, or secret-shaped names. |
 | `depth`, `prior_config_addresses`, `state_only_addresses`, `addresses_promoted_to_removed_from_config`, `multi_element.*`, `resource_type`, `attribute_key`, `path`, `error` | Debug Terraform-state drift and composite-capture behavior. |
 | `semantic_extraction.status`, `semantic_extraction.source_class`, `semantic_extraction.provider_kind`, `semantic_extraction.provider_profile_class`, `semantic_extraction.budget_state`, `semantic_extraction.budget_reason` | Debug semantic extraction queue, provider, and budget lifecycle without logging prompts, provider responses, credentials, source IDs, or provider profile IDs. |
+| `group_call_id`, `attempt`, `statement_index`, `statement_count`, `template_id`, `row_count`, `run_duration_s`, `consume_duration_s`, `outcome`, `attempts`, `duration_s`, `post_callback_duration_s` | With `ESHU_NORNICDB_PROFILE_FILE_GROUPS=true`, separate each files-phase transaction callback attempt, each fixed File template, and the final managed-transaction outcome. `consume_duration_s` appears only when `Result.Consume` was called. `post_callback_duration_s` appears only after a callback completed successfully; it includes driver retry, network, and commit work, so it is not an isolated commit timer. Query text, parameters, paths, and raw errors are omitted. |
 
 High-cardinality values such as file paths, repository paths, package names,
 state locators, image digests, delivery IDs, and raw cloud resource identifiers
@@ -104,7 +105,9 @@ phase values are the durable operational contract.
 
 When changing log behavior:
 
-1. Add new frozen keys in `go/internal/telemetry/contract.go`.
+1. Add new frozen keys in `go/internal/telemetry/contract.go`, or in
+   `logging.go` for scoped diagnostic keys when the grandfathered contract file
+   cannot grow.
 2. Register keys in `go/internal/telemetry/registry.go`.
 3. Add helper functions in `go/internal/telemetry/logging.go` only when
    repeated call sites need them.

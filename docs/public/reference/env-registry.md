@@ -305,6 +305,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_NEO4J_URI` | string | — | Graph backend Bolt URI (falls back to NEO4J_URI). Aliases: `NEO4J_URI`. |
 | `ESHU_NEO4J_USERNAME` | string | — | Graph backend username (falls back to NEO4J_USERNAME). Aliases: `NEO4J_USERNAME`. |
 | `ESHU_NEO4J_VERIFY_TIMEOUT` | duration | `10s` | Timeout for graph driver connectivity verification. |
+| `ESHU_NORNICDB_PROFILE_FILE_GROUPS` | bool | `false` | Ingester-only opt-in timing logs for canonical NornicDB File-group statement attempts. Emits fixed template IDs, row counts, and Run, Consume, and post-callback durations without query text, parameters, file paths, or raw errors. Disable after a bounded diagnostic capture. Cannot be enabled alongside the older grouped-write profiler. |
 
 ## mcp
 

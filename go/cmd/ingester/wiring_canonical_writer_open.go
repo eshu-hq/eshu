@@ -83,7 +83,7 @@ func openIngesterCanonicalWriter(
 		return nil, nil, err
 	}
 
-	profileGroupStatements, err := neo4jProfileGroupStatements(getenv)
+	profileGroupStatements, profileFileGroups, err := ingesterGroupProfileOptions(graphBackend, getenv)
 	if err != nil {
 		return failAfterDriverOpen(err)
 	}
@@ -92,6 +92,7 @@ func openIngesterCanonicalWriter(
 		DatabaseName:           cfg.DatabaseName,
 		TxTimeout:              canonicalTransactionTimeout(graphBackend, getenv),
 		ProfileGroupStatements: profileGroupStatements,
+		ProfileFileGroups:      profileFileGroups,
 		Instruments:            instruments,
 	}
 

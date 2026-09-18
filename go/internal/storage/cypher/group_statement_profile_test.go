@@ -76,3 +76,30 @@ func TestExecuteProfiledStatementGroupStopsOnFirstError(t *testing.T) {
 		t.Fatalf("runner calls = %d, want 1", calls)
 	}
 }
+
+func TestCanonicalFileStatementProfileUsesClosedTemplateIDs(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		cypher string
+		want   string
+	}{
+		{canonicalNodeFileUpdateExistingCypher, "file.nested.update_existing"},
+		{canonicalNodeFileCreateMissingCypher, "file.nested.create_missing"},
+		{canonicalNodeFileFirstGenerationMergeCypher, "file.nested.first_generation"},
+		{canonicalNodeRootFileUpdateExistingCypher, "file.root.update_existing"},
+		{canonicalNodeRootFileCreateMissingCypher, "file.root.create_missing"},
+		{canonicalNodeRootFileFirstGenerationMergeCypher, "file.root.first_generation"},
+	}
+	for _, tc := range cases {
+		stmt := Statement{Cypher: tc.cypher, Parameters: map[string]any{
+			"rows": []map[string]any{{"path": "/sensitive/source.go"}},
+		}}
+		id, rows, ok := CanonicalFileStatementProfile(stmt)
+		if !ok || id != tc.want || rows != 1 {
+			t.Fatalf("profile = (%q, %d, %t), want (%q, 1, true)", id, rows, ok, tc.want)
+		}
+	}
+	if id, rows, ok := CanonicalFileStatementProfile(Statement{Cypher: "MATCH (f:File) RETURN f"}); ok || id != "" || rows != 0 {
+		t.Fatalf("unknown query classified: (%q, %d, %t)", id, rows, ok)
+	}
+}

@@ -46,6 +46,7 @@ var coreEntries = []Entry{
 	{Name: "ESHU_NEO4J_CONNECTION_ACQUISITION_TIMEOUT", Type: VarDuration, Default: "1m", Subsystem: "graph", Description: "Timeout for acquiring a graph connection from the pool."},
 	{Name: "ESHU_NEO4J_SOCKET_CONNECT_TIMEOUT", Type: VarDuration, Default: "5s", Subsystem: "graph", Description: "Graph backend TCP socket connect timeout."},
 	{Name: "ESHU_NEO4J_VERIFY_TIMEOUT", Type: VarDuration, Default: "10s", Subsystem: "graph", Description: "Timeout for graph driver connectivity verification."},
+	{Name: "ESHU_NORNICDB_PROFILE_FILE_GROUPS", Type: VarBool, Default: "false", Subsystem: "graph", Description: "Ingester-only opt-in timing logs for canonical NornicDB File-group statement attempts. Emits fixed template IDs, row counts, and Run, Consume, and post-callback durations without query text, parameters, file paths, or raw errors. Disable after a bounded diagnostic capture. Cannot be enabled alongside the older grouped-write profiler."},
 
 	// runtime
 	{Name: "ESHU_LISTEN_ADDR", Type: VarString, Default: "0.0.0.0:8080", Subsystem: "runtime", Description: "Primary HTTP listen address (host:port)."},

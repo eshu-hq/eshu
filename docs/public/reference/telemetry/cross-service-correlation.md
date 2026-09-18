@@ -45,6 +45,7 @@ status rows, admin payloads, or metric labels when the value is bounded.
 | `pipeline_phase` | Filter logs by `discovery`, `parsing`, `emission`, `projection`, `reduction`, `shared`, `query`, or `serve`. |
 | `domain` | Filter reducer work by materialization domain. |
 | `partition_key` | Narrow reducer or shared-projection work to one conflict partition. |
+| `group_call_id` with `attempt` | Correlate opt-in NornicDB files-phase statement attempts to one ingester managed transaction call. The ID is numeric and process-local; combine it with service instance and time, and do not treat it as a cross-service or persistent ID. |
 
 The frozen log-key registry is `telemetry.LogKeys()` in
 `go/internal/telemetry/registry.go`. Runtime and reducer observability surfaces

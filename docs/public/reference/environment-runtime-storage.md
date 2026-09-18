@@ -134,6 +134,7 @@ For sizing and operator diagnostics, see
 | `ESHU_NEO4J_SOCKET_CONNECT_TIMEOUT` | `5s` | Graph runtimes | Socket connect timeout. |
 | `ESHU_NEO4J_VERIFY_TIMEOUT` | `10s` | Graph runtimes | Startup verification timeout. |
 | `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS` | `false` | ingester, bootstrap-index | Logs grouped-write statement attempt timing for Neo4j investigations. |
+| `ESHU_NORNICDB_PROFILE_FILE_GROUPS` | `false` | ingester | Logs sanitized per-statement timing for NornicDB canonical File groups. Diagnostic only; leave off for normal operation. Cannot be enabled with `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS`. |
 | `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | `2m` | `eshu-bootstrap-data-plane`, bootstrap-index direct marker-missing startup | Per-statement client deadline for graph DDL during schema bootstrap. |
 | `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | unset: opportunistic for NornicDB, disabled for Neo4j | `eshu-bootstrap-data-plane` | Controls marker-missing graph schema adoption. Truthy values require adoption; false values disable adoption. |
 | `ESHU_GRAPH_SCHEMA_FORCE_REAPPLY` | `false` | `eshu-bootstrap-data-plane` | Applies graph schema even when the Postgres marker says this fingerprint is already applied. Set it only after wiping or replacing the graph, because the marker records what Postgres believes about a graph it cannot inspect. Leave it off on a retained graph: re-running `CREATE CONSTRAINT` there costs minutes per constraint. See [Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md). |

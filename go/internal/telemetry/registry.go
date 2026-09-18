@@ -207,6 +207,18 @@ var logKeys = []string{
 	LogKeyDriftCompositeAttributeKey,
 	LogKeyDriftCompositePath,
 	LogKeyDriftCompositeError,
+	LogKeyFileGroupCallID,
+	LogKeyFileGroupAttempt,
+	LogKeyFileGroupStatementIndex,
+	LogKeyFileGroupStatementCount,
+	LogKeyFileGroupTemplateID,
+	LogKeyFileGroupRowCount,
+	LogKeyFileGroupRunDuration,
+	LogKeyFileGroupConsumeDuration,
+	LogKeyFileGroupOutcome,
+	LogKeyFileGroupAttempts,
+	LogKeyFileGroupDuration,
+	LogKeyFileGroupPostCallbackDuration,
 }
 
 // MetricDimensionKeys returns the frozen ordered metric dimensions.

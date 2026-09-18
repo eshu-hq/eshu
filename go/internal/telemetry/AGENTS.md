@@ -27,8 +27,9 @@
   `eshu_` namespace.
 - **Frozen log keys** — log key constants in `contract.go` (for example
   `LogKeyScopeID`, `LogKeyFailureClass`) are frozen. Reuse an existing key
-  before adding a new one. New keys require updating `contract.go`, the
-  telemetry reference doc, and the cross-service correlation guide.
+  before adding a new one. Put scoped diagnostic keys in `logging.go` when
+  the grandfathered `contract.go` cannot grow; register them in `registry.go`.
+  Update the telemetry reference and cross-service correlation guides.
 - **Frozen span names** — `Span*` constants in `contract.go` are frozen. Add
   new names to the `spanNames` slice in `contract.go` before using them in
   callers. Query-handler spans such as `SpanQueryEvidenceCitationPacket` must
@@ -71,7 +72,8 @@
 
 ## How to add a new log key
 
-1. Add a constant in the `LogKeyScopeID`-style group in `contract.go`:
+1. Add a constant in the `LogKeyScopeID`-style group in `contract.go`, or
+   use a scoped group in `logging.go` when the grandfathered file cannot grow:
 
    ```go
    LogKeyNewField = "new_field"
