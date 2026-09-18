@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package coordinator //nolint:dirgate // Security-alert scheduling and durable admission remain on root Service methods.
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/security/alert"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -16,7 +16,7 @@ import (
 // SecurityAlertPlanner plans provider security-alert workflow rows from
 // collector instance configuration.
 type SecurityAlertPlanner interface {
-	PlanSecurityAlertWork(context.Context, securityalert.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanSecurityAlertWork(context.Context, alert.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 func (s Service) scheduleSecurityAlertWork(
@@ -38,7 +38,7 @@ func (s Service) scheduleSecurityAlertWork(
 		if err != nil {
 			return fmt.Errorf("read scan interval for %q: %w", instance.InstanceID, err)
 		}
-		run, items, err := s.SecurityAlertPlanner.PlanSecurityAlertWork(ctx, securityalert.PlanRequest{
+		run, items, err := s.SecurityAlertPlanner.PlanSecurityAlertWork(ctx, alert.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    scheduledPlanKey(instance, observedAt, interval),

@@ -237,7 +237,7 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   webhook-freshness planner wiring
 - `internal/coordinator/planner/jira` — concrete Jira scheduled and
   webhook-freshness planner wiring
-- `internal/coordinator/securityalert` — concrete provider security-alert
+- `internal/coordinator/security/alert` — concrete provider security-alert
   planner wiring
 - `internal/coordinator/sbom/attestation` — concrete scheduler wiring for hosted
   SBOM and attestation targets

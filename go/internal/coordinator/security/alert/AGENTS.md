@@ -1,10 +1,10 @@
-# AGENTS.md - internal/coordinator/securityalert guidance
+# AGENTS.md - internal/coordinator/security/alert guidance
 
 ## Read first
 
-1. `go/internal/coordinator/securityalert/README.md` for this planner's
+1. `go/internal/coordinator/security/alert/README.md` for this planner's
    ownership boundary and invariants.
-2. `go/internal/coordinator/securityalert/planner.go` for request validation,
+2. `go/internal/coordinator/security/alert/planner.go` for request validation,
    target parsing, and deterministic workflow identities.
 3. `go/internal/coordinator/security_alert_service.go` for the root planner
    interface, scheduling position, plan-key construction, and durable

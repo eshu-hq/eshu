@@ -8,20 +8,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/security/alert"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeSecurityAlertPlanner struct {
-	requests []securityalert.PlanRequest
+	requests []alert.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 }
 
 func (f *fakeSecurityAlertPlanner) PlanSecurityAlertWork(
 	_ context.Context,
-	request securityalert.PlanRequest,
+	request alert.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	return f.run, append([]workflow.WorkItem(nil), f.items...), nil

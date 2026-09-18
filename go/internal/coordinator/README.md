@@ -223,7 +223,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/planner/contract` — dependency-neutral shared plan-key validation used directly by scheduler planners and extension egress parsing.
 - `internal/coordinator/cicd/run` — CI/CD run plan request and deterministic
   planner implementation.
-- `internal/coordinator/securityalert` — provider security-alert plan request
+- `internal/coordinator/security/alert` — provider security-alert plan request
   and deterministic planner implementation.
 - `internal/coordinator/sbom/attestation` — hosted SBOM-attestation plan request
   and deterministic planner implementation.

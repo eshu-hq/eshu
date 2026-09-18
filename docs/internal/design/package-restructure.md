@@ -1065,7 +1065,7 @@ run scheduler now demonstrates the first provider extraction, now nested under
 `internal/coordinator/cicd/run`: the child owns its request and planner while
 root keeps the structural interface, scheduling order, durable open-target
 admission, retry, and telemetry. The provider security-alert scheduler is the
-second extraction under `internal/coordinator/securityalert`: the child owns
+second extraction under `internal/coordinator/security/alert`: the child owns
 its request and planner while root keeps the same scheduling, plan-key,
 admission, retry, and telemetry responsibilities. The hosted SBOM-attestation
 scheduler is third at `internal/coordinator/sbom/attestation`, with the same
