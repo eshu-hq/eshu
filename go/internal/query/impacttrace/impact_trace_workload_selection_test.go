@@ -17,6 +17,7 @@ func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 		switch {
 		case strings.Contains(cypher, "w.id = $service_name"):
 			return nil, nil
@@ -73,6 +74,7 @@ func TestResolveTraceWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
 		if !strings.Contains(cypher, "w.id = $service_name") {
 			t.Fatalf("first query = %q, want exact id lookup", cypher)
 		}
+		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 		return []map[string]any{{"id": "workload:orders"}}, nil
 	}}
 
@@ -102,6 +104,7 @@ func TestResolveTraceWorkloadSelectorScopedOutOfGrantIDReturnsNotFound(t *testin
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{
 				"id": "workload:out-of-grant", "repo_id": "repo-b", "defining": []string{},
@@ -125,6 +128,7 @@ func TestResolveTraceWorkloadSelectorScopedDirectGrantAdmits(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{
 				"id": "workload:in-grant", "repo_id": "repo-a", "defining": []string{},
@@ -146,6 +150,7 @@ func TestResolveTraceWorkloadSelectorScopedDefinesGrantAdmits(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return []map[string]any{{
 				"id": "workload:collision", "repo_id": "repo-other", "defining": []string{"repo-z", "repo-a"},
@@ -172,6 +177,7 @@ func TestResolveTraceWorkloadSelectorCandidateBoundFailsClosed(t *testing.T) {
 		overBound[i] = map[string]any{"id": "workload:dup", "repo_id": "repo-a", "defining": []string{}}
 	}
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}

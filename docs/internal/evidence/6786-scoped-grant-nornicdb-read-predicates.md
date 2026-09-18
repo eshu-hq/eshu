@@ -20,6 +20,18 @@ no defense-in-depth check on the returned row) an ungranted caller could read
 a workload it has no relationship to at all. Neo4j 2026 evaluates the
 identical statement correctly; the defect is NornicDB-specific.
 
+**Precise mechanism (proven live, schema applied, Go driver):** the character
+immediately before an `AND` or `OR` keyword must be a space. When `AND`/`OR`
+instead directly follows a newline or a tab -- the shape Go's raw-string
+template literals produce for a gofmt-indented continuation line, e.g.
+`"\n\t\t\tAND ("` -- NornicDB v1.3.3 mis-evaluates the WHOLE `WHERE` clause,
+not just the `AND`/`OR` term. `"\n  AND"` and `"\n\t AND"` (a space directly
+before the keyword, however the line got there) are unaffected. This is the
+exact shape both retired predicates had. `go/internal/query/querytestutil`'s
+`AssertCypherHasNoBrokenAndOr` (new) is a regression guard: every unit test
+that captures cypher from a scoped-grant call site in this fix now asserts
+the rendered text matches no `[\n\t](AND|OR)\b`.
+
 Reproduced live against fresh, schema-applied containers on both pinned
 backends (NornicDB v1.3.3 `bolt://127.0.0.1:27880`, Neo4j 2026
 `bolt://127.0.0.1:27890`) via the real production handlers, seeded with a
