@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
 
 // claimGatedDomainsWithoutAClaimGate lists reducer domains that return a
@@ -210,6 +211,7 @@ var readinessClassOwningDomain = map[string]string{
 	// another scope (sibling-service targets, repository WorkloadInstance), so
 	// no claim-time row can express it; the handler defer is bounded instead.
 	reducer.IAMCanPerformTargetNotReadyFailureClass: string(reducer.DomainIAMCanPerformMaterialization),
+	workloadinstance.NotReadyFailureClass:           string(reducer.DomainWorkloadCloudRelationshipMaterialization),
 }
 
 // domainForReadinessClass returns the domain owning class, and whether it could

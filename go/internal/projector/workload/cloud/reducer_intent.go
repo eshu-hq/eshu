@@ -12,8 +12,9 @@ import (
 // BuildReducerIntent enqueues one reducer intent that promotes exact workload
 // anchors on aws_resource facts into WorkloadInstance USES CloudResource graph
 // edges. The entity key intentionally matches the CloudResource node
-// materialization slice so the reducer can gate on that readiness row while
-// the graph writer handles missing workload endpoints with MATCH-only no-ops.
+// materialization slice so the reducer can gate on that readiness row. The
+// handler then defers, bounded, until the anchored WorkloadInstance nodes
+// exist (#6785); the graph writer stays MATCH-only for anything still missing.
 func BuildReducerIntent(
 	scopeID string,
 	generationID string,

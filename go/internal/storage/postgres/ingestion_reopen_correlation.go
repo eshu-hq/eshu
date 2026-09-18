@@ -67,32 +67,11 @@ import (
 //     leaving two contradictory findings for one ARN), and #5848's readiness
 //     defer (aws_cloud_runtime_drift_readiness.go) reduces how often the race is
 //     hit at all. The writer's stable fact key makes the replay idempotent.
-//   - workload_cloud_relationship_materialization (#6785) has the same
-//     "no readiness retry of its own" shape as deployable_unit_correlation:
-//     its queue claim gates only on the CloudResource canonical-nodes phase in
-//     ITS OWN scope (WorkloadCloudRelationshipMaterializationHandler.endpointsReady),
-//     never on the WorkloadInstance node its writer's MATCH depends on, and the
-//     writer is documented MATCH-only ("missing workload instances are a no-op
-//     instead of fabricated graph truth" -- internal/reducer/intent.go). A live
-//     B-7 golden-corpus run proved the race directly from the first-drain
-//     reducer log (issue #6785): workload_cloud_relationship_materialization
-//     ran and succeeded for the AWS cloud scopes at 20:54:47-.50, while
-//     workload_materialization for the same repo's WorkloadInstance node did
-//     not complete until 20:54:49.65 -- two seconds later, in the same
-//     concurrent first drain, with no ordering guarantee between the two
-//     collectors (AWS cassette replay vs. git/kustomize static parse). The
-//     write is idempotent under replay: the handler's shouldSkipRetract only
-//     retracts when a strictly PRIOR generation exists for the domain (never
-//     true on a same-generation reopen), and the writer's MERGE is keyed on
-//     (instance, USES, resource) identity, so a reopened re-run against the
-//     now-materialized WorkloadInstance node converges to exactly one edge
-//     rather than duplicating it.
 var crossScopeCorrelationReopenDomains = []reducer.Domain{
 	reducer.DomainDeployableUnitCorrelation,
 	reducer.DomainKubernetesCorrelationMaterialization,
 	reducer.DomainContainerImageIdentity,
 	reducer.DomainAWSCloudRuntimeDrift,
-	reducer.DomainWorkloadCloudRelationshipMaterialization,
 }
 
 // CrossScopeCorrelationReopenDomains returns the reducer domains replayed after

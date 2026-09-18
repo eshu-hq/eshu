@@ -371,6 +371,11 @@ var readinessDeferredFailureClasses = map[string]bool{
 	"deployable_unit_correlation_resolution_not_ready":      true,
 	"deployable_unit_correlation_canonical_nodes_not_ready": true,
 	"workload_materialization_resolution_not_ready":         true,
+	// #6785: USES waiting on its WorkloadInstance endpoint, which itself can
+	// wait on the maintenance pass; CAN_PERFORM waiting on sibling-scope
+	// target nodes.
+	"workload_cloud_relationship_instances_not_ready": true,
+	"iam_can_perform_target_not_ready":                true,
 }
 
 // formatResidualBreakdown renders the residual rows as one line for the drain
