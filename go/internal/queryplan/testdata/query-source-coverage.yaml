@@ -7,7 +7,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 4615dd2081673e9afe3695fea29f5c17c1c12be1b0f550f0ed9ad9cbef03974c
+          source_sha256: 9187d3dc3675986b1d05422b414d0b2093e295f6c9db51223b580ab6666b12e3
           label: "Repository"
           max_results: 5001
   - file: repository/catalog_workload_environments.go
@@ -557,7 +557,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 44d4fbd1d9639b947c20952bff2540834135d2d1952f47e2a18ac617b5f1ed66
+          source_sha256: d455401a7093bacb1e8b91485a931253b930eef92da75149f8c40832453374c5
           label: "Repository"
           max_results: 501
       - symbol: "queryRepositoryTotal"
@@ -596,9 +596,9 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 163cc0393adee8af4c37e3ee61f75e2bb0369b2ff868f93f62b7c0da51dabc7a
+          source_sha256: 658a5963f4c4d927940c998f108660815207168eed0d5e98aaf6101baa35e8b8
           label: "Repository"
-          max_results: 50000
+          max_results: 50001
   - file: repository/deployment_evidence.go
     calls:
       - {symbol: "queryRepoDeploymentEvidenceDirection", count: 1, non_hot: {class: keyed_support, source_sha256: a3723e428abd166e2478e65451bcba67f5364b03b57424b836dd028fd317c116, key_bound: single_key, max_results: 51}}

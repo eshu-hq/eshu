@@ -6,8 +6,11 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // repositoryDependencyClusterEdgeLimit bounds the dependency-cluster edge
@@ -16,9 +19,18 @@ import (
 // see; the bound keeps the grouping pre-pass cheap and predictable even on a
 // dense whole-graph dependency set. At repo scale the repository-to-repository
 // dependency edge count is far below this ceiling, so clustering stays complete
-// in practice; if it is ever hit the missing edges simply leave some repos in
-// the honest non-cluster path rather than inventing membership.
+// in practice; if it is ever hit, loadRepositoryDependencyEdges reports
+// Truncated so the caller discloses the read as partial (see
+// repositoryDependencyEdgesDegradedReason) instead of silently presenting
+// dependency-cluster membership and is_dependency as complete.
 const repositoryDependencyClusterEdgeLimit = 50000
+
+// repositoryDependencyClusterEdgeFetchLimit over-fetches one row past
+// repositoryDependencyClusterEdgeLimit so a truncated read is detectable
+// without a second count query, the same fetch-limit-plus-one pattern the
+// repository list page query and the relationships package's RowLimit/
+// FetchLimit already use.
+const repositoryDependencyClusterEdgeFetchLimit = repositoryDependencyClusterEdgeLimit + 1
 
 // repositoryDependencyEdge is one directed repository-to-repository dependency
 // edge returned by the bounded edge pre-pass. Direction is irrelevant to
@@ -48,7 +60,10 @@ type repositoryDependencyEdge struct {
 //
 // Treat those as two individual measurements showing an order-of-magnitude
 // gap, not as a calibrated ratio; a stable figure would need repetition and a
-// distribution. The direction is what matters here.
+// distribution. The direction is what matters here. The rendered LIMIT is
+// repositoryDependencyClusterEdgeFetchLimit (50001, one past the 50000 bound
+// above) so loadRepositoryDependencyEdges can detect truncation; that one
+// extra row does not change this timing's order of magnitude.
 //
 // The guard against someone removing these labels is the focused string tests
 // in dependency_cluster_test.go (:151 and :176), which assert
@@ -96,14 +111,32 @@ func repositoryDependencyClusterEdgeCypher(access querycontract.RepositoryAccess
 		RETURN s.id AS source_id, t.id AS target_id
 		ORDER BY source_id, target_id
 		LIMIT %d
-	`, where, repositoryDependencyClusterEdgeLimit)
+	`, where, repositoryDependencyClusterEdgeFetchLimit)
+}
+
+// repositoryDependencyEdgeRead is the outcome of the bounded dependency-edge
+// pre-pass: the parsed edges (clipped to repositoryDependencyClusterEdgeLimit
+// when the read hit the bound), whether the read was Truncated, and any
+// graph-read Err. Truncated and Err exist so a caller discloses an
+// incomplete read -- via logRepositoryDependencyEdgesDegradation and
+// repositoryDependencyEdgesDegradedReason -- instead of silently presenting
+// dependency-cluster membership or is_dependency as complete and
+// authoritative when it might not be. Edges is nil (not merely empty) only
+// when graph is nil or Err is set, matching the prior nil-on-error contract
+// callers that only inspect Edges already rely on.
+type repositoryDependencyEdgeRead struct {
+	Edges     []repositoryDependencyEdge
+	Truncated bool
+	Err       error
 }
 
 // loadRepositoryDependencyEdges runs the bounded, correctly-scoped
 // (:Repository)-[:DEPENDS_ON]->(:Repository) edge pre-pass and returns the
-// parsed edge list. On query error it returns nil so callers degrade to
-// "no known edges" (non-cluster grouping, is_dependency=false) rather than
-// failing the whole repository list.
+// parsed edges plus truncation/error evidence. On query error it returns no
+// edges (callers degrade to "no known edges": non-cluster grouping,
+// is_dependency=false) rather than failing the whole repository list --
+// see logRepositoryDependencyEdgesDegradation's doc comment for why that
+// degrade-not-fail choice still requires disclosure, not silence.
 //
 // This is the single graph read that backs both dependency-cluster grouping
 // (buildRepositoryDependencyClusters) and the is_dependency marker
@@ -112,13 +145,17 @@ func repositoryDependencyClusterEdgeCypher(access querycontract.RepositoryAccess
 // expression (always false on NornicDB v1.3.3, and invalid Cypher on Neo4j
 // when the scoped grant predicate was spliced in) with this already-bounded,
 // already-scoped edge read, computed once in Go for both purposes.
-func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.GraphQuery, access querycontract.RepositoryAccessFilter) []repositoryDependencyEdge {
+func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.GraphQuery, access querycontract.RepositoryAccessFilter) repositoryDependencyEdgeRead {
 	if graph == nil {
-		return nil
+		return repositoryDependencyEdgeRead{}
 	}
 	rows, err := graph.Run(ctx, repositoryDependencyClusterEdgeCypher(access), access.GraphParams(nil))
 	if err != nil {
-		return nil
+		return repositoryDependencyEdgeRead{Err: err}
+	}
+	truncated := len(rows) > repositoryDependencyClusterEdgeLimit
+	if truncated {
+		rows = rows[:repositoryDependencyClusterEdgeLimit]
 	}
 	edges := make([]repositoryDependencyEdge, 0, len(rows))
 	for _, row := range rows {
@@ -129,7 +166,47 @@ func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.Grap
 		}
 		edges = append(edges, repositoryDependencyEdge{Source: source, Target: target})
 	}
-	return edges
+	return repositoryDependencyEdgeRead{Edges: edges, Truncated: truncated}
+}
+
+// repositoryDependencyEdgesDegradedReason is the partial_reasons (repository
+// list) / limitations (catalog) entry added when the dependency-edge
+// pre-pass failed or was truncated. Its presence tells a caller that an
+// is_dependency=false or missing dependency_cluster group on this response
+// may be incomplete evidence rather than a confirmed negative -- the same
+// "affirmative-false-claim" disclosure discipline #5764 established for the
+// repository story's infrastructure-panel truncation.
+const repositoryDependencyEdgesDegradedReason = "dependency_marker_evidence_incomplete"
+
+// logRepositoryDependencyEdgesDegradation logs a structured warning and
+// reports whether the caller must disclose degraded is_dependency /
+// dependency-cluster evidence (append repositoryDependencyEdgesDegradedReason
+// and fold it into the response's truncated/limitations signal).
+//
+// The pre-pass degrades rather than fails the request on error or
+// truncation: both listRepositories and listCatalog already treat it as a
+// best-effort secondary signal layered onto an otherwise-complete page of
+// repository rows (predates this function; see loadRepositoryDependencyEdges),
+// and turning a healthy primary read into a 5xx over this auxiliary edge
+// count would be a larger regression than an honestly disclosed partial
+// answer. Accuracy is preserved by disclosure -- this log plus the response's
+// partial_reasons/limitations entry -- not by manufacturing a failure for a
+// request whose primary rows are otherwise complete. Applies identically to
+// scoped and unscoped callers; nothing here branches on RepositoryAccessFilter.
+func logRepositoryDependencyEdgesDegradation(ctx context.Context, logger *slog.Logger, operation string, result repositoryDependencyEdgeRead) bool {
+	degraded := result.Err != nil || result.Truncated
+	if !degraded || logger == nil {
+		return degraded
+	}
+	logger.WarnContext(
+		ctx, "repository query dependency-edge pre-pass degraded",
+		telemetry.EventAttr("repository_query.dependency_edges_degraded"),
+		log.Operation(operation),
+		slog.Int("edge_count", len(result.Edges)),
+		slog.Bool("truncated", result.Truncated),
+		slog.Bool("error", result.Err != nil),
+	)
+	return true
 }
 
 // repositoryDependencyTargetSet returns the set of repository ids that are

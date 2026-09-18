@@ -233,25 +233,72 @@ func (r codequeryLiveReader) RunSingle(ctx context.Context, cypher string, param
 // ExecuteCypher implements graph.CypherExecutor so this reader can also drive
 // graph.EnsureSchemaWithBackend.
 func (r codequeryLiveReader) ExecuteCypher(ctx context.Context, stmt eshugraph.CypherStatement) error {
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
-	defer func() { _ = session.Close(ctx) }()
-	result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters)
-	if err != nil {
+	return runLiveWriteWithRetry(ctx, func(ctx context.Context) error {
+		session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
+		defer func() { _ = session.Close(ctx) }()
+		result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters)
+		if err != nil {
+			return err
+		}
+		_, err = result.Consume(ctx)
 		return err
-	}
-	_, err = result.Consume(ctx)
-	return err
+	})
 }
 
 func (r codequeryLiveReader) write(ctx context.Context, t *testing.T, cypher string) {
 	t.Helper()
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
-	defer func() { _ = session.Close(ctx) }()
-	result, err := session.Run(ctx, cypher, nil)
+	err := runLiveWriteWithRetry(ctx, func(ctx context.Context) error {
+		session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
+		defer func() { _ = session.Close(ctx) }()
+		result, err := session.Run(ctx, cypher, nil)
+		if err != nil {
+			return err
+		}
+		_, err = result.Consume(ctx)
+		return err
+	})
 	if err != nil {
 		t.Fatalf("write %q: %v", cypher, err)
 	}
-	if _, err := result.Consume(ctx); err != nil {
-		t.Fatalf("consume %q: %v", cypher, err)
+}
+
+// liveWriteMaxAttempts bounds the retry count for a transient graph-write
+// conflict (see isLiveWriteTransientError). Go runs different test packages
+// concurrently by default even with no t.Parallel(), so this package's live
+// test and a sibling package's live test (e.g. repository's) can race
+// writes against the same shared NornicDB/Neo4j instance in CI (#6784).
+const liveWriteMaxAttempts = 5
+
+// liveWriteRetryDelay is a small linear backoff for a racing test-seed/
+// cleanup/schema write, not a production retry policy: these are one-shot
+// DDL/seed statements contending with a sibling test package, not a
+// production hot path.
+func liveWriteRetryDelay(attempt int) time.Duration {
+	return time.Duration(attempt) * 100 * time.Millisecond
+}
+
+// isLiveWriteTransientError reports whether err is a transient, safe-to-retry
+// write conflict -- observed live as
+// "Neo.TransientError.Transaction.Outdated ... Please retry" when two test
+// packages' live writes race the same shared NornicDB/Neo4j instance.
+func isLiveWriteTransientError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "TransientError")
+}
+
+// runLiveWriteWithRetry runs run, retrying up to liveWriteMaxAttempts times
+// with a small backoff on a transient write conflict, and returning
+// immediately on success or a non-transient error.
+func runLiveWriteWithRetry(ctx context.Context, run func(context.Context) error) error {
+	var lastErr error
+	for attempt := 1; attempt <= liveWriteMaxAttempts; attempt++ {
+		lastErr = run(ctx)
+		if lastErr == nil {
+			return nil
+		}
+		if !isLiveWriteTransientError(lastErr) || attempt == liveWriteMaxAttempts {
+			return lastErr
+		}
+		time.Sleep(liveWriteRetryDelay(attempt))
 	}
+	return lastErr
 }

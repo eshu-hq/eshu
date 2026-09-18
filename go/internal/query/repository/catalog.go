@@ -107,13 +107,24 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Repositories, response.Truncated, err = h.listCatalogRepositoriesFromGraph(r.Context(), limit)
+	var dependencyDegraded bool
+	response.Repositories, response.Truncated, dependencyDegraded, err = h.listCatalogRepositoriesFromGraph(r.Context(), limit)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, catalogCapability) {
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repositories: %v", err))
 		return
+	}
+	if dependencyDegraded {
+		// See logRepositoryDependencyEdgesDegradation's doc comment: the
+		// dependency-edge pre-pass failed or was truncated, so is_dependency
+		// on this response may be incomplete rather than a confirmed
+		// negative. Fold it into Truncated the same way WorkloadsTruncated
+		// is folded in below, and disclose the reason via Limitations
+		// (catalogResponse has no partial_reasons array of its own).
+		response.Truncated = true
+		response.Limitations = append(response.Limitations, repositoryDependencyEdgesDegradedReason)
 	}
 	response.Workloads, response.WorkloadsTruncated, err = h.listCatalogWorkloads(r.Context(), limit)
 	if err != nil {
@@ -135,10 +146,17 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, catalogTruth(h.profile(), querycontract.TruthBasisAuthoritativeGraph))
 }
 
+// listCatalogRepositoriesFromGraph returns the catalog's bounded repository
+// page. The fourth return value reports whether the dependency-edge
+// pre-pass backing is_dependency (see loadRepositoryDependencyEdges) was
+// itself degraded (failed or truncated); the caller must fold that into the
+// response's own truncated/limitations disclosure rather than presenting
+// is_dependency as complete -- see logRepositoryDependencyEdgesDegradation's
+// doc comment.
 func (h *Handler) listCatalogRepositoriesFromGraph(
 	ctx context.Context,
 	limit int,
-) ([]catalogRepository, bool, error) {
+) (repositories []catalogRepository, truncated bool, dependencyDegraded bool, err error) {
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)
 		RETURN %s
@@ -147,25 +165,26 @@ func (h *Handler) listCatalogRepositoriesFromGraph(
 	`, querycontract.RepoProjection("r"))
 	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"limit": limit + 1})
 	if err != nil {
-		return nil, false, err
+		return nil, false, false, err
 	}
-	rows, truncated := trimCatalogRows(rows, limit)
+	rows, truncated = trimCatalogRows(rows, limit)
 
 	// is_dependency is derived in Go from the same bounded, unscoped
 	// dependency-edge pre-pass the repository list uses -- see
 	// loadRepositoryDependencyEdges and issue #6786 defect 1. The catalog
 	// endpoint has always been unscoped (AllScopes: true), matching the
 	// EXISTS-based projection it replaces.
-	dependencyEdges := loadRepositoryDependencyEdges(ctx, h.Neo4j, querycontract.RepositoryAccessFilter{AllScopes: true})
-	dependencyTargets := repositoryDependencyTargetSet(dependencyEdges)
+	dependencyRead := loadRepositoryDependencyEdges(ctx, h.Neo4j, querycontract.RepositoryAccessFilter{AllScopes: true})
+	dependencyTargets := repositoryDependencyTargetSet(dependencyRead.Edges)
+	dependencyDegraded = logRepositoryDependencyEdgesDegradation(ctx, h.Logger, "catalog_list", dependencyRead)
 
-	repositories := make([]catalogRepository, 0, len(rows))
+	repositories = make([]catalogRepository, 0, len(rows))
 	for _, row := range rows {
 		id := querycontract.StringVal(row, "id")
 		_, isDependency := dependencyTargets[id]
 		repositories = append(repositories, catalogRepositoryFromRow(row, isDependency))
 	}
-	return repositories, truncated, nil
+	return repositories, truncated, dependencyDegraded, nil
 }
 
 func (h *Handler) listCatalogRepositoriesFromContent(

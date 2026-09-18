@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -96,5 +97,59 @@ func TestListCatalogMarksDependencyFromInboundEdgeNoExistsExpression(t *testing.
 	}
 	if markers["repository:app"] {
 		t.Fatalf("repository:app is_dependency = true, want false (outbound edge only, not a target)")
+	}
+}
+
+// TestListCatalogDisclosesDegradedDependencyEvidenceOnEdgeQueryError proves
+// GET /api/v0/catalog still succeeds when the dependency-edge pre-pass
+// errors (the primary repository/workload rows are healthy), but discloses
+// the degradation via Truncated and Limitations rather than silently
+// reporting every repository as is_dependency=false.
+func TestListCatalogDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *testing.T) {
+	t.Parallel()
+
+	reader := querytestutil.FakeRepoGraphReader{
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			switch {
+			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
+				return nil, errors.New("graph unavailable")
+			case strings.Contains(cypher, "MATCH (r:Repository)"):
+				return []map[string]any{{"id": "repository:lib", "name": "lib"}}, nil
+			default:
+				return nil, nil
+			}
+		},
+	}
+
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+
+	handler.listCatalog(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s (an auxiliary edge-read error must not fail the whole catalog request)", got, want, rec.Body.String())
+	}
+
+	var envelope querycontract.ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("envelope data type = %T, want map", envelope.Data)
+	}
+	if got, want := querycontract.BoolVal(data, "truncated"), true; got != want {
+		t.Errorf("truncated = %v, want %v (a degraded dependency read must be disclosed)", got, want)
+	}
+	limitations := querytestutil.RequireStringAnySlice(t, data, "limitations")
+	if !querytestutil.AnySliceContains(limitations, repositoryDependencyEdgesDegradedReason) {
+		t.Fatalf("limitations = %v, want it to contain %q", limitations, repositoryDependencyEdgesDegradedReason)
+	}
+	repositories := data["repositories"].([]any)
+	repo := repositories[0].(map[string]any)
+	if got := querycontract.BoolVal(repo, "is_dependency"); got {
+		t.Errorf("is_dependency = %v, want false (no edges could be read)", got)
 	}
 }
