@@ -32,9 +32,11 @@ runs a set of bounded dependency probes and returns:
 
 The API and MCP server register these probes:
 
-- **`status_snapshot`** — reads the storage-backed status snapshot, exercising
-  Postgres connectivity *and* schema presence. A failure here typically means
-  the database is reachable but the schema is not applied.
+- **`status_schema`** — checks the latest compiled Postgres migration receipt
+  by path and checksum, and validates the core status columns without scanning
+  table rows. An incomplete migration or missing column returns `503` without
+  aggregating the reducer queue. Full backlog and health reports remain
+  available at `/admin/status` and `/metrics`.
 - **`postgres`** — a bounded `PingContext`. A failure here (especially a
   deadline) distinguishes an unreachable database or pool exhaustion from a
   schema fault.
@@ -43,7 +45,8 @@ The API and MCP server register these probes:
   When the graph is disabled (the local lightweight profile), the probe is
   omitted and readiness is not gated on an unused dependency.
 
-Each probe runs concurrently under its own bounded timeout (default 2s), so a
+Each probe runs concurrently under its own bounded timeout (2s for Postgres and
+graph; 3s for the schema check), so a
 single slow dependency cannot block the probe handler. The `503` body aggregates
 every failing dependency in a deterministic order, for example:
 
@@ -57,7 +60,7 @@ service=eshu-api probe=readyz status=error error=graph: ...; postgres: ...
 | ----------------- | --------------------------------------------------- |
 | `postgres: ...`   | Database unreachable or connection pool exhausted   |
 | `graph: ...`      | Graph backend (Bolt) unreachable                    |
-| `status_snapshot: ...` | Schema not applied, or status store query failing |
+| `status_schema: ...` | Current migration receipt or core schema missing, or the bounded read failing |
 
 ## Anti-flap (debounce)
 
@@ -97,9 +100,10 @@ traffic to replicas that could only return errors. The probes above let the
 control plane make the correct routing and restart decisions.
 
 No-Regression Evidence: probes execute only on `/readyz` hits at the Kubernetes
-probe cadence, never on the query or graph-write hot paths. Each probe is a
-single bounded connection check on the existing shared Postgres pool and Bolt
-driver — no new pool, worker, queue, or goroutine pool is introduced. Verified
+probe cadence, never on the query or graph-write hot paths. The schema probe is
+one indexed receipt lookup plus a zero-row schema check on the existing Postgres
+pool. The other probes check Postgres and Bolt connectivity. No new pool, worker, queue, or goroutine pool is
+introduced. Verified
 by `go test ./internal/runtime ./cmd/api ./cmd/mcp-server -count=1`.
 
 Observability Evidence: `/readyz` `503` responses name the failing dependency

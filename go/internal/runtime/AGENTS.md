@@ -117,9 +117,10 @@
   check secrets injection in the deployment manifest or `.env` file.
 
 - Symptom: `/readyz` returns 503 → one of the readiness probes failed; the
-  response body names the failing dependency. `status_snapshot: ...` means the
-  status reader cannot read the snapshot (check schema applied and Postgres
-  connectivity, plus `eshu_runtime_queue_*` gauges for store pressure);
+  response body names the failing dependency. `status_schema: ...` means the
+  bounded migration-receipt and core-schema read failed (check schema
+  applied and Postgres connectivity); inspect `/admin/status` and `eshu_runtime_queue_*` gauges for
+  backlog pressure without making `/readyz` aggregate the queue;
   `postgres: ...` means `PingContext` failed (database unreachable or pool
   exhausted); `graph: ...` means Bolt `VerifyConnectivity` failed (graph backend
   unreachable). Probes are registered via `WithReadinessProbes` /

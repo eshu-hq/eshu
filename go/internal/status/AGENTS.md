@@ -34,12 +34,14 @@
   possible without a storage dependency.
 - **`evaluateHealth` priority order is: stalled > degraded > progressing >
   healthy.** Do not swap the check order without updating operator runbooks.
-- **Shared projection work is part of readiness.** After the fact queue drains,
+- **Shared projection work is part of operator health.** After the fact queue drains,
   outstanding `DomainBacklogs` are shared projection intents that still need to
   become graph-visible. Lease-only rows with zero outstanding intents are worker
   activity and must not block healthy. Keep the outstanding-intent path in
   `evaluateHealth`; otherwise code graph and dead-code queries can look ready
-  before reducer-owned edges are written.
+  before reducer-owned edges are written. `/readyz` only checks the current
+  migration receipt, core schema availability, and dependency connectivity;
+  it does not claim corpus readiness.
 - **`DomainBacklogs` are capped at `Options.DomainLimit` (default 5)** by
   `topDomainBacklogs`. Do not remove this cap — unbounded domain output breaks
   CLI pagination and admin dashboards.

@@ -87,9 +87,14 @@ func TestLoadReportPropagatesReaderErrors(t *testing.T) {
 }
 
 type fakeReader struct {
-	snapshot status.RawSnapshot
-	err      error
-	asOf     time.Time
+	snapshot     status.RawSnapshot
+	err          error
+	readinessErr error
+	asOf         time.Time
+}
+
+func (r *fakeReader) CheckStatusReadiness(context.Context) error {
+	return r.readinessErr
 }
 
 func (r *fakeReader) ReadStatusSnapshot(_ context.Context, asOf time.Time) (status.RawSnapshot, error) {

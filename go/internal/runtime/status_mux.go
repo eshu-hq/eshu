@@ -4,6 +4,7 @@
 package runtime
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -20,6 +21,10 @@ func NewStatusAdminMux(
 	appHandler http.Handler,
 	opts ...StatusAdminOption,
 ) (*http.ServeMux, error) {
+	checker, ok := reader.(statuspkg.ReadinessChecker)
+	if !ok {
+		return nil, errors.New("status reader must implement status readiness checks")
+	}
 	var options statusAdminOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -36,7 +41,7 @@ func NewStatusAdminMux(
 	metricsHandler = NewCompositeMetricsHandler(metricsHandler, options.prometheusHandler)
 
 	probes := make([]ReadinessProbe, 0, len(options.readinessProbes)+1)
-	probes = append(probes, statusSnapshotReadinessProbe(reader, defaultStatusReadinessTimeout))
+	probes = append(probes, statusSchemaReadinessProbe(checker, defaultStatusReadinessTimeout))
 	probes = append(probes, options.readinessProbes...)
 
 	adminMux, err := NewAdminMux(AdminMuxConfig{

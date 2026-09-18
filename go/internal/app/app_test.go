@@ -283,6 +283,10 @@ type fakeStatusReader struct {
 	err      error
 }
 
+func (r *fakeStatusReader) CheckStatusReadiness(context.Context) error {
+	return r.err
+}
+
 func (r *fakeStatusReader) ReadStatusSnapshot(context.Context, time.Time) (statuspkg.RawSnapshot, error) {
 	if r.err != nil {
 		return statuspkg.RawSnapshot{}, r.err

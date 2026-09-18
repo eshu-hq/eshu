@@ -45,6 +45,10 @@ type retryPolicyReader struct {
 	policies []RetryPolicySummary
 }
 
+func (r retryPolicyReader) CheckStatusReadiness(ctx context.Context) error {
+	return checkReaderReadiness(ctx, r.reader)
+}
+
 func (r retryPolicyReader) ReadStatusSnapshot(
 	ctx context.Context,
 	asOf time.Time,

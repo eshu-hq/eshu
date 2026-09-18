@@ -3,6 +3,12 @@
 
 package postgres
 
+import (
+	"context"
+	"errors"
+	"fmt"
+)
+
 const (
 	scopeCountsQuery = `
 SELECT status, COUNT(*) AS count
@@ -318,3 +324,80 @@ SELECT (SELECT COUNT(*) FROM fact_work_items) AS total_count,
 FROM active_fact_work_items
 `
 )
+
+const statusReadinessSchemaQuery = `
+WITH required_status_schema AS (
+  SELECT scopes.scope_id, work_items.status,
+         work_items.provenance_edge_identity_upgrade_required
+  FROM ingestion_scopes AS scopes
+  CROSS JOIN fact_work_items AS work_items
+  LIMIT 0
+)
+SELECT EXISTS (
+  SELECT 1 FROM eshu_schema_migrations
+  WHERE path = $1
+    AND variant = 'full'
+    AND checksum_sha256 = $2
+) AND NOT EXISTS (SELECT 1 FROM required_status_schema)
+`
+
+type statusReadinessMigration struct {
+	path     string
+	checksum string
+}
+
+var latestStatusReadinessMigration = func() statusReadinessMigration {
+	// The ordered bootstrap writes a receipt only after each file succeeds.
+	// Its latest full receipt proves that earlier required files completed,
+	// including the permitted deferred content-index variants.
+	definitions := BootstrapDefinitions()
+	latest := definitions[len(definitions)-1]
+	return statusReadinessMigration{path: latest.Path, checksum: migrationChecksum(latest.SQL)}
+}()
+
+// CheckStatusReadiness verifies the latest Postgres migration receipt and the
+// core status schema with one bounded read. It does not aggregate queue or fact
+// tables; those remain on the full /admin/status and /metrics surfaces.
+func (s StatusStore) CheckStatusReadiness(ctx context.Context) error {
+	if s.queryer == nil {
+		return errors.New("status queryer is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	rows, err := s.queryer.QueryContext(ctx, statusReadinessSchemaQuery,
+		latestStatusReadinessMigration.path, latestStatusReadinessMigration.checksum)
+	if err != nil {
+		return fmt.Errorf("check core status schema: %w", err)
+	}
+	if rows == nil {
+		return errors.New("check core status schema: no result")
+	}
+	hasRow := rows.Next()
+	var applied bool
+	var scanErr error
+	if hasRow {
+		scanErr = rows.Scan(&applied)
+	}
+	rowErr := rows.Err()
+	closeErr := rows.Close()
+	if scanErr != nil {
+		return fmt.Errorf("scan core status schema check: %w", scanErr)
+	}
+	if rowErr != nil {
+		return fmt.Errorf("read core status schema check: %w", rowErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("close core status schema check: %w", closeErr)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !hasRow {
+		return errors.New("check core status schema: no migration receipt result")
+	}
+	if !applied {
+		return fmt.Errorf("current Postgres schema migration %q is not recorded", latestStatusReadinessMigration.path)
+	}
+	return nil
+}
