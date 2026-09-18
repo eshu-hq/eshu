@@ -2,15 +2,17 @@
 
 ## Scope
 
-Base: `origin/main` at `8cd8866c7`.
+Base: `origin/main` at `4c6cbf21f` (rebased after #6789/#6791 landed;
+the diagram tree is byte-identical between `c2ed7585d` and `4c6cbf21f`,
+so the `c2ed7585d`-measured baseline below stands).
 
 This slice moves the diagram safety-classifier package from the historical
 flat path `go/internal/collector/diagrampreflight` to
 `go/internal/collector/preflight/diagram`. The package name changes to
 `diagram`; `Options`, `Result`, `Warning`, `Preflight`, and the format and
-warning constants remain exact. This is the second `preflight/` leaf (the
-parent trio and the `archive` leaf landed earlier); the image, media, ooxml,
-pdf, and manifest siblings stay flat for later slices.
+warning constants remain exact. This is the third `preflight/` leaf (the
+parent trio and the `archive` and `pdf` leaves landed earlier); the image,
+media, ooxml, and manifest siblings stay flat for later slices.
 
 Filenames are unchanged (`preflight.go` does not repeat its own `diagram`
 directory, per the #6627 `cicd/run` precedent which kept `planner.go`).
@@ -107,7 +109,11 @@ All Go commands ran from `go/` with `env -u GOROOT`, a worktree-local
 
 Deliberately not run (orchestrator promotion gates): `make pre-pr`,
 `make pre-pr-full`. Promotion ran `eshu-code-review` (self-review, READY,
-P0/P1/P2-blocking 0), `review-attest` capture/verify, and `make pre-push`.
+P0/P1/P2-blocking 0), `review-attest` capture/verify, `make pre-push`
+(all local gates passed), and the strict docs build
+(`mkdocs build --strict --clean`, 3.89s, exit 0; one pre-existing
+unlisted page `reference/local-testing/pre-pr-execution.md` noted as INFO,
+not an error).
 
 ## No-Regression Evidence (#6695):
 
