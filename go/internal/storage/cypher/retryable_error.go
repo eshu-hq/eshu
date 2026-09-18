@@ -280,15 +280,21 @@ func isNornicDBTransactionTimedOutClientConfiguration(err error) bool {
 // driver wrappers that do not implement Unwrap. Their outer outcome remains
 // unknown, so the timeout cannot grant durable replay permission.
 func hasNornicDBTransactionTimeoutInUnknownOutcome(err error) bool {
+	if err == nil {
+		return false
+	}
+	if isNornicDBTransactionTimedOutClientConfiguration(err) {
+		return true
+	}
 	var connectivityErr *neo4jdriver.ConnectivityError
-	if errors.As(err, &connectivityErr) && connectivityErr.Inner != nil &&
-		isNornicDBTransactionTimedOutClientConfiguration(connectivityErr.Inner) {
+	if errors.As(err, &connectivityErr) &&
+		hasNornicDBTransactionTimeoutInUnknownOutcome(connectivityErr.Inner) {
 		return true
 	}
 	var transactionLimit *neo4jdriver.TransactionExecutionLimit
 	if errors.As(err, &transactionLimit) {
 		for _, attemptErr := range transactionLimit.Errors {
-			if isNornicDBTransactionTimedOutClientConfiguration(attemptErr) {
+			if hasNornicDBTransactionTimeoutInUnknownOutcome(attemptErr) {
 				return true
 			}
 		}

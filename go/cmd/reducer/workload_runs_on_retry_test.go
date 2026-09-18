@@ -184,6 +184,24 @@ func TestWorkloadRunsOnAtomicGroupDoesNotDeferTimeoutNestedInUnknownOutcome(t *t
 				Errors: []error{timeoutErr},
 			}, timeoutErr),
 		},
+		{
+			name: "transaction limit inside connectivity error",
+			err: &neo4jdriver.ConnectivityError{
+				Inner: &neo4jdriver.TransactionExecutionLimit{
+					Cause:  "timeout",
+					Errors: []error{timeoutErr},
+				},
+			},
+		},
+		{
+			name: "connectivity error inside transaction limit",
+			err: &neo4jdriver.TransactionExecutionLimit{
+				Cause: "timeout",
+				Errors: []error{&neo4jdriver.ConnectivityError{
+					Inner: fmt.Errorf("transport interrupted: %w", timeoutErr),
+				}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
