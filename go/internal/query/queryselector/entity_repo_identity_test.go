@@ -104,6 +104,45 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 	}
 }
 
+// TestHydrateResolvedEntityRepoIdentityDropsUngrantedHydratedRepo is the
+// #6786 review follow-up (R2-3): the hydration query's own
+// `OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(e) WHERE (grant)` is a
+// backward `-[:DEFINES]->` pattern with an inner WHERE, the same shape class
+// F1 (workload_context.go) stopped trusting alone. This test simulates that
+// WHERE failing to filter: the fake returns a row naming an ungranted
+// repository, as if the backend's WHERE had not applied. Go must still
+// refuse to attach it.
+func TestHydrateResolvedEntityRepoIdentityDropsUngrantedHydratedRepo(t *testing.T) {
+	t.Parallel()
+
+	graph := &fakeRepoIdentityGraphQuery{
+		rows: []map[string]any{
+			// The backend's WHERE should have excluded repo-2 (only repo-1
+			// is granted below), but this fake simulates it not doing so.
+			{"entity_id": "workload:1", "repo_id": "repo-2", "repo_name": "ungranted-repo"},
+		},
+	}
+	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repo-1"},
+	})
+	entity := map[string]any{
+		"id":     "workload:1",
+		"labels": []string{"Workload"},
+	}
+
+	if _, err := HydrateResolvedEntityRepoIdentity(ctx, graph, nil, []map[string]any{entity}); err != nil {
+		t.Fatalf("HydrateResolvedEntityRepoIdentity() error = %v, want nil", err)
+	}
+
+	if got := EntityString(entity, "repo_id"); got != "" {
+		t.Fatalf("entity[repo_id] = %q, want empty: an ungranted hydrated repo must never be attached even if the backend's own WHERE failed to filter it", got)
+	}
+	if got := EntityString(entity, "repo_name"); got != "" {
+		t.Fatalf("entity[repo_name] = %q, want empty alongside the dropped repo_id", got)
+	}
+}
+
 // TestHydrateResolvedEntityRepoIdentityScrubsProjectionPlaceholder is the
 // #6408 regression: a backend that leaks its own unresolved projection
 // expression (for example "coalesce(repo.id, repoViaInstance.id)") as a

@@ -126,6 +126,7 @@ type DeploymentTraceContextProvider interface {
 		graph querycontract.GraphQuery,
 		content querycontract.ContentStore,
 		logger *slog.Logger,
+		instruments *telemetry.Instruments,
 		serviceName string,
 		traceOptions TraceEnrichmentConfig,
 	) (map[string]any, error)

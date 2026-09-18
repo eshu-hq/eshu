@@ -123,6 +123,19 @@ No index or schema change. The one measurable regression (name-lookup path,
 grant bypass on that path (see Defect above) and stays well within the
 existing per-request budget for a rarely-hit fallback stage.
 
+**R2-2 follow-up: `HydrateResolvedEntityRepoIdentity` (F2's reshaped query).**
+Measured with the same methodology (schema applied, single Workload entity
+with one DEFINES-linked repository, median of 30 sequential in-process calls,
+single-threaded, local container), before = `899691961~1` (pre-F2), after =
+this change:
+
+| Backend | Before | After | Delta | Note |
+| --- | --- | --- | --- | --- |
+| NornicDB v1.3.3 | 297.5µs (`repo_id=""`, `repo_name=""`) | 316.5µs (`repo_id`/`repo_name` correct) | not comparable | Before is the alias-collision defect (F2): the call returned in similar wall time but with garbage/empty data, never a real repo_id. Comparing its timing to the after number would compare two different amounts of real work done. |
+| Neo4j 2026 | 587.8µs (`repo_id`/`repo_name` correct) | 499.0µs (`repo_id`/`repo_name` correct) | -15% | Real before/after comparison: same correct data both sides, Neo4j evaluated the pre-F2 shape correctly. The after shape (`e.id AS entity_id` instead of a bare passthrough column, `(repo)-[:DEFINES]->(e)` instead of a node-equality comparison) is measurably not slower. |
+
+No index or schema change for this reshape either.
+
 ## Review follow-up (F1-F5)
 
 An independent review of the initial fix (b5c6bac81) blocked on 5 findings,
@@ -187,23 +200,90 @@ all fixed here, TDD, with live re-proof:
   using a `cypherAssertionT` recording double (`testing.TB` cannot be
   implemented outside package `testing`).
 - **F5 (telemetry):** the Go-side grant-decision and row-id-mismatch guards
-  produced no operator signal. Added a `Warn` log (no counter -- a counter
-  needs a telemetry contract entry and docs this follow-up does not include;
-  flagged to the reviewer) at the two id/anchor-mismatch guards that signal
-  backend anchor drift specifically (`GetEntityContext`,
+  produced no operator signal. Added a `Warn` log at the two id/anchor-mismatch
+  guards that signal backend anchor drift specifically (`GetEntityContext`,
   `FetchWorkloadContextForOperation`): `requested_entity_id`/
   `returned_entity_id` and `requested_selector`/`returned_id`/`returned_name`
   respectively, both tagged `reason=backend_anchor_mismatch`. Ordinary grant
-  denials (the common, expected case) still log nothing, to avoid noise.
-  `ResolveTraceWorkloadSelector`'s equivalent F3 guards have no logger
-  threaded through their signature; adding one is a signature change onto
-  `family_impact_trace_deployment.go`'s caller, deferred pending owner
-  direction.
+  denials (the common, expected case) still log nothing, to avoid noise. The
+  originally-deferred counter and `ResolveTraceWorkloadSelector` logger are
+  closed in R2-4 below.
+- **R2-4 (telemetry, round-2 follow-up):** closed F5's deferral.
+  `ResolveTraceWorkloadSelector` now takes `logger *slog.Logger` and
+  `instruments *telemetry.Instruments` (both nil-tolerant); its F3 guards
+  (id-lookup row-identity mismatch, name-lookup row-identity mismatch) emit
+  the same `reason=backend_anchor_mismatch` `Warn` the entity-family guards
+  do. Threading `instruments` through required widening
+  `impact.DeploymentTraceContextProvider.FetchServiceTraceContext` (and its
+  seam/shim forwarders in `impact/seam.go` and `family_impact_shim.go`) by one
+  parameter, since `fetchServiceTraceContext`
+  (`family_impact_trace_deployment.go`) is the only place that can reach both
+  a `*telemetry.Instruments` (off `impact.Handler.Instruments`, already wired
+  at both HTTP call sites) and this selector; the interface has exactly one
+  production implementation, so this was a same-shape extension of the
+  existing logger-threading pattern, not a new design.
 
-## No-Observability-Change:
+  Added `telemetry.Instruments.QueryScopedGrantDenied`
+  (`eshu_dp_query_scoped_grant_denied_total`, registered in
+  `go/internal/telemetry/instruments.go` per `telemetry-coverage-discipline`),
+  a counter over bounded `operation` (`entity_context` |
+  `workload_context`/`deployment_trace` | `deployment_trace_selector`) and
+  `reason` (`grant_denied` | `backend_anchor_mismatch`) labels. Emission
+  helpers: `entity.Handler.recordScopedGrantDenied`
+  (`entity/scoped_grant_telemetry.go`) and the package-level
+  `impacttrace.recordScopedGrantDenied`
+  (`impacttrace/scoped_grant_telemetry.go`), both nil-tolerant. Wired at all
+  three Go-side grant-decision seams this PR owns: `GetEntityContext`'s
+  anchor-mismatch guard and final grant check, `FetchWorkloadContextForOperation`'s
+  anchor-mismatch guard and fail-closed check, and
+  `ResolveTraceWorkloadSelector`'s id-lookup and name-lookup stages (the
+  latter split into `backend_anchor_mismatch` when any row's own name
+  disagreed with the selector, vs. `grant_denied` when every row's name
+  matched but none was grant-admitted).
+
+  Proof: `entity/scoped_grant_telemetry_test.go` and
+  `impacttrace/scoped_grant_telemetry_test.go`, each asserting the actual wire
+  metric (via an OTEL `sdkmetric.ManualReader`, not a mock) and the emitted
+  `Warn` text, for both reasons at each seam; one, mutation-proven RED/GREEN
+  by temporarily removing the emission call
+  (`TestResolveTraceWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry`).
+  Documented in `go/internal/telemetry/README.md` and, as a compact entry in
+  the Data-Plane Core table, `docs/public/reference/telemetry/metrics.md`
+  (not grandfathered, had headroom; `index.md` did not -- see the blocker
+  below).
+
+  **Known blocker, unresolved, flagged rather than forced through:**
+  `docs/public/observability/telemetry-coverage.md` and
+  `docs/public/reference/telemetry/index.md` are both pinned at their exact
+  Markdown 500-line-cap grandfathered ceiling with zero headroom (`1109` /
+  `1270`, `scripts/lib/markdown-line-cap-grandfather.tsv`); the pre-commit
+  hook (`scripts/lib/markdown-line-cap-core.sh`) refuses any growth, and
+  explicitly refuses re-pinning the ceiling upward too ("a grandfathered file
+  may shrink but MUST NOT grow, and re-pinning it upward is the same growth
+  wearing a ledger edit"). `index.md`'s content had a sanctioned alternative
+  (moved to `metrics.md` instead, see above), but
+  `telemetry-coverage.md` does not: `scripts/verify-telemetry-coverage.sh`
+  (the X2 gate) reads only that one file and requires a row for every
+  registered metric -- confirmed by re-running it with the row removed, which
+  fails with "instruments.go registers `eshu_dp_query_scoped_grant_denied_total`
+  but the X1 doc has no row that mentions it." No sanctioned override, sibling
+  file, or re-pin path exists for this specific conflict between the X2 gate
+  (row required) and the file-cap hook (file at capacity). The row is
+  deliberately NOT committed here rather than forced through with a trim of
+  unrelated existing rows or a `--no-verify` bypass; `go test
+  ./internal/telemetry -count=1` confirms `QueryScopedGrantDenied` itself
+  builds and registers correctly regardless. This leaves
+  `scripts/verify-telemetry-coverage.sh` failing on this branch until the
+  owner picks a resolution (accept the one-line file growth as an explicit
+  ledger exception, approve splitting `telemetry-coverage.md`, or approve
+  trimming existing rows elsewhere in the same file to net zero growth).
+
+## Observability Evidence:
 
 `service.StartServiceQueryStage`/`timer.Done` call sites and their attributes
 are unchanged; an operator sees the same `workload_lookup`/
 `repository_lookup`/`instance_lookup` stage timing as before, just against
-the corrected query shape. This no longer covers the whole diff: see F5
-above for the two new `Warn` logs the review round added.
+the corrected query shape. On top of that unchanged baseline, this PR adds
+new signal: the `Warn` logs from F5 and the
+`eshu_dp_query_scoped_grant_denied_total` counter from R2-4 above (see that
+section for the full label/emission-site contract).

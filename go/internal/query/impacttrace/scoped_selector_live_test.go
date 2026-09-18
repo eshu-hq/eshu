@@ -257,7 +257,7 @@ func TestLiveResolveTraceWorkloadSelectorInGrantByID(t *testing.T) {
 	reader, baseCtx := selectorLiveFixture(t)
 	ctx := selectorScopedContext(baseCtx, "scoped-selector-6786:repo-a")
 
-	got, err := ResolveTraceWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-in")
+	got, err := ResolveTraceWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-in", nil, nil)
 	if err != nil {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
 	}
@@ -274,7 +274,7 @@ func TestLiveResolveTraceWorkloadSelectorOutOfGrantByIDReturnsEmpty(t *testing.T
 	reader, baseCtx := selectorLiveFixture(t)
 	ctx := selectorScopedContext(baseCtx, "scoped-selector-6786:repo-a")
 
-	got, err := ResolveTraceWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-out")
+	got, err := ResolveTraceWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-out", nil, nil)
 	if err != nil {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
 	}
@@ -287,7 +287,7 @@ func TestLiveResolveTraceWorkloadSelectorCollisionAdmittedByDefines(t *testing.T
 	reader, baseCtx := selectorLiveFixture(t)
 	ctx := selectorScopedContext(baseCtx, "scoped-selector-6786:repo-a")
 
-	got, err := ResolveTraceWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-collision")
+	got, err := ResolveTraceWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-collision", nil, nil)
 	if err != nil {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
 	}
@@ -300,7 +300,7 @@ func TestLiveResolveTraceWorkloadSelectorByNameAmbiguous(t *testing.T) {
 	reader, baseCtx := selectorLiveFixture(t)
 	ctx := selectorScopedContext(baseCtx, "scoped-selector-6786:repo-a")
 
-	_, err := ResolveTraceWorkloadSelector(ctx, reader, "svc-ambiguous")
+	_, err := ResolveTraceWorkloadSelector(ctx, reader, "svc-ambiguous", nil, nil)
 	if !errors.Is(err, ErrAmbiguousTraceWorkloadSelector) {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want ambiguity", err)
 	}
@@ -309,7 +309,7 @@ func TestLiveResolveTraceWorkloadSelectorByNameAmbiguous(t *testing.T) {
 func TestLiveResolveTraceWorkloadSelectorUnscopedUnchanged(t *testing.T) {
 	reader, baseCtx := selectorLiveFixture(t)
 
-	got, err := ResolveTraceWorkloadSelector(baseCtx, reader, "scoped-selector-6786:wl-out")
+	got, err := ResolveTraceWorkloadSelector(baseCtx, reader, "scoped-selector-6786:wl-out", nil, nil)
 	if err != nil {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
 	}

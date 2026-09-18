@@ -217,7 +217,7 @@ func FetchServiceTraceContext(
 	serviceName string,
 	traceOptions TraceEnrichmentConfig,
 ) (map[string]any, error) {
-	return DefaultTraceContext.FetchServiceTraceContext(ctx, graph, content, logger, serviceName, traceOptions)
+	return DefaultTraceContext.FetchServiceTraceContext(ctx, graph, content, logger, nil, serviceName, traceOptions)
 }
 
 // JoinOrNone is the exported seam for impacttrace.JoinOrNone, which the repository and

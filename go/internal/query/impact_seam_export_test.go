@@ -131,7 +131,7 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	// production backend wiring in family_impact_shim.go: a nil
 	// DefaultTraceContext would panic here instead of returning.
 	gotTrace, gotTraceErr := impact.FetchServiceTraceContext(ctx, nil, nil, nil, "", impact.TraceEnrichmentConfig{})
-	wantTrace, wantTraceErr := fetchServiceTraceContext(ctx, nil, nil, nil, "", impact.TraceEnrichmentConfig{})
+	wantTrace, wantTraceErr := fetchServiceTraceContext(ctx, nil, nil, nil, nil, "", impact.TraceEnrichmentConfig{})
 	if !reflect.DeepEqual(gotTrace, wantTrace) || !reflect.DeepEqual(gotTraceErr, wantTraceErr) {
 		t.Fatal("FetchServiceTraceContext != fetchServiceTraceContext")
 	}

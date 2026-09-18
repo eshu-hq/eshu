@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // deploymentTraceContextBackend is the production
@@ -37,10 +38,11 @@ func (deploymentTraceContextBackend) FetchServiceTraceContext(
 	graph querycontract.GraphQuery,
 	content querycontract.ContentStore,
 	logger *slog.Logger,
+	instruments *telemetry.Instruments,
 	serviceName string,
 	traceOptions impact.TraceEnrichmentConfig,
 ) (map[string]any, error) {
-	return fetchServiceTraceContext(ctx, graph, content, logger, serviceName, traceOptions)
+	return fetchServiceTraceContext(ctx, graph, content, logger, instruments, serviceName, traceOptions)
 }
 
 // BuildServiceDeploymentOverview implements
@@ -58,11 +60,12 @@ func fetchServiceTraceContext(
 	graph querycontract.GraphQuery,
 	content querycontract.ContentStore,
 	logger *slog.Logger,
+	instruments *telemetry.Instruments,
 	serviceName string,
 	traceOptions impact.TraceEnrichmentConfig,
 ) (map[string]any, error) {
-	entityHandler := &entity.Handler{Neo4j: graph, Content: content, Logger: logger}
-	workloadID, err := impacttrace.ResolveTraceWorkloadSelector(ctx, graph, serviceName)
+	entityHandler := &entity.Handler{Neo4j: graph, Content: content, Logger: logger, Instruments: instruments}
+	workloadID, err := impacttrace.ResolveTraceWorkloadSelector(ctx, graph, serviceName, logger, instruments)
 	if err != nil {
 		return nil, err
 	}

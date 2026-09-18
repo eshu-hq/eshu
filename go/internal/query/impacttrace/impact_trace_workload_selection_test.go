@@ -35,7 +35,7 @@ func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 		}
 	}}
 
-	_, err := ResolveTraceWorkloadSelector(t.Context(), reader, "orders")
+	_, err := ResolveTraceWorkloadSelector(t.Context(), reader, "orders", nil, nil)
 	if !errors.Is(err, errAmbiguousTraceWorkloadSelector) {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want ambiguity", err)
 	}
@@ -78,7 +78,7 @@ func TestResolveTraceWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
 		return []map[string]any{{"id": "workload:orders"}}, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "workload:orders")
+	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "workload:orders", nil, nil)
 	if err != nil || got != "workload:orders" {
 		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want exact workload id", got, err)
 	}
@@ -101,7 +101,7 @@ func TestResolveTraceWorkloadSelectorIDRowMismatchIsNotTrusted(t *testing.T) {
 		}
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "workload:requested")
+	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "workload:requested", nil, nil)
 	if err != nil {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
 	}
@@ -127,7 +127,7 @@ func TestResolveTraceWorkloadSelectorNameRowMismatchIsNotTrusted(t *testing.T) {
 		}
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "orders")
+	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "orders", nil, nil)
 	if err != nil {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
 	}
@@ -165,7 +165,7 @@ func TestResolveTraceWorkloadSelectorScopedOutOfGrantIDReturnsNotFound(t *testin
 		return nil, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:out-of-grant")
+	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:out-of-grant", nil, nil)
 	if err != nil {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
 	}
@@ -189,7 +189,7 @@ func TestResolveTraceWorkloadSelectorScopedDirectGrantAdmits(t *testing.T) {
 		return nil, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:in-grant")
+	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:in-grant", nil, nil)
 	if err != nil || got != "workload:in-grant" {
 		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want workload:in-grant", got, err)
 	}
@@ -211,7 +211,7 @@ func TestResolveTraceWorkloadSelectorScopedDefinesGrantAdmits(t *testing.T) {
 		return nil, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:collision")
+	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:collision", nil, nil)
 	if err != nil || got != "workload:collision" {
 		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want workload:collision (DEFINES-admitted)", got, err)
 	}
@@ -236,7 +236,7 @@ func TestResolveTraceWorkloadSelectorCandidateBoundFailsClosed(t *testing.T) {
 		return overBound, nil
 	}}
 
-	_, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "orders")
+	_, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "orders", nil, nil)
 	if !errors.Is(err, errTraceWorkloadSelectorCandidatesExceedBound) {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want candidate-bound error", err)
 	}

@@ -360,6 +360,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 					"reason", "backend_anchor_mismatch",
 				)
 			}
+			h.recordScopedGrantDenied(r.Context(), "entity_context", "backend_anchor_mismatch")
 			row = nil
 		}
 	}
@@ -407,6 +408,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if access.Scoped() && !access.AllowsRepositoryID(querycontract.StringVal(response, "repo_id")) {
+		h.recordScopedGrantDenied(r.Context(), "entity_context", "grant_denied")
 		querycontract.WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}

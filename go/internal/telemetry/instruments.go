@@ -666,6 +666,29 @@ type Instruments struct {
 	// with reason k8s_resource_candidate_scan_truncated_at_5000 for the
 	// specific request that hit it.
 	QueryK8sSelectCandidateScanTruncated metric.Int64Counter
+	// QueryScopedGrantDenied counts a scoped caller's read decided closed on
+	// one of the #6786 Go-side grant-decision seams (GetEntityContext,
+	// FetchWorkloadContextForOperation, ResolveTraceWorkloadSelector) --
+	// those routes stopped rendering the scoped grant as a Cypher predicate
+	// (NornicDB v1.3.3 could silently drop it) and now decide admission in
+	// Go instead, so this is the operator-visible replacement for what a
+	// backend-side WHERE denial used to leave no trace of at all. Labels:
+	// operation (the bounded call site: "entity_context", "workload_context",
+	// "service_context", "deployment_trace", or
+	// "resolve_trace_workload_selector") and reason ("grant_denied" for an
+	// ordinary scoped-caller-not-granted-this-row outcome, expected at
+	// whatever rate scoped callers probe ids they cannot see; or
+	// "backend_anchor_mismatch" for a row whose own id/name did not match
+	// the request anchor at all -- never expected, and the 3 AM signal that a
+	// backend regressed the query's identity anchor, paired with a Warn log
+	// carrying the same reason). Only the three top-level HTTP-visible
+	// decision points count here, not every internal candidate-filtering
+	// pass that feeds one of them (e.g. FetchWorkloadRepositoryForAccess's
+	// DEFINES re-check, or HydrateResolvedEntityRepoIdentity's hydration
+	// re-check): those decide a component the top-level function still has
+	// to act on, and counting both would report one caller-visible denial as
+	// two or three.
+	QueryScopedGrantDenied metric.Int64Counter
 	// QueryScopeGrantInlineCapped counts scoped-token infra reads whose grant
 	// set overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
 	// currently 128) so the USES and DEFINES-collision admission families were
@@ -3138,6 +3161,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryK8sSelectCandidateScanTruncated counter: %w", err)
+	}
+
+	inst.QueryScopedGrantDenied, err = meter.Int64Counter(
+		"eshu_dp_query_scoped_grant_denied_total",
+		metric.WithDescription(
+			"Total scoped-caller reads decided closed by a #6786 Go-side grant decision (entity/workload context, deployment trace selector), "+
+				"by operation and reason (grant_denied: ordinary scoped denial; backend_anchor_mismatch: a returned row's own id/name did not match the request, a backend regression signal)",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryScopedGrantDenied counter: %w", err)
 	}
 
 	inst.ProjectorInputInvalidFacts, err = meter.Int64Counter(

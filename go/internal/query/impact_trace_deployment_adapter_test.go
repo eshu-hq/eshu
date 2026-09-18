@@ -120,6 +120,7 @@ func TestFetchServiceTraceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 		},
 		nil,
 		nil,
+		nil,
 		"workload:service-edge-api",
 		impact.TraceEnrichmentOptions(impact.TraceDeploymentChainRequest{ServiceName: "workload:service-edge-api"}),
 	)
@@ -170,6 +171,7 @@ func TestFetchServiceTraceContextPreservesResolvedWorkloadIDWhenAnotherWorkloadN
 				}
 			},
 		},
+		nil,
 		nil,
 		nil,
 		"workload:orders",
@@ -251,6 +253,7 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 				"(r:Repository {id: $repo_id})-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->": {},
 			},
 		},
+		nil,
 		nil,
 		nil,
 		"checkout-service",

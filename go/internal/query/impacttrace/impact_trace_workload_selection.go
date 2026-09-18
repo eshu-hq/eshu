@@ -7,9 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 var errAmbiguousTraceWorkloadSelector = errors.New("deployment trace workload selector is ambiguous")
@@ -59,7 +61,25 @@ const traceWorkloadSelectorCandidateBound = 50
 // (admittedWorkloadCandidates) -- see that function's doc comment for why a
 // plain first/second-row compare is not safe once the grant is no longer
 // enforced by the Cypher WHERE.
-func ResolveTraceWorkloadSelector(ctx context.Context, reader querycontract.GraphQuery, selector string) (string, error) {
+//
+// logger and instruments are the #6786 review follow-up (R2-4) operator-
+// visibility seam: both are nil-tolerant (most callers, including every
+// non-live test in this package, pass nil for either or both) so emission is
+// simply skipped when unwired. When set, a row that fails the F3 row-identity
+// guard below logs a `reason=backend_anchor_mismatch` Warn and increments
+// telemetry.Instruments.QueryScopedGrantDenied; an ordinary scoped denial
+// (the caller has no grant to the resolved workload at all) increments the
+// same counter with `reason=grant_denied`. See
+// go/internal/query/entity/scoped_grant_telemetry.go for the sibling
+// emission seam this mirrors.
+func ResolveTraceWorkloadSelector(
+	ctx context.Context,
+	reader querycontract.GraphQuery,
+	selector string,
+	logger *slog.Logger,
+	instruments *telemetry.Instruments,
+) (string, error) {
+	const operation = "deployment_trace_selector"
 	selector = strings.TrimSpace(selector)
 	if reader == nil || selector == "" {
 		return "", nil
@@ -81,18 +101,41 @@ func ResolveTraceWorkloadSelector(ctx context.Context, reader querycontract.Grap
 	// this anchor is not the multi-line shape #6786 proved NornicDB v1.3.3
 	// can drop -- but a backend that ever regresses that anchor must not go
 	// unnoticed by falling through to a DIFFERENT in-grant workload's data.
-	if idRow != nil && querycontract.StringVal(idRow, "id") == selector &&
-		querycontract.WorkloadGrantAdmitted(access, querycontract.StringVal(idRow, "repo_id"), querycontract.StringSliceVal(idRow, "defining")) {
-		return querycontract.StringVal(idRow, "id"), nil
+	if idRow != nil {
+		gotID := querycontract.StringVal(idRow, "id")
+		if gotID != selector {
+			if logger != nil {
+				logger.WarnContext(ctx, "deployment trace selector id-lookup row did not match the requested selector",
+					slog.String("operation", operation), slog.String("reason", "backend_anchor_mismatch"))
+			}
+			recordScopedGrantDenied(ctx, instruments, operation, "backend_anchor_mismatch")
+		} else if querycontract.WorkloadGrantAdmitted(access, querycontract.StringVal(idRow, "repo_id"), querycontract.StringSliceVal(idRow, "defining")) {
+			return gotID, nil
+		} else {
+			recordScopedGrantDenied(ctx, instruments, operation, "grant_denied")
+		}
 	}
 
 	nameRows, err := reader.Run(ctx, fmt.Sprintf("%s\nLIMIT %d", workloadSelectorRowCypher("w.name = $service_name"), traceWorkloadSelectorCandidateBound+1), params)
 	if err != nil {
 		return "", err
 	}
-	nameAdmitted, err := admittedWorkloadCandidates(access, selector, nameRows)
+	nameAdmitted, nameMismatched, err := admittedWorkloadCandidates(access, selector, nameRows)
 	if err != nil {
 		return "", err
+	}
+	switch {
+	case nameMismatched:
+		if logger != nil {
+			logger.WarnContext(ctx, "deployment trace selector name-lookup row did not match the requested selector",
+				slog.String("operation", operation), slog.String("reason", "backend_anchor_mismatch"))
+		}
+		recordScopedGrantDenied(ctx, instruments, operation, "backend_anchor_mismatch")
+	case len(nameAdmitted) == 0 && len(nameRows) > 0:
+		// Every row's own name matched the selector (no anchor-mismatch
+		// signal), but none was grant-admitted: an ordinary scoped denial,
+		// not a backend regression.
+		recordScopedGrantDenied(ctx, instruments, operation, "grant_denied")
 	}
 	if len(nameAdmitted) == 0 {
 		return "", nil
@@ -137,13 +180,20 @@ func workloadSelectorRowCypher(whereClause string) string {
 // errTraceWorkloadSelectorCandidatesExceedBound when rows reached the fetch
 // bound, rather than deciding admission/ambiguity from a page that may be
 // missing granted rows past the bound.
-func admittedWorkloadCandidates(access querycontract.RepositoryAccessFilter, selector string, rows []map[string]any) ([]map[string]any, error) {
+// admittedWorkloadCandidates also reports nameMismatch (#6786 review
+// follow-up, R2-4): true when at least one row's own `name` disagreed with
+// selector, the same F3 backend-anchor-mismatch signal the id-lookup stage
+// reports. ResolveTraceWorkloadSelector logs and counts it as
+// `backend_anchor_mismatch`; a name-matched row that the grant simply does
+// not admit is counted as an ordinary `grant_denied` instead.
+func admittedWorkloadCandidates(access querycontract.RepositoryAccessFilter, selector string, rows []map[string]any) (admitted []map[string]any, nameMismatch bool, err error) {
 	if len(rows) > traceWorkloadSelectorCandidateBound {
-		return nil, fmt.Errorf("%w: %d", errTraceWorkloadSelectorCandidatesExceedBound, len(rows))
+		return nil, false, fmt.Errorf("%w: %d", errTraceWorkloadSelectorCandidatesExceedBound, len(rows))
 	}
-	admitted := make([]map[string]any, 0, len(rows))
+	admitted = make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		if querycontract.StringVal(row, "name") != selector {
+			nameMismatch = true
 			continue
 		}
 		repoID := querycontract.StringVal(row, "repo_id")
@@ -152,5 +202,5 @@ func admittedWorkloadCandidates(access querycontract.RepositoryAccessFilter, sel
 			admitted = append(admitted, row)
 		}
 	}
-	return admitted, nil
+	return admitted, nameMismatch, nil
 }

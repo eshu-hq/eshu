@@ -94,6 +94,19 @@ func HydrateResolvedEntityRepoIdentity(
 		if entityID == "" || (repoID == "" && repoName == "") {
 			continue
 		}
+		// #6786 review follow-up (R2-3): re-check the hydrated repo_id
+		// against the grant in Go rather than trusting the query's own
+		// `OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(e) WHERE (grant)`
+		// alone. That WHERE sits on a backward `-[:DEFINES]->` pattern, the
+		// same shape class F1 (workload_context.go) stopped trusting: if a
+		// backend ever silently failed to apply it, this hydration would
+		// attach an ungranted repository's id/name to an entity the caller
+		// can already see through some other path -- a metadata leak, not an
+		// entity leak, but still not this caller's data. Unscoped callers
+		// are unaffected (AllowsRepositoryID admits everything).
+		if repoID != "" && !access.AllowsRepositoryID(repoID) {
+			continue
+		}
 		reposByEntity[entityID] = map[string]string{
 			"repo_id":   repoID,
 			"repo_name": repoName,

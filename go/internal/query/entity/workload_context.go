@@ -112,6 +112,7 @@ func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereCla
 					"reason", "backend_anchor_mismatch",
 				)
 			}
+			h.recordScopedGrantDenied(ctx, operation, "backend_anchor_mismatch")
 			row = nil
 		}
 	}
@@ -151,6 +152,7 @@ func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereCla
 	// an absent workload takes, rather than leaking this row's identity
 	// (id/name/kind) to an ungranted caller.
 	if access.Scoped() && !directlyGranted && repoID == "" {
+		h.recordScopedGrantDenied(ctx, operation, "grant_denied")
 		return nil, nil
 	}
 	if repoName == "" {
