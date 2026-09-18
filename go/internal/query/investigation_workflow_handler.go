@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+const (
+	investigationWorkflowDefaultLimit = 20
+	investigationWorkflowMaxLimit     = 200
+)
+
 // InvestigationWorkflowHandler exposes the deterministic investigation workflow
 // catalog and resolver through the HTTP API. It reads only static catalog data.
 type InvestigationWorkflowHandler struct {
@@ -22,9 +27,13 @@ func (h *InvestigationWorkflowHandler) Mount(mux *http.ServeMux) {
 
 type investigationWorkflowListResponse struct {
 	SchemaVersion string                            `json:"schema_version"`
-	Workflows     []InvestigationWorkflow           `json:"workflows"`
+	Workflows     any                               `json:"workflows"`
 	Versions      []InvestigationWorkflowVersionRef `json:"versions"`
 	Count         int                               `json:"count"`
+	Total         int                               `json:"total"`
+	Limit         int                               `json:"limit"`
+	Offset        int                               `json:"offset"`
+	Truncated     bool                              `json:"truncated"`
 }
 
 type investigationWorkflowResolveRequest struct {
@@ -38,14 +47,67 @@ type investigationWorkflowResolveResponse struct {
 	Resolved      ResolvedInvestigationWorkflow `json:"resolved"`
 }
 
+// list returns the investigation workflow catalog with deterministic
+// limit/offset paging. The default response is the compact view: each
+// workflow is an InvestigationWorkflowSummary (id/name/version/domain/
+// description), omitting tool groups, required/optional evidence, and
+// missing-evidence routes, which dominate a workflow's serialized size
+// (#6795). Pass view=full for the complete workflow list.
+// GET /api/v0/investigation-workflows?limit=&offset=&view=
 func (h *InvestigationWorkflowHandler) list(w http.ResponseWriter, r *http.Request) {
 	catalog := InvestigationWorkflowCatalog()
+
+	limit, ok := parseBoundedLimit(w, r, investigationWorkflowDefaultLimit, investigationWorkflowMaxLimit)
+	if !ok {
+		return
+	}
+	offset, ok := parseOffset(w, r)
+	if !ok {
+		return
+	}
+	full, ok := parseCatalogView(w, r)
+	if !ok {
+		return
+	}
+
+	total := len(catalog)
+	page, truncated := pageInvestigationWorkflows(catalog, offset, limit)
+
+	var workflows any
+	if full {
+		workflows = page
+	} else {
+		summaries := make([]InvestigationWorkflowSummary, len(page))
+		for i, workflow := range page {
+			summaries[i] = workflow.ToSummary()
+		}
+		workflows = summaries
+	}
+
 	WriteSuccess(w, r, http.StatusOK, investigationWorkflowListResponse{
 		SchemaVersion: "investigation-workflows.v1",
-		Workflows:     catalog,
+		Workflows:     workflows,
 		Versions:      InvestigationWorkflowCatalogVersions(),
-		Count:         len(catalog),
+		Count:         len(page),
+		Total:         total,
+		Limit:         limit,
+		Offset:        offset,
+		Truncated:     truncated,
 	}, h.truth("deterministic guided investigation workflow catalog; no live backend read"))
+}
+
+// pageInvestigationWorkflows applies offset and limit and reports whether
+// more entries remain past the returned page.
+func pageInvestigationWorkflows(catalog []InvestigationWorkflow, offset, limit int) ([]InvestigationWorkflow, bool) {
+	if offset >= len(catalog) {
+		return []InvestigationWorkflow{}, false
+	}
+	end := offset + limit
+	truncated := end < len(catalog)
+	if end > len(catalog) {
+		end = len(catalog)
+	}
+	return catalog[offset:end], truncated
 }
 
 func (h *InvestigationWorkflowHandler) resolve(w http.ResponseWriter, r *http.Request) {

@@ -199,6 +199,35 @@ type VersionRef struct {
 	Version string `json:"version"`
 }
 
+// Summary is the compact, default-view projection of a Definition: enough to
+// identify and describe a playbook without its ordered steps, required
+// inputs, or failure modes, which dominate a Definition's serialized size
+// (#6795). Full detail remains reachable via view=full or by resolving the
+// playbook with resolve_query_playbook.
+type Summary struct {
+	// ID is the stable catalog identifier.
+	ID string `json:"id"`
+	// Name is the human-readable playbook name.
+	Name string `json:"name"`
+	// Version is the semantic version of this playbook definition.
+	Version string `json:"version"`
+	// PromptFamily is the canonical prompt family the playbook serves.
+	PromptFamily string `json:"prompt_family"`
+	// Description documents the workflow in one line for prompt-surface authors.
+	Description string `json:"description,omitempty"`
+}
+
+// ToSummary projects pb into its compact wire shape.
+func (pb Definition) ToSummary() Summary {
+	return Summary{
+		ID:           pb.ID,
+		Name:         pb.Name,
+		Version:      pb.Version,
+		PromptFamily: pb.PromptFamily,
+		Description:  pb.Description,
+	}
+}
+
 // ResolvedCall is one fully specified, bounded call produced by resolving a
 // playbook step against concrete inputs. Arguments hold concrete values only;
 // there is no remaining template to interpolate.

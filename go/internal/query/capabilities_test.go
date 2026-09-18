@@ -36,7 +36,7 @@ func capabilitiesRequest(t *testing.T, target string) ResponseEnvelope {
 func TestCapabilitiesHandlerListsCatalogWithExactTruth(t *testing.T) {
 	t.Parallel()
 
-	envelope := capabilitiesRequest(t, "/api/v0/capabilities")
+	envelope := capabilitiesRequest(t, "/api/v0/capabilities?view=full&include_authorization=true&limit=500")
 	if envelope.Error != nil {
 		t.Fatalf("envelope error = %+v, want nil", envelope.Error)
 	}
@@ -207,5 +207,107 @@ func TestCapabilitiesHandlerRejectsBadLimit(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCapabilitiesHandlerRejectsBadView proves an unrecognized view value is a
+// bounded 400, not a silent fallback (#6795).
+func TestCapabilitiesHandlerRejectsBadView(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	router := &APIRouter{Capabilities: &CapabilitiesHandler{Profile: ProfileProduction}}
+	router.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/capabilities?view=verbose", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestCapabilitiesHandlerDefaultViewOmitsProfilesAndProofSignals proves the
+// default (compact) response drops the two largest per-entry fields while
+// keeping every other field, and that the top-level authorization catalog is
+// present but empty (#6795).
+func TestCapabilitiesHandlerDefaultViewOmitsProfilesAndProofSignals(t *testing.T) {
+	t.Parallel()
+
+	envelope := capabilitiesRequest(t, "/api/v0/capabilities")
+	data := envelope.Data.(map[string]any)
+
+	authorization, ok := data["authorization"].(map[string]any)
+	if !ok {
+		t.Fatalf("authorization field missing or wrong type: %#v", data["authorization"])
+	}
+	if version, _ := authorization["version"].(string); version != "" {
+		t.Fatalf("default authorization.version = %q, want empty (opt in with include_authorization=true)", version)
+	}
+	if roles, ok := authorization["roles"].([]any); ok && len(roles) != 0 {
+		t.Fatalf("default authorization.roles = %#v, want empty", roles)
+	}
+
+	capabilities := data["capabilities"].([]any)
+	if len(capabilities) == 0 {
+		t.Fatal("capabilities page is empty")
+	}
+	for _, raw := range capabilities {
+		entry := raw.(map[string]any)
+		if _, ok := entry["profiles"]; ok {
+			t.Fatalf("compact entry %q carries profiles, want omitted", entry["capability"])
+		}
+		if _, ok := entry["proof_signals"]; ok {
+			t.Fatalf("compact entry %q carries proof_signals, want omitted", entry["capability"])
+		}
+		if entry["capability"].(string) == "" {
+			t.Fatal("compact entry missing capability id")
+		}
+		if _, ok := entry["surfaces"]; !ok {
+			t.Fatal("compact entry missing surfaces")
+		}
+	}
+}
+
+// TestCapabilitiesHandlerDefaultPageFitsResponseBudget proves the default
+// call's serialized body stays under an MCP-client-friendly budget. This is
+// the acceptance test #6795 itself specifies (default page < ~8KB).
+func TestCapabilitiesHandlerDefaultPageFitsResponseBudget(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	router := &APIRouter{Capabilities: &CapabilitiesHandler{Profile: ProfileProduction}}
+	router.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/capabilities", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	const budget = 8 * 1024
+	if got := rec.Body.Len(); got >= budget {
+		t.Fatalf("default /api/v0/capabilities body = %d bytes, want < %d", got, budget)
+	}
+}
+
+// TestCapabilitiesHandlerFullViewIncludesProfilesAndAuthorization proves
+// view=full plus include_authorization=true restores the pre-#6795 shape, so
+// console and any other caller of the full detail keeps working via opt-in.
+func TestCapabilitiesHandlerFullViewIncludesProfilesAndAuthorization(t *testing.T) {
+	t.Parallel()
+
+	envelope := capabilitiesRequest(t, "/api/v0/capabilities?view=full&include_authorization=true&limit=2")
+	data := envelope.Data.(map[string]any)
+
+	authorization := data["authorization"].(map[string]any)
+	if version, _ := authorization["version"].(string); version == "" {
+		t.Fatal("include_authorization=true returned empty authorization catalog")
+	}
+
+	capabilities := data["capabilities"].([]any)
+	if len(capabilities) == 0 {
+		t.Fatal("capabilities page is empty")
+	}
+	entry := capabilities[0].(map[string]any)
+	if _, ok := entry["profiles"]; !ok {
+		t.Fatal("view=full entry missing profiles")
 	}
 }
