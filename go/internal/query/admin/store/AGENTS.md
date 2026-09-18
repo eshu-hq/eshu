@@ -16,6 +16,7 @@ implements them.
   the parent imports this package (cycle).
 - SQL text is wire: table and column names, status strings, and schema
   versions stay byte-identical unless a migration moves with them.
-- Live tests live in `admin/live_test.go` (external package), not here:
+- Live tests live in the external `admin_test` package (`admin/live_test.go`
+  and focused `admin/*_live_test.go` files), not here:
   `admin`'s internal tests cannot import `store` (import cycle), so live
   seeding through the real constructor lives outside.

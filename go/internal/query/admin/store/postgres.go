@@ -47,6 +47,12 @@ func (s *postgresStore) DeadLetterWorkItems(ctx context.Context, f admin.DeadLet
 	now := s.time()
 	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 2, `
 SET status = 'dead_letter',
+    container_image_identity_v2_authorized_status = CASE
+        WHEN work.container_image_identity_v2_required THEN 'dead_letter' ELSE ''
+    END,
+    container_image_identity_v3_authorized_status = CASE
+        WHEN work.container_image_identity_v3_required THEN 'dead_letter' ELSE ''
+    END,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = $1,
@@ -106,6 +112,12 @@ func (s *postgresStore) ReplayFailedWorkItems(ctx context.Context, f admin.Repla
 	query, args := buildMutatingWorkItemsQuery(f.WorkItemIDs, f.ScopeID, f.Stage, f.FailureClass, f.Limit, 1, `
 SET status = 'pending',
     attempt_count = GREATEST(work.attempt_count, 1),
+    container_image_identity_v2_authorized_status = CASE
+        WHEN work.container_image_identity_v2_required THEN 'pending' ELSE ''
+    END,
+    container_image_identity_v3_authorized_status = CASE
+        WHEN work.container_image_identity_v3_required THEN 'pending' ELSE ''
+    END,
     lease_owner = NULL,
     claim_until = NULL,
     visible_at = $1,
