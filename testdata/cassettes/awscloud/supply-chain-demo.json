@@ -459,6 +459,30 @@
         },
         {
           "fact_kind": "aws_resource",
+          "stable_fact_key": "aws:123456789012:us-east-1:iam:role:deployable-source-app-role:stage-anchor",
+          "schema_version": "1.0.0",
+          "collector_kind": "aws",
+          "fencing_token": 1,
+          "source_confidence": "observed",
+          "payload": {
+            "arn": "arn:aws:iam::123456789012:role/deployable-source-app-role",
+            "resource_id": "arn:aws:iam::123456789012:role/deployable-source-app-role",
+            "resource_type": "aws_iam_role",
+            "name": "deployable-source-app-role",
+            "state": "",
+            "account_id": "123456789012",
+            "region": "us-east-1",
+            "service_kind": "iam",
+            "correlation_anchors": [
+              "arn:aws:iam::123456789012:role/deployable-source-app-role"
+            ],
+            "workload_id": "workload:deployable-source",
+            "environment": "stage",
+            "attributes": {}
+          }
+        },
+        {
+          "fact_kind": "aws_resource",
           "stable_fact_key": "aws:123456789012:us-east-1:s3:bucket:scd-upload-receipts",
           "schema_version": "1.0.0",
           "collector_kind": "aws",
