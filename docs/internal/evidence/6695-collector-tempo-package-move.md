@@ -2,7 +2,7 @@
 
 ## Scope
 
-Base: `origin/main` at `441f1c468` (post-#6762).
+Base: `origin/main` at `8cd8866c72` (incl. query race fix ad407e8a6).
 
 This slice moves the Tempo observer package from the historical flat path
 `go/internal/collector/tempo` to `go/internal/collector/observability/tempo`.
