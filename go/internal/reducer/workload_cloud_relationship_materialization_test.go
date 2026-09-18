@@ -321,3 +321,82 @@ func TestWorkloadCloudRelationshipMaterializationGatesOnReadiness(t *testing.T) 
 		t.Fatalf("no graph writes allowed before readiness: write=%d retract=%d", writer.writeCalls, writer.retractCalls)
 	}
 }
+
+// TestExtractWorkloadCloudRelationshipRowsPromotesIssue6785DeployableSourceRoleFixture
+// proves the extractor's contribution to #6785's golden-corpus USES gap: the
+// awscloud cassette's deployable-source-app-role aws_iam_role fact (added
+// alongside the CAN_PERFORM fixture in
+// testdata/cassettes/awscloud/supply-chain-demo.json) carries exactly the
+// payload shape ExtractWorkloadCloudRelationshipRows requires -- a top-level
+// workload_id and environment plus the identity fields CAN_PERFORM's own join
+// already proved decode -- and yields exactly one explicit_workload_anchor USES
+// row keyed to workload:deployable-source/prod. This rules out the extractor
+// as the cause of the live gate's observed zero USES edges: the corpus input
+// is provably sufficient once this generation's aws_resource facts reach the
+// handler. (What is NOT proven here is WHEN they reach it relative to the
+// deployable-source WorkloadInstance node's own cross-scope materialization --
+// see the handler's own doc comment: "the graph writer still uses MATCH-only
+// endpoint anchoring so missing workload instances are a no-op instead of
+// fabricated graph truth.")
+func TestExtractWorkloadCloudRelationshipRowsPromotesIssue6785DeployableSourceRoleFixture(t *testing.T) {
+	t.Parallel()
+
+	rows, tally, quarantined, err := ExtractWorkloadCloudRelationshipRows([]facts.Envelope{
+		workloadCloudAWSResourceEnvelope("aws:123456789012:us-east-1:iam:role:deployable-source-app-role", map[string]any{
+			"arn":                 "arn:aws:iam::123456789012:role/deployable-source-app-role",
+			"resource_id":         "arn:aws:iam::123456789012:role/deployable-source-app-role",
+			"resource_type":       "aws_iam_role",
+			"name":                "deployable-source-app-role",
+			"state":               "",
+			"account_id":          "123456789012",
+			"region":              "us-east-1",
+			"service_kind":        "iam",
+			"correlation_anchors": []any{"arn:aws:iam::123456789012:role/deployable-source-app-role"},
+			"workload_id":         "workload:deployable-source",
+			"environment":         "prod",
+			"attributes":          map[string]any{},
+		}),
+		// The sibling S3 bucket fact from the same cassette scope carries no
+		// workload_id, so it must be skipped rather than promoted or fatal.
+		workloadCloudAWSResourceEnvelope("aws:123456789012:us-east-1:s3:bucket:scd-upload-receipts", map[string]any{
+			"arn":                 "arn:aws:s3:::scd-upload-receipts",
+			"resource_id":         "scd-upload-receipts",
+			"resource_type":       "aws_s3_bucket",
+			"name":                "scd-upload-receipts",
+			"state":               "",
+			"account_id":          "123456789012",
+			"region":              "us-east-1",
+			"service_kind":        "s3",
+			"correlation_anchors": []any{"scd-upload-receipts", "arn:aws:s3:::scd-upload-receipts"},
+			"attributes":          map[string]any{},
+		}),
+	})
+	if err != nil {
+		t.Fatalf("ExtractWorkloadCloudRelationshipRows() error = %v, want nil", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %v, want none", quarantined)
+	}
+
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d (the bucket fact carries no workload_id and must be skipped)", got, want)
+	}
+	if got, want := anyToString(rows[0]["workload_id"]), "workload:deployable-source"; got != want {
+		t.Fatalf("workload_id = %q, want %q", got, want)
+	}
+	if got, want := anyToString(rows[0]["environment"]), "prod"; got != want {
+		t.Fatalf("environment = %q, want %q", got, want)
+	}
+	if got, want := anyToString(rows[0]["resolution_mode"]), "explicit_workload_anchor"; got != want {
+		t.Fatalf("resolution_mode = %q, want %q", got, want)
+	}
+	if got, want := anyToString(rows[0]["relationship_type"]), "USES"; got != want {
+		t.Fatalf("relationship_type = %q, want %q", got, want)
+	}
+	if got := anyToString(rows[0]["cloud_resource_uid"]); got == "" {
+		t.Fatal("cloud_resource_uid must be populated")
+	}
+	if got, want := tally.skipped[workloadCloudRelationshipSkipMissingWorkloadAnchor], 1; got != want {
+		t.Fatalf("skipped[missing_workload_anchor] = %d, want %d (the bucket fact)", got, want)
+	}
+}
