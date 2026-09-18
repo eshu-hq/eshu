@@ -1,0 +1,26 @@
+go/internal/query/codequery/complexity_list_answer_truth_live_test.go
+  s_02cd429498e265::t_1960b7623d11b8 1-115
+go/internal/query/nornicdb_answer_truth_live_test.go
+  s_02cd429498e265::t_98cae62b30cfac 1-213
+  s_02cd429498e265::t_14318ef4b08584 214-232
+go/internal/query/entity/nornicdb_answer_truth_live_test.go
+  s_02cd429498e265::t_6214d4434ba724 1-173
+go/internal/query/repository/nornicdb_answer_truth_live_test.go
+  s_02cd429498e265::t_6030787f6022e1 1-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34f4aaab50c487b8a7923860ce26656f214591b1",
+  "prompts": {},
+  "sessions": {
+    "s_02cd429498e265": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a8c3dd75-f00e-405a-9a29-28b21f2db379",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
