@@ -4,7 +4,6 @@
 package postgres
 
 import (
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -118,14 +117,7 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 			// one-way and opaque) and must never be SELECTed as a bare output
 			// column. Assert it is not selected bare in any form.
 			if tc.name == "idp_group_mappings" {
-				if regexp.MustCompile(`(?m)^\s*external_group_hash\s*,`).MatchString(tc.query) ||
-					strings.Contains(tc.query, "external_group_hash AS") ||
-					strings.Contains(tc.query, "external_group_hash\n") {
-					t.Errorf("idp_group_mappings query must not select external_group_hash as an output column")
-				}
-				// The only permitted occurrence is inside the SHA-256 digest input.
-				if strings.Contains(tc.query, "external_group_hash") &&
-					!strings.Contains(tc.query, "external_group_hash, 'UTF8')), 'hex') AS mapping_ref") {
+				if !mappingGroupHashOnlyInDigest(tc.query) {
 					t.Errorf("idp_group_mappings query exposes external_group_hash outside the mapping_ref digest")
 				}
 			}
@@ -141,6 +133,27 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 				t.Errorf("%s query must scope by tenant_id = $1", tc.name)
 			}
 		})
+	}
+}
+
+func mappingGroupHashOnlyInDigest(query string) bool {
+	return strings.Count(query, "external_group_hash") == 1 &&
+		strings.Contains(query, "external_group_hash, 'UTF8')), 'hex') AS mapping_ref")
+}
+
+func TestAdminGroupHashGuardRejectsSameLineColumn(t *testing.T) {
+	t.Parallel()
+
+	if !mappingGroupHashOnlyInDigest(listAdminIdPGroupMappingsQuery) {
+		t.Fatal("current mapping query should keep the group hash inside its digest")
+	}
+	seeded := strings.Replace(listAdminIdPGroupMappingsQuery,
+		"AS mapping_ref,", "AS mapping_ref, external_group_hash,", 1)
+	if seeded == listAdminIdPGroupMappingsQuery {
+		t.Fatal("failed to seed a raw group hash output column")
+	}
+	if mappingGroupHashOnlyInDigest(seeded) {
+		t.Fatal("guard accepted a same-line raw group hash output column")
 	}
 }
 
