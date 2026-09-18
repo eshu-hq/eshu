@@ -237,11 +237,11 @@ permanently overdue. Claim also demotes expired same-scope duplicate in-flight
 rows back to `retrying` when a live sibling or a newly claimed sibling owns the
 scope, which repairs queue state left by older owner crashes or claim races
 without breaking the one-active-generation invariant. `Ack` runs a five-step
-atomic transaction: mark owned work succeeded → supersede stale active
-generation → supersede older terminal same-scope generations → activate target
-generation → update scope pointer. This keeps obsolete failed or dead-letter
-projector rows out of current health after a newer source-local generation has
-successfully become active. If `projector.IsRetryable(cause)` returns true and
+atomic transaction: update scope pointer → mark owned work succeeded → supersede
+older terminal work/generations → supersede old active generation → activate
+target generation. The scope lock precedes work and generation locks; a stale
+claim rolls back every change. This keeps obsolete dead letters out of current
+health. If `projector.IsRetryable(cause)` returns true and
 `attempt_count < MaxAttempts`, `Fail` transitions to `retrying` instead of
 `dead_letter`.
 

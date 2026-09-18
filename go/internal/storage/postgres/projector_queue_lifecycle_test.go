@@ -56,18 +56,16 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 		{
 			query: db.execs[0].query,
 			want: []string{
-				"UPDATE fact_work_items",
-				"status = 'succeeded'",
-				"attempt_count = $5",
+				"UPDATE ingestion_scopes",
+				"active_generation_id = $3",
 			},
 		},
 		{
 			query: db.execs[1].query,
 			want: []string{
-				"UPDATE scope_generations",
-				"status = 'superseded'",
-				"generation_id <> $3",
-				"status = 'active'",
+				"UPDATE fact_work_items",
+				"status = 'succeeded'",
+				"attempt_count = $5",
 			},
 		},
 		{
@@ -82,15 +80,17 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 			query: db.execs[3].query,
 			want: []string{
 				"UPDATE scope_generations",
+				"status = 'superseded'",
+				"generation_id <> $3",
 				"status = 'active'",
-				"activated_at = COALESCE(activated_at, $1)",
 			},
 		},
 		{
 			query: db.execs[4].query,
 			want: []string{
-				"UPDATE ingestion_scopes",
-				"active_generation_id = $3",
+				"UPDATE scope_generations",
+				"status = 'active'",
+				"activated_at = COALESCE(activated_at, $1)",
 			},
 		},
 	}

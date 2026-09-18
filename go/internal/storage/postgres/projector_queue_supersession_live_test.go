@@ -25,13 +25,15 @@ func TestProjectorHeartbeatSupersessionPreservesActivePointer(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name           string
-		oldStatus      string
-		activePointer  any
-		successorFails bool
+		name                  string
+		oldStatus             string
+		activePointer         any
+		successorFails        bool
+		oldTerminalFailsFirst bool
 	}{
 		{name: "published_generation", oldStatus: "active", activePointer: "gen-old"},
 		{name: "failed_successor", oldStatus: "active", activePointer: "gen-old", successorFails: true},
+		{name: "old_terminal_failure_first", oldStatus: "active", activePointer: "gen-old", oldTerminalFailsFirst: true},
 		{name: "unpublished_generation", oldStatus: "pending", activePointer: nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -79,6 +81,33 @@ INSERT INTO fact_work_items (
 				Scope:        scope.IngestionScope{ScopeID: "scope-proof"},
 				Generation:   scope.ScopeGeneration{GenerationID: "gen-old"},
 				AttemptCount: 1,
+			}
+			if tc.oldTerminalFailsFirst {
+				if err := queue.Fail(ctx, oldWork, errors.New("terminal active generation failure")); err != nil {
+					t.Fatalf("Fail active generation before Heartbeat: %v", err)
+				}
+				if err := queue.Heartbeat(ctx, oldWork); !errors.Is(err, ErrProjectorClaimRejected) {
+					t.Fatalf("Heartbeat after terminal Fail = %v; want claim rejection", err)
+				}
+				var oldStatus, workStatus, successorStatus string
+				var pointer sql.NullString
+				if err := database.QueryRowContext(ctx, `
+SELECT old_generation.status, old_work.status, new_generation.status,
+       scope.active_generation_id
+FROM ingestion_scopes AS scope
+JOIN scope_generations AS old_generation ON old_generation.generation_id = 'gen-old'
+JOIN scope_generations AS new_generation ON new_generation.generation_id = 'gen-new'
+JOIN fact_work_items AS old_work ON old_work.work_item_id = 'work-old'
+WHERE scope.scope_id = 'scope-proof'
+`).Scan(&oldStatus, &workStatus, &successorStatus, &pointer); err != nil {
+					t.Fatalf("read terminal failure state: %v", err)
+				}
+				if oldStatus != "failed" || workStatus != "dead_letter" ||
+					successorStatus != "pending" || pointer.Valid {
+					t.Fatalf("old=%q work=%q successor=%q pointer=%v; want terminal failure to invalidate old publication",
+						oldStatus, workStatus, successorStatus, pointer)
+				}
+				return
 			}
 			if err := queue.Heartbeat(ctx, oldWork); !errors.Is(err, projector.ErrWorkSuperseded) {
 				t.Fatalf("old Heartbeat error = %v; want ErrWorkSuperseded", err)

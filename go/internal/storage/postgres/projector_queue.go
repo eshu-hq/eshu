@@ -62,8 +62,8 @@ type ProjectorQueue struct {
 	ConfigStateDriftTrigger ConfigStateDriftTrigger
 }
 
-// ErrProjectorClaimRejected means the claimed projector work item no longer
-// belongs to the current lease owner, so heartbeat/ack/fail must stop.
+// ErrProjectorClaimRejected means the projector work item's owner, attempt,
+// or claimable status changed, so heartbeat, Ack, or Fail must stop.
 var ErrProjectorClaimRejected = errors.New("projector work claim rejected")
 
 // NewProjectorQueue constructs a Postgres-backed projector work queue.
@@ -184,6 +184,13 @@ func (q ProjectorQueue) Ack(
 	}()
 
 	now := q.now()
+	// Ingestion commits lock scope, then generation, then work. Locking the
+	// scope first serializes same-scope commits; work precedes generation so
+	// heartbeat and claim operations cannot invert the remaining lock order.
+	if _, err := tx.ExecContext(ctx, updateProjectorScopeGenerationQuery,
+		now, work.Scope.ScopeID, work.Generation.GenerationID); err != nil {
+		return fmt.Errorf("ack projector work: update scope active generation: %w", err)
+	}
 	ackResult, err := tx.ExecContext(ctx, ackProjectorWorkItemQuery,
 		now, work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner, work.AttemptCount)
 	if err != nil {
@@ -202,23 +209,18 @@ func (q ProjectorQueue) Ack(
 		args  []any
 	}{
 		{
-			query: supersedeProjectorActiveGenerationQuery,
-			op:    "supersede active generation",
-			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
-		},
-		{
 			query: supersedeProjectorObsoleteGenerationsQuery,
 			op:    "supersede obsolete terminal generations",
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
 		},
 		{
-			query: activateProjectorGenerationQuery,
-			op:    "activate target generation",
+			query: supersedeProjectorActiveGenerationQuery,
+			op:    "supersede active generation",
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
 		},
 		{
-			query: updateProjectorScopeGenerationQuery,
-			op:    "update scope active generation",
+			query: activateProjectorGenerationQuery,
+			op:    "activate target generation",
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
 		},
 	}

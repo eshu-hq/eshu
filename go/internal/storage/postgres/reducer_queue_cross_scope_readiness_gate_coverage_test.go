@@ -74,7 +74,10 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestActiveFactWorkItemsFormsSelectTheSameRows",
 		"TestProjectorHeartbeatSupersessionPreservesActivePointer",
 		"TestProjectorQueueRejectsReclaimedSameOwnerAttempt",
+		"TestProjectorQueueRejectsAttemptReclaimedDuringLockWait",
+		"TestProjectorCompletionDoesNotDeadlockSameGenerationCommit",
 		"TestGenerationLivenessIntegration",
+		"TestSharedIntentGenerationPendingIndexLifecycleLive",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

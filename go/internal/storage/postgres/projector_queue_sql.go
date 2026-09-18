@@ -205,16 +205,22 @@ WHERE stage = 'projector'
 `
 
 const failProjectorWorkQuery = `
-WITH owned_work AS (
-    SELECT work_item_id, scope_id, generation_id
-    FROM fact_work_items
-    WHERE stage = 'projector'
-      AND scope_id = $5
-      AND generation_id = $6
-      AND lease_owner = $7
-      AND attempt_count = $8
-      AND status IN ('claimed', 'running')
+WITH locked_scope AS MATERIALIZED (
+    SELECT scope_id
+    FROM ingestion_scopes
+    WHERE scope_id = $5
     FOR UPDATE
+),
+owned_work AS MATERIALIZED (
+    SELECT work.work_item_id, work.scope_id, work.generation_id
+    FROM locked_scope AS scope
+    JOIN fact_work_items AS work ON work.scope_id = scope.scope_id
+    WHERE work.stage = 'projector'
+      AND work.generation_id = $6
+      AND work.lease_owner = $7
+      AND work.attempt_count = $8
+      AND work.status IN ('claimed', 'running')
+    FOR UPDATE OF work
 ),
 failed_generation AS (
     UPDATE scope_generations AS generation
