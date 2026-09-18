@@ -16,10 +16,16 @@ handler against a seed with ground truth known by construction. The tag-gated
 live tests are committed:
 
 ```bash
-cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27687 go test -tags live_nornicdb_answer_truth \
+cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27687 go test -p 1 -tags live_nornicdb_answer_truth \
   ./internal/query ./internal/query/repository ./internal/query/entity ./internal/query/codequery \
   -run 'AnswerTruth' -count=1 -v
 ```
+
+`-p 1` matters: the packages share one database, and the unscoped A5 count
+reads every `Platform` node, so running the packages in parallel lets one
+package's seed change another's answer. Each package also uses its own id
+prefix (`answer-truth-query:`, `-repo:`, `-entity:`, `-code:`), so one package's
+cleanup never deletes another's seed.
 
 | Row | Production path | Returned on v1.3.3 | Expected |
 | --- | --- | --- | --- |
@@ -69,7 +75,13 @@ On Neo4j, the old single statement and the new pair return the same final row
 
 Backend conformance: `TestLiveBackendConformance` passed on both backends with
 the value-flow statements and the #6689 shapes in the default corpora as exact
-rows, and cleanup left no fixture nodes on either backend.
+rows, and cleanup left no fixture nodes on either backend. The
+`value-flow-conformance-expectation` gate is flipped from its inverted
+expectation to a positive check (both lanes pass and log both value-flow cases);
+`scripts/verify-value-flow-conformance-expectation.sh` passed on both live lanes,
+and its test mirror fails when the marker check is removed. The gate stays
+because `required-gates-complete` awaits it through the default branch's
+registry.
 
 ## Performance and observability
 

@@ -48,39 +48,39 @@ import (
 //   - repo B contains two files holding three entities: file_count 2,
 //     entity_count 3.
 var repoAnswerTruthSeed = []string{
-	`CREATE (:Repository {id: 'answer-truth:repo-a', name: 'answer-truth-repo-a'})`,
-	`CREATE (:Repository {id: 'answer-truth:repo-b', name: 'answer-truth-repo-b'})`,
-	`CREATE (:Workload {id: 'answer-truth:wl-a', name: 'answer-truth-wl-a'})`,
-	`CREATE (:WorkloadInstance {id: 'answer-truth:wi-1', environment: 'prod'})`,
-	`CREATE (:WorkloadInstance {id: 'answer-truth:wi-2', environment: 'staging'})`,
-	`CREATE (:WorkloadInstance {id: 'answer-truth:wi-3', environment: 'prod'})`,
-	`CREATE (:Platform {id: 'answer-truth:plat-1', name: 'answer-truth-eks'})`,
-	`CREATE (:File {id: 'answer-truth:file-1', relative_path: 'a.go'})`,
-	`CREATE (:File {id: 'answer-truth:file-2', relative_path: 'b.go'})`,
-	`CREATE (:Function {id: 'answer-truth:fn-1', name: 'One'})`,
-	`CREATE (:Function {id: 'answer-truth:fn-2', name: 'Two'})`,
-	`CREATE (:Function {id: 'answer-truth:fn-3', name: 'Three'})`,
-	repoAnswerTruthEdge("Repository", "answer-truth:repo-a", "DEFINES", "Workload", "answer-truth:wl-a"),
-	repoAnswerTruthEdge("WorkloadInstance", "answer-truth:wi-1", "INSTANCE_OF", "Workload", "answer-truth:wl-a"),
-	repoAnswerTruthEdge("WorkloadInstance", "answer-truth:wi-2", "INSTANCE_OF", "Workload", "answer-truth:wl-a"),
-	repoAnswerTruthEdge("WorkloadInstance", "answer-truth:wi-3", "INSTANCE_OF", "Workload", "answer-truth:wl-a"),
-	repoAnswerTruthEdge("WorkloadInstance", "answer-truth:wi-1", "RUNS_ON", "Platform", "answer-truth:plat-1"),
-	repoAnswerTruthEdge("WorkloadInstance", "answer-truth:wi-2", "RUNS_ON", "Platform", "answer-truth:plat-1"),
-	repoAnswerTruthEdge("WorkloadInstance", "answer-truth:wi-3", "RUNS_ON", "Platform", "answer-truth:plat-1"),
-	repoAnswerTruthEdge("Repository", "answer-truth:repo-a", "DEPENDS_ON", "Repository", "answer-truth:repo-b"),
-	repoAnswerTruthEdge("Repository", "answer-truth:repo-a", "USES_MODULE", "Repository", "answer-truth:repo-b"),
-	repoAnswerTruthEdge("Repository", "answer-truth:repo-b", "REPO_CONTAINS", "File", "answer-truth:file-1"),
-	repoAnswerTruthEdge("Repository", "answer-truth:repo-b", "REPO_CONTAINS", "File", "answer-truth:file-2"),
-	repoAnswerTruthEdge("File", "answer-truth:file-1", "CONTAINS", "Function", "answer-truth:fn-1"),
-	repoAnswerTruthEdge("File", "answer-truth:file-2", "CONTAINS", "Function", "answer-truth:fn-2"),
-	repoAnswerTruthEdge("File", "answer-truth:file-2", "CONTAINS", "Function", "answer-truth:fn-3"),
+	`CREATE (:Repository {id: 'answer-truth-repo:repo-a', name: 'answer-truth-repo-a'})`,
+	`CREATE (:Repository {id: 'answer-truth-repo:repo-b', name: 'answer-truth-repo-b'})`,
+	`CREATE (:Workload {id: 'answer-truth-repo:wl-a', name: 'answer-truth-wl-a'})`,
+	`CREATE (:WorkloadInstance {id: 'answer-truth-repo:wi-1', environment: 'prod'})`,
+	`CREATE (:WorkloadInstance {id: 'answer-truth-repo:wi-2', environment: 'staging'})`,
+	`CREATE (:WorkloadInstance {id: 'answer-truth-repo:wi-3', environment: 'prod'})`,
+	`CREATE (:Platform {id: 'answer-truth-repo:plat-1', name: 'answer-truth-eks'})`,
+	`CREATE (:File {id: 'answer-truth-repo:file-1', relative_path: 'a.go'})`,
+	`CREATE (:File {id: 'answer-truth-repo:file-2', relative_path: 'b.go'})`,
+	`CREATE (:Function {id: 'answer-truth-repo:fn-1', name: 'One'})`,
+	`CREATE (:Function {id: 'answer-truth-repo:fn-2', name: 'Two'})`,
+	`CREATE (:Function {id: 'answer-truth-repo:fn-3', name: 'Three'})`,
+	repoAnswerTruthEdge("Repository", "answer-truth-repo:repo-a", "DEFINES", "Workload", "answer-truth-repo:wl-a"),
+	repoAnswerTruthEdge("WorkloadInstance", "answer-truth-repo:wi-1", "INSTANCE_OF", "Workload", "answer-truth-repo:wl-a"),
+	repoAnswerTruthEdge("WorkloadInstance", "answer-truth-repo:wi-2", "INSTANCE_OF", "Workload", "answer-truth-repo:wl-a"),
+	repoAnswerTruthEdge("WorkloadInstance", "answer-truth-repo:wi-3", "INSTANCE_OF", "Workload", "answer-truth-repo:wl-a"),
+	repoAnswerTruthEdge("WorkloadInstance", "answer-truth-repo:wi-1", "RUNS_ON", "Platform", "answer-truth-repo:plat-1"),
+	repoAnswerTruthEdge("WorkloadInstance", "answer-truth-repo:wi-2", "RUNS_ON", "Platform", "answer-truth-repo:plat-1"),
+	repoAnswerTruthEdge("WorkloadInstance", "answer-truth-repo:wi-3", "RUNS_ON", "Platform", "answer-truth-repo:plat-1"),
+	repoAnswerTruthEdge("Repository", "answer-truth-repo:repo-a", "DEPENDS_ON", "Repository", "answer-truth-repo:repo-b"),
+	repoAnswerTruthEdge("Repository", "answer-truth-repo:repo-a", "USES_MODULE", "Repository", "answer-truth-repo:repo-b"),
+	repoAnswerTruthEdge("Repository", "answer-truth-repo:repo-b", "REPO_CONTAINS", "File", "answer-truth-repo:file-1"),
+	repoAnswerTruthEdge("Repository", "answer-truth-repo:repo-b", "REPO_CONTAINS", "File", "answer-truth-repo:file-2"),
+	repoAnswerTruthEdge("File", "answer-truth-repo:file-1", "CONTAINS", "Function", "answer-truth-repo:fn-1"),
+	repoAnswerTruthEdge("File", "answer-truth-repo:file-2", "CONTAINS", "Function", "answer-truth-repo:fn-2"),
+	repoAnswerTruthEdge("File", "answer-truth-repo:file-2", "CONTAINS", "Function", "answer-truth-repo:fn-3"),
 }
 
 func repoAnswerTruthEdge(fromLabel, fromID, relType, toLabel, toID string) string {
 	return `MATCH (a:` + fromLabel + ` {id: '` + fromID + `'}) MATCH (b:` + toLabel + ` {id: '` + toID + `'}) CREATE (a)-[:` + relType + `]->(b)`
 }
 
-const repoAnswerTruthCleanup = `MATCH (n) WHERE n.id STARTS WITH 'answer-truth:' DETACH DELETE n`
+const repoAnswerTruthCleanup = `MATCH (n) WHERE n.id STARTS WITH 'answer-truth-repo:' DETACH DELETE n`
 
 func TestLiveNornicDBRepositoryAnswerTruth(t *testing.T) {
 	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
@@ -105,7 +105,7 @@ func TestLiveNornicDBRepositoryAnswerTruth(t *testing.T) {
 	}
 	defer reader.write(context.Background(), t, repoAnswerTruthCleanup)
 
-	params := map[string]any{"repo_id": "answer-truth:repo-a"}
+	params := map[string]any{"repo_id": "answer-truth-repo:repo-a"}
 	// A -1 fallback makes a statement that returns no row fail loudly instead
 	// of reading as a plausible zero.
 	fallback := map[string]any{"platform_count": -1, "dependency_count": -1}
@@ -134,11 +134,11 @@ func TestLiveNornicDBRepositoryAnswerTruth(t *testing.T) {
 
 	t.Run("A9 catalog instance environments", func(t *testing.T) {
 		handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
-		enrichments, err := handler.catalogWorkloadEnrichments(ctx, []string{"answer-truth:wl-a"})
+		enrichments, err := handler.catalogWorkloadEnrichments(ctx, []string{"answer-truth-repo:wl-a"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		entry, ok := enrichments["answer-truth:wl-a"]
+		entry, ok := enrichments["answer-truth-repo:wl-a"]
 		if !ok {
 			t.Fatalf("no enrichment for the workload: %v", enrichments)
 		}
@@ -151,14 +151,14 @@ func TestLiveNornicDBRepositoryAnswerTruth(t *testing.T) {
 		if want := []string{"prod", "staging"}; !reflect.DeepEqual(envs, want) {
 			t.Fatalf("environments = %v, want %v", envs, want)
 		}
-		if entry.repoID != "answer-truth:repo-a" {
-			t.Fatalf("repo_id = %q, want answer-truth:repo-a", entry.repoID)
+		if entry.repoID != "answer-truth-repo:repo-a" {
+			t.Fatalf("repo_id = %q, want answer-truth-repo:repo-a", entry.repoID)
 		}
 	})
 
 	t.Run("A10 graph coverage fallback", func(t *testing.T) {
 		handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
-		stats, err := handler.queryRepositoryGraphCoverageStats(ctx, "answer-truth:repo-b")
+		stats, err := handler.queryRepositoryGraphCoverageStats(ctx, "answer-truth-repo:repo-b")
 		if err != nil {
 			t.Fatal(err)
 		}

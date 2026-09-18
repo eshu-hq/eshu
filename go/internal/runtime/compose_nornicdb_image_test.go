@@ -101,6 +101,7 @@ func TestNornicDBDefaultNoLongerCarriesSourceBuildControls(t *testing.T) {
 		".github/workflows/e2e-tests.yml",
 		".github/workflows/golden-corpus-gate.yml",
 		".github/workflows/frontend.yml",
+		".github/workflows/value-flow-conformance-expectation.yml",
 	} {
 		content := readRepositoryFile(t, "../../..", file)
 		if strings.Contains(content, "NORNICDB_HEADLESS") {

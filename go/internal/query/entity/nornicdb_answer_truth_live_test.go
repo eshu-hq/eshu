@@ -42,24 +42,24 @@ import (
 //
 // Ground truth: function Main lives in a.go in repo B and CALLS three helpers.
 var entityAnswerTruthSeed = []string{
-	`CREATE (:Repository {id: 'answer-truth:repo-b', name: 'answer-truth-repo-b'})`,
-	`CREATE (:File {id: 'answer-truth:file-a', relative_path: 'a.go', language: 'go'})`,
-	`CREATE (:Function {id: 'answer-truth:fn-Main', name: 'Main', language: 'go', start_line: 1, end_line: 9})`,
-	`CREATE (:Function {id: 'answer-truth:fn-Helper1', name: 'Helper1', language: 'go'})`,
-	`CREATE (:Function {id: 'answer-truth:fn-Helper2', name: 'Helper2', language: 'go'})`,
-	`CREATE (:Function {id: 'answer-truth:fn-Helper3', name: 'Helper3', language: 'go'})`,
-	entityAnswerTruthEdge("Repository", "answer-truth:repo-b", "REPO_CONTAINS", "File", "answer-truth:file-a"),
-	entityAnswerTruthEdge("File", "answer-truth:file-a", "CONTAINS", "Function", "answer-truth:fn-Main"),
-	entityAnswerTruthEdge("Function", "answer-truth:fn-Main", "CALLS", "Function", "answer-truth:fn-Helper1"),
-	entityAnswerTruthEdge("Function", "answer-truth:fn-Main", "CALLS", "Function", "answer-truth:fn-Helper2"),
-	entityAnswerTruthEdge("Function", "answer-truth:fn-Main", "CALLS", "Function", "answer-truth:fn-Helper3"),
+	`CREATE (:Repository {id: 'answer-truth-entity:repo-b', name: 'answer-truth-repo-b'})`,
+	`CREATE (:File {id: 'answer-truth-entity:file-a', relative_path: 'a.go', language: 'go'})`,
+	`CREATE (:Function {id: 'answer-truth-entity:fn-Main', name: 'Main', language: 'go', start_line: 1, end_line: 9})`,
+	`CREATE (:Function {id: 'answer-truth-entity:fn-Helper1', name: 'Helper1', language: 'go'})`,
+	`CREATE (:Function {id: 'answer-truth-entity:fn-Helper2', name: 'Helper2', language: 'go'})`,
+	`CREATE (:Function {id: 'answer-truth-entity:fn-Helper3', name: 'Helper3', language: 'go'})`,
+	entityAnswerTruthEdge("Repository", "answer-truth-entity:repo-b", "REPO_CONTAINS", "File", "answer-truth-entity:file-a"),
+	entityAnswerTruthEdge("File", "answer-truth-entity:file-a", "CONTAINS", "Function", "answer-truth-entity:fn-Main"),
+	entityAnswerTruthEdge("Function", "answer-truth-entity:fn-Main", "CALLS", "Function", "answer-truth-entity:fn-Helper1"),
+	entityAnswerTruthEdge("Function", "answer-truth-entity:fn-Main", "CALLS", "Function", "answer-truth-entity:fn-Helper2"),
+	entityAnswerTruthEdge("Function", "answer-truth-entity:fn-Main", "CALLS", "Function", "answer-truth-entity:fn-Helper3"),
 }
 
 func entityAnswerTruthEdge(fromLabel, fromID, relType, toLabel, toID string) string {
 	return `MATCH (a:` + fromLabel + ` {id: '` + fromID + `'}) MATCH (b:` + toLabel + ` {id: '` + toID + `'}) CREATE (a)-[:` + relType + `]->(b)`
 }
 
-const entityAnswerTruthCleanup = `MATCH (n) WHERE n.id STARTS WITH 'answer-truth:' DETACH DELETE n`
+const entityAnswerTruthCleanup = `MATCH (n) WHERE n.id STARTS WITH 'answer-truth-entity:' DETACH DELETE n`
 
 func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
@@ -85,8 +85,8 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 	defer reader.write(context.Background(), t, entityAnswerTruthCleanup)
 
 	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/answer-truth:fn-Main/context", nil)
-	req.SetPathValue("entity_id", "answer-truth:fn-Main")
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/answer-truth-entity:fn-Main/context", nil)
+	req.SetPathValue("entity_id", "answer-truth-entity:fn-Main")
 	rec := httptest.NewRecorder()
 	handler.GetEntityContext(rec, req)
 	if rec.Code != http.StatusOK {
@@ -104,8 +104,8 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.FilePath != "a.go" || body.RepoID != "answer-truth:repo-b" || body.RepoName != "answer-truth-repo-b" {
-		t.Fatalf("file/repo = (%q, %q, %q), want (a.go, answer-truth:repo-b, answer-truth-repo-b)",
+	if body.FilePath != "a.go" || body.RepoID != "answer-truth-entity:repo-b" || body.RepoName != "answer-truth-repo-b" {
+		t.Fatalf("file/repo = (%q, %q, %q), want (a.go, answer-truth-entity:repo-b, answer-truth-repo-b)",
 			body.FilePath, body.RepoID, body.RepoName)
 	}
 	got := make([]string, 0, len(body.Relationships))
@@ -114,9 +114,9 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 	}
 	sort.Strings(got)
 	want := []string{
-		"CALLS answer-truth:fn-Helper1",
-		"CALLS answer-truth:fn-Helper2",
-		"CALLS answer-truth:fn-Helper3",
+		"CALLS answer-truth-entity:fn-Helper1",
+		"CALLS answer-truth-entity:fn-Helper2",
+		"CALLS answer-truth-entity:fn-Helper3",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("relationships = %v, want %v", got, want)

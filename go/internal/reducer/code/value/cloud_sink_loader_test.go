@@ -137,12 +137,16 @@ func TestCloudSinkLoaderSelectsPairsFailClosed(t *testing.T) {
 		// Two actions on one workload are two independent pairs.
 		workloadRow("uid-multi", "sqs:SendMessage", "wl-3"),
 		workloadRow("uid-multi", "s3:PutObject", "wl-3"),
+		// Values reach the second statement exactly as stored; only the
+		// emptiness test trims.
+		workloadRow("uid-padded", " s3:Padded ", " wl-4"),
 	}
 	pairs, stats := selectCloudSinkPairs(rows)
 	want := []cloudSinkPair{
 		{"uid-dup", "s3:GetObject", "wl-1"},
 		{"uid-multi", "s3:PutObject", "wl-3"},
 		{"uid-multi", "sqs:SendMessage", "wl-3"},
+		{"uid-padded", " s3:Padded ", " wl-4"},
 	}
 	if !reflect.DeepEqual(pairs, want) {
 		t.Fatalf("pairs = %+v, want %+v", pairs, want)

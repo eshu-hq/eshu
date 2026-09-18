@@ -55,33 +55,33 @@ var answerTruthSeed = answerTruthSeedStatements()
 
 func answerTruthSeedStatements() []string {
 	stmts := []string{
-		`CREATE (:Repository {id: 'answer-truth:repo-a', name: 'answer-truth-repo-a'})`,
-		`CREATE (:Repository {id: 'answer-truth:repo-b', name: 'answer-truth-repo-b'})`,
-		`CREATE (:Workload {id: 'answer-truth:wl-a', name: 'answer-truth-wl-a', repo_id: 'answer-truth:repo-a'})`,
-		`CREATE (:WorkloadInstance {id: 'answer-truth:wi-1', environment: 'prod', repo_id: 'answer-truth:repo-a'})`,
-		`CREATE (:WorkloadInstance {id: 'answer-truth:wi-2', environment: 'staging', repo_id: 'answer-truth:repo-a'})`,
-		`CREATE (:WorkloadInstance {id: 'answer-truth:wi-3', environment: 'prod', repo_id: 'answer-truth:repo-a'})`,
-		`CREATE (:Platform {id: 'answer-truth:plat-1', name: 'answer-truth-eks'})`,
-		`CREATE (:File {id: 'answer-truth:file-b', relative_path: 'b.go', language: 'go'})`,
+		`CREATE (:Repository {id: 'answer-truth-query:repo-a', name: 'answer-truth-repo-a'})`,
+		`CREATE (:Repository {id: 'answer-truth-query:repo-b', name: 'answer-truth-repo-b'})`,
+		`CREATE (:Workload {id: 'answer-truth-query:wl-a', name: 'answer-truth-wl-a', repo_id: 'answer-truth-query:repo-a'})`,
+		`CREATE (:WorkloadInstance {id: 'answer-truth-query:wi-1', environment: 'prod', repo_id: 'answer-truth-query:repo-a'})`,
+		`CREATE (:WorkloadInstance {id: 'answer-truth-query:wi-2', environment: 'staging', repo_id: 'answer-truth-query:repo-a'})`,
+		`CREATE (:WorkloadInstance {id: 'answer-truth-query:wi-3', environment: 'prod', repo_id: 'answer-truth-query:repo-a'})`,
+		`CREATE (:Platform {id: 'answer-truth-query:plat-1', name: 'answer-truth-eks'})`,
+		`CREATE (:File {id: 'answer-truth-query:file-b', relative_path: 'b.go', language: 'go'})`,
 	}
 	for _, name := range []string{"Main", "Helper1", "Helper2", "Helper3"} {
-		stmts = append(stmts, `CREATE (:Function {id: 'answer-truth:fn-`+name+`', name: '`+name+`', language: 'go'})`)
+		stmts = append(stmts, `CREATE (:Function {id: 'answer-truth-query:fn-`+name+`', name: '`+name+`', language: 'go'})`)
 	}
 	edges := [][3]string{
-		{"Repository", "answer-truth:repo-a", "DEFINES Workload answer-truth:wl-a"},
-		{"WorkloadInstance", "answer-truth:wi-1", "INSTANCE_OF Workload answer-truth:wl-a"},
-		{"WorkloadInstance", "answer-truth:wi-2", "INSTANCE_OF Workload answer-truth:wl-a"},
-		{"WorkloadInstance", "answer-truth:wi-3", "INSTANCE_OF Workload answer-truth:wl-a"},
-		{"WorkloadInstance", "answer-truth:wi-1", "RUNS_ON Platform answer-truth:plat-1"},
-		{"WorkloadInstance", "answer-truth:wi-2", "RUNS_ON Platform answer-truth:plat-1"},
-		{"WorkloadInstance", "answer-truth:wi-3", "RUNS_ON Platform answer-truth:plat-1"},
-		{"Repository", "answer-truth:repo-a", "DEPENDS_ON Repository answer-truth:repo-b"},
-		{"Repository", "answer-truth:repo-a", "USES_MODULE Repository answer-truth:repo-b"},
-		{"Repository", "answer-truth:repo-b", "REPO_CONTAINS File answer-truth:file-b"},
-		{"File", "answer-truth:file-b", "CONTAINS Function answer-truth:fn-Helper2"},
-		{"Function", "answer-truth:fn-Main", "CALLS Function answer-truth:fn-Helper2"},
-		{"Function", "answer-truth:fn-Helper1", "CALLS Function answer-truth:fn-Helper2"},
-		{"Function", "answer-truth:fn-Helper2", "CALLS Function answer-truth:fn-Helper3"},
+		{"Repository", "answer-truth-query:repo-a", "DEFINES Workload answer-truth-query:wl-a"},
+		{"WorkloadInstance", "answer-truth-query:wi-1", "INSTANCE_OF Workload answer-truth-query:wl-a"},
+		{"WorkloadInstance", "answer-truth-query:wi-2", "INSTANCE_OF Workload answer-truth-query:wl-a"},
+		{"WorkloadInstance", "answer-truth-query:wi-3", "INSTANCE_OF Workload answer-truth-query:wl-a"},
+		{"WorkloadInstance", "answer-truth-query:wi-1", "RUNS_ON Platform answer-truth-query:plat-1"},
+		{"WorkloadInstance", "answer-truth-query:wi-2", "RUNS_ON Platform answer-truth-query:plat-1"},
+		{"WorkloadInstance", "answer-truth-query:wi-3", "RUNS_ON Platform answer-truth-query:plat-1"},
+		{"Repository", "answer-truth-query:repo-a", "DEPENDS_ON Repository answer-truth-query:repo-b"},
+		{"Repository", "answer-truth-query:repo-a", "USES_MODULE Repository answer-truth-query:repo-b"},
+		{"Repository", "answer-truth-query:repo-b", "REPO_CONTAINS File answer-truth-query:file-b"},
+		{"File", "answer-truth-query:file-b", "CONTAINS Function answer-truth-query:fn-Helper2"},
+		{"Function", "answer-truth-query:fn-Main", "CALLS Function answer-truth-query:fn-Helper2"},
+		{"Function", "answer-truth-query:fn-Helper1", "CALLS Function answer-truth-query:fn-Helper2"},
+		{"Function", "answer-truth-query:fn-Helper2", "CALLS Function answer-truth-query:fn-Helper3"},
 	}
 	for _, edge := range edges {
 		parts := strings.Fields(edge[2])
@@ -90,7 +90,7 @@ func answerTruthSeedStatements() []string {
 	return stmts
 }
 
-const answerTruthCleanup = `MATCH (n) WHERE n.id STARTS WITH 'answer-truth:' DETACH DELETE n`
+const answerTruthCleanup = `MATCH (n) WHERE n.id STARTS WITH 'answer-truth-query:' DETACH DELETE n`
 
 func TestLiveNornicDBAnswerTruth(t *testing.T) {
 	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
@@ -115,7 +115,7 @@ func TestLiveNornicDBAnswerTruth(t *testing.T) {
 	defer answerTruthWrite(context.Background(), t, driver, answerTruthCleanup)
 
 	reader := NewNeo4jReader(driver, "nornic")
-	repoParams := map[string]any{"repo_id": "answer-truth:repo-a"}
+	repoParams := map[string]any{"repo_id": "answer-truth-query:repo-a"}
 
 	t.Run("A1 A2 graph-summary repo counts", func(t *testing.T) {
 		want := map[string]int{"workload_count": 1, "platform_count": 1, "dependency_count": 1}
@@ -149,8 +149,8 @@ func TestLiveNornicDBAnswerTruth(t *testing.T) {
 			grant []string
 			want  int
 		}{
-			{grant: []string{"answer-truth:repo-a"}, want: 1},
-			{grant: []string{"answer-truth:repo-b"}, want: 0},
+			{grant: []string{"answer-truth-query:repo-a"}, want: 1},
+			{grant: []string{"answer-truth-query:repo-b"}, want: 0},
 		} {
 			scopedCtx := ContextWithAuthContext(ctx, AuthContext{
 				Mode:                 AuthModeScoped,
@@ -172,7 +172,7 @@ func TestLiveNornicDBAnswerTruth(t *testing.T) {
 	t.Run("A7 infra relationships incoming and outgoing", func(t *testing.T) {
 		handler := &InfraHandler{Profile: ProfileLocalAuthoritative, Neo4j: reader}
 		req := httptest.NewRequest(http.MethodPost, "/api/v0/infra/relationships",
-			strings.NewReader(`{"entity_id":"answer-truth:fn-Helper2"}`))
+			strings.NewReader(`{"entity_id":"answer-truth-query:fn-Helper2"}`))
 		rec := httptest.NewRecorder()
 		handler.getRelationships(rec, req)
 		if rec.Code != http.StatusOK {
@@ -189,15 +189,15 @@ func TestLiveNornicDBAnswerTruth(t *testing.T) {
 		}
 		gotIn := answerTruthEdges(body.Incoming, "source_id")
 		wantIn := []string{
-			"CALLS answer-truth:fn-Helper1",
-			"CALLS answer-truth:fn-Main",
-			"CONTAINS answer-truth:file-b",
+			"CALLS answer-truth-query:fn-Helper1",
+			"CALLS answer-truth-query:fn-Main",
+			"CONTAINS answer-truth-query:file-b",
 		}
 		if !reflect.DeepEqual(gotIn, wantIn) {
 			t.Fatalf("incoming = %v, want %v", gotIn, wantIn)
 		}
 		gotOut := answerTruthEdges(body.Outgoing, "target_id")
-		if want := []string{"CALLS answer-truth:fn-Helper3"}; !reflect.DeepEqual(gotOut, want) {
+		if want := []string{"CALLS answer-truth-query:fn-Helper3"}; !reflect.DeepEqual(gotOut, want) {
 			t.Fatalf("outgoing = %v, want %v", gotOut, want)
 		}
 	})

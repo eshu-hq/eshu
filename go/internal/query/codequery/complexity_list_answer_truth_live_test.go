@@ -39,19 +39,19 @@ import (
 // v1.3.3 image an expression inside a CREATE property map can be stored as
 // mangled literal text.
 var complexityAnswerTruthSeed = []string{
-	`CREATE (:Repository {id: 'answer-truth:repo-b', name: 'answer-truth-repo-b'})`,
-	`CREATE (:File {id: 'answer-truth:file-a', relative_path: 'a.go', language: 'go'})`,
-	`CREATE (:File {id: 'answer-truth:file-b', relative_path: 'b.go', language: 'go'})`,
-	`CREATE (:Function {id: 'answer-truth:fn-Main', name: 'AnswerTruthMain', language: 'go', cyclomatic_complexity: 7})`,
-	`CREATE (:Function {id: 'answer-truth:fn-Helper1', name: 'AnswerTruthHelper1', language: 'go', cyclomatic_complexity: 3})`,
-	`CREATE (:Function {id: 'answer-truth:fn-Orphan', name: 'AnswerTruthOrphan', language: 'go', cyclomatic_complexity: 2})`,
-	`MATCH (r:Repository {id: 'answer-truth:repo-b'}) MATCH (f:File {id: 'answer-truth:file-a'}) CREATE (r)-[:REPO_CONTAINS]->(f)`,
-	`MATCH (r:Repository {id: 'answer-truth:repo-b'}) MATCH (f:File {id: 'answer-truth:file-b'}) CREATE (r)-[:REPO_CONTAINS]->(f)`,
-	`MATCH (f:File {id: 'answer-truth:file-a'}) MATCH (e:Function {id: 'answer-truth:fn-Main'}) CREATE (f)-[:CONTAINS]->(e)`,
-	`MATCH (f:File {id: 'answer-truth:file-b'}) MATCH (e:Function {id: 'answer-truth:fn-Helper1'}) CREATE (f)-[:CONTAINS]->(e)`,
+	`CREATE (:Repository {id: 'answer-truth-code:repo-b', name: 'answer-truth-repo-b'})`,
+	`CREATE (:File {id: 'answer-truth-code:file-a', relative_path: 'a.go', language: 'go'})`,
+	`CREATE (:File {id: 'answer-truth-code:file-b', relative_path: 'b.go', language: 'go'})`,
+	`CREATE (:Function {id: 'answer-truth-code:fn-Main', name: 'AnswerTruthMain', language: 'go', cyclomatic_complexity: 7})`,
+	`CREATE (:Function {id: 'answer-truth-code:fn-Helper1', name: 'AnswerTruthHelper1', language: 'go', cyclomatic_complexity: 3})`,
+	`CREATE (:Function {id: 'answer-truth-code:fn-Orphan', name: 'AnswerTruthOrphan', language: 'go', cyclomatic_complexity: 2})`,
+	`MATCH (r:Repository {id: 'answer-truth-code:repo-b'}) MATCH (f:File {id: 'answer-truth-code:file-a'}) CREATE (r)-[:REPO_CONTAINS]->(f)`,
+	`MATCH (r:Repository {id: 'answer-truth-code:repo-b'}) MATCH (f:File {id: 'answer-truth-code:file-b'}) CREATE (r)-[:REPO_CONTAINS]->(f)`,
+	`MATCH (f:File {id: 'answer-truth-code:file-a'}) MATCH (e:Function {id: 'answer-truth-code:fn-Main'}) CREATE (f)-[:CONTAINS]->(e)`,
+	`MATCH (f:File {id: 'answer-truth-code:file-b'}) MATCH (e:Function {id: 'answer-truth-code:fn-Helper1'}) CREATE (f)-[:CONTAINS]->(e)`,
 }
 
-const complexityAnswerTruthCleanup = `MATCH (n) WHERE n.id STARTS WITH 'answer-truth:' DETACH DELETE n`
+const complexityAnswerTruthCleanup = `MATCH (n) WHERE n.id STARTS WITH 'answer-truth-code:' DETACH DELETE n`
 
 func TestLiveNornicDBComplexityListAnswerTruth(t *testing.T) {
 	uri := strings.TrimSpace(os.Getenv("ESHU_NEO4J_URI"))
@@ -92,8 +92,8 @@ func TestLiveNornicDBComplexityListAnswerTruth(t *testing.T) {
 	}
 	t.Logf("rows (name|complexity|file|repo_id|repo_name): %v truncated=%v", got, truncated)
 	want := []string{
-		"AnswerTruthMain|7|a.go|answer-truth:repo-b|answer-truth-repo-b",
-		"AnswerTruthHelper1|3|b.go|answer-truth:repo-b|answer-truth-repo-b",
+		"AnswerTruthMain|7|a.go|answer-truth-code:repo-b|answer-truth-repo-b",
+		"AnswerTruthHelper1|3|b.go|answer-truth-code:repo-b|answer-truth-repo-b",
 		"AnswerTruthOrphan|2|||",
 	}
 	if !reflect.DeepEqual(got, want) || truncated {

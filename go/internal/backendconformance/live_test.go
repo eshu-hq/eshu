@@ -85,8 +85,15 @@ func TestLiveBackendConformance(t *testing.T) {
 
 	readCtx, readCancel := context.WithTimeout(ctx, liveReadTimeout)
 	defer readCancel()
-	if _, err := RunReadCorpus(readCtx, executor, DefaultReadCorpus()); err != nil {
+	report, err := RunReadCorpus(readCtx, executor, DefaultReadCorpus())
+	if err != nil {
 		t.Fatalf("run %s live read corpus: %v", backend, err)
+	}
+	// One line per case, so a reader (and the value-flow conformance gate,
+	// scripts/verify-value-flow-conformance-expectation.sh) can see which cases
+	// actually ran on this backend rather than inferring it from a pass.
+	for _, result := range report.Results {
+		t.Logf("read case passed: %s (%d rows)", result.Name, result.Rows)
 	}
 }
 

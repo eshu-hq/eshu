@@ -49,11 +49,12 @@ backends:
           prod-transitive-callers.md, prod-transitive-callees.md, and
           prod-route-to-caller.md -- prod-trace-exposure-path.md is deliberately not
           cited here, because its recorded observation is zero paths returned, an honest
-          negative that cannot substantiate a traversal returning rows. Production
-          traversals that follow a WITH-bound anchor keep each hop in its own MATCH
-          clause; the value-flow cloud sink statements are the live-corpus example
-          (go/internal/backendconformance/corpus_value_flow.go, exact rows on both
-          backends).
+          negative that cannot substantiate a traversal returning rows. A multi-hop
+          OPTIONAL MATCH after an aggregating WITH returns exact rows on the pinned
+          v1.3.3 image and on Neo4j, held by the "answer-truth optional match after an
+          aggregating with" case in go/internal/backendconformance/corpus_answer_truth.go.
+          The value-flow cloud sink statements keep every hop in its own MATCH clause
+          and run with exact rows in corpus_value_flow.go.
       full_text_support:
         status: not_required
         verification: []

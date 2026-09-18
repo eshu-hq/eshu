@@ -50,15 +50,19 @@ func selectCloudSinkPairs(rows []map[string]any) ([]cloudSinkPair, cloudSinkPair
 		if uid == "" {
 			continue
 		}
-		key := pairKey{uid: uid, action: strings.TrimSpace(payloadcore.AnyToString(row["action"]))}
-		workloadID := strings.TrimSpace(payloadcore.AnyToString(row["workload_id"]))
-		if key.action == "" || workloadID == "" {
+		// The action and workload id travel to the second statement exactly
+		// as the graph returned them, so its equality and IN comparisons
+		// match the stored values; trimming is only the emptiness test.
+		key := pairKey{uid: uid, action: payloadcore.AnyToString(row["action"])}
+		workloadID := payloadcore.AnyToString(row["workload_id"])
+		empty := strings.TrimSpace(workloadID) == ""
+		if strings.TrimSpace(key.action) == "" || empty {
 			unresolved[key] = struct{}{}
 		}
 		if workloads[key] == nil {
 			workloads[key] = map[string]struct{}{}
 		}
-		if workloadID != "" {
+		if !empty {
 			workloads[key][workloadID] = struct{}{}
 		}
 	}

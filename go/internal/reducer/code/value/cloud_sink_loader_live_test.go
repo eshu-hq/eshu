@@ -46,38 +46,38 @@ import (
 //     principal is not allowed: no sink.
 //   - fn-noinst runs in a workload with no instance: no sink.
 var cloudSinkLiveSeed = []string{
-	`CREATE (:Function {uid: 'answer-truth:vf-one', name: 'One'})`,
-	`CREATE (:Function {uid: 'answer-truth:vf-two', name: 'Two'})`,
-	`CREATE (:Function {uid: 'answer-truth:vf-miss', name: 'Miss'})`,
-	`CREATE (:Function {uid: 'answer-truth:vf-noinst', name: 'NoInstance'})`,
-	`CREATE (:CloudAction {action: 'answer-truth:s3:GetObject'})`,
-	`CREATE (:CloudAction {action: 'answer-truth:sqs:SendMessage'})`,
-	`CREATE (:Workload {id: 'answer-truth:vw-1'})`,
-	`CREATE (:Workload {id: 'answer-truth:vw-2'})`,
-	`CREATE (:Workload {id: 'answer-truth:vw-empty'})`,
-	`CREATE (:WorkloadInstance {id: 'answer-truth:vi-1'})`,
-	`CREATE (:WorkloadInstance {id: 'answer-truth:vi-2'})`,
-	`CREATE (:CloudResource {id: 'answer-truth:vp-role'})`,
-	`CREATE (:CloudResource {id: 'answer-truth:vs-bucket', is_internet: false})`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-one'}) MATCH (a:CloudAction {action: 'answer-truth:s3:GetObject'}) CREATE (f)-[:INVOKES_CLOUD_ACTION]->(a)`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-two'}) MATCH (a:CloudAction {action: 'answer-truth:s3:GetObject'}) CREATE (f)-[:INVOKES_CLOUD_ACTION]->(a)`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-noinst'}) MATCH (a:CloudAction {action: 'answer-truth:s3:GetObject'}) CREATE (f)-[:INVOKES_CLOUD_ACTION]->(a)`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-miss'}) MATCH (a:CloudAction {action: 'answer-truth:sqs:SendMessage'}) CREATE (f)-[:INVOKES_CLOUD_ACTION]->(a)`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-one'}) MATCH (w:Workload {id: 'answer-truth:vw-1'}) CREATE (f)-[:RUNS_IN]->(w)`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-one'}) MATCH (w:Workload {id: 'answer-truth:vw-1'}) CREATE (f)-[:RUNS_IN]->(w)`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-two'}) MATCH (w:Workload {id: 'answer-truth:vw-1'}) CREATE (f)-[:RUNS_IN]->(w)`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-two'}) MATCH (w:Workload {id: 'answer-truth:vw-2'}) CREATE (f)-[:RUNS_IN]->(w)`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-miss'}) MATCH (w:Workload {id: 'answer-truth:vw-1'}) CREATE (f)-[:RUNS_IN]->(w)`,
-	`MATCH (f:Function {uid: 'answer-truth:vf-noinst'}) MATCH (w:Workload {id: 'answer-truth:vw-empty'}) CREATE (f)-[:RUNS_IN]->(w)`,
-	`MATCH (i:WorkloadInstance {id: 'answer-truth:vi-1'}) MATCH (w:Workload {id: 'answer-truth:vw-1'}) CREATE (i)-[:INSTANCE_OF]->(w)`,
-	`MATCH (i:WorkloadInstance {id: 'answer-truth:vi-2'}) MATCH (w:Workload {id: 'answer-truth:vw-2'}) CREATE (i)-[:INSTANCE_OF]->(w)`,
-	`MATCH (i:WorkloadInstance {id: 'answer-truth:vi-1'}) MATCH (p:CloudResource {id: 'answer-truth:vp-role'}) CREATE (i)-[:USES]->(p)`,
-	`MATCH (i:WorkloadInstance {id: 'answer-truth:vi-2'}) MATCH (p:CloudResource {id: 'answer-truth:vp-role'}) CREATE (i)-[:USES]->(p)`,
-	`MATCH (p:CloudResource {id: 'answer-truth:vp-role'}) MATCH (s:CloudResource {id: 'answer-truth:vs-bucket'}) CREATE (p)-[:CAN_PERFORM {actions: ['answer-truth:s3:GetObject']}]->(s)`,
+	`CREATE (:Function {uid: 'answer-truth-valueflow:vf-one', name: 'One'})`,
+	`CREATE (:Function {uid: 'answer-truth-valueflow:vf-two', name: 'Two'})`,
+	`CREATE (:Function {uid: 'answer-truth-valueflow:vf-miss', name: 'Miss'})`,
+	`CREATE (:Function {uid: 'answer-truth-valueflow:vf-noinst', name: 'NoInstance'})`,
+	`CREATE (:CloudAction {action: 'answer-truth-valueflow:s3:GetObject'})`,
+	`CREATE (:CloudAction {action: 'answer-truth-valueflow:sqs:SendMessage'})`,
+	`CREATE (:Workload {id: 'answer-truth-valueflow:vw-1'})`,
+	`CREATE (:Workload {id: 'answer-truth-valueflow:vw-2'})`,
+	`CREATE (:Workload {id: 'answer-truth-valueflow:vw-empty'})`,
+	`CREATE (:WorkloadInstance {id: 'answer-truth-valueflow:vi-1'})`,
+	`CREATE (:WorkloadInstance {id: 'answer-truth-valueflow:vi-2'})`,
+	`CREATE (:CloudResource {id: 'answer-truth-valueflow:vp-role'})`,
+	`CREATE (:CloudResource {id: 'answer-truth-valueflow:vs-bucket', is_internet: false})`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-one'}) MATCH (a:CloudAction {action: 'answer-truth-valueflow:s3:GetObject'}) CREATE (f)-[:INVOKES_CLOUD_ACTION]->(a)`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-two'}) MATCH (a:CloudAction {action: 'answer-truth-valueflow:s3:GetObject'}) CREATE (f)-[:INVOKES_CLOUD_ACTION]->(a)`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-noinst'}) MATCH (a:CloudAction {action: 'answer-truth-valueflow:s3:GetObject'}) CREATE (f)-[:INVOKES_CLOUD_ACTION]->(a)`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-miss'}) MATCH (a:CloudAction {action: 'answer-truth-valueflow:sqs:SendMessage'}) CREATE (f)-[:INVOKES_CLOUD_ACTION]->(a)`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-one'}) MATCH (w:Workload {id: 'answer-truth-valueflow:vw-1'}) CREATE (f)-[:RUNS_IN]->(w)`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-one'}) MATCH (w:Workload {id: 'answer-truth-valueflow:vw-1'}) CREATE (f)-[:RUNS_IN]->(w)`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-two'}) MATCH (w:Workload {id: 'answer-truth-valueflow:vw-1'}) CREATE (f)-[:RUNS_IN]->(w)`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-two'}) MATCH (w:Workload {id: 'answer-truth-valueflow:vw-2'}) CREATE (f)-[:RUNS_IN]->(w)`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-miss'}) MATCH (w:Workload {id: 'answer-truth-valueflow:vw-1'}) CREATE (f)-[:RUNS_IN]->(w)`,
+	`MATCH (f:Function {uid: 'answer-truth-valueflow:vf-noinst'}) MATCH (w:Workload {id: 'answer-truth-valueflow:vw-empty'}) CREATE (f)-[:RUNS_IN]->(w)`,
+	`MATCH (i:WorkloadInstance {id: 'answer-truth-valueflow:vi-1'}) MATCH (w:Workload {id: 'answer-truth-valueflow:vw-1'}) CREATE (i)-[:INSTANCE_OF]->(w)`,
+	`MATCH (i:WorkloadInstance {id: 'answer-truth-valueflow:vi-2'}) MATCH (w:Workload {id: 'answer-truth-valueflow:vw-2'}) CREATE (i)-[:INSTANCE_OF]->(w)`,
+	`MATCH (i:WorkloadInstance {id: 'answer-truth-valueflow:vi-1'}) MATCH (p:CloudResource {id: 'answer-truth-valueflow:vp-role'}) CREATE (i)-[:USES]->(p)`,
+	`MATCH (i:WorkloadInstance {id: 'answer-truth-valueflow:vi-2'}) MATCH (p:CloudResource {id: 'answer-truth-valueflow:vp-role'}) CREATE (i)-[:USES]->(p)`,
+	`MATCH (p:CloudResource {id: 'answer-truth-valueflow:vp-role'}) MATCH (s:CloudResource {id: 'answer-truth-valueflow:vs-bucket'}) CREATE (p)-[:CAN_PERFORM {actions: ['answer-truth-valueflow:s3:GetObject']}]->(s)`,
 }
 
 const cloudSinkLiveCleanup = `MATCH (n)
-WHERE n.uid STARTS WITH 'answer-truth:' OR n.id STARTS WITH 'answer-truth:' OR n.action STARTS WITH 'answer-truth:'
+WHERE n.uid STARTS WITH 'answer-truth-valueflow:' OR n.id STARTS WITH 'answer-truth-valueflow:' OR n.action STARTS WITH 'answer-truth-valueflow:'
 DETACH DELETE n`
 
 func TestLiveCloudSinkLoader(t *testing.T) {
@@ -113,10 +113,10 @@ func TestLiveCloudSinkLoader(t *testing.T) {
 
 	fnOne := summary.NewFunctionID("repo-a", "pkg", "", "one")
 	graphIDs := map[summary.FunctionID]string{
-		fnOne: "answer-truth:vf-one",
-		summary.NewFunctionID("repo-a", "pkg", "", "two"):    "answer-truth:vf-two",
-		summary.NewFunctionID("repo-a", "pkg", "", "miss"):   "answer-truth:vf-miss",
-		summary.NewFunctionID("repo-a", "pkg", "", "noinst"): "answer-truth:vf-noinst",
+		fnOne: "answer-truth-valueflow:vf-one",
+		summary.NewFunctionID("repo-a", "pkg", "", "two"):    "answer-truth-valueflow:vf-two",
+		summary.NewFunctionID("repo-a", "pkg", "", "miss"):   "answer-truth-valueflow:vf-miss",
+		summary.NewFunctionID("repo-a", "pkg", "", "noinst"): "answer-truth-valueflow:vf-noinst",
 	}
 	targets, err := GraphCloudSinkTargetLoader{Graph: graph}.LoadCloudSinkTargets(ctx, graphIDs)
 	if err != nil {
