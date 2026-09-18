@@ -138,7 +138,7 @@ inputs is the claim.
 
 ## Observability Evidence
 
-The existing `repository_query.stage_started` /
+Observability Evidence: the existing `repository_query.stage_started` /
 `repository_query.stage_completed` log events for
 `operation=repository_list, stage=dependency_cluster_edges` are unchanged in
 shape and now also carry `edge_count` (previously only `cluster_count`),
