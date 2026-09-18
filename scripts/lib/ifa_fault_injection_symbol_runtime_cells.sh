@@ -52,6 +52,11 @@
 # ifa_runs_in_assert / ifa_invokes_cloud_action_assert from
 # scripts/lib/ifa_symbol_runtime_live.sh.
 
+# Keep 8s: the TTL doubles as the cell's regression sensitivity. With the
+# server-side expiry binding (#6760) rows commit post-release with a full
+# TTL, so a stale capture fails the >4s minimum_remaining filter exactly as
+# before; a longer TTL would let client-bound burned rows pass and blind the
+# cell to a revert. Keep the capture's >4s minimum_remaining strict.
 _IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_TTL='8s'
 _IFA_SYMBOL_RUNTIME_RECLAIM_LEASE_OWNER='ifa-runner-lease-audit'
 

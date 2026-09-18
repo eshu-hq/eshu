@@ -1195,8 +1195,12 @@ func (database *leaseTestDB) QueryContext(_ context.Context, query string, args 
 		partID := args[1].(int)
 		partCount := args[2].(int)
 		owner := args[3].(string)
-		expiresAt := args[4].(time.Time)
+		// $5 carries the TTL in seconds; the fake applies it to the bound
+		// timestamp, mirroring the production computation without simulating
+		// a lock wait.
+		ttlSeconds := args[4].(float64)
 		updatedAt := args[5].(time.Time)
+		expiresAt := updatedAt.Add(time.Duration(ttlSeconds * float64(time.Second)))
 
 		k := leaseKey{
 			projectionDomain: domain,

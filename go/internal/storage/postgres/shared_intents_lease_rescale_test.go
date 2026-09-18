@@ -441,7 +441,7 @@ func (partitionRescaleGuardDB) QueryContext(_ context.Context, query string, arg
 		!strings.Contains(query, "hashtext($1)") ||
 		!strings.Contains(query, "partition_count <> $3") ||
 		!strings.Contains(query, "lease_owner IS NOT NULL") ||
-		!strings.Contains(query, "lease_expires_at > $6") {
+		!strings.Contains(query, "lease_expires_at > clock_timestamp()") {
 		return &leaseResultRows{
 			data: [][]any{{args[0].(string)}},
 			idx:  -1,
