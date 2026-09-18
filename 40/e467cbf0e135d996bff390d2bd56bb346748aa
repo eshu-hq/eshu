@@ -1,0 +1,19 @@
+go/internal/storage/postgres/status_readiness_test.go
+  s_50762adbc98aa0::t_4495f5aab9c2a9 16-17,30,34-35,38,45,143
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "40e467cbf0e135d996bff390d2bd56bb346748aa",
+  "prompts": {},
+  "sessions": {
+    "s_50762adbc98aa0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1a0d372a-a12a-4663-abff-5a088032f48b",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
