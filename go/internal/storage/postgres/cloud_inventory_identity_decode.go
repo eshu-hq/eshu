@@ -66,7 +66,7 @@ func decodeAWSResourceForCloudInventory(env facts.Envelope) (awsv1.Resource, err
 // why this loader routes AWS and Azure identity resolution through the typed
 // contract instead of a tolerant raw lookup; subscription_id is Azure's
 // REQUIRED counterpart to AWS account_id, validated non-empty by the
-// collector emitter (azurecloud.NewResourceEnvelope).
+// collector emitter (azure.NewResourceEnvelope).
 func decodeAzureCloudResourceForCloudInventory(env facts.Envelope) (azurev1.CloudResource, error) {
 	resource, err := factschema.DecodeAzureCloudResource(postgresFactschemaEnvelope(env))
 	if err != nil {

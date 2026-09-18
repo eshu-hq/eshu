@@ -23,7 +23,7 @@ import "encoding/json"
 //   - Required (identity): ARMResourceID, ResourceType, SubscriptionID,
 //     Location. The decode seam rejects a payload missing any of them with a
 //     classified input_invalid error naming the field, matching the collector
-//     emitter (azurecloud.NewResourceEnvelope), which validates arm_resource_id
+//     emitter (azure.NewResourceEnvelope), which validates arm_resource_id
 //     non-empty and always derives resource_type, subscription_id (from ARM
 //     identity parsing), and location (from the collection boundary). This is
 //     the accuracy fix — these are exactly the fields whose silent absence

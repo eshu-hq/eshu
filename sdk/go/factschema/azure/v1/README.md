@@ -38,7 +38,7 @@ required-field validation — that lives in the parent `factschema` package
 (`decode.go`, `decode_azure.go`). It does not own graph projection; reducer
 handlers under `go/internal/reducer` consume the decoded structs but live
 outside this module. It does not own the collector emitters that build these
-payloads (`go/internal/collector/azurecloud`), which also live outside this
+payloads (`go/internal/collector/cloud/azure`), which also live outside this
 module.
 
 ## Exported surface
@@ -71,8 +71,8 @@ Field mutability encodes the contract, per Contract System v1 §3.1
 
 | Struct | Required identity fields | Why |
 | --- | --- | --- |
-| `CloudResource` | `ARMResourceID`, `ResourceType`, `SubscriptionID`, `Location` | These are exactly the fields `cloudResourceUID(subscriptionID, location, resourceType, resourceID)` needs; the collector emitter (`azurecloud.NewResourceEnvelope`) always derives all four from the observation and its ARM identity parse. Missing any one previously produced a wrong-but-plausible CloudResource uid; the decode seam now dead-letters it as `input_invalid`. |
-| `CloudRelationship` | `RelationshipType`, `SourceARMResourceID`, `TargetARMResourceID` | The collector emitter (`azurecloud.NewRelationshipEnvelope`) validates all three non-empty before emission. |
+| `CloudResource` | `ARMResourceID`, `ResourceType`, `SubscriptionID`, `Location` | These are exactly the fields `cloudResourceUID(subscriptionID, location, resourceType, resourceID)` needs; the collector emitter (`azure.NewResourceEnvelope`) always derives all four from the observation and its ARM identity parse. Missing any one previously produced a wrong-but-plausible CloudResource uid; the decode seam now dead-letters it as `input_invalid`. |
+| `CloudRelationship` | `RelationshipType`, `SourceARMResourceID`, `TargetARMResourceID` | The collector emitter (`azure.NewRelationshipEnvelope`) validates all three non-empty before emission. |
 | `DNSRecord` | `ZoneARMResourceID`, `RecordType`, `RecordNameFingerprint` | The emitter validates a non-empty zone, record type, and record name (which it always fingerprints) before emission. |
 | `CollectionWarning` | `WarningKind`, `Outcome` | The emitter rejects a blank warning kind and defaults a blank outcome to `"partial"` before emission, so both are always present once decode succeeds. |
 | `TagObservation` | `ResourceID`, `TagKeyFingerprint` | The emitter only builds a tag observation after deriving the owning resource identity and fingerprinting a tag key. |
@@ -92,7 +92,7 @@ map[string]any`, with JSON type fidelity preserved by a custom
 `awsv1.Relationship`.
 
 **Unlike the aws family, the pass-through here is FLAT, not nested.** The
-Azure collector emitter (`go/internal/collector/azurecloud`) writes its
+Azure collector emitter (`go/internal/collector/cloud/azure`) writes its
 remaining fields directly at the top level of the payload
 (`payload["kind"] = ...`, `payload["sku_class"] = ...`,
 `payload["extension"] = {...}`), never nested under a single `"attributes"`

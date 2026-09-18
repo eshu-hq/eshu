@@ -57,7 +57,7 @@ func TestContainerImageIdentityHandlerQuarantinesAWSImageReferenceMissingRegion(
 
 // TestContainerImageIdentityHandlerQuarantinesAzureImageReferenceMissingOwningARMResourceID
 // proves the same guarantee for azure_image_reference: OwningARMResourceID is
-// the field the collector always populates (azurecloud.NewImageReferenceEnvelope
+// the field the collector always populates (azure.NewImageReferenceEnvelope
 // fails closed on it), so its absence is malformed input, not a valid runtime
 // observation.
 func TestContainerImageIdentityHandlerQuarantinesAzureImageReferenceMissingOwningARMResourceID(t *testing.T) {

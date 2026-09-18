@@ -24,7 +24,7 @@
 // common fields multiple consumers read. Every remaining, service- or
 // verb-specific payload key passes through untyped in the struct's
 // Attributes field. Unlike the aws family's nested "attributes" object, the
-// Azure collector emitter (go/internal/collector/azurecloud) writes its
+// Azure collector emitter (go/internal/collector/cloud/azure) writes its
 // service-specific fields FLAT at the top level of the payload (for example
 // "kind", "sku_class", "tags", "extension"), so Attributes here captures
 // those flat keys directly — there is no nested "attributes" object to
