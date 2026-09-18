@@ -138,7 +138,10 @@ func TestPollPreMaintenanceBreakdownErrorKeepsPolling(t *testing.T) {
 }
 
 func TestPreMaintenanceQuiescenceMessageNamesDeferredState(t *testing.T) {
-	counts := DrainCounts{FactWorkItemsResidual: 2, SharedIntentsRequiredNonterminal: 6}
+	// The six nonterminal shared intents are all repo_dependency rows: that
+	// lane is fenced behind the maintenance pass, so they are the one shared
+	// residual the pre-maintenance verdict tolerates.
+	counts := DrainCounts{FactWorkItemsResidual: 2, SharedIntentsRequiredNonterminal: 6, RepoDependencyNonterminal: 6}
 	rows := []residualRow{
 		{Domain: "deployment_mapping", Status: "retrying", FailureClass: "cross_repo_backward_evidence_not_ready", Count: 1},
 		{Domain: "workload_materialization", Status: "retrying", FailureClass: "workload_materialization_resolution_not_ready", Count: 1},
@@ -147,7 +150,7 @@ func TestPreMaintenanceQuiescenceMessageNamesDeferredState(t *testing.T) {
 	if !quiescent {
 		t.Fatal("deferred-only rows must report quiescent")
 	}
-	for _, want := range []string{"pre-maintenance", "readiness-deferred=2", "shared-required-nonterminal=6"} {
+	for _, want := range []string{"pre-maintenance", "readiness-deferred=2", "shared-required-nonterminal=6", "repo_dependency-deferred=6"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("message %q must contain %q", msg, want)
 		}
@@ -192,10 +195,69 @@ func TestPreMaintenanceQuiescenceRejects(t *testing.T) {
 			counts: DrainCounts{CrossScopeCompletionEventsNonterminal: 1},
 			rows:   []residualRow{{Domain: "d", Status: "retrying", FailureClass: "cross_repo_backward_evidence_not_ready", Count: 1}},
 		},
+		"shared intent outside repo_dependency": {
+			counts: DrainCounts{FactWorkItemsResidual: 1, SharedIntentsRequiredNonterminal: 1},
+			rows:   []residualRow{{Domain: "d", Status: "retrying", FailureClass: "cross_repo_backward_evidence_not_ready", Count: 1}},
+		},
+		"repo_dependency subset smaller than the required count": {
+			counts: DrainCounts{SharedIntentsRequiredNonterminal: 3, RepoDependencyNonterminal: 2},
+		},
 	}
 	for name, tc := range cases {
 		if _, quiescent := preMaintenanceQuiescence(tc.counts, tc.rows); quiescent {
 			t.Errorf("%s: must not report quiescent", name)
 		}
+	}
+}
+
+// #6747 shape B: Ifa fault-injection runs 35204957758 and 35222680019 passed
+// the pre-maintenance drain with shared-required-nonterminal=14 and =4 while
+// the rationale_edges lane was still consuming its intents, then failed the
+// rationale exact-set assertion that follows the drain on the next line. A
+// shared intent outside the maintenance-fenced repo_dependency lane is live
+// work the lane will finish in seconds, not a readiness deferral, so the
+// pre-maintenance verdict must keep polling for it exactly as the strict
+// drain does.
+func TestPollPreMaintenanceWaitsForSharedIntents(t *testing.T) {
+	counts := DrainCounts{FactWorkItemsResidual: 9, SharedIntentsNonterminal: 14, SharedIntentsRequiredNonterminal: 14}
+	rows := deferredOnlyQuerier().breakdown
+	msg, quiescent := preMaintenanceQuiescence(counts, rows)
+	if quiescent {
+		t.Fatalf("nonterminal shared intents outside repo_dependency are live work: quiescent=%t message=%q", quiescent, msg)
+	}
+	q := &fakeDrainQuerier{seq: []DrainCounts{counts}, breakdown: rows}
+	_, ok, err := pollUntilDrained(context.Background(), q,
+		strictDrainAssertions(), 0, 5*time.Millisecond, time.Millisecond, nil, 0, true)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if ok {
+		t.Fatal("pre-maintenance drain must not pass while a shared lane still holds unconsumed intents")
+	}
+}
+
+// The tolerance the mode was written for stays: repo_dependency intents are
+// emitted by deployment_mapping and wait on the maintenance pass through the
+// RUNS_ON workload readiness fence, so a residual made only of them is
+// quiescent, and the poll converges once the other lanes drain.
+func TestPollPreMaintenanceToleratesRepoDependencyIntents(t *testing.T) {
+	rows := deferredOnlyQuerier().breakdown
+	q := &fakeDrainQuerier{
+		seq: []DrainCounts{
+			{FactWorkItemsResidual: 9, SharedIntentsRequiredNonterminal: 5, RepoDependencyNonterminal: 2},
+			{FactWorkItemsResidual: 9, SharedIntentsRequiredNonterminal: 2, RepoDependencyNonterminal: 2},
+		},
+		breakdown: rows,
+	}
+	counts, ok, err := pollUntilDrained(context.Background(), q,
+		strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0, true)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !ok {
+		t.Fatalf("pre-maintenance drain must pass once only repo_dependency intents remain, got %+v", counts)
+	}
+	if counts.SharedIntentsRequiredNonterminal != 2 || q.i != 2 {
+		t.Fatalf("poll must have waited for the second reading: counts=%+v polls=%d", counts, q.i)
 	}
 }

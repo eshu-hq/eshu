@@ -182,6 +182,54 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyQuiescenceBlocked(
 	}
 }
 
+// recordRepoDependencyLeaseContended logs the first refused claim of a
+// contention episode: another owner (a sibling replica, or a lease a dead
+// process left behind) holds this partition, so the lane makes no progress
+// until that lease expires or is released. Before #6747 a refused claim
+// returned an empty cycle with no signal at all, and a stalled
+// repo_dependency drain could not be attributed from the runner's own log.
+// One line per episode keeps a long hold readable; the acquired line below
+// closes the episode.
+func (r *RepoDependencyProjectionRunner) recordRepoDependencyLeaseContended(ctx context.Context) {
+	if r.leaseContended {
+		return
+	}
+	r.leaseContended = true
+	if r.Logger == nil {
+		return
+	}
+	r.Logger.InfoContext(
+		ctx,
+		"repo dependency partition lease held by another owner",
+		slog.Int("partition_id", r.Config.partitionID()),
+		slog.Int("partition_count", r.Config.partitionCount()),
+		slog.String("lease_owner", r.Config.leaseOwner()),
+		slog.Float64("lease_ttl_seconds", r.Config.leaseTTL().Seconds()),
+		telemetry.PhaseAttr(telemetry.PhaseReduction),
+	)
+}
+
+// recordRepoDependencyLeaseAcquired closes a contention episode opened by
+// recordRepoDependencyLeaseContended. A claim that succeeds without a prior
+// refusal logs nothing.
+func (r *RepoDependencyProjectionRunner) recordRepoDependencyLeaseAcquired(ctx context.Context) {
+	if !r.leaseContended {
+		return
+	}
+	r.leaseContended = false
+	if r.Logger == nil {
+		return
+	}
+	r.Logger.InfoContext(
+		ctx,
+		"repo dependency partition lease acquired after contention",
+		slog.Int("partition_id", r.Config.partitionID()),
+		slog.Int("partition_count", r.Config.partitionCount()),
+		slog.String("lease_owner", r.Config.leaseOwner()),
+		telemetry.PhaseAttr(telemetry.PhaseReduction),
+	)
+}
+
 func (r *RepoDependencyProjectionRunner) recordRepoDependencyWorkloadReadinessBlocked(
 	ctx context.Context,
 	acceptanceUnitID string,

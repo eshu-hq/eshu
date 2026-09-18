@@ -43,7 +43,8 @@ SELECT
      WHERE completed_at IS NULL
        AND projection_domain = ANY(string_to_array($1, ','))),
     (SELECT count(*) FROM shared_projection_intents
-     WHERE completed_at IS NULL AND projection_domain = 'repo_dependency'),
+     WHERE completed_at IS NULL AND projection_domain = 'repo_dependency'
+       AND NOT (projection_domain = ANY(string_to_array($1, ',')))),
     (SELECT count(DISTINCT projection_domain) FROM shared_projection_intents
      WHERE projection_domain = ANY(string_to_array($2, ','))),
     (SELECT count(*) FROM cross_scope_completion_events
@@ -189,15 +190,23 @@ func pollUntilDrained(
 }
 
 // preMaintenanceQuiescent reports whether the poll may stop for a
-// pre-maintenance drain: no live, dead-letter, or failed fact rows and no
-// pending completion events. Readiness-deferred rows and nonterminal shared
-// intents are the expected pre-maintenance state -- gated work retrying until
-// the maintenance pass opens its gates, plus the downstream intents waiting
-// on it -- so they do not block. A breakdown read failure is not quiescence:
-// the poll keeps waiting and the timeout verdict degrades the message, never
-// the other way round.
+// pre-maintenance drain: no live, dead-letter, or failed fact rows, no
+// pending completion events, and no nonterminal shared intent outside the
+// repo_dependency lane. Readiness-deferred fact rows and repo_dependency
+// intents are the expected pre-maintenance state -- gated work retrying
+// until the maintenance pass opens its gates, plus the one shared lane whose
+// RUNS_ON readiness fence waits on that same pass -- so they do not block.
+// Every other shared lane (rationale_edges, sql_relationships, code_calls,
+// documentation_edges, ...) gates only on projector phases and drains in
+// seconds, so its nonterminal rows are live work the cell is about to
+// assert against, not a deferral (#6747 shape B). A breakdown read failure
+// is not quiescence: the poll keeps waiting and the timeout verdict degrades
+// the message, never the other way round.
 func preMaintenanceQuiescent(ctx context.Context, q drainQuerier, counts DrainCounts) bool {
 	if counts.CrossScopeCompletionEventsNonterminal != 0 {
+		return false
+	}
+	if preMaintenanceBlockingSharedIntents(counts) != 0 {
 		return false
 	}
 	rows, err := q.ResidualBreakdown(ctx)
@@ -208,19 +217,29 @@ func preMaintenanceQuiescent(ctx context.Context, q drainQuerier, counts DrainCo
 	return quiescent
 }
 
+// preMaintenanceBlockingSharedIntents is the nonterminal required shared-intent
+// count the pre-maintenance verdict still waits for: everything outside the
+// repo_dependency subset. drainCountsSQL derives both numbers from the same
+// snapshot and excludes the advisory domains from both, so the subset can
+// never exceed the required total.
+func preMaintenanceBlockingSharedIntents(counts DrainCounts) int64 {
+	return counts.SharedIntentsRequiredNonterminal - counts.RepoDependencyNonterminal
+}
+
 // preMaintenanceQuiescence is the pure predicate behind preMaintenanceQuiescent
-// plus the message the pre-maintenance verdict reports. Shared-intent
-// nonterminals are reported, not blocking: they are either gated-work
-// downstream or about-to-be-consumed rows, and the post-maintenance strict
-// drain re-checks every one of them.
+// plus the message the pre-maintenance verdict reports. Only the
+// repo_dependency subset of the shared-intent residual is tolerated; the
+// post-maintenance strict drain re-checks it.
 func preMaintenanceQuiescence(counts DrainCounts, rows []residualRow) (string, bool) {
 	live, deferred, deadLetter, failed := classifyResidualRows(rows)
 	quiescent := live == 0 && deadLetter == 0 && failed == 0 &&
+		preMaintenanceBlockingSharedIntents(counts) == 0 &&
 		counts.CrossScopeCompletionEventsNonterminal == 0
 	msg := fmt.Sprintf("pre-maintenance quiescence: live=%d readiness-deferred=%d dead_letter=%d failed=%d "+
-		"shared-required-nonterminal=%d completion-events=%d (deferred rows converge after the maintenance pass; the post-maintenance drain stays strict)",
+		"shared-required-nonterminal=%d repo_dependency-deferred=%d completion-events=%d (deferred rows converge after the maintenance pass; the post-maintenance drain stays strict)",
 		live, deferred, deadLetter, failed,
-		counts.SharedIntentsRequiredNonterminal, counts.CrossScopeCompletionEventsNonterminal)
+		counts.SharedIntentsRequiredNonterminal, counts.RepoDependencyNonterminal,
+		counts.CrossScopeCompletionEventsNonterminal)
 	return msg, quiescent
 }
 

@@ -164,7 +164,11 @@ assert_rationale_delta_truth() {
 # publishes backward evidence, so a strict bound can never pass before
 # maintenance runs. The mode passes only when no live, dead-letter, or failed
 # row remains -- every residual row waits on a readiness precondition -- and
-# the post-maintenance (non-"pre") drain stays strict. The "pre" suffix is the
+# no shared_projection_intents row outside repo_dependency is still open:
+# assert_rationale_truth runs right after this drain, and #6747 (runs
+# 35204957758, 35222680019) is the rationale_edges lane finishing its writes
+# a moment after a verdict that ignored them. The post-maintenance
+# (non-"pre") drain stays strict. The "pre" suffix is the
 # established naming convention for these drains (baseline Xpre,
 # "${cell}-pre"); no strict drain name ends in "pre".
 run_drain_gate() {

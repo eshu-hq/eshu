@@ -494,8 +494,8 @@ inherit `ESHU_REDUCER_WORKERS`. Repo-dependency cycles use a `45s` whole-cycle
 deadline and a `5m` shard lease. The lease must exceed that deadline plus
 `ESHU_CANONICAL_WRITE_TIMEOUT` and a `30s` margin. The remote profile's `120s`
 canonical-write timeout therefore remains inside the default safety budget.
-Any error, cancellation, or ambiguous commit quarantines only the affected
-shard until lease expiry; other shards keep processing independent repositories.
+Any error, cycle deadline, or ambiguous commit quarantines only the affected shard until lease expiry (a process shutdown before the
+acceptance-unit transaction opened releases the lease at once; after that point the quarantine holds); other shards keep processing independent repositories.
 Performance Evidence: the #2624 baseline remote proof rendered file-scoped
 `code_calls` work but leased the domain with `partition_count=1`, while the
 queue held 3,454 distinct code-call partition keys and 18,857 pending
