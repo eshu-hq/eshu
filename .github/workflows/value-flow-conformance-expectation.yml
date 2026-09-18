@@ -26,13 +26,9 @@ on:
       - main
   # Path-filtered on PRs; main runs unconditionally above as the backstop, so a
   # change reaching the pair through an unfiltered path (the Bolt executor, for
-  # one) is still caught. Keep this list byte-identical to the
-  # value-flow-conformance-expectation gate's triggers in specs/ci-gates.v1.yaml
-  # — TestValueFlowExpectationRegistryAndWorkflowTriggersMatch
-  # (go/internal/cigates/valueflow_required_test.go) compares the two sets, in
-  # both directions, because a registry trigger the workflow does not mirror
-  # marks a blocking gate GitHub never starts and required-gates-complete then
-  # waits for it forever.
+  # one) is still caught. This workflow is retiring: its gate row is gone from
+  # specs/ci-gates.v1.yaml (it is listed under non_gate_workflows), so nothing
+  # awaits it, and the workflow itself is deleted in the follow-up change.
   pull_request:
     paths:
       - "go/internal/backendconformance/**"
