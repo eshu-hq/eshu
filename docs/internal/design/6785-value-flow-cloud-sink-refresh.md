@@ -121,9 +121,10 @@ fanout). Largest change, and still N global solves without A's coalescing.
 | --- | --- |
 | `workload_materialization` | the intent's own repo (`repo:<id>` entity key / `payload.repo_id`) |
 | `workload_cloud_relationship_materialization` | written rows carry `workload_id`; repo = `(r:Repository)-[:DEFINES]->(:Workload {id})` |
-| `iam_can_perform_materialization` | written `principal_uid`s; repos via `(r:Repository)-[:DEFINES]->(w:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(:CloudResource {uid: principal_uid})` |
+| `iam_can_perform_materialization` | the `principal_uid`s of the CAN_PERFORM edges it **wrote** (principal and target may be in different scopes of one account, so never the completing scope's own resources); repos via `(r:Repository)-[:DEFINES]->(w:Workload)<-[:INSTANCE_OF]-(:WorkloadInstance)-[:USES]->(:CloudResource {uid: principal_uid})` |
 
-Gate: keep a repo only if it has at least one `Function` with both
+USES now defers on WorkloadInstance readiness (not the reopen list); no option
+relies on `crossScopeCorrelationReopenDomains`. Gate: keep a repo only if it has at least one `Function` with both
 `INVOKES_CLOUD_ACTION` and `RUNS_IN` into an affected workload, which is the
 same shape as `CloudSinkWorkloadRowsCypher`. An empty set means no emit. That
 keeps the common case (no cloud-calling handlers) free.
