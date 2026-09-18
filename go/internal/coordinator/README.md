@@ -14,7 +14,7 @@ plan-key grammar; it does not own scheduler requests or runtime behavior.
 The `cicd/run` child owns the CI/CD run planning request and planner
 implementation; root retains its interface, scheduling position, and durable
 admission path.
-The `securityalert` child owns the provider security-alert planning request and
+The `alert` child owns the provider security-alert planning request and
 planner implementation under the same boundary.
 The `sbom/attestation` child owns the hosted SBOM-attestation planning request
 and planner while root retains scheduling and durable admission.
@@ -149,7 +149,7 @@ one enabled bounded scope; invalid configurations fail validation.
   collection from configured GitHub Actions repository targets; root keeps the
   service call and durable admission.
 - `SecurityAlertPlanner` — the root structural interface implemented by
-  `securityalert.WorkPlanner`. The child plans provider security-alert
+  `alert.WorkPlanner`. The child plans provider security-alert
   collection from configured targets; root keeps the service call and durable
   admission.
 - `VaultLivePlanner` — the root structural interface implemented by
@@ -223,7 +223,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `internal/coordinator/planner/contract` — dependency-neutral shared plan-key validation used directly by scheduler planners and extension egress parsing.
 - `internal/coordinator/cicd/run` — CI/CD run plan request and deterministic
   planner implementation.
-- `internal/coordinator/securityalert` — provider security-alert plan request
+- `internal/coordinator/security/alert` — provider security-alert plan request
   and deterministic planner implementation.
 - `internal/coordinator/sbom/attestation` — hosted SBOM-attestation plan request
   and deterministic planner implementation.

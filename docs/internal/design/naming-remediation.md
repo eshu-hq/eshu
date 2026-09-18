@@ -60,6 +60,8 @@ jira,loki,metrics,pagerduty,tempo,tfstate}`, `component/activation`, and
 `scanner/worker`. The one remainder is the #6692 owner decision below:
 `planner/metrics` becomes `planner/prometheus` so it matches the collector at
 `collector/observability/prometheus`. That rename moves with #6627, not here.
+Since that observation, `securityalert` has moved to `security/alert` (#6796);
+the target tree below already reflects the new path.
 
 ```
 coordinator/

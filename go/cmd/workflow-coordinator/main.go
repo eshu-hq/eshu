@@ -34,7 +34,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
 	scannerworker "github.com/eshu-hq/eshu/go/internal/coordinator/scanner/worker"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/security/alert"
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -189,7 +189,7 @@ func run(parent context.Context) error {
 		VulnerabilityIntelligencePlanner:  coordinator.VulnerabilityIntelligenceWorkPlanner{},
 		SBOMAttestationPlanner:            attestation.WorkPlanner{},
 		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
-		SecurityAlertPlanner:              securityalert.WorkPlanner{},
+		SecurityAlertPlanner:              alert.WorkPlanner{},
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},
 		PagerDutyPlanner:                  pagerduty.WorkPlanner{},
 		JiraPlanner:                       jira.WorkPlanner{},

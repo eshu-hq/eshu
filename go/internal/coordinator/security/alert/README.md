@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`securityalert` plans one workflow work item per configured provider security
+`alert` plans one workflow work item per configured provider security
 alert target. It validates target configuration and builds deterministic run,
 generation, and work-item identities without opening a provider connection.
 
@@ -54,7 +54,7 @@ fact-emission signals remain in the security-alert collector runtime.
 No-Regression Evidence: the focused child test calls the production planner.
 The full parent and binary package tests compile the root interface, service
 call, and concrete wiring after the import move. Whole-module build and vet
-verify the same `securityalert.WorkPlanner` wiring through the root
+verify the same `alert.WorkPlanner` wiring through the root
 `SecurityAlertPlanner` interface.
 
 ## Related docs
