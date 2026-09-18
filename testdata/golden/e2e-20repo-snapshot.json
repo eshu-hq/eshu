@@ -265,7 +265,7 @@
       "USES": {
         "min": 2,
         "max": 100,
-        "note": "WorkloadInstance\u2192CloudResource workload-cloud binding (#6785 CAN_PERFORM/value-flow fixture). The awscloud cassette's deployable-source-app-role aws_iam_role fact anchors workload:deployable-source in both its prod and stage environments (two facts sharing one CloudResource identity), and this domain's crossScopeCorrelationReopenDomains membership repairs the cross-scope WorkloadInstance-materialization race, so USES converges to 2 (one edge per environment) once the maintenance-pass reopen runs; floor raised from 0 accordingly."
+        "note": "WorkloadInstance\u2192CloudResource workload-cloud binding (#6785 CAN_PERFORM/value-flow fixture). The awscloud cassette's deployable-source-app-role aws_iam_role facts sit in the IAM service scope (aws:123456789012:us-east-1:iam, where the awscloud IAM scanner emits roles) and anchor workload:deployable-source in both its prod and stage environments (two facts sharing one CloudResource identity). The workload-cloud handler defers, bounded by 30 minutes of elapsed cycle time, until those WorkloadInstance nodes exist, so USES converges to 2 (one edge per environment) instead of racing workload materialization; floor raised from 0 accordingly."
       },
       "GRANTS_ACCESS_TO": {
         "min": 0,
@@ -280,7 +280,7 @@
       "CAN_PERFORM": {
         "min": 1,
         "max": 200,
-        "note": "IAM capability edges from cloud permission projection. The #6785 fixture (awscloud cassette's deployable-source-app-role inline aws_iam_permission granting s3:putobject on scd-upload-receipts) plus the projector's BuildIAMCanPerformMaterializationReducerIntent (previously missing -- nothing enqueued this domain's intent) proved deployable-source-app-role -[:CAN_PERFORM]-> scd-upload-receipts observed identically across 3 independent B-7 runs; floor raised from 0 to 1, the #6785 target."
+        "note": "IAM capability edges from cloud permission projection. The #6785 fixture uses the production scope layout: deployable-source-app-role and its inline aws_iam_permission (s3:putobject on arn:aws:s3:::scd-upload-receipts) sit in aws:123456789012:us-east-1:iam, and the bucket sits in aws:123456789012:us-east-1:s3. The projector's BuildIAMCanPerformMaterializationReducerIntent enqueues the domain (previously nothing did), and the handler resolves the exact target ARN from the sibling S3 scope of the same account once its CloudResource nodes commit, giving deployable-source-app-role -[:CAN_PERFORM]-> scd-upload-receipts; floor raised from 0 to 1, the #6785 target."
       },
       "DEPLOYMENT_SOURCE": {
         "min": 7,
