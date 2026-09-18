@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -71,5 +72,50 @@ func TestListGroupMappingsPagesPastLimit(t *testing.T) {
 	status, _ = requestPage(path + "?after_ref=invalid")
 	if status != http.StatusBadRequest {
 		t.Fatalf("invalid cursor status=%d, want 400", status)
+	}
+}
+
+// TestListGroupMappingsRejectsNonCanonicalCursors pins the documented cursor
+// contract: after_ref is read from the raw query without normalization, so a
+// padded, whitespace-only, repeated, or unescapable value is a 400 rather than a
+// silently accepted first page. An absent or empty after_ref is the first page.
+func TestListGroupMappingsRejectsNonCanonicalCursors(t *testing.T) {
+	t.Parallel()
+
+	valid := fmt.Sprintf("%064x", 0xabcdef)
+	store := &fakeAdminIdentityReadStore{
+		groupMappings: map[string][]IdPGroupMappingListItem{"tenant_a": {{
+			MappingRef: valid, TenantID: "tenant_a", WorkspaceID: "workspace_a",
+		}}},
+	}
+	handler := &ReadHandler{Store: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	const path = "/api/v0/auth/admin/idp-group-mappings"
+	cases := []struct {
+		name  string
+		query string
+		want  int
+	}{
+		{name: "absent", query: "", want: http.StatusOK},
+		{name: "empty", query: "?after_ref=", want: http.StatusOK},
+		{name: "valid", query: "?after_ref=" + valid, want: http.StatusOK},
+		{name: "whitespace only", query: "?after_ref=%20", want: http.StatusBadRequest},
+		{name: "padded valid", query: "?after_ref=%20" + valid + "%20", want: http.StatusBadRequest},
+		{name: "duplicate", query: "?after_ref=" + valid + "&after_ref=" + valid, want: http.StatusBadRequest},
+		{name: "malformed escape", query: "?after_ref=%zz", want: http.StatusBadRequest},
+		{name: "uppercase", query: "?after_ref=" + strings.ToUpper(valid), want: http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, adminRequest(t, http.MethodGet, path+tc.query,
+				allScopeAdminAuth("tenant_a", "workspace_a")))
+			if rec.Code != tc.want {
+				t.Fatalf("after_ref %q: status=%d, want %d (body %s)", tc.query, rec.Code, tc.want, rec.Body.String())
+			}
+		})
 	}
 }

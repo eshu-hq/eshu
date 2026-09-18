@@ -279,9 +279,8 @@ func (h *ReadHandler) handleListIdPGroupMappings(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	afterRef := strings.TrimSpace(r.URL.Query().Get("after_ref"))
-	if afterRef != "" && !isCurrentIDPGroupMappingRef(afterRef) {
-		querycontract.WriteError(w, http.StatusBadRequest, "after_ref must be a lowercase 64-hex mapping_ref")
+	afterRef, ok := afterRefCursor(w, r)
+	if !ok {
 		return
 	}
 	items, err := h.Store.ListAdminIdPGroupMappings(r.Context(), tenantID, workspaceID, afterRef)
