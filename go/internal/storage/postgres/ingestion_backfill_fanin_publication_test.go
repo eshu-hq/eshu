@@ -32,6 +32,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -86,28 +88,28 @@ func openFanInProofSchema(t *testing.T, ctx context.Context, dsn string, maxConn
 		_, _ = cleanup.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 	})
 
-	db, err := sql.Open("pgx", withSearchPath(t, dsn, schemaName))
+	database, err := sql.Open("pgx", withSearchPath(t, dsn, schemaName))
 	if err != nil {
 		t.Fatalf("open postgres with scoped search_path: %v", err)
 	}
-	db.SetMaxOpenConns(maxConns)
-	db.SetMaxIdleConns(maxConns)
-	t.Cleanup(func() { _ = db.Close() })
+	database.SetMaxOpenConns(maxConns)
+	database.SetMaxIdleConns(maxConns)
+	t.Cleanup(func() { _ = database.Close() })
 
 	// Prove the parameter took effect before any fixture depends on it; a
 	// silently-ignored search_path would put the proof tables in "public" and
 	// make every assertion below meaningless.
 	var effective string
-	if err := db.QueryRowContext(ctx, "SHOW search_path").Scan(&effective); err != nil {
+	if err := database.QueryRowContext(ctx, "SHOW search_path").Scan(&effective); err != nil {
 		t.Fatalf("read effective search_path: %v", err)
 	}
 	if !strings.Contains(effective, schemaName) {
 		t.Fatalf("effective search_path = %q, want it to contain the proof schema %q", effective, schemaName)
 	}
-	if _, err := db.ExecContext(ctx, deferredPartitionMemoProofSchemaSQL); err != nil {
+	if _, err := database.ExecContext(ctx, deferredPartitionMemoProofSchemaSQL); err != nil {
 		t.Fatalf("create fan-in proof tables: %v", err)
 	}
-	return db
+	return database
 }
 
 // withSearchPath binds schemaName as the connection's search_path, handling both
@@ -133,7 +135,7 @@ var errFanInProofBatchFailed = errors.New("injected deferred backfill batch fail
 // other call delegates untouched, so the pass runs against real Postgres up to
 // the injected fault.
 type failOnNthBeginner struct {
-	inner ExecQueryer
+	inner db.ExecQueryer
 
 	mu     sync.Mutex
 	begins int
@@ -144,7 +146,7 @@ type failOnNthBeginner struct {
 	beforeBegin func(ordinal int)
 }
 
-func (b *failOnNthBeginner) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (b *failOnNthBeginner) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return b.inner.QueryContext(ctx, query, args...)
 }
 
@@ -152,7 +154,7 @@ func (b *failOnNthBeginner) ExecContext(ctx context.Context, query string, args 
 	return b.inner.ExecContext(ctx, query, args...)
 }
 
-func (b *failOnNthBeginner) Begin(ctx context.Context) (Transaction, error) {
+func (b *failOnNthBeginner) Begin(ctx context.Context) (db.Transaction, error) {
 	b.mu.Lock()
 	b.begins++
 	ordinal := b.begins
@@ -164,7 +166,7 @@ func (b *failOnNthBeginner) Begin(ctx context.Context) (Transaction, error) {
 	if b.failOn > 0 && ordinal == b.failOn {
 		return nil, fmt.Errorf("begin %d: %w", ordinal, errFanInProofBatchFailed)
 	}
-	beginner, ok := b.inner.(Beginner)
+	beginner, ok := b.inner.(db.Beginner)
 	if !ok {
 		return nil, fmt.Errorf("wrapped handle %T is not a Beginner", b.inner)
 	}
@@ -191,7 +193,7 @@ const (
 func seedFanInProofSharedPartition(
 	t *testing.T,
 	ctx context.Context,
-	db *sql.DB,
+	database *sql.DB,
 	repoCount int,
 	base time.Time,
 ) []string {
@@ -213,14 +215,14 @@ func seedFanInProofSharedPartition(
 	for i := 0; i < repoCount; i++ {
 		crossRefs[repoIDs[i]] = fmt.Sprintf("r%d-service", (i+1)%repoCount)
 	}
-	seedMemoProofScopesAndFacts(t, ctx, db, fixtures, crossRefs, base)
+	seedMemoProofScopesAndFacts(t, ctx, database, fixtures, crossRefs, base)
 	return repoIDs
 }
 
 // fanInProofCatalogFingerprint recomputes the catalog fingerprint the pass
 // derives, so the gate assertions use the same value the write side would have
 // memoized.
-func fanInProofCatalogFingerprint(t *testing.T, ctx context.Context, queryer ExecQueryer) string {
+func fanInProofCatalogFingerprint(t *testing.T, ctx context.Context, queryer db.ExecQueryer) string {
 	t.Helper()
 	catalog, _, err := loadRepositoryCatalog(ctx, queryer)
 	if err != nil {
@@ -234,7 +236,7 @@ func fanInProofCatalogFingerprint(t *testing.T, ctx context.Context, queryer Exe
 // partition in ToLoad. A Skipped verdict is the durable-wrong-state outcome the
 // fan-in exists to prevent: the partition's evidence was never fully committed,
 // yet every later pass would refuse to reload it.
-func assertFanInProofGateLoads(t *testing.T, ctx context.Context, adapter ExecQueryer, fingerprint string) {
+func assertFanInProofGateLoads(t *testing.T, ctx context.Context, adapter db.ExecQueryer, fingerprint string) {
 	t.Helper()
 	partition := scopeGenerationPartition{ScopeID: fanInProofScopeID, GenerationID: fanInProofGenerationID}
 	gate, err := applyDeferredPartitionMemoGate(
@@ -258,10 +260,10 @@ func assertFanInProofGateLoads(t *testing.T, ctx context.Context, adapter ExecQu
 	}
 }
 
-func countFanInProofPhaseRows(t *testing.T, ctx context.Context, db *sql.DB) int {
+func countFanInProofPhaseRows(t *testing.T, ctx context.Context, database *sql.DB) int {
 	t.Helper()
 	var count int
-	if err := db.QueryRowContext(
+	if err := database.QueryRowContext(
 		ctx,
 		"SELECT count(*) FROM graph_projection_phase_state WHERE scope_id = $1 AND generation_id = $2",
 		fanInProofScopeID, fanInProofGenerationID,
@@ -271,10 +273,10 @@ func countFanInProofPhaseRows(t *testing.T, ctx context.Context, db *sql.DB) int
 	return count
 }
 
-func countFanInProofMemoRows(t *testing.T, ctx context.Context, db *sql.DB) int {
+func countFanInProofMemoRows(t *testing.T, ctx context.Context, database *sql.DB) int {
 	t.Helper()
 	var count int
-	if err := db.QueryRowContext(
+	if err := database.QueryRowContext(
 		ctx,
 		"SELECT count(*) FROM deferred_backfill_partition_memo WHERE scope_id = $1 AND generation_id = $2",
 		fanInProofScopeID, fanInProofGenerationID,
@@ -292,12 +294,12 @@ func countFanInProofMemoRows(t *testing.T, ctx context.Context, db *sql.DB) int 
 // put the partition in ToLoad so the next pass reloads it.
 func TestDeferredBackfillWithholdsPublicationWhenSiblingBatchFails(t *testing.T) {
 	ctx := context.Background()
-	db := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
+	database := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
 
 	base := time.Date(2026, time.August, 15, 9, 0, 0, 0, time.UTC)
-	seedFanInProofSharedPartition(t, ctx, db, 2, base)
+	seedFanInProofSharedPartition(t, ctx, database, 2, base)
 
-	adapter := SQLDB{DB: db}
+	adapter := SQLDB{DB: database}
 	fingerprint := fanInProofCatalogFingerprint(t, ctx, adapter)
 
 	// Begin ordinal 2 is the second evidence batch: repo-r0's batch commits,
@@ -319,13 +321,13 @@ func TestDeferredBackfillWithholdsPublicationWhenSiblingBatchFails(t *testing.T)
 		t.Fatalf("opened %d transactions, want at least 2 (the committing batch and the failing sibling)", got)
 	}
 
-	if got := countFanInProofMemoRows(t, ctx, db); got != 0 {
+	if got := countFanInProofMemoRows(t, ctx, database); got != 0 {
 		t.Fatalf(
 			"deferred_backfill_partition_memo rows for the half-committed partition = %d, want 0; a memo here permanently suppresses the partition's fact load",
 			got,
 		)
 	}
-	if got := countFanInProofPhaseRows(t, ctx, db); got != 0 {
+	if got := countFanInProofPhaseRows(t, ctx, database); got != 0 {
 		t.Fatalf(
 			"graph_projection_phase_state rows for the half-committed partition = %d, want 0; readiness must not be visible while a contributing batch is unfinished",
 			got,
@@ -346,12 +348,12 @@ func TestDeferredBackfillWithholdsPublicationWhenSiblingBatchFails(t *testing.T)
 // siblings would queue on Begin instead of being canceled while running.
 func TestDeferredBackfillWithholdsPublicationWhenSiblingBatchCanceled(t *testing.T) {
 	ctx := context.Background()
-	db := openFanInProofSchema(t, ctx, fanInProofDSN(t), 6)
+	database := openFanInProofSchema(t, ctx, fanInProofDSN(t), 6)
 
 	base := time.Date(2026, time.August, 15, 9, 0, 0, 0, time.UTC)
-	seedFanInProofSharedPartition(t, ctx, db, 6, base)
+	seedFanInProofSharedPartition(t, ctx, database, 6, base)
 
-	adapter := SQLDB{DB: db}
+	adapter := SQLDB{DB: database}
 	fingerprint := fanInProofCatalogFingerprint(t, ctx, adapter)
 
 	// Fail the third batch to open: batches one and two are already running or
@@ -370,10 +372,10 @@ func TestDeferredBackfillWithholdsPublicationWhenSiblingBatchCanceled(t *testing
 		t.Fatalf("BackfillAllRelationshipEvidence() error = %v, want the injected batch failure", err)
 	}
 
-	if got := countFanInProofMemoRows(t, ctx, db); got != 0 {
+	if got := countFanInProofMemoRows(t, ctx, database); got != 0 {
 		t.Fatalf("deferred_backfill_partition_memo rows after a canceled pass = %d, want 0", got)
 	}
-	if got := countFanInProofPhaseRows(t, ctx, db); got != 0 {
+	if got := countFanInProofPhaseRows(t, ctx, database); got != 0 {
 		t.Fatalf("graph_projection_phase_state rows after a canceled pass = %d, want 0", got)
 	}
 	assertFanInProofGateLoads(t, ctx, adapter, fingerprint)
@@ -386,12 +388,12 @@ func TestDeferredBackfillWithholdsPublicationWhenSiblingBatchCanceled(t *testing
 // fan-in must not become so cautious that a clean pass publishes nothing.
 func TestDeferredBackfillPublishesOncePerPartitionAcrossBatches(t *testing.T) {
 	ctx := context.Background()
-	db := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
+	database := openFanInProofSchema(t, ctx, fanInProofDSN(t), 4)
 
 	base := time.Date(2026, time.August, 15, 9, 0, 0, 0, time.UTC)
-	seedFanInProofSharedPartition(t, ctx, db, 3, base)
+	seedFanInProofSharedPartition(t, ctx, database, 3, base)
 
-	adapter := SQLDB{DB: db}
+	adapter := SQLDB{DB: database}
 	counting := &failOnNthBeginner{inner: adapter}
 	store := NewIngestionStore(counting)
 	store.Now = func() time.Time { return base }
@@ -407,13 +409,13 @@ func TestDeferredBackfillPublishesOncePerPartitionAcrossBatches(t *testing.T) {
 	if got, want := counting.beginCount(), 4; got != want {
 		t.Fatalf("opened %d transactions, want %d (3 evidence batches + 1 fan-in publication)", got, want)
 	}
-	if got := countFanInProofPhaseRows(t, ctx, db); got != 1 {
+	if got := countFanInProofPhaseRows(t, ctx, database); got != 1 {
 		t.Fatalf("graph_projection_phase_state rows = %d, want exactly 1 for the shared partition", got)
 	}
-	if got := countFanInProofMemoRows(t, ctx, db); got != 1 {
+	if got := countFanInProofMemoRows(t, ctx, database); got != 1 {
 		t.Fatalf("deferred_backfill_partition_memo rows = %d, want exactly 1 for the shared partition", got)
 	}
-	if got := countEvidenceRows(t, ctx, db); got == 0 {
+	if got := countEvidenceRows(t, ctx, database); got == 0 {
 		t.Fatal("the pass committed no evidence rows; the fixture is not exercising the evidence path")
 	}
 

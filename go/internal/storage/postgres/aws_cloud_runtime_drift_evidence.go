@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
@@ -34,7 +36,7 @@ type AWSCloudRuntimeDriftConfigResolver interface {
 // generation, active Terraform-state rows for only those ARNs, and config rows
 // from the resolved backend owner when Eshu can prove one.
 type PostgresAWSCloudRuntimeDriftEvidenceLoader struct {
-	DB Queryer
+	DB db.Queryer
 	// ConfigResolver anchors a state_snapshot:* scope to the owning repo
 	// snapshot. Nil or unresolved ownership suppresses unmanaged findings for
 	// state-backed resources because absence of config is not proven.

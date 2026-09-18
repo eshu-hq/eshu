@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
@@ -32,8 +34,8 @@ import (
 // PostgresServiceMaterializationWriter (#1943) already routes its commits
 // through this same unwrapped path in production; this fix closes the gap for
 // it too, though no committed cost budget exercises it today.
-func (db *InstrumentedDB) Begin(ctx context.Context) (Transaction, error) {
-	beginner, ok := db.Inner.(Beginner)
+func (database *InstrumentedDB) Begin(ctx context.Context) (db.Transaction, error) {
+	beginner, ok := database.Inner.(db.Beginner)
 	if !ok {
 		return nil, fmt.Errorf("inner database does not support transactions")
 	}
@@ -41,13 +43,13 @@ func (db *InstrumentedDB) Begin(ctx context.Context) (Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	return db.instrumentTransaction(tx), nil
+	return database.instrumentTransaction(tx), nil
 }
 
 // BeginReadOnlyRepeatableRead proxies the snapshot transaction capability and
 // preserves query instrumentation inside the returned transaction.
-func (db *InstrumentedDB) BeginReadOnlyRepeatableRead(ctx context.Context) (Transaction, error) {
-	beginner, ok := db.Inner.(ReadOnlyRepeatableReadBeginner)
+func (database *InstrumentedDB) BeginReadOnlyRepeatableRead(ctx context.Context) (db.Transaction, error) {
+	beginner, ok := database.Inner.(db.ReadOnlyRepeatableReadBeginner)
 	if !ok {
 		return nil, fmt.Errorf("inner database does not support read-only repeatable-read transactions")
 	}
@@ -55,18 +57,18 @@ func (db *InstrumentedDB) BeginReadOnlyRepeatableRead(ctx context.Context) (Tran
 	if err != nil {
 		return nil, err
 	}
-	return db.instrumentTransaction(tx), nil
+	return database.instrumentTransaction(tx), nil
 }
 
-func (db *InstrumentedDB) instrumentTransaction(tx Transaction) Transaction {
-	return &instrumentedTransaction{tx: tx, instruments: db.Instruments, storeName: db.StoreName}
+func (database *InstrumentedDB) instrumentTransaction(tx db.Transaction) db.Transaction {
+	return &instrumentedTransaction{tx: tx, instruments: database.Instruments, storeName: database.StoreName}
 }
 
 // instrumentedTransaction wraps a Transaction so its ExecContext/QueryContext
 // calls record the same eshu_dp_postgres_query_duration_seconds histogram
 // InstrumentedDB records for non-transactional calls.
 type instrumentedTransaction struct {
-	tx          Transaction
+	tx          db.Transaction
 	instruments *telemetry.Instruments
 	storeName   string
 }
@@ -82,7 +84,7 @@ func (t *instrumentedTransaction) ExecContext(ctx context.Context, query string,
 
 // QueryContext wraps the inner transaction's QueryContext with the same
 // duration metric InstrumentedDB.QueryContext records.
-func (t *instrumentedTransaction) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (t *instrumentedTransaction) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	start := time.Now()
 	rows, err := t.tx.QueryContext(ctx, query, args...)
 	t.record(ctx, "read", start)

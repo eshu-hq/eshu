@@ -17,7 +17,7 @@ func claimContainerImageIdentityPerformanceRow(
 	expectedID string,
 ) error {
 	now := queue.now()
-	rows, err := queue.db.QueryContext(
+	rows, err := queue.database.QueryContext(
 		ctx,
 		query,
 		now,

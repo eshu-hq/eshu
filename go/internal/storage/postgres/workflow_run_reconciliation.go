@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/metric"
 
@@ -128,10 +130,10 @@ WHERE run_id = $1
 // ReconcileWorkflowRuns derives run status and completeness rows from durable
 // workflow work-item progress and reducer-owned phase truth.
 func (s *WorkflowControlStore) ReconcileWorkflowRuns(ctx context.Context, observedAt time.Time) (int, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("workflow control store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listWorkflowRunsForReconciliationQuery)
+	rows, err := s.database.QueryContext(ctx, listWorkflowRunsForReconciliationQuery)
 	if err != nil {
 		return 0, fmt.Errorf("list workflow runs for reconciliation: %w", err)
 	}
@@ -176,8 +178,8 @@ func (s *WorkflowControlStore) reconcileWorkflowRun(ctx context.Context, run wor
 }
 
 func (s *WorkflowControlStore) reconcileWorkflowRunOnce(ctx context.Context, run workflow.Run, observedAt time.Time) error {
-	queryTarget := s.db
-	execTarget := s.db
+	queryTarget := s.database
+	execTarget := s.database
 	commit := func() error { return nil }
 	rollback := func() error { return nil }
 	if s.beginner != nil {
@@ -323,7 +325,7 @@ func isRetryableWorkflowReconciliationError(err error) bool {
 	}
 }
 
-func (s *WorkflowControlStore) listWorkflowCollectorProgress(ctx context.Context, queryer Queryer, runID string) ([]workflow.CollectorRunProgress, error) {
+func (s *WorkflowControlStore) listWorkflowCollectorProgress(ctx context.Context, queryer db.Queryer, runID string) ([]workflow.CollectorRunProgress, error) {
 	rows, err := queryer.QueryContext(ctx, listWorkflowCollectorProgressQuery, runID)
 	if err != nil {
 		return nil, fmt.Errorf("list workflow collector progress: %w", err)
@@ -356,7 +358,7 @@ func (s *WorkflowControlStore) listWorkflowCollectorProgress(ctx context.Context
 
 func (s *WorkflowControlStore) listWorkflowCollectorPhaseCounts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	runID string,
 ) (map[string]map[workflow.PhasePublicationKey]int, error) {
 	rows, err := queryer.QueryContext(ctx, listWorkflowCollectorPhaseCountsQuery, runID)
@@ -397,7 +399,7 @@ func (s *WorkflowControlStore) listWorkflowCollectorPhaseCounts(
 // dead-letter observed," never as a block.
 func (s *WorkflowControlStore) listWorkflowCollectorTerminalDeadLetterCounts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	runID string,
 ) (map[string]map[workflow.PhasePublicationKey]int, error) {
 	rows, err := queryer.QueryContext(ctx, listWorkflowCollectorTerminalDeadLetterCountsQuery, runID)
@@ -430,7 +432,7 @@ func (s *WorkflowControlStore) listWorkflowCollectorTerminalDeadLetterCounts(
 	return deadLetterCounts, nil
 }
 
-func scanWorkflowRun(rows Rows) (workflow.Run, error) {
+func scanWorkflowRun(rows db.Rows) (workflow.Run, error) {
 	var run workflow.Run
 	var triggerKind string
 	var status string

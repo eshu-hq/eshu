@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -54,7 +56,7 @@ func (s *ScopedAPITokenStore) ResolveIdentityAPITokenHash(
 	tokenHash string,
 	asOf time.Time,
 ) (IdentityAPITokenResolution, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return IdentityAPITokenResolution{}, false, errors.New("scoped API token store database is required")
 	}
 	tokenHash = strings.TrimSpace(tokenHash)
@@ -107,7 +109,7 @@ func (s *ScopedAPITokenStore) ResolveIdentityAPITokenHash(
 // MarkIdentityAPITokenUsed records the last successful generated API-token
 // authentication timestamp.
 func (s *ScopedAPITokenStore) MarkIdentityAPITokenUsed(ctx context.Context, tokenHash string, usedAt time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("scoped API token store database is required")
 	}
 	tokenHash = strings.TrimSpace(tokenHash)
@@ -117,7 +119,7 @@ func (s *ScopedAPITokenStore) MarkIdentityAPITokenUsed(ctx context.Context, toke
 	if usedAt.IsZero() {
 		return errors.New("token used_at is required")
 	}
-	if _, err := s.db.ExecContext(ctx, markIdentityAPITokenUsedQuery, tokenHash, usedAt.UTC()); err != nil {
+	if _, err := s.database.ExecContext(ctx, markIdentityAPITokenUsedQuery, tokenHash, usedAt.UTC()); err != nil {
 		return fmt.Errorf("mark identity API token used: %w", err)
 	}
 	return nil
@@ -128,7 +130,7 @@ func (s *ScopedAPITokenStore) resolveIdentityAPITokenSubject(
 	tokenHash string,
 	asOf time.Time,
 ) (identityAPITokenSubject, bool, error) {
-	rows, err := s.db.QueryContext(ctx, resolveIdentityAPITokenSubjectQuery, tokenHash, asOf)
+	rows, err := s.database.QueryContext(ctx, resolveIdentityAPITokenSubjectQuery, tokenHash, asOf)
 	if err != nil {
 		return identityAPITokenSubject{}, false, fmt.Errorf("resolve identity API token subject: %w", err)
 	}
@@ -166,7 +168,7 @@ func (s *ScopedAPITokenStore) resolveIdentityAPITokenRoles(
 	if subject.tokenClass == identityAPITokenClassServicePrincipal {
 		query = resolveIdentityServicePrincipalAPITokenRolesQuery
 	}
-	rows, err := s.db.QueryContext(ctx, query, subject.tokenHash, asOf, maxOIDCGrantLimit)
+	rows, err := s.database.QueryContext(ctx, query, subject.tokenHash, asOf, maxOIDCGrantLimit)
 	if err != nil {
 		return nil, "", fmt.Errorf("resolve identity API token roles: %w", err)
 	}
@@ -204,7 +206,7 @@ func (s *ScopedAPITokenStore) resolveIdentityAPITokenTargets(
 	if len(roles) == 0 {
 		return nil, nil, nil
 	}
-	scopeRows, err := s.db.QueryContext(
+	scopeRows, err := s.database.QueryContext(
 		ctx,
 		resolveOIDCRoleScopeTargetsQuery,
 		subject.tenantID,
@@ -221,7 +223,7 @@ func (s *ScopedAPITokenStore) resolveIdentityAPITokenTargets(
 		return nil, nil, err
 	}
 
-	repoRows, err := s.db.QueryContext(
+	repoRows, err := s.database.QueryContext(
 		ctx,
 		resolveOIDCRoleRepositoryTargetsQuery,
 		subject.tenantID,
@@ -264,10 +266,10 @@ func (s *ScopedAPITokenStore) ResolvePermissionGrantsForRoles(
 	roles []string,
 	asOf time.Time,
 ) ([]string, []string, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, nil, errors.New("scoped API token store database is required")
 	}
-	return resolvePermissionGrantsForRoles(ctx, s.db, tenantID, roles, asOf)
+	return resolvePermissionGrantsForRoles(ctx, s.database, tenantID, roles, asOf)
 }
 
 // resolvePermissionGrantsForRoles is the package-level source of truth for
@@ -278,12 +280,12 @@ func (s *ScopedAPITokenStore) ResolvePermissionGrantsForRoles(
 // deduplicated and trimmed.
 func resolvePermissionGrantsForRoles(
 	ctx context.Context,
-	db Queryer,
+	database db.Queryer,
 	tenantID string,
 	roles []string,
 	asOf time.Time,
 ) ([]string, []string, error) {
-	if db == nil {
+	if database == nil {
 		return nil, nil, errors.New("permission grant resolution database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
@@ -294,7 +296,7 @@ func resolvePermissionGrantsForRoles(
 	if asOf.IsZero() {
 		return nil, nil, errors.New("permission grant resolution as_of is required")
 	}
-	rows, err := db.QueryContext(
+	rows, err := database.QueryContext(
 		ctx,
 		resolveIdentityAPITokenPermissionsQuery,
 		tenantID,
@@ -324,7 +326,7 @@ func resolvePermissionGrantsForRoles(
 	return cleanBrowserSessionStrings(features), cleanBrowserSessionStrings(dataClasses), nil
 }
 
-func scanIdentityAPIRepositoryTargets(rows Rows) ([]string, error) {
+func scanIdentityAPIRepositoryTargets(rows db.Rows) ([]string, error) {
 	defer func() { _ = rows.Close() }()
 	repositories := make([]string, 0)
 	for rows.Next() {

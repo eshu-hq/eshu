@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
@@ -100,17 +102,17 @@ func TestGovernanceAuditListQueryNoTenantHasNoTenantPredicate(t *testing.T) {
 func TestGovernanceAuditAppendStoresTenantID(t *testing.T) {
 	t.Parallel()
 
-	db := newGovernanceAuditTenantMemoryDB()
-	store := NewGovernanceAuditStore(db)
+	database := newGovernanceAuditTenantMemoryDB()
+	store := NewGovernanceAuditStore(database)
 
 	event := governanceAuditTenantEvent("tenant_xyz", "", governanceAuditTenantTestTime())
 	if err := store.Append(context.Background(), []governanceaudit.Event{event}); err != nil {
 		t.Fatalf("Append: %v", err)
 	}
-	if len(db.rows) == 0 {
+	if len(database.rows) == 0 {
 		t.Fatal("no rows stored after Append")
 	}
-	for _, row := range db.rows {
+	for _, row := range database.rows {
 		if row.tenantID != "tenant_xyz" {
 			t.Fatalf("stored tenantID = %q, want %q", row.tenantID, "tenant_xyz")
 		}
@@ -122,14 +124,14 @@ func TestGovernanceAuditAppendStoresTenantID(t *testing.T) {
 func TestGovernanceAuditAppendStoresWorkspaceID(t *testing.T) {
 	t.Parallel()
 
-	db := newGovernanceAuditTenantMemoryDB()
-	store := NewGovernanceAuditStore(db)
+	database := newGovernanceAuditTenantMemoryDB()
+	store := NewGovernanceAuditStore(database)
 
 	event := governanceAuditTenantEvent("tenant_a", "workspace_a", governanceAuditTenantTestTime())
 	if err := store.Append(context.Background(), []governanceaudit.Event{event}); err != nil {
 		t.Fatalf("Append: %v", err)
 	}
-	for _, row := range db.rows {
+	for _, row := range database.rows {
 		if row.workspaceID != "workspace_a" {
 			t.Fatalf("stored workspaceID = %q, want %q", row.workspaceID, "workspace_a")
 		}
@@ -142,8 +144,8 @@ func TestGovernanceAuditAppendStoresWorkspaceID(t *testing.T) {
 func TestGovernanceAuditAppendSystemEventStoresNullTenantID(t *testing.T) {
 	t.Parallel()
 
-	db := newGovernanceAuditTenantMemoryDB()
-	store := NewGovernanceAuditStore(db)
+	database := newGovernanceAuditTenantMemoryDB()
+	store := NewGovernanceAuditStore(database)
 
 	event := governanceaudit.Event{
 		Type:       governanceaudit.EventTypeBootstrap,
@@ -157,7 +159,7 @@ func TestGovernanceAuditAppendSystemEventStoresNullTenantID(t *testing.T) {
 	if err := store.Append(context.Background(), []governanceaudit.Event{event}); err != nil {
 		t.Fatalf("Append: %v", err)
 	}
-	for _, row := range db.rows {
+	for _, row := range database.rows {
 		if row.tenantID != "" {
 			t.Fatalf("system event stored tenantID = %q, want empty/NULL", row.tenantID)
 		}
@@ -174,13 +176,13 @@ func TestGovernanceAuditSummaryScopedToTenant(t *testing.T) {
 	t.Parallel()
 
 	now := governanceAuditTenantTestTime()
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{{rows: [][]any{
 			{"total", "", int64(2), now},
 			{"decision", string(governanceaudit.DecisionAllowed), int64(2), now},
 		}}},
 	}
-	store := NewGovernanceAuditStore(db)
+	store := NewGovernanceAuditStore(database)
 
 	summary, err := store.SummaryForTenant(context.Background(), "tenant_a")
 	if err != nil {
@@ -189,10 +191,10 @@ func TestGovernanceAuditSummaryScopedToTenant(t *testing.T) {
 	if got, want := summary.Total, 2; got != want {
 		t.Fatalf("Total = %d, want %d", got, want)
 	}
-	if len(db.queries) == 0 {
+	if len(database.queries) == 0 {
 		t.Fatal("SummaryForTenant issued no queries")
 	}
-	q := db.queries[0].query
+	q := database.queries[0].query
 	if !strings.Contains(q, "tenant_id") {
 		t.Fatalf("SummaryForTenant query missing tenant_id filter:\n%s", q)
 	}
@@ -209,8 +211,8 @@ func TestGovernanceAuditListCrossTenantIsolation(t *testing.T) {
 	t.Parallel()
 
 	now := governanceAuditTenantTestTime()
-	db := newGovernanceAuditTenantMemoryDB()
-	store := NewGovernanceAuditStore(db)
+	database := newGovernanceAuditTenantMemoryDB()
+	store := NewGovernanceAuditStore(database)
 
 	eventA := governanceAuditTenantEvent("tenant_a", "", now)
 	eventB := governanceAuditTenantEvent("tenant_b", "", now.Add(time.Second))
@@ -244,8 +246,8 @@ func TestGovernanceAuditListGlobalOperatorSeesBothTenants(t *testing.T) {
 	t.Parallel()
 
 	now := governanceAuditTenantTestTime()
-	db := newGovernanceAuditTenantMemoryDB()
-	store := NewGovernanceAuditStore(db)
+	database := newGovernanceAuditTenantMemoryDB()
+	store := NewGovernanceAuditStore(database)
 
 	if err := store.Append(context.Background(), []governanceaudit.Event{
 		governanceAuditTenantEvent("tenant_a", "", now),
@@ -275,8 +277,8 @@ func TestGovernanceAuditListGlobalEventsHiddenFromTenantAdmin(t *testing.T) {
 	t.Parallel()
 
 	now := governanceAuditTenantTestTime()
-	db := newGovernanceAuditTenantMemoryDB()
-	store := NewGovernanceAuditStore(db)
+	database := newGovernanceAuditTenantMemoryDB()
+	store := NewGovernanceAuditStore(database)
 
 	// Global event — TenantID intentionally empty.
 	globalEvent := governanceaudit.Event{
@@ -354,8 +356,8 @@ func newGovernanceAuditTenantMemoryDB() *governanceAuditTenantMemoryDB {
 	return &governanceAuditTenantMemoryDB{rows: map[string]governanceAuditTenantMemoryRow{}}
 }
 
-func (db *governanceAuditTenantMemoryDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.execs = append(db.execs, fakeExecCall{query: query, args: args})
+func (database *governanceAuditTenantMemoryDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execs = append(database.execs, fakeExecCall{query: query, args: args})
 	if strings.Contains(query, "INSERT INTO governance_audit_events") {
 		// After the implementation adds tenant_id and workspace_id the column
 		// count becomes governanceAuditColumnsPerRow (updated to 15).
@@ -373,8 +375,8 @@ func (db *governanceAuditTenantMemoryDB) ExecContext(_ context.Context, query st
 				workspaceID: governanceAuditTenantStringArg(args[i+n-1]),
 			}
 			row.occurredAt = args[i+11].(time.Time)
-			if _, exists := db.rows[row.eventID]; !exists {
-				db.rows[row.eventID] = row
+			if _, exists := database.rows[row.eventID]; !exists {
+				database.rows[row.eventID] = row
 			}
 		}
 		return fakeResult{}, nil
@@ -386,7 +388,7 @@ func (db *governanceAuditTenantMemoryDB) ExecContext(_ context.Context, query st
 	return nil, sql.ErrNoRows
 }
 
-func (db *governanceAuditTenantMemoryDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (database *governanceAuditTenantMemoryDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	// Detect a tenant filter by scanning for "tenant_id = $N" and finding the
 	// corresponding arg value.
 	var tenantFilter string
@@ -402,7 +404,7 @@ func (db *governanceAuditTenantMemoryDB) QueryContext(_ context.Context, query s
 
 	// Build result rows from in-memory store, applying the tenant filter.
 	var rows [][]any
-	for _, row := range db.rows {
+	for _, row := range database.rows {
 		if tenantFilter != "" && row.tenantID != tenantFilter {
 			continue
 		}
@@ -478,8 +480,8 @@ func TestGovernanceAuditEventIDStableWithinTenant(t *testing.T) {
 func TestGovernanceAuditAppendBothTenantsPersistedDistinctly(t *testing.T) {
 	t.Parallel()
 
-	db := newGovernanceAuditTenantMemoryDB()
-	store := NewGovernanceAuditStore(db)
+	database := newGovernanceAuditTenantMemoryDB()
+	store := NewGovernanceAuditStore(database)
 	now := governanceAuditTenantTestTime()
 
 	evA := governanceAuditTenantEvent("tenant_a", "", now)
@@ -489,11 +491,11 @@ func TestGovernanceAuditAppendBothTenantsPersistedDistinctly(t *testing.T) {
 		t.Fatalf("Append: %v", err)
 	}
 
-	if len(db.rows) != 2 {
-		t.Fatalf("stored %d rows, want 2: cross-tenant identical-field events must not collide", len(db.rows))
+	if len(database.rows) != 2 {
+		t.Fatalf("stored %d rows, want 2: cross-tenant identical-field events must not collide", len(database.rows))
 	}
 	tenants := map[string]bool{}
-	for _, row := range db.rows {
+	for _, row := range database.rows {
 		tenants[row.tenantID] = true
 	}
 	if !tenants["tenant_a"] || !tenants["tenant_b"] {

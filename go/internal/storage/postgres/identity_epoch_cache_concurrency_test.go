@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -61,7 +63,7 @@ func (q *concurrentSingleflightQueryer) ExecContext(context.Context, string, ...
 	return nil, fmt.Errorf("concurrentSingleflightQueryer: unexpected ExecContext call")
 }
 
-func (q *concurrentSingleflightQueryer) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (q *concurrentSingleflightQueryer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if strings.Contains(query, "LIMIT") {
 		q.mu.Lock()
 		q.loadCalls++

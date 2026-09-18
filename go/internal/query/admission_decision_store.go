@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -18,9 +20,9 @@ type PostgresAdmissionDecisionReadStore struct {
 
 // NewPostgresAdmissionDecisionReadStore creates a Postgres-backed admission
 // decision read store.
-func NewPostgresAdmissionDecisionReadStore(db postgres.ExecQueryer) PostgresAdmissionDecisionReadStore {
+func NewPostgresAdmissionDecisionReadStore(database db.ExecQueryer) PostgresAdmissionDecisionReadStore {
 	return PostgresAdmissionDecisionReadStore{
-		store: postgres.NewAdmissionDecisionStore(db),
+		store: postgres.NewAdmissionDecisionStore(database),
 	}
 }
 

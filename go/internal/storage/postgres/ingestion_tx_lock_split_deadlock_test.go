@@ -29,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -55,7 +57,7 @@ type beginCountingDB struct {
 	begins *int64
 }
 
-func (d beginCountingDB) Begin(ctx context.Context) (Transaction, error) {
+func (d beginCountingDB) Begin(ctx context.Context) (db.Transaction, error) {
 	atomic.AddInt64(d.begins, 1)
 	return d.SQLDB.Begin(ctx)
 }
@@ -72,8 +74,8 @@ func (d beginCountingDB) Begin(ctx context.Context) (Transaction, error) {
 func TestIngestionCommitAndMaintenanceLockOrderingNeverDeadlocks(t *testing.T) {
 	dsn := ingestionTxLockSplitProofDSN(t)
 	ctx := context.Background()
-	db, schemaName := openIngestionTxLockSplitProofSchema(t, dsn)
-	adapter := SQLDB{DB: db}
+	database, schemaName := openIngestionTxLockSplitProofSchema(t, dsn)
+	adapter := SQLDB{DB: database}
 
 	const repoCount = 6
 	const rounds = 20

@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -40,7 +42,7 @@ func TestProviderConfigConcurrentUpdateAndEnableAgainstRealPostgresRowLock(t *te
 	seedProviderConfigLiveTenant(t, ctx, schemaDB, "tenant_live")
 
 	keyring := testKeyring(t)
-	primaryStore := NewIdentitySubjectStore(ExecQueryer(SQLDB{DB: schemaDB}))
+	primaryStore := NewIdentitySubjectStore(db.ExecQueryer(SQLDB{DB: schemaDB}))
 	primaryStore.SetProviderSecretKeyring(keyring)
 
 	if _, err := primaryStore.CreateProviderConfig(ctx, ProviderConfigCreate{
@@ -55,9 +57,9 @@ func TestProviderConfigConcurrentUpdateAndEnableAgainstRealPostgresRowLock(t *te
 	// two real, separate Postgres backend sessions.
 	updateConn := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
 	enableConn := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
-	updateStore := NewIdentitySubjectStore(ExecQueryer(SQLDB{DB: updateConn}))
+	updateStore := NewIdentitySubjectStore(db.ExecQueryer(SQLDB{DB: updateConn}))
 	updateStore.SetProviderSecretKeyring(keyring)
-	enableStore := NewIdentitySubjectStore(ExecQueryer(SQLDB{DB: enableConn}))
+	enableStore := NewIdentitySubjectStore(db.ExecQueryer(SQLDB{DB: enableConn}))
 	enableStore.SetProviderSecretKeyring(keyring)
 
 	var wg sync.WaitGroup
@@ -89,7 +91,7 @@ func TestProviderConfigConcurrentUpdateAndEnableAgainstRealPostgresRowLock(t *te
 	// connection and assert the same invariant the fake-backed test proves:
 	// never active with the untested rev_2, and exactly one active revision.
 	verifyConn := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
-	verifyStore := NewIdentitySubjectStore(ExecQueryer(SQLDB{DB: verifyConn}))
+	verifyStore := NewIdentitySubjectStore(db.ExecQueryer(SQLDB{DB: verifyConn}))
 	detail, found, err := verifyStore.GetProviderConfigDetail(ctx, "pc_live_1", "tenant_live")
 	if err != nil || !found {
 		t.Fatalf("GetProviderConfigDetail() (real postgres) = %+v, %v, %v", detail, found, err)
@@ -130,7 +132,7 @@ func TestProviderConfigConcurrentUpdateAndRevertAgainstRealPostgresRowLock(t *te
 	seedProviderConfigLiveTenant(t, ctx, schemaDB, "tenant_live2")
 
 	keyring := testKeyring(t)
-	primaryStore := NewIdentitySubjectStore(ExecQueryer(SQLDB{DB: schemaDB}))
+	primaryStore := NewIdentitySubjectStore(db.ExecQueryer(SQLDB{DB: schemaDB}))
 	primaryStore.SetProviderSecretKeyring(keyring)
 	if _, err := primaryStore.CreateProviderConfig(ctx, ProviderConfigCreate{
 		ProviderConfigID: "pc_live_2", TenantID: "tenant_live2", ProviderKind: "external_oidc",
@@ -143,11 +145,11 @@ func TestProviderConfigConcurrentUpdateAndRevertAgainstRealPostgresRowLock(t *te
 	conn1 := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
 	conn2 := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
 	conn3 := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
-	store1 := NewIdentitySubjectStore(ExecQueryer(SQLDB{DB: conn1}))
+	store1 := NewIdentitySubjectStore(db.ExecQueryer(SQLDB{DB: conn1}))
 	store1.SetProviderSecretKeyring(keyring)
-	store2 := NewIdentitySubjectStore(ExecQueryer(SQLDB{DB: conn2}))
+	store2 := NewIdentitySubjectStore(db.ExecQueryer(SQLDB{DB: conn2}))
 	store2.SetProviderSecretKeyring(keyring)
-	store3 := NewIdentitySubjectStore(ExecQueryer(SQLDB{DB: conn3}))
+	store3 := NewIdentitySubjectStore(db.ExecQueryer(SQLDB{DB: conn3}))
 	store3.SetProviderSecretKeyring(keyring)
 
 	var wg sync.WaitGroup
@@ -185,7 +187,7 @@ func TestProviderConfigConcurrentUpdateAndRevertAgainstRealPostgresRowLock(t *te
 	}
 
 	verifyConn := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
-	verifyStore := NewIdentitySubjectStore(ExecQueryer(SQLDB{DB: verifyConn}))
+	verifyStore := NewIdentitySubjectStore(db.ExecQueryer(SQLDB{DB: verifyConn}))
 	revisions, err := verifyStore.ListProviderConfigRevisions(ctx, "pc_live_2", "tenant_live2")
 	if err != nil {
 		t.Fatalf("ListProviderConfigRevisions() (real postgres) error = %v", err)
@@ -223,19 +225,19 @@ func providerConfigLiveProofDSN() string {
 func openProviderConfigLiveSchema(t *testing.T, ctx context.Context, dsn string) (*sql.DB, string) {
 	t.Helper()
 	schemaName := fmt.Sprintf("provider_config_live_%d", time.Now().UnixNano())
-	db := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+	database := openProviderConfigLiveSchemaConn(t, ctx, dsn, schemaName)
+	if _, err := database.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create provider config live schema: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
+		_, _ = database.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 	})
 	for _, defName := range []string{"ingestion_scopes", "tenant_workspace_grants", "identity_subjects", "provider_config_sealed_secret"} {
-		if _, err := db.ExecContext(ctx, MigrationSQL(defName)); err != nil {
+		if _, err := database.ExecContext(ctx, MigrationSQL(defName)); err != nil {
 			t.Fatalf("apply migration %q: %v", defName, err)
 		}
 	}
-	return db, schemaName
+	return database, schemaName
 }
 
 // openProviderConfigLiveSchemaConn opens a pgx handle capped at one
@@ -246,23 +248,23 @@ func openProviderConfigLiveSchema(t *testing.T, ctx context.Context, dsn string)
 // separate backend sessions whose FOR UPDATE locks can actually contend.
 func openProviderConfigLiveSchemaConn(t *testing.T, ctx context.Context, dsn, schemaName string) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	t.Cleanup(func() { _ = database.Close() })
+	if _, err := database.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}
-	return db
+	return database
 }
 
-func seedProviderConfigLiveTenant(t *testing.T, ctx context.Context, db *sql.DB, tenantID string) {
+func seedProviderConfigLiveTenant(t *testing.T, ctx context.Context, database *sql.DB, tenantID string) {
 	t.Helper()
 	now := time.Now().UTC()
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO tenants (tenant_id, status, policy_revision_hash, created_at, updated_at)
 VALUES ($1, 'active', 'seed_policy_rev', $2, $2)
 ON CONFLICT (tenant_id) DO NOTHING`, tenantID, now); err != nil {

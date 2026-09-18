@@ -46,7 +46,7 @@ func (w ContentWriter) deleteContentEntityPathsChunk(ctx context.Context, repoID
 		args = append(args, repoID, path)
 	}
 	query := "DELETE FROM content_entities WHERE (repo_id, relative_path) IN (" + values.String() + ")"
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("delete content_entities batch by path (%d rows): %w", len(paths), err)
 	}
 	return nil
@@ -89,7 +89,7 @@ func (w ContentWriter) deleteContentEntityIDsChunk(ctx context.Context, repoID s
 		args = append(args, repoID, eid)
 	}
 	query := "DELETE FROM content_entities WHERE (repo_id, entity_id) IN (" + values.String() + ")"
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("delete content_entities batch by entity_id (%d rows): %w", len(entityIDs), err)
 	}
 	return nil
@@ -132,7 +132,7 @@ func (w ContentWriter) deleteContentFilesChunk(ctx context.Context, repoID strin
 		args = append(args, repoID, path)
 	}
 	query := "DELETE FROM content_files WHERE (repo_id, relative_path) IN (" + values.String() + ")"
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("delete content_files batch (%d rows): %w", len(paths), err)
 	}
 	return nil
@@ -163,7 +163,7 @@ func (w ContentWriter) deleteContentReferencePathsBatch(ctx context.Context, rep
 			args = append(args, repoID, path)
 		}
 		query := "DELETE FROM content_file_references WHERE (repo_id, relative_path) IN (" + values.String() + ")"
-		if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
+		if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 			return fmt.Errorf("delete content_file_references batch by path (%d rows): %w", len(chunk), err)
 		}
 	}

@@ -6,6 +6,8 @@ package main
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -31,7 +33,7 @@ import (
 // keeping the wiring in one helper keeps that contract obvious and keeps the
 // reducer command entrypoint under the package size budget.
 func cloudInventoryAdmissionWiring(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	logger *slog.Logger,
 ) (
 	cloudinventory.CloudInventoryEvidenceLoader,

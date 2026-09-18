@@ -36,7 +36,7 @@ func TestAckBatchEmptyIsNoop(t *testing.T) {
 	t.Parallel()
 
 	q := ReducerQueue{
-		db:            &fakeExecQueryer{},
+		database:      &fakeExecQueryer{},
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 	}
@@ -79,7 +79,7 @@ func TestClaimBatchReturnsEmptyFromEmptyDB(t *testing.T) {
 		},
 	}
 	q := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC) },
@@ -107,7 +107,7 @@ func TestClaimBatchReturnsClaimedIntents(t *testing.T) {
 		},
 	}
 	q := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -138,7 +138,7 @@ func TestClaimBatchFencesSameConflictCandidates(t *testing.T) {
 		},
 	}
 	q := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -242,7 +242,7 @@ func TestClaimBatchCanReclaimExpiredClaims(t *testing.T) {
 		},
 	}
 	q := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -280,7 +280,7 @@ func TestClaimBatchCanWaitForProjectorDrain(t *testing.T) {
 		},
 	}
 	q := ReducerQueue{
-		db:                               db,
+		database:                         db,
 		LeaseOwner:                       "test",
 		LeaseDuration:                    time.Minute,
 		Now:                              func() time.Time { return now },
@@ -321,7 +321,7 @@ func TestClaimBatchGatesSemanticEntitiesOnGlobalProjectorDrain(t *testing.T) {
 		},
 	}
 	q := ReducerQueue{
-		db:                               db,
+		database:                         db,
 		LeaseOwner:                       "test",
 		LeaseDuration:                    time.Minute,
 		Now:                              func() time.Time { return now },
@@ -370,7 +370,7 @@ func TestClaimBatchPassesExpectedSourceLocalProjectors(t *testing.T) {
 		},
 	}
 	q := ReducerQueue{
-		db:                            db,
+		database:                      db,
 		LeaseOwner:                    "test",
 		LeaseDuration:                 time.Minute,
 		Now:                           func() time.Time { return now },
@@ -399,7 +399,7 @@ func TestClaimBatchPassesSemanticEntityClaimLimit(t *testing.T) {
 		},
 	}
 	q := ReducerQueue{
-		db:                               db,
+		database:                         db,
 		LeaseOwner:                       "test",
 		LeaseDuration:                    time.Minute,
 		Now:                              func() time.Time { return now },
@@ -429,7 +429,7 @@ func TestClaimBatchGatesAWSRelationshipsOnCanonicalCloudResourceReadiness(t *tes
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -470,7 +470,7 @@ func TestClaimBatchCanFilterByDomain(t *testing.T) {
 		},
 	}
 	q := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "sql-lane",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

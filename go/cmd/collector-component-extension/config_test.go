@@ -10,12 +10,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/extensionhost"
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/scope"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -281,7 +282,7 @@ func mapEnv(values map[string]string) func(string) string {
 
 type fakeExecQueryer struct{}
 
-func (f *fakeExecQueryer) QueryContext(context.Context, string, ...any) (postgres.Rows, error) {
+func (f *fakeExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, nil
 }
 

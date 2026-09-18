@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -33,7 +35,7 @@ func (s *RelationshipStore) GetResolvedRelationshipsForRepos(
 		args[i] = repoID
 	}
 	placeholderList := strings.Join(placeholders, ", ")
-	sqlRows, err := s.db.QueryContext(ctx, fmt.Sprintf(listResolvedByReposSQL, placeholderList, placeholderList), args...)
+	sqlRows, err := s.database.QueryContext(ctx, fmt.Sprintf(listResolvedByReposSQL, placeholderList, placeholderList), args...)
 	if err != nil {
 		return nil, fmt.Errorf("list resolved by repos: %w", err)
 	}
@@ -42,7 +44,7 @@ func (s *RelationshipStore) GetResolvedRelationshipsForRepos(
 	return scanResolvedRelationshipRows(sqlRows, "by repos")
 }
 
-func scanResolvedRelationshipRows(rows Rows, label string) ([]relationships.ResolvedRelationship, error) {
+func scanResolvedRelationshipRows(rows db.Rows, label string) ([]relationships.ResolvedRelationship, error) {
 	var result []relationships.ResolvedRelationship
 	for rows.Next() {
 		var r relationships.ResolvedRelationship
@@ -111,7 +113,7 @@ func (s *RelationshipStore) ActivateResolutionGenerationForClaim(
 	claimedAt time.Time,
 ) error {
 	now := time.Now().UTC()
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		activateResolutionGenerationForClaimSQL,
 		generationID,

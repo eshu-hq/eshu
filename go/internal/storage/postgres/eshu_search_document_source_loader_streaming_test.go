@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 )
 
@@ -53,7 +55,7 @@ type pagingFileRow struct {
 	indexedAt    time.Time
 }
 
-func (q *pagingQueryer) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (q *pagingQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	q.calls = append(q.calls, pagingCall{query: query, args: args})
 
 	switch {
@@ -70,7 +72,7 @@ func (q *pagingQueryer) QueryContext(_ context.Context, query string, args ...an
 
 // entityPage returns the entity rows after the cursor (last arg before limit),
 // honoring the page-size LIMIT so the loader must advance to drain all rows.
-func (q *pagingQueryer) entityPage(args []any) Rows {
+func (q *pagingQueryer) entityPage(args []any) db.Rows {
 	cursor, limit := keysetArgs(args)
 	rows := make([][]any, 0, limit)
 	for _, r := range q.entities {
@@ -89,7 +91,7 @@ func (q *pagingQueryer) entityPage(args []any) Rows {
 	return &pagingTypedRows{rows: rows}
 }
 
-func (q *pagingQueryer) filePage(args []any) Rows {
+func (q *pagingQueryer) filePage(args []any) db.Rows {
 	cursor, limit := keysetArgs(args)
 	rows := make([][]any, 0, limit)
 	for _, r := range q.files {
@@ -235,7 +237,7 @@ func TestStreamSearchDocumentSourcesPaginatesEntitiesWithLimit(t *testing.T) {
 	}
 	q := &pagingQueryer{repoID: "repo-1", entities: entities}
 	// Small page size forces multiple keyset pages over the 5-row fixture.
-	loader := EshuSearchDocumentSourceLoader{db: q, entityPageSize: 2}
+	loader := EshuSearchDocumentSourceLoader{database: q, entityPageSize: 2}
 
 	var got []string
 	err := loader.StreamSearchDocumentSources(context.Background(), "scope-1", "gen-1",
@@ -303,7 +305,7 @@ func TestStreamSearchDocumentSourcesPaginatesFilesWithLimit(t *testing.T) {
 	}
 	q := &pagingQueryer{repoID: "repo-1", files: files}
 	// Small page size forces multiple keyset pages over the 4-row fixture.
-	loader := EshuSearchDocumentSourceLoader{db: q, filePageSize: 2}
+	loader := EshuSearchDocumentSourceLoader{database: q, filePageSize: 2}
 
 	var got []string
 	err := loader.StreamSearchDocumentSources(context.Background(), "scope-1", "gen-1",

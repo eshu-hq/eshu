@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // CrossplaneRedriveClaim identifies one XRD source-generation whose
@@ -107,13 +109,13 @@ WHERE xrd_scope_id = $2
 // CrossplaneRedriveStateStore persists the durable claim/completion state for
 // the Crossplane cross-scope SATISFIED_BY re-drive sweep (issue #5476).
 type CrossplaneRedriveStateStore struct {
-	db  ExecQueryer
-	Now func() time.Time
+	database db.ExecQueryer
+	Now      func() time.Time
 }
 
 // NewCrossplaneRedriveStateStore constructs the redrive state store.
-func NewCrossplaneRedriveStateStore(db ExecQueryer) CrossplaneRedriveStateStore {
-	return CrossplaneRedriveStateStore{db: db}
+func NewCrossplaneRedriveStateStore(database db.ExecQueryer) CrossplaneRedriveStateStore {
+	return CrossplaneRedriveStateStore{database: database}
 }
 
 func (s CrossplaneRedriveStateStore) now() time.Time {
@@ -127,13 +129,13 @@ func (s CrossplaneRedriveStateStore) now() time.Time {
 // cross-scope Claim re-drive sweep. Idempotent: a generation already tracked
 // (queued, claimed, or completed) is left untouched.
 func (s CrossplaneRedriveStateStore) EnsureQueued(ctx context.Context, xrdScopeID, xrdGenerationID string) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("crossplane redrive state database is required")
 	}
 	if xrdScopeID == "" || xrdGenerationID == "" {
 		return errors.New("crossplane redrive state requires xrd scope id and generation id")
 	}
-	if _, err := s.db.ExecContext(ctx, ensureCrossplaneRedriveQueuedQuery, xrdScopeID, xrdGenerationID, s.now()); err != nil {
+	if _, err := s.database.ExecContext(ctx, ensureCrossplaneRedriveQueuedQuery, xrdScopeID, xrdGenerationID, s.now()); err != nil {
 		return fmt.Errorf("ensure crossplane redrive queued: %w", err)
 	}
 	return nil
@@ -148,7 +150,7 @@ func (s CrossplaneRedriveStateStore) ClaimExact(
 	xrdScopeID, xrdGenerationID, owner string,
 	leaseDuration time.Duration,
 ) (claimed bool, fencingToken int64, err error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, 0, errors.New("crossplane redrive state database is required")
 	}
 	if owner == "" {
@@ -158,7 +160,7 @@ func (s CrossplaneRedriveStateStore) ClaimExact(
 		return false, 0, errors.New("crossplane redrive claim lease duration must be positive")
 	}
 	now := s.now()
-	rows, queryErr := s.db.QueryContext(ctx, claimCrossplaneRedriveExactQuery,
+	rows, queryErr := s.database.QueryContext(ctx, claimCrossplaneRedriveExactQuery,
 		xrdScopeID, xrdGenerationID, now, owner, now.Add(leaseDuration))
 	if queryErr != nil {
 		return false, 0, fmt.Errorf("claim crossplane redrive: %w", queryErr)
@@ -186,7 +188,7 @@ func (s CrossplaneRedriveStateStore) ClaimBatch(
 	leaseDuration time.Duration,
 	limit int,
 ) ([]CrossplaneRedriveClaim, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("crossplane redrive state database is required")
 	}
 	if owner == "" {
@@ -199,7 +201,7 @@ func (s CrossplaneRedriveStateStore) ClaimBatch(
 		return nil, errors.New("crossplane redrive claim batch limit must be positive")
 	}
 	now := s.now()
-	rows, err := s.db.QueryContext(ctx, claimCrossplaneRedriveBatchQuery,
+	rows, err := s.database.QueryContext(ctx, claimCrossplaneRedriveBatchQuery,
 		now, limit, owner, now.Add(leaseDuration))
 	if err != nil {
 		return nil, fmt.Errorf("claim crossplane redrive batch: %w", err)
@@ -231,10 +233,10 @@ func (s CrossplaneRedriveStateStore) MarkCompleted(
 	xrdScopeID, xrdGenerationID string,
 	fencingToken int64,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, errors.New("crossplane redrive state database is required")
 	}
-	result, err := s.db.ExecContext(ctx, markCrossplaneRedriveCompletedQuery, s.now(), xrdScopeID, xrdGenerationID, fencingToken)
+	result, err := s.database.ExecContext(ctx, markCrossplaneRedriveCompletedQuery, s.now(), xrdScopeID, xrdGenerationID, fencingToken)
 	if err != nil {
 		return false, fmt.Errorf("mark crossplane redrive completed: %w", err)
 	}

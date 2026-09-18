@@ -33,7 +33,7 @@ func TestReducerQueueClaimAdvancingSimulatedClockMovesLeaseHorizon(t *testing.T)
 	sim := clock.NewSimulated(start)
 	db := &fakeExecQueryer{queryResponses: []queueFakeRows{{}, {}}}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-A",
 		LeaseDuration: time.Minute,
 		Now:           sim.Now,
@@ -111,7 +111,7 @@ func TestReducerQueueSimulatedClockTriggersLeaseExpiryReclaim(t *testing.T) {
 
 	newQueue := func(owner string) ReducerQueue {
 		return ReducerQueue{
-			db:            SQLDB{DB: db},
+			database:      SQLDB{DB: db},
 			LeaseOwner:    owner,
 			LeaseDuration: time.Minute,
 			Now:           sim.Now,

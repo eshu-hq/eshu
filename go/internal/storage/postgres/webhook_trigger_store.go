@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
@@ -17,12 +19,12 @@ import (
 // WebhookTriggerStore persists provider webhook intake decisions for later
 // targeted repository refresh handoff.
 type WebhookTriggerStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewWebhookTriggerStore constructs a Postgres-backed webhook trigger store.
-func NewWebhookTriggerStore(db ExecQueryer) *WebhookTriggerStore {
-	return &WebhookTriggerStore{db: db}
+func NewWebhookTriggerStore(database db.ExecQueryer) *WebhookTriggerStore {
+	return &WebhookTriggerStore{database: database}
 }
 
 // WebhookTriggerSchemaSQL returns the DDL for the webhook trigger store.
@@ -32,10 +34,10 @@ func WebhookTriggerSchemaSQL() string {
 
 // EnsureSchema applies the webhook trigger schema.
 func (s *WebhookTriggerStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("webhook trigger store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, webhookTriggerSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, webhookTriggerSchemaSQL); err != nil {
 		return fmt.Errorf("ensure webhook trigger schema: %w", err)
 	}
 	return nil
@@ -49,14 +51,14 @@ func (s *WebhookTriggerStore) StoreTrigger(
 	trigger webhook.Trigger,
 	receivedAt time.Time,
 ) (webhook.StoredTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return webhook.StoredTrigger{}, errors.New("webhook trigger store database is required")
 	}
 	stored, err := prepareStoredTrigger(trigger, receivedAt)
 	if err != nil {
 		return webhook.StoredTrigger{}, err
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		storeWebhookTriggerQuery,
 		stored.TriggerID,
@@ -110,7 +112,7 @@ func (s *WebhookTriggerStore) ClaimQueuedTriggers(
 	claimedAt time.Time,
 	limit int,
 ) ([]webhook.StoredTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("webhook trigger store database is required")
 	}
 	owner = strings.TrimSpace(owner)
@@ -124,7 +126,7 @@ func (s *WebhookTriggerStore) ClaimQueuedTriggers(
 		return nil, errors.New("webhook trigger claimed_at is required")
 	}
 
-	rows, err := s.db.QueryContext(ctx, claimQueuedWebhookTriggersQuery, limit, owner, claimedAt.UTC())
+	rows, err := s.database.QueryContext(ctx, claimQueuedWebhookTriggersQuery, limit, owner, claimedAt.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("claim webhook triggers: %w", err)
 	}
@@ -147,7 +149,7 @@ func (s *WebhookTriggerStore) ClaimQueuedTriggers(
 // MarkTriggersHandedOff records that claimed triggers were handed to the
 // repository refresh selector.
 func (s *WebhookTriggerStore) MarkTriggersHandedOff(ctx context.Context, triggerIDs []string, handedOffAt time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("webhook trigger store database is required")
 	}
 	cleaned := cleanTriggerIDs(triggerIDs)
@@ -158,7 +160,7 @@ func (s *WebhookTriggerStore) MarkTriggersHandedOff(ctx context.Context, trigger
 		return errors.New("webhook trigger handed_off_at is required")
 	}
 	args := triggerIDArgs(cleaned, handedOffAt.UTC())
-	if _, err := s.db.ExecContext(ctx, buildMarkWebhookTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, buildMarkWebhookTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark webhook triggers handed off: %w", err)
 	}
 	return nil
@@ -173,7 +175,7 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 	failureClass string,
 	failureMessage string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("webhook trigger store database is required")
 	}
 	cleaned := cleanTriggerIDs(triggerIDs)
@@ -188,7 +190,7 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 		return errors.New("webhook trigger failure class is required")
 	}
 	args := triggerIDArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		buildMarkWebhookTriggersFailedQuery(len(cleaned)),
 		args...,
@@ -254,7 +256,7 @@ func webhookRefreshKey(trigger webhook.Trigger) string {
 	return strings.Join(parts, ":")
 }
 
-func scanStoredWebhookTrigger(rows Rows) (webhook.StoredTrigger, error) {
+func scanStoredWebhookTrigger(rows db.Rows) (webhook.StoredTrigger, error) {
 	var stored webhook.StoredTrigger
 	var provider, eventKind, decision, reason, status string
 	if err := rows.Scan(

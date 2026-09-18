@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/oidcbearer"
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -42,7 +44,7 @@ const envAuthResourceURI = "ESHU_AUTH_RESOURCE_URI"
 func newOIDCBearerResolver(
 	ctx context.Context,
 	getenv func(string) string,
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (query.ScopedTokenResolver, error) {
@@ -50,7 +52,7 @@ func newOIDCBearerResolver(
 	if audience == "" {
 		return nil, nil
 	}
-	if db == nil {
+	if rawDB == nil {
 		return nil, fmt.Errorf("oidc bearer resolver: postgres is required")
 	}
 
@@ -59,7 +61,7 @@ func newOIDCBearerResolver(
 		return nil, err
 	}
 
-	execQueryer := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	execQueryer := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	source := oidcbearer.ComposeProviderSources(
 		oidcbearer.NewEnvProviderSource(config),
 		&oidcBearerDBProviderSource{
@@ -71,7 +73,7 @@ func newOIDCBearerResolver(
 
 	resolver, err := oidcbearer.NewResolver(ctx, oidcbearer.Config{
 		Source:        source,
-		GrantResolver: fallbackOIDCGrantResolver{primary: newPostgresOIDCStoreAdapter(db, instruments), fallback: staticResolver},
+		GrantResolver: fallbackOIDCGrantResolver{primary: newPostgresOIDCStoreAdapter(rawDB, instruments), fallback: staticResolver},
 		Audience:      audience,
 		Instruments:   instruments,
 		Logger:        logger,

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -29,15 +31,15 @@ type kubernetesCorrelationReadinessQueueDB struct {
 	claimQueries int
 }
 
-func (db *kubernetesCorrelationReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *kubernetesCorrelationReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *kubernetesCorrelationReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (database *kubernetesCorrelationReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	db.claimQueries++
+	database.claimQueries++
 
 	// The claim gate must fence the kubernetes edge domain on the workload-uid
 	// keyspace, not the cloud_resource_uid keyspace the AWS/COVERS edges use.
@@ -54,11 +56,11 @@ func (db *kubernetesCorrelationReadinessQueueDB) QueryContext(_ context.Context,
 		"kubernetes_workload_uid",
 		"canonical_nodes_committed",
 	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
-	if hasReadinessGate && !db.phaseReady {
+	if hasReadinessGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.status)
+	status := strings.TrimSpace(database.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -71,18 +73,18 @@ func (db *kubernetesCorrelationReadinessQueueDB) QueryContext(_ context.Context,
 		"k8s:prod-us-east-1",
 		"gen-k8s-1",
 		string(reducer.DomainKubernetesCorrelationMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"kubernetes_workload_materialization:k8s:prod-us-east-1","reason":"kubernetes live workload facts observed","fact_id":"fact-pod-1","source_system":"kubernetes"}`),
 	}}}, nil
 }
 
-func kubernetesCorrelationReadinessQueue(db *kubernetesCorrelationReadinessQueueDB, now time.Time) ReducerQueue {
+func kubernetesCorrelationReadinessQueue(database *kubernetesCorrelationReadinessQueueDB, now time.Time) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -93,12 +95,12 @@ func TestReducerQueueClaimWaitsForKubernetesWorkloadReadinessBehavior(t *testing
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 1, 11, 10, 0, 0, time.UTC)
-	db := &kubernetesCorrelationReadinessQueueDB{
+	database := &kubernetesCorrelationReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		status:     "pending",
 	}
-	queue := kubernetesCorrelationReadinessQueue(db, now)
+	queue := kubernetesCorrelationReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
@@ -108,7 +110,7 @@ func TestReducerQueueClaimWaitsForKubernetesWorkloadReadinessBehavior(t *testing
 		t.Fatalf("Claim() claimed %q before workload-node readiness, want unclaimed waiting work", intent.IntentID)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)
@@ -151,9 +153,9 @@ func TestReducerQueueFailDefersKubernetesCorrelationReadinessPastAttemptBudget(t
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 2, 11, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{}
+	database := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -170,11 +172,11 @@ func TestReducerQueueFailDefersKubernetesCorrelationReadinessPastAttemptBudget(t
 		t.Fatalf("Fail() error = %v, want nil", err)
 	}
 
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 
-	query := db.execs[0].query
+	query := database.execs[0].query
 	for _, want := range []string{
 		"UPDATE fact_work_items",
 		"status = 'retrying'",
@@ -186,14 +188,14 @@ func TestReducerQueueFailDefersKubernetesCorrelationReadinessPastAttemptBudget(t
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], reducer.KubernetesCorrelationNodesNotReadyFailureClass; got != want {
+	if got, want := database.execs[0].args[1], reducer.KubernetesCorrelationNodesNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	// Exponential backoff (#4450): AttemptCount=42 (a non-counting readiness
 	// class keeps retrying indefinitely) drives the exponential term far past
 	// MaxRetryDelay's default 1-hour fallback (unset here), so the delay
 	// clamps to defaultRetryMaxDelayFallback rather than doubling forever.
-	if got, want := db.execs[0].args[4], now.Add(defaultRetryMaxDelayFallback); got != want {
+	if got, want := database.execs[0].args[4], now.Add(defaultRetryMaxDelayFallback); got != want {
 		t.Fatalf("next attempt = %v, want %v", got, want)
 	}
 }
@@ -206,13 +208,13 @@ func TestReducerQueueClaimDoesNotCountKubernetesCorrelationReadinessDefers(t *te
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 2, 12, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: nil},
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },
@@ -224,7 +226,7 @@ func TestReducerQueueClaimDoesNotCountKubernetesCorrelationReadinessDefers(t *te
 		t.Fatal("Claim() claimed = true, want false from empty rows")
 	}
 
-	assertKubernetesCorrelationReadinessClaimDoesNotCountAttempt(t, db.queries[0].query)
+	assertKubernetesCorrelationReadinessClaimDoesNotCountAttempt(t, database.queries[0].query)
 }
 
 // TestClaimBatchDoesNotCountKubernetesCorrelationReadinessDefers asserts the batch
@@ -234,13 +236,13 @@ func TestClaimBatchDoesNotCountKubernetesCorrelationReadinessDefers(t *testing.T
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 2, 12, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{rows: nil},
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -250,7 +252,7 @@ func TestClaimBatchDoesNotCountKubernetesCorrelationReadinessDefers(t *testing.T
 		t.Fatalf("ClaimBatch() error = %v", err)
 	}
 
-	assertKubernetesCorrelationReadinessClaimDoesNotCountAttempt(t, db.queries[0].query)
+	assertKubernetesCorrelationReadinessClaimDoesNotCountAttempt(t, database.queries[0].query)
 }
 
 func assertKubernetesCorrelationReadinessClaimDoesNotCountAttempt(t *testing.T, query string) {

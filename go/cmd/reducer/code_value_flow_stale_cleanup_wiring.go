@@ -7,10 +7,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func codeValueFlowStaleCleanupRunnerFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	taintEvidence reducer.CodeTaintStaleEvidenceRetractor,
 	taintWriter taint.EvidenceWriter,
 	interprocEvidence reducer.CodeInterprocStaleEvidenceRetractor,

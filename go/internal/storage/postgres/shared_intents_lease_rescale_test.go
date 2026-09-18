@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -72,17 +74,17 @@ func TestSharedIntentStorePartitionCountRescaleAgainstPostgres(t *testing.T) {
 	if strings.Contains(dsn, "?") {
 		scopedDSN = dsn + "&search_path=" + schemaName
 	}
-	db, err := sql.Open("pgx", scopedDSN)
+	database, err := sql.Open("pgx", scopedDSN)
 	if err != nil {
 		t.Fatalf("open scoped connection pool: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
-	db.SetMaxOpenConns(6)
-	if _, err := db.ExecContext(ctx, SharedIntentSchemaSQL()); err != nil {
+	t.Cleanup(func() { _ = database.Close() })
+	database.SetMaxOpenConns(6)
+	if _, err := database.ExecContext(ctx, SharedIntentSchemaSQL()); err != nil {
 		t.Fatalf("create shared-intent proof tables: %v", err)
 	}
 
-	store := NewSharedIntentStore(SQLDB{DB: db})
+	store := NewSharedIntentStore(SQLDB{DB: database})
 	const domain = "repo_dependency_rescale_proof"
 	const leaseTTL = 30 * time.Second
 
@@ -97,7 +99,7 @@ func TestSharedIntentStorePartitionCountRescaleAgainstPostgres(t *testing.T) {
 	if claimed {
 		t.Fatal("two process-unique owners both claimed one active shard")
 	}
-	if _, err := db.ExecContext(ctx, "TRUNCATE shared_projection_partition_leases"); err != nil {
+	if _, err := database.ExecContext(ctx, "TRUNCATE shared_projection_partition_leases"); err != nil {
 		t.Fatalf("reset process-owner proof leases: %v", err)
 	}
 
@@ -120,7 +122,7 @@ func TestSharedIntentStorePartitionCountRescaleAgainstPostgres(t *testing.T) {
 		t.Fatalf("claim four-worker lease after release = %v, %v; want true, nil", claimed, err)
 	}
 
-	if _, err := db.ExecContext(ctx, "TRUNCATE shared_projection_partition_leases"); err != nil {
+	if _, err := database.ExecContext(ctx, "TRUNCATE shared_projection_partition_leases"); err != nil {
 		t.Fatalf("reset proof leases: %v", err)
 	}
 	start := make(chan struct{})
@@ -164,9 +166,9 @@ func TestSharedIntentStorePartitionCountRescaleAgainstPostgres(t *testing.T) {
 	if winners != 1 {
 		t.Fatalf("racing partition-count winners = %d, want exactly 1", winners)
 	}
-	assertOneActivePartitionCount(t, db, ctx, domain)
+	assertOneActivePartitionCount(t, database, ctx, domain)
 
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 		UPDATE shared_projection_partition_leases
 		SET lease_expires_at = $2
 		WHERE projection_domain = $1 AND lease_owner IS NOT NULL
@@ -177,7 +179,7 @@ func TestSharedIntentStorePartitionCountRescaleAgainstPostgres(t *testing.T) {
 	if err != nil || !claimed {
 		t.Fatalf("claim new count after expiry = %v, %v; want true, nil", claimed, err)
 	}
-	assertOneActivePartitionCount(t, db, ctx, domain)
+	assertOneActivePartitionCount(t, database, ctx, domain)
 }
 
 func TestRepoDependencyAcceptanceUnitGateOrdersLeaseTakeoverAgainstPostgres(t *testing.T) {
@@ -191,10 +193,10 @@ func TestRepoDependencyAcceptanceUnitGateOrdersLeaseTakeoverAgainstPostgres(t *t
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	db, cleanup := openSharedIntentRescaleProofDB(t, ctx, dsn)
+	database, cleanup := openSharedIntentRescaleProofDB(t, ctx, dsn)
 	defer cleanup()
-	store := NewSharedIntentStore(SQLDB{DB: db})
-	gate := NewRepoDependencyAcceptanceUnitGate(SQLDB{DB: db})
+	store := NewSharedIntentStore(SQLDB{DB: database})
+	gate := NewRepoDependencyAcceptanceUnitGate(SQLDB{DB: database})
 	const (
 		domain = "repo_dependency_gate_proof"
 		repoID = "repository:gate-proof"
@@ -229,7 +231,7 @@ func TestRepoDependencyAcceptanceUnitGateOrdersLeaseTakeoverAgainstPostgres(t *t
 	}()
 	<-enteredA
 
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 		UPDATE shared_projection_partition_leases
 		SET lease_expires_at = $2
 		WHERE projection_domain = $1
@@ -291,10 +293,10 @@ func TestRepoDependencyAcceptanceUnitGateConnectionLossCannotTransferActiveShard
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	db, cleanup := openSharedIntentRescaleProofDB(t, ctx, dsn)
+	database, cleanup := openSharedIntentRescaleProofDB(t, ctx, dsn)
 	defer cleanup()
-	store := NewSharedIntentStore(SQLDB{DB: db})
-	gate := NewRepoDependencyAcceptanceUnitGate(SQLDB{DB: db})
+	store := NewSharedIntentStore(SQLDB{DB: database})
+	gate := NewRepoDependencyAcceptanceUnitGate(SQLDB{DB: database})
 	const (
 		domain = "repo_dependency_gate_disconnect_proof"
 		repoID = "repository:gate-disconnect-proof"
@@ -322,7 +324,7 @@ func TestRepoDependencyAcceptanceUnitGateConnectionLossCannotTransferActiveShard
 			if !ok {
 				return fmt.Errorf("transaction reader type = %T, want *SharedIntentStore", reader)
 			}
-			pid, pidErr := postgresBackendPID(callbackCtx, txStore.db)
+			pid, pidErr := postgresBackendPID(callbackCtx, txStore.database)
 			if pidErr != nil {
 				return pidErr
 			}
@@ -335,7 +337,7 @@ func TestRepoDependencyAcceptanceUnitGateConnectionLossCannotTransferActiveShard
 
 	pid := <-txBackend
 	var terminated bool
-	if err := db.QueryRowContext(ctx, "SELECT pg_terminate_backend($1)", pid).Scan(&terminated); err != nil {
+	if err := database.QueryRowContext(ctx, "SELECT pg_terminate_backend($1)", pid).Scan(&terminated); err != nil {
 		t.Fatalf("terminate gate backend %d: %v", pid, err)
 	}
 	if !terminated {
@@ -363,8 +365,8 @@ func TestRepoDependencyAcceptanceUnitGateConnectionLossCannotTransferActiveShard
 	}
 }
 
-func postgresBackendPID(ctx context.Context, db ExecQueryer) (int, error) {
-	rows, err := db.QueryContext(ctx, "SELECT pg_backend_pid()")
+func postgresBackendPID(ctx context.Context, database db.ExecQueryer) (int, error) {
+	rows, err := database.QueryContext(ctx, "SELECT pg_backend_pid()")
 	if err != nil {
 		return 0, fmt.Errorf("read gate backend pid: %w", err)
 	}
@@ -394,26 +396,26 @@ func openSharedIntentRescaleProofDB(t *testing.T, ctx context.Context, dsn strin
 	if strings.Contains(dsn, "?") {
 		scopedDSN = dsn + "&search_path=" + schemaName
 	}
-	db, err := sql.Open("pgx", scopedDSN)
+	database, err := sql.Open("pgx", scopedDSN)
 	if err != nil {
 		t.Fatalf("open gate proof connection pool: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, SharedIntentSchemaSQL()); err != nil {
-		_ = db.Close()
+	if _, err := database.ExecContext(ctx, SharedIntentSchemaSQL()); err != nil {
+		_ = database.Close()
 		t.Fatalf("create gate proof tables: %v", err)
 	}
-	return db, func() {
-		_ = db.Close()
+	return database, func() {
+		_ = database.Close()
 		_, _ = bootstrapDB.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 		_ = bootstrapDB.Close()
 	}
 }
 
-func assertOneActivePartitionCount(t *testing.T, db *sql.DB, ctx context.Context, domain string) {
+func assertOneActivePartitionCount(t *testing.T, database *sql.DB, ctx context.Context, domain string) {
 	t.Helper()
 	var activeRows int
 	var activeCounts int
-	if err := db.QueryRowContext(ctx, `
+	if err := database.QueryRowContext(ctx, `
 		SELECT count(*), count(DISTINCT partition_count)
 		FROM shared_projection_partition_leases
 		WHERE projection_domain = $1
@@ -433,7 +435,7 @@ func (partitionRescaleGuardDB) ExecContext(context.Context, string, ...any) (sql
 	return nil, fmt.Errorf("unexpected exec")
 }
 
-func (partitionRescaleGuardDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (partitionRescaleGuardDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	if !strings.Contains(query, "pg_advisory_xact_lock") ||
 		!strings.Contains(query, "shared_projection_partition_leases") ||
 		!strings.Contains(query, "hashtext($1)") ||

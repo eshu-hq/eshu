@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -15,7 +17,7 @@ import (
 // transaction surface, so the lineage writer can commit its supersede + insert +
 // snapshot writes atomically over the shared instrumented connection.
 type ServiceMaterializationBeginner struct {
-	Beginner Beginner
+	Beginner db.Beginner
 }
 
 // BeginServiceMaterializationTx opens a transaction wrapped in the reducer's
@@ -31,7 +33,7 @@ func (b ServiceMaterializationBeginner) BeginServiceMaterializationTx(
 }
 
 type serviceMaterializationTx struct {
-	tx Transaction
+	tx db.Transaction
 }
 
 func (t serviceMaterializationTx) ExecContext(
@@ -61,7 +63,7 @@ func (t serviceMaterializationTx) Commit() error   { return t.tx.Commit() }
 func (t serviceMaterializationTx) Rollback() error { return t.tx.Rollback() }
 
 type serviceMaterializationRow struct {
-	rows Rows
+	rows db.Rows
 	err  error
 }
 

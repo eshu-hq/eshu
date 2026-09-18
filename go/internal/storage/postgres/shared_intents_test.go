@@ -12,14 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestSharedIntentStoreUpsertAndList(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentTestDB()
-	store := NewSharedIntentStore(db)
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -66,8 +68,8 @@ func TestSharedIntentStoreUpsertAndList(t *testing.T) {
 func TestSharedIntentStoreUpsertOverwrites(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentTestDB()
-	store := NewSharedIntentStore(db)
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -112,8 +114,8 @@ func TestSharedIntentStoreUpsertOverwrites(t *testing.T) {
 func TestSharedIntentStoreUpsertIntentsDeduplicatesBatchIntentIDs(t *testing.T) {
 	t.Parallel()
 
-	db := &duplicateRejectingSharedIntentDB{}
-	store := NewSharedIntentStore(db)
+	database := &duplicateRejectingSharedIntentDB{}
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -152,10 +154,10 @@ func TestSharedIntentStoreUpsertIntentsDeduplicatesBatchIntentIDs(t *testing.T) 
 		t.Fatalf("UpsertIntents() error = %v, want nil", err)
 	}
 
-	if got, want := db.execCalls, 1; got != want {
+	if got, want := database.execCalls, 1; got != want {
 		t.Fatalf("execCalls = %d, want %d", got, want)
 	}
-	if got, want := db.storedIntentIDs, []string{"si-duplicate"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := database.storedIntentIDs, []string{"si-duplicate"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("storedIntentIDs = %v, want %v", got, want)
 	}
 }
@@ -163,8 +165,8 @@ func TestSharedIntentStoreUpsertIntentsDeduplicatesBatchIntentIDs(t *testing.T) 
 func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentTestDB()
-	store := NewSharedIntentStore(db)
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -212,8 +214,8 @@ func TestSharedIntentStoreListPendingDomainIntents(t *testing.T) {
 func TestSharedIntentStoreMarkIntentsCompleted(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentTestDB()
-	store := NewSharedIntentStore(db)
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -268,8 +270,8 @@ func TestSharedIntentStoreMarkIntentsCompleted(t *testing.T) {
 func TestSharedIntentStoreEmptyUpsertIsNoop(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentTestDB()
-	store := NewSharedIntentStore(db)
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	if err := store.UpsertIntents(ctx, nil); err != nil {
@@ -283,8 +285,8 @@ func TestSharedIntentStoreEmptyUpsertIsNoop(t *testing.T) {
 func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentTestDB()
-	store := NewSharedIntentStore(db)
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -306,14 +308,14 @@ func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 	}
 
 	// Track exec calls before
-	execCallsBefore := db.execCalls
+	execCallsBefore := database.execCalls
 
 	if err := store.UpsertIntents(ctx, rows); err != nil {
 		t.Fatalf("UpsertIntents: %v", err)
 	}
 
 	// Verify batching: 1200 intents should use one ExecContext call, not 1200.
-	execCallsAfter := db.execCalls
+	execCallsAfter := database.execCalls
 	batchCallsUsed := execCallsAfter - execCallsBefore
 
 	expectedBatches := 1
@@ -322,14 +324,14 @@ func TestSharedIntentStoreUpsertIntentsBatch(t *testing.T) {
 	}
 
 	// Verify all intents were stored
-	if len(db.intents) != 1200 {
-		t.Errorf("expected 1200 intents stored, got %d", len(db.intents))
+	if len(database.intents) != 1200 {
+		t.Errorf("expected 1200 intents stored, got %d", len(database.intents))
 	}
 
 	// Spot-check a few intents
 	for _, idx := range []int{0, 500, 999, 1199} {
 		intentID := fmt.Sprintf("si-batch-%d", idx)
-		stored, ok := db.intents[intentID]
+		stored, ok := database.intents[intentID]
 		if !ok {
 			t.Errorf("intent %q not found", intentID)
 			continue
@@ -385,8 +387,8 @@ func TestSharedIntentSchemaSQL(t *testing.T) {
 func TestSharedIntentStorePersistsAcceptanceIdentity(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentTestDB()
-	store := NewSharedIntentStore(db)
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -410,7 +412,7 @@ func TestSharedIntentStorePersistsAcceptanceIdentity(t *testing.T) {
 		t.Fatalf("UpsertIntents: %v", err)
 	}
 
-	stored, ok := db.intents["si-identity"]
+	stored, ok := database.intents["si-identity"]
 	if !ok {
 		t.Fatal("expected stored intent")
 	}
@@ -425,8 +427,8 @@ func TestSharedIntentStorePersistsAcceptanceIdentity(t *testing.T) {
 func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentTestDB()
-	store := NewSharedIntentStore(db)
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	completedAt := now.Add(time.Second)
@@ -490,8 +492,8 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitDomainIntents(t *testing.T) 
 func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunDomainIntents(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedIntentTestDB()
-	store := NewSharedIntentStore(db)
+	database := newSharedIntentTestDB()
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	completedAt := now.Add(time.Second)
@@ -568,8 +570,8 @@ func newSharedIntentTestDB() *sharedIntentTestDB {
 	}
 }
 
-func (db *sharedIntentTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.execCalls++
+func (database *sharedIntentTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execCalls++
 
 	switch {
 	case strings.Contains(query, "INSERT INTO shared_projection_intents"):
@@ -597,7 +599,7 @@ func (db *sharedIntentTestDB) ExecContext(_ context.Context, query string, args 
 				ca := args[offset+11].(time.Time)
 				row.CompletedAt = &ca
 			}
-			db.intents[row.IntentID] = storedSharedIntent{
+			database.intents[row.IntentID] = storedSharedIntent{
 				row:              row,
 				scopeID:          args[offset+3].(string),
 				acceptanceUnitID: args[offset+4].(string),
@@ -609,9 +611,9 @@ func (db *sharedIntentTestDB) ExecContext(_ context.Context, query string, args 
 		completedAt := args[0].(time.Time)
 		intentIDs := args[1].([]string)
 		for _, id := range intentIDs {
-			if stored, ok := db.intents[id]; ok {
+			if stored, ok := database.intents[id]; ok {
 				stored.row.CompletedAt = &completedAt
-				db.intents[id] = stored
+				database.intents[id] = stored
 			}
 		}
 		return sharedIntentResult{}, nil
@@ -624,7 +626,7 @@ func (db *sharedIntentTestDB) ExecContext(_ context.Context, query string, args 
 	}
 }
 
-func (db *sharedIntentTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (database *sharedIntentTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "SELECT EXISTS") &&
 		strings.Contains(query, "source_run_id = $3") &&
@@ -634,7 +636,7 @@ func (db *sharedIntentTestDB) QueryContext(_ context.Context, query string, args
 		runID := args[2].(string)
 		domain := args[3].(string)
 		exists := false
-		for _, stored := range db.intents {
+		for _, stored := range database.intents {
 			intent := stored.row
 			if stored.scopeID != scopeID || stored.acceptanceUnitID != acceptanceUnitID {
 				continue
@@ -652,7 +654,7 @@ func (db *sharedIntentTestDB) QueryContext(_ context.Context, query string, args
 		acceptanceUnitID := args[1].(string)
 		domain := args[2].(string)
 		exists := false
-		for _, stored := range db.intents {
+		for _, stored := range database.intents {
 			intent := stored.row
 			if stored.scopeID != scopeID || stored.acceptanceUnitID != acceptanceUnitID {
 				continue
@@ -677,7 +679,7 @@ func (db *sharedIntentTestDB) QueryContext(_ context.Context, query string, args
 		}
 
 		var rows [][]any
-		for _, stored := range db.intents {
+		for _, stored := range database.intents {
 			intent := stored.row
 			if stored.scopeID != scopeID || stored.acceptanceUnitID != acceptanceUnitID {
 				continue
@@ -714,7 +716,7 @@ func (db *sharedIntentTestDB) QueryContext(_ context.Context, query string, args
 		}
 
 		var rows [][]any
-		for _, stored := range db.intents {
+		for _, stored := range database.intents {
 			intent := stored.row
 			if intent.ProjectionDomain != domain {
 				continue
@@ -756,7 +758,7 @@ func (db *sharedIntentTestDB) QueryContext(_ context.Context, query string, args
 		}
 
 		var rows [][]any
-		for _, stored := range db.intents {
+		for _, stored := range database.intents {
 			intent := stored.row
 			if intent.RepositoryID != repoID || intent.SourceRunID != runID {
 				continue
@@ -803,8 +805,8 @@ type duplicateRejectingSharedIntentDB struct {
 	storedIntentIDs []string
 }
 
-func (db *duplicateRejectingSharedIntentDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.execCalls++
+func (database *duplicateRejectingSharedIntentDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execCalls++
 
 	if !strings.Contains(query, "INSERT INTO shared_projection_intents") {
 		return nil, fmt.Errorf("unexpected exec query: %s", query)
@@ -820,13 +822,13 @@ func (db *duplicateRejectingSharedIntentDB) ExecContext(_ context.Context, query
 			return nil, fmt.Errorf("SQLSTATE 21000: ON CONFLICT DO UPDATE command cannot affect row a second time")
 		}
 		seen[intentID] = struct{}{}
-		db.storedIntentIDs = append(db.storedIntentIDs, intentID)
+		database.storedIntentIDs = append(database.storedIntentIDs, intentID)
 	}
 
 	return sharedIntentResult{}, nil
 }
 
-func (db *duplicateRejectingSharedIntentDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (database *duplicateRejectingSharedIntentDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
 }
 
@@ -998,16 +1000,16 @@ func TestSharedIntentStoreClaimPartitionLease(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			db := newLeaseTestDB()
+			database := newLeaseTestDB()
 			if tt.existingLease != nil {
-				db.leases[leaseKey{
+				database.leases[leaseKey{
 					projectionDomain: tt.existingLease.projectionDomain,
 					partitionID:      tt.existingLease.partitionID,
 					partitionCount:   tt.existingLease.partitionCount,
 				}] = *tt.existingLease
 			}
 
-			store := NewSharedIntentStore(db)
+			store := NewSharedIntentStore(database)
 			ctx := context.Background()
 
 			claimed, err := store.ClaimPartitionLease(
@@ -1085,16 +1087,16 @@ func TestSharedIntentStoreReleasePartitionLease(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			db := newLeaseTestDB()
+			database := newLeaseTestDB()
 			if tt.existingLease != nil {
-				db.leases[leaseKey{
+				database.leases[leaseKey{
 					projectionDomain: tt.existingLease.projectionDomain,
 					partitionID:      tt.existingLease.partitionID,
 					partitionCount:   tt.existingLease.partitionCount,
 				}] = *tt.existingLease
 			}
 
-			store := NewSharedIntentStore(db)
+			store := NewSharedIntentStore(database)
 			ctx := context.Background()
 
 			err := store.ReleasePartitionLease(
@@ -1112,7 +1114,7 @@ func TestSharedIntentStoreReleasePartitionLease(t *testing.T) {
 					partitionID:      tt.partitionID,
 					partitionCount:   tt.partitionCount,
 				}
-				if lease, ok := db.leases[k]; ok {
+				if lease, ok := database.leases[k]; ok {
 					if lease.leaseOwner != nil {
 						t.Errorf("lease owner should be nil after release, got %v", *lease.leaseOwner)
 					}
@@ -1152,7 +1154,7 @@ func newLeaseTestDB() *leaseTestDB {
 	}
 }
 
-func (db *leaseTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *leaseTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "UPDATE shared_projection_partition_leases"):
 		// Release lease
@@ -1168,12 +1170,12 @@ func (db *leaseTestDB) ExecContext(_ context.Context, query string, args ...any)
 			partitionCount:   partCount,
 		}
 
-		if lease, ok := db.leases[k]; ok {
+		if lease, ok := database.leases[k]; ok {
 			if lease.leaseOwner != nil && *lease.leaseOwner == owner {
 				lease.leaseOwner = nil
 				lease.leaseExpiresAt = nil
 				lease.updatedAt = updatedAt
-				db.leases[k] = lease
+				database.leases[k] = lease
 			}
 		}
 		return sharedIntentResult{}, nil
@@ -1186,7 +1188,7 @@ func (db *leaseTestDB) ExecContext(_ context.Context, query string, args ...any)
 	}
 }
 
-func (db *leaseTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (database *leaseTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	if strings.Contains(query, "INSERT INTO shared_projection_partition_leases") {
 		// Claim lease
 		domain := args[0].(string)
@@ -1202,7 +1204,7 @@ func (db *leaseTestDB) QueryContext(_ context.Context, query string, args ...any
 			partitionCount:   partCount,
 		}
 
-		existingLease, exists := db.leases[k]
+		existingLease, exists := database.leases[k]
 
 		// Check if we can claim the lease
 		canClaim := false
@@ -1221,7 +1223,7 @@ func (db *leaseTestDB) QueryContext(_ context.Context, query string, args ...any
 		}
 
 		if canClaim {
-			db.leases[k] = partitionLeaseRow{
+			database.leases[k] = partitionLeaseRow{
 				projectionDomain: domain,
 				partitionID:      partID,
 				partitionCount:   partCount,

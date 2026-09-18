@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -33,7 +35,7 @@ import (
 // stack before the first admin exists.
 //
 // This package neither opens that connection nor resolves the key: the
-// caller passes in an already-open pgstorage.ExecQueryer and an already-
+// caller passes in an already-open db.ExecQueryer and an already-
 // resolved *secretcrypto.Keyring, because both come from the process
 // environment (go/cmd/eshu/admin.go reads
 // ESHU_POSTGRES_DSN and hands secretcrypto.KeyringFromEnv its os.Getenv).
@@ -63,11 +65,11 @@ type BootstrapCredentialPayload struct {
 // persist it.
 func RetrieveInitialCredential(
 	ctx context.Context,
-	db pgstorage.ExecQueryer,
+	database db.ExecQueryer,
 	keyring *secretcrypto.Keyring,
 ) (BootstrapCredentialPayload, error) {
-	auditAppender := newAdminCredentialAuditAppender(db)
-	store := pgstorage.NewIdentitySubjectStore(db)
+	auditAppender := newAdminCredentialAuditAppender(database)
+	store := pgstorage.NewIdentitySubjectStore(database)
 	payload, keyID, err := openBootstrapCredentialPayload(ctx, store, keyring)
 	auditBootstrapCredentialRetrieved(ctx, auditAppender, keyID, err)
 	if err != nil {
@@ -93,7 +95,7 @@ func RetrieveInitialCredential(
 // persist it.
 func ResetInitialCredential(
 	ctx context.Context,
-	db pgstorage.ExecQueryer,
+	database db.ExecQueryer,
 	keyring *secretcrypto.Keyring,
 	username string,
 ) (BootstrapCredentialPayload, error) {
@@ -101,8 +103,8 @@ func ResetInitialCredential(
 	// RetrieveInitialCredential: every return below — including the early
 	// username-recovery refusal that runs before a replacement secret is
 	// even generated — records exactly one durable reset event.
-	auditAppender := newAdminCredentialAuditAppender(db)
-	payload, keyID, err := resetInitialCredential(ctx, db, keyring, username)
+	auditAppender := newAdminCredentialAuditAppender(database)
+	payload, keyID, err := resetInitialCredential(ctx, database, keyring, username)
 	auditBootstrapCredentialReset(ctx, auditAppender, keyID, err)
 	if err != nil {
 		return BootstrapCredentialPayload{}, err
@@ -122,11 +124,11 @@ func ResetInitialCredential(
 // event the exported wrapper appends on every return.
 func resetInitialCredential(
 	ctx context.Context,
-	db pgstorage.ExecQueryer,
+	database db.ExecQueryer,
 	keyring *secretcrypto.Keyring,
 	username string,
 ) (BootstrapCredentialPayload, string, error) {
-	store := pgstorage.NewIdentitySubjectStore(db)
+	store := pgstorage.NewIdentitySubjectStore(database)
 
 	auditKeyID := ""
 	username = strings.TrimSpace(username)

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestLockOnlyGateNilGateWritesThrough proves a nil LockOnlyGate preserves
@@ -63,7 +63,7 @@ func TestLockOnlyGateEmptyRowsWritesThroughNoTx(t *testing.T) {
 	t.Parallel()
 
 	beginner := &fakeChunkBeginner{}
-	gate := &LockOnlyGate{db: beginner, store: &fakeLockOnlyStore{}}
+	gate := &LockOnlyGate{database: beginner, store: &fakeLockOnlyStore{}}
 	called := false
 	underlying := func(_ context.Context, rows []map[string]any, _, _, _ string) error {
 		called = true
@@ -93,7 +93,7 @@ func TestLockOnlyGateRejectsRowWithoutUID(t *testing.T) {
 
 	beginner := &fakeChunkBeginner{}
 	store := &fakeLockOnlyStore{}
-	gate := &LockOnlyGate{db: beginner, store: store}
+	gate := &LockOnlyGate{database: beginner, store: store}
 	underlyingCalled := false
 	underlying := func(_ context.Context, _ []map[string]any, _, _, _ string) error {
 		underlyingCalled = true
@@ -124,7 +124,7 @@ type fakeLockOnlyStore struct {
 	err   error
 }
 
-func (f *fakeLockOnlyStore) LockUIDs(_ context.Context, _ postgres.ExecQueryer, uids []string) error {
+func (f *fakeLockOnlyStore) LockUIDs(_ context.Context, _ db.ExecQueryer, uids []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, append([]string(nil), uids...))
@@ -140,7 +140,7 @@ func TestLockOnlyGateLocksUIDsBeforeUnderlyingWrite(t *testing.T) {
 
 	beginner := &fakeChunkBeginner{}
 	store := &fakeLockOnlyStore{}
-	gate := &LockOnlyGate{db: beginner, store: store}
+	gate := &LockOnlyGate{database: beginner, store: store}
 
 	var order []string
 	underlying := func(_ context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error {
@@ -179,7 +179,7 @@ type orderRecordingLockOnlyStore struct {
 	order *[]string
 }
 
-func (o *orderRecordingLockOnlyStore) LockUIDs(ctx context.Context, tx postgres.ExecQueryer, uids []string) error {
+func (o *orderRecordingLockOnlyStore) LockUIDs(ctx context.Context, tx db.ExecQueryer, uids []string) error {
 	*o.order = append(*o.order, "lock")
 	return o.inner.LockUIDs(ctx, tx, uids)
 }
@@ -191,7 +191,7 @@ func TestLockOnlyGateUnderlyingErrorRollsBackAndPropagates(t *testing.T) {
 	t.Parallel()
 
 	beginner := &fakeChunkBeginner{}
-	gate := &LockOnlyGate{db: beginner, store: &fakeLockOnlyStore{}}
+	gate := &LockOnlyGate{database: beginner, store: &fakeLockOnlyStore{}}
 	wantErr := errors.New("graph write failed")
 	underlying := func(_ context.Context, _ []map[string]any, _, _, _ string) error {
 		return wantErr
@@ -214,7 +214,7 @@ func TestLockOnlyGateLockErrorRollsBackAndSkipsWrite(t *testing.T) {
 	beginner := &fakeChunkBeginner{}
 	wantErr := errors.New("lock failed")
 	store := &fakeLockOnlyStore{err: wantErr}
-	gate := &LockOnlyGate{db: beginner, store: store}
+	gate := &LockOnlyGate{database: beginner, store: store}
 	called := false
 	underlying := func(_ context.Context, _ []map[string]any, _, _, _ string) error {
 		called = true
@@ -250,7 +250,7 @@ func TestLockOnlyGateChunksAtLockChunkSize(t *testing.T) {
 
 	beginner := &fakeChunkBeginner{}
 	store := &fakeLockOnlyStore{}
-	gate := &LockOnlyGate{db: beginner, store: store}
+	gate := &LockOnlyGate{database: beginner, store: store}
 
 	var written []map[string]any
 	underlying := func(_ context.Context, chunkRows []map[string]any, _, _, _ string) error {
@@ -299,7 +299,7 @@ func TestRDSPostureLockedWriterRetractPassesThroughUnwrapped(t *testing.T) {
 		gotEvidence = evidenceSource
 		return nil
 	}
-	gate := &LockOnlyGate{db: &fakeChunkBeginner{}, store: &fakeLockOnlyStore{}}
+	gate := &LockOnlyGate{database: &fakeChunkBeginner{}, store: &fakeLockOnlyStore{}}
 	w := NewRDSPostureLockedWriter(gate, nil, retract)
 	if err := w.RetractRDSPostureNodes(context.Background(), []string{"scope-1"}, "gen-1", "reducer/rds-posture"); err != nil {
 		t.Fatalf("RetractRDSPostureNodes error = %v", err)

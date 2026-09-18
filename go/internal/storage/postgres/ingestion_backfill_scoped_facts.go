@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -133,7 +135,7 @@ func backfillRelationshipAnchorTerms(newRepoCatalog []relationships.CatalogEntry
 // (de-duplicated by FactID) into the phase-one facts.
 func loadAnchorScopedRelationshipFacts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	anchorCatalog []relationships.CatalogEntry,
 	configResolveCatalog []relationships.CatalogEntry,
 ) ([]facts.Envelope, error) {
@@ -174,7 +176,7 @@ func loadAnchorScopedRelationshipFacts(
 // would return nothing.
 func loadOnboardedRepoScopedRelationshipFacts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	anchors []string,
 ) ([]facts.Envelope, error) {
 	if queryer == nil || len(anchors) == 0 {

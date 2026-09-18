@@ -5,6 +5,7 @@ package main
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -16,8 +17,8 @@ import (
 // logging a terminal reducer dead-letter block (#4459) while its documented
 // eshu_dp_workflow_run_terminal_dead_letter_blocks_total metric silently
 // never emits on the production path, with no test to catch the regression.
-func newWorkflowControlStore(db postgres.ExecQueryer, instruments *telemetry.Instruments) *postgres.WorkflowControlStore {
-	store := postgres.NewWorkflowControlStore(db)
+func newWorkflowControlStore(database db.ExecQueryer, instruments *telemetry.Instruments) *postgres.WorkflowControlStore {
+	store := postgres.NewWorkflowControlStore(database)
 	store.Instruments = instruments
 	return store
 }

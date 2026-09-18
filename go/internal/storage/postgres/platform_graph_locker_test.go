@@ -9,6 +9,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestPlatformGraphLockerLocksUniqueSortedPlatformIDsInTransaction(t *testing.T) {
@@ -78,8 +80,8 @@ type recordingPlatformGraphLockDB struct {
 	tx *recordingPlatformGraphLockTx
 }
 
-func (db *recordingPlatformGraphLockDB) Begin(context.Context) (Transaction, error) {
-	return db.tx, nil
+func (database *recordingPlatformGraphLockDB) Begin(context.Context) (db.Transaction, error) {
+	return database.tx, nil
 }
 
 type recordingPlatformGraphLockTx struct {
@@ -104,7 +106,7 @@ func (tx *recordingPlatformGraphLockTx) ExecContext(
 	return fakePlatformGraphLockResult{}, nil
 }
 
-func (tx *recordingPlatformGraphLockTx) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (tx *recordingPlatformGraphLockTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("unexpected query")
 }
 

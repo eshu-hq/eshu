@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestContainerImageIdentityBeginnerAdaptsPostgresTransaction(t *testing.T) {
@@ -35,11 +37,11 @@ func TestContainerImageIdentityBeginnerAdaptsPostgresTransaction(t *testing.T) {
 }
 
 type containerImageIdentityAdapterBeginner struct {
-	tx    Transaction
+	tx    db.Transaction
 	calls int
 }
 
-func (b *containerImageIdentityAdapterBeginner) Begin(context.Context) (Transaction, error) {
+func (b *containerImageIdentityAdapterBeginner) Begin(context.Context) (db.Transaction, error) {
 	b.calls++
 	return b.tx, nil
 }
@@ -48,7 +50,7 @@ type containerImageIdentityAdapterTx struct {
 	committed bool
 }
 
-func (*containerImageIdentityAdapterTx) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (*containerImageIdentityAdapterTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, nil
 }
 

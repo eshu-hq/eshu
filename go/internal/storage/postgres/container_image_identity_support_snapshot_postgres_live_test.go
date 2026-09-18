@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -24,12 +26,12 @@ func TestCICDSupportPaginationUsesOneActiveSetSnapshotPostgresLive(t *testing.T)
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+	t.Cleanup(func() { _ = database.Close() })
+	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
 		t.Fatalf("apply bootstrap: %v", err)
 	}
 
@@ -39,18 +41,18 @@ func TestCICDSupportPaginationUsesOneActiveSetSnapshotPostgresLive(t *testing.T)
 		supportCount = listFactsByKindPageSize + 1
 	)
 	digest := "sha256:" + strings.Repeat("74", 32)
-	cleanupContainerImageIdentitySupportFactsLive(t, ctx, db, scopeID)
+	cleanupContainerImageIdentitySupportFactsLive(t, ctx, database, scopeID)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
-		cleanupContainerImageIdentitySupportFactsLive(t, cleanupCtx, db, scopeID)
+		cleanupContainerImageIdentitySupportFactsLive(t, cleanupCtx, database, scopeID)
 	})
 	seedContainerImageIdentitySnapshotSetsLive(
-		t, ctx, db, scopeID, generationID, digest, supportCount,
+		t, ctx, database, scopeID, generationID, digest, supportCount,
 	)
 
 	switchingDB := &activeSetSwitchingDB{
-		SQLDB:   SQLDB{DB: db},
+		SQLDB:   SQLDB{DB: database},
 		scopeID: scopeID,
 	}
 	rows, err := NewFactStore(switchingDB).ListActiveCICDRunCorrelationFacts(
@@ -113,12 +115,12 @@ func TestSQLDBBeginReadOnlyRepeatableReadOptionsPostgresLive(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
-	tx, err := (SQLDB{DB: db}).BeginReadOnlyRepeatableRead(ctx)
+	t.Cleanup(func() { _ = database.Close() })
+	tx, err := (SQLDB{DB: database}).BeginReadOnlyRepeatableRead(ctx)
 	if err != nil {
 		t.Fatalf("begin read-only repeatable-read transaction: %v", err)
 	}
@@ -155,30 +157,30 @@ func runActiveSetSnapshotLive(
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err := ApplyBootstrap(ctx, SQLDB{DB: db}); err != nil {
+	t.Cleanup(func() { _ = database.Close() })
+	if err := ApplyBootstrap(ctx, SQLDB{DB: database}); err != nil {
 		t.Fatalf("apply bootstrap: %v", err)
 	}
 
 	scopeID := "repository:snapshot-consistency-" + name + "-live"
 	generationID := "generation:snapshot-consistency-" + name + "-live"
 	digest := "sha256:" + strings.Repeat("73", 32)
-	cleanupContainerImageIdentitySupportFactsLive(t, ctx, db, scopeID)
+	cleanupContainerImageIdentitySupportFactsLive(t, ctx, database, scopeID)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
-		cleanupContainerImageIdentitySupportFactsLive(t, cleanupCtx, db, scopeID)
+		cleanupContainerImageIdentitySupportFactsLive(t, cleanupCtx, database, scopeID)
 	})
 	seedContainerImageIdentitySnapshotSetsLive(
-		t, ctx, db, scopeID, generationID, digest, listFactsByKindPageSize+1,
+		t, ctx, database, scopeID, generationID, digest, listFactsByKindPageSize+1,
 	)
 
 	switchingDB := &activeSetSwitchingDB{
-		SQLDB:            SQLDB{DB: db},
+		SQLDB:            SQLDB{DB: database},
 		scopeID:          scopeID,
 		switchAfterQuery: switchAfterQuery,
 	}
@@ -213,54 +215,54 @@ type activeSetSwitchingDB struct {
 	switchAction     func(context.Context) error
 }
 
-func (db *activeSetSwitchingDB) QueryContext(
+func (database *activeSetSwitchingDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
-	rows, err := db.SQLDB.QueryContext(ctx, query, args...)
-	if err != nil || !db.shouldSwitchAfter(query) {
+) (db.Rows, error) {
+	rows, err := database.SQLDB.QueryContext(ctx, query, args...)
+	if err != nil || !database.shouldSwitchAfter(query) {
 		return rows, err
 	}
-	return &afterCloseRows{Rows: rows, afterClose: func() { db.switchActiveSet(ctx) }}, nil
+	return &afterCloseRows{Rows: rows, afterClose: func() { database.switchActiveSet(ctx) }}, nil
 }
 
-func (db *activeSetSwitchingDB) BeginReadOnlyRepeatableRead(
+func (database *activeSetSwitchingDB) BeginReadOnlyRepeatableRead(
 	ctx context.Context,
-) (Transaction, error) {
-	tx, err := db.DB.BeginTx(ctx, &sql.TxOptions{
+) (db.Transaction, error) {
+	tx, err := database.DB.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  true,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &activeSetSwitchingTx{SQLTx: SQLTx{Tx: tx}, parent: db}, nil
+	return &activeSetSwitchingTx{SQLTx: SQLTx{Tx: tx}, parent: database}, nil
 }
 
-func (db *activeSetSwitchingDB) switchActiveSet(ctx context.Context) {
-	db.switchOnce.Do(func() {
-		if db.switchAction != nil {
-			db.switchErr = db.switchAction(ctx)
-			db.switched = db.switchErr == nil
+func (database *activeSetSwitchingDB) switchActiveSet(ctx context.Context) {
+	database.switchOnce.Do(func() {
+		if database.switchAction != nil {
+			database.switchErr = database.switchAction(ctx)
+			database.switched = database.switchErr == nil
 			return
 		}
-		_, db.switchErr = db.DB.ExecContext(ctx, `
+		_, database.switchErr = database.DB.ExecContext(ctx, `
 UPDATE container_image_identity_scope_state
 SET active_set_id = decode(repeat('b2', 32), 'hex'),
     last_set_id = decode(repeat('b2', 32), 'hex'),
     last_set_hash = decode(repeat('c2', 32), 'hex'),
     updated_at = clock_timestamp()
 WHERE scope_id = $1
-`, db.scopeID)
-		db.switched = db.switchErr == nil
+`, database.scopeID)
+		database.switched = database.switchErr == nil
 	})
 }
 
-func (db *activeSetSwitchingDB) shouldSwitchAfter(query string) bool {
-	db.queryNumber++
-	if db.switchAfterQuery != nil {
-		return db.switchAfterQuery(query, db.queryNumber)
+func (database *activeSetSwitchingDB) shouldSwitchAfter(query string) bool {
+	database.queryNumber++
+	if database.switchAfterQuery != nil {
+		return database.switchAfterQuery(query, database.queryNumber)
 	}
 	return strings.Contains(query, "container_image_identity_current_support_facts_for")
 }
@@ -274,7 +276,7 @@ func (tx *activeSetSwitchingTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	rows, err := tx.SQLTx.QueryContext(ctx, query, args...)
 	if err != nil || !tx.parent.shouldSwitchAfter(query) {
 		return rows, err
@@ -283,7 +285,7 @@ func (tx *activeSetSwitchingTx) QueryContext(
 }
 
 type afterCloseRows struct {
-	Rows
+	db.Rows
 	afterClose func()
 	close      sync.Once
 }
@@ -297,14 +299,14 @@ func (rows *afterCloseRows) Close() error {
 func seedContainerImageIdentitySnapshotSetsLive(
 	t *testing.T,
 	ctx context.Context,
-	db *sql.DB,
+	database *sql.DB,
 	scopeID string,
 	generationID string,
 	digest string,
 	supportCount int,
 ) {
 	t.Helper()
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("begin active-set snapshot seed: %v", err)
 	}
@@ -370,6 +372,6 @@ WHERE scope_id = $1 AND active_generation_id = $2
 }
 
 var (
-	_ ExecQueryer = (*activeSetSwitchingDB)(nil)
-	_ Transaction = (*activeSetSwitchingTx)(nil)
+	_ db.ExecQueryer = (*activeSetSwitchingDB)(nil)
+	_ db.Transaction = (*activeSetSwitchingTx)(nil)
 )

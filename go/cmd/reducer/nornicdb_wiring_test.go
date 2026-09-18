@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -19,7 +21,7 @@ type drainAwareReducerDB struct {
 	reducerGraphWork bool
 }
 
-func (f *drainAwareReducerDB) QueryContext(ctx context.Context, query string, args ...any) (postgres.Rows, error) {
+func (f *drainAwareReducerDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	if strings.Contains(query, "active_fact_work_items AS (") {
 		return &fakeExistsRows{value: f.reducerGraphWork}, nil
 	}
@@ -29,8 +31,8 @@ func (f *drainAwareReducerDB) QueryContext(ctx context.Context, query string, ar
 func TestBuildReducerServiceWiresNornicDBProjectorDrainGate(t *testing.T) {
 	t.Parallel()
 
-	db := &drainAwareReducerDB{reducerGraphWork: true}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+	database := &drainAwareReducerDB{reducerGraphWork: true}
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(name string) string {
 		switch name {
 		case "ESHU_GRAPH_BACKEND":
 			return string(runtimecfg.GraphBackendNornicDB)
@@ -66,8 +68,8 @@ func TestBuildReducerServiceWiresNornicDBProjectorDrainGate(t *testing.T) {
 func TestBuildReducerServiceLeavesProjectorDrainDisabledByDefault(t *testing.T) {
 	t.Parallel()
 
-	db := &drainAwareReducerDB{reducerGraphWork: true}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+	database := &drainAwareReducerDB{reducerGraphWork: true}
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(name string) string {
 		if name == "ESHU_GRAPH_BACKEND" {
 			return string(runtimecfg.GraphBackendNornicDB)
 		}
@@ -84,8 +86,8 @@ func TestBuildReducerServiceLeavesProjectorDrainDisabledByDefault(t *testing.T) 
 func TestBuildReducerServiceWiresExpectedSourceLocalProjectors(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+	database := &fakeReducerDB{}
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(name string) string {
 		switch name {
 		case "ESHU_GRAPH_BACKEND":
 			return string(runtimecfg.GraphBackendNornicDB)
@@ -113,8 +115,8 @@ func TestBuildReducerServiceWiresExpectedSourceLocalProjectors(t *testing.T) {
 func TestBuildReducerServiceWiresSemanticEntityClaimLimit(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeReducerDB{}
-	service, err := buildReducerService(context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{}, func(name string) string {
+	database := &fakeReducerDB{}
+	service, err := buildReducerService(context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{}, postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{}, func(name string) string {
 		switch name {
 		case "ESHU_GRAPH_BACKEND":
 			return string(runtimecfg.GraphBackendNornicDB)

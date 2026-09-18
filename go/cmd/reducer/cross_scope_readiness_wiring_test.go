@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -37,12 +39,12 @@ import (
 func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 	t.Parallel()
 
-	db := &crossScopeReadinessWiringDB{}
+	database := &crossScopeReadinessWiringDB{}
 	logged := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logged, nil))
 	service, err := buildReducerService(
-		context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{},
-		postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{},
+		context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{},
+		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
 		func(string) string { return "" }, nil, nil, logger, nil,
 	)
 	if err != nil {
@@ -72,7 +74,7 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 			got, reducer.CrossScopeProducerNotReadyFailureClass,
 		)
 	}
-	if !db.probedProducerQuiescence {
+	if !database.probedProducerQuiescence {
 		t.Fatal("the producer-quiescence probe never ran: the readiness store is not wired")
 	}
 
@@ -109,12 +111,12 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact(t *testing.T) {
 	t.Parallel()
 
-	db := &supplyChainReadinessWiringDB{}
+	database := &supplyChainReadinessWiringDB{}
 	logged := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logged, nil))
 	service, err := buildReducerService(
-		context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{},
-		postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{},
+		context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{},
+		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
 		func(string) string { return "" }, nil, nil, logger, nil,
 	)
 	if err != nil {
@@ -144,7 +146,7 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
 			got, reducer.CrossScopeProducerNotReadyFailureClass,
 		)
 	}
-	if !db.probedProducerQuiescence {
+	if !database.probedProducerQuiescence {
 		t.Fatal("the producer-quiescence probe never ran: the readiness store is not wired")
 	}
 
@@ -175,7 +177,7 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	// The producer-scope quiescence probe. Identified by the projector-drain
 	// fence, which no other reducer query carries. supply_chain_impact declares
 	// two producer domains, so this answers for both collector kinds: each is
@@ -206,13 +208,13 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 // requires. The transaction routes straight back to this fake.
 func (f *supplyChainReadinessWiringDB) BeginReadOnlyRepeatableRead(
 	context.Context,
-) (postgres.Transaction, error) {
-	return supplyChainReadinessTx{db: f}, nil
+) (db.Transaction, error) {
+	return supplyChainReadinessTx{database: f}, nil
 }
 
 // supplyChainReadinessTx is a pass-through transaction over the fake database.
 type supplyChainReadinessTx struct {
-	db *supplyChainReadinessWiringDB
+	database *supplyChainReadinessWiringDB
 }
 
 func (t supplyChainReadinessTx) ExecContext(
@@ -220,15 +222,15 @@ func (t supplyChainReadinessTx) ExecContext(
 	query string,
 	args ...any,
 ) (sql.Result, error) {
-	return t.db.ExecContext(ctx, query, args...)
+	return t.database.ExecContext(ctx, query, args...)
 }
 
 func (t supplyChainReadinessTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
-	return t.db.QueryContext(ctx, query, args...)
+) (db.Rows, error) {
+	return t.database.QueryContext(ctx, query, args...)
 }
 
 func (supplyChainReadinessTx) Commit() error { return nil }
@@ -282,7 +284,7 @@ func (f *crossScopeReadinessWiringDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	// The producer-scope quiescence probe. Identified by the projector-drain
 	// fence, which no other reducer query carries.
 	if strings.Contains(query, "FROM fact_work_items AS projector_work") {
@@ -309,13 +311,13 @@ func (f *crossScopeReadinessWiringDB) QueryContext(
 // read-back requires. The transaction routes straight back to this fake.
 func (f *crossScopeReadinessWiringDB) BeginReadOnlyRepeatableRead(
 	context.Context,
-) (postgres.Transaction, error) {
-	return crossScopeReadinessTx{db: f}, nil
+) (db.Transaction, error) {
+	return crossScopeReadinessTx{database: f}, nil
 }
 
 // crossScopeReadinessTx is a pass-through transaction over the fake database.
 type crossScopeReadinessTx struct {
-	db *crossScopeReadinessWiringDB
+	database *crossScopeReadinessWiringDB
 }
 
 func (t crossScopeReadinessTx) ExecContext(
@@ -323,15 +325,15 @@ func (t crossScopeReadinessTx) ExecContext(
 	query string,
 	args ...any,
 ) (sql.Result, error) {
-	return t.db.ExecContext(ctx, query, args...)
+	return t.database.ExecContext(ctx, query, args...)
 }
 
 func (t crossScopeReadinessTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
-	return t.db.QueryContext(ctx, query, args...)
+) (db.Rows, error) {
+	return t.database.QueryContext(ctx, query, args...)
 }
 
 func (crossScopeReadinessTx) Commit() error { return nil }
@@ -371,7 +373,7 @@ func crossScopeReadinessArtifactFactRow(scopeID, generationID string) []any {
 	}
 }
 
-// crossScopeReadinessRows is a minimal postgres.Rows over pre-built values.
+// crossScopeReadinessRows is a minimal db.Rows over pre-built values.
 type crossScopeReadinessRows struct {
 	rows  [][]any
 	index int

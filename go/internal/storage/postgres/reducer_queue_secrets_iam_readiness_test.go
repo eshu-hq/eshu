@@ -18,7 +18,7 @@ func TestReducerQueueFailDefersSecretsIAMEndpointReadinessPastAttemptBudget(t *t
 	now := time.Date(2026, time.April, 12, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -73,7 +73,7 @@ func TestReducerQueueClaimDoesNotCountSecretsIAMEndpointReadinessDefers(t *testi
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },
@@ -100,7 +100,7 @@ func TestClaimBatchDoesNotCountSecretsIAMEndpointReadinessDefers(t *testing.T) {
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

@@ -109,7 +109,7 @@ func (s *IdentitySubjectStore) GetProviderConfigDetail(
 	ctx context.Context,
 	providerConfigID, tenantID string,
 ) (ProviderConfigDetail, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ProviderConfigDetail{}, false, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
@@ -117,7 +117,7 @@ func (s *IdentitySubjectStore) GetProviderConfigDetail(
 	if providerConfigID == "" || tenantID == "" {
 		return ProviderConfigDetail{}, false, errors.New("provider_config_id and tenant_id are required")
 	}
-	rows, err := s.db.QueryContext(ctx, selectProviderConfigDetailQuery, providerConfigID, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectProviderConfigDetailQuery, providerConfigID, tenantID)
 	if err != nil {
 		return ProviderConfigDetail{}, false, fmt.Errorf("select provider config detail: %w", err)
 	}
@@ -166,14 +166,14 @@ func (s *IdentitySubjectStore) ListProviderConfigs(
 	ctx context.Context,
 	tenantID string,
 ) ([]ProviderConfigDetail, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
 		return nil, errors.New("tenant_id is required")
 	}
-	rows, err := s.db.QueryContext(ctx, selectProviderConfigsQuery, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectProviderConfigsQuery, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list provider configs: %w", err)
 	}
@@ -220,7 +220,7 @@ func (s *IdentitySubjectStore) ListProviderConfigRevisions(
 	ctx context.Context,
 	providerConfigID, tenantID string,
 ) ([]ProviderConfigRevisionItem, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
@@ -228,7 +228,7 @@ func (s *IdentitySubjectStore) ListProviderConfigRevisions(
 	if providerConfigID == "" || tenantID == "" {
 		return nil, errors.New("provider_config_id and tenant_id are required")
 	}
-	rows, err := s.db.QueryContext(ctx, selectProviderConfigRevisionsQuery, providerConfigID, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectProviderConfigRevisionsQuery, providerConfigID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list provider config revisions: %w", err)
 	}
@@ -263,7 +263,7 @@ func (s *IdentitySubjectStore) GetProviderConfigConnectionTestMaterial(
 	ctx context.Context,
 	providerConfigID, tenantID string,
 ) (ProviderConfigConnectionTestMaterial, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ProviderConfigConnectionTestMaterial{}, false, errors.New("identity subject store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
@@ -271,7 +271,7 @@ func (s *IdentitySubjectStore) GetProviderConfigConnectionTestMaterial(
 	if providerConfigID == "" || tenantID == "" {
 		return ProviderConfigConnectionTestMaterial{}, false, errors.New("provider_config_id and tenant_id are required")
 	}
-	rows, err := s.db.QueryContext(ctx, selectProviderConfigConnectionTestMaterialQuery, providerConfigID, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectProviderConfigConnectionTestMaterialQuery, providerConfigID, tenantID)
 	if err != nil {
 		return ProviderConfigConnectionTestMaterial{}, false, fmt.Errorf("select provider config connection test material: %w", err)
 	}

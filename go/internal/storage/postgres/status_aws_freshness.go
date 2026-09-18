@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -26,7 +28,7 @@ WHERE status = 'queued'
 
 func readAWSFreshnessSnapshot(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) (statuspkg.AWSFreshnessSnapshot, error) {
 	counts, err := listNamedCounts(ctx, queryer, awsFreshnessStatusCountsQuery, "list AWS freshness status counts")
@@ -43,7 +45,7 @@ func readAWSFreshnessSnapshot(
 	}, nil
 }
 
-func readAWSFreshnessOldestQueuedAge(ctx context.Context, queryer Queryer, asOf time.Time) (time.Duration, error) {
+func readAWSFreshnessOldestQueuedAge(ctx context.Context, queryer db.Queryer, asOf time.Time) (time.Duration, error) {
 	rows, err := queryer.QueryContext(ctx, awsFreshnessOldestQueuedAgeQuery, asOf.UTC())
 	if err != nil {
 		return 0, fmt.Errorf("read AWS freshness oldest queued age: %w", err)

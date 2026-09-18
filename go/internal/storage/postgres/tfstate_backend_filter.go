@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 )
 
@@ -75,7 +77,7 @@ func terraformStateBackendFiltersJSON(filters []terraformstate.DiscoveryBackendF
 	return string(raw), nil
 }
 
-func scanTerraformBackendCandidateRows(rows Rows) ([]terraformstate.DiscoveryCandidate, error) {
+func scanTerraformBackendCandidateRows(rows db.Rows) ([]terraformstate.DiscoveryCandidate, error) {
 	defer func() { _ = rows.Close() }()
 	contexts := map[string]terraformBackendFactContext{}
 	order := make([]string, 0)
@@ -108,7 +110,7 @@ func scanTerraformBackendCandidateRows(rows Rows) ([]terraformstate.DiscoveryCan
 	return candidates, nil
 }
 
-func scanTerragruntRemoteStateCandidateRows(rows Rows) ([]terraformstate.DiscoveryCandidate, error) {
+func scanTerragruntRemoteStateCandidateRows(rows db.Rows) ([]terraformstate.DiscoveryCandidate, error) {
 	defer func() { _ = rows.Close() }()
 	var candidates []terraformstate.DiscoveryCandidate
 	for rows.Next() {

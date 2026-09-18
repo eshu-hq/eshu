@@ -321,13 +321,13 @@ func TestAuthenticateLocalIdentityMFAEnforcementIsASingleSharedCodePath(t *testi
 	}
 	text := string(source)
 
-	if got := strings.Count(text, "consumeLocalIdentityRecoveryCode(ctx, s.db, row.UserID, attempt)"); got != 1 {
+	if got := strings.Count(text, "consumeLocalIdentityRecoveryCode(ctx, s.database, row.UserID, attempt)"); got != 1 {
 		t.Fatalf("consumeLocalIdentityRecoveryCode call count in AuthenticateLocalIdentity = %d, want 1 (admin and require_mfa_for_all_users non-admin must share one enforcement block)", got)
 	}
 	if got := strings.Count(text, "Status: LocalIdentityAuthMFARequired,"); got != 1 {
 		t.Fatalf("mfa_required return count = %d, want 1 (admin and non-admin must share one enforcement block)", got)
 	}
-	if !strings.Contains(text, "signInPolicyRequiresMFAForUsers(ctx, s.db, row.TenantID)") {
+	if !strings.Contains(text, "signInPolicyRequiresMFAForUsers(ctx, s.database, row.TenantID)") {
 		t.Fatalf("AuthenticateLocalIdentity must read require_mfa_for_all_users via signInPolicyRequiresMFAForUsers for the authenticated row's own tenant")
 	}
 }

@@ -245,7 +245,7 @@ LIMIT $4
 // retracts on the next refresh of the owning repository's generation
 // (retract-first-per-generation, projectContainerImageDerivedFromEdges).
 func (s FactStore) ListActiveContainerImageCIFacts(ctx context.Context, ownerRepositoryID string) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	if ownerRepositoryID == "" {
@@ -283,7 +283,7 @@ func (s FactStore) listActiveContainerImageCIFactsPage(
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveContainerImageCIFactsQuery,
 		ownerRepositoryID,

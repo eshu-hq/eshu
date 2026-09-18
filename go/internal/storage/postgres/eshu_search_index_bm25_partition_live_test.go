@@ -11,16 +11,18 @@ import (
 	"math"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchhybrid"
 	"github.com/eshu-hq/eshu/go/internal/searchretrieval"
 )
 
 func TestEshuSearchIndexBM25PartitionedTermsPrunedAndOrderEquivalentLive(t *testing.T) {
-	db, ctx := openSearchIndexPartitionProofDB(t)
-	controlConn, _ := searchIndexPartitionProofConn(t, ctx, db)
+	database, ctx := openSearchIndexPartitionProofDB(t)
+	controlConn, _ := searchIndexPartitionProofConn(t, ctx, database)
 	defer func() { _ = controlConn.Close() }()
-	candidateConn, _ := searchIndexPartitionProofConn(t, ctx, db)
+	candidateConn, _ := searchIndexPartitionProofConn(t, ctx, database)
 	defer func() { _ = candidateConn.Close() }()
 
 	createBM25PartitionProofSchema(t, ctx, controlConn, false)
@@ -210,7 +212,7 @@ type searchIndexSQLConn struct {
 	conn *sql.Conn
 }
 
-func (c searchIndexSQLConn) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (c searchIndexSQLConn) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return c.conn.QueryContext(ctx, query, args...)
 }
 

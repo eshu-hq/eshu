@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
@@ -67,7 +69,7 @@ type fallbackOIDCGrantResolver struct {
 
 func newOIDCLoginHandler(
 	getenv func(string) string,
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	providerSecretKeyring *secretcrypto.Keyring,
 	logger *slog.Logger,
@@ -93,7 +95,7 @@ func newOIDCLoginHandler(
 	if configPath == "" && !enabled {
 		return nil, nil
 	}
-	if db == nil {
+	if database == nil {
 		return nil, fmt.Errorf("postgres is required for oidc login")
 	}
 
@@ -144,9 +146,9 @@ func newOIDCLoginHandler(
 	}
 	config = normalized
 
-	store := newPostgresOIDCStoreAdapter(db, instruments)
+	store := newPostgresOIDCStoreAdapter(database, instruments)
 	var serviceOptions []oidclogin.Option
-	if resolver := newOIDCDBProviderResolver(db, providerSecretKeyring); resolver != nil {
+	if resolver := newOIDCDBProviderResolver(database, providerSecretKeyring); resolver != nil {
 		serviceOptions = append(serviceOptions, oidclogin.WithDBProviderResolver(resolver))
 	}
 	service := oidclogin.NewService(
@@ -162,16 +164,16 @@ func newOIDCLoginHandler(
 	}
 	return &query.OIDCLoginHandler{
 		Service:              oidcServiceAdapter{service},
-		SessionIssuer:        newBrowserSessionHandler(db, instruments, cookieSecureMode),
+		SessionIssuer:        newBrowserSessionHandler(database, instruments, cookieSecureMode),
 		SessionRefreshWindow: sessionRefreshWindow,
 	}, nil
 }
 
 func newPostgresOIDCStoreAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 ) *postgresOIDCStoreAdapter {
-	oidcDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	oidcDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		oidcDB = &pgstatus.InstrumentedDB{
 			Inner:       oidcDB,

@@ -19,7 +19,7 @@ func TestReducerQueueAckBindsContainerImageIdentityClaimEpoch(t *testing.T) {
 	claimedAt := time.Date(2026, time.September, 14, 12, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-5854",
 		LeaseDuration: time.Minute,
 	}
@@ -57,7 +57,7 @@ func TestReducerQueueAckLeavesUnrelatedAndEmptyDomainsOnLegacyQuery(t *testing.T
 	for _, domain := range []reducer.Domain{reducer.DomainOwnership, ""} {
 		db := &fakeExecQueryer{}
 		queue := ReducerQueue{
-			db:            db,
+			database:      db,
 			LeaseOwner:    "reducer-5854",
 			LeaseDuration: time.Minute,
 		}
@@ -163,7 +163,7 @@ func TestReducerQueueAckBatchBindsContainerImageIdentityClaimEpochs(t *testing.T
 			}
 			db := &fakeExecQueryer{execResults: results}
 			queue := ReducerQueue{
-				db:            db,
+				database:      db,
 				LeaseOwner:    "reducer-5854",
 				LeaseDuration: time.Minute,
 			}

@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -53,7 +55,7 @@ func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
 	now := time.Date(2026, 6, 18, 6, 45, 0, 0, time.UTC)
 	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
 	callee := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Query")
-	db := &valueFlowProgramLoaderDB{
+	database := &valueFlowProgramLoaderDB{
 		candidates: [][]any{{"scope-1", "repo-app", "run-1", "generation-1", now}},
 		edges: [][]any{{
 			"entity:caller", "entity:callee", "CALLS", "scip",
@@ -76,7 +78,7 @@ func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
 			"repo-app": {{string(caller), 0, "http_request"}},
 		},
 	}
-	store := NewValueFlowProgramInputStore(db)
+	store := NewValueFlowProgramInputStore(database)
 
 	inputs, err := store.LoadPendingValueFlowProgramInputs(ctx, 10)
 	if err != nil {
@@ -112,7 +114,7 @@ func TestValueFlowProgramInputLoaderBuildsBoundedProgramInput(t *testing.T) {
 
 func TestValueFlowProgramInputLoaderCountsMissingFunctionIdentity(t *testing.T) {
 	ctx := context.Background()
-	db := &valueFlowProgramLoaderDB{
+	database := &valueFlowProgramLoaderDB{
 		candidates: [][]any{{"scope-1", "repo-app", "run-1", "generation-1", time.Now().UTC()}},
 		edges: [][]any{{
 			"entity:caller", "entity:callee", "CALLS", "scip",
@@ -121,7 +123,7 @@ func TestValueFlowProgramInputLoaderCountsMissingFunctionIdentity(t *testing.T) 
 		}},
 		summaries: map[string][]summary.SnapshotFunction{},
 	}
-	store := NewValueFlowProgramInputStore(db)
+	store := NewValueFlowProgramInputStore(database)
 
 	inputs, err := store.LoadPendingValueFlowProgramInputs(ctx, 10)
 	if err != nil {
@@ -145,15 +147,15 @@ type valueFlowProgramLoaderDB struct {
 	sources    map[string][][]any
 }
 
-func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (database *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM shared_projection_acceptance AS acceptance"):
-		return &valueFlowProgramRows{data: db.candidates, idx: -1}, nil
+		return &valueFlowProgramRows{data: database.candidates, idx: -1}, nil
 	case strings.Contains(query, "LEFT JOIN function_graph_ids AS caller_function"):
-		return &valueFlowProgramRows{data: db.edges, idx: -1}, nil
+		return &valueFlowProgramRows{data: database.edges, idx: -1}, nil
 	case strings.Contains(query, "FROM function_summaries") && len(args) == 1:
 		repo, _ := args[0].(string)
-		functions := db.summaries[repo]
+		functions := database.summaries[repo]
 		rows := make([][]any, 0, len(functions))
 		for _, fn := range functions {
 			effects, err := json.Marshal(fn.Effects)
@@ -165,13 +167,13 @@ func (db *valueFlowProgramLoaderDB) QueryContext(_ context.Context, query string
 		return &valueFlowProgramRows{data: rows, idx: -1}, nil
 	case strings.Contains(query, "FROM function_sources") && len(args) == 1:
 		repo, _ := args[0].(string)
-		return &valueFlowProgramRows{data: db.sources[repo], idx: -1}, nil
+		return &valueFlowProgramRows{data: database.sources[repo], idx: -1}, nil
 	default:
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
 }
 
-func (db *valueFlowProgramLoaderDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *valueFlowProgramLoaderDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return sharedIntentResult{}, nil
 }
 

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector"
 )
 
@@ -69,7 +71,7 @@ SET scope_id = EXCLUDED.scope_id,
 // CollectorGenerationDeadLetterStore persists and replays collector generation
 // commit failures that happened outside the normal scope-generation transaction.
 type CollectorGenerationDeadLetterStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 var (
@@ -79,8 +81,8 @@ var (
 
 // NewCollectorGenerationDeadLetterStore constructs a Postgres-backed collector
 // generation dead-letter store.
-func NewCollectorGenerationDeadLetterStore(db ExecQueryer) CollectorGenerationDeadLetterStore {
-	return CollectorGenerationDeadLetterStore{db: db}
+func NewCollectorGenerationDeadLetterStore(database db.ExecQueryer) CollectorGenerationDeadLetterStore {
+	return CollectorGenerationDeadLetterStore{database: database}
 }
 
 // RecordGenerationDeadLetter stores one failed collector generation idempotently
@@ -89,7 +91,7 @@ func (s CollectorGenerationDeadLetterStore) RecordGenerationDeadLetter(
 	ctx context.Context,
 	record collector.GenerationDeadLetter,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("collector generation dead-letter store database is required")
 	}
 	if err := record.Generation.ValidateForScope(record.Scope); err != nil {
@@ -120,7 +122,7 @@ func (s CollectorGenerationDeadLetterStore) RecordGenerationDeadLetter(
 		return fmt.Errorf("marshal collector generation dead-letter payload: %w", err)
 	}
 
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		insertCollectorGenerationDeadLetterSQL,
 		deadLetteredAt,
@@ -148,7 +150,7 @@ func (s CollectorGenerationDeadLetterStore) ReplayGenerationDeadLetters(
 	filter collector.GenerationDeadLetterReplayFilter,
 	now time.Time,
 ) (collector.GenerationDeadLetterReplayResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return collector.GenerationDeadLetterReplayResult{}, fmt.Errorf("collector generation dead-letter store database is required")
 	}
 	replayAt := now.UTC()
@@ -157,7 +159,7 @@ func (s CollectorGenerationDeadLetterStore) ReplayGenerationDeadLetters(
 	}
 	query, args := buildReplayCollectorGenerationDeadLettersQuery(filter, replayAt)
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return collector.GenerationDeadLetterReplayResult{}, fmt.Errorf("replay collector generation dead-letters: %w", err)
 	}
@@ -188,7 +190,7 @@ func (s CollectorGenerationDeadLetterStore) CompleteGenerationDeadLetterReplay(
 	ctx context.Context,
 	completion collector.GenerationDeadLetterReplayCompletion,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("collector generation dead-letter store database is required")
 	}
 	if err := completion.Generation.ValidateForScope(completion.Scope); err != nil {
@@ -198,7 +200,7 @@ func (s CollectorGenerationDeadLetterStore) CompleteGenerationDeadLetterReplay(
 	if completion.CompletedAt.IsZero() {
 		completedAt = time.Now().UTC()
 	}
-	_, err := s.db.ExecContext(
+	_, err := s.database.ExecContext(
 		ctx,
 		completeCollectorGenerationDeadLetterReplaySQL,
 		completedAt,

@@ -79,7 +79,7 @@ func (s FactStore) ListActivePackageManifestDependencyFacts(
 	ecosystems []string,
 	packageNames []string,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	if len(ecosystems) == 0 || len(packageNames) == 0 {
@@ -124,7 +124,7 @@ func (s FactStore) listActivePackageManifestDependencyFactsPage(
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActivePackageManifestDependencyFactsQuery,
 		ecosystems,

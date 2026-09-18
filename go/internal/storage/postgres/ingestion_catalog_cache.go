@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -84,7 +86,7 @@ type catalogSnapshot struct {
 // deadlock under a saturated or single-connection pool).
 func (c *repositoryCatalogCache) get(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) (catalogSnapshot, error) {
 	if c == nil {
 		entries, _, err := loadRepositoryCatalog(ctx, queryer)

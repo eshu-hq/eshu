@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/checkpoint"
@@ -110,15 +112,15 @@ WHERE collector_instance_id = $1
 // AWSPaginationCheckpointStore persists claim-fenced AWS pagination tokens in
 // Postgres.
 type AWSPaginationCheckpointStore struct {
-	db          ExecQueryer
+	database    db.ExecQueryer
 	Now         func() time.Time
 	Instruments *telemetry.Instruments
 }
 
 // NewAWSPaginationCheckpointStore constructs a checkpoint store over the
 // shared data-plane database.
-func NewAWSPaginationCheckpointStore(db ExecQueryer) AWSPaginationCheckpointStore {
-	return AWSPaginationCheckpointStore{db: db}
+func NewAWSPaginationCheckpointStore(database db.ExecQueryer) AWSPaginationCheckpointStore {
+	return AWSPaginationCheckpointStore{database: database}
 }
 
 // AWSPaginationCheckpointSchemaSQL returns the DDL for AWS pagination
@@ -129,10 +131,10 @@ func AWSPaginationCheckpointSchemaSQL() string {
 
 // EnsureSchema applies the AWS pagination checkpoint DDL.
 func (s AWSPaginationCheckpointStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("aws pagination checkpoint database is required")
 	}
-	_, err := s.db.ExecContext(ctx, awsPaginationCheckpointSchemaSQL)
+	_, err := s.database.ExecContext(ctx, awsPaginationCheckpointSchemaSQL)
 	if err != nil {
 		s.recordEvent(ctx, checkpoint.Scope{}, "", "failure", "error")
 		return fmt.Errorf("ensure AWS pagination checkpoint schema: %w", err)
@@ -142,13 +144,13 @@ func (s AWSPaginationCheckpointStore) EnsureSchema(ctx context.Context) error {
 
 // Load returns the retry-safe page marker for one operation and generation.
 func (s AWSPaginationCheckpointStore) Load(ctx context.Context, key checkpoint.Key) (checkpoint.Checkpoint, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return checkpoint.Checkpoint{}, false, fmt.Errorf("aws pagination checkpoint database is required")
 	}
 	if err := key.Validate(); err != nil {
 		return checkpoint.Checkpoint{}, false, err
 	}
-	rows, err := s.db.QueryContext(ctx, loadAWSPaginationCheckpointQuery, checkpointKeyArgs(key)...)
+	rows, err := s.database.QueryContext(ctx, loadAWSPaginationCheckpointQuery, checkpointKeyArgs(key)...)
 	if err != nil {
 		s.recordEvent(ctx, key.Scope, key.Operation, "failure", "error")
 		return checkpoint.Checkpoint{}, false, fmt.Errorf("load AWS pagination checkpoint: %w", err)
@@ -193,7 +195,7 @@ func (s AWSPaginationCheckpointStore) Load(ctx context.Context, key checkpoint.K
 // Save upserts a retry-safe page marker. Older fencing tokens cannot overwrite
 // newer claim-owned checkpoint rows.
 func (s AWSPaginationCheckpointStore) Save(ctx context.Context, value checkpoint.Checkpoint) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("aws pagination checkpoint database is required")
 	}
 	if err := value.Validate(); err != nil {
@@ -209,7 +211,7 @@ func (s AWSPaginationCheckpointStore) Save(ctx context.Context, value checkpoint
 	}
 	args := checkpointKeyArgs(value.Key)
 	args = append(args, strings.TrimSpace(value.PageToken), value.PageNumber, rawPayload, updatedAt)
-	result, err := s.db.ExecContext(ctx, saveAWSPaginationCheckpointQuery, args...)
+	result, err := s.database.ExecContext(ctx, saveAWSPaginationCheckpointQuery, args...)
 	if err != nil {
 		s.recordEvent(ctx, value.Key.Scope, value.Key.Operation, "failure", "error")
 		return fmt.Errorf("save AWS pagination checkpoint: %w", err)
@@ -224,14 +226,14 @@ func (s AWSPaginationCheckpointStore) Save(ctx context.Context, value checkpoint
 
 // Complete removes the checkpoint for a completed paginated operation.
 func (s AWSPaginationCheckpointStore) Complete(ctx context.Context, key checkpoint.Key) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("aws pagination checkpoint database is required")
 	}
 	if err := key.Validate(); err != nil {
 		return err
 	}
 	args := checkpointKeyArgs(key)
-	result, err := s.db.ExecContext(ctx, completeAWSPaginationCheckpointQuery, args...)
+	result, err := s.database.ExecContext(ctx, completeAWSPaginationCheckpointQuery, args...)
 	if err != nil {
 		s.recordEvent(ctx, key.Scope, key.Operation, "failure", "error")
 		return fmt.Errorf("complete AWS pagination checkpoint: %w", err)
@@ -248,13 +250,13 @@ func (s AWSPaginationCheckpointStore) Complete(ctx context.Context, key checkpoi
 // boundary. The fencing guard prevents an expired worker from deleting newer
 // claim state.
 func (s AWSPaginationCheckpointStore) ExpireStale(ctx context.Context, scope checkpoint.Scope) (int64, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("aws pagination checkpoint database is required")
 	}
 	if err := scope.Validate(); err != nil {
 		return 0, err
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		expireStaleAWSPaginationCheckpointsQuery,
 		scope.CollectorInstanceID,

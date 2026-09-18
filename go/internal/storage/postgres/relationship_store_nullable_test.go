@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -57,11 +59,11 @@ func TestRelationshipStoreGetResolvedRelationshipsForGeneration_AllowsNullTarget
 }
 
 type strictResolvedQueryDB struct {
-	rows Rows
+	rows db.Rows
 }
 
-func (db strictResolvedQueryDB) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
-	return db.rows, nil
+func (database strictResolvedQueryDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
+	return database.rows, nil
 }
 
 func (strictResolvedQueryDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {

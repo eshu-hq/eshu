@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -25,11 +27,11 @@ type rdsPostureReadinessQueueDB struct {
 	attemptCount int
 }
 
-func (db *rdsPostureReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *rdsPostureReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *rdsPostureReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (database *rdsPostureReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
@@ -42,11 +44,11 @@ func (db *rdsPostureReadinessQueueDB) QueryContext(_ context.Context, query stri
 		"cloud_resource_uid",
 		"canonical_nodes_committed",
 	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
-	if hasReadinessGate && !db.phaseReady {
+	if hasReadinessGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.status)
+	status := strings.TrimSpace(database.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -59,11 +61,11 @@ func (db *rdsPostureReadinessQueueDB) QueryContext(_ context.Context, query stri
 		"aws:111111111111:us-east-1:rds",
 		"gen-aws-1",
 		string(reducer.DomainRDSPostureMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:111111111111:us-east-1:rds","reason":"rds posture observed","fact_id":"fact-rds-posture-1","source_system":"aws"}`),
 	}}}, nil
 }
@@ -72,13 +74,13 @@ func TestReducerQueueClaimWaitsForRDSPostureReadinessBehavior(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 1, 14, 0, 0, 0, time.UTC)
-	db := &rdsPostureReadinessQueueDB{
+	database := &rdsPostureReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		status:     "pending",
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -92,7 +94,7 @@ func TestReducerQueueClaimWaitsForRDSPostureReadinessBehavior(t *testing.T) {
 		t.Fatalf("Claim() claimed %q before canonical readiness, want unclaimed waiting work", intent.IntentID)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)

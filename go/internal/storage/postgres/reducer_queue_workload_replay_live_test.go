@@ -99,14 +99,14 @@ func TestWorkloadReplayConcurrentFirstScheduleReportsSuccess(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = firstTx.Rollback() })
 	firstQueue := queue
-	firstQueue.db = SQLTx{Tx: firstTx}
+	firstQueue.database = SQLTx{Tx: firstTx}
 	replayed, err := firstQueue.ReplayWorkloadMaterialization(ctx, scopeID, generationID, entityKey)
 	if err != nil || !replayed {
 		t.Fatalf("first replay = (%v, %v), want (true, nil)", replayed, err)
 	}
 
 	waiterQueue := queue
-	waiterQueue.db = waiterConn
+	waiterQueue.database = waiterConn
 	waiterDone := make(chan workloadReplayOutcome, 1)
 	go func() {
 		got, replayErr := waiterQueue.ReplayWorkloadMaterialization(ctx, scopeID, generationID, entityKey)
@@ -213,7 +213,7 @@ func testWorkloadReplayAfterUncommittedBatchAck(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = ackTx.Rollback() })
 	ackQueue := queue
-	ackQueue.db = SQLTx{Tx: ackTx}
+	ackQueue.database = SQLTx{Tx: ackTx}
 	if err := ackQueue.AckBatch(ctx, []reducer.Intent{claimed}, nil); err != nil {
 		t.Fatalf("batch ACK before replay: %v", err)
 	}
@@ -229,7 +229,7 @@ func testWorkloadReplayAfterUncommittedBatchAck(t *testing.T) {
 	}
 
 	replayQueue := queue
-	replayQueue.db = replayConn
+	replayQueue.database = replayConn
 	replayDone := make(chan workloadReplayOutcome, 1)
 	go func() {
 		replayed, replayErr := replayQueue.ReplayWorkloadMaterialization(
@@ -263,7 +263,7 @@ func testWorkloadBatchAckAfterUncommittedReplay(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = replayTx.Rollback() })
 	replayQueue := queue
-	replayQueue.db = SQLTx{Tx: replayTx}
+	replayQueue.database = SQLTx{Tx: replayTx}
 	replayed, err := replayQueue.ReplayWorkloadMaterialization(ctx, scopeID, generationID, entityKey)
 	if err != nil || !replayed {
 		t.Fatalf("uncommitted replay = (%v, %v), want (true, nil)", replayed, err)
@@ -273,7 +273,7 @@ func testWorkloadBatchAckAfterUncommittedReplay(t *testing.T) {
 	)
 
 	ackQueue := queue
-	ackQueue.db = ackConn
+	ackQueue.database = ackConn
 	ackDone := make(chan error, 1)
 	go func() { ackDone <- ackQueue.AckBatch(ctx, []reducer.Intent{claimed}, nil) }()
 	waitForReducerRowLockWaiter(t, ctx, db, ackPID, replayPID)

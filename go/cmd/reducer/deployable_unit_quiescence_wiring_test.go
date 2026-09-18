@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -23,10 +25,10 @@ func TestBuildReducerServiceWiresDeployableUnitCanonicalQuiescenceFailClosed(t *
 	t.Parallel()
 
 	quiescenceErr := errors.New("canonical quiescence unavailable")
-	db := &deployableUnitQuiescenceWiringDB{quiescenceErr: quiescenceErr}
+	database := &deployableUnitQuiescenceWiringDB{quiescenceErr: quiescenceErr}
 	service, err := buildReducerService(
-		context.Background(), db, stubGraphExecutor{}, stubCypherExecutor{},
-		postgres.NewSharedIntentStore(db), stubCypherReader{}, stubCypherReader{},
+		context.Background(), database, stubGraphExecutor{}, stubCypherExecutor{},
+		postgres.NewSharedIntentStore(database), stubCypherReader{}, stubCypherReader{},
 		func(string) string { return "" }, nil, nil, nil, nil,
 	)
 	if err != nil {
@@ -52,11 +54,11 @@ func TestBuildReducerServiceWiresDeployableUnitCanonicalQuiescenceFailClosed(t *
 	if !strings.Contains(execErr.Error(), "check canonical repository quiescence") {
 		t.Fatalf("execution error = %v, want canonical quiescence context", execErr)
 	}
-	if !db.probedCanonicalQuiescence {
+	if !database.probedCanonicalQuiescence {
 		t.Fatal("canonical repository quiescence probe never ran: the production gate is not wired")
 	}
-	if db.resolvedRelationshipReads != 0 {
-		t.Fatalf("resolved relationship reads = %d, want 0 after fail-closed quiescence error", db.resolvedRelationshipReads)
+	if database.resolvedRelationshipReads != 0 {
+		t.Fatalf("resolved relationship reads = %d, want 0 after fail-closed quiescence error", database.resolvedRelationshipReads)
 	}
 }
 
@@ -73,7 +75,7 @@ func (f *deployableUnitQuiescenceWiringDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	if strings.Contains(query, "graph_projection_phase_state AS phase") {
 		f.probedCanonicalQuiescence = true
 		return nil, f.quiescenceErr

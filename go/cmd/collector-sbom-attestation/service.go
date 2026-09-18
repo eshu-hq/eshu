@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecr "github.com/aws/aws-sdk-go-v2/service/ecr"
 	"go.opentelemetry.io/otel/trace"
@@ -32,7 +34,7 @@ var fallbackClaimSequence uint64
 // collector commit boundary, replacing the live claimed source. It requires no
 // sbom attestation provider credentials and is used by the golden-corpus gate.
 func buildCassetteService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cassettePath string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -56,7 +58,7 @@ func buildCassetteService(
 }
 
 func buildClaimedService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,

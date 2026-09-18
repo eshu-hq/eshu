@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // awsCloudRuntimeDriftFencingTokenSequence is the Postgres sequence backing
@@ -29,7 +31,7 @@ const awsCloudRuntimeDriftNextFencingTokenQuery = `SELECT nextval('` + awsCloudR
 // back sequence advances on transaction abort, so gaps from a failed caller
 // are expected and harmless for an ordering-only value).
 type PostgresAWSCloudRuntimeDriftFencingTokenIssuer struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // NextAWSCloudRuntimeDriftFencingToken returns the next value in issuance

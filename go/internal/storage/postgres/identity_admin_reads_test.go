@@ -148,7 +148,7 @@ func TestAdminIdentityReadQueriesSecurity(t *testing.T) {
 func TestAdminIdentityReadsNilDatabase(t *testing.T) {
 	t.Parallel()
 
-	store := &IdentitySubjectStore{db: nil}
+	store := &IdentitySubjectStore{database: nil}
 	if _, err := store.ListAdminInvitations(nil, "tenant", "workspace"); err == nil { //nolint:staticcheck
 		t.Error("ListAdminInvitations: expected error for nil database")
 	}
@@ -224,7 +224,7 @@ func TestAdminIdentityReadQueriesExcludeTombstones(t *testing.T) {
 func TestAdminIdentityReadsRejectBlankTenant(t *testing.T) {
 	t.Parallel()
 
-	store := &IdentitySubjectStore{db: &fakeExecQueryer{}}
+	store := &IdentitySubjectStore{database: &fakeExecQueryer{}}
 	if _, err := store.ListAdminInvitations(nil, "  ", "workspace"); err == nil { //nolint:staticcheck
 		t.Error("ListAdminInvitations: expected error for blank tenant")
 	}

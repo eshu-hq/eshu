@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/crypto/bcrypt"
 
@@ -58,8 +60,8 @@ func TestOpenBootstrapCredentialPayloadDecryptFailureIsActionable(t *testing.T) 
 		t.Fatalf("Seal() error = %v", err)
 	}
 
-	db := &fakeAdminCredDB{sealed: sealed, keyID: "key-a", found: true}
-	store := pgstorage.NewIdentitySubjectStore(db)
+	database := &fakeAdminCredDB{sealed: sealed, keyID: "key-a", found: true}
+	store := pgstorage.NewIdentitySubjectStore(database)
 
 	_, gotKeyID, err := openBootstrapCredentialPayload(context.Background(), store, wrongKeyring)
 	if err == nil {
@@ -81,8 +83,8 @@ func TestOpenBootstrapCredentialPayloadNotFoundIsActionable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewKeyring() error = %v", err)
 	}
-	db := &fakeAdminCredDB{found: false}
-	store := pgstorage.NewIdentitySubjectStore(db)
+	database := &fakeAdminCredDB{found: false}
+	store := pgstorage.NewIdentitySubjectStore(database)
 
 	_, _, err = openBootstrapCredentialPayload(context.Background(), store, keyring)
 	if err == nil {
@@ -105,20 +107,20 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	}
 	ctx := context.Background()
 	schemaName := fmt.Sprintf("admin_initial_credential_%d", time.Now().UnixNano())
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	db.SetMaxOpenConns(1)
-	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+	database.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = database.Close() })
+	if _, err := database.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		t.Fatalf("create schema: %v", err)
 	}
-	t.Cleanup(func() { _, _ = db.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE") })
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+	t.Cleanup(func() { _, _ = database.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE") })
+	if _, err := database.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
 		t.Fatalf("set search_path: %v", err)
 	}
-	if err := pgstorage.ApplyBootstrap(ctx, pgstorage.SQLDB{DB: db}); err != nil {
+	if err := pgstorage.ApplyBootstrap(ctx, pgstorage.SQLDB{DB: database}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
 
@@ -130,7 +132,7 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	userID := "user-cli-round-trip"
 	subjectIDHash := "sha256:cli-round-trip-subject"
 	originalRecoveryCode := "original-first-run-recovery-code"
-	seedIdentityFixture(t, ctx, db, userID, subjectIDHash, originalRecoveryCode, now)
+	seedIdentityFixture(t, ctx, database, userID, subjectIDHash, originalRecoveryCode, now)
 
 	// Seed an ACTIVE TOTP factor the admin enrolled after bootstrap, the
 	// documented invariant this reset must never touch. A raw fixture insert
@@ -139,7 +141,7 @@ func TestAdminInitialCredentialAndResetRoundTrip(t *testing.T) {
 	// scoping directly against a real row, independent of whether the totp
 	// package itself is exercised elsewhere.
 	totpFactorID := "id_cli-round-trip-totp"
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO identity_mfa_factors (factor_id, user_id, factor_kind, status, secret_credential_handle, public_key_hash, created_at, verified_at, last_used_at, revoked_at)
 VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL)
 `, totpFactorID, userID, now); err != nil {
@@ -155,7 +157,7 @@ VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL
 	if err != nil {
 		t.Fatalf("KeyringFromEnv() error = %v", err)
 	}
-	store := pgstorage.NewIdentitySubjectStore(pgstorage.SQLDB{DB: db})
+	store := pgstorage.NewIdentitySubjectStore(pgstorage.SQLDB{DB: database})
 	aad := pgstorage.BootstrapCredentialAAD(pgstorage.BootstrapAdminTenantID, pgstorage.BootstrapAdminWorkspaceID)
 	sealed, err := keyring.Seal([]byte(`{"username":"admin","password":"initial-pw","recovery_code":"initial-rc"}`), aad)
 	if err != nil {
@@ -258,7 +260,7 @@ VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL
 
 	// The bcrypt hash in identity_local_credentials rotated to match.
 	var storedHash string
-	row := db.QueryRowContext(ctx, `SELECT password_hash FROM identity_local_credentials WHERE user_id = $1 AND status = 'active' AND revoked_at IS NULL`, userID)
+	row := database.QueryRowContext(ctx, `SELECT password_hash FROM identity_local_credentials WHERE user_id = $1 AND status = 'active' AND revoked_at IS NULL`, userID)
 	if err := row.Scan(&storedHash); err != nil {
 		t.Fatalf("read rotated password hash: %v", err)
 	}
@@ -275,7 +277,7 @@ VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL
 		totpRevokedAt  sql.NullTime
 		totpLastUsedAt sql.NullTime
 	)
-	row2 := db.QueryRowContext(ctx, `SELECT status, revoked_at, last_used_at FROM identity_mfa_factors WHERE factor_id = $1`, totpFactorID)
+	row2 := database.QueryRowContext(ctx, `SELECT status, revoked_at, last_used_at FROM identity_mfa_factors WHERE factor_id = $1`, totpFactorID)
 	if err := row2.Scan(&totpStatus, &totpRevokedAt, &totpLastUsedAt); err != nil {
 		t.Fatalf("read totp factor row after reset: %v", err)
 	}
@@ -314,7 +316,7 @@ VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL
 	// test must not couple to.
 	originalRecoveryCodeHash := query.IdentityHash(originalRecoveryCode)
 	var originalCodeStatus string
-	row = db.QueryRowContext(ctx, `SELECT status FROM identity_mfa_recovery_codes WHERE user_id = $1 AND recovery_code_hash = $2`, userID, originalRecoveryCodeHash)
+	row = database.QueryRowContext(ctx, `SELECT status FROM identity_mfa_recovery_codes WHERE user_id = $1 AND recovery_code_hash = $2`, userID, originalRecoveryCodeHash)
 	if err := row.Scan(&originalCodeStatus); err != nil {
 		t.Fatalf("read original recovery code row: %v", err)
 	}
@@ -347,10 +349,10 @@ VALUES ($1, $2, 'totp', 'active', 'sha256:totp-handle', NULL, $3, $3, NULL, NULL
 // recoveryCode is the plaintext of the ORIGINAL (pre-reset) recovery code;
 // the test hashes it to prove the reset revokes it.
 func seedIdentityFixture(
-	t *testing.T, ctx context.Context, db *sql.DB, userID, subjectIDHash, recoveryCode string, now time.Time,
+	t *testing.T, ctx context.Context, database *sql.DB, userID, subjectIDHash, recoveryCode string, now time.Time,
 ) {
 	t.Helper()
-	store := pgstorage.NewIdentitySubjectStore(pgstorage.SQLDB{DB: db})
+	store := pgstorage.NewIdentitySubjectStore(pgstorage.SQLDB{DB: database})
 	mfaFactorID, err := newLocalIdentityFactorID()
 	if err != nil {
 		t.Fatalf("newLocalIdentityFactorID() error = %v", err)
@@ -376,7 +378,7 @@ func seedIdentityFixture(
 	}
 }
 
-// fakeAdminCredDB is a minimal pgstorage.ExecQueryer for unit-testing
+// fakeAdminCredDB is a minimal db.ExecQueryer for unit-testing
 // openBootstrapCredentialPayload without a real Postgres connection.
 type fakeAdminCredDB struct {
 	sealed string
@@ -388,7 +390,7 @@ func (f *fakeAdminCredDB) ExecContext(context.Context, string, ...any) (sql.Resu
 	return nil, fmt.Errorf("unexpected ExecContext call")
 }
 
-func (f *fakeAdminCredDB) QueryContext(_ context.Context, _ string, _ ...any) (pgstorage.Rows, error) {
+func (f *fakeAdminCredDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	if !f.found {
 		return &fakeAdminCredRows{}, nil
 	}

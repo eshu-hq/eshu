@@ -9,12 +9,15 @@ reducer/query adapter.
 
 **Database interfaces**
 
-- `ExecQueryer` — combined read/write adapter; accepted by all store
+The seven shared contracts live in `db/` (`go/internal/storage/postgres/db`);
+the concrete adapters stay here.
+
+- `db.ExecQueryer` — combined read/write adapter; accepted by all store
   constructors
-- `Transaction` — `ExecQueryer` + `Commit`/`Rollback`
-- `Beginner` — `Begin(ctx) (Transaction, error)`; implemented by `SQLDB`
+- `db.Transaction` — `db.ExecQueryer` + `Commit`/`Rollback`
+- `db.Beginner` — `Begin(ctx) (db.Transaction, error)`; implemented by `SQLDB`
 - `SQLDB` — adapts `*sql.DB`; `SQLTx` adapts `*sql.Tx`
-- `InstrumentedDB` — wraps `ExecQueryer` with OTEL spans and
+- `InstrumentedDB` — wraps `db.ExecQueryer` with OTEL spans and
   `eshu_dp_postgres_query_duration_seconds`
 
 **Fact store**

@@ -74,7 +74,7 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftStatePendingPastAttemptBudget
 	now := time.Date(2026, time.July, 29, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -124,7 +124,7 @@ func TestReducerQueueFailDefersAWSCloudRuntimeDriftWriteSupersededPastAttemptBud
 	now := time.Date(2026, time.July, 29, 11, 5, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,
@@ -177,7 +177,7 @@ func TestReducerQueueClaimDoesNotCountAWSCloudRuntimeDriftReadinessDefers(t *tes
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },
@@ -218,7 +218,7 @@ func TestClaimBatchDoesNotCountAWSCloudRuntimeDriftReadinessDefers(t *testing.T)
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

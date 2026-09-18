@@ -9,6 +9,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -22,7 +24,7 @@ type postgresLocalIdentityAdapter struct {
 }
 
 func newLocalIdentityHandler(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 	cookieSecureMode query.CookieSecureMode,
@@ -31,21 +33,21 @@ func newLocalIdentityHandler(
 		Audit:        adminRecoveryAuditAppender(governanceAudit),
 		CookieSecure: cookieSecureMode,
 	}
-	if store := newPostgresLocalIdentityAdapter(db, instruments); store != nil {
+	if store := newPostgresLocalIdentityAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
-	handler.Sessions = newBrowserSessionStore(db, instruments)
+	handler.Sessions = newBrowserSessionStore(database, instruments)
 	return handler
 }
 
 func newPostgresLocalIdentityAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 ) *postgresLocalIdentityAdapter {
-	if db == nil {
+	if rawDB == nil {
 		return nil
 	}
-	identityDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	identityDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		identityDB = &pgstatus.InstrumentedDB{
 			Inner:       identityDB,

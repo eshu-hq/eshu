@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5/pgconn"
 	"go.opentelemetry.io/otel/metric"
 
@@ -121,7 +123,7 @@ func claimedAtValue(intent reducer.Intent) time.Time {
 	return intent.ClaimedAt.UTC()
 }
 
-func scanReducerIntent(rows Rows) (reducer.Intent, error) {
+func scanReducerIntent(rows db.Rows) (reducer.Intent, error) {
 	var intentID string
 	var scopeID string
 	var generationID string
@@ -272,7 +274,7 @@ func (q ReducerQueue) failIntent(
 			args = append(args, intent.ClaimEpoch)
 		}
 		args = append(args, claimedAtValue(intent))
-		result, err := q.db.ExecContext(ctx, query, args...)
+		result, err := q.database.ExecContext(ctx, query, args...)
 		if err != nil {
 			return fmt.Errorf("fail reducer work: %w", err)
 		}
@@ -311,7 +313,7 @@ func (q ReducerQueue) failIntent(
 		args = append(args, intent.ClaimEpoch)
 	}
 	args = append(args, claimedAtValue(intent))
-	result, err := q.db.ExecContext(ctx, query, args...)
+	result, err := q.database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("fail reducer work: %w", err)
 	}

@@ -93,14 +93,14 @@ func (s *IdentitySubjectStore) ListActiveLoginProviders(
 	ctx context.Context,
 	tenantID string,
 ) ([]LoginProviderItem, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
 		return nil, errors.New("tenant_id is required for login provider listing")
 	}
-	rows, err := s.db.QueryContext(ctx, listActiveLoginProvidersQuery, tenantID)
+	rows, err := s.database.QueryContext(ctx, listActiveLoginProvidersQuery, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list active login providers: %w", err)
 	}
@@ -143,14 +143,14 @@ func (s *IdentitySubjectStore) ListAdminIdPProviders(
 	ctx context.Context,
 	tenantID string,
 ) ([]AdminIdPProviderListItem, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
 		return nil, errors.New("tenant_id is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listAdminIdPProvidersQuery, tenantID)
+	rows, err := s.database.QueryContext(ctx, listAdminIdPProvidersQuery, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("list admin idp providers: %w", err)
 	}
@@ -205,7 +205,7 @@ func (s *IdentitySubjectStore) ListAdminIdPGroupMappings(
 	tenantID string,
 	workspaceID string,
 ) ([]AdminIdPGroupMappingListItem, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
@@ -213,7 +213,7 @@ func (s *IdentitySubjectStore) ListAdminIdPGroupMappings(
 		return nil, errors.New("tenant_id is required")
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	rows, err := s.db.QueryContext(ctx, listAdminIdPGroupMappingsQuery, tenantID, workspaceID)
+	rows, err := s.database.QueryContext(ctx, listAdminIdPGroupMappingsQuery, tenantID, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("list admin idp group mappings: %w", err)
 	}
@@ -279,7 +279,7 @@ func (s *IdentitySubjectStore) ListAdminAPITokens(
 	tenantID string,
 	workspaceID string,
 ) ([]AdminAPITokenListItem, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
@@ -287,7 +287,7 @@ func (s *IdentitySubjectStore) ListAdminAPITokens(
 		return nil, errors.New("tenant_id is required")
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	rows, err := s.db.QueryContext(ctx, listAdminAPITokensQuery, tenantID, workspaceID)
+	rows, err := s.database.QueryContext(ctx, listAdminAPITokensQuery, tenantID, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("list admin api tokens: %w", err)
 	}

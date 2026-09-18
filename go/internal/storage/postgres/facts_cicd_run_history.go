@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -388,7 +390,7 @@ func (s FactStore) listCICDRunFacts(
 	artifactTombstoneKeys []string,
 	includeScopeSnapshot bool,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	keys, err := cleanCICDRunHistoryKeys(providers, runIDs, runAttempts)
@@ -404,7 +406,7 @@ func (s FactStore) listCICDRunFacts(
 	}
 
 	providers, runIDs, runAttempts = splitCICDRunHistoryKeys(keys)
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listCICDRunFactsForRunKeysQuery,
 		strings.TrimSpace(scopeID),
@@ -435,7 +437,7 @@ func (s FactStore) listCICDRunFacts(
 	return loaded, nil
 }
 
-func scanCICDRunHistoryRows(rows Rows, operation string) ([]facts.Envelope, error) {
+func scanCICDRunHistoryRows(rows db.Rows, operation string) ([]facts.Envelope, error) {
 	defer func() { _ = rows.Close() }()
 	loaded := make([]facts.Envelope, 0)
 	for rows.Next() {

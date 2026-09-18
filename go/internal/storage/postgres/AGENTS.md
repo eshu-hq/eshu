@@ -4,9 +4,9 @@
 
 1. `go/internal/storage/postgres/README.md` — pipeline position, store
    inventory, queue lifecycle, and operational notes
-2. `go/internal/storage/postgres/db.go` — `ExecQueryer`, `Transaction`,
-   `Beginner`, `SQLDB`, `SQLTx`; understand the interface hierarchy before
-   touching any store
+2. `go/internal/storage/postgres/db/contracts.go` — `Rows`, `Queryer`,
+   `Executor`, `ExecQueryer`, `Transaction`, `Beginner`,
+   `ReadOnlyRepeatableReadBeginner` (adapters and bootstrap lock stay in root)
 3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
    and `Ack`; the five-step atomic ack transaction is the most sensitive path
    in this package
@@ -326,8 +326,8 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
 
 ## Common changes and how to scope them
 
-- **Add a new Postgres store** → implement against `ExecQueryer`; add a
-  `New*Store(db ExecQueryer)` constructor; add a `*SchemaSQL()` function
+- **Add a new Postgres store** → implement against `db.ExecQueryer`; add a
+  `New*Store(database db.ExecQueryer)` constructor; add a `*SchemaSQL()` function
   returning idempotent DDL when the store owns a table; register owned tables in
   `BootstrapDefinitions` in `schema.go` with the correct position in the slice;
   wrap with `InstrumentedDB` in `cmd/` wiring for observability.
@@ -496,7 +496,7 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   `internal/reducer/gpphase` (`phasekey.go`), NOT the root alias layer, else leaf
   families cannot use it; batch-upsert via `GraphProjectionPhaseStateStore`.
 
-- **Add Postgres telemetry** → wrap the `ExecQueryer` with `InstrumentedDB`;
+- **Add Postgres telemetry** → wrap the `db.ExecQueryer` with `InstrumentedDB`;
   set `StoreName` to a short descriptive label; the metric
   `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` is emitted
   automatically.

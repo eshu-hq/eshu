@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
@@ -21,31 +23,31 @@ import (
 // InstrumentedDB wraps an ExecQueryer with OTEL tracing and metrics.
 // It decorates each database operation with spans and duration metrics.
 type InstrumentedDB struct {
-	Inner       ExecQueryer
+	Inner       db.ExecQueryer
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 	StoreName   string // e.g. "facts", "queue", "content", "decisions", "intents"
 }
 
 // ExecContext wraps the inner ExecContext with tracing and metrics.
-func (db *InstrumentedDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+func (database *InstrumentedDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	start := time.Now()
 
 	// Create span if tracer is available
-	if db.Tracer != nil {
+	if database.Tracer != nil {
 		var span trace.Span
-		ctx, span = db.Tracer.Start(
+		ctx, span = database.Tracer.Start(
 			ctx, "postgres.exec",
 			trace.WithAttributes(
 				attribute.String("db.system", "postgresql"),
 				attribute.String("db.operation", "exec"),
-				attribute.String("eshu.store", db.StoreName),
+				attribute.String("eshu.store", database.StoreName),
 			),
 		)
 		defer span.End()
 
 		// Execute the query
-		result, err := db.Inner.ExecContext(ctx, query, args...)
+		result, err := database.Inner.ExecContext(ctx, query, args...)
 		// Record error in span if present
 		if err != nil {
 			span.RecordError(err)
@@ -53,13 +55,13 @@ func (db *InstrumentedDB) ExecContext(ctx context.Context, query string, args ..
 		}
 
 		// Record duration metric if instruments are available
-		if db.Instruments != nil {
+		if database.Instruments != nil {
 			duration := time.Since(start).Seconds()
-			db.Instruments.PostgresQueryDuration.Record(
+			database.Instruments.PostgresQueryDuration.Record(
 				ctx, duration,
 				metric.WithAttributes(
 					attribute.String("operation", "write"),
-					attribute.String("store", db.StoreName),
+					attribute.String("store", database.StoreName),
 				),
 			)
 		}
@@ -68,15 +70,15 @@ func (db *InstrumentedDB) ExecContext(ctx context.Context, query string, args ..
 	}
 
 	// No tracer, just execute and optionally record metric
-	result, err := db.Inner.ExecContext(ctx, query, args...)
+	result, err := database.Inner.ExecContext(ctx, query, args...)
 
-	if db.Instruments != nil {
+	if database.Instruments != nil {
 		duration := time.Since(start).Seconds()
-		db.Instruments.PostgresQueryDuration.Record(
+		database.Instruments.PostgresQueryDuration.Record(
 			ctx, duration,
 			metric.WithAttributes(
 				attribute.String("operation", "write"),
-				attribute.String("store", db.StoreName),
+				attribute.String("store", database.StoreName),
 			),
 		)
 	}
@@ -85,24 +87,24 @@ func (db *InstrumentedDB) ExecContext(ctx context.Context, query string, args ..
 }
 
 // QueryContext wraps the inner QueryContext with tracing and metrics.
-func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (database *InstrumentedDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	start := time.Now()
 
 	// Create span if tracer is available
-	if db.Tracer != nil {
+	if database.Tracer != nil {
 		var span trace.Span
-		ctx, span = db.Tracer.Start(
+		ctx, span = database.Tracer.Start(
 			ctx, "postgres.query",
 			trace.WithAttributes(
 				attribute.String("db.system", "postgresql"),
 				attribute.String("db.operation", "query"),
-				attribute.String("eshu.store", db.StoreName),
+				attribute.String("eshu.store", database.StoreName),
 			),
 		)
 		defer span.End()
 
 		// Execute the query
-		rows, err := db.Inner.QueryContext(ctx, query, args...)
+		rows, err := database.Inner.QueryContext(ctx, query, args...)
 		// Record error in span if present
 		if err != nil {
 			span.RecordError(err)
@@ -110,13 +112,13 @@ func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args .
 		}
 
 		// Record duration metric if instruments are available
-		if db.Instruments != nil {
+		if database.Instruments != nil {
 			duration := time.Since(start).Seconds()
-			db.Instruments.PostgresQueryDuration.Record(
+			database.Instruments.PostgresQueryDuration.Record(
 				ctx, duration,
 				metric.WithAttributes(
 					attribute.String("operation", "read"),
-					attribute.String("store", db.StoreName),
+					attribute.String("store", database.StoreName),
 				),
 			)
 		}
@@ -125,15 +127,15 @@ func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args .
 	}
 
 	// No tracer, just execute and optionally record metric
-	rows, err := db.Inner.QueryContext(ctx, query, args...)
+	rows, err := database.Inner.QueryContext(ctx, query, args...)
 
-	if db.Instruments != nil {
+	if database.Instruments != nil {
 		duration := time.Since(start).Seconds()
-		db.Instruments.PostgresQueryDuration.Record(
+		database.Instruments.PostgresQueryDuration.Record(
 			ctx, duration,
 			metric.WithAttributes(
 				attribute.String("operation", "read"),
-				attribute.String("store", db.StoreName),
+				attribute.String("store", database.StoreName),
 			),
 		)
 	}
@@ -143,7 +145,7 @@ func (db *InstrumentedDB) QueryContext(ctx context.Context, query string, args .
 
 // CopySearchIndexTerms wraps the optional SQLDB COPY fast path with the same
 // tracing and Postgres duration metric shape used by ordinary write queries.
-func (db *InstrumentedDB) CopySearchIndexTerms(
+func (database *InstrumentedDB) CopySearchIndexTerms(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
@@ -152,23 +154,23 @@ func (db *InstrumentedDB) CopySearchIndexTerms(
 	termKeys []string,
 	frequencies []int,
 ) (int64, error) {
-	copier, ok := db.Inner.(interface {
+	copier, ok := database.Inner.(interface {
 		CopySearchIndexTerms(context.Context, string, string, []string, []string, []string, []int) (int64, error)
 	})
 	if !ok {
-		return 0, searchIndexTermCopyUnsupportedError{driver: fmt.Sprintf("%T", db.Inner)}
+		return 0, searchIndexTermCopyUnsupportedError{driver: fmt.Sprintf("%T", database.Inner)}
 	}
 
 	start := time.Now()
-	if db.Tracer != nil {
+	if database.Tracer != nil {
 		var span trace.Span
-		ctx, span = db.Tracer.Start(
+		ctx, span = database.Tracer.Start(
 			ctx,
 			"postgres.copy_from",
 			trace.WithAttributes(
 				attribute.String("db.system", "postgresql"),
 				attribute.String("db.operation", "copy_from"),
-				attribute.String("eshu.store", db.StoreName),
+				attribute.String("eshu.store", database.StoreName),
 			),
 		)
 		defer span.End()
@@ -178,13 +180,13 @@ func (db *InstrumentedDB) CopySearchIndexTerms(
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 		}
-		if db.Instruments != nil {
-			db.Instruments.PostgresQueryDuration.Record(
+		if database.Instruments != nil {
+			database.Instruments.PostgresQueryDuration.Record(
 				ctx,
 				time.Since(start).Seconds(),
 				metric.WithAttributes(
 					attribute.String("operation", "write"),
-					attribute.String("store", db.StoreName),
+					attribute.String("store", database.StoreName),
 				),
 			)
 		}
@@ -192,13 +194,13 @@ func (db *InstrumentedDB) CopySearchIndexTerms(
 	}
 
 	copied, err := copier.CopySearchIndexTerms(ctx, scopeID, generationID, documentIDs, terms, termKeys, frequencies)
-	if db.Instruments != nil {
-		db.Instruments.PostgresQueryDuration.Record(
+	if database.Instruments != nil {
+		database.Instruments.PostgresQueryDuration.Record(
 			ctx,
 			time.Since(start).Seconds(),
 			metric.WithAttributes(
 				attribute.String("operation", "write"),
-				attribute.String("store", db.StoreName),
+				attribute.String("store", database.StoreName),
 			),
 		)
 	}

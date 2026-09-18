@@ -11,14 +11,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(t *testing.T) {
 	t.Parallel()
 
-	db := &partitionHistoryTestDB{completed: map[string]bool{"partition-a": true}}
-	store := NewSharedIntentStore(db)
+	database := &partitionHistoryTestDB{completed: map[string]bool{"partition-a": true}}
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	got, err := store.HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
@@ -44,7 +46,7 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainInte
 	if got {
 		t.Fatal("HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents for pending partition = true, want false")
 	}
-	if got, want := db.queryArgs, []any{
+	if got, want := database.queryArgs, []any{
 		"scope-a",
 		"repo-a",
 		"run-new",
@@ -53,16 +55,16 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainInte
 	}; !equalPartitionHistoryArgs(got, want) {
 		t.Fatalf("query args = %#v, want %#v", got, want)
 	}
-	if !strings.Contains(db.query, "partition_key = $4") {
-		t.Fatalf("query = %q, want partition scoped lookup", db.query)
+	if !strings.Contains(database.query, "partition_key = $4") {
+		t.Fatalf("query = %q, want partition scoped lookup", database.query)
 	}
 }
 
 func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(t *testing.T) {
 	t.Parallel()
 
-	db := &partitionHistoryTestDB{refreshCompleted: true}
-	store := NewSharedIntentStore(db)
+	database := &partitionHistoryTestDB{refreshCompleted: true}
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 
 	got, err := store.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
@@ -76,14 +78,14 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunRefreshDomainIntent
 	if !got {
 		t.Fatal("HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents = false, want true")
 	}
-	if got, want := len(db.queryArgs), 5; got != want {
+	if got, want := len(database.queryArgs), 5; got != want {
 		t.Fatalf("query arg count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.query, "payload->>'intent_type' = 'repo_refresh'") {
-		t.Fatalf("query = %q, want repo_refresh filter", db.query)
+	if !strings.Contains(database.query, "payload->>'intent_type' = 'repo_refresh'") {
+		t.Fatalf("query = %q, want repo_refresh filter", database.query)
 	}
-	if !strings.Contains(db.query, "jsonb_array_elements_text(payload->'delta_file_paths')") {
-		t.Fatalf("query = %q, want delta_file_paths coverage check", db.query)
+	if !strings.Contains(database.query, "jsonb_array_elements_text(payload->'delta_file_paths')") {
+		t.Fatalf("query = %q, want delta_file_paths coverage check", database.query)
 	}
 
 	got, err = store.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(ctx, reducer.SharedProjectionAcceptanceKey{
@@ -102,8 +104,8 @@ func TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunRefreshDomainIntent
 func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) {
 	t.Parallel()
 
-	db := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: true}
-	store := NewSharedIntentStore(db)
+	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: true}
+	store := NewSharedIntentStore(database)
 	ctx := context.Background()
 	row := reducer.SharedProjectionIntentRow{
 		IntentID:         "caller-edge",
@@ -127,11 +129,11 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) 
 	if !blocked {
 		t.Fatal("CodeCallProjectionRowBlockedByRepoFence = false, want true")
 	}
-	if !strings.Contains(db.query, "WITH selected AS") {
-		t.Fatalf("query = %q, want selected-row existence guard", db.query)
+	if !strings.Contains(database.query, "WITH selected AS") {
+		t.Fatalf("query = %q, want selected-row existence guard", database.query)
 	}
-	if strings.Contains(db.query, "SELECT intent_id") {
-		t.Fatalf("query = %q, want EXISTS lookup without loading intent rows", db.query)
+	if strings.Contains(database.query, "SELECT intent_id") {
+		t.Fatalf("query = %q, want EXISTS lookup without loading intent rows", database.query)
 	}
 	for _, want := range []string{
 		"candidate.completed_at IS NULL",
@@ -142,32 +144,32 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) 
 		"CASE",
 		"ELSE '[]'::jsonb",
 	} {
-		if !strings.Contains(db.query, want) {
-			t.Fatalf("query missing %q:\n%s", want, db.query)
+		if !strings.Contains(database.query, want) {
+			t.Fatalf("query missing %q:\n%s", want, database.query)
 		}
 	}
-	if strings.Contains(db.query, "$13") {
-		t.Fatalf("query = %q, want no unused high-numbered placeholder", db.query)
+	if strings.Contains(database.query, "$13") {
+		t.Fatalf("query = %q, want no unused high-numbered placeholder", database.query)
 	}
-	if got, want := db.queryArgs[0], "caller-edge"; got != want {
+	if got, want := database.queryArgs[0], "caller-edge"; got != want {
 		t.Fatalf("intent arg = %#v, want %#v", got, want)
 	}
-	if got, want := db.queryArgs[5], "repo-a"; got != want {
+	if got, want := database.queryArgs[5], "repo-a"; got != want {
 		t.Fatalf("repository arg = %#v, want %#v", got, want)
 	}
-	if got, want := len(db.queryArgs), 12; got != want {
+	if got, want := len(database.queryArgs), 12; got != want {
 		t.Fatalf("query arg count = %d, want %d", got, want)
 	}
-	if got, want := db.queryArgs[7], row.PartitionKey; got != want {
+	if got, want := database.queryArgs[7], row.PartitionKey; got != want {
 		t.Fatalf("partition key arg = %#v, want %#v", got, want)
 	}
-	if got, want := db.queryArgs[8], reducer.CodeCallProjectionFilePartitionKeyPrefix()+"%"; got != want {
+	if got, want := database.queryArgs[8], reducer.CodeCallProjectionFilePartitionKeyPrefix()+"%"; got != want {
 		t.Fatalf("file prefix arg = %#v, want %#v", got, want)
 	}
-	if got, want := db.queryArgs[9], true; got != want {
+	if got, want := database.queryArgs[9], true; got != want {
 		t.Fatalf("rowCanBeCoveredByFileRefresh arg = %#v, want %#v", got, want)
 	}
-	if got, want := db.queryArgs[10], true; got != want {
+	if got, want := database.queryArgs[10], true; got != want {
 		t.Fatalf("rowCanBeCoveredByFileRefreshByPath arg = %#v, want %#v", got, want)
 	}
 }
@@ -175,8 +177,8 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFence(t *testing.T) 
 func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceDoesNotFenceFileRefreshRows(t *testing.T) {
 	t.Parallel()
 
-	db := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: false}
-	store := NewSharedIntentStore(db)
+	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: false}
+	store := NewSharedIntentStore(database)
 	row := reducer.SharedProjectionIntentRow{
 		IntentID:     "refresh-edge",
 		PartitionKey: reducer.CodeCallProjectionFilePartitionKeyPrefix() + "abc123",
@@ -199,10 +201,10 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceDoesNotFenceFil
 	if blocked {
 		t.Fatal("CodeCallProjectionRowBlockedByRepoFence = true, want false")
 	}
-	if got, want := db.queryArgs[9], false; got != want {
+	if got, want := database.queryArgs[9], false; got != want {
 		t.Fatalf("rowCanBeCoveredByFileRefresh arg = %#v, want %#v", got, want)
 	}
-	if got, want := db.queryArgs[10], false; got != want {
+	if got, want := database.queryArgs[10], false; got != want {
 		t.Fatalf("rowCanBeCoveredByFileRefreshByPath arg = %#v, want %#v", got, want)
 	}
 }
@@ -210,8 +212,8 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceDoesNotFenceFil
 func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesWholeRowLookup(t *testing.T) {
 	t.Parallel()
 
-	db := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: true}
-	store := NewSharedIntentStore(db)
+	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: true}
+	store := NewSharedIntentStore(database)
 	row := reducer.SharedProjectionIntentRow{
 		IntentID:         "whole-edge",
 		PartitionKey:     "v1:whole:repo-a",
@@ -236,8 +238,8 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesWholeRowLoo
 		"candidate.repository_id = $6",
 		"(candidate.created_at, candidate.intent_id) < ($7, $1)",
 	} {
-		if !strings.Contains(db.query, want) {
-			t.Fatalf("whole-row query missing %q:\n%s", want, db.query)
+		if !strings.Contains(database.query, want) {
+			t.Fatalf("whole-row query missing %q:\n%s", want, database.query)
 		}
 	}
 	for _, reject := range []string{
@@ -245,11 +247,11 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesWholeRowLoo
 		"candidate.partition_key LIKE",
 		"payload->>'intent_type' = 'repo_refresh'",
 	} {
-		if strings.Contains(db.query, reject) {
-			t.Fatalf("whole-row query contains %q:\n%s", reject, db.query)
+		if strings.Contains(database.query, reject) {
+			t.Fatalf("whole-row query contains %q:\n%s", reject, database.query)
 		}
 	}
-	if got, want := len(db.queryArgs), 7; got != want {
+	if got, want := len(database.queryArgs), 7; got != want {
 		t.Fatalf("whole-row query arg count = %d, want %d", got, want)
 	}
 }
@@ -257,8 +259,8 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesWholeRowLoo
 func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesPayloadRepoFallback(t *testing.T) {
 	t.Parallel()
 
-	db := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: true}
-	store := NewSharedIntentStore(db)
+	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: true}
+	store := NewSharedIntentStore(database)
 	row := reducer.SharedProjectionIntentRow{
 		IntentID:     "payload-repo-edge",
 		PartitionKey: "v1:whole:repo-a",
@@ -279,7 +281,7 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesPayloadRepo
 	if !blocked {
 		t.Fatal("CodeCallProjectionRowBlockedByRepoFence = false, want true")
 	}
-	if got, want := db.queryArgs[5], "repo-a"; got != want {
+	if got, want := database.queryArgs[5], "repo-a"; got != want {
 		t.Fatalf("repository arg = %#v, want %#v", got, want)
 	}
 }
@@ -287,8 +289,8 @@ func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceUsesPayloadRepo
 func TestSharedIntentStoreCodeCallProjectionRowBlockedByRepoFenceTreatsMissingSelectedRowAsBlocked(t *testing.T) {
 	t.Parallel()
 
-	db := &partitionHistoryTestDB{fenceSelectedExists: false, fenceBlocked: false}
-	store := NewSharedIntentStore(db)
+	database := &partitionHistoryTestDB{fenceSelectedExists: false, fenceBlocked: false}
+	store := NewSharedIntentStore(database)
 	blocked, err := store.CodeCallProjectionRowBlockedByRepoFence(context.Background(), reducer.SharedProjectionAcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
@@ -317,24 +319,24 @@ type partitionHistoryTestDB struct {
 	queryArgs           []any
 }
 
-func (db *partitionHistoryTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *partitionHistoryTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return nil, fmt.Errorf("unexpected exec")
 }
 
-func (db *partitionHistoryTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
-	db.query = query
-	db.queryArgs = append([]any(nil), args...)
+func (database *partitionHistoryTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.query = query
+	database.queryArgs = append([]any(nil), args...)
 	if strings.Contains(query, "blocked_by_fence") {
-		return &partitionHistoryRows{values: []bool{db.fenceSelectedExists, db.fenceBlocked}, idx: -1}, nil
+		return &partitionHistoryRows{values: []bool{database.fenceSelectedExists, database.fenceBlocked}, idx: -1}, nil
 	}
 	if strings.Contains(query, "payload->>'intent_type' = 'repo_refresh'") {
-		return &partitionHistoryRows{values: []bool{db.refreshCompleted}, idx: -1}, nil
+		return &partitionHistoryRows{values: []bool{database.refreshCompleted}, idx: -1}, nil
 	}
 	if strings.Contains(query, "generation_id = $4") {
-		return &partitionHistoryRows{values: []bool{db.generationReady}, idx: -1}, nil
+		return &partitionHistoryRows{values: []bool{database.generationReady}, idx: -1}, nil
 	}
 	partitionKey := args[3].(string)
-	return &partitionHistoryRows{values: []bool{db.completed[partitionKey]}, idx: -1}, nil
+	return &partitionHistoryRows{values: []bool{database.completed[partitionKey]}, idx: -1}, nil
 }
 
 type partitionHistoryRows struct {
@@ -388,8 +390,8 @@ func equalPartitionHistoryArgs(got []any, want []any) bool {
 func TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst(t *testing.T) {
 	t.Parallel()
 
-	db := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: false}
-	store := NewSharedIntentStore(db)
+	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: false}
+	store := NewSharedIntentStore(database)
 
 	_, err := store.CodeCallProjectionRowBlockedByRepoFence(
 		context.Background(),
@@ -409,16 +411,16 @@ func TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
 	}
-	if !strings.Contains(db.query, "blocked_by_fence") {
-		t.Fatalf("expected the whole-fence query, got %q", db.query)
+	if !strings.Contains(database.query, "blocked_by_fence") {
+		t.Fatalf("expected the whole-fence query, got %q", database.query)
 	}
 	// The refresh-priority guard: a refresh candidate precedes a non-refresh
 	// selected row, and same-class rows fall back to (created_at, intent_id).
-	if !strings.Contains(db.query, "candidate.is_refresh_intent AND NOT selected.is_refresh_intent") {
-		t.Fatalf("whole-fence must exempt a refresh row from non-refresh edges (#3865); got %q", db.query)
+	if !strings.Contains(database.query, "candidate.is_refresh_intent AND NOT selected.is_refresh_intent") {
+		t.Fatalf("whole-fence must exempt a refresh row from non-refresh edges (#3865); got %q", database.query)
 	}
-	if !strings.Contains(db.query, "candidate.is_refresh_intent = selected.is_refresh_intent") {
-		t.Fatalf("whole-fence must tie-break within an is_refresh_intent class; got %q", db.query)
+	if !strings.Contains(database.query, "candidate.is_refresh_intent = selected.is_refresh_intent") {
+		t.Fatalf("whole-fence must tie-break within an is_refresh_intent class; got %q", database.query)
 	}
 }
 
@@ -429,8 +431,8 @@ func TestSharedIntentStoreCodeCallWholeFenceRanksRefreshFirst(t *testing.T) {
 func TestSharedIntentStoreCodeCallFileFenceRanksRefreshFirst(t *testing.T) {
 	t.Parallel()
 
-	db := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: false}
-	store := NewSharedIntentStore(db)
+	database := &partitionHistoryTestDB{fenceSelectedExists: true, fenceBlocked: false}
+	store := NewSharedIntentStore(database)
 
 	_, err := store.CodeCallProjectionRowBlockedByRepoFence(
 		context.Background(),
@@ -453,7 +455,7 @@ func TestSharedIntentStoreCodeCallFileFenceRanksRefreshFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CodeCallProjectionRowBlockedByRepoFence: %v", err)
 	}
-	if !strings.Contains(db.query, "candidate.is_refresh_intent AND NOT selected.is_refresh_intent") {
-		t.Fatalf("file-fence non-file branch must rank refresh-first (#3865 file lane); got %q", db.query)
+	if !strings.Contains(database.query, "candidate.is_refresh_intent AND NOT selected.is_refresh_intent") {
+		t.Fatalf("file-fence non-file branch must rank refresh-first (#3865 file lane); got %q", database.query)
 	}
 }

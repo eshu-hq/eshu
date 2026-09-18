@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -60,21 +62,21 @@ func ValueFlowFixpointComponentSchemaSQL() string {
 // ValueFlowFixpointComponentStore persists solved value-flow weak-component
 // results keyed by the reducer's content-derived component key.
 type ValueFlowFixpointComponentStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewValueFlowFixpointComponentStore constructs a Postgres-backed component
 // cache store.
-func NewValueFlowFixpointComponentStore(db ExecQueryer) ValueFlowFixpointComponentStore {
-	return ValueFlowFixpointComponentStore{db: db}
+func NewValueFlowFixpointComponentStore(database db.ExecQueryer) ValueFlowFixpointComponentStore {
+	return ValueFlowFixpointComponentStore{database: database}
 }
 
 // EnsureSchema applies the value-flow component cache DDL.
 func (s ValueFlowFixpointComponentStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("value-flow fixpoint component store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, valueFlowFixpointComponentSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, valueFlowFixpointComponentSchemaSQL); err != nil {
 		return fmt.Errorf("ensure value-flow fixpoint component schema: %w", err)
 	}
 	return nil
@@ -87,7 +89,7 @@ func (s ValueFlowFixpointComponentStore) StoreValueFlowFixpointComponents(
 	ctx context.Context,
 	entries map[string]interproc.Result,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("value-flow fixpoint component store database is required")
 	}
 	keys := make([]string, 0, len(entries))
@@ -134,7 +136,7 @@ func (s ValueFlowFixpointComponentStore) upsertBatch(
 		return nil
 	}
 	query := upsertValueFlowFixpointComponentPrefix + strings.Join(values, ", ") + upsertValueFlowFixpointComponentSuffix
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert value-flow fixpoint components: %w", err)
 	}
 	return nil
@@ -146,14 +148,14 @@ func (s ValueFlowFixpointComponentStore) LoadValueFlowFixpointComponents(
 	ctx context.Context,
 	keys []string,
 ) (map[string]interproc.Result, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("value-flow fixpoint component store database is required")
 	}
 	keys = normalizeValueFlowFixpointComponentKeys(keys)
 	if len(keys) == 0 {
 		return map[string]interproc.Result{}, nil
 	}
-	rows, err := s.db.QueryContext(ctx, loadValueFlowFixpointComponentsSQL, pgarray.Array(keys))
+	rows, err := s.database.QueryContext(ctx, loadValueFlowFixpointComponentsSQL, pgarray.Array(keys))
 	if err != nil {
 		return nil, fmt.Errorf("load value-flow fixpoint components: %w", err)
 	}

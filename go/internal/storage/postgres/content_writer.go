@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
 
@@ -23,7 +25,7 @@ import (
 
 // ContentWriter persists repo-local content rows into the canonical content store.
 type ContentWriter struct {
-	db               ExecQueryer
+	database         db.ExecQueryer
 	entityBatchSize  int
 	batchConcurrency int
 	Now              func() time.Time
@@ -34,9 +36,9 @@ type ContentWriter struct {
 // Batch concurrency is resolved once here so a long-running ingester does not
 // pick up live env changes mid-run; callers that want to override pass
 // WithBatchConcurrency after construction.
-func NewContentWriter(db ExecQueryer) ContentWriter {
+func NewContentWriter(database db.ExecQueryer) ContentWriter {
 	return ContentWriter{
-		db:               db,
+		database:         database,
 		batchConcurrency: contentWriterBatchConcurrencyFromEnv(),
 	}
 }
@@ -124,7 +126,7 @@ type preparedEntityRow struct {
 // split-out call didn't carry (the #5147/#5327 defect class). See
 // reapStaleContentEntities's doc for the current callers that uphold this.
 func (w ContentWriter) Write(ctx context.Context, materialization content.Materialization) (content.Result, error) {
-	if w.db == nil {
+	if w.database == nil {
 		return content.Result{}, fmt.Errorf("content writer database is required")
 	}
 

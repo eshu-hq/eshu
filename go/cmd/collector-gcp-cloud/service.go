@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -68,7 +70,7 @@ func buildCollectorService(
 
 func buildClaimedService(
 	ctx context.Context,
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	redactionKey redact.Key,
 	getenv func(string) string,
 	tracer trace.Tracer,
@@ -170,7 +172,7 @@ func pollInterval(cfg gcpruntime.Config) time.Duration {
 // pre-recorded cassette file. The cassette source replays recorded API
 // responses without any live credentials or redaction key material.
 func buildCassetteService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cassettePath string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,

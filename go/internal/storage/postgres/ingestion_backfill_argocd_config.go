@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -72,7 +74,7 @@ ORDER BY fact.observed_at ASC, fact.fact_id ASC
 // config repo.
 func loadArgoCDGeneratorConfigFacts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	configRepoIDs []string,
 ) ([]facts.Envelope, error) {
 	if queryer == nil || len(configRepoIDs) == 0 {

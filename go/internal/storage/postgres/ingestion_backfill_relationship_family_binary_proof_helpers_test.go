@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -59,39 +61,39 @@ type relationshipFamilyBinaryProofDB struct {
 	loadedIDs     relationshipFamilyBinaryProofFactIDs
 }
 
-func (db *relationshipFamilyBinaryProofDB) QueryContext(
+func (database *relationshipFamilyBinaryProofDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	if query != listDeferredScopedRelationshipFactRecordsQuery {
-		return db.SQLDB.QueryContext(ctx, query, args...)
+		return database.SQLDB.QueryContext(ctx, query, args...)
 	}
 
-	db.queryTasks.Add(1)
-	db.readCalls.begin()
+	database.queryTasks.Add(1)
+	database.readCalls.begin()
 	delegatedQuery := query
-	if db.queryOverride != "" {
-		delegatedQuery = db.queryOverride
+	if database.queryOverride != "" {
+		delegatedQuery = database.queryOverride
 	}
-	rows, err := db.SQLDB.QueryContext(ctx, delegatedQuery, args...)
-	db.readCalls.end()
+	rows, err := database.SQLDB.QueryContext(ctx, delegatedQuery, args...)
+	database.readCalls.end()
 	if err != nil {
 		return nil, err
 	}
 
-	db.readCursors.begin()
+	database.readCursors.begin()
 	return &relationshipFamilyBinaryProofRows{
 		Rows: rows,
 		onScan: func(factID string) error {
 			if strings.TrimSpace(factID) == "" {
 				return fmt.Errorf("deferred proof query returned an empty fact_id")
 			}
-			db.loadedFacts.Add(1)
-			db.loadedIDs.add(factID)
+			database.loadedFacts.Add(1)
+			database.loadedIDs.add(factID)
 			return nil
 		},
-		onClose: db.readCursors.end,
+		onClose: database.readCursors.end,
 	}, nil
 }
 
@@ -124,21 +126,21 @@ func (s *relationshipFamilyBinaryProofFactIDs) snapshot() (map[string]struct{}, 
 	return result, s.duplicates
 }
 
-func (db *relationshipFamilyBinaryProofDB) Begin(ctx context.Context) (Transaction, error) {
-	tx, err := db.SQLDB.Begin(ctx)
+func (database *relationshipFamilyBinaryProofDB) Begin(ctx context.Context) (db.Transaction, error) {
+	tx, err := database.SQLDB.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
-	db.writeTx.begin()
+	database.writeTx.begin()
 	return &relationshipFamilyBinaryProofTx{
 		Transaction: tx,
-		onDone:      db.writeTx.end,
-		writeCalls:  &db.writeCalls,
+		onDone:      database.writeTx.end,
+		writeCalls:  &database.writeCalls,
 	}, nil
 }
 
 type relationshipFamilyBinaryProofRows struct {
-	Rows
+	db.Rows
 	once    sync.Once
 	onScan  func(string) error
 	onClose func()
@@ -165,7 +167,7 @@ func (r *relationshipFamilyBinaryProofRows) Close() error {
 }
 
 type relationshipFamilyBinaryProofTx struct {
-	Transaction
+	db.Transaction
 	once       sync.Once
 	onDone     func()
 	writeCalls *relationshipFamilyBinaryProofOverlapTracker
@@ -185,7 +187,7 @@ func (tx *relationshipFamilyBinaryProofTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	tx.writeCalls.begin()
 	defer tx.writeCalls.end()
 	return tx.Transaction.QueryContext(ctx, query, args...)

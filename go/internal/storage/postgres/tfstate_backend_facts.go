@@ -10,25 +10,27 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 )
 
 // TerraformStateBackendFactReader reads Git-observed Terraform backend facts
 // from active repository generations.
 type TerraformStateBackendFactReader struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // TerraformStatePriorSnapshotReader reads durable Terraform-state freshness
 // metadata from active snapshot facts.
 type TerraformStatePriorSnapshotReader struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // TerraformStateGitReadinessChecker reports whether Git evidence for a repo
 // has an active committed generation.
 type TerraformStateGitReadinessChecker struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // GitGenerationCommitted implements terraformstate.GitReadinessChecker.
@@ -203,7 +205,7 @@ func (r TerraformStateBackendFactReader) terragruntRemoteStateCandidates(
 // paths for local-backend candidates; rows from a generation that lacks a
 // repository fact arrive with an empty repoLocalPath, which the resolver
 // rejects for local backends but tolerates for S3 backends.
-func scanTerragruntRemoteStateCandidates(rows Rows) ([]terraformstate.DiscoveryCandidate, error) {
+func scanTerragruntRemoteStateCandidates(rows db.Rows) ([]terraformstate.DiscoveryCandidate, error) {
 	var repoID string
 	var repoLocalPath string
 	var rawRemoteStates []byte
@@ -292,7 +294,7 @@ type localCandidateKey struct {
 }
 
 func scanTerraformStateLocalCandidate(
-	rows Rows,
+	rows db.Rows,
 	approved map[localCandidateKey]string,
 ) (terraformstate.DiscoveryCandidate, bool, error) {
 	var repoID string
@@ -330,7 +332,7 @@ func scanTerraformStateLocalCandidate(
 	}, true, nil
 }
 
-func scanTerraformBackendFactContext(rows Rows) (string, terraformBackendFactContext, error) {
+func scanTerraformBackendFactContext(rows db.Rows) (string, terraformBackendFactContext, error) {
 	var repoID string
 	var rawContext []byte
 	if err := rows.Scan(&repoID, &rawContext); err != nil {

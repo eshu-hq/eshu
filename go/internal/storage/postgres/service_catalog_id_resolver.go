@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // serviceCatalogIDForWorkloadQuery resolves the durable Eshu catalog service id
@@ -50,12 +52,12 @@ var ErrAmbiguousCatalogService = errors.New("workload maps to multiple active ca
 // workload id straight through would silently return no incidents for a service
 // that has them — a hidden wrong result — so the wiring resolves first.
 type ServiceCatalogIDResolver struct {
-	queryer Queryer
+	queryer db.Queryer
 }
 
 // NewServiceCatalogIDResolver constructs a read-only resolver over the shared
 // query surface.
-func NewServiceCatalogIDResolver(queryer Queryer) ServiceCatalogIDResolver {
+func NewServiceCatalogIDResolver(queryer db.Queryer) ServiceCatalogIDResolver {
 	return ServiceCatalogIDResolver{queryer: queryer}
 }
 

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -98,7 +100,7 @@ SELECT
 // treated as aged history and surfaced only as cumulative detail.
 const defaultCoordinatorRecentFailureWindow = 30 * time.Minute
 
-func readCoordinatorSnapshot(ctx context.Context, queryer Queryer, asOf time.Time) (*statuspkg.CoordinatorSnapshot, error) {
+func readCoordinatorSnapshot(ctx context.Context, queryer db.Queryer, asOf time.Time) (*statuspkg.CoordinatorSnapshot, error) {
 	instances, err := listCoordinatorCollectorInstances(ctx, queryer)
 	if err != nil {
 		return nil, err
@@ -150,7 +152,7 @@ func readCoordinatorSnapshot(ctx context.Context, queryer Queryer, asOf time.Tim
 // window or non-positive window yields the package default.
 func readWorkflowCoordinatorRecentFailures(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 	window time.Duration,
 ) (*statuspkg.CoordinatorRecentFailures, error) {
@@ -186,7 +188,7 @@ func readWorkflowCoordinatorRecentFailures(
 	return recent, nil
 }
 
-func listCoordinatorCollectorInstances(ctx context.Context, queryer Queryer) ([]statuspkg.CollectorInstanceSummary, error) {
+func listCoordinatorCollectorInstances(ctx context.Context, queryer db.Queryer) ([]statuspkg.CollectorInstanceSummary, error) {
 	rows, err := queryer.QueryContext(ctx, workflowCoordinatorCollectorInstancesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list coordinator collector instances: %w", err)
@@ -224,7 +226,7 @@ func listCoordinatorCollectorInstances(ctx context.Context, queryer Queryer) ([]
 
 func readWorkflowCoordinatorClaimSnapshot(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) (int, int, time.Duration, error) {
 	rows, err := queryer.QueryContext(ctx, workflowCoordinatorClaimSnapshotQuery, asOf.UTC())

@@ -34,7 +34,7 @@ ORDER BY collector_kind, source_system, status
 // backing up, using only bounded labels (collector_kind, source_system, status)
 // and no high-cardinality identifiers.
 func (s *WorkflowControlStore) WorkflowFamilyQueueDepths(ctx context.Context) (map[string]map[string]map[string]int64, error) {
-	rows, err := s.db.QueryContext(ctx, workflowFamilyQueueDepthQuery)
+	rows, err := s.database.QueryContext(ctx, workflowFamilyQueueDepthQuery)
 	if err != nil {
 		return nil, fmt.Errorf("workflow family queue depths: %w", err)
 	}

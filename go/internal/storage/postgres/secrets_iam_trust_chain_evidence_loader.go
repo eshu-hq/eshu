@@ -75,7 +75,7 @@ func (s FactStore) LoadSecretsIAMTrustChainEvidence(
 	ctx context.Context,
 	intent reducer.Intent,
 ) ([]facts.Envelope, reducer.SecretsIAMTrustChainLoadStats, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, reducer.SecretsIAMTrustChainLoadStats{}, fmt.Errorf("fact store database is required")
 	}
 	seed, err := s.ListFactsByKind(ctx, intent.ScopeID, intent.GenerationID, facts.SecretsIAMFactKinds())
@@ -155,7 +155,7 @@ func (s FactStore) listActiveSecretsIAMTrustChainFactsPage(
 	if cursorObservedAt != nil {
 		cursor = cursorObservedAt.UTC()
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveSecretsIAMTrustChainFactsQuery,
 		facts.SecretsIAMFactKinds(),

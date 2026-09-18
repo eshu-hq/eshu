@@ -37,14 +37,14 @@ var ErrTenantWorkspaceNotFound = errors.New("tenant workspace grant store: tenan
 // an explicit workspace_id instead — and ErrTenantWorkspaceNotFound when the
 // tenant has none.
 func (s *TenantWorkspaceGrantStore) PrimaryWorkspaceForTenant(ctx context.Context, tenantID string) (string, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return "", errors.New("tenant workspace grant store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
 		return "", errors.New("tenant id is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listActiveWorkspaceIDsForTenantQuery, tenantID, primaryWorkspaceLookupLimit)
+	rows, err := s.database.QueryContext(ctx, listActiveWorkspaceIDsForTenantQuery, tenantID, primaryWorkspaceLookupLimit)
 	if err != nil {
 		return "", fmt.Errorf("primary workspace for tenant: %w", err)
 	}

@@ -12,11 +12,13 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // ScopedAPITokenStore persists hash-only hosted API token registry rows.
 type ScopedAPITokenStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // ScopedAPITokenRecord is a hash-only hosted API token registry row.
@@ -36,8 +38,8 @@ type ScopedAPITokenRecord struct {
 }
 
 // NewScopedAPITokenStore constructs a Postgres-backed scoped API token store.
-func NewScopedAPITokenStore(db ExecQueryer) *ScopedAPITokenStore {
-	return &ScopedAPITokenStore{db: db}
+func NewScopedAPITokenStore(database db.ExecQueryer) *ScopedAPITokenStore {
+	return &ScopedAPITokenStore{database: database}
 }
 
 // ScopedAPITokenSchemaSQL returns the scoped API token registry DDL.
@@ -53,10 +55,10 @@ func ScopedAPITokenHash(token string) string {
 
 // EnsureSchema applies the scoped API token registry schema.
 func (s *ScopedAPITokenStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("scoped API token store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, scopedAPITokenSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, scopedAPITokenSchemaSQL); err != nil {
 		return fmt.Errorf("ensure scoped API token schema: %w", err)
 	}
 	return nil
@@ -64,14 +66,14 @@ func (s *ScopedAPITokenStore) EnsureSchema(ctx context.Context) error {
 
 // UpsertToken creates, rotates, revokes, or refreshes one token registry row.
 func (s *ScopedAPITokenStore) UpsertToken(ctx context.Context, record ScopedAPITokenRecord) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("scoped API token store database is required")
 	}
 	record = normalizeScopedAPITokenRecord(record)
 	if err := validateScopedAPITokenRecord(record); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		upsertScopedAPITokenQuery,
 		record.TokenHash,
@@ -99,7 +101,7 @@ func (s *ScopedAPITokenStore) ResolveTokenHash(
 	tokenHash string,
 	asOf time.Time,
 ) (ScopedAPITokenRecord, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ScopedAPITokenRecord{}, false, errors.New("scoped API token store database is required")
 	}
 	tokenHash = strings.TrimSpace(tokenHash)
@@ -109,7 +111,7 @@ func (s *ScopedAPITokenStore) ResolveTokenHash(
 	if asOf.IsZero() {
 		return ScopedAPITokenRecord{}, false, errors.New("token lookup as_of is required")
 	}
-	rows, err := s.db.QueryContext(ctx, resolveScopedAPITokenQuery, tokenHash, asOf.UTC())
+	rows, err := s.database.QueryContext(ctx, resolveScopedAPITokenQuery, tokenHash, asOf.UTC())
 	if err != nil {
 		return ScopedAPITokenRecord{}, false, fmt.Errorf("resolve scoped API token: %w", err)
 	}
@@ -132,7 +134,7 @@ func (s *ScopedAPITokenStore) ResolveTokenHash(
 
 // MarkTokenUsed records the last successful authentication timestamp.
 func (s *ScopedAPITokenStore) MarkTokenUsed(ctx context.Context, tokenHash string, usedAt time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("scoped API token store database is required")
 	}
 	tokenHash = strings.TrimSpace(tokenHash)
@@ -142,7 +144,7 @@ func (s *ScopedAPITokenStore) MarkTokenUsed(ctx context.Context, tokenHash strin
 	if usedAt.IsZero() {
 		return errors.New("token used_at is required")
 	}
-	if _, err := s.db.ExecContext(ctx, markScopedAPITokenUsedQuery, tokenHash, usedAt.UTC()); err != nil {
+	if _, err := s.database.ExecContext(ctx, markScopedAPITokenUsedQuery, tokenHash, usedAt.UTC()); err != nil {
 		return fmt.Errorf("mark scoped API token used: %w", err)
 	}
 	return nil
@@ -185,7 +187,7 @@ func validateScopedAPITokenRecord(record ScopedAPITokenRecord) error {
 	return nil
 }
 
-func scanScopedAPIToken(rows Rows) (ScopedAPITokenRecord, error) {
+func scanScopedAPIToken(rows db.Rows) (ScopedAPITokenRecord, error) {
 	var record ScopedAPITokenRecord
 	var expiresAt, revokedAt, lastUsedAt sql.NullTime
 	if err := rows.Scan(

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -20,7 +22,7 @@ import (
 // than a StatusStore section, because it is keyed by a single repository
 // selector rather than composing the fixed RawSnapshot shape.
 type RepositoryFreshnessStore struct {
-	queryer Queryer
+	queryer db.Queryer
 	// Instruments is left nil by NewRepositoryFreshnessStore (matching
 	// LiveActivityStore's convention) so existing construction call sites
 	// stay source-compatible; NewInstrumentedRepositoryFreshnessStore is the
@@ -30,7 +32,7 @@ type RepositoryFreshnessStore struct {
 
 // NewRepositoryFreshnessStore constructs a read-only repository freshness
 // store with no telemetry wired.
-func NewRepositoryFreshnessStore(queryer Queryer) RepositoryFreshnessStore {
+func NewRepositoryFreshnessStore(queryer db.Queryer) RepositoryFreshnessStore {
 	return RepositoryFreshnessStore{queryer: queryer}
 }
 
@@ -38,7 +40,7 @@ func NewRepositoryFreshnessStore(queryer Queryer) RepositoryFreshnessStore {
 // store that records
 // eshu_dp_repository_freshness_query_duration_seconds and
 // eshu_dp_repository_freshness_query_errors_total on every read.
-func NewInstrumentedRepositoryFreshnessStore(queryer Queryer, instruments *telemetry.Instruments) RepositoryFreshnessStore {
+func NewInstrumentedRepositoryFreshnessStore(queryer db.Queryer, instruments *telemetry.Instruments) RepositoryFreshnessStore {
 	return RepositoryFreshnessStore{queryer: queryer, Instruments: instruments}
 }
 

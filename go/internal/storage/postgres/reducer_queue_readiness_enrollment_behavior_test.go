@@ -47,7 +47,7 @@ func TestReducerQueueFailDefersEveryEnrolledReadinessClassPastAttemptBudget(t *t
 
 			db := &fakeExecQueryer{}
 			queue := ReducerQueue{
-				db:            db,
+				database:      db,
 				LeaseOwner:    "reducer-1",
 				LeaseDuration: time.Minute,
 				RetryDelay:    2 * time.Minute,
@@ -97,7 +97,7 @@ func TestReducerQueueFailDeadLettersAnUnenrolledClassPastAttemptBudget(t *testin
 	now := time.Date(2026, time.August, 9, 11, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,

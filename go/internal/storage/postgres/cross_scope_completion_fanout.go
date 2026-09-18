@@ -145,7 +145,7 @@ func (s *CrossScopeCompletionStore) Fanout(
 	lease reducer.CrossScopeCompletionLease,
 	batchSize int,
 ) (reducer.CrossScopeCompletionResult, error) {
-	if s == nil || s.db == nil {
+	if s == nil || s.database == nil {
 		return reducer.CrossScopeCompletionResult{}, errors.New("cross-scope completion database is required")
 	}
 	if batchSize <= 0 {
@@ -158,7 +158,7 @@ func (s *CrossScopeCompletionStore) Fanout(
 		producerDomains = append(producerDomains, string(edge.Producer))
 		consumerDomains = append(consumerDomains, string(edge.Consumer))
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		fanoutCrossScopeCompletionQuery,
 		s.now(),

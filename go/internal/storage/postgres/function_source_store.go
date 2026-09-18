@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 )
 
@@ -78,20 +80,20 @@ func functionIDRepo(functionID string) string {
 // FunctionSourceStore persists value-flow param-level taint sources as interproc
 // source ports for the cross-repo fixpoint.
 type FunctionSourceStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewFunctionSourceStore constructs a Postgres-backed function source store.
-func NewFunctionSourceStore(db ExecQueryer) FunctionSourceStore {
-	return FunctionSourceStore{db: db}
+func NewFunctionSourceStore(database db.ExecQueryer) FunctionSourceStore {
+	return FunctionSourceStore{database: database}
 }
 
 // EnsureSchema applies the function source DDL.
 func (s FunctionSourceStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("function source store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, functionSourceSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, functionSourceSchemaSQL); err != nil {
 		return fmt.Errorf("ensure function source schema: %w", err)
 	}
 	return nil
@@ -101,7 +103,7 @@ func (s FunctionSourceStore) EnsureSchema(ctx context.Context) error {
 // (function_id, param_index). Safe for concurrent writers: racing writes for the
 // same port converge on the last committed row.
 func (s FunctionSourceStore) UpsertSources(ctx context.Context, sources []interproc.Source, updatedAt time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("function source store database is required")
 	}
 	if updatedAt.IsZero() {
@@ -131,7 +133,7 @@ func (s FunctionSourceStore) ReplaceSources(
 	sources []interproc.Source,
 	updatedAt time.Time,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("function source store database is required")
 	}
 	if updatedAt.IsZero() {
@@ -141,7 +143,7 @@ func (s FunctionSourceStore) ReplaceSources(
 	if repo == "" {
 		return fmt.Errorf("function source repo is required")
 	}
-	if beginner, ok := s.db.(Beginner); ok {
+	if beginner, ok := s.database.(db.Beginner); ok {
 		tx, err := beginner.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin function source replacement transaction: %w", err)
@@ -155,12 +157,12 @@ func (s FunctionSourceStore) ReplaceSources(
 		}
 		return nil
 	}
-	return replaceFunctionSources(ctx, s.db, repo, sources, updatedAt.UTC())
+	return replaceFunctionSources(ctx, s.database, repo, sources, updatedAt.UTC())
 }
 
 func replaceFunctionSources(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	repo string,
 	sources []interproc.Source,
 	updatedAt time.Time,
@@ -174,13 +176,13 @@ func replaceFunctionSources(
 			return fmt.Errorf("function source repo %q does not match replacement repo %q", got, repo)
 		}
 	}
-	if _, err := db.ExecContext(ctx, deleteFunctionSourcesForRepoSQL, repo, updatedAt); err != nil {
+	if _, err := database.ExecContext(ctx, deleteFunctionSourcesForRepoSQL, repo, updatedAt); err != nil {
 		return fmt.Errorf("delete stale function sources for repo %q: %w", repo, err)
 	}
 	if len(sources) == 0 {
 		return nil
 	}
-	store := FunctionSourceStore{db: db}
+	store := FunctionSourceStore{database: database}
 	for i := 0; i < len(sources); i += functionSourceBatchSize {
 		end := i + functionSourceBatchSize
 		if end > len(sources) {
@@ -217,7 +219,7 @@ func (s FunctionSourceStore) upsertBatch(ctx context.Context, sources []interpro
 		)
 	}
 	query := upsertFunctionSourceBatchPrefix + strings.Join(values, ", ") + upsertFunctionSourceBatchSuffix
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert function sources: %w", err)
 	}
 	return nil
@@ -226,10 +228,10 @@ func (s FunctionSourceStore) upsertBatch(ctx context.Context, sources []interpro
 // LoadSources reloads every persisted source as an interproc source port, in
 // deterministic order, so the fixpoint can compose them with the summaries.
 func (s FunctionSourceStore) LoadSources(ctx context.Context) ([]interproc.Source, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("function source store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, loadFunctionSourcesSQL)
+	rows, err := s.database.QueryContext(ctx, loadFunctionSourcesSQL)
 	if err != nil {
 		return nil, fmt.Errorf("load function sources: %w", err)
 	}

@@ -66,7 +66,7 @@ func (s *IdentitySubjectStore) ListAPITokensBySubject(
 	subjectIDHash string,
 	asOf time.Time,
 ) ([]IdentityAPITokenListItem, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
 	subjectIDHash = strings.TrimSpace(subjectIDHash)
@@ -76,7 +76,7 @@ func (s *IdentitySubjectStore) ListAPITokensBySubject(
 	if asOf.IsZero() {
 		return nil, errors.New("as_of is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listLocalIdentityAPITokensBySubjectQuery, subjectIDHash)
+	rows, err := s.database.QueryContext(ctx, listLocalIdentityAPITokensBySubjectQuery, subjectIDHash)
 	if err != nil {
 		return nil, fmt.Errorf("list api tokens by subject: %w", err)
 	}

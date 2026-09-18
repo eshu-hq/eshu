@@ -95,7 +95,7 @@ func (s *IdentitySubjectStore) ListAdminInvitations(
 	tenantID string,
 	workspaceID string,
 ) ([]AdminInvitationListItem, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
@@ -103,7 +103,7 @@ func (s *IdentitySubjectStore) ListAdminInvitations(
 		return nil, errors.New("tenant_id is required")
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	rows, err := s.db.QueryContext(ctx, listAdminInvitationsQuery, tenantID, workspaceID)
+	rows, err := s.database.QueryContext(ctx, listAdminInvitationsQuery, tenantID, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("list admin invitations: %w", err)
 	}
@@ -176,7 +176,7 @@ func (s *IdentitySubjectStore) ListAdminRoleAssignments(
 	workspaceID string,
 	userID string,
 ) ([]AdminRoleAssignmentListItem, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
@@ -185,7 +185,7 @@ func (s *IdentitySubjectStore) ListAdminRoleAssignments(
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	userID = strings.TrimSpace(userID)
-	rows, err := s.db.QueryContext(ctx, listAdminRoleAssignmentsQuery, tenantID, workspaceID, userID)
+	rows, err := s.database.QueryContext(ctx, listAdminRoleAssignmentsQuery, tenantID, workspaceID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list admin role assignments: %w", err)
 	}
@@ -266,7 +266,7 @@ func (s *IdentitySubjectStore) ListAdminRoles(
 	ctx context.Context,
 	tenantID string,
 ) ([]AdminRoleListItem, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, false, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
@@ -294,7 +294,7 @@ func (s *IdentitySubjectStore) scanAdminRoles(
 	ctx context.Context,
 	tenantID string,
 ) (map[string]*AdminRoleListItem, []string, error) {
-	rows, err := s.db.QueryContext(ctx, listAdminRolesQuery, tenantID)
+	rows, err := s.database.QueryContext(ctx, listAdminRolesQuery, tenantID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list admin roles: %w", err)
 	}
@@ -327,7 +327,7 @@ func (s *IdentitySubjectStore) attachAdminRoleGrants(
 	tenantID string,
 	roles map[string]*AdminRoleListItem,
 ) (bool, error) {
-	rows, err := s.db.QueryContext(ctx, listAdminRoleGrantsQuery, tenantID)
+	rows, err := s.database.QueryContext(ctx, listAdminRoleGrantsQuery, tenantID)
 	if err != nil {
 		return false, fmt.Errorf("list admin role grants: %w", err)
 	}

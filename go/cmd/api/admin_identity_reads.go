@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -22,16 +24,16 @@ import (
 // rather than panicking. logger is the API's structured logger, threaded to the
 // audit reader's store so its unknown-enum warn (#6574) lands in the API log.
 func newAdminIdentityReadHandler(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 	logger *slog.Logger,
 ) *query.AdminIdentityReadHandler {
 	handler := &query.AdminIdentityReadHandler{}
-	if store := newPostgresAdminIdentityReadAdapter(db, instruments); store != nil {
+	if store := newPostgresAdminIdentityReadAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
-	if reader := newAdminGovernanceAuditReader(db, instruments, governanceAudit, logger); reader != nil {
+	if reader := newAdminGovernanceAuditReader(database, instruments, governanceAudit, logger); reader != nil {
 		handler.Audit = reader
 	}
 	return handler
@@ -45,13 +47,13 @@ type postgresAdminIdentityReadAdapter struct {
 }
 
 func newPostgresAdminIdentityReadAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 ) *postgresAdminIdentityReadAdapter {
-	if db == nil {
+	if rawDB == nil {
 		return nil
 	}
-	identityDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	identityDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		identityDB = &pgstatus.InstrumentedDB{
 			Inner:       identityDB,
@@ -225,15 +227,15 @@ type adminGovernanceAuditReader struct {
 }
 
 func newAdminGovernanceAuditReader(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 	summary query.GovernanceAuditSummaryReader,
 	logger *slog.Logger,
 ) *adminGovernanceAuditReader {
-	if db == nil {
+	if rawDB == nil {
 		return nil
 	}
-	governanceAuditDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	governanceAuditDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		governanceAuditDB = &pgstatus.InstrumentedDB{
 			Inner:       governanceAuditDB,

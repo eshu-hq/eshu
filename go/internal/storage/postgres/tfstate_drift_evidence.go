@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -58,7 +60,7 @@ import (
 // in any prior generation within the depth window) stay outside the set and
 // surface as added_in_state — the conservative outside-window fallback.
 type PostgresDriftEvidenceLoader struct {
-	DB Queryer
+	DB db.Queryer
 	// Tracer wraps LoadDriftEvidence in a single span so operators can
 	// answer "is the loader slow because of the config query, the state
 	// query, or the prior-state query?" — the InstrumentedDB child spans

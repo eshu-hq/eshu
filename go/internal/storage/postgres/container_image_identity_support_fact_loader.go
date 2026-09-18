@@ -11,6 +11,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -117,7 +119,7 @@ func (s FactStore) listCurrentContainerImageIdentitySupportFacts(
 	ctx context.Context,
 	filter containerImageIdentitySupportFactFilter,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	filter.normalize()
@@ -125,7 +127,7 @@ func (s FactStore) listCurrentContainerImageIdentitySupportFacts(
 		return nil, nil
 	}
 	var loaded []facts.Envelope
-	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer Queryer) error {
+	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
 		var loadErr error
 		loaded, loadErr = listCurrentContainerImageIdentitySupportFactsFrom(
 			ctx, queryer, filter,
@@ -140,7 +142,7 @@ func (s FactStore) listCurrentContainerImageIdentitySupportFacts(
 
 func listCurrentContainerImageIdentitySupportFactsFrom(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	filter containerImageIdentitySupportFactFilter,
 ) ([]facts.Envelope, error) {
 	var loaded []facts.Envelope
@@ -177,7 +179,7 @@ func listCurrentContainerImageIdentitySupportFactsFrom(
 
 func listCurrentContainerImageIdentitySupportFactsPage(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	filter containerImageIdentitySupportFactFilter,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {

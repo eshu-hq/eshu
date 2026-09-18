@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -29,13 +31,13 @@ LIMIT $2
 // CodeValueFlowCurrentGenerationStore lists active repository-scope generations
 // that can own reducer value-flow evidence.
 type CodeValueFlowCurrentGenerationStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewCodeValueFlowCurrentGenerationStore returns a bounded active-generation
 // reader for reducer value-flow stale cleanup.
-func NewCodeValueFlowCurrentGenerationStore(db ExecQueryer) CodeValueFlowCurrentGenerationStore {
-	return CodeValueFlowCurrentGenerationStore{db: db}
+func NewCodeValueFlowCurrentGenerationStore(database db.ExecQueryer) CodeValueFlowCurrentGenerationStore {
+	return CodeValueFlowCurrentGenerationStore{database: database}
 }
 
 // ListCurrentCodeValueFlowGenerations returns a deterministic page of active
@@ -48,10 +50,10 @@ func (s CodeValueFlowCurrentGenerationStore) ListCurrentCodeValueFlowGenerations
 	if limit <= 0 {
 		return nil, nil
 	}
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("code value-flow current generation store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listCurrentCodeValueFlowGenerationsQuery, strings.TrimSpace(afterScopeID), limit)
+	rows, err := s.database.QueryContext(ctx, listCurrentCodeValueFlowGenerationsQuery, strings.TrimSpace(afterScopeID), limit)
 	if err != nil {
 		return nil, fmt.Errorf("query current code value-flow generations: %w", err)
 	}

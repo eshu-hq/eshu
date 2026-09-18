@@ -110,7 +110,7 @@ func TestWorkflowImageCompletionForcedOrderConvergesLive(t *testing.T) {
 	)
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    leaseOwner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now.Add(time.Minute) },

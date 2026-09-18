@@ -12,17 +12,19 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 var errLocalIdentityRecoveryCodeInvalid = errors.New("local identity recovery code invalid")
 
 func selectLocalIdentityInvitation(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	inviteCodeHash string,
 	asOf time.Time,
 ) (localIdentityInvitationRow, bool, error) {
-	rows, err := db.QueryContext(ctx, selectLocalIdentityInvitationForAcceptQuery, inviteCodeHash, asOf)
+	rows, err := database.QueryContext(ctx, selectLocalIdentityInvitationForAcceptQuery, inviteCodeHash, asOf)
 	if err != nil {
 		return localIdentityInvitationRow{}, false, fmt.Errorf("select local identity invitation: %w", err)
 	}
@@ -39,11 +41,11 @@ func selectLocalIdentityInvitation(
 
 func selectLocalIdentityCredential(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	subjectIDHash string,
 	asOf time.Time,
 ) (localIdentityCredentialRow, bool, error) {
-	return scanLocalIdentityCredential(ctx, db, selectLocalIdentityCredentialQuery, subjectIDHash, asOf)
+	return scanLocalIdentityCredential(ctx, database, selectLocalIdentityCredentialQuery, subjectIDHash, asOf)
 }
 
 // selectLocalIdentityCredentialForUpdate is selectLocalIdentityCredential
@@ -52,7 +54,7 @@ func selectLocalIdentityCredential(
 // transaction.
 func selectLocalIdentityCredentialForUpdate(
 	ctx context.Context,
-	tx ExecQueryer,
+	tx db.ExecQueryer,
 	subjectIDHash string,
 	asOf time.Time,
 ) (localIdentityCredentialRow, bool, error) {
@@ -66,12 +68,12 @@ func selectLocalIdentityCredentialForUpdate(
 // can never drift between the two query texts.
 func scanLocalIdentityCredential(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	query string,
 	subjectIDHash string,
 	asOf time.Time,
 ) (localIdentityCredentialRow, bool, error) {
-	rows, err := db.QueryContext(ctx, query, subjectIDHash, asOf)
+	rows, err := database.QueryContext(ctx, query, subjectIDHash, asOf)
 	if err != nil {
 		return localIdentityCredentialRow{}, false, fmt.Errorf("select local identity credential: %w", err)
 	}
@@ -110,7 +112,7 @@ func scanLocalIdentityCredential(
 
 func consumeLocalIdentityRecoveryCode(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	userID string,
 	attempt LocalIdentityAuthenticationAttempt,
 ) error {
@@ -118,7 +120,7 @@ func consumeLocalIdentityRecoveryCode(
 	if consumeAt.IsZero() {
 		consumeAt = attempt.Now
 	}
-	result, err := db.ExecContext(ctx, consumeLocalIdentityRecoveryCodeQuery, userID, attempt.MFARecoveryCodeHash, consumeAt)
+	result, err := database.ExecContext(ctx, consumeLocalIdentityRecoveryCodeQuery, userID, attempt.MFARecoveryCodeHash, consumeAt)
 	if err != nil {
 		return fmt.Errorf("consume local identity recovery code: %w", err)
 	}
@@ -143,7 +145,7 @@ func (s *IdentitySubjectStore) recordFailedLocalIdentityAttempt(
 		lockedUntil = now.Add(defaultLocalIdentityLockoutWindow)
 		status = LocalIdentityAuthLocked
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		upsertLocalIdentityFailedAttemptQuery,
 		row.UserID,
@@ -182,13 +184,13 @@ type localIdentityRoleAssignment struct {
 
 func insertLocalIdentityUserCredential(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	record localIdentityUserCredentialRecord,
 ) error {
-	if _, err := db.ExecContext(ctx, insertLocalIdentityUserQuery, record.UserID, record.SubjectIDHash, record.ProfileHandleHash, record.CreatedAt); err != nil {
+	if _, err := database.ExecContext(ctx, insertLocalIdentityUserQuery, record.UserID, record.SubjectIDHash, record.ProfileHandleHash, record.CreatedAt); err != nil {
 		return fmt.Errorf("insert local identity user: %w", err)
 	}
-	if _, err := db.ExecContext(
+	if _, err := database.ExecContext(
 		ctx,
 		insertLocalIdentityCredentialQuery,
 		record.CredentialID,
@@ -206,7 +208,7 @@ func insertLocalIdentityUserCredential(
 
 func insertLocalIdentityMFA(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	userID string,
 	factorID string,
 	factorKind string,
@@ -214,11 +216,11 @@ func insertLocalIdentityMFA(
 	recoveryCodeHashes []string,
 	createdAt time.Time,
 ) error {
-	if _, err := db.ExecContext(ctx, insertLocalIdentityMFAFactorQuery, factorID, userID, factorKind, credentialHandle, createdAt); err != nil {
+	if _, err := database.ExecContext(ctx, insertLocalIdentityMFAFactorQuery, factorID, userID, factorKind, credentialHandle, createdAt); err != nil {
 		return fmt.Errorf("insert local identity mfa factor: %w", err)
 	}
 	for _, hash := range recoveryCodeHashes {
-		if _, err := db.ExecContext(ctx, insertLocalIdentityRecoveryCodeQuery, userID, factorID, hash, createdAt); err != nil {
+		if _, err := database.ExecContext(ctx, insertLocalIdentityRecoveryCodeQuery, userID, factorID, hash, createdAt); err != nil {
 			return fmt.Errorf("insert local identity recovery code: %w", err)
 		}
 	}
@@ -227,10 +229,10 @@ func insertLocalIdentityMFA(
 
 func assignLocalIdentityRole(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	assignment localIdentityRoleAssignment,
 ) error {
-	if _, err := db.ExecContext(
+	if _, err := database.ExecContext(
 		ctx,
 		upsertLocalIdentityRoleQuery,
 		assignment.TenantID,
@@ -241,7 +243,7 @@ func assignLocalIdentityRole(
 	); err != nil {
 		return fmt.Errorf("upsert local identity role: %w", err)
 	}
-	if _, err := db.ExecContext(
+	if _, err := database.ExecContext(
 		ctx,
 		insertLocalIdentityMembershipQuery,
 		assignment.TenantID,
@@ -253,7 +255,7 @@ func assignLocalIdentityRole(
 	); err != nil {
 		return fmt.Errorf("insert local identity membership: %w", err)
 	}
-	if _, err := db.ExecContext(
+	if _, err := database.ExecContext(
 		ctx,
 		insertLocalIdentityMembershipRoleQuery,
 		assignment.TenantID,

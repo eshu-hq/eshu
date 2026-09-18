@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -56,7 +58,7 @@ type samlProviderEnvConfig struct {
 }
 
 func newSAMLHandler(
-	db *sql.DB,
+	rawDB *sql.DB,
 	instruments *telemetry.Instruments,
 	getenv func(string) string,
 	sessions query.BrowserSessionStore,
@@ -66,13 +68,13 @@ func newSAMLHandler(
 	if strings.TrimSpace(getenv(envSAMLProvidersJSON)) == "" {
 		return nil, nil
 	}
-	if db == nil {
+	if rawDB == nil {
 		return nil, errors.New("postgres is required when SAML providers are configured")
 	}
 	if sessions == nil {
 		return nil, errors.New("browser sessions are required when SAML providers are configured")
 	}
-	samlDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	samlDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		samlDB = &pgstatus.InstrumentedDB{
 			Inner:       samlDB,
@@ -85,7 +87,7 @@ func newSAMLHandler(
 		pgstatus.NewSAMLSSOStore(samlDB),
 		pgstatus.NewIdentitySubjectStore(samlDB),
 		getenv,
-		newSAMLDBProviderResolver(db, providerSecretKeyring),
+		newSAMLDBProviderResolver(rawDB, providerSecretKeyring),
 	)
 	if err != nil {
 		return nil, err

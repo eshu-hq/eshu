@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // upsertSearchVectorBuildReadyQuery upserts the vector-identity-keyed
@@ -46,13 +48,13 @@ type EshuSearchVectorBuildIdentity struct {
 // EshuSearchVectorBuildReadyStore publishes the search_vector_ready
 // completion signal for the search-vector build sweep.
 type EshuSearchVectorBuildReadyStore struct {
-	db Executor
+	database db.Executor
 }
 
 // NewEshuSearchVectorBuildReadyStore builds a search-vector-ready signal
 // publisher.
-func NewEshuSearchVectorBuildReadyStore(db Executor) EshuSearchVectorBuildReadyStore {
-	return EshuSearchVectorBuildReadyStore{db: db}
+func NewEshuSearchVectorBuildReadyStore(database db.Executor) EshuSearchVectorBuildReadyStore {
+	return EshuSearchVectorBuildReadyStore{database: database}
 }
 
 // PublishSearchVectorReady upserts the identity-keyed watermark row with the
@@ -64,10 +66,10 @@ func (s EshuSearchVectorBuildReadyStore) PublishSearchVectorReady(
 	ctx context.Context,
 	identity EshuSearchVectorBuildIdentity,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("eshu search vector build ready store requires a database")
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		upsertSearchVectorBuildReadyQuery,
 		identity.ProviderProfileID,

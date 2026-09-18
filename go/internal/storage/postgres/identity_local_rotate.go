@@ -41,7 +41,7 @@ func (s *IdentitySubjectStore) RotateLocalIdentityPassword(
 	ctx context.Context,
 	rotation LocalIdentityPasswordRotation,
 ) (LocalIdentityAuthenticationResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return LocalIdentityAuthenticationResult{}, errors.New("identity subject store database is required")
 	}
 	rotation = normalizePasswordRotation(rotation)
@@ -104,7 +104,7 @@ func (s *IdentitySubjectStore) RotateLocalIdentityPassword(
 		// Same TOTP-first ordering as AuthenticateLocalIdentity (issue
 		// #4986): prefer the non-consuming TOTP proof over spending a
 		// single-use recovery code when both are submitted. verifyLocalIdentityTOTPCode
-		// reads through s.db directly (not tx) — it is a read-mostly
+		// reads through s.database directly (not tx) — it is a read-mostly
 		// verification with one same-row last_used_at stamp on success, and
 		// running it outside the row-locked credential transaction does not
 		// change what it proves: it authenticates possession of the TOTP
@@ -170,7 +170,7 @@ func (s *IdentitySubjectStore) finishLocalIdentityAuthentication(
 	row localIdentityCredentialRow,
 	now time.Time,
 ) (LocalIdentityAuthenticationResult, error) {
-	if _, err := s.db.ExecContext(ctx, clearLocalIdentityFailedAttemptsQuery, row.UserID); err != nil {
+	if _, err := s.database.ExecContext(ctx, clearLocalIdentityFailedAttemptsQuery, row.UserID); err != nil {
 		return LocalIdentityAuthenticationResult{}, fmt.Errorf("clear local identity failed attempts: %w", err)
 	}
 	// Destroy the one-time bootstrap credential envelope on this subject's
@@ -206,7 +206,7 @@ func (s *IdentitySubjectStore) finishLocalIdentityAuthentication(
 				"subject_class", "local_user", "tenant_id", row.TenantID, "error", err)
 			return LocalIdentityAuthenticationResult{}, err
 		}
-		features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.db, row.TenantID, roles, now)
+		features, dataClasses, err := resolvePermissionGrantsForRoles(ctx, s.database, row.TenantID, roles, now)
 		if err != nil {
 			slog.ErrorContext(ctx, "local session permission grant resolution failed; login denied",
 				"subject_class", "local_user", "tenant_id", row.TenantID, "role_count", len(roles), "error", err)

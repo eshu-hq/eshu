@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/semanticqueue"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
@@ -17,15 +19,15 @@ import (
 func (s SemanticExtractionQueueStore) ObservabilitySnapshot(
 	ctx context.Context,
 ) (statuspkg.SemanticExtractionStatus, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return statuspkg.SemanticExtractionStatus{}, fmt.Errorf("semantic extraction queue store db is required")
 	}
-	return readSemanticExtractionObservability(ctx, s.db)
+	return readSemanticExtractionObservability(ctx, s.database)
 }
 
 func readSemanticExtractionObservability(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) (statuspkg.SemanticExtractionStatus, error) {
 	rows, err := queryer.QueryContext(ctx, semanticExtractionObservabilityQuery)
 	if err != nil {

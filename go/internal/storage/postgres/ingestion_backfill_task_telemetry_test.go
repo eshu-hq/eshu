@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -208,7 +210,7 @@ func (f *failingDeferredFactQueryer) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	if query == listDeferredScopedRelationshipFactRecordsQuery {
 		return nil, f.err
 	}

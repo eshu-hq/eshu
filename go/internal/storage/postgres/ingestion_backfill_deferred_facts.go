@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -396,7 +398,7 @@ func catalogRemoteURLValues(catalog []relationships.CatalogEntry) []string {
 // no precomputed keys retain the original payload fallback.
 func loadDeferredScopedRelationshipFactsForPartition(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	params deferredScopedFactQueryParams,
 	scopeID string,
 	generationID string,

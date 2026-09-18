@@ -24,7 +24,7 @@ type AWSCloudRuntimeDriftTx interface {
 // AWSCloudRuntimeDriftBeginner opens a transaction for the drift write.
 // go/internal/storage/postgres/aws_cloud_runtime_drift_admission_beginner.go
 // provides the production adapter (AWSCloudRuntimeDriftAdmissionBeginner,
-// wrapping the shared postgres.Beginner every other reducer writer that needs
+// wrapping the shared db.Beginner every other reducer writer that needs
 // a transaction uses); that direction compiles because internal/storage/postgres
 // already imports internal/reducer, not the reverse.
 type AWSCloudRuntimeDriftBeginner interface {

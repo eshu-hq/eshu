@@ -67,7 +67,7 @@ LIMIT $3
 // (issue #5347). Mirrors ListActiveContainerImageIdentityFacts's
 // pagination shape.
 func (s FactStore) ListActiveCrossplaneXRDFacts(ctx context.Context) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
@@ -101,7 +101,7 @@ func (s FactStore) listActiveCrossplaneXRDFactsPage(
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveCrossplaneXRDFactsQuery,
 		cursor,

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -37,7 +39,7 @@ LIMIT 1
 
 func readLatestQueueFailure(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) (*statuspkg.QueueFailureSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, latestQueueFailureQuery)
 	if err != nil {

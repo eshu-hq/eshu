@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -125,12 +127,12 @@ type IaCReachabilityRow struct {
 
 // IaCReachabilityStore persists reducer-materialized IaC reachability rows.
 type IaCReachabilityStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewIaCReachabilityStore creates a Postgres-backed IaC reachability store.
-func NewIaCReachabilityStore(db ExecQueryer) *IaCReachabilityStore {
-	return &IaCReachabilityStore{db: db}
+func NewIaCReachabilityStore(database db.ExecQueryer) *IaCReachabilityStore {
+	return &IaCReachabilityStore{database: database}
 }
 
 // IaCReachabilitySchemaSQL returns the DDL for IaC reachability rows.
@@ -140,7 +142,7 @@ func IaCReachabilitySchemaSQL() string {
 
 // EnsureSchema applies the IaC reachability DDL.
 func (s *IaCReachabilityStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, iacReachabilitySchemaSQL)
+	_, err := s.database.ExecContext(ctx, iacReachabilitySchemaSQL)
 	return err
 }
 
@@ -154,7 +156,7 @@ func (s *IaCReachabilityStore) Upsert(ctx context.Context, rows []IaCReachabilit
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := upsertIaCReachabilityBatch(ctx, s.db, rows[i:end]); err != nil {
+		if err := upsertIaCReachabilityBatch(ctx, s.database, rows[i:end]); err != nil {
 			return err
 		}
 	}
@@ -172,7 +174,7 @@ func (s *IaCReachabilityStore) ListCleanupFindings(
 	offset int,
 ) ([]IaCReachabilityRow, error) {
 	limit, offset = normalizeIaCReachabilityPaging(limit, offset)
-	rows, err := s.db.QueryContext(ctx, listIaCCleanupFindingsSQL, scopeID, generationID, includeAmbiguous, limit, offset)
+	rows, err := s.database.QueryContext(ctx, listIaCCleanupFindingsSQL, scopeID, generationID, includeAmbiguous, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("query IaC cleanup findings: %w", err)
 	}
@@ -204,7 +206,7 @@ func (s *IaCReachabilityStore) ListLatestCleanupFindings(
 	}
 	limit, offset = normalizeIaCReachabilityPaging(limit, offset)
 	query, args := buildListLatestIaCCleanupFindingsQuery(repoIDs, families, includeAmbiguous, limit, offset)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query latest IaC cleanup findings: %w", err)
 	}
@@ -233,7 +235,7 @@ func (s *IaCReachabilityStore) CountLatestCleanupFindings(
 		return 0, nil
 	}
 	query, args := buildCountLatestIaCCleanupFindingsQuery(repoIDs, families, includeAmbiguous)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("count latest IaC cleanup findings: %w", err)
 	}
@@ -259,7 +261,7 @@ func (s *IaCReachabilityStore) HasLatestRows(
 		return false, nil
 	}
 	query, args := buildHasLatestIaCReachabilityRowsQuery(repoIDs, families)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return false, fmt.Errorf("query latest IaC reachability row existence: %w", err)
 	}
@@ -385,7 +387,7 @@ func buildFamilyFilterClause(args *[]any, families []string) string {
 	return fmt.Sprintf("AND row.family IN (%s)", placeholders)
 }
 
-func upsertIaCReachabilityBatch(ctx context.Context, db ExecQueryer, batch []IaCReachabilityRow) error {
+func upsertIaCReachabilityBatch(ctx context.Context, database db.ExecQueryer, batch []IaCReachabilityRow) error {
 	args := make([]any, 0, len(batch)*iacReachabilityColumns)
 	var values strings.Builder
 	for i, row := range batch {
@@ -425,13 +427,13 @@ func upsertIaCReachabilityBatch(ctx context.Context, db ExecQueryer, batch []IaC
 		)
 	}
 	query := upsertIaCReachabilityBatchPrefix + values.String() + upsertIaCReachabilityBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert IaC reachability batch (%d rows): %w", len(batch), err)
 	}
 	return nil
 }
 
-func scanIaCReachabilityRow(rows Rows) (IaCReachabilityRow, error) {
+func scanIaCReachabilityRow(rows db.Rows) (IaCReachabilityRow, error) {
 	var row IaCReachabilityRow
 	var reachability, finding string
 	var evidence, limitations []byte

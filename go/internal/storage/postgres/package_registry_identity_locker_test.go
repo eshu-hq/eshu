@@ -9,6 +9,8 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestPackageRegistryIdentityLockerLocksUniqueSortedPackageIDsInTransaction(t *testing.T) {
@@ -78,8 +80,8 @@ type recordingPackageRegistryIdentityLockDB struct {
 	tx *recordingPackageRegistryIdentityLockTx
 }
 
-func (db *recordingPackageRegistryIdentityLockDB) Begin(context.Context) (Transaction, error) {
-	return db.tx, nil
+func (database *recordingPackageRegistryIdentityLockDB) Begin(context.Context) (db.Transaction, error) {
+	return database.tx, nil
 }
 
 type recordingPackageRegistryIdentityLockTx struct {
@@ -104,7 +106,7 @@ func (tx *recordingPackageRegistryIdentityLockTx) ExecContext(
 	return fakePackageRegistryIdentityLockResult{}, nil
 }
 
-func (tx *recordingPackageRegistryIdentityLockTx) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (tx *recordingPackageRegistryIdentityLockTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("unexpected query")
 }
 

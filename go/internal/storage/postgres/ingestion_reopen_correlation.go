@@ -9,6 +9,8 @@ import (
 	"log"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -310,7 +312,7 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 	instruments *telemetry.Instruments,
 	domains []string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("ingestion store db is required")
 	}
 
@@ -320,13 +322,13 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 		defer span.End()
 	}
 
-	queue := ReducerQueue{db: s.db, Now: s.Now}
+	queue := ReducerQueue{database: s.database, Now: s.Now}
 	for _, domain := range domains {
 		domain = strings.TrimSpace(domain)
 		if domain == "" {
 			continue
 		}
-		workItemIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, s.db, domain)
+		workItemIDs, err := listSucceededReducerWorkItemIDsForDomain(ctx, s.database, domain)
 		if err != nil {
 			return err
 		}
@@ -349,7 +351,7 @@ func (s IngestionStore) ReopenSucceededReducerWorkItems(
 
 func listSucceededReducerWorkItemIDsForDomain(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	domain string,
 ) ([]string, error) {
 	rows, err := queryer.QueryContext(ctx, listSucceededReducerWorkItemsByDomainQuery, domain)

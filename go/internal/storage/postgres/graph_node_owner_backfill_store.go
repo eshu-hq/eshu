@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -34,28 +36,28 @@ ON CONFLICT (backfill_key) DO NOTHING`
 // GraphNodeOwnerBackfillDB combines the query and transaction surfaces the
 // upgrade backfill needs. SQLDB satisfies it for production wiring.
 type GraphNodeOwnerBackfillDB interface {
-	ExecQueryer
-	Beginner
+	db.ExecQueryer
+	db.Beginner
 }
 
 // GraphNodeOwnerBackfillStore seeds pre-ledger graph rows through the same
 // sorted per-uid locks and monotonic max-upsert as reducer ownership writes.
 type GraphNodeOwnerBackfillStore struct {
-	db GraphNodeOwnerBackfillDB
+	database GraphNodeOwnerBackfillDB
 }
 
 // NewGraphNodeOwnerBackfillStore constructs the owner-ledger upgrade store.
-func NewGraphNodeOwnerBackfillStore(db GraphNodeOwnerBackfillDB) GraphNodeOwnerBackfillStore {
-	return GraphNodeOwnerBackfillStore{db: db}
+func NewGraphNodeOwnerBackfillStore(database GraphNodeOwnerBackfillDB) GraphNodeOwnerBackfillStore {
+	return GraphNodeOwnerBackfillStore{database: database}
 }
 
 // IsCloudResourceBackfillComplete reports whether the full existing-graph
 // enumeration committed and recorded its durable completion marker.
 func (s GraphNodeOwnerBackfillStore) IsCloudResourceBackfillComplete(ctx context.Context) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, fmt.Errorf("graph node owner backfill database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, isGraphNodeOwnerBackfillCompleteSQL, cloudResourceOwnerBackfillKey)
+	rows, err := s.database.QueryContext(ctx, isGraphNodeOwnerBackfillCompleteSQL, cloudResourceOwnerBackfillKey)
 	if err != nil {
 		return false, fmt.Errorf("check graph node owner backfill completion: %w", err)
 	}
@@ -79,7 +81,7 @@ func (s GraphNodeOwnerBackfillStore) SeedExistingGraphNodeOwners(
 	entries []GraphNodeOwnerEntry,
 	updatedAt time.Time,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("graph node owner backfill database is required")
 	}
 	if updatedAt.IsZero() {
@@ -110,7 +112,7 @@ func (s GraphNodeOwnerBackfillStore) seedChunk(
 	entries []GraphNodeOwnerEntry,
 	updatedAt time.Time,
 ) error {
-	tx, err := s.db.Begin(ctx)
+	tx, err := s.database.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin graph node owner backfill chunk: %w", err)
 	}
@@ -136,13 +138,13 @@ func (s GraphNodeOwnerBackfillStore) seedChunk(
 // MarkCloudResourceBackfillComplete records successful enumeration. The marker
 // is idempotent so concurrent API and MCP startups can converge safely.
 func (s GraphNodeOwnerBackfillStore) MarkCloudResourceBackfillComplete(ctx context.Context, at time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("graph node owner backfill database is required")
 	}
 	if at.IsZero() {
 		return fmt.Errorf("graph node owner backfill completion time is required")
 	}
-	if _, err := s.db.ExecContext(ctx, markGraphNodeOwnerBackfillCompleteSQL, cloudResourceOwnerBackfillKey, at.UTC()); err != nil {
+	if _, err := s.database.ExecContext(ctx, markGraphNodeOwnerBackfillCompleteSQL, cloudResourceOwnerBackfillKey, at.UTC()); err != nil {
 		return fmt.Errorf("mark graph node owner backfill complete: %w", err)
 	}
 	return nil

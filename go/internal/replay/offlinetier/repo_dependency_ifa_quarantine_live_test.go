@@ -24,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const repoDependencyQuarantineProofDSNEnv = "ESHU_REPO_DEPENDENCY_QUARANTINE_PROOF_DSN"
@@ -51,9 +52,9 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	artifactIDs := repoDependencyIfaArtifactIDs(t, rows)
 	acceptedGeneration := repoDependencyIfaAcceptedGeneration(rows)
 	acquireRepoDependencyIfaExclusiveBackend(ctx, t, exec, artifactIDs)
-	db, cleanupDB := openRepoDependencyQuarantineProofDB(ctx, t, dsn)
+	sqlDB, cleanupDB := openRepoDependencyQuarantineProofDB(ctx, t, dsn)
 	defer cleanupDB()
-	database := postgres.SQLDB{DB: db}
+	database := postgres.SQLDB{DB: sqlDB}
 	store := postgres.NewSharedIntentStore(database)
 	gate := postgres.NewRepoDependencyAcceptanceUnitGate(database)
 	t.Cleanup(func() {
@@ -63,13 +64,13 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 		assertRepoDependencyIfaCleanup(cleanupCtx, t, exec, artifactIDs)
 	})
 	baseWriter := cypher.NewEdgeWriter(&cypher.RetryingExecutor{Inner: exec}, 0)
-	prepareRepoDependencyQuarantinePhase(ctx, t, db, store, exec, odu, artifactIDs, rows)
+	prepareRepoDependencyQuarantinePhase(ctx, t, sqlDB, store, exec, odu, artifactIDs, rows)
 	runRepoDependencyQuarantineUntil(ctx, t, store, gate, baseWriter, acceptedGeneration, "baseline", 1, func() bool {
-		return repoDependencyQuarantinePendingCount(ctx, t, db) == 0
+		return repoDependencyQuarantinePendingCount(ctx, t, sqlDB) == 0
 	})
 	baseline := readRepoDependencyIfaSnapshot(ctx, t, exec, artifactIDs)
 	assertRepoDependencyIfaSnapshot(t, baseline, expectedEdges)
-	prepareRepoDependencyQuarantinePhase(ctx, t, db, store, exec, odu, artifactIDs, rows)
+	prepareRepoDependencyQuarantinePhase(ctx, t, sqlDB, store, exec, odu, artifactIDs, rows)
 	const faultAcceptanceUnit = "repository:source-05"
 	faultShard := repoDependencyQuarantineShard(faultAcceptanceUnit, 4)
 	overlapWriter := &repoDependencyOverlapWriter{inner: baseWriter, delay: 250 * time.Millisecond}
@@ -88,7 +89,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 		if faultWriter.failureCount() != 1 {
 			return false
 		}
-		state := repoDependencyQuarantineCompletionState(ctx, t, db)
+		state := repoDependencyQuarantineCompletionState(ctx, t, sqlDB)
 		if state[faultAcceptanceUnit] {
 			return false
 		}
@@ -97,7 +98,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 				return false
 			}
 		}
-		return len(state) == len(rows) && repoDependencyQuarantineOnlyActiveLease(ctx, t, db, faultShard)
+		return len(state) == len(rows) && repoDependencyQuarantineOnlyActiveLease(ctx, t, sqlDB, faultShard)
 	})
 	stopRun()
 	assertRepoDependencyQuarantineRunnerStopped(t, runDone)
@@ -105,7 +106,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	if got := overlapWriter.maxConcurrent(); got < 4 {
 		t.Fatalf("max concurrent graph writes=%d, want >=4", got)
 	}
-	lease := readRepoDependencyQuarantinedLease(ctx, t, db)
+	lease := readRepoDependencyQuarantinedLease(ctx, t, sqlDB)
 	if lease.partitionID != faultShard || lease.partitionCount != 4 {
 		t.Fatalf("quarantined lease partition=%d-of-%d, want %d-of-4", lease.partitionID, lease.partitionCount, faultShard)
 	}
@@ -124,15 +125,15 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	); err != nil {
 		t.Fatalf("wrong-owner release probe: %v", err)
 	}
-	if got := readRepoDependencyQuarantinedLease(ctx, t, db).owner; got != lease.owner {
+	if got := readRepoDependencyQuarantinedLease(ctx, t, sqlDB).owner; got != lease.owner {
 		t.Fatalf("wrong-owner release changed lease owner from %q to %q", lease.owner, got)
 	}
 	postFault := readRepoDependencyIfaSnapshot(ctx, t, exec, artifactIDs)
 	if !repoDependencyQuarantineContainsFaultEdge(postFault, rows, faultAcceptanceUnit) {
 		t.Fatalf("fault acceptance unit %q graph write was not committed before response loss", faultAcceptanceUnit)
 	}
-	pendingAfterFault := repoDependencyQuarantinePendingCount(ctx, t, db)
-	if _, err := db.ExecContext(ctx, `
+	pendingAfterFault := repoDependencyQuarantinePendingCount(ctx, t, sqlDB)
+	if _, err := sqlDB.ExecContext(ctx, `
 		UPDATE shared_projection_partition_leases
 		SET lease_expires_at = CURRENT_TIMESTAMP - INTERVAL '1 second'
 		WHERE projection_domain = $1
@@ -144,7 +145,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	}
 
 	runRepoDependencyQuarantineUntil(ctx, t, store, gate, baseWriter, acceptedGeneration, "odu-quarantine-owner-b", 4, func() bool {
-		return repoDependencyQuarantinePendingCount(ctx, t, db) == 0
+		return repoDependencyQuarantinePendingCount(ctx, t, sqlDB) == 0
 	})
 	finalSnapshot := readRepoDependencyIfaSnapshot(ctx, t, exec, artifactIDs)
 	assertRepoDependencyIfaSnapshot(t, finalSnapshot, expectedEdges)
@@ -156,7 +157,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 	if err := store.UpsertIntents(ctx, rows); err != nil {
 		t.Fatalf("replay completed Odù intents: %v", err)
 	}
-	if got := repoDependencyQuarantinePendingCount(ctx, t, db); got != 0 {
+	if got := repoDependencyQuarantinePendingCount(ctx, t, sqlDB); got != 0 {
 		t.Fatalf("duplicate replay reopened %d completed intents", got)
 	}
 	afterDuplicate := readRepoDependencyIfaSnapshot(ctx, t, exec, artifactIDs)
@@ -239,18 +240,18 @@ func openRepoDependencyQuarantineProofDB(ctx context.Context, t *testing.T, dsn 
 	if strings.Contains(dsn, "?") {
 		separator = "&"
 	}
-	db, err := sql.Open("pgx", dsn+separator+"search_path="+schemaName)
+	database, err := sql.Open("pgx", dsn+separator+"search_path="+schemaName)
 	if err != nil {
 		_ = bootstrapDB.Close()
 		t.Fatalf("open scoped quarantine proof database: %v", err)
 	}
-	if err := postgres.NewSharedIntentStore(postgres.SQLDB{DB: db}).EnsureSchema(ctx); err != nil {
-		_ = db.Close()
+	if err := postgres.NewSharedIntentStore(postgres.SQLDB{DB: database}).EnsureSchema(ctx); err != nil {
+		_ = database.Close()
 		_ = bootstrapDB.Close()
 		t.Fatalf("ensure quarantine proof schema: %v", err)
 	}
-	return db, func() {
-		_ = db.Close()
+	return database, func() {
+		_ = database.Close()
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cleanupCancel()
 		_, _ = bootstrapDB.ExecContext(cleanupCtx, "DROP SCHEMA "+schemaName+" CASCADE")
@@ -258,12 +259,12 @@ func openRepoDependencyQuarantineProofDB(ctx context.Context, t *testing.T, dsn 
 	}
 }
 
-func prepareRepoDependencyQuarantinePhase(ctx context.Context, t *testing.T, db *sql.DB, store *postgres.SharedIntentStore, exec liveExecutor, odu ifa.Odu, artifactIDs []string, rows []reducer.SharedProjectionIntentRow) {
+func prepareRepoDependencyQuarantinePhase(ctx context.Context, t *testing.T, database *sql.DB, store *postgres.SharedIntentStore, exec liveExecutor, odu ifa.Odu, artifactIDs []string, rows []reducer.SharedProjectionIntentRow) {
 	t.Helper()
-	repoDependencyQuarantineDatabases.Store(store, postgres.SQLDB{DB: db})
+	repoDependencyQuarantineDatabases.Store(store, postgres.SQLDB{DB: database})
 	t.Cleanup(func() { repoDependencyQuarantineDatabases.Delete(store) })
-	seedRepoDependencyReplayCoordinates(ctx, t, db, rows)
-	if _, err := db.ExecContext(ctx, "TRUNCATE shared_projection_intents, shared_projection_partition_leases"); err != nil {
+	seedRepoDependencyReplayCoordinates(ctx, t, database, rows)
+	if _, err := database.ExecContext(ctx, "TRUNCATE shared_projection_intents, shared_projection_partition_leases"); err != nil {
 		t.Fatalf("reset quarantine proof tables: %v", err)
 	}
 	cleanupRepoDependencyConcurrencyScope(ctx, t, exec, artifactIDs)
@@ -304,19 +305,19 @@ func startRepoDependencyQuarantineRunner(
 			done <- errors.New("repo-dependency workload replay database was not registered")
 			return done
 		}
-		db, err := sql.Open("pgx", dsn)
+		sqlDB, err := sql.Open("pgx", dsn)
 		if err != nil {
 			done <- fmt.Errorf("open process-death workload replay database: %w", err)
 			return done
 		}
-		database = postgres.SQLDB{DB: db}
+		database = postgres.SQLDB{DB: sqlDB}
 	}
 	runner := reducer.RepoDependencyProjectionRunner{
 		IntentReader:                    store,
 		LeaseManager:                    store,
 		AcceptanceUnitGate:              gate,
 		EdgeWriter:                      writer,
-		WorkloadMaterializationReplayer: postgres.NewReducerQueue(database.(postgres.ExecQueryer), owner+"-workload-replay", time.Minute),
+		WorkloadMaterializationReplayer: postgres.NewReducerQueue(database.(db.ExecQueryer), owner+"-workload-replay", time.Minute),
 		WorkloadReadinessPrefetch:       repoDependencyIfaWorkloadReady,
 		AcceptedGen:                     acceptedGeneration,
 		Config: reducer.RepoDependencyProjectionRunnerConfig{
@@ -389,10 +390,10 @@ func waitRepoDependencyQuarantineCondition(
 	}
 }
 
-func repoDependencyQuarantinePendingCount(ctx context.Context, t *testing.T, db *sql.DB) int {
+func repoDependencyQuarantinePendingCount(ctx context.Context, t *testing.T, database *sql.DB) int {
 	t.Helper()
 	var count int
-	if err := db.QueryRowContext(ctx, `
+	if err := database.QueryRowContext(ctx, `
 		SELECT count(*) FROM shared_projection_intents WHERE completed_at IS NULL
 	`).Scan(&count); err != nil {
 		t.Fatalf("count pending quarantine proof intents: %v", err)
@@ -400,10 +401,10 @@ func repoDependencyQuarantinePendingCount(ctx context.Context, t *testing.T, db 
 	return count
 }
 
-func repoDependencyQuarantineOnlyActiveLease(ctx context.Context, t *testing.T, db *sql.DB, partitionID int) bool {
+func repoDependencyQuarantineOnlyActiveLease(ctx context.Context, t *testing.T, database *sql.DB, partitionID int) bool {
 	t.Helper()
 	var active, matching int
-	if err := db.QueryRowContext(ctx, `
+	if err := database.QueryRowContext(ctx, `
 		SELECT count(*), count(*) FILTER (WHERE partition_id = $2)
 		FROM shared_projection_partition_leases
 		WHERE projection_domain = $1
@@ -415,9 +416,9 @@ func repoDependencyQuarantineOnlyActiveLease(ctx context.Context, t *testing.T, 
 	return active == 1 && matching == 1
 }
 
-func repoDependencyQuarantineCompletionState(ctx context.Context, t *testing.T, db *sql.DB) map[string]bool {
+func repoDependencyQuarantineCompletionState(ctx context.Context, t *testing.T, database *sql.DB) map[string]bool {
 	t.Helper()
-	result, err := db.QueryContext(ctx, `
+	result, err := database.QueryContext(ctx, `
 		SELECT acceptance_unit_id, bool_and(completed_at IS NOT NULL)
 		FROM shared_projection_intents
 		GROUP BY acceptance_unit_id
@@ -441,9 +442,9 @@ func repoDependencyQuarantineCompletionState(ctx context.Context, t *testing.T, 
 	return state
 }
 
-func readRepoDependencyQuarantinedLease(ctx context.Context, t *testing.T, db *sql.DB) repoDependencyQuarantinedLease {
+func readRepoDependencyQuarantinedLease(ctx context.Context, t *testing.T, database *sql.DB) repoDependencyQuarantinedLease {
 	t.Helper()
-	rows, err := db.QueryContext(ctx, `
+	rows, err := database.QueryContext(ctx, `
 		SELECT partition_id, partition_count, lease_owner, lease_expires_at
 		FROM shared_projection_partition_leases
 		WHERE projection_domain = $1

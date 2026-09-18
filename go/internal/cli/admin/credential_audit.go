@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -46,11 +48,11 @@ const (
 // internal/query for query.IdentityHash, so reusing its interface here,
 // rather than declaring a structurally-identical local one, is not a new
 // dependency edge.
-func newAdminCredentialAuditAppender(db pgstorage.ExecQueryer) query.GovernanceAuditAppender {
-	if db == nil {
+func newAdminCredentialAuditAppender(database db.ExecQueryer) query.GovernanceAuditAppender {
+	if database == nil {
 		return nil
 	}
-	store := pgstorage.NewGovernanceAuditStore(db)
+	store := pgstorage.NewGovernanceAuditStore(database)
 	return store
 }
 

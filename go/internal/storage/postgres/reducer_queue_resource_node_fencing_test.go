@@ -73,7 +73,7 @@ func TestReducerQueueClaimAndBatchFenceOnConflictKey(t *testing.T) {
 
 	claimDB := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
 	claimQueue := ReducerQueue{
-		db:            claimDB,
+		database:      claimDB,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },
@@ -90,7 +90,7 @@ func TestReducerQueueClaimAndBatchFenceOnConflictKey(t *testing.T) {
 
 	batchDB := &fakeExecQueryer{queryResponses: []queueFakeRows{{rows: nil}}}
 	batchQueue := ReducerQueue{
-		db:            batchDB,
+		database:      batchDB,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: 30 * time.Second,
 		Now:           func() time.Time { return now },

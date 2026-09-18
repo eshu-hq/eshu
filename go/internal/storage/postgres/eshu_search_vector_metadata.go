@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -210,7 +212,7 @@ type EshuSearchVectorStatus struct {
 // EshuSearchVectorMetadataStore persists vector metadata and reads active
 // generation vector state without touching API/MCP runtime behavior.
 type EshuSearchVectorMetadataStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // EshuSearchVectorMetadataSchemaSQL returns the Postgres DDL for vector
@@ -220,14 +222,14 @@ func EshuSearchVectorMetadataSchemaSQL() string {
 }
 
 // NewEshuSearchVectorMetadataStore constructs the vector metadata store.
-func NewEshuSearchVectorMetadataStore(db ExecQueryer) EshuSearchVectorMetadataStore {
-	return EshuSearchVectorMetadataStore{db: db}
+func NewEshuSearchVectorMetadataStore(database db.ExecQueryer) EshuSearchVectorMetadataStore {
+	return EshuSearchVectorMetadataStore{database: database}
 }
 
 // Upsert inserts or updates one vector metadata row by its deterministic build
 // identity.
 func (s EshuSearchVectorMetadataStore) Upsert(ctx context.Context, row EshuSearchVectorMetadata) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("eshu search vector metadata database is required")
 	}
 	row = normalizeEshuSearchVectorMetadata(row)
@@ -239,7 +241,7 @@ func (s EshuSearchVectorMetadataStore) Upsert(ctx context.Context, row EshuSearc
 	if row.LastSuccessAt != nil {
 		lastSuccess = *row.LastSuccessAt
 	}
-	_, err := s.db.ExecContext(
+	_, err := s.database.ExecContext(
 		ctx,
 		upsertEshuSearchVectorMetadataSQL,
 		row.ScopeID,
@@ -269,7 +271,7 @@ func (s EshuSearchVectorMetadataStore) ListActive(
 	ctx context.Context,
 	filter EshuSearchVectorMetadataFilter,
 ) ([]EshuSearchVectorMetadata, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("eshu search vector metadata database is required")
 	}
 	filter = normalizeEshuSearchVectorMetadataFilter(filter)
@@ -286,7 +288,7 @@ func (s EshuSearchVectorMetadataStore) ListActive(
 	}
 	args = append(args, filter.Limit)
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active eshu search vector metadata: %w", err)
 	}
@@ -312,7 +314,7 @@ func (s EshuSearchVectorMetadataStore) Status(
 	ctx context.Context,
 	req EshuSearchVectorStatusRequest,
 ) (EshuSearchVectorStatus, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return EshuSearchVectorStatus{}, fmt.Errorf("eshu search vector metadata database is required")
 	}
 	req = normalizeEshuSearchVectorStatusRequest(req)
@@ -320,7 +322,7 @@ func (s EshuSearchVectorMetadataStore) Status(
 		return EshuSearchVectorStatus{}, err
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		eshuSearchVectorStatusSQL,
 		req.ScopeID,
@@ -363,7 +365,7 @@ func (s EshuSearchVectorMetadataStore) Status(
 	return status, nil
 }
 
-func scanEshuSearchVectorMetadata(rows Rows) (EshuSearchVectorMetadata, error) {
+func scanEshuSearchVectorMetadata(rows db.Rows) (EshuSearchVectorMetadata, error) {
 	var row EshuSearchVectorMetadata
 	var stateText string
 	var failureClass string

@@ -74,7 +74,7 @@ func (w ContentWriter) upsertContentFileBatch(ctx context.Context, batch []prepa
 
 	query := upsertContentFileBatchPrefix + values.String() + upsertContentFileBatchSuffix
 
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert content_files batch (%d files): %w", len(batch), err)
 	}
 
@@ -146,7 +146,7 @@ func (w ContentWriter) upsertContentEntityBatch(ctx context.Context, batch []pre
 
 	query := upsertContentEntityBatchPrefix + values.String() + upsertContentEntityBatchSuffix
 
-	if _, err := w.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := w.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert content_entities batch (%d entities): %w", len(batch), err)
 	}
 

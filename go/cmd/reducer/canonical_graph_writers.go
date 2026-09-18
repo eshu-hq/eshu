@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -153,7 +155,7 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 // context, matching this startup sequence's pre-existing behavior: it must
 // complete before the reducer service begins serving work, independent of any
 // request-scoped deadline the caller may be operating under.
-func seedReducerProjectedSourceLedgers(database postgres.ExecQueryer, graphReader query.GraphQuery) (postgres.ProjectedSourceEdgeStore, error) {
+func seedReducerProjectedSourceLedgers(database db.ExecQueryer, graphReader query.GraphQuery) (postgres.ProjectedSourceEdgeStore, error) {
 	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
 	backfiller := taint.InterprocProjectedEdgeBackfiller{
 		Reader:      taint.InterprocProjectedEdgeBackfillReader{Graph: graphReader},

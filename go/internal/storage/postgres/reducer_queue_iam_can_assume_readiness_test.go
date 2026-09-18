@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -28,15 +30,15 @@ type iamCanAssumeReadinessQueueDB struct {
 	claimQueries int
 }
 
-func (db *iamCanAssumeReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *iamCanAssumeReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *iamCanAssumeReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (database *iamCanAssumeReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	db.claimQueries++
+	database.claimQueries++
 
 	// The same cloud_resource_uid readiness gate must cover the IAM CAN_ASSUME
 	// domain — both endpoints are CloudResource nodes published under that phase.
@@ -50,11 +52,11 @@ func (db *iamCanAssumeReadinessQueueDB) QueryContext(_ context.Context, query st
 		"cloud_resource_uid",
 		"canonical_nodes_committed",
 	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
-	if hasReadinessGate && !db.phaseReady {
+	if hasReadinessGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.status)
+	status := strings.TrimSpace(database.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -67,18 +69,18 @@ func (db *iamCanAssumeReadinessQueueDB) QueryContext(_ context.Context, query st
 		"aws:123456789012:aws-global:iam",
 		"gen-aws-1",
 		string(reducer.DomainIAMCanAssumeMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:123456789012:aws-global:iam","reason":"aws iam trust statements observed","fact_id":"fact-trust-1","source_system":"aws"}`),
 	}}}, nil
 }
 
-func iamCanAssumeReadinessQueue(db *iamCanAssumeReadinessQueueDB, now time.Time) ReducerQueue {
+func iamCanAssumeReadinessQueue(database *iamCanAssumeReadinessQueueDB, now time.Time) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -89,12 +91,12 @@ func TestReducerQueueClaimWaitsForIAMCanAssumeReadinessBehavior(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 31, 11, 10, 0, 0, time.UTC)
-	db := &iamCanAssumeReadinessQueueDB{
+	database := &iamCanAssumeReadinessQueueDB{
 		now:        now,
 		phaseReady: false,
 		status:     "pending",
 	}
-	queue := iamCanAssumeReadinessQueue(db, now)
+	queue := iamCanAssumeReadinessQueue(database, now)
 
 	intent, claimed, err := queue.Claim(context.Background())
 	if err != nil {
@@ -104,7 +106,7 @@ func TestReducerQueueClaimWaitsForIAMCanAssumeReadinessBehavior(t *testing.T) {
 		t.Fatalf("Claim() claimed %q before canonical readiness, want unclaimed waiting work", intent.IntentID)
 	}
 
-	db.phaseReady = true
+	database.phaseReady = true
 	intent, claimed, err = queue.Claim(context.Background())
 	if err != nil {
 		t.Fatalf("Claim() after readiness error = %v", err)

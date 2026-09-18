@@ -85,12 +85,12 @@ func TestContainerImageIdentityClaimLatchPerformanceLive(t *testing.T) {
 			prepareContainerImageIdentityAckPerformanceTable(t, db)
 		}
 		baselineQueue := ReducerQueue{
-			db: SQLDB{DB: baselineDB}, LeaseOwner: owner,
+			database: SQLDB{DB: baselineDB}, LeaseOwner: owner,
 			LeaseDuration: time.Minute, Now: func() time.Time { return now },
 			ClaimDomain: reducer.DomainContainerImageIdentity,
 		}
 		candidateQueue := baselineQueue
-		candidateQueue.db = SQLDB{DB: candidateDB}
+		candidateQueue.database = SQLDB{DB: candidateDB}
 		before, after := measureContainerImageIdentityAckTwinPair(
 			t,
 			warmups,
@@ -190,12 +190,12 @@ func TestContainerImageIdentityClaimLatchBatchPerformanceLive(t *testing.T) {
 				prepareContainerImageIdentityAckPerformanceTable(t, baselineDB)
 				prepareContainerImageIdentityAckPerformanceTable(t, candidateDB)
 				baselineQueue := ReducerQueue{
-					db: SQLDB{DB: baselineDB}, LeaseOwner: owner,
+					database: SQLDB{DB: baselineDB}, LeaseOwner: owner,
 					LeaseDuration: time.Minute, Now: func() time.Time { return now },
 					ClaimDomain: reducer.DomainContainerImageIdentity,
 				}
 				candidateQueue := baselineQueue
-				candidateQueue.db = SQLDB{DB: candidateDB}
+				candidateQueue.database = SQLDB{DB: candidateDB}
 				before, after := measureContainerImageIdentityAckTwinPair(
 					t,
 					warmups,
@@ -310,7 +310,7 @@ func claimContainerImageIdentityPerformanceBatch(
 	expectedIDs []string,
 ) error {
 	now := queue.now()
-	rows, err := queue.db.QueryContext(
+	rows, err := queue.database.QueryContext(
 		ctx,
 		query,
 		now,

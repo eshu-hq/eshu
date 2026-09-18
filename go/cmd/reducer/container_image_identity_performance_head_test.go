@@ -8,6 +8,7 @@ package main
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const containerImageIdentityPerfHeadVariant = true
@@ -17,9 +18,9 @@ func containerImageIdentityPerfPrepareIntent(intent *reducer.Intent) {
 }
 
 func containerImageIdentityPerfWriter(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 ) reducer.ContainerImageIdentityWriter {
-	beginner, ok := database.(postgres.Beginner)
+	beginner, ok := database.(db.Beginner)
 	if !ok {
 		return nil
 	}

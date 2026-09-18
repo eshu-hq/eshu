@@ -81,7 +81,7 @@ SELECT EXISTS (
 				}
 				assertCrossScopeConsumerState(t, ctx, db, id, "running", true)
 			} else {
-				queue := ReducerQueue{db: worker, LeaseOwner: "fk-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
+				queue := ReducerQueue{database: worker, LeaseOwner: "fk-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
 				if err := queue.AckBatch(ctx, []reducer.Intent{{IntentID: id, Domain: variant.domain, ClaimEpoch: 1, ClaimedAt: &now}}, nil); err != nil {
 					t.Fatalf("ACK blocked by audit FK KEY SHARE: %v", err)
 				}

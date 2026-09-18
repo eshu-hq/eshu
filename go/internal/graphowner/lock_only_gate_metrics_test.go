@@ -103,7 +103,7 @@ func TestLockOnlyGateWriteChunkRecordsLockedRowsAndWaitMetrics(t *testing.T) {
 	instruments, reader := newTestInstrumentsPair(t)
 	beginner := &fakeChunkBeginner{}
 	store := &fakeLockOnlyStore{}
-	gate := &LockOnlyGate{db: beginner, store: store, Instruments: instruments}
+	gate := &LockOnlyGate{database: beginner, store: store, Instruments: instruments}
 
 	underlying := func(_ context.Context, _ []map[string]any, _, _, _ string) error {
 		return nil
@@ -157,7 +157,7 @@ func TestLockOnlyGateWriteChunkRolledBackChunkCountsNoRowsButRecordsWait(t *test
 
 	instruments, reader := newTestInstrumentsPair(t)
 	beginner := &fakeChunkBeginner{}
-	gate := &LockOnlyGate{db: beginner, store: &fakeLockOnlyStore{}, Instruments: instruments}
+	gate := &LockOnlyGate{database: beginner, store: &fakeLockOnlyStore{}, Instruments: instruments}
 
 	wantErr := errors.New("graph write failed")
 	underlying := func(_ context.Context, _ []map[string]any, _, _, _ string) error {
@@ -206,7 +206,7 @@ func TestLockOnlyGateWriteChunkNilInstrumentsSkipsMetrics(t *testing.T) {
 
 	beginner := &fakeChunkBeginner{}
 	store := &fakeLockOnlyStore{}
-	gate := &LockOnlyGate{db: beginner, store: store}
+	gate := &LockOnlyGate{database: beginner, store: store}
 
 	underlying := func(_ context.Context, _ []map[string]any, _, _, _ string) error {
 		return nil

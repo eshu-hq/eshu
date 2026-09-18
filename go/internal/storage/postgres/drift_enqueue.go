@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -67,7 +69,7 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("ingestion store db is required")
 	}
 
@@ -79,7 +81,7 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 
 	start := time.Now()
 
-	intents, err := listActiveStateSnapshotScopes(ctx, s.db)
+	intents, err := listActiveStateSnapshotScopes(ctx, s.database)
 	if err != nil {
 		return err
 	}
@@ -93,7 +95,7 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 	// uses. The reducer queue's enqueue SQL writes NULL for lease_owner and
 	// claim_until (see enqueueReducerBatchPrefix); LeaseOwner / LeaseDuration
 	// are the claim-side contract and validateEnqueue does not require them.
-	queue := ReducerQueue{db: s.db}
+	queue := ReducerQueue{database: s.database}
 	if s.Now != nil {
 		queue.Now = s.Now
 	}
@@ -123,8 +125,8 @@ func (s IngestionStore) EnqueueConfigStateDriftIntents(
 // into a config_state_drift reducer intent. Returns an empty slice when no
 // state-snapshot scope has reached active status yet (common during
 // first-collection runs on repos without committed state).
-func listActiveStateSnapshotScopes(ctx context.Context, db ExecQueryer) ([]projector.ReducerIntent, error) {
-	rows, err := db.QueryContext(ctx, listActiveStateSnapshotScopesQuery)
+func listActiveStateSnapshotScopes(ctx context.Context, database db.ExecQueryer) ([]projector.ReducerIntent, error) {
+	rows, err := database.QueryContext(ctx, listActiveStateSnapshotScopesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list active state_snapshot scopes: %w", err)
 	}

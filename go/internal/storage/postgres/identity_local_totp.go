@@ -83,7 +83,7 @@ func (s *IdentitySubjectStore) BeginLocalIdentityTOTPEnrollment(
 	ctx context.Context,
 	begin LocalIdentityTOTPEnrollmentBegin,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("identity subject store database is required")
 	}
 	begin.UserID = strings.TrimSpace(begin.UserID)
@@ -101,7 +101,7 @@ func (s *IdentitySubjectStore) BeginLocalIdentityTOTPEnrollment(
 	if err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		insertLocalIdentityTOTPFactorQuery,
 		begin.FactorID,
@@ -123,7 +123,7 @@ func (s *IdentitySubjectStore) ConfirmLocalIdentityTOTPEnrollment(
 	ctx context.Context,
 	confirm LocalIdentityTOTPEnrollmentConfirm,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("identity subject store database is required")
 	}
 	confirm.UserID = strings.TrimSpace(confirm.UserID)
@@ -158,7 +158,7 @@ func (s *IdentitySubjectStore) ConfirmLocalIdentityTOTPEnrollment(
 		return ErrLocalIdentityTOTPCodeInvalid
 	}
 
-	result, err := s.db.ExecContext(ctx, activateLocalIdentityTOTPFactorQuery, confirm.UserID, confirm.FactorID, confirm.Now.UTC())
+	result, err := s.database.ExecContext(ctx, activateLocalIdentityTOTPFactorQuery, confirm.UserID, confirm.FactorID, confirm.Now.UTC())
 	if err != nil {
 		return fmt.Errorf("activate local identity totp factor: %w", err)
 	}
@@ -189,7 +189,7 @@ func (s *IdentitySubjectStore) verifyLocalIdentityTOTPCode(
 	if code == "" {
 		return false, "", nil
 	}
-	rows, err := s.db.QueryContext(ctx, selectLocalIdentityActiveTOTPSecretQuery, userID)
+	rows, err := s.database.QueryContext(ctx, selectLocalIdentityActiveTOTPSecretQuery, userID)
 	if err != nil {
 		return false, "", fmt.Errorf("select active local identity totp secrets: %w", err)
 	}
@@ -226,7 +226,7 @@ func (s *IdentitySubjectStore) verifyLocalIdentityTOTPCode(
 			return false, "", fmt.Errorf("verify local identity totp login code: %w", err)
 		}
 		if verified {
-			if _, err := s.db.ExecContext(ctx, touchLocalIdentityTOTPLastUsedQuery, userID, fs.factorID, now.UTC()); err != nil {
+			if _, err := s.database.ExecContext(ctx, touchLocalIdentityTOTPLastUsedQuery, userID, fs.factorID, now.UTC()); err != nil {
 				return false, "", fmt.Errorf("touch local identity totp last used: %w", err)
 			}
 			return true, fs.factorID, nil
@@ -246,14 +246,14 @@ func (s *IdentitySubjectStore) ResolveLocalIdentityUserIDBySubjectHash(
 	ctx context.Context,
 	subjectIDHash string,
 ) (string, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return "", false, errors.New("identity subject store database is required")
 	}
 	subjectIDHash = strings.TrimSpace(subjectIDHash)
 	if subjectIDHash == "" {
 		return "", false, errors.New("resolve local identity user id requires subject_id_hash")
 	}
-	rows, err := s.db.QueryContext(ctx, selectLocalIdentityUserIDBySubjectHashQuery, subjectIDHash)
+	rows, err := s.database.QueryContext(ctx, selectLocalIdentityUserIDBySubjectHashQuery, subjectIDHash)
 	if err != nil {
 		return "", false, fmt.Errorf("resolve local identity user id: %w", err)
 	}
@@ -272,7 +272,7 @@ func (s *IdentitySubjectStore) ResolveLocalIdentityUserIDBySubjectHash(
 }
 
 func (s *IdentitySubjectStore) selectPendingTOTPSecret(ctx context.Context, userID, factorID string) (string, bool, error) {
-	rows, err := s.db.QueryContext(ctx, selectLocalIdentityPendingTOTPSecretQuery, userID, factorID)
+	rows, err := s.database.QueryContext(ctx, selectLocalIdentityPendingTOTPSecretQuery, userID, factorID)
 	if err != nil {
 		return "", false, fmt.Errorf("select pending local identity totp secret: %w", err)
 	}

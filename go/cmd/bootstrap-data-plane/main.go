@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
@@ -28,8 +30,8 @@ import (
 )
 
 type bootstrapExecutor interface {
-	postgres.Executor
-	QueryContext(context.Context, string, ...any) (postgres.Rows, error)
+	db.Executor
+	QueryContext(context.Context, string, ...any) (db.Rows, error)
 }
 
 type bootstrapDB interface {
@@ -131,17 +133,17 @@ func run(
 	}
 
 	// Postgres schema
-	db, err := openDBFn(ctx, getenv)
+	database, err := openDBFn(ctx, getenv)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
+		if closeErr := database.Close(); closeErr != nil {
 			err = errors.Join(err, closeErr)
 		}
 	}()
 
-	if err = applyPgFn(ctx, db); err != nil {
+	if err = applyPgFn(ctx, database); err != nil {
 		return err
 	}
 	logger.Info("postgres schema applied", telemetry.EventAttr("bootstrap.postgres.applied"))
@@ -150,7 +152,7 @@ func run(
 	if err != nil {
 		return err
 	}
-	applied, refreshMarker, latestFingerprint, err := graphSchemaAlreadyApplied(ctx, db, schemaApplication)
+	applied, refreshMarker, latestFingerprint, err := graphSchemaAlreadyApplied(ctx, database, schemaApplication)
 	if err != nil {
 		return err
 	}
@@ -171,7 +173,7 @@ func run(
 
 	if applied && !forceReapply {
 		if refreshMarker {
-			if err = markGraphSchemaApplied(ctx, db, schemaApplication); err != nil {
+			if err = markGraphSchemaApplied(ctx, database, schemaApplication); err != nil {
 				return err
 			}
 		}
@@ -210,7 +212,7 @@ func run(
 		} else {
 			adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
 			defer cancel()
-			adopted, actualNames, err := adoptExistingGraphSchema(adoptionCtx, db, nd.inspector, logger, schemaApplication)
+			adopted, actualNames, err := adoptExistingGraphSchema(adoptionCtx, database, nd.inspector, logger, schemaApplication)
 			if err != nil {
 				return err
 			}
@@ -229,7 +231,7 @@ func run(
 	if err = applyNeo4jFn(ctx, graphExecutor, logger, backend); err != nil {
 		return err
 	}
-	if err = markGraphSchemaApplied(ctx, db, schemaApplication); err != nil {
+	if err = markGraphSchemaApplied(ctx, database, schemaApplication); err != nil {
 		return err
 	}
 	logger.Info("graph schema applied", telemetry.EventAttr("bootstrap.graph.applied"), "graph_backend", backend)
@@ -255,10 +257,10 @@ func graphSchemaFingerprint(backend graph.SchemaBackend) (string, int, error) {
 
 func graphSchemaAlreadyApplied(
 	ctx context.Context,
-	db bootstrapExecutor,
+	database bootstrapExecutor,
 	app graph.SchemaApplication,
 ) (applied bool, refreshMarker bool, latestFingerprint string, err error) {
-	rows, err := db.QueryContext(ctx, latestGraphSchemaAppliedQuery, string(app.Backend))
+	rows, err := database.QueryContext(ctx, latestGraphSchemaAppliedQuery, string(app.Backend))
 	if err != nil {
 		return false, false, "", fmt.Errorf("query graph schema marker: %w", err)
 	}
@@ -295,10 +297,10 @@ func graphSchemaAlreadyApplied(
 
 func markGraphSchemaApplied(
 	ctx context.Context,
-	db bootstrapExecutor,
+	database bootstrapExecutor,
 	app graph.SchemaApplication,
 ) error {
-	return graphschemacompat.MarkApplied(ctx, db, app)
+	return graphschemacompat.MarkApplied(ctx, database, app)
 }
 
 func graphSchemaStatementTimeout(getenv func(string) string) (time.Duration, error) {
@@ -332,19 +334,19 @@ func schemaBackendFromEnv(getenv func(string) string) (graph.SchemaBackend, erro
 }
 
 func openBootstrapDB(ctx context.Context, getenv func(string) string) (bootstrapDB, error) {
-	db, err := runtimecfg.OpenPostgres(ctx, getenv)
+	database, err := runtimecfg.OpenPostgres(ctx, getenv)
 	if err != nil {
 		return nil, err
 	}
-	return bootstrapSQLDB{SQLDB: postgres.SQLDB{DB: db}}, nil
+	return bootstrapSQLDB{SQLDB: postgres.SQLDB{DB: database}}, nil
 }
 
 type bootstrapSQLDB struct {
 	postgres.SQLDB
 }
 
-func (db bootstrapSQLDB) Close() error {
-	return db.DB.Close()
+func (database bootstrapSQLDB) Close() error {
+	return database.DB.Close()
 }
 
 const neo4jCloseTimeout = 10 * time.Second

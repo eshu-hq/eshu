@@ -55,7 +55,7 @@ LIMIT $3
 func (s *FactStore) ListActiveContainerImageIdentityWarnings(
 	ctx context.Context,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
@@ -93,7 +93,7 @@ func (s *FactStore) listActiveContainerImageIdentityWarningsPage(
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveContainerImageIdentityWarningsQuery,
 		cursor,

@@ -86,7 +86,7 @@ func (s *SharedIntentStore) ListPendingDomainPartitionIntents(
 	}
 	l := max(limit, 1)
 
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		listPendingDomainPartitionIntentsSQL,
 		domain,
@@ -111,7 +111,7 @@ func (s *SharedIntentStore) ListPendingDomainUnhashedIntents(
 ) ([]reducer.SharedProjectionIntentRow, error) {
 	l := max(limit, 1)
 
-	sqlRows, err := s.db.QueryContext(ctx, listPendingDomainUnhashedIntentsSQL, domain, l)
+	sqlRows, err := s.database.QueryContext(ctx, listPendingDomainUnhashedIntentsSQL, domain, l)
 	if err != nil {
 		return nil, err
 	}

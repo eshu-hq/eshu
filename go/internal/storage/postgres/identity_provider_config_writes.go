@@ -44,7 +44,7 @@ func (s *IdentitySubjectStore) CreateProviderConfig(
 	ctx context.Context,
 	create ProviderConfigCreate,
 ) (ProviderConfigWriteResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ProviderConfigWriteResult{}, errors.New("identity subject store database is required")
 	}
 	create.ProviderConfigID = strings.TrimSpace(create.ProviderConfigID)
@@ -150,7 +150,7 @@ func (s *IdentitySubjectStore) UpdateProviderConfig(
 	ctx context.Context,
 	update ProviderConfigUpdate,
 ) (ProviderConfigWriteResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ProviderConfigWriteResult{}, errors.New("identity subject store database is required")
 	}
 	update.ProviderConfigID = strings.TrimSpace(update.ProviderConfigID)
@@ -281,7 +281,7 @@ func (s *IdentitySubjectStore) RevertProviderConfig(
 	ctx context.Context,
 	revert ProviderConfigRevert,
 ) (ProviderConfigWriteResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return ProviderConfigWriteResult{}, errors.New("identity subject store database is required")
 	}
 	revert.ProviderConfigID = strings.TrimSpace(revert.ProviderConfigID)

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
@@ -115,20 +117,20 @@ WHERE ingester = $1
 
 // StatusRequestStore implements runtime.StatusRequestStore over Postgres.
 type StatusRequestStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewStatusRequestStore constructs a Postgres-backed status request store.
-func NewStatusRequestStore(db ExecQueryer) StatusRequestStore {
-	return StatusRequestStore{db: db}
+func NewStatusRequestStore(database db.ExecQueryer) StatusRequestStore {
+	return StatusRequestStore{database: database}
 }
 
 // RequestScan transitions a scan request from idle to pending.
 func (s StatusRequestStore) RequestScan(ctx context.Context, ingester string, now time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("status request store database is required")
 	}
-	_, err := s.db.ExecContext(ctx, requestScanQuery, ingester, now.UTC())
+	_, err := s.database.ExecContext(ctx, requestScanQuery, ingester, now.UTC())
 	if err != nil {
 		return fmt.Errorf("request scan: %w", err)
 	}
@@ -137,10 +139,10 @@ func (s StatusRequestStore) RequestScan(ctx context.Context, ingester string, no
 
 // ClaimScanRequest transitions a pending scan to running.
 func (s StatusRequestStore) ClaimScanRequest(ctx context.Context, ingester string, now time.Time) (runtime.ScanRequest, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return runtime.ScanRequest{}, fmt.Errorf("status request store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, claimScanQuery, ingester, now.UTC())
+	rows, err := s.database.QueryContext(ctx, claimScanQuery, ingester, now.UTC())
 	if err != nil {
 		return runtime.ScanRequest{}, fmt.Errorf("claim scan request: %w", err)
 	}
@@ -164,10 +166,10 @@ func (s StatusRequestStore) ClaimScanRequest(ctx context.Context, ingester strin
 
 // CompleteScanRequest transitions a running scan to completed or failed.
 func (s StatusRequestStore) CompleteScanRequest(ctx context.Context, ingester string, now time.Time, scanErr string) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("status request store database is required")
 	}
-	_, err := s.db.ExecContext(ctx, completeScanQuery, ingester, now.UTC(), scanErr)
+	_, err := s.database.ExecContext(ctx, completeScanQuery, ingester, now.UTC(), scanErr)
 	if err != nil {
 		return fmt.Errorf("complete scan request: %w", err)
 	}
@@ -176,10 +178,10 @@ func (s StatusRequestStore) CompleteScanRequest(ctx context.Context, ingester st
 
 // RequestReindex transitions a reindex request from idle to pending.
 func (s StatusRequestStore) RequestReindex(ctx context.Context, ingester string, now time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("status request store database is required")
 	}
-	_, err := s.db.ExecContext(ctx, requestReindexQuery, ingester, now.UTC())
+	_, err := s.database.ExecContext(ctx, requestReindexQuery, ingester, now.UTC())
 	if err != nil {
 		return fmt.Errorf("request reindex: %w", err)
 	}
@@ -188,10 +190,10 @@ func (s StatusRequestStore) RequestReindex(ctx context.Context, ingester string,
 
 // ClaimReindexRequest transitions a pending reindex to running.
 func (s StatusRequestStore) ClaimReindexRequest(ctx context.Context, ingester string, now time.Time) (runtime.ReindexRequest, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return runtime.ReindexRequest{}, fmt.Errorf("status request store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, claimReindexQuery, ingester, now.UTC())
+	rows, err := s.database.QueryContext(ctx, claimReindexQuery, ingester, now.UTC())
 	if err != nil {
 		return runtime.ReindexRequest{}, fmt.Errorf("claim reindex request: %w", err)
 	}
@@ -215,10 +217,10 @@ func (s StatusRequestStore) ClaimReindexRequest(ctx context.Context, ingester st
 
 // CompleteReindexRequest transitions a running reindex to completed or failed.
 func (s StatusRequestStore) CompleteReindexRequest(ctx context.Context, ingester string, now time.Time, reindexErr string) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("status request store database is required")
 	}
-	_, err := s.db.ExecContext(ctx, completeReindexQuery, ingester, now.UTC(), reindexErr)
+	_, err := s.database.ExecContext(ctx, completeReindexQuery, ingester, now.UTC(), reindexErr)
 	if err != nil {
 		return fmt.Errorf("complete reindex request: %w", err)
 	}
@@ -227,10 +229,10 @@ func (s StatusRequestStore) CompleteReindexRequest(ctx context.Context, ingester
 
 // GetScanState returns the current scan request state for one ingester.
 func (s StatusRequestStore) GetScanState(ctx context.Context, ingester string) (runtime.ScanRequest, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return runtime.ScanRequest{}, fmt.Errorf("status request store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, getScanStateQuery, ingester)
+	rows, err := s.database.QueryContext(ctx, getScanStateQuery, ingester)
 	if err != nil {
 		return runtime.ScanRequest{}, fmt.Errorf("get scan state: %w", err)
 	}
@@ -254,10 +256,10 @@ func (s StatusRequestStore) GetScanState(ctx context.Context, ingester string) (
 
 // GetReindexState returns the current reindex request state for one ingester.
 func (s StatusRequestStore) GetReindexState(ctx context.Context, ingester string) (runtime.ReindexRequest, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return runtime.ReindexRequest{}, fmt.Errorf("status request store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, getReindexStateQuery, ingester)
+	rows, err := s.database.QueryContext(ctx, getReindexStateQuery, ingester)
 	if err != nil {
 		return runtime.ReindexRequest{}, fmt.Errorf("get reindex state: %w", err)
 	}

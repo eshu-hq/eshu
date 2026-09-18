@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 )
 
@@ -50,7 +52,7 @@ func newProviderConfigFakeDB() *providerConfigFakeDB {
 	}
 }
 
-func (db *providerConfigFakeDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *providerConfigFakeDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch query {
 	case insertProviderConfigRevisionQuery:
 		providerConfigID := args[0].(string)
@@ -63,10 +65,10 @@ func (db *providerConfigFakeDB) ExecContext(_ context.Context, query string, arg
 		if args[5] != nil {
 			configuration = args[5].(string)
 		}
-		if db.revisions[providerConfigID] == nil {
-			db.revisions[providerConfigID] = make(map[string]*fakeProviderConfigRevisionRow)
+		if database.revisions[providerConfigID] == nil {
+			database.revisions[providerConfigID] = make(map[string]*fakeProviderConfigRevisionRow)
 		}
-		db.revisions[providerConfigID][revisionID] = &fakeProviderConfigRevisionRow{
+		database.revisions[providerConfigID][revisionID] = &fakeProviderConfigRevisionRow{
 			status:        "active",
 			sealedSecret:  sealed,
 			configuration: configuration,
@@ -75,7 +77,7 @@ func (db *providerConfigFakeDB) ExecContext(_ context.Context, query string, arg
 	case activateProviderConfigActiveRevisionQuery:
 		providerConfigID := args[0].(string)
 		revisionID := args[2].(string)
-		row := db.configs[providerConfigID]
+		row := database.configs[providerConfigID]
 		if row == nil {
 			return affectedResult{affected: 0}, nil
 		}
@@ -89,7 +91,7 @@ func (db *providerConfigFakeDB) ExecContext(_ context.Context, query string, arg
 	case supersedeProviderConfigRevisionQuery:
 		providerConfigID := args[0].(string)
 		revisionID := args[1].(string)
-		if rev, ok := db.revisions[providerConfigID][revisionID]; ok {
+		if rev, ok := database.revisions[providerConfigID][revisionID]; ok {
 			rev.status = "superseded"
 			return affectedResult{affected: 1}, nil
 		}
@@ -97,7 +99,7 @@ func (db *providerConfigFakeDB) ExecContext(_ context.Context, query string, arg
 	case activateProviderConfigRevisionQuery:
 		providerConfigID := args[0].(string)
 		revisionID := args[1].(string)
-		if rev, ok := db.revisions[providerConfigID][revisionID]; ok {
+		if rev, ok := database.revisions[providerConfigID][revisionID]; ok {
 			rev.status = "active"
 			return affectedResult{affected: 1}, nil
 		}
@@ -107,20 +109,20 @@ func (db *providerConfigFakeDB) ExecContext(_ context.Context, query string, arg
 	}
 }
 
-func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (database *providerConfigFakeDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch query {
 	case insertProviderConfigQuery:
 		providerConfigID := args[0].(string)
 		tenantID := args[1].(string)
 		providerKind := args[2].(string)
 		providerKeyHash := args[3].(string)
-		for id, row := range db.configs {
+		for id, row := range database.configs {
 			if !row.tombstoned && row.tenantID == tenantID && row.providerKind == providerKind && row.providerKeyHash == providerKeyHash {
 				_ = id
 				return &scalarRows{}, nil // ON CONFLICT DO NOTHING -> zero rows returned
 			}
 		}
-		db.configs[providerConfigID] = &fakeProviderConfigRow{
+		database.configs[providerConfigID] = &fakeProviderConfigRow{
 			tenantID:        tenantID,
 			providerKind:    providerKind,
 			providerKeyHash: providerKeyHash,
@@ -130,7 +132,7 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 	case activateProviderConfigActiveRevisionQuery:
 		providerConfigID := args[0].(string)
 		revisionID := args[2].(string)
-		row := db.configs[providerConfigID]
+		row := database.configs[providerConfigID]
 		if row == nil {
 			return &scalarRows{}, nil
 		}
@@ -147,7 +149,7 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 	case selectProviderConfigForUpdateQuery:
 		providerConfigID := args[0].(string)
 		tenantID := args[1].(string)
-		row := db.configs[providerConfigID]
+		row := database.configs[providerConfigID]
 		if row == nil || row.tombstoned || row.tenantID != tenantID {
 			return &scalarRows{}, nil
 		}
@@ -159,19 +161,19 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 	case selectProviderConfigRevisionExistsQuery:
 		providerConfigID := args[0].(string)
 		revisionID := args[1].(string)
-		if _, ok := db.revisions[providerConfigID][revisionID]; ok {
+		if _, ok := database.revisions[providerConfigID][revisionID]; ok {
 			return &scalarRows{data: [][]any{{1}}}, nil
 		}
 		return &scalarRows{}, nil
 	case selectProviderConfigDetailQuery:
 		providerConfigID := args[0].(string)
 		tenantID := args[1].(string)
-		row := db.configs[providerConfigID]
+		row := database.configs[providerConfigID]
 		if row == nil || row.tombstoned || row.tenantID != tenantID {
 			return &scalarRows{}, nil
 		}
 		var sealed, configuration any
-		if rev, ok := db.revisions[providerConfigID][row.activeRevisionID]; ok {
+		if rev, ok := database.revisions[providerConfigID][row.activeRevisionID]; ok {
 			if rev.sealedSecret != "" {
 				sealed = rev.sealedSecret
 			}
@@ -191,7 +193,7 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 		providerConfigID := args[0].(string)
 		tenantID := args[1].(string)
 		targetStatus := args[2].(string)
-		row := db.configs[providerConfigID]
+		row := database.configs[providerConfigID]
 		if row == nil || row.tombstoned || row.tenantID != tenantID {
 			return &scalarRows{}, nil
 		}
@@ -201,12 +203,12 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 		tenantID := args[0].(string)
 		now := time.Now().UTC()
 		var data [][]any
-		for providerConfigID, row := range db.configs {
+		for providerConfigID, row := range database.configs {
 			if row.tombstoned || row.tenantID != tenantID {
 				continue
 			}
 			var sealed, configuration any
-			if rev, ok := db.revisions[providerConfigID][row.activeRevisionID]; ok {
+			if rev, ok := database.revisions[providerConfigID][row.activeRevisionID]; ok {
 				if rev.sealedSecret != "" {
 					sealed = rev.sealedSecret
 				}
@@ -224,24 +226,24 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 	case selectProviderConfigRevisionsQuery:
 		providerConfigID := args[0].(string)
 		tenantID := args[1].(string)
-		row := db.configs[providerConfigID]
+		row := database.configs[providerConfigID]
 		if row == nil || row.tombstoned || row.tenantID != tenantID {
 			return &scalarRows{}, nil
 		}
 		now := time.Now().UTC()
 		var data [][]any
-		for revisionID, rev := range db.revisions[providerConfigID] {
+		for revisionID, rev := range database.revisions[providerConfigID] {
 			data = append(data, []any{revisionID, rev.status, rev.sealedSecret != "", now, now, nil})
 		}
 		return &scalarRows{data: data}, nil
 	case selectProviderConfigConnectionTestMaterialQuery:
 		providerConfigID := args[0].(string)
 		tenantID := args[1].(string)
-		row := db.configs[providerConfigID]
+		row := database.configs[providerConfigID]
 		if row == nil || row.tombstoned || row.tenantID != tenantID || row.activeRevisionID == "" {
 			return &scalarRows{}, nil
 		}
-		rev, ok := db.revisions[providerConfigID][row.activeRevisionID]
+		rev, ok := database.revisions[providerConfigID][row.activeRevisionID]
 		if !ok {
 			return &scalarRows{}, nil
 		}
@@ -252,11 +254,11 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 		return &scalarRows{data: [][]any{{row.providerKind, row.activeRevisionID, rev.sealedSecret, configuration}}}, nil
 	case selectActiveSAMLProviderConfigForLoginQuery:
 		providerConfigID := args[0].(string)
-		row := db.configs[providerConfigID]
+		row := database.configs[providerConfigID]
 		if row == nil || row.tombstoned || row.providerKind != "external_saml" || row.status != "active" || row.activeRevisionID == "" {
 			return &scalarRows{}, nil
 		}
-		rev, ok := db.revisions[providerConfigID][row.activeRevisionID]
+		rev, ok := database.revisions[providerConfigID][row.activeRevisionID]
 		if !ok {
 			return &scalarRows{}, nil
 		}
@@ -266,18 +268,18 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 		}
 		return &scalarRows{data: [][]any{{row.providerKind, row.activeRevisionID, rev.sealedSecret, configuration}}}, nil
 	case selectActiveOIDCBearerProvidersQuery:
-		providerConfigIDs := make([]string, 0, len(db.configs))
-		for providerConfigID := range db.configs {
+		providerConfigIDs := make([]string, 0, len(database.configs))
+		for providerConfigID := range database.configs {
 			providerConfigIDs = append(providerConfigIDs, providerConfigID)
 		}
 		sort.Strings(providerConfigIDs)
 		var data [][]any
 		for _, providerConfigID := range providerConfigIDs {
-			row := db.configs[providerConfigID]
+			row := database.configs[providerConfigID]
 			if row.tombstoned || row.providerKind != "external_oidc" || row.status != "active" || row.activeRevisionID == "" {
 				continue
 			}
-			rev, ok := db.revisions[providerConfigID][row.activeRevisionID]
+			rev, ok := database.revisions[providerConfigID][row.activeRevisionID]
 			if !ok {
 				continue
 			}
@@ -293,25 +295,25 @@ func (db *providerConfigFakeDB) QueryContext(_ context.Context, query string, ar
 	}
 }
 
-func (db *providerConfigFakeDB) Begin(context.Context) (Transaction, error) {
-	db.mu.Lock()
-	return &providerConfigFakeTx{db: db}, nil
+func (database *providerConfigFakeDB) Begin(context.Context) (db.Transaction, error) {
+	database.mu.Lock()
+	return &providerConfigFakeTx{database: database}, nil
 }
 
 type providerConfigFakeTx struct {
-	db *providerConfigFakeDB
+	database *providerConfigFakeDB
 }
 
 func (tx *providerConfigFakeTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return tx.db.ExecContext(ctx, query, args...)
+	return tx.database.ExecContext(ctx, query, args...)
 }
 
-func (tx *providerConfigFakeTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
-	return tx.db.QueryContext(ctx, query, args...)
+func (tx *providerConfigFakeTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return tx.database.QueryContext(ctx, query, args...)
 }
 
-func (tx *providerConfigFakeTx) Commit() error   { tx.db.mu.Unlock(); return nil }
-func (tx *providerConfigFakeTx) Rollback() error { tx.db.mu.Unlock(); return nil }
+func (tx *providerConfigFakeTx) Commit() error   { tx.database.mu.Unlock(); return nil }
+func (tx *providerConfigFakeTx) Rollback() error { tx.database.mu.Unlock(); return nil }
 
 type unexpectedProviderConfigQueryError string
 

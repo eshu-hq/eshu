@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestAcceptanceRowCountReturnsEstimate(t *testing.T) {
@@ -70,7 +72,7 @@ type fakeRowCountQueryer struct {
 	err   error
 }
 
-func (f *fakeRowCountQueryer) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (f *fakeRowCountQueryer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	f.query = query
 	if f.err != nil {
 		return nil, f.err

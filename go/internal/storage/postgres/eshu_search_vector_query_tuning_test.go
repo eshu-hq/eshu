@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 type searchVectorTuningDB struct {
@@ -18,7 +20,7 @@ type searchVectorFallbackDB struct {
 	queries int
 }
 
-func (d *searchVectorFallbackDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (d *searchVectorFallbackDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	d.queries++
 	return &queueFakeRows{}, nil
 }
@@ -27,11 +29,11 @@ func (d *searchVectorFallbackDB) ExecContext(context.Context, string, ...any) (s
 	panic("search vector fallback must not execute query tuning")
 }
 
-func (d *searchVectorTuningDB) Begin(context.Context) (Transaction, error) {
+func (d *searchVectorTuningDB) Begin(context.Context) (db.Transaction, error) {
 	return d.tx, nil
 }
 
-func (d *searchVectorTuningDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (d *searchVectorTuningDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	panic("search vector query must run in the tuned transaction")
 }
 
@@ -47,7 +49,7 @@ type searchVectorTuningTx struct {
 	commitErr error
 }
 
-func (t *searchVectorTuningTx) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (t *searchVectorTuningTx) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	t.queries = append(t.queries, query)
 	return &queueFakeRows{}, nil
 }
@@ -81,8 +83,8 @@ func TestSearchVectorDocumentQueryRollsBackAfterCommitFailure(t *testing.T) {
 func TestSearchVectorDocumentQueryFallsBackWithoutBeginner(t *testing.T) {
 	t.Parallel()
 
-	db := &searchVectorFallbackDB{}
-	rows, err := beginSearchVectorDocumentQuery(context.Background(), db, "SELECT 1")
+	database := &searchVectorFallbackDB{}
+	rows, err := beginSearchVectorDocumentQuery(context.Background(), database, "SELECT 1")
 	if err != nil {
 		t.Fatalf("beginSearchVectorDocumentQuery fallback error = %v", err)
 	}
@@ -90,8 +92,8 @@ func TestSearchVectorDocumentQueryFallsBackWithoutBeginner(t *testing.T) {
 		t.Fatalf("fallback rows Commit error = %v", err)
 	}
 	rows.Rollback() // A transaction-less committed result remains safe to clean up.
-	if db.queries != 1 {
-		t.Fatalf("fallback queries = %d, want 1", db.queries)
+	if database.queries != 1 {
+		t.Fatalf("fallback queries = %d, want 1", database.queries)
 	}
 }
 
@@ -104,8 +106,8 @@ func TestSearchVectorDocumentQueryDisablesJITLocally(t *testing.T) {
 	t.Parallel()
 
 	tx := &searchVectorTuningTx{}
-	db := &searchVectorTuningDB{tx: tx}
-	store := NewEshuSearchDocumentStore(db)
+	database := &searchVectorTuningDB{tx: tx}
+	store := NewEshuSearchDocumentStore(database)
 	_, err := store.ListPendingVectorDocumentsForScopes(context.Background(), EshuSearchVectorDocumentBatchFilter{
 		Scopes:            []EshuSearchVectorDocumentScope{{ScopeID: "scope-a", GenerationID: "gen-a"}},
 		ProviderProfileID: "local", SourceClass: "search_documents",

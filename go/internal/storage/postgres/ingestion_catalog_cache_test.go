@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -44,12 +46,12 @@ type countingCatalogDB struct {
 	catalogPayloads [][]byte
 }
 
-func (f *countingCatalogDB) Begin(context.Context) (Transaction, error) {
+func (f *countingCatalogDB) Begin(context.Context) (db.Transaction, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.beginCalls++
 	f.openTx++
-	return &catalogTx{db: f}, nil
+	return &catalogTx{database: f}, nil
 }
 
 func (f *countingCatalogDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
@@ -60,7 +62,7 @@ func (f *countingCatalogDB) ExecContext(context.Context, string, ...any) (sql.Re
 // counter. The caller holds f.mu. Each row carries an observed_at column
 // (descending with slice position, mirroring the query ORDER BY) because the
 // catalog loader scans the freshness key alongside the payload (#5134).
-func (f *countingCatalogDB) catalogRows() Rows {
+func (f *countingCatalogDB) catalogRows() db.Rows {
 	f.catalogQueries++
 	base := time.Date(2026, time.June, 22, 11, 0, 0, 0, time.UTC)
 	rows := make([][]any, 0, len(f.catalogPayloads))
@@ -70,7 +72,7 @@ func (f *countingCatalogDB) catalogRows() Rows {
 	return &queueFakeRows{rows: rows}
 }
 
-func (f *countingCatalogDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (f *countingCatalogDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if strings.Contains(query, "fact_kind = 'repository'") {
@@ -87,7 +89,7 @@ func (f *countingCatalogDB) QueryContext(_ context.Context, query string, _ ...a
 // catalogTx serves the catalog read on the open transaction's own connection and
 // records commit/rollback so the harness can track open transactions.
 type catalogTx struct {
-	db        *countingCatalogDB
+	database  *countingCatalogDB
 	committed bool
 }
 
@@ -95,11 +97,11 @@ func (t *catalogTx) ExecContext(context.Context, string, ...any) (sql.Result, er
 	return fakeResult{}, nil
 }
 
-func (t *catalogTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
-	t.db.mu.Lock()
-	defer t.db.mu.Unlock()
+func (t *catalogTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	t.database.mu.Lock()
+	defer t.database.mu.Unlock()
 	if strings.Contains(query, "fact_kind = 'repository'") {
-		return t.db.catalogRows(), nil
+		return t.database.catalogRows(), nil
 	}
 	if strings.Contains(query, "INSERT INTO fact_records") && strings.Contains(query, "RETURNING fact_id") {
 		// Default: every fact_id in the batch is accepted (no fencing
@@ -113,21 +115,21 @@ func (t *catalogTx) QueryContext(_ context.Context, query string, args ...any) (
 }
 
 func (t *catalogTx) Commit() error {
-	t.db.mu.Lock()
-	defer t.db.mu.Unlock()
+	t.database.mu.Lock()
+	defer t.database.mu.Unlock()
 	if !t.committed {
 		t.committed = true
-		t.db.openTx--
+		t.database.openTx--
 	}
 	return nil
 }
 
 func (t *catalogTx) Rollback() error {
-	t.db.mu.Lock()
-	defer t.db.mu.Unlock()
+	t.database.mu.Lock()
+	defer t.database.mu.Unlock()
 	if !t.committed {
 		t.committed = true
-		t.db.openTx--
+		t.database.openTx--
 	}
 	return nil
 }
@@ -177,12 +179,12 @@ func TestIngestionStoreReusesRepositoryCatalogAcrossCommits(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC)
-	db := &countingCatalogDB{
+	database := &countingCatalogDB{
 		catalogPayloads: [][]byte{
 			[]byte(`{"graph_id":"repo-known"}`),
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	const commits = 5
@@ -202,7 +204,7 @@ func TestIngestionStoreReusesRepositoryCatalogAcrossCommits(t *testing.T) {
 		}
 	}
 
-	if got := db.catalogQueries; got != 1 {
+	if got := database.catalogQueries; got != 1 {
 		t.Fatalf("repository catalog loads = %d across %d commits, want 1 (O(1), not O(N))", got, commits)
 	}
 }
@@ -215,12 +217,12 @@ func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) 
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC)
-	db := &countingCatalogDB{
+	database := &countingCatalogDB{
 		catalogPayloads: [][]byte{
 			[]byte(`{"graph_id":"repo-known"}`),
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	// Commit 1: a known repo. Loads the catalog once and caches it.
@@ -237,9 +239,9 @@ func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) 
 
 	// Commit 2: a brand-new repo not in the cached catalog. This must
 	// invalidate the cache so the new identity becomes visible.
-	db.mu.Lock()
-	db.catalogPayloads = append(db.catalogPayloads, []byte(`{"graph_id":"repo-new"}`))
-	db.mu.Unlock()
+	database.mu.Lock()
+	database.catalogPayloads = append(database.catalogPayloads, []byte(`{"graph_id":"repo-new"}`))
+	database.mu.Unlock()
 	if err := store.CommitScopeGeneration(
 		context.Background(),
 		catalogTestScope("scope-new", "repo-new"),
@@ -272,7 +274,7 @@ func TestIngestionStoreReloadsRepositoryCatalogAfterNewRepository(t *testing.T) 
 	// reloads: commit 2 merges the new identity in place (#5129 — the
 	// pre-merge eviction forced a third, shared-cache reload here), and
 	// commit 3 reuses the merged cache.
-	if got := db.catalogQueries; got != 2 {
+	if got := database.catalogQueries; got != 2 {
 		t.Fatalf("repository catalog loads = %d, want 2 (initial + backfill-only reload; shared cache merges, never reloads)", got)
 	}
 
@@ -291,12 +293,12 @@ func TestIngestionStoreSharedCatalogCacheIsConcurrencySafe(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC)
-	db := &countingCatalogDB{
+	database := &countingCatalogDB{
 		catalogPayloads: [][]byte{
 			[]byte(`{"graph_id":"repo-known"}`),
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	const workers = 16
@@ -331,7 +333,7 @@ func TestIngestionStoreSharedCatalogCacheIsConcurrencySafe(t *testing.T) {
 	// the very first commits), never once per commit. A value at or below the
 	// worker count that is strictly less than the commit count proves the
 	// O(1)-amortized contract while tolerating a cold-start race window.
-	if got := db.catalogQueries; got < 1 || got >= workers {
+	if got := database.catalogQueries; got < 1 || got >= workers {
 		t.Fatalf("repository catalog loads = %d across %d concurrent commits, want bounded (>=1, <%d)", got, workers, workers)
 	}
 }
@@ -346,12 +348,12 @@ func TestIngestionStoreLoadsCatalogOnOpenTransaction(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC)
-	db := &countingCatalogDB{
+	database := &countingCatalogDB{
 		catalogPayloads: [][]byte{
 			[]byte(`{"graph_id":"repo-known"}`),
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	// Cold cache: this commit must load the catalog, and it must do so on the
@@ -367,15 +369,15 @@ func TestIngestionStoreLoadsCatalogOnOpenTransaction(t *testing.T) {
 		t.Fatalf("CommitScopeGeneration() error = %v, want nil", err)
 	}
 
-	if db.catalogQueries != 1 {
-		t.Fatalf("catalog loads = %d, want 1 (cold cache loads once)", db.catalogQueries)
+	if database.catalogQueries != 1 {
+		t.Fatalf("catalog loads = %d, want 1 (cold cache loads once)", database.catalogQueries)
 	}
-	if db.outerCatalogWhileTxOpen {
+	if database.outerCatalogWhileTxOpen {
 		t.Fatal("catalog was read from the outer pool while the ingestion tx was open: " +
 			"a second connection acquisition can deadlock under a single-connection pool")
 	}
-	if db.openTx != 0 {
-		t.Fatalf("open transactions after commit = %d, want 0", db.openTx)
+	if database.openTx != 0 {
+		t.Fatalf("open transactions after commit = %d, want 0", database.openTx)
 	}
 }
 
@@ -397,12 +399,12 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC)
-	db := &countingCatalogDB{
+	database := &countingCatalogDB{
 		catalogPayloads: [][]byte{
 			[]byte(`{"graph_id":"repo-known","repo_slug":"old-slug"}`),
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	// Commit 1: caches the catalog with alias "old-slug".
@@ -419,9 +421,9 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts(t *testing.T) {
 
 	// The committed generation renames the slug. The durable catalog reflects
 	// the new slug for the next load.
-	db.mu.Lock()
-	db.catalogPayloads = [][]byte{[]byte(`{"graph_id":"repo-known","repo_slug":"new-slug"}`)}
-	db.mu.Unlock()
+	database.mu.Lock()
+	database.catalogPayloads = [][]byte{[]byte(`{"graph_id":"repo-known","repo_slug":"new-slug"}`)}
+	database.mu.Unlock()
 
 	// Commit 2: same repo id, drifted slug. This must invalidate so a later
 	// commit observes the new alias.
@@ -453,7 +455,7 @@ func TestIngestionStoreReloadsCatalogWhenKnownRepoAliasDrifts(t *testing.T) {
 	// contract (the drifted alias becomes visible to later commits) is
 	// asserted on the cache content below and in
 	// TestIngestionStoreMergesAliasDriftWithoutReload.
-	if got := db.catalogQueries; got != 1 {
+	if got := database.catalogQueries; got != 1 {
 		t.Fatalf("repository catalog loads = %d, want 1 (initial fill; alias drift merges in place)", got)
 	}
 	aliases := cachedCatalogAliases(t, store, "repo-known")

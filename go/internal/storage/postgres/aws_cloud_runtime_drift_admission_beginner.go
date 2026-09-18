@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -17,7 +19,7 @@ import (
 // retire atomically over the shared instrumented connection. Mirrors
 // ServiceMaterializationBeginner.
 type AWSCloudRuntimeDriftAdmissionBeginner struct {
-	Beginner Beginner
+	Beginner db.Beginner
 }
 
 // BeginAWSCloudRuntimeDriftTx opens a transaction wrapped in the reducer's
@@ -33,7 +35,7 @@ func (b AWSCloudRuntimeDriftAdmissionBeginner) BeginAWSCloudRuntimeDriftTx(
 }
 
 type awsCloudRuntimeDriftAdmissionTx struct {
-	tx Transaction
+	tx db.Transaction
 }
 
 func (t awsCloudRuntimeDriftAdmissionTx) ExecContext(

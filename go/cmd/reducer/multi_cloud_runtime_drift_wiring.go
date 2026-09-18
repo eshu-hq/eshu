@@ -6,6 +6,8 @@ package main
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
@@ -61,7 +63,7 @@ func resolveNornicDBGroupedWrites(
 // is the same shared tfstatebackend resolver the AWS drift and config/state drift
 // domains use so all three agree on backend ownership.
 func multiCloudRuntimeDriftWiring(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,

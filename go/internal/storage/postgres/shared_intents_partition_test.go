@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -20,7 +22,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	completedAt := now.Add(time.Second)
-	db := &partitionIntentListTestDB{rows: []partitionIntentListRow{
+	database := &partitionIntentListTestDB{rows: []partitionIntentListRow{
 		{
 			row: reducer.SharedProjectionIntentRow{
 				IntentID:         "si-other-partition",
@@ -79,7 +81,7 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 			acceptanceUnitID: "repo-a",
 		},
 	}}
-	store := NewSharedIntentStore(db)
+	store := NewSharedIntentStore(database)
 
 	got, err := store.ListPendingAcceptanceUnitPartitionIntents(context.Background(), reducer.SharedProjectionAcceptanceKey{
 		ScopeID:          "scope-a",
@@ -95,8 +97,8 @@ func TestSharedIntentStoreListPendingAcceptanceUnitPartitionIntents(t *testing.T
 	if got[0].IntentID != "si-target-1" {
 		t.Fatalf("IntentID = %q, want si-target-1", got[0].IntentID)
 	}
-	if !strings.Contains(db.query, "partition_key = $5") {
-		t.Fatalf("query = %q, want partition key predicate", db.query)
+	if !strings.Contains(database.query, "partition_key = $5") {
+		t.Fatalf("query = %q, want partition key predicate", database.query)
 	}
 }
 
@@ -111,12 +113,12 @@ type partitionIntentListTestDB struct {
 	query string
 }
 
-func (db *partitionIntentListTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *partitionIntentListTestDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return nil, fmt.Errorf("unexpected exec")
 }
 
-func (db *partitionIntentListTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
-	db.query = query
+func (database *partitionIntentListTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.query = query
 	if !strings.Contains(query, "partition_key = $5") {
 		return nil, fmt.Errorf("query missing partition key predicate: %s", query)
 	}
@@ -131,7 +133,7 @@ func (db *partitionIntentListTestDB) QueryContext(_ context.Context, query strin
 	}
 
 	var rows [][]any
-	for _, stored := range db.rows {
+	for _, stored := range database.rows {
 		intent := stored.row
 		if stored.scopeID != scopeID || stored.acceptanceUnitID != acceptanceUnitID {
 			continue

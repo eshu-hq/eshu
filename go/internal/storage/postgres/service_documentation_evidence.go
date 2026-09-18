@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -74,12 +76,12 @@ ORDER BY fact.source_system ASC, fact.source_record_id ASC, fact.fact_id ASC
 // load is bounded: one query per service over the active-generation
 // documentation fact set, returning only durable external identity.
 type ServiceDocumentationEvidenceLoader struct {
-	queryer Queryer
+	queryer db.Queryer
 }
 
 // NewServiceDocumentationEvidenceLoader constructs a read-only documentation
 // evidence loader over the shared query surface.
-func NewServiceDocumentationEvidenceLoader(queryer Queryer) ServiceDocumentationEvidenceLoader {
+func NewServiceDocumentationEvidenceLoader(queryer db.Queryer) ServiceDocumentationEvidenceLoader {
 	return ServiceDocumentationEvidenceLoader{queryer: queryer}
 }
 

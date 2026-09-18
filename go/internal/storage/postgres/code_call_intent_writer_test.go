@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -28,8 +30,8 @@ func TestCodeCallIntentWriterRecordsAcceptanceUpsertMetrics(t *testing.T) {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
 
-	db := &codeCallIntentWriterTestDB{}
-	writer := NewCodeCallIntentWriterWithInstruments(db, instruments)
+	database := &codeCallIntentWriterTestDB{}
+	writer := NewCodeCallIntentWriterWithInstruments(database, instruments)
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	rows := []reducer.SharedProjectionIntentRow{
@@ -74,20 +76,20 @@ type codeCallIntentWriterTestDB struct {
 	storedAcceptances []string
 }
 
-func (db *codeCallIntentWriterTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *codeCallIntentWriterTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "INSERT INTO shared_projection_intents"):
-		db.intentWrites++
+		database.intentWrites++
 		for i := 0; i < len(args); i += columnsPerSharedIntent {
-			db.storedIntentIDs = append(db.storedIntentIDs, args[i].(string))
+			database.storedIntentIDs = append(database.storedIntentIDs, args[i].(string))
 		}
 		return sharedIntentResult{}, nil
 
 	case strings.Contains(query, "INSERT INTO shared_projection_acceptance"):
-		db.acceptanceWrites++
+		database.acceptanceWrites++
 		for i := 0; i < len(args); i += acceptanceColumnsPerRow {
 			key := fmt.Sprintf("%s|%s|%s", args[i].(string), args[i+1].(string), args[i+2].(string))
-			db.storedAcceptances = append(db.storedAcceptances, key)
+			database.storedAcceptances = append(database.storedAcceptances, key)
 		}
 		return sharedIntentResult{}, nil
 
@@ -96,7 +98,7 @@ func (db *codeCallIntentWriterTestDB) ExecContext(_ context.Context, query strin
 	}
 }
 
-func (db *codeCallIntentWriterTestDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (database *codeCallIntentWriterTestDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, fmt.Errorf("unexpected query")
 }
 

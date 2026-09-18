@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -192,15 +194,15 @@ func benchmarkReducerQueueClaimReadinessGate(b *testing.B, dsn string, benchCase
 	b.Helper()
 
 	ctx := context.Background()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		b.Fatalf("open postgres: %v", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	sqlConn, err := db.Conn(ctx)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	sqlConn, err := database.Conn(ctx)
 	if err != nil {
-		_ = db.Close()
+		_ = database.Close()
 		b.Fatalf("open dedicated postgres connection: %v", err)
 	}
 	conn := reducerClaimBenchmarkConn{conn: sqlConn}
@@ -209,7 +211,7 @@ func benchmarkReducerQueueClaimReadinessGate(b *testing.B, dsn string, benchCase
 	cleanup := func() {
 		_, _ = conn.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 		_ = sqlConn.Close()
-		_ = db.Close()
+		_ = database.Close()
 	}
 	if err := createReducerClaimBenchmarkSchema(ctx, conn, schemaName); err != nil {
 		cleanup()
@@ -225,7 +227,7 @@ func benchmarkReducerQueueClaimReadinessGate(b *testing.B, dsn string, benchCase
 
 	now := time.Date(2026, time.June, 13, 12, 0, 0, 0, time.UTC)
 	queue := ReducerQueue{
-		db:            conn,
+		database:      conn,
 		LeaseOwner:    "bench-reducer",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -255,25 +257,25 @@ func benchmarkReducerQueueClaimReadinessGate(b *testing.B, dsn string, benchCase
 
 func seedReducerClaimReadinessBenchmark(
 	ctx context.Context,
-	db Executor,
+	database db.Executor,
 	benchCase reducerClaimReadinessBenchmarkCase,
 ) error {
 	now := time.Date(2026, time.June, 13, 11, 0, 0, 0, time.UTC)
 	scopeCount := reducerClaimBenchmarkScopeCount(max(benchCase.queueDepth, benchCase.phaseRows))
-	if err := seedReducerClaimBenchmarkScopes(ctx, db, scopeCount, now); err != nil {
+	if err := seedReducerClaimBenchmarkScopes(ctx, database, scopeCount, now); err != nil {
 		return err
 	}
-	if err := seedReducerClaimReadinessWork(ctx, db, benchCase, scopeCount, now); err != nil {
+	if err := seedReducerClaimReadinessWork(ctx, database, benchCase, scopeCount, now); err != nil {
 		return err
 	}
-	if err := seedReducerClaimReadinessPhases(ctx, db, benchCase.phaseRows, scopeCount, now); err != nil {
+	if err := seedReducerClaimReadinessPhases(ctx, database, benchCase.phaseRows, scopeCount, now); err != nil {
 		return err
 	}
 	return nil
 }
 
-func seedReducerClaimBenchmarkScopes(ctx context.Context, db Executor, scopeCount int, now time.Time) error {
-	if _, err := db.ExecContext(ctx, `
+func seedReducerClaimBenchmarkScopes(ctx context.Context, database db.Executor, scopeCount int, now time.Time) error {
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, parent_scope_id,
     collector_kind, partition_key, observed_at, ingested_at, status,
@@ -295,7 +297,7 @@ SELECT
 FROM generate_series(1, $2) AS series(i)`, now, scopeCount); err != nil {
 		return fmt.Errorf("insert benchmark scope: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO scope_generations (
     generation_id, scope_id, trigger_kind, freshness_hint, observed_at,
     ingested_at, status, activated_at, superseded_at, payload
@@ -319,7 +321,7 @@ FROM generate_series(1, $2) AS series(i)`, now, scopeCount); err != nil {
 
 func seedReducerClaimReadinessWork(
 	ctx context.Context,
-	db Executor,
+	database db.Executor,
 	benchCase reducerClaimReadinessBenchmarkCase,
 	scopeCount int,
 	now time.Time,
@@ -362,7 +364,7 @@ SELECT
     $5,
     $5
 FROM benchmark_rows`
-	if _, err := db.ExecContext(
+	if _, err := database.ExecContext(
 		ctx,
 		query,
 		benchCase.queueDepth,
@@ -388,12 +390,12 @@ func reducerClaimReadinessBenchmarkDomainCaseSQL() string {
 
 func seedReducerClaimReadinessPhases(
 	ctx context.Context,
-	db Executor,
+	database db.Executor,
 	phaseRows int,
 	scopeCount int,
 	now time.Time,
 ) error {
-	_, err := db.ExecContext(ctx, `
+	_, err := database.ExecContext(ctx, `
 WITH benchmark_rows AS (
     SELECT series.i, ((series.i - 1) % $2) + 1 AS scope_ordinal
     FROM generate_series(1, $1) AS series(i)

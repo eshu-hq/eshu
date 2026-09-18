@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
-
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func (s *postgresStore) ListDeadLetterWorkItems(
@@ -20,7 +20,7 @@ func (s *postgresStore) ListDeadLetterWorkItems(
 	f admin.DeadLetterListFilter,
 ) ([]admin.DeadLetterWorkItem, error) {
 	query, args := buildListDeadLetterWorkItemsQuery(f)
-	return scanDeadLetterWorkItems(ctx, s.db, query, args...)
+	return scanDeadLetterWorkItems(ctx, s.database, query, args...)
 }
 
 func buildListDeadLetterWorkItemsQuery(f admin.DeadLetterListFilter) (string, []any) {
@@ -89,11 +89,11 @@ WHERE work.status = 'dead_letter'
 
 func scanDeadLetterWorkItems(
 	ctx context.Context,
-	db pgstatus.ExecQueryer,
+	database db.ExecQueryer,
 	query string,
 	args ...any,
 ) ([]admin.DeadLetterWorkItem, error) {
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query dead-letter work items: %w", err)
 	}

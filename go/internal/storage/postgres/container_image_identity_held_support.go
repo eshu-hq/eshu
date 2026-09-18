@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -14,15 +16,15 @@ import (
 // ContainerImageIdentityHeldSupportStore reads the bounded prior authority
 // needed only when collector completeness holds an exact image reference.
 type ContainerImageIdentityHeldSupportStore struct {
-	db Queryer
+	database db.Queryer
 }
 
 // NewContainerImageIdentityHeldSupportStore constructs the bounded prior
 // support reader.
 func NewContainerImageIdentityHeldSupportStore(
-	db Queryer,
+	database db.Queryer,
 ) ContainerImageIdentityHeldSupportStore {
-	return ContainerImageIdentityHeldSupportStore{db: db}
+	return ContainerImageIdentityHeldSupportStore{database: database}
 }
 
 // LoadHeldContainerImageIdentitySupports loads supports from the exact active
@@ -35,13 +37,13 @@ func (s ContainerImageIdentityHeldSupportStore) LoadHeldContainerImageIdentitySu
 	activationEpoch int64,
 	imageRefs []string,
 ) ([]reducer.ContainerImageIdentityPriorSupport, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("container image identity held support database is required")
 	}
 	if len(imageRefs) == 0 {
 		return nil, nil
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		containerImageIdentityHeldSupportQuery,
 		scopeID,

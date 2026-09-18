@@ -79,14 +79,14 @@ LIMIT $1
 // config_state_drift producers (bootstrap Phase 3.5, the ingester's runtime
 // delta-trigger) missed within its own bounded interval.
 func (s IngestionStore) ListActiveStateSnapshotScopes(ctx context.Context, limit int) ([]projector.PendingConfigStateDriftScope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("ingestion store db is required")
 	}
 	if limit <= 0 {
 		limit = defaultCatchUpListLimit
 	}
 
-	rows, err := s.db.QueryContext(ctx, listActiveStateSnapshotScopesLimitedQuery, limit)
+	rows, err := s.database.QueryContext(ctx, listActiveStateSnapshotScopesLimitedQuery, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list active state_snapshot scopes for catch-up sweep: %w", err)
 	}

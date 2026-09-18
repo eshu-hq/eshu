@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const getFileContentQuery = `
@@ -79,13 +81,13 @@ type EntityContentRow struct {
 
 // ContentStore provides read and batch-write access to the Postgres content store.
 type ContentStore struct {
-	db  ExecQueryer
-	Now func() time.Time
+	database db.ExecQueryer
+	Now      func() time.Time
 }
 
 // NewContentStore constructs a Postgres-backed content store.
-func NewContentStore(db ExecQueryer) ContentStore {
-	return ContentStore{db: db}
+func NewContentStore(database db.ExecQueryer) ContentStore {
+	return ContentStore{database: database}
 }
 
 // GetFileContent returns a single file content row for one repo-relative path.
@@ -95,11 +97,11 @@ func (s ContentStore) GetFileContent(
 	repoID string,
 	relativePath string,
 ) (*FileContentRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("content store database is required")
 	}
 
-	rows, err := s.db.QueryContext(ctx, getFileContentQuery, repoID, relativePath)
+	rows, err := s.database.QueryContext(ctx, getFileContentQuery, repoID, relativePath)
 	if err != nil {
 		return nil, fmt.Errorf("get file content: %w", err)
 	}
@@ -126,11 +128,11 @@ func (s ContentStore) GetEntityContent(
 	ctx context.Context,
 	entityID string,
 ) (*EntityContentRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("content store database is required")
 	}
 
-	rows, err := s.db.QueryContext(ctx, getEntityContentQuery, entityID)
+	rows, err := s.database.QueryContext(ctx, getEntityContentQuery, entityID)
 	if err != nil {
 		return nil, fmt.Errorf("get entity content: %w", err)
 	}
@@ -159,7 +161,7 @@ func (s ContentStore) SearchFileContent(
 	repoID string,
 	limit int,
 ) ([]FileContentRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("content store database is required")
 	}
 	if limit <= 0 {
@@ -168,7 +170,7 @@ func (s ContentStore) SearchFileContent(
 
 	sqlQuery, args := buildFileSearchQuery(query, repoID, limit)
 
-	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := s.database.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("search file content: %w", err)
 	}
@@ -197,7 +199,7 @@ func (s ContentStore) SearchEntityContent(
 	repoID string,
 	limit int,
 ) ([]EntityContentRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("content store database is required")
 	}
 	if limit <= 0 {
@@ -206,7 +208,7 @@ func (s ContentStore) SearchEntityContent(
 
 	sqlQuery, args := buildEntitySearchQuery(query, repoID, limit)
 
-	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := s.database.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("search entity content: %w", err)
 	}
@@ -234,7 +236,7 @@ func (s ContentStore) now() time.Time {
 	return time.Now().UTC()
 }
 
-func scanFileContentRow(rows Rows) (FileContentRow, error) {
+func scanFileContentRow(rows db.Rows) (FileContentRow, error) {
 	var row FileContentRow
 	var commitSHA sql.NullString
 	var language sql.NullString
@@ -276,7 +278,7 @@ func scanFileContentRow(rows Rows) (FileContentRow, error) {
 	return row, nil
 }
 
-func scanEntityContentRow(rows Rows) (EntityContentRow, error) {
+func scanEntityContentRow(rows db.Rows) (EntityContentRow, error) {
 	var row EntityContentRow
 	var startByte sql.NullInt64
 	var endByte sql.NullInt64

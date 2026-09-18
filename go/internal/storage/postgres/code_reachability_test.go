@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 )
 
@@ -37,8 +39,8 @@ func TestCodeReachabilitySchemaSQL(t *testing.T) {
 
 func TestCodeReachabilityStoreUpsertBatchesRows(t *testing.T) {
 	now := time.Date(2026, 6, 17, 3, 0, 0, 0, time.UTC)
-	db := newCodeReachabilityTestDB()
-	store := NewCodeReachabilityStore(db)
+	database := newCodeReachabilityTestDB()
+	store := NewCodeReachabilityStore(database)
 	err := store.Upsert(context.Background(), []codeintel.CodeReachabilityRow{{
 		ScopeID:             "scope-1",
 		GenerationID:        "generation-1",
@@ -58,9 +60,9 @@ func TestCodeReachabilityStoreUpsertBatchesRows(t *testing.T) {
 		t.Fatalf("Upsert() error = %v", err)
 	}
 
-	row, ok := db.rows["scope-1|generation-1|repo-1|entity:root|entity:leaf"]
+	row, ok := database.rows["scope-1|generation-1|repo-1|entity:root|entity:leaf"]
 	if !ok {
-		t.Fatalf("stored rows = %#v, want entity:leaf", db.rows)
+		t.Fatalf("stored rows = %#v, want entity:leaf", database.rows)
 	}
 	if got, want := row.MinResolutionMethod, "scip"; got != want {
 		t.Fatalf("method = %q, want %q", got, want)
@@ -69,8 +71,8 @@ func TestCodeReachabilityStoreUpsertBatchesRows(t *testing.T) {
 
 func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T) {
 	now := time.Date(2026, 6, 17, 3, 0, 0, 0, time.UTC)
-	db := newCodeReachabilityTestDB()
-	db.rows["scope-1|generation-1|repo-1|entity:root|entity:stale"] = codeReachabilityStoredRow{
+	database := newCodeReachabilityTestDB()
+	database.rows["scope-1|generation-1|repo-1|entity:root|entity:stale"] = codeReachabilityStoredRow{
 		ScopeID:             "scope-1",
 		GenerationID:        "generation-1",
 		RepositoryID:        "repo-1",
@@ -85,7 +87,7 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T
 		ObservedAt:          now,
 		UpdatedAt:           now,
 	}
-	store := NewCodeReachabilityStore(db)
+	store := NewCodeReachabilityStore(database)
 	err := store.ReplaceRepositoryRows(
 		context.Background(),
 		"scope-1",
@@ -113,24 +115,24 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsDeletesStaleRows(t *testing.T
 	if err != nil {
 		t.Fatalf("ReplaceRepositoryRows() error = %v", err)
 	}
-	if _, ok := db.rows["scope-1|generation-1|repo-1|entity:root|entity:stale"]; ok {
-		t.Fatalf("stale row was not deleted: %#v", db.rows)
+	if _, ok := database.rows["scope-1|generation-1|repo-1|entity:root|entity:stale"]; ok {
+		t.Fatalf("stale row was not deleted: %#v", database.rows)
 	}
-	if _, ok := db.rows["scope-1|generation-1|repo-1|entity:root|entity:live"]; !ok {
-		t.Fatalf("live replacement row missing: %#v", db.rows)
+	if _, ok := database.rows["scope-1|generation-1|repo-1|entity:root|entity:live"]; !ok {
+		t.Fatalf("live replacement row missing: %#v", database.rows)
 	}
-	if got, want := db.watermarks["scope-1|generation-1|repo-1"].UpdatedAt, now.Add(time.Minute); !got.Equal(want) {
+	if got, want := database.watermarks["scope-1|generation-1|repo-1"].UpdatedAt, now.Add(time.Minute); !got.Equal(want) {
 		t.Fatalf("watermark updated_at = %v, want %v", got, want)
 	}
-	if got, want := db.watermarks["scope-1|generation-1|repo-1"].Truncated, false; got != want {
+	if got, want := database.watermarks["scope-1|generation-1|repo-1"].Truncated, false; got != want {
 		t.Fatalf("watermark truncated = %v, want %v", got, want)
 	}
 }
 
 func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *testing.T) {
 	now := time.Date(2026, 6, 17, 4, 0, 0, 0, time.UTC)
-	db := newCodeReachabilityTestDB()
-	store := NewCodeReachabilityStore(db)
+	database := newCodeReachabilityTestDB()
+	store := NewCodeReachabilityStore(database)
 	err := store.ReplaceRepositoryRows(
 		context.Background(),
 		"scope-empty",
@@ -144,19 +146,19 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *test
 	if err != nil {
 		t.Fatalf("ReplaceRepositoryRows() error = %v", err)
 	}
-	if len(db.rows) != 0 {
-		t.Fatalf("rows = %#v, want empty replacement", db.rows)
+	if len(database.rows) != 0 {
+		t.Fatalf("rows = %#v, want empty replacement", database.rows)
 	}
-	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"].UpdatedAt, now; !got.Equal(want) {
+	if got, want := database.watermarks["scope-empty|generation-empty|repo-empty"].UpdatedAt, now; !got.Equal(want) {
 		t.Fatalf("watermark updated_at = %v, want %v", got, want)
 	}
-	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"].Truncated, true; got != want {
+	if got, want := database.watermarks["scope-empty|generation-empty|repo-empty"].Truncated, true; got != want {
 		t.Fatalf("watermark truncated = %v, want %v", got, want)
 	}
 	// #5376 P1: the runner stamps the current verdict schema epoch even for an
 	// empty (no-Ruby / zero-verdict) replacement, so the upgrade-backfill
 	// predicate cannot loop on it.
-	if got, want := db.watermarks["scope-empty|generation-empty|repo-empty"].VerdictEpoch, CodeReachabilityVerdictSchemaEpoch; got != want {
+	if got, want := database.watermarks["scope-empty|generation-empty|repo-empty"].VerdictEpoch, CodeReachabilityVerdictSchemaEpoch; got != want {
 		t.Fatalf("watermark verdict_schema_epoch = %d, want %d", got, want)
 	}
 }
@@ -167,13 +169,13 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsRecordsEmptyWatermark(t *test
 // reachability rows written in the same transaction.
 func TestCodeReachabilityStoreReplaceRepositoryRowsReplacesVerdicts(t *testing.T) {
 	now := time.Date(2026, 7, 20, 3, 0, 0, 0, time.UTC)
-	db := newCodeReachabilityTestDB()
-	db.verdicts["scope-1|generation-1|repo-1|entity:stale|ruby.rails_controller_action"] = codeRootVerdictStoredRow{
+	database := newCodeReachabilityTestDB()
+	database.verdicts["scope-1|generation-1|repo-1|entity:stale|ruby.rails_controller_action"] = codeRootVerdictStoredRow{
 		ScopeID: "scope-1", GenerationID: "generation-1", RepositoryID: "repo-1",
 		EntityID: "entity:stale", RootKind: "ruby.rails_controller_action", Verdict: "downgraded",
 		Basis: []byte("{}"), ObservedAt: now, UpdatedAt: now,
 	}
-	store := NewCodeReachabilityStore(db)
+	store := NewCodeReachabilityStore(database)
 	err := store.ReplaceRepositoryRows(
 		context.Background(),
 		"scope-1", "generation-1", "repo-1",
@@ -195,12 +197,12 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsReplacesVerdicts(t *testing.T
 	if err != nil {
 		t.Fatalf("ReplaceRepositoryRows() error = %v", err)
 	}
-	if _, ok := db.verdicts["scope-1|generation-1|repo-1|entity:stale|ruby.rails_controller_action"]; ok {
-		t.Fatalf("stale verdict was not deleted: %#v", db.verdicts)
+	if _, ok := database.verdicts["scope-1|generation-1|repo-1|entity:stale|ruby.rails_controller_action"]; ok {
+		t.Fatalf("stale verdict was not deleted: %#v", database.verdicts)
 	}
-	live, ok := db.verdicts["scope-1|generation-1|repo-1|entity:live|ruby.rails_controller_action"]
+	live, ok := database.verdicts["scope-1|generation-1|repo-1|entity:live|ruby.rails_controller_action"]
 	if !ok {
-		t.Fatalf("live verdict row missing: %#v", db.verdicts)
+		t.Fatalf("live verdict row missing: %#v", database.verdicts)
 	}
 	if live.Verdict != "downgraded" {
 		t.Fatalf("verdict = %q, want downgraded", live.Verdict)
@@ -215,9 +217,9 @@ func TestCodeReachabilityStoreReplaceRepositoryRowsReplacesVerdicts(t *testing.T
 }
 
 func TestCodeReachabilityStoreListLatestByEntitiesUsesActiveGeneration(t *testing.T) {
-	db := newCodeReachabilityTestDB()
+	database := newCodeReachabilityTestDB()
 	now := time.Date(2026, 6, 17, 3, 0, 0, 0, time.UTC)
-	db.rows["scope-1|generation-1|repo-1|entity:root|entity:leaf"] = codeReachabilityStoredRow{
+	database.rows["scope-1|generation-1|repo-1|entity:root|entity:leaf"] = codeReachabilityStoredRow{
 		ScopeID:             "scope-1",
 		GenerationID:        "generation-1",
 		RepositoryID:        "repo-1",
@@ -232,7 +234,7 @@ func TestCodeReachabilityStoreListLatestByEntitiesUsesActiveGeneration(t *testin
 		ObservedAt:          now,
 		UpdatedAt:           now.Add(time.Minute),
 	}
-	store := NewCodeReachabilityStore(db)
+	store := NewCodeReachabilityStore(database)
 	got, err := store.ListLatestByEntities(context.Background(), "repo-1", []string{"entity:leaf"})
 	if err != nil {
 		t.Fatalf("ListLatestByEntities() error = %v", err)
@@ -240,8 +242,8 @@ func TestCodeReachabilityStoreListLatestByEntitiesUsesActiveGeneration(t *testin
 	if got["entity:leaf"].RootEntityID != "entity:root" {
 		t.Fatalf("root = %q, want entity:root", got["entity:leaf"].RootEntityID)
 	}
-	if !strings.Contains(db.lastQuery, "JOIN ingestion_scopes AS scope") {
-		t.Fatalf("query did not use active generation join:\n%s", db.lastQuery)
+	if !strings.Contains(database.lastQuery, "JOIN ingestion_scopes AS scope") {
+		t.Fatalf("query did not use active generation join:\n%s", database.lastQuery)
 	}
 }
 
@@ -294,15 +296,15 @@ func newCodeReachabilityTestDB() *codeReachabilityTestDB {
 	}
 }
 
-func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *codeReachabilityTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "DELETE FROM code_reachability_rows"):
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
 		repositoryID := args[2].(string)
-		for key, row := range db.rows {
+		for key, row := range database.rows {
 			if row.ScopeID == scopeID && row.GenerationID == generationID && row.RepositoryID == repositoryID {
-				delete(db.rows, key)
+				delete(database.rows, key)
 			}
 		}
 		return sharedIntentResult{}, nil
@@ -332,16 +334,16 @@ func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, a
 				ObservedAt:          args[i+11].(time.Time),
 				UpdatedAt:           args[i+12].(time.Time),
 			}
-			db.rows[strings.Join([]string{row.ScopeID, row.GenerationID, row.RepositoryID, row.RootEntityID, row.EntityID}, "|")] = row
+			database.rows[strings.Join([]string{row.ScopeID, row.GenerationID, row.RepositoryID, row.RootEntityID, row.EntityID}, "|")] = row
 		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "DELETE FROM code_root_verdicts"):
 		scopeID := args[0].(string)
 		generationID := args[1].(string)
 		repositoryID := args[2].(string)
-		for key, row := range db.verdicts {
+		for key, row := range database.verdicts {
 			if row.ScopeID == scopeID && row.GenerationID == generationID && row.RepositoryID == repositoryID {
-				delete(db.verdicts, key)
+				delete(database.verdicts, key)
 			}
 		}
 		return sharedIntentResult{}, nil
@@ -359,7 +361,7 @@ func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, a
 				ObservedAt:   args[i+7].(time.Time),
 				UpdatedAt:    args[i+8].(time.Time),
 			}
-			db.verdicts[strings.Join([]string{row.ScopeID, row.GenerationID, row.RepositoryID, row.EntityID, row.RootKind}, "|")] = row
+			database.verdicts[strings.Join([]string{row.ScopeID, row.GenerationID, row.RepositoryID, row.EntityID, row.RootKind}, "|")] = row
 		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "INSERT INTO code_reachability_repository_watermarks"):
@@ -369,7 +371,7 @@ func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, a
 		truncated := args[3].(bool)
 		updatedAt := args[4].(time.Time)
 		verdictEpoch := args[5].(int)
-		db.watermarks[strings.Join([]string{scopeID, generationID, repositoryID}, "|")] = codeReachabilityWatermark{
+		database.watermarks[strings.Join([]string{scopeID, generationID, repositoryID}, "|")] = codeReachabilityWatermark{
 			UpdatedAt:    updatedAt,
 			Truncated:    truncated,
 			VerdictEpoch: verdictEpoch,
@@ -382,8 +384,8 @@ func (db *codeReachabilityTestDB) ExecContext(_ context.Context, query string, a
 	}
 }
 
-func (db *codeReachabilityTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
-	db.lastQuery = query
+func (database *codeReachabilityTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.lastQuery = query
 	if !strings.Contains(query, "FROM code_reachability_rows") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
@@ -394,7 +396,7 @@ func (db *codeReachabilityTestDB) QueryContext(_ context.Context, query string, 
 	}
 
 	var matches [][]any
-	for _, row := range db.rows {
+	for _, row := range database.rows {
 		if row.RepositoryID != repoID {
 			continue
 		}

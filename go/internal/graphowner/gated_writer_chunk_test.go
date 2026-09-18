@@ -11,10 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// fakeChunkTx is a no-op postgres.Transaction: fakeChunkStore below resolves
+// fakeChunkTx is a no-op db.Transaction: fakeChunkStore below resolves
 // ownership in-memory and never touches it, so it only needs to satisfy the
 // interface and record whether it was committed or rolled back.
 type fakeChunkTx struct {
@@ -26,7 +28,7 @@ func (f *fakeChunkTx) ExecContext(context.Context, string, ...any) (sql.Result, 
 	return nil, nil
 }
 
-func (f *fakeChunkTx) QueryContext(context.Context, string, ...any) (postgres.Rows, error) {
+func (f *fakeChunkTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, nil
 }
 
@@ -49,7 +51,7 @@ type fakeChunkBeginner struct {
 	txs     []*fakeChunkTx
 }
 
-func (f *fakeChunkBeginner) Begin(context.Context) (postgres.Transaction, error) {
+func (f *fakeChunkBeginner) Begin(context.Context) (db.Transaction, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.txCount++
@@ -81,7 +83,7 @@ type fakeChunkStore struct {
 
 func (f *fakeChunkStore) ResolveOwnedUIDs(
 	_ context.Context,
-	_ postgres.ExecQueryer,
+	_ db.ExecQueryer,
 	entries []postgres.GraphNodeOwnerEntry,
 	_ time.Time,
 ) (map[string]struct{}, int, error) {
@@ -121,7 +123,7 @@ func TestGateWriteChunksCriticalSectionAtLockChunkSize(t *testing.T) {
 
 	beginner := &fakeChunkBeginner{}
 	store := &fakeChunkStore{}
-	gate := &Gate{db: beginner, store: store}
+	gate := &Gate{database: beginner, store: store}
 
 	var written []map[string]any
 	underlying := func(_ context.Context, chunkRows []map[string]any, _ string) error {

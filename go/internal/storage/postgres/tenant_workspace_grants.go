@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -19,7 +21,7 @@ const (
 
 // TenantWorkspaceGrantStore persists hosted tenant, workspace, and grant state.
 type TenantWorkspaceGrantStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // TenantRecord is the durable hosted tenant state row.
@@ -83,8 +85,8 @@ type TenantWorkspaceGrantQuery struct {
 }
 
 // NewTenantWorkspaceGrantStore constructs a Postgres tenant grant store.
-func NewTenantWorkspaceGrantStore(db ExecQueryer) *TenantWorkspaceGrantStore {
-	return &TenantWorkspaceGrantStore{db: db}
+func NewTenantWorkspaceGrantStore(database db.ExecQueryer) *TenantWorkspaceGrantStore {
+	return &TenantWorkspaceGrantStore{database: database}
 }
 
 // TenantWorkspaceGrantSchemaSQL returns hosted tenant/workspace grant DDL.
@@ -94,10 +96,10 @@ func TenantWorkspaceGrantSchemaSQL() string {
 
 // EnsureSchema applies the tenant/workspace grant schema.
 func (s *TenantWorkspaceGrantStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("tenant workspace grant store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, tenantWorkspaceGrantSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, tenantWorkspaceGrantSchemaSQL); err != nil {
 		return fmt.Errorf("ensure tenant workspace grant schema: %w", err)
 	}
 	return nil
@@ -105,14 +107,14 @@ func (s *TenantWorkspaceGrantStore) EnsureSchema(ctx context.Context) error {
 
 // UpsertTenant creates or updates one hosted tenant state row.
 func (s *TenantWorkspaceGrantStore) UpsertTenant(ctx context.Context, record TenantRecord) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("tenant workspace grant store database is required")
 	}
 	record = normalizeTenantRecord(record)
 	if err := validateTenantRecord(record); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		upsertTenantRecordQuery,
 		record.TenantID,
@@ -129,14 +131,14 @@ func (s *TenantWorkspaceGrantStore) UpsertTenant(ctx context.Context, record Ten
 
 // UpsertWorkspace creates or updates one hosted workspace state row.
 func (s *TenantWorkspaceGrantStore) UpsertWorkspace(ctx context.Context, record WorkspaceRecord) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("tenant workspace grant store database is required")
 	}
 	record = normalizeWorkspaceRecord(record)
 	if err := validateWorkspaceRecord(record); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		upsertWorkspaceRecordQuery,
 		record.TenantID,
@@ -154,14 +156,14 @@ func (s *TenantWorkspaceGrantStore) UpsertWorkspace(ctx context.Context, record 
 
 // UpsertScopeGrant creates, refreshes, or tombstones one scope grant.
 func (s *TenantWorkspaceGrantStore) UpsertScopeGrant(ctx context.Context, grant TenantScopeGrant) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("tenant workspace grant store database is required")
 	}
 	grant = normalizeScopeGrant(grant)
 	if err := validateScopeGrant(grant); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		upsertTenantScopeGrantQuery,
 		grant.TenantID,
@@ -182,14 +184,14 @@ func (s *TenantWorkspaceGrantStore) UpsertScopeGrant(ctx context.Context, grant 
 
 // UpsertRepositoryGrant creates, refreshes, or tombstones one repository grant.
 func (s *TenantWorkspaceGrantStore) UpsertRepositoryGrant(ctx context.Context, grant TenantRepositoryGrant) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("tenant workspace grant store database is required")
 	}
 	grant = normalizeRepositoryGrant(grant)
 	if err := validateRepositoryGrant(grant); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		upsertTenantRepositoryGrantQuery,
 		grant.TenantID,
@@ -214,14 +216,14 @@ func (s *TenantWorkspaceGrantStore) ListScopeGrants(
 	ctx context.Context,
 	query TenantWorkspaceGrantQuery,
 ) ([]TenantScopeGrant, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("tenant workspace grant store database is required")
 	}
 	query = normalizeGrantQuery(query)
 	if err := validateGrantQuery(query); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listTenantScopeGrantsQuery,
 		query.TenantID,
@@ -255,14 +257,14 @@ func (s *TenantWorkspaceGrantStore) ListRepositoryGrants(
 	ctx context.Context,
 	query TenantWorkspaceGrantQuery,
 ) ([]TenantRepositoryGrant, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("tenant workspace grant store database is required")
 	}
 	query = normalizeGrantQuery(query)
 	if err := validateGrantQuery(query); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listTenantRepositoryGrantsQuery,
 		query.TenantID,
@@ -426,7 +428,7 @@ func validateGrantQuery(query TenantWorkspaceGrantQuery) error {
 	return nil
 }
 
-func scanTenantScopeGrant(rows Rows) (TenantScopeGrant, error) {
+func scanTenantScopeGrant(rows db.Rows) (TenantScopeGrant, error) {
 	var grant TenantScopeGrant
 	var expiresAt sql.NullTime
 	if err := rows.Scan(
@@ -445,7 +447,7 @@ func scanTenantScopeGrant(rows Rows) (TenantScopeGrant, error) {
 	return grant, nil
 }
 
-func scanTenantRepositoryGrant(rows Rows) (TenantRepositoryGrant, error) {
+func scanTenantRepositoryGrant(rows db.Rows) (TenantRepositoryGrant, error) {
 	var grant TenantRepositoryGrant
 	var expiresAt sql.NullTime
 	if err := rows.Scan(

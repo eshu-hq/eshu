@@ -101,7 +101,7 @@ func claimContainerImageIdentityLegacyPerformanceRow(
 	expectedID string,
 ) error {
 	now := queue.now()
-	rows, err := queue.db.QueryContext(
+	rows, err := queue.database.QueryContext(
 		ctx,
 		legacyContainerImageIdentityClaimQuery,
 		now,

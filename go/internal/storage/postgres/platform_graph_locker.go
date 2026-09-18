@@ -9,6 +9,8 @@ import (
 	"hash/fnv"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -21,7 +23,7 @@ const (
 // the same Platform.id. The lock is transaction-scoped so Postgres releases it
 // on commit, rollback, or connection loss.
 type PlatformGraphLocker struct {
-	DB Beginner
+	DB db.Beginner
 }
 
 // WithPlatformLocks acquires deterministic advisory locks for platformIDs,

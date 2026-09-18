@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -147,18 +149,18 @@ func runContainerImageIdentityPerfCase(
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
 	defer cancel()
-	db := openContainerImageIdentityPerfSchema(t, ctx, dsn, variant, scenario.name)
+	database := openContainerImageIdentityPerfSchema(t, ctx, dsn, variant, scenario.name)
 	seedContainerImageIdentityPerfFixture(
 		t,
 		ctx,
-		db,
+		database,
 		scenario.references,
 		scenario.staleWarnings,
 	)
 
 	counts := &containerImageIdentityPerfStatementCounts{}
 	countingDB := containerImageIdentityPerfCountingDB{
-		delegate: postgres.SQLDB{DB: db},
+		delegate: postgres.SQLDB{DB: database},
 		counts:   counts,
 	}
 	factStore := postgres.NewFactStore(countingDB)
@@ -203,13 +205,13 @@ func runContainerImageIdentityPerfCase(
 	assertContainerImageIdentityPerfAccuracy(
 		t,
 		ctx,
-		db,
+		database,
 		scenario.references,
 		containerImageIdentityPerfHeadVariant,
 	)
-	prepareContainerImageIdentityPerfStats(t, ctx, db)
+	prepareContainerImageIdentityPerfStats(t, ctx, database)
 	counts.reset()
-	walBefore := currentContainerImageIdentityPerfWAL(t, ctx, db)
+	walBefore := currentContainerImageIdentityPerfWAL(t, ctx, database)
 
 	latencies := make([]time.Duration, 0, scenario.iterations)
 	started := time.Now()
@@ -221,13 +223,13 @@ func runContainerImageIdentityPerfCase(
 		latencies = append(latencies, time.Since(runStarted))
 	}
 	total := time.Since(started)
-	walAfter := currentContainerImageIdentityPerfWAL(t, ctx, db)
-	walBytes := containerImageIdentityPerfWALDiff(t, ctx, db, walAfter, walBefore)
-	stats := readContainerImageIdentityPerfTableStats(t, ctx, db)
+	walAfter := currentContainerImageIdentityPerfWAL(t, ctx, database)
+	walBytes := containerImageIdentityPerfWALDiff(t, ctx, database, walAfter, walBefore)
+	stats := readContainerImageIdentityPerfTableStats(t, ctx, database)
 	accuracy := assertContainerImageIdentityPerfAccuracy(
 		t,
 		ctx,
-		db,
+		database,
 		scenario.references,
 		containerImageIdentityPerfHeadVariant,
 	)
@@ -403,44 +405,44 @@ type containerImageIdentityPerfCountingDB struct {
 	counts   *containerImageIdentityPerfStatementCounts
 }
 
-func (db containerImageIdentityPerfCountingDB) QueryContext(
+func (database containerImageIdentityPerfCountingDB) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	started := time.Now()
-	rows, err := db.delegate.QueryContext(ctx, query, args...)
-	db.counts.recordQuery(query, time.Since(started))
+	rows, err := database.delegate.QueryContext(ctx, query, args...)
+	database.counts.recordQuery(query, time.Since(started))
 	return rows, err
 }
 
-func (db containerImageIdentityPerfCountingDB) ExecContext(
+func (database containerImageIdentityPerfCountingDB) ExecContext(
 	ctx context.Context,
 	query string,
 	args ...any,
 ) (sql.Result, error) {
 	started := time.Now()
-	result, err := db.delegate.ExecContext(ctx, query, args...)
-	db.counts.recordExec(query, time.Since(started))
+	result, err := database.delegate.ExecContext(ctx, query, args...)
+	database.counts.recordExec(query, time.Since(started))
 	return result, err
 }
 
-func (db containerImageIdentityPerfCountingDB) Begin(
+func (database containerImageIdentityPerfCountingDB) Begin(
 	ctx context.Context,
-) (postgres.Transaction, error) {
-	db.counts.begins.Add(1)
-	tx, err := db.delegate.Begin(ctx)
+) (db.Transaction, error) {
+	database.counts.begins.Add(1)
+	tx, err := database.delegate.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return containerImageIdentityPerfCountingTx{
 		delegate: tx,
-		counts:   db.counts,
+		counts:   database.counts,
 	}, nil
 }
 
 type containerImageIdentityPerfCountingTx struct {
-	delegate postgres.Transaction
+	delegate db.Transaction
 	counts   *containerImageIdentityPerfStatementCounts
 }
 
@@ -448,7 +450,7 @@ func (tx containerImageIdentityPerfCountingTx) QueryContext(
 	ctx context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	started := time.Now()
 	rows, err := tx.delegate.QueryContext(ctx, query, args...)
 	tx.counts.recordQuery(query, time.Since(started))

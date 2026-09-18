@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -41,7 +43,7 @@ func newLiveSource(
 // buildCollectorService wires the read-only Kubernetes live snapshot source
 // onto the shared collector commit boundary.
 func buildCollectorService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -67,7 +69,7 @@ func buildCollectorService(
 // buildCassetteService wires a credential-free cassette source onto the shared
 // collector commit boundary. It requires no live Kubernetes credentials.
 func buildCassetteService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cassettePath string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,

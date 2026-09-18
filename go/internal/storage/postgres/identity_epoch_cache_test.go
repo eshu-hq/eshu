@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -37,13 +39,13 @@ func probeQueryRow(count int, maxObservedAt time.Time, fingerprint string) queue
 }
 
 // newFactStoreWithCache creates a FactStore with a wired identity cache for testing.
-func newFactStoreWithCache(db ExecQueryer, maxBytes int64) *FactStore {
+func newFactStoreWithCache(database db.ExecQueryer, maxBytes int64) *FactStore {
 	cache, err := NewIdentityEpochCache(testInstruments(), maxBytes)
 	if err != nil {
 		panic("NewIdentityEpochCache in test: " + err.Error())
 	}
 	return &FactStore{
-		db:            db,
+		database:      database,
 		identityCache: cache,
 	}
 }
@@ -61,7 +63,7 @@ func TestIdentityEpochCacheHit(t *testing.T) {
 		[]byte(`{}`),
 	}
 
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
@@ -70,7 +72,7 @@ func TestIdentityEpochCacheHit(t *testing.T) {
 		},
 	}
 
-	store := newFactStoreWithCache(db, 0)
+	store := newFactStoreWithCache(database, 0)
 
 	loaded1, err := store.ListActiveContainerImageIdentityFacts(context.Background())
 	if err != nil {
@@ -89,7 +91,7 @@ func TestIdentityEpochCacheHit(t *testing.T) {
 	}
 
 	var loadQueries int
-	for _, q := range db.queries {
+	for _, q := range database.queries {
 		if strings.Contains(q.query, "LIMIT") {
 			loadQueries++
 		}
@@ -122,7 +124,7 @@ func TestIdentityEpochCacheMissChangedCount(t *testing.T) {
 		[]byte(`{}`),
 	}
 
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
@@ -133,7 +135,7 @@ func TestIdentityEpochCacheMissChangedCount(t *testing.T) {
 		},
 	}
 
-	store := newFactStoreWithCache(db, 0)
+	store := newFactStoreWithCache(database, 0)
 
 	loaded1, err := store.ListActiveContainerImageIdentityFacts(context.Background())
 	if err != nil {
@@ -152,7 +154,7 @@ func TestIdentityEpochCacheMissChangedCount(t *testing.T) {
 	}
 
 	var loadQueries int
-	for _, q := range db.queries {
+	for _, q := range database.queries {
 		if strings.Contains(q.query, "LIMIT") {
 			loadQueries++
 		}
@@ -180,7 +182,7 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 		[]byte(`{}`),
 	}
 
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
@@ -191,7 +193,7 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 		},
 	}
 
-	store := newFactStoreWithCache(db, 0)
+	store := newFactStoreWithCache(database, 0)
 
 	loaded1, err := store.ListActiveContainerImageIdentityFacts(context.Background())
 	if err != nil {
@@ -210,7 +212,7 @@ func TestIdentityEpochCacheCommitMidLoad(t *testing.T) {
 	}
 
 	var loadQueries int
-	for _, q := range db.queries {
+	for _, q := range database.queries {
 		if strings.Contains(q.query, "LIMIT") {
 			loadQueries++
 		}
@@ -239,7 +241,7 @@ func TestIdentityEpochCacheCapExceeded(t *testing.T) {
 		largePayload,
 	}
 
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
@@ -250,7 +252,7 @@ func TestIdentityEpochCacheCapExceeded(t *testing.T) {
 		},
 	}
 
-	store := newFactStoreWithCache(db, 100)
+	store := newFactStoreWithCache(database, 100)
 
 	loaded1, err := store.ListActiveContainerImageIdentityFacts(context.Background())
 	if err != nil {
@@ -269,7 +271,7 @@ func TestIdentityEpochCacheCapExceeded(t *testing.T) {
 	}
 
 	var loadQueries int
-	for _, q := range db.queries {
+	for _, q := range database.queries {
 		if strings.Contains(q.query, "LIMIT") {
 			loadQueries++
 		}
@@ -318,7 +320,7 @@ func TestIdentityEpochCacheDefensiveCopy(t *testing.T) {
 		[]byte(`{"key":"value"}`),
 	}
 
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			probeQueryRow(1, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), ""),
 			{rows: [][]any{factRow}},
@@ -327,7 +329,7 @@ func TestIdentityEpochCacheDefensiveCopy(t *testing.T) {
 		},
 	}
 
-	store := newFactStoreWithCache(db, 0)
+	store := newFactStoreWithCache(database, 0)
 
 	loaded1, err := store.ListActiveContainerImageIdentityFacts(context.Background())
 	if err != nil {

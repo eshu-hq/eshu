@@ -266,14 +266,14 @@ INSERT INTO container_image_identity_cutovers (
 		unrelatedBeforeTrials = append(unrelatedBeforeTrials, unrelatedBefore)
 		unrelatedAfterTrials = append(unrelatedAfterTrials, unrelatedAfter)
 		baselineQueue := ReducerQueue{
-			db:            SQLDB{DB: baselineDB},
+			database:      SQLDB{DB: baselineDB},
 			LeaseOwner:    owner,
 			LeaseDuration: time.Minute,
 			MaxAttempts:   1,
 			Now:           func() time.Time { return now },
 		}
 		candidateQueue := baselineQueue
-		candidateQueue.db = SQLDB{DB: candidateDB}
+		candidateQueue.database = SQLDB{DB: candidateDB}
 		failure := errors.New("synthetic fixed-schema failure")
 		failBefore, failAfter := measureContainerImageIdentityAckTwinPair(
 			t,

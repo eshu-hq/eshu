@@ -30,13 +30,13 @@ func (s SemanticExtractionQueueStore) SkipClaimByPolicy(
 	now time.Time,
 	reasonCode string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("semantic extraction queue store db is required")
 	}
 	if strings.TrimSpace(leaseOwner) == "" {
 		return errors.New("lease owner is required")
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		skipSemanticQueueJobByPolicyQuery,
 		now.UTC(),

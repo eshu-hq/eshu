@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -19,7 +21,7 @@ type recordingQueryer struct {
 	queries []string
 }
 
-func (q *recordingQueryer) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (q *recordingQueryer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	q.queries = append(q.queries, query)
 	return &fakeRows{}, nil
 }

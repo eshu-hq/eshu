@@ -141,7 +141,7 @@ WHERE work_item_id = 'ack-5854-legacy-v2'
 		t, ctx, db, scopeMarkedSingle, markedSingle, "image_ref_v2", 1,
 	)
 	capableQueue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    capableOwner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -290,7 +290,7 @@ WHERE work_item_id IN ($2, $3)
 	)
 	assertContainerImageIdentityLegacyAckRejected(t, legacyResult, legacyErr)
 	reclaimQueue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    capableOwner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

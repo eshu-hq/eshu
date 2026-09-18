@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -90,7 +92,7 @@ WHERE scope_id = $4
 // GraphProjectionPhaseRepairQueueStore persists exact readiness publications
 // that must be retried after a durable graph write succeeded.
 type GraphProjectionPhaseRepairQueueStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 
 	// Now is the injectable clock for the bookkeeping timestamps this store
 	// writes (the enqueue committed/enqueued fallback and the MarkFailed
@@ -110,8 +112,8 @@ func (s *GraphProjectionPhaseRepairQueueStore) now() time.Time {
 }
 
 // NewGraphProjectionPhaseRepairQueueStore constructs a repair queue store.
-func NewGraphProjectionPhaseRepairQueueStore(db ExecQueryer) *GraphProjectionPhaseRepairQueueStore {
-	return &GraphProjectionPhaseRepairQueueStore{db: db}
+func NewGraphProjectionPhaseRepairQueueStore(database db.ExecQueryer) *GraphProjectionPhaseRepairQueueStore {
+	return &GraphProjectionPhaseRepairQueueStore{database: database}
 }
 
 // GraphProjectionPhaseRepairQueueSchemaSQL returns the DDL for the repair
@@ -122,7 +124,7 @@ func GraphProjectionPhaseRepairQueueSchemaSQL() string {
 
 // EnsureSchema applies the repair queue DDL.
 func (s *GraphProjectionPhaseRepairQueueStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, graphProjectionPhaseRepairQueueSchemaSQL)
+	_, err := s.database.ExecContext(ctx, graphProjectionPhaseRepairQueueSchemaSQL)
 	return err
 }
 
@@ -137,7 +139,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) Enqueue(ctx context.Context, repa
 		if end > len(repairs) {
 			end = len(repairs)
 		}
-		if err := enqueueGraphProjectionPhaseRepairBatch(ctx, s.db, repairs[i:end], s.now()); err != nil {
+		if err := enqueueGraphProjectionPhaseRepairBatch(ctx, s.database, repairs[i:end], s.now()); err != nil {
 			return err
 		}
 	}
@@ -151,7 +153,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) ListDue(ctx context.Context, now 
 		return nil, nil
 	}
 
-	rows, err := s.db.QueryContext(ctx, listDueGraphProjectionPhaseRepairsSQL, now.UTC(), limit)
+	rows, err := s.database.QueryContext(ctx, listDueGraphProjectionPhaseRepairsSQL, now.UTC(), limit)
 	if err != nil {
 		return nil, fmt.Errorf("query graph projection phase repair queue: %w", err)
 	}
@@ -195,7 +197,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) Delete(ctx context.Context, repai
 		if end > len(repairs) {
 			end = len(repairs)
 		}
-		if err := deleteGraphProjectionPhaseRepairBatch(ctx, s.db, repairs[i:end]); err != nil {
+		if err := deleteGraphProjectionPhaseRepairBatch(ctx, s.database, repairs[i:end]); err != nil {
 			return err
 		}
 	}
@@ -215,7 +217,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) MarkFailed(
 	}
 
 	updatedAt := s.now()
-	_, err := s.db.ExecContext(
+	_, err := s.database.ExecContext(
 		ctx,
 		markFailedGraphProjectionPhaseRepairSQL,
 		nextAttemptAt.UTC(),
@@ -234,7 +236,7 @@ func (s *GraphProjectionPhaseRepairQueueStore) MarkFailed(
 	return nil
 }
 
-func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer, batch []reducer.GraphProjectionPhaseRepair, now time.Time) error {
+func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, database db.ExecQueryer, batch []reducer.GraphProjectionPhaseRepair, now time.Time) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -286,13 +288,13 @@ func enqueueGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer,
 	}
 
 	query := insertGraphProjectionPhaseRepairQueueBatchPrefix + values.String() + insertGraphProjectionPhaseRepairQueueBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("enqueue graph projection phase repair batch (%d rows): %w", len(batch), err)
 	}
 	return nil
 }
 
-func deleteGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer, batch []reducer.GraphProjectionPhaseRepair) error {
+func deleteGraphProjectionPhaseRepairBatch(ctx context.Context, database db.ExecQueryer, batch []reducer.GraphProjectionPhaseRepair) error {
 	args := make([]any, 0, len(batch)*graphProjectionPhaseRepairQueueDeleteKeyWidth)
 	var tuples strings.Builder
 
@@ -322,7 +324,7 @@ func deleteGraphProjectionPhaseRepairBatch(ctx context.Context, db ExecQueryer, 
 	}
 
 	query := deleteGraphProjectionPhaseRepairsPrefix + tuples.String() + deleteGraphProjectionPhaseRepairsSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("delete graph projection phase repair batch (%d rows): %w", len(batch), err)
 	}
 	return nil

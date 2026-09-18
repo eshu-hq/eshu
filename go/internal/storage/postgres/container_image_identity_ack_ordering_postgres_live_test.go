@@ -351,7 +351,7 @@ SELECT pg_advisory_xact_lock(
 			t.Fatalf("hold capable-bypass advisory lock: %v", err)
 		}
 		queue := ReducerQueue{
-			db:            SQLDB{DB: db},
+			database:      SQLDB{DB: db},
 			LeaseOwner:    owner,
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now },
@@ -422,7 +422,7 @@ SELECT pg_advisory_xact_lock(
 			t.Fatalf("begin repeatable-read attempt-bound ACK: %v", err)
 		}
 		queue := ReducerQueue{
-			db:            SQLTx{Tx: capableTx},
+			database:      SQLTx{Tx: capableTx},
 			LeaseOwner:    capableOwner,
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now },

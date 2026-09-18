@@ -106,7 +106,7 @@ WHERE work_item_id = $1
 	}
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -163,7 +163,7 @@ func TestContainerImageIdentityClaimEpochAdvancesOnceUnderCompetingClaimersLive(
 	insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeID, generationID)
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -326,7 +326,7 @@ INSERT INTO container_image_identity_cutovers (
 
 	insertContainerImageIdentityCutoverMarker(t, ctx, db, scopeID, generationID)
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -16,7 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// countingExecQueryer is a fake postgres.ExecQueryer that counts ExecContext
+// countingExecQueryer is a fake db.ExecQueryer that counts ExecContext
 // round-trips. It is shared by every Tier-2 Postgres cost scenario (C-14
 // issue #4367): each scenario wraps this fake in the SAME production
 // postgres.InstrumentedDB the reducer wires in production
@@ -38,10 +40,10 @@ func (f *countingExecQueryer) ExecContext(context.Context, string, ...any) (sql.
 	return nil, nil
 }
 
-// QueryContext is present only to satisfy postgres.ExecQueryer; none of the
+// QueryContext is present only to satisfy db.ExecQueryer; none of the
 // Tier-2 Postgres cost scenarios read back rows, so it always succeeds with a
 // nil cursor.
-func (f *countingExecQueryer) QueryContext(context.Context, string, ...any) (postgres.Rows, error) {
+func (f *countingExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, nil
 }
 
@@ -101,11 +103,11 @@ func newInstrumentedReducerDB(
 	t.Helper()
 
 	inst, reader := newManualReaderInstruments(t)
-	db := &postgres.InstrumentedDB{
+	database := &postgres.InstrumentedDB{
 		Inner:       fake,
 		Tracer:      nil,
 		Instruments: inst,
 		StoreName:   "reducer",
 	}
-	return db, reader
+	return database, reader
 }

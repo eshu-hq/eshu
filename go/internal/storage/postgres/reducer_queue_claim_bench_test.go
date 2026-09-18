@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 
@@ -184,15 +186,15 @@ func benchmarkReducerQueueClaimDepth(b *testing.B, dsn string, depth int) {
 	b.Helper()
 
 	ctx := context.Background()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		b.Fatalf("open postgres: %v", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	sqlConn, err := db.Conn(ctx)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	sqlConn, err := database.Conn(ctx)
 	if err != nil {
-		_ = db.Close()
+		_ = database.Close()
 		b.Fatalf("open dedicated postgres connection: %v", err)
 	}
 	conn := reducerClaimBenchmarkConn{conn: sqlConn}
@@ -201,7 +203,7 @@ func benchmarkReducerQueueClaimDepth(b *testing.B, dsn string, depth int) {
 	cleanup := func() {
 		_, _ = conn.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 		_ = sqlConn.Close()
-		_ = db.Close()
+		_ = database.Close()
 	}
 	if err := createReducerClaimBenchmarkSchema(ctx, conn, schemaName); err != nil {
 		cleanup()
@@ -217,7 +219,7 @@ func benchmarkReducerQueueClaimDepth(b *testing.B, dsn string, depth int) {
 
 	now := time.Date(2026, time.June, 13, 12, 0, 0, 0, time.UTC)
 	queue := ReducerQueue{
-		db:            conn,
+		database:      conn,
 		LeaseOwner:    "bench-reducer",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -251,7 +253,7 @@ func (c reducerClaimBenchmarkConn) ExecContext(ctx context.Context, query string
 	return c.conn.ExecContext(ctx, query, args...)
 }
 
-func (c reducerClaimBenchmarkConn) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (c reducerClaimBenchmarkConn) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return c.conn.QueryContext(ctx, query, args...)
 }
 
@@ -282,11 +284,11 @@ func (reducerClaimBenchmarkResult) LastInsertId() (int64, error) { return 0, nil
 
 func (reducerClaimBenchmarkResult) RowsAffected() (int64, error) { return 1, nil }
 
-func createReducerClaimBenchmarkSchema(ctx context.Context, db Executor, schemaName string) error {
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
+func createReducerClaimBenchmarkSchema(ctx context.Context, database db.Executor, schemaName string) error {
+	if _, err := database.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		return fmt.Errorf("create schema: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
+	if _, err := database.ExecContext(ctx, "SET search_path TO "+schemaName); err != nil {
 		return fmt.Errorf("set search_path: %w", err)
 	}
 	for _, stmt := range []string{
@@ -301,17 +303,17 @@ func createReducerClaimBenchmarkSchema(ctx context.Context, db Executor, schemaN
 		MigrationSQL("reducer_work_item_reopened_at"),
 		graphProjectionPhaseStateSchemaSQL,
 	} {
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
+		if _, err := database.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("apply benchmark schema: %w", err)
 		}
 	}
 	return nil
 }
 
-func seedReducerClaimBenchmarkQueue(ctx context.Context, db Executor, depth int) error {
+func seedReducerClaimBenchmarkQueue(ctx context.Context, database db.Executor, depth int) error {
 	now := time.Date(2026, time.June, 13, 11, 0, 0, 0, time.UTC)
 	scopeCount := reducerClaimBenchmarkScopeCount(depth)
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, parent_scope_id,
     collector_kind, partition_key, observed_at, ingested_at, status,
@@ -333,7 +335,7 @@ SELECT
 FROM generate_series(1, $2) AS series(i)`, now, scopeCount); err != nil {
 		return fmt.Errorf("insert benchmark scope: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO scope_generations (
     generation_id, scope_id, trigger_kind, freshness_hint, observed_at,
     ingested_at, status, activated_at, superseded_at, payload
@@ -369,7 +371,7 @@ FROM generate_series(1, $2) AS series(i)`, now, scopeCount); err != nil {
 		keyValues[i] = fmt.Sprintf("(%d, '%s')", i+1, key)
 	}
 
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 WITH scope_conflict_keys (scope_ordinal, conflict_key) AS (
     VALUES `+strings.Join(keyValues, ", ")+`
 ),
@@ -417,22 +419,22 @@ JOIN scope_conflict_keys ON scope_conflict_keys.scope_ordinal = benchmark_rows.s
 	return nil
 }
 
-func analyzeReducerClaimBenchmarkTables(ctx context.Context, db Executor) error {
+func analyzeReducerClaimBenchmarkTables(ctx context.Context, database db.Executor) error {
 	for _, tableName := range []string{
 		"ingestion_scopes",
 		"scope_generations",
 		"fact_work_items",
 		"graph_projection_phase_state",
 	} {
-		if _, err := db.ExecContext(ctx, "ANALYZE "+tableName); err != nil {
+		if _, err := database.ExecContext(ctx, "ANALYZE "+tableName); err != nil {
 			return fmt.Errorf("analyze %s: %w", tableName, err)
 		}
 	}
 	return nil
 }
 
-func resetReducerClaimBenchmarkWork(ctx context.Context, db Executor, workItemID string, now time.Time) error {
-	_, err := db.ExecContext(ctx, `
+func resetReducerClaimBenchmarkWork(ctx context.Context, database db.Executor, workItemID string, now time.Time) error {
+	_, err := database.ExecContext(ctx, `
 UPDATE fact_work_items
 SET status = 'pending',
     attempt_count = 0,

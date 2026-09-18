@@ -58,7 +58,7 @@ func (s *IdentitySubjectStore) GetLocalIdentityMFAStatus(
 	subjectIDHash string,
 	asOf time.Time,
 ) (LocalIdentityMFAStatus, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return LocalIdentityMFAStatus{}, errors.New("identity subject store database is required")
 	}
 	subjectIDHash = strings.TrimSpace(subjectIDHash)
@@ -68,7 +68,7 @@ func (s *IdentitySubjectStore) GetLocalIdentityMFAStatus(
 	if asOf.IsZero() {
 		return LocalIdentityMFAStatus{}, errors.New("as_of is required")
 	}
-	rows, err := s.db.QueryContext(ctx, getLocalIdentityMFAStatusQuery, subjectIDHash, asOf.UTC())
+	rows, err := s.database.QueryContext(ctx, getLocalIdentityMFAStatusQuery, subjectIDHash, asOf.UTC())
 	if err != nil {
 		return LocalIdentityMFAStatus{}, fmt.Errorf("get local identity mfa status: %w", err)
 	}

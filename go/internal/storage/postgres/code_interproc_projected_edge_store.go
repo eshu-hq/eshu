@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -106,21 +108,21 @@ func CodeInterprocProjectedEdgeSchemaSQL() string {
 // projected TAINT_FLOWS_TO edge so retraction can enumerate uids from the
 // ledger instead of scanning the whole graph.
 type CodeInterprocProjectedEdgeStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewCodeInterprocProjectedEdgeStore constructs a Postgres-backed projected-edge
 // ledger.
-func NewCodeInterprocProjectedEdgeStore(db ExecQueryer) CodeInterprocProjectedEdgeStore {
-	return CodeInterprocProjectedEdgeStore{db: db}
+func NewCodeInterprocProjectedEdgeStore(database db.ExecQueryer) CodeInterprocProjectedEdgeStore {
+	return CodeInterprocProjectedEdgeStore{database: database}
 }
 
 // EnsureSchema applies the projected-edge ledger DDL.
 func (s CodeInterprocProjectedEdgeStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code interproc projected edge store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, codeInterprocProjectedEdgeSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, codeInterprocProjectedEdgeSchemaSQL); err != nil {
 		return fmt.Errorf("ensure code interproc projected edge schema: %w", err)
 	}
 	return nil
@@ -137,7 +139,7 @@ func (s CodeInterprocProjectedEdgeStore) RecordProjectedEdges(
 	sourceFunctionUIDs []string,
 	updatedAt time.Time,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code interproc projected edge store database is required")
 	}
 	if updatedAt.IsZero() {
@@ -193,7 +195,7 @@ func (s CodeInterprocProjectedEdgeStore) upsertBatch(
 		args = append(args, evidenceSource, scopeID, generationID, uid, updatedAt)
 	}
 	query := upsertCodeInterprocProjectedEdgeBatchPrefix + strings.Join(values, ", ") + upsertCodeInterprocProjectedEdgeBatchSuffix
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert code interproc projected edges: %w", err)
 	}
 	return nil
@@ -206,10 +208,10 @@ func (s CodeInterprocProjectedEdgeStore) ListSourceUIDsForScopes(
 	evidenceSource string,
 	scopeIDs []string,
 ) ([]string, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("code interproc projected edge store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listCodeInterprocSourceUIDsForScopesSQL, evidenceSource, scopeIDs)
+	rows, err := s.database.QueryContext(ctx, listCodeInterprocSourceUIDsForScopesSQL, evidenceSource, scopeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list code interproc source uids for scopes: %w", err)
 	}
@@ -234,10 +236,10 @@ func (s CodeInterprocProjectedEdgeStore) ListSourceUIDsForSource(
 	ctx context.Context,
 	evidenceSource string,
 ) ([]string, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("code interproc projected edge store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, listCodeInterprocSourceUIDsForSourceSQL, evidenceSource)
+	rows, err := s.database.QueryContext(ctx, listCodeInterprocSourceUIDsForSourceSQL, evidenceSource)
 	if err != nil {
 		return nil, fmt.Errorf("list code interproc source uids for source: %w", err)
 	}
@@ -265,13 +267,13 @@ func (s CodeInterprocProjectedEdgeStore) ListStaleSourceUIDs(
 	currentGenerationID string,
 	limit int,
 ) ([]string, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("code interproc projected edge store database is required")
 	}
 	if limit <= 0 {
 		return nil, nil
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx, listStaleCodeInterprocSourceUIDsSQL,
 		evidenceSource, scopeID, currentGenerationID, limit,
 	)
@@ -300,10 +302,10 @@ func (s CodeInterprocProjectedEdgeStore) PruneForScopes(
 	evidenceSource string,
 	scopeIDs []string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code interproc projected edge store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, pruneCodeInterprocForScopesSQL, evidenceSource, scopeIDs); err != nil {
+	if _, err := s.database.ExecContext(ctx, pruneCodeInterprocForScopesSQL, evidenceSource, scopeIDs); err != nil {
 		return fmt.Errorf("prune code interproc projected edges for scopes: %w", err)
 	}
 	return nil
@@ -314,10 +316,10 @@ func (s CodeInterprocProjectedEdgeStore) PruneForSource(
 	ctx context.Context,
 	evidenceSource string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code interproc projected edge store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, pruneCodeInterprocForSourceSQL, evidenceSource); err != nil {
+	if _, err := s.database.ExecContext(ctx, pruneCodeInterprocForSourceSQL, evidenceSource); err != nil {
 		return fmt.Errorf("prune code interproc projected edges for source: %w", err)
 	}
 	return nil
@@ -335,13 +337,13 @@ func (s CodeInterprocProjectedEdgeStore) PruneStaleForUIDs(
 	currentGenerationID string,
 	uids []string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("code interproc projected edge store database is required")
 	}
 	if len(uids) == 0 {
 		return nil
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx, pruneStaleCodeInterprocForUIDsSQL,
 		evidenceSource, scopeID, currentGenerationID, uids,
 	); err != nil {
@@ -356,10 +358,10 @@ func (s CodeInterprocProjectedEdgeStore) LedgerHasRowsForSource(
 	ctx context.Context,
 	evidenceSource string,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, fmt.Errorf("code interproc projected edge store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, codeInterprocHasRowsForSourceSQL, evidenceSource)
+	rows, err := s.database.QueryContext(ctx, codeInterprocHasRowsForSourceSQL, evidenceSource)
 	if err != nil {
 		return false, fmt.Errorf("check code interproc rows for source: %w", err)
 	}

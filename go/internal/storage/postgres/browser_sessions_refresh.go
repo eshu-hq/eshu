@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // StaleOIDCSessionRecord is the hash-only projection of one OIDC-backed browser
@@ -65,7 +67,7 @@ func (s *BrowserSessionStore) ListStaleOIDCSessions(
 	asOf time.Time,
 	limit int,
 ) ([]StaleOIDCSessionRecord, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("browser session store database is required")
 	}
 	if asOf.IsZero() {
@@ -74,7 +76,7 @@ func (s *BrowserSessionStore) ListStaleOIDCSessions(
 	if limit <= 0 {
 		return nil, errors.New("stale oidc session limit must be positive")
 	}
-	rows, err := s.db.QueryContext(ctx, listStaleOIDCBrowserSessionsQuery, asOf.UTC(), limit)
+	rows, err := s.database.QueryContext(ctx, listStaleOIDCBrowserSessionsQuery, asOf.UTC(), limit)
 	if err != nil {
 		return nil, fmt.Errorf("list stale oidc sessions: %w", err)
 	}
@@ -103,7 +105,7 @@ func (s *BrowserSessionStore) UpdateOIDCSessionAuthProof(
 	ctx context.Context,
 	update OIDCSessionAuthProofUpdate,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("browser session store database is required")
 	}
 	update = normalizeOIDCSessionAuthProofUpdate(update)
@@ -134,7 +136,7 @@ func (s *BrowserSessionStore) UpdateOIDCSessionAuthProof(
 	if err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		updateOIDCBrowserSessionAuthProofQuery,
 		update.SessionHash,
@@ -155,7 +157,7 @@ func (s *BrowserSessionStore) UpdateOIDCSessionAuthProof(
 	return nil
 }
 
-func scanStaleOIDCSession(rows Rows) (StaleOIDCSessionRecord, error) {
+func scanStaleOIDCSession(rows db.Rows) (StaleOIDCSessionRecord, error) {
 	var record StaleOIDCSessionRecord
 	var roleIDBytes, allowedScopeBytes, allowedRepositoryBytes, groupHashBytes []byte
 	if err := rows.Scan(

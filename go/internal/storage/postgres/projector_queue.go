@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -18,7 +20,7 @@ import (
 
 // ProjectorQueue provides projector-stage queue claim and ack behavior.
 type ProjectorQueue struct {
-	db                ExecQueryer
+	database          db.ExecQueryer
 	LeaseOwner        string
 	LeaseDuration     time.Duration
 	RetryDelay        time.Duration
@@ -66,12 +68,12 @@ var ErrProjectorClaimRejected = errors.New("projector work claim rejected")
 
 // NewProjectorQueue constructs a Postgres-backed projector work queue.
 func NewProjectorQueue(
-	db ExecQueryer,
+	database db.ExecQueryer,
 	leaseOwner string,
 	leaseDuration time.Duration,
 ) ProjectorQueue {
 	return ProjectorQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    leaseOwner,
 		LeaseDuration: leaseDuration,
 	}
@@ -90,7 +92,7 @@ func (q ProjectorQueue) Enqueue(
 	scopeID string,
 	generationID string,
 ) error {
-	if q.db == nil {
+	if q.database == nil {
 		return errors.New("projector queue database is required")
 	}
 	if scopeID == "" {
@@ -101,7 +103,7 @@ func (q ProjectorQueue) Enqueue(
 	}
 
 	now := q.now()
-	_, err := q.db.ExecContext(
+	_, err := q.database.ExecContext(
 		ctx,
 		enqueueProjectorWorkQuery,
 		projectorWorkItemID(scopeID, generationID),
@@ -124,7 +126,7 @@ func (q ProjectorQueue) Claim(ctx context.Context) (projector.ScopeGenerationWor
 	}
 
 	now := q.now()
-	rows, err := q.db.QueryContext(
+	rows, err := q.database.QueryContext(
 		ctx,
 		claimProjectorWorkQuery,
 		now,
@@ -165,7 +167,7 @@ func (q ProjectorQueue) Ack(
 		return err
 	}
 
-	beginner, ok := q.db.(Beginner)
+	beginner, ok := q.database.(db.Beginner)
 	if !ok {
 		return errors.New("projector queue database must support Begin for ack")
 	}
@@ -245,7 +247,7 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 		return projector.ErrWorkSuperseded
 	}
 
-	result, err := q.db.ExecContext(
+	result, err := q.database.ExecContext(
 		ctx,
 		heartbeatProjectorWorkQuery,
 		now.Add(q.LeaseDuration),
@@ -272,7 +274,7 @@ func (q ProjectorQueue) supersedeRunningWorkIfNewerGenerationExists(
 	work projector.ScopeGenerationWork,
 	now time.Time,
 ) (bool, error) {
-	result, err := q.db.ExecContext(
+	result, err := q.database.ExecContext(
 		ctx,
 		supersedeRunningProjectorWorkQuery,
 		now,
@@ -325,7 +327,7 @@ func (q ProjectorQueue) Fail(
 			work.Generation.GenerationID,
 			q.LeaseOwner,
 		}
-		if _, err := q.db.ExecContext(ctx, retryProjectorWorkQuery, args...); err != nil {
+		if _, err := q.database.ExecContext(ctx, retryProjectorWorkQuery, args...); err != nil {
 			return fmt.Errorf("fail projector work: %w", err)
 		}
 		if q.Instruments != nil && q.Instruments.ProjectorRetrySurge != nil {
@@ -352,7 +354,7 @@ func (q ProjectorQueue) Fail(
 		q.LeaseOwner,
 	}
 
-	_, err := q.db.ExecContext(ctx, failProjectorWorkQuery, args...)
+	_, err := q.database.ExecContext(ctx, failProjectorWorkQuery, args...)
 	if err != nil {
 		return fmt.Errorf("fail projector work: %w", err)
 	}
@@ -369,7 +371,7 @@ func sanitizeFailureText(text string) string {
 }
 
 func (q ProjectorQueue) validate() error {
-	if q.db == nil {
+	if q.database == nil {
 		return errors.New("projector queue database is required")
 	}
 	if q.LeaseOwner == "" {

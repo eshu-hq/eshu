@@ -88,7 +88,7 @@ func TestReducerContentionGateAckFanoutLockOrderLive(t *testing.T) {
 					done <- err
 					return
 				}
-				queue := ReducerQueue{db: worker, LeaseOwner: "order-owner", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
+				queue := ReducerQueue{database: worker, LeaseOwner: "order-owner", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
 				done <- queue.AckBatch(ctx, intents, nil)
 			}()
 			var blockerPID int

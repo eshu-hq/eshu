@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -184,7 +186,7 @@ type EshuSearchVectorValueFilter struct {
 // EshuSearchVectorValueStore persists derived search-document vectors and reads
 // active-generation vectors for one scope, model, and index version.
 type EshuSearchVectorValueStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // EshuSearchVectorValuesSchemaSQL returns the Postgres DDL for vector payloads.
@@ -193,21 +195,21 @@ func EshuSearchVectorValuesSchemaSQL() string {
 }
 
 // NewEshuSearchVectorValueStore constructs the vector value store.
-func NewEshuSearchVectorValueStore(db ExecQueryer) EshuSearchVectorValueStore {
-	return EshuSearchVectorValueStore{db: db}
+func NewEshuSearchVectorValueStore(database db.ExecQueryer) EshuSearchVectorValueStore {
+	return EshuSearchVectorValueStore{database: database}
 }
 
 // Upsert inserts or updates one derived vector payload by deterministic build
 // identity.
 func (s EshuSearchVectorValueStore) Upsert(ctx context.Context, row EshuSearchVectorValue) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("eshu search vector value database is required")
 	}
 	row = normalizeEshuSearchVectorValue(row)
 	if err := validateEshuSearchVectorValue(row); err != nil {
 		return err
 	}
-	_, err := s.db.ExecContext(
+	_, err := s.database.ExecContext(
 		ctx,
 		upsertEshuSearchVectorValueSQL,
 		row.ScopeID,
@@ -237,7 +239,7 @@ func (s EshuSearchVectorValueStore) UpsertBatch(ctx context.Context, rows []Eshu
 	if len(rows) == 0 {
 		return nil
 	}
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("eshu search vector value database is required")
 	}
 
@@ -262,9 +264,9 @@ func (s EshuSearchVectorValueStore) UpsertBatch(ctx context.Context, rows []Eshu
 		batch := normalized[start:end]
 		var err error
 		if fenced {
-			err = upsertEshuSearchVectorValueBatchFenced(ctx, s.db, batch)
+			err = upsertEshuSearchVectorValueBatchFenced(ctx, s.database, batch)
 		} else {
-			err = upsertEshuSearchVectorValueBatch(ctx, s.db, batch)
+			err = upsertEshuSearchVectorValueBatch(ctx, s.database, batch)
 		}
 		if err != nil {
 			return err
@@ -275,7 +277,7 @@ func (s EshuSearchVectorValueStore) UpsertBatch(ctx context.Context, rows []Eshu
 
 // upsertEshuSearchVectorValueBatch issues one multi-row INSERT ... ON CONFLICT
 // statement for a bounded slice of already-normalized, already-validated rows.
-func upsertEshuSearchVectorValueBatch(ctx context.Context, db ExecQueryer, batch []EshuSearchVectorValue) error {
+func upsertEshuSearchVectorValueBatch(ctx context.Context, database db.ExecQueryer, batch []EshuSearchVectorValue) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -311,7 +313,7 @@ func upsertEshuSearchVectorValueBatch(ctx context.Context, db ExecQueryer, batch
 	}
 
 	query := upsertEshuSearchVectorValueBatchPrefix + values.String() + upsertEshuSearchVectorValueBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert eshu search vector value batch (%d rows): %w", len(batch), err)
 	}
 	return nil
@@ -323,7 +325,7 @@ func (s EshuSearchVectorValueStore) ListActive(
 	ctx context.Context,
 	filter EshuSearchVectorValueFilter,
 ) ([]EshuSearchVectorValue, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("eshu search vector value database is required")
 	}
 	filter = normalizeEshuSearchVectorValueFilter(filter)
@@ -340,7 +342,7 @@ func (s EshuSearchVectorValueStore) ListActive(
 	}
 	args = append(args, filter.Limit)
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active eshu search vector values: %w", err)
 	}
@@ -360,7 +362,7 @@ func (s EshuSearchVectorValueStore) ListActive(
 	return results, nil
 }
 
-func scanEshuSearchVectorValue(rows Rows) (EshuSearchVectorValue, error) {
+func scanEshuSearchVectorValue(rows db.Rows) (EshuSearchVectorValue, error) {
 	var row EshuSearchVectorValue
 	var dimensions int64
 	if err := rows.Scan(

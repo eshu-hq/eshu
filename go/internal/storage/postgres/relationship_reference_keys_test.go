@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -78,8 +80,8 @@ func TestRelationshipReferenceCandidateKeyRowsSkipTombstonesAndUnsupportedKinds(
 func TestRefreshRelationshipReferenceCandidateKeysDeletesAcceptedFactIDsBeforeInsert(t *testing.T) {
 	t.Parallel()
 
-	db := &relationshipReferenceExecRecorder{}
-	err := refreshRelationshipReferenceCandidateKeys(context.Background(), db, []facts.Envelope{
+	database := &relationshipReferenceExecRecorder{}
+	err := refreshRelationshipReferenceCandidateKeys(context.Background(), database, []facts.Envelope{
 		{
 			FactID:       "fact-live",
 			ScopeID:      "git-repository-scope:github.com/acme/app",
@@ -110,15 +112,15 @@ func TestRefreshRelationshipReferenceCandidateKeysDeletesAcceptedFactIDsBeforeIn
 	if err != nil {
 		t.Fatalf("refreshRelationshipReferenceCandidateKeys() error = %v, want nil", err)
 	}
-	if got, want := len(db.execs), 2; got != want {
+	if got, want := len(database.execs), 2; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.execs[0].query, "DELETE FROM relationship_reference_candidate_keys") {
-		t.Fatalf("first exec query = %q, want delete", db.execs[0].query)
+	if !strings.Contains(database.execs[0].query, "DELETE FROM relationship_reference_candidate_keys") {
+		t.Fatalf("first exec query = %q, want delete", database.execs[0].query)
 	}
-	deleted, ok := db.execs[0].args[0].(pgarray.StringArray)
+	deleted, ok := database.execs[0].args[0].(pgarray.StringArray)
 	if !ok {
-		t.Fatalf("delete arg type = %T, want pgarray.StringArray", db.execs[0].args[0])
+		t.Fatalf("delete arg type = %T, want pgarray.StringArray", database.execs[0].args[0])
 	}
 	wantDeleted := []string{"fact-live", "fact-tombstone", "fact-repository"}
 	for i, want := range wantDeleted {
@@ -126,21 +128,21 @@ func TestRefreshRelationshipReferenceCandidateKeysDeletesAcceptedFactIDsBeforeIn
 			t.Fatalf("deleted fact ids = %v, want %v", []string(deleted), wantDeleted)
 		}
 	}
-	if !strings.Contains(db.execs[1].query, "INSERT INTO relationship_reference_candidate_keys") {
-		t.Fatalf("second exec query = %q, want insert", db.execs[1].query)
+	if !strings.Contains(database.execs[1].query, "INSERT INTO relationship_reference_candidate_keys") {
+		t.Fatalf("second exec query = %q, want insert", database.execs[1].query)
 	}
-	if got, want := len(db.execs[1].args), columnsPerRelationshipReferenceCandidateKeyRow; got != want {
+	if got, want := len(database.execs[1].args), columnsPerRelationshipReferenceCandidateKeyRow; got != want {
 		t.Fatalf("insert args = %d, want one candidate row (%d args)", got, want)
 	}
-	if got, want := db.execs[1].args[0], "fact-live"; got != want {
+	if got, want := database.execs[1].args[0], "fact-live"; got != want {
 		t.Fatalf("insert fact_id = %v, want %q", got, want)
 	}
-	if got, want := db.execs[1].args[3], "github.com/acme/app"; got != want {
+	if got, want := database.execs[1].args[3], "github.com/acme/app"; got != want {
 		t.Fatalf("insert source_repo_id = %v, want %q", got, want)
 	}
-	referenceKey, ok := db.execs[1].args[4].(string)
+	referenceKey, ok := database.execs[1].args[4].(string)
 	if !ok {
-		t.Fatalf("insert reference key type = %T, want string", db.execs[1].args[4])
+		t.Fatalf("insert reference key type = %T, want string", database.execs[1].args[4])
 	}
 	if !strings.Contains(referenceKey, "|github.com|acme|platform|") {
 		t.Fatalf("insert reference key %q missing target repo token stream", referenceKey)
@@ -150,8 +152,8 @@ func TestRefreshRelationshipReferenceCandidateKeysDeletesAcceptedFactIDsBeforeIn
 func TestRefreshRelationshipReferenceCandidateKeysDeletesOnlyWhenNoCandidatesRemain(t *testing.T) {
 	t.Parallel()
 
-	db := &relationshipReferenceExecRecorder{}
-	err := refreshRelationshipReferenceCandidateKeys(context.Background(), db, []facts.Envelope{
+	database := &relationshipReferenceExecRecorder{}
+	err := refreshRelationshipReferenceCandidateKeys(context.Background(), database, []facts.Envelope{
 		{
 			FactID:       "fact-tombstone",
 			ScopeID:      "scope",
@@ -171,13 +173,13 @@ func TestRefreshRelationshipReferenceCandidateKeysDeletesOnlyWhenNoCandidatesRem
 	if err != nil {
 		t.Fatalf("refreshRelationshipReferenceCandidateKeys() error = %v, want nil", err)
 	}
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(database.execs), 1; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
-	if !strings.Contains(db.execs[0].query, "DELETE FROM relationship_reference_candidate_keys") {
-		t.Fatalf("exec query = %q, want delete", db.execs[0].query)
+	if !strings.Contains(database.execs[0].query, "DELETE FROM relationship_reference_candidate_keys") {
+		t.Fatalf("exec query = %q, want delete", database.execs[0].query)
 	}
-	deleted := db.execs[0].args[0].(pgarray.StringArray)
+	deleted := database.execs[0].args[0].(pgarray.StringArray)
 	wantDeleted := []string{"fact-tombstone", "fact-retyped"}
 	for i, want := range wantDeleted {
 		if i >= len(deleted) || deleted[i] != want {
@@ -203,6 +205,6 @@ func (r *relationshipReferenceExecRecorder) ExecContext(_ context.Context, query
 	return nil, nil
 }
 
-func (r *relationshipReferenceExecRecorder) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (r *relationshipReferenceExecRecorder) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("relationshipReferenceExecRecorder.QueryContext must not be called")
 }

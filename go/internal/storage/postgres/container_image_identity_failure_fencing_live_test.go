@@ -57,7 +57,7 @@ func TestContainerImageIdentityFailureStatusAuthorizationLive(t *testing.T) {
 				t, ctx, db, scopeID, generationID,
 			)
 			queue := ReducerQueue{
-				db: SQLDB{DB: db}, LeaseOwner: owner,
+				database: SQLDB{DB: db}, LeaseOwner: owner,
 				LeaseDuration: time.Minute, RetryDelay: time.Second,
 				MaxAttempts: test.maxAttempts, JitterFraction: 0,
 				Now: func() time.Time { return now },
@@ -100,7 +100,7 @@ WHERE work_item_id = $1
 			t.Fatalf("advance stale failure epoch: %v", err)
 		}
 		queue := ReducerQueue{
-			db: SQLDB{DB: db}, LeaseOwner: owner,
+			database: SQLDB{DB: db}, LeaseOwner: owner,
 			LeaseDuration: time.Minute, MaxAttempts: 1,
 			Now: func() time.Time { return now },
 		}

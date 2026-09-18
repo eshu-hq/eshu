@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -29,7 +31,7 @@ import (
 // tests that would have caught it need ESHU_POSTGRES_DSN and skip without it.
 //
 // The tests below need no Postgres. Both exported functions take a
-// pgstorage.ExecQueryer, so fakeCredentialDB stands in for the connection and
+// db.ExecQueryer, so fakeCredentialDB stands in for the connection and
 // records every statement they drive, including the INSERT the real
 // pgstorage.GovernanceAuditStore issues. Asserting on that INSERT rather than
 // on a stubbed appender keeps governanceaudit.NormalizeEvent in the path: an
@@ -54,13 +56,13 @@ const (
 // writes its durable retrieval event.
 func TestRetrieveInitialCredentialAuditsSuccessfulRetrieval(t *testing.T) {
 	keyring := newCredentialInvariantKeyring(t, "key-a")
-	db := &fakeCredentialDB{
+	database := &fakeCredentialDB{
 		envelopeFound:  true,
 		sealedEnvelope: sealCredentialInvariantEnvelope(t, keyring, `{"username":"admin","password":"pw","recovery_code":"rc"}`),
 		envelopeKeyID:  "key-a",
 	}
 
-	payload, err := RetrieveInitialCredential(context.Background(), db, keyring)
+	payload, err := RetrieveInitialCredential(context.Background(), database, keyring)
 	if err != nil {
 		t.Fatalf("RetrieveInitialCredential() error = %v", err)
 	}
@@ -68,7 +70,7 @@ func TestRetrieveInitialCredentialAuditsSuccessfulRetrieval(t *testing.T) {
 		t.Fatalf("RetrieveInitialCredential() payload = %#v, want the sealed bundle", payload)
 	}
 
-	got := wantExactlyOneAuditEvent(t, db, "successful retrieval")
+	got := wantExactlyOneAuditEvent(t, database, "successful retrieval")
 	if got.reason != bootstrapCredentialAuditReasonRetrieved {
 		t.Fatalf("audit reason_code = %q, want %q", got.reason, bootstrapCredentialAuditReasonRetrieved)
 	}
@@ -86,13 +88,13 @@ func TestRetrieveInitialCredentialAuditsSuccessfulRetrieval(t *testing.T) {
 // for a credential that was already consumed or reset.
 func TestRetrieveInitialCredentialAuditsFailedRetrieval(t *testing.T) {
 	keyring := newCredentialInvariantKeyring(t, "key-a")
-	db := &fakeCredentialDB{envelopeFound: false}
+	database := &fakeCredentialDB{envelopeFound: false}
 
-	if _, err := RetrieveInitialCredential(context.Background(), db, keyring); err == nil {
+	if _, err := RetrieveInitialCredential(context.Background(), database, keyring); err == nil {
 		t.Fatal("RetrieveInitialCredential() error = nil, want the no-retrievable-credential error")
 	}
 
-	got := wantExactlyOneAuditEvent(t, db, "failed retrieval")
+	got := wantExactlyOneAuditEvent(t, database, "failed retrieval")
 	if got.reason != bootstrapCredentialAuditReasonRetrieveFailed {
 		t.Fatalf("audit reason_code = %q, want %q", got.reason, bootstrapCredentialAuditReasonRetrieveFailed)
 	}
@@ -106,12 +108,12 @@ func TestRetrieveInitialCredentialAuditsFailedRetrieval(t *testing.T) {
 // success path writes its durable reset event.
 func TestResetInitialCredentialAuditsSuccessfulReset(t *testing.T) {
 	keyring := newCredentialInvariantKeyring(t, "key-a")
-	db := &fakeCredentialDB{
+	database := &fakeCredentialDB{
 		subjectIDHash: "sha256:bootstrap-subject",
 		ownerUserID:   "user-bootstrap",
 	}
 
-	payload, err := ResetInitialCredential(context.Background(), db, keyring, "admin")
+	payload, err := ResetInitialCredential(context.Background(), database, keyring, "admin")
 	if err != nil {
 		t.Fatalf("ResetInitialCredential() error = %v", err)
 	}
@@ -119,7 +121,7 @@ func TestResetInitialCredentialAuditsSuccessfulReset(t *testing.T) {
 		t.Fatalf("ResetInitialCredential() payload = %#v, want a fresh password and recovery code", payload)
 	}
 
-	got := wantExactlyOneAuditEvent(t, db, "successful reset")
+	got := wantExactlyOneAuditEvent(t, database, "successful reset")
 	if got.reason != bootstrapCredentialAuditReasonReset {
 		t.Fatalf("audit reason_code = %q, want %q", got.reason, bootstrapCredentialAuditReasonReset)
 	}
@@ -139,9 +141,9 @@ func TestResetInitialCredentialAuditsSuccessfulReset(t *testing.T) {
 // pgstorage.ErrBootstrapCredentialNotFound.
 func TestResetInitialCredentialAuditsFailedReset(t *testing.T) {
 	keyring := newCredentialInvariantKeyring(t, "key-a")
-	db := &fakeCredentialDB{ownerUserID: "user-bootstrap"}
+	database := &fakeCredentialDB{ownerUserID: "user-bootstrap"}
 
-	_, err := ResetInitialCredential(context.Background(), db, keyring, "admin")
+	_, err := ResetInitialCredential(context.Background(), database, keyring, "admin")
 	if err == nil {
 		t.Fatal("ResetInitialCredential() error = nil, want the no-bootstrap-credential error")
 	}
@@ -149,7 +151,7 @@ func TestResetInitialCredentialAuditsFailedReset(t *testing.T) {
 		t.Fatalf("ResetInitialCredential() error = %q, want the documented not-found guidance", err.Error())
 	}
 
-	got := wantExactlyOneAuditEvent(t, db, "failed reset")
+	got := wantExactlyOneAuditEvent(t, database, "failed reset")
 	if got.reason != bootstrapCredentialAuditReasonResetFailed {
 		t.Fatalf("audit reason_code = %q, want %q", got.reason, bootstrapCredentialAuditReasonResetFailed)
 	}
@@ -166,9 +168,9 @@ func TestResetInitialCredentialAuditsFailedReset(t *testing.T) {
 // recovery, not only before the storage write.
 func TestResetInitialCredentialAuditsUnrecoverableUsername(t *testing.T) {
 	keyring := newCredentialInvariantKeyring(t, "key-a")
-	db := &fakeCredentialDB{envelopeFound: false}
+	database := &fakeCredentialDB{envelopeFound: false}
 
-	_, err := ResetInitialCredential(context.Background(), db, keyring, "")
+	_, err := ResetInitialCredential(context.Background(), database, keyring, "")
 	if err == nil {
 		t.Fatal("ResetInitialCredential() error = nil, want the cannot-recover-username error")
 	}
@@ -176,7 +178,7 @@ func TestResetInitialCredentialAuditsUnrecoverableUsername(t *testing.T) {
 		t.Fatalf("ResetInitialCredential() error = %q, want the documented username-recovery guidance", err.Error())
 	}
 
-	got := wantExactlyOneAuditEvent(t, db, "username-unrecoverable reset")
+	got := wantExactlyOneAuditEvent(t, database, "username-unrecoverable reset")
 	if got.reason != bootstrapCredentialAuditReasonResetFailed {
 		t.Fatalf("audit reason_code = %q, want %q", got.reason, bootstrapCredentialAuditReasonResetFailed)
 	}
@@ -203,13 +205,13 @@ func TestResetInitialCredentialAuditsUndecryptablePriorCredential(t *testing.T) 
 	if err != nil {
 		t.Fatalf("NewKeyring() error = %v", err)
 	}
-	db := &fakeCredentialDB{
+	database := &fakeCredentialDB{
 		envelopeFound:  true,
 		sealedEnvelope: sealCredentialInvariantEnvelope(t, sealer, `{"username":"admin","password":"pw","recovery_code":"rc"}`),
 		envelopeKeyID:  "key-a",
 	}
 
-	_, err = ResetInitialCredential(context.Background(), db, wrongKeyring, "")
+	_, err = ResetInitialCredential(context.Background(), database, wrongKeyring, "")
 	if err == nil {
 		t.Fatal("ResetInitialCredential() error = nil, want the cannot-recover-username error")
 	}
@@ -217,7 +219,7 @@ func TestResetInitialCredentialAuditsUndecryptablePriorCredential(t *testing.T) 
 		t.Fatalf("ResetInitialCredential() error = %q, want the documented username-recovery guidance", err.Error())
 	}
 
-	got := wantExactlyOneAuditEvent(t, db, "undecryptable-prior-credential reset")
+	got := wantExactlyOneAuditEvent(t, database, "undecryptable-prior-credential reset")
 	if got.reason != bootstrapCredentialAuditReasonResetFailed {
 		t.Fatalf("audit reason_code = %q, want %q", got.reason, bootstrapCredentialAuditReasonResetFailed)
 	}
@@ -241,9 +243,9 @@ type appendedAuditEvent struct {
 // so the success and failure cases exercise the same extraction. operation
 // names the credential operation under test, so a missing event says which
 // one went unaudited.
-func wantExactlyOneAuditEvent(t *testing.T, db *fakeCredentialDB, operation string) appendedAuditEvent {
+func wantExactlyOneAuditEvent(t *testing.T, database *fakeCredentialDB, operation string) appendedAuditEvent {
 	t.Helper()
-	events := db.appendedAuditEvents(t)
+	events := database.appendedAuditEvents(t)
 	if len(events) == 0 {
 		t.Fatalf(
 			"%s wrote no governance-audit row: the credential operation completed unaudited, breaking the invariant that no caller can retrieve or reset without recording the attempt",
@@ -263,9 +265,9 @@ type recordedStatement struct {
 	args []any
 }
 
-// fakeCredentialDB is a hermetic pgstorage.ExecQueryer that records every
+// fakeCredentialDB is a hermetic db.ExecQueryer that records every
 // statement RetrieveInitialCredential and ResetInitialCredential drive. It
-// also implements pgstorage.Beginner, which ResetBootstrapCredential requires
+// also implements db.Beginner, which ResetBootstrapCredential requires
 // for its transaction.
 //
 // The query routing below matches production SQL by substring. That couples
@@ -300,7 +302,7 @@ func (f *fakeCredentialDB) ExecContext(_ context.Context, query string, args ...
 	return fakeCredentialResult{}, nil
 }
 
-func (f *fakeCredentialDB) QueryContext(_ context.Context, query string, args ...any) (pgstorage.Rows, error) {
+func (f *fakeCredentialDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	f.record(query, args)
 	switch {
 	case strings.Contains(query, "SELECT sealed_credential"):
@@ -323,11 +325,11 @@ func (f *fakeCredentialDB) QueryContext(_ context.Context, query string, args ..
 	}
 }
 
-// Begin satisfies pgstorage.Beginner. Statements inside the transaction land
+// Begin satisfies db.Beginner. Statements inside the transaction land
 // in the same recording as statements outside it, which is what lets the
 // audit assertion see the reset's INSERT.
-func (f *fakeCredentialDB) Begin(context.Context) (pgstorage.Transaction, error) {
-	return fakeCredentialTx{db: f}, nil
+func (f *fakeCredentialDB) Begin(context.Context) (db.Transaction, error) {
+	return fakeCredentialTx{database: f}, nil
 }
 
 // appendedAuditEvents reads back every governance-audit row the recorded
@@ -370,15 +372,15 @@ func auditArgString(t *testing.T, args []any, index int) string {
 // fakeCredentialTx routes the reset transaction's statements back into the
 // connection's recording and commits without doing anything.
 type fakeCredentialTx struct {
-	db *fakeCredentialDB
+	database *fakeCredentialDB
 }
 
 func (t fakeCredentialTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return t.db.ExecContext(ctx, query, args...)
+	return t.database.ExecContext(ctx, query, args...)
 }
 
-func (t fakeCredentialTx) QueryContext(ctx context.Context, query string, args ...any) (pgstorage.Rows, error) {
-	return t.db.QueryContext(ctx, query, args...)
+func (t fakeCredentialTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return t.database.QueryContext(ctx, query, args...)
 }
 
 func (t fakeCredentialTx) Commit() error   { return nil }

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
@@ -118,13 +120,13 @@ var ErrCrossScopeCompletionClaimRejected = errors.New("cross-scope completion cl
 // CrossScopeCompletionStore is the Postgres-backed durable completion-event
 // queue and set-based consumer fanout.
 type CrossScopeCompletionStore struct {
-	db  ExecQueryer
-	Now func() time.Time
+	database db.ExecQueryer
+	Now      func() time.Time
 }
 
 // NewCrossScopeCompletionStore returns a completion queue over db.
-func NewCrossScopeCompletionStore(db ExecQueryer) *CrossScopeCompletionStore {
-	return &CrossScopeCompletionStore{db: db}
+func NewCrossScopeCompletionStore(database db.ExecQueryer) *CrossScopeCompletionStore {
+	return &CrossScopeCompletionStore{database: database}
 }
 
 func (s *CrossScopeCompletionStore) now() time.Time {
@@ -141,7 +143,7 @@ func (s *CrossScopeCompletionStore) Claim(
 	leaseOwner string,
 	leaseDuration time.Duration,
 ) (reducer.CrossScopeCompletionLease, bool, error) {
-	if s == nil || s.db == nil {
+	if s == nil || s.database == nil {
 		return reducer.CrossScopeCompletionLease{}, false, errors.New("cross-scope completion database is required")
 	}
 	if strings.TrimSpace(leaseOwner) == "" {
@@ -151,7 +153,7 @@ func (s *CrossScopeCompletionStore) Claim(
 		return reducer.CrossScopeCompletionLease{}, false, errors.New("cross-scope completion lease duration must be positive")
 	}
 	now := s.now()
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		claimCrossScopeCompletionQuery,
 		now,
@@ -201,11 +203,11 @@ func (s *CrossScopeCompletionStore) Heartbeat(
 	lease reducer.CrossScopeCompletionLease,
 	leaseDuration time.Duration,
 ) error {
-	if s == nil || s.db == nil {
+	if s == nil || s.database == nil {
 		return errors.New("cross-scope completion database is required")
 	}
 	now := s.now()
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		heartbeatCrossScopeCompletionQuery,
 		now.Add(leaseDuration),
@@ -228,13 +230,13 @@ func (s *CrossScopeCompletionStore) Retry(
 	cause error,
 	visibleAt time.Time,
 ) error {
-	if s == nil || s.db == nil {
+	if s == nil || s.database == nil {
 		return errors.New("cross-scope completion database is required")
 	}
 	if cause == nil {
 		return errors.New("cross-scope completion retry cause is required")
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		retryCrossScopeCompletionQuery,
 		visibleAt.UTC(),

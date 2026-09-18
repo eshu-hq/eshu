@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -26,13 +28,13 @@ SELECT EXISTS (
 // generation/maintenance fence across one repo-dependency graph replacement
 // and its durable intent completion.
 type RepoDependencyAcceptanceUnitGate struct {
-	db Beginner
+	database db.Beginner
 }
 
 // NewRepoDependencyAcceptanceUnitGate creates a repository-scoped gate backed
 // by a transaction-capable Postgres adapter.
-func NewRepoDependencyAcceptanceUnitGate(db Beginner) *RepoDependencyAcceptanceUnitGate {
-	return &RepoDependencyAcceptanceUnitGate{db: db}
+func NewRepoDependencyAcceptanceUnitGate(database db.Beginner) *RepoDependencyAcceptanceUnitGate {
+	return &RepoDependencyAcceptanceUnitGate{database: database}
 }
 
 // WithAcceptanceUnit enters the repository critical section only while key's
@@ -44,7 +46,7 @@ func (g *RepoDependencyAcceptanceUnitGate) WithAcceptanceUnit(
 	key reducer.RepoDependencyAcceptanceUnitGateKey,
 	fn func(context.Context, reducer.RepoDependencyProjectionIntentReader) error,
 ) (bool, error) {
-	if g == nil || g.db == nil {
+	if g == nil || g.database == nil {
 		return false, fmt.Errorf("repo dependency acceptance-unit gate requires a transaction beginner")
 	}
 	if strings.TrimSpace(key.Domain) == "" || strings.TrimSpace(key.AcceptanceUnitID) == "" ||
@@ -55,7 +57,7 @@ func (g *RepoDependencyAcceptanceUnitGate) WithAcceptanceUnit(
 		return false, fmt.Errorf("repo dependency acceptance-unit gate callback is required")
 	}
 
-	tx, err := g.db.Begin(ctx)
+	tx, err := g.database.Begin(ctx)
 	if err != nil {
 		return false, fmt.Errorf("begin repo dependency acceptance-unit gate: %w", err)
 	}
@@ -90,7 +92,7 @@ func (g *RepoDependencyAcceptanceUnitGate) WithAcceptanceUnit(
 
 func repoDependencyLeaseOwnerActive(
 	ctx context.Context,
-	tx ExecQueryer,
+	tx db.ExecQueryer,
 	key reducer.RepoDependencyAcceptanceUnitGateKey,
 ) (bool, error) {
 	rows, err := tx.QueryContext(

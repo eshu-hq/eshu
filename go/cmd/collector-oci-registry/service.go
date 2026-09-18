@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecr "github.com/aws/aws-sdk-go-v2/service/ecr"
 	"go.opentelemetry.io/otel/trace"
@@ -39,7 +41,7 @@ var fallbackClaimSequence uint64
 // buildCassetteService wires a credential-free cassette source onto the shared
 // collector commit boundary. It requires no live OCI registry credentials.
 func buildCassetteService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cassettePath string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -64,7 +66,7 @@ func buildCassetteService(
 
 func buildCollectorService(
 	ctx context.Context,
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -95,7 +97,7 @@ func buildCollectorService(
 }
 
 func buildClaimedService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,

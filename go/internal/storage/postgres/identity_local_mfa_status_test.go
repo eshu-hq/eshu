@@ -46,7 +46,7 @@ func TestGetLocalIdentityMFAStatusQueryUsesConsistentAsOfBoundary(t *testing.T) 
 func TestIdentitySubjectStoreGetLocalIdentityMFAStatusNilDatabase(t *testing.T) {
 	t.Parallel()
 
-	store := &IdentitySubjectStore{db: nil}
+	store := &IdentitySubjectStore{database: nil}
 	_, err := store.GetLocalIdentityMFAStatus(nil, "subject-hash", time.Now()) //nolint:staticcheck
 	if err == nil {
 		t.Fatal("expected error for nil database, got nil")
@@ -60,7 +60,7 @@ func TestIdentitySubjectStoreGetLocalIdentityMFAStatusRejectsBlankInputs(t *test
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	store := &IdentitySubjectStore{db: db}
+	store := &IdentitySubjectStore{database: db}
 	now := time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC)
 
 	if _, err := store.GetLocalIdentityMFAStatus(nil, "", now); err == nil { //nolint:staticcheck

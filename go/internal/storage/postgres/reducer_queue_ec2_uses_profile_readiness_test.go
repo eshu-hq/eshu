@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -35,15 +37,15 @@ type ec2UsesProfileReadinessQueueDB struct {
 	claimQueries      int
 }
 
-func (db *ec2UsesProfileReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *ec2UsesProfileReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *ec2UsesProfileReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (database *ec2UsesProfileReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	db.claimQueries++
+	database.claimQueries++
 
 	if !strings.Contains(query, "ec2_uses_profile_materialization") {
 		return nil, fmt.Errorf("claim query missing ec2 uses-profile readiness gate:\n%s", query)
@@ -76,11 +78,11 @@ func (db *ec2UsesProfileReadinessQueueDB) QueryContext(_ context.Context, query 
 
 	// Model the dual-key gate: the intent is only returned when BOTH phases are
 	// present. A single committed phase keeps the work waiting.
-	if !db.instanceNodeReady || !db.profileNodeReady {
+	if !database.instanceNodeReady || !database.profileNodeReady {
 		return &queueFakeRows{}, nil
 	}
 
-	status := strings.TrimSpace(db.status)
+	status := strings.TrimSpace(database.status)
 	if status == "" {
 		status = "pending"
 	}
@@ -93,18 +95,18 @@ func (db *ec2UsesProfileReadinessQueueDB) QueryContext(_ context.Context, query 
 		"aws:111122223333:us-east-1:ec2",
 		"gen-aws-1",
 		string(reducer.DomainEC2UsesProfileMaterialization),
-		db.attemptCount + 1,
+		database.attemptCount + 1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"ec2_uses_profile_materialization:aws:111122223333:us-east-1:ec2","reason":"ec2 instance profile usage observed","fact_id":"fact-profile-1","source_system":"aws"}`),
 	}}}, nil
 }
 
-func ec2UsesProfileReadinessQueue(db *ec2UsesProfileReadinessQueueDB, now time.Time) ReducerQueue {
+func ec2UsesProfileReadinessQueue(database *ec2UsesProfileReadinessQueueDB, now time.Time) ReducerQueue {
 	return ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -132,13 +134,13 @@ func TestReducerQueueClaimWaitsForEC2UsesProfileDualReadinessBehavior(t *testing
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			db := &ec2UsesProfileReadinessQueueDB{
+			database := &ec2UsesProfileReadinessQueueDB{
 				now:               now,
 				instanceNodeReady: tc.instanceNodeReady,
 				profileNodeReady:  tc.profileNodeReady,
 				status:            "pending",
 			}
-			queue := ec2UsesProfileReadinessQueue(db, now)
+			queue := ec2UsesProfileReadinessQueue(database, now)
 
 			intent, claimed, err := queue.Claim(context.Background())
 			if err != nil {

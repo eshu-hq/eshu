@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -90,7 +92,7 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 	ctx context.Context,
 	digests []string,
 ) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 	digests = cleanStringFilterValues(digests)
@@ -99,7 +101,7 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 	}
 
 	var loaded []facts.Envelope
-	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer Queryer) error {
+	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
 		var legacyFacts []facts.Envelope
 		var cursorFactID string
 		for {
@@ -134,7 +136,7 @@ func (s FactStore) ListActiveSBOMAttestationAttachmentFacts(
 
 func listActiveSBOMAttestationAttachmentFactsPage(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	digests []string,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {

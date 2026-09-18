@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/graph"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 type fakeBootstrapDB struct {
@@ -37,7 +38,7 @@ func (f *fakeBootstrapDB) QueryContext(
 	_ context.Context,
 	query string,
 	args ...any,
-) (postgres.Rows, error) {
+) (db.Rows, error) {
 	f.queries = append(f.queries, fakeBootstrapCall{query: query, args: args})
 	if len(f.queryRows) == 0 {
 		return &fakeBootstrapRows{}, nil

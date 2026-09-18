@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -28,12 +30,12 @@ func TestReducerQueueClaimGatesIAMPermissionMaterializationOnCanonicalCloudResou
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			db := &iamPermissionReadinessQueueDB{
+			database := &iamPermissionReadinessQueueDB{
 				now:    now,
 				domain: tc.domain,
 			}
 			queue := ReducerQueue{
-				db:            db,
+				database:      database,
 				LeaseOwner:    "test-owner",
 				LeaseDuration: time.Minute,
 				Now:           func() time.Time { return now },
@@ -47,7 +49,7 @@ func TestReducerQueueClaimGatesIAMPermissionMaterializationOnCanonicalCloudResou
 				t.Fatalf("Claim() claimed %q before canonical readiness, want unclaimed waiting work", intent.IntentID)
 			}
 
-			db.phaseReady = true
+			database.phaseReady = true
 			intent, claimed, err = queue.Claim(context.Background())
 			if err != nil {
 				t.Fatalf("Claim() after readiness error = %v", err)
@@ -65,11 +67,11 @@ func TestReducerQueueClaimGatesIAMPermissionMaterializationOnCanonicalCloudResou
 func TestReducerQueueClaimQueriesIncludeIAMPermissionReadinessDomains(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{{rows: nil}},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return time.Date(2026, time.June, 6, 10, 15, 0, 0, time.UTC) },
@@ -77,10 +79,10 @@ func TestReducerQueueClaimQueriesIncludeIAMPermissionReadinessDomains(t *testing
 	if _, _, err := queue.Claim(context.Background()); err != nil {
 		t.Fatalf("Claim() error = %v, want nil", err)
 	}
-	if len(db.queries) != 1 {
-		t.Fatalf("queries = %d, want 1", len(db.queries))
+	if len(database.queries) != 1 {
+		t.Fatalf("queries = %d, want 1", len(database.queries))
 	}
-	query := db.queries[0].query
+	query := database.queries[0].query
 	for _, domain := range []reducer.Domain{
 		reducer.DomainIAMEscalationMaterialization,
 		reducer.DomainIAMCanPerformMaterialization,
@@ -97,11 +99,11 @@ func TestReducerQueueClaimQueriesIncludeIAMPermissionReadinessDomains(t *testing
 func TestReducerQueueClaimBatchQueriesIncludeIAMPermissionReadinessDomains(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{{rows: nil}},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return time.Date(2026, time.June, 6, 10, 15, 0, 0, time.UTC) },
@@ -109,10 +111,10 @@ func TestReducerQueueClaimBatchQueriesIncludeIAMPermissionReadinessDomains(t *te
 	if _, err := queue.ClaimBatch(context.Background(), 10); err != nil {
 		t.Fatalf("ClaimBatch() error = %v, want nil", err)
 	}
-	if len(db.queries) != 1 {
-		t.Fatalf("queries = %d, want 1", len(db.queries))
+	if len(database.queries) != 1 {
+		t.Fatalf("queries = %d, want 1", len(database.queries))
 	}
-	query := db.queries[0].query
+	query := database.queries[0].query
 	for _, domain := range []reducer.Domain{
 		reducer.DomainIAMEscalationMaterialization,
 		reducer.DomainIAMCanPerformMaterialization,
@@ -132,21 +134,21 @@ type iamPermissionReadinessQueueDB struct {
 	phaseReady bool
 }
 
-func (db *iamPermissionReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *iamPermissionReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *iamPermissionReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (database *iamPermissionReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
 	hasReadinessGate := queryHasBoundedReadinessRequirement(
 		query,
-		string(db.domain),
+		string(database.domain),
 		"cloud_resource_uid",
 		"canonical_nodes_committed",
 	) && queryHasPayloadReadinessLookup(query, "fact_work_items", "readiness_req", "readiness_phase")
-	if hasReadinessGate && !db.phaseReady {
+	if hasReadinessGate && !database.phaseReady {
 		return &queueFakeRows{}, nil
 	}
 
@@ -154,12 +156,12 @@ func (db *iamPermissionReadinessQueueDB) QueryContext(_ context.Context, query s
 		"reducer-iam-permission-1",
 		"aws:123456789012:aws-global:iam",
 		"gen-aws-1",
-		string(db.domain),
+		string(database.domain),
 		1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"aws_resource_materialization:aws:123456789012:aws-global:iam","reason":"iam permission facts observed","fact_id":"fact-iam-1","source_system":"aws"}`),
 	}}}, nil
 }

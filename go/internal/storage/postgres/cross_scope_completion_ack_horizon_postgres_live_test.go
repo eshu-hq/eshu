@@ -71,7 +71,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer tx.Rollback()
-					queue := ReducerQueue{db: SQLTx{Tx: tx}, LeaseOwner: "horizon-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
+					queue := ReducerQueue{database: SQLTx{Tx: tx}, LeaseOwner: "horizon-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
 					if err := queue.AckBatch(ctx, intents, nil); err != nil {
 						t.Fatal(err)
 					}
@@ -96,7 +96,7 @@ func TestReducerContentionGateProducerAckCaptureHorizonLive(t *testing.T) {
 					if err := consumerConn.Conn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&consumerPID); err != nil {
 						t.Fatal(err)
 					}
-					consumerQueue := ReducerQueue{db: consumerConn, LeaseOwner: "consumer-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
+					consumerQueue := ReducerQueue{database: consumerConn, LeaseOwner: "consumer-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
 					consumerDone = make(chan error, 1)
 					go func() {
 						consumerDone <- consumerQueue.AckBatch(ctx, []reducer.Intent{{IntentID: "horizon-consumer", Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}}, nil)
@@ -132,7 +132,7 @@ EXECUTE FUNCTION block_horizon_schedule()`, lockKey)); err != nil {
 					if err := ack.Conn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&ackPID); err != nil {
 						t.Fatal(err)
 					}
-					queue := ReducerQueue{db: ack, LeaseOwner: "horizon-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
+					queue := ReducerQueue{database: ack, LeaseOwner: "horizon-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
 					ackDone := make(chan error, 1)
 					go func() { ackDone <- queue.AckBatch(ctx, intents, nil) }()
 					waitForReducerRowLockWaiter(t, ctx, db, ackPID, fanoutPID)

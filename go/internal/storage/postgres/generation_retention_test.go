@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestGenerationRetentionSchemaStoresOnlySafeIdentifiers(t *testing.T) {
@@ -79,7 +81,7 @@ func TestGenerationRetentionStorePrunesEligibleGenerationBatch(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
-	db := &generationRetentionFakeDB{
+	database := &generationRetentionFakeDB{
 		candidateRows: [][]any{{
 			"scope-old",
 			"generation-old",
@@ -101,7 +103,7 @@ func TestGenerationRetentionStorePrunesEligibleGenerationBatch(t *testing.T) {
 			fakeRowsAffected{n: 1}, // scope_generations delete cascades owned rows
 		},
 	}
-	store := NewGenerationRetentionStore(db)
+	store := NewGenerationRetentionStore(database)
 	store.Now = func() time.Time { return now }
 
 	result, err := store.PruneSupersededGenerations(context.Background(), GenerationRetentionPolicy{
@@ -128,17 +130,17 @@ func TestGenerationRetentionStorePrunesEligibleGenerationBatch(t *testing.T) {
 	// table carries no foreign keys on purpose (an empty scope_id would make an
 	// FK reject the insert that records a loss), so it does not cascade and
 	// needs its own delete or the rows outlive their generation.
-	if len(db.execs) != 7 {
-		t.Fatalf("exec count = %d, want 7", len(db.execs))
+	if len(database.execs) != 7 {
+		t.Fatalf("exec count = %d, want 7", len(database.execs))
 	}
-	if !strings.Contains(db.execs[0].query, "INSERT INTO generation_retention_events") {
-		t.Fatalf("first exec = %q, want retention event before deletion", db.execs[0].query)
+	if !strings.Contains(database.execs[0].query, "INSERT INTO generation_retention_events") {
+		t.Fatalf("first exec = %q, want retention event before deletion", database.execs[0].query)
 	}
-	last := db.execs[len(db.execs)-1]
+	last := database.execs[len(database.execs)-1]
 	if !strings.Contains(last.query, "DELETE FROM scope_generations") {
 		t.Fatalf("last exec = %q, want scope_generations delete last", last.query)
 	}
-	for _, call := range db.execs {
+	for _, call := range database.execs {
 		for _, arg := range call.args {
 			if text, ok := arg.(string); ok {
 				if strings.Contains(text, "scope-old") || strings.Contains(text, "generation-old") {
@@ -153,7 +155,7 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotReportRowsPruned(t *testing.
 	t.Parallel()
 
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
-	db := &generationRetentionFakeDB{
+	database := &generationRetentionFakeDB{
 		candidateRows: [][]any{{
 			"scope-old",
 			"generation-old",
@@ -166,7 +168,7 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotReportRowsPruned(t *testing.
 			{"generation-old", "fact_work_items", int64(1)},
 		},
 	}
-	store := NewGenerationRetentionStore(db)
+	store := NewGenerationRetentionStore(database)
 	store.Now = func() time.Time { return now }
 
 	result, err := store.PruneSupersededGenerations(context.Background(), GenerationRetentionPolicy{
@@ -189,8 +191,8 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotReportRowsPruned(t *testing.
 	if len(result.RowsPruned) != 0 {
 		t.Fatalf("RowsPruned = %#v, want empty for skipped batch", result.RowsPruned)
 	}
-	if len(db.execs) != 0 {
-		t.Fatalf("exec count = %d, want 0 for skipped batch", len(db.execs))
+	if len(database.execs) != 0 {
+		t.Fatalf("exec count = %d, want 0 for skipped batch", len(database.execs))
 	}
 }
 
@@ -198,7 +200,7 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 	t.Parallel()
 
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
-	db := &generationRetentionFakeDB{
+	database := &generationRetentionFakeDB{
 		candidateRows: [][]any{
 			{
 				"scope-huge",
@@ -229,7 +231,7 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 			fakeRowsAffected{n: 1}, // scope_generations delete
 		},
 	}
-	store := NewGenerationRetentionStore(db)
+	store := NewGenerationRetentionStore(database)
 	store.Now = func() time.Time { return now }
 
 	result, err := store.PruneSupersededGenerations(context.Background(), GenerationRetentionPolicy{
@@ -256,12 +258,12 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 	// table carries no foreign keys on purpose (an empty scope_id would make an
 	// FK reject the insert that records a loss), so it does not cascade and
 	// needs its own delete or the rows outlive their generation.
-	if len(db.execs) != 7 {
-		t.Fatalf("exec count = %d, want 7", len(db.execs))
+	if len(database.execs) != 7 {
+		t.Fatalf("exec count = %d, want 7", len(database.execs))
 	}
-	deleteIDs, ok := db.execs[1].args[0].([]string)
+	deleteIDs, ok := database.execs[1].args[0].([]string)
 	if !ok {
-		t.Fatalf("delete ids arg type = %T, want []string", db.execs[1].args[0])
+		t.Fatalf("delete ids arg type = %T, want []string", database.execs[1].args[0])
 	}
 	if len(deleteIDs) != 1 || deleteIDs[0] != "generation-small" {
 		t.Fatalf("delete ids = %#v, want only generation-small", deleteIDs)
@@ -272,7 +274,7 @@ func TestGenerationRetentionStoreRowLimitCountsContentCleanupRows(t *testing.T) 
 	t.Parallel()
 
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
-	db := &generationRetentionFakeDB{
+	database := &generationRetentionFakeDB{
 		candidateRows: [][]any{{
 			"scope-content",
 			"generation-content",
@@ -285,7 +287,7 @@ func TestGenerationRetentionStoreRowLimitCountsContentCleanupRows(t *testing.T) 
 			{"generation-content", "content_file_references", int64(101)},
 		},
 	}
-	store := NewGenerationRetentionStore(db)
+	store := NewGenerationRetentionStore(database)
 	store.Now = func() time.Time { return now }
 
 	result, err := store.PruneSupersededGenerations(context.Background(), GenerationRetentionPolicy{
@@ -305,8 +307,8 @@ func TestGenerationRetentionStoreRowLimitCountsContentCleanupRows(t *testing.T) 
 	if len(result.RowsPruned) != 0 {
 		t.Fatalf("RowsPruned = %#v, want empty for content-row skip", result.RowsPruned)
 	}
-	if len(db.execs) != 0 {
-		t.Fatalf("exec count = %d, want 0 for skipped content-heavy batch", len(db.execs))
+	if len(database.execs) != 0 {
+		t.Fatalf("exec count = %d, want 0 for skipped content-heavy batch", len(database.execs))
 	}
 }
 
@@ -318,29 +320,29 @@ type generationRetentionFakeDB struct {
 	execs         []fakeExecCall
 }
 
-func (db *generationRetentionFakeDB) Begin(context.Context) (Transaction, error) {
-	return &generationRetentionFakeTx{db: db}, nil
+func (database *generationRetentionFakeDB) Begin(context.Context) (db.Transaction, error) {
+	return &generationRetentionFakeTx{database: database}, nil
 }
 
-func (db *generationRetentionFakeDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *generationRetentionFakeDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return nil, sql.ErrConnDone
 }
 
-func (db *generationRetentionFakeDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (database *generationRetentionFakeDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, sql.ErrConnDone
 }
 
 type generationRetentionFakeTx struct {
-	db *generationRetentionFakeDB
+	database *generationRetentionFakeDB
 }
 
-func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
-	tx.db.queries = append(tx.db.queries, fakeQueryCall{query: query, args: args})
+func (tx *generationRetentionFakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	tx.database.queries = append(tx.database.queries, fakeQueryCall{query: query, args: args})
 	switch {
 	case strings.Contains(query, "ranked_superseded_generations"):
-		return &queueFakeRows{rows: generationRetentionCandidateFakeRows(tx.db.candidateRows, args)}, nil
+		return &queueFakeRows{rows: generationRetentionCandidateFakeRows(tx.database.candidateRows, args)}, nil
 	case strings.Contains(query, "generation_retention_row_counts"):
-		return &queueFakeRows{rows: tx.db.countRows}, nil
+		return &queueFakeRows{rows: tx.database.countRows}, nil
 	default:
 		return nil, sql.ErrNoRows
 	}
@@ -379,12 +381,12 @@ func generationRetentionCandidateFakeRows(rows [][]any, args []any) [][]any {
 }
 
 func (tx *generationRetentionFakeTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	tx.db.execs = append(tx.db.execs, fakeExecCall{query: query, args: args})
-	if len(tx.db.execResults) == 0 {
+	tx.database.execs = append(tx.database.execs, fakeExecCall{query: query, args: args})
+	if len(tx.database.execResults) == 0 {
 		return fakeResult{}, nil
 	}
-	result := tx.db.execResults[0]
-	tx.db.execResults = tx.db.execResults[1:]
+	result := tx.database.execResults[0]
+	tx.database.execResults = tx.database.execResults[1:]
 	return result, nil
 }
 

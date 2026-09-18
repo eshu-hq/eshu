@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -127,18 +129,18 @@ func TestWorkflowControlStoreHeartbeatClaimRejectsInactiveTenantGrant(t *testing
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			db := &tenantBoundaryExecQueryer{result: rowsAffectedResult{rowsAffected: 0}}
-			store := NewWorkflowControlStore(db)
+			database := &tenantBoundaryExecQueryer{result: rowsAffectedResult{rowsAffected: 0}}
+			store := NewWorkflowControlStore(database)
 
 			err := store.HeartbeatClaim(context.Background(), tc.mutation)
 			if !errors.Is(err, ErrWorkflowClaimRejected) {
 				t.Fatalf("HeartbeatClaim() error = %v, want ErrWorkflowClaimRejected", err)
 			}
-			if got, want := len(db.execs), 1; got != want {
+			if got, want := len(database.execs), 1; got != want {
 				t.Fatalf("exec count = %d, want %d", got, want)
 			}
-			if !strings.Contains(db.execs[0].query, "FOR SHARE OF tenant_scope_grants") {
-				t.Fatalf("heartbeat query did not lock tenant grant:\n%s", db.execs[0].query)
+			if !strings.Contains(database.execs[0].query, "FOR SHARE OF tenant_scope_grants") {
+				t.Fatalf("heartbeat query did not lock tenant grant:\n%s", database.execs[0].query)
 			}
 		})
 	}
@@ -154,7 +156,7 @@ func (f *tenantBoundaryExecQueryer) ExecContext(_ context.Context, query string,
 	return f.result, nil
 }
 
-func (f *tenantBoundaryExecQueryer) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (f *tenantBoundaryExecQueryer) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("unexpected query")
 }
 

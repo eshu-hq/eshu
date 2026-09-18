@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
@@ -217,13 +219,13 @@ WHERE collector_instance_id = $1
 
 // AWSScanStatusStore persists per-tuple AWS scan status for admin surfaces.
 type AWSScanStatusStore struct {
-	db  ExecQueryer
-	Now func() time.Time
+	database db.ExecQueryer
+	Now      func() time.Time
 }
 
 // NewAWSScanStatusStore constructs the AWS scan-status store.
-func NewAWSScanStatusStore(db ExecQueryer) AWSScanStatusStore {
-	return AWSScanStatusStore{db: db}
+func NewAWSScanStatusStore(database db.ExecQueryer) AWSScanStatusStore {
+	return AWSScanStatusStore{database: database}
 }
 
 // AWSScanStatusSchemaSQL returns the DDL for AWS scan-status rows.
@@ -233,10 +235,10 @@ func AWSScanStatusSchemaSQL() string {
 
 // EnsureSchema applies the AWS scan-status DDL.
 func (s AWSScanStatusStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("aws scan status database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, awsScanStatusSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, awsScanStatusSchemaSQL); err != nil {
 		return fmt.Errorf("ensure AWS scan status schema: %w", err)
 	}
 	return nil
@@ -244,7 +246,7 @@ func (s AWSScanStatusStore) EnsureSchema(ctx context.Context) error {
 
 // StartAWSScan records a running AWS claim before credentials or API calls.
 func (s AWSScanStatusStore) StartAWSScan(ctx context.Context, start awscloud.ScanStatusStart) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("aws scan status database is required")
 	}
 	if err := validateAWSScanBoundary(start.Boundary); err != nil {
@@ -254,7 +256,7 @@ func (s AWSScanStatusStore) StartAWSScan(ctx context.Context, start awscloud.Sca
 	if startedAt.IsZero() {
 		startedAt = s.now()
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		startAWSScanStatusQuery,
 		start.Boundary.CollectorInstanceID,
@@ -276,7 +278,7 @@ func (s AWSScanStatusStore) StartAWSScan(ctx context.Context, start awscloud.Sca
 
 // ObserveAWSScan records scanner-side completion evidence for a claim.
 func (s AWSScanStatusStore) ObserveAWSScan(ctx context.Context, observation awscloud.ScanStatusObservation) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("aws scan status database is required")
 	}
 	if err := validateAWSScanBoundary(observation.Boundary); err != nil {
@@ -286,7 +288,7 @@ func (s AWSScanStatusStore) ObserveAWSScan(ctx context.Context, observation awsc
 	if observedAt.IsZero() {
 		observedAt = s.now()
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		observeAWSScanStatusQuery,
 		observation.Boundary.CollectorInstanceID,
@@ -316,7 +318,7 @@ func (s AWSScanStatusStore) ObserveAWSScan(ctx context.Context, observation awsc
 
 // CommitAWSScan records the durable fact-commit outcome for a claim.
 func (s AWSScanStatusStore) CommitAWSScan(ctx context.Context, commit awscloud.ScanStatusCommit) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("aws scan status database is required")
 	}
 	if err := validateAWSScanBoundary(commit.Boundary); err != nil {
@@ -326,7 +328,7 @@ func (s AWSScanStatusStore) CommitAWSScan(ctx context.Context, commit awscloud.S
 	if completedAt.IsZero() {
 		completedAt = s.now()
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		commitAWSScanStatusQuery,
 		commit.Boundary.CollectorInstanceID,

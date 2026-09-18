@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -78,7 +80,7 @@ func (s MultiCloudRuntimeDriftFindingStore) ListActiveFindingsAcrossProviders(
 	ctx context.Context,
 	filter CloudRuntimeDriftAggregateFilter,
 ) ([]CloudRuntimeDriftAggregateFindingRow, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("multi cloud runtime drift finding store database is required")
 	}
 	filter = normalizeCloudRuntimeDriftAggregateFilter(filter)
@@ -86,7 +88,7 @@ func (s MultiCloudRuntimeDriftFindingStore) ListActiveFindingsAcrossProviders(
 		return nil, fmt.Errorf("cloud runtime drift aggregate filter requires scope_id")
 	}
 	query, args := buildCloudRuntimeDriftAggregateQuery(false, filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list active cloud runtime drift findings across providers: %w", err)
 	}
@@ -113,7 +115,7 @@ func (s MultiCloudRuntimeDriftFindingStore) CountActiveFindingsAcrossProviders(
 	ctx context.Context,
 	filter CloudRuntimeDriftAggregateFilter,
 ) (int, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("multi cloud runtime drift finding store database is required")
 	}
 	filter = normalizeCloudRuntimeDriftAggregateFilter(filter)
@@ -121,7 +123,7 @@ func (s MultiCloudRuntimeDriftFindingStore) CountActiveFindingsAcrossProviders(
 		return 0, fmt.Errorf("cloud runtime drift aggregate filter requires scope_id")
 	}
 	query, args := buildCloudRuntimeDriftAggregateQuery(true, filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("count active cloud runtime drift findings across providers: %w", err)
 	}
@@ -144,7 +146,7 @@ func (s MultiCloudRuntimeDriftFindingStore) CountActiveFindingsAcrossProviders(
 // (decodeMultiCloudRuntimeDriftFindingPayload / decodeAWSCloudRuntimeDriftFindingPayload),
 // selected by the row's own fact_kind column so this file never has to
 // duplicate either payload's decode logic.
-func scanCloudRuntimeDriftAggregateRow(rows Rows) (CloudRuntimeDriftAggregateFindingRow, error) {
+func scanCloudRuntimeDriftAggregateRow(rows db.Rows) (CloudRuntimeDriftAggregateFindingRow, error) {
 	var factKind, factID, scopeID, generationID, sourceSystem string
 	var observedAt time.Time
 	var payload []byte

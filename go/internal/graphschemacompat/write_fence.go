@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // DefaultWriteFenceInterval is how long a WriteFence reuses its last decision
@@ -84,7 +85,7 @@ const DefaultWriteFenceInterval = 30 * time.Second
 // that read on purpose: concurrent writers coalesce onto the single in-flight
 // check rather than each issuing their own.
 type WriteFence struct {
-	db       postgres.Queryer
+	database db.Queryer
 	backend  graph.SchemaBackend
 	interval time.Duration
 	now      func() time.Time
@@ -96,11 +97,11 @@ type WriteFence struct {
 
 // NewWriteFence returns a fence over backend's marker. An interval at or below
 // zero falls back to DefaultWriteFenceInterval.
-func NewWriteFence(db postgres.Queryer, backend graph.SchemaBackend, interval time.Duration) *WriteFence {
+func NewWriteFence(database db.Queryer, backend graph.SchemaBackend, interval time.Duration) *WriteFence {
 	if interval <= 0 {
 		interval = DefaultWriteFenceInterval
 	}
-	return &WriteFence{db: db, backend: backend, interval: interval}
+	return &WriteFence{database: database, backend: backend, interval: interval}
 }
 
 // NewWriteFenceForRuntime builds a fence for the backend selected by
@@ -108,7 +109,7 @@ func NewWriteFence(db postgres.Queryer, backend graph.SchemaBackend, interval ti
 // profiles that have no graph schema marker to check at all -- the same
 // profiles RequireCompatibleForRuntime skips. A nil fence admits every write,
 // so callers can wire the result unconditionally.
-func NewWriteFenceForRuntime(db postgres.Queryer, getenv func(string) string) (*WriteFence, error) {
+func NewWriteFenceForRuntime(database db.Queryer, getenv func(string) string) (*WriteFence, error) {
 	if graphCompatibilityDisabled(getenv) {
 		return nil, nil
 	}
@@ -120,7 +121,7 @@ func NewWriteFenceForRuntime(db postgres.Queryer, getenv func(string) string) (*
 	if err != nil {
 		return nil, err
 	}
-	return NewWriteFence(db, backend, DefaultWriteFenceInterval), nil
+	return NewWriteFence(database, backend, DefaultWriteFenceInterval), nil
 }
 
 // Check reports whether this writer may still write. It returns nil when the
@@ -144,7 +145,7 @@ func (f *WriteFence) Check(ctx context.Context) error {
 		return f.refusal
 	}
 
-	_, err := RequireCompatible(ctx, f.db, f.backend)
+	_, err := RequireCompatible(ctx, f.database, f.backend)
 	// checkedAt advances even when the read failed, so an unreachable Postgres
 	// costs one query per interval rather than one per write.
 	f.checkedAt = now

@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -31,7 +33,7 @@ SELECT EXISTS (
 // ReducerGraphDrain checks whether reducer graph-writing domains are still
 // active before standalone shared-projection lanes write to the same backend.
 type ReducerGraphDrain struct {
-	queryer Queryer
+	queryer db.Queryer
 }
 
 // uncommittedCanonicalCodeScopesQuery reports whether any code scope's active
@@ -124,7 +126,7 @@ SELECT EXISTS (
 `
 
 // NewReducerGraphDrain constructs a reducer graph-drain checker.
-func NewReducerGraphDrain(queryer Queryer) ReducerGraphDrain {
+func NewReducerGraphDrain(queryer db.Queryer) ReducerGraphDrain {
 	return ReducerGraphDrain{queryer: queryer}
 }
 

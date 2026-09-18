@@ -182,7 +182,7 @@ func TestReducerContentionGateCrossScopeReadinessDeferralKeepsItsAttemptBudget(t
 	// wall-clock elapsed bound is nowhere near reached across these cycles.
 	clock := time.Now().UTC()
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "cross-scope-readiness-proof",
 		LeaseDuration: time.Minute,
 		RetryDelay:    time.Second,
@@ -321,7 +321,7 @@ func TestReducerContentionGateCrossScopeReadinessConvergesAtTheElapsedBound(t *t
 		ProducerReadiness: CrossScopeProducerReadinessStore{DB: SQLDB{DB: db}},
 	}
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "cross-scope-readiness-bound-proof",
 		LeaseDuration: time.Minute,
 		ClaimDomains:  []reducer.Domain{reducer.DomainSupplyChainImpact},

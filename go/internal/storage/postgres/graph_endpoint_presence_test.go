@@ -12,14 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestGraphEndpointPresenceStoreUpsertIsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphEndpointPresenceTestDB()
-	store := NewGraphEndpointPresenceStore(db)
+	database := newGraphEndpointPresenceTestDB()
+	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	row := reducer.EndpointPresenceRow{
@@ -37,7 +39,7 @@ func TestGraphEndpointPresenceStoreUpsertIsIdempotent(t *testing.T) {
 		t.Fatalf("second Upsert() error = %v", err)
 	}
 
-	if got := db.rowCount("kubernetes_workload_uid", "workload-1"); got != 1 {
+	if got := database.rowCount("kubernetes_workload_uid", "workload-1"); got != 1 {
 		t.Fatalf("row count after re-upsert = %d, want 1", got)
 	}
 }
@@ -45,8 +47,8 @@ func TestGraphEndpointPresenceStoreUpsertIsIdempotent(t *testing.T) {
 func TestGraphEndpointPresenceStoreUpsertSkipsBlankIdentity(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphEndpointPresenceTestDB()
-	store := NewGraphEndpointPresenceStore(db)
+	database := newGraphEndpointPresenceTestDB()
+	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 
 	rows := []reducer.EndpointPresenceRow{
@@ -58,10 +60,10 @@ func TestGraphEndpointPresenceStoreUpsertSkipsBlankIdentity(t *testing.T) {
 	if err := store.Upsert(ctx, rows); err != nil {
 		t.Fatalf("Upsert() error = %v", err)
 	}
-	if got := len(db.rows); got != 1 {
+	if got := len(database.rows); got != 1 {
 		t.Fatalf("stored rows = %d, want 1 (blank identities skipped)", got)
 	}
-	if got := db.rowCount("cloud_resource_uid", "cr-1"); got != 1 {
+	if got := database.rowCount("cloud_resource_uid", "cr-1"); got != 1 {
 		t.Fatalf("cloud_resource_uid/cr-1 count = %d, want 1", got)
 	}
 }
@@ -69,8 +71,8 @@ func TestGraphEndpointPresenceStoreUpsertSkipsBlankIdentity(t *testing.T) {
 func TestGraphEndpointPresenceStoreUpsertBatchBoundary(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphEndpointPresenceTestDB()
-	store := NewGraphEndpointPresenceStore(db)
+	database := newGraphEndpointPresenceTestDB()
+	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 
 	const total = graphEndpointPresenceBatchSize*2 + 7
@@ -85,19 +87,19 @@ func TestGraphEndpointPresenceStoreUpsertBatchBoundary(t *testing.T) {
 	if err := store.Upsert(ctx, rows); err != nil {
 		t.Fatalf("Upsert() error = %v", err)
 	}
-	if got := len(db.rows); got != total {
+	if got := len(database.rows); got != total {
 		t.Fatalf("stored rows = %d, want %d across batch boundary", got, total)
 	}
-	if db.maxBatchRows > graphEndpointPresenceBatchSize {
-		t.Fatalf("a batch wrote %d rows, exceeds batch size %d", db.maxBatchRows, graphEndpointPresenceBatchSize)
+	if database.maxBatchRows > graphEndpointPresenceBatchSize {
+		t.Fatalf("a batch wrote %d rows, exceeds batch size %d", database.maxBatchRows, graphEndpointPresenceBatchSize)
 	}
 }
 
 func TestGraphEndpointPresenceStoreRetractScope(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphEndpointPresenceTestDB()
-	store := NewGraphEndpointPresenceStore(db)
+	database := newGraphEndpointPresenceTestDB()
+	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 
 	rows := []reducer.EndpointPresenceRow{
@@ -112,28 +114,28 @@ func TestGraphEndpointPresenceStoreRetractScope(t *testing.T) {
 	if err := store.RetractScope(ctx, []string{"scope-a"}); err != nil {
 		t.Fatalf("RetractScope() error = %v", err)
 	}
-	if got := len(db.rows); got != 1 {
+	if got := len(database.rows); got != 1 {
 		t.Fatalf("rows after retract = %d, want 1 (only scope-b)", got)
 	}
-	if db.rowCount("cloud_resource_uid", "cr-3") != 1 {
+	if database.rowCount("cloud_resource_uid", "cr-3") != 1 {
 		t.Fatal("scope-b row should survive a scope-a retract")
 	}
 
 	// Empty input is a no-op (no query).
-	db.execCount = 0
+	database.execCount = 0
 	if err := store.RetractScope(ctx, nil); err != nil {
 		t.Fatalf("RetractScope(nil) error = %v", err)
 	}
-	if db.execCount != 0 {
-		t.Fatalf("RetractScope(nil) issued %d exec(s), want 0", db.execCount)
+	if database.execCount != 0 {
+		t.Fatalf("RetractScope(nil) issued %d exec(s), want 0", database.execCount)
 	}
 }
 
 func TestGraphEndpointPresenceStoreRetractStaleRepoGenerations(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphEndpointPresenceTestDB()
-	store := NewGraphEndpointPresenceStore(db)
+	database := newGraphEndpointPresenceTestDB()
+	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 
 	ks := reducer.GraphProjectionKeyspaceAPIEndpointRepoPath
@@ -154,21 +156,21 @@ func TestGraphEndpointPresenceStoreRetractStaleRepoGenerations(t *testing.T) {
 	if err := store.RetractStaleRepoGenerations(ctx, ks, "scope-a", "gen-2", []string{"repo-1"}); err != nil {
 		t.Fatalf("RetractStaleRepoGenerations() error = %v", err)
 	}
-	if db.rowCount(string(ks), "u-old") != 0 {
+	if database.rowCount(string(ks), "u-old") != 0 {
 		t.Fatal("repo-1 gen-1 endpoint should be retracted as stale")
 	}
-	if db.rowCount(string(ks), "u-new") != 1 {
+	if database.rowCount(string(ks), "u-new") != 1 {
 		t.Fatal("repo-1 current gen-2 endpoint must survive")
 	}
-	if db.rowCount(string(ks), "u-other") != 1 {
+	if database.rowCount(string(ks), "u-other") != 1 {
 		t.Fatal("repo-2 (untouched repo) must survive even though it is at an older generation")
 	}
-	if db.rowCount("cloud_resource_uid", "cr-1") != 1 {
+	if database.rowCount("cloud_resource_uid", "cr-1") != 1 {
 		t.Fatal("a different keyspace must never be retracted")
 	}
 
 	// Blank generation / empty repos / blank scope are no-ops (no query).
-	db.execCount = 0
+	database.execCount = 0
 	for _, c := range []struct {
 		scope, gen string
 		repos      []string
@@ -181,16 +183,16 @@ func TestGraphEndpointPresenceStoreRetractStaleRepoGenerations(t *testing.T) {
 			t.Fatalf("RetractStaleRepoGenerations no-op error = %v", err)
 		}
 	}
-	if db.execCount != 0 {
-		t.Fatalf("no-op retract issued %d exec(s), want 0", db.execCount)
+	if database.execCount != 0 {
+		t.Fatalf("no-op retract issued %d exec(s), want 0", database.execCount)
 	}
 }
 
 func TestGraphEndpointPresenceStoreMissingUIDs(t *testing.T) {
 	t.Parallel()
 
-	db := newGraphEndpointPresenceTestDB()
-	store := NewGraphEndpointPresenceStore(db)
+	database := newGraphEndpointPresenceTestDB()
+	store := NewGraphEndpointPresenceStore(database)
 	ctx := context.Background()
 
 	present := []reducer.EndpointPresenceRow{
@@ -242,7 +244,7 @@ func TestGraphEndpointPresenceStoreMissingUIDs(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			db.queryCount = 0
+			database.queryCount = 0
 			got, err := store.MissingUIDs(ctx, tc.keyspace, tc.uids)
 			if err != nil {
 				t.Fatalf("MissingUIDs() error = %v", err)
@@ -253,8 +255,8 @@ func TestGraphEndpointPresenceStoreMissingUIDs(t *testing.T) {
 			if !equalStringSlices(got, want) {
 				t.Fatalf("MissingUIDs() = %v, want %v", got, want)
 			}
-			if db.queryCount != tc.wantQ {
-				t.Fatalf("MissingUIDs() issued %d query(ies), want %d (no N+1)", db.queryCount, tc.wantQ)
+			if database.queryCount != tc.wantQ {
+				t.Fatalf("MissingUIDs() issued %d query(ies), want %d (no N+1)", database.queryCount, tc.wantQ)
 			}
 		})
 	}
@@ -339,9 +341,9 @@ func newGraphEndpointPresenceTestDB() *graphEndpointPresenceTestDB {
 	return &graphEndpointPresenceTestDB{rows: make(map[string]graphEndpointPresenceRow)}
 }
 
-func (db *graphEndpointPresenceTestDB) rowCount(keyspace, uid string) int {
+func (database *graphEndpointPresenceTestDB) rowCount(keyspace, uid string) int {
 	count := 0
-	for _, row := range db.rows {
+	for _, row := range database.rows {
 		if row.keyspace == keyspace && row.uid == uid {
 			count++
 		}
@@ -349,14 +351,14 @@ func (db *graphEndpointPresenceTestDB) rowCount(keyspace, uid string) int {
 	return count
 }
 
-func (db *graphEndpointPresenceTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.execCount++
+func (database *graphEndpointPresenceTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execCount++
 	switch {
 	case strings.Contains(query, "INSERT INTO graph_endpoint_presence"):
 		const columnsPerRow = 6
 		batchRows := len(args) / columnsPerRow
-		if batchRows > db.maxBatchRows {
-			db.maxBatchRows = batchRows
+		if batchRows > database.maxBatchRows {
+			database.maxBatchRows = batchRows
 		}
 		for i := 0; i < len(args); i += columnsPerRow {
 			row := graphEndpointPresenceRow{
@@ -368,7 +370,7 @@ func (db *graphEndpointPresenceTestDB) ExecContext(_ context.Context, query stri
 				committedAt:      args[i+5].(time.Time),
 				updatedAt:        args[i+5].(time.Time),
 			}
-			db.rows[graphEndpointPresenceKey(row.keyspace, row.uid)] = row
+			database.rows[graphEndpointPresenceKey(row.keyspace, row.uid)] = row
 		}
 		return sharedIntentResult{}, nil
 	case strings.Contains(query, "DELETE FROM graph_endpoint_presence") &&
@@ -383,7 +385,7 @@ func (db *graphEndpointPresenceTestDB) ExecContext(_ context.Context, query stri
 		for _, r := range repoIDs {
 			keepRepo[r] = struct{}{}
 		}
-		for key, row := range db.rows {
+		for key, row := range database.rows {
 			if row.keyspace != keyspace || row.scopeID != scopeID {
 				continue
 			}
@@ -391,7 +393,7 @@ func (db *graphEndpointPresenceTestDB) ExecContext(_ context.Context, query stri
 				continue
 			}
 			if row.sourceGeneration != generation {
-				delete(db.rows, key)
+				delete(database.rows, key)
 			}
 		}
 		return sharedIntentResult{}, nil
@@ -401,9 +403,9 @@ func (db *graphEndpointPresenceTestDB) ExecContext(_ context.Context, query stri
 		for _, s := range scopeIDs {
 			drop[s] = struct{}{}
 		}
-		for key, row := range db.rows {
+		for key, row := range database.rows {
 			if _, ok := drop[row.scopeID]; ok {
-				delete(db.rows, key)
+				delete(database.rows, key)
 			}
 		}
 		return sharedIntentResult{}, nil
@@ -414,8 +416,8 @@ func (db *graphEndpointPresenceTestDB) ExecContext(_ context.Context, query stri
 	}
 }
 
-func (db *graphEndpointPresenceTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
-	db.queryCount++
+func (database *graphEndpointPresenceTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.queryCount++
 	if !strings.Contains(query, "FROM graph_endpoint_presence") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
@@ -426,7 +428,7 @@ func (db *graphEndpointPresenceTestDB) QueryContext(_ context.Context, query str
 		want[c] = struct{}{}
 	}
 	var present []string
-	for _, row := range db.rows {
+	for _, row := range database.rows {
 		if row.keyspace != keyspace {
 			continue
 		}

@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
@@ -147,15 +149,15 @@ type GovernanceAuditQuery struct {
 
 // GovernanceAuditStore persists normalized hosted governance audit events.
 type GovernanceAuditStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 	// Logger receives the per-List warning List emits when a page holds an
 	// enum value this build's registry lacks (#6574). Nil means slog.Default.
 	Logger *slog.Logger
 }
 
 // NewGovernanceAuditStore creates a Postgres-backed governance audit store.
-func NewGovernanceAuditStore(db ExecQueryer) GovernanceAuditStore {
-	return GovernanceAuditStore{db: db}
+func NewGovernanceAuditStore(database db.ExecQueryer) GovernanceAuditStore {
+	return GovernanceAuditStore{database: database}
 }
 
 // WithLogger returns a copy that logs through logger instead of slog.Default.
@@ -178,16 +180,16 @@ func GovernanceAuditEventsSchemaSQL() string {
 
 // EnsureSchema applies the private audit sink DDL.
 func (s GovernanceAuditStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("governance audit store db is required")
 	}
-	_, err := s.db.ExecContext(ctx, governanceAuditEventsSchemaSQL)
+	_, err := s.database.ExecContext(ctx, governanceAuditEventsSchemaSQL)
 	return err
 }
 
 // Append validates and persists audit-safe events with retry-idempotent keys.
 func (s GovernanceAuditStore) Append(ctx context.Context, events []governanceaudit.Event) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("governance audit store db is required")
 	}
 	if len(events) == 0 {
@@ -220,11 +222,11 @@ func (s GovernanceAuditStore) List(ctx context.Context, filter GovernanceAuditQu
 	if !filter.OperatorAuthorized {
 		return nil, ErrGovernanceAuditQueryUnauthorized
 	}
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("governance audit store db is required")
 	}
 	query, args := buildGovernanceAuditListQuery(filter)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query governance audit events: %w", err)
 	}
@@ -251,10 +253,10 @@ func (s GovernanceAuditStore) List(ctx context.Context, filter GovernanceAuditQu
 
 // Summary returns aggregate counts that are safe for status and MCP readbacks.
 func (s GovernanceAuditStore) Summary(ctx context.Context) (governanceaudit.Summary, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return governanceaudit.Summary{}, fmt.Errorf("governance audit store db is required")
 	}
-	rows, err := s.db.QueryContext(ctx, governanceAuditSummarySQL)
+	rows, err := s.database.QueryContext(ctx, governanceAuditSummarySQL)
 	if err != nil {
 		return governanceaudit.Summary{}, fmt.Errorf("summarize governance audit events: %w", err)
 	}
@@ -280,7 +282,7 @@ func (s GovernanceAuditStore) Summary(ctx context.Context) (governanceaudit.Summ
 // (NULL-tenant) events are excluded — only events with a matching tenant_id are
 // counted. The shared operator should use Summary instead.
 func (s GovernanceAuditStore) SummaryForTenant(ctx context.Context, tenantID string) (governanceaudit.Summary, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return governanceaudit.Summary{}, fmt.Errorf("governance audit store db is required")
 	}
 	const sqlTemplate = `
@@ -313,7 +315,7 @@ SELECT category, name, count, last_occurred_at
 FROM summary_rows
 ORDER BY category ASC, name ASC
 `
-	rows, err := s.db.QueryContext(ctx, sqlTemplate, tenantID)
+	rows, err := s.database.QueryContext(ctx, sqlTemplate, tenantID)
 	if err != nil {
 		return governanceaudit.Summary{}, fmt.Errorf("summarize governance audit events for tenant: %w", err)
 	}
@@ -337,10 +339,10 @@ ORDER BY category ASC, name ASC
 
 // DeleteExpired removes detailed events older than the hosted retention cutoff.
 func (s GovernanceAuditStore) DeleteExpired(ctx context.Context, cutoff time.Time) (int64, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, fmt.Errorf("governance audit store db is required")
 	}
-	result, err := s.db.ExecContext(ctx, "DELETE FROM governance_audit_events WHERE occurred_at < $1", cutoff.UTC())
+	result, err := s.database.ExecContext(ctx, "DELETE FROM governance_audit_events WHERE occurred_at < $1", cutoff.UTC())
 	if err != nil {
 		return 0, fmt.Errorf("delete expired governance audit events: %w", err)
 	}

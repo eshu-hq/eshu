@@ -212,7 +212,7 @@ func (q ReducerQueue) scheduleWorkloadMaterializationFencedReplay(
 	fence string,
 	repoID string,
 ) (bool, error) {
-	result, err := q.db.ExecContext(
+	result, err := q.database.ExecContext(
 		ctx,
 		scheduleWorkloadMaterializationFencedReplayQuery,
 		q.now(),

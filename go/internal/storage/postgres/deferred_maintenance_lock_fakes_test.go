@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // advisoryLockManager simulates Postgres transaction-level advisory lock
@@ -87,7 +89,7 @@ func (tx *advisoryLockTx) ExecContext(_ context.Context, query string, args ...a
 	return fakeResult{}, nil
 }
 
-func (tx *advisoryLockTx) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (tx *advisoryLockTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return &queueFakeRows{}, nil
 }
 
@@ -140,41 +142,41 @@ type lockAwareMaintenanceDB struct {
 	concurrencyBarrier func()
 }
 
-func (db *lockAwareMaintenanceDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+func (database *lockAwareMaintenanceDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, stubErr("unexpected exec on outer db")
 }
 
-func (db *lockAwareMaintenanceDB) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	if db.snapshotIdx >= len(db.snapshotRows) {
+func (database *lockAwareMaintenanceDB) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
+	database.mu.Lock()
+	defer database.mu.Unlock()
+	if database.snapshotIdx >= len(database.snapshotRows) {
 		return &queueFakeRows{}, nil
 	}
-	rows := db.snapshotRows[db.snapshotIdx]
-	db.snapshotIdx++
+	rows := database.snapshotRows[database.snapshotIdx]
+	database.snapshotIdx++
 	return rows, nil
 }
 
-func (db *lockAwareMaintenanceDB) Begin(context.Context) (Transaction, error) {
-	db.mu.Lock()
-	db.beginCount++
-	db.mu.Unlock()
-	return &lockAwareMaintenanceTx{db: db}, nil
+func (database *lockAwareMaintenanceDB) Begin(context.Context) (db.Transaction, error) {
+	database.mu.Lock()
+	database.beginCount++
+	database.mu.Unlock()
+	return &lockAwareMaintenanceTx{database: database}, nil
 }
 
-func (db *lockAwareMaintenanceDB) acquired(n int) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	db.heldExclusive += n
-	if db.heldExclusive > db.peakHeld {
-		db.peakHeld = db.heldExclusive
+func (database *lockAwareMaintenanceDB) acquired(n int) {
+	database.mu.Lock()
+	defer database.mu.Unlock()
+	database.heldExclusive += n
+	if database.heldExclusive > database.peakHeld {
+		database.peakHeld = database.heldExclusive
 	}
 }
 
-func (db *lockAwareMaintenanceDB) released(n int) {
-	db.mu.Lock()
-	defer db.mu.Unlock()
-	db.heldExclusive -= n
+func (database *lockAwareMaintenanceDB) released(n int) {
+	database.mu.Lock()
+	defer database.mu.Unlock()
+	database.heldExclusive -= n
 }
 
 type stubErr string
@@ -186,7 +188,7 @@ func (e stubErr) Error() string { return string(e) }
 // generations reload and the succeeded-work-item list, and releases its locks on
 // commit/rollback while updating the peak-held counter.
 type lockAwareMaintenanceTx struct {
-	db            *lockAwareMaintenanceDB
+	database      *lockAwareMaintenanceDB
 	exclusiveHeld []string
 	gensServed    bool
 	workServed    bool
@@ -195,14 +197,14 @@ type lockAwareMaintenanceTx struct {
 func (tx *lockAwareMaintenanceTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	if query == deferredMaintenancePartitionedExclusiveLockSQL {
 		key := args[1].(string)
-		tx.db.mgr.acquireExclusive(key)
+		tx.database.mgr.acquireExclusive(key)
 		tx.exclusiveHeld = append(tx.exclusiveHeld, key)
-		tx.db.acquired(1)
+		tx.database.acquired(1)
 	}
 	return fakeResult{}, nil
 }
 
-func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.HasPrefix(query, activeScopeGenerationQuery):
 		// The fan-in publication transaction's under-lock re-read of ONE scope's
@@ -212,7 +214,7 @@ func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, 
 		// early skip. It deliberately does NOT trip the cohort barrier: the
 		// barrier exists to force the concurrent BATCH peak, and the fan-in runs
 		// after every batch has committed.
-		return &queueFakeRows{rows: tx.db.activeGenerationRowFor(args)}, nil
+		return &queueFakeRows{rows: tx.database.activeGenerationRowFor(args)}, nil
 	case strings.Contains(query, "fact_kind = 'repository'") && !tx.gensServed:
 		tx.gensServed = true
 		// This per-batch active-generations reload runs AFTER the batch has
@@ -221,13 +223,13 @@ func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, 
 		// locks are counted into peakHeld before any batch is allowed past the
 		// barrier to commit and release. This forces the deterministic concurrent
 		// peak regardless of the OS scheduler.
-		if tx.db.concurrencyBarrier != nil {
-			tx.db.concurrencyBarrier()
+		if tx.database.concurrencyBarrier != nil {
+			tx.database.concurrencyBarrier()
 		}
-		return &queueFakeRows{rows: tx.db.batchActiveGens}, nil
+		return &queueFakeRows{rows: tx.database.batchActiveGens}, nil
 	case strings.Contains(query, "deployment_mapping") && !tx.workServed:
 		tx.workServed = true
-		return &queueFakeRows{rows: tx.db.succeededWorkIDs}, nil
+		return &queueFakeRows{rows: tx.database.succeededWorkIDs}, nil
 	}
 	return &queueFakeRows{}, nil
 }
@@ -236,7 +238,7 @@ func (tx *lockAwareMaintenanceTx) QueryContext(_ context.Context, query string, 
 // column loadActiveGenerationForScope scans, for the scope bound as $1. An
 // unknown scope yields no rows, matching Postgres for a scope with no
 // generation.
-func (db *lockAwareMaintenanceDB) activeGenerationRowFor(args []any) [][]any {
+func (database *lockAwareMaintenanceDB) activeGenerationRowFor(args []any) [][]any {
 	if len(args) == 0 {
 		return nil
 	}
@@ -244,7 +246,7 @@ func (db *lockAwareMaintenanceDB) activeGenerationRowFor(args []any) [][]any {
 	if !ok {
 		return nil
 	}
-	for _, row := range db.batchActiveGens {
+	for _, row := range database.batchActiveGens {
 		if len(row) < 3 {
 			continue
 		}
@@ -256,14 +258,14 @@ func (db *lockAwareMaintenanceDB) activeGenerationRowFor(args []any) [][]any {
 }
 
 func (tx *lockAwareMaintenanceTx) Commit() error {
-	tx.db.released(len(tx.exclusiveHeld))
-	tx.db.mgr.release(tx.exclusiveHeld, nil)
+	tx.database.released(len(tx.exclusiveHeld))
+	tx.database.mgr.release(tx.exclusiveHeld, nil)
 	return nil
 }
 
 func (tx *lockAwareMaintenanceTx) Rollback() error {
-	tx.db.released(len(tx.exclusiveHeld))
-	tx.db.mgr.release(tx.exclusiveHeld, nil)
+	tx.database.released(len(tx.exclusiveHeld))
+	tx.database.mgr.release(tx.exclusiveHeld, nil)
 	return nil
 }
 

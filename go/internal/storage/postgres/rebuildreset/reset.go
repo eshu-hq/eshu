@@ -15,7 +15,7 @@ import (
 //
 // It is declared here rather than imported from the parent postgres package so
 // the dependency runs one way only: postgres imports rebuildreset, never the
-// reverse. postgres.Transaction satisfies it through its Executor embed.
+// reverse. db.Transaction satisfies it through its Executor embed.
 type Execer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }

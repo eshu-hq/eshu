@@ -9,6 +9,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -26,11 +28,11 @@ type postgresSignInPolicyAdapter struct {
 	store *pgstatus.IdentitySubjectStore
 }
 
-func newPostgresSignInPolicyAdapter(db *sql.DB, instruments *telemetry.Instruments) *postgresSignInPolicyAdapter {
-	if db == nil {
+func newPostgresSignInPolicyAdapter(rawDB *sql.DB, instruments *telemetry.Instruments) *postgresSignInPolicyAdapter {
+	if rawDB == nil {
 		return nil
 	}
-	signInPolicyDB := pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})
+	signInPolicyDB := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	if instruments != nil {
 		signInPolicyDB = &pgstatus.InstrumentedDB{
 			Inner:       signInPolicyDB,
@@ -46,9 +48,9 @@ func newPostgresSignInPolicyAdapter(db *sql.DB, instruments *telemetry.Instrumen
 // admin). Nil-safe: a nil database yields a handler whose store is nil, so
 // each route returns 503 rather than panicking, matching
 // newAdminProviderConfigReadHandler's convention.
-func newSignInPolicyReadHandler(db *sql.DB, instruments *telemetry.Instruments) *query.SignInPolicyReadHandler {
+func newSignInPolicyReadHandler(database *sql.DB, instruments *telemetry.Instruments) *query.SignInPolicyReadHandler {
 	handler := &query.SignInPolicyReadHandler{}
-	if store := newPostgresSignInPolicyAdapter(db, instruments); store != nil {
+	if store := newPostgresSignInPolicyAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
 	return handler
@@ -56,7 +58,7 @@ func newSignInPolicyReadHandler(db *sql.DB, instruments *telemetry.Instruments) 
 
 // newSignInPolicyMutationHandler wires the admin sign-in policy write route.
 func newSignInPolicyMutationHandler(
-	db *sql.DB,
+	database *sql.DB,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
 ) *query.SignInPolicyMutationHandler {
@@ -64,7 +66,7 @@ func newSignInPolicyMutationHandler(
 		Audit:       adminRecoveryAuditAppender(governanceAudit),
 		Instruments: instruments,
 	}
-	if store := newPostgresSignInPolicyAdapter(db, instruments); store != nil {
+	if store := newPostgresSignInPolicyAdapter(database, instruments); store != nil {
 		handler.Store = store
 	}
 	return handler

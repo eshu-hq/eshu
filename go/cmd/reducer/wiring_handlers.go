@@ -6,6 +6,8 @@ package main
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
@@ -26,7 +28,7 @@ import (
 // appendSecretsAndDriftAdditiveDomains's nil-adapter gate keeps the domain
 // unregistered rather than wiring a writer that would panic on first use.
 // Mirrors serviceMaterializationWriterFor.
-func awsCloudRuntimeDriftWriterFor(database postgres.ExecQueryer) reducer.AWSCloudRuntimeDriftFindingWriter {
+func awsCloudRuntimeDriftWriterFor(database db.ExecQueryer) reducer.AWSCloudRuntimeDriftFindingWriter {
 	beginner := reducerBeginner(database)
 	if beginner == nil {
 		return nil
@@ -42,7 +44,7 @@ func awsCloudRuntimeDriftWriterFor(database postgres.ExecQueryer) reducer.AWSClo
 // non-nil for the registry to register DomainConfigStateDrift. The multi-cloud
 // runtime drift wiring is constructed here because it feeds only this group.
 func buildReducerDriftHandlers(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
@@ -101,7 +103,7 @@ func buildReducerDriftHandlers(
 // projection adapters (design 430): load the scope's current indexed content and
 // write derived EshuSearchDocument facts for the search lane. No graph write.
 func buildReducerSearchDocumentHandlers(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	instruments *telemetry.Instruments,
 	tracer trace.Tracer,
 	logger *slog.Logger,
@@ -122,7 +124,7 @@ func buildReducerSearchDocumentHandlers(
 // adapters. The admission wiring is constructed here because its six loaders
 // feed only this group.
 func buildReducerCloudInventoryHandlers(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	logger *slog.Logger,
 ) reducer.CloudInventoryHandlers {
 	evidenceLoader, admissionWriter, generationCheck, tagEvidenceLoader, identityPolicyEvidenceLoader, resourceChangeEvidenceLoader := cloudInventoryAdmissionWiring(database, logger)
@@ -139,7 +141,7 @@ func buildReducerCloudInventoryHandlers(
 // buildReducerKubernetesHandlers assembles the kubernetes correlation writer and
 // the canonical workload/correlation graph writers.
 func buildReducerKubernetesHandlers(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	graphWriters canonicalGraphWriters,
 ) reducer.KubernetesHandlers {
 	return reducer.KubernetesHandlers{
@@ -159,7 +161,7 @@ func buildReducerKubernetesHandlers(
 // actually commits an edge for that identity, never at cross-scope-sweep
 // enqueue time (see CrossplaneRedriveTargetLedgerWriter's doc comment).
 func buildReducerCrossplaneHandlers(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	graphWriters canonicalGraphWriters,
 	graphReader reducer.GraphQueryRunner,
 ) reducer.CrossplaneHandlers {
@@ -174,7 +176,7 @@ func buildReducerCrossplaneHandlers(
 // supply-chain impact, security-alert reconciliation, and secrets-IAM trust/graph
 // adapters, plus the endpoint-presence writers/lookups they share.
 func buildReducerSupplyChainSecurityHandlers(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	factStore postgres.FactStore,
 	secretsIAMGraphWriter reducer.SecretsIAMGraphWriter,
 	presence endpointPresenceWirings,
@@ -205,7 +207,7 @@ func buildReducerSupplyChainSecurityHandlers(
 // adapters and the durable incident -> repository correlation wiring (#2161),
 // which is constructed here because it feeds only this group.
 func buildReducerIncidentRoutingHandlers(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	factStore postgres.FactStore,
 	graphWriters canonicalGraphWriters,
 ) reducer.IncidentRoutingHandlers {
@@ -224,7 +226,7 @@ func buildReducerIncidentRoutingHandlers(
 // stores plus the value-flow fixpoint projector are constructed here because they
 // feed only this group.
 func buildReducerCodeEvidenceHandlers(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	factStore postgres.FactStore,
 	graphWriters canonicalGraphWriters,
 	graphReader query.GraphQuery,

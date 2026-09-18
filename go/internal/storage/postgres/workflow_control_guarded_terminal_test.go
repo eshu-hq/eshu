@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -34,8 +36,8 @@ func awsScheduledWorkItem(runID, serviceKind string, now time.Time) workflow.Wor
 func TestWorkflowControlStoreGuardedRunSkipsTerminalSameRunReplay(t *testing.T) {
 	t.Parallel()
 
-	db := &terminalRunReplayDB{}
-	store := NewWorkflowControlStore(db)
+	database := &terminalRunReplayDB{}
+	store := NewWorkflowControlStore(database)
 	now := time.Date(2026, time.May, 21, 15, 38, 43, 0, time.UTC)
 	run := workflow.Run{
 		RunID:              "terraform_state:remote-e2e-terraform-state:schedule:continuous-20260521T150000Z",
@@ -68,12 +70,12 @@ func TestWorkflowControlStoreGuardedRunSkipsTerminalSameRunReplay(t *testing.T) 
 	if got, want := admission.InsertedWorkItems, 0; got != want {
 		t.Fatalf("inserted = %d, want %d", got, want)
 	}
-	for _, exec := range db.execs {
+	for _, exec := range database.execs {
 		if strings.Contains(exec.query, "INSERT INTO workflow_runs") || strings.Contains(exec.query, "INSERT INTO workflow_work_items") {
 			t.Fatalf("guarded schedule inserted new target for terminal same run: %s", exec.query)
 		}
 	}
-	if !db.committed {
+	if !database.committed {
 		t.Fatal("guarded schedule did not commit skipped transaction")
 	}
 }
@@ -84,7 +86,7 @@ type fakeBeginnerExecQueryer struct {
 	rolledBack bool
 }
 
-func (f *fakeBeginnerExecQueryer) Begin(context.Context) (Transaction, error) {
+func (f *fakeBeginnerExecQueryer) Begin(context.Context) (db.Transaction, error) {
 	return &fakeTransaction{owner: f}, nil
 }
 
@@ -96,7 +98,7 @@ func (tx *fakeTransaction) ExecContext(ctx context.Context, query string, args .
 	return tx.owner.ExecContext(ctx, query, args...)
 }
 
-func (tx *fakeTransaction) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx *fakeTransaction) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.owner.QueryContext(ctx, query, args...)
 }
 
@@ -114,14 +116,14 @@ type terminalRunReplayDB struct {
 	fakeBeginnerExecQueryer
 }
 
-func (db *terminalRunReplayDB) Begin(context.Context) (Transaction, error) {
-	return &terminalRunReplayTx{owner: db}, nil
+func (database *terminalRunReplayDB) Begin(context.Context) (db.Transaction, error) {
+	return &terminalRunReplayTx{owner: database}, nil
 }
 
-func (db *terminalRunReplayDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
-	db.mu.Lock()
-	db.queries = append(db.queries, fakeQueryCall{query: query, args: args})
-	db.mu.Unlock()
+func (database *terminalRunReplayDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.mu.Lock()
+	database.queries = append(database.queries, fakeQueryCall{query: query, args: args})
+	database.mu.Unlock()
 
 	switch {
 	case strings.Contains(query, "FROM workflow_runs") && strings.Contains(query, "status IN ('complete', 'failed')"):
@@ -143,7 +145,7 @@ func (tx *terminalRunReplayTx) ExecContext(ctx context.Context, query string, ar
 	return tx.owner.ExecContext(ctx, query, args...)
 }
 
-func (tx *terminalRunReplayTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx *terminalRunReplayTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.owner.QueryContext(ctx, query, args...)
 }
 

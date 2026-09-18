@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -85,14 +87,14 @@ type GenerationRetentionResult struct {
 // GenerationRetentionStore prunes superseded source-local generation history in
 // bounded transactions while preserving active reads and changed-since truth.
 type GenerationRetentionStore struct {
-	db  ExecQueryer
-	Now func() time.Time
+	database db.ExecQueryer
+	Now      func() time.Time
 }
 
 // NewGenerationRetentionStore constructs a Postgres-backed retention cleanup
 // store. The supplied database must support transactions when cleanup runs.
-func NewGenerationRetentionStore(db ExecQueryer) GenerationRetentionStore {
-	return GenerationRetentionStore{db: db}
+func NewGenerationRetentionStore(database db.ExecQueryer) GenerationRetentionStore {
+	return GenerationRetentionStore{database: database}
 }
 
 // PruneSupersededGenerations deletes one bounded batch of superseded
@@ -102,10 +104,10 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	ctx context.Context,
 	policy GenerationRetentionPolicy,
 ) (GenerationRetentionResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return GenerationRetentionResult{}, errors.New("generation retention database is required")
 	}
-	beginner, ok := s.db.(Beginner)
+	beginner, ok := s.database.(db.Beginner)
 	if !ok {
 		return GenerationRetentionResult{}, errors.New("generation retention database must support Begin")
 	}
@@ -194,7 +196,7 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 
 func (s GenerationRetentionStore) selectPrunableCandidates(
 	ctx context.Context,
-	tx Transaction,
+	tx db.Transaction,
 	now time.Time,
 	policy GenerationRetentionPolicy,
 	result *GenerationRetentionResult,
@@ -243,7 +245,7 @@ type generationRetentionCandidate struct {
 
 func (s GenerationRetentionStore) selectCandidates(
 	ctx context.Context,
-	tx Transaction,
+	tx db.Transaction,
 	now time.Time,
 	policy GenerationRetentionPolicy,
 	excludedGenerationIDs []string,
@@ -311,7 +313,7 @@ func selectCandidatesWithinRowLimit(
 
 func (s GenerationRetentionStore) countRows(
 	ctx context.Context,
-	tx Transaction,
+	tx db.Transaction,
 	generationIDs []string,
 ) (map[string]int64, map[string]map[string]int64, int64, error) {
 	rows, err := tx.QueryContext(ctx, generationRetentionRowCountsQuery, generationIDs)
@@ -345,7 +347,7 @@ func (s GenerationRetentionStore) countRows(
 
 func (s GenerationRetentionStore) recordRetentionEvent(
 	ctx context.Context,
-	tx Transaction,
+	tx db.Transaction,
 	candidate generationRetentionCandidate,
 	policy GenerationRetentionPolicy,
 	rowCounts map[string]int64,
@@ -423,7 +425,7 @@ func generationRetentionSkipSearchLimit(batchLimit int) int {
 	return limit
 }
 
-func execRowsAffected(ctx context.Context, exec Executor, query string, args ...any) (int64, error) {
+func execRowsAffected(ctx context.Context, exec db.Executor, query string, args ...any) (int64, error) {
 	result, err := exec.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, err

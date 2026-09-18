@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -78,7 +80,7 @@ func valueBatchFenceMode(rows []EshuSearchVectorValue) (bool, error) {
 
 func upsertEshuSearchVectorMetadataBatchFenced(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	batch []EshuSearchVectorMetadata,
 ) error {
 	const columnsPerRow = eshuSearchVectorMetadataColumnsPerRow + 2
@@ -120,7 +122,7 @@ row.source_class,row.embedding_model_id,row.embedding_dimensions,
 row.embedding_content_hash,row.vector_index_version,row.build_state,
 row.failure_class,row.created_at,row.updated_at,row.last_success_at
 ` + fencedVectorWriteJoins + upsertEshuSearchVectorMetadataBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert fenced eshu search vector metadata batch (%d rows): %w", len(batch), err)
 	}
 	return nil
@@ -128,7 +130,7 @@ row.failure_class,row.created_at,row.updated_at,row.last_success_at
 
 func upsertEshuSearchVectorValueBatchFenced(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	batch []EshuSearchVectorValue,
 ) error {
 	const columnsPerRow = eshuSearchVectorValueColumnsPerRow + 2
@@ -166,7 +168,7 @@ row.source_class,row.embedding_model_id,row.embedding_dimensions,
 row.embedding_content_hash,row.vector_index_version,row.vector_values,
 row.created_at,row.updated_at
 ` + fencedVectorWriteJoins + upsertEshuSearchVectorValueBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert fenced eshu search vector value batch (%d rows): %w", len(batch), err)
 	}
 	return nil

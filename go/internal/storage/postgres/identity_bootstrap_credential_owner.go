@@ -23,7 +23,7 @@ func (s *IdentitySubjectStore) ResolveBootstrapCredentialOwner(
 	ctx context.Context,
 	tenantID, workspaceID string,
 ) (userID string, subjectIDHash string, err error) {
-	if s.db == nil {
+	if s.database == nil {
 		return "", "", errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
@@ -31,11 +31,11 @@ func (s *IdentitySubjectStore) ResolveBootstrapCredentialOwner(
 	if tenantID == "" || workspaceID == "" {
 		return "", "", errors.New("resolve bootstrap credential owner requires tenant_id and workspace_id")
 	}
-	subjectIDHash, err = selectBootstrapCredentialSubject(ctx, s.db, tenantID, workspaceID)
+	subjectIDHash, err = selectBootstrapCredentialSubject(ctx, s.database, tenantID, workspaceID)
 	if err != nil {
 		return "", "", err
 	}
-	userID, err = selectBootstrapCredentialOwnerUserID(ctx, s.db, subjectIDHash)
+	userID, err = selectBootstrapCredentialOwnerUserID(ctx, s.database, subjectIDHash)
 	if err != nil {
 		return "", "", err
 	}

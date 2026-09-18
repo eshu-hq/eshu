@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -137,7 +139,7 @@ func (q *serviceDocumentationCapturingQueryer) QueryContext(
 	_ context.Context,
 	query string,
 	args ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	q.query = query
 	q.args = append([]any(nil), args...)
 	return &fakeRows{}, nil

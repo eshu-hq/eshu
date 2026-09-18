@@ -74,7 +74,7 @@ LIMIT $3
 // change carries no risk to that cache's drift-locked partial-index
 // contract (identity_epoch_cache_contract_test.go).
 func (s FactStore) ListActiveContainerImageSLSAFacts(ctx context.Context) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
@@ -108,7 +108,7 @@ func (s FactStore) listActiveContainerImageSLSAFactsPage(
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveContainerImageSLSAFactsQuery,
 		cursor,

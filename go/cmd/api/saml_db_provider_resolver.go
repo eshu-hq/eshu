@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/samlauth"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
@@ -41,12 +43,12 @@ type samlDBProviderResolver struct {
 // keyring is nil: without a keyring no sealed secret could ever be opened, so
 // wiring a resolver that can only fail is pointless — postgresSAMLStore
 // simply serves env-file providers only in that case (dbProviders stays nil).
-func newSAMLDBProviderResolver(db *sql.DB, keyring *secretcrypto.Keyring) samlProviderDBResolver {
-	if db == nil || keyring == nil {
+func newSAMLDBProviderResolver(rawDB *sql.DB, keyring *secretcrypto.Keyring) samlProviderDBResolver {
+	if rawDB == nil || keyring == nil {
 		return nil
 	}
 	return &samlDBProviderResolver{
-		store:   pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db})),
+		store:   pgstatus.NewIdentitySubjectStore(db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})),
 		keyring: keyring,
 	}
 }

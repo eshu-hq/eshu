@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -109,7 +111,7 @@ func (s *SharedIntentStore) UpsertIntents(ctx context.Context, rows []reducer.Sh
 		if end > len(prepared) {
 			end = len(prepared)
 		}
-		if err := upsertSharedIntentBatch(ctx, s.db, prepared[i:end]); err != nil {
+		if err := upsertSharedIntentBatch(ctx, s.database, prepared[i:end]); err != nil {
 			return err
 		}
 	}
@@ -136,7 +138,7 @@ func deduplicateSharedIntentRows(rows []reducer.SharedProjectionIntentRow) []red
 }
 
 // upsertSharedIntentBatch inserts one batch of shared intents in one statement.
-func upsertSharedIntentBatch(ctx context.Context, db ExecQueryer, batch []preparedSharedIntentRow) error {
+func upsertSharedIntentBatch(ctx context.Context, database db.ExecQueryer, batch []preparedSharedIntentRow) error {
 	if len(batch) == 0 {
 		return nil
 	}
@@ -175,7 +177,7 @@ func upsertSharedIntentBatch(ctx context.Context, db ExecQueryer, batch []prepar
 
 	query := upsertSharedIntentBatchPrefix + values.String() + upsertSharedIntentBatchSuffix
 
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert shared intent batch (%d intents): %w", len(batch), err)
 	}
 

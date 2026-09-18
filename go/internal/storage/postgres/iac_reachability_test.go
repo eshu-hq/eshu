@@ -12,13 +12,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestIaCReachabilityStoreUpsertAndListCleanupFindings(t *testing.T) {
 	t.Parallel()
 
-	db := newIaCReachabilityTestDB()
-	store := NewIaCReachabilityStore(db)
+	database := newIaCReachabilityTestDB()
+	store := NewIaCReachabilityStore(database)
 	ctx := context.Background()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
@@ -178,7 +180,7 @@ func TestIngestionStoreMaterializeIaCReachabilityWritesActiveCorpusRows(t *testi
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 1, 12, 0, 0, 0, time.UTC)
-	db := &fakeExecQueryer{
+	database := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{
 			{
 				rows: [][]any{
@@ -207,14 +209,14 @@ variable "module_name" {
 			},
 		},
 	}
-	store := NewIngestionStore(db)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	if err := store.MaterializeIaCReachability(context.Background(), nil, nil); err != nil {
 		t.Fatalf("MaterializeIaCReachability() error = %v, want nil", err)
 	}
 
-	inserted := iacReachabilityRowsFromExecs(t, db.execs)
+	inserted := iacReachabilityRowsFromExecs(t, database.execs)
 	if got, want := len(inserted), 3; got != want {
 		t.Fatalf("materialized row count = %d, want %d: %#v", got, want, inserted)
 	}
@@ -268,7 +270,7 @@ func newIaCReachabilityTestDB() *iacReachabilityTestDB {
 	return &iacReachabilityTestDB{rows: map[string]iacReachabilityStoredRow{}}
 }
 
-func (db *iacReachabilityTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+func (database *iacReachabilityTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
 	switch {
 	case strings.Contains(query, "INSERT INTO iac_reachability_rows"):
 		const columnsPerRow = 13
@@ -296,7 +298,7 @@ func (db *iacReachabilityTestDB) ExecContext(_ context.Context, query string, ar
 				ObservedAt:   args[i+11].(time.Time),
 				UpdatedAt:    args[i+12].(time.Time),
 			}
-			db.rows[iacReachabilityKey(row)] = row
+			database.rows[iacReachabilityKey(row)] = row
 		}
 		return sharedIntentResult{}, nil
 
@@ -308,7 +310,7 @@ func (db *iacReachabilityTestDB) ExecContext(_ context.Context, query string, ar
 	}
 }
 
-func (db *iacReachabilityTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (database *iacReachabilityTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM iac_reachability_rows") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
@@ -358,7 +360,7 @@ func (db *iacReachabilityTestDB) QueryContext(_ context.Context, query string, a
 	}
 
 	var matches [][]any
-	for _, row := range db.rows {
+	for _, row := range database.rows {
 		if latestActive {
 			if _, ok := repoIDs[row.RepoID]; !ok {
 				continue

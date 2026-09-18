@@ -65,7 +65,7 @@ func (s IngestionStore) backfillAllRelationshipEvidence(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) (map[scopeGenerationPartition]struct{}, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("ingestion store db is required")
 	}
 	if s.beginner == nil {
@@ -79,7 +79,7 @@ func (s IngestionStore) backfillAllRelationshipEvidence(
 		defer span.End()
 	}
 
-	catalog, _, err := loadRepositoryCatalog(ctx, s.db)
+	catalog, _, err := loadRepositoryCatalog(ctx, s.database)
 	if err != nil {
 		return nil, fmt.Errorf("load repository catalog for deferred relationship backfill: %w", err)
 	}
@@ -100,7 +100,7 @@ func (s IngestionStore) backfillAllRelationshipEvidence(
 	// With no usable anchors no fact can resolve a catalog target, so the fact
 	// load short-circuits and the pass still publishes readiness for the active
 	// generations below.
-	activeFacts, snapshotGenerations, skippedPartitions, err := s.loadDeferredAnchorScopedRelationshipFacts(ctx, s.db, catalog, instruments)
+	activeFacts, snapshotGenerations, skippedPartitions, err := s.loadDeferredAnchorScopedRelationshipFacts(ctx, s.database, catalog, instruments)
 	if err != nil {
 		return nil, fmt.Errorf("load anchor-scoped facts for deferred relationship backfill: %w", err)
 	}
@@ -168,7 +168,7 @@ func (s IngestionStore) writeDeferredBackfillInBatches(
 	catalogFingerprint string,
 	instruments *telemetry.Instruments,
 ) (int, error) {
-	repoGenerations, err := loadActiveRepositoryGenerations(ctx, s.db)
+	repoGenerations, err := loadActiveRepositoryGenerations(ctx, s.database)
 	if err != nil {
 		return 0, fmt.Errorf("load active repository generations for deferred relationship backfill: %w", err)
 	}

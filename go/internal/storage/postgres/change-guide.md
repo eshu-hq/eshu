@@ -7,8 +7,8 @@ package boundary; keep this file as the local change checklist.
 ## Read First
 
 - `README.md` for the package boundary and store groups.
-- `db.go` for `ExecQueryer`, `Queryer`, `Transaction`, `Beginner`, `SQLDB`, and
-  `SQLTx`.
+- `db/contracts.go` for `ExecQueryer`, `Queryer`, `Transaction`, `Beginner`,
+  and the other shared contracts; `adapters.go` for `SQLDB` and `SQLTx`.
 - `schema.go` and table-specific schema files before adding DDL.
 - `facts.go` before changing fact insert, scan, filtering, or generation
   commit behavior.
@@ -20,7 +20,7 @@ package boundary; keep this file as the local change checklist.
 
 ## Change Checklist
 
-- New store: implement against `ExecQueryer`, add `New*Store`, add idempotent
+- New store: implement against `db.ExecQueryer`, add `New*Store`, add idempotent
   `*SchemaSQL()` when it owns tables, register DDL in `BootstrapDefinitions`,
   and wire the connection through `InstrumentedDB`.
 - New table: order `Definition` after dependencies, keep DDL idempotent, add SQL

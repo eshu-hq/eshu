@@ -12,34 +12,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
 )
-
-// ExecQueryer combines read and write access for storage adapters.
-type ExecQueryer interface {
-	Queryer
-	Executor
-}
-
-// Transaction is the narrow transactional surface required by durable commit
-// boundaries in storage adapters.
-type Transaction interface {
-	ExecQueryer
-	Commit() error
-	Rollback() error
-}
-
-// Beginner constructs transactions for storage adapters that need atomic writes.
-type Beginner interface {
-	Begin(context.Context) (Transaction, error)
-}
-
-// ReadOnlyRepeatableReadBeginner constructs a read-only transaction whose
-// statements share one repeatable-read snapshot.
-type ReadOnlyRepeatableReadBeginner interface {
-	BeginReadOnlyRepeatableRead(context.Context) (Transaction, error)
-}
 
 // SQLDB adapts a *sql.DB into the combined storage interface surface.
 type SQLDB struct {
@@ -64,18 +41,18 @@ func (e searchIndexTermCopyUnsupportedError) UnsupportedSearchIndexTermCopy() bo
 }
 
 // QueryContext implements Queryer against a sql.DB.
-func (db SQLDB) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
-	return db.DB.QueryContext(ctx, query, args...)
+func (database SQLDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return database.DB.QueryContext(ctx, query, args...)
 }
 
 // ExecContext implements Executor against a sql.DB.
-func (db SQLDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return db.DB.ExecContext(ctx, query, args...)
+func (database SQLDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return database.DB.ExecContext(ctx, query, args...)
 }
 
 // CopySearchIndexTerms bulk-loads refreshed Eshu search term rows through the
 // PostgreSQL COPY protocol. Callers must pass aligned, already ordered slices.
-func (db SQLDB) CopySearchIndexTerms(
+func (database SQLDB) CopySearchIndexTerms(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
@@ -84,7 +61,7 @@ func (db SQLDB) CopySearchIndexTerms(
 	termKeys []string,
 	frequencies []int,
 ) (int64, error) {
-	return db.copySearchIndexTermsToTable(
+	return database.copySearchIndexTermsToTable(
 		ctx,
 		"eshu_search_index_terms",
 		scopeID,
@@ -96,7 +73,7 @@ func (db SQLDB) CopySearchIndexTerms(
 	)
 }
 
-func (db SQLDB) copySearchIndexTermsToTable(
+func (database SQLDB) copySearchIndexTermsToTable(
 	ctx context.Context,
 	tableName string,
 	scopeID string,
@@ -118,10 +95,10 @@ func (db SQLDB) copySearchIndexTermsToTable(
 	if len(terms) == 0 {
 		return 0, nil
 	}
-	if db.DB == nil {
+	if database.DB == nil {
 		return 0, fmt.Errorf("postgres SQLDB requires a database handle")
 	}
-	conn, err := db.DB.Conn(ctx)
+	conn, err := database.DB.Conn(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("acquire search-index term copy connection: %w", err)
 	}
@@ -156,18 +133,18 @@ func (db SQLDB) copySearchIndexTermsToTable(
 	return copied, nil
 }
 
-func (db SQLDB) execContextWithLockTimeout(
+func (database SQLDB) execContextWithLockTimeout(
 	ctx context.Context,
 	query string,
 	lockTimeout time.Duration,
 ) (sql.Result, error) {
-	if db.DB == nil {
+	if database.DB == nil {
 		return nil, fmt.Errorf("postgres SQLDB requires a database handle")
 	}
 	if lockTimeout <= 0 {
-		return db.ExecContext(ctx, query)
+		return database.ExecContext(ctx, query)
 	}
-	conn, err := db.DB.Conn(ctx)
+	conn, err := database.DB.Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("open schema connection: %w", err)
 	}
@@ -181,7 +158,7 @@ func (db SQLDB) execContextWithLockTimeout(
 	if _, err := conn.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, false)", lockTimeout.String()); err != nil {
 		return nil, fmt.Errorf("set schema lock timeout: %w", err)
 	}
-	if err := db.dropInvalidConcurrentIndexes(ctx, conn, concurrentIndexNamesForInvalidCleanup(query)); err != nil {
+	if err := database.dropInvalidConcurrentIndexes(ctx, conn, concurrentIndexNamesForInvalidCleanup(query)); err != nil {
 		resetErr := resetSchemaLockTimeout(conn)
 		closeErr := conn.Close()
 		if closeErr != nil {
@@ -211,7 +188,7 @@ func resetSchemaLockTimeout(conn *sql.Conn) error {
 
 // dropInvalidConcurrentIndexes removes invalid indexes left by failed
 // concurrent index builds so IF NOT EXISTS cannot silently skip a broken index.
-func (db SQLDB) dropInvalidConcurrentIndexes(ctx context.Context, conn *sql.Conn, indexNames []string) error {
+func (database SQLDB) dropInvalidConcurrentIndexes(ctx context.Context, conn *sql.Conn, indexNames []string) error {
 	for _, indexName := range indexNames {
 		rows, err := conn.QueryContext(ctx, `
 SELECT n.nspname, c.relname
@@ -291,8 +268,8 @@ func quoteSQLIdentifier(identifier string) string {
 }
 
 // Begin opens a transaction against the wrapped database.
-func (db SQLDB) Begin(ctx context.Context) (Transaction, error) {
-	tx, err := db.DB.BeginTx(ctx, nil)
+func (database SQLDB) Begin(ctx context.Context) (db.Transaction, error) {
+	tx, err := database.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -301,8 +278,8 @@ func (db SQLDB) Begin(ctx context.Context) (Transaction, error) {
 }
 
 // BeginReadOnlyRepeatableRead opens a read-only repeatable-read transaction.
-func (db SQLDB) BeginReadOnlyRepeatableRead(ctx context.Context) (Transaction, error) {
-	tx, err := db.DB.BeginTx(ctx, &sql.TxOptions{
+func (database SQLDB) BeginReadOnlyRepeatableRead(ctx context.Context) (db.Transaction, error) {
+	tx, err := database.DB.BeginTx(ctx, &sql.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  true,
 	})
@@ -319,7 +296,7 @@ type SQLTx struct {
 }
 
 // QueryContext implements Queryer against a sql.Tx.
-func (tx SQLTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx SQLTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.Tx.QueryContext(ctx, query, args...)
 }
 

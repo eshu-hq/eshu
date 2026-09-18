@@ -522,8 +522,8 @@ callable store contracts.
 
 Primary groups:
 
-- Database adapters: `ExecQueryer`, `Transaction`, `Beginner`, `SQLDB`,
-  `SQLTx`, `InstrumentedDB`.
+- Database adapters: `db.ExecQueryer`, `db.Transaction`, `db.Beginner`,
+  `SQLDB`, `SQLTx`, `InstrumentedDB` (`db.*` in `storage/postgres/db`).
 - Fact, queue, recovery, status, workflow, and webhook stores. `FactStore` also
   provides a bounded CI/CD source-snapshot rebuild for artifact-only correlation
   patches. The history read selects the newest older generation containing
@@ -931,7 +931,7 @@ No-regression and observability proof for this retry class lives in
 
 ## Extension points
 
-- New store — implement against `ExecQueryer`; wrap with `InstrumentedDB` for
+- New store — implement against `db.ExecQueryer`; wrap with `InstrumentedDB` for
   observability; add a `*SchemaSQL()` function and register in
   `BootstrapDefinitions` if the store needs a new table.
 - New queue domain — extend `ReducerQueue.Claim` domain filter; add the domain

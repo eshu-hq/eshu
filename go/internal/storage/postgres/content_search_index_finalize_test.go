@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestEnsureContentSearchIndexesPublishesReadyAfterExactBuildAndAnalyze(t *testing.T) {
@@ -83,11 +85,11 @@ type contentSearchIndexScriptExecutor struct {
 	failErr      error
 }
 
-func (e *contentSearchIndexScriptExecutor) Begin(context.Context) (Transaction, error) {
+func (e *contentSearchIndexScriptExecutor) Begin(context.Context) (db.Transaction, error) {
 	return e, nil
 }
 
-func (e *contentSearchIndexScriptExecutor) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (e *contentSearchIndexScriptExecutor) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("unexpected query")
 }
 

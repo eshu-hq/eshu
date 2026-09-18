@@ -122,7 +122,7 @@ CROSS JOIN (
 // When an identity cache is wired, the result set is served from the cache on
 // epoch match and reloaded via singleflight on miss.
 func (s *FactStore) ListActiveContainerImageIdentityFacts(ctx context.Context) ([]facts.Envelope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("fact store database is required")
 	}
 
@@ -157,7 +157,7 @@ func (s *FactStore) loadIdentityFactsUncached(ctx context.Context) ([]facts.Enve
 
 // probeIdentityEpoch returns the epoch probe for the identity fact set.
 func (s *FactStore) probeIdentityEpoch(ctx context.Context) (identityEpoch, error) {
-	rows, err := s.db.QueryContext(ctx, probeIdentityEpochQuery)
+	rows, err := s.database.QueryContext(ctx, probeIdentityEpochQuery)
 	if err != nil {
 		return identityEpoch{}, fmt.Errorf("probe identity epoch: %w", err)
 	}
@@ -189,7 +189,7 @@ func (s *FactStore) listActiveContainerImageIdentityFactsPage(
 		cursor = cursorObservedAt.UTC()
 	}
 
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		listActiveContainerImageIdentityFactsQuery,
 		cursor,

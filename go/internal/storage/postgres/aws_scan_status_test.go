@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
@@ -44,8 +46,8 @@ func TestAWSScanStatusSchemaSQL(t *testing.T) {
 func TestAWSScanStatusStoreUsesFenceGuard(t *testing.T) {
 	t.Parallel()
 
-	db := &awsScanStatusTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 1}}}
-	store := NewAWSScanStatusStore(db)
+	database := &awsScanStatusTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 1}}}
+	store := NewAWSScanStatusStore(database)
 	startedAt := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
 	err := store.StartAWSScan(context.Background(), awscloud.ScanStatusStart{
 		Boundary:  awsScanStatusBoundary(startedAt),
@@ -55,7 +57,7 @@ func TestAWSScanStatusStoreUsesFenceGuard(t *testing.T) {
 		t.Fatalf("StartAWSScan() error = %v, want nil", err)
 	}
 
-	query := db.execs[0].query
+	query := database.execs[0].query
 	for _, want := range []string{
 		"INSERT INTO aws_scan_status",
 		"ON CONFLICT (collector_instance_id, account_id, region, service_kind) DO UPDATE SET",
@@ -164,8 +166,8 @@ func TestAWSScanStatusStoreReturnsTypedStaleFenceError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			db := &awsScanStatusTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 0}}}
-			store := NewAWSScanStatusStore(db)
+			database := &awsScanStatusTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 0}}}
+			store := NewAWSScanStatusStore(database)
 			now := time.Date(2026, 5, 24, 17, 0, 0, 0, time.UTC)
 
 			err := tc.do(t, store, awsScanStatusBoundary(now), now)
@@ -182,13 +184,13 @@ func TestAWSScanStatusStoreReturnsTypedStaleFenceError(t *testing.T) {
 func TestAWSScanStatusStoreUsesExactFenceForObserveAndCommit(t *testing.T) {
 	t.Parallel()
 
-	db := &awsScanStatusTestDB{
+	database := &awsScanStatusTestDB{
 		execResults: []sql.Result{
 			awsCheckpointRowsResult{rowsAffected: 1},
 			awsCheckpointRowsResult{rowsAffected: 1},
 		},
 	}
-	store := NewAWSScanStatusStore(db)
+	store := NewAWSScanStatusStore(database)
 	observedAt := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
 	boundary := awsScanStatusBoundary(observedAt)
 	if err := store.ObserveAWSScan(context.Background(), awscloud.ScanStatusObservation{
@@ -206,7 +208,7 @@ func TestAWSScanStatusStoreUsesExactFenceForObserveAndCommit(t *testing.T) {
 		t.Fatalf("CommitAWSScan() error = %v, want nil", err)
 	}
 
-	for _, exec := range db.execs {
+	for _, exec := range database.execs {
 		if strings.Contains(exec.query, "fencing_token <=") {
 			t.Fatalf("query uses range fence guard, want exact fence:\n%s", exec.query)
 		}
@@ -278,16 +280,16 @@ type awsScanStatusTestDB struct {
 	execResults []sql.Result
 }
 
-func (db *awsScanStatusTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.execs = append(db.execs, awsCheckpointExec{query: query, args: args})
-	if len(db.execResults) == 0 {
+func (database *awsScanStatusTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execs = append(database.execs, awsCheckpointExec{query: query, args: args})
+	if len(database.execResults) == 0 {
 		return awsCheckpointRowsResult{rowsAffected: 1}, nil
 	}
-	result := db.execResults[0]
-	db.execResults = db.execResults[1:]
+	result := database.execResults[0]
+	database.execResults = database.execResults[1:]
 	return result, nil
 }
 
-func (db *awsScanStatusTestDB) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (database *awsScanStatusTestDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, sql.ErrNoRows
 }

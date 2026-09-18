@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestRelationshipStoreActiveScopeGenerationsComplete proves the corpus-wide
@@ -20,15 +22,15 @@ func TestRelationshipStoreActiveScopeGenerationsComplete(t *testing.T) {
 	t.Parallel()
 
 	seed := func(scopes map[string]scopeRecord, generations map[string]generationRecord, items []workItemRecord) *RelationshipStore {
-		db := newRelationshipTestDB()
+		database := newRelationshipTestDB()
 		for id, scope := range scopes {
-			db.scopes[id] = scope
+			database.scopes[id] = scope
 		}
 		for id, gen := range generations {
-			db.generations[id] = gen
+			database.generations[id] = gen
 		}
-		db.workItems = append(db.workItems, items...)
-		return NewRelationshipStore(db)
+		database.workItems = append(database.workItems, items...)
+		return NewRelationshipStore(database)
 	}
 	ctx := context.Background()
 
@@ -177,18 +179,18 @@ func TestRelationshipStoreActiveScopeGenerationsComplete(t *testing.T) {
 func TestNewRelationshipGenerationsCompleteLookupAdaptsStore(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	db.scopes["s1"] = scopeRecord{status: "active", activeGenerationID: "g1"}
-	db.workItems = append(db.workItems, workItemRecord{scopeID: "s1", stage: "reducer", domain: "deployment_mapping", status: "claimed"})
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	database.scopes["s1"] = scopeRecord{status: "active", activeGenerationID: "g1"}
+	database.workItems = append(database.workItems, workItemRecord{scopeID: "s1", stage: "reducer", domain: "deployment_mapping", status: "claimed"})
+	store := NewRelationshipStore(database)
 	lookup := NewRelationshipGenerationsCompleteLookup(store)
 
 	if complete, err := lookup(context.Background()); err != nil || complete {
 		t.Fatalf("lookup() before activation = (%v, %v), want (false, nil)", complete, err)
 	}
 
-	db.generations["g1"] = generationRecord{scope: "s1", status: "active"}
-	db.workItems = nil
+	database.generations["g1"] = generationRecord{scope: "s1", status: "active"}
+	database.workItems = nil
 	if complete, err := lookup(context.Background()); err != nil || !complete {
 		t.Fatalf("lookup() after activation = (%v, %v), want (true, nil)", complete, err)
 	}
@@ -213,7 +215,7 @@ func (emptyCompletenessRowsStub) Close() error { return nil }
 
 type emptyCompletenessDBStub struct{}
 
-func (emptyCompletenessDBStub) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (emptyCompletenessDBStub) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return emptyCompletenessRowsStub{}, nil
 }
 
@@ -251,14 +253,14 @@ func TestAreActiveScopeRelationshipGenerationsCompleteNoRowsIsConcreteError(t *t
 func TestIncompleteActiveScopeRelationshipGenerationsListsHolders(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	db.scopes["s-holding"] = scopeRecord{status: "active", activeGenerationID: "g1"}
-	db.generations["g1"] = generationRecord{scope: "s-holding", status: "superseded"}
-	db.scopes["s-fine"] = scopeRecord{status: "active", activeGenerationID: "g2"}
-	db.generations["g2"] = generationRecord{scope: "s-fine", status: "active"}
-	db.scopes["s-live-work"] = scopeRecord{status: "active", activeGenerationID: "g3"}
-	db.workItems = append(db.workItems, workItemRecord{scopeID: "s-live-work", stage: "reducer", domain: "deployment_mapping", status: "claimed"})
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	database.scopes["s-holding"] = scopeRecord{status: "active", activeGenerationID: "g1"}
+	database.generations["g1"] = generationRecord{scope: "s-holding", status: "superseded"}
+	database.scopes["s-fine"] = scopeRecord{status: "active", activeGenerationID: "g2"}
+	database.generations["g2"] = generationRecord{scope: "s-fine", status: "active"}
+	database.scopes["s-live-work"] = scopeRecord{status: "active", activeGenerationID: "g3"}
+	database.workItems = append(database.workItems, workItemRecord{scopeID: "s-live-work", stage: "reducer", domain: "deployment_mapping", status: "claimed"})
+	store := NewRelationshipStore(database)
 
 	ids, err := store.IncompleteActiveScopeRelationshipGenerations(context.Background())
 	if err != nil {
@@ -275,10 +277,10 @@ func TestIncompleteActiveScopeRelationshipGenerationsListsHolders(t *testing.T) 
 func TestIncompleteActiveScopeRelationshipGenerationsEmptyWhenComplete(t *testing.T) {
 	t.Parallel()
 
-	db := newRelationshipTestDB()
-	db.scopes["s1"] = scopeRecord{status: "active", activeGenerationID: "g1"}
-	db.generations["g1"] = generationRecord{scope: "s1", status: "active"}
-	store := NewRelationshipStore(db)
+	database := newRelationshipTestDB()
+	database.scopes["s1"] = scopeRecord{status: "active", activeGenerationID: "g1"}
+	database.generations["g1"] = generationRecord{scope: "s1", status: "active"}
+	store := NewRelationshipStore(database)
 
 	ids, err := store.IncompleteActiveScopeRelationshipGenerations(context.Background())
 	if err != nil {

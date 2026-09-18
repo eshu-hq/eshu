@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -33,17 +35,17 @@ func newBackfillTxDB(inner *fakeExecQueryer) *backfillTxDB {
 	return &backfillTxDB{inner: inner}
 }
 
-func (db *backfillTxDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return db.inner.ExecContext(ctx, query, args...)
+func (database *backfillTxDB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return database.inner.ExecContext(ctx, query, args...)
 }
 
-func (db *backfillTxDB) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
-	return db.inner.QueryContext(ctx, query, args...)
+func (database *backfillTxDB) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return database.inner.QueryContext(ctx, query, args...)
 }
 
-func (db *backfillTxDB) Begin(context.Context) (Transaction, error) {
-	db.beginCalls++
-	return &backfillTx{inner: db.inner}, nil
+func (database *backfillTxDB) Begin(context.Context) (db.Transaction, error) {
+	database.beginCalls++
+	return &backfillTx{inner: database.inner}, nil
 }
 
 type backfillTx struct {
@@ -54,7 +56,7 @@ func (tx *backfillTx) ExecContext(ctx context.Context, query string, args ...any
 	return tx.inner.ExecContext(ctx, query, args...)
 }
 
-func (tx *backfillTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx *backfillTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return tx.inner.QueryContext(ctx, query, args...)
 }
 
@@ -76,8 +78,8 @@ func TestIngestionStoreCommitScopeGenerationExcludesBackfillFromMainTransaction(
 	now := time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC)
 	commitTx := &fakeTx{}
 	backfillTx := &fakeTx{}
-	db := &fakeTransactionalDB{tx: commitTx, txs: []*fakeTx{commitTx, backfillTx}}
-	store := NewIngestionStore(db)
+	database := &fakeTransactionalDB{tx: commitTx, txs: []*fakeTx{commitTx, backfillTx}}
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	scopeValue := scope.IngestionScope{
@@ -133,7 +135,7 @@ func TestIngestionStoreCommitScopeGenerationExcludesBackfillFromMainTransaction(
 	if !strings.Contains(commitTx.queries[1].query, "INSERT INTO fact_records") {
 		t.Fatalf("transaction query[1] = %q, want fact_records upsert", commitTx.queries[1].query)
 	}
-	if got, want := len(db.queries), 0; got != want {
+	if got, want := len(database.queries), 0; got != want {
 		t.Fatalf("base connection query count = %d, want %d (catalog must not use a second connection)", got, want)
 	}
 
@@ -383,8 +385,8 @@ func TestIngestionStoreBackfillAllRelationshipEvidenceSkipsUnknownTargetGenerati
 			{rows: otherGen},
 		},
 	}
-	db := newBackfillTxDB(inner)
-	store := NewIngestionStore(db)
+	database := newBackfillTxDB(inner)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	if err := store.BackfillAllRelationshipEvidence(context.Background(), nil, nil); err != nil {
@@ -462,8 +464,8 @@ func TestIngestionStoreBackfillAllRelationshipEvidencePersistsBySourceGeneration
 			{rows: activeGens},
 		},
 	}
-	db := newBackfillTxDB(inner)
-	store := NewIngestionStore(db)
+	database := newBackfillTxDB(inner)
+	store := NewIngestionStore(database)
 	store.Now = func() time.Time { return now }
 
 	if err := store.BackfillAllRelationshipEvidence(context.Background(), nil, nil); err != nil {

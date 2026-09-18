@@ -20,7 +20,7 @@ func TestReducerQueueClaimSupersedesInactiveGenerationReducerWork(t *testing.T) 
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -66,7 +66,7 @@ func TestReducerQueueBatchClaimSupersedesInactiveGenerationReducerWork(t *testin
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },

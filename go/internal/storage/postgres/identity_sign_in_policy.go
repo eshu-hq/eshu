@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // GetSignInPolicy reads one tenant's sign-in policy without locking. A tenant
@@ -19,10 +21,10 @@ func (s *IdentitySubjectStore) GetSignInPolicy(ctx context.Context, tenantID str
 	if tenantID == "" {
 		return SignInPolicy{}, errors.New("sign-in policy: tenant_id is required")
 	}
-	if s.db == nil {
+	if s.database == nil {
 		return SignInPolicy{}, errors.New("identity subject store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, selectSignInPolicyQuery, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectSignInPolicyQuery, tenantID)
 	if err != nil {
 		return SignInPolicy{}, fmt.Errorf("get sign-in policy: %w", err)
 	}
@@ -230,7 +232,7 @@ func (s *IdentitySubjectStore) RecordSSOAdminVerification(
 	if tenantID == "" || providerConfigID == "" {
 		return errors.New("sign-in policy: tenant_id and provider_config_id are required")
 	}
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("identity subject store database is required")
 	}
 	if at.IsZero() {
@@ -238,7 +240,7 @@ func (s *IdentitySubjectStore) RecordSSOAdminVerification(
 	} else {
 		at = at.UTC()
 	}
-	if _, err := s.db.ExecContext(ctx, recordSSOAdminVerificationQuery, tenantID, at, providerConfigID); err != nil {
+	if _, err := s.database.ExecContext(ctx, recordSSOAdminVerificationQuery, tenantID, at, providerConfigID); err != nil {
 		return fmt.Errorf("record sso admin verification: %w", err)
 	}
 	return nil
@@ -256,8 +258,8 @@ func signInPolicyAbsoluteBeforeIdle(idleSeconds, absoluteSeconds int) bool {
 	return idleSeconds > 0 && absoluteSeconds > 0 && absoluteSeconds < idleSeconds
 }
 
-func countActiveProviderConfigs(ctx context.Context, db ExecQueryer, tenantID string) (int64, error) {
-	rows, err := db.QueryContext(ctx, countActiveProviderConfigsQuery, tenantID)
+func countActiveProviderConfigs(ctx context.Context, database db.ExecQueryer, tenantID string) (int64, error) {
+	rows, err := database.QueryContext(ctx, countActiveProviderConfigsQuery, tenantID)
 	if err != nil {
 		return 0, fmt.Errorf("count active provider configs: %w", err)
 	}
@@ -275,12 +277,12 @@ func countActiveProviderConfigs(ctx context.Context, db ExecQueryer, tenantID st
 // signInPolicyRequiresMFAForUsers reads require_mfa_for_all_users for one
 // tenant within the caller's transaction (or any ExecQueryer). Absence of a
 // row means false (the default), matching defaultSignInPolicy.
-func signInPolicyRequiresMFAForUsers(ctx context.Context, db ExecQueryer, tenantID string) (bool, error) {
+func signInPolicyRequiresMFAForUsers(ctx context.Context, database db.ExecQueryer, tenantID string) (bool, error) {
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {
 		return false, nil
 	}
-	rows, err := db.QueryContext(ctx, selectSignInPolicyRequireMFAQuery, tenantID)
+	rows, err := database.QueryContext(ctx, selectSignInPolicyRequireMFAQuery, tenantID)
 	if err != nil {
 		return false, fmt.Errorf("read sign-in policy mfa requirement: %w", err)
 	}
@@ -297,7 +299,7 @@ func signInPolicyRequiresMFAForUsers(ctx context.Context, db ExecQueryer, tenant
 
 // scanSignInPolicyRow scans one identity_sign_in_policies row. Callers set
 // TenantID afterward (the query never selects it back).
-func scanSignInPolicyRow(rows Rows) (SignInPolicy, error) {
+func scanSignInPolicyRow(rows db.Rows) (SignInPolicy, error) {
 	var (
 		policy           SignInPolicy
 		idle, absolute   sql.NullInt64

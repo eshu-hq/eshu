@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
@@ -69,20 +71,20 @@ func FunctionGraphIDSchemaSQL() string {
 // FunctionGraphIDStore persists the FunctionID->graph-uid map for the cross-repo
 // fixpoint.
 type FunctionGraphIDStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewFunctionGraphIDStore constructs a Postgres-backed FunctionID->uid store.
-func NewFunctionGraphIDStore(db ExecQueryer) FunctionGraphIDStore {
-	return FunctionGraphIDStore{db: db}
+func NewFunctionGraphIDStore(database db.ExecQueryer) FunctionGraphIDStore {
+	return FunctionGraphIDStore{database: database}
 }
 
 // EnsureSchema applies the FunctionID->uid map DDL.
 func (s FunctionGraphIDStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("function graph id store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, functionGraphIDSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, functionGraphIDSchemaSQL); err != nil {
 		return fmt.Errorf("ensure function graph id schema: %w", err)
 	}
 	return nil
@@ -91,7 +93,7 @@ func (s FunctionGraphIDStore) EnsureSchema(ctx context.Context) error {
 // UpsertGraphIDs persists each FunctionID->uid mapping, idempotent on FunctionID.
 // Mappings with an empty uid are skipped (an unresolved function has no node).
 func (s FunctionGraphIDStore) UpsertGraphIDs(ctx context.Context, ids map[summary.FunctionID]string, updatedAt time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("function graph id store database is required")
 	}
 	if updatedAt.IsZero() {
@@ -129,7 +131,7 @@ func (s FunctionGraphIDStore) ReplaceGraphIDs(
 	ids map[summary.FunctionID]string,
 	updatedAt time.Time,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("function graph id store database is required")
 	}
 	if updatedAt.IsZero() {
@@ -139,7 +141,7 @@ func (s FunctionGraphIDStore) ReplaceGraphIDs(
 	if repo == "" {
 		return fmt.Errorf("function graph id repo is required")
 	}
-	if beginner, ok := s.db.(Beginner); ok {
+	if beginner, ok := s.database.(db.Beginner); ok {
 		tx, err := beginner.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin function graph id replacement transaction: %w", err)
@@ -153,12 +155,12 @@ func (s FunctionGraphIDStore) ReplaceGraphIDs(
 		}
 		return nil
 	}
-	return replaceFunctionGraphIDs(ctx, s.db, repo, ids, updatedAt.UTC())
+	return replaceFunctionGraphIDs(ctx, s.database, repo, ids, updatedAt.UTC())
 }
 
 func replaceFunctionGraphIDs(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	repo string,
 	ids map[summary.FunctionID]string,
 	updatedAt time.Time,
@@ -172,13 +174,13 @@ func replaceFunctionGraphIDs(
 			return fmt.Errorf("function graph id repo %q does not match replacement repo %q", got, repo)
 		}
 	}
-	if _, err := db.ExecContext(ctx, deleteFunctionGraphIDsForRepoSQL, repo, updatedAt); err != nil {
+	if _, err := database.ExecContext(ctx, deleteFunctionGraphIDsForRepoSQL, repo, updatedAt); err != nil {
 		return fmt.Errorf("delete stale function graph ids for repo %q: %w", repo, err)
 	}
 	if len(ids) == 0 {
 		return nil
 	}
-	store := FunctionGraphIDStore{db: db}
+	store := FunctionGraphIDStore{database: database}
 	return store.upsertResolvedGraphIDs(ctx, ids, updatedAt)
 }
 
@@ -223,7 +225,7 @@ func (s FunctionGraphIDStore) upsertBatch(ctx context.Context, functionIDs []sum
 		args = append(args, string(id), ids[id], functionIDRepo(string(id)), updatedAt)
 	}
 	query := upsertFunctionGraphIDBatchPrefix + strings.Join(values, ", ") + upsertFunctionGraphIDBatchSuffix
-	if _, err := s.db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("upsert function graph ids: %w", err)
 	}
 	return nil
@@ -231,10 +233,10 @@ func (s FunctionGraphIDStore) upsertBatch(ctx context.Context, functionIDs []sum
 
 // LoadGraphIDs reloads the full FunctionID->uid map for the cross-repo fixpoint.
 func (s FunctionGraphIDStore) LoadGraphIDs(ctx context.Context) (map[summary.FunctionID]string, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("function graph id store database is required")
 	}
-	rows, err := s.db.QueryContext(ctx, loadFunctionGraphIDsSQL)
+	rows, err := s.database.QueryContext(ctx, loadFunctionGraphIDsSQL)
 	if err != nil {
 		return nil, fmt.Errorf("load function graph ids: %w", err)
 	}

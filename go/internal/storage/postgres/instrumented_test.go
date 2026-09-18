@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -36,7 +38,7 @@ func (f *instrumentedTestExecQueryer) ExecContext(ctx context.Context, query str
 	return &instrumentedTestResult{}, nil
 }
 
-func (f *instrumentedTestExecQueryer) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (f *instrumentedTestExecQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	f.queryCalled = true
 	if f.queryErr != nil {
 		return nil, f.queryErr

@@ -44,7 +44,7 @@ func (s AWSCloudRuntimeDriftFindingStore) ListActiveReplatformingScopes(
 	limit int,
 	allowedScopeIDs []string,
 ) (AWSReplatformingScopeSelectorPage, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return AWSReplatformingScopeSelectorPage{}, fmt.Errorf("aws cloud runtime drift finding store database is required")
 	}
 	if limit <= 0 {
@@ -59,7 +59,7 @@ func (s AWSCloudRuntimeDriftFindingStore) ListActiveReplatformingScopes(
 		query = listScopedActiveReplatformingScopesSQL
 		args = []any{AWSCloudRuntimeDriftFindingFactKind, pgarray.StringArray(allowedScopeIDs), limit + 1}
 	}
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return AWSReplatformingScopeSelectorPage{}, fmt.Errorf("list active AWS replatforming scopes: %w", err)
 	}

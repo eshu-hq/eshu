@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -32,55 +34,55 @@ type awsCloudRuntimeDriftElapsedBoundQueueDB struct {
 	claims       int
 }
 
-func (db *awsCloudRuntimeDriftElapsedBoundQueueDB) QueryContext(
+func (database *awsCloudRuntimeDriftElapsedBoundQueueDB) QueryContext(
 	_ context.Context, query string, _ ...any,
-) (Rows, error) {
+) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
-	if db.status != "pending" && db.status != "retrying" {
+	if database.status != "pending" && database.status != "retrying" {
 		return &queueFakeRows{}, nil
 	}
 
 	// reducerClaimAttemptCountCaseSQL: only skip the increment when the row
 	// is ALREADY 'retrying' under a class this package's shared registry
 	// treats as non-counting -- the exact production predicate, not a stand-in.
-	nonCounting := db.status == "retrying" && isNonCountingReducerRetryFailureClass(db.failureClass)
+	nonCounting := database.status == "retrying" && isNonCountingReducerRetryFailureClass(database.failureClass)
 	if !nonCounting {
-		db.attemptCount++
+		database.attemptCount++
 	}
-	db.status = "claimed"
-	db.claims++
+	database.status = "claimed"
+	database.claims++
 
 	return &queueFakeRows{rows: [][]any{{
 		"work-aws-drift-elapsed-bound",
 		"aws:123456789012:us-east-1",
 		"gen-elapsed-bound",
 		string(reducer.DomainAWSCloudRuntimeDrift),
-		db.attemptCount,
+		database.attemptCount,
 		// container_image_identity_claim_epoch: this test never exercises the
 		// container_image_identity domain, so the epoch stays at its zero
 		// opt-out value.
 		int64(0),
-		db.enqueuedAt,
-		db.enqueuedAt,
+		database.enqueuedAt,
+		database.enqueuedAt,
 		// cycle_started_at: this test proves the attempt_count freeze, not the
 		// reopen anchor (that is
 		// TestAWSCloudRuntimeDriftReopenGetsFreshElapsedBoundWhileStatePendingLive),
 		// so it always equals enqueuedAt -- COALESCE(reopened_at, created_at)
 		// with reopened_at NULL, matching a row that has never been reopened.
-		db.enqueuedAt,
+		database.enqueuedAt,
 		[]byte(`{"reason":"aws runtime resource facts observed","source_system":"aws"}`),
 	}}}, nil
 }
 
-func (db *awsCloudRuntimeDriftElapsedBoundQueueDB) ExecContext(
+func (database *awsCloudRuntimeDriftElapsedBoundQueueDB) ExecContext(
 	_ context.Context, query string, args ...any,
 ) (sql.Result, error) {
 	if strings.Contains(query, "SET status = 'retrying'") {
-		db.status = "retrying"
+		database.status = "retrying"
 		if len(args) > 1 {
-			db.failureClass, _ = args[1].(string)
+			database.failureClass, _ = args[1].(string)
 		}
 	}
 	return fakeResult{}, nil
@@ -180,9 +182,9 @@ func TestAWSCloudRuntimeDriftHandlerConvergesAfterElapsedBoundOverRealQueueLive(
 	now := start
 	clock := func() time.Time { return now }
 
-	db := &awsCloudRuntimeDriftElapsedBoundQueueDB{status: "pending", enqueuedAt: start}
+	database := &awsCloudRuntimeDriftElapsedBoundQueueDB{status: "pending", enqueuedAt: start}
 	queue := ReducerQueue{
-		db:            db,
+		database:      database,
 		LeaseOwner:    "reducer-1",
 		LeaseDuration: time.Minute,
 		RetryDelay:    2 * time.Minute,

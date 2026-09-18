@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -36,7 +38,7 @@ func (s IngestionStore) MaterializeIaCReachability(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("ingestion store db is required")
 	}
 
@@ -47,18 +49,18 @@ func (s IngestionStore) MaterializeIaCReachability(
 		defer span.End()
 	}
 
-	activeGenerations, err := loadActiveRepositoryGenerations(ctx, s.db)
+	activeGenerations, err := loadActiveRepositoryGenerations(ctx, s.database)
 	if err != nil {
 		return fmt.Errorf("load active repository generations for IaC reachability: %w", err)
 	}
-	filesByRepo, err := loadActiveIaCContentFiles(ctx, s.db, activeGenerations)
+	filesByRepo, err := loadActiveIaCContentFiles(ctx, s.database, activeGenerations)
 	if err != nil {
 		return fmt.Errorf("load active IaC content files: %w", err)
 	}
 
 	analyzedRows := iacreachability.Analyze(filesByRepo, iacreachability.Options{IncludeAmbiguous: true})
 	materializedRows := iacReachabilityRowsForActiveGenerations(analyzedRows, activeGenerations, s.now())
-	if err := NewIaCReachabilityStore(s.db).Upsert(ctx, materializedRows); err != nil {
+	if err := NewIaCReachabilityStore(s.database).Upsert(ctx, materializedRows); err != nil {
 		return err
 	}
 
@@ -73,7 +75,7 @@ func (s IngestionStore) MaterializeIaCReachability(
 
 func loadActiveIaCContentFiles(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	activeGenerations map[string]repositoryGenerationIdentity,
 ) (map[string][]iacreachability.File, error) {
 	if queryer == nil || len(activeGenerations) == 0 {

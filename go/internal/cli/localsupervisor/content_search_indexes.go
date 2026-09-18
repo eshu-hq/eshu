@@ -10,6 +10,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -23,7 +25,7 @@ const (
 )
 
 type localContentSearchIndexDB interface {
-	pgstorage.Executor
+	db.Executor
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
@@ -39,20 +41,20 @@ var localContentSearchDiscoverRepos = gitrepo.DiscoverFilesystemRepositoryIDs
 // startDeferredContentSearchIndexes restores expensive content search indexes
 // after the first local-authoritative queue drain for the discovered repo set.
 func startDeferredContentSearchIndexes(ctx context.Context, out io.Writer, dsn string, expectedProjectors int) (func() error, error) {
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open deferred content search index connection: %w", err)
 	}
-	if err := db.PingContext(ctx); err != nil {
-		_ = db.Close()
+	if err := database.PingContext(ctx); err != nil {
+		_ = database.Close()
 		return nil, fmt.Errorf("ping deferred content search index connection: %w", err)
 	}
 
 	maintainerCtx, cancel := context.WithCancel(ctx)
 	done := make(chan error, 1)
 	go func() {
-		defer func() { _ = db.Close() }()
-		done <- runDeferredContentSearchIndexes(maintainerCtx, out, db, deferredContentSearchIndexPollInterval, expectedProjectors)
+		defer func() { _ = database.Close() }()
+		done <- runDeferredContentSearchIndexes(maintainerCtx, out, database, deferredContentSearchIndexPollInterval, expectedProjectors)
 	}()
 
 	return func() error {
@@ -65,7 +67,7 @@ func startDeferredContentSearchIndexes(ctx context.Context, out io.Writer, dsn s
 	}, nil
 }
 
-func runDeferredContentSearchIndexes(ctx context.Context, out io.Writer, db localContentSearchIndexDB, interval time.Duration, expectedProjectors int) error {
+func runDeferredContentSearchIndexes(ctx context.Context, out io.Writer, database localContentSearchIndexDB, interval time.Duration, expectedProjectors int) error {
 	out = writerOrDiscard(out)
 	if interval <= 0 {
 		interval = deferredContentSearchIndexPollInterval
@@ -74,16 +76,16 @@ func runDeferredContentSearchIndexes(ctx context.Context, out io.Writer, db loca
 	defer ticker.Stop()
 
 	for {
-		ready, err := localContentSearchIndexesReady(ctx, db, expectedProjectors)
+		ready, err := localContentSearchIndexesReady(ctx, database, expectedProjectors)
 		if err != nil {
 			_, _ = fmt.Fprintf(out, "warning: deferred content search index readiness check failed: %v\n", err)
 		}
 		if ready {
 			start := time.Now()
 			buildCtx, cancel := context.WithTimeout(context.Background(), deferredContentSearchIndexBuildTimeout)
-			beginner, ok := db.(pgstorage.Beginner)
+			beginner, ok := database.(db.Beginner)
 			if !ok {
-				rawDB, rawOK := db.(*sql.DB)
+				rawDB, rawOK := database.(*sql.DB)
 				if !rawOK {
 					cancel()
 					return fmt.Errorf("deferred content search index database does not support transactions")
@@ -118,15 +120,15 @@ func localContentSearchIndexExpectedProjectors(workspaceRoot string) (int, error
 	return len(repos), nil
 }
 
-func localContentSearchIndexesReady(ctx context.Context, db localContentSearchIndexDB, expectedProjectors int) (bool, error) {
-	state, err := queryLocalContentSearchIndexDrainState(ctx, db)
+func localContentSearchIndexesReady(ctx context.Context, database localContentSearchIndexDB, expectedProjectors int) (bool, error) {
+	state, err := queryLocalContentSearchIndexDrainState(ctx, database)
 	if err != nil {
 		return false, err
 	}
 	return localContentSearchIndexesReadyFromState(state, expectedProjectors), nil
 }
 
-func queryLocalContentSearchIndexDrainState(ctx context.Context, db localContentSearchIndexDB) (localContentSearchIndexDrainState, error) {
+func queryLocalContentSearchIndexDrainState(ctx context.Context, database localContentSearchIndexDB) (localContentSearchIndexDrainState, error) {
 	const query = `
 SELECT
   (SELECT count(*) FROM fact_work_items) AS total_work,
@@ -135,7 +137,7 @@ SELECT
   (SELECT count(*) FROM shared_projection_intents WHERE completed_at IS NULL) AS open_shared_work
 `
 	var state localContentSearchIndexDrainState
-	if err := db.QueryRowContext(ctx, query).Scan(
+	if err := database.QueryRowContext(ctx, query).Scan(
 		&state.TotalWork,
 		&state.OpenWork,
 		&state.CompletedProjectorWork,

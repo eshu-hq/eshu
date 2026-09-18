@@ -23,8 +23,8 @@ func TestReducerQueueReopenSucceededResetsSucceededWorkItemToPending(t *testing.
 		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}},
 	}
 	queue := ReducerQueue{
-		db:  db,
-		Now: func() time.Time { return now },
+		database: db,
+		Now:      func() time.Time { return now },
 	}
 
 	reopened, err := queue.ReopenSucceeded(context.Background(), "reducer_scope-1_gen-1_deployment_mapping_repo_1")
@@ -72,7 +72,7 @@ func TestReducerQueueReopenSucceededReturnsFalseWhenNoRowMatches(t *testing.T) {
 	db := &fakeExecQueryer{
 		execResults: []sql.Result{rowsAffectedResult{}},
 	}
-	queue := ReducerQueue{db: db}
+	queue := ReducerQueue{database: db}
 
 	reopened, err := queue.ReopenSucceeded(context.Background(), "missing-work-item")
 	if err != nil {
@@ -87,7 +87,7 @@ func TestReducerQueueReopenSucceededWrapsExecError(t *testing.T) {
 	t.Parallel()
 
 	queue := ReducerQueue{
-		db: &fakeExecQueryer{
+		database: &fakeExecQueryer{
 			execErrors: []error{errors.New("boom")},
 		},
 	}
@@ -109,8 +109,8 @@ func TestReducerQueueReplayDomainReopensSucceededWorkItem(t *testing.T) {
 		execResults: []sql.Result{rowsAffectedResult{rowsAffected: 1}},
 	}
 	queue := ReducerQueue{
-		db:  db,
-		Now: func() time.Time { return now },
+		database: db,
+		Now:      func() time.Time { return now },
 	}
 
 	replayed, err := queue.ReplayDomain(context.Background(), "scope-1", "gen-1", reducer.DomainWorkloadMaterialization)
@@ -160,7 +160,7 @@ func TestReducerQueueReplayDomainReturnsFalseWhenNoSucceededRowMatches(t *testin
 	db := &fakeExecQueryer{
 		execResults: []sql.Result{rowsAffectedResult{}},
 	}
-	queue := ReducerQueue{db: db}
+	queue := ReducerQueue{database: db}
 
 	replayed, err := queue.ReplayDomain(context.Background(), "scope-1", "gen-1", reducer.DomainWorkloadMaterialization)
 	if err != nil {
@@ -182,7 +182,7 @@ func TestReducerQueueReplayWorkloadMaterializationEnqueuesReplayWhenNoSucceededR
 		},
 	}
 	queue := ReducerQueue{
-		db:            db,
+		database:      db,
 		LeaseOwner:    "reducer",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return now },
@@ -237,7 +237,7 @@ func TestReducerQueueCountInFlightByDomainReturnsCount(t *testing.T) {
 			{rows: [][]any{{3}}},
 		},
 	}
-	queue := ReducerQueue{db: db}
+	queue := ReducerQueue{database: db}
 
 	count, err := queue.CountInFlightByDomain(
 		context.Background(),
@@ -263,7 +263,7 @@ func TestReducerQueueCountInFlightByDomainReturnsCount(t *testing.T) {
 func TestReducerQueueCountInFlightByDomainRejectsUnknownDomain(t *testing.T) {
 	t.Parallel()
 
-	queue := ReducerQueue{db: &fakeExecQueryer{}}
+	queue := ReducerQueue{database: &fakeExecQueryer{}}
 
 	_, err := queue.CountInFlightByDomain(context.Background(), reducer.Domain("not-real"))
 	if err == nil {
@@ -283,7 +283,7 @@ func TestReducerQueueValidateEnqueueAcceptsZeroLeaseFields(t *testing.T) {
 	t.Parallel()
 
 	recorder := &reducerRecordingDB{}
-	queue := ReducerQueue{db: recorder}
+	queue := ReducerQueue{database: recorder}
 
 	// No-op enqueue with empty intents still runs validateEnqueue().
 	if _, err := queue.Enqueue(context.Background(), nil); err != nil {
@@ -340,7 +340,7 @@ func TestReducerQueueValidateClaimRequiresLeaseOwner(t *testing.T) {
 	t.Parallel()
 
 	queue := ReducerQueue{
-		db:            &fakeExecQueryer{},
+		database:      &fakeExecQueryer{},
 		LeaseDuration: time.Minute,
 	}
 
@@ -364,7 +364,7 @@ func TestReducerQueueValidateClaimRequiresPositiveLeaseDuration(t *testing.T) {
 	t.Parallel()
 
 	queue := ReducerQueue{
-		db:         &fakeExecQueryer{},
+		database:   &fakeExecQueryer{},
 		LeaseOwner: "test-owner",
 	}
 
@@ -388,7 +388,7 @@ func TestReducerQueueValidateEnqueueRejectsInvalidClaimDomain(t *testing.T) {
 	t.Parallel()
 
 	queue := ReducerQueue{
-		db:          &fakeExecQueryer{},
+		database:    &fakeExecQueryer{},
 		ClaimDomain: reducer.Domain("not_a_domain"),
 	}
 
@@ -420,7 +420,7 @@ func TestReducerQueueValidateClaimAlsoRejectsInvalidClaimDomain(t *testing.T) {
 	t.Parallel()
 
 	queue := ReducerQueue{
-		db:            &fakeExecQueryer{},
+		database:      &fakeExecQueryer{},
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		ClaimDomain:   reducer.Domain("not_a_domain"),

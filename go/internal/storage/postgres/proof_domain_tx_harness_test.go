@@ -11,13 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 type proofDomainTx struct {
-	db    *proofDomainDB
-	state proofState
+	database *proofDomainDB
+	state    proofState
 }
 
 func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
@@ -62,7 +64,7 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 				continue
 			}
 			item.status = "succeeded"
-			item.updatedAt = tx.db.now
+			item.updatedAt = tx.database.now
 			item.leaseOwner = ""
 			item.claimUntil = time.Time{}
 			tx.state.workItems[key] = item
@@ -162,7 +164,7 @@ func (tx *proofDomainTx) ExecContext(ctx context.Context, query string, args ...
 	}
 }
 
-func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (tx *proofDomainTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "WITH latest_generations AS"):
 		return newProofRows(proofLatestRelationshipFactRows(tx.state)), nil
@@ -233,7 +235,7 @@ func proofUpsertFactRecordsReturningAccepted(state map[string]facts.Envelope, ar
 }
 
 func (tx *proofDomainTx) Commit() error {
-	tx.db.state = tx.state
+	tx.database.state = tx.state
 	return nil
 }
 

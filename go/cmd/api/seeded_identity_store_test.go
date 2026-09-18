@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // seededIdentityQueryer is a stub identity-token store that resolves ONE real
@@ -42,12 +42,12 @@ type seededIdentityQueryer struct {
 	roleID             string
 }
 
-// QueryContext implements pgstatus.ExecQueryer, dispatching to the seeded
+// QueryContext implements db.ExecQueryer, dispatching to the seeded
 // subject/role row for a matching token hash, and an empty result for every
 // other query in the resolution pipeline (permissions, scope targets,
 // repository targets) -- an empty permission/target set does not stop
 // ResolveIdentityAPITokenHash from succeeding once roles is non-empty.
-func (q seededIdentityQueryer) QueryContext(_ context.Context, sqlText string, args ...any) (pgstatus.Rows, error) {
+func (q seededIdentityQueryer) QueryContext(_ context.Context, sqlText string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(sqlText, "JOIN tenants ten"):
 		// resolveIdentityAPITokenSubjectQuery: token_hash, token_class,
@@ -74,7 +74,7 @@ func (q seededIdentityQueryer) QueryContext(_ context.Context, sqlText string, a
 	}
 }
 
-// ExecContext implements pgstatus.ExecQueryer for
+// ExecContext implements db.ExecQueryer for
 // MarkIdentityAPITokenUsedQuery, the single write ResolveIdentityAPITokenHash
 // triggers on a successful match.
 func (q seededIdentityQueryer) ExecContext(_ context.Context, sqlText string, _ ...any) (sql.Result, error) {
@@ -92,7 +92,7 @@ func (r staticResult) RowsAffected() (int64, error) {
 	return r.rowsAffected, nil
 }
 
-// staticRows is a fixed, in-memory pgstatus.Rows cursor over pre-built rows of
+// staticRows is a fixed, in-memory db.Rows cursor over pre-built rows of
 // string columns, standing in for a real *sql.Rows result set.
 type staticRows struct {
 	rows []staticRow

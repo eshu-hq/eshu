@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -349,7 +351,7 @@ type fakeQueryer struct {
 	args [][]any
 }
 
-func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
+func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	q.queries = append(q.queries, query)
 	q.args = append(q.args, args)
 	if len(q.responses) == 0 {

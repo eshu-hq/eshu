@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -42,7 +44,7 @@ func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	run workflow.Run,
 	items []workflow.WorkItem,
 ) (workflow.RunAdmission, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return workflow.RunAdmission{}, fmt.Errorf("workflow control store database is required")
 	}
 	if s.beginner == nil {
@@ -169,7 +171,7 @@ func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
 	return admission, nil
 }
 
-func lockWorkflowOpenTargets(ctx context.Context, executor Executor, items []workflow.WorkItem) error {
+func lockWorkflowOpenTargets(ctx context.Context, executor db.Executor, items []workflow.WorkItem) error {
 	keys := workflowPlanningLockKeys(items)
 	for _, key := range keys {
 		if _, err := executor.ExecContext(ctx, workflowAdvisoryTargetLockQuery, key); err != nil {
@@ -207,7 +209,7 @@ func workflowPlanningLockKeyValue(item workflow.WorkItem) string {
 
 func (s *WorkflowControlStore) workItemsWithoutOpenTargets(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	runID string,
 	items []workflow.WorkItem,
 ) ([]workflow.WorkItem, error) {
@@ -327,7 +329,7 @@ ORDER BY planned.ordinal
 
 func (s *WorkflowControlStore) workflowRunIsTerminal(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	runID string,
 ) (bool, error) {
 	rows, err := queryer.QueryContext(ctx, workflowTerminalRunQuery, runID)

@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -80,12 +82,12 @@ ON CONFLICT (intent_id) DO NOTHING
 // only lasting record that the intent produced no edge. See the interface doc
 // for why that inversion is deliberate.
 type SharedProjectionUnroutableIntentStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewSharedProjectionUnroutableIntentStore constructs a store backed by db.
-func NewSharedProjectionUnroutableIntentStore(db ExecQueryer) *SharedProjectionUnroutableIntentStore {
-	return &SharedProjectionUnroutableIntentStore{db: db}
+func NewSharedProjectionUnroutableIntentStore(database db.ExecQueryer) *SharedProjectionUnroutableIntentStore {
+	return &SharedProjectionUnroutableIntentStore{database: database}
 }
 
 // SharedProjectionUnroutableIntentSchemaSQL returns the DDL for the durable
@@ -96,7 +98,7 @@ func SharedProjectionUnroutableIntentSchemaSQL() string {
 
 // EnsureSchema applies the shared_projection_unroutable_intents DDL.
 func (s *SharedProjectionUnroutableIntentStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, sharedProjectionUnroutableIntentSchemaSQL)
+	_, err := s.database.ExecContext(ctx, sharedProjectionUnroutableIntentSchemaSQL)
 	return err
 }
 
@@ -115,7 +117,7 @@ func (s *SharedProjectionUnroutableIntentStore) WriteUnroutableIntents(
 		if end > len(rows) {
 			end = len(rows)
 		}
-		if err := insertSharedProjectionUnroutableIntentBatch(ctx, s.db, rows[i:end]); err != nil {
+		if err := insertSharedProjectionUnroutableIntentBatch(ctx, s.database, rows[i:end]); err != nil {
 			return err
 		}
 	}
@@ -124,7 +126,7 @@ func (s *SharedProjectionUnroutableIntentStore) WriteUnroutableIntents(
 
 func insertSharedProjectionUnroutableIntentBatch(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	batch []reducer.SharedProjectionUnroutableRow,
 ) error {
 	if len(batch) == 0 {
@@ -162,7 +164,7 @@ func insertSharedProjectionUnroutableIntentBatch(
 	query := insertSharedProjectionUnroutableIntentBatchPrefix +
 		values.String() +
 		insertSharedProjectionUnroutableIntentBatchSuffix
-	if _, err := db.ExecContext(ctx, query, args...); err != nil {
+	if _, err := database.ExecContext(ctx, query, args...); err != nil {
 		return fmt.Errorf("insert shared projection unroutable intents: %w", err)
 	}
 	return nil

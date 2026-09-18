@@ -40,7 +40,7 @@ func seedReducerExpiredHolderWithOlderPendingSibling(t *testing.T, ctx context.C
 		updatedAt:      base,
 	})
 	holderQ := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "holder-worker",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return base.Add(time.Hour) },
@@ -79,7 +79,7 @@ func TestReducerClaimReclaimsExpiredHolderBeforeOlderPendingSibling(t *testing.T
 	db := seedReducerExpiredHolderWithOlderPendingSibling(t, ctx, dsn)
 
 	reclaimQ := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "reclaim-worker",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return reducerExpiredHolderReclaimAt },
@@ -110,7 +110,7 @@ func TestReducerClaimBatchReclaimsExpiredHolderBeforeOlderPendingSibling(t *test
 	db := seedReducerExpiredHolderWithOlderPendingSibling(t, ctx, dsn)
 
 	reclaimQ := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "reclaim-batch-worker",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return reducerExpiredHolderReclaimAt },

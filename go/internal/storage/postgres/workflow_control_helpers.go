@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -17,7 +19,7 @@ import (
 const enqueueWorkflowWorkItemValueFormat = "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, NULLIF($%d, ''), $%d, $%d, NULLIF($%d, ''), $%d, NULLIF($%d, ''), NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, '')::timestamptz, NULLIF($%d, ''), NULLIF($%d, ''), $%d, $%d)"
 
 func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items []workflow.WorkItem) (int, error) {
-	return s.enqueueWorkItemBatchWithExecutor(ctx, s.db, items)
+	return s.enqueueWorkItemBatchWithExecutor(ctx, s.database, items)
 }
 
 // enqueueWorkItemBatchWithExecutor inserts one batch and reports how many rows
@@ -35,7 +37,7 @@ func (s *WorkflowControlStore) enqueueWorkItemBatch(ctx context.Context, items [
 // pass on to an operator.
 func (s *WorkflowControlStore) enqueueWorkItemBatchWithExecutor(
 	ctx context.Context,
-	executor Executor,
+	executor db.Executor,
 	items []workflow.WorkItem,
 ) (int, error) {
 	args := make([]any, 0, len(items)*workflowColumnsPerWorkItem)
@@ -115,7 +117,7 @@ func (s *WorkflowControlStore) execClaimMutation(
 	query string,
 	leaseExpiresAt time.Time,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
 	if err := validateClaimMutation(mutation); err != nil {
@@ -134,7 +136,7 @@ func (s *WorkflowControlStore) execClaimMutation(
 		args = append(args, mutation.FailureClass, mutation.FailureMessage)
 	}
 
-	result, err := s.db.ExecContext(ctx, query, args...)
+	result, err := s.database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("mutate workflow claim: %w", err)
 	}
@@ -142,7 +144,7 @@ func (s *WorkflowControlStore) execClaimMutation(
 }
 
 func (s *WorkflowControlStore) execCompleteClaimMutation(ctx context.Context, mutation workflow.ClaimMutation) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
 	if err := validateCompleteClaimMutation(mutation); err != nil {
@@ -160,7 +162,7 @@ func (s *WorkflowControlStore) execCompleteClaimMutation(ctx context.Context, mu
 		mutation.ResolvedSourceRunID,
 		mutation.ResolvedGenerationID,
 	}
-	result, err := s.db.ExecContext(ctx, completeWorkflowClaimQuery, args...)
+	result, err := s.database.ExecContext(ctx, completeWorkflowClaimQuery, args...)
 	if err != nil {
 		return fmt.Errorf("mutate complete workflow claim: %w", err)
 	}
@@ -176,7 +178,7 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 	if mutation.VisibleAt.IsZero() {
 		mutation.VisibleAt = mutation.ObservedAt
 	}
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("workflow control store database is required")
 	}
 	if err := validateClaimMutation(mutation); err != nil {
@@ -195,14 +197,14 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 		mutation.FailureClass,
 		mutation.FailureMessage,
 	)
-	result, err := s.db.ExecContext(ctx, query, args...)
+	result, err := s.database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("mutate terminal workflow claim: %w", err)
 	}
 	return validateMutationResult(result)
 }
 
-func scanClaimedWorkflowWorkItem(rows Rows) (workflow.WorkItem, workflow.Claim, error) {
+func scanClaimedWorkflowWorkItem(rows db.Rows) (workflow.WorkItem, workflow.Claim, error) {
 	var item workflow.WorkItem
 	var claim workflow.Claim
 	var collectorKind string
@@ -281,7 +283,7 @@ func scanClaimedWorkflowWorkItem(rows Rows) (workflow.WorkItem, workflow.Claim, 
 	return item, claim, nil
 }
 
-func scanWorkflowClaim(rows Rows) (workflow.Claim, error) {
+func scanWorkflowClaim(rows db.Rows) (workflow.Claim, error) {
 	var claim workflow.Claim
 	var status string
 	var fence sql.NullInt64

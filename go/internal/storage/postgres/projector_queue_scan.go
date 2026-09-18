@@ -6,6 +6,8 @@ package postgres
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -14,7 +16,7 @@ import (
 // generation metadata, and payload-derived scope metadata) into a
 // projector.ScopeGenerationWork. Split out of projector_queue.go to keep that
 // file under the repo's 500-line cap (see also projector_queue_config_state_drift_trigger_hook.go).
-func scanProjectorWork(rows Rows) (projector.ScopeGenerationWork, error) {
+func scanProjectorWork(rows db.Rows) (projector.ScopeGenerationWork, error) {
 	var work projector.ScopeGenerationWork
 	var scopeKind string
 	var collectorKind string

@@ -256,7 +256,7 @@ func TestReducerAckBatchAppendsOneCompletionEventPerProducerDomainLive(t *testin
 		})
 	}
 	queue := ReducerQueue{
-		db: SQLDB{DB: db}, LeaseOwner: owner,
+		database: SQLDB{DB: db}, LeaseOwner: owner,
 		LeaseDuration: time.Minute, Now: func() time.Time { return now },
 	}
 	if err := queue.AckBatch(ctx, intents, make([]reducer.Result, len(intents))); err != nil {

@@ -17,7 +17,7 @@ func (s ContentStore) UpsertFileBatch(
 	repoID string,
 	files []content.Record,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("content store database is required")
 	}
 	if strings.TrimSpace(repoID) == "" {
@@ -35,10 +35,10 @@ func (s ContentStore) UpsertFileBatch(
 		}
 
 		if record.Deleted {
-			if _, err := s.db.ExecContext(ctx, deleteContentEntityQuery, repoID, record.Path); err != nil {
+			if _, err := s.database.ExecContext(ctx, deleteContentEntityQuery, repoID, record.Path); err != nil {
 				return fmt.Errorf("delete content_entities for %q: %w", record.Path, err)
 			}
-			if _, err := s.db.ExecContext(ctx, deleteContentFileQuery, repoID, record.Path); err != nil {
+			if _, err := s.database.ExecContext(ctx, deleteContentFileQuery, repoID, record.Path); err != nil {
 				return fmt.Errorf("delete content_files for %q: %w", record.Path, err)
 			}
 			continue
@@ -70,7 +70,7 @@ func (s ContentStore) UpsertFileBatch(
 			return fmt.Errorf("iac_relevant metadata for %q: %w", record.Path, err)
 		}
 
-		if _, err := s.db.ExecContext(
+		if _, err := s.database.ExecContext(
 			ctx,
 			upsertContentFileQuery,
 			repoID,
@@ -98,7 +98,7 @@ func (s ContentStore) UpsertEntityBatch(
 	repoID string,
 	entities []content.EntityRecord,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return fmt.Errorf("content store database is required")
 	}
 	if strings.TrimSpace(repoID) == "" {
@@ -134,7 +134,7 @@ func (s ContentStore) UpsertEntityBatch(
 		sourceCache := strings.TrimSpace(entity.SourceCache)
 
 		if entity.Deleted {
-			if _, err := s.db.ExecContext(
+			if _, err := s.database.ExecContext(
 				ctx,
 				deleteContentEntityByIDQuery,
 				repoID,
@@ -150,7 +150,7 @@ func (s ContentStore) UpsertEntityBatch(
 			return fmt.Errorf("marshal content entity metadata for %q: %w", entity.EntityID, err)
 		}
 
-		if _, err := s.db.ExecContext(
+		if _, err := s.database.ExecContext(
 			ctx,
 			upsertContentEntityQuery,
 			entity.EntityID,

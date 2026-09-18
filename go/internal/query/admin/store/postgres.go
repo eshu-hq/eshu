@@ -12,33 +12,35 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 // NewStore constructs an admin.Store backed by Postgres.
-func NewStore(db *sql.DB) admin.Store {
-	if db == nil {
+func NewStore(database *sql.DB) admin.Store {
+	if database == nil {
 		return nil
 	}
 
-	sqlDB := pgstatus.SQLDB{DB: db}
+	sqlDB := pgstatus.SQLDB{DB: database}
 	return &postgresStore{
-		db:        sqlDB,
+		database:  sqlDB,
 		decisions: pgstatus.NewDecisionStore(sqlDB),
 		now:       func() time.Time { return time.Now().UTC() },
 	}
 }
 
 type postgresStore struct {
-	db        pgstatus.ExecQueryer
+	database  db.ExecQueryer
 	decisions *pgstatus.DecisionStore
 	now       func() time.Time
 }
 
 func (s *postgresStore) ListWorkItems(ctx context.Context, f admin.WorkItemFilter) ([]admin.WorkItem, error) {
 	query, args := buildListWorkItemsQuery(f)
-	return scanWorkItems(ctx, s.db, query, args...)
+	return scanWorkItems(ctx, s.database, query, args...)
 }
 
 func (s *postgresStore) DeadLetterWorkItems(ctx context.Context, f admin.DeadLetterFilter) ([]admin.WorkItem, error) {
@@ -54,7 +56,7 @@ SET status = 'dead_letter',
     updated_at = $1
 `)
 	args = append([]any{now, strings.TrimSpace(f.OperatorNote)}, args...)
-	return scanWorkItems(ctx, s.db, query, args...)
+	return scanWorkItems(ctx, s.database, query, args...)
 }
 
 func (s *postgresStore) SkipRepositoryWorkItems(ctx context.Context, repoID string, note string) ([]admin.WorkItem, error) {
@@ -96,7 +98,7 @@ WITH selected AS (
 )
 SELECT * FROM updated ORDER BY updated_at DESC, work_item_id ASC
 `
-	return scanWorkItems(ctx, s.db, query, repoID, now, strings.TrimSpace(note))
+	return scanWorkItems(ctx, s.database, query, repoID, now, strings.TrimSpace(note))
 }
 
 func (s *postgresStore) ReplayFailedWorkItems(ctx context.Context, f admin.ReplayWorkItemFilter) ([]admin.WorkItem, error) {
@@ -114,7 +116,7 @@ SET status = 'pending',
     updated_at = $1
 `, f.ExcludeFailureClasses...)
 	args = append([]any{now}, args...)
-	items, err := scanWorkItems(ctx, s.db, query, args...)
+	items, err := scanWorkItems(ctx, s.database, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +155,7 @@ INSERT INTO fact_backfill_requests (
     created_at
 ) VALUES ($1, $2, $3, $4, $5)
 `
-	if _, err := s.db.ExecContext(ctx, query, id, scopeID, generationID, operatorNote, now); err != nil {
+	if _, err := s.database.ExecContext(ctx, query, id, scopeID, generationID, operatorNote, now); err != nil {
 		return nil, fmt.Errorf("insert backfill request: %w", err)
 	}
 
@@ -200,7 +202,7 @@ WHERE 1=1
 	args = append(args, limit)
 	_, _ = fmt.Fprintf(&builder, " ORDER BY created_at DESC, replay_event_id DESC LIMIT $%d", len(args))
 
-	rows, err := s.db.QueryContext(ctx, builder.String(), args...)
+	rows, err := s.database.QueryContext(ctx, builder.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("list replay events: %w", err)
 	}
@@ -312,7 +314,7 @@ INSERT INTO fact_replay_events (
 		if operatorNote != "" {
 			note = operatorNote
 		}
-		if _, err := s.db.ExecContext(ctx, query, id, item.WorkItemID, item.ScopeID, item.GenerationID, failureClass, note, now); err != nil {
+		if _, err := s.database.ExecContext(ctx, query, id, item.WorkItemID, item.ScopeID, item.GenerationID, failureClass, note, now); err != nil {
 			return fmt.Errorf("insert replay event: %w", err)
 		}
 	}
@@ -365,8 +367,8 @@ WHERE 1=1
 	return builder.String(), args
 }
 
-func scanWorkItems(ctx context.Context, db pgstatus.ExecQueryer, query string, args ...any) ([]admin.WorkItem, error) {
-	rows, err := db.QueryContext(ctx, query, args...)
+func scanWorkItems(ctx context.Context, database db.ExecQueryer, query string, args ...any) ([]admin.WorkItem, error) {
+	rows, err := database.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query work items: %w", err)
 	}

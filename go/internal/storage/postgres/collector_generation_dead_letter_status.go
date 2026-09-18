@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -30,7 +32,7 @@ FROM collector_generation_dead_letters
 
 func readCollectorGenerationDeadLetterSnapshot(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) (statuspkg.CollectorGenerationDeadLetterSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, collectorGenerationDeadLetterStatusQuery, asOf.UTC())

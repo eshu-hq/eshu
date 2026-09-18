@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -33,15 +35,15 @@ func BenchmarkGovernanceAuditStoreAppendSingleEvent(b *testing.B) {
 	}
 
 	ctx := context.Background()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		b.Fatalf("open postgres: %v", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	sqlConn, err := db.Conn(ctx)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	sqlConn, err := database.Conn(ctx)
 	if err != nil {
-		_ = db.Close()
+		_ = database.Close()
 		b.Fatalf("open dedicated postgres connection: %v", err)
 	}
 	conn := governanceAuditBenchmarkConn{conn: sqlConn}
@@ -50,7 +52,7 @@ func BenchmarkGovernanceAuditStoreAppendSingleEvent(b *testing.B) {
 	cleanup := func() {
 		_, _ = conn.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 		_ = sqlConn.Close()
-		_ = db.Close()
+		_ = database.Close()
 	}
 	if _, err := conn.ExecContext(ctx, "CREATE SCHEMA "+schemaName); err != nil {
 		cleanup()
@@ -114,6 +116,6 @@ func (c governanceAuditBenchmarkConn) ExecContext(ctx context.Context, query str
 	return c.conn.ExecContext(ctx, query, args...)
 }
 
-func (c governanceAuditBenchmarkConn) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (c governanceAuditBenchmarkConn) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return c.conn.QueryContext(ctx, query, args...)
 }

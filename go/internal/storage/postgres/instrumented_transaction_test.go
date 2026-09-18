@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
@@ -25,13 +27,13 @@ type instrumentedTestBeginner struct {
 	readSnapshotBegins int
 }
 
-func (f *instrumentedTestBeginner) Begin(ctx context.Context) (Transaction, error) {
+func (f *instrumentedTestBeginner) Begin(ctx context.Context) (db.Transaction, error) {
 	return &instrumentedTestTx{parent: f}, nil
 }
 
 func (f *instrumentedTestBeginner) BeginReadOnlyRepeatableRead(
 	ctx context.Context,
-) (Transaction, error) {
+) (db.Transaction, error) {
 	f.readSnapshotBegins++
 	return &instrumentedTestTx{parent: f}, nil
 }
@@ -47,7 +49,7 @@ func (tx *instrumentedTestTx) ExecContext(ctx context.Context, query string, arg
 	return &instrumentedTestResult{}, nil
 }
 
-func (tx *instrumentedTestTx) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (tx *instrumentedTestTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return &instrumentedTestRows{}, nil
 }
 

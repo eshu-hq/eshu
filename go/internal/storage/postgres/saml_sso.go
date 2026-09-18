@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // SAMLSSOStore persists hash-only SAML login request and replay ledgers.
 type SAMLSSOStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // SAMLAuthnRequestRecord is the durable hash-only state for one AuthnRequest.
@@ -39,8 +41,8 @@ type SAMLReplayKeyRecord struct {
 }
 
 // NewSAMLSSOStore constructs a Postgres-backed SAML SSO ledger store.
-func NewSAMLSSOStore(db ExecQueryer) *SAMLSSOStore {
-	return &SAMLSSOStore{db: db}
+func NewSAMLSSOStore(database db.ExecQueryer) *SAMLSSOStore {
+	return &SAMLSSOStore{database: database}
 }
 
 // SAMLSSOSchemaSQL returns the SAML SSO request and replay ledger DDL.
@@ -50,14 +52,14 @@ func SAMLSSOSchemaSQL() string {
 
 // CreateSAMLRequest records one pending AuthnRequest using digest keys only.
 func (s *SAMLSSOStore) CreateSAMLRequest(ctx context.Context, record SAMLAuthnRequestRecord) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("saml sso store database is required")
 	}
 	record = normalizeSAMLAuthnRequestRecord(record)
 	if err := validateSAMLAuthnRequestRecord(record); err != nil {
 		return err
 	}
-	if _, err := s.db.ExecContext(
+	if _, err := s.database.ExecContext(
 		ctx,
 		createSAMLAuthnRequestQuery,
 		record.ProviderConfigID,
@@ -85,7 +87,7 @@ func (s *SAMLSSOStore) ConsumeSAMLRequest(
 	relayStateHash string,
 	now time.Time,
 ) (string, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return "", false, errors.New("saml sso store database is required")
 	}
 	providerConfigID = strings.TrimSpace(providerConfigID)
@@ -103,7 +105,7 @@ func (s *SAMLSSOStore) ConsumeSAMLRequest(
 	if now.IsZero() {
 		return "", false, errors.New("saml request consume time is required")
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		consumeSAMLAuthnRequestQuery,
 		providerConfigID,
@@ -130,14 +132,14 @@ func (s *SAMLSSOStore) ConsumeSAMLRequest(
 
 // ReserveSAMLReplay records a replay hash and reports false on duplicates.
 func (s *SAMLSSOStore) ReserveSAMLReplay(ctx context.Context, record SAMLReplayKeyRecord) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, errors.New("saml sso store database is required")
 	}
 	record = normalizeSAMLReplayKeyRecord(record)
 	if err := validateSAMLReplayKeyRecord(record); err != nil {
 		return false, err
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		reserveSAMLReplayKeyQuery,
 		record.ProviderConfigID,

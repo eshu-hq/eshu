@@ -6,12 +6,13 @@ package main
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // platformGraphLockerForReducer builds the Postgres-backed platform graph lock
 // the deployment-mapping handler uses, or nil when the database does not expose a
 // transaction beginner.
-func platformGraphLockerForReducer(database postgres.ExecQueryer) reducer.PlatformGraphLocker {
+func platformGraphLockerForReducer(database db.ExecQueryer) reducer.PlatformGraphLocker {
 	beginner := reducerBeginner(database)
 	if beginner == nil {
 		return nil
@@ -22,8 +23,8 @@ func platformGraphLockerForReducer(database postgres.ExecQueryer) reducer.Platfo
 // reducerBeginner adapts the shared reducer database into the transaction beginner
 // the materialization and lock writers need, or nil when the database does not
 // support transactions.
-func reducerBeginner(database postgres.ExecQueryer) postgres.Beginner {
-	if beginner, ok := database.(postgres.Beginner); ok {
+func reducerBeginner(database db.ExecQueryer) db.Beginner {
+	if beginner, ok := database.(db.Beginner); ok {
 		return beginner
 	}
 	return nil
@@ -33,7 +34,7 @@ func reducerBeginner(database postgres.ExecQueryer) postgres.Beginner {
 // generation lineage writer (#1943) over the shared reducer database. When the
 // database does not expose a transaction beginner the writer is nil, so the
 // service-catalog correlation handler keeps its existing behavior unchanged.
-func serviceMaterializationWriterFor(database postgres.ExecQueryer) reducer.ServiceMaterializationWriter {
+func serviceMaterializationWriterFor(database db.ExecQueryer) reducer.ServiceMaterializationWriter {
 	beginner := reducerBeginner(database)
 	if beginner == nil {
 		return nil
@@ -50,7 +51,7 @@ func serviceMaterializationWriterFor(database postgres.ExecQueryer) reducer.Serv
 // transaction support leaves the domain unwired rather than silently
 // publishing without convergence.
 func containerImageIdentityWriterFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 ) reducer.ContainerImageIdentityWriter {
 	beginner := reducerBeginner(database)
 	if database == nil || beginner == nil {
@@ -69,7 +70,7 @@ func containerImageIdentityWriterFor(
 // fact_records; the family is purely additive, so wiring it never blocks the
 // prior service evidence families.
 func serviceDocumentationEvidenceLoaderFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 ) reducer.ServiceScopedDocumentationEvidenceLoader {
 	if database == nil {
 		return nil
@@ -83,7 +84,7 @@ func serviceDocumentationEvidenceLoaderFor(
 // and remains purely additive: wiring it never blocks the prior service evidence
 // families.
 func serviceIncidentEvidenceLoaderFor(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 ) reducer.ServiceScopedIncidentEvidenceLoader {
 	if database == nil {
 		return nil

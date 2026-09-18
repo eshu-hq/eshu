@@ -63,12 +63,12 @@ DROP FUNCTION enqueue_cross_scope_completion_event()
 		seedCrossScopeCompletionPerformanceRows(t, ctx, db, maxRows, owner)
 	}
 	baselineQueue := ReducerQueue{
-		db:            SQLDB{DB: baselineDB},
+		database:      SQLDB{DB: baselineDB},
 		LeaseOwner:    owner,
 		LeaseDuration: time.Minute,
 	}
 	candidateQueue := baselineQueue
-	candidateQueue.db = SQLDB{DB: candidateDB}
+	candidateQueue.database = SQLDB{DB: candidateDB}
 
 	for _, size := range []int{1, 50, 500} {
 		identity := crossScopeCompletionPerfIntents("identity", reducer.DomainContainerImageIdentity, size)

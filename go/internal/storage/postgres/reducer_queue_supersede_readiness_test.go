@@ -101,7 +101,7 @@ func TestReducerClaimDoesNotSupersedeReadinessGatedPendingWorkBehindNewerGenerat
 	activateReducerSupersedeReadinessGeneration(t, ctx, db, scopeID, genOld, genNew, newIngested)
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "supersede-readiness-test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return newIngested.Add(time.Minute) },
@@ -182,7 +182,7 @@ func TestReducerClaimSupersedesReadinessGatedWorkOnceReadinessIsSatisfied(t *tes
 	activateReducerSupersedeReadinessGeneration(t, ctx, db, scopeID, genOld, genNew, newIngested)
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "supersede-readiness-ready-test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return newIngested.Add(time.Minute) },
@@ -245,7 +245,7 @@ func TestReducerClaimSupersedesNonReadinessGatedWorkBehindNewerGeneration(t *tes
 	activateReducerSupersedeReadinessGeneration(t, ctx, db, scopeID, genOld, genNew, newIngested)
 
 	queue := ReducerQueue{
-		db:            SQLDB{DB: db},
+		database:      SQLDB{DB: db},
 		LeaseOwner:    "supersede-non-gated-test",
 		LeaseDuration: time.Minute,
 		Now:           func() time.Time { return newIngested.Add(time.Minute) },

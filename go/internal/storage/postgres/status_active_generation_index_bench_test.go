@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // statusActiveGenerationBenchDSN resolves the live Postgres DSN used by the
@@ -138,14 +140,14 @@ func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
 	}
-	defer func() { _ = db.Close() }()
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	sqlConn, err := db.Conn(ctx)
+	defer func() { _ = database.Close() }()
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	sqlConn, err := database.Conn(ctx)
 	if err != nil {
 		t.Fatalf("open dedicated postgres connection: %v", err)
 	}
@@ -200,15 +202,15 @@ func benchmarkStatusActiveFactWorkItemsCTE(b *testing.B, dsn string, benchCase s
 	b.Helper()
 
 	ctx := context.Background()
-	db, err := sql.Open("pgx", dsn)
+	database, err := sql.Open("pgx", dsn)
 	if err != nil {
 		b.Fatalf("open postgres: %v", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	sqlConn, err := db.Conn(ctx)
+	database.SetMaxOpenConns(1)
+	database.SetMaxIdleConns(1)
+	sqlConn, err := database.Conn(ctx)
 	if err != nil {
-		_ = db.Close()
+		_ = database.Close()
 		b.Fatalf("open dedicated postgres connection: %v", err)
 	}
 	conn := reducerClaimBenchmarkConn{conn: sqlConn}
@@ -217,7 +219,7 @@ func benchmarkStatusActiveFactWorkItemsCTE(b *testing.B, dsn string, benchCase s
 	cleanup := func() {
 		_, _ = conn.ExecContext(context.Background(), "DROP SCHEMA "+schemaName+" CASCADE")
 		_ = sqlConn.Close()
-		_ = db.Close()
+		_ = database.Close()
 	}
 	if err := createReducerClaimBenchmarkSchema(ctx, conn, schemaName); err != nil {
 		cleanup()
@@ -262,12 +264,12 @@ func benchmarkStatusActiveFactWorkItemsCTE(b *testing.B, dsn string, benchCase s
 // scope_generations population with many rows per scope_id.
 func seedStatusActiveGenerationBenchmark(
 	ctx context.Context,
-	db Executor,
+	database db.Executor,
 	benchCase statusActiveGenerationBenchCase,
 ) error {
 	base := time.Date(2026, time.June, 1, 0, 0, 0, 0, time.UTC)
 
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 INSERT INTO ingestion_scopes (
     scope_id, scope_kind, source_system, source_key, parent_scope_id,
     collector_kind, partition_key, observed_at, ingested_at, status,
@@ -295,7 +297,7 @@ FROM generate_series(1, $3) AS series(i)`,
 	// Seed generationsPerScope generations per scope, monotonically increasing
 	// ingested_at so generation N is the newest (active) and 1..N-1 are
 	// superseded, matching real re-ingestion history.
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 WITH scope_series AS (
     SELECT series.i AS scope_ordinal
     FROM generate_series(1, $3) AS series(i)
@@ -331,7 +333,7 @@ CROSS JOIN generation_series`,
 	// Reducer work items on the ACTIVE generation only (the common live-queue
 	// shape); the CTE must still resolve every row through the stale/active
 	// self-join against the scope's full generation history.
-	if _, err := db.ExecContext(ctx, `
+	if _, err := database.ExecContext(ctx, `
 WITH scope_series AS (
     SELECT series.i AS scope_ordinal
     FROM generate_series(1, $3) AS series(i)
@@ -395,8 +397,8 @@ CROSS JOIN work_series`,
 // TestStatusActiveFactWorkItemsCTEUsesGenerationIndex to assert the planner
 // picks an index scan on scope_generations instead of a sequential scan once
 // scope_generations_scope_generation_idx exists.
-func statusActiveGenerationExplainAnalyze(ctx context.Context, db Executor, query string) (string, error) {
-	queryer, ok := db.(Queryer)
+func statusActiveGenerationExplainAnalyze(ctx context.Context, database db.Executor, query string) (string, error) {
+	queryer, ok := database.(db.Queryer)
 	if !ok {
 		return "", fmt.Errorf("executor does not support QueryContext")
 	}

@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -20,11 +22,11 @@ type ec2BlockDeviceKMSPostureReadinessQueueDB struct {
 	resourceNodeReady bool
 }
 
-func (db *ec2BlockDeviceKMSPostureReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database *ec2BlockDeviceKMSPostureReadinessQueueDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return fakeResult{}, nil
 }
 
-func (db *ec2BlockDeviceKMSPostureReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (database *ec2BlockDeviceKMSPostureReadinessQueueDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if !strings.Contains(query, "FROM fact_work_items") || !strings.Contains(query, "FROM claimed") {
 		return nil, fmt.Errorf("unexpected query: %s", query)
 	}
@@ -52,7 +54,7 @@ func (db *ec2BlockDeviceKMSPostureReadinessQueueDB) QueryContext(_ context.Conte
 	if !gatesResourceNode {
 		return nil, fmt.Errorf("claim query missing the EBS/KMS resource node phase requirement:\n%s", query)
 	}
-	if !db.instanceNodeReady || !db.resourceNodeReady {
+	if !database.instanceNodeReady || !database.resourceNodeReady {
 		return &queueFakeRows{}, nil
 	}
 
@@ -63,9 +65,9 @@ func (db *ec2BlockDeviceKMSPostureReadinessQueueDB) QueryContext(_ context.Conte
 		string(reducer.DomainEC2BlockDeviceKMSPostureMaterialization),
 		1,
 		int64(0),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
-		db.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
+		database.now.Add(-time.Minute),
 		[]byte(`{"entity_key":"ec2_block_device_kms_posture_materialization:aws:111122223333:us-east-1:ec2","reason":"ec2 block-device posture observed","fact_id":"fact-posture-1","source_system":"aws"}`),
 	}}}, nil
 }
@@ -90,13 +92,13 @@ func TestReducerQueueClaimWaitsForEC2BlockDeviceKMSPostureDualReadinessBehavior(
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			db := &ec2BlockDeviceKMSPostureReadinessQueueDB{
+			database := &ec2BlockDeviceKMSPostureReadinessQueueDB{
 				now:               now,
 				instanceNodeReady: tc.instanceNodeReady,
 				resourceNodeReady: tc.resourceNodeReady,
 			}
 			queue := ReducerQueue{
-				db:            db,
+				database:      database,
 				LeaseOwner:    "test-owner",
 				LeaseDuration: time.Minute,
 				Now:           func() time.Time { return now },

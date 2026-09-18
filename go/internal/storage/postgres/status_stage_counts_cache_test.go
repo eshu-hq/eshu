@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // stageCountsCacheFakeQueryer answers stageCountsQuery only and counts how many
@@ -18,7 +20,7 @@ type stageCountsCacheFakeQueryer struct {
 	calls int
 }
 
-func (q *stageCountsCacheFakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (Rows, error) {
+func (q *stageCountsCacheFakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	if query != stageCountsQuery {
 		return nil, errUnexpectedStageCountsCacheQuery
 	}
@@ -108,7 +110,7 @@ type erroringQueryer struct {
 	err error
 }
 
-func (q *erroringQueryer) QueryContext(_ context.Context, _ string, _ ...any) (Rows, error) {
+func (q *erroringQueryer) QueryContext(_ context.Context, _ string, _ ...any) (db.Rows, error) {
 	return nil, q.err
 }
 

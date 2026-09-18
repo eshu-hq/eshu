@@ -15,6 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
@@ -37,7 +39,7 @@ var fallbackClaimSequence uint64
 // cassette JSON file. It uses no live Azure transport and is intended for
 // offline testing and deterministic proof runs.
 func buildCassetteService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	cassettePath string,
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
@@ -67,7 +69,7 @@ func buildCassetteService(
 // fixture deployment never issues a live Azure call.
 func buildClaimedService(
 	ctx context.Context,
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	redactionKey redact.Key,
 	getenv func(string) string,
 	tracer trace.Tracer,
@@ -138,7 +140,7 @@ const redactionKeyFileEnv = "ESHU_AZURE_REDACTION_KEY_FILE"
 // and otherwise selects the gated live seam so production wiring never issues a
 // live Azure call by default.
 func buildCollectorService(
-	database postgres.ExecQueryer,
+	database db.ExecQueryer,
 	getenv func(string) string,
 	tracer trace.Tracer,
 	meter metric.Meter,

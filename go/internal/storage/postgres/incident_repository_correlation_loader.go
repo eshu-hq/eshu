@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -63,7 +65,7 @@ ORDER BY fact.payload->>'provider_object_id' ASC, fact.fact_id ASC
 // the durable, name-free input: the rows carry the provider service id and
 // backend locator, never the service name as a join key.
 type PostgresAppliedPagerDutyServiceRoutingLoader struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // LoadAppliedPagerDutyServiceRouting implements

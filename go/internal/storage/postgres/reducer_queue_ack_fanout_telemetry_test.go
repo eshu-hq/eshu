@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -25,29 +27,29 @@ import (
 )
 
 func TestReducerContentionGateAckFanoutTelemetryLive(t *testing.T) {
-	db := openReducerAckFanoutProofDB(t)
+	database := openReducerAckFanoutProofDB(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	const scope, generation, id = "repository:6488-telemetry", "generation:6488-telemetry", "work:6488-telemetry"
-	seedContainerImageIdentityAckScope(t, ctx, db, scope)
-	seedContainerImageIdentityAckGeneration(t, ctx, db, scope, generation)
-	if _, err := db.ExecContext(ctx, `UPDATE ingestion_scopes SET active_generation_id=$2 WHERE scope_id=$1`, scope, generation); err != nil {
+	seedContainerImageIdentityAckScope(t, ctx, database, scope)
+	seedContainerImageIdentityAckGeneration(t, ctx, database, scope, generation)
+	if _, err := database.ExecContext(ctx, `UPDATE ingestion_scopes SET active_generation_id=$2 WHERE scope_id=$1`, scope, generation); err != nil {
 		t.Fatal(err)
 	}
-	insertCrossScopeCompletionBaseConsumer(t, ctx, db, id, scope, generation, reducer.DomainSupplyChainImpact, now)
-	if _, err := db.ExecContext(ctx, `UPDATE fact_work_items SET status='running',lease_owner='telemetry-ack',claim_until=$1,last_attempt_at=$2 WHERE work_item_id=$3`, now.Add(time.Hour), now, id); err != nil {
+	insertCrossScopeCompletionBaseConsumer(t, ctx, database, id, scope, generation, reducer.DomainSupplyChainImpact, now)
+	if _, err := database.ExecContext(ctx, `UPDATE fact_work_items SET status='running',lease_owner='telemetry-ack',claim_until=$1,last_attempt_at=$2 WHERE work_item_id=$3`, now.Add(time.Hour), now, id); err != nil {
 		t.Fatal(err)
 	}
-	observed, reader, spans := ackFanoutTelemetryDB(t, SQLDB{DB: db})
-	queue := ReducerQueue{db: observed, LeaseOwner: "telemetry-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
+	observed, reader, spans := ackFanoutTelemetryDB(t, SQLDB{DB: database})
+	queue := ReducerQueue{database: observed, LeaseOwner: "telemetry-ack", LeaseDuration: time.Minute, Now: func() time.Time { return now }}
 	if err := queue.AckBatch(ctx, []reducer.Intent{{IntentID: id, Domain: reducer.DomainSupplyChainImpact, ClaimedAt: &now}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	assertCrossScopeConsumerState(t, ctx, db, id, "succeeded", false)
-	event := insertCrossScopeCompletionEvent(t, ctx, db, reducer.DomainCICDRunCorrelation, "claimed", "telemetry-fanout", now.Add(time.Hour), 1, now.Add(-10*time.Second))
+	assertCrossScopeConsumerState(t, ctx, database, id, "succeeded", false)
+	event := insertCrossScopeCompletionEvent(t, ctx, database, reducer.DomainCICDRunCorrelation, "claimed", "telemetry-fanout", now.Add(time.Hour), 1, now.Add(-10*time.Second))
 	lease := reducer.CrossScopeCompletionLease{EventID: event, ProducerDomain: reducer.DomainCICDRunCorrelation, LeaseOwner: "telemetry-fanout", ClaimEpoch: 1, AttemptCount: 1}
-	observer := NewQueueObserverStore(SQLDB{DB: db})
+	observer := NewQueueObserverStore(SQLDB{DB: database})
 	observer.Now = func() time.Time { return now }
 	// A separate reader keeps gauge callbacks from adding database timings to the
 	// measured ACK/fanout wrapper. Both collectors exercise production emission.
@@ -67,7 +69,7 @@ func TestReducerContentionGateAckFanoutTelemetryLive(t *testing.T) {
 	if duration, ok := logRecord["fanout_duration_ms"].(float64); !ok || duration < 0 {
 		t.Fatalf("missing nonnegative duration: %v", logRecord)
 	}
-	assertCrossScopeConsumerState(t, ctx, db, id, "pending", false)
+	assertCrossScopeConsumerState(t, ctx, database, id, "pending", false)
 	assertAckFanoutGauges(t, ctx, gaugeReader, false)
 	assertAckFanoutTelemetry(t, ctx, reader, spans, false)
 	t.Logf("actual ACK/fanout emitted reducer write/read durations and spans; completion gauges drained; log=%v", logRecord)
@@ -78,7 +80,7 @@ func TestReducerContentionGateAckFanoutTelemetryLive(t *testing.T) {
 func TestReducerContentionGateAckFanoutTelemetryErrors(t *testing.T) {
 	cause := &pgconn.PgError{Code: "40P01", Message: "controlled telemetry failure"}
 	observed, reader, spans := ackFanoutTelemetryDB(t, &instrumentedTestExecQueryer{execErr: cause, queryErr: cause})
-	queue := ReducerQueue{db: observed, LeaseOwner: "telemetry-ack", LeaseDuration: time.Minute}
+	queue := ReducerQueue{database: observed, LeaseOwner: "telemetry-ack", LeaseDuration: time.Minute}
 	err := queue.AckBatch(t.Context(), []reducer.Intent{{IntentID: "telemetry-error", Domain: reducer.DomainSupplyChainImpact}}, nil)
 	if !errors.Is(err, cause) {
 		t.Fatalf("ACK error=%v", err)
@@ -106,7 +108,7 @@ func TestReducerContentionGateAckFanoutTelemetryErrors(t *testing.T) {
 	t.Logf("controlled synchronous SQLSTATE 40P01 emitted both error spans, exception events and durations; log=%v", record)
 }
 
-func ackFanoutTelemetryDB(t *testing.T, inner ExecQueryer) (*InstrumentedDB, *sdkmetric.ManualReader, *tracetest.SpanRecorder) {
+func ackFanoutTelemetryDB(t *testing.T, inner db.ExecQueryer) (*InstrumentedDB, *sdkmetric.ManualReader, *tracetest.SpanRecorder) {
 	t.Helper()
 	spans := tracetest.NewSpanRecorder()
 	tracer := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))

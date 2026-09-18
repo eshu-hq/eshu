@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const eshuSearchDocumentProjectionStateSchemaSQL = `
@@ -71,7 +73,7 @@ type EshuSearchDocumentProjectionState struct {
 // EshuSearchDocumentProjectionStateStore persists projection-state rows and
 // provides the BeginBuilding / FinalizeReady / MarkFailed CAS lifecycle.
 type EshuSearchDocumentProjectionStateStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // EshuSearchDocumentProjectionStateSchemaSQL returns the Postgres DDL for
@@ -81,8 +83,8 @@ func EshuSearchDocumentProjectionStateSchemaSQL() string {
 }
 
 // NewEshuSearchDocumentProjectionStateStore constructs the projection-state store.
-func NewEshuSearchDocumentProjectionStateStore(db ExecQueryer) EshuSearchDocumentProjectionStateStore {
-	return EshuSearchDocumentProjectionStateStore{db: db}
+func NewEshuSearchDocumentProjectionStateStore(database db.ExecQueryer) EshuSearchDocumentProjectionStateStore {
+	return EshuSearchDocumentProjectionStateStore{database: database}
 }
 
 // BeginBuilding starts (or re-starts) a projection build for the given
@@ -92,7 +94,7 @@ func (s EshuSearchDocumentProjectionStateStore) BeginBuilding(
 	ctx context.Context,
 	scopeID, generationID string,
 ) (revision, fence int64, err error) {
-	if s.db == nil {
+	if s.database == nil {
 		return 0, 0, fmt.Errorf("eshu search document projection state store requires a database")
 	}
 	if scopeID == "" {
@@ -103,7 +105,7 @@ func (s EshuSearchDocumentProjectionStateStore) BeginBuilding(
 	}
 
 	now := time.Now().UTC()
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		beginBuildingProjectionStateSQL,
 		scopeID,
@@ -132,7 +134,7 @@ func (s EshuSearchDocumentProjectionStateStore) FinalizeReady(
 	scopeID, generationID string,
 	revision, fence, documentCount int64,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, fmt.Errorf("eshu search document projection state store requires a database")
 	}
 	if scopeID == "" {
@@ -143,7 +145,7 @@ func (s EshuSearchDocumentProjectionStateStore) FinalizeReady(
 	}
 
 	now := time.Now().UTC()
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		finalizeReadyProjectionStateSQL,
 		scopeID,
@@ -171,7 +173,7 @@ func (s EshuSearchDocumentProjectionStateStore) MarkFailed(
 	scopeID, generationID string,
 	revision, fence int64,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, fmt.Errorf("eshu search document projection state store requires a database")
 	}
 	if scopeID == "" {
@@ -182,7 +184,7 @@ func (s EshuSearchDocumentProjectionStateStore) MarkFailed(
 	}
 
 	now := time.Now().UTC()
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		markFailedProjectionStateSQL,
 		scopeID,

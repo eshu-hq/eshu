@@ -10,19 +10,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 func TestCodeValueFlowCurrentGenerationStoreListsActiveRepositoryScopes(t *testing.T) {
 	t.Parallel()
 
-	db := &codeValueFlowCurrentGenerationDB{
+	database := &codeValueFlowCurrentGenerationDB{
 		rows: [][]any{
 			{"scope-a", "gen-a"},
 			{"scope-b", "gen-b"},
 		},
 	}
-	store := NewCodeValueFlowCurrentGenerationStore(db)
+	store := NewCodeValueFlowCurrentGenerationStore(database)
 
 	got, err := store.ListCurrentCodeValueFlowGenerations(context.Background(), "scope-a", 25)
 	if err != nil {
@@ -44,14 +46,14 @@ func TestCodeValueFlowCurrentGenerationStoreListsActiveRepositoryScopes(t *testi
 		"ORDER BY scope.scope_id ASC",
 		"LIMIT $2",
 	} {
-		if !strings.Contains(db.query, wantSQL) {
-			t.Fatalf("candidate query missing %q:\n%s", wantSQL, db.query)
+		if !strings.Contains(database.query, wantSQL) {
+			t.Fatalf("candidate query missing %q:\n%s", wantSQL, database.query)
 		}
 	}
-	if got := db.args[0]; got != "scope-a" {
+	if got := database.args[0]; got != "scope-a" {
 		t.Fatalf("after scope arg = %v, want scope-a", got)
 	}
-	if got := db.args[1]; got != 25 {
+	if got := database.args[1]; got != 25 {
 		t.Fatalf("limit arg = %v, want 25", got)
 	}
 }
@@ -59,10 +61,10 @@ func TestCodeValueFlowCurrentGenerationStoreListsActiveRepositoryScopes(t *testi
 func TestCodeValueFlowCurrentGenerationStoreNoOpsWithoutPositiveLimit(t *testing.T) {
 	t.Parallel()
 
-	db := &codeValueFlowCurrentGenerationDB{
+	database := &codeValueFlowCurrentGenerationDB{
 		rows: [][]any{{"scope-a", "gen-a"}},
 	}
-	store := NewCodeValueFlowCurrentGenerationStore(db)
+	store := NewCodeValueFlowCurrentGenerationStore(database)
 
 	got, err := store.ListCurrentCodeValueFlowGenerations(context.Background(), "", 0)
 	if err != nil {
@@ -71,8 +73,8 @@ func TestCodeValueFlowCurrentGenerationStoreNoOpsWithoutPositiveLimit(t *testing
 	if len(got) != 0 {
 		t.Fatalf("len(generations) = %d, want 0", len(got))
 	}
-	if db.query != "" {
-		t.Fatalf("query = %q, want no query for non-positive limit", db.query)
+	if database.query != "" {
+		t.Fatalf("query = %q, want no query for non-positive limit", database.query)
 	}
 }
 
@@ -82,14 +84,14 @@ type codeValueFlowCurrentGenerationDB struct {
 	args  []any
 }
 
-func (db *codeValueFlowCurrentGenerationDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+func (database *codeValueFlowCurrentGenerationDB) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
 	return nil, fmt.Errorf("ExecContext not implemented in test stub")
 }
 
-func (db *codeValueFlowCurrentGenerationDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
-	db.query = query
-	db.args = args
-	return newProofRows(db.rows), nil
+func (database *codeValueFlowCurrentGenerationDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	database.query = query
+	database.args = args
+	return newProofRows(database.rows), nil
 }
 
 func equalCodeValueFlowGenerations(left, right []reducer.CodeValueFlowCurrentGeneration) bool {

@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -139,7 +141,7 @@ func (s IngestionStore) recordSharedLockHoldDuration(ctx context.Context, d time
 
 func backfillRelationshipEvidenceForNewRepositories(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	relationshipStore *RelationshipStore,
 	generationID string,
 	knownRepoIDs map[string]struct{},

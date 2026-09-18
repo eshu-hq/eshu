@@ -10,22 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
-
-// Rows is the small read-only row cursor surface used by the status reader.
-type Rows interface {
-	Next() bool
-	Scan(...any) error
-	Err() error
-	Close() error
-}
-
-// Queryer is the small read-only SQL adapter needed by the status reader.
-type Queryer interface {
-	QueryContext(context.Context, string, ...any) (Rows, error)
-}
 
 // SQLQueryer adapts a *sql.DB into the status query surface.
 type SQLQueryer struct {
@@ -33,7 +22,7 @@ type SQLQueryer struct {
 }
 
 // QueryContext implements Queryer against a sql.DB.
-func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any) (Rows, error) {
+func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
 	return q.DB.QueryContext(ctx, query, args...)
 }
 
@@ -51,13 +40,13 @@ func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any)
 // sets the field explicitly after construction. All recording is nil-safe
 // (see recordStatusStageCountsCacheOutcome).
 type StatusStore struct {
-	queryer          Queryer
+	queryer          db.Queryer
 	stageCountsCache *statusStageCountsCache
 	Instruments      *telemetry.Instruments
 }
 
 // NewStatusStore constructs a read-only status store.
-func NewStatusStore(queryer Queryer) StatusStore {
+func NewStatusStore(queryer db.Queryer) StatusStore {
 	return StatusStore{queryer: queryer, stageCountsCache: newStatusStageCountsCache()}
 }
 
@@ -75,7 +64,7 @@ func NewStatusStore(queryer Queryer) StatusStore {
 // the one place every hosted status call site should use instead so the
 // wiring cannot be silently dropped per call site. instruments may be nil;
 // recording is a no-op in that case (see recordStatusStageCountsCacheOutcome).
-func NewInstrumentedStatusStore(queryer Queryer, instruments *telemetry.Instruments) StatusStore {
+func NewInstrumentedStatusStore(queryer db.Queryer, instruments *telemetry.Instruments) StatusStore {
 	store := NewStatusStore(queryer)
 	store.Instruments = instruments
 	return store
@@ -284,7 +273,7 @@ func namedCount(rows []statuspkg.NamedCount, name string) int {
 
 func listNamedCounts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	query string,
 	op string,
 ) ([]statuspkg.NamedCount, error) {
@@ -319,7 +308,7 @@ func listNamedCounts(
 
 func listGenerationTransitions(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) ([]statuspkg.GenerationTransitionSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, generationTransitionsQuery)
 	if err != nil {
@@ -367,7 +356,7 @@ func listGenerationTransitions(
 
 func listDomainBacklogs(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) ([]statuspkg.DomainBacklog, error) {
 	rows, err := queryer.QueryContext(ctx, domainBacklogQuery, asOf)
@@ -415,7 +404,7 @@ func listDomainBacklogs(
 
 func readQueueSnapshot(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	asOf time.Time,
 ) (statuspkg.QueueSnapshot, error) {
 	rows, err := queryer.QueryContext(ctx, queueSnapshotQuery, asOf)

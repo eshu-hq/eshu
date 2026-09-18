@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // TestCodeInterprocProjectedEdgeStoreSchemaSQL proves the migration DDL
@@ -34,8 +36,8 @@ func TestCodeInterprocProjectedEdgeStoreSchemaSQL(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStoreRecordDedupesAndSkipsBlanks(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(db)
+	database := &recordingExecQueryer{}
+	store := NewCodeInterprocProjectedEdgeStore(database)
 	at := time.Date(2026, time.July, 7, 0, 0, 0, 0, time.UTC)
 
 	err := store.RecordProjectedEdges(
@@ -49,10 +51,10 @@ func TestCodeInterprocProjectedEdgeStoreRecordDedupesAndSkipsBlanks(t *testing.T
 	if err != nil {
 		t.Fatalf("RecordProjectedEdges error: %v", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("exec calls = %d, want 1", len(db.execs))
+	if len(database.execs) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(database.execs))
 	}
-	args := db.execs[0].args
+	args := database.execs[0].args
 	// 2 unique non-blank uids: uid-a, uid-b. Each row = 5 args.
 	if len(args) != 10 {
 		t.Fatalf("args count = %d, want 10 (2 rows * 5 columns)", len(args))
@@ -74,8 +76,8 @@ func TestCodeInterprocProjectedEdgeStoreRecordDedupesAndSkipsBlanks(t *testing.T
 func TestCodeInterprocProjectedEdgeStoreRecordEmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(db)
+	database := &recordingExecQueryer{}
+	store := NewCodeInterprocProjectedEdgeStore(database)
 
 	if err := store.RecordProjectedEdges(
 		context.Background(),
@@ -87,8 +89,8 @@ func TestCodeInterprocProjectedEdgeStoreRecordEmptyIsNoOp(t *testing.T) {
 	); err != nil {
 		t.Fatalf("RecordProjectedEdges error: %v", err)
 	}
-	if len(db.execs) != 0 {
-		t.Fatalf("exec calls = %d, want 0", len(db.execs))
+	if len(database.execs) != 0 {
+		t.Fatalf("exec calls = %d, want 0", len(database.execs))
 	}
 }
 
@@ -97,8 +99,8 @@ func TestCodeInterprocProjectedEdgeStoreRecordEmptyIsNoOp(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStoreListSourceUIDsForScopes(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(db)
+	database := &recordingExecQueryer{}
+	store := NewCodeInterprocProjectedEdgeStore(database)
 
 	_, err := store.ListSourceUIDsForScopes(
 		context.Background(),
@@ -108,10 +110,10 @@ func TestCodeInterprocProjectedEdgeStoreListSourceUIDsForScopes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListSourceUIDsForScopes error: %v", err)
 	}
-	if len(db.queries) != 1 {
-		t.Fatalf("query calls = %d, want 1", len(db.queries))
+	if len(database.queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(database.queries))
 	}
-	q := db.queries[0]
+	q := database.queries[0]
 	if !strings.Contains(q.query, "DISTINCT source_function_uid") {
 		t.Fatalf("ListSourceUIDsForScopes query missing DISTINCT:\n%s", q.query)
 	}
@@ -128,8 +130,8 @@ func TestCodeInterprocProjectedEdgeStoreListSourceUIDsForScopes(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStoreListStaleSourceUIDs(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(db)
+	database := &recordingExecQueryer{}
+	store := NewCodeInterprocProjectedEdgeStore(database)
 
 	_, err := store.ListStaleSourceUIDs(
 		context.Background(),
@@ -141,10 +143,10 @@ func TestCodeInterprocProjectedEdgeStoreListStaleSourceUIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListStaleSourceUIDs error: %v", err)
 	}
-	if len(db.queries) != 1 {
-		t.Fatalf("query calls = %d, want 1", len(db.queries))
+	if len(database.queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(database.queries))
 	}
-	q := db.queries[0]
+	q := database.queries[0]
 	if !strings.Contains(q.query, "generation_id <> $3") {
 		t.Fatalf("ListStaleSourceUIDs query missing generation_id <>:\n%s", q.query)
 	}
@@ -161,8 +163,8 @@ func TestCodeInterprocProjectedEdgeStoreListStaleSourceUIDs(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStorePruneForScopes(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(db)
+	database := &recordingExecQueryer{}
+	store := NewCodeInterprocProjectedEdgeStore(database)
 
 	if err := store.PruneForScopes(
 		context.Background(),
@@ -171,10 +173,10 @@ func TestCodeInterprocProjectedEdgeStorePruneForScopes(t *testing.T) {
 	); err != nil {
 		t.Fatalf("PruneForScopes error: %v", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("exec calls = %d, want 1", len(db.execs))
+	if len(database.execs) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(database.execs))
 	}
-	query := db.execs[0].query
+	query := database.execs[0].query
 	if !strings.Contains(query, "DELETE FROM code_interproc_projected_edge") {
 		t.Fatalf("PruneForScopes query missing DELETE:\n%s", query)
 	}
@@ -189,8 +191,8 @@ func TestCodeInterprocProjectedEdgeStorePruneForScopes(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(db)
+	database := &recordingExecQueryer{}
+	store := NewCodeInterprocProjectedEdgeStore(database)
 
 	if err := store.PruneStaleForUIDs(
 		context.Background(),
@@ -201,10 +203,10 @@ func TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs(t *testing.T) {
 	); err != nil {
 		t.Fatalf("PruneStaleForUIDs error: %v", err)
 	}
-	if len(db.execs) != 1 {
-		t.Fatalf("exec calls = %d, want 1", len(db.execs))
+	if len(database.execs) != 1 {
+		t.Fatalf("exec calls = %d, want 1", len(database.execs))
 	}
-	query := db.execs[0].query
+	query := database.execs[0].query
 	if !strings.Contains(query, "DELETE FROM code_interproc_projected_edge") {
 		t.Fatalf("PruneStaleForUIDs query missing DELETE:\n%s", query)
 	}
@@ -214,7 +216,7 @@ func TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs(t *testing.T) {
 	if !strings.Contains(query, "source_function_uid = ANY($4)") {
 		t.Fatalf("PruneStaleForUIDs query missing source_function_uid = ANY($4):\n%s", query)
 	}
-	args := db.execs[0].args
+	args := database.execs[0].args
 	if len(args) != 4 || args[0] != "reducer/code-interproc" || args[1] != "scope-1" || args[2] != "gen-current" {
 		t.Fatalf("args wrong: %+v", args)
 	}
@@ -234,8 +236,8 @@ func TestCodeInterprocProjectedEdgeStorePruneStaleForUIDs(t *testing.T) {
 func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceQueryShape(t *testing.T) {
 	t.Parallel()
 
-	db := &recordingExecQueryer{}
-	store := NewCodeInterprocProjectedEdgeStore(db)
+	database := &recordingExecQueryer{}
+	store := NewCodeInterprocProjectedEdgeStore(database)
 
 	hasRows, err := store.LedgerHasRowsForSource(
 		context.Background(),
@@ -247,10 +249,10 @@ func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceQueryShape(t *test
 	if hasRows {
 		t.Fatalf("LedgerHasRowsForSource returned true with empty rows")
 	}
-	if len(db.queries) != 1 {
-		t.Fatalf("query calls = %d, want 1", len(db.queries))
+	if len(database.queries) != 1 {
+		t.Fatalf("query calls = %d, want 1", len(database.queries))
 	}
-	q := db.queries[0]
+	q := database.queries[0]
 	if !strings.Contains(q.query, "SELECT EXISTS") {
 		t.Fatalf("LedgerHasRowsForSource query missing SELECT EXISTS:\n%s", q.query)
 	}
@@ -271,12 +273,12 @@ type ledgerHasRowsDB struct {
 	result bool
 }
 
-func (db ledgerHasRowsDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
+func (database ledgerHasRowsDB) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	return nil, nil
 }
 
-func (db ledgerHasRowsDB) QueryContext(context.Context, string, ...any) (Rows, error) {
-	return &ledgerHasRowsRows{exists: db.result}, nil
+func (database ledgerHasRowsDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	return &ledgerHasRowsRows{exists: database.result}, nil
 }
 
 type ledgerHasRowsRows struct {
@@ -309,8 +311,8 @@ func (r *ledgerHasRowsRows) Close() error { return nil }
 func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceTrue(t *testing.T) {
 	t.Parallel()
 
-	db := ledgerHasRowsDB{result: true}
-	store := NewCodeInterprocProjectedEdgeStore(db)
+	database := ledgerHasRowsDB{result: true}
+	store := NewCodeInterprocProjectedEdgeStore(database)
 
 	hasRows, err := store.LedgerHasRowsForSource(
 		context.Background(),
@@ -329,8 +331,8 @@ func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceTrue(t *testing.T)
 func TestCodeInterprocProjectedEdgeStoreLedgerHasRowsForSourceFalse(t *testing.T) {
 	t.Parallel()
 
-	db := ledgerHasRowsDB{result: false}
-	store := NewCodeInterprocProjectedEdgeStore(db)
+	database := ledgerHasRowsDB{result: false}
+	store := NewCodeInterprocProjectedEdgeStore(database)
 
 	hasRows, err := store.LedgerHasRowsForSource(
 		context.Background(),

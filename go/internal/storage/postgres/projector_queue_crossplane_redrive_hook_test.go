@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -30,11 +32,11 @@ func (f crossplaneRedriveHookOrderFake) ExecContext(context.Context, string, ...
 	return driverResult{}, nil
 }
 
-func (f crossplaneRedriveHookOrderFake) QueryContext(context.Context, string, ...any) (Rows, error) {
+func (f crossplaneRedriveHookOrderFake) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return nil, errors.New("query not expected in this test")
 }
 
-func (f crossplaneRedriveHookOrderFake) Begin(context.Context) (Transaction, error) {
+func (f crossplaneRedriveHookOrderFake) Begin(context.Context) (db.Transaction, error) {
 	return f, nil
 }
 
@@ -63,7 +65,7 @@ func TestProjectorQueueAckInvokesCrossplaneRedriveHookAfterCommit(t *testing.T) 
 	fake := crossplaneRedriveHookOrderFake{log: &log, sweepErr: errors.New("injected sweep failure")}
 
 	queue := ProjectorQueue{
-		db:                fake,
+		database:          fake,
 		LeaseOwner:        "test-owner",
 		LeaseDuration:     time.Minute,
 		CrossplaneRedrive: fake,
@@ -111,7 +113,7 @@ func TestProjectorQueueAckSkipsHookWhenNilCrossplaneRedrive(t *testing.T) {
 	fake := crossplaneRedriveHookOrderFake{log: &log}
 
 	queue := ProjectorQueue{
-		db:            fake,
+		database:      fake,
 		LeaseOwner:    "test-owner",
 		LeaseDuration: time.Minute,
 		// CrossplaneRedrive intentionally left nil.

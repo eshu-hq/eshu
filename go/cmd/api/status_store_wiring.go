@@ -5,6 +5,7 @@ package main
 
 import (
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -22,7 +23,7 @@ import (
 // store.Instruments assignment would otherwise leave the metric
 // contract-complete but silent on the API path with no test to catch the
 // regression. instruments may be nil; recording is a no-op in that case.
-func newStatusStore(queryer pgstatus.Queryer, instruments *telemetry.Instruments) pgstatus.StatusStore {
+func newStatusStore(queryer db.Queryer, instruments *telemetry.Instruments) pgstatus.StatusStore {
 	store := pgstatus.NewStatusStore(queryer)
 	store.Instruments = instruments
 	return store

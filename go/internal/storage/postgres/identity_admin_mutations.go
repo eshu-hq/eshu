@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -118,7 +120,7 @@ func (s *IdentitySubjectStore) RevokeAdminInvitation(
 	ctx context.Context,
 	revoke AdminInvitationRevoke,
 ) (AdminInvitationRevokeResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return AdminInvitationRevokeResult{}, errors.New("identity subject store database is required")
 	}
 	revoke.InviteID = strings.TrimSpace(revoke.InviteID)
@@ -199,7 +201,7 @@ func (s *IdentitySubjectStore) GrantAdminRoleAssignment(
 	ctx context.Context,
 	grant AdminRoleAssignmentGrant,
 ) (AdminRoleAssignmentResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return AdminRoleAssignmentResult{}, errors.New("identity subject store database is required")
 	}
 	grant.TenantID = strings.TrimSpace(grant.TenantID)
@@ -237,7 +239,7 @@ func (s *IdentitySubjectStore) GrantAdminRoleAssignment(
 
 	var status string
 	var inserted bool
-	grantRows, err := s.db.QueryContext(
+	grantRows, err := s.database.QueryContext(
 		ctx,
 		grantAdminRoleAssignmentQuery,
 		grant.TenantID,
@@ -271,7 +273,7 @@ func (s *IdentitySubjectStore) RevokeAdminRoleAssignment(
 	ctx context.Context,
 	revoke AdminRoleAssignmentRevoke,
 ) (AdminRoleAssignmentResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return AdminRoleAssignmentResult{}, errors.New("identity subject store database is required")
 	}
 	revoke.TenantID = strings.TrimSpace(revoke.TenantID)
@@ -281,7 +283,7 @@ func (s *IdentitySubjectStore) RevokeAdminRoleAssignment(
 	if revoke.TenantID == "" || revoke.UserID == "" || revoke.RoleID == "" {
 		return AdminRoleAssignmentResult{}, errors.New("tenant_id, user_id, and role_id are required")
 	}
-	result, err := s.db.ExecContext(
+	result, err := s.database.ExecContext(
 		ctx,
 		revokeAdminRoleAssignmentQuery,
 		revoke.TenantID,
@@ -312,7 +314,7 @@ func (s *IdentitySubjectStore) CreateAdminIdPGroupMapping(
 	ctx context.Context,
 	create AdminIdPGroupMappingCreate,
 ) (AdminIdPGroupMappingCreateResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return AdminIdPGroupMappingCreateResult{}, errors.New("identity subject store database is required")
 	}
 	create.ProviderConfigID = strings.TrimSpace(create.ProviderConfigID)
@@ -344,7 +346,7 @@ func (s *IdentitySubjectStore) CreateAdminIdPGroupMapping(
 
 	var mappingRef, status string
 	var inserted bool
-	mappingRows, err := s.db.QueryContext(
+	mappingRows, err := s.database.QueryContext(
 		ctx,
 		createAdminIdPGroupMappingQuery,
 		create.ProviderConfigID,
@@ -379,7 +381,7 @@ func (s *IdentitySubjectStore) DeleteAdminIdPGroupMapping(
 	ctx context.Context,
 	del AdminIdPGroupMappingDelete,
 ) (AdminIdPGroupMappingDeleteResult, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return AdminIdPGroupMappingDeleteResult{}, errors.New("identity subject store database is required")
 	}
 	del.MappingRef = strings.TrimSpace(del.MappingRef)
@@ -388,7 +390,7 @@ func (s *IdentitySubjectStore) DeleteAdminIdPGroupMapping(
 	if del.MappingRef == "" || del.TenantID == "" {
 		return AdminIdPGroupMappingDeleteResult{}, errors.New("mapping_ref and tenant_id are required")
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		deleteAdminIdPGroupMappingQuery,
 		del.TenantID,
@@ -420,7 +422,7 @@ func (s *IdentitySubjectStore) DeleteAdminIdPGroupMapping(
 // precheck converts a foreseeable FK violation into a UserValid=false 4xx
 // instead of a server error.
 func (s *IdentitySubjectStore) activeMembershipExists(ctx context.Context, tenantID, workspaceID, userID string) (bool, error) {
-	rows, err := s.db.QueryContext(ctx, selectActiveMembershipExistsQuery, tenantID, workspaceID, userID)
+	rows, err := s.database.QueryContext(ctx, selectActiveMembershipExistsQuery, tenantID, workspaceID, userID)
 	if err != nil {
 		return false, fmt.Errorf("select active membership: %w", err)
 	}
@@ -435,7 +437,7 @@ func (s *IdentitySubjectStore) activeMembershipExists(ctx context.Context, tenan
 // activeRoleExists reports whether a role is active and not tombstoned in the
 // tenant.
 func (s *IdentitySubjectStore) activeRoleExists(ctx context.Context, tenantID, roleID string) (bool, error) {
-	rows, err := s.db.QueryContext(ctx, selectActiveRoleExistsQuery, tenantID, roleID)
+	rows, err := s.database.QueryContext(ctx, selectActiveRoleExistsQuery, tenantID, roleID)
 	if err != nil {
 		return false, fmt.Errorf("select active role: %w", err)
 	}
@@ -450,7 +452,7 @@ func (s *IdentitySubjectStore) activeRoleExists(ctx context.Context, tenantID, r
 // activeProviderExists reports whether a provider config is active and not
 // tombstoned in the tenant.
 func (s *IdentitySubjectStore) activeProviderExists(ctx context.Context, providerConfigID, tenantID string) (bool, error) {
-	rows, err := s.db.QueryContext(ctx, selectActiveProviderExistsQuery, providerConfigID, tenantID)
+	rows, err := s.database.QueryContext(ctx, selectActiveProviderExistsQuery, providerConfigID, tenantID)
 	if err != nil {
 		return false, fmt.Errorf("select active provider: %w", err)
 	}
@@ -464,7 +466,7 @@ func (s *IdentitySubjectStore) activeProviderExists(ctx context.Context, provide
 
 // scanSingleInvitationStatus scans the optional single invitation-status row.
 // All time columns are NULLABLE so they are scanned as sql.NullTime.
-func scanSingleInvitationStatus(rows Rows, status *string, revokedAt, acceptedAt, expiresAt *sql.NullTime) (bool, error) {
+func scanSingleInvitationStatus(rows db.Rows, status *string, revokedAt, acceptedAt, expiresAt *sql.NullTime) (bool, error) {
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		return false, rows.Err()
@@ -476,7 +478,7 @@ func scanSingleInvitationStatus(rows Rows, status *string, revokedAt, acceptedAt
 }
 
 // scanStatusInserted scans a single (status, inserted) row from a RETURNING upsert.
-func scanStatusInserted(rows Rows, status *string, inserted *bool) error {
+func scanStatusInserted(rows db.Rows, status *string, inserted *bool) error {
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
@@ -491,7 +493,7 @@ func scanStatusInserted(rows Rows, status *string, inserted *bool) error {
 }
 
 // scanMappingRefStatusInserted scans a single (mapping_ref, status, inserted) row.
-func scanMappingRefStatusInserted(rows Rows, mappingRef, status *string, inserted *bool) error {
+func scanMappingRefStatusInserted(rows db.Rows, mappingRef, status *string, inserted *bool) error {
 	defer func() { _ = rows.Close() }()
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {

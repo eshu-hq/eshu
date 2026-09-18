@@ -47,7 +47,7 @@ func (s *SharedIntentStore) ScopeHasPriorGeneration(
 	scopeID string,
 	currentGenerationID string,
 ) (bool, error) {
-	sqlRows, err := s.db.QueryContext(
+	sqlRows, err := s.database.QueryContext(
 		ctx,
 		scopeHasPriorGenerationSQL,
 		scopeID,

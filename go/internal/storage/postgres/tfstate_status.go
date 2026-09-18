@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -21,7 +23,7 @@ import (
 // already reduces to one row per locator.
 func listTerraformStateLastSerials(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) ([]statuspkg.TerraformStateLocatorSerial, error) {
 	rows, err := queryer.QueryContext(ctx, terraformStateLastSerialQuery)
 	if err != nil {
@@ -76,7 +78,7 @@ func listTerraformStateLastSerials(
 // default should pass statuspkg.MaxTerraformStateRecentWarnings.
 func listTerraformStateRecentWarnings(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	limit int,
 ) ([]statuspkg.TerraformStateLocatorWarning, error) {
 	if limit <= 0 {
@@ -150,7 +152,7 @@ type terraformStateAdminEvidence struct {
 // either list is empty so admin status remains useful even on a fresh database.
 func readTerraformStateAdminEvidence(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	limit int,
 	asOf time.Time,
 ) (terraformStateAdminEvidence, error) {

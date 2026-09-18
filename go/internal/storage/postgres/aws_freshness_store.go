@@ -10,18 +10,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 )
 
 // AWSFreshnessStore persists AWS event-driven refresh triggers for later
 // workflow handoff.
 type AWSFreshnessStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewAWSFreshnessStore constructs a Postgres-backed AWS freshness store.
-func NewAWSFreshnessStore(db ExecQueryer) *AWSFreshnessStore {
-	return &AWSFreshnessStore{db: db}
+func NewAWSFreshnessStore(database db.ExecQueryer) *AWSFreshnessStore {
+	return &AWSFreshnessStore{database: database}
 }
 
 // AWSFreshnessSchemaSQL returns the DDL for the AWS freshness trigger store.
@@ -31,10 +33,10 @@ func AWSFreshnessSchemaSQL() string {
 
 // EnsureSchema applies the AWS freshness trigger schema.
 func (s *AWSFreshnessStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("AWS freshness store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, awsFreshnessSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, awsFreshnessSchemaSQL); err != nil {
 		return fmt.Errorf("ensure AWS freshness schema: %w", err)
 	}
 	return nil
@@ -46,14 +48,14 @@ func (s *AWSFreshnessStore) StoreTrigger(
 	trigger freshness.Trigger,
 	receivedAt time.Time,
 ) (freshness.StoredTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return freshness.StoredTrigger{}, errors.New("AWS freshness store database is required")
 	}
 	stored, err := freshness.NewStoredTrigger(trigger, receivedAt)
 	if err != nil {
 		return freshness.StoredTrigger{}, err
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		storeAWSFreshnessTriggerQuery,
 		stored.TriggerID,
@@ -103,7 +105,7 @@ func (s *AWSFreshnessStore) ClaimQueuedTriggers(
 	limit int,
 	leaseDuration time.Duration,
 ) ([]freshness.StoredTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("AWS freshness store database is required")
 	}
 	owner = strings.TrimSpace(owner)
@@ -120,7 +122,7 @@ func (s *AWSFreshnessStore) ClaimQueuedTriggers(
 		return nil, errors.New("AWS freshness claim lease duration must be positive")
 	}
 	claimedAtUTC := claimedAt.UTC()
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		claimQueuedAWSFreshnessTriggersQuery,
 		limit,
@@ -156,7 +158,7 @@ func (s *AWSFreshnessStore) ReapExpiredTriggerClaims(
 	asOf time.Time,
 	limit int,
 ) ([]freshness.StoredTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("AWS freshness store database is required")
 	}
 	if asOf.IsZero() {
@@ -165,7 +167,7 @@ func (s *AWSFreshnessStore) ReapExpiredTriggerClaims(
 	if limit <= 0 {
 		return nil, errors.New("AWS freshness reap limit must be positive")
 	}
-	rows, err := s.db.QueryContext(ctx, reapExpiredAWSFreshnessTriggerClaimsQuery, asOf.UTC(), limit)
+	rows, err := s.database.QueryContext(ctx, reapExpiredAWSFreshnessTriggerClaimsQuery, asOf.UTC(), limit)
 	if err != nil {
 		return nil, fmt.Errorf("reap expired AWS freshness trigger claims: %w", err)
 	}
@@ -195,7 +197,7 @@ func (s *AWSFreshnessStore) ReapExpiredTriggerClaims(
 // the case this guards against, not a failure worth surfacing as one (the
 // stale caller already lost the race and has nothing further to do).
 func (s *AWSFreshnessStore) MarkTriggersHandedOff(ctx context.Context, triggers []freshness.StoredTrigger, handedOffAt time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("AWS freshness store database is required")
 	}
 	cleaned := cleanAWSFreshnessTriggerClaims(triggers)
@@ -206,7 +208,7 @@ func (s *AWSFreshnessStore) MarkTriggersHandedOff(ctx context.Context, triggers 
 		return errors.New("AWS freshness handed_off_at is required")
 	}
 	args := awsFreshnessFencedTriggerArgs(cleaned, handedOffAt.UTC())
-	if _, err := s.db.ExecContext(ctx, buildMarkAWSFreshnessTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, buildMarkAWSFreshnessTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark AWS freshness triggers handed off: %w", err)
 	}
 	return nil
@@ -222,7 +224,7 @@ func (s *AWSFreshnessStore) MarkTriggersFailed(
 	failureClass string,
 	failureMessage string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("AWS freshness store database is required")
 	}
 	cleaned := cleanAWSFreshnessTriggerClaims(triggers)
@@ -237,7 +239,7 @@ func (s *AWSFreshnessStore) MarkTriggersFailed(
 		return errors.New("AWS freshness failure class is required")
 	}
 	args := awsFreshnessFencedTriggerArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
-	if _, err := s.db.ExecContext(ctx, buildMarkAWSFreshnessTriggersFailedQuery(len(cleaned)), args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, buildMarkAWSFreshnessTriggersFailedQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark AWS freshness triggers failed: %w", err)
 	}
 	return nil
@@ -246,7 +248,7 @@ func (s *AWSFreshnessStore) MarkTriggersFailed(
 // scanAWSFreshnessTrigger scans a row shape ending in claim_fencing_token.
 // Callers that RETURNING a row without that trailing column (none currently)
 // must not use this scanner.
-func scanAWSFreshnessTrigger(rows Rows) (freshness.StoredTrigger, error) {
+func scanAWSFreshnessTrigger(rows db.Rows) (freshness.StoredTrigger, error) {
 	var stored freshness.StoredTrigger
 	var kind, status string
 	if err := rows.Scan(

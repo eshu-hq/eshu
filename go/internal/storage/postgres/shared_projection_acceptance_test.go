@@ -10,13 +10,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 func TestSharedProjectionAcceptanceStoreUpsertAndLookup(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedProjectionAcceptanceTestDB()
-	store := NewSharedProjectionAcceptanceStore(db)
+	database := newSharedProjectionAcceptanceTestDB()
+	store := NewSharedProjectionAcceptanceStore(database)
 	ctx := context.Background()
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -50,8 +52,8 @@ func TestSharedProjectionAcceptanceStoreUpsertAndLookup(t *testing.T) {
 func TestSharedProjectionAcceptanceStoreLookupByUnitReturnsNewest(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedProjectionAcceptanceTestDB()
-	store := NewSharedProjectionAcceptanceStore(db)
+	database := newSharedProjectionAcceptanceTestDB()
+	store := NewSharedProjectionAcceptanceStore(database)
 	ctx := context.Background()
 
 	oldTime := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
@@ -94,8 +96,8 @@ func TestSharedProjectionAcceptanceStoreLookupByUnitReturnsNewest(t *testing.T) 
 func TestSharedProjectionAcceptanceStoreLookupNotFound(t *testing.T) {
 	t.Parallel()
 
-	db := newSharedProjectionAcceptanceTestDB()
-	store := NewSharedProjectionAcceptanceStore(db)
+	database := newSharedProjectionAcceptanceTestDB()
+	store := NewSharedProjectionAcceptanceStore(database)
 
 	gotGeneration, gotFound, err := store.Lookup(context.Background(), "scope:none", "unit:none", "run-none")
 	if err != nil {
@@ -147,8 +149,8 @@ func newSharedProjectionAcceptanceTestDB() *sharedProjectionAcceptanceTestDB {
 	}
 }
 
-func (db *sharedProjectionAcceptanceTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
-	db.execCalls++
+func (database *sharedProjectionAcceptanceTestDB) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	database.execCalls++
 
 	switch {
 	case strings.Contains(query, "INSERT INTO shared_projection_acceptance"):
@@ -164,7 +166,7 @@ func (db *sharedProjectionAcceptanceTestDB) ExecContext(_ context.Context, query
 				acceptedAt:       args[offset+4].(time.Time),
 				updatedAt:        args[offset+5].(time.Time),
 			}
-			db.rows[acceptanceKey(row.scopeID, row.acceptanceUnitID, row.sourceRunID)] = row
+			database.rows[acceptanceKey(row.scopeID, row.acceptanceUnitID, row.sourceRunID)] = row
 		}
 		return sharedIntentResult{}, nil
 
@@ -176,15 +178,15 @@ func (db *sharedProjectionAcceptanceTestDB) ExecContext(_ context.Context, query
 	}
 }
 
-func (db *sharedProjectionAcceptanceTestDB) QueryContext(_ context.Context, query string, args ...any) (Rows, error) {
-	rows := make([]sharedProjectionAcceptanceRow, 0, len(db.rows))
-	for _, row := range db.rows {
+func (database *sharedProjectionAcceptanceTestDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	rows := make([]sharedProjectionAcceptanceRow, 0, len(database.rows))
+	for _, row := range database.rows {
 		rows = append(rows, row)
 	}
 	return queryAcceptanceRows(rows, query, args...)
 }
 
-func queryAcceptanceRows(rows []sharedProjectionAcceptanceRow, query string, args ...any) (Rows, error) {
+func queryAcceptanceRows(rows []sharedProjectionAcceptanceRow, query string, args ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "WHERE scope_id = $1"):
 		if len(args) != 3 {

@@ -98,7 +98,7 @@ func TestBrowserSessionStoreListSessionsBySubjectQueryIncludesRequiredClauses(t 
 func TestBrowserSessionStoreListSessionsBySubjectNilDatabase(t *testing.T) {
 	t.Parallel()
 
-	store := &BrowserSessionStore{db: nil}
+	store := &BrowserSessionStore{database: nil}
 	_, err := store.ListSessionsBySubject(nil, "subject-hash", time.Now(), "", 20, 0) //nolint:staticcheck
 	if err == nil {
 		t.Fatal("expected error for nil database, got nil")
@@ -111,7 +111,7 @@ func TestBrowserSessionStoreListSessionsBySubjectRejectsBlankInputs(t *testing.T
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	store := &BrowserSessionStore{db: db}
+	store := &BrowserSessionStore{database: db}
 	now := time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC)
 
 	if _, err := store.ListSessionsBySubject(nil, "", now, "", 20, 0); err == nil { //nolint:staticcheck

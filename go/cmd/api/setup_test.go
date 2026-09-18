@@ -11,12 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstorage "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-// fakeSetupAdapterDB is a minimal in-memory pgstorage.ExecQueryer routing on
+// fakeSetupAdapterDB is a minimal in-memory db.ExecQueryer routing on
 // query substrings, tailored to postgresSetupAdapter's read/write shapes
 // (string-valued columns, unlike fakeSeedDB's int-only fakeSeedRows).
 type fakeSetupAdapterDB struct {
@@ -34,30 +36,30 @@ func (f *fakeSetupAdapterDB) ExecContext(_ context.Context, query string, args .
 	return fakeSetupResult{}, nil
 }
 
-// Begin satisfies pgstorage.Beginner so CompleteSetupMFA's transaction-scoped
+// Begin satisfies db.Beginner so CompleteSetupMFA's transaction-scoped
 // advisory-lock critical section can run against this fake: the transaction
 // just delegates Exec/Query to the same underlying fake so query routing and
 // exec-call recording stay in one place.
-func (f *fakeSetupAdapterDB) Begin(context.Context) (pgstorage.Transaction, error) {
-	return &fakeSetupAdapterTx{db: f}, nil
+func (f *fakeSetupAdapterDB) Begin(context.Context) (db.Transaction, error) {
+	return &fakeSetupAdapterTx{database: f}, nil
 }
 
 type fakeSetupAdapterTx struct {
-	db *fakeSetupAdapterDB
+	database *fakeSetupAdapterDB
 }
 
 func (tx *fakeSetupAdapterTx) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	return tx.db.ExecContext(ctx, query, args...)
+	return tx.database.ExecContext(ctx, query, args...)
 }
 
-func (tx *fakeSetupAdapterTx) QueryContext(ctx context.Context, query string, args ...any) (pgstorage.Rows, error) {
-	return tx.db.QueryContext(ctx, query, args...)
+func (tx *fakeSetupAdapterTx) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return tx.database.QueryContext(ctx, query, args...)
 }
 
 func (tx *fakeSetupAdapterTx) Commit() error   { return nil }
 func (tx *fakeSetupAdapterTx) Rollback() error { return nil }
 
-func (f *fakeSetupAdapterDB) QueryContext(_ context.Context, query string, _ ...any) (pgstorage.Rows, error) {
+func (f *fakeSetupAdapterDB) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
 	switch {
 	case strings.Contains(query, "SELECT consumed_at IS NOT NULL"):
 		if f.consumedStateRow == nil {
@@ -217,11 +219,11 @@ func TestSetupAdapterVerifyBootstrapCredentialFailsClosedWithoutKeyring(t *testi
 func TestSetupAdapterResolveSetupOwner(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeSetupAdapterDB{
+	database := &fakeSetupAdapterDB{
 		subjectHashRow: []any{"sha256:owner-subject"},
 		ownerRow:       []any{"user-1"},
 	}
-	adapter := &postgresSetupAdapter{store: pgstorage.NewIdentitySubjectStore(db)}
+	adapter := &postgresSetupAdapter{store: pgstorage.NewIdentitySubjectStore(database)}
 
 	owner, err := adapter.ResolveSetupOwner(context.Background())
 	if err != nil {
@@ -243,13 +245,13 @@ func TestSetupAdapterResolveSetupOwner(t *testing.T) {
 func TestSetupAdapterCompleteSetupMFADelegatesToAtomicStoreMethod(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeSetupAdapterDB{
+	database := &fakeSetupAdapterDB{
 		// selectBootstrapCredentialConsumedState (the first QueryContext
 		// inside CompleteSetupMFA's transaction, run under the advisory
 		// lock): not yet consumed.
 		consumedStateRow: []any{false},
 	}
-	adapter := &postgresSetupAdapter{store: pgstorage.NewIdentitySubjectStore(db)}
+	adapter := &postgresSetupAdapter{store: pgstorage.NewIdentitySubjectStore(database)}
 
 	completed, err := adapter.CompleteSetupMFA(context.Background(), query.CompleteSetupMFAInput{
 		TenantID:           pgstorage.BootstrapAdminTenantID,
@@ -268,7 +270,7 @@ func TestSetupAdapterCompleteSetupMFADelegatesToAtomicStoreMethod(t *testing.T) 
 		t.Fatal("CompleteSetupMFA() completed = false, want true")
 	}
 	foundLock, foundConsume := false, false
-	for _, exec := range db.execs {
+	for _, exec := range database.execs {
 		if strings.Contains(exec, "pg_advisory_xact_lock(3456)") {
 			foundLock = true
 		}
@@ -277,6 +279,6 @@ func TestSetupAdapterCompleteSetupMFADelegatesToAtomicStoreMethod(t *testing.T) 
 		}
 	}
 	if !foundLock || !foundConsume {
-		t.Fatalf("CompleteSetupMFA did not run the expected lock+consume statements: execs = %#v", db.execs)
+		t.Fatalf("CompleteSetupMFA did not run the expected lock+consume statements: execs = %#v", database.execs)
 	}
 }

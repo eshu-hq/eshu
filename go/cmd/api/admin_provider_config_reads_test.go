@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/samlauth"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -279,7 +281,7 @@ func TestDecodeProviderConfigurationNilLoggerSafe(t *testing.T) {
 	}
 }
 
-// emptyProviderConfigListDB is a minimal pgstatus.ExecQueryer returning zero
+// emptyProviderConfigListDB is a minimal db.ExecQueryer returning zero
 // rows for ListProviderConfigs, so tests can exercise
 // providerConfigReadAdapter.ListProviderConfigDetails' synthesis/dedupe logic
 // without a real database.
@@ -289,7 +291,7 @@ func (emptyProviderConfigListDB) ExecContext(context.Context, string, ...any) (s
 	return nil, nil
 }
 
-func (emptyProviderConfigListDB) QueryContext(context.Context, string, ...any) (pgstatus.Rows, error) {
+func (emptyProviderConfigListDB) QueryContext(context.Context, string, ...any) (db.Rows, error) {
 	return &emptyProviderConfigListRows{}, nil
 }
 
@@ -310,7 +312,7 @@ func (collisionSAMLProviderConfigDB) ExecContext(context.Context, string, ...any
 	return nil, nil
 }
 
-func (d collisionSAMLProviderConfigDB) QueryContext(_ context.Context, query string, args ...any) (pgstatus.Rows, error) {
+func (d collisionSAMLProviderConfigDB) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
 	if strings.Contains(query, "pc.provider_kind = 'external_saml'") && len(args) == 1 {
 		if id, ok := args[0].(string); ok && id == d.activeSAMLID {
 			return &singleStringRows{value: d.activeSAMLID}, nil

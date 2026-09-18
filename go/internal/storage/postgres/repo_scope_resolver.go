@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
@@ -40,7 +42,7 @@ ORDER BY repo_id, observed_at DESC, fact_id DESC
 // RepoScopeResolver resolves repository graph IDs to their active scope and
 // generation identities. Implements reducer.DeploymentRepoScopeResolver.
 type RepoScopeResolver struct {
-	DB Queryer
+	DB db.Queryer
 }
 
 // ResolveRepoActiveGenerations returns the active scope and generation for each

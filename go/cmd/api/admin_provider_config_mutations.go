@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -32,7 +34,7 @@ import (
 // the issue #5604 enable-time login-readiness guard — see
 // query.AdminProviderConfigMutationHandler.ReadStore's doc comment.
 func newAdminProviderConfigMutationHandler(
-	db *sql.DB,
+	database *sql.DB,
 	governanceAudit query.GovernanceAuditSummaryReader,
 	keyring *secretcrypto.Keyring,
 	tester query.ProviderConfigConnectionTester,
@@ -44,10 +46,10 @@ func newAdminProviderConfigMutationHandler(
 		Audit:  adminRecoveryAuditAppender(governanceAudit),
 		Tester: tester,
 	}
-	if store := newProviderConfigMutationAdapter(db, keyring, oidcLoginHandler, samlHandler); store != nil {
+	if store := newProviderConfigMutationAdapter(database, keyring, oidcLoginHandler, samlHandler); store != nil {
 		handler.Store = store
 	}
-	if readStore := newProviderConfigReadAdapter(db, oidcLoginHandler, samlHandler, logger); readStore != nil {
+	if readStore := newProviderConfigReadAdapter(database, oidcLoginHandler, samlHandler, logger); readStore != nil {
 		handler.ReadStore = readStore
 	}
 	return handler
@@ -81,15 +83,15 @@ type providerConfigMutationAdapter struct {
 }
 
 func newProviderConfigMutationAdapter(
-	db *sql.DB,
+	rawDB *sql.DB,
 	keyring *secretcrypto.Keyring,
 	oidcLoginHandler *query.OIDCLoginHandler,
 	samlHandler *query.SAMLHandler,
 ) *providerConfigMutationAdapter {
-	if db == nil {
+	if rawDB == nil {
 		return nil
 	}
-	store := pgstatus.NewIdentitySubjectStore(pgstatus.ExecQueryer(pgstatus.SQLDB{DB: db}))
+	store := pgstatus.NewIdentitySubjectStore(db.ExecQueryer(pgstatus.SQLDB{DB: rawDB}))
 	store.SetProviderSecretKeyring(keyring)
 	return &providerConfigMutationAdapter{
 		store:          store,

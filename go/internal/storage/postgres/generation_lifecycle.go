@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -77,7 +79,7 @@ func (s StatusStore) ListGenerationLifecycle(
 	}, nil
 }
 
-func scanGenerationLifecycleRow(rows Rows) (statuspkg.GenerationLifecycleRecord, error) {
+func scanGenerationLifecycleRow(rows db.Rows) (statuspkg.GenerationLifecycleRecord, error) {
 	var record statuspkg.GenerationLifecycleRecord
 	var freshnessHint string
 	var observedAt sql.NullTime

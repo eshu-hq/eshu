@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
 )
@@ -17,12 +19,12 @@ import (
 // GCPFreshnessStore persists GCP Cloud Asset Inventory event-driven refresh
 // triggers for later workflow handoff.
 type GCPFreshnessStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewGCPFreshnessStore constructs a Postgres-backed GCP freshness store.
-func NewGCPFreshnessStore(db ExecQueryer) *GCPFreshnessStore {
-	return &GCPFreshnessStore{db: db}
+func NewGCPFreshnessStore(database db.ExecQueryer) *GCPFreshnessStore {
+	return &GCPFreshnessStore{database: database}
 }
 
 // GCPFreshnessSchemaSQL returns the DDL for the GCP freshness trigger store.
@@ -32,10 +34,10 @@ func GCPFreshnessSchemaSQL() string {
 
 // EnsureSchema applies the GCP freshness trigger schema.
 func (s *GCPFreshnessStore) EnsureSchema(ctx context.Context) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("GCP freshness store database is required")
 	}
-	if _, err := s.db.ExecContext(ctx, gcpFreshnessSchemaSQL); err != nil {
+	if _, err := s.database.ExecContext(ctx, gcpFreshnessSchemaSQL); err != nil {
 		return fmt.Errorf("ensure GCP freshness schema: %w", err)
 	}
 	return nil
@@ -47,14 +49,14 @@ func (s *GCPFreshnessStore) StoreTrigger(
 	trigger freshness.Trigger,
 	receivedAt time.Time,
 ) (freshness.StoredTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return freshness.StoredTrigger{}, errors.New("GCP freshness store database is required")
 	}
 	stored, err := freshness.NewStoredTrigger(trigger, receivedAt)
 	if err != nil {
 		return freshness.StoredTrigger{}, err
 	}
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		storeGCPFreshnessTriggerQuery,
 		stored.TriggerID,
@@ -103,7 +105,7 @@ func (s *GCPFreshnessStore) ClaimQueuedTriggers(
 	limit int,
 	leaseDuration time.Duration,
 ) ([]freshness.StoredTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("GCP freshness store database is required")
 	}
 	owner = strings.TrimSpace(owner)
@@ -120,7 +122,7 @@ func (s *GCPFreshnessStore) ClaimQueuedTriggers(
 		return nil, errors.New("GCP freshness claim lease duration must be positive")
 	}
 	claimedAtUTC := claimedAt.UTC()
-	rows, err := s.db.QueryContext(
+	rows, err := s.database.QueryContext(
 		ctx,
 		claimQueuedGCPFreshnessTriggersQuery,
 		limit,
@@ -157,7 +159,7 @@ func (s *GCPFreshnessStore) ReapExpiredTriggerClaims(
 	asOf time.Time,
 	limit int,
 ) ([]freshness.StoredTrigger, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, errors.New("GCP freshness store database is required")
 	}
 	if asOf.IsZero() {
@@ -166,7 +168,7 @@ func (s *GCPFreshnessStore) ReapExpiredTriggerClaims(
 	if limit <= 0 {
 		return nil, errors.New("GCP freshness reap limit must be positive")
 	}
-	rows, err := s.db.QueryContext(ctx, reapExpiredGCPFreshnessTriggerClaimsQuery, asOf.UTC(), limit)
+	rows, err := s.database.QueryContext(ctx, reapExpiredGCPFreshnessTriggerClaimsQuery, asOf.UTC(), limit)
 	if err != nil {
 		return nil, fmt.Errorf("reap expired GCP freshness trigger claims: %w", err)
 	}
@@ -196,7 +198,7 @@ func (s *GCPFreshnessStore) ReapExpiredTriggerClaims(
 // the case this guards against, not a failure worth surfacing as one (the
 // stale caller already lost the race and has nothing further to do).
 func (s *GCPFreshnessStore) MarkTriggersHandedOff(ctx context.Context, triggers []freshness.StoredTrigger, handedOffAt time.Time) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("GCP freshness store database is required")
 	}
 	cleaned := cleanGCPFreshnessTriggerClaims(triggers)
@@ -207,7 +209,7 @@ func (s *GCPFreshnessStore) MarkTriggersHandedOff(ctx context.Context, triggers 
 		return errors.New("GCP freshness handed_off_at is required")
 	}
 	args := gcpFreshnessFencedTriggerArgs(cleaned, handedOffAt.UTC())
-	if _, err := s.db.ExecContext(ctx, buildMarkGCPFreshnessTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, buildMarkGCPFreshnessTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark GCP freshness triggers handed off: %w", err)
 	}
 	return nil
@@ -223,7 +225,7 @@ func (s *GCPFreshnessStore) MarkTriggersFailed(
 	failureClass string,
 	failureMessage string,
 ) error {
-	if s.db == nil {
+	if s.database == nil {
 		return errors.New("GCP freshness store database is required")
 	}
 	cleaned := cleanGCPFreshnessTriggerClaims(triggers)
@@ -238,7 +240,7 @@ func (s *GCPFreshnessStore) MarkTriggersFailed(
 		return errors.New("GCP freshness failure class is required")
 	}
 	args := gcpFreshnessFencedTriggerArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
-	if _, err := s.db.ExecContext(ctx, buildMarkGCPFreshnessTriggersFailedQuery(len(cleaned)), args...); err != nil {
+	if _, err := s.database.ExecContext(ctx, buildMarkGCPFreshnessTriggersFailedQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark GCP freshness triggers failed: %w", err)
 	}
 	return nil
@@ -247,7 +249,7 @@ func (s *GCPFreshnessStore) MarkTriggersFailed(
 // scanGCPFreshnessTrigger scans a row shape ending in claim_fencing_token.
 // Callers that RETURNING a row without that trailing column (none currently)
 // must not use this scanner.
-func scanGCPFreshnessTrigger(rows Rows) (freshness.StoredTrigger, error) {
+func scanGCPFreshnessTrigger(rows db.Rows) (freshness.StoredTrigger, error) {
 	var stored freshness.StoredTrigger
 	var kind, parentScopeKind, status string
 	if err := rows.Scan(

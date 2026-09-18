@@ -6,6 +6,8 @@ package main
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -22,11 +24,11 @@ import (
 //
 // Returning nil when a concern is disabled keeps its producers and gate at the
 // pre-gate behavior with zero extra write.
-func endpointPresenceWiring(enabled bool, db postgres.ExecQueryer) (reducer.EndpointPresenceWriter, reducer.EndpointPresenceLookup) {
+func endpointPresenceWiring(enabled bool, database db.ExecQueryer) (reducer.EndpointPresenceWriter, reducer.EndpointPresenceLookup) {
 	if !enabled {
 		return nil, nil
 	}
-	store := postgres.NewGraphEndpointPresenceStore(db)
+	store := postgres.NewGraphEndpointPresenceStore(database)
 	return store, store
 }
 
@@ -64,10 +66,10 @@ type endpointPresenceWirings struct {
 func newEndpointPresenceWirings(
 	getenv func(string) string,
 	secretsIAMEnabled bool,
-	db postgres.ExecQueryer,
+	database db.ExecQueryer,
 ) endpointPresenceWirings {
-	siWriter, siLookup := endpointPresenceWiring(secretsIAMEnabled, db)
-	hrWriter, hrLookup := endpointPresenceWiring(handlesRouteEndpointPresenceGateEnabled(getenv), db)
+	siWriter, siLookup := endpointPresenceWiring(secretsIAMEnabled, database)
+	hrWriter, hrLookup := endpointPresenceWiring(handlesRouteEndpointPresenceGateEnabled(getenv), database)
 	return endpointPresenceWirings{
 		secretsIAMWriter:   siWriter,
 		secretsIAMLookup:   siLookup,

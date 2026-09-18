@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 )
@@ -96,7 +98,7 @@ func NewRelationshipGenerationsIncompleteScopesLookup(
 func (s *RelationshipStore) IncompleteActiveScopeRelationshipGenerations(
 	ctx context.Context,
 ) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, incompleteActiveScopeRelationshipGenerationsSQL)
+	rows, err := s.database.QueryContext(ctx, incompleteActiveScopeRelationshipGenerationsSQL)
 	if err != nil {
 		return nil, fmt.Errorf("query incomplete scope relationship generations: %w", err)
 	}
@@ -124,8 +126,8 @@ func (s *RelationshipStore) IncompleteActiveScopeRelationshipGenerations(
 // single indexed key read. A lookup error fails safe as not-found, and
 // request-scoped cancellation is enforced by the fence and queue layers
 // above (#6730).
-func NewAcceptedGenerationLookup(db ExecQueryer) reducer.AcceptedGenerationLookup {
-	store := NewSharedProjectionAcceptanceStore(db)
+func NewAcceptedGenerationLookup(database db.ExecQueryer) reducer.AcceptedGenerationLookup {
+	store := NewSharedProjectionAcceptanceStore(database)
 	return func(key reducer.SharedProjectionAcceptanceKey) (string, bool) {
 		generationID, found, err := store.Lookup(
 			context.Background(),
@@ -144,8 +146,8 @@ func NewAcceptedGenerationLookup(db ExecQueryer) reducer.AcceptedGenerationLooku
 // partition slice and returns an in-memory lookup closure for the reducer hot
 // path. This keeps the shared runner collector-agnostic while avoiding repeated
 // store calls for duplicate bounded-unit keys.
-func NewAcceptedGenerationPrefetch(db ExecQueryer) reducer.AcceptedGenerationPrefetch {
-	store := NewSharedProjectionAcceptanceStore(db)
+func NewAcceptedGenerationPrefetch(database db.ExecQueryer) reducer.AcceptedGenerationPrefetch {
+	store := NewSharedProjectionAcceptanceStore(database)
 
 	return func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (reducer.AcceptedGenerationLookup, error) {
 		acceptedByKey := make(map[reducer.SharedProjectionAcceptanceKey]string, len(intents))
@@ -191,7 +193,7 @@ func NewAcceptedGenerationPrefetch(db ExecQueryer) reducer.AcceptedGenerationPre
 func (s *RelationshipStore) AreActiveScopeRelationshipGenerationsComplete(
 	ctx context.Context,
 ) (bool, error) {
-	rows, err := s.db.QueryContext(ctx, activeScopeRelationshipGenerationsCompleteSQL)
+	rows, err := s.database.QueryContext(ctx, activeScopeRelationshipGenerationsCompleteSQL)
 	if err != nil {
 		return false, fmt.Errorf("query active scope relationship generations complete: %w", err)
 	}

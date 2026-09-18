@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
@@ -52,12 +54,12 @@ LIMIT $1
 // needs a curated search-document projection. It implements
 // projector.PendingSearchDocumentLister.
 type EshuSearchDocumentPendingStore struct {
-	db ExecQueryer
+	database db.ExecQueryer
 }
 
 // NewEshuSearchDocumentPendingStore builds a pending-projection lister over db.
-func NewEshuSearchDocumentPendingStore(db ExecQueryer) EshuSearchDocumentPendingStore {
-	return EshuSearchDocumentPendingStore{db: db}
+func NewEshuSearchDocumentPendingStore(database db.ExecQueryer) EshuSearchDocumentPendingStore {
+	return EshuSearchDocumentPendingStore{database: database}
 }
 
 // ListPendingSearchDocumentScopes returns repository scopes with indexed content
@@ -67,7 +69,7 @@ func (s EshuSearchDocumentPendingStore) ListPendingSearchDocumentScopes(
 	ctx context.Context,
 	limit int,
 ) ([]projector.PendingSearchDocumentScope, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, fmt.Errorf("eshu search document pending store requires a database")
 	}
 	if limit <= 0 {
@@ -77,7 +79,7 @@ func (s EshuSearchDocumentPendingStore) ListPendingSearchDocumentScopes(
 		limit = eshuSearchDocumentPendingMaxLimit
 	}
 
-	rows, err := s.db.QueryContext(ctx, listPendingSearchDocumentScopesQuery, limit)
+	rows, err := s.database.QueryContext(ctx, listPendingSearchDocumentScopesQuery, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list pending search document scopes: %w", err)
 	}

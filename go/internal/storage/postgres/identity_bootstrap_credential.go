@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 // ErrBootstrapCredentialNotFound indicates no bootstrap credential row exists
@@ -99,10 +101,10 @@ type ResetBootstrapCredentialInput struct {
 // replica's bootstrap attempt is harmless: the atomic method's own
 // check-then-insert still applies.
 func (s *IdentitySubjectStore) HasBootstrappedLocalIdentity(ctx context.Context) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, errors.New("identity subject store database is required")
 	}
-	count, err := countExistingLocalIdentityUsers(ctx, s.db)
+	count, err := countExistingLocalIdentityUsers(ctx, s.database)
 	if err != nil {
 		return false, err
 	}
@@ -219,7 +221,7 @@ func (s *IdentitySubjectStore) GenerateBootstrapAdminWithCredential(
 // insertBootstrapCredentialInTx performs the advisory-locked idempotent
 // insert shared by GenerateBootstrapCredential and
 // GenerateBootstrapAdminWithCredential.
-func insertBootstrapCredentialInTx(ctx context.Context, tx Transaction, seal BootstrapCredentialSeal) (bool, error) {
+func insertBootstrapCredentialInTx(ctx context.Context, tx db.Transaction, seal BootstrapCredentialSeal) (bool, error) {
 	seal = normalizeBootstrapCredentialSeal(seal)
 	if err := validateBootstrapCredentialSeal(seal); err != nil {
 		return false, err
@@ -259,7 +261,7 @@ func (s *IdentitySubjectStore) SelectBootstrapCredential(
 	ctx context.Context,
 	tenantID, workspaceID string,
 ) (OpenableBootstrapCredential, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return OpenableBootstrapCredential{}, false, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
@@ -267,7 +269,7 @@ func (s *IdentitySubjectStore) SelectBootstrapCredential(
 	if tenantID == "" || workspaceID == "" {
 		return OpenableBootstrapCredential{}, false, errors.New("select bootstrap credential requires tenant_id and workspace_id")
 	}
-	rows, err := s.db.QueryContext(ctx, selectBootstrapCredentialQuery, tenantID, workspaceID)
+	rows, err := s.database.QueryContext(ctx, selectBootstrapCredentialQuery, tenantID, workspaceID)
 	if err != nil {
 		return OpenableBootstrapCredential{}, false, fmt.Errorf("select bootstrap credential: %w", err)
 	}
@@ -297,7 +299,7 @@ func (s *IdentitySubjectStore) ConsumeBootstrapCredential(
 	tenantID, workspaceID, subjectIDHash string,
 	consumedAt time.Time,
 ) (bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return false, errors.New("identity subject store database is required")
 	}
 	tenantID = strings.TrimSpace(tenantID)
@@ -311,7 +313,7 @@ func (s *IdentitySubjectStore) ConsumeBootstrapCredential(
 	} else {
 		consumedAt = consumedAt.UTC()
 	}
-	result, err := s.db.ExecContext(ctx, consumeBootstrapCredentialQuery, tenantID, workspaceID, subjectIDHash, consumedAt)
+	result, err := s.database.ExecContext(ctx, consumeBootstrapCredentialQuery, tenantID, workspaceID, subjectIDHash, consumedAt)
 	if err != nil {
 		return false, fmt.Errorf("consume bootstrap credential: %w", err)
 	}
@@ -417,10 +419,10 @@ func (s *IdentitySubjectStore) ResetBootstrapCredential(
 
 func selectBootstrapCredentialSubject(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	tenantID, workspaceID string,
 ) (string, error) {
-	rows, err := db.QueryContext(ctx, selectBootstrapCredentialSubjectQuery, tenantID, workspaceID)
+	rows, err := database.QueryContext(ctx, selectBootstrapCredentialSubjectQuery, tenantID, workspaceID)
 	if err != nil {
 		return "", fmt.Errorf("select bootstrap credential subject: %w", err)
 	}
@@ -440,10 +442,10 @@ func selectBootstrapCredentialSubject(
 
 func selectBootstrapCredentialOwnerUserID(
 	ctx context.Context,
-	db ExecQueryer,
+	database db.ExecQueryer,
 	subjectIDHash string,
 ) (string, error) {
-	rows, err := db.QueryContext(ctx, selectBootstrapCredentialOwnerUserIDQuery, subjectIDHash)
+	rows, err := database.QueryContext(ctx, selectBootstrapCredentialOwnerUserIDQuery, subjectIDHash)
 	if err != nil {
 		return "", fmt.Errorf("select bootstrap credential owner: %w", err)
 	}

@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -58,7 +60,7 @@ type deferredScopedFactLoadTask struct {
 // corpus scan and is not a regression.
 func loadActiveScopeGenerationPartitions(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 ) ([]scopeGenerationPartition, error) {
 	if queryer == nil {
 		return nil, nil
@@ -141,7 +143,7 @@ func loadActiveScopeGenerationPartitions(
 // provably redundant" rather than "every partition is redundant".
 func (s IngestionStore) loadDeferredAnchorScopedRelationshipFacts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	catalog []relationships.CatalogEntry,
 	instruments *telemetry.Instruments,
 ) ([]facts.Envelope, map[string]string, map[scopeGenerationPartition]struct{}, error) {
@@ -214,7 +216,7 @@ func (s IngestionStore) loadDeferredAnchorScopedRelationshipFacts(
 // at read time, rather than re-derived later from the memo table.
 func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	params deferredScopedFactQueryParams,
 	partitions []scopeGenerationPartition,
 	instruments *telemetry.Instruments,
@@ -242,8 +244,8 @@ func (s IngestionStore) loadDeferredScopedFactsAcrossPartitions(
 	// rows into (the exact issue #4770/#4816 bug this return value exists to
 	// prevent).
 	var skippedPartitions map[scopeGenerationPartition]struct{}
-	if s.db != nil {
-		memoStore := newDeferredBackfillPartitionMemoStore(s.db)
+	if s.database != nil {
+		memoStore := newDeferredBackfillPartitionMemoStore(s.database)
 		fingerprint := deferredCatalogFingerprint(params)
 		gateResult, err := applyDeferredPartitionMemoGate(ctx, memoStore, partitions, fingerprint, instruments)
 		if err != nil {
@@ -469,7 +471,7 @@ func buildDeferredScopedFactLoadTasks(
 // the anchor set is still resolvable.
 func (s IngestionStore) appendArgoCDGeneratorConfigFacts(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	catalog []relationships.CatalogEntry,
 	loaded []facts.Envelope,
 ) ([]facts.Envelope, error) {

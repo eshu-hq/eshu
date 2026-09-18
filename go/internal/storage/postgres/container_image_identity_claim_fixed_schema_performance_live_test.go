@@ -55,14 +55,14 @@ func TestContainerImageIdentityClaimFixedSchemaPerformanceLive(t *testing.T) {
 		}
 
 		baselineQueue := ReducerQueue{
-			db:            SQLDB{DB: baselineDB},
+			database:      SQLDB{DB: baselineDB},
 			LeaseOwner:    owner,
 			LeaseDuration: time.Minute,
 			Now:           func() time.Time { return now },
 			ClaimDomain:   reducer.DomainContainerImageIdentity,
 		}
 		candidateQueue := baselineQueue
-		candidateQueue.db = SQLDB{DB: candidateDB}
+		candidateQueue.database = SQLDB{DB: candidateDB}
 		before, after := measureContainerImageIdentityAckTwinPair(
 			t,
 			warmups,

@@ -13,6 +13,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -22,8 +24,8 @@ const (
 )
 
 type schemaConnectionExecutor struct {
-	db   SQLDB
-	conn *sql.Conn
+	database SQLDB
+	conn     *sql.Conn
 }
 
 type schemaMigrationTracker interface {
@@ -324,7 +326,7 @@ func (executor schemaConnectionExecutor) execContextWithLockTimeout(
 	); err != nil {
 		return nil, fmt.Errorf("set schema lock timeout: %w", err)
 	}
-	if err := executor.db.dropInvalidConcurrentIndexes(
+	if err := executor.database.dropInvalidConcurrentIndexes(
 		ctx,
 		executor.conn,
 		concurrentIndexNamesForInvalidCleanup(query),
@@ -335,15 +337,15 @@ func (executor schemaConnectionExecutor) execContextWithLockTimeout(
 	return result, errors.Join(execErr, resetSchemaLockTimeout(executor.conn))
 }
 
-func (db SQLDB) withSchemaBootstrapLock(
+func (database SQLDB) withSchemaBootstrapLock(
 	ctx context.Context,
 	waitTimeout time.Duration,
-	apply func(Executor) error,
+	apply func(db.Executor) error,
 ) error {
-	if db.DB == nil {
+	if database.DB == nil {
 		return fmt.Errorf("postgres SQLDB requires a database handle")
 	}
-	conn, err := db.DB.Conn(ctx)
+	conn, err := database.DB.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("open schema bootstrap connection: %w", err)
 	}
@@ -365,7 +367,7 @@ func (db SQLDB) withSchemaBootstrapLock(
 		return fmt.Errorf("acquire schema bootstrap ownership: %w", err)
 	}
 
-	applyErr := apply(schemaConnectionExecutor{db: db, conn: conn})
+	applyErr := apply(schemaConnectionExecutor{database: database, conn: conn})
 	unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer unlockCancel()
 	_, unlockErr := conn.ExecContext(

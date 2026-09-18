@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
@@ -92,7 +94,7 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	ctx context.Context,
 	filter reducer.SupplyChainImpactFactFilter,
 ) ([]facts.Envelope, bool, error) {
-	if s.db == nil {
+	if s.database == nil {
 		return nil, false, fmt.Errorf("fact store database is required")
 	}
 	normalizeSupplyChainImpactFactFilter(&filter)
@@ -102,7 +104,7 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 
 	var loaded []facts.Envelope
 	var truncated bool
-	err := withReadOnlyRepeatableRead(ctx, s.db, func(queryer Queryer) error {
+	err := withReadOnlyRepeatableRead(ctx, s.database, func(queryer db.Queryer) error {
 		state := supplyChainImpactPagingState{seenFactIDs: make(map[string]struct{})}
 		for !state.legacyDone || !state.identityDone {
 			if loadErr := loadActiveSupplyChainImpactFactPagePair(
@@ -127,7 +129,7 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 
 func loadActiveSupplyChainImpactFactPagePair(
 	ctx context.Context,
-	queryer Queryer,
+	queryer db.Queryer,
 	filter reducer.SupplyChainImpactFactFilter,
 	state *supplyChainImpactPagingState,
 ) error {
@@ -299,7 +301,7 @@ func (state *supplyChainImpactPagingState) acceptIdentityFact(envelope facts.Env
 	return nil
 }
 
-func scanTaggedSupplyChainImpactFact(rows Rows) (int, int64, facts.Envelope, error) {
+func scanTaggedSupplyChainImpactFact(rows db.Rows) (int, int64, facts.Envelope, error) {
 	var rank int
 	var ordinal int64
 	var envelope facts.Envelope
