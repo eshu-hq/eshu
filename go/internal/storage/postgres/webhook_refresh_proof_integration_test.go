@@ -47,6 +47,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
@@ -413,7 +414,7 @@ func webhookProofFailureDetails(t *testing.T, db *sql.DB, triggerID string) (str
 // openWebhookRefreshProofStore connects to the configured Postgres instance,
 // applies the webhook trigger schema, and isolates the proof by truncating the
 // trigger table. It skips when no DSN is set so unit-only runs stay green.
-func openWebhookRefreshProofStore(t *testing.T) (*WebhookTriggerStore, *sql.DB) {
+func openWebhookRefreshProofStore(t *testing.T) (*webhookstore.WebhookTriggerStore, *sql.DB) {
 	t.Helper()
 	dsn := os.Getenv(webhookRefreshProofDSNEnv)
 	if dsn == "" {
@@ -430,7 +431,7 @@ func openWebhookRefreshProofStore(t *testing.T) (*WebhookTriggerStore, *sql.DB) 
 		_ = db.Close()
 		t.Fatalf("PingContext() error = %v, want nil", err)
 	}
-	store := NewWebhookTriggerStore(SQLDB{DB: db})
+	store := webhookstore.NewWebhookTriggerStore(SQLDB{DB: db})
 	if err := store.EnsureSchema(ctx); err != nil {
 		_ = db.Close()
 		t.Fatalf("EnsureSchema() error = %v, want nil", err)

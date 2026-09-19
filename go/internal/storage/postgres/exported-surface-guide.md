@@ -310,7 +310,8 @@ the concrete adapters stay here.
   release with lease fencing; `ErrWorkflowClaimRejected`, `ClaimSelector`,
   `ClaimMutation`, including optional hosted tenant boundary fields copied into
   claimed fact commits
-- `WebhookTriggerStore` / `NewWebhookTriggerStore` —
+- `webhookstore.WebhookTriggerStore` / `webhookstore.NewWebhookTriggerStore`
+  (`go/internal/storage/postgres/webhook`) —
   `StoreTrigger`, `ClaimQueuedTriggers`, `MarkTriggersHandedOff`,
   `MarkTriggersFailed`, and `WebhookTriggerSchemaSQL`
 - `AWSFreshnessStore` / `NewAWSFreshnessStore` —

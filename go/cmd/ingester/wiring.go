@@ -23,6 +23,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -178,7 +179,7 @@ func buildIngesterCollectorService(
 	if handoffConfig.Enabled {
 		webhookSelector := gitrepo.WebhookTriggerRepositorySelector{
 			Config:           config,
-			Store:            postgres.NewWebhookTriggerStore(database),
+			Store:            webhookstore.NewWebhookTriggerStore(database),
 			Owner:            handoffConfig.Owner,
 			ClaimLimit:       handoffConfig.ClaimLimit,
 			Logger:           logger,

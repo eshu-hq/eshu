@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package webhookstore
 
 import (
 	"context"
@@ -152,14 +152,14 @@ func (s *WebhookTriggerStore) MarkTriggersHandedOff(ctx context.Context, trigger
 	if s.database == nil {
 		return errors.New("webhook trigger store database is required")
 	}
-	cleaned := cleanTriggerIDs(triggerIDs)
+	cleaned := db.CleanIDs(triggerIDs)
 	if len(cleaned) == 0 {
 		return errors.New("webhook trigger ids are required")
 	}
 	if handedOffAt.IsZero() {
 		return errors.New("webhook trigger handed_off_at is required")
 	}
-	args := triggerIDArgs(cleaned, handedOffAt.UTC())
+	args := db.IDArgs(cleaned, handedOffAt.UTC())
 	if _, err := s.database.ExecContext(ctx, buildMarkWebhookTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark webhook triggers handed off: %w", err)
 	}
@@ -178,7 +178,7 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 	if s.database == nil {
 		return errors.New("webhook trigger store database is required")
 	}
-	cleaned := cleanTriggerIDs(triggerIDs)
+	cleaned := db.CleanIDs(triggerIDs)
 	if len(cleaned) == 0 {
 		return errors.New("webhook trigger ids are required")
 	}
@@ -189,7 +189,7 @@ func (s *WebhookTriggerStore) MarkTriggersFailed(
 	if failureClass == "" {
 		return errors.New("webhook trigger failure class is required")
 	}
-	args := triggerIDArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
+	args := db.IDArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
 	if _, err := s.database.ExecContext(
 		ctx,
 		buildMarkWebhookTriggersFailedQuery(len(cleaned)),
@@ -294,30 +294,13 @@ func scanStoredWebhookTrigger(rows db.Rows) (webhook.StoredTrigger, error) {
 	return stored, nil
 }
 
-func cleanTriggerIDs(ids []string) []string {
-	cleaned := make([]string, 0, len(ids))
-	seen := make(map[string]struct{}, len(ids))
-	for _, id := range ids {
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		cleaned = append(cleaned, id)
-	}
-	return cleaned
-}
-
 func buildMarkWebhookTriggersHandedOffQuery(idCount int) string {
 	timestampParam := idCount + 1
 	return fmt.Sprintf(
 		markWebhookTriggersHandedOffQueryFormat,
 		timestampParam,
 		timestampParam,
-		triggerIDPlaceholders(idCount),
+		db.IDPlaceholders(idCount),
 	)
 }
 
@@ -331,22 +314,6 @@ func buildMarkWebhookTriggersFailedQuery(idCount int) string {
 		failureMessageParam,
 		timestampParam,
 		timestampParam,
-		triggerIDPlaceholders(idCount),
+		db.IDPlaceholders(idCount),
 	)
-}
-
-func triggerIDPlaceholders(count int) string {
-	placeholders := make([]string, count)
-	for i := range placeholders {
-		placeholders[i] = fmt.Sprintf("$%d", i+1)
-	}
-	return strings.Join(placeholders, ", ")
-}
-
-func triggerIDArgs(ids []string, extra ...any) []any {
-	args := make([]any, 0, len(ids)+len(extra))
-	for _, id := range ids {
-		args = append(args, id)
-	}
-	return append(args, extra...)
 }

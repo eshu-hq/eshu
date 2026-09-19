@@ -17,11 +17,15 @@
 - This package holds interfaces only: `Rows`, `Queryer`, `Executor`,
   `ExecQueryer`, `Transaction`, `Beginner`, `ReadOnlyRepeatableReadBeginner`.
   Every name, method set, and semantic matches what the postgres root
-  declared before the hoist.
-- Standard library only (`context`, `database/sql`). No I/O, no SQL text, no
-  migration state, no telemetry, no Eshu import -- importing the postgres
-  root (directly or transitively) would recreate the cycle this leaf exists
-  to prevent.
+  declared before the hoist. The one exception is the shared
+  statement-argument builders `CleanIDs`, `IDPlaceholders`, and `IDArgs`:
+  pure stdlib string/args shaping with no SQL text and no I/O, hoisted
+  byte-identically so the webhook and incident store families share one
+  implementation (see `go/internal/storage/postgres/db/README.md`).
+- Standard library only (`context`, `database/sql`, `fmt`, `strings`). No
+  I/O, no SQL text, no migration state, no telemetry, no Eshu import --
+  importing the postgres root (directly or transitively) would recreate the
+  cycle this leaf exists to prevent.
 - `postgres.SQLDB`, `postgres.SQLTx`, and `postgres.SQLQueryer` implement
   these contracts structurally. Do not redeclare concrete adapters here and
   do not add forwarding wrappers or root aliases.

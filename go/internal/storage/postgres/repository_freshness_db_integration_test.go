@@ -71,6 +71,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
@@ -221,7 +222,7 @@ func TestReadRepositoryFreshnessLiveDB(t *testing.T) {
 		seedRepositoryFreshnessWorkItem(t, ctx, db, fx.scopeID, fx.generationID, "wi-webhook-1", "reducer", "succeeded", now)
 		seedRepositoryFreshnessWorkItem(t, ctx, db, fx.scopeID, fx.generationID, "wi-webhook-2", "projector", "succeeded", now)
 
-		webhookStore := NewWebhookTriggerStore(SQLDB{DB: db})
+		webhookStore := webhookstore.NewWebhookTriggerStore(SQLDB{DB: db})
 		trigger := webhook.Trigger{
 			Provider:             webhook.ProviderGitHub,
 			EventKind:            webhook.EventKindPush,
@@ -309,7 +310,7 @@ func TestReadRepositoryFreshnessLiveDB(t *testing.T) {
 		}
 		seedRepositoryFreshnessScope(t, ctx, db, fx)
 
-		webhookStore := NewWebhookTriggerStore(SQLDB{DB: db})
+		webhookStore := webhookstore.NewWebhookTriggerStore(SQLDB{DB: db})
 		older := webhook.Trigger{
 			Provider:             webhook.ProviderGitHub,
 			EventKind:            webhook.EventKindPush,
@@ -376,7 +377,7 @@ func TestReadRepositoryFreshnessLiveDB(t *testing.T) {
 		}
 		seedRepositoryFreshnessScope(t, ctx, db, fx)
 
-		webhookStore := NewWebhookTriggerStore(SQLDB{DB: db})
+		webhookStore := webhookstore.NewWebhookTriggerStore(SQLDB{DB: db})
 		trigger := webhook.Trigger{
 			Provider:             webhook.ProviderGitHub,
 			EventKind:            webhook.EventKindPush,

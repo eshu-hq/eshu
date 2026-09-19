@@ -44,9 +44,15 @@ Every symbol keeps the exact name, method set, and semantics it had in the
 root package. There are no aliases left behind in root and no forwarding
 wrappers here.
 
+The package also holds three shared statement-argument builders --
+`CleanIDs`, `IDPlaceholders`, and `IDArgs` -- hoisted byte-identically from
+the webhook trigger store under #6693 so the webhook and incident families
+share one implementation without one family importing the other. They are
+pure stdlib string/args shaping with no SQL text and no I/O.
+
 ## Dependencies
 
-Only the Go standard library (`context`, `database/sql`). The package
+Only the Go standard library (`context`, `database/sql`, `fmt`, `strings`). The package
 performs no I/O and imports no Eshu package -- not even the postgres root.
 A `db` import of root (or of any package that imports root) would recreate
 the cycle this package exists to prevent.
@@ -81,4 +87,6 @@ generated collector entrypoints were regenerated and their gate is green.
 - `postgres.SQLDB`, `postgres.SQLTx`, and `postgres.SQLQueryer` implement
   these interfaces structurally; do not redeclare them here.
 - Keep this package free of implementation: no connection handling, no SQL
-  text, no migration state, no telemetry import.
+  text, no migration state, no telemetry import. The `CleanIDs` /
+  `IDPlaceholders` / `IDArgs` builders are the one exception: pure
+  argument shaping shared by store families.

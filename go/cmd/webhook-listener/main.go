@@ -24,6 +24,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -82,7 +83,7 @@ func run(parent context.Context) error {
 	if err != nil {
 		return err
 	}
-	store := postgres.NewWebhookTriggerStore(instrumentedDB)
+	store := webhookstore.NewWebhookTriggerStore(instrumentedDB)
 	if err := store.EnsureSchema(parent); err != nil {
 		return err
 	}

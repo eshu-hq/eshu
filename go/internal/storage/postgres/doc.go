@@ -302,8 +302,9 @@
 // forward-slash paths exclusively (path package, not
 // path/filepath) because terraform_modules.path is a Postgres-stored string,
 // not a live filesystem path.
-// WebhookTriggerStore persists provider webhook trigger decisions in
-// webhook_refresh_triggers, deduplicates refresh requests by refresh_key, moves
+// WebhookTriggerStore (webhookstore child package) persists provider webhook
+// trigger decisions in webhook_refresh_triggers, deduplicates refresh requests
+// by refresh_key, moves
 // a prior ignored row back to queued when a later accepted delivery has the
 // same refresh key, claims queued triggers with FOR UPDATE SKIP LOCKED in
 // received_at order, records handed-off rows or failed rows with failed_at,

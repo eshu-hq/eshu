@@ -139,14 +139,14 @@ func (s *IncidentFreshnessStore) MarkTriggersHandedOff(ctx context.Context, trig
 	if s.database == nil {
 		return errors.New("incident freshness store database is required")
 	}
-	cleaned := cleanTriggerIDs(triggerIDs)
+	cleaned := db.CleanIDs(triggerIDs)
 	if len(cleaned) == 0 {
 		return errors.New("incident freshness trigger ids are required")
 	}
 	if handedOffAt.IsZero() {
 		return errors.New("incident freshness handed_off_at is required")
 	}
-	args := triggerIDArgs(cleaned, handedOffAt.UTC())
+	args := db.IDArgs(cleaned, handedOffAt.UTC())
 	if _, err := s.database.ExecContext(ctx, buildMarkIncidentFreshnessTriggersHandedOffQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark incident freshness triggers handed off: %w", err)
 	}
@@ -165,7 +165,7 @@ func (s *IncidentFreshnessStore) MarkTriggersFailed(
 	if s.database == nil {
 		return errors.New("incident freshness store database is required")
 	}
-	cleaned := cleanTriggerIDs(triggerIDs)
+	cleaned := db.CleanIDs(triggerIDs)
 	if len(cleaned) == 0 {
 		return errors.New("incident freshness trigger ids are required")
 	}
@@ -176,7 +176,7 @@ func (s *IncidentFreshnessStore) MarkTriggersFailed(
 	if failureClass == "" {
 		return errors.New("incident freshness failure class is required")
 	}
-	args := triggerIDArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
+	args := db.IDArgs(cleaned, failureClass, strings.TrimSpace(failureMessage), failedAt.UTC())
 	if _, err := s.database.ExecContext(ctx, buildMarkIncidentFreshnessTriggersFailedQuery(len(cleaned)), args...); err != nil {
 		return fmt.Errorf("mark incident freshness triggers failed: %w", err)
 	}
@@ -210,7 +210,7 @@ func scanIncidentFreshnessTrigger(rows db.Rows) (webhook.StoredIncidentFreshness
 
 func buildMarkIncidentFreshnessTriggersHandedOffQuery(idCount int) string {
 	timestampParam := idCount + 1
-	return fmt.Sprintf(markIncidentFreshnessTriggersHandedOffQueryFormat, timestampParam, timestampParam, triggerIDPlaceholders(idCount))
+	return fmt.Sprintf(markIncidentFreshnessTriggersHandedOffQueryFormat, timestampParam, timestampParam, db.IDPlaceholders(idCount))
 }
 
 func buildMarkIncidentFreshnessTriggersFailedQuery(idCount int) string {
@@ -223,6 +223,6 @@ func buildMarkIncidentFreshnessTriggersFailedQuery(idCount int) string {
 		failureMessageParam,
 		timestampParam,
 		timestampParam,
-		triggerIDPlaceholders(idCount),
+		db.IDPlaceholders(idCount),
 	)
 }

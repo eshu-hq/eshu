@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -51,7 +52,7 @@ func buildCollectorService(
 		selector = gitrepo.PriorityRepositorySelector{Selectors: []gitrepo.RepositorySelector{
 			gitrepo.WebhookTriggerRepositorySelector{
 				Config:           config,
-				Store:            postgres.NewWebhookTriggerStore(database),
+				Store:            webhookstore.NewWebhookTriggerStore(database),
 				Owner:            handoffConfig.Owner,
 				ClaimLimit:       handoffConfig.ClaimLimit,
 				Logger:           logger,
