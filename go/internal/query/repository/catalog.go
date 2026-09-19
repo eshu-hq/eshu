@@ -172,10 +172,9 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 // always-false shape). The catalog is unscoped, so it takes the grouped
 // RepositoryDependencyGroupedEdgeCypher read, gated by the DEPENDS_ON
 // cardinality probe. Measured on NornicDB v1.3.3 at 500 repositories with
-// 200 files each: this function cost 0.046-0.051s before #6786 (with every
-// is_dependency false), 0.59-0.60s with the per-edge read, and the grouped
-// read removes the per-repository adjacency expansion that made up the
-// difference (see the #6786 evidence doc for the after figures).
+// 200 files each: this function cost 0.045-0.056s before #6786 (with every
+// is_dependency false), 0.60-0.66s with the per-edge read, and 0.013s with
+// the grouped read; on Neo4j 0.006s, 0.011s and 0.011s (#6786 evidence doc).
 func (h *Handler) listCatalogRepositoriesFromGraph(
 	ctx context.Context,
 	limit int,

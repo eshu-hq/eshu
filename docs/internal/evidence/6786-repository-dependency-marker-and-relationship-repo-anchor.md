@@ -207,7 +207,7 @@ upstream report.
 landed on `main` while this branch was open. It gated the same edge pre-pass
 behind `MATCH ()-[r:DEPENDS_ON]->() RETURN count(r)` for unscoped callers. The
 rebase keeps that probe inside `loadRepositoryDependencyEdges`
-(`dependency_edge_probe.go`), so the repository list and the unscoped catalog
+(`dependency_edge_unscoped.go`, formerly `dependency_edge_probe.go`), so the repository list and the unscoped catalog
 both skip the scan when the graph has no `DEPENDS_ON` edges. A skipped read
 reports `Skipped` rather than degraded: zero edges means `is_dependency` is
 false everywhere, which is complete evidence and not an incomplete marker
@@ -218,6 +218,84 @@ After the rebase, the live `TestLiveRepositoryDependencyMarkerAnswerTruth`
 pass on NornicDB v1.3.3 and Neo4j 2026. No-Regression Evidence: the probe is
 #6800's measured statement, unchanged; on a graph with edges the scan is the
 same statement this branch already measured above.
+
+### Review finding R2-F6: the catalog read on a production-shape graph
+
+The figures above (225µs; "flat at 70-80ms warm") came from seeds whose
+Repository nodes had almost no other relationships. #6794 showed that the
+per-edge read `MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) RETURN s.id,
+t.id ORDER BY ... LIMIT 50001` expands every Repository's full adjacency on
+NornicDB, costing 5.3-6.4s on a production-scale graph. Before this branch
+`GET /api/v0/catalog` issued no dependency-edge read, so that cost was new on
+the catalog. The repository list already ran it for clustering.
+
+Setup: throwaway containers, NornicDB `v1.3.3@sha256:81cedbf4...` (Bolt
+127.0.0.1:27980) and Neo4j `2026-community@sha256:eabfbb04...` (27990, auth
+off), Eshu schema applied with `graph.EnsureSchemaWithBackendStrict`. Seed,
+verified by reading rows back rather than write counters: 500 `:Repository`,
+100,000 `REPO_CONTAINS`→`:File` (200 per repository), 300,000
+`CONTAINS`→`:Function`, 500 `:Workload` (`DEFINES` from 100 repositories),
+2,000 Workload→Workload `DEPENDS_ON` on Neo4j and 2,017 on NornicDB, and 300
+Repository→Repository `DEPENDS_ON` on both. The extra 17 came from an
+interrupted batched seed and only add Workload edges, which every correct
+shape excludes. A nonce write preceded every timed call so no result cache
+could answer it, with one warm-up and then interleaved rounds (5 on NornicDB,
+7 on Neo4j), reported as medians.
+
+Row-set proof: each shape's `(source, target)` list compared with the per-edge
+read (A) at `LIMIT` 50001, 100 and 7. Grouped rows were flattened, sorted and
+clipped in Go, as `flattenGroupedRepositoryDependencyEdges` does.
+
+| Shape | NornicDB median | NornicDB rows = A | Neo4j median | Neo4j rows = A |
+| --- | --- | --- | --- | --- |
+| A: `(s:Repository)-[:DEPENDS_ON]->(t:Repository) RETURN s.id, t.id` | 0.6347s | reference (300) | 0.0050s | reference (300) |
+| `(s)-[r:DEPENDS_ON]->(t) WHERE s:Repository AND t:Repository` | 4.4858s | **no**: 2,317 rows, label filter ignored | 0.0058s | yes |
+| `()-[r:DEPENDS_ON]->()` + `WITH startNode(r), endNode(r) WHERE` labels | 4.4341s | yes | 0.0068s | yes |
+| `()-[r:DEPENDS_ON]->()` + `labels()` filtered in Go | 8.9592s | **no** | 0.0250s | no at LIMIT 7 |
+| `(s)-[r:DEPENDS_ON]->(t)` + `labels()` filtered in Go | 9.1546s | no at LIMIT 7 | 0.0248s | no at LIMIT 7 |
+| `'Repository' IN labels(s) AND ...` | 4.7772s | **no**: 2,317 rows | 0.0074s | yes |
+| `(t:Repository)<-[:DEPENDS_ON]-(s:Repository)` | 0.0090s | yes | 0.0053s | yes |
+| **Grouped: `RETURN s.id AS source_id, collect(t.id) AS target_ids ORDER BY source_id`** | **0.0045s** | **yes** | **0.0047s** | **yes** |
+
+Filtering in Go breaks truncation, because the Cypher `LIMIT` applies before
+the label filter. The target-anchored shape is fast here only because these
+seeded repositories have almost no incoming edges, which production does not
+guarantee. The grouped shape matches NornicDB v1.3.3's
+relationship-aggregation fast path (`pkg/cypher/traversal_fast_agg.go`,
+`tryFastSingleHopAgg`, commit `a9956536`): a 1-hop typed pattern with no
+`WHERE` and a `RETURN start.prop, collect(end.prop)` projection is answered
+from `GetEdgesByType` plus a batch label check, so its cost follows the
+`DEPENDS_ON` edge count, not repository adjacency.
+
+Change: unscoped callers (the catalog, and shared/admin/local repository
+lists) now use `RepositoryDependencyGroupedEdgeCypher`, still gated by the
+#6800 probe. Scoped callers keep the per-edge read, because their grant is a
+`WHERE` predicate that disables the fast path. The live
+`TestLiveRepositoryDependencyMarkerAnswerTruth` scoped case passes on both
+backends with that shape.
+
+Performance Evidence: `listCatalogRepositoriesFromGraph(ctx, 1000)` on the
+seeded graph, one warm-up and 5 rounds per build, two interleaved passes,
+medians. Builds: base `59c605e48` (per-row `EXISTS`), this branch before the
+change `fafd85714` (per-edge read), and after `b75dfbae4` (grouped read).
+
+| Backend | Base 59c605e48 | Per-edge fafd85714 | Grouped b75dfbae4 | is_dependency true (truth 215) |
+| --- | --- | --- | --- | --- |
+| NornicDB v1.3.3 | 0.0564s, 0.0450s | 0.6585s, 0.5965s | 0.0126s, 0.0131s | base 0, per-edge 215, grouped 215 |
+| Neo4j 2026 | 0.0066s, 0.0060s | 0.0114s, 0.0102s | 0.0117s, 0.0105s | 215 in all three |
+
+On NornicDB the correct catalog is now faster than the incorrect base, because
+the grouped read costs less than the per-row `EXISTS` it replaced. On Neo4j the
+probe and the grouped read add about 5ms, which is what the correctness fix
+costs there. The grouped read also replaces the per-edge read for unscoped
+`GET /api/v0/repositories`, so #6794's remaining cost on graphs that do have
+`DEPENDS_ON` edges drops for those callers too. Scoped repository lists still
+pay the per-edge expansion. Those absolute figures apply only to this shared
+host; the claim is the relative change on identical inputs.
+
+The Neo4j `PROFILE` gate for the new `QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES`
+entry passes (`TestProductionQueryplanProfilesRejectWholeGraphScans`, tag
+`queryplan_profile_live`, against the Neo4j container above).
 
 ## Observability Evidence
 
@@ -251,3 +329,14 @@ beyond this page," which a degraded auxiliary read has no bearing on
 (review F1). Both routes also still flow through the shared
 `WriteGraphReadError` / bounded-read-error telemetry path for a failure in
 their *primary* (non-dependency) reads, unchanged by this work.
+
+Observability Evidence (review finding R2-F10): the catalog's dependency-edge
+read is now timed with the same stage timer as the repository list,
+`repository_query.stage_started` / `repository_query.stage_completed` with
+`operation=catalog_list` and `stage=dependency_cluster_edges`. The completion
+event carries `duration_seconds`, `edge_count`, `truncated`, `error` and
+`edge_scan_skipped`, but no `cluster_count`, because the catalog builds no
+clusters (`TestListCatalogTimesDependencyEdgeStage`). Before this, the only
+catalog signal for the read was the degraded-read warning, so its duration was
+invisible. The contract is documented in
+`docs/public/reference/http-api/catalog-workload-selection.md`.

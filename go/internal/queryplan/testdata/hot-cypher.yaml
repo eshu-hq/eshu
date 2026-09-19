@@ -958,10 +958,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/repository/dependency_edge_probe.go
+      file: go/internal/query/repository/dependency_edge_unscoped.go
       symbol: RepositoryDependencyEdgeCountCypher
       source_sha256: 6f9fd5ec0102c88c0ca8cdbde276ef42d65ebd0e59b22d5fec681861b4d7e863
-      line_hint: 24
+      line_hint: 25
     caveats:
       - "Whole-graph DEPENDS_ON cardinality probe that gates the repository dependency-cluster edge pre-pass for unscoped callers. It is a bare relationship-type aggregate over anonymous () endpoints, answered by the NornicDB relationship-type index (measured about 0.09s on a production-scale graph where the Repository-anchored edge scan costs seconds). A zero count skips the scan; any regression that turns this into a node or label scan would restore the multi-second route cost, so the plan is frozen to the relationship-type scan."
     plan:
@@ -977,10 +977,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/repository/dependency_edge_grouped.go
+      file: go/internal/query/repository/dependency_edge_unscoped.go
       symbol: RepositoryDependencyGroupedEdgeCypher
       source_sha256: ed65d4c8419cc8cbad7002084fe61b68b624e5f15c858296e6df04ca2da60f76
-      line_hint: 45
+      line_hint: 91
     required_anchors:
       - label: Repository
         property: id

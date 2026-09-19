@@ -50,6 +50,33 @@ pins go through `querytestutil` (`FakeGraphReader`,
 `FakePortContentStore`, `FakeRepoGraphReader`, `FakeScopedTokenResolver`)
 or `querycontract` (row-value decoders, shared bounds, ports).
 
+## Dependency-edge reads
+
+`loadRepositoryDependencyEdges` is the one graph read behind repository
+dependency clusters and the `is_dependency` marker, for both
+`GET /api/v0/repositories` and `GET /api/v0/catalog`. Unscoped callers run
+the whole-graph `DEPENDS_ON` count first and skip the read when it is zero,
+then run `RepositoryDependencyGroupedEdgeCypher` (`RETURN s.id,
+collect(t.id)`), which NornicDB v1.3.3 answers from the relationship-type
+index. Scoped callers run the grant-predicated per-edge read
+(`repositoryDependencyClusterEdgeCypher`), because a `WHERE` clause disables
+that fast path. Both paths return edges sorted by (source, target) and
+clipped to 50,000, and report truncation. `dependency_edge_unscoped.go` holds
+the unscoped probe and grouped read. Measurements are in
+`docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md`.
+
+Performance Evidence (#6786 review R2-F6): on NornicDB v1.3.3 with 500
+repositories of 200 files each, the grouped read costs 0.0045s median against
+0.635s for the per-edge read, with identical row sets at LIMIT 50001, 100 and
+7 on NornicDB and Neo4j. `listCatalogRepositoriesFromGraph` went from
+0.60-0.66s (per-edge) to 0.013s.
+
+Observability Evidence (#6786 review R2-F10): both routes time the read as
+`repository_query.stage_*` with `stage=dependency_cluster_edges`
+(`operation=repository_list` or `catalog_list`), carrying `edge_count`,
+`truncated`, `error` and `edge_scan_skipped`; only the list route adds
+`cluster_count`.
+
 ## Dependencies
 
 The package imports the Go standard library, `querycontract` (types, ports,
