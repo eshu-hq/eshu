@@ -190,3 +190,69 @@ Never guard a write with `EXISTS {}`/`NOT EXISTS {}` over a pattern that only
 references row values. Anchor the check on an indexed property with
 `OPTIONAL MATCH` and filter on the bound variable. Evidence:
 `docs/internal/evidence/6798-file-create-missing-index.md`.
+
+## Pitfall: A Bare-Label `DETACH DELETE` Scans The Whole Store, Even When Nothing Matches
+
+### Observed shape
+
+On NornicDB v1.3.3, a `DETACH DELETE` whose `MATCH` is a label scan filtered by
+property predicates costs time that grows with the total number of nodes in the
+store, not with the label or the number of matching rows. A bounded retract that
+matches zero rows still pays it:
+
+```cypher
+-- SLOW when it matches nothing: ~8.5-9.3 s against a 1M-node store.
+MATCH (n:Function)
+WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
+WITH n ORDER BY elementId(n) LIMIT $batch
+DETACH DELETE n
+RETURN count(n) AS __drained
+```
+
+The same `MATCH`, `WHERE`, and `WITH ... LIMIT` as a read returned in 1-9 ms on
+a local 1M-node store and in 0.10-0.17 s on ops-qa. Dropping `ORDER BY` does
+not help and is unsafe: the bare-label `WITH n LIMIT k DETACH DELETE n` form
+still deletes zero rows with no error on v1.3.3, as it did on v1.1.9. On ops-qa
+(1.1M nodes) these retracts took 45-55 s each while deleting nothing (#6822).
+
+### Safe shape
+
+Probe once, and only run the delete when the probe finds a node:
+
+```cypher
+MATCH (n:Function)
+WHERE n.repo_id = $repo_id AND n.evidence_source = 'projector/canonical' AND n.generation_id <> $generation_id
+WITH n ORDER BY elementId(n) LIMIT 1
+RETURN elementId(n) AS __id
+```
+
+When the probe returns a row, run the single-statement bounded drain loop shown
+above until it drains zero rows. When it returns nothing, skip the drain. A
+retract with nothing to delete then costs one read bounded by its own label
+(1-9 ms for a small label on a local 1M-node store; 0.11 s and up on ops-qa)
+instead of a whole-store scan. Probe once per statement, not per batch: the
+probe scans its label, which took 0.11 s for `AtlantisProject`, 2.9-4.4 s for
+`Directory`, and 31-50 s for `Function` on the 1.1M-node ops-qa store, so
+repeating it would add that cost to every drain step. Keep the `WITH ... LIMIT`
+before `RETURN`: `MATCH ... WHERE ... RETURN elementId(n) AS id LIMIT $batch`,
+without the `WITH`, took 15-18 s on the ops-qa store.
+
+Keep the delete in the single drain statement so its `WHERE` clause is
+rechecked atomically. Do not split it into "read the element IDs, then
+`DETACH DELETE` by ID". A node that another attempt refreshed to the current
+generation between the read and the delete would be deleted, which is how a
+stale projection attempt could remove freshly projected nodes. Rechecking the
+predicate on an ID-matched node in the same statement (`MATCH (n) WHERE
+elementId(n) = __id WITH n WHERE ...`) is correct but costs a whole-store scan:
+187-292 s for 20-30 IDs against a 1M-node store. Deleting by an element ID that
+no longer exists costs a whole-store scan too.
+
+`BuildBoundedRetractProbeCypher` in `go/internal/storage/cypher` emits the probe,
+and the NornicDB phase-group executor probes once before every bare-label
+bounded drain. Relationship-anchored retracts, such as
+`(r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)`, are bounded by the
+anchor (median 0.01 s on ops-qa) and are not probed.
+
+When you probe this, give each run a unique parameter value. NornicDB serves a
+repeated identical read from its result cache, so a second run can look fast
+without the plan being fast.

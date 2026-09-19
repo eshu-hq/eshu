@@ -17,10 +17,23 @@ import (
 // clause to include a LIMIT and RETURN count(__drained), then repeats until
 // __drained == 0 or the safety cap is exceeded.
 //
-// Concurrency safety: the retract conflict_domain is scope (one worker per
-// scope). Deletes are idempotent — repeated deletes of already-absent nodes
-// return 0 without error. The loop is therefore concurrency-safe: no other
-// worker touches the same scope's prior-generation nodes during a retract.
+// A bare-label statement is probed once first (#6822): a bounded read asks
+// whether any node matches, and when none does the drain is skipped. On
+// NornicDB v1.3.3 a DETACH DELETE over a bare-label scan with property
+// predicates costs a whole-store scan even when nothing matches, while the
+// probe costs at most one scan of its own label, so a retract with nothing to
+// delete gets cheaper and one with rows to delete pays one extra read. The
+// delete itself is unchanged: the single drain statement rechecks its WHERE
+// clause atomically, so a node another attempt refreshed to the current
+// generation is never deleted.
+//
+// Concurrency safety: the retract conflict_domain is scope (one projector
+// worker per scope while its lease is live), but a stale attempt can overlap a
+// replacement after its lease expires. Safety rests on the drain statement
+// itself: it re-evaluates its WHERE clause when it deletes, so a node another
+// attempt refreshed to the current generation after the probe no longer
+// matches and is kept. Deletes are idempotent — repeated deletes of
+// already-absent nodes return 0 without error.
 func (e PhaseGroupExecutor) executeDrainLoop(
 	ctx context.Context,
 	stmt sourcecypher.Statement,
@@ -39,6 +52,13 @@ func (e PhaseGroupExecutor) executeDrainLoop(
 			stmtIdx, stmtTotal, statementSummary, err,
 		)
 	}
+	probeCypher, probed, err := sourcecypher.BuildBoundedRetractProbeCypher(stmt.Cypher, stmt.DrainVar)
+	if err != nil {
+		return fmt.Errorf(
+			"phase-group retract statement %d/%d (first_statement=%q): build probe cypher: %w",
+			stmtIdx, stmtTotal, statementSummary, err,
+		)
+	}
 
 	params := make(map[string]any, len(stmt.Parameters)+1)
 	for key, value := range stmt.Parameters {
@@ -46,12 +66,34 @@ func (e PhaseGroupExecutor) executeDrainLoop(
 	}
 	params["__retract_batch"] = int64(batch)
 
+	phaseStart := time.Now()
+	mode := "single_statement"
+	skipDrain := false
+	var probeDuration time.Duration
+	if probed {
+		mode = "probed"
+		probe, err := e.DrainReader.RunWrite(ctx, probeCypher, params)
+		probeDuration = time.Since(phaseStart)
+		if err != nil {
+			return fmt.Errorf(
+				"phase-group retract statement %d/%d probe (duration=%s, first_statement=%q): %w",
+				stmtIdx, stmtTotal, probeDuration, statementSummary, err,
+			)
+		}
+		// Skip only when the probe returned no row. Any row means a node
+		// matched, even one whose __id is missing or malformed, so the drain
+		// runs rather than reporting a silent probe_skipped success.
+		if len(probe.Rows) == 0 {
+			mode = "probe_skipped"
+			skipDrain = true
+		}
+	}
+
 	const drainNodeCeiling = 5_000_000
 	maxIterations := drainNodeCeiling/batch + 2
 
 	var totalDrained, totalNodesDeleted, totalRelsDeleted int64
-	phaseStart := time.Now()
-	for iteration := 1; ; iteration++ {
+	for iteration := 1; !skipDrain; iteration++ {
 		if iteration > maxIterations {
 			return fmt.Errorf(
 				"phase-group retract statement %d/%d drain loop safety cap exceeded after %d iterations (%d nodes drained, batch=%d, first_statement=%q): drain did not converge",
@@ -105,11 +147,15 @@ func (e PhaseGroupExecutor) executeDrainLoop(
 		"total_drained", totalDrained,
 		"batch", batch,
 		"duration_s", time.Since(phaseStart).Seconds(),
+		"probe_duration_s", probeDuration.Seconds(),
 		"first_statement", statementSummary,
+		"mode", mode,
 	)
 	return nil
 }
 
+// drainedCount returns the __drained value of a drain result, or 0 when it
+// is missing or not numeric.
 func drainedCount(rows []map[string]any) int64 {
 	if len(rows) == 0 {
 		return 0

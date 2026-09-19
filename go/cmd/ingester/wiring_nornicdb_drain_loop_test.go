@@ -18,17 +18,24 @@ import (
 
 // drainCountReader is a fake drainReader that returns a configurable sequence
 // of __drained counts and optional graph-driver delete counters. After the
-// sequence is exhausted it returns 0.
+// sequence is exhausted it returns 0. A bare-label probe read (#6822) is
+// answered with one matched element ID, so the drain always runs, and is
+// counted in probes rather than callIdx.
 type drainCountReader struct {
 	counts       []int64
 	nodesDeleted []int64 // per-call NodesDeleted; zero-padded if shorter than counts
 	relsDeleted  []int64 // per-call RelationshipsDeleted; zero-padded if shorter
 	callIdx      int
+	probes       int
 	lastErr      error
 	failAt       int // 1-based; 0 means never fail
 }
 
-func (r *drainCountReader) RunWrite(_ context.Context, _ string, _ map[string]any) (DrainWriteResult, error) {
+func (r *drainCountReader) RunWrite(_ context.Context, cypher string, _ map[string]any) (DrainWriteResult, error) {
+	if strings.Contains(cypher, "RETURN elementId(") {
+		r.probes++
+		return DrainWriteResult{Rows: []map[string]any{{"__id": "4:probe:" + strconv.Itoa(r.probes)}}}, nil
+	}
 	r.callIdx++
 	if r.failAt > 0 && r.callIdx == r.failAt {
 		return DrainWriteResult{}, r.lastErr
@@ -129,6 +136,9 @@ DETACH DELETE d`,
 	}
 	if reader.callIdx != 1 {
 		t.Fatalf("drain loop iterations = %d, want 1 (zero on first call)", reader.callIdx)
+	}
+	if reader.probes != 1 {
+		t.Fatalf("bare-label probes = %d, want 1", reader.probes)
 	}
 }
 
