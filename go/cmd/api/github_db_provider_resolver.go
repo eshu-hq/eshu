@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 )
 
 // githubDBProviderResolver implements githublogin.DBProviderResolver,
@@ -26,7 +27,7 @@ import (
 // way an unfixed OIDC resolver once did.
 type githubDBProviderResolver struct {
 	store      *pgstatus.IdentitySubjectStore
-	workspaces *pgstatus.TenantWorkspaceGrantStore
+	workspaces *tenantstore.TenantWorkspaceGrantStore
 	keyring    *secretcrypto.Keyring
 }
 
@@ -39,7 +40,7 @@ func newGitHubDBProviderResolver(rawDB *sql.DB, keyring *secretcrypto.Keyring) g
 	execQueryer := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	return &githubDBProviderResolver{
 		store:      pgstatus.NewIdentitySubjectStore(execQueryer),
-		workspaces: pgstatus.NewTenantWorkspaceGrantStore(execQueryer),
+		workspaces: tenantstore.NewTenantWorkspaceGrantStore(execQueryer),
 		keyring:    keyring,
 	}
 }
@@ -82,7 +83,7 @@ func (r *githubDBProviderResolver) resolveWorkspace(ctx context.Context, tenantI
 	}
 	resolved, err := r.workspaces.PrimaryWorkspaceForTenant(ctx, tenantID)
 	if err != nil {
-		if errors.Is(err, pgstatus.ErrTenantWorkspaceAmbiguous) || errors.Is(err, pgstatus.ErrTenantWorkspaceNotFound) {
+		if errors.Is(err, tenantstore.ErrTenantWorkspaceAmbiguous) || errors.Is(err, tenantstore.ErrTenantWorkspaceNotFound) {
 			return "", fmt.Errorf("%w: tenant %q has no unambiguous active workspace for a db-backed github provider login; specify workspace_id explicitly: %v",
 				query.ErrGitHubLoginInvalidRequest, tenantID, err)
 		}

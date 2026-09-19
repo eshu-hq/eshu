@@ -84,9 +84,9 @@ func (s *ScopedAPITokenStore) UpsertToken(ctx context.Context, record ScopedAPIT
 		record.Status,
 		record.PolicyRevisionHash,
 		record.IssuedAt,
-		nullTimePtr(record.ExpiresAt),
-		nullTime(record.RevokedAt),
-		nullTime(record.LastUsedAt),
+		db.NullTimePtr(record.ExpiresAt),
+		db.NullTime(record.RevokedAt),
+		db.NullTime(record.LastUsedAt),
 		record.UpdatedAt,
 	); err != nil {
 		return fmt.Errorf("upsert scoped API token: %w", err)
@@ -170,9 +170,9 @@ func normalizeScopedAPITokenRecord(record ScopedAPITokenRecord) ScopedAPITokenRe
 }
 
 func validateScopedAPITokenRecord(record ScopedAPITokenRecord) error {
-	if blank(record.TokenHash) || blank(record.TenantID) || blank(record.WorkspaceID) ||
-		blank(record.SubjectIDHash) || blank(record.SubjectClass) || blank(record.Status) ||
-		blank(record.PolicyRevisionHash) {
+	if db.Blank(record.TokenHash) || db.Blank(record.TenantID) || db.Blank(record.WorkspaceID) ||
+		db.Blank(record.SubjectIDHash) || db.Blank(record.SubjectClass) || db.Blank(record.Status) ||
+		db.Blank(record.PolicyRevisionHash) {
 		return errors.New("token hash, tenant, workspace, subject, status, and policy revision are required")
 	}
 	if record.IssuedAt.IsZero() {
@@ -205,7 +205,7 @@ func scanScopedAPIToken(rows db.Rows) (ScopedAPITokenRecord, error) {
 	); err != nil {
 		return ScopedAPITokenRecord{}, err
 	}
-	record.ExpiresAt = timePtrFromNull(expiresAt)
+	record.ExpiresAt = db.TimePtrFromNull(expiresAt)
 	record.RevokedAt = timeFromNull(revokedAt)
 	record.LastUsedAt = timeFromNull(lastUsedAt)
 	return record, nil

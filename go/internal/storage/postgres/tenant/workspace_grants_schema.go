@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package tenantstore
 
 const tenantWorkspaceGrantSchemaSQL = `
 CREATE TABLE IF NOT EXISTS tenants (
@@ -91,7 +91,11 @@ CREATE INDEX IF NOT EXISTS tenant_repository_grants_active_idx
     WHERE tombstoned_at IS NULL;
 `
 
-const upsertTenantRecordQuery = `
+// UpsertTenantRecordQuery upserts one tenants row. It is exported because
+// the identity bootstrap path (still in the postgres root until its own
+// #6693 leaf) writes the bootstrap tenant in the same transaction as the
+// initial local identity credential.
+const UpsertTenantRecordQuery = `
 INSERT INTO tenants (
     tenant_id,
     status,
@@ -109,7 +113,9 @@ SET status = EXCLUDED.status,
     tombstoned_at = EXCLUDED.tombstoned_at
 `
 
-const upsertWorkspaceRecordQuery = `
+// UpsertWorkspaceRecordQuery upserts one workspaces row. It is exported for
+// the same identity bootstrap path as UpsertTenantRecordQuery.
+const UpsertWorkspaceRecordQuery = `
 INSERT INTO workspaces (
     tenant_id,
     workspace_id,

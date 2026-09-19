@@ -149,9 +149,9 @@ func normalizeGitHubLoginState(record GitHubLoginStateRecord) GitHubLoginStateRe
 }
 
 func validateGitHubLoginState(record GitHubLoginStateRecord) error {
-	if blank(record.StateHash) || blank(record.ProviderConfigID) ||
-		blank(record.ProviderKeyHash) || blank(record.IssuerHash) || blank(record.ClientIDHash) ||
-		blank(record.TenantID) || blank(record.WorkspaceID) || blank(record.RedirectURIHash) {
+	if db.Blank(record.StateHash) || db.Blank(record.ProviderConfigID) ||
+		db.Blank(record.ProviderKeyHash) || db.Blank(record.IssuerHash) || db.Blank(record.ClientIDHash) ||
+		db.Blank(record.TenantID) || db.Blank(record.WorkspaceID) || db.Blank(record.RedirectURIHash) {
 		return errors.New("github state hash, provider hashes, tenant, workspace, and redirect uri hash are required")
 	}
 	if record.IssuedAt.IsZero() || record.ExpiresAt.IsZero() {

@@ -8,11 +8,11 @@ import (
 	"errors"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 )
 
 type tenantGrantReader struct {
-	store *postgres.TenantWorkspaceGrantStore
+	store *tenantstore.TenantWorkspaceGrantStore
 }
 
 func (r tenantGrantReader) ListWorkflowScopeGrants(
@@ -22,7 +22,7 @@ func (r tenantGrantReader) ListWorkflowScopeGrants(
 	if r.store == nil {
 		return nil, errors.New("tenant workspace grant store is required")
 	}
-	grants, err := r.store.ListScopeGrants(ctx, postgres.TenantWorkspaceGrantQuery{
+	grants, err := r.store.ListScopeGrants(ctx, tenantstore.TenantWorkspaceGrantQuery{
 		TenantID:     query.TenantID,
 		WorkspaceID:  query.WorkspaceID,
 		SubjectClass: query.SubjectClass,

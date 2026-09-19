@@ -216,7 +216,7 @@ func normalizeOIDCSessionAuthProofUpdate(update OIDCSessionAuthProofUpdate) OIDC
 }
 
 func validateOIDCSessionAuthProofUpdate(update OIDCSessionAuthProofUpdate) error {
-	if blank(update.SessionHash) || blank(update.PolicyRevisionHash) {
+	if db.Blank(update.SessionHash) || db.Blank(update.PolicyRevisionHash) {
 		return errors.New("oidc session refresh requires session hash and policy revision hash")
 	}
 	if len(update.ExternalGroupHashes) == 0 {

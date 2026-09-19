@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 )
 
 func TestBootstrapDefinitionsIncludeTenantWorkspaceGrants(t *testing.T) {
@@ -61,9 +63,9 @@ func TestTenantWorkspaceGrantStoreUpsertsScopeGrantIdempotently(t *testing.T) {
 
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	db := &fakeExecQueryer{}
-	store := NewTenantWorkspaceGrantStore(db)
+	store := tenantstore.NewTenantWorkspaceGrantStore(db)
 
-	if err := store.UpsertTenant(ctxForTenantGrantTest(), TenantRecord{
+	if err := store.UpsertTenant(ctxForTenantGrantTest(), tenantstore.TenantRecord{
 		TenantID:           "tenant_a",
 		Status:             "active",
 		DisplayHandleHash:  "sha256:tenant",
@@ -72,7 +74,7 @@ func TestTenantWorkspaceGrantStoreUpsertsScopeGrantIdempotently(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("UpsertTenant() error = %v", err)
 	}
-	if err := store.UpsertWorkspace(ctxForTenantGrantTest(), WorkspaceRecord{
+	if err := store.UpsertWorkspace(ctxForTenantGrantTest(), tenantstore.WorkspaceRecord{
 		TenantID:           "tenant_a",
 		WorkspaceID:        "workspace_a",
 		Status:             "active",
@@ -82,7 +84,7 @@ func TestTenantWorkspaceGrantStoreUpsertsScopeGrantIdempotently(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("UpsertWorkspace() error = %v", err)
 	}
-	grant := TenantScopeGrant{
+	grant := tenantstore.TenantScopeGrant{
 		TenantID:           "tenant_a",
 		WorkspaceID:        "workspace_a",
 		ScopeID:            "scope_a",
@@ -131,9 +133,9 @@ func TestTenantWorkspaceGrantStoreListsOnlyActiveScopeGrants(t *testing.T) {
 			}},
 		}},
 	}
-	store := NewTenantWorkspaceGrantStore(db)
+	store := tenantstore.NewTenantWorkspaceGrantStore(db)
 
-	grants, err := store.ListScopeGrants(ctxForTenantGrantTest(), TenantWorkspaceGrantQuery{
+	grants, err := store.ListScopeGrants(ctxForTenantGrantTest(), tenantstore.TenantWorkspaceGrantQuery{
 		TenantID:     "tenant_a",
 		WorkspaceID:  "workspace_a",
 		SubjectClass: "runtime",
@@ -192,9 +194,9 @@ func TestTenantWorkspaceGrantStoreListsOnlyActiveRepositoryGrants(t *testing.T) 
 			}},
 		}},
 	}
-	store := NewTenantWorkspaceGrantStore(db)
+	store := tenantstore.NewTenantWorkspaceGrantStore(db)
 
-	grants, err := store.ListRepositoryGrants(ctxForTenantGrantTest(), TenantWorkspaceGrantQuery{
+	grants, err := store.ListRepositoryGrants(ctxForTenantGrantTest(), tenantstore.TenantWorkspaceGrantQuery{
 		TenantID:     "tenant_a",
 		WorkspaceID:  "workspace_a",
 		SubjectClass: "runtime",
@@ -230,9 +232,9 @@ func TestTenantWorkspaceGrantStoreRejectsUnboundedQueries(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	store := NewTenantWorkspaceGrantStore(db)
+	store := tenantstore.NewTenantWorkspaceGrantStore(db)
 
-	_, err := store.ListScopeGrants(ctxForTenantGrantTest(), TenantWorkspaceGrantQuery{
+	_, err := store.ListScopeGrants(ctxForTenantGrantTest(), tenantstore.TenantWorkspaceGrantQuery{
 		TenantID:    "tenant_a",
 		WorkspaceID: "",
 		AsOf:        time.Date(2026, 6, 9, 15, 0, 0, 0, time.UTC),
@@ -258,7 +260,7 @@ func TestTenantWorkspaceGrantStorePrimaryWorkspaceForTenantResolvesSingleWorkspa
 			rows: [][]any{{"workspace_a"}},
 		}},
 	}
-	store := NewTenantWorkspaceGrantStore(db)
+	store := tenantstore.NewTenantWorkspaceGrantStore(db)
 
 	workspaceID, err := store.PrimaryWorkspaceForTenant(ctxForTenantGrantTest(), "tenant_a")
 	if err != nil {
@@ -302,9 +304,9 @@ func TestTenantWorkspaceGrantStorePrimaryWorkspaceForTenantRejectsAmbiguity(t *t
 			rows: [][]any{{"workspace_a"}, {"workspace_b"}},
 		}},
 	}
-	store := NewTenantWorkspaceGrantStore(db)
+	store := tenantstore.NewTenantWorkspaceGrantStore(db)
 
-	if _, err := store.PrimaryWorkspaceForTenant(ctxForTenantGrantTest(), "tenant_a"); !errors.Is(err, ErrTenantWorkspaceAmbiguous) {
+	if _, err := store.PrimaryWorkspaceForTenant(ctxForTenantGrantTest(), "tenant_a"); !errors.Is(err, tenantstore.ErrTenantWorkspaceAmbiguous) {
 		t.Fatalf("PrimaryWorkspaceForTenant() error = %v, want ErrTenantWorkspaceAmbiguous", err)
 	}
 }
@@ -318,9 +320,9 @@ func TestTenantWorkspaceGrantStorePrimaryWorkspaceForTenantRejectsNoWorkspace(t 
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{{rows: [][]any{}}},
 	}
-	store := NewTenantWorkspaceGrantStore(db)
+	store := tenantstore.NewTenantWorkspaceGrantStore(db)
 
-	if _, err := store.PrimaryWorkspaceForTenant(ctxForTenantGrantTest(), "tenant_a"); !errors.Is(err, ErrTenantWorkspaceNotFound) {
+	if _, err := store.PrimaryWorkspaceForTenant(ctxForTenantGrantTest(), "tenant_a"); !errors.Is(err, tenantstore.ErrTenantWorkspaceNotFound) {
 		t.Fatalf("PrimaryWorkspaceForTenant() error = %v, want ErrTenantWorkspaceNotFound", err)
 	}
 }

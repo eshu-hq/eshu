@@ -319,9 +319,9 @@ func normalizeOIDCLoginState(record OIDCLoginStateRecord) OIDCLoginStateRecord {
 }
 
 func validateOIDCLoginState(record OIDCLoginStateRecord) error {
-	if blank(record.StateHash) || blank(record.NonceHash) || blank(record.ProviderConfigID) ||
-		blank(record.ProviderKeyHash) || blank(record.IssuerHash) || blank(record.ClientIDHash) ||
-		blank(record.TenantID) || blank(record.WorkspaceID) || blank(record.RedirectURIHash) {
+	if db.Blank(record.StateHash) || db.Blank(record.NonceHash) || db.Blank(record.ProviderConfigID) ||
+		db.Blank(record.ProviderKeyHash) || db.Blank(record.IssuerHash) || db.Blank(record.ClientIDHash) ||
+		db.Blank(record.TenantID) || db.Blank(record.WorkspaceID) || db.Blank(record.RedirectURIHash) {
 		return errors.New("oidc state hash, nonce hash, provider hashes, tenant, workspace, and redirect uri hash are required")
 	}
 	if record.IssuedAt.IsZero() || record.ExpiresAt.IsZero() || record.UpdatedAt.IsZero() {
@@ -349,7 +349,7 @@ func normalizeOIDCGroupGrantQuery(query OIDCGroupGrantQuery) OIDCGroupGrantQuery
 }
 
 func validateOIDCGroupGrantQuery(query OIDCGroupGrantQuery) error {
-	if blank(query.ProviderConfigID) || blank(query.TenantID) || blank(query.WorkspaceID) {
+	if db.Blank(query.ProviderConfigID) || db.Blank(query.TenantID) || db.Blank(query.WorkspaceID) {
 		return errors.New("oidc provider, tenant, and workspace are required")
 	}
 	if len(query.ExternalGroupHashes) == 0 {

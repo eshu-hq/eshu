@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
 
 const (
@@ -42,7 +44,7 @@ func (s *IdentitySubjectStore) CreateLocalIdentityAPIToken(
 		token.DisplayHandleHash,
 		token.PolicyRevisionHash,
 		token.IssuedAt,
-		nullTime(token.ExpiresAt),
+		db.NullTime(token.ExpiresAt),
 		token.DisplayLabel,
 	)
 	if err != nil {
@@ -156,7 +158,7 @@ func rotateLocalIdentityAPITokenInsertExec(rotate LocalIdentityAPITokenRotate) (
 		rotate.TenantID,
 		rotate.WorkspaceID,
 		rotate.RotatedAt,
-		nullTime(rotate.NewTokenExpires),
+		db.NullTime(rotate.NewTokenExpires),
 	}
 	if rotate.OwnerSubjectIDHash == "" {
 		return rotateLocalIdentityAPITokenQuery, args

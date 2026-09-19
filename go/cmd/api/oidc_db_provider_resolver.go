@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 )
 
 // oidcDBProviderResolver implements oidclogin.DBProviderResolver (#4966,
@@ -36,7 +37,7 @@ import (
 // DB-backed provider login-start returned 503. See resolveWorkspace.
 type oidcDBProviderResolver struct {
 	store      *pgstatus.IdentitySubjectStore
-	workspaces *pgstatus.TenantWorkspaceGrantStore
+	workspaces *tenantstore.TenantWorkspaceGrantStore
 	keyring    *secretcrypto.Keyring
 }
 
@@ -52,7 +53,7 @@ func newOIDCDBProviderResolver(rawDB *sql.DB, keyring *secretcrypto.Keyring) oid
 	execQueryer := db.ExecQueryer(pgstatus.SQLDB{DB: rawDB})
 	return &oidcDBProviderResolver{
 		store:      pgstatus.NewIdentitySubjectStore(execQueryer),
-		workspaces: pgstatus.NewTenantWorkspaceGrantStore(execQueryer),
+		workspaces: tenantstore.NewTenantWorkspaceGrantStore(execQueryer),
 		keyring:    keyring,
 	}
 }
@@ -93,7 +94,7 @@ func (r *oidcDBProviderResolver) ResolveProvider(
 // wants disambiguate a multi-workspace tenant itself. Only when the caller
 // supplies no workspace does it default to the tenant's own workspace via
 // PrimaryWorkspaceForTenant, which fails closed
-// (pgstatus.ErrTenantWorkspaceAmbiguous / ErrTenantWorkspaceNotFound) rather
+// (tenantstore.ErrTenantWorkspaceAmbiguous / ErrTenantWorkspaceNotFound) rather
 // than guessing. Ambiguity and absence are mapped to
 // query.ErrOIDCLoginInvalidRequest (a 400 the caller can act on — specify a
 // workspace_id) instead of the opaque 503 an unmapped error would produce at
@@ -104,7 +105,7 @@ func (r *oidcDBProviderResolver) resolveWorkspace(ctx context.Context, tenantID,
 	}
 	resolved, err := r.workspaces.PrimaryWorkspaceForTenant(ctx, tenantID)
 	if err != nil {
-		if errors.Is(err, pgstatus.ErrTenantWorkspaceAmbiguous) || errors.Is(err, pgstatus.ErrTenantWorkspaceNotFound) {
+		if errors.Is(err, tenantstore.ErrTenantWorkspaceAmbiguous) || errors.Is(err, tenantstore.ErrTenantWorkspaceNotFound) {
 			return "", fmt.Errorf("%w: tenant %q has no unambiguous active workspace for a db-backed oidc provider login; specify workspace_id explicitly: %v",
 				query.ErrOIDCLoginInvalidRequest, tenantID, err)
 		}

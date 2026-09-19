@@ -150,7 +150,7 @@ func (s *IdentitySubjectStore) recordFailedLocalIdentityAttempt(
 		upsertLocalIdentityFailedAttemptQuery,
 		row.UserID,
 		defaultLocalIdentityLockoutThreshold,
-		nullTime(lockedUntil),
+		db.NullTime(lockedUntil),
 		now,
 	); err != nil {
 		return LocalIdentityAuthenticationResult{}, fmt.Errorf("record local identity failed attempt: %w", err)

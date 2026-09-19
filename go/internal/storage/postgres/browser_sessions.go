@@ -127,13 +127,13 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 		allowedRepositories,
 		nullBrowserSessionString(record.ExternalProviderConfigID),
 		nullBrowserSessionString(record.ExternalSubjectIDHash),
-		nullTime(record.ExternalAuthValidatedAt),
-		nullTime(record.ExternalAuthStaleAfter),
+		db.NullTime(record.ExternalAuthValidatedAt),
+		db.NullTime(record.ExternalAuthStaleAfter),
 		record.IssuedAt,
 		record.LastSeenAt,
 		record.IdleExpiresAt,
 		record.AbsoluteExpiresAt,
-		nullTime(record.RevokedAt),
+		db.NullTime(record.RevokedAt),
 		record.UpdatedAt,
 		externalGroupHashes,
 		record.PermissionCatalogEnforced,
@@ -324,8 +324,8 @@ func normalizeBrowserSessionRecord(record BrowserSessionRecord) BrowserSessionRe
 }
 
 func validateBrowserSessionRecord(record BrowserSessionRecord) error {
-	if blank(record.SessionHash) || blank(record.CSRFTokenHash) || blank(record.TenantID) ||
-		blank(record.WorkspaceID) {
+	if db.Blank(record.SessionHash) || db.Blank(record.CSRFTokenHash) || db.Blank(record.TenantID) ||
+		db.Blank(record.WorkspaceID) {
 		return errors.New("session hash, csrf hash, tenant, and workspace are required")
 	}
 	if record.IssuedAt.IsZero() || record.LastSeenAt.IsZero() ||
@@ -345,7 +345,7 @@ func validateBrowserSessionRecord(record BrowserSessionRecord) error {
 	hasExternalAuth := record.ExternalProviderConfigID != "" || record.ExternalSubjectIDHash != "" ||
 		!record.ExternalAuthValidatedAt.IsZero() || !record.ExternalAuthStaleAfter.IsZero()
 	if hasExternalAuth {
-		if blank(record.ExternalProviderConfigID) || blank(record.ExternalSubjectIDHash) ||
+		if db.Blank(record.ExternalProviderConfigID) || db.Blank(record.ExternalSubjectIDHash) ||
 			record.ExternalAuthValidatedAt.IsZero() || record.ExternalAuthStaleAfter.IsZero() {
 			return errors.New("external auth provider, subject hash, validation, and stale timestamps must be set together")
 		}
