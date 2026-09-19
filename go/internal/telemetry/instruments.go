@@ -3,7 +3,7 @@
 
 // Package telemetry provides pre-registered OTEL metric instruments for the
 // Go data plane.
-package telemetry //nolint:filelength // data registry; ~5900 lines of frozen eshu_dp_* instrument definitions. Tracked in audit § T11 and issue eshu-hq/eshu#3761. Splitting is a separate, non-trivial work item because the contract is reviewed as a single table.
+package telemetry //nolint:filelength // data registry; ~6000 lines of frozen eshu_dp_* instrument definitions. Tracked in audit § T11 and issue eshu-hq/eshu#3761. Splitting is a separate, non-trivial work item because the contract is reviewed as a single table.
 
 import (
 	"context"

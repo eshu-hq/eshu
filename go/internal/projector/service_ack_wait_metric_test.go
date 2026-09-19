@@ -89,6 +89,7 @@ func TestAckWhenScopeFreeRecordsDeferralAndWaitOutcomes(t *testing.T) {
 
 	deferred := fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)
 	ackFailure := errors.New("connection reset")
+	renewFailure := errors.New("heartbeat: connection reset")
 	renewOK := heartbeaterFunc(func(context.Context, ScopeGenerationWork) error { return nil })
 	tests := []struct {
 		name          string
@@ -143,6 +144,16 @@ func TestAckWhenScopeFreeRecordsDeferralAndWaitOutcomes(t *testing.T) {
 			wantWaits:     map[string]uint64{"claim_lost": 1},
 		},
 		{
+			name:    "renewal returns an error",
+			ackErrs: []error{deferred},
+			heartbeater: heartbeaterFunc(func(context.Context, ScopeGenerationWork) error {
+				return renewFailure
+			}),
+			wantErr:       renewFailure,
+			wantDeferrals: map[string]int64{"retried": 1},
+			wantWaits:     map[string]uint64{"failed": 1},
+		},
+		{
 			name:          "ack error after waiting fails",
 			ackErrs:       []error{deferred, ackFailure},
 			heartbeater:   renewOK,
@@ -191,6 +202,31 @@ func TestAckWhenScopeFreeRecordsShutdownOutcome(t *testing.T) {
 	}
 	got := collectAckWaitMetrics(t, reader)
 	assertOutcomeCounts(t, "ack_deferrals_total", got.deferrals, map[string]int64{"shutdown": 1})
+	assertOutcomeCounts(t, "ack_wait_seconds count", got.waits, map[string]uint64{"shutdown": 1})
+}
+
+// TestAckWhenScopeFreeCountsRetryBeforeShutdownRenewal pins the documented
+// split: a deferral followed by a renewal that shutdown interrupts counts
+// retried (what the loop decided at the deferral), while the wait histogram
+// records how the wait ended.
+func TestAckWhenScopeFreeCountsRetryBeforeShutdownRenewal(t *testing.T) {
+	t.Parallel()
+
+	reader, instruments := newAckWaitReader(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)}}
+	renewal := heartbeaterFunc(func(ctx context.Context, _ ScopeGenerationWork) error {
+		cancel()
+		return fmt.Errorf("heartbeat projector work: %w", ctx.Err())
+	})
+
+	err := AckWhenScopeFree(ctx, sink, renewal, instruments, ScopeGenerationWork{}, Result{}, 0, nil)
+	if !errors.Is(err, ErrWorkAckDeferred) {
+		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred", err)
+	}
+	got := collectAckWaitMetrics(t, reader)
+	assertOutcomeCounts(t, "ack_deferrals_total", got.deferrals, map[string]int64{"retried": 1})
 	assertOutcomeCounts(t, "ack_wait_seconds count", got.waits, map[string]uint64{"shutdown": 1})
 }
 

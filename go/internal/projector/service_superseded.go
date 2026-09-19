@@ -121,10 +121,18 @@ func AckWhenScopeFree(
 	}
 	start := time.Now()
 	deferrals := 0
+	// stopOutcome pins the classification of a wait the loop itself ended, so
+	// the counter and histogram agree even if ctx is canceled in between.
+	stopOutcome := ""
 	defer func() {
-		if deferrals > 0 {
-			recordAckWait(ctx, instruments, time.Since(start), ackWaitOutcome(ctx, err))
+		if deferrals == 0 {
+			return
 		}
+		outcome := stopOutcome
+		if outcome == "" {
+			outcome = ackWaitOutcome(ctx, err)
+		}
+		recordAckWait(ctx, instruments, time.Since(start), outcome)
 	}()
 	for retry := 1; ; retry++ {
 		ackCtx, cancel := projectorAckContext(ctx)
@@ -139,10 +147,12 @@ func AckWhenScopeFree(
 		}
 		switch {
 		case ctx.Err() != nil:
-			recordAckDeferral(ctx, instruments, ackOutcomeShutdown)
-			return err
+			stopOutcome = ackOutcomeShutdown
 		case retry >= maxRetries:
-			recordAckDeferral(ctx, instruments, ackOutcomeAbandoned)
+			stopOutcome = ackOutcomeAbandoned
+		}
+		if stopOutcome != "" {
+			recordAckDeferral(ctx, instruments, stopOutcome)
 			return err
 		}
 		recordAckDeferral(ctx, instruments, ackOutcomeRetried)
