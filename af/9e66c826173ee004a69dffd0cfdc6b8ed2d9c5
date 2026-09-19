@@ -1,0 +1,19 @@
+docs/internal/design/package-restructure.md
+  s_cd68771743f6d2::t_9896f90d537388 1908-1911
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "af9e66c826173ee004a69dffd0cfdc6b8ed2d9c5",
+  "prompts": {},
+  "sessions": {
+    "s_cd68771743f6d2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea6dc2bb-5d66-4caf-9d80-b18c09f31179",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
