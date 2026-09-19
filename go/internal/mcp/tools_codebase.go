@@ -120,7 +120,6 @@ func codebaseTools() []ToolDefinition {
 		securityInvestigationTool(),
 	}
 	tools = append(tools, codeRelationshipTools()...)
-	tools = append(tools, []ToolDefinition{}...)
 	// The three dead-code definitions owned by the code/dead package splice
 	// in at this position to preserve the long-standing registration order.
 	// Appending the whole family slice keeps a future arity change loud at
