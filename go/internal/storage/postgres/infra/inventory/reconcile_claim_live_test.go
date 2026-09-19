@@ -46,7 +46,28 @@ func isolatedDB(t *testing.T) (*sql.DB, context.Context) {
 	if err := postgres.ApplyBootstrap(schemaCtx, postgres.SQLDB{DB: isolated}); err != nil {
 		t.Fatalf("apply bootstrap schema: %v", err)
 	}
+	isolatedDSNs.Store(isolated, dsn.String())
 	return isolated, ctx
+}
+
+// isolatedDSNs remembers each isolated database's DSN so a test can open a
+// second, unfenced connection to it.
+var isolatedDSNs sync.Map
+
+// isolatedPlainDB opens a connection to an isolatedDB database without the
+// derive-aware writer setting, the way a pre-read-model binary connects.
+func isolatedPlainDB(t *testing.T, isolated *sql.DB) *sql.DB {
+	t.Helper()
+	dsn, ok := isolatedDSNs.Load(isolated)
+	if !ok {
+		t.Fatal("isolatedPlainDB needs a database from isolatedDB")
+	}
+	plain, err := sql.Open("pgx", dsn.(string))
+	if err != nil {
+		t.Fatalf("open plain isolated db: %v", err)
+	}
+	t.Cleanup(func() { _ = plain.Close() })
+	return plain
 }
 
 // TestReconcileCycleLiveReplicasClaimDisjointPages proves the persisted walk
