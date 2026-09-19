@@ -37,7 +37,7 @@ func TestGetServiceStoryReturnsEnvelopeDataWhenRequested(t *testing.T) {
 					},
 				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 			},
 		},
@@ -188,7 +188,7 @@ func TestGetServiceStoryRepoSelectorDisambiguatesServiceName(t *testing.T) {
 			runByMatch: map[string][]map[string]any{
 				"INSTANCE_OF":                         {},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 			},
 		},
@@ -244,7 +244,7 @@ func TestGetServiceStoryEnvironmentSelectorDisambiguatesServiceName(t *testing.T
 			runByMatch: map[string][]map[string]any{
 				"WorkloadInstance":                    {{"instance_id": "instance:checkout:prod", "environment": "prod"}},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 			},
 		},
@@ -285,7 +285,7 @@ func TestGetServiceStoryServiceIDSelectorUsesExactWorkload(t *testing.T) {
 			runByMatch: map[string][]map[string]any{
 				"INSTANCE_OF":                         {},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 			},
 		},

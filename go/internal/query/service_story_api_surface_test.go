@@ -63,7 +63,7 @@ func TestGetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface(t *
 					strings.Contains(cypher, "WorkloadInstance"),
 					strings.Contains(cypher, "DEPENDS_ON|USES_MODULE|DEPLOYS_FROM"),
 					strings.Contains(cypher, "PROVISIONS_DEPENDENCY_FOR|DEPLOYS_FROM|USES_MODULE"),
-					strings.Contains(cypher, "K8sResource OR"),
+					strings.Contains(cypher, "WHERE infra:K8sResource"),
 					strings.Contains(cypher, "HAS_DEPLOYMENT_EVIDENCE"),
 					strings.Contains(cypher, "CloudResource"),
 					strings.Contains(cypher, "fn.name IN"):

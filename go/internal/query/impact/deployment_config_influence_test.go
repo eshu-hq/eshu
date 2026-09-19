@@ -248,7 +248,7 @@ func makeDeploymentConfigInfluenceHandler() *Handler {
 			RunByMatch: map[string][]map[string]any{
 				"INSTANCE_OF":                         {},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 				"DEPLOYMENT_SOURCE":                   {},
 				// ResolveWorkloadSelector's name lookup (#6786 F3: its
@@ -387,7 +387,7 @@ func TestInvestigateDeploymentConfigInfluenceDisclosesSaturatedUpstreamEvidence(
 				RunByMatch: map[string][]map[string]any{
 					"INSTANCE_OF":                         {},
 					"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-					"K8sResource OR":                      {},
+					"WHERE infra:K8sResource":             {},
 					"fn.name IN":                          {},
 					"DEPLOYMENT_SOURCE":                   {{"instance_id": "instance:test-service", "repo_id": "repo-gitops", "repo_name": "gitops"}},
 					// ResolveWorkloadSelector's name lookup (#6786 F3:

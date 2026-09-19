@@ -233,10 +233,9 @@ func OverrideRowsCypher(
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
-		"repo_id":         strings.TrimSpace(req.RepoID),
-		"limit":           req.NormalizedLimit() + 1,
-		"offset":          req.Offset,
-		"override_labels": OverrideNodeLabels(),
+		"repo_id": strings.TrimSpace(req.RepoID),
+		"limit":   req.NormalizedLimit() + 1,
+		"offset":  req.Offset,
 	}
 	if access.Scoped() {
 		params = access.GraphParams(params)
@@ -260,8 +259,8 @@ func OverrideRowsCypher(
 	}
 	return `
 		MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(file:File)-[:CONTAINS]->(source)-[rel:OVERRIDES]->(target)
-		WHERE any(label IN labels(source) WHERE label IN $override_labels)
-		  AND any(label IN labels(target) WHERE label IN $override_labels)` + languagePredicate + grantPredicate + `
+		WHERE ` + overrideLabelPredicate("source") + `
+		  AND ` + overrideLabelPredicate("target") + languagePredicate + grantPredicate + `
 		RETURN 'outgoing' as direction,
 		       type(rel) as type,
 		       rel.reason as reason,
@@ -276,6 +275,20 @@ func OverrideRowsCypher(
 		SKIP $offset
 		LIMIT $limit
 	`, params
+}
+
+// overrideLabelPredicate renders the OVERRIDES endpoint label filter for
+// alias as an OR of `'Label' IN labels(alias)` terms. It sits in the WHERE of
+// a relationship MATCH, where NornicDB v1.3.3 ignores a label test or an
+// any(label IN labels(alias) ...) quantifier and honours only IN labels()
+// (#6786 X11).
+func overrideLabelPredicate(alias string) string {
+	labels := OverrideNodeLabels()
+	terms := make([]string, 0, len(labels))
+	for _, label := range labels {
+		terms = append(terms, "'"+label+"' IN labels("+alias+")")
+	}
+	return "(" + strings.Join(terms, " OR ") + ")"
 }
 
 // OverrideNodeLabels lists the entity labels that can participate in an

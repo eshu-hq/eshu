@@ -140,4 +140,4 @@ const StoryWorkloadNamesCypherFragment = "RETURN DISTINCT w.name AS workload_nam
 // It moved here for #6060 lane B B3 because the infrastructure-truncated fold
 // test moved to the repository family package while seven sibling tests stay
 // in root.
-const InfrastructureGraphReadCypherFragment = "infra:K8sResource"
+const InfrastructureGraphReadCypherFragment = "WHERE infra:K8sResource"

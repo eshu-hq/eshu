@@ -35,7 +35,7 @@ func TestGetRepositoryContextIncludesLanguageBreakdown(t *testing.T) {
 				"RETURN count(DISTINCT p) AS count":   {{"count": int64(1)}},
 				"RETURN count(DISTINCT dep) AS count": {{"count": int64(0)}},
 				"fn.name IN":                          {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 				// language distribution query
 				"f.language IS NOT NULL": {
@@ -114,7 +114,7 @@ func TestGetRepositoryContextOmitsBreakdownsWhenEmpty(t *testing.T) {
 				"RETURN count(DISTINCT p) AS count":   {{"count": int64(0)}},
 				"RETURN count(DISTINCT dep) AS count": {{"count": int64(0)}},
 				"fn.name IN":                          {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 				"f.language IS NOT NULL":              {},
 				"rel.source_tool IS NOT NULL":         {},

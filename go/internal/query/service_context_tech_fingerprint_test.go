@@ -45,7 +45,7 @@ func TestGetServiceContextIncludesTechFingerprint(t *testing.T) {
 			},
 			"INSTANCE_OF":                         {},
 			"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-			"K8sResource OR":                      {},
+			"WHERE infra:K8sResource":             {},
 			// language distribution — anchored on repo
 			"f.language IS NOT NULL": {
 				{"language": "python", "file_count": int64(30)},

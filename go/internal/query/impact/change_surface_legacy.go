@@ -123,8 +123,19 @@ func (h *Handler) findChangeSurface(w http.ResponseWriter, r *http.Request) {
 // DISTINCT shape, which returned a single all-null row on the pinned NornicDB
 // (#5287). The environment filter is applied server-side (before LIMIT) so an
 // environment-scoped read cannot under-report when the limit is reached.
+//
+// The impacted-label whitelist is an OR of `'Label' IN labels(impacted)`
+// terms. The earlier any(label IN labels(impacted) WHERE label IN [...]) form
+// is ignored by NornicDB v1.3.3 in the WHERE of a relationship MATCH, so LIMIT
+// ran over every reachable node and File/Function rows crowded real impacts
+// out of the page before the Go filter could drop them (#6786 X11). A
+// WITH-attached label test would also be evaluated but breaks the
+// single-clause contract TestChangeSurfaceTraversalQueriesAreNornicDBSafe
+// holds this read to (#5287).
 const changeSurfaceLegacyCypher = `MATCH path = %s-[*1..%d]->(impacted)
-WHERE impacted.id <> $target_id AND any(label IN labels(impacted) WHERE label IN ['Repository', 'Workload', 'WorkloadInstance', 'CloudResource', 'TerraformModule', 'DataAsset'])%s
+WHERE impacted.id <> $target_id
+  AND ('Repository' IN labels(impacted) OR 'Workload' IN labels(impacted) OR 'WorkloadInstance' IN labels(impacted)
+    OR 'CloudResource' IN labels(impacted) OR 'TerraformModule' IN labels(impacted) OR 'DataAsset' IN labels(impacted))%s
 RETURN impacted.id as id, impacted.name as name, labels(impacted) as labels, impacted.environment as environment,
 	impacted.repo_id as repo_id, length(path) as depth, relationships(path) as rels
 ORDER BY depth, name, id

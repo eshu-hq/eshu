@@ -422,7 +422,7 @@ func TestGetRepositoryContextReturnsEnrichedResponse(t *testing.T) {
 					},
 				},
 				// Infrastructure entities query
-				"K8sResource OR": {
+				"WHERE infra:K8sResource": {
 					{
 						"type":      "K8sResource",
 						"name":      "order-deployment",

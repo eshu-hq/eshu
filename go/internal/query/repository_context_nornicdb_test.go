@@ -43,7 +43,7 @@ func TestGetRepositoryContextOverridesOptionalAggregationCountsWithScalarQueries
 					{"count": int64(0)},
 				},
 				"fn.name IN":                          {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"f.language IS NOT NULL":              {},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 			},

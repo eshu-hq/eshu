@@ -186,8 +186,8 @@ func QueryRepoInfrastructureFromContent(ctx context.Context, content querycontra
 // out across repositories) and it is capped at a declared row count. It
 // asserts NOTHING about the plan, operator count, or latency of the two-hop
 // REPO_CONTAINS -> CONTAINS expand or the 20-way OR label predicate applied
-// after it. No closed non-hot class carries a plan assertion, so picking a
-// different one would add no evidence, and none of the others fits anyway:
+// after it (in a WITH-attached WHERE since #6786 X11). No
+// closed non-hot class carries a plan assertion, so picking a different one would add no evidence, and none of the others fits anyway:
 // `label_inventory` wants a single anchoring label (this read is
 // repository-anchored, not a scan of one label), `delegated` wants another
 // registered entry to own the plan, `operator_query` is for admin surfaces,
@@ -200,14 +200,26 @@ func QueryRepoInfrastructureFromContent(ctx context.Context, content querycontra
 // exactly why every caller degrades to an attributed 200 rather than depending
 // on it succeeding.
 func QueryRepoInfrastructureFromGraph(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) ([]map[string]any, bool, error) {
-	// infra:K8sResource also covers Crossplane Claims: a Claim is edge-only
+	// 'K8sResource' also covers Crossplane Claims: a Claim is edge-only
 	// (issue #5347) and stays a K8sResource node, so a separate
-	// infra:CrossplaneClaim predicate would always match zero rows and is
-	// intentionally absent (issue #5478).
+	// CrossplaneClaim label would always match zero rows and is intentionally
+	// absent (issue #5478).
+	//
+	// The label filter sits in a WHERE attached to a WITH, not to the
+	// relationship MATCH: on NornicDB v1.3.3 a label test in the MATCH's WHERE
+	// is ignored, so the server-side ORDER BY/LIMIT ran over every CONTAINS
+	// child and a code-heavy repository's functions filled the page before any
+	// infrastructure row (#6786 X11). The WITH-attached label test is evaluated
+	// on v1.3.3 and keeps Neo4j's cheap label check; `'Label' IN labels(infra)`
+	// in the MATCH's WHERE is also correct but measured ~19x slower on Neo4j
+	// (docs/internal/evidence/6786-nornicdb-label-predicates.md). The list must
+	// stay equal to InfrastructureEntityTypes
+	// (TestRepoInfrastructureGraphLabelFilterMatchesEntityTypes).
 	queryParams := querycontract.CopyMap(params)
 	queryParams["limit"] = repositoryInfrastructureEntityLimit + 1
 	rows, err := reader.Run(ctx, `
 		MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(infra)
+		WITH f, infra
 		WHERE infra:K8sResource OR infra:TerraformResource OR infra:TerraformModule
 		      OR infra:TerraformDataSource
 		      OR infra:TerraformBackend OR infra:TerraformImport
@@ -338,7 +350,9 @@ var repositoryInfrastructureTypeSet = func() map[string]struct{} {
 }()
 
 // isRepositoryInfrastructureType is a defensive response gate for backends that
-// may over-return rows for OR-heavy label predicates.
+// may over-return rows for OR-heavy label predicates. It cannot recover rows a
+// server-side LIMIT already discarded, so the Cypher label filter must be one
+// the backend evaluates (#6786 X11).
 func isRepositoryInfrastructureType(entityType string) bool {
 	_, ok := repositoryInfrastructureTypeSet[entityType]
 	return ok

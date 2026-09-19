@@ -44,7 +44,7 @@ func TestGetWorkloadContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 		runByMatch: map[string][]map[string]any{
 			"INSTANCE_OF":                         {},
 			"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-			"K8sResource OR":                      {},
+			"WHERE infra:K8sResource":             {},
 		},
 	}
 	handler := &EntityHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}

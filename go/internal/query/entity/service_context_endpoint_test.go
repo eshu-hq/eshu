@@ -138,7 +138,7 @@ func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testi
 					{"repo_id": "repo-service", "repo_name": "checkout-service"},
 				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 				"(r:Repository {id: $repo_id})-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->": {
 					{

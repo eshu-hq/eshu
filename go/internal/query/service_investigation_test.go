@@ -36,7 +36,7 @@ func TestInvestigateServiceRouteReturnsCoverageAndRecommendations(t *testing.T) 
 					},
 				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 			},
 		},
