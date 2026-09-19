@@ -98,12 +98,18 @@ the `(scope_id, domain)` ledger row, evaluates its missing set, and applies
 the decision in this order: commit (scope-wide retract and rewrite), write
 the ledger, then return the not-ready error or succeed.
 
-- An empty missing set commits and clears the row.
+- An empty missing set commits and clears the row. A clear leaves a
+  tombstone at the next `AnchorEpoch`; a tombstone with an empty set writes
+  nothing.
 - A settled row with the same fingerprint commits at once (`settled_missing`).
-- Otherwise the row keeps its earliest `FirstDeferredAt` (a settled row with a
-  new set restarts it) and commits unless this generation, queue cycle, and
+- Otherwise the row keeps its earliest `FirstDeferredAt` (a settled or cleared
+  row with a new set restarts it at the next `AnchorEpoch`, so a lease-expired
+  straggler cannot restore the old anchor) and commits unless this generation, queue cycle, and
   fingerprint already committed. It then defers, or settles once elapsed time
   since the anchor reaches `MaxWait` (`abandoned`).
+- `CommittedInGeneration` tells the handler a re-commit in the same
+  generation must retract even on a scope's first generation, because the
+  resolved edge set can shrink between evaluations.
 - `PollEligible` lets a handler re-check only the stored missing keys, with no
   fact load, when the row already committed at its own missing set.
 

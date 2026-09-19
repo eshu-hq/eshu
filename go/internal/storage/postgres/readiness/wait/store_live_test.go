@@ -71,7 +71,7 @@ func TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive(t *testing.T) {
 			wg.Add(1)
 			go func(anchor time.Time) {
 				defer wg.Done()
-				errs <- store.UpsertReadinessWait(ctx, liveWait(roundScope, anchor, "a"), false)
+				errs <- store.UpsertReadinessWait(ctx, liveWait(roundScope, anchor, "a"))
 			}(anchor)
 		}
 		wg.Wait()
@@ -93,7 +93,7 @@ func TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive(t *testing.T) {
 	replayScope := scopeID + "-replay"
 	row := liveWait(replayScope, early, "a", "b")
 	for i := 0; i < 2; i++ {
-		if err := store.UpsertReadinessWait(ctx, row, false); err != nil {
+		if err := store.UpsertReadinessWait(ctx, row); err != nil {
 			t.Fatalf("upsert %d: %v", i, err)
 		}
 	}
@@ -107,16 +107,17 @@ func TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive(t *testing.T) {
 	}
 }
 
-// TestReadinessWaitResetAnchorSettleAndClearLive proves resetAnchor overrides
-// the earliest-anchor rule, settled_at round-trips, and Clear deletes the row
-// (and is a no-op on an absent row).
+// TestReadinessWaitResetAnchorSettleAndClearLive proves a higher anchor epoch
+// overrides the earliest-anchor rule, settled_at round-trips, and Clear leaves
+// one tombstone at the next epoch (a replayed clear and a clear of an absent
+// row are no-ops).
 func TestReadinessWaitResetAnchorSettleAndClearLive(t *testing.T) {
 	store, _, ctx := readinessWaitLiveStore(t)
 	scopeID := fmt.Sprintf("aws:readiness-wait-reset-%d", time.Now().UnixNano())
 	early := time.Date(2026, time.September, 19, 9, 0, 0, 0, time.UTC)
 	settled := liveWait(scopeID, early, "a")
 	settled.SettledAt = early.Add(30 * time.Minute)
-	if err := store.UpsertReadinessWait(ctx, settled, false); err != nil {
+	if err := store.UpsertReadinessWait(ctx, settled); err != nil {
 		t.Fatalf("upsert settled: %v", err)
 	}
 	got, _, err := store.GetReadinessWait(ctx, scopeID, settled.Domain)
@@ -125,7 +126,8 @@ func TestReadinessWaitResetAnchorSettleAndClearLive(t *testing.T) {
 	}
 
 	restart := liveWait(scopeID, early.Add(time.Hour), "a", "c")
-	if err := store.UpsertReadinessWait(ctx, restart, true); err != nil {
+	restart.AnchorEpoch = settled.AnchorEpoch + 1
+	if err := store.UpsertReadinessWait(ctx, restart); err != nil {
 		t.Fatalf("upsert restart: %v", err)
 	}
 	got, _, err = store.GetReadinessWait(ctx, scopeID, settled.Domain)
@@ -134,11 +136,17 @@ func TestReadinessWaitResetAnchorSettleAndClearLive(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		if err := store.ClearReadinessWait(ctx, scopeID, settled.Domain); err != nil {
+		clear := restart
+		clear.ClearedAt = early.Add(2 * time.Hour)
+		if err := store.ClearReadinessWait(ctx, clear); err != nil {
 			t.Fatalf("clear %d: %v", i, err)
 		}
 	}
-	if _, found, err := store.GetReadinessWait(ctx, scopeID, settled.Domain); err != nil || found {
-		t.Fatalf("after clear: found %v err %v, want no row", found, err)
+	got, found, err := store.GetReadinessWait(ctx, scopeID, settled.Domain)
+	if err != nil || !found || !got.Cleared() || got.MissingCount != 0 || got.AnchorEpoch != restart.AnchorEpoch+1 {
+		t.Fatalf("after clear: row %+v found %v err %v, want one tombstone at the next epoch (a replayed clear is a no-op)", got, found, err)
+	}
+	if err := store.ClearReadinessWait(ctx, liveWait(scopeID+"-absent", early, "a")); err != nil {
+		t.Fatalf("clear absent row: %v", err)
 	}
 }

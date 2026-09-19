@@ -10,6 +10,13 @@
 -- committed_* columns record the last partial commit so a poll with an
 -- unchanged missing set writes nothing.
 --
+-- anchor_epoch fences lease-expired stragglers (review P3-1). An anchor reset
+-- or a clear moves the row to the next epoch, and an upsert from a lower epoch
+-- is dropped, so a writer that read the row before the reset cannot restore
+-- the older anchor. A clear keeps the row as a tombstone (cleared_at set, no
+-- missing set) so its epoch still fences a straggler that would otherwise
+-- re-insert a stale wait. Rows are bounded by two per scope (one per domain).
+--
 -- A new table instead of a fact_work_items column keeps the hot queue table
 -- and its claim query unchanged. Writes are single-statement primary-key
 -- upserts from the worker holding the (scope, domain) claim, so they add no
@@ -25,8 +32,12 @@ CREATE TABLE IF NOT EXISTS reducer_readiness_waits (
     committed_cycle_started_at TIMESTAMPTZ NULL,
     committed_fingerprint TEXT NOT NULL DEFAULT '',
     settled_at TIMESTAMPTZ NULL,
+    anchor_epoch BIGINT NOT NULL DEFAULT 0,
+    cleared_at TIMESTAMPTZ NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT reducer_readiness_waits_pkey PRIMARY KEY (scope_id, domain),
     CONSTRAINT reducer_readiness_waits_missing_count_check
-        CHECK (missing_count >= 0)
+        CHECK (missing_count >= 0),
+    CONSTRAINT reducer_readiness_waits_anchor_epoch_check
+        CHECK (anchor_epoch >= 0)
 );

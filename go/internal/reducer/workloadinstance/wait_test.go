@@ -25,19 +25,36 @@ func (l *ledgerStub) GetReadinessWait(_ context.Context, scopeID string, domain 
 	return row, ok, nil
 }
 
-func (l *ledgerStub) UpsertReadinessWait(_ context.Context, wait crossscope.ReadinessWait, resetAnchor bool) error {
+func (l *ledgerStub) UpsertReadinessWait(_ context.Context, wait crossscope.ReadinessWait) error {
 	l.upserts++
 	key := wait.ScopeID + "|" + string(wait.Domain)
-	if existing, ok := l.rows[key]; ok && !resetAnchor && existing.FirstDeferredAt.Before(wait.FirstDeferredAt) {
-		wait.FirstDeferredAt = existing.FirstDeferredAt
+	if existing, ok := l.rows[key]; ok {
+		// The store's anchor_epoch fence: drop a lower epoch, keep the
+		// earlier anchor at an equal epoch.
+		if wait.AnchorEpoch < existing.AnchorEpoch {
+			return nil
+		}
+		if wait.AnchorEpoch == existing.AnchorEpoch && existing.FirstDeferredAt.Before(wait.FirstDeferredAt) {
+			wait.FirstDeferredAt = existing.FirstDeferredAt
+		}
 	}
+	wait.ClearedAt = time.Time{}
 	l.rows[key] = wait
 	return nil
 }
 
-func (l *ledgerStub) ClearReadinessWait(_ context.Context, scopeID string, domain reducercontract.Domain) error {
+func (l *ledgerStub) ClearReadinessWait(_ context.Context, wait crossscope.ReadinessWait) error {
 	l.clears++
-	delete(l.rows, scopeID+"|"+string(domain))
+	key := wait.ScopeID + "|" + string(wait.Domain)
+	existing, ok := l.rows[key]
+	if !ok || existing.AnchorEpoch != wait.AnchorEpoch {
+		return nil
+	}
+	l.rows[key] = crossscope.ReadinessWait{
+		ScopeID: wait.ScopeID, Domain: wait.Domain, FirstDeferredAt: wait.ClearedAt,
+		AnchorEpoch: existing.AnchorEpoch + 1, CommittedGenerationID: wait.CommittedGenerationID,
+		CommittedCycleStartedAt: wait.CommittedCycleStartedAt, ClearedAt: wait.ClearedAt, UpdatedAt: wait.ClearedAt,
+	}
 	return nil
 }
 

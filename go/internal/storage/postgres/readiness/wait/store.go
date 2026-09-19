@@ -8,35 +8,42 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // getReadinessWaitQuery reads one ledger row by primary key.
 const getReadinessWaitQuery = `
 SELECT first_deferred_at, missing_keys, missing_count, missing_fingerprint,
        committed_generation_id, committed_cycle_started_at, committed_fingerprint,
-       settled_at, updated_at
+       settled_at, updated_at, anchor_epoch, cleared_at
 FROM reducer_readiness_waits
 WHERE scope_id = $1 AND domain = $2
 `
 
-// upsertReadinessWaitQuery writes one ledger row in a single statement. It
-// never lowers or resets first_deferred_at unless $12 (reset anchor) is true,
-// so two racing writers for one key keep the earlier anchor whichever commits
-// last, and a replayed write leaves the row as it was.
+// upsertReadinessWaitQuery writes one ledger row in a single statement,
+// fenced by anchor_epoch. A write from a lower epoch than the stored row is
+// dropped by the ON CONFLICT WHERE, so a straggler that read the row before
+// an anchor reset or a clear cannot restore the older wait. A higher epoch
+// replaces the anchor; an equal epoch keeps the earlier anchor, so two racing
+// first-defer writers keep the earlier one whichever commits last, and a
+// replayed write leaves the row as it was. ON CONFLICT DO UPDATE re-evaluates
+// the WHERE and SET against the latest committed row version after waiting
+// on its row lock, so the fence holds under READ COMMITTED.
 const upsertReadinessWaitQuery = `
 INSERT INTO reducer_readiness_waits AS wait (
     scope_id, domain, first_deferred_at, missing_keys, missing_count,
     missing_fingerprint, committed_generation_id, committed_cycle_started_at,
-    committed_fingerprint, settled_at, updated_at
-) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11)
+    committed_fingerprint, settled_at, updated_at, anchor_epoch, cleared_at
+) VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, NULL)
 ON CONFLICT (scope_id, domain) DO UPDATE SET
     first_deferred_at = CASE
-        WHEN $12::boolean THEN EXCLUDED.first_deferred_at
+        WHEN EXCLUDED.anchor_epoch > wait.anchor_epoch THEN EXCLUDED.first_deferred_at
         ELSE LEAST(wait.first_deferred_at, EXCLUDED.first_deferred_at)
     END,
     missing_keys = EXCLUDED.missing_keys,
@@ -46,12 +53,29 @@ ON CONFLICT (scope_id, domain) DO UPDATE SET
     committed_cycle_started_at = EXCLUDED.committed_cycle_started_at,
     committed_fingerprint = EXCLUDED.committed_fingerprint,
     settled_at = EXCLUDED.settled_at,
-    updated_at = EXCLUDED.updated_at
+    updated_at = EXCLUDED.updated_at,
+    anchor_epoch = EXCLUDED.anchor_epoch,
+    cleared_at = NULL
+WHERE EXCLUDED.anchor_epoch >= wait.anchor_epoch
 `
 
-// clearReadinessWaitQuery deletes one ledger row by primary key.
+// clearReadinessWaitQuery turns one ledger row into a tombstone at the next
+// epoch, only when the stored epoch is still the one the clearing evaluation
+// read. The tombstone keeps the clearing commit's marker and no missing set.
 const clearReadinessWaitQuery = `
-DELETE FROM reducer_readiness_waits WHERE scope_id = $1 AND domain = $2
+UPDATE reducer_readiness_waits SET
+    first_deferred_at = $6,
+    missing_keys = '[]'::jsonb,
+    missing_count = 0,
+    missing_fingerprint = '',
+    committed_generation_id = $4,
+    committed_cycle_started_at = $5,
+    committed_fingerprint = '',
+    settled_at = NULL,
+    anchor_epoch = anchor_epoch + 1,
+    cleared_at = $6,
+    updated_at = $6
+WHERE scope_id = $1 AND domain = $2 AND anchor_epoch = $3
 `
 
 // Store implements crossscope.ReadinessWaitLedger over the
@@ -87,11 +111,11 @@ func (s Store) GetReadinessWait(
 	}
 	wait := crossscope.ReadinessWait{ScopeID: scopeID, Domain: domain}
 	var rawKeys []byte
-	var committedCycle, settledAt sql.NullTime
+	var committedCycle, settledAt, clearedAt sql.NullTime
 	if err := rows.Scan(
 		&wait.FirstDeferredAt, &rawKeys, &wait.MissingCount, &wait.MissingFingerprint,
 		&wait.CommittedGenerationID, &committedCycle, &wait.CommittedFingerprint,
-		&settledAt, &wait.UpdatedAt,
+		&settledAt, &wait.UpdatedAt, &wait.AnchorEpoch, &clearedAt,
 	); err != nil {
 		return crossscope.ReadinessWait{}, false, fmt.Errorf("scan readiness wait %s/%s: %w", scopeID, domain, err)
 	}
@@ -100,12 +124,14 @@ func (s Store) GetReadinessWait(
 	}
 	wait.CommittedCycleStartedAt = committedCycle.Time
 	wait.SettledAt = settledAt.Time
+	wait.ClearedAt = clearedAt.Time
 	return wait, true, rows.Err()
 }
 
-// UpsertReadinessWait inserts or updates the row, keeping the earlier
-// first_deferred_at unless resetAnchor is true.
-func (s Store) UpsertReadinessWait(ctx context.Context, wait crossscope.ReadinessWait, resetAnchor bool) error {
+// UpsertReadinessWait inserts or updates the row under the anchor_epoch
+// fence. A write dropped by the fence is logged, not returned as an error: the
+// row already holds a newer wait.
+func (s Store) UpsertReadinessWait(ctx context.Context, wait crossscope.ReadinessWait) error {
 	if s.DB == nil {
 		return fmt.Errorf("readiness wait store requires a database")
 	}
@@ -117,25 +143,60 @@ func (s Store) UpsertReadinessWait(ctx context.Context, wait crossscope.Readines
 	if err != nil {
 		return fmt.Errorf("encode readiness wait keys %s/%s: %w", wait.ScopeID, wait.Domain, err)
 	}
-	if _, err := s.DB.ExecContext(ctx, upsertReadinessWaitQuery,
+	result, err := s.DB.ExecContext(ctx, upsertReadinessWaitQuery,
 		wait.ScopeID, string(wait.Domain), wait.FirstDeferredAt, string(rawKeys), wait.MissingCount,
 		wait.MissingFingerprint, wait.CommittedGenerationID, nullableTime(wait.CommittedCycleStartedAt),
-		wait.CommittedFingerprint, nullableTime(wait.SettledAt), wait.UpdatedAt, resetAnchor,
-	); err != nil {
+		wait.CommittedFingerprint, nullableTime(wait.SettledAt), wait.UpdatedAt, wait.AnchorEpoch,
+	)
+	if err != nil {
 		return fmt.Errorf("upsert readiness wait %s/%s: %w", wait.ScopeID, wait.Domain, err)
 	}
+	logFenced(ctx, result, "upsert", wait)
 	return nil
 }
 
-// ClearReadinessWait deletes the row. Deleting an absent row is not an error.
-func (s Store) ClearReadinessWait(ctx context.Context, scopeID string, domain reducercontract.Domain) error {
+// ClearReadinessWait turns the row into a tombstone at the next epoch when the
+// stored epoch equals wait.AnchorEpoch. Clearing an absent row, or one a newer
+// writer already advanced, changes nothing and is not an error.
+func (s Store) ClearReadinessWait(ctx context.Context, wait crossscope.ReadinessWait) error {
 	if s.DB == nil {
 		return fmt.Errorf("readiness wait store requires a database")
 	}
-	if _, err := s.DB.ExecContext(ctx, clearReadinessWaitQuery, scopeID, string(domain)); err != nil {
-		return fmt.Errorf("clear readiness wait %s/%s: %w", scopeID, domain, err)
+	clearedAt := wait.ClearedAt
+	if clearedAt.IsZero() {
+		clearedAt = wait.UpdatedAt
 	}
+	if clearedAt.IsZero() {
+		return fmt.Errorf("clear readiness wait %s/%s: a cleared_at time is required", wait.ScopeID, wait.Domain)
+	}
+	result, err := s.DB.ExecContext(ctx, clearReadinessWaitQuery,
+		wait.ScopeID, string(wait.Domain), wait.AnchorEpoch, wait.CommittedGenerationID,
+		nullableTime(wait.CommittedCycleStartedAt), clearedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("clear readiness wait %s/%s: %w", wait.ScopeID, wait.Domain, err)
+	}
+	logFenced(ctx, result, "clear", wait)
 	return nil
+}
+
+// logFenced reports a write that changed no row: the anchor_epoch fence
+// dropped it because a newer reset or clear already advanced the row (or, for
+// a clear, the row is absent). Operators see it as a lease-expired straggler.
+func logFenced(ctx context.Context, result sql.Result, operation string, wait crossscope.ReadinessWait) {
+	if result == nil {
+		return
+	}
+	affected, err := result.RowsAffected()
+	if err != nil || affected > 0 {
+		return
+	}
+	slog.InfoContext(ctx, "readiness wait write dropped by the anchor epoch fence",
+		log.ScopeID(wait.ScopeID),
+		slog.String("domain", string(wait.Domain)),
+		slog.String("readiness_wait_operation", operation),
+		slog.Int64("anchor_epoch", wait.AnchorEpoch),
+	)
 }
 
 // nullableTime binds a zero time as SQL NULL.
