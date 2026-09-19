@@ -4,12 +4,15 @@
 package maintenance
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -64,6 +67,7 @@ func newReconcileTestInstruments(t *testing.T) (*telemetry.Instruments, *metric.
 
 func TestInfraInventoryReconcileRunnerCountsOutcomesAndAdvancesTheCursor(t *testing.T) {
 	instruments, reader := newReconcileTestInstruments(t)
+	var logs bytes.Buffer
 	spans := tracetest.NewSpanRecorder()
 	reconciler := &fakeInfraInventoryReconciler{batches: []InfraInventoryReconcileBatch{
 		{Ready: true, NextCursor: "repo-b", Repos: []InfraInventoryReconcileRepo{
@@ -74,13 +78,16 @@ func TestInfraInventoryReconcileRunnerCountsOutcomesAndAdvancesTheCursor(t *test
 			{RepoID: "repo-b", Outcome: "repaired", ContentRows: 3, TableRows: 2},
 			{RepoID: "repo-c", Outcome: "error", Err: errors.New("boom")},
 		}},
-		{Ready: true},
+		{Ready: true, Repos: []InfraInventoryReconcileRepo{
+			{RepoID: "repo-d", Outcome: "fenced", ContentRows: 1, TableRows: 0},
+		}},
 	}}
 	runner := &InfraInventoryReconcileRunner{
 		Reconciler:  reconciler,
 		Config:      InfraInventoryReconcileRunnerConfig{PollInterval: time.Minute, RepoBudget: 2},
 		Tracer:      sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("test"),
 		Instruments: instruments,
+		Logger:      slog.New(slog.NewJSONHandler(&logs, nil)),
 	}
 
 	for range 3 {
@@ -97,13 +104,17 @@ func TestInfraInventoryReconcileRunnerCountsOutcomesAndAdvancesTheCursor(t *test
 			"the cursor advances to NextCursor and wraps when the walk ends")
 	var rm metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(context.Background(), &rm))
-	for outcome, want := range map[string]int64{"match": 1, "suspect": 1, "repaired": 1, "error": 1} {
+	for outcome, want := range map[string]int64{"match": 1, "suspect": 1, "repaired": 1, "fenced": 1, "error": 1} {
 		require.Equal(t, want, reducerCounterValue(t, rm, "eshu_dp_infra_inventory_reconcile_total",
 			map[string]string{"outcome": outcome}), outcome)
 	}
 	require.Equal(t, uint64(3), histogramCount(t, rm, "eshu_dp_infra_inventory_reconcile_duration_seconds"))
 	require.Len(t, spans.Ended(), 3)
 	require.Equal(t, telemetry.SpanReducerInfraInventoryReconcile, spans.Ended()[0].Name())
+	require.Contains(t, spans.Ended()[2].Attributes(), attribute.Int("eshu.infra_inventory.repos_fenced", 1),
+		"a fence repair is visible on the cycle span apart from drift repairs")
+	require.Contains(t, logs.String(), `"event_name":"infra_inventory.reconcile.fenced"`,
+		"a fence repair logs its own event so operators can tell an unaware writer from drift")
 }
 
 func TestInfraInventoryReconcileRunnerSkipsUntilTheBackfillMarkerExists(t *testing.T) {

@@ -181,7 +181,8 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 // write, so for one projection stage the table and the graph can disagree for
 // that repository. A read served by the table alone reports content_index; a
 // read that also needed the graph pass reports hybrid; a read that needed only
-// the graph (graph-only labels, scoped callers, or before the backfill marker)
+// the graph (graph-only labels, scoped callers, or before the read model is
+// ready)
 // reports authoritative_graph.
 func infraResourceAggregateTruth(profile QueryProfile, source InfraResourceAggregateSource, detail string) *TruthEnvelope {
 	if source == InfraResourceAggregateSourceReadModel {

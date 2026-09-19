@@ -11,7 +11,7 @@ const ResourceAggregate = `
     "/api/v0/infra/resources/count": {
       "get": {
         "summary": "Count graph-backed infrastructure resources without paging the search endpoint",
-        "description": "Counts the canonical graph population of the infrastructure labels. Once the infra read model backfill has completed, unscoped reads count content-derived nodes from the Postgres infra_resource_entities table, and CloudResource, TerraformStateResource, and the Terraform state projector's TerraformModule and TerraformOutput nodes from the graph, and report truth basis hybrid. A category that needs no graph read (category=argocd, crossplane, helm, or k8s) is served from the table alone and reports truth basis content_index; category=cloud needs only the graph and reports truth basis authoritative_graph. Scoped tokens, and every read before the backfill completes, read only the graph and report truth basis authoritative_graph.",
+        "description": "Counts the canonical graph population of the infrastructure labels. Once the infra read model backfill has completed and no repository waits for a repair after a write from an older binary, unscoped reads count content-derived nodes from the Postgres infra_resource_entities table, and CloudResource, TerraformStateResource, and the Terraform state projector's TerraformModule and TerraformOutput nodes from the graph, and report truth basis hybrid. A category that needs no graph read (category=argocd, crossplane, helm, or k8s) is served from the table alone and reports truth basis content_index; category=cloud needs only the graph and reports truth basis authoritative_graph. Scoped tokens, and every other read (before the backfill completes, or while a repository waits for that repair), read only the graph and report truth basis authoritative_graph.",
         "operationId": "countInfraResources",
         "x-scoped-token-support": true,
         "parameters": [
@@ -50,7 +50,7 @@ const ResourceAggregate = `
     "/api/v0/infra/resources/inventory": {
       "get": {
         "summary": "Group graph-backed infrastructure resources by one dimension without paging the search endpoint",
-        "description": "Groups the canonical graph population of the infrastructure labels by one dimension. Uses the same serving rules as countInfraResources: unscoped reads after the infra read model backfill are truth basis hybrid, except a category that needs no graph read (category=argocd, crossplane, helm, or k8s), which is content_index, and category=cloud, which reads only the graph and is authoritative_graph. Scoped reads and reads before the backfill are authoritative_graph.",
+        "description": "Groups the canonical graph population of the infrastructure labels by one dimension. Uses the same serving rules as countInfraResources: unscoped reads after the infra read model backfill are truth basis hybrid, except a category that needs no graph read (category=argocd, crossplane, helm, or k8s), which is content_index, and category=cloud, which reads only the graph and is authoritative_graph. Scoped reads, and reads before the backfill or while a repository waits for a repair, are authoritative_graph.",
         "operationId": "getInfraResourceInventory",
         "x-scoped-token-support": true,
         "parameters": [

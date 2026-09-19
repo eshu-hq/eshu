@@ -26,7 +26,8 @@ const (
 
 // InfraInventoryReconcileRepo is the result of checking one repository.
 // Outcome is match, suspect (differed once; re-checked next cycle), repaired,
-// or error.
+// fenced (re-derived because a binary that does not derive wrote its content;
+// readers stay on the graph until it is), or error.
 type InfraInventoryReconcileRepo struct {
 	RepoID      string
 	Outcome     string
@@ -203,6 +204,7 @@ func (r *InfraInventoryReconcileRunner) recordBatch(
 		attribute.Int("eshu.infra_inventory.repos_checked", len(batch.Repos)),
 		attribute.Int("eshu.infra_inventory.repos_suspect", counts["suspect"]),
 		attribute.Int("eshu.infra_inventory.repos_repaired", counts["repaired"]),
+		attribute.Int("eshu.infra_inventory.repos_fenced", counts["fenced"]),
 		attribute.Int("eshu.infra_inventory.repos_failed", counts["error"]),
 		attribute.Bool("eshu.infra_inventory.walk_wrapped", batch.NextCursor == ""),
 	)
@@ -212,6 +214,7 @@ func (r *InfraInventoryReconcileRunner) recordBatch(
 			slog.Int("repos_matched", counts["match"]),
 			slog.Int("repos_suspect", counts["suspect"]),
 			slog.Int("repos_repaired", counts["repaired"]),
+			slog.Int("repos_fenced", counts["fenced"]),
 			slog.Int("repos_failed", counts["error"]),
 			slog.Bool("walk_wrapped", batch.NextCursor == ""),
 			slog.Float64("duration_seconds", elapsed.Seconds()),
@@ -231,6 +234,13 @@ func (r *InfraInventoryReconcileRunner) logRepo(ctx context.Context, repo InfraI
 			slog.String("repo_id", repo.RepoID),
 			slog.Int64("content_rows", repo.ContentRows),
 			slog.Int64("table_rows", repo.TableRows),
+			slog.Float64("duration_seconds", repo.Duration.Seconds()),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	case "fenced":
+		r.Logger.WarnContext(ctx, "infra inventory repository re-derived after a write from a binary that does not derive",
+			slog.String("event_name", "infra_inventory.reconcile.fenced"),
+			slog.String("repo_id", repo.RepoID),
 			slog.Float64("duration_seconds", repo.Duration.Seconds()),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)

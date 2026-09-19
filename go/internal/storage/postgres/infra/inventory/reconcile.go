@@ -29,6 +29,10 @@ const (
 	// ReconcileRepaired means the table differed on two checks at least one
 	// reconcile interval apart and was re-derived under the repository lock.
 	ReconcileRepaired = "repaired"
+	// ReconcileFenced means an unaware writer marked the repository (see
+	// WriterSessionSQL) and it was re-derived under the repository lock.
+	// Readers stay on the graph while any repository is marked.
+	ReconcileFenced = "fenced"
 	// ReconcileError means the check or the repair failed; the next walk
 	// retries the repository.
 	ReconcileError = "error"
@@ -153,7 +157,10 @@ type ReconcileBatch struct {
 // the cycle checks nothing and reports Ready false; a missing table (the
 // reducer started before migration 109) is the same state, not an error.
 //
-// Otherwise it re-checks req.Suspects with repair allowed, then walks the
+// Otherwise it first repairs up to Budget fence-marked repositories (an
+// unaware writer changed their content without deriving; see
+// WriterSessionSQL), then re-checks req.Suspects with repair allowed from the
+// remaining budget, then walks the
 // remaining budget of repositories after the cursor with repair withheld: a
 // repository that differs on the walk is only a suspect, returned for the next
 // cycle. A failure on one repository is recorded on that repository and the
@@ -170,12 +177,32 @@ func ReconcileCycle(ctx context.Context, database db.ExecQueryer, req ReconcileR
 	if !complete {
 		return ReconcileBatch{}, nil
 	}
-	suspects := normalizedPaths(req.Suspects)
-	if len(suspects) > req.Budget {
-		suspects = suspects[:req.Budget]
-	}
 	batch := ReconcileBatch{Ready: true, NextCursor: req.Cursor}
-	seen := make(map[string]struct{}, len(suspects))
+	// Fence-marked repositories first: an unaware writer changed their
+	// content without deriving, and readers stay on the graph until every
+	// mark is repaired.
+	dirty, err := dirtyRepositories(ctx, database, req.Budget)
+	if err != nil {
+		return batch, err
+	}
+	seen := make(map[string]struct{}, len(dirty)+len(req.Suspects))
+	for _, repo := range dirty {
+		seen[repo] = struct{}{}
+		if err := ctx.Err(); err != nil {
+			return batch, err
+		}
+		batch.Repos = append(batch.Repos, repairDirty(ctx, database, repo))
+	}
+	budget := req.Budget - len(dirty)
+	var suspects []string
+	for _, repo := range normalizedPaths(req.Suspects) {
+		if _, done := seen[repo]; !done {
+			suspects = append(suspects, repo)
+		}
+	}
+	if len(suspects) > budget {
+		suspects = suspects[:budget]
+	}
 	for _, repo := range suspects {
 		seen[repo] = struct{}{}
 		if err := ctx.Err(); err != nil {
@@ -184,7 +211,7 @@ func ReconcileCycle(ctx context.Context, database db.ExecQueryer, req ReconcileR
 		batch.Repos = append(batch.Repos, reconcileOne(ctx, database, repo, true))
 	}
 
-	walkBudget := req.Budget - len(suspects)
+	walkBudget := budget - len(suspects)
 	if walkBudget == 0 {
 		return batch, nil
 	}

@@ -323,9 +323,71 @@ checked, suspect, repaired, failed, walk wrapped), logs `infra_inventory.reconci
 table row counts), `infra_inventory.reconcile.failed`, and
 `infra_inventory.reconcile.cycle_failed`.
 
-Follow-ups, out of scope for this change: gate the backfill marker on
-writer-side readiness (every content writer registers that it derives before
-the marker is trusted), move the backfill out of the API and MCP processes
-into the projector, which owns the derive, and record the first production
-`eshu_dp_infra_inventory_reconcile_duration_seconds` p95 after deploy (the
-shim above is smaller than a production corpus).
+## Rolling-upgrade fence
+
+The reconcile alone left a stale window during a rolling upgrade: a new API
+can record the backfill marker while an older ingester, projector, or
+bootstrap-index binary still writes `content_entities` without deriving, and
+readers would trust the table until the walk reached each repository. If the
+reducer was also old, nothing repaired it. A reader-side "clean walk" gate
+does not close this either, because it cannot see an old writer that is still
+running.
+
+Migration 109 therefore fences old writers in the database, the same approach
+as migration 096's trigger fence against old reducer pods. Every connection
+opened by `runtime.OpenPostgres` runs `SET eshu.infra_inventory_writer =
+'derive'` (`inventory.WriterSessionSQL`, through pgx's after-connect hook).
+Row triggers on `content_entities` (insert, update, delete) skip rows whose
+connection carries that setting. Any other write of an infra-typed row (an
+older binary, or manual SQL) upserts its repository into
+`infra_resource_entity_dirty_repos` in the same statement. Readers
+(`inventory.ReadModelReady`) trust the table only when the marker exists AND
+no repository is marked, one primary-key lookup plus a one-row probe. Each
+reconcile cycle repairs marked repositories first, oldest first and counted
+against the budget: lock, delete the mark, re-derive, commit (`fenced`). A mark
+proves content changed without a derive, so it needs no second check.
+
+Interleaving: the trigger's upsert is `ON CONFLICT DO UPDATE`, which holds
+the mark's row lock until the unaware write commits. A repair's DELETE of the
+mark then waits for that write and, under Read Committed, re-checks the row
+and deletes it; the re-derive statement that follows takes a new snapshot and
+reads the write's rows. A write that starts after the repair's DELETE inserts
+a new mark that survives the repair. With `DO NOTHING`, which takes no lock,
+a repair could clear the mark and re-derive while the write's rows were still
+invisible, leaving the table short with no mark.
+`TestWriterFenceLiveRepairWaitsForAnOpenUnawareWrite` holds an unaware write
+open, asserts the repair blocks on the mark (`pg_stat_activity`
+`wait_event_type = 'Lock'`), commits, and asserts the table has the row and
+the mark is gone; swapping the upsert to `DO NOTHING` fails it. Four mutations
+were each run against the live fence tests and each failed: `DO NOTHING`, a
+reader gate on the marker alone, a cycle that skips marked repositories, and
+an insert trigger without the session predicate. Old writers serialize per
+repository on the mark while they run, which only lasts until the rollout
+finishes.
+
+A pooler that drops session state loses the setting. That fails safe: the
+writes are marked, reads stay on the graph, and the reconcile repairs them.
+
+Performance Evidence: shim on a local PostgreSQL 18 with `content_entities`
+and all of its production indexes, 10 repositories, 100 statements of 500
+rows each (40% infra-typed), three runs each. Insert of 50,000 rows without
+the triggers: 582 / 590 / 614 ms; with the triggers and the writer setting
+(the new binaries' path): 641 / 578 / 605 ms. Upsert of the same rows through
+`ON CONFLICT DO UPDATE`: 802 / 810 / 825 ms without, 855 / 839 / 742 ms with.
+Delete of 50,000 rows: 11 / 14 / 12 ms without, 19 / 20 / 18 ms with, about
+0.14 us per deleted row. For a derive-aware writer the WHEN clause is
+evaluated in the executor and never calls the function. The same load from
+a connection without the setting (the old-binary path) marked all 10
+repositories.
+
+Observability Evidence: `eshu_dp_infra_inventory_reconcile_total{outcome="fenced"}`
+counts repositories repaired after an unaware write; span attribute
+`eshu.infra_inventory.repos_fenced` and log event
+`infra_inventory.reconcile.fenced` (warn, with `repo_id`) name them. While
+marks exist, unscoped reads count as `eshu_dp_infra_inventory_reads_total{source="graph"}`
+after the marker, which is the signal that the fence is holding reads back.
+
+Follow-ups, out of scope for this change: move the backfill out of the API
+and MCP processes into the projector, which owns the derive, and record the
+first production `eshu_dp_infra_inventory_reconcile_duration_seconds` p95
+after deploy (the shim above is smaller than a production corpus).
