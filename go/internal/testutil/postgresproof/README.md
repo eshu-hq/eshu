@@ -18,9 +18,12 @@ in [doc.go](doc.go).
 
 ## Dependencies
 
-The helper uses `pgx` to parse the administrative DSN and register a copied
+The helper uses `pgx` to parse the administrative DSN and opens a copied
 connection configuration whose database name is the generated proof database.
-It imports no Eshu runtime package.
+Every proof connection runs the infra read model's derive-aware writer `SET`
+(`storage/postgres/infra/inventory.WriterConnectOption`), the same setting
+`runtime.OpenPostgres` applies, so a proof that seeds infra-typed content rows
+cannot leave rolling-upgrade fence marks behind. That is its only Eshu import.
 
 ## Telemetry
 
