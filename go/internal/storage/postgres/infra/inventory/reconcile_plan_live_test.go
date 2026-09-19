@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
@@ -23,9 +24,13 @@ func TestReconcileRepositoriesLivePageStopsAtBudget(t *testing.T) {
 		repos  = 400
 		budget = 10
 	)
+	// Derive every repository so both the content side and the table side
+	// hold rows past the budget; a proof with an empty table side could not
+	// catch the table side losing its inner LIMIT.
 	prefix := uniqueRepo(t)
+	database := postgres.SQLDB{DB: sqlDB}
 	for i := range repos {
-		putContent(t, ctx, sqlDB, fmt.Sprintf("%s-%04d", prefix, i),
+		seedDerivedRepo(t, ctx, database, fmt.Sprintf("%s-%04d", prefix, i),
 			contentRow{id: "e", path: "main.tf", entityType: "TerraformResource", name: "r"})
 	}
 
