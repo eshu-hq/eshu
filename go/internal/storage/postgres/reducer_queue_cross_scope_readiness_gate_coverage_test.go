@@ -82,6 +82,11 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestFinalizedGenerationRecommitSkipsFactsLive",
 		"TestGenerationLivenessIntegration",
 		"TestSharedIntentGenerationPendingIndexLifecycleLive",
+		// #6794: the status blockage filter must match the pre-change join over
+		// every lease state and must hash the lease set, running no eligible or
+		// lease scan more than once, whatever the statistics say.
+		"TestReducerConflictBlockageLeaseMixMatchesPreChangeJoin",
+		"TestActiveWorkSummaryBlockageHashesLeasesOnce",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)
