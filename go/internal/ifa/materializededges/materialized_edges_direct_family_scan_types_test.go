@@ -64,26 +64,28 @@ func parseCypherPackageWithReducerPorts(
 			goRoot,
 			tags,
 			"./internal/storage/cypher",
+			"./internal/storage/cypher/edge/...",
 			"./internal/reducer/...",
 		)
-		var cypherPackage *packages.Package
+		var cypherPackages []*packages.Package
 		var reducerPackages []*packages.Package
 		for _, pkg := range loaded {
 			switch {
-			case strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher"):
-				cypherPackage = pkg
+			case strings.HasSuffix(pkg.PkgPath, "/internal/storage/cypher"),
+				strings.Contains(pkg.PkgPath, "/internal/storage/cypher/edge/"):
+				cypherPackages = append(cypherPackages, pkg)
 			case strings.Contains(pkg.PkgPath, "/internal/reducer"):
 				reducerPackages = append(reducerPackages, pkg)
 			}
 		}
-		if cypherPackage == nil || len(reducerPackages) == 0 {
-			t.Fatalf("typed port scan loaded cypher=%t reducer_packages=%d", cypherPackage != nil, len(reducerPackages))
+		if len(cypherPackages) == 0 || len(reducerPackages) == 0 {
+			t.Fatalf("typed port scan loaded cypher_packages=%d reducer_packages=%d", len(cypherPackages), len(reducerPackages))
 		}
 		reducerPorts := collectReducerPortSignatures(reducerPackages)
 		for name := range reducerPorts {
 			ports[name] = struct{}{}
 		}
-		configuration := buildCypherSource(t, cypherPackage, reducerPorts)
+		configuration := buildMergedCypherSource(t, cypherPackages, reducerPorts)
 		root.configurations = append(root.configurations, configuration)
 	}
 	return root, ports
@@ -219,6 +221,22 @@ func buildCypherSource(
 ) *cypherPackageSource {
 	t.Helper()
 
+	return buildMergedCypherSource(t, []*packages.Package{pkg}, reducerPorts)
+}
+
+// buildMergedCypherSource scans the top-level cypher package together with its
+// edge leaf subpackages (#6694) as one source. Function keys are
+// "Receiver.Method" without a package qualifier, so the merge is sound only
+// while no two scanned packages declare the same key; the shared maps resolve
+// cross-package calls and template references exactly as the pre-extraction
+// single-package scan did.
+func buildMergedCypherSource(
+	t *testing.T,
+	pkgs []*packages.Package,
+	reducerPorts map[string][]*types.Signature,
+) *cypherPackageSource {
+	t.Helper()
+
 	source := newCypherPackageSource()
 	if reducerPorts != nil {
 		source.rootKeysByPort = map[string][]string{}
@@ -227,51 +245,67 @@ func buildCypherSource(
 	stringValuesByObject := map[types.Object]string{}
 	unknownStringObjects := map[types.Object]string{}
 	matchedSignatures := map[string][]*types.Signature{}
-	for _, file := range pkg.Syntax {
-		for _, declaration := range file.Decls {
-			switch typedDeclaration := declaration.(type) {
-			case *ast.GenDecl:
-				collectTypedPackageStrings(
-					pkg,
-					typedDeclaration,
-					stringValuesByObject,
-					unknownStringObjects,
-				)
-			case *ast.FuncDecl:
-				if typedDeclaration.Body == nil {
-					continue
-				}
-				fn, ok := pkg.TypesInfo.Defs[typedDeclaration.Name].(*types.Func)
-				if !ok {
-					t.Fatalf("function %s has no type object", typedDeclaration.Name.Name)
-				}
-				key, err := typedFunctionKey(fn)
-				if err != nil {
-					t.Fatalf("key %s: %v", typedDeclaration.Name.Name, err)
-				}
-				keysByObject[fn] = key
-				source.fileByKey[key] = filepath.Base(pkg.Fset.Position(typedDeclaration.Pos()).Filename)
-				source.keysByName[fn.Name()] = appendUnique(source.keysByName[fn.Name()], key)
-				if fn.Type().(*types.Signature).Recv() != nil {
-					matchReducerPort(t, source, matchedSignatures, fn, key, reducerPorts[fn.Name()])
+	localPaths := make(map[string]struct{}, len(pkgs))
+	for _, pkg := range pkgs {
+		localPaths[pkg.PkgPath] = struct{}{}
+	}
+	for _, pkg := range pkgs {
+		for _, file := range pkg.Syntax {
+			for _, declaration := range file.Decls {
+				switch typedDeclaration := declaration.(type) {
+				case *ast.GenDecl:
+					collectTypedPackageStrings(
+						pkg,
+						typedDeclaration,
+						stringValuesByObject,
+						unknownStringObjects,
+					)
+				case *ast.FuncDecl:
+					if typedDeclaration.Body == nil {
+						continue
+					}
+					fn, ok := pkg.TypesInfo.Defs[typedDeclaration.Name].(*types.Func)
+					if !ok {
+						t.Fatalf("function %s has no type object", typedDeclaration.Name.Name)
+					}
+					key, err := typedFunctionKey(fn)
+					if err != nil {
+						t.Fatalf("key %s: %v", typedDeclaration.Name.Name, err)
+					}
+					keysByObject[fn] = key
+					if _, dup := source.fileByKey[key]; dup {
+						t.Fatalf("scan key %s declared in more than one scanned package; qualify keys before merging", key)
+					}
+					source.fileByKey[key] = filepath.Base(pkg.Fset.Position(typedDeclaration.Pos()).Filename)
+					source.keysByName[fn.Name()] = appendUnique(source.keysByName[fn.Name()], key)
+					if fn.Type().(*types.Signature).Recv() != nil {
+						matchReducerPort(t, source, matchedSignatures, fn, key, reducerPorts[fn.Name()])
+					}
 				}
 			}
 		}
 	}
 
-	for _, file := range pkg.Syntax {
-		collectTypedFunctionBodies(
-			t,
-			pkg,
-			file,
-			source,
-			keysByObject,
-			stringValuesByObject,
-			unknownStringObjects,
-		)
+	for _, pkg := range pkgs {
+		for _, file := range pkg.Syntax {
+			collectTypedFunctionBodies(
+				t,
+				pkg,
+				file,
+				source,
+				keysByObject,
+				stringValuesByObject,
+				unknownStringObjects,
+				localPaths,
+			)
+		}
 	}
 	if len(stringValuesByObject) == 0 || len(source.bodyCalls) == 0 {
-		t.Fatalf("scanned %s and found no string values or function bodies", pkg.PkgPath)
+		paths := make([]string, 0, len(pkgs))
+		for _, pkg := range pkgs {
+			paths = append(paths, pkg.PkgPath)
+		}
+		t.Fatalf("scanned %s and found no string values or function bodies", strings.Join(paths, ", "))
 	}
 	return source
 }
@@ -306,6 +340,7 @@ func collectTypedFunctionBodies(
 	keysByObject map[*types.Func]string,
 	stringValuesByObject map[types.Object]string,
 	unknownStringObjects map[types.Object]string,
+	localPaths map[string]struct{},
 ) {
 	t.Helper()
 	for _, declaration := range file.Decls {
@@ -320,6 +355,7 @@ func collectTypedFunctionBodies(
 			keysByObject,
 			stringValuesByObject,
 			unknownStringObjects,
+			localPaths,
 			fnDeclaration.Body,
 		)
 		if err != nil {
@@ -336,6 +372,7 @@ func collectTypedBodyRefs(
 	keysByObject map[*types.Func]string,
 	stringValuesByObject map[types.Object]string,
 	unknownStringObjects map[types.Object]string,
+	localPaths map[string]struct{},
 	body *ast.BlockStmt,
 ) ([]string, []string, []string, error) {
 	var calls []string
@@ -363,11 +400,14 @@ func collectTypedBodyRefs(
 				}
 				return true
 			}
-			if fn.Pkg() == nil || fn.Pkg().Path() != pkg.PkgPath {
-				return true
-			}
 			if key, ok := keysByObject[fn]; ok {
 				calls = appendUnique(calls, key)
+				return true
+			}
+			if fn.Pkg() == nil {
+				return true
+			}
+			if _, local := localPaths[fn.Pkg().Path()]; !local {
 				return true
 			}
 			if isInterfaceMethod(fn) {

@@ -13,7 +13,7 @@ func TestReducerPortRootsIncludeContextlessMethodsAndExcludeTaxonomy(t *testing.
 	t.Parallel()
 
 	dir := t.TempDir()
-	for _, relative := range []string{"internal/reducer", "internal/storage/cypher"} {
+	for _, relative := range []string{"internal/reducer", "internal/storage/cypher", "internal/storage/cypher/edge/writer"} {
 		if err := os.MkdirAll(filepath.Join(dir, relative), 0o700); err != nil {
 			t.Fatalf("create %s: %v", relative, err)
 		}
