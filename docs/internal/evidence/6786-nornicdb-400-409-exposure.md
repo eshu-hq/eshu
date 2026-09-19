@@ -122,3 +122,22 @@ expected, not a fault.
 X1–X10 are outside orneryd/NornicDB#400–#409. Upstream reports for them are
 drafted but not yet filed; #6787 tracks upstream fixes and the re-proof on the
 next pin.
+
+The re-proof on the next pin must also cover two properties the repository
+dependency read relies on:
+
+- **X3 residual on the typed `DEPENDS_ON` probe.** The unscoped read trusts
+  `MATCH ()-[r:DEPENDS_ON]->() RETURN count(r)`: zero skips the read, and a
+  count at or below 50,000 lets the grouped read run without the group-size
+  cap. Typed counts are correct on v1.3.3 with the schema applied. A negative
+  relationship-counter residual after a whole-graph wipe is still possible,
+  and no production path wipes the whole graph. If such a residual netted to
+  exactly zero, the read would skip silently. A negative count is already
+  treated as unknown (`dependencyEdgeCount`), which takes the capped path.
+  Re-check typed counts after a both-endpoint `DETACH DELETE` and after a
+  whole-graph wipe on the next pin.
+- **Endpoint label checks in the aggregation fast path.** The grouped
+  dependency reads are correct only while `tryFastSingleHopAgg` checks both
+  endpoint labels. `TestLiveRepositoryDependencyMarkerAnswerTruth` seeds
+  Workload `DEPENDS_ON` edges and fails if it stops doing so. Run it on the
+  new pin.
