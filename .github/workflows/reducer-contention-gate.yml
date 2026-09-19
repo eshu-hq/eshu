@@ -126,14 +126,12 @@ jobs:
         # active-work filter the drain EXISTS uses in step with the materialized
         # one. They need real Postgres because the parity lives in SQL
         # ordering, collation, and aggregation.
+        # The projector and generation-liveness proofs (#6738) run against the
+        # same isolated PostgreSQL service; each test creates a private schema.
         # TestReducerContentionPostgresProofsRunInTheReducerContentionGate is
-        # the hermetic guard that keeps all five live PostgreSQL proof families
-        # inside the -run filter below.
-        # The projector and generation-liveness proofs run against the same
-        # isolated PostgreSQL service; each test creates a private schema.
-        # TestReducerContentionPostgresProofsRunInTheReducerContentionGate
-        # guards their DSNs and enrollment in the -run filter below.
-        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows)' -race -count=1 -timeout 180s -v
+        # the hermetic guard that keeps every live PostgreSQL proof above, and
+        # the DSNs they need, inside the -run filter below.
+        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows|TestProjectorHeartbeatSupersessionPreservesActivePointer|TestProjectorHeartbeatRenewsLeaseWhileIngestionHoldsScope|TestProjectorAckDefersWhileIngestionHoldsScope|TestProjectorQueueRejectsReclaimedSameOwnerAttempt|TestProjectorQueueRejectsAttemptReclaimedDuringLockWait|TestProjectorCompletionDoesNotDeadlockSameGenerationCommit|TestPublishedGenerationRecommitIsIdempotentLive|TestFinalizedGenerationRecommitSkipsFactsLive|TestGenerationLivenessIntegration|TestSharedIntentGenerationPendingIndexLifecycleLive)' -race -count=1 -timeout 180s -v
       - name: Run story target-support semantics proof
         working-directory: go
         env:
