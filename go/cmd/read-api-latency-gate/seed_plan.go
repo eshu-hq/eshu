@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/queue"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -54,11 +55,24 @@ type SeedPlan struct {
 
 // factWorkItemStatuses is the status mix seeded per generation, in the
 // proportions fact_work_items actually carries in a live deployment: most
-// work reaches "done", a shrinking tail sits in-flight or retrying, and a
-// small tail is stuck (failed/dead_letter). activeFactWorkItemsCTE
+// work reaches queue.StatusSucceeded, a shrinking tail sits in-flight or
+// retrying, and a small tail is stuck (queue.StatusDeadLetter).
+// activeFactWorkItemsCTE
 // (go/internal/storage/postgres/reducer_generation_filter_sql.go) has to scan
 // every one of these regardless of status, so the mix — not just the count —
 // drives its cost.
+//
+// Every status here is drawn from the exported go/internal/queue.WorkItemStatus
+// constants, never a copied string literal: a prior version of this seeder
+// wrote the fabricated status "done", which appears nowhere in storage code
+// and masked a real query-plan regression that only reproduces against the
+// live terminal status, "succeeded". See
+// TestBuildSeedPlanStatusesAreValidWorkItemStatuses.
+//
+// queue.StatusFailed is deliberately excluded: it is Deprecated ("retained
+// only so legacy rows can still be replayed"), so production never writes it
+// going forward. Seeding it would model data this gate's corpus is not meant
+// to represent. queue.StatusDeadLetter is the active terminal-failure status.
 //
 // "claimed" and "running" are deliberately excluded here: those two statuses
 // are exactly what fact_work_items_reducer_live_lease_uniq
@@ -71,18 +85,17 @@ var factWorkItemStatuses = []struct {
 	status string
 	weight int
 }{
-	{"done", 12},
-	{"pending", 3},
-	{"retrying", 3},
-	{"failed", 1},
-	{"dead_letter", 1},
+	{string(queue.StatusSucceeded), 12},
+	{string(queue.StatusPending), 3},
+	{string(queue.StatusRetrying), 3},
+	{string(queue.StatusDeadLetter), 2},
 }
 
 // leaseStatuses alternates which of the two lease-holding statuses
 // injectOneReducerLease uses, so both appear somewhere in a large plan (kept
 // for TestBuildSeedPlanGeneratesGenerationChurnAndWorkItemStatusMix) without
 // ever putting more than one on the same scope.
-var leaseStatuses = []string{"claimed", "running"}
+var leaseStatuses = []string{string(queue.StatusClaimed), string(queue.StatusRunning)}
 
 // workItemDomainsPerStage lists the fact domains seeded per scope generation.
 // stage/domain values mirror the reducer's real fact_work_items rows so the

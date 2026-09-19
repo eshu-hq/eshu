@@ -6,6 +6,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"net/http"
@@ -19,6 +20,12 @@ import (
 // unrepresentatively slow; without discarding them a single warmup request
 // could dominate a small nearest-rank p95 sample (this is what a bare "run N requests, take p95" design misses).
 const warmupRequests = 2
+
+// hardFailedBodyCap bounds how much of a 5xx response body sweepRoute
+// captures into RouteLatency.HardFailedBody — enough for an operator to see
+// the error envelope, not so much that a pathological handler streaming a
+// huge error body blows up the report.
+const hardFailedBodyCap = 500
 
 // SweepOptions configures SweepRoutes.
 type SweepOptions struct {
@@ -76,7 +83,7 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 // sweepRoute runs the warmup-then-counted sweep for one route.
 func sweepRoute(client *http.Client, route, url, apiKey string, iterations int) (RouteLatency, error) {
 	for i := 0; i < warmupRequests; i++ {
-		_, status, err := sweepOne(client, url, apiKey)
+		_, status, _, err := sweepOne(client, url, apiKey)
 		if err != nil {
 			return RouteLatency{}, fmt.Errorf("sweep %s (warmup %d/%d): %w", route, i+1, warmupRequests, err)
 		}
@@ -87,25 +94,30 @@ func sweepRoute(client *http.Client, route, url, apiKey string, iterations int) 
 
 	durations := make([]time.Duration, 0, iterations)
 	hardFailed := false
+	hardFailedBody := ""
 	status := 0
 	for i := 0; i < iterations; i++ {
-		d, s, err := sweepOne(client, url, apiKey)
+		d, s, body, err := sweepOne(client, url, apiKey)
 		if err != nil {
 			return RouteLatency{}, fmt.Errorf("sweep %s (iteration %d/%d): %w", route, i+1, iterations, err)
 		}
 		status = s
 		if s >= 500 {
+			if !hardFailed {
+				hardFailedBody = body
+			}
 			hardFailed = true
 		}
 		durations = append(durations, d)
 	}
 
 	return RouteLatency{
-		Route:      route,
-		P95:        p95(durations),
-		Exercised:  true,
-		Status:     status,
-		HardFailed: hardFailed,
+		Route:          route,
+		P95:            p95(durations),
+		Exercised:      true,
+		Status:         status,
+		HardFailed:     hardFailed,
+		HardFailedBody: hardFailedBody,
 	}, nil
 }
 
@@ -128,10 +140,10 @@ func sweepRoute(client *http.Client, route, url, apiKey string, iterations int) 
 // Only a connection-level failure (nothing is listening, DNS failed) returns
 // an error: that means eshu-api itself never came up, which is a gate setup
 // problem, not a per-route latency signal.
-func sweepOne(client *http.Client, url, apiKey string) (time.Duration, int, error) {
+func sweepOne(client *http.Client, url, apiKey string) (time.Duration, int, string, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return 0, 0, fmt.Errorf("build request: %w", err)
+		return 0, 0, "", fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
@@ -141,13 +153,19 @@ func sweepOne(client *http.Client, url, apiKey string) (time.Duration, int, erro
 	if err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
-			return elapsed, 0, nil
+			return elapsed, 0, "", nil
 		}
-		return 0, 0, fmt.Errorf("request %s: %w", url, err)
+		return 0, 0, "", fmt.Errorf("request %s: %w", url, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	return elapsed, resp.StatusCode, nil
+	body := ""
+	if resp.StatusCode >= 500 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, hardFailedBodyCap))
+		body = string(b)
+	}
+
+	return elapsed, resp.StatusCode, body, nil
 }
 
 // p95 returns the nearest-rank 95th percentile of durations: the smallest

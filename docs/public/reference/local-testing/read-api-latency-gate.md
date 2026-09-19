@@ -23,8 +23,9 @@ lanes never exercise.
    collector kind is seeded automatically. Each scope gets one or more
    `scope_generations` rows (a minority get several, modeling re-ingestion
    churn) and a set of `fact_work_items` rows across a realistic status mix
-   (`pending`, `retrying`, `claimed`, `running`, `failed`, `dead_letter`,
-   `done`).
+   (`pending`, `retrying`, `claimed`, `running`, `dead_letter`, `succeeded`)
+   drawn from `go/internal/queue.WorkItemStatus` — the deprecated,
+   legacy-replay-only `failed` status is never seeded.
 3. Bulk-writes that plan into Postgres via `pgx.CopyFrom` (`SeedPostgres`),
    seeds `fact_records` IaC `content_entity` facts with a realistic small
    (~1KB) / large (~15KB) jsonb payload mix (`BuildIaCFacts`/`SeedIaCFacts`

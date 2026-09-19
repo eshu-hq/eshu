@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -120,7 +121,7 @@ func run(opts runOptions) error {
 	}
 	budgets = budgets.WithCatalog(catalog)
 
-	printReport(results, budgets)
+	printReport(os.Stdout, results, budgets)
 
 	exercised, total := ExercisedCoverage(results)
 	fmt.Fprintf(os.Stderr, "\nread-api-latency-gate: exercised %d/%d routes (floor %d)\n", exercised, total, ExercisedCoverageFloor)
@@ -130,6 +131,13 @@ func run(opts runOptions) error {
 	if breaches := EvaluateBudgets(results, budgets); len(breaches) > 0 {
 		fmt.Fprintf(os.Stderr, "\nread-api-latency-gate: %d route(s) exceeded budget:\n", len(breaches))
 		for _, b := range breaches {
+			if b.HardFailed {
+				fmt.Fprintf(os.Stderr, "  %s: 5xx observed (p95 %s, budget %s) -- HardFailed always breaches regardless of latency\n", b.Route, b.P95, b.Budget)
+				if b.HardFailedBody != "" {
+					fmt.Fprintf(os.Stderr, "      body: %s\n", b.HardFailedBody)
+				}
+				continue
+			}
 			fmt.Fprintf(os.Stderr, "  %s: p95 %s > budget %s\n", b.Route, b.P95, b.Budget)
 		}
 		failures = append(failures, fmt.Sprintf("%d route(s) exceeded their latency budget", len(breaches)))
@@ -235,19 +243,26 @@ func countWorkItems(plan SeedPlan) int {
 	return n
 }
 
-func printReport(results []RouteLatency, budgets RouteBudgets) {
-	fmt.Printf("%-70s %10s %10s %13s\n", "route", "p95", "budget", "status")
+func printReport(w io.Writer, results []RouteLatency, budgets RouteBudgets) {
+	_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s\n", "route", "p95", "budget", "status")
 	for _, r := range results {
 		if !r.Exercised {
-			fmt.Printf("%-70s %10s %10s %13s\n", r.Route, "-", "-", fmt.Sprintf("NOT_EXERCISED(%d)", r.Status))
+			_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s\n", r.Route, "-", "-", fmt.Sprintf("NOT_EXERCISED(%d)", r.Status))
 			continue
 		}
 		budget := budgets.For(r.Route)
 		status := "OK"
-		if r.P95 > budget {
+		// A HardFailed route (any 5xx sample) always breaches regardless of
+		// p95 (see EvaluateBudgets) -- this status column must agree with
+		// that verdict, not just compare p95 against budget, or a route the
+		// gate actually fails on prints as a false "OK" here (issue #6797
+		// live-gate incident: component-extensions and iac/resources showed
+		// "OK" in this table while the same run's breach summary correctly
+		// failed the gate on them).
+		if r.HardFailed || r.P95 > budget {
 			status = "BREACH"
 		}
-		fmt.Printf("%-70s %10s %10s %13s\n", r.Route, r.P95.Round(time.Millisecond), budget, status)
+		_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s\n", r.Route, r.P95.Round(time.Millisecond), budget, status)
 	}
 }
 

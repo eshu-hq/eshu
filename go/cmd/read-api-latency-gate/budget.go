@@ -36,13 +36,24 @@ type RouteLatency struct {
 	// 5xx must never pass the gate just because it answered fast — see
 	// EvaluateBudgets.
 	HardFailed bool
+	// HardFailedBody is the first ~hardFailedBodyCap bytes of the response
+	// body from the FIRST counted-sample 5xx, when HardFailed is true. Empty
+	// otherwise. This is the error envelope an operator needs to root-cause
+	// a HardFailed route without re-running the gate (issue #6797 live-gate
+	// incident: two HardFailed routes had no signal beyond "5xx" until this
+	// was added).
+	HardFailedBody string
 }
 
-// BudgetBreach is one route whose measured p95 exceeded its budget.
+// BudgetBreach is one route that failed the gate: either its measured p95
+// exceeded Budget, or HardFailed is true (a 5xx sample), in which case P95
+// may be well under Budget and is not the reason for the breach.
 type BudgetBreach struct {
-	Route  string
-	P95    time.Duration
-	Budget time.Duration
+	Route          string
+	P95            time.Duration
+	Budget         time.Duration
+	HardFailed     bool
+	HardFailedBody string
 }
 
 // catalogCIMultiplier scales a capability's committed production p95 budget
@@ -238,7 +249,7 @@ func EvaluateBudgets(results []RouteLatency, budgets RouteBudgets) []BudgetBreac
 		}
 		budget := budgets.For(r.Route)
 		if r.HardFailed {
-			breaches = append(breaches, BudgetBreach{Route: r.Route, P95: r.P95, Budget: budget})
+			breaches = append(breaches, BudgetBreach{Route: r.Route, P95: r.P95, Budget: budget, HardFailed: true, HardFailedBody: r.HardFailedBody})
 			continue
 		}
 		if r.P95 > budget {

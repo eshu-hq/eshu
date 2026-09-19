@@ -84,6 +84,9 @@ fi
 
 # shellcheck source=scripts/lib/live-gate-lock.sh
 . "${repo_root}/scripts/lib/live-gate-lock.sh"
+# shellcheck source=scripts/lib/compose_verification_runtime_common.sh
+. "${repo_root}/scripts/lib/compose_verification_runtime_common.sh"
+COMPOSE_CMD=(docker compose "${compose_args[@]}")
 
 # work_dir/bin_dir/log_dir/bg_pids are referenced by cleanup() below but not
 # populated until after the lock is held; declared empty here (rather than
@@ -131,6 +134,23 @@ log_dir="${work_dir}/logs"
 mkdir -p "${bin_dir}" "${log_dir}"
 
 export ESHU_GRAPH_BACKEND
+# Exported (not just inline-prefixed on one `docker compose up` call): every
+# docker compose invocation below (the postgres/graph up, the separate
+# db-migrate up, logs, down) re-resolves docker-compose.yaml's
+# ${ESHU_POSTGRES_PORT:-...}-style interpolation from the CURRENT shell
+# environment. A var only prefixed on the first `up` call is invisible to the
+# later ones, so compose sees a changed config for postgres/nornicdb and
+# RECREATES them out from under db-migrate/eshu-api — this is what actually
+# caused a live-gate "connect: connection refused" on the Bolt port right
+# after a clean db-migrate exit (issue #6797 live-gate incident): the second
+# `up -d db-migrate` call recomputed postgres+nornicdb's config with these
+# unset (falling back to docker-compose.yaml's defaults) and recreated both
+# running containers.
+export ESHU_POSTGRES_PORT="${GATE_POSTGRES_PORT}"
+export NEO4J_BOLT_PORT="${GATE_NEO4J_BOLT_PORT}"
+export NEO4J_HTTP_PORT="${GATE_NEO4J_HTTP_PORT}"
+export ESHU_NEO4J_PASSWORD="${GATE_NEO4J_PASSWORD}"
+export ESHU_POSTGRES_PASSWORD="${GATE_POSTGRES_PASSWORD}"
 export NEO4J_URI="bolt://localhost:${GATE_NEO4J_BOLT_PORT}"
 export NEO4J_USERNAME="neo4j"
 export NEO4J_PASSWORD="${GATE_NEO4J_PASSWORD}"
@@ -143,17 +163,52 @@ export ESHU_API_ADDR=":${GATE_API_PORT}"
 export ESHU_AUTH_SECRET_ENC_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 export ESHU_LISTEN_ADDR="127.0.0.1:0"
 export ESHU_METRICS_ADDR="127.0.0.1:0"
+# Without ESHU_COMPONENT_HOME, ComponentExtensionsHandler.readbackOrUnavailable
+# (go/internal/query/component_extensions.go) 503s GET /api/v0/component-extensions
+# unconditionally -- a gate-environment gap, not a product bug (issue #6797
+# live-gate incident: this route HardFailed on every run). An empty directory
+# is a legitimate, supported registry state: Registry.Readback/List/load all
+# treat a missing/empty registry file as zero installed components, not an
+# error (go/internal/component/registry.go), so this makes the route return a
+# real empty-list 200 instead of a fabricated pass/fail signal.
+export ESHU_COMPONENT_HOME="${work_dir}/component-home"
+mkdir -p "${ESHU_COMPONENT_HOME}"
 unset ESHU_PPROF_ADDR || true
 
 if [[ "${use_compose}" -eq 1 ]]; then
 	log "bring up Postgres + ${ESHU_GRAPH_BACKEND} (Compose project ${GATE_COMPOSE_PROJECT})"
-	ESHU_POSTGRES_PORT="${GATE_POSTGRES_PORT}" \
-		NEO4J_BOLT_PORT="${GATE_NEO4J_BOLT_PORT}" \
-		NEO4J_HTTP_PORT="${GATE_NEO4J_HTTP_PORT}" \
-		ESHU_NEO4J_PASSWORD="${GATE_NEO4J_PASSWORD}" \
-		ESHU_POSTGRES_PASSWORD="${GATE_POSTGRES_PASSWORD}" \
-		docker compose "${compose_args[@]}" up -d --wait postgres "${ESHU_GRAPH_BACKEND}" db-migrate \
+	docker compose "${compose_args[@]}" up -d --wait postgres "${ESHU_GRAPH_BACKEND}" \
 		|| { docker compose "${compose_args[@]}" logs --tail=200 || true; die "compose up failed"; }
+	# db-migrate is a one-shot job that exits(0) once schema bootstrap
+	# completes; it must not be a `--wait` target above alongside the
+	# long-running postgres/graph services, because compose's --wait treats
+	# a target leaving the running/healthy state as failure regardless of
+	# exit code, so a clean db-migrate exit was reported as "compose up
+	# failed" (issue #6797 live-gate incident). Start it separately and wait
+	# for its own clean exit via the shared one-shot-service helper.
+	docker compose "${compose_args[@]}" up -d db-migrate \
+		|| { docker compose "${compose_args[@]}" logs --tail=200 || true; die "compose up failed"; }
+	eshu_compose_wait_for_named_exit db-migrate 120 \
+		|| { docker compose "${compose_args[@]}" logs --tail=200 db-migrate || true; die "db-migrate failed"; }
+
+	# nornicdb's healthcheck only probes its HTTP port (7474/health), not
+	# its Bolt listener (7687) — the two ports come up at slightly
+	# different times inside the container. eshu-api's own Neo4j
+	# connectivity preflight is a single dial with no retry, so starting
+	# it right after compose reports nornicdb "Healthy" races the Bolt
+	# port and can hard-fail eshu-api on a fresh container even though
+	# db-migrate (which retries its own connect) succeeded moments
+	# earlier against the same port (issue #6797 live-gate incident: RED
+	# run failed "connect: connection refused" on port 7797 immediately
+	# after a clean db-migrate exit). Wait for the Bolt port to actually
+	# accept a connection before starting eshu-api.
+	bolt_deadline=$((SECONDS + 60))
+	until nc -z 127.0.0.1 "${GATE_NEO4J_BOLT_PORT}" >/dev/null 2>&1; do
+		if ((SECONDS >= bolt_deadline)); then
+			die "${ESHU_GRAPH_BACKEND} Bolt port ${GATE_NEO4J_BOLT_PORT} never accepted a connection"
+		fi
+		/bin/sleep 1
+	done
 fi
 
 log "build host binaries"

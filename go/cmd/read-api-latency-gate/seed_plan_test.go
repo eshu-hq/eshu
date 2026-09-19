@@ -6,6 +6,7 @@ package main
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/queue"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -75,10 +76,44 @@ func TestBuildSeedPlanGeneratesGenerationChurnAndWorkItemStatusMix(t *testing.T)
 		t.Errorf("expected at least some scopes with multiple generations (re-ingestion churn) to exercise the active-generation self-join cost")
 	}
 
-	wantStatuses := []string{"pending", "retrying", "claimed", "running", "failed", "dead_letter", "done"}
+	wantStatuses := []string{"pending", "retrying", "claimed", "running", "dead_letter", string(queue.StatusSucceeded)}
 	for _, want := range wantStatuses {
 		if !statusSeen[want] {
 			t.Errorf("fact_work_items status mix missing %q; activeFactWorkItemsCTE cost depends on a realistic status mix", want)
+		}
+	}
+}
+
+// TestBuildSeedPlanStatusesAreValidWorkItemStatuses guards against seeding a
+// fabricated status the storage layer never produces. A prior version of this
+// seeder wrote "done" — a string that appears nowhere in
+// go/internal/queue.WorkItemStatus and nowhere in storage code — which masked
+// a real query-plan regression in /collectors (the plan-flip only reproduces
+// against the real terminal status, "succeeded", because that is the value
+// activeFactWorkItemsCTE's live data actually carries). Check against the
+// exported constant set, not a copy of the strings, so this test cannot drift
+// out of sync with go/internal/queue the way the seeder itself did.
+// queue.StatusFailed is intentionally excluded: it is Deprecated
+// (legacy-replay only), so a status mix meant to model what production
+// writes going forward must never manufacture it.
+func TestBuildSeedPlanStatusesAreValidWorkItemStatuses(t *testing.T) {
+	valid := map[string]bool{
+		string(queue.StatusPending):    true,
+		string(queue.StatusClaimed):    true,
+		string(queue.StatusRunning):    true,
+		string(queue.StatusRetrying):   true,
+		string(queue.StatusSucceeded):  true,
+		string(queue.StatusDeadLetter): true,
+	}
+
+	plan := BuildSeedPlan(SeedPlanOptions{TotalScopes: 800})
+	for _, s := range plan.Scopes {
+		for _, g := range plan.GenerationsByScope[s.ScopeID] {
+			for _, wi := range plan.WorkItemsByGeneration[g.GenerationID] {
+				if !valid[wi.Status] {
+					t.Errorf("seeded fact_work_items status %q for work item %q is not a member of queue.WorkItemStatus", wi.Status, wi.WorkItemID)
+				}
+			}
 		}
 	}
 }

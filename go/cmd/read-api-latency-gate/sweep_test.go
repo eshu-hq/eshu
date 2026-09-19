@@ -4,8 +4,10 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -214,6 +216,7 @@ func TestSweepRoutesTreatsTimeoutAsMaxLatencySample(t *testing.T) {
 func TestSweepRoutesTreats5xxAsHardFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError) // fast failure, no sleep
+		_, _ = w.Write([]byte(`{"error":"component extension registry is unavailable"}`))
 	}))
 	defer srv.Close()
 
@@ -235,6 +238,63 @@ func TestSweepRoutesTreats5xxAsHardFailure(t *testing.T) {
 	}
 	if !results[0].HardFailed {
 		t.Fatalf("HardFailed = false, want true — a 5xx must never pass just because it answered fast")
+	}
+	if !strings.Contains(results[0].HardFailedBody, "component extension registry is unavailable") {
+		t.Fatalf("HardFailedBody = %q, want it to contain the response body so an operator can see why the route failed", results[0].HardFailedBody)
+	}
+}
+
+// TestSweepRoutesTruncatesHardFailedBody guards the byte cap: an operator
+// needs enough of the error envelope to diagnose it, but an unbounded body
+// (or a pathological handler that streams megabytes on error) must not blow
+// up the report.
+func TestSweepRoutesTruncatesHardFailedBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(strings.Repeat("x", 10000)))
+	}))
+	defer srv.Close()
+
+	results, err := SweepRoutes(SweepOptions{
+		BaseURL:    srv.URL,
+		APIKey:     "test-key",
+		Routes:     []string{"GET /broken"},
+		Iterations: 1,
+		Timeout:    5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("SweepRoutes: %v", err)
+	}
+	if got := len(results[0].HardFailedBody); got > hardFailedBodyCap {
+		t.Fatalf("len(HardFailedBody) = %d, want at most %d", got, hardFailedBodyCap)
+	}
+}
+
+// TestSweepRoutesKeepsFirstHardFailedBody guards against a later 5xx sample
+// overwriting the FIRST captured body: the first failure is usually the most
+// informative (a later one may just be repeated backend contention noise),
+// and overwriting it would silently discard the evidence an operator needs.
+func TestSweepRoutesKeepsFirstHardFailedBody(t *testing.T) {
+	call := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call++
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "failure #%d", call)
+	}))
+	defer srv.Close()
+
+	results, err := SweepRoutes(SweepOptions{
+		BaseURL:    srv.URL,
+		APIKey:     "test-key",
+		Routes:     []string{"GET /broken"},
+		Iterations: 3,
+		Timeout:    5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("SweepRoutes: %v", err)
+	}
+	if results[0].HardFailedBody != "failure #3" {
+		t.Fatalf("HardFailedBody = %q, want %q (the first COUNTED-sample failure; warmupRequests=2 precede it)", results[0].HardFailedBody, "failure #3")
 	}
 }
 

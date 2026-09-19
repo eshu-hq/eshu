@@ -234,6 +234,9 @@ func TestEvaluateBudgetsTreatsHardFailedAsBreachRegardlessOfP95(t *testing.T) {
 	if len(breaches) != 1 {
 		t.Fatalf("EvaluateBudgets breaches = %d, want 1 — a HardFailed route must breach even with a 1ms p95", len(breaches))
 	}
+	if !breaches[0].HardFailed {
+		t.Errorf("breaches[0].HardFailed = false, want true — callers (printReport, the breach summary) rely on this to distinguish a 5xx breach from a real latency breach")
+	}
 }
 
 func TestRequireNamedRoutesExercisedFlagsNotExercisedNamedRoute(t *testing.T) {
