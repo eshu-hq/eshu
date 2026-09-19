@@ -27,9 +27,7 @@ The public operator contract is `docs/public/reference/telemetry/index.md`.
 <!-- eshu:metric:section=reducer-stages -->
 ## Reducer Stages
 
-The reducer drains queue work items through the worker pool, projects shared
-edges, and writes the canonical graph. Each row maps one stage to the metric
-or marker that already diagnoses it.
+The reducer drains queue work items through the worker pool, projects shared edges, and writes the canonical graph. Each row maps one stage to the metric or marker that already diagnoses it.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
