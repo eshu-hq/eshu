@@ -54,11 +54,12 @@ func WorkloadGrantAdmitted(access RepositoryAccessFilter, repoID string, definin
 // in Go. Readers fetch WorkloadSelectorCandidateBound+1 rows so a full page
 // is distinguishable from an exact one.
 //
-// Workload names are not unique, and the grant is no longer filtered in the
-// Cypher WHERE (#6786), so a granted row can sit behind ungranted rows. Up to
-// the bound every row is inspected; past it, a granted row may be missing, so
-// callers fail closed with ErrWorkloadSelectorCandidatesExceedBound instead
-// of deciding from a truncated page.
+// Workload names are not unique. For a scoped caller the name read carries
+// WorkloadScopePredicate on its WHERE line (#6801), so the bound counts granted
+// rows; unscoped reads count every same-name row. Up to the bound every row is
+// inspected; past it, a matching row may be missing, so callers fail closed
+// with ErrWorkloadSelectorCandidatesExceedBound instead of deciding from a
+// truncated page.
 const WorkloadSelectorCandidateBound = 50
 
 // ErrWorkloadSelectorCandidatesExceedBound reports that a name-keyed Workload

@@ -22,10 +22,15 @@ through imports.
 functions of the fields derive inside, evidence lists attach only when
 absent, and `deployment_truth_tier` stays caller-owned.
 
-NornicDB: `ResolveWorkloadSelector`'s scoped grant is decided in Go over
-an unfiltered, bounded read, not rendered as a Cypher-embedded predicate
-(#6786) -- a multi-line scoped `WHERE` group was unreliable on the pinned
-NornicDB v1.3.3 image. See `querycontract`'s README for the detail and
+NornicDB: `ResolveWorkloadSelector` no longer renders the multi-line scoped
+`WHERE` group that was unreliable on the pinned NornicDB v1.3.3 image
+(#6786). For a scoped caller the name read carries the single-line SHAPE-A
+`querycontract.WorkloadScopePredicate` on its `WHERE` line, so the candidate
+bound counts granted rows only, and Go re-checks every row with
+`WorkloadGrantAdmitted`. Unscoped reads are unfiltered. Past the 128-term
+SHAPE-A cap the predicate drops the overflow grants' `DEFINES` terms and fails
+closed; the read then emits `eshu_dp_query_scope_grant_inline_capped_total`
+with reason `deployment_trace_selector`. See `querycontract`'s README for the detail and
 `querycontract.WorkloadGrantAdmitted`. Ambiguity counts distinct admitted
 workload ids, so duplicate rows for one workload are not ambiguous and a second
 id past the first two rows is still caught. An over-bound name page returns

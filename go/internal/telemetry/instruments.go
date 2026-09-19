@@ -700,7 +700,9 @@ type Instruments struct {
 	//
 	// reason is "grant_denied" for an ordinary scoped-caller-not-granted-this-row
 	// outcome, expected at whatever rate scoped callers probe ids they cannot
-	// see; or "backend_anchor_mismatch" for a row whose own id/name did not
+	// see. The scoped name reads filter by grant in Cypher first (#6801), so
+	// on those paths grant_denied counts only rows the backend returned despite
+	// that predicate; or "backend_anchor_mismatch" for a row whose own id/name did not
 	// match the request anchor at all -- never expected, and the 3 AM signal
 	// that a backend regressed the query's identity anchor, paired with a
 	// Warn log carrying the same reason.

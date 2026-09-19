@@ -25,7 +25,7 @@ func TestGetServiceContextScopedNameReadBoundsGrantedRows(t *testing.T) {
 	var nameParams map[string]any
 	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
-		if strings.Contains(cypher, "MATCH (w:Workload) WHERE w.name = $service_name") {
+		if strings.Contains(cypher, "w.name = $service_name") {
 			nameCypher, nameParams = cypher, params
 		}
 		return nil, nil
@@ -36,7 +36,7 @@ func TestGetServiceContextScopedNameReadBoundsGrantedRows(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.GetServiceContext(rec, req)
 
-	if !strings.Contains(nameCypher, "WHERE w.name = $service_name AND (w.repo_id IN $allowed_repository_ids") {
+	if !strings.Contains(nameCypher, "WHERE (w.name = $service_name) AND (w.repo_id IN $allowed_repository_ids") {
 		t.Fatalf("scoped name read = %q, want the grant predicate on the WHERE line", nameCypher)
 	}
 	if _, ok := nameParams["scope_grant_0"]; !ok {

@@ -78,9 +78,11 @@ SHAPE-A) is unaffected and still belongs here as a fragment emitter.
 and `WriteWorkloadSelectorOverflow` live beside it so the `entity` and
 `impacttrace` name lookups fail closed at the same bound with the same wire
 answer: 409 Conflict and fixed text telling the caller to retry with a workload
-id. The error text carries no row count. The rows are counted before the grant
-filter runs, so a count would tell a scoped caller how many ungranted workloads
-share a name.
+id. The error text carries no row count. For a scoped caller the name read
+carries `WorkloadScopePredicate`, so the bound counts granted rows only and
+ungranted workloads can neither cause the 409 nor be inferred from it. The text
+stays count-free for unscoped callers, and as defense in depth in case a
+backend ignores the predicate.
 
 ## Exported surface
 

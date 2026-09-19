@@ -420,6 +420,44 @@ regression. For a scoped caller the predicate also shrinks the candidate
 rows to granted ones. Absolute figures differ from round 2's table because
 the containers and host load differ; only the paired deltas are the claim.
 
+## Review round 4 (#6801 review F-R6-1..4)
+
+- **F-R6-1.** The package READMEs (`entity`, `impacttrace`, `querycontract`)
+  and the godoc on `WorkloadSelectorCandidateBound`, `ResolveWorkloadSelector`
+  and `QueryScopedGrantDenied` now describe the scoped Cypher prefilter
+  instead of an unfiltered read.
+- **F-R6-2.** Past the 128-term SHAPE-A cap, the prefilter drops the overflow
+  grants' `DEFINES` terms and fails closed. Both name reads now emit
+  `eshu_dp_query_scope_grant_inline_capped_total`: reason
+  `workload_context_name` for the entity name read and
+  `deployment_trace_selector` for the selector. They also log a `Warn` with
+  the grant-set sizes, never ids.
+  `TestGetServiceContextGrantCapEmitsInlineCappedTelemetry` and
+  `TestResolveWorkloadSelectorGrantCapEmitsInlineCappedTelemetry` failed
+  before the change (no data point at 129 grants) and pass after it. They
+  also assert that nothing is emitted under the cap. The predicate is kept
+  past the cap, because dropping it would bring back the F-R5-1 existence
+  signal for large tokens.
+- **F-R6-3.** The entity name read parenthesizes the caller's clause:
+  `(w.name = $service_name) AND (…)`.
+- **F-R6-4.** Paired selector measurement, run the same way as round 3 (three
+  interleaved rounds, 50 calls after 5 warm-ups, live seed plus 500 fillers,
+  scoped caller). Before is the round-2 `workload_selection.go`; after is
+  this head. Medians in ms, as unique name / ambiguous name:
+
+| Backend | Before r1 / r2 / r3 | After r1 / r2 / r3 |
+| --- | --- | --- |
+| NornicDB v1.3.3 | 0.500/0.500, 0.451/0.449, 0.473/0.435 | 0.541/0.542, 0.515/0.518, 0.561/0.544 |
+| Neo4j 2026 | 0.605/0.617, 0.536/0.569, 0.557/0.588 | 17.235/0.642, 0.613/0.610, 0.541/0.676 |
+
+On NornicDB the selector name read costs a consistent +0.04 to +0.11 ms,
+about +12% on a sub-millisecond read. The cost is the grant predicate's
+`OR` terms, which the F-R5-1 correctness fix requires. Neo4j is flat,
+except for a single 17 ms unique-name median in round 1 that did not
+repeat in rounds 2 or 3. It is recorded here, not explained. For scale:
+the full service-context request measured in round 3 is about 3 ms on
+NornicDB, so this adds roughly 2% of such a request.
+
 ## Observability Evidence:
 
 `service.StartServiceQueryStage`/`timer.Done` call sites and their attributes

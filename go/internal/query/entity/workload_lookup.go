@@ -65,9 +65,14 @@ func (h *Handler) lookupWorkloadRow(
 	// caller into the overflow refusal nor signal their own existence to a
 	// caller with no grant (#6801 review F-R5-1). The Go re-check below stays
 	// as defense in depth against a backend that mis-evaluates the predicate.
+	// The caller's clause is parenthesized so the predicate binds to all of
+	// it, even if a future caller passes an OR. Past the SHAPE-A inline cap
+	// the predicate drops the overflow grants' DEFINES terms and fails closed,
+	// so the read emits the #5408 cap signal (#6801 review F-R6-2).
 	candidateWhere := whereClause
 	if access.Scoped() {
-		candidateWhere = whereClause + " AND " + querycontract.WorkloadScopePredicate("w", access)
+		candidateWhere = "(" + whereClause + ") AND " + querycontract.WorkloadScopePredicate("w", access)
+		h.recordScopeGrantInlineCapped(ctx, access, "workload_context_name")
 	}
 	rows, err := h.readWorkloadCandidates(ctx, candidateWhere, params, operation)
 	if err != nil {

@@ -40,8 +40,10 @@ const workloadSelectorCandidateBound = querycontract.WorkloadSelectorCandidateBo
 //
 // Workload.id is a unique-constrained property, so the id lookup reads at
 // most one row and RunSingle is exact. Workload names are not unique, so the
-// name lookup reads a bounded batch and decides admission and ambiguity over
-// it in Go (admittedWorkloadCandidates). Ambiguity counts distinct admitted
+// name lookup reads a bounded batch. For a scoped caller that read carries
+// querycontract.WorkloadScopePredicate on its WHERE line, so the bound counts
+// granted rows only. Go then decides admission and ambiguity over the batch
+// (admittedWorkloadCandidates), re-checking every row. Ambiguity counts distinct admitted
 // workload ids, so duplicate rows for one workload never hide or fake a
 // second one.
 //
@@ -105,9 +107,13 @@ func ResolveWorkloadSelector(
 	// A scoped caller's name read carries the SHAPE-A grant predicate on the
 	// WHERE line so the candidate bound counts granted rows only (#6801
 	// review F-R5-1); admittedWorkloadCandidates still re-checks every row.
+	// Past the SHAPE-A inline cap the predicate drops the overflow grants'
+	// DEFINES terms and fails closed, so the read emits the #5408 cap signal
+	// (#6801 review F-R6-2).
 	nameWhere := "w.name = $service_name"
 	if access.Scoped() {
 		nameWhere += " AND " + querycontract.WorkloadScopePredicate("w", access)
+		recordScopeGrantInlineCapped(ctx, instruments, access, "deployment_trace_selector")
 	}
 	nameRows, err := reader.Run(ctx, fmt.Sprintf("%s\nLIMIT %d", workloadSelectorRowCypher(nameWhere), workloadSelectorCandidateBound+1), params)
 	if err != nil {
