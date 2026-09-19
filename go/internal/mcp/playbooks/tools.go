@@ -10,10 +10,29 @@ func Tools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_query_playbooks",
-			Description: "List deterministic query playbooks with versions, required inputs, ordered steps, expected truth, evidence, and failure modes.",
+			Description: "List deterministic query playbooks. Default (compact) view returns id/name/version/prompt_family/description with bounded paging; view=full returns the complete shape (required inputs, ordered steps, expected truth, evidence, and failure modes).",
 			InputSchema: map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
+				"type": "object",
+				"properties": map[string]any{
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum number of playbooks to return (1-200).",
+						"default":     20,
+						"minimum":     1,
+						"maximum":     200,
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"description": "Number of playbooks to skip for paging.",
+						"default":     0,
+						"minimum":     0,
+					},
+					"view": map[string]any{
+						"type":        "string",
+						"description": "compact (default: id/name/version/prompt_family/description) or full (complete playbook detail).",
+						"enum":        []string{"compact", "full"},
+					},
+				},
 			},
 		},
 		{

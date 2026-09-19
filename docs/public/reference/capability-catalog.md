@@ -45,6 +45,13 @@ The top-level `authorization` block carries the built-in role catalog,
 data-class catalog, permission-family rules, bootstrap-owner posture, and custom
 policy posture. See [Authorization Catalog](authorization-catalog.md).
 
+By default, `GET /api/v0/capabilities` and `get_capability_catalog` return the
+**compact** view: each entry omits `profiles` and `proof_signals`, and the
+top-level `authorization` block is present but empty. This keeps a default
+page small enough for MCP clients (default `limit=12`). Pass `view=full` for
+the complete entry shape and `include_authorization=true` for the full
+authorization catalog.
+
 ## Maturity
 
 Maturity is derived from the matrix support statuses:
@@ -67,7 +74,7 @@ The same embedded artifact is exposed through three surfaces, so they report the
 
 | Surface | Where | Notes |
 | --- | --- | --- |
-| HTTP API | `GET /api/v0/capabilities` | Bounded read with optional `maturity` and `owner` filters and `limit`/`offset` paging; exact truth, fresh freshness. |
+| HTTP API | `GET /api/v0/capabilities` | Bounded read with optional `maturity` and `owner` filters, `limit`/`offset` paging (default `limit=12`, plus `truncated`/`next_offset` in the response), and `view=compact\|full` / `include_authorization` detail toggles; exact truth, fresh freshness. |
 | MCP tool | `get_capability_catalog` | Routes to `GET /api/v0/capabilities` with the same filters; prompt-ready. |
 | Console | Capabilities page (System nav) | Capability matrix table with maturity, surfaces, proof, owner, and linked issues; truthful empty/unavailable state. |
 

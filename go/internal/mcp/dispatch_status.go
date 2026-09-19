@@ -67,7 +67,7 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		return &route{method: "GET", path: "/api/v0/status/answer-narration"}, true, nil
 	case "get_capability_catalog":
 		query := map[string]string{
-			"limit":  intString(args, "limit", 200),
+			"limit":  intString(args, "limit", 12),
 			"offset": intString(args, "offset", 0),
 		}
 		if maturity := str(args, "maturity"); maturity != "" {
@@ -75,6 +75,12 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		}
 		if owner := str(args, "owner"); owner != "" {
 			query["owner"] = owner
+		}
+		if view := str(args, "view"); view != "" {
+			query["view"] = view
+		}
+		if boolOr(args, "include_authorization", false) {
+			query["include_authorization"] = "true"
 		}
 		return &route{method: "GET", path: "/api/v0/capabilities", query: query}, true, nil
 	case "get_surface_inventory":

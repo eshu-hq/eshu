@@ -2,8 +2,11 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package playbooks holds the logic behind the two `eshu playbooks`
-// subcommands: list and resolve. RunList fetches GET /api/v0/query-playbooks
-// and RunResolve posts to /api/v0/query-playbooks/resolve; both decode the
+// subcommands: list and resolve. RunList fetches
+// GET /api/v0/query-playbooks?view=full&limit=200 -- the API defaults to a
+// compact, paginated view for MCP callers (#6795), and this CLI command
+// prints the full catalog detail an operator expects, at the tool's max page
+// size -- and RunResolve posts to /api/v0/query-playbooks/resolve; both decode the
 // canonical Eshu response envelope through an EnvelopeClient the caller
 // supplies and print it to an io.Writer as two-space-indented JSON with HTML
 // escaping off. An envelope-level error is printed in-band as part of that

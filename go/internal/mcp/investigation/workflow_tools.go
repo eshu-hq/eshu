@@ -10,10 +10,29 @@ func WorkflowTools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_investigation_workflows",
-			Description: "List guided investigation workflows with input shape, required and optional evidence, expected output packet, grouped atomic tools, starter prompts, and missing-evidence routing.",
+			Description: "List guided investigation workflows. Default (compact) view returns id/name/version/domain/description with bounded paging; view=full returns the complete shape (input shape, required and optional evidence, expected output packet, grouped atomic tools, starter prompts, and missing-evidence routing).",
 			InputSchema: map[string]any{
-				"type":       "object",
-				"properties": map[string]any{},
+				"type": "object",
+				"properties": map[string]any{
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum number of workflows to return (1-200).",
+						"default":     20,
+						"minimum":     1,
+						"maximum":     200,
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"description": "Number of workflows to skip for paging.",
+						"default":     0,
+						"minimum":     0,
+					},
+					"view": map[string]any{
+						"type":        "string",
+						"description": "compact (default: id/name/version/domain/description) or full (complete workflow detail).",
+						"enum":        []string{"compact", "full"},
+					},
+				},
 			},
 		},
 		{

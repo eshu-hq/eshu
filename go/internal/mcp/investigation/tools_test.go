@@ -35,15 +35,41 @@ func TestToolsPreserveInvestigationRegistrationContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal investigation tools: %v", err)
 	}
-	if got, want := len(encoded), 4824; got != want {
+	if got, want := len(encoded), 5339; got != want {
 		t.Fatalf("serialized investigation definitions length = %d, want %d", got, want)
 	}
-	const wantDefinitionsHash = "393e7901eda034e7a18a8a043895e2cde337dc0b103f994126bcc7ae972b8a82"
+	const wantDefinitionsHash = "1c871ae63b72eb2fd318443eeef5ac70ee3272f4cf1877847a948f632ca831e3"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("investigation definitions hash = %s, want %s", got, wantDefinitionsHash)
 	}
 
 	requireInvestigationSchemaTypes(t, workflowTools, packetTools)
+}
+
+// TestWorkflowToolsListSchemaBoundsLimitAndOffset proves
+// list_investigation_workflows' input schema carries JSON-schema bounds on
+// limit and offset, not just a description, so an MCP client (or a
+// validating gateway) rejects an out-of-range value before it reaches the
+// handler (#6795 review finding).
+func TestWorkflowToolsListSchemaBoundsLimitAndOffset(t *testing.T) {
+	t.Parallel()
+
+	tools := WorkflowTools()
+	schema := tools[0].InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+
+	limit := properties["limit"].(map[string]any)
+	if got, want := limit["minimum"], 1; got != want {
+		t.Fatalf("limit minimum = %#v, want %v", got, want)
+	}
+	if got, want := limit["maximum"], 200; got != want {
+		t.Fatalf("limit maximum = %#v, want %v", got, want)
+	}
+
+	offset := properties["offset"].(map[string]any)
+	if got, want := offset["minimum"], 0; got != want {
+		t.Fatalf("offset minimum = %#v, want %v", got, want)
+	}
 }
 
 func TestToolsReturnIndependentDefinitions(t *testing.T) {

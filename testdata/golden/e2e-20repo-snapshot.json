@@ -5989,15 +5989,27 @@
         }
       },
       "list_query_playbooks": {
-        "description": "MCP tool coverage shape for list_query_playbooks; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_query_playbooks; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #6795 added bounded limit/offset paging and a compact-by-default item shape (id/name/version/prompt_family/description); required_response_fields pins the new total/limit/offset/truncated/next_offset fields alongside the pre-existing ones, and results_field/result_item_required_fields pin the compact Summary item shape so a regression to the pre-#6795 full Definition shape (or a dropped pagination field) fails this gate.",
         "truth_class": "deterministic",
         "required_response_fields": [
           "count",
+          "limit",
+          "next_offset",
+          "offset",
           "playbooks",
           "schema_version",
+          "total",
+          "truncated",
           "versions"
         ],
-        "minimum_results": 0
+        "results_field": "playbooks",
+        "minimum_results": 1,
+        "result_item_required_fields": [
+          "id",
+          "name",
+          "version",
+          "prompt_family"
+        ]
       },
       "resolve_query_playbook": {
         "description": "MCP tool coverage shape for resolve_query_playbook; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6015,14 +6027,26 @@
         }
       },
       "list_investigation_workflows": {
-        "description": "MCP tool coverage shape for list_investigation_workflows; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for list_investigation_workflows; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #6795 added bounded limit/offset paging and a compact-by-default item shape (id/name/version/domain/description); required_response_fields pins the new total/limit/offset/truncated/next_offset fields alongside the pre-existing ones, and results_field/result_item_required_fields pin the compact InvestigationWorkflowSummary item shape so a regression to the pre-#6795 full workflow shape (or a dropped pagination field) fails this gate.",
         "required_response_fields": [
           "count",
+          "limit",
+          "next_offset",
+          "offset",
           "schema_version",
+          "total",
+          "truncated",
           "versions",
           "workflows"
         ],
-        "minimum_results": 0
+        "results_field": "workflows",
+        "minimum_results": 1,
+        "result_item_required_fields": [
+          "id",
+          "name",
+          "version",
+          "domain"
+        ]
       },
       "resolve_investigation_workflow": {
         "description": "MCP tool coverage shape for resolve_investigation_workflow; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
@@ -6590,17 +6614,28 @@
         }
       },
       "get_capability_catalog": {
-        "description": "MCP tool coverage shape for get_capability_catalog; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_capability_catalog; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). #6795 added the next_offset pagination field and a compact-by-default item shape (capability/display_name/maturity/derived_maturity/surfaces/console/authorization, omitting profiles and proof_signals); required_response_fields pins next_offset alongside the pre-existing pagination fields, and results_field/result_item_required_fields pin the compact capabilityCompactEntry item shape so a regression to the pre-#6795 full entry shape (or a dropped pagination field) fails this gate.",
         "required_response_fields": [
           "authorization",
           "capabilities",
           "limit",
+          "next_offset",
           "offset",
           "total",
           "truncated",
           "version"
         ],
-        "minimum_results": 0,
+        "results_field": "capabilities",
+        "minimum_results": 1,
+        "result_item_required_fields": [
+          "capability",
+          "display_name",
+          "maturity",
+          "derived_maturity",
+          "surfaces",
+          "console",
+          "authorization"
+        ],
         "arguments": {
           "limit": 20
         }

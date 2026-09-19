@@ -75,7 +75,7 @@ function rowFromEntry(entry: CapabilityWireEntry): CapabilityRow {
     proofSignals: entry.proof_signals ?? [],
     knownGaps: entry.known_gaps ?? [],
     linkedIssues: entry.linked_issues ?? [],
-    console: entry.console ?? false
+    console: entry.console ?? false,
   };
 }
 
@@ -83,24 +83,30 @@ function rowFromEntry(entry: CapabilityWireEntry): CapabilityRow {
 // by maturity or owner_package; paging is bounded by limit/offset.
 export async function loadCapabilityCatalog(
   client: EshuApiClient,
-  opts: { maturity?: string; owner?: string; limit?: number; offset?: number } = {}
+  opts: { maturity?: string; owner?: string; limit?: number; offset?: number } = {},
 ): Promise<CapabilityCatalogPage> {
   const params = new URLSearchParams();
   if (opts.maturity) params.set("maturity", opts.maturity);
   if (opts.owner) params.set("owner", opts.owner);
   if (opts.limit !== undefined) params.set("limit", String(opts.limit));
   if (opts.offset !== undefined) params.set("offset", String(opts.offset));
+  // The console matrix renders proof_signals counts, so it needs the full
+  // per-entry detail; the API defaults to a compact view for MCP callers
+  // (#6795).
+  params.set("view", "full");
   const query = params.toString();
   const path = query === "" ? "/api/v0/capabilities" : `/api/v0/capabilities?${query}`;
   try {
     const env = await client.get<CapabilityListResponse>(path);
     if (env.error) throw new EshuEnvelopeError(env.error);
-    const rows = (env.data?.capabilities ?? []).map(rowFromEntry).filter((row) => row.capability !== "");
+    const rows = (env.data?.capabilities ?? [])
+      .map(rowFromEntry)
+      .filter((row) => row.capability !== "");
     return {
       rows,
       total: env.data?.total ?? rows.length,
       truth: env.truth ?? null,
-      provenance: rows.length > 0 ? "live" : "empty"
+      provenance: rows.length > 0 ? "live" : "empty",
     };
   } catch {
     return { rows: [], total: 0, truth: null, provenance: "unavailable" };

@@ -92,6 +92,31 @@ type InvestigationWorkflowVersionRef struct {
 	Version string `json:"version"`
 }
 
+// InvestigationWorkflowSummary is the compact, default-view projection of an
+// InvestigationWorkflow: enough to identify and describe a workflow without
+// its tool groups, required/optional evidence, or missing-evidence routes,
+// which dominate a workflow's serialized size (#6795). Full detail remains
+// reachable via view=full or by resolving the workflow with
+// resolve_investigation_workflow.
+type InvestigationWorkflowSummary struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Domain      string `json:"domain"`
+	Description string `json:"description,omitempty"`
+}
+
+// ToSummary projects w into its compact wire shape.
+func (w InvestigationWorkflow) ToSummary() InvestigationWorkflowSummary {
+	return InvestigationWorkflowSummary{
+		ID:          w.ID,
+		Name:        w.Name,
+		Version:     w.Version,
+		Domain:      w.Domain,
+		Description: w.Description,
+	}
+}
+
 // InvestigationWorkflowResolveInput is the caller-supplied state used to turn a
 // workflow into concrete recommended next calls.
 type InvestigationWorkflowResolveInput struct {

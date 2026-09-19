@@ -82,6 +82,11 @@ export interface PlaybookCatalogPage {
   readonly count: number;
   readonly truth: EshuTruth | null;
   readonly provenance: "live" | "empty" | "unavailable";
+  // truncated is true when listPlaybooks stopped following next_offset at
+  // PLAYBOOK_MAX_PAGES before the server reported truncated=false -- callers
+  // can use this to warn that the rendered catalog may be an incomplete
+  // prefix instead of silently dropping entries (#6795 review finding).
+  readonly truncated: boolean;
 }
 
 export interface PlaybookResolution {
@@ -140,6 +145,9 @@ interface ListResponseWire {
   readonly playbooks?: readonly PlaybookWire[];
   readonly versions?: readonly VersionRefWire[];
   readonly count?: number;
+  readonly total?: number;
+  readonly truncated?: boolean;
+  readonly next_offset?: number | null;
 }
 
 interface ResolvedCallWire {
@@ -233,30 +241,84 @@ function normalizeResolvedPlaybook(wire: ResolvedPlaybookWire): ResolvedPlaybook
   };
 }
 
+// PLAYBOOK_PAGE_LIMIT is the tool's max page bound
+// (go/internal/query/playbook/handler.go's maxListLimit), mirrored here so
+// each page request is as large as the API allows.
+const PLAYBOOK_PAGE_LIMIT = 200;
+
+// PLAYBOOK_MAX_PAGES hard-caps how many pages listPlaybooks will follow via
+// next_offset in one call. 20 pages * 200/page = 4000 playbooks, far above
+// any real catalog size, so this bounds a runaway or malformed next_offset
+// sequence instead of paging forever (#6795 review finding).
+const PLAYBOOK_MAX_PAGES = 20;
+
 // listPlaybooks fetches the deterministic query playbook catalog. It never
 // fabricates data: any request or envelope failure resolves to an
 // "unavailable" provenance so the page renders a truthful empty state instead
 // of throwing.
 export async function listPlaybooks(client: EshuApiClient): Promise<PlaybookCatalogPage> {
   try {
-    const env = await client.get<ListResponseWire>("/api/v0/query-playbooks");
-    if (env.error) throw new EshuEnvelopeError(env.error);
-    const playbooks = (env.data?.playbooks ?? [])
-      .map(normalizePlaybook)
-      .filter((playbook) => playbook.id !== "");
+    // The API defaults to a compact, bounded-page view for MCP callers
+    // (#6795): no required_inputs/steps, and one page per call.
+    // GuidedQuestionsPage renders requiredInputs/steps for every playbook, so
+    // this loader opts into the full detail view and follows the response's
+    // next_offset across pages until truncated is false -- pinning a single
+    // limit=200 request silently dropped entries for a catalog over 200
+    // playbooks (#6795 review finding).
+    const playbookWires: PlaybookWire[] = [];
+    let versionWires: readonly VersionRefWire[] = [];
+    let truth: EshuTruth | null = null;
+    let total = 0;
+    let offset = 0;
+    let hitPageCap = false;
+
+    for (let page = 1; ; page += 1) {
+      const env = await client.get<ListResponseWire>(
+        `/api/v0/query-playbooks?view=full&limit=${PLAYBOOK_PAGE_LIMIT}&offset=${offset}`,
+      );
+      if (env.error) throw new EshuEnvelopeError(env.error);
+
+      playbookWires.push(...(env.data?.playbooks ?? []));
+      versionWires = env.data?.versions ?? versionWires;
+      truth = env.truth ?? truth;
+      total = env.data?.total ?? total;
+
+      const nextOffset = env.data?.next_offset;
+      if (env.data?.truncated !== true || typeof nextOffset !== "number") {
+        break;
+      }
+      if (page >= PLAYBOOK_MAX_PAGES) {
+        hitPageCap = true;
+        console.warn(
+          `listPlaybooks stopped after ${PLAYBOOK_MAX_PAGES} pages (${playbookWires.length} of ${total || "unknown"} playbooks) before the catalog reported truncated=false; rendered catalog may be incomplete`,
+        );
+        break;
+      }
+      offset = nextOffset;
+    }
+
+    const playbooks = playbookWires.map(normalizePlaybook).filter((playbook) => playbook.id !== "");
     return {
       playbooks,
-      versions: (env.data?.versions ?? []).map(normalizeVersionRef),
-      count: env.data?.count ?? playbooks.length,
-      truth: env.truth ?? null,
+      versions: versionWires.map(normalizeVersionRef),
+      count: total || playbooks.length,
+      truth,
       provenance: playbooks.length > 0 ? "live" : "empty",
+      truncated: hitPageCap,
     };
   } catch (err) {
     // Degrade to a truthful "unavailable" state rather than crash, but leave a
     // browser-console signal so an operator can tell a network failure from a
     // server-side internal_error or a malformed envelope.
     console.warn("listPlaybooks degraded to unavailable", err);
-    return { playbooks: [], versions: [], count: 0, truth: null, provenance: "unavailable" };
+    return {
+      playbooks: [],
+      versions: [],
+      count: 0,
+      truth: null,
+      provenance: "unavailable",
+      truncated: false,
+    };
   }
 }
 

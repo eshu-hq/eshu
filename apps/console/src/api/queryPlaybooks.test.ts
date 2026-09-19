@@ -111,6 +111,116 @@ describe("listPlaybooks", () => {
     ]);
   });
 
+  it("requests the full detail view with a limit covering the whole catalog", async () => {
+    // The API defaults to a compact, paginated view for MCP callers (#6795):
+    // no required_inputs/steps, and only the first page of playbooks. The
+    // console's guided-questions page renders requiredInputs/steps for every
+    // playbook, so it must opt into view=full and a limit large enough to
+    // cover the catalog (the tool's max bound, 200 -- there is no unbounded
+    // option, and the live catalog is far below that ceiling).
+    let gotPath = "";
+    const client = clientWithGet(async (path: string) => {
+      gotPath = path;
+      return {
+        data: { playbooks: [], versions: [], count: 0 },
+        error: null,
+        truth: null,
+      };
+    });
+
+    await listPlaybooks(client);
+
+    const url = new URL(gotPath, "http://localhost");
+    expect(url.pathname).toBe("/api/v0/query-playbooks");
+    expect(url.searchParams.get("view")).toBe("full");
+    expect(Number(url.searchParams.get("limit"))).toBeGreaterThanOrEqual(200);
+  });
+
+  it("follows next_offset across pages and merges the results", async () => {
+    // A catalog over one page (#6795's bounded default) must not silently
+    // render only its first page: the loader follows next_offset until the
+    // server reports truncated=false, and the console sees every playbook.
+    const requestedPaths: string[] = [];
+    const client = clientWithGet(async (path: string) => {
+      requestedPaths.push(path);
+      const url = new URL(path, "http://localhost");
+      const offset = Number(url.searchParams.get("offset") ?? "0");
+      if (offset === 0) {
+        return {
+          data: {
+            playbooks: [{ id: "playbook_one", name: "Playbook One", version: "1.0.0" }],
+            versions: [{ id: "playbook_one", version: "1.0.0" }],
+            count: 1,
+            total: 2,
+            truncated: true,
+            next_offset: 200,
+          },
+          error: null,
+          truth: {
+            capability: "query.playbooks",
+            level: "exact",
+            profile: "production",
+            freshness: { state: "fresh" },
+          },
+        };
+      }
+      return {
+        data: {
+          playbooks: [{ id: "playbook_two", name: "Playbook Two", version: "1.0.0" }],
+          versions: [{ id: "playbook_one", version: "1.0.0" }],
+          count: 1,
+          total: 2,
+          truncated: false,
+          next_offset: null,
+        },
+        error: null,
+        truth: null,
+      };
+    });
+
+    const page = await listPlaybooks(client);
+
+    expect(requestedPaths).toHaveLength(2);
+    const secondURL = new URL(requestedPaths[1], "http://localhost");
+    expect(secondURL.searchParams.get("offset")).toBe("200");
+    expect(page.playbooks.map((playbook) => playbook.id)).toEqual(["playbook_one", "playbook_two"]);
+    expect(page.count).toBe(2);
+    expect(page.provenance).toBe("live");
+    expect(page.truncated).toBe(false);
+  });
+
+  it("stops at the page cap and reports truncated instead of paging forever", async () => {
+    // A runaway or malformed next_offset sequence (server bug, or a caller
+    // hitting an ever-growing catalog) must not page indefinitely -- the
+    // loader stops at PLAYBOOK_MAX_PAGES and surfaces truncated=true rather
+    // than silently dropping the remainder.
+    let calls = 0;
+    const client = clientWithGet(async (path: string) => {
+      calls += 1;
+      const url = new URL(path, "http://localhost");
+      const offset = Number(url.searchParams.get("offset") ?? "0");
+      return {
+        data: {
+          playbooks: [{ id: `playbook_${offset}`, name: "Playbook", version: "1.0.0" }],
+          versions: [],
+          count: 1,
+          total: 100_000,
+          truncated: true,
+          next_offset: offset + 200,
+        },
+        error: null,
+        truth: null,
+      };
+    });
+
+    const page = await listPlaybooks(client);
+
+    expect(calls).toBe(20);
+    expect(page.playbooks).toHaveLength(20);
+    expect(page.truncated).toBe(true);
+    expect(page.provenance).toBe("live");
+  });
+
   it("resolves to an empty provenance when the catalog has no playbooks", async () => {
     const client = clientWithGet(async () => ({
       data: { playbooks: [], versions: [], count: 0 },

@@ -101,7 +101,7 @@ func TestRunListWritesIndentedEnvelope(t *testing.T) {
 	if err := RunList(&out, client); err != nil {
 		t.Fatalf("RunList: %v", err)
 	}
-	if got, want := client.gotPath, "/api/v0/query-playbooks"; got != want {
+	if got, want := client.gotPath, "/api/v0/query-playbooks?view=full&limit=200"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
 	want := "{\n  \"data\": {\n    \"playbooks\": [\n      \"<service_story_citation>\"\n    ]\n  },\n  \"truth\": {\n    \"level\": \"exact\"\n  },\n  \"error\": null\n}\n"

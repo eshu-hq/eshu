@@ -142,6 +142,40 @@ func TestCapabilityCatalogRuntimeToolRoutesToCapabilities(t *testing.T) {
 	}
 }
 
+// TestCapabilityCatalogRuntimeToolSchemaBoundsLimitAndOffset proves
+// get_capability_catalog's input schema carries JSON-schema bounds on limit
+// and offset, not just a description, so an MCP client (or a validating
+// gateway) rejects an out-of-range value before it reaches the handler
+// (#6795 review finding).
+func TestCapabilityCatalogRuntimeToolSchemaBoundsLimitAndOffset(t *testing.T) {
+	t.Parallel()
+
+	var schema map[string]any
+	for _, tool := range ReadOnlyTools() {
+		if tool.Name == "get_capability_catalog" {
+			schema = tool.InputSchema.(map[string]any)
+			break
+		}
+	}
+	if schema == nil {
+		t.Fatal("get_capability_catalog tool not found")
+	}
+	properties := schema["properties"].(map[string]any)
+
+	limit := properties["limit"].(map[string]any)
+	if got, want := limit["minimum"], 1; got != want {
+		t.Fatalf("limit minimum = %#v, want %v", got, want)
+	}
+	if got, want := limit["maximum"], 500; got != want {
+		t.Fatalf("limit maximum = %#v, want %v", got, want)
+	}
+
+	offset := properties["offset"].(map[string]any)
+	if got, want := offset["minimum"], 0; got != want {
+		t.Fatalf("offset minimum = %#v, want %v", got, want)
+	}
+}
+
 func TestCapabilityCatalogRuntimeToolOmitsEmptyFilters(t *testing.T) {
 	t.Parallel()
 
@@ -155,7 +189,7 @@ func TestCapabilityCatalogRuntimeToolOmitsEmptyFilters(t *testing.T) {
 	if _, ok := route.query["owner"]; ok {
 		t.Fatal("empty owner must not be forwarded")
 	}
-	if got, want := route.query["limit"], "200"; got != want {
+	if got, want := route.query["limit"], "12"; got != want {
 		t.Fatalf("default limit = %q, want %q", got, want)
 	}
 }

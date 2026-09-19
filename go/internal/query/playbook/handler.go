@@ -5,9 +5,15 @@ package playbook
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+const (
+	defaultListLimit = 20
+	maxListLimit     = 200
 )
 
 // Capability identifies deterministic playbook catalog and resolver reads
@@ -43,9 +49,14 @@ func (h *Handler) Mount(mux *http.ServeMux) {
 
 type listResponse struct {
 	SchemaVersion string       `json:"schema_version"`
-	Playbooks     []Definition `json:"playbooks"`
+	Playbooks     any          `json:"playbooks"`
 	Versions      []VersionRef `json:"versions"`
 	Count         int          `json:"count"`
+	Total         int          `json:"total"`
+	Limit         int          `json:"limit"`
+	Offset        int          `json:"offset"`
+	Truncated     bool         `json:"truncated"`
+	NextOffset    any          `json:"next_offset"`
 }
 
 type resolveRequest struct {
@@ -58,14 +69,113 @@ type resolveResponse struct {
 	Resolved      ResolvedPlaybook `json:"resolved"`
 }
 
+// list returns the playbook catalog with deterministic limit/offset paging.
+// The default response is the compact view: each playbook is a Summary
+// (id/name/version/prompt_family/description), omitting steps, required
+// inputs, and failure modes, which dominate a Definition's serialized size
+// (#6795). Pass view=full for the complete Definition list.
+// GET /api/v0/query-playbooks?limit=&offset=&view=
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	catalog := Catalog()
+
+	limit, ok := parseLimit(w, r)
+	if !ok {
+		return
+	}
+	offset, ok := parseOffset(w, r)
+	if !ok {
+		return
+	}
+	full, ok := parseView(w, r)
+	if !ok {
+		return
+	}
+
+	total := len(catalog)
+	page, truncated := pageDefinitions(catalog, offset, limit)
+
+	var playbooks any
+	if full {
+		playbooks = page
+	} else {
+		summaries := make([]Summary, len(page))
+		for i, pb := range page {
+			summaries[i] = pb.ToSummary()
+		}
+		playbooks = summaries
+	}
+
 	querycontract.WriteSuccess(w, r, http.StatusOK, listResponse{
 		SchemaVersion: "query-playbooks.v1",
-		Playbooks:     catalog,
+		Playbooks:     playbooks,
 		Versions:      CatalogVersions(),
-		Count:         len(catalog),
+		Count:         len(page),
+		Total:         total,
+		Limit:         limit,
+		Offset:        offset,
+		Truncated:     truncated,
+		NextOffset:    nextOffset(offset, limit, truncated),
 	}, h.truth("deterministic query playbook catalog; no live backend read"))
+}
+
+// nextOffset returns the offset value a caller should pass to fetch the next
+// page, or nil when the current page is not truncated. This mirrors the
+// next_offset convention the root query package's paginated list handlers use
+// (e.g. capabilities.go's nextOffset).
+func nextOffset(offset, limit int, truncated bool) any {
+	if !truncated {
+		return nil
+	}
+	return offset + limit
+}
+
+// pageDefinitions applies offset and limit and reports whether more entries
+// remain past the returned page.
+func pageDefinitions(catalog []Definition, offset, limit int) ([]Definition, bool) {
+	if offset >= len(catalog) {
+		return []Definition{}, false
+	}
+	end := offset + limit
+	truncated := end < len(catalog)
+	if end > len(catalog) {
+		end = len(catalog)
+	}
+	return catalog[offset:end], truncated
+}
+
+// parseLimit reads the limit query param, defaulting to defaultListLimit and
+// rejecting values outside [1, maxListLimit].
+func parseLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
+	return querycontract.ParseBoundedLimit(w, r, defaultListLimit, maxListLimit)
+}
+
+// parseOffset reads the offset query param, defaulting to 0 and rejecting
+// negative values.
+func parseOffset(w http.ResponseWriter, r *http.Request) (int, bool) {
+	raw := querycontract.QueryParam(r, "offset")
+	if raw == "" {
+		return 0, true
+	}
+	offset, err := strconv.Atoi(raw)
+	if err != nil || offset < 0 {
+		querycontract.WriteError(w, http.StatusBadRequest, "offset must be a non-negative integer")
+		return 0, false
+	}
+	return offset, true
+}
+
+// parseView reads the view query param, defaulting to the compact view
+// (full=false). An unrecognized value is a bounded 400, not a silent default.
+func parseView(w http.ResponseWriter, r *http.Request) (full bool, ok bool) {
+	switch raw := querycontract.QueryParam(r, "view"); raw {
+	case "", "compact":
+		return false, true
+	case "full":
+		return true, true
+	default:
+		querycontract.WriteError(w, http.StatusBadRequest, "view must be compact or full")
+		return false, false
+	}
 }
 
 func (h *Handler) resolve(w http.ResponseWriter, r *http.Request) {

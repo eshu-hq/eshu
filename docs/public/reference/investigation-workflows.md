@@ -62,10 +62,16 @@ Examples:
 
 | Surface | Operation | Result |
 | --- | --- | --- |
-| HTTP | `GET /api/v0/investigation-workflows` | Lists workflow IDs, versions, input shapes, evidence families, output packets, grouped tools, starter prompts, failure modes, and missing-evidence routes. |
+| HTTP | `GET /api/v0/investigation-workflows` | Bounded `limit`/`offset` paging (default `limit=20`, plus `truncated`/`next_offset` in the response). Default (compact) view lists id/name/version/domain/description; `view=full` lists input shapes, evidence families, output packets, grouped tools, starter prompts, failure modes, and missing-evidence routes. |
 | HTTP | `POST /api/v0/investigation-workflows/resolve` | Resolves `workflow_id`, declared string inputs, and `missing_evidence[]` into bounded `recommended_next_calls` plus `blocked_next_calls` when required anchors are missing. |
 | MCP | `list_investigation_workflows` | Dispatches to the HTTP catalog route and returns the canonical envelope as structured content. |
 | MCP | `resolve_investigation_workflow` | Dispatches to the HTTP resolver with `workflow_id`, `inputs`, and `missing_evidence`. |
+
+`view=full` restores the complete per-entry shape (input shapes, evidence
+families, output packets, grouped tools, starter prompts, failure modes,
+missing-evidence routes); paging still applies, so `count` is the number of
+workflows in the returned page, not the catalog total, and `total` carries
+the catalog size.
 
 Both routes report `query.investigation_workflows` truth with `runtime_state`
 basis because they describe static workflow-plan data. Scoped-token requests may
