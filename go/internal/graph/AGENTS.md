@@ -83,14 +83,10 @@
   `BatchEntityRow` slice and call `BatchMergeEntities`. Write a test in
   `entity_test.go` or `batch_test.go` first.
 
-- **Add a new mutation** → model it after `DeleteFileFromGraph` in
-  `mutations.go`. Each step should be a separate `ExecuteCypher` call with
-  a descriptive error wrap. Add a test in `mutations_test.go` first.
-
 - **Add a new backend dialect** → add a `SchemaBackend` constant, extend
   `schemaDialectForBackend` in `schema.go`, and add tests in `schema_test.go`.
   Keep dialect logic inside `schema.go`; do not branch on backend in
-  `entity.go`, `batch.go`, or `mutations.go`.
+  `entity.go` or `batch.go`.
 
 ## Failure modes and how to debug
 
@@ -110,16 +106,12 @@
   idempotent runs; look for genuine errors by checking the `error` field in
   the structured log output.
 
-- Symptom: orphaned `Directory` nodes remain after `DeleteFileFromGraph` →
-  cause: the prune statement at `mutations.go:41` failed → check the
-  `ExecuteCypher` error return in the calling code; the operation is not atomic.
-
 ## Anti-patterns specific to this package
 
 - **Importing `internal/storage/cypher` from here** — creates a cycle.
   `CypherStatement` and `CypherExecutor` are intentionally duplicated.
 
-- **Backend-conditional logic in `entity.go`, `batch.go`, or `mutations.go`**
+- **Backend-conditional logic in `entity.go` or `batch.go`**
   — dialect differences belong only in `schema.go`'s dialect helpers and in
   `internal/storage/cypher` adapters.
 

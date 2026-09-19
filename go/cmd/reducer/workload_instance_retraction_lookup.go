@@ -33,9 +33,19 @@ func (l neo4jWorkloadInstanceRetractionLookup) ListWorkloadInstances(
 		return nil, nil
 	}
 
+	// The UNWIND binding is named requested_repo_id, never repo_id: issue
+	// #6786 shape X9 is an UNWIND variable name that equals a RETURN alias,
+	// with a MATCH in between. On NornicDB v1.3.3 that collision makes the
+	// first RETURN column come back named after the first UNWIND value
+	// (e.g. the literal key "'r1'") instead of "repo_id", so
+	// query.StringVal(row, "repo_id") below always reads "" and every row
+	// is silently dropped -- ListWorkloadInstances returned nothing on
+	// NornicDB and stale WorkloadInstance nodes were never retracted. Do
+	// not rename the RETURN alias back to match the UNWIND binding; the
+	// distinct name is the fix.
 	rows, err := l.reader.Run(ctx, `
-		UNWIND $repo_ids AS repo_id
-		MATCH (i:WorkloadInstance {repo_id: repo_id})
+		UNWIND $repo_ids AS requested_repo_id
+		MATCH (i:WorkloadInstance {repo_id: requested_repo_id})
 		WHERE i.evidence_source = $evidence_source
 		RETURN DISTINCT i.repo_id AS repo_id, i.id AS instance_id
 	`, map[string]any{

@@ -107,13 +107,26 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Repositories, response.Truncated, err = h.listCatalogRepositoriesFromGraph(r.Context(), limit)
+	var dependencyDegraded bool
+	response.Repositories, response.Truncated, dependencyDegraded, err = h.listCatalogRepositoriesFromGraph(r.Context(), limit)
 	if err != nil {
 		if querycontract.WriteGraphReadError(w, r, err, catalogCapability) {
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repositories: %v", err))
 		return
+	}
+	if dependencyDegraded {
+		// See logRepositoryDependencyEdgesDegradation's doc comment: the
+		// dependency-edge pre-pass failed or was truncated, so is_dependency
+		// on this response may be incomplete rather than a confirmed
+		// negative. Disclose via Limitations ONLY -- catalog-workload-
+		// selection.md defines Truncated as "true when any catalog
+		// collection is partial", and no collection here is partial (the
+		// repository/workload rows returned are complete); is_dependency
+		// is an auxiliary marker on complete rows, not a partial collection
+		// (#6786 review F1).
+		response.Limitations = append(response.Limitations, repositoryDependencyEdgesDegradedReason)
 	}
 	response.Workloads, response.WorkloadsTruncated, err = h.listCatalogWorkloads(r.Context(), limit)
 	if err != nil {
@@ -135,28 +148,6 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, catalogTruth(h.profile(), querycontract.TruthBasisAuthoritativeGraph))
 }
 
-func (h *Handler) listCatalogRepositoriesFromGraph(
-	ctx context.Context,
-	limit int,
-) ([]catalogRepository, bool, error) {
-	cypher := fmt.Sprintf(`
-		MATCH (r:Repository)
-		RETURN %s, %s
-		ORDER BY r.name, r.id
-		LIMIT $limit
-	`, querycontract.RepoProjection("r"), querycontract.RepositoryDependencyMarkerProjection("r", querycontract.RepositoryAccessFilter{AllScopes: true}))
-	rows, err := h.Neo4j.Run(ctx, cypher, map[string]any{"limit": limit + 1})
-	if err != nil {
-		return nil, false, err
-	}
-	rows, truncated := trimCatalogRows(rows, limit)
-	repositories := make([]catalogRepository, 0, len(rows))
-	for _, row := range rows {
-		repositories = append(repositories, catalogRepositoryFromRow(row))
-	}
-	return repositories, truncated, nil
-}
-
 func (h *Handler) listCatalogRepositoriesFromContent(
 	ctx context.Context,
 	limit int,
@@ -171,7 +162,7 @@ func (h *Handler) listCatalogRepositoriesFromContent(
 	}
 	rows := make([]catalogRepository, 0, len(repositories))
 	for _, repository := range repositories {
-		rows = append(rows, catalogRepositoryFromRow(repository))
+		rows = append(rows, catalogRepositoryFromRow(repository, querycontract.BoolVal(repository, "is_dependency")))
 	}
 	return rows, truncated, nil
 }
@@ -369,19 +360,6 @@ func catalogTruth(profile querycontract.QueryProfile, basis querycontract.TruthB
 		basis,
 		"resolved from bounded repository and workload catalog handles",
 	)
-}
-
-func catalogRepositoryFromRow(row map[string]any) catalogRepository {
-	return catalogRepository{
-		ID:           querycontract.StringVal(row, "id"),
-		Name:         querycontract.StringVal(row, "name"),
-		Path:         querycontract.StringVal(row, "path"),
-		LocalPath:    querycontract.StringVal(row, "local_path"),
-		RemoteURL:    querycontract.StringVal(row, "remote_url"),
-		RepoSlug:     querycontract.StringVal(row, "repo_slug"),
-		HasRemote:    querycontract.BoolVal(row, "has_remote"),
-		IsDependency: querycontract.BoolVal(row, "is_dependency"),
-	}
 }
 
 func trimCatalogRows(rows []map[string]any, limit int) ([]map[string]any, bool) {

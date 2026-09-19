@@ -101,18 +101,20 @@ func repositoryInventoryResultLimits(page readmodel.ListPage, count int, truncat
 	}
 }
 
-// repositoryInventoryPartialReasons promotes inventory paging truncation and
-// missing repository group evidence into an explicit partial_reasons array. The
-// result is always non-nil so the envelope shape is stable across full,
-// truncated, and partially attributed inventory reads.
-func repositoryInventoryPartialReasons(truncated bool, repos []map[string]any) []string {
-	reasons := make([]string, 0, 2)
+// repositoryInventoryPartialReasons promotes inventory paging truncation,
+// missing repository group evidence, and any caller-supplied extra reasons
+// (e.g. repositoryDependencyEdgesDegradedReason) into an explicit
+// partial_reasons array. The result is always non-nil so the envelope shape
+// is stable across full, truncated, and partially attributed inventory reads.
+func repositoryInventoryPartialReasons(truncated bool, repos []map[string]any, extra ...string) []string {
+	reasons := make([]string, 0, 2+len(extra))
 	if truncated {
 		reasons = append(reasons, "repository_inventory_truncated")
 	}
 	if repositoryGroupEvidenceMissing(repos) {
 		reasons = append(reasons, repositoryGroupMissingReason)
 	}
+	reasons = append(reasons, extra...)
 	return reasons
 }
 
@@ -122,11 +124,14 @@ func repositoryInventoryPartialReasons(truncated bool, repos []map[string]any) [
 // the existing readmodel.ListResponse fields (repositories, count, limit,
 // offset, truncated) and adds total: the true repository count independent of
 // page size, so callers can distinguish the per-page count from the overall
-// dataset size.
-func repositoryInventoryResponse(repos []map[string]any, page readmodel.ListPage, truncated bool, total int) map[string]any {
+// dataset size. extraPartialReasons is appended to partial_reasons verbatim,
+// for a degradation the page/count-shaped truncated bool cannot express on
+// its own (e.g. an auxiliary secondary-signal read like the dependency-edge
+// pre-pass, distinct from the page itself being truncated).
+func repositoryInventoryResponse(repos []map[string]any, page readmodel.ListPage, truncated bool, total int, extraPartialReasons ...string) map[string]any {
 	response := readmodel.ListResponse(repos, page, truncated, total)
 	response["result_limits"] = repositoryInventoryResultLimits(page, total, truncated)
-	response["partial_reasons"] = repositoryInventoryPartialReasons(truncated, repos)
+	response["partial_reasons"] = repositoryInventoryPartialReasons(truncated, repos, extraPartialReasons...)
 	return response
 }
 

@@ -12,7 +12,6 @@ const grandfatheredNonHotBaseline = "220989280718f206e53fade8670c3b240d44a9b0"
 var grandfatheredNonHotSourceDigests = map[string]string{
 	"codequery/handler.go:(*CodeHandler).runComplexityQuery":                                 "53fef37f7217c6b4e6aa26423fd1be4540f9e50cf8d0c0f0b5ce6f815635eaab",
 	"codequery/registry_bundles.go:(*CodeHandler).handleSearchBundles":                       "70b0ca335b4a3d9ee3e34bc09e34a10d34b4704e1c9e366988eaf3408b26d76a",
-	"codequery/relationship_handlers.go:(*CodeHandler).relationshipsGraphRow":                "5f06c0388917b255ecb9def87df274ec737d074f574a9c2d0a4e76981d3dee7d",
 	"codequery/entity_labels.go:(*CodeHandler).nornicDBRelationshipEntityLabel":              "4309eda090298bffc0b957cebf4116c9c23225f4aec7121bc1e1f4ab5363f63f",
 	"codequery/route_handlers.go:(*CodeHandler).routeToCallerEndpointRows":                   "b5cc5518d6e426f40f7d99b9ff04040b611d3ec3c181e68891d1cdea484516ce",
 	"codequery/route_handlers.go:(*CodeHandler).routeToCallerHandlerLabel":                   "09b8ea96446aeae203f178584e3bf1bb3cbab358b0c6166474457c79e8f19f14",

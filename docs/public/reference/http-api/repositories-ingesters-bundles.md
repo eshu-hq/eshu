@@ -128,25 +128,44 @@ apps/console/src/api/repoCatalog.test.ts
 apps/console/src/pages/RepositoriesPage.test.tsx` proves the console loader and
 Repositories page consume the source-backed fields.
 
-Observability Evidence: the dependency-cluster edge pre-pass
-(`loadRepositoryDependencyClusters`) runs the bounded
-`MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) … LIMIT 50000` query for a
-`GET /api/v0/repositories` call that reaches the graph backend. For unscoped
-callers it first runs the relationship-type count
+Observability Evidence: the dependency-edge pre-pass
+(`repository.loadRepositoryDependencyEdges`, via
+`resolveRepositoryDependencyEvidence`) issues one bounded
+`MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) … LIMIT 50001` query per
+`GET /api/v0/repositories` call that reaches the graph backend (50001, one
+past the 50000-edge bound, so a truncated read is detectable). This same
+read backs both the dependency-cluster grouping above and the repository
+list's `is_dependency` field (and the catalog's). For unscoped callers,
+including `GET /api/v0/catalog`, it first runs the relationship-type count
 `MATCH ()-[r:DEPENDS_ON]->() RETURN count(r)` and skips the edge scan when the
-graph holds no `DEPENDS_ON` edges (an empty edge set yields an empty cluster
-map, so the response is unchanged); scoped callers always run the
-grant-predicated scan. It is instrumented with the existing
+graph holds no `DEPENDS_ON` edges. An empty edge set means no clusters and
+`is_dependency=false` for every row, so the skip is exact and is not reported
+as degraded. Scoped callers always run the grant-predicated scan. It is
+instrumented with the existing
 `startRepositoryQueryStage` / `Done` timer (operation=`repository_list`,
-stage=`dependency_cluster_edges`), which emits `repository_query.stage_started`
-and `repository_query.stage_completed` log events carrying `duration_seconds`,
-`cluster_count`, and `edge_scan_skipped`. On a probe or scan error the handler
-continues with degraded (non-cluster) grouping rather than failing the request,
-and emits a `repository_query.dependency_cluster_probe_failed` or
-`repository_query.dependency_cluster_scan_failed` warning event; the degraded
-path is also visible through the per-row `group_source=missing_evidence` values
-in the response. No new metric label, queue work, collector call, Postgres
-read, or runtime knob is added.
+stage=`dependency_cluster_edges`), which emits
+`repository_query.stage_started` and `repository_query.stage_completed` log
+events carrying `duration_seconds`, `cluster_count`, `edge_count`,
+`truncated`, `error`, `edge_scan_skipped`, and `edge_transfer_capped`. The
+unscoped read groups edges by source repository. When the whole-graph
+`DEPENDS_ON` count, which includes Workload edges, is above the 50,000-edge
+bound or could not be read, it first fetches each source repository's edge
+count (`edge_transfer_capped=true`). If those counts exceed the bound, it
+fetches only the source groups holding the first 50,000 edges and reports the
+read truncated; otherwise the answer is complete and costs one extra
+statement. A probe failure still runs the
+scan and emits a `repository_query.dependency_cluster_probe_failed` warning;
+a scan failure also emits `repository_query.dependency_cluster_scan_failed`
+with the error text. On a query error or truncation the handler
+degrades: `is_dependency` and dependency-cluster grouping fall back to
+non-cluster grouping (visible via `group_source=missing_evidence`) rather
+than failing the request, and a dedicated structured warning,
+`repository_query.dependency_edges_degraded` (with `operation`,
+`edge_count`, `truncated`, `error`), fires alongside the
+`dependency_marker_evidence_incomplete` `partial_reasons` entry documented
+above -- never the `truncated` field, which means something unrelated (more
+pages, not incomplete auxiliary evidence). No new metric label, queue
+work, collector call, Postgres read, or runtime knob is added.
 
 `GET /api/v0/repositories/by-language?language=typescript&limit=100&offset=0`
 returns `repository_count`, `file_count`, normalized language aliases, and a
@@ -249,9 +268,17 @@ The empty-selector inventory form of `get_repository_stats` is served by
 ordering, `repository_count`, `truncated`, the `get_repository_stats`
 drilldown, and the `/api/v0/repositories` context path) and a `partial_reasons`
 slot that names `repository_inventory_truncated` when more repositories exist
-beyond the returned page, plus `repository_group_evidence_missing` when one or
-more returned repositories lack source-backed group evidence. The existing list
-`truncated` field is preserved.
+beyond the returned page, `repository_group_evidence_missing` when one or
+more returned repositories lack source-backed group evidence, and
+`dependency_marker_evidence_incomplete` when the bounded
+`(:Repository)-[:DEPENDS_ON]->(:Repository)` edge read backing each row's
+`is_dependency` field (and its dependency-cluster grouping) failed or was
+truncated for this request -- `is_dependency` may be under-reported (`false`
+where the true value was `true`) on affected rows. That last reason is
+independent of `truncated`: a page whose auxiliary dependency-marker evidence
+is incomplete does NOT mean more repositories exist beyond it, so it never
+sets `truncated` / `result_limits.truncated`, only its own
+`partial_reasons` entry. The existing list `truncated` field is preserved.
 
 No-Regression Evidence: the focused query test covers repository-name and
 canonical-id selectors, proves the stats route does not issue the old optional

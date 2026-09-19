@@ -16,7 +16,9 @@ OpenAPI remains canonical for the complete request and response schemas.
 
 The response has two truncation signals:
 
-- `truncated` is true when any catalog collection is partial.
+- `truncated` is true when any catalog collection (repositories, or
+  workloads/services) is itself a bounded partial page -- i.e. more rows
+  exist beyond `limit`.
 - `workloads_truncated` is true only when the workload collection, and
   therefore the derived service collection, is partial.
 
@@ -25,6 +27,37 @@ selector should use the narrower field when it is present so it does not warn
 that services are missing merely because repository navigation was bounded.
 For compatibility with an older API that does not return the narrower field,
 clients should fall back to `truncated`.
+
+`truncated` is strictly about row-count paging. It is never set by a
+degraded *auxiliary* read on an otherwise-complete page: each repository
+row's `is_dependency` field is backed by a separate, bounded
+`DEPENDS_ON`-edge marker read, and if that read fails or is truncated the
+repository/workload rows returned are still the complete set -- only
+`is_dependency` on them may be incomplete (under-reported as `false`). That
+case is disclosed through `limitations: ["dependency_marker_evidence_incomplete"]`
+instead, so a caller does not mistake it for "more repositories exist" and
+request a page that is not actually there.
+
+The catalog is unscoped, so its marker read first runs a whole-graph
+`DEPENDS_ON` count and skips the edge read when the graph has none. Otherwise
+it reads `(:Repository)-[:DEPENDS_ON]->(:Repository)` grouped by source
+repository (`RETURN s.id, collect(t.id)`), clipped to 50,000 edges; more edges
+than that is the truncation case above. When the count is above 50,000 or
+could not be read, the read first fetches each source repository's edge count
+and then fetches only the source groups that hold the first 50,000 edges, so
+at most 50,000 edges plus one repository's edges cross the wire. Operators see
+this read as a pair of structured log events,
+`repository_query.stage_started` and `repository_query.stage_completed`, with
+`operation=catalog_list` and `stage=dependency_cluster_edges`. The completion
+event carries `duration_seconds`, `edge_count`, `truncated`, `error`,
+`edge_scan_skipped` (true when the count proved there were no edges), and
+`edge_transfer_capped` (true when the read fetched per-repository edge counts
+first to cap its transfer, which happens whenever the whole-graph `DEPENDS_ON`
+count, Workload edges included, exceeds 50,000 or is unreadable, even when the
+Repository edges fit and the answer is complete). It has
+no `cluster_count`, because the catalog builds no dependency clusters. A read
+failure or truncation also logs a `repository_query.dependency_edges_degraded`
+warning with the same `operation`.
 
 ## Workload resolution
 

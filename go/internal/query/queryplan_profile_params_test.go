@@ -231,6 +231,7 @@ func queryplanProfileParams() map[string]any {
 		"evidence_source":        supplyChainKubernetesRuntimeEvidenceSource,
 		"from":                   "proof-repository",
 		"from_id":                "proof-repository",
+		"group_limit":            50001,
 		"instance_limit":         contextStoryItemLimit + 1,
 		"instance_ids":           []string{"proof-instance"},
 		"ids":                    []string{"proof-id"},
