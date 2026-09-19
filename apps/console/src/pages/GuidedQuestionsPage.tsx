@@ -76,7 +76,14 @@ function GuidedQuestionsLive({ client }: { readonly client?: EshuApiClient }): R
   useEffect(() => {
     let cancelled = false;
     if (!client) {
-      setCatalog({ playbooks: [], versions: [], count: 0, truth: null, provenance: "unavailable" });
+      setCatalog({
+        playbooks: [],
+        versions: [],
+        count: 0,
+        truth: null,
+        provenance: "unavailable",
+        truncated: false,
+      });
       return;
     }
     void listPlaybooks(client).then((page) => {
