@@ -165,8 +165,10 @@ scans an entire response.
 - `snapshot.go` — typed view + loader for the B-12 snapshot.
 - `evaluate.go` — pure assertion logic for every phase (unit-tested).
 - `drains.go` — Postgres drain queries + the drain poll loop.
-- `graph.go` — Bolt graph counts (nodes, edges, required correlations) and
-  edge/node property listing for the provenance property assertions.
+- `graph.go` — the `graphCounter` seam and the graph-phase checks (required
+  nodes, correlations, count tolerances, property assertions).
+- `graph_bolt.go` — the Bolt `graphCounter`: node, edge, and correlation
+  counts, edge/node property listing, and self-loop counting.
 - `query.go` — authenticated HTTP query-shape checks.
 - `mcp.go` — live MCP tool query-shape checks over `POST /mcp/message`.
 - `demoanswers.go` — the demo-answers phase: load `specs/demo-first-answers.v1.yaml`
@@ -193,7 +195,7 @@ advisory warnings.
 
 ## Self-loop counting — performance & observability evidence (#5349)
 
-`graph.go`'s `CountSelfLoopEdges` backs the `required_self_loops` B-12
+`graph_bolt.go`'s `CountSelfLoopEdges` backs the `required_self_loops` B-12
 assertion. It counts genuine self-referential edges (e.g. the Dart
 `recursionFib`/`recursionFact` functions calling themselves) for a
 `(label {property: value})` scope, so a regression that inflates every
