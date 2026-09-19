@@ -84,3 +84,17 @@ func TestDecideWaitSettleAdvancesEpoch(t *testing.T) {
 			settle.Row.AnchorEpoch, settle.Row.FirstDeferredAt, row.FirstDeferredAt)
 	}
 }
+
+// TestDecideWaitClearCarriesReadRowVersion is review P3-b: a clear is a
+// compare-and-set on the row version its evaluation read, so a straggler's
+// clear cannot tombstone a wait a live worker rewrote after that read.
+func TestDecideWaitClearCarriesReadRowVersion(t *testing.T) {
+	t.Parallel()
+	row := committedRow("arn:a")
+	row.RowVersion = 7
+	cleared := DecideWait(waitInput(&row, "gen-1", waitTestCycle, waitTestT0.Add(time.Minute)))
+	if !cleared.Clear || cleared.Row.RowVersion != 7 {
+		t.Fatalf("emptied set: clear %v row version %d, want a clear carrying read version 7",
+			cleared.Clear, cleared.Row.RowVersion)
+	}
+}

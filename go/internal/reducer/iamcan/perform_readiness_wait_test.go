@@ -53,6 +53,9 @@ func (l *memoryWaitLedger) UpsertReadinessWait(_ context.Context, wait crossscop
 		if wait.AnchorEpoch == existing.AnchorEpoch && existing.FirstDeferredAt.Before(wait.FirstDeferredAt) {
 			wait.FirstDeferredAt = existing.FirstDeferredAt
 		}
+		wait.RowVersion = existing.RowVersion + 1
+	} else {
+		wait.RowVersion = 0
 	}
 	wait.ClearedAt = time.Time{}
 	l.rows[key] = wait
@@ -65,12 +68,15 @@ func (l *memoryWaitLedger) ClearReadinessWait(_ context.Context, wait crossscope
 	l.clears++
 	key := wait.ScopeID + "|" + string(wait.Domain)
 	existing, ok := l.rows[key]
-	if !ok || existing.AnchorEpoch != wait.AnchorEpoch {
+	// The store's clear fence: the read epoch and row version must both
+	// still match.
+	if !ok || existing.AnchorEpoch != wait.AnchorEpoch || existing.RowVersion != wait.RowVersion {
 		return nil
 	}
 	l.rows[key] = crossscope.ReadinessWait{
 		ScopeID: wait.ScopeID, Domain: wait.Domain, FirstDeferredAt: wait.ClearedAt,
-		AnchorEpoch: existing.AnchorEpoch + 1, CommittedGenerationID: wait.CommittedGenerationID,
+		AnchorEpoch: existing.AnchorEpoch + 1, RowVersion: existing.RowVersion + 1,
+		CommittedGenerationID:   wait.CommittedGenerationID,
 		CommittedCycleStartedAt: wait.CommittedCycleStartedAt, ClearedAt: wait.ClearedAt, UpdatedAt: wait.ClearedAt,
 	}
 	return nil

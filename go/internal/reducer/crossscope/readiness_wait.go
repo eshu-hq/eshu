@@ -53,6 +53,11 @@ type ReadinessWait struct {
 	// anchor that a reset or clear replaced (review P3-1) or un-settle a
 	// settled wait (review P3-a).
 	AnchorEpoch int64
+	// RowVersion counts applied writes to the row. The store bumps it on
+	// every upsert and clear that lands. A clear is a compare-and-set on the
+	// version its evaluation read, so a straggler's clear cannot tombstone a
+	// wait that a live worker rewrote after that read (review P3-b).
+	RowVersion int64
 	// MissingKeys is the sorted missing set, capped at ReadinessWaitMaxKeys.
 	MissingKeys []string
 	// MissingCount is the size of the full missing set.
@@ -107,8 +112,9 @@ type ReadinessWaitLedger interface {
 	// replaces FirstDeferredAt; an equal epoch keeps the earlier anchor.
 	UpsertReadinessWait(ctx context.Context, wait ReadinessWait) error
 	// ClearReadinessWait turns the row into a tombstone with the next epoch,
-	// only when the stored epoch still equals wait.AnchorEpoch. Clearing an
-	// absent or already-advanced row is a no-op, not an error.
+	// only when the stored epoch and row version still equal
+	// wait.AnchorEpoch and wait.RowVersion. Clearing an absent row, or one
+	// any other writer changed after the read, is a no-op, not an error.
 	ClearReadinessWait(ctx context.Context, wait ReadinessWait) error
 }
 
@@ -145,8 +151,8 @@ type WaitDecision struct {
 	// ResetAnchor reports that Row starts a new bound; Row.AnchorEpoch is then
 	// one above the epoch the evaluation read.
 	ResetAnchor bool
-	// Row is the row to upsert, or for Clear the identity, read epoch, and
-	// commit marker of the tombstone.
+	// Row is the row to upsert, or for Clear the identity, read epoch, read
+	// row version, and commit marker of the tombstone.
 	Row ReadinessWait
 	// Outcome is "" when nothing is missing, else one of the ReadinessWait*
 	// labels.
@@ -171,7 +177,8 @@ func DecideWait(in WaitInput) WaitDecision {
 			return WaitDecision{Commit: true}
 		}
 		return WaitDecision{Commit: true, Clear: true, Row: ReadinessWait{
-			ScopeID: in.ScopeID, Domain: in.Domain, AnchorEpoch: in.Existing.AnchorEpoch,
+			ScopeID: in.ScopeID, Domain: in.Domain,
+			AnchorEpoch: in.Existing.AnchorEpoch, RowVersion: in.Existing.RowVersion,
 			CommittedGenerationID: in.GenerationID, CommittedCycleStartedAt: in.CycleStartedAt,
 			ClearedAt: in.Now, UpdatedAt: in.Now,
 		}}

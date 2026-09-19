@@ -135,8 +135,10 @@ func TestReadinessWaitResetAnchorSettleAndClearLive(t *testing.T) {
 		t.Fatalf("restart row = %+v (err %v), want the new anchor and settled_at cleared", got, err)
 	}
 
+	// A clear carries the epoch and row version its evaluation read, so it
+	// clears from the row just read, as crossscope.DecideWait does.
 	for i := 0; i < 2; i++ {
-		clear := restart
+		clear := got
 		clear.ClearedAt = early.Add(2 * time.Hour)
 		if err := store.ClearReadinessWait(ctx, clear); err != nil {
 			t.Fatalf("clear %d: %v", i, err)

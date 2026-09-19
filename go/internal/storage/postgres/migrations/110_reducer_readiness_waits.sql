@@ -15,7 +15,11 @@
 -- is dropped, so a writer that read the row before the reset cannot restore
 -- the older anchor. A clear keeps the row as a tombstone (cleared_at set, no
 -- missing set) so its epoch still fences a straggler that would otherwise
--- re-insert a stale wait. Rows are bounded by two per scope (one per domain).
+-- re-insert a stale wait. A settle also moves the row to the next epoch, so a
+-- straggler cannot un-settle it (review P3-a). row_version counts applied
+-- writes; a clear is a compare-and-set on the version it read, so a straggler
+-- clear cannot tombstone a wait a live worker rewrote at the same epoch
+-- (review P3-b). Rows are bounded by two per scope (one per domain).
 --
 -- A new table instead of a fact_work_items column keeps the hot queue table
 -- and its claim query unchanged. Writes are single-statement primary-key
@@ -34,10 +38,13 @@ CREATE TABLE IF NOT EXISTS reducer_readiness_waits (
     settled_at TIMESTAMPTZ NULL,
     anchor_epoch BIGINT NOT NULL DEFAULT 0,
     cleared_at TIMESTAMPTZ NULL,
+    row_version BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT reducer_readiness_waits_pkey PRIMARY KEY (scope_id, domain),
     CONSTRAINT reducer_readiness_waits_missing_count_check
         CHECK (missing_count >= 0),
     CONSTRAINT reducer_readiness_waits_anchor_epoch_check
-        CHECK (anchor_epoch >= 0)
+        CHECK (anchor_epoch >= 0),
+    CONSTRAINT reducer_readiness_waits_row_version_check
+        CHECK (row_version >= 0)
 );

@@ -114,7 +114,7 @@ func TestStoreClearBindsReadEpochAndCommitMarker(t *testing.T) {
 	store := Store{DB: fake}
 	wait := crossscope.ReadinessWait{
 		ScopeID: "aws:1:us-east-1:iam", Domain: reducercontract.DomainIAMCanPerformMaterialization,
-		AnchorEpoch: 2, CommittedGenerationID: "gen-2", ClearedAt: storeTestT0,
+		AnchorEpoch: 2, RowVersion: 9, CommittedGenerationID: "gen-2", ClearedAt: storeTestT0,
 	}
 	if err := store.ClearReadinessWait(context.Background(), wait); err != nil {
 		t.Fatalf("ClearReadinessWait() error = %v", err)
@@ -123,8 +123,8 @@ func TestStoreClearBindsReadEpochAndCommitMarker(t *testing.T) {
 		t.Fatalf("calls = %+v, want one clear", fake.calls)
 	}
 	args := fake.calls[0].args
-	if args[2] != int64(2) || args[3] != "gen-2" || args[4] != nil || args[5] != storeTestT0 {
-		t.Fatalf("clear args = %v, want read epoch 2, marker gen-2, NULL cycle, cleared_at", args)
+	if args[2] != int64(2) || args[3] != "gen-2" || args[4] != nil || args[5] != storeTestT0 || args[6] != int64(9) {
+		t.Fatalf("clear args = %v, want read epoch 2, marker gen-2, NULL cycle, cleared_at, read row version 9", args)
 	}
 	if err := store.ClearReadinessWait(context.Background(), crossscope.ReadinessWait{ScopeID: "s"}); err == nil {
 		t.Fatal("ClearReadinessWait() without a time error = nil, want an error")
@@ -135,7 +135,7 @@ func TestStoreGetDecodesRowAndMissingRow(t *testing.T) {
 	t.Parallel()
 	fake := &fakeDB{rows: [][]any{{
 		storeTestT0, []byte(`["arn:a","arn:b"]`), 2, "fp", "gen-1", storeTestT0.Add(-time.Minute), "fp",
-		nil, storeTestT0, int64(4), storeTestT0,
+		nil, storeTestT0, int64(4), storeTestT0, int64(6),
 	}}}
 	store := Store{DB: fake}
 	got, found, err := store.GetReadinessWait(context.Background(), "aws:1:us-east-1:iam", reducercontract.DomainIAMCanPerformMaterialization)
@@ -144,7 +144,7 @@ func TestStoreGetDecodesRowAndMissingRow(t *testing.T) {
 	}
 	if len(got.MissingKeys) != 2 || got.MissingCount != 2 || got.CommittedGenerationID != "gen-1" ||
 		!got.CommittedCycleStartedAt.Equal(storeTestT0.Add(-time.Minute)) || got.Settled() ||
-		got.AnchorEpoch != 4 || !got.Cleared() ||
+		got.AnchorEpoch != 4 || !got.Cleared() || got.RowVersion != 6 ||
 		got.ScopeID != "aws:1:us-east-1:iam" || got.Domain != reducercontract.DomainIAMCanPerformMaterialization {
 		t.Fatalf("decoded row = %+v", got)
 	}

@@ -24,6 +24,7 @@ row is keyed by `(scope_id, domain)`, so it outlives each queue row.
 | `committed_generation_id`, `committed_cycle_started_at`, `committed_fingerprint` | The last partial commit. A poll that matches all three writes nothing. |
 | `settled_at` | Set when the bound expired for this missing set. |
 | `anchor_epoch` | Fence against lease-expired stragglers. An anchor reset, a settle, or a clear moves the row to the next epoch. |
+| `row_version` | Count of applied writes. Every upsert and clear that lands bumps it; a clear only lands on the version its evaluation read. |
 | `cleared_at` | Set when the missing set emptied. The row stays as a tombstone with no missing set so its epoch keeps fencing. |
 
 The handler decides what to do with `crossscope.DecideWait`; this package only
@@ -37,14 +38,18 @@ reads and writes rows.
   dropped. A higher epoch replaces `first_deferred_at`. An equal epoch keeps
   `LEAST(stored, new)`, so two racing first-defer writers keep the earlier
   anchor and a replayed write changes nothing.
-- `ClearReadinessWait`: one primary-key `UPDATE ... WHERE anchor_epoch = $read`
-  that empties the row and moves it to the next epoch. An absent row, or one a
-  newer writer already advanced, is left alone.
+- `ClearReadinessWait`: one primary-key `UPDATE ... WHERE anchor_epoch = $read
+  AND row_version = $read_version` that empties the row and moves it to the
+  next epoch. An absent row, or one any other writer changed after the read,
+  is left alone. The row-version compare-and-set stops a straggler that saw
+  the set empty from tombstoning a wait that a live worker rewrote at the same
+  epoch (review P3-b). The live worker's next evaluation clears the row itself
+  if the set really emptied.
 
 A write the fence drops changes no row and logs
 `readiness wait write dropped by the anchor epoch fence` at info, with
 `scope_id`, `domain`, `readiness_wait_operation` (`upsert` or `clear`), and the
-writer's `anchor_epoch`. It means a lease-expired straggler lost to a newer
+writer's `anchor_epoch` and `row_version`. It means a lease-expired straggler lost to a newer
 evaluation; it is not an error.
 
 ## Why stragglers are fenced

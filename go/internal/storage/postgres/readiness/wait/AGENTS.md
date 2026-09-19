@@ -12,8 +12,12 @@ still apply.
   fails when `LEAST` is replaced by the new value.
 - Keep the `anchor_epoch` fence on both writes: the upsert's
   `ON CONFLICT ... WHERE EXCLUDED.anchor_epoch >= wait.anchor_epoch` and the
-  clear's `WHERE anchor_epoch = $read`. `store_fence_live_test.go` fails when
-  either is removed. Do not turn the clear back into a `DELETE`: the tombstone
+  clear's `WHERE anchor_epoch = $read AND row_version = $read_version`.
+  `store_fence_live_test.go` fails when either epoch check is removed,
+  `store_clear_fence_live_test.go` when the clear's `row_version` check is
+  removed, and `store_settle_fence_live_test.go` when a settle stops advancing
+  the epoch in `crossscope.DecideWait`. Every applied upsert and clear must
+  bump `row_version`. Do not turn the clear back into a `DELETE`: the tombstone
   is what fences a straggler's re-insert.
 - Return an error, never a missing row, when the database cannot answer. A
   missing row reads as "no wait yet" and restarts the bound.

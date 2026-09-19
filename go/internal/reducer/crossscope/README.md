@@ -100,7 +100,9 @@ the ledger, then return the not-ready error or succeed.
 
 - An empty missing set commits and clears the row. A clear leaves a
   tombstone at the next `AnchorEpoch`; a tombstone with an empty set writes
-  nothing.
+  nothing. The clear carries the `RowVersion` it read, and the ledger applies
+  it only if no other write landed since, so a straggler cannot tombstone a
+  wait a live worker just rewrote.
 - A settled row with the same fingerprint commits at once (`settled_missing`).
 - Otherwise the row keeps its earliest `FirstDeferredAt` (a settled or cleared
   row with a new set restarts it at the next `AnchorEpoch`, so a lease-expired
