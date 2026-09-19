@@ -175,7 +175,7 @@ collectors.
 | Storage/constraint behavior | Operations manual | `pkg/storage/*.go` in NornicDB-New |
 | Known traps | Neo4j changelog | [NornicDB Pitfalls](nornicdb-pitfalls.md) |
 | Runtime knobs | Neo4j config reference | [NornicDB Tuning](nornicdb-tuning.md) |
-| Version pinning | `NEO4J_VERSION` | `NORNICDB_IMAGE` |
+| Version pinning | `NEO4J_IMAGE` | `NORNICDB_IMAGE` |
 
 ## Evidence Notes
 
