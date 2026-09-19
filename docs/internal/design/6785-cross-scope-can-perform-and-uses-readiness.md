@@ -431,6 +431,18 @@ ESHU_POSTGRES_DSN=… go test ./internal/storage/postgres/readiness/wait/ -run L
 - `TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive`: `--- PASS (0.10s)`.
 - `TestReadinessWaitResetAnchorSettleAndClearLive`: `--- PASS (0.04s)`.
 
+Re-run at 8b7cd01a4, after the anchor-epoch fence (P3-1) and the
+same-generation retract (P3-2), same `postgres:18-alpine` container. Migration
+109 changed shape on this branch, and the bootstrap rejects a changed
+migration checksum, so this run used a fresh `eshu_6785_r4` database in that
+container.
+
+- `TestReadinessWaitSurvivesSupersessionLive`: `supersession: N superseded at +6m, N+1 committed at first claim, settled at +10m (anchor from N); writes=2 retracts=2`, then `--- PASS (0.16s)`.
+- `TestReadinessWaitStaleWriterCannotUndoResetLive`: `--- PASS (0.31s)`.
+- `TestReadinessWaitStaleWriterCannotResurrectClearedWaitLive`: `--- PASS (0.04s)`.
+- `TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive`: `--- PASS (0.09s)`.
+- `TestReadinessWaitResetAnchorSettleAndClearLive`: `--- PASS (0.04s)`.
+
 ## 7. Cassette
 
 - The role (prod and stage anchors) and the inline permission move to
