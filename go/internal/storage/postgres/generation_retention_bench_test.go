@@ -35,7 +35,7 @@ func BenchmarkGenerationRetentionStoreLargeFixture(b *testing.B) {
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		execResults := generationRetentionExecResults(len(candidates), 400, 5, 20, 20, 20, 100)
+		execResults := generationRetentionExecResults(len(candidates), 400, 5, 20, 20, 4, 20, 100)
 		scriptedExecs := len(execResults)
 		db := &generationRetentionFakeDB{
 			candidateRows: candidates,
@@ -93,7 +93,9 @@ func generationRetentionCountRows(candidates [][]any, counts map[string]int64) [
 
 // generationRetentionExecResults scripts the fake's exec results POSITIONALLY:
 // eventCount per-generation event inserts, then one result per batch-level
-// delete in the exact order PruneSupersededGenerations issues them.
+// statement in the exact order PruneSupersededGenerations issues them,
+// including the infra read-model repository lock and orphan delete that
+// bracket the content_entities prune.
 //
 // Adding a delete to that function without adding its result here shifts every
 // later result by one and silently drops the last statement off the end of the
@@ -108,10 +110,11 @@ func generationRetentionExecResults(
 	sharedProjectionUnroutableIntents int64,
 	contentReferences int64,
 	contentEntities int64,
+	infraOrphans int64,
 	contentFiles int64,
 	scopeGenerations int64,
 ) []sql.Result {
-	results := make([]sql.Result, 0, eventCount+6)
+	results := make([]sql.Result, 0, eventCount+8)
 	for i := 0; i < eventCount; i++ {
 		results = append(results, fakeRowsAffected{})
 	}
@@ -120,7 +123,11 @@ func generationRetentionExecResults(
 		fakeRowsAffected{n: sharedProjectionIntents},
 		fakeRowsAffected{n: sharedProjectionUnroutableIntents},
 		fakeRowsAffected{n: contentReferences},
+		// infra_resource_entities repository lock taken before the content
+		// prune (#6793); its row count is ignored.
+		fakeRowsAffected{},
 		fakeRowsAffected{n: contentEntities},
+		fakeRowsAffected{n: infraOrphans},
 		fakeRowsAffected{n: contentFiles},
 		fakeRowsAffected{n: scopeGenerations},
 	)
