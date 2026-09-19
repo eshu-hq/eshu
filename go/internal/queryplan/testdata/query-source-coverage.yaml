@@ -421,8 +421,8 @@ source_coverage:
       - {symbol: "(*InfraHandler).getRelationships", count: 1, non_hot_reason: "unlabeled relationship-detail lookup is inventoried but cannot be admitted until its production anchor is typed"}
   - file: infra_resource_aggregates.go
     calls:
-      - {symbol: "(GraphInfraResourceAggregateStore).CountInfraResources", count: 1, source_sha256: a76371dbd20b45ba318935a0efd656b28659b95bdd3d8a8c262074002e5129bb, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
-      - {symbol: "(GraphInfraResourceAggregateStore).InfraResourceInventory", count: 1, source_sha256: d097d43baf9909b1ba0b70a6a44b9c94165656ab1ffe242a5c2dce6c34a952a0, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
+      - {symbol: "(GraphInfraResourceAggregateStore).CountInfraResources", count: 1, source_sha256: 051c7404acbad3eb04a9ce98ee6f0a1c311e98dea3fe6dc13ed37be492dc14b4, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
+      - {symbol: "(GraphInfraResourceAggregateStore).InfraResourceInventory", count: 1, source_sha256: f603cec1703f40f906f8bd5a84670624c596d0c239eca8610956fa48ff413dae, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
       - {symbol: "(GraphInfraResourceAggregateStore).fillBuckets", count: 1, source_sha256: 1461164d77a8cb60bf9544641e88dab27a1215ba40e578550fd78a4fc7790d15, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
   - file: infra_resource_aggregates_cypher.go
     calls:
