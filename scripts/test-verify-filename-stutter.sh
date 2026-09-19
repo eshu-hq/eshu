@@ -275,6 +275,7 @@ stage_case "README.md in a readme dir is exempt" 0 docs/internal/readme/README.m
 stage_case "AGENTS.md in an agents dir is exempt" 0 docs/internal/agents/AGENTS.md
 stage_case "CLAUDE.md in a claude dir is exempt" 0 docs/internal/claude/CLAUDE.md
 stage_case "doc.go in a doc dir is exempt" 0 go/internal/doc/doc.go
+stage_case "extensionless file without a stutter is GREEN" 0 scripts/lib/Makefile
 stage_case "dotfile without a stutter is GREEN" 0 scripts/lib/.gitkeep
 stage_case "multi-dot non-Go near-miss is GREEN" 0 go/internal/query/schema/values.schema.json
 stage_case "fixture file under testdata is exempt from rule 2" 0 go/internal/parser/testdata/sample/sample-sample.txt
