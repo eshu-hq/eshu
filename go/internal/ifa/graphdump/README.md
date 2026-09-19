@@ -93,7 +93,7 @@ Evidence:` / `No-Observability-Change:`.)
   so on a Neo4j-compatible cluster the scan routes to the authoritative writer
   (a determinism digest must not read a replication-lagged reader) — the same
   instance the old `neo4j.ExecuteQuery` default routing (`RoutingControl=Write`)
-  targeted, matching `cmd/golden-corpus-gate/graph.go`'s `boltGraphCounter`, so
+  targeted, matching `cmd/golden-corpus-gate/graph_bolt.go`'s `boltGraphCounter`, so
   this verb adds no new read-replica routing behavior. This gate-worthy Cypher
   surface has no prior baseline to regress against: it is new, additive, and
   off the ingest/reducer/query hot path entirely.
