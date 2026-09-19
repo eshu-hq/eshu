@@ -181,13 +181,23 @@ func (s GraphInfraResourceAggregateStore) WithInstruments(instruments *telemetry
 	return s
 }
 
-// readModelServes reports whether the read model serves filter. Scoped
-// callers always stay on the graph: two infra labels are authorized through
-// USES and MATCHES_STATE edges a repo-keyed table cannot express. A failed
+// readModelServes reports whether the read-model path serves filter over
+// labels. Scoped callers always stay on the graph: two infra labels are
+// authorized through USES and MATCHES_STATE edges a repo-keyed table cannot
+// express. When labels holds no read-model label (category=cloud), the path
+// reads only the graph, so it serves without checking readiness: a Postgres
+// failure must not fail an answer the graph holds whole. Otherwise a failed
 // marker check fails the read rather than silently switching stores.
-func (s GraphInfraResourceAggregateStore) readModelServes(ctx context.Context, filter InfraResourceAggregateFilter) (bool, error) {
+func (s GraphInfraResourceAggregateStore) readModelServes(
+	ctx context.Context,
+	filter InfraResourceAggregateFilter,
+	labels []string,
+) (bool, error) {
 	if s.ReadModel == nil || filter.scoped() {
 		return false, nil
+	}
+	if table, _, _ := splitInfraLabels(labels); len(table) == 0 {
+		return true, nil
 	}
 	ready, err := s.ReadModel.Ready(ctx)
 	if err != nil {
