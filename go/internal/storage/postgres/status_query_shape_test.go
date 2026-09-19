@@ -185,3 +185,54 @@ func TestSelectiveActiveWorkProbesUsePerRowFilter(t *testing.T) {
 		}
 	}
 }
+
+// TestReducerConflictBlockageFiltersEligibleByHashedLeaseSet guards #6794. The
+// blockage section used to join every eligible reducer row to a live lease on
+// the same conflict key. The eligible CTE's row estimate is far below its real
+// size, so with missing or stale statistics the planner ran that join as a
+// nested loop, rescanning one side once per row of the other: the cost grew
+// with eligible rows times leases. blocked is now a filter on eligible, an
+// uncorrelated IN over the live-lease CTE that PostgreSQL runs as a hashed
+// SubPlan, so there is no join method for the planner to choose. The
+// COALESCE(..., FALSE) fence keeps the IN from being pulled up into a
+// semi-join, which would be a join again.
+func TestReducerConflictBlockageFiltersEligibleByHashedLeaseSet(t *testing.T) {
+	t.Parallel()
+
+	cte := func(name, next string) string {
+		t.Helper()
+		start := strings.Index(activeWorkSummaryQuery, "\n"+name+" AS ")
+		end := strings.Index(activeWorkSummaryQuery, "\n"+next+" AS ")
+		if start < 0 || end < 0 || start > end {
+			t.Fatalf("summary query must define %s before %s:\n%s", name, next, activeWorkSummaryQuery)
+		}
+		return activeWorkSummaryQuery[start:end]
+	}
+	eligible := cte("eligible", "inflight_leases")
+	leases := cte("inflight_leases", "blocked")
+	blocked := cte("blocked", "readiness_blocked")
+
+	for name, pair := range map[string][2]string{
+		"eligible key":       {eligible, "COALESCE(conflict_key, scope_id) AS conflict_key"},
+		"lease key":          {leases, "COALESCE(conflict_key, scope_id) AS conflict_key"},
+		"lease CTE":          {leases, "inflight_leases AS MATERIALIZED ("},
+		"lease source":       {leases, "FROM fact_work_items"},
+		"lease stage":        {leases, "stage = 'reducer'"},
+		"lease status":       {leases, "status IN ('claimed', 'running')"},
+		"lease expiry":       {leases, "claim_until > $1"},
+		"filter on eligible": {blocked, "FROM eligible"},
+		"fenced IN":          {blocked, "WHERE COALESCE("},
+		"lease set":          {blocked, "(conflict_domain, conflict_key) IN (SELECT conflict_domain, conflict_key FROM inflight_leases)"},
+		"fence default":      {blocked, "FALSE)"},
+	} {
+		if !strings.Contains(pair[0], pair[1]) {
+			t.Fatalf("%s: missing %q in:\n%s", name, pair[1], pair[0])
+		}
+	}
+	if strings.Contains(blocked, "JOIN") || strings.Contains(blocked, "fact_work_items") || strings.Contains(blocked, " OVER ") {
+		t.Fatalf("blocked must filter eligible, not join or window:\n%s", blocked)
+	}
+	if strings.Contains(activeWorkSummaryQuery, "lease_keyed") {
+		t.Fatalf("summary query still defines lease_keyed:\n%s", activeWorkSummaryQuery)
+	}
+}

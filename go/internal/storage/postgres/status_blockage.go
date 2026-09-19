@@ -22,22 +22,7 @@ eligible AS (
       AND (visible_at IS NULL OR visible_at <= $1)
       AND (claim_until IS NULL OR claim_until <= $1)
 ),
-blocked AS (
-    SELECT eligible.work_item_id,
-           eligible.domain,
-           eligible.conflict_domain,
-           eligible.conflict_key,
-           eligible.available_at
-    FROM eligible
-    JOIN fact_work_items AS inflight
-      ON inflight.stage = 'reducer'
-     AND inflight.conflict_domain = eligible.conflict_domain
-     AND COALESCE(inflight.conflict_key, inflight.scope_id) = eligible.conflict_key
-     AND inflight.work_item_id <> eligible.work_item_id
-     AND inflight.status IN ('claimed', 'running')
-     AND inflight.claim_until > $1
-),
-readiness_blocked AS (
+` + reducerConflictInflightLeasesCTE + reducerConflictBlockedCTE + `readiness_blocked AS (
     -- Surface each missing readiness requirement as its own bounded blockage row.
     -- Multi-key domains such as security-group reachability and EC2 profile
     -- edges appear once per missing keyspace/entity-key requirement.
@@ -98,3 +83,61 @@ const reducerConflictBlockageOrder = `blocked_count DESC, oldest_blocked_age_sec
 
 // reducerConflictBlockageLimit bounds the blockage rows on the status surface.
 const reducerConflictBlockageLimit = 10
+
+// reducerConflictInflightLeasesCTE selects the live reducer leases (#6794):
+// claimed or running reducer rows whose claim has not expired, keyed like
+// fact_work_items_reducer_live_lease_uniq. That index allows at most one such
+// row per conflict key, so the set holds the live claimed-or-running reducer
+// rows: the running workers plus rows claimed but not yet started. It uses the
+// same predicate as the reducer claim query's reducer_source_inflight, which
+// counts the same rows per source system. AS MATERIALIZED is kept so the plan
+// names the lease scan (CTE Scan on inflight_leases), which the blockage plan
+// regression asserts on; the CTE is referenced once and would otherwise be
+// inlined.
+const reducerConflictInflightLeasesCTE = `inflight_leases AS MATERIALIZED (
+    SELECT work_item_id,
+           conflict_domain,
+           COALESCE(conflict_key, scope_id) AS conflict_key
+    FROM fact_work_items
+    WHERE stage = 'reducer'
+      AND status IN ('claimed', 'running')
+      AND claim_until > $1
+),
+`
+
+// reducerConflictBlockedCTE fences each eligible reducer row whose conflict key
+// holds a live lease (#6794). It is a filter on eligible, not a join, so the
+// planner has no join method to choose. The eligible CTE's row estimate is far
+// below its real size, so with missing or stale statistics the planner ran the
+// old join as a nested loop, rescanning one side once per row of the other.
+//
+// The uncorrelated IN (SELECT ...) is an ANY sublink, and PostgreSQL runs an
+// uncorrelated ANY sublink as a hashed SubPlan (the lease set is hashed once,
+// then probed once per eligible row) whenever its estimated size fits in
+// work_mem * hash_mem_multiplier (subplan_is_hashable in
+// optimizer/plan/subselect.c). At the default work_mem that needs an estimate
+// above about 95,000 live leases, far past what one lease per conflict key
+// among running reducer workers can reach. The COALESCE(..., FALSE) is
+// load-bearing for the plan, not the result: the keys are NOT NULL, so IN never
+// yields NULL, but an IN at the top level of WHERE is pulled up into a
+// semi-join the planner may nested-loop again; inside COALESCE it stays a
+// SubPlan. TestActiveWorkSummaryBlockageHashesLeasesOnce fails if the plan stops
+// saying "hashed SubPlan" or if any eligible or lease scan runs more than once.
+//
+// The filter returns exactly the rows the old join did. An eligible row has
+// claim_until NULL or not after $1 and a live lease has it after $1, so no row
+// is on both sides and the join's "lease is another row" condition never
+// excluded a match. IN emits an eligible row once whether one or several
+// leases share its key.
+const reducerConflictBlockedCTE = `blocked AS (
+    SELECT work_item_id,
+           domain,
+           conflict_domain,
+           conflict_key,
+           available_at
+    FROM eligible
+    WHERE COALESCE(
+        (conflict_domain, conflict_key) IN (SELECT conflict_domain, conflict_key FROM inflight_leases),
+        FALSE)
+),
+`

@@ -200,7 +200,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"activated_at",
 		"superseded_at",
 		"FROM fact_work_items",
-		"inflight.conflict_domain",
+		"(conflict_domain, conflict_key) IN (SELECT conflict_domain, conflict_key FROM inflight_leases)",
 		"failure_details",
 		"SPLIT_PART(fairness_key, ':', 4)",
 		"FROM aws_scan_status",
