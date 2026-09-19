@@ -9,11 +9,12 @@ whole-scope count and grouped inventory.
 
 ## Ownership boundary
 
-This package owns security-alert reconciliation family membership and the
-mapping from decoded arguments to a dependency-neutral internal request.
-`internal/mcp` keeps tool registration and its client-visible order, global
-route fanout, the private adapter, HTTP dispatch, authorization, timeouts,
-response budgets, envelopes, summaries, and telemetry. `internal/query` owns
+This package owns security-alert reconciliation family membership, the
+mapping from decoded arguments to a dependency-neutral internal request, and
+the aggregate tool definitions. `internal/mcp` keeps the root registration
+wrapper and client-visible order, global route fanout, the private adapter,
+HTTP dispatch, authorization, timeouts, response budgets, envelopes,
+summaries, and telemetry. `internal/query` owns
 the bounded reads these paths reach: `SupplyChainHandler
 .listSecurityAlertReconciliations` for the listing and
 `countSecurityAlertReconciliations` / `securityAlertReconciliationInventory`
@@ -25,6 +26,7 @@ requirement, and `group_by` validation.
 - `Route` selects the internal request for a security-alert reconciliation
   tool without executing it, and reports `handled=false` for every other
   tool.
+- `ReconciliationAggregateTools` returns the two security-alert reconciliation aggregate definitions.
 
 See `doc.go` for the godoc contract.
 
@@ -32,6 +34,8 @@ See `doc.go` for the godoc contract.
 
 - `internal/mcp/contract/route` owns the dependency-neutral decoded-argument
   and internal-request shapes used by `Route`.
+- `internal/mcp/contract/tool` owns the dependency-neutral tool-definition
+  shape used by `ReconciliationAggregateTools`.
 
 ## Telemetry
 

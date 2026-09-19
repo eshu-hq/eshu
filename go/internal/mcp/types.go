@@ -13,6 +13,7 @@ import (
 	investigationtools "github.com/eshu-hq/eshu/go/internal/mcp/investigation"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
+	securityalerttools "github.com/eshu-hq/eshu/go/internal/mcp/securityalert"
 	semantictools "github.com/eshu-hq/eshu/go/internal/mcp/semantic"
 	servicetools "github.com/eshu-hq/eshu/go/internal/mcp/service"
 	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
@@ -137,6 +138,13 @@ func freshnessTools() []ToolDefinition {
 // service package owns the catalog registration definition.
 func serviceCatalogTools() []ToolDefinition {
 	return servicetools.CatalogTools()
+}
+
+// securityAlertReconciliationAggregateTools preserves the root package's
+// constructor name while the securityalert package owns the aggregate
+// registration definitions.
+func securityAlertReconciliationAggregateTools() []ToolDefinition {
+	return securityalerttools.ReconciliationAggregateTools()
 }
 
 // contextTools preserves the root package's constructor name while composing

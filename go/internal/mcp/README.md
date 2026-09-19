@@ -190,7 +190,7 @@ is not broken out here).
 | `observabilityCoverageTools` | 1 | `tools_observability_coverage.go` |
 | `supplyChainTools` | 7 | `tools_supply_chain.go` |
 | `supplyChainImpactAggregateTools` | 2 | `tools_supply_chain_aggregates.go` |
-| `securityAlertReconciliationAggregateTools` | 2 | `tools_security_alert_aggregates.go` |
+| `securityAlertReconciliationAggregateTools` | 2 | `types.go` (wraps `securityalert/aggregates.go`) |
 | `containerImageIdentityAggregateTools` | 2 | `tools_container_image_aggregates.go` |
 | `sbomAttestationAttachmentAggregateTools` | 2 | `tools_sbom_attachment_aggregates.go` |
 | `incidentContextTools` | 1 | `tools_incident_context.go` |

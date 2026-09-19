@@ -16,9 +16,10 @@
 
 ## Invariants
 
-- Keep only security-alert reconciliation family membership and pure
-  argument-to-request selection here. Global route fanout, the private
-  adapter, and execution stay in the parent MCP package and `internal/query`.
+- Keep only security-alert reconciliation family membership, pure
+  argument-to-request selection, and the aggregate tool definitions here.
+  Global route fanout, the private adapter, the root registration wrapper,
+  and execution stay in the parent MCP package and `internal/query`.
 - Keep the package clause as `package securityalerttools`; the root imports
   it with an explicit alias.
 - Preserve the three tool names and their exact methods, paths, and query
