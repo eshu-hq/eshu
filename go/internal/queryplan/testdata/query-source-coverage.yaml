@@ -557,7 +557,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: d455401a7093bacb1e8b91485a931253b930eef92da75149f8c40832453374c5
+          source_sha256: 9f88e4af2e948edbe7e08ba211bc035df27f5d14ca754a8a6f1421468e2e91d6
           label: "Repository"
           max_results: 501
       - symbol: "queryRepositoryTotal"

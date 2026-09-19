@@ -120,10 +120,12 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 		// See logRepositoryDependencyEdgesDegradation's doc comment: the
 		// dependency-edge pre-pass failed or was truncated, so is_dependency
 		// on this response may be incomplete rather than a confirmed
-		// negative. Fold it into Truncated the same way WorkloadsTruncated
-		// is folded in below, and disclose the reason via Limitations
-		// (catalogResponse has no partial_reasons array of its own).
-		response.Truncated = true
+		// negative. Disclose via Limitations ONLY -- catalog-workload-
+		// selection.md defines Truncated as "true when any catalog
+		// collection is partial", and no collection here is partial (the
+		// repository/workload rows returned are complete); is_dependency
+		// is an auxiliary marker on complete rows, not a partial collection
+		// (#6786 review F1).
 		response.Limitations = append(response.Limitations, repositoryDependencyEdgesDegradedReason)
 	}
 	response.Workloads, response.WorkloadsTruncated, err = h.listCatalogWorkloads(r.Context(), limit)
@@ -150,9 +152,21 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 // page. The fourth return value reports whether the dependency-edge
 // pre-pass backing is_dependency (see loadRepositoryDependencyEdges) was
 // itself degraded (failed or truncated); the caller must fold that into the
-// response's own truncated/limitations disclosure rather than presenting
-// is_dependency as complete -- see logRepositoryDependencyEdgesDegradation's
-// doc comment.
+// response's own limitations disclosure ONLY, never into truncated -- see
+// logRepositoryDependencyEdgesDegradation's doc comment and #6786 review F1.
+//
+// #6786 review F6 proposed making this read PAGE-SCOPED
+// (WHERE t.id IN $page_ids, bounded by page size instead of the whole
+// graph's DEPENDS_ON edge count). Measured live on NornicDB v1.3.3 (schema
+// applied, 5000 repos / 20000 edges): that shape's cold-path cost scales
+// ~linearly with len($page_ids) at roughly 55-60ms/element (2000-element
+// page: ~2 minutes) and is cached by exact PARAMETER VALUES, not statement
+// text -- a different 2000-id set on the identical statement paid the full
+// ~2-minute cost again. A real catalog page's id set drifts on ordinary
+// repository churn, so this would cost roughly a full cold run on most
+// requests: far worse than the whole-graph pre-pass it would replace.
+// Reverted pending a different query shape or an owner decision; kept as
+// the pre-existing (already measured, no-regression) whole-graph pre-pass.
 func (h *Handler) listCatalogRepositoriesFromGraph(
 	ctx context.Context,
 	limit int,
