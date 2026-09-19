@@ -54,34 +54,34 @@ func (g *recordingClusterGraph) ranEdgeScan() bool {
 	return false
 }
 
-// TestLoadRepositoryDependencyClustersSkipsEdgeScanWhenNoEdges proves that
+// TestLoadRepositoryDependencyEdgesSkipsEdgeScanWhenNoEdges proves that
 // when the graph holds zero DEPENDS_ON relationships the Repository-anchored
 // edge scan does not run. On NornicDB that scan expands every Repository's
 // full adjacency even when no DEPENDS_ON edge exists (seconds at hundreds of
 // repositories), while the bare relationship-type count is answered from the
 // type index. Zero edges means the cluster map is empty by definition, so the
 // skip is exact, not a heuristic.
-func TestLoadRepositoryDependencyClustersSkipsEdgeScanWhenNoEdges(t *testing.T) {
+func TestLoadRepositoryDependencyEdgesSkipsEdgeScanWhenNoEdges(t *testing.T) {
 	t.Parallel()
 
 	graph := &recordingClusterGraph{edgeCount: 0}
-	result := loadRepositoryDependencyClusters(context.Background(), graph, querycontract.RepositoryAccessFilter{AllScopes: true})
+	result := loadRepositoryDependencyEdges(context.Background(), graph, querycontract.RepositoryAccessFilter{AllScopes: true})
 
 	if graph.ranEdgeScan() {
 		t.Fatalf("edge scan ran with zero DEPENDS_ON edges; statements: %v", graph.ran)
 	}
-	if len(result.clusters) != 0 {
-		t.Fatalf("clusters = %v, want empty", result.clusters)
+	if len(result.Edges) != 0 {
+		t.Fatalf("edges = %v, want empty", buildRepositoryDependencyClusters(result.Edges))
 	}
-	if !result.skipped {
+	if !result.Skipped {
 		t.Fatalf("skipped = false, want true when edge count is zero")
 	}
 }
 
-// TestLoadRepositoryDependencyClustersRunsEdgeScanWhenEdgesExist proves the
+// TestLoadRepositoryDependencyEdgesRunsEdgeScanWhenEdgesExist proves the
 // probe never hides real edges: a nonzero count runs the unchanged edge scan
 // and clusters are built from its rows.
-func TestLoadRepositoryDependencyClustersRunsEdgeScanWhenEdgesExist(t *testing.T) {
+func TestLoadRepositoryDependencyEdgesRunsEdgeScanWhenEdgesExist(t *testing.T) {
 	t.Parallel()
 
 	graph := &recordingClusterGraph{
@@ -91,49 +91,49 @@ func TestLoadRepositoryDependencyClustersRunsEdgeScanWhenEdgesExist(t *testing.T
 			{"source_id": "repository:b", "target_id": "repository:c"},
 		},
 	}
-	result := loadRepositoryDependencyClusters(context.Background(), graph, querycontract.RepositoryAccessFilter{AllScopes: true})
+	result := loadRepositoryDependencyEdges(context.Background(), graph, querycontract.RepositoryAccessFilter{AllScopes: true})
 
 	if !graph.ranEdgeScan() {
 		t.Fatalf("edge scan did not run with %d edges", graph.edgeCount)
 	}
-	if result.skipped {
+	if result.Skipped {
 		t.Fatalf("skipped = true, want false when edges exist")
 	}
 	for _, id := range []string{"repository:a", "repository:b", "repository:c"} {
-		if result.clusters[id] != "repository:a" {
-			t.Errorf("cluster[%s] = %q, want repository:a", id, result.clusters[id])
+		if buildRepositoryDependencyClusters(result.Edges)[id] != "repository:a" {
+			t.Errorf("cluster[%s] = %q, want repository:a", id, buildRepositoryDependencyClusters(result.Edges)[id])
 		}
 	}
 }
 
-// TestLoadRepositoryDependencyClustersCountErrorStillRunsEdgeScan proves the
+// TestLoadRepositoryDependencyEdgesCountErrorStillRunsEdgeScan proves the
 // probe is only an optimization: if the cardinality probe fails, the edge scan
 // still runs so cluster evidence is not silently dropped, and the probe error
 // is surfaced on the result for telemetry.
-func TestLoadRepositoryDependencyClustersCountErrorStillRunsEdgeScan(t *testing.T) {
+func TestLoadRepositoryDependencyEdgesCountErrorStillRunsEdgeScan(t *testing.T) {
 	t.Parallel()
 
 	graph := &recordingClusterGraph{
 		countErr: errors.New("probe failed"),
 		edges:    []map[string]any{{"source_id": "repository:a", "target_id": "repository:b"}},
 	}
-	result := loadRepositoryDependencyClusters(context.Background(), graph, querycontract.RepositoryAccessFilter{AllScopes: true})
+	result := loadRepositoryDependencyEdges(context.Background(), graph, querycontract.RepositoryAccessFilter{AllScopes: true})
 
 	if !graph.ranEdgeScan() {
 		t.Fatalf("edge scan did not run after probe error")
 	}
-	if result.clusters["repository:b"] != "repository:a" {
-		t.Fatalf("clusters = %v, want a/b clustered", result.clusters)
+	if buildRepositoryDependencyClusters(result.Edges)["repository:b"] != "repository:a" {
+		t.Fatalf("clusters = %v, want a/b clustered", buildRepositoryDependencyClusters(result.Edges))
 	}
-	if result.probeErr == nil {
+	if result.ProbeErr == nil {
 		t.Fatalf("probeErr = nil, want the probe failure surfaced")
 	}
 }
 
-// TestLoadRepositoryDependencyClustersScopedCallerSkipsUnscopedProbe proves a
+// TestLoadRepositoryDependencyEdgesScopedCallerSkipsUnscopedProbe proves a
 // scoped caller never issues the unscoped cardinality probe: every statement
 // on the repository list path must carry the caller's grant predicate.
-func TestLoadRepositoryDependencyClustersScopedCallerSkipsUnscopedProbe(t *testing.T) {
+func TestLoadRepositoryDependencyEdgesScopedCallerSkipsUnscopedProbe(t *testing.T) {
 	t.Parallel()
 
 	graph := &recordingClusterGraph{edgeCount: 0}
@@ -141,7 +141,7 @@ func TestLoadRepositoryDependencyClustersScopedCallerSkipsUnscopedProbe(t *testi
 	if !access.Scoped() {
 		t.Fatalf("test setup: access filter is not scoped")
 	}
-	loadRepositoryDependencyClusters(context.Background(), graph, access)
+	loadRepositoryDependencyEdges(context.Background(), graph, access)
 
 	for _, stmt := range graph.ran {
 		if strings.Contains(stmt, "count(r)") {
@@ -179,19 +179,41 @@ func TestDependencyEdgeCountIsZeroRejectsUnreadableProbe(t *testing.T) {
 	}
 }
 
-// TestLoadRepositoryDependencyClustersSurfacesEdgeScanError proves an edge
+// TestLoadRepositoryDependencyEdgesSurfacesEdgeScanError proves an edge
 // scan failure is reported on the result instead of being swallowed, while the
 // list still degrades to non-cluster grouping.
-func TestLoadRepositoryDependencyClustersSurfacesEdgeScanError(t *testing.T) {
+func TestLoadRepositoryDependencyEdgesSurfacesEdgeScanError(t *testing.T) {
 	t.Parallel()
 
 	graph := &recordingClusterGraph{edgeCount: 1, edgeErr: errors.New("scan failed")}
-	result := loadRepositoryDependencyClusters(context.Background(), graph, querycontract.RepositoryAccessFilter{AllScopes: true})
+	result := loadRepositoryDependencyEdges(context.Background(), graph, querycontract.RepositoryAccessFilter{AllScopes: true})
 
-	if len(result.clusters) != 0 {
-		t.Fatalf("clusters = %v, want empty after scan error", result.clusters)
+	if len(result.Edges) != 0 {
+		t.Fatalf("clusters = %v, want empty after scan error", result.Edges)
 	}
-	if result.edgeErr == nil {
+	if result.Err == nil {
 		t.Fatalf("edgeErr = nil, want the scan failure surfaced")
+	}
+}
+
+// TestLoadRepositoryDependencyEdgesSkipIsNotDegraded proves a probe-proven
+// empty edge set is complete evidence, not a degraded read: is_dependency is
+// false for every repository and no dependency_marker_evidence_incomplete
+// disclosure is added (#6786 F1 contract), because zero DEPENDS_ON edges
+// means no repository is a dependency target.
+func TestLoadRepositoryDependencyEdgesSkipIsNotDegraded(t *testing.T) {
+	t.Parallel()
+
+	graph := &recordingClusterGraph{edgeCount: 0}
+	result := loadRepositoryDependencyEdges(context.Background(), graph, querycontract.RepositoryAccessFilter{AllScopes: true})
+
+	if !result.Skipped {
+		t.Fatalf("Skipped = false, want true when edge count is zero")
+	}
+	if got := repositoryDependencyTargetSet(result.Edges); len(got) != 0 {
+		t.Fatalf("dependency targets = %v, want none", got)
+	}
+	if logRepositoryDependencyEdgesDegradation(context.Background(), nil, "catalog_list", result) {
+		t.Fatalf("skipped read reported degraded; want complete evidence")
 	}
 }

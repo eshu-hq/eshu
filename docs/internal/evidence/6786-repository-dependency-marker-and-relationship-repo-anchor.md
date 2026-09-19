@@ -202,6 +202,22 @@ correctness shapes catalogued in
 recording it here pending a decision on whether it warrants its own
 upstream report.
 
+**Rebase onto #6800 (DEPENDS_ON cardinality probe).** #6800 (issue #6794)
+landed on `main` while this branch was open. It gated the same edge pre-pass
+behind `MATCH ()-[r:DEPENDS_ON]->() RETURN count(r)` for unscoped callers. The
+rebase keeps that probe inside `loadRepositoryDependencyEdges`
+(`dependency_edge_probe.go`), so the repository list and the unscoped catalog
+both skip the scan when the graph has no `DEPENDS_ON` edges. A skipped read
+reports `Skipped` rather than degraded: zero edges means `is_dependency` is
+false everywhere, which is complete evidence and not an incomplete marker
+(`TestLoadRepositoryDependencyEdgesSkipIsNotDegraded`). A probe error still
+runs the scan. #6800's prepass tests now run against `loadRepositoryDependencyEdges`.
+After the rebase, the live `TestLiveRepositoryDependencyMarkerAnswerTruth`
+(unscoped, scoped, catalog_unscoped) and `TestLiveRelationshipRepoAnchorAnswerTruth`
+pass on NornicDB v1.3.3 and Neo4j 2026. No-Regression Evidence: the probe is
+#6800's measured statement, unchanged; on a graph with edges the scan is the
+same statement this branch already measured above.
+
 ## Observability Evidence
 
 *(Rewritten for review finding F4 to match head at commit f968d8991.)*

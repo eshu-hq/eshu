@@ -124,10 +124,18 @@ func repositoryDependencyClusterEdgeCypher(access querycontract.RepositoryAccess
 // authoritative when it might not be. Edges is nil (not merely empty) only
 // when graph is nil or Err is set, matching the prior nil-on-error contract
 // callers that only inspect Edges already rely on.
+//
+// Skipped reports that the RepositoryDependencyEdgeCountCypher probe proved
+// the graph holds no DEPENDS_ON edges, so the edge scan never ran; that is
+// complete evidence (every is_dependency is false, no clusters), not a
+// degraded read. ProbeErr carries a probe failure for telemetry only: the scan
+// still runs after it, so it never degrades the response.
 type repositoryDependencyEdgeRead struct {
 	Edges     []repositoryDependencyEdge
 	Truncated bool
 	Err       error
+	Skipped   bool
+	ProbeErr  error
 }
 
 // loadRepositoryDependencyEdges runs the bounded, correctly-scoped
@@ -149,9 +157,21 @@ func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.Grap
 	if graph == nil {
 		return repositoryDependencyEdgeRead{}
 	}
+	var probeErr error
+	// The probe is unscoped, so it only runs for callers who may already see
+	// the whole graph. Scoped callers never issue a statement without their
+	// grant predicate; they go straight to the scoped edge scan.
+	if !access.Scoped() {
+		noEdges, err := probeRepositoryDependencyEdgesAbsent(ctx, graph)
+		if err != nil {
+			probeErr = err
+		} else if noEdges {
+			return repositoryDependencyEdgeRead{Edges: []repositoryDependencyEdge{}, Skipped: true}
+		}
+	}
 	rows, err := graph.Run(ctx, repositoryDependencyClusterEdgeCypher(access), access.GraphParams(nil))
 	if err != nil {
-		return repositoryDependencyEdgeRead{Err: err}
+		return repositoryDependencyEdgeRead{Err: err, ProbeErr: probeErr}
 	}
 	truncated := len(rows) > repositoryDependencyClusterEdgeLimit
 	if truncated {
@@ -166,7 +186,7 @@ func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.Grap
 		}
 		edges = append(edges, repositoryDependencyEdge{Source: source, Target: target})
 	}
-	return repositoryDependencyEdgeRead{Edges: edges, Truncated: truncated}
+	return repositoryDependencyEdgeRead{Edges: edges, Truncated: truncated, ProbeErr: probeErr}
 }
 
 // repositoryDependencyEdgesDegradedReason is the partial_reasons (repository
@@ -267,7 +287,9 @@ func resolveRepositoryDependencyEvidence(
 		slog.Int("edge_count", len(dependencyRead.Edges)),
 		slog.Bool("truncated", dependencyRead.Truncated),
 		slog.Bool("error", dependencyRead.Err != nil),
+		slog.Bool("edge_scan_skipped", dependencyRead.Skipped),
 	)
+	logRepositoryDependencyClusterErrors(ctx, logger, "repository_list", dependencyRead)
 
 	evidence := repositoryDependencyEvidence{Clusters: clusters, Targets: targets}
 	if logRepositoryDependencyEdgesDegradation(ctx, logger, "repository_list", dependencyRead) {

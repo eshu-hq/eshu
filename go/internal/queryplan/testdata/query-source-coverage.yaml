@@ -7,7 +7,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 9187d3dc3675986b1d05422b414d0b2093e295f6c9db51223b580ab6666b12e3
+          source_sha256: 2b5d266149c72f7b7f688a9076d316b94412b1179ef71ffff5cad14c244eaf37
           label: "Repository"
           max_results: 5001
   - file: repository/catalog_workload_environments.go
@@ -596,9 +596,12 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 658a5963f4c4d927940c998f108660815207168eed0d5e98aaf6101baa35e8b8
+          source_sha256: 09be27ff2154025e2b21da2b5f7e66abad10f742bba891fbd317ccab12482eab
           label: "Repository"
           max_results: 50001
+  - file: repository/dependency_edge_probe.go
+    calls:
+      - {symbol: "probeRepositoryDependencyEdgesAbsent", count: 1, source_sha256: f89d420f7aa5540e8049311fa8e068bd801f8165937130b3b749c1a4411d3111, entry_ids: [QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT]}
   - file: repository/deployment_evidence.go
     calls:
       - {symbol: "queryRepoDeploymentEvidenceDirection", count: 1, non_hot: {class: keyed_support, source_sha256: a3723e428abd166e2478e65451bcba67f5364b03b57424b836dd028fd317c116, key_bound: single_key, max_results: 51}}

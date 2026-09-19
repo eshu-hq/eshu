@@ -135,12 +135,21 @@ Observability Evidence: the dependency-edge pre-pass
 `GET /api/v0/repositories` call that reaches the graph backend (50001, one
 past the 50000-edge bound, so a truncated read is detectable). This same
 read backs both the dependency-cluster grouping above and the repository
-list's `is_dependency` field. It is instrumented with the existing
+list's `is_dependency` field (and the catalog's). For unscoped callers,
+including `GET /api/v0/catalog`, it first runs the relationship-type count
+`MATCH ()-[r:DEPENDS_ON]->() RETURN count(r)` and skips the edge scan when the
+graph holds no `DEPENDS_ON` edges. An empty edge set means no clusters and
+`is_dependency=false` for every row, so the skip is exact and is not reported
+as degraded. Scoped callers always run the grant-predicated scan. It is
+instrumented with the existing
 `startRepositoryQueryStage` / `Done` timer (operation=`repository_list`,
 stage=`dependency_cluster_edges`), which emits
 `repository_query.stage_started` and `repository_query.stage_completed` log
 events carrying `duration_seconds`, `cluster_count`, `edge_count`,
-`truncated`, and `error`. On a query error or truncation the handler
+`truncated`, `error`, and `edge_scan_skipped`. A probe failure still runs the
+scan and emits a `repository_query.dependency_cluster_probe_failed` warning;
+a scan failure also emits `repository_query.dependency_cluster_scan_failed`
+with the error text. On a query error or truncation the handler
 degrades: `is_dependency` and dependency-cluster grouping fall back to
 non-cluster grouping (visible via `group_source=missing_evidence`) rather
 than failing the request, and a dedicated structured warning,
