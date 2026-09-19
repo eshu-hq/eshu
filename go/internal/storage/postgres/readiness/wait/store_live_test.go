@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package readinesswait_test
+package wait_test
 
 import (
 	"context"
@@ -17,14 +17,14 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/readinesswait"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait"
 )
 
 // Run with:
 //
 //	ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:<port>/eshu \
-//	  go test ./internal/storage/postgres/readinesswait -run Live -count=1 -v
-func readinessWaitLiveStore(t *testing.T) (readinesswait.Store, *sql.DB, context.Context) {
+//	  go test ./internal/storage/postgres/readiness/wait -run Live -count=1 -v
+func readinessWaitLiveStore(t *testing.T) (wait.Store, *sql.DB, context.Context) {
 	t.Helper()
 	dsn := os.Getenv("ESHU_POSTGRES_DSN")
 	if dsn == "" {
@@ -42,7 +42,7 @@ func readinessWaitLiveStore(t *testing.T) (readinesswait.Store, *sql.DB, context
 	}
 	ctx, cancelTest := context.WithTimeout(context.Background(), time.Minute)
 	t.Cleanup(cancelTest)
-	return readinesswait.Store{DB: postgres.SQLDB{DB: sqlDB}}, sqlDB, ctx
+	return wait.Store{DB: postgres.SQLDB{DB: sqlDB}}, sqlDB, ctx
 }
 
 func liveWait(scopeID string, anchor time.Time, keys ...string) crossscope.ReadinessWait {

@@ -1,4 +1,4 @@
-# readinesswait
+# readiness/wait
 
 Postgres implementation of `crossscope.ReadinessWaitLedger` for the #6785
 cross-scope edge handlers (`iam_can_perform_materialization` and

@@ -1,4 +1,4 @@
-# AGENTS.md — internal/storage/postgres/readinesswait
+# AGENTS.md — internal/storage/postgres/readiness/wait
 
 Scoped instructions for this package. The root `AGENTS.md` and `CLAUDE.md`
 still apply.

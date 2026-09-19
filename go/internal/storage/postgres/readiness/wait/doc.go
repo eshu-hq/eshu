@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package readinesswait is the Postgres implementation of
+// Package wait is the Postgres implementation of
 // crossscope.ReadinessWaitLedger (#6785).
 //
 // The CAN_PERFORM and USES cross-scope edge handlers commit ready edges first
@@ -12,4 +12,4 @@
 // and when the missing set settled. Every statement is a single-row
 // primary-key read, upsert, or delete; the reducer's (scope, domain) claim
 // fence means at most one live worker writes a key.
-package readinesswait
+package wait

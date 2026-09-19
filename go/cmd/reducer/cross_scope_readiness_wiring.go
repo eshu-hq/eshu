@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/iamcantargets"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/readinesswait"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait"
 )
 
 // iamCanPerformCrossScopeTargetsFor wires the #6785 CAN_PERFORM cross-scope
@@ -31,5 +31,5 @@ func workloadInstanceExistenceFor(graphReader query.GraphQuery) workloadinstance
 // readinessWaitsFor wires the #6785 (scope, domain) readiness-wait ledger the
 // CAN_PERFORM and USES handlers share.
 func readinessWaitsFor(database db.ExecQueryer) crossscope.ReadinessWaitLedger {
-	return readinesswait.Store{DB: database}
+	return wait.Store{DB: database}
 }

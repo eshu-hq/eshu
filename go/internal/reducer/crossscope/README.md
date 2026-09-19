@@ -30,7 +30,7 @@ This package owns:
   `DependenciesForRegistration`.
 
 - The commit-first readiness wait (#6785): `ReadinessWait`,
-  `ReadinessWaitLedger` (the port; `storage/postgres/readinesswait` implements
+  `ReadinessWaitLedger` (the port; `storage/postgres/readiness/wait` implements
   it), `DecideWait`, `WaitInput`, `WaitDecision`, `PollEligible`,
   `SameMissingSet`, `ApplyWaitDecision`, `ReadWait`, `MissingSample`, the
   `ReadinessWait*` outcome labels, and `ReadinessWaitMaxKeys`.

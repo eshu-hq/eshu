@@ -19,7 +19,7 @@ nothing else in the reducer depends on its internals.
 | grant builder | `iam_can_perform_grant.go` | the CAN_PERFORM-specific fold, tallying into the CAN_PERFORM catalog |
 | target resolution | `iam_can_perform_target_resolution.go` | exact ARN -> single glob -> ambiguous -> unresolved |
 | cross-scope targets | `iam_can_perform_cross_scope.go` | `CrossScopeTargetLoader` port, per-ARN readiness classification (#6785) |
-| cross-scope wait | `iam_can_perform_readiness_wait.go` | commit-first wait over `crossscope.DecideWait`, cheap poll path, wait telemetry (#6785) |
+| cross-scope wait | `perform_readiness_wait.go` | commit-first wait over `crossscope.DecideWait`, cheap poll path, wait telemetry (#6785) |
 | resource policies | `iam_can_perform_resource_policy.go` | the cross-principal grants a resource policy adds |
 | permission boundaries | `iam_can_perform_boundary.go` | the intersection that removes boundary-blocked grants |
 | skip tally | `iam_can_perform_tally.go` | the bounded skip-reason accounting behind the counters |
@@ -58,7 +58,7 @@ same-scope join therefore resolves no production target. When
   skip semantics.
 
 The wait is keyed by `(scope_id, domain)` in `reducer_readiness_waits`
-(`ReadinessWaits`, wired to `readinesswait.Store`), so its anchor survives a
+(`ReadinessWaits`, wired to `wait.Store` (`storage/postgres/readiness/wait`)), so its anchor survives a
 superseding generation. An unchanged poll asks the loader only about the
 missing ARNs and writes nothing. At first-defer plus `ReadinessMaxWait`
 (default 30 minutes) the missing set settles (`abandoned`); later generations

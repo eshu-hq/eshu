@@ -162,7 +162,7 @@ of revoked grants.
 The handler now works in this order:
 
 1. **Read the ledger row** for `(scope_id, iam_can_perform_materialization)`
-   (`reducer_readiness_waits`, migration 109, `storage/postgres/readinesswait`).
+   (`reducer_readiness_waits`, migration 109, `storage/postgres/readiness/wait`).
 2. **Cheap poll.** If the row says this generation and queue cycle already
    committed at the row's own missing set (`crossscope.PollEligible`), ask the
    loader only about the missing ARNs. There is no fact load and no extraction.
@@ -208,7 +208,7 @@ as the missing set shrinks (`TestIAMCanPerformFirstGenerationRecommitSkipsRetrac
 
 **Nil ledger** (test wiring only) treats every evaluation as the first of its
 queue cycle, anchored at the claim's cycle start. Production wires
-`readinesswait.Store` through `DefaultHandlers.ReadinessWaits`
+`wait.Store` (`storage/postgres/readiness/wait`) through `DefaultHandlers.ReadinessWaits`
 (`TestDefaultHandlersWireReadinessWaitLedger`).
 
 ## 4. USES WorkloadInstance Readiness

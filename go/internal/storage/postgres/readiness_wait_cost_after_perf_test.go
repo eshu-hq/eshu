@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/readinesswait"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait"
 )
 
 // configureWaitHandler wires the commit-first ledger for the "after" run of
 // the R2-F3 cost harness. The "before" run, at the pre-ledger commit, uses a
 // copy that leaves the handler unchanged and returns "before".
 func configureWaitHandler(handler *iamcan.IAMCanPerformMaterializationHandler, sqlDB *sql.DB, now func() time.Time) string {
-	handler.ReadinessWaits = readinesswait.Store{DB: SQLDB{DB: sqlDB}}
+	handler.ReadinessWaits = wait.Store{DB: SQLDB{DB: sqlDB}}
 	handler.Now = now
 	return "after"
 }

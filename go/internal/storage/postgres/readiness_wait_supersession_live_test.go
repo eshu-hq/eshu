@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/readinesswait"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/readiness/wait"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
@@ -172,7 +172,7 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 		}},
 		Writer:            writer,
 		CrossScopeTargets: supersessionTargets{ready: readyBucket, missing: missingBucket},
-		ReadinessWaits:    readinesswait.Store{DB: SQLDB{DB: sqlDB}},
+		ReadinessWaits:    wait.Store{DB: SQLDB{DB: sqlDB}},
 		ReadinessMaxWait:  10 * time.Minute,
 		Now:               func() time.Time { return clock },
 		Instruments:       instruments,
