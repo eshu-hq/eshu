@@ -93,7 +93,7 @@ The scoped grant is now decided in Go instead of rendered as query text:
   grant in Go means the raw row order is no longer pre-filtered to granted
   rows only -- a plain first/second-row compare could miss a granted
   duplicate sitting behind ungranted rows. Exceeding the bound fails closed
-  (`errWorkloadSelectorCandidatesExceedBound`) rather than silently
+  (`querycontract.ErrWorkloadSelectorCandidatesExceedBound`) rather than silently
   deciding ambiguity from a possibly-truncated page.
 
 `querycontract.WorkloadScopePredicate` (the SHAPE-A single-line `IN`
@@ -370,6 +370,55 @@ Observability for this round: the overflow logs a `Warn` with
 `reason=candidate_bound_exceeded` and the bound, never the row count or the
 selector. Anchor mismatches in the candidate read keep the existing
 `backend_anchor_mismatch` `Warn` and counter.
+
+## Review round 3: bound granted rows only (#6801 review F-R5-1)
+
+Round 2's candidate reads applied the 51-row bound before the grant. With 55
+ungranted workloads and one granted workload sharing a name (the ungranted
+ones sort first), a granted caller got 409. A caller with no grant also got
+409 rather than 404, which signalled that 51 or more same-name workloads
+exist outside their grant. For a scoped caller, both name reads
+(`entity.lookupWorkloadRow` for service context,
+`impacttrace.ResolveWorkloadSelector` for the deployment trace) now append
+`querycontract.WorkloadScopePredicate("w", access)` to the WHERE line with a
+space-led `AND`. That is the SHAPE-A single-line predicate
+`QueryServiceWorkloadCandidates` already uses in production. The Go
+`WorkloadGrantAdmitted` re-check stays as defense in depth. Unscoped reads are
+unchanged.
+
+- RED (NornicDB v1.3.3, pre-fix): `TestLiveScopedServiceContextBoundCountsGrantedRowsOnly`
+  got `status = 409, want 200` (granted caller) and `status = 409, want 404`
+  (no-grant caller). `TestLiveResolveWorkloadSelectorBoundCountsGrantedRowsOnly`
+  got the overflow error for the granted caller.
+- GREEN: both pass on NornicDB v1.3.3 and Neo4j 2026, together with every
+  other `TestLive*` in `entity`, `impacttrace`, and `queryselector`. The unit
+  guards `TestGetServiceContextScopedNameReadBoundsGrantedRows` and
+  `TestResolveWorkloadSelectorScopedNameReadBoundsGrantedRows` fail on the
+  pre-fix code and pass after it.
+- Telemetry: a workload the backend excludes through the grant predicate
+  never reaches Go. So for a scoped name miss, `grant_denied` now counts only
+  rows the Go re-check rejects (a backend that ignored the predicate). The
+  counter's documented meaning, reads decided closed in Go, is unchanged.
+
+No-Regression Evidence: the changed read is the scoped service-context name
+lookup. The harness is the same as round 2, run as three interleaved
+before/after rounds of 50 calls each after 5 warm-ups. The live scoped-grant
+seed plus 500 filler workloads was used, schema applied, on the shared local
+containers `bolt://127.0.0.1:27920` (NornicDB v1.3.3) and `:27930` (Neo4j
+2026). Before is the round-2 head; after is this change. Medians in ms:
+
+| Backend | Case | Before r1 / r2 / r3 | After r1 / r2 / r3 |
+| --- | --- | --- | --- |
+| NornicDB v1.3.3 | unique name | 3.032 / 2.984 / 2.796 | 3.001 / 2.941 / 2.906 |
+| NornicDB v1.3.3 | same-name pair | 2.974 / 2.946 / 2.934 | 2.973 / 3.241 / 2.955 |
+| Neo4j 2026 | unique name | 4.064 / 3.712 / 3.580 | 3.968 / 3.496 / 3.531 |
+| Neo4j 2026 | same-name pair | 3.834 / 3.582 / 3.572 | 4.092 / 3.527 / 3.494 |
+
+All calls returned 200 (50/50) on both sides. The deltas range from -0.25 to
++0.29 ms and change sign between rounds, so there is no measurable
+regression. For a scoped caller the predicate also shrinks the candidate
+rows to granted ones. Absolute figures differ from round 2's table because
+the containers and host load differ; only the paired deltas are the claim.
 
 ## Observability Evidence:
 

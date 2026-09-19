@@ -59,7 +59,17 @@ func (h *Handler) lookupWorkloadRow(
 		return row, false, nil
 	}
 
-	rows, err := h.readWorkloadCandidates(ctx, whereClause, params, operation)
+	// For a scoped caller the SHAPE-A grant predicate joins the candidate
+	// WHERE (on the WHERE line, space-led AND) so the bound counts granted
+	// rows only: ungranted same-name workloads can neither push a granted
+	// caller into the overflow refusal nor signal their own existence to a
+	// caller with no grant (#6801 review F-R5-1). The Go re-check below stays
+	// as defense in depth against a backend that mis-evaluates the predicate.
+	candidateWhere := whereClause
+	if access.Scoped() {
+		candidateWhere = whereClause + " AND " + querycontract.WorkloadScopePredicate("w", access)
+	}
+	rows, err := h.readWorkloadCandidates(ctx, candidateWhere, params, operation)
 	if err != nil {
 		return nil, false, err
 	}

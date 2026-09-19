@@ -212,7 +212,7 @@ entries:
     source:
       file: go/internal/query/entity/workload_lookup.go
       symbol: (*Handler).lookupWorkloadRow
-      source_sha256: 945d8ccd2ba65fb47ff79ad96ca3851c7faadc31922a8b90e6a0cc6315c9c821
+      source_sha256: a64eb2807c17ab97e9b3802750c0ed14993e7431adf43ad0b622576c5d5e1580
       line_hint: 38
     required_anchors:
       - label: Workload

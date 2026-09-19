@@ -72,7 +72,7 @@ func ResolveWorkloadSelector(
 	if access.Empty() {
 		return "", nil
 	}
-	params := map[string]any{"service_name": selector}
+	params := access.GraphParams(map[string]any{"service_name": selector})
 	warnMismatch := func(stage string) {
 		if logger != nil {
 			logger.WarnContext(ctx, "deployment trace selector "+stage+" row did not match the requested selector",
@@ -102,7 +102,14 @@ func ResolveWorkloadSelector(
 		}
 	}
 
-	nameRows, err := reader.Run(ctx, fmt.Sprintf("%s\nLIMIT %d", workloadSelectorRowCypher("w.name = $service_name"), workloadSelectorCandidateBound+1), params)
+	// A scoped caller's name read carries the SHAPE-A grant predicate on the
+	// WHERE line so the candidate bound counts granted rows only (#6801
+	// review F-R5-1); admittedWorkloadCandidates still re-checks every row.
+	nameWhere := "w.name = $service_name"
+	if access.Scoped() {
+		nameWhere += " AND " + querycontract.WorkloadScopePredicate("w", access)
+	}
+	nameRows, err := reader.Run(ctx, fmt.Sprintf("%s\nLIMIT %d", workloadSelectorRowCypher(nameWhere), workloadSelectorCandidateBound+1), params)
 	if err != nil {
 		return "", err
 	}

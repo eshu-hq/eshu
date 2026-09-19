@@ -217,7 +217,7 @@ source_coverage:
       - {symbol: "(*Handler).FetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: cb428e4a0dbd188049746d47d597b589a242c45997e2cde2143f345cebb343a8, key_bound: single_key, max_results: 51}}
   - file: entity/workload_lookup.go
     calls:
-      - {symbol: "(*Handler).lookupWorkloadRow", count: 1, source_sha256: 945d8ccd2ba65fb47ff79ad96ca3851c7faadc31922a8b90e6a0cc6315c9c821, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*Handler).lookupWorkloadRow", count: 1, source_sha256: a64eb2807c17ab97e9b3802750c0ed14993e7431adf43ad0b622576c5d5e1580, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*Handler).readWorkloadCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 0d203b2e67121fc3d90c1f1475f6f4ef542a7983116ddc6957270221043123a2, key_bound: single_key, max_results: 51}}
   - file: entity/workload_platform.go
     calls:
@@ -376,7 +376,7 @@ source_coverage:
       - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 9dd90cb74928ac0f21d817744349736e7e0c38a52f5faa7cbd619eda95ab9337, key_bound: single_key, max_results: 2501}}
   - file: impacttrace/workload_selection.go
     calls:
-      - {symbol: "ResolveWorkloadSelector", count: 2, non_hot: {class: keyed_support, source_sha256: 0fbe86fe2b0affa736300864cf609b2937912dccc29a959cca288d4b35350207, key_bound: single_key, max_results: 51}}
+      - {symbol: "ResolveWorkloadSelector", count: 2, non_hot: {class: keyed_support, source_sha256: 17c5680cc524d62420bb66389e4d56eb503ee4f6a67eb2dd20358ddc2ae0595f, key_bound: single_key, max_results: 51}}
   - file: entity/workload_provisioned_platforms.go
     calls:
       - {symbol: "(*Handler).FetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 7e1e17aceda366cdb64d59f03847de40e81d46d08d1420eb570511b2c4b66c31, key_bound: single_key, max_results: 51}}
