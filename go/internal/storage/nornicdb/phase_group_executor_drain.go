@@ -80,7 +80,10 @@ func (e PhaseGroupExecutor) executeDrainLoop(
 				stmtIdx, stmtTotal, probeDuration, statementSummary, err,
 			)
 		}
-		if probedElementID(probe.Rows) == "" {
+		// Skip only when the probe returned no row. Any row means a node
+		// matched, even one whose __id is missing or malformed, so the drain
+		// runs rather than reporting a silent probe_skipped success.
+		if len(probe.Rows) == 0 {
 			mode = "probe_skipped"
 			skipDrain = true
 		}
@@ -149,16 +152,6 @@ func (e PhaseGroupExecutor) executeDrainLoop(
 		"mode", mode,
 	)
 	return nil
-}
-
-// probedElementID returns the __id of a probe result, or "" when the probe
-// matched nothing.
-func probedElementID(rows []map[string]any) string {
-	if len(rows) == 0 {
-		return ""
-	}
-	id, _ := rows[0]["__id"].(string)
-	return id
 }
 
 // drainedCount returns the __drained value of a drain result, or 0 when it
