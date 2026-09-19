@@ -33,8 +33,11 @@ cover.
 
 ## Keep the import rename exemption narrow
 
-`rename.go` (`-allow-internal-import-rename`) exempts one internal package
-move per file and nothing more. Do not widen it to aliased imports, several
+`rename.go` (`-allow-internal-import-rename`) exempts one internal import
+substitution per file and nothing more. It cannot tell a move from a swap;
+the shell caller's `is_internal_package_move` proves the move from git, and
+both halves are required. Keep the stdout verdict line stable, since the
+caller parses it. Do not widen it to aliased imports, several
 renames, non-internal paths, or text rewriting without an owner decision. Any
 change to its rules updates `doc.go`'s "Internal import rename" list,
 `rename_test.go`, and

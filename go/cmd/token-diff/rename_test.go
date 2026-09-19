@@ -57,8 +57,13 @@ func TestRename_PureQualifierRenameIsExempt(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("pure rename: got exit %d, want 0; stdout=%q stderr=%q", code, out, errOut)
 	}
-	if !strings.Contains(out, "query/queryspan -> ") || !strings.Contains(out, "query/tracing") {
-		t.Fatalf("pure rename: stdout %q does not name the rename", out)
+	// scripts/lib/parser_relationship_comment_only_diff.sh parses this exact
+	// line to run its package-move check; keep the shape stable.
+	want := "token-diff: internal import rename only: " +
+		"github.com/eshu-hq/eshu/go/internal/query/queryspan -> " +
+		"github.com/eshu-hq/eshu/go/internal/query/tracing (qualifier queryspan. -> tracing.)\n"
+	if out != want {
+		t.Fatalf("pure rename: stdout = %q, want %q", out, want)
 	}
 }
 
@@ -159,6 +164,31 @@ func TestRename_RefusedCases(t *testing.T) {
 			name: "old name used as a selector field",
 			base: renameBase + "var _ = x.queryspan.Y\n",
 			head: head + "var _ = x.tracing.Y\n",
+		},
+		{
+			// A blank import is a side-effect registration: adding one next to
+			// the rename is a second import change, never part of a move.
+			name: "rename plus an added blank import",
+			base: renameBase,
+			head: strings.Replace(head, `	"net/http"`, `	"net/http"
+
+	_ "github.com/eshu-hq/eshu/go/internal/query/plugin"`, 1),
+		},
+		{
+			// The region before the imports (build constraints, package
+			// clause) must match exactly too.
+			name: "rename plus a go:build line change",
+			base: "//go:build linux\n\n" + renameBase,
+			head: "//go:build darwin\n\n" + head,
+		},
+		{
+			// A path whose last element is not a Go identifier cannot name the
+			// qualifier, so the file's qualifier comes from the package clause
+			// and the tool cannot prove the swap is a move. Both sides use
+			// foo.X, so without the identifier guard the token streams match.
+			name: "import path base is not an identifier",
+			base: "package query\n\nimport \"github.com/eshu-hq/eshu/go/internal/query/foo-v1\"\n\nvar _ = foo.X\n",
+			head: "package query\n\nimport \"github.com/eshu-hq/eshu/go/internal/query/foo-v2\"\n\nvar _ = foo.X\n",
 		},
 		{
 			name: "block comment in the import block",

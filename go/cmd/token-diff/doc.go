@@ -41,8 +41,9 @@
 // # Internal import rename (opt-in)
 //
 // With -allow-internal-import-rename, a file also exits 0 when its only
-// change is one repository-internal package move seen from an importer
-// (issue #6818), for example query/queryspan becoming query/tracing:
+// change is one repository-internal import substitution, the shape a package
+// move leaves in each importer (issue #6818), for example query/queryspan
+// becoming query/tracing:
 //
 //   - Exactly one import differs between base and head: one unaliased path
 //     under github.com/eshu-hq/eshu/go/internal/ removed and one added. Every
@@ -62,6 +63,13 @@
 // import, a path outside the internal tree, or a string literal edited to
 // mention the new name. The check runs on tokens, so text inside strings is
 // never rewritten.
+//
+// This mode only proves the file-level substitution. It cannot tell a real
+// move from a swap to another package that already exists, so the caller
+// must also prove the move from the tree (see "Caller contract"). On a
+// rename verdict stdout is exactly one line, which the caller parses:
+//
+//	token-diff: internal import rename only: <old-path> -> <new-path> (qualifier <old>. -> <new>.)
 //
 // # Usage
 //
@@ -83,4 +91,8 @@
 // merge-base fallback), reading the base blob with `git show`, and treating
 // an added, deleted, or renamed path as changed without ever invoking this
 // tool -- there is no meaningful "base version" to compare in those cases.
+// For a rename verdict the caller must also prove that the old import path's
+// package directory had Go files at the base and none at head, and that the
+// new one had none at the base and some at head; otherwise the verdict is a
+// real change.
 package main
