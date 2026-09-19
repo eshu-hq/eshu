@@ -1,0 +1,19 @@
+docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md
+  s_b87f9d9976ef4d::t_d4412875eb5f0c 205-207,214-215
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ce6c8f44d92e9e5518f66f89aa07262ad9d104a6",
+  "prompts": {},
+  "sessions": {
+    "s_b87f9d9976ef4d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b7f3c24-5979-4541-abe9-6ca7b0439ca3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
