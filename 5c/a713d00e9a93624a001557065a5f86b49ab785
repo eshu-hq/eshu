@@ -1,0 +1,23 @@
+go/internal/goldengate/evaluate.go
+  s_0328684b451b6b::t_4fc6b100d7b4e2 299-311,316-317,319-324,332-362
+  s_0328684b451b6b::t_1d7f0438efa607 363
+go/internal/goldengate/evaluate_query_shape_result_count_test.go
+  s_0328684b451b6b::t_4f5d1532f20dc3 1-68,70,72-78,82-84
+  s_0328684b451b6b::t_d455d189e0376f 69,71,79-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5ca713d00e9a93624a001557065a5f86b49ab785",
+  "prompts": {},
+  "sessions": {
+    "s_0328684b451b6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22956e3d-93a2-490b-ba95-830405a3edf2",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

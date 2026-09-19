@@ -1,0 +1,43 @@
+go/internal/reducer/workload_cloud_relationship_instance_wait_test.go
+  s_0155aa640a8bb1::t_a7b47d99b1bc67 1-189
+go/internal/reducer/workloadinstance/wait_test.go
+  s_0155aa640a8bb1::t_f160cf249d512a 1-197
+go/internal/reducer/workloadinstance/wait.go
+  s_0155aa640a8bb1::t_a69ca6588d8db1 1-208
+go/cmd/reducer/cross_scope_readiness_wiring.go
+  s_0155aa640a8bb1::t_57164f78ef8e23 8,14,30-35
+go/cmd/reducer/main.go
+  s_0155aa640a8bb1::t_f5ff849b7b9153 261
+go/internal/reducer/defaults.go
+  s_0155aa640a8bb1::t_c5a8a9f76aecda 15,68,70-71,73-75
+go/internal/reducer/defaults_additive_domains_cloud_posture.go
+  s_0155aa640a8bb1::t_cba3a75b9e0c58 119
+go/internal/reducer/defaults_additive_domains_cloud_relationships.go
+  s_0155aa640a8bb1::t_04854b36a516db 58
+go/internal/reducer/defaults_readiness_wait_wiring_test.go
+  s_0155aa640a8bb1::t_0b47ff4a2ac8c1 1-50
+go/internal/reducer/workload_cloud_relationship_instance_readiness_test.go
+  s_0155aa640a8bb1::t_31afe33c2d807e 14,81-82,87,105-109,139
+go/internal/reducer/workload_cloud_relationship_materialization.go
+  s_0155aa640a8bb1::t_40a883af57affb 62-64,67-76,107-126,150,152,154-161,163,165,170,175,179,216-260,263-276,278-282,287-295,298-299,303
+go/internal/reducer/workloadinstance/readiness.go
+  s_0155aa640a8bb1::t_074b9af193b49d 28-31,34-35,56,66-69
+go/internal/reducer/workloadinstance/readiness_test.go
+  s_0155aa640a8bb1::t_0ebe0c78a1b7e6 18-20,23-25,27-29,34,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5cfc93854628c998055ace8a41717fc0b76b8292",
+  "prompts": {},
+  "sessions": {
+    "s_0155aa640a8bb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ed74ad2-74b8-4517-8e85-303dc193b776",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
