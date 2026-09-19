@@ -28,6 +28,35 @@ func TestCodeownersOwnershipToolIsRegistered(t *testing.T) {
 	}
 }
 
+// TestReadOnlyToolsSplicePreservesCodeownersPosition pins the absolute
+// registration index of the CODEOWNERS definition owned by the code/owners
+// package, with its cicd-aggregate/service-catalog predecessors and
+// kubernetes/secrets neighbours. Every name and index is literal here,
+// independent of the child's own order, so a reorder of
+// codeownerstools.Tools or a move of the whole segment fails this test
+// instead of shifting with the code under test.
+func TestReadOnlyToolsSplicePreservesCodeownersPosition(t *testing.T) {
+	t.Parallel()
+
+	tools := ReadOnlyTools()
+	want := map[int]string{
+		73: "count_ci_cd_run_correlations",
+		74: "get_ci_cd_run_correlation_inventory",
+		75: "list_service_catalog_correlations",
+		76: "list_codeowners_ownership",
+		77: "list_kubernetes_correlations",
+		78: "list_secrets_iam_identity_trust_chains",
+	}
+	for index, name := range want {
+		if index >= len(tools) {
+			t.Fatalf("ReadOnlyTools() has %d tools, want index [%d] = %q", len(tools), index, name)
+		}
+		if got := tools[index].Name; got != name {
+			t.Fatalf("ReadOnlyTools()[%d] = %q, want %q", index, got, name)
+		}
+	}
+}
+
 func TestResolveRouteMapsCodeownersOwnership(t *testing.T) {
 	t.Parallel()
 

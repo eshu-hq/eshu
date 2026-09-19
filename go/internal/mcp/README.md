@@ -184,7 +184,7 @@ is not broken out here).
 | `cicdTools` | 1 | `tools_cicd.go` |
 | `cicdRunCorrelationAggregateTools` | 2 | `tools_cicd_aggregates.go` |
 | `serviceCatalogTools` | 1 | `service/catalog_tools.go` |
-| `codeownersTools` | 1 | `tools_codeowners.go` |
+| `codeownersTools` | 1 | `types.go` (wraps `code/owners/tools.go`) |
 | `kubernetesTools` | 1 | `tools_kubernetes.go` |
 | `secretsIAMTools` | 5 | `types.go` (wraps `access/posture/tools.go`) |
 | `observabilityCoverageTools` | 1 | `tools_observability_coverage.go` |

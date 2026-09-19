@@ -10,6 +10,7 @@ import (
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
+	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/code/owners"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	ecosystemtools "github.com/eshu-hq/eshu/go/internal/mcp/ecosystem"
@@ -166,6 +167,12 @@ func secretsIAMTools() []ToolDefinition {
 // code/flow package owns the registration definitions.
 func codeFlowTools() []ToolDefinition {
 	return codeflowtools.Tools()
+}
+
+// codeownersTools preserves the root package's constructor name while the
+// code/owners package owns the registration definition.
+func codeownersTools() []ToolDefinition {
+	return codeownerstools.Tools()
 }
 
 // contextTools preserves the root package's constructor name while composing

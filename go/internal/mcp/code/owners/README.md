@@ -2,24 +2,26 @@
 
 ## Purpose
 
-This package owns family membership and pure internal-request selection for the
-MCP CODEOWNERS ownership tool: the bounded, keyset-paged listing of which owner
-answers for which path in a repository.
+This package owns family membership, pure internal-request selection, and the
+tool definition for the MCP CODEOWNERS ownership tool: the bounded,
+keyset-paged listing of which owner answers for which path in a repository.
 
 ## Ownership boundary
 
-This package owns CODEOWNERS family membership and the mapping from decoded
-arguments to a dependency-neutral internal request. `internal/mcp` keeps tool
-registration and its client-visible order, global route fanout, the private
-adapter, HTTP dispatch, authorization, timeouts, response budgets, envelopes,
-summaries, and telemetry. `internal/query` owns the bounded read this path
-reaches, including repository-access scoping, keyset paging, and the
+This package owns CODEOWNERS family membership, the mapping from decoded
+arguments to a dependency-neutral internal request, and the
+`list_codeowners_ownership` registration definition. `internal/mcp` keeps the
+root registration splice and its client-visible order, global route fanout,
+the private adapter, HTTP dispatch, authorization, timeouts, response budgets,
+envelopes, summaries, and telemetry. `internal/query` owns the bounded read
+this path reaches, including repository-access scoping, keyset paging, and the
 `effective_owner` precedence between a service manifest and the CODEOWNERS file.
 
 ## Exported surface
 
 - `Route` selects the internal request for a CODEOWNERS ownership tool without
   executing it, and reports `handled=false` for every other tool.
+- `Tools` returns the owned CODEOWNERS tool definition.
 
 See `doc.go` for the godoc contract.
 
@@ -55,10 +57,11 @@ API request duration and error metrics.
 - `Route` returns a fresh query map per call, so a caller may mutate one result
   without changing a later one or the arguments it was given.
 
-No-Observability-Change: this extraction moves only pure CODEOWNERS ownership
-route selection. The root adapter still feeds the same global fanout, dispatch,
-authorization, budgets, envelopes, summaries, and transport telemetry, and the
-same query handler executes the request.
+No-Observability-Change: this extraction moves only the CODEOWNERS ownership
+tool definition alongside the existing pure route selection. The root splice
+keeps the same client-visible order, the root adapter still feeds the same
+global fanout, dispatch, authorization, budgets, envelopes, summaries, and
+transport telemetry, and the same query handler executes the request.
 
 ## Related docs
 

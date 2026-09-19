@@ -248,7 +248,9 @@
 // from manifest-vs-codeowners precedence, so a scoped caller sees the same
 // bounded empty-ownership shape over MCP that the HTTP route returns for an
 // out-of-grant repository. That selection lives in the codeowners child and
-// reaches dispatch through the codeownersRoute adapter; the child formats
-// after_order_index only when the caller sent it, so an absent leg stays empty
-// rather than defaulting to zero and half-supplying the cursor.
+// reaches dispatch through the codeownersRoute adapter; the tool definition
+// lives in the child tools.go and splices into ReadOnlyTools through the
+// codeownersTools wrapper, so the client-visible order is unchanged. The child
+// formats after_order_index only when the caller sent it, so an absent leg
+// stays empty rather than defaulting to zero and half-supplying the cursor.
 package mcp
