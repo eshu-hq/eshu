@@ -1,0 +1,19 @@
+go/internal/query/label_predicate_exposure_live_test.go
+  s_6fc19beed9436d::t_d9c7d8d9824ccd 1-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1e99c725fba106aaf919936a5975eb91b041dd3e",
+  "prompts": {},
+  "sessions": {
+    "s_6fc19beed9436d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a27ed62a-1473-431b-9b7c-a320b40621a5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
