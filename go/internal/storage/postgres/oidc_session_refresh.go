@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 // OIDCRoleGrantQuery re-resolves whether a session's already granted Eshu roles
@@ -177,7 +179,7 @@ func normalizeOIDCRoleGrantQuery(query OIDCRoleGrantQuery) OIDCRoleGrantQuery {
 }
 
 func validateOIDCRoleGrantQuery(query OIDCRoleGrantQuery) error {
-	if blank(query.ProviderConfigID) || blank(query.TenantID) || blank(query.WorkspaceID) {
+	if scalars.Blank(query.ProviderConfigID) || scalars.Blank(query.TenantID) || scalars.Blank(query.WorkspaceID) {
 		return errors.New("oidc provider, tenant, and workspace are required")
 	}
 	if len(query.RoleIDs) == 0 {

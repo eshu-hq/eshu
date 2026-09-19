@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 // ErrBrowserSessionCSRFInvalid identifies an active browser session whose CSRF
@@ -127,13 +128,13 @@ func (s *BrowserSessionStore) CreateSession(ctx context.Context, record BrowserS
 		allowedRepositories,
 		nullBrowserSessionString(record.ExternalProviderConfigID),
 		nullBrowserSessionString(record.ExternalSubjectIDHash),
-		nullTime(record.ExternalAuthValidatedAt),
-		nullTime(record.ExternalAuthStaleAfter),
+		scalars.NullTime(record.ExternalAuthValidatedAt),
+		scalars.NullTime(record.ExternalAuthStaleAfter),
 		record.IssuedAt,
 		record.LastSeenAt,
 		record.IdleExpiresAt,
 		record.AbsoluteExpiresAt,
-		nullTime(record.RevokedAt),
+		scalars.NullTime(record.RevokedAt),
 		record.UpdatedAt,
 		externalGroupHashes,
 		record.PermissionCatalogEnforced,
@@ -324,8 +325,8 @@ func normalizeBrowserSessionRecord(record BrowserSessionRecord) BrowserSessionRe
 }
 
 func validateBrowserSessionRecord(record BrowserSessionRecord) error {
-	if blank(record.SessionHash) || blank(record.CSRFTokenHash) || blank(record.TenantID) ||
-		blank(record.WorkspaceID) {
+	if scalars.Blank(record.SessionHash) || scalars.Blank(record.CSRFTokenHash) || scalars.Blank(record.TenantID) ||
+		scalars.Blank(record.WorkspaceID) {
 		return errors.New("session hash, csrf hash, tenant, and workspace are required")
 	}
 	if record.IssuedAt.IsZero() || record.LastSeenAt.IsZero() ||
@@ -345,7 +346,7 @@ func validateBrowserSessionRecord(record BrowserSessionRecord) error {
 	hasExternalAuth := record.ExternalProviderConfigID != "" || record.ExternalSubjectIDHash != "" ||
 		!record.ExternalAuthValidatedAt.IsZero() || !record.ExternalAuthStaleAfter.IsZero()
 	if hasExternalAuth {
-		if blank(record.ExternalProviderConfigID) || blank(record.ExternalSubjectIDHash) ||
+		if scalars.Blank(record.ExternalProviderConfigID) || scalars.Blank(record.ExternalSubjectIDHash) ||
 			record.ExternalAuthValidatedAt.IsZero() || record.ExternalAuthStaleAfter.IsZero() {
 			return errors.New("external auth provider, subject hash, validation, and stale timestamps must be set together")
 		}

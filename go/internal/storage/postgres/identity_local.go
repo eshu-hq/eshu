@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -397,10 +399,10 @@ func insertBootstrapLocalIdentity(
 	database db.ExecQueryer,
 	record LocalIdentityBootstrapRecord,
 ) error {
-	if _, err := database.ExecContext(ctx, upsertTenantRecordQuery, record.TenantID, "active", "", record.PolicyRevisionHash, record.CreatedAt, nullTime(time.Time{})); err != nil {
+	if _, err := database.ExecContext(ctx, tenantstore.UpsertTenantRecordQuery, record.TenantID, "active", "", record.PolicyRevisionHash, record.CreatedAt, scalars.NullTime(time.Time{})); err != nil {
 		return fmt.Errorf("upsert bootstrap tenant: %w", err)
 	}
-	if _, err := database.ExecContext(ctx, upsertWorkspaceRecordQuery, record.TenantID, record.WorkspaceID, "active", "", record.PolicyRevisionHash, record.CreatedAt, nullTime(time.Time{})); err != nil {
+	if _, err := database.ExecContext(ctx, tenantstore.UpsertWorkspaceRecordQuery, record.TenantID, record.WorkspaceID, "active", "", record.PolicyRevisionHash, record.CreatedAt, scalars.NullTime(time.Time{})); err != nil {
 		return fmt.Errorf("upsert bootstrap workspace: %w", err)
 	}
 	if err := insertLocalIdentityUserCredential(ctx, database, localIdentityUserCredentialRecord{

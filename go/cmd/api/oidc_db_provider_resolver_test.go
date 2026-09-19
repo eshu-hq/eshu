@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 )
 
 // testSealedOIDCProviderRow seals a minimal DB-backed OIDC client_secret and
@@ -48,7 +49,7 @@ func TestOIDCDBProviderResolverResolvesTenantWorkspaceForSingleWorkspaceTenant(t
 	}}
 	resolver := &oidcDBProviderResolver{
 		store:      pgstatus.NewIdentitySubjectStore(db),
-		workspaces: pgstatus.NewTenantWorkspaceGrantStore(db),
+		workspaces: tenantstore.NewTenantWorkspaceGrantStore(db),
 		keyring:    kr,
 	}
 
@@ -81,7 +82,7 @@ func TestOIDCDBProviderResolverHonorsExplicitWorkspaceWithoutExtraLookup(t *test
 	}}
 	resolver := &oidcDBProviderResolver{
 		store:      pgstatus.NewIdentitySubjectStore(db),
-		workspaces: pgstatus.NewTenantWorkspaceGrantStore(db),
+		workspaces: tenantstore.NewTenantWorkspaceGrantStore(db),
 		keyring:    kr,
 	}
 
@@ -112,7 +113,7 @@ func TestOIDCDBProviderResolverRejectsAmbiguousTenantWorkspace(t *testing.T) {
 	}}
 	resolver := &oidcDBProviderResolver{
 		store:      pgstatus.NewIdentitySubjectStore(db),
-		workspaces: pgstatus.NewTenantWorkspaceGrantStore(db),
+		workspaces: tenantstore.NewTenantWorkspaceGrantStore(db),
 		keyring:    kr,
 	}
 

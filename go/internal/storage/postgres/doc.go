@@ -233,8 +233,9 @@
 // SBOM/attestation attachment readers use the same active-generation keyset
 // page shape, with referrer-subject, subject-digest, document, document-digest,
 // and status indexes so MCP/API reads stay digest-first and bounded.
-// TenantWorkspaceGrantStore persists the additive hosted isolation control
-// plane: tenants, workspaces, scope grants, and repository grants. It stores
+// TenantWorkspaceGrantStore (tenantstore child package) persists the additive
+// hosted isolation control plane: tenants, workspaces, scope grants, and
+// repository grants. It stores
 // opaque IDs plus redacted display-handle hashes, requires tenant/workspace
 // bounds on reads, filters out inactive, tombstoned, not-yet-effective, and
 // expired rows inside SQL, and keeps repository grants joined to an active

@@ -234,12 +234,14 @@ the concrete adapters stay here.
 
 **Hosted tenant/workspace grants**
 
-- `TenantWorkspaceGrantStore` / `NewTenantWorkspaceGrantStore` — additive
-  hosted isolation storage for `tenants`, `workspaces`,
-  `tenant_scope_grants`, and `tenant_repository_grants`
-- `TenantRecord`, `WorkspaceRecord`, `TenantScopeGrant`,
-  `TenantRepositoryGrant`, and `TenantWorkspaceGrantQuery` — typed rows and
-  bounded active-grant read filters for future hosted enforcement
+- `tenantstore.TenantWorkspaceGrantStore` /
+  `tenantstore.NewTenantWorkspaceGrantStore` — additive hosted isolation
+  storage for `tenants`, `workspaces`, `tenant_scope_grants`, and
+  `tenant_repository_grants`
+- `tenantstore.TenantRecord`, `tenantstore.WorkspaceRecord`,
+  `tenantstore.TenantScopeGrant`, `tenantstore.TenantRepositoryGrant`, and
+  `tenantstore.TenantWorkspaceGrantQuery` — typed rows and bounded
+  active-grant read filters for future hosted enforcement
 - `ScopedAPITokenStore` / `NewScopedAPITokenStore` — hash-only hosted token
   registry backed by tenant/workspace rows; reads return active scoped subject
   bounds only and never accept raw token values
@@ -333,7 +335,7 @@ the concrete adapters stay here.
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
   `IaCReachabilitySchemaSQL`, `CodeReachabilitySchemaSQL`,
-  `VulnerabilitySourceStateSchemaSQL`, `TenantWorkspaceGrantSchemaSQL`,
+  `VulnerabilitySourceStateSchemaSQL`, `tenantstore.TenantWorkspaceGrantSchemaSQL`,
   `ScopedAPITokenSchemaSQL`, `IdentitySubjectSchemaSQL`, `OIDCLoginSchemaSQL`,
   `SAMLSSOSchemaSQL`,
   `EshuSearchVectorMetadataSchemaSQL`, `EshuSearchVectorValuesSchemaSQL`,

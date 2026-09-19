@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 const (
@@ -319,9 +320,9 @@ func normalizeOIDCLoginState(record OIDCLoginStateRecord) OIDCLoginStateRecord {
 }
 
 func validateOIDCLoginState(record OIDCLoginStateRecord) error {
-	if blank(record.StateHash) || blank(record.NonceHash) || blank(record.ProviderConfigID) ||
-		blank(record.ProviderKeyHash) || blank(record.IssuerHash) || blank(record.ClientIDHash) ||
-		blank(record.TenantID) || blank(record.WorkspaceID) || blank(record.RedirectURIHash) {
+	if scalars.Blank(record.StateHash) || scalars.Blank(record.NonceHash) || scalars.Blank(record.ProviderConfigID) ||
+		scalars.Blank(record.ProviderKeyHash) || scalars.Blank(record.IssuerHash) || scalars.Blank(record.ClientIDHash) ||
+		scalars.Blank(record.TenantID) || scalars.Blank(record.WorkspaceID) || scalars.Blank(record.RedirectURIHash) {
 		return errors.New("oidc state hash, nonce hash, provider hashes, tenant, workspace, and redirect uri hash are required")
 	}
 	if record.IssuedAt.IsZero() || record.ExpiresAt.IsZero() || record.UpdatedAt.IsZero() {
@@ -349,7 +350,7 @@ func normalizeOIDCGroupGrantQuery(query OIDCGroupGrantQuery) OIDCGroupGrantQuery
 }
 
 func validateOIDCGroupGrantQuery(query OIDCGroupGrantQuery) error {
-	if blank(query.ProviderConfigID) || blank(query.TenantID) || blank(query.WorkspaceID) {
+	if scalars.Blank(query.ProviderConfigID) || scalars.Blank(query.TenantID) || scalars.Blank(query.WorkspaceID) {
 		return errors.New("oidc provider, tenant, and workspace are required")
 	}
 	if len(query.ExternalGroupHashes) == 0 {

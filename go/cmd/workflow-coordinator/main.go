@@ -38,6 +38,7 @@ import (
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -120,7 +121,7 @@ func run(parent context.Context) error {
 		Instruments: instruments,
 		StoreName:   "tenant_workspace_grants",
 	}
-	tenantGrantStore := postgres.NewTenantWorkspaceGrantStore(tenantGrantDB)
+	tenantGrantStore := tenantstore.NewTenantWorkspaceGrantStore(tenantGrantDB)
 	if err := tenantGrantStore.EnsureSchema(parent); err != nil {
 		return err
 	}

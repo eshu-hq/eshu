@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/oidclogin"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -66,7 +67,7 @@ func newOIDCBearerResolver(
 		oidcbearer.NewEnvProviderSource(config),
 		&oidcBearerDBProviderSource{
 			store:      pgstatus.NewIdentitySubjectStore(execQueryer),
-			workspaces: pgstatus.NewTenantWorkspaceGrantStore(execQueryer),
+			workspaces: tenantstore.NewTenantWorkspaceGrantStore(execQueryer),
 			logger:     logger,
 		},
 	)
@@ -114,7 +115,7 @@ func loadOIDCBearerEnvConfig(getenv func(string) string) (oidclogin.Config, oidc
 // available here.
 type oidcBearerDBProviderSource struct {
 	store      *pgstatus.IdentitySubjectStore
-	workspaces *pgstatus.TenantWorkspaceGrantStore
+	workspaces *tenantstore.TenantWorkspaceGrantStore
 	logger     *slog.Logger
 }
 

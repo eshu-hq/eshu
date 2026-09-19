@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 // StaleOIDCSessionRecord is the hash-only projection of one OIDC-backed browser
@@ -216,7 +217,7 @@ func normalizeOIDCSessionAuthProofUpdate(update OIDCSessionAuthProofUpdate) OIDC
 }
 
 func validateOIDCSessionAuthProofUpdate(update OIDCSessionAuthProofUpdate) error {
-	if blank(update.SessionHash) || blank(update.PolicyRevisionHash) {
+	if scalars.Blank(update.SessionHash) || scalars.Blank(update.PolicyRevisionHash) {
 		return errors.New("oidc session refresh requires session hash and policy revision hash")
 	}
 	if len(update.ExternalGroupHashes) == 0 {

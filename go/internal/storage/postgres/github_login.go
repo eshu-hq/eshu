@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 // GitHubLoginStore persists hash-only GitHub OAuth2 login state (issue
@@ -149,9 +150,9 @@ func normalizeGitHubLoginState(record GitHubLoginStateRecord) GitHubLoginStateRe
 }
 
 func validateGitHubLoginState(record GitHubLoginStateRecord) error {
-	if blank(record.StateHash) || blank(record.ProviderConfigID) ||
-		blank(record.ProviderKeyHash) || blank(record.IssuerHash) || blank(record.ClientIDHash) ||
-		blank(record.TenantID) || blank(record.WorkspaceID) || blank(record.RedirectURIHash) {
+	if scalars.Blank(record.StateHash) || scalars.Blank(record.ProviderConfigID) ||
+		scalars.Blank(record.ProviderKeyHash) || scalars.Blank(record.IssuerHash) || scalars.Blank(record.ClientIDHash) ||
+		scalars.Blank(record.TenantID) || scalars.Blank(record.WorkspaceID) || scalars.Blank(record.RedirectURIHash) {
 		return errors.New("github state hash, provider hashes, tenant, workspace, and redirect uri hash are required")
 	}
 	if record.IssuedAt.IsZero() || record.ExpiresAt.IsZero() {

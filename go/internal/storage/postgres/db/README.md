@@ -89,4 +89,5 @@ generated collector entrypoints were regenerated and their gate is green.
 - Keep this package free of implementation: no connection handling, no SQL
   text, no migration state, no telemetry import. The `CleanIDs` /
   `IDPlaceholders` / `IDArgs` builders are the one exception: pure
-  argument shaping shared by store families.
+  argument shaping shared by store families. Shared null/blank value
+  shaping lives in the sibling `scalars` package, not here.

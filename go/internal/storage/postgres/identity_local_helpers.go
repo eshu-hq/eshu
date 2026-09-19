@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 var errLocalIdentityRecoveryCodeInvalid = errors.New("local identity recovery code invalid")
@@ -150,7 +151,7 @@ func (s *IdentitySubjectStore) recordFailedLocalIdentityAttempt(
 		upsertLocalIdentityFailedAttemptQuery,
 		row.UserID,
 		defaultLocalIdentityLockoutThreshold,
-		nullTime(lockedUntil),
+		scalars.NullTime(lockedUntil),
 		now,
 	); err != nil {
 		return LocalIdentityAuthenticationResult{}, fmt.Errorf("record local identity failed attempt: %w", err)
