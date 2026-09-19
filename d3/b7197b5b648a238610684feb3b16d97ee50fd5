@@ -1,0 +1,14 @@
+go/internal/storage/cypher/unwind_alias_repo_scan_test.go
+  h_78a442cba0b3e6 15,166-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d3b7197b5b648a238610684feb3b16d97ee50fd5",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
