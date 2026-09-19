@@ -240,6 +240,9 @@ WHERE work_item_id IN (SELECT 'nb-lease-' || i FROM generate_series(1, 200) AS i
 func assertBlockageHashesLeasesOnce(ctx context.Context, t *testing.T, conn *sql.Conn, state string) {
 	t.Helper()
 	plan := explainAnalyzeJSON(ctx, t, conn, activeWorkSummaryQuery)
+	if _, missing := blockagePlanRoots(plan); len(missing) > 0 {
+		t.Fatalf("%s: summary plan has no %v subtree; the blockage checks cannot read it", state, missing)
+	}
 	if !planFiltersByHashedSubPlan(plan) {
 		t.Fatalf("%s: summary plan does not filter eligible by a hashed SubPlan", state)
 	}
@@ -326,38 +329,89 @@ FROM generate_series(1, %d) AS i, generate_series(1, %d) AS j`, scopes, eligible
 	}
 }
 
-// planFiltersByHashedSubPlan reports whether any node's Filter probes a hashed
-// SubPlan. The marker sits in the filtering node's Filter string, not on the
-// SubPlan child.
-func planFiltersByHashedSubPlan(node map[string]any) bool {
-	if filter, _ := node["Filter"].(string); strings.Contains(filter, "hashed SubPlan") {
-		return true
-	}
-	children, _ := node["Plans"].([]any)
-	for _, child := range children {
-		if childNode, ok := child.(map[string]any); ok && planFiltersByHashedSubPlan(childNode) {
-			return true
+// blockagePlanCTEs are the blockage section's CTEs as EXPLAIN names their
+// InitPlans. blocked itself is inlined into all_blocked. The plan checks read
+// only these subtrees, so a plan change elsewhere in the summary query can
+// neither fail them nor satisfy them.
+var blockagePlanCTEs = []string{"CTE eligible", "CTE inflight_leases", "CTE all_blocked"}
+
+// blockagePlanRoots returns the plan's blockage CTE subtrees keyed by their
+// InitPlan name, and the names it did not find.
+func blockagePlanRoots(plan map[string]any) (map[string]map[string]any, []string) {
+	roots := map[string]map[string]any{}
+	var collect func(node map[string]any)
+	collect = func(node map[string]any) {
+		if name, _ := node["Subplan Name"].(string); slices.Contains(blockagePlanCTEs, name) {
+			roots[name] = node
+		}
+		for _, child := range planChildren(node) {
+			collect(child)
 		}
 	}
-	return false
+	collect(plan)
+	var missing []string
+	for _, name := range blockagePlanCTEs {
+		if roots[name] == nil {
+			missing = append(missing, name)
+		}
+	}
+	return roots, missing
 }
 
-// maxBlockagePathLoops returns the largest Actual Loops of any plan node that
-// reads fact_work_items or scans the eligible or inflight_leases CTE. Both
-// sides are watched: a nested loop can rescan either one.
-func maxBlockagePathLoops(node map[string]any) int {
-	most := 0
-	switch {
-	case node["Relation Name"] == "fact_work_items", node["CTE Name"] == "eligible", node["CTE Name"] == "inflight_leases":
-		if loops, ok := node["Actual Loops"].(float64); ok {
-			most = int(loops)
+// planFiltersByHashedSubPlan reports whether the blocked filter, inlined into
+// all_blocked, probes a hashed SubPlan over inflight_leases: a scan of the
+// eligible CTE whose Filter says "hashed SubPlan" and whose SubPlan child
+// scans inflight_leases. A hashed SubPlan anywhere else does not count.
+func planFiltersByHashedSubPlan(plan map[string]any) bool {
+	roots, _ := blockagePlanRoots(plan)
+	var found func(node map[string]any) bool
+	found = func(node map[string]any) bool {
+		if filter, _ := node["Filter"].(string); node["CTE Name"] == "eligible" && strings.Contains(filter, "hashed SubPlan") {
+			for _, child := range planChildren(node) {
+				if child["Parent Relationship"] == "SubPlan" && child["CTE Name"] == "inflight_leases" {
+					return true
+				}
+			}
 		}
+		return slices.ContainsFunc(planChildren(node), found)
 	}
-	children, _ := node["Plans"].([]any)
-	for _, child := range children {
-		if childNode, ok := child.(map[string]any); ok {
-			most = max(most, maxBlockagePathLoops(childNode))
+	return roots["CTE all_blocked"] != nil && found(roots["CTE all_blocked"])
+}
+
+// maxBlockagePathLoops returns the largest Actual Loops of any node inside the
+// blockage CTEs that reads fact_work_items or scans the eligible or
+// inflight_leases CTE. Both sides are watched: a nested loop can rescan either
+// one. Nodes outside the blockage CTEs are not counted.
+func maxBlockagePathLoops(plan map[string]any) int {
+	roots, _ := blockagePlanRoots(plan)
+	var walk func(node map[string]any) int
+	walk = func(node map[string]any) int {
+		most := 0
+		if node["Relation Name"] == "fact_work_items" || node["CTE Name"] == "eligible" || node["CTE Name"] == "inflight_leases" {
+			if loops, ok := node["Actual Loops"].(float64); ok {
+				most = int(loops)
+			}
 		}
+		for _, child := range planChildren(node) {
+			most = max(most, walk(child))
+		}
+		return most
+	}
+	most := 0
+	for _, root := range roots {
+		most = max(most, walk(root))
 	}
 	return most
+}
+
+// planChildren returns a plan node's child nodes.
+func planChildren(node map[string]any) []map[string]any {
+	raw, _ := node["Plans"].([]any)
+	children := make([]map[string]any, 0, len(raw))
+	for _, child := range raw {
+		if childNode, ok := child.(map[string]any); ok {
+			children = append(children, childNode)
+		}
+	}
+	return children
 }

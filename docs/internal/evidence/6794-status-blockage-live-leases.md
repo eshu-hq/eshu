@@ -221,6 +221,14 @@ stage).
   analyzed live leases and requires an unhashed SubPlan, so the marker check is
   proven able to fail. The pre-change query's loop count is logged, not
   asserted.
+- The plan checks read only the blockage CTEs (`eligible`, `inflight_leases`,
+  and `all_blocked`, found by their InitPlan names), so a plan change elsewhere
+  in the summary query can neither fail nor satisfy them.
+  `TestBlockagePlanChecksReadOnlyTheBlockageSubtree` feeds them plan fixtures
+  with a per-row nested loop over `fact_work_items` and a stray hashed SubPlan
+  outside the blockage CTEs, and
+  `TestBlockagePlanRootsReportAnInlinedBlockageCTE` requires a missing blockage
+  CTE to be reported rather than read as a pass.
 
 Mutation checks, each run against the live tests: restoring the join, or
 dropping the `COALESCE` fence, fails the plan regression in every statistics
