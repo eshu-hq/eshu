@@ -56,7 +56,7 @@ that the result hashes to the after blob:
 ```bash
 check() { # check <before-blob> <after-blob>
   git cat-file -p "$1" \
-    | sed 's#query/queryspan"#query/tracing"#; s/\bqueryspan\./tracing./g' \
+    | sed 's#query/queryspan"#query/tracing"#; s/\([^A-Za-z0-9_]\)queryspan\./\1tracing./g; s/^queryspan\./tracing./g' \
     | git hash-object --stdin | cmp -s - <(printf '%s\n' "$2")
 }
 check 06f23775ca861a26a4ade98ae8f212e58044237a \
