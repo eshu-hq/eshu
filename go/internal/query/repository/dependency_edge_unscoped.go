@@ -94,10 +94,12 @@ func dependencyEdgeCount(row map[string]any) (int64, bool) {
 // the bound. loadUnscopedRepositoryDependencyEdges supplies the bound that
 // does. When the probe proves the whole graph has at most
 // repositoryDependencyClusterEdgeLimit DEPENDS_ON edges, the Repository
-// subset fits too and $group_limit is the fetch limit. Otherwise it is the
-// group prefix repositoryDependencyGroupLimit computes from
-// RepositoryDependencyGroupSizeCypher, which holds at most the bound plus one
-// source's edges (#6786 review R3-F2).
+// subset fits too and $group_limit is the fetch limit. Otherwise
+// RepositoryDependencyGroupSizeCypher runs first: when its sizes prove more
+// edges than the bound, $group_limit is the group prefix
+// repositoryDependencyGroupLimit computes, which holds at most the bound plus
+// one source's edges (#6786 review R3-F2); when they fit, $group_limit is the
+// fetch limit again (#6786 review R4-F1).
 const RepositoryDependencyGroupedEdgeCypher = `
 		MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository)
 		RETURN s.id AS source_id, collect(t.id) AS target_ids
@@ -124,10 +126,21 @@ func readGroupedRepositoryDependencyEdges(ctx context.Context, graph querycontra
 //     bound. Repository DEPENDS_ON edges are a subset of all DEPENDS_ON
 //     edges, so at most limit edges come back.
 //   - probe count over limit, or unknown: RepositoryDependencyGroupSizeCypher
-//     first, then the grouped read capped at the group prefix that holds the
-//     first limit edges; TransferCapped is set. The graph can change between
-//     the two reads; the flattened result still reports truncation from what
-//     actually came back, so a stale size only moves the transfer bound.
+//     first; TransferCapped is set. When the sizes prove more than limit
+//     Repository edges, the grouped read is capped at the group prefix that
+//     holds the first limit edges and the read is reported truncated. When
+//     they fit, the grouped read runs at the same limit+1 group bound as the
+//     previous case, never at the group count the size read saw.
+//
+// The graph can change between the size read and the grouped read (#6786
+// review R4-F1). A source that gains its first edge in that window sorts
+// somewhere inside the size read's groups, so a grouped read limited to that
+// group count would push the last real group off the end and report a
+// complete answer without it. With the limit+1 bound, the grouped read either
+// returns every group or returns more than limit groups or edges, which
+// flattenGroupedRepositoryDependencyEdges reports as truncated. When the
+// sizes already prove the bound is exceeded, truncation is reported
+// regardless of what the grouped read returns.
 //
 // A probe error is carried in ProbeErr for telemetry and never degrades the
 // response on its own.
@@ -151,6 +164,9 @@ func loadUnscopedRepositoryDependencyEdges(ctx context.Context, graph querycontr
 	groupLimit, over := repositoryDependencyGroupLimit(sizes, limit)
 	if groupLimit == 0 {
 		return repositoryDependencyEdgeRead{Edges: []repositoryDependencyEdge{}, ProbeErr: probeErr, TransferCapped: true}
+	}
+	if !over {
+		groupLimit = limit + 1
 	}
 	rows, err := readGroupedRepositoryDependencyEdges(ctx, graph, groupLimit)
 	if err != nil {

@@ -123,7 +123,8 @@ func repositoryDependencyClusterEdgeCypher(access querycontract.RepositoryAccess
 // that every DEPENDS_ON edge fits in the bound, so it read per-source group
 // sizes first and capped the grouped read at the group prefix holding the
 // bound (see loadUnscopedRepositoryDependencyEdges). It is telemetry only; a
-// capped read is complete unless Truncated is also set.
+// capped read is complete unless Truncated is also set, including when a
+// source repository gains edges between the size read and the grouped read.
 type repositoryDependencyEdgeRead struct {
 	Edges          []repositoryDependencyEdge
 	Truncated      bool
