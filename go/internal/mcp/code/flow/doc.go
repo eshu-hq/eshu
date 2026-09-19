@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package codeflowtools defines pure route selection for the MCP code-flow
-// family.
+// Package codeflowtools defines pure route selection and the tool definitions
+// for the MCP code-flow family.
 //
 // Route decides whether this package owns a tool and maps decoded arguments
 // to a dependency-neutral internal request without executing it. The parent
-// mcp package owns tool registration and its order (the four definitions stay
-// at the parent's root in tools_code_flow.go), global route fanout, the
-// private adapter, HTTP dispatch, authorization, timeouts, response budgets,
-// envelopes, summaries, and telemetry. The query package owns the bounded
+// mcp package owns the root registration wrapper and client-visible order,
+// global route fanout, the private adapter, HTTP dispatch, authorization,
+// timeouts, response budgets, envelopes, summaries, and telemetry. The query
+// package owns the bounded
 // reads behind the four POST /api/v0/code/flow/ paths. This package runs no
 // query and must keep every tool name, request path, and body key stable.
 //

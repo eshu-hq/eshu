@@ -30,8 +30,9 @@
 // delegation position in resolveRoute that the family's own selector occupied
 // before the extraction; the four POST /api/v0/code/flow/ paths, the
 // shared six-key body, and the limit 25 and line 0 defaults are unchanged,
-// and the four advertised definitions stay at this root in
-// tools_code_flow.go.
+// and the four advertised definitions live in the codeflow child behind the
+// codeFlowTools wrapper in types.go, which preserves the root registration
+// order.
 // The three dead-code selections (find_dead_code, investigate_dead_code,
 // find_cross_repo_dead_code) live in the deadcode child and reach dispatch
 // through the deadCodeRoute adapter defined in dispatch.go itself — the file

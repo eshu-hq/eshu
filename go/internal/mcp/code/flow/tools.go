@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package codeflowtools
 
-func codeFlowTools() []ToolDefinition {
-	return []ToolDefinition{
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
+)
+
+// Tools returns the four MCP code-flow tool definitions: bounded taint-path
+// evidence, reaching-definition summaries, control-flow-graph summaries, and
+// program-dependence summaries for one repository.
+func Tools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		codeFlowTool(
 			"dispatch_taint_path",
 			"Inspect bounded taint-path evidence for one repository, labeled as derived reducer evidence when present and partial when absent or ambiguous.",
@@ -24,8 +31,8 @@ func codeFlowTools() []ToolDefinition {
 	}
 }
 
-func codeFlowTool(name string, description string) ToolDefinition {
-	return ToolDefinition{
+func codeFlowTool(name string, description string) toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
 		Name:        name,
 		Description: description,
 		InputSchema: map[string]any{
