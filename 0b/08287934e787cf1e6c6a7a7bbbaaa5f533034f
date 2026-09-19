@@ -1,0 +1,28 @@
+go/internal/query/auth_scoped_routes_impact_evidence_test.go
+  s_e4670746a61ae9::t_3c3b1b0abb7099 49-55
+  s_e4670746a61ae9::t_2f49655f979c7b 213-217
+go/internal/query/auth_scoped_routes_impact_change_surface_test.go
+  s_e4670746a61ae9::t_5523f500758aef 348-354
+go/internal/query/entity/nornicdb_answer_truth_live_test.go
+  s_e4670746a61ae9::t_bf31f060ab8776 74-75,87-91
+  s_e4670746a61ae9::t_f9a02a38b9e481 14-18,39
+  s_e4670746a61ae9::t_2cc87393e70c13 137-139,142-143
+go/internal/query/auth_scoped_routes_impact_evidence_fallback_test.go
+  s_e4670746a61ae9::t_82656be48ce7f4 43-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0b08287934e787cf1e6c6a7a7bbbaaa5f533034f",
+  "prompts": {},
+  "sessions": {
+    "s_e4670746a61ae9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc580f2-3bbc-44f5-b367-e76e1733bdfe",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
