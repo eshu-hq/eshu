@@ -319,6 +319,14 @@ sequenceDiagram
     evaluations: a target s3 scope can activate a newer generation without a
     bucket that an earlier evaluation resolved (review P3-2,
     `TestIAMCanPerformFirstGenerationReCommitRetractsShrunkTargets`).
+  - Bounded residual (review P3-c). Retract and rewrite are two graph
+    statements, so a reader between them sees this scope's edges briefly
+    absent, never wrong. Every non-first generation already had this gap; a
+    same-generation re-commit adds it only when the missing set changed.
+    Grouping the retract with the upsert would close it, but retracts run
+    through auto-commit `Execute` because a managed-transaction `DELETE`
+    under-applies on NornicDB (`dispatchRetract`, `nornicdb-pitfalls.md`);
+    that needs a live NornicDB proof across every retract-then-write domain.
   - A poll re-checks only the stored missing keys, so a resolved target that
     disappears mid-wait is not noticed by a poll. It is retracted at the next
     commit: when a missing key resolves, or at the next iam generation.
@@ -330,8 +338,8 @@ sequenceDiagram
   - The claim fence stays `(scope, domain)`, so at most one live worker writes
     a ledger key. A lease-expired straggler is the only concurrent writer.
   - `anchor_epoch` fences stragglers (review P3-1). An anchor reset (a settled
-    or cleared row seeing a new missing set) and a clear each move the row to
-    the next epoch. The upsert's `ON CONFLICT ... WHERE EXCLUDED.anchor_epoch >=
+    or cleared row seeing a new missing set), a settle (review P3-a), and a
+    clear each move the row to the next epoch. The upsert's `ON CONFLICT ... WHERE EXCLUDED.anchor_epoch >=
     wait.anchor_epoch` drops a write from an older epoch, so a straggler that
     read the row before the reset cannot restore the older anchor through
     `LEAST`. A clear keeps the row as a tombstone at the next epoch instead of
@@ -341,11 +349,24 @@ sequenceDiagram
     `TestReadinessWaitStaleWriterCannotResurrectClearedWaitLive` covers the
     clear. Both failed before the fence (the anchor was restored; the cleared
     wait came back).
-  - Inside one epoch a straggler can still win last-writer-wins on the other
-    columns. At worst it rewinds the commit marker, which costs one idempotent
-    re-commit, or un-settles a row whose anchor is already past the bound, which
-    settles again on the next evaluation. Truth is unaffected either way: ready
-    edges commit before any ledger write.
+  - A settle moving to the next epoch means a straggler that read the
+    unsettled row cannot write `settled_at` back to NULL, so a missing set
+    counts `abandoned` once (`TestReadinessWaitStaleWriterCannotUnsettleLive`,
+    which failed before the fix).
+  - `row_version` counts applied writes, and a clear is a compare-and-set on
+    the version its evaluation read (review P3-b). A straggler that saw the
+    set empty cannot tombstone a wait a live worker rewrote at the same epoch;
+    if the set really emptied, the live worker's next evaluation clears it
+    (`TestReadinessWaitStaleClearCannotTombstoneNewerWriteLive`, which failed
+    before the fix).
+  - Bounded residual. Two upserts inside one epoch that are neither a reset,
+    a settle, nor a clear are still last-writer-wins. A straggler landing last
+    can rewind the commit marker (one idempotent re-commit) or rewrite the
+    missing set to its older view (the next evaluation rewrites it). Two
+    evaluations that both cross the bound while both are in flight each count
+    `abandoned`; that needs a lease-expired straggler overlapping the live
+    worker at the bound, and only the counter is affected. Graph truth never
+    depends on the ledger: ready edges commit before any ledger write.
   - A fenced write logs `readiness wait write dropped by the anchor epoch
     fence` with `scope_id`, `domain`, `readiness_wait_operation`, and
     `anchor_epoch`.
@@ -355,7 +376,7 @@ sequenceDiagram
     are not garbage-collected either. A retention sweep would have to prove no
     straggler can still write, which a lease timeout does not guarantee
     (review P3-3).
-  - Ledger statements are single-row primary-key reads, upserts, and deletes,
+  - Ledger statements are single-row primary-key reads, upserts, and updates,
     run outside any open transaction. They add no lock-order edge, and the
     claim query and `fact_work_items` are unchanged.
   - The new reads are plain SELECT and read-only Cypher with no row locks.
@@ -419,29 +440,41 @@ is emitted only on committing evaluations
 `elapsed_since_first_defer` against `max_wait`.
 
 Live Postgres proofs (§5). These tests skip without `ESHU_POSTGRES_DSN`, so a
-plain `go test` run does not exercise them. Run at 4443c4f6e against a
-`postgres:18-alpine` container:
+plain `go test` run does not exercise them. Run at 84ced6d36 (after the
+settle epoch, P3-a, and the clear compare-and-set, P3-b; rebased on
+6e17adaaf) against the `eshu` database of a `postgres:18-alpine` container;
+both commands exit 0:
 
 ```text
-ESHU_POSTGRES_DSN=… go test ./internal/storage/postgres -run ReadinessWaitSurvivesSupersession -count=1 -v
+ESHU_POSTGRES_DSN=… go test ./internal/storage/postgres -run ReadinessWait -count=1 -v
 ESHU_POSTGRES_DSN=… go test ./internal/storage/postgres/readiness/wait/ -run Live -count=1 -v
 ```
 
-- `TestReadinessWaitSurvivesSupersessionLive`: `supersession: N superseded at +6m, N+1 committed at first claim, settled at +10m (anchor from N); writes=2 retracts=2`, then `--- PASS (1.55s)`.
+- `TestReadinessWaitSurvivesSupersessionLive`: `supersession: N superseded at +6m, N+1 committed at first claim, settled at +10m (anchor from N); writes=2 retracts=2`, then `--- PASS (0.21s)`.
+- `TestReadinessWaitStaleClearCannotTombstoneNewerWriteLive`: `--- PASS (0.06s)`.
+- `TestReadinessWaitStaleWriterCannotUnsettleLive`: `--- PASS (0.04s)`.
+- `TestReadinessWaitStaleWriterCannotUndoResetLive`: `--- PASS (0.33s)`.
+- `TestReadinessWaitStaleWriterCannotResurrectClearedWaitLive`: `--- PASS (0.05s)`.
 - `TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive`: `--- PASS (0.10s)`.
-- `TestReadinessWaitResetAnchorSettleAndClearLive`: `--- PASS (0.04s)`.
+- `TestReadinessWaitResetAnchorSettleAndClearLive`: `--- PASS (0.05s)`.
 
-Re-run at 8b7cd01a4, after the anchor-epoch fence (P3-1) and the
-same-generation retract (P3-2), same `postgres:18-alpine` container. Migration
-109 changed shape on this branch, and the bootstrap rejects a changed
-migration checksum, so this run used a fresh `eshu_6785_r4` database in that
-container.
+Migration 109 checksum (review P3-d). 109 was edited in place on this branch
+because it has never shipped. The bootstrap rejects a database that recorded
+an earlier 109 (`checksum changed: recorded …, current …`). Only dev and test
+databases that ran an intermediate commit of this branch can hold one; no
+release or `main` database can. Recover such a database, as was done for the
+run above, with:
 
-- `TestReadinessWaitSurvivesSupersessionLive`: `supersession: N superseded at +6m, N+1 committed at first claim, settled at +10m (anchor from N); writes=2 retracts=2`, then `--- PASS (0.16s)`.
-- `TestReadinessWaitStaleWriterCannotUndoResetLive`: `--- PASS (0.31s)`.
-- `TestReadinessWaitStaleWriterCannotResurrectClearedWaitLive`: `--- PASS (0.04s)`.
-- `TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive`: `--- PASS (0.09s)`.
-- `TestReadinessWaitResetAnchorSettleAndClearLive`: `--- PASS (0.04s)`.
+```sql
+BEGIN;
+DROP TABLE IF EXISTS reducer_readiness_waits;
+DELETE FROM eshu_schema_migrations
+WHERE path = 'go/internal/storage/postgres/migrations/109_reducer_readiness_waits.sql';
+COMMIT;
+```
+
+The ledger holds only wait timing, so dropping it loses no graph truth. Once
+109 merges it is frozen; a later change needs a new migration.
 
 ## 7. Cassette
 
