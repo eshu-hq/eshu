@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package secretsiamtools defines pure route selection for the MCP
-// secrets/IAM posture family.
+// Package secretsiamtools defines pure route selection and the tool
+// definitions for the MCP secrets/IAM posture family.
 //
 // Route decides which of the five secrets/IAM tools this package owns and maps
 // decoded arguments to a dependency-neutral internal request without executing
-// it. The parent mcp package owns tool registration and its order, global
-// route fanout, the private adapter, HTTP dispatch, authorization, timeouts,
-// response budgets, envelopes, summaries, and telemetry. The query package
-// owns the bounded, scope-anchored reads behind these paths. This package runs
-// no query and must keep the tool names, request paths, and query keys stable.
+// it. The parent mcp package owns the root registration wrapper and
+// client-visible order, global route fanout, the private adapter, HTTP
+// dispatch, authorization, timeouts, response budgets, envelopes, summaries,
+// and telemetry. The query package owns the bounded, scope-anchored reads
+// behind these paths. This package runs no query and must keep the tool
+// names, request paths, and query keys stable.
 //
 // The four listings and the summary are deliberately asymmetric. Each listing
 // pages, so it carries limit — defaulting to 50 — alongside its own cursor and
