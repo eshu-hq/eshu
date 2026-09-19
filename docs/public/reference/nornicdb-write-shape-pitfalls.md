@@ -375,19 +375,40 @@ payload has a value") writes junk on NornicDB for every row without that key.
 The B-7 golden corpus on Neo4j found this: package-consumption `DEPENDS_ON`
 edges carried `source_tool = "row.source_tool"` on NornicDB, which
 `get_repo_context` reported as a `source_tool_breakdown` entry, while the edge
-was correctly unstamped on Neo4j. The repo-dependency edge writer now sends
-every key its statement reads, `nil` when absent (`setOptionalRowString` in
-`go/internal/storage/cypher/edge_writer_payload.go`). Apply the same rule to
-any `UNWIND $rows` writer: a row map must carry every `row.<key>` its statement
-references.
+was correctly unstamped on Neo4j. An audit of every production `UNWIND` writer
+found four more with the same shape: EvidenceArtifact `ref_value`,
+`ref_pinned`, `commit_sha`, `start_line` and `end_line` (the deployment-evidence
+read reported `"row.ref_value"` as an unpinned ref); code-call `call_kind`;
+PINS_SUBMODULE `pinned_sha`; and TAINT_FLOWS_TO `why_trail_json` and
+`why_trail_truncated`. Each writer now sends every key its statement reads,
+`nil` when absent (`setOptionalRowString` in
+`go/internal/storage/cypher/edge_writer_payload.go`, or an explicit `nil`).
+
+Apply the same rule to any `UNWIND` writer: a row map must carry every
+`<var>.<key>` its statement references, with `nil` rather than `""` for "no
+value", because readers treat an empty string as a value. A `SET n += row.props`
+merge is not affected: a key missing from the merged map writes nothing.
+Re-projecting an element with the fixed writer replaces a stored junk token
+with null.
 
 ### Validation
 
-`go test ./internal/storage/cypher -run
-TestEdgeWriterRepoDependencyRowsCarryEveryReferencedKey -count=1` is the
-static check for the repo-dependency routes. The live proof is
-`TestLiveRepoDependencyWithoutSourceToolStaysUnstamped` (build tag
+`assertUnwindRowsCarryReferencedKeys` in
+`go/internal/storage/cypher/unwind_row_keys_helper_test.go` is the reusable
+guard: give it a writer test's recorded statements and it fails when any row
+of an `UNWIND $<param> AS <var>` map list lacks a `<var>.<key>` the statement
+reads. `TestUnwindRowKeyViolationsSeeded` is its seeded-violation pair, and
+`TestEdgeWriterSparseRowsCarryEveryReferencedKey` runs it over every
+`EdgeWriter` domain with sparse payloads:
+
+```bash
+cd go && go test ./internal/storage/cypher -run 'RowKey|RowsCarry|Sparse' -count=1
+```
+
+The live proofs are `TestLiveRepoDependencyWithoutSourceToolStaysUnstamped`
+and `TestLiveSparseWriterRowsLeaveOptionalPropertiesNull` (build tag
 `live_nornicdb_answer_truth`, `ESHU_NEO4J_URI` plus
-`ESHU_LIVE_GRAPH_BACKEND=nornicdb|neo4j`). It is RED on NornicDB with the old
-conditional row map and GREEN on both backends with the fix. Other writers
-have not been audited for this shape yet.
+`ESHU_LIVE_GRAPH_BACKEND=nornicdb|neo4j`). Both are RED on NornicDB with the old
+conditional row maps and GREEN on both backends with the fix. The audit table
+covering every writer is in the repository at
+`docs/internal/evidence/6782-unwind-missing-row-key-audit.md`.

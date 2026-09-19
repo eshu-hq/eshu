@@ -139,8 +139,9 @@ field. The call-chain route keeps its existing graph-read error path
 ## Open follow-ups
 
 - The missing-row-key shape is recorded in
-  `docs/public/reference/nornicdb-write-shape-pitfalls.md`. Other `UNWIND $rows` writers
-  have not been audited for conditionally omitted keys.
+  `docs/public/reference/nornicdb-write-shape-pitfalls.md`. The audit of every
+  other production `UNWIND` writer, with four more fixes and a reusable guard,
+  is in [6782-unwind-missing-row-key-audit.md](6782-unwind-missing-row-key-audit.md).
 - The two call-chain routes return different numbers of chains. NornicDB's
   breadth-first walk returns up to 5 chains across depths, while Neo4j returns
   one shortest path per endpoint pair. This is pre-existing, and a candidate
