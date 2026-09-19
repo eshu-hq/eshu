@@ -188,9 +188,10 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	// 25 round trips: the five active-work reads are one statement (#6794).
-	if len(queryer.queries) != 25 {
-		t.Fatalf("QueryContext() call count = %d, want 25", len(queryer.queries))
+	// 26 round trips: the five active-work reads are one statement (#6794),
+	// and the infra read model state is one more (#6793).
+	if len(queryer.queries) != 26 {
+		t.Fatalf("QueryContext() call count = %d, want 26", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -341,6 +342,9 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any)
 		if query == awsFreshnessOldestQueuedAgeQuery {
 			return &fakeRows{rows: [][]any{{float64(0)}}}, nil
 		}
+		if isInfraInventoryStatusQuery(query) {
+			return &fakeRows{rows: [][]any{{false, int64(0), float64(0)}}}, nil
+		}
 		if query == vulnerabilitySourceStatusQuery {
 			return &fakeRows{}, nil
 		}
@@ -466,3 +470,10 @@ func (r *fakeRows) Scan(dest ...any) error {
 func (r *fakeRows) Err() error { return nil }
 
 func (r *fakeRows) Close() error { return nil }
+
+// isInfraInventoryStatusQuery matches the infra read model fence-state read
+// (inventory.ReadFenceState) that the status snapshot issues.
+func isInfraInventoryStatusQuery(query string) bool {
+	return strings.Contains(query, "FROM infra_resource_entity_dirty_repos") &&
+		strings.Contains(query, "infra_resource_entity_backfill_markers")
+}

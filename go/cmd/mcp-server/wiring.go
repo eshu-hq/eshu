@@ -228,10 +228,10 @@ func wireAPI(
 	)
 	contentReader := query.NewContentReader(rawDB)
 	// #5563 upgrade gate: seed pre-ledger CloudResource graph rows before the
-	// indexed owner-ledger list path is mounted. Graph-disabled profiles skip
-	// this because the capability is unsupported and no graph can be read.
+	// indexed owner-ledger list path is mounted, then start the #6793 infra read
+	// model backfill in the background. Graph-disabled profiles skip both.
 	if driver != nil {
-		if err := query.BackfillCloudResourceOwnerLedger(ctx, rawDB, neo4jReader); err != nil {
+		if err := query.RunStartupBackfills(ctx, rawDB, neo4jReader, logger, instruments); err != nil {
 			_ = rawDB.Close()
 			_ = driver.Close(ctx)
 			return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("backfill cloud resource owner ledger: %w", err)

@@ -234,6 +234,8 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		return newProofRows(nil), nil
 	case query == awsFreshnessOldestQueuedAgeQuery:
 		return newProofRows([][]any{{float64(0)}}), nil
+	case isInfraInventoryStatusQuery(query):
+		return newProofRows([][]any{{false, int64(0), float64(0)}}), nil
 	case query == vulnerabilitySourceStatusQuery:
 		return newProofRows(nil), nil
 	case query == registryMetadataTargetStatusQuery:

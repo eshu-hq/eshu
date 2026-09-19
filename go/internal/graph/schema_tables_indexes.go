@@ -192,6 +192,14 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX tf_resource_environment IF NOT EXISTS FOR (r:TerraformResource) ON (r.environment)",
 	"CREATE INDEX tf_resource_service IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_service)",
 	"CREATE INDEX tf_resource_category IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_category)",
+	// The infra resource aggregate read model (#6793) serves the
+	// content-derived TerraformModule and TerraformOutput nodes from Postgres.
+	// The graph keeps only the Terraform state projector's nodes under those
+	// labels, read with `WHERE n.evidence_source = $graph_writer_evidence_source`.
+	// These indexes make that predicate a seek over a handful of nodes instead
+	// of a scan of the whole label.
+	"CREATE INDEX tf_module_evidence_source IF NOT EXISTS FOR (m:TerraformModule) ON (m.evidence_source)",
+	"CREATE INDEX tf_output_evidence_source IF NOT EXISTS FOR (o:TerraformOutput) ON (o.evidence_source)",
 	// Backs the #5443 MATCHES_STATE edge write: the graph writer anchors on
 	// `{repo_id, name}` where name is the config-declared bare address (e.g.
 	// "aws_instance.web") -- the most selective property available (an

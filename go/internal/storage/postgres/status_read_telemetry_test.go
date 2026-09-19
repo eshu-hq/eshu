@@ -32,6 +32,7 @@ var statusSnapshotFullReads = []string{
 	"coordinator",
 	"generation_counts",
 	"generation_transitions",
+	"infra_inventory",
 	"producer_activity",
 	"registry_collectors",
 	"scope_counts",

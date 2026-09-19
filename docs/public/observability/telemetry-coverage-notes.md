@@ -88,3 +88,12 @@ prose that explains how the coverage gate reads that doc; the stage tables stay 
 covers. New reducer projection stages, new shared-edge writers, and new
 graph-write statement phases all flow through this contract; the X2 script
 is the machine-enforced gate.
+
+## History
+
+Historical precedent for the coverage contract lives in
+[#3633](https://github.com/eshu-hq/eshu/issues/3633) (closed 2026-06-23),
+which proved defined-but-never-registered instruments are a real failure
+class. In-flight adoption was [#3680](https://github.com/eshu-hq/eshu/issues/3680)
+(open, 2026-06-24), which lands per-collector envelope telemetry at the
+shared claimed-service dispatch seam.

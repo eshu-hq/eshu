@@ -17,7 +17,7 @@ func infraResourceAggregateTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "count_infra_resources",
-			Description: "Return graph-backed infrastructure resource totals for one optional scope without paging through individual resources. Provides total resources and rollups by provider, environment, and label (CloudResource / TerraformResource / TerraformStateResource / K8sResource / CloudFormationResource / ArgoCDApplication / CrossplaneXRD / HelmChart / etc.). Pass `category` (k8s / terraform / argocd / crossplane / helm / cloud) to narrow to one label-set for hot-path performance.",
+			Description: "Return graph-backed infrastructure resource totals for one optional scope without paging through individual resources. Provides total resources and rollups by provider, environment, and label (CloudResource / TerraformResource / TerraformStateResource / K8sResource / CloudFormationResource / ArgoCDApplication / CrossplaneXRD / HelmChart / etc.). Pass `category` (k8s / terraform / argocd / crossplane / helm / cloud) to narrow the label set. Unscoped reads after the infra read model backfill report truth basis hybrid (content-derived nodes counted from the Postgres infra read model; CloudResource, TerraformStateResource, and Terraform-state TerraformModule / TerraformOutput nodes from the graph); scoped reads stay on the graph.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -37,7 +37,7 @@ func infraResourceAggregateTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_infra_resource_inventory",
-			Description: "Return a paginated grouped count of graph-backed infrastructure resources along one dimension (provider, environment, resource_category, resource_service, label). Replaces the page-and-iterate caller pattern for ecosystem-level inventory questions. Narrow with `category` for hot-path performance.",
+			Description: "Return a paginated grouped count of graph-backed infrastructure resources along one dimension (provider, environment, resource_category, resource_service, label). Replaces the page-and-iterate caller pattern for ecosystem-level inventory questions. Narrow with `category` to restrict the label set. Unscoped reads after the infra read model backfill report truth basis hybrid; scoped reads stay on the graph.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

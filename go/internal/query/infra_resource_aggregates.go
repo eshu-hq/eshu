@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // InfraResourceAggregateStore reads cheap-summary aggregates over the
@@ -35,7 +37,7 @@ type InfraResourceAggregateStore interface {
 		InfraResourceInventoryDimension,
 		int,
 		int,
-	) ([]InfraResourceInventoryRow, error)
+	) ([]InfraResourceInventoryRow, InfraResourceAggregateSource, error)
 }
 
 // InfraResourceInventoryDimension names the grouping dimension for the
@@ -102,6 +104,9 @@ type InfraResourceAggregateCount struct {
 	ByProvider     map[string]int
 	ByEnvironment  map[string]int
 	ByLabel        map[string]int
+	// Source names the store that served the read; the handler maps it onto
+	// the response truth basis.
+	Source InfraResourceAggregateSource
 }
 
 // InfraResourceInventoryRow is one grouped bucket returned by the
@@ -113,9 +118,13 @@ type InfraResourceInventoryRow struct {
 }
 
 // GraphInfraResourceAggregateStore reads aggregate counts via the
-// `GraphQuery` port.
+// `GraphQuery` port, and from the Postgres infra read model for the
+// entity-derived labels once ReadModel is set and backfilled (#6793; see
+// infraGraphOnlyLabels and countFromReadModel).
 type GraphInfraResourceAggregateStore struct {
-	Graph GraphQuery
+	Graph       GraphQuery
+	ReadModel   InfraResourceReadModel
+	Instruments *telemetry.Instruments
 }
 
 // NewGraphInfraResourceAggregateStore wires a GraphQuery (Neo4jReader in
@@ -153,6 +162,15 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 		return InfraResourceAggregateCount{}, err
 	}
 
+	useReadModel, err := s.readModelServes(ctx, filter, labels)
+	if err != nil {
+		return InfraResourceAggregateCount{}, err
+	}
+	if useReadModel {
+		return s.countFromReadModel(ctx, labels, filter)
+	}
+	s.recordRead(ctx, "count", InfraResourceAggregateSourceGraph)
+
 	branchWhere := infraResourceAggregateBranchWhere(filter)
 	params := infraResourceAggregateParams(filter)
 
@@ -189,6 +207,7 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 		ByProvider:     map[string]int{},
 		ByEnvironment:  map[string]int{},
 		ByLabel:        map[string]int{},
+		Source:         InfraResourceAggregateSourceGraph,
 	}
 	if err := s.fillBuckets(ctx, labels, branchWhere, params,
 		infraResourceProviderGroupExpression(filter),
@@ -242,24 +261,32 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 	dimension InfraResourceInventoryDimension,
 	limit int,
 	offset int,
-) ([]InfraResourceInventoryRow, error) {
+) ([]InfraResourceInventoryRow, InfraResourceAggregateSource, error) {
 	if s.Graph == nil {
-		return nil, fmt.Errorf("infra resource aggregate graph is required")
+		return nil, "", fmt.Errorf("infra resource aggregate graph is required")
 	}
 	groupExpr, err := infraResourceInventoryGroupExpression(dimension, filter)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if limit <= 0 || limit > InfraResourceAggregateMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", InfraResourceAggregateMaxLimit+1)
+		return nil, "", fmt.Errorf("limit must be between 1 and %d for internal pagination", InfraResourceAggregateMaxLimit+1)
 	}
 	if offset < 0 {
 		offset = 0
 	}
 	labels, err := resolveInfraLabels(filter.Category)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
+	useReadModel, err := s.readModelServes(ctx, filter, labels)
+	if err != nil {
+		return nil, "", err
+	}
+	if useReadModel {
+		return s.inventoryFromReadModel(ctx, labels, filter, dimension, groupExpr, limit, offset)
+	}
+	s.recordRead(ctx, "inventory", InfraResourceAggregateSourceGraph)
 
 	branchWhere := infraResourceAggregateBranchWhere(filter)
 	params := infraResourceAggregateParams(filter)
@@ -276,18 +303,10 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 		"RETURN bucket, bucket_count")
 	rows, err := s.Graph.Run(ctx, cypher, params)
 	if err != nil {
-		return nil, fmt.Errorf("inventory infra resources: %w", err)
+		return nil, "", fmt.Errorf("inventory infra resources: %w", err)
 	}
-	sorted := sortedInfraResourceAggregateBuckets(mergeInfraResourceAggregateBuckets(rows))
-	out := make([]InfraResourceInventoryRow, 0, limit)
-	for i := offset; i < len(sorted) && len(out) < limit; i++ {
-		out = append(out, InfraResourceInventoryRow{
-			Dimension: dimension,
-			Value:     sorted[i].Bucket,
-			Count:     sorted[i].Count,
-		})
-	}
-	return out, nil
+	return paginateInfraResourceBuckets(mergeInfraResourceAggregateBuckets(rows), dimension, limit, offset),
+		InfraResourceAggregateSourceGraph, nil
 }
 
 // infraResourceAggregateFilterClauses renders the optional indexed-property

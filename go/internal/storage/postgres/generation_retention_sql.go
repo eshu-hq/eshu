@@ -199,6 +199,15 @@ LEFT JOIN content_entities AS entity
  AND entity.entity_id = candidate_entity.entity_id
 GROUP BY candidate.generation_id
 UNION ALL
+SELECT candidate.generation_id, 'infra_resource_entities' AS table_name, COUNT(mirror.entity_id) AS row_count
+FROM generation_retention_row_counts AS candidate
+LEFT JOIN prunable_candidate_entities AS candidate_entity
+  ON candidate_entity.generation_id = candidate.generation_id
+LEFT JOIN infra_resource_entities AS mirror
+  ON mirror.entity_id = candidate_entity.entity_id
+ AND mirror.repo_id = candidate_entity.repo_id
+GROUP BY candidate.generation_id
+UNION ALL
 SELECT candidate.generation_id, 'content_files' AS table_name, COUNT(content_file.relative_path) AS row_count
 FROM generation_retention_row_counts AS candidate
 LEFT JOIN prunable_candidate_files AS file

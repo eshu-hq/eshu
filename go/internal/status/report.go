@@ -6,6 +6,7 @@ package status
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -28,6 +29,7 @@ type RawSnapshot struct {
 	RegistryCollectors    []RegistryCollectorSnapshot
 	AWSCloudScans         []AWSCloudScanStatus
 	AWSFreshness          AWSFreshnessSnapshot
+	InfraInventory        InfraInventorySnapshot
 	VulnerabilitySources  []VulnerabilitySourceState
 	SemanticExtraction    SemanticExtractionStatus
 	AnswerNarration       AnswerNarrationStatus
@@ -142,6 +144,7 @@ type Report struct {
 	RegistryCollectors             []RegistryCollectorSnapshot
 	AWSCloudScans                  []AWSCloudScanStatus
 	AWSFreshness                   AWSFreshnessSnapshot
+	InfraInventory                 InfraInventorySnapshot
 	VulnerabilitySources           []VulnerabilitySourceState
 	SemanticExtraction             SemanticExtractionStatus
 	AnswerNarration                AnswerNarrationStatus
@@ -172,5 +175,64 @@ func DefaultOptions() Options {
 	return Options{
 		StallAfter:  10 * time.Minute,
 		DomainLimit: 5,
+	}
+}
+
+// InfraInventorySnapshot describes the infra read model (#6793): whether
+// unscoped infra aggregate reads use the Postgres table, and if not, why.
+// State is one of not_installed, backfilling, fenced, or ready (see
+// storage/postgres/infra/inventory.FenceState). Reported is false when the
+// reader did not produce the snapshot.
+type InfraInventorySnapshot struct {
+	Reported       bool
+	State          string
+	MarkerPresent  bool
+	DirtyRepos     int64
+	OldestDirtyAge time.Duration
+}
+
+type infraInventoryJSON struct {
+	State                 string  `json:"state"`
+	MarkerPresent         bool    `json:"marker_present"`
+	DirtyRepos            int64   `json:"dirty_repos"`
+	OldestDirtyAge        string  `json:"oldest_dirty_age"`
+	OldestDirtyAgeSeconds float64 `json:"oldest_dirty_age_seconds"`
+	// GraphReason explains, when the state is not ready, why unscoped infra
+	// aggregate reads are served from the graph.
+	GraphReason string `json:"reads_served_from_graph_because,omitempty"`
+}
+
+// infraInventoryGraphReasons maps each non-ready state to its explanation.
+var infraInventoryGraphReasons = map[string]string{
+	"not_installed": "migration 109 is not applied",
+	"backfilling":   "the read model backfill has not finished",
+	"fenced": "a content write from a session without the derive-aware writer setting (an older binary, " +
+		"manual SQL, or a pooler that dropped the setting) left fence marks the reducer has not repaired yet",
+}
+
+func cloneInfraInventorySnapshot(snapshot InfraInventorySnapshot) InfraInventorySnapshot {
+	snapshot.OldestDirtyAge = nonNegativeDuration(snapshot.OldestDirtyAge)
+	return snapshot
+}
+
+func renderInfraInventoryLines(snapshot InfraInventorySnapshot) []string {
+	if !snapshot.Reported {
+		return nil
+	}
+	return []string{fmt.Sprintf("Infra read model: state=%s dirty_repos=%d oldest_dirty=%s",
+		snapshot.State, snapshot.DirtyRepos, snapshot.OldestDirtyAge)}
+}
+
+func infraInventoryJSONFromReport(snapshot InfraInventorySnapshot) *infraInventoryJSON {
+	if !snapshot.Reported {
+		return nil
+	}
+	return &infraInventoryJSON{
+		State:                 snapshot.State,
+		MarkerPresent:         snapshot.MarkerPresent,
+		DirtyRepos:            snapshot.DirtyRepos,
+		OldestDirtyAge:        snapshot.OldestDirtyAge.String(),
+		OldestDirtyAgeSeconds: snapshot.OldestDirtyAge.Seconds(),
+		GraphReason:           infraInventoryGraphReasons[snapshot.State],
 	}
 }

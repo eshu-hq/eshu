@@ -5,16 +5,13 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha1" // #nosec G505 -- non-cryptographic content-addressing digest for body deduplication, not a security primitive
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
@@ -30,6 +27,7 @@ type ContentWriter struct {
 	batchConcurrency int
 	Now              func() time.Time
 	Logger           *slog.Logger
+	instruments      *telemetry.Instruments
 }
 
 // NewContentWriter constructs a Postgres-backed canonical content writer.
@@ -46,6 +44,13 @@ func NewContentWriter(database db.ExecQueryer) ContentWriter {
 // WithLogger returns a copy that emits per-stage write timings to logger.
 func (w ContentWriter) WithLogger(logger *slog.Logger) ContentWriter {
 	w.Logger = logger
+	return w
+}
+
+// WithInstruments returns a copy that records content-writer metrics, such as
+// eshu_dp_infra_inventory_derives_total.
+func (w ContentWriter) WithInstruments(instruments *telemetry.Instruments) ContentWriter {
+	w.instruments = instruments
 	return w
 }
 
@@ -352,6 +357,12 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 		return content.Result{}, err
 	}
 
+	// Mirror the committed content_entities state of every touched path into
+	// the infra read model; see deriveInfraInventory.
+	if err := w.deriveInfraInventory(ctx, cloned); err != nil {
+		return content.Result{}, err
+	}
+
 	return result, nil
 }
 
@@ -403,98 +414,3 @@ func contentBatchCount(rowCount, batchSize int) int {
 // upsertContentFileBatches and upsertContentEntityBatches live in
 // content_writer_upserts.go so this file stays focused on the
 // ContentWriter type, Write, and small helpers.
-
-func fileContentHash(record content.Record) (string, error) {
-	if strings.TrimSpace(record.Digest) != "" {
-		return record.Digest, nil
-	}
-
-	sum := sha1.Sum([]byte(record.Body)) // #nosec G401 -- non-cryptographic body deduplication digest, not a security primitive
-	return hex.EncodeToString(sum[:]), nil
-}
-
-func lineCount(contentText string) int {
-	if contentText == "" {
-		return 0
-	}
-
-	count := strings.Count(contentText, "\n")
-	if strings.HasSuffix(contentText, "\n") {
-		return count
-	}
-
-	return count + 1
-}
-
-func optionalMetadataText(metadata map[string]string, key string) (any, error) {
-	if len(metadata) == 0 {
-		return nil, nil
-	}
-
-	value, ok := metadata[key]
-	if !ok {
-		return nil, nil
-	}
-
-	text := strings.TrimSpace(value)
-	if text == "" {
-		return nil, nil
-	}
-
-	return text, nil
-}
-
-func optionalMetadataBool(metadata map[string]string, key string) (any, error) {
-	if len(metadata) == 0 {
-		return nil, nil
-	}
-
-	value, ok := metadata[key]
-	if !ok {
-		return nil, nil
-	}
-
-	text := strings.TrimSpace(value)
-	if text == "" {
-		return nil, nil
-	}
-
-	parsed, err := strconv.ParseBool(text)
-	if err != nil {
-		return nil, fmt.Errorf("parse %s %q as bool: %w", key, value, err)
-	}
-
-	return parsed, nil
-}
-
-func metadataJSON(metadata map[string]any) ([]byte, error) {
-	if len(metadata) == 0 {
-		return []byte("{}"), nil
-	}
-	return json.Marshal(metadata)
-}
-
-func optionalString(value string) any {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return nil
-	}
-
-	return trimmed
-}
-
-func optionalInt(value *int) any {
-	if value == nil {
-		return nil
-	}
-
-	return *value
-}
-
-func optionalBool(value *bool) any {
-	if value == nil {
-		return nil
-	}
-
-	return *value
-}

@@ -159,6 +159,13 @@ Important env vars:
 - `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE`
 - `ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT`
 - `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT`
+- `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` (default `true`). The loop is also
+  the only thing that repairs rolling-upgrade fence marks; with it off, one
+  write from an older binary or manual SQL keeps unscoped infra aggregate reads
+  on the graph (`eshu_dp_infra_inventory_dirty_repos`, admin status
+  `infra_inventory`).
+- `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` (default `5m`, wait between cycles)
+- `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` (default `500`, repositories per cycle)
 - `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED`
 - `ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL`
 - `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_OWNER`
@@ -210,6 +217,9 @@ Start with:
 - retention histograms: `eshu_dp_generation_retention_duration_seconds`,
   `eshu_dp_generation_retention_batch_size`,
   `eshu_dp_generation_retention_oldest_eligible_age_seconds`
+- infra read model reconcile: `eshu_dp_infra_inventory_reconcile_total{outcome}`,
+  `eshu_dp_infra_inventory_reconcile_duration_seconds`, span
+  `reducer.infra_inventory_reconcile`
 - graph cleanup gauge: `eshu_dp_graph_orphan_nodes`
 - logs: reducer execution result logs and shared projection cycle logs with
   domain, worker, route, row count, and failure class

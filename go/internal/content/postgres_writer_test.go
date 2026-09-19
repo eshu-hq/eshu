@@ -93,6 +93,11 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	// 7 batched statements plus the #5329 stale-entity reap DELETE that runs
 	// after the entity insert for every path with a fresh entity this call
 	// (here, schema.sql).
+	// The fixture tombstones one entity, so the derive runs two transactions:
+	// lock + delete by entity_id, then lock + delete + insert for the paths.
+	if got, want := len(database.txExecs), 5; got != want {
+		t.Fatalf("infra inventory derive statements = %d, want id lock+delete then path lock+delete+insert", got)
+	}
 	if got, want := len(database.execs), 8; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
@@ -262,9 +267,57 @@ func TestPostgresContentWriterRejectsMissingRepoID(t *testing.T) {
 	}
 }
 
+// recordingExecQueryer records non-transactional statements in execs and the
+// infra inventory derive transaction's statements in txExecs, so the exact
+// content statement assertions stay independent of the derive step.
 type recordingExecQueryer struct {
-	execs []recordingExecCall
+	execs   []recordingExecCall
+	txExecs []recordingExecCall
 }
+
+func (f *recordingExecQueryer) Begin(context.Context) (db.Transaction, error) {
+	return recordingTx{parent: f}, nil
+}
+
+type recordingTx struct{ parent *recordingExecQueryer }
+
+func (tx recordingTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	tx.parent.txExecs = append(tx.parent.txExecs, recordingExecCall{query: query, args: args})
+	return recordingResult{}, nil
+}
+
+// QueryContext answers the infra inventory derive lock, which returns the
+// connection's writer session setting; it is recorded with txExecs so the
+// statement counts still see the lock first.
+func (tx recordingTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	if !strings.Contains(query, "pg_advisory_xact_lock") {
+		return nil, context.Canceled
+	}
+	tx.parent.txExecs = append(tx.parent.txExecs, recordingExecCall{query: query, args: args})
+	return &writerSettingRows{}, nil
+}
+
+// writerSettingRows is the derive lock's one-row result: a fenced session.
+type writerSettingRows struct{ read bool }
+
+func (r *writerSettingRows) Next() bool {
+	if r.read {
+		return false
+	}
+	r.read = true
+	return true
+}
+
+func (r *writerSettingRows) Scan(dest ...any) error {
+	*dest[0].(*string) = "derive"
+	return nil
+}
+
+func (r *writerSettingRows) Err() error   { return nil }
+func (r *writerSettingRows) Close() error { return nil }
+
+func (recordingTx) Commit() error   { return nil }
+func (recordingTx) Rollback() error { return nil }
 
 type recordingExecCall struct {
 	query string

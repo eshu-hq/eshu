@@ -40,6 +40,7 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":   {"DirectedRelationshipTypeScan"},
 		"QP-INFRA-RESOURCE-SEARCH":                        {"NodeByLabelScan"},
 		"QP-INFRA-RESOURCE-AGGREGATE":                     {"NodeByLabelScan"},
+		"QP-INFRA-RESOURCE-AGGREGATE-GRAPH":               {"NodeByLabelScan", "NodeIndexSeek"},
 		"unregistered-or-indexed-production-path":         {"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"},
 	}
 	for entryID, want := range tests {
@@ -411,6 +412,8 @@ func queryplanBoundedAnchorOperators(entryID string) []string {
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY",
 		"QP-INFRA-RESOURCE-SEARCH", "QP-INFRA-RESOURCE-AGGREGATE":
 		return []string{"NodeByLabelScan"}
+	case "QP-INFRA-RESOURCE-AGGREGATE-GRAPH":
+		return []string{"NodeByLabelScan", "NodeIndexSeek"}
 	case "QP-RESOURCE-INVESTIGATION-WORKLOADS", "QP-RELATIONSHIPS-EDGES",
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":
 		return []string{"DirectedRelationshipTypeScan"}

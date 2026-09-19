@@ -37,7 +37,7 @@ func TestContentWriterReapsStaleLineKeyedDependencyIDForFivefivezerosevenFormats
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	const repoID = "repository:r_12345678"

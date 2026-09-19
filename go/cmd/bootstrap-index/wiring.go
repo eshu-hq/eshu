@@ -132,6 +132,7 @@ func buildBootstrapProjector(
 		CanonicalWriter: canonicalWriter,
 		ContentWriter: postgres.NewContentWriter(instrumentedDB).
 			WithLogger(logger).
+			WithInstruments(instruments).
 			WithEntityBatchSize(contentConfig.EntityBatchSize),
 		IntentWriter:                  reducerQueue,
 		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(instrumentedDB),

@@ -13,6 +13,8 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	neo4jconfig "github.com/neo4j/neo4j-go-driver/v5/neo4j/config"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
 const (
@@ -180,7 +182,10 @@ func OpenPostgres(ctx context.Context, getenv func(string) string) (*sql.DB, err
 		return nil, err
 	}
 
-	db, err := sql.Open("pgx", cfg.DSN)
+	// Every connection is marked derive-aware: this binary's content_entities
+	// writers keep the infra read model in step, so migration 109's
+	// rolling-upgrade fence must not mark their writes (#6793).
+	db, err := inventory.OpenWriterDB(cfg.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("open postgres connection: %w", err)
 	}

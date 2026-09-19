@@ -27,6 +27,7 @@ const (
 	statusReadRegistryCollectors             = "registry_collectors"
 	statusReadAWSCloudScans                  = "aws_cloud_scans"
 	statusReadAWSFreshness                   = "aws_freshness"
+	statusReadInfraInventory                 = "infra_inventory"
 	statusReadVulnerabilitySources           = "vulnerability_sources"
 	statusReadCollectorFactEvidence          = "collector_fact_evidence"
 	statusReadTerraformState                 = "terraform_state"

@@ -24,6 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -185,6 +186,9 @@ func run(
 	if err != nil {
 		return err
 	}
+	// The fence in migration 109 marks content writes from connections
+	// without the derive-aware writer setting; say loudly if ours lack it.
+	inventory.VerifyWriterSession(ctx, database, logger)
 	defer func() {
 		if closeErr := database.Close(); closeErr != nil {
 			err = errors.Join(err, closeErr)

@@ -41,6 +41,9 @@ func (s Service) startSideRunners(
 	if s.GenerationRetentionRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.GenerationRetentionRunner)
 	}
+	if s.InfraInventoryReconcileRunner != nil {
+		startServiceSideRunner(ctx, wg, recordErr, s.InfraInventoryReconcileRunner)
+	}
 	if s.GenerationLivenessRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.GenerationLivenessRunner)
 	}

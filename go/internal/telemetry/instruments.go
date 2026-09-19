@@ -756,6 +756,43 @@ type Instruments struct {
 	// to widen the cap or move that caller to an all-scopes token, not to treat
 	// the missing rows as absence.
 	QueryScopeGrantInlineCapped metric.Int64Counter
+	// InfraInventoryReads counts unscoped and scoped reads of the infra
+	// resource aggregate routes by which store served them (#6793). Labels:
+	// route (count, inventory) and source (read_model, graph). read_model
+	// means the Postgres infra_resource_entities table served the
+	// content-derived nodes, with one graph pass for the rest;
+	// graph means the full per-label graph path served the read, because the
+	// caller is a scoped token or the table's backfill marker is not recorded
+	// yet. A graph share that does not fall to near zero after a deploy
+	// means the backfill never completed.
+	InfraInventoryReads metric.Int64Counter
+	// InfraInventoryDerives counts content-writer derives of the infra read
+	// model by outcome (#6793): ok, skipped_not_installed (migration 109 not
+	// applied yet; the content Write still succeeds and the backfill covers the
+	// repository later), or error (the content Write fails and retries).
+	InfraInventoryDerives metric.Int64Counter
+	// InfraInventoryBackfillRuns counts background infra read model backfill
+	// attempts by outcome: completed, already_complete, or failed (retried with
+	// backoff). failed without a later completed means readers are still on the
+	// graph path.
+	InfraInventoryBackfillRuns metric.Int64Counter
+	// InfraInventoryReconcile counts repositories the reducer's infra read
+	// model reconcile checked, by outcome: match (table equals
+	// content_entities), repaired (it differed and was re-derived under the
+	// repository lock), or error (the check or repair failed, or the cycle
+	// could not list repositories; retried next cycle). A sustained repaired
+	// rate outside a deploy window means some content writer is not deriving.
+	InfraInventoryReconcile metric.Int64Counter
+	// InfraInventoryReconcileDuration records the wall time of one reconcile
+	// cycle (at most the configured repository budget).
+	InfraInventoryReconcileDuration metric.Float64Histogram
+	// InfraInventoryDirtyRepos records, each reducer reconcile cycle, how many
+	// repositories carry a rolling-upgrade fence mark (#6793). While it is
+	// above zero, unscoped infra aggregate reads stay on the graph.
+	InfraInventoryDirtyRepos metric.Int64Gauge
+	// InfraInventoryDirtyOldestAge records the age of the oldest fence mark at
+	// each reducer reconcile cycle; a growing value means nothing is draining.
+	InfraInventoryDirtyOldestAge metric.Float64Gauge
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
 	// was missing or null (input_invalid). Labels: stage (the projector
@@ -3224,6 +3261,69 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryScopeGrantInlineCapped counter: %w", err)
+	}
+
+	inst.InfraInventoryReads, err = meter.Int64Counter(
+		"eshu_dp_infra_inventory_reads_total",
+		metric.WithDescription(
+			"Total infra resource aggregate reads by route and serving store; "+
+				"source=read_model is the Postgres infra read model, source=graph is the full graph path "+
+				"(scoped tokens, or before the read model backfill marker exists)",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryReads counter: %w", err)
+	}
+
+	inst.InfraInventoryDerives, err = meter.Int64Counter(
+		"eshu_dp_infra_inventory_derives_total",
+		metric.WithDescription("Total content-writer derives of the infra read model by outcome (ok, ok_unfenced_session, skipped_not_installed, error)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryDerives counter: %w", err)
+	}
+
+	inst.InfraInventoryBackfillRuns, err = meter.Int64Counter(
+		"eshu_dp_infra_inventory_backfill_runs_total",
+		metric.WithDescription("Total infra read model backfill attempts by outcome (completed, already_complete, failed)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryBackfillRuns counter: %w", err)
+	}
+
+	inst.InfraInventoryReconcile, err = meter.Int64Counter(
+		"eshu_dp_infra_inventory_reconcile_total",
+		metric.WithDescription("Total repositories checked by the infra read model reconcile, by outcome (match, suspect, repaired, fenced, error)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryReconcile counter: %w", err)
+	}
+
+	inst.InfraInventoryReconcileDuration, err = meter.Float64Histogram(
+		"eshu_dp_infra_inventory_reconcile_duration_seconds",
+		metric.WithDescription("Wall time of one infra read model reconcile cycle"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryReconcileDuration histogram: %w", err)
+	}
+
+	inst.InfraInventoryDirtyRepos, err = meter.Int64Gauge(
+		"eshu_dp_infra_inventory_dirty_repos",
+		metric.WithDescription("Repositories carrying an infra read model fence mark, sampled each reducer reconcile cycle; unscoped infra aggregate reads stay on the graph while above zero"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryDirtyRepos gauge: %w", err)
+	}
+
+	inst.InfraInventoryDirtyOldestAge, err = meter.Float64Gauge(
+		"eshu_dp_infra_inventory_dirty_oldest_age_seconds",
+		metric.WithDescription("Age of the oldest infra read model fence mark, sampled each reducer reconcile cycle"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryDirtyOldestAge gauge: %w", err)
 	}
 
 	inst.QueryK8sSelectCandidateScanTruncated, err = meter.Int64Counter(

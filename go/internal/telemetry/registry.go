@@ -5,6 +5,12 @@ package telemetry
 
 import "slices"
 
+// SpanReducerInfraInventoryReconcile wraps one reducer reconcile cycle of the
+// infra read model (#6793): a bounded, keyset-ordered walk that compares each
+// repository's infra_resource_entities rows with its content_entities rows
+// and re-derives the repositories that differ.
+const SpanReducerInfraInventoryReconcile = "reducer.infra_inventory_reconcile"
+
 var metricDimensionKeys = []string{
 	MetricDimensionScopeKind,
 	MetricDimensionSource,
@@ -175,6 +181,7 @@ var spanNames = []string{
 	SpanPostgresExec,
 	SpanPostgresQuery,
 	SpanNeo4jExecute,
+	SpanReducerInfraInventoryReconcile,
 }
 
 var logKeys = []string{

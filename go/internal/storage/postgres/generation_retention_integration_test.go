@@ -211,6 +211,16 @@ CREATE TABLE content_entities (
     PRIMARY KEY (repo_id, entity_id)
 );
 
+CREATE TABLE shared_projection_unroutable_intents (
+    intent_id TEXT PRIMARY KEY,
+    generation_id TEXT NOT NULL
+);
+
+CREATE TABLE infra_resource_entities (
+    entity_id TEXT PRIMARY KEY,
+    repo_id TEXT NOT NULL
+);
+
 CREATE TABLE content_file_references (
     repo_id TEXT NOT NULL,
     relative_path TEXT NOT NULL,
