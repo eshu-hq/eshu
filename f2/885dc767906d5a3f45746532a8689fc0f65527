@@ -1,0 +1,29 @@
+go/internal/query/queryplan_legacy_production_binding_test.go
+  s_b5f07da5ebaf13::t_167e1dcb472d81 200
+go/internal/query/queryplan_profile_live_test.go
+  s_b5f07da5ebaf13::t_a716c16d1b1992 38,413-414
+go/internal/query/repository/dependency_cluster.go
+  s_b5f07da5ebaf13::t_2bed84e9f2a55f 165
+go/internal/query/repository/dependency_edge_grouped.go
+  s_b5f07da5ebaf13::t_5b0507568f4958 7,19,52-59
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_b5f07da5ebaf13::t_a87643be639cc0 37,975-1001
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_b5f07da5ebaf13::t_29b3f71253f727 10,599,602-604
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f2885dc767906d5a3f45746532a8689fc0f65527",
+  "prompts": {},
+  "sessions": {
+    "s_b5f07da5ebaf13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a95afaee-c156-45ca-bec3-f07a3341492a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
