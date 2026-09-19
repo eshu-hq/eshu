@@ -72,7 +72,7 @@ transport and API request telemetry.
 - [MCP package-registry route selection](../../package/registry/README.md)
 - [MCP relationship registrations](../../relationships/README.md)
 - [MCP secrets/IAM route selection](../../access/posture/README.md)
-- [MCP security-alert reconciliation route selection](../../securityalert/README.md)
+- [MCP security-alert reconciliation route selection](../../alerts/README.md)
 - [MCP supply-chain-impact route selection](../../supply/chain/impact/README.md)
 - [MCP visualization registration and route selection](../../visualization/README.md)
 - [Source layout](../../../../../docs/public/reference/source-layout.md)
