@@ -19,24 +19,34 @@
 # `query/auth_query` fail while `query/auth` passes. Parents that are
 # repo-structure words rather than domain names (`go`, `internal`, `cmd`,
 # `docs`, `scripts`, `specs`, `testdata`, `tests`) are skipped, as are
-# dot-directories (`expected/codex/.codex`: named by the tool, not by us), and
-# so is everything under a `testdata` tree, which holds fixtures that mirror
-# external repositories. A directory is "new" only when it does not exist at
+# dot-directories (`expected/codex/.codex`: named by the tool, not by us).
+# A parent name shorter than four characters only matches as a whole word
+# (`api/api-auth`, `db/db` fail; `git/github`, `db/nornicdb`, `parser/c/cpp`
+# pass): a two- or three-letter parent is routinely the first letters of an
+# unrelated longer word, so prefix matching would flag good nests.
+# Everything at or below a `testdata` or `fixtures` directory is exempt from
+# both checks (see below); the directories above that root are still checked.
+# A directory is "new" only when it does not exist at
 # the merge base (HEAD for --staged), so touching a file inside a legacy
 # stuttering directory never re-flags the directory.
 #
-# The file rule is exact-word on `_`/`-` separated segments, not stemming:
-# `satisfied_by_intents.go` under `satisfaction/` does NOT flag
-# (`satisfied` != `satisfaction`). Comparison is case-insensitive. Exemptions,
-# each idiomatic rather than stutter:
+# The file rule is exact-word, not stemming: `-` and `_` are the same
+# separator, and the leaf directory's words must appear as a contiguous run of
+# the stem's words. `run-locally/run-locally-compose.md` and
+# `ci_gates/ci_gates_extra.sh` fail; `satisfied_by_intents.go` under
+# `satisfaction/` does NOT flag (`satisfied` != `satisfaction`). Comparison is
+# case-insensitive, extension included. Exemptions, each idiomatic rather than
+# stutter:
 #   - stem == leaf dir (`catalog/catalog.go`, `openapi/openapi.yaml`): the
 #     package-root or same-named front-door file.
 #   - README.md, AGENTS.md, CLAUDE.md: conventional names that GitHub and
 #     agent harnesses look up by name; CLAUDE.md is byte-identical to
 #     AGENTS.md.
 #   - doc.go: the godoc file, named by the toolchain.
-#   - non-Go files under a `testdata` tree: fixtures copied from or shaped
-#     like external repos. Go files there keep their pre-#6821 behaviour.
+#   - non-Go files at or below a `testdata` or `fixtures` directory, and
+#     every directory there: fixture corpora mirror third-party language
+#     conventions (Ruby `*_test.rb`, pytest `test_*.py`, Dart `*_test.dart`)
+#     that we do not control. Go files there keep their pre-#6821 behaviour.
 # Only newly introduced names are checked -- Added and Renamed destinations --
 # so legacy family conventions (`correlation/rules/*_rules.go`,
 # `parser/elixir/engine_elixir_*`, `cmd/*` binary prefixes, the legacy
@@ -129,14 +139,14 @@ case "$mode" in
   files) printf '%s\0' "${paths[@]}" >"$candidates_file" ;;
 esac
 
-# Collect candidate repo-relative paths, one per line.
-list_candidates() {
-  cat "$candidates_file"
-}
-
-lower() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
-}
+# Lowercase the whole NUL-delimited candidate list with ONE tr instead of a
+# fork per path: the gate scans every added path of a PR, and a fork per path
+# costs ~22ms each on macOS. ASCII-only (C locale) keeps byte lengths and NUL
+# field boundaries identical to the original list, so the two files are read
+# in lockstep below and diagnostics keep each path's original case.
+lower_file="$(mktemp)"
+trap 'rm -f "$candidates_file" "$lower_file"' EXIT
+LC_ALL=C tr 'A-Z' 'a-z' <"$candidates_file" >"$lower_file"
 
 # Parents that are repo-structure words, not domain names; a child repeating
 # them (`internal/internalapi`) is not the glued-compound smell rule 3 targets.
@@ -159,34 +169,55 @@ dir_is_new() {
 seen_dirs=$'\n'
 failures=0
 
-# check_dirs <path> <lowercased path>: rule 3 over every directory component.
-# Adds one diagnostic and one failure per newly introduced stuttering
-# directory. Builtins only: the gate scans every added path of a PR, so a
-# fork per path component would make a large move slow.
+# is_fixture_root <lowercased component>: directories that hold fixture
+# corpora; the component and everything below it is exempt.
+is_fixture_root() {
+  case "$1" in
+    testdata | fixtures) return 0 ;;
+  esac
+  return 1
+}
+
+# dir_stutters <lowercased name> <lowercased parent>: rule 3 text match.
+# A parent of four or more characters matches as a prefix or suffix of the
+# name; a shorter parent only as a whole `_`/`-` separated word.
+dir_stutters() {
+  local name="${1//-/_}" parent="${2//-/_}"
+  if [ "${#parent}" -ge 4 ]; then
+    [[ "$name" == "$parent"* || "$name" == *"$parent" ]]
+  else
+    case "_${name}_" in *"_${parent}_"*) return 0 ;; esac
+    return 1
+  fi
+}
+
+# check_dirs <path> <lowercased path>: rule 3 over every directory component
+# above any fixture root. Adds one diagnostic and one failure per newly
+# introduced stuttering directory. Builtins only in the scan loop.
 check_dirs() {
   local path="$1" lpath="$2" dir="" name="" parent="" lname="" lparent="" i
   local parts lparts
-  case "/$path/" in */testdata/*) return 0 ;; esac
   case "$path" in */*) ;; *) return 0 ;; esac
   IFS='/' read -r -a parts <<<"${path%/*}"
   IFS='/' read -r -a lparts <<<"${lpath%/*}"
   for ((i = 0; i < ${#parts[@]}; i++)); do
     name="${parts[$i]}"
+    lname="${lparts[$i]}"
+    # The fixture root and everything below it is exempt; the ancestors above
+    # it were already checked by earlier iterations.
+    is_fixture_root "$lname" && return 0
     if [ "$i" = 0 ]; then
       dir="$name"
       continue
     fi
     parent="${parts[$((i - 1))]}"
     dir="$dir/$name"
-    lname="${lparts[$i]}"
     lparent="${lparts[$((i - 1))]}"
     exempt_parent "$lparent" && continue
     # Dot-directories are named by external tools (`.codex`, `.aider`,
     # `.github`), not by us, so the parent-name overlap is not glue.
     case "$name" in .*) continue ;; esac
-    if [[ "$lname" != "$lparent"* && "$lname" != *"$lparent" ]]; then
-      continue
-    fi
+    dir_stutters "$lname" "$lparent" || continue
     case "$seen_dirs" in *$'\n'"$dir"$'\n'*) continue ;; esac
     seen_dirs="$seen_dirs$dir"$'\n'
     if dir_is_new "$dir"; then
@@ -198,61 +229,64 @@ check_dirs() {
 
 # check_file <path> <lowercased path>: rule 2 for one path, any file type.
 check_file() {
-  local path="$1" lpath="$2" file base lbase ldir lleaf segment
-  local segments
+  local path="$1" lpath="$2" file lfile lbase ldir lleaf
   case "$path" in */*) ;; *) return 0 ;; esac
   file="${path##*/}"
+  lfile="${lpath##*/}"
   ldir="${lpath%/*}"
   lleaf="${ldir##*/}"
   case "$file" in
     README.md | AGENTS.md | CLAUDE.md | doc.go) return 0 ;;
   esac
   # Strip one extension (dotfiles and extensionless names keep theirs), then
-  # a Go test suffix.
-  base="$file"
-  case "$file" in
-    ?*.*) base="${file%.*}" ;;
+  # a Go test suffix. Done on the lowercased name so `.PNG` strips too.
+  lbase="$lfile"
+  case "$lfile" in
+    ?*.*) lbase="${lfile%.*}" ;;
   esac
-  case "$file" in
-    *.go) base="${base%_test}" ;;
-    *) case "/$path/" in */testdata/*) return 0 ;; esac ;;
+  case "$lfile" in
+    *.go) lbase="${lbase%_test}" ;;
+    *) case "/$lpath/" in */testdata/* | */fixtures/*) return 0 ;; esac ;;
   esac
-  lbase="${lpath##*/}"
-  lbase="${lbase%"${file#"$base"}"}"
+  # `-` and `_` are one separator.
+  lbase="${lbase//-/_}"
+  lleaf="${lleaf//-/_}"
   # Idiomatic package-root file: catalog/catalog.go is the package's own
   # front door, not stutter.
   if [ "$lbase" = "$lleaf" ]; then
     return 0
   fi
-  IFS='_-' read -r -a segments <<<"$lbase"
-  for segment in "${segments[@]}"; do
-    if [ "$segment" = "$lleaf" ]; then
-      printf 'filename-stutter: %s repeats directory %s\n' "$path" "$(basename "${path%/*}")" >&2
+  # The leaf's words repeat as a contiguous run of the stem's words.
+  case "_${lbase}_" in
+    *"_${lleaf}_"*)
+      printf 'filename-stutter: %s repeats directory %s\n' "$path" "${ldir##*/}" >&2
       failures=$((failures + 1))
-      return 0
-    fi
-  done
+      ;;
+  esac
 }
 
-while IFS= read -r -d '' status; do
+exec 3<"$candidates_file" 4<"$lower_file"
+while IFS= read -r -d '' status <&3; do
+  IFS= read -r -d '' lstatus <&4
   path="$status"
+  lpath="$lstatus"
   case "$mode" in
     staged | range | default)
       # --name-status -z emits <status>\0<path>\0, or for renames
       # <status>\0<old>\0<new>\0: the destination (last field) is the
       # introduced name.
       if [[ "$status" =~ ^R ]]; then
-        IFS= read -r -d '' _old
-        IFS= read -r -d '' path
-      else
-        IFS= read -r -d '' path
+        IFS= read -r -d '' _old <&3
+        IFS= read -r -d '' _lold <&4
       fi
+      IFS= read -r -d '' path <&3
+      IFS= read -r -d '' lpath <&4
       ;;
   esac
-  lpath="$(lower "$path")"
   check_dirs "$path" "$lpath"
   check_file "$path" "$lpath"
-done < <(list_candidates)
+done
+exec 3<&- 4<&-
 
 if [ "$failures" != "0" ]; then
   printf 'filename-stutter: %d offending path(s) (naming rules 2 and 3: never repeat the directory name in a file name, never glue a directory name onto its parent'"'"'s)\n' "$failures" >&2

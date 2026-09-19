@@ -11,8 +11,19 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 gate="${script_dir}/verify-filename-stutter.sh"
 failures=0
 
-tmp_roots=()
-trap 'rm -rf "${tmp_roots[@]}" 2>/dev/null || true' EXIT
+# new_repo runs inside $(...), so it cannot grow a shell array in this shell.
+# Every temp repo is recorded in a file instead, and the EXIT trap removes
+# them all; the array form leaked every repo and tripped set -u under
+# bash 3.2 at exit.
+tmp_list="$(mktemp)"
+cleanup() {
+  local d
+  while IFS= read -r d; do
+    [ -n "$d" ] && rm -rf "$d"
+  done <"$tmp_list"
+  rm -f "$tmp_list"
+}
+trap cleanup EXIT
 
 check() {
   # $1 = case name, $2 = expected exit (0|1), $3 = actual exit
@@ -27,7 +38,7 @@ check() {
 new_repo() {
   local dir
   dir="$(mktemp -d)"
-  tmp_roots+=("$dir")
+  printf '%s\n' "$dir" >>"$tmp_list"
   git -C "$dir" init -q
   git -C "$dir" config user.email test@example.test
   git -C "$dir" config user.name "Test"
@@ -350,6 +361,88 @@ rc="$(run_gate --files docs/internal/evidence/6821-evidence.md)"
 check "--files stuttering non-Go file is RED" 1 "$rc"
 rc="$(run_gate --files go/internal/query/auth/handler.go)"
 check "--files clean nested path is GREEN" 0 "$rc"
+
+# ---------------------------------------------------------------------------
+# Review round 1 (#6821): compound directory names, default-mode directory
+# RED, fixture roots, ancestors of fixture roots, case, short parents.
+# ---------------------------------------------------------------------------
+
+# F1: a leaf directory that itself contains - or _ must still match when the
+# stem repeats it as a contiguous run of words.
+stage_case "hyphenated leaf repeated in stem is RED" 1 docs/public/run-locally/run-locally-compose.md
+stage_case "underscored leaf repeated in stem is RED" 1 scripts/ci_gates/ci_gates_extra.sh
+stage_case "hyphenated leaf repeated with underscores is RED" 1 docs/public/run-locally/run_locally_compose.md
+stage_case "leaf run in the middle of the stem is RED" 1 docs/public/run-locally/x-run-locally-y.md
+stage_case "hyphenated leaf with a partial run is GREEN" 0 docs/public/run-locally/run-compose.md
+stage_case "hyphenated leaf split around another word is GREEN" 0 docs/public/run-locally/run-fast-locally.md
+stage_case "stem equal to a hyphenated leaf is GREEN" 0 docs/public/run-locally/run-locally.md
+stage_case "stem equal to leaf across hyphen and underscore is GREEN" 0 docs/public/run-locally/run_locally.md
+
+# F2: default mode (the make pre-push path) must catch a COMMITTED new
+# stuttering directory, not only staged ones.
+repo23="$(new_repo)"
+export ESHU_STUTTER_REPO_ROOT="$repo23"
+mkdir -p "$repo23/go/internal/query/auth"
+printf 'package auth\n' > "$repo23/go/internal/query/auth/a.go"
+git -C "$repo23" add -A && git -C "$repo23" commit -qm base
+mkdir -p "$repo23/go/internal/query/queryauth"
+printf 'package queryauth\n' > "$repo23/go/internal/query/queryauth/a.go"
+git -C "$repo23" add -A && git -C "$repo23" commit -qm stutter
+export ESHU_STUTTER_UPSTREAM="HEAD~1"
+rc="$(run_gate)"
+check "default mode over a committed new stuttering dir is RED" 1 "$rc"
+unset ESHU_STUTTER_UPSTREAM
+
+# F3: fixture corpora mirror third-party conventions (Ruby *_test.rb, pytest
+# test_*.py, Dart *_test.dart), so a `fixtures` component exempts like
+# `testdata` does.
+stage_case "non-Go file under tests/fixtures is exempt" 0 tests/fixtures/ruby_app/test/user_test.rb
+stage_case "pytest file under nested fixtures is exempt" 0 go/internal/parser/fixtures/py/test/test_api.py
+stage_case "stuttering dir under tests/fixtures is exempt" 0 tests/fixtures/dogfood/dartrepo/dartrepo_core/a.dart
+stage_case "stuttering dir under a nested fixtures root is exempt" 0 go/internal/parser/fixtures/query/queryauth/a.txt
+stage_case "Go file under fixtures is still checked" 1 go/internal/parser/fixtures/entity/entity_checks.go
+
+# F4: the fixture skip covers the root and everything below it, never the
+# directories above it.
+stage_case "stuttering dir above testdata is RED" 1 go/internal/query/queryauth/testdata/x.json
+stage_case "stuttering dir above fixtures is RED" 1 go/internal/query/queryauth/fixtures/x.json
+stage_case "stuttering dir above testdata with a Go file is RED" 1 go/internal/query/queryauth/testdata/fixture.go
+
+# F7: extensions compare case-insensitively.
+stage_case "uppercase extension stutter is RED" 1 docs/public/images/logo-images.PNG
+stage_case "uppercase Go extension stutter is RED" 1 go/internal/entity/entity_checks.GO
+
+# F9: a short parent only matches as a whole word, so tool and language names
+# that merely start with it are fine nests; a real repeat still fails.
+stage_case "short parent as prefix of a longer word is GREEN (git/github)" 0 docs/internal/git/github/a.md
+stage_case "short parent as prefix (parser/c/cpp) is GREEN" 0 go/internal/parser/c/cpp/a.go
+stage_case "short parent as prefix (db/nornicdb) is GREEN" 0 go/internal/db/nornicdb/a.go
+stage_case "short parent as suffix (net/dotnet) is GREEN" 0 go/internal/net/dotnet/a.go
+stage_case "short parent as whole word prefix (api/api-auth) is RED" 1 go/internal/api/api-auth/a.go
+stage_case "short parent as whole word suffix (api/auth_api) is RED" 1 go/internal/api/auth_api/a.go
+stage_case "short parent repeated exactly (db/db) is RED" 1 go/internal/db/db/a.go
+stage_case "parent of exactly four letters still prefix-matches" 1 go/internal/repo/repoauth/a.go
+
+# Bulk lowercasing must keep path fields aligned across renames and
+# multi-file batches (uppercase directory, rename, unrelated adds in one run).
+repo24="$(new_repo)"
+mkdir -p "$repo24/go/internal/Query/Auth"
+printf 'x\n' > "$repo24/go/internal/Query/Auth/A.go"
+export ESHU_STUTTER_REPO_ROOT="$repo24"
+git -C "$repo24" add -A && git -C "$repo24" commit -qm base
+mkdir -p "$repo24/go/internal/Query/QueryAuth" "$repo24/docs/Clean"
+git -C "$repo24" mv go/internal/Query/Auth/A.go go/internal/Query/QueryAuth/A.go
+printf 'x\n' > "$repo24/docs/Clean/Notes.md"
+git -C "$repo24" add -A
+set +e
+out="$(bash "$gate" --staged 2>&1)"
+rc=$?
+set -e
+check "mixed-case rename batch is RED" 1 "$rc"
+case "$out" in
+  *go/internal/Query/QueryAuth*) printf 'ok   diagnostic keeps original path case\n' ;;
+  *) printf 'FAIL diagnostic keeps original path case: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
+esac
 
 if [ "$failures" != "0" ]; then
   printf 'test-verify-filename-stutter: %d case(s) failed\n' "$failures" >&2

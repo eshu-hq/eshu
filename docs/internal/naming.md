@@ -35,14 +35,26 @@ refactored today.
    Rules 2 and 3 are enforced for new paths by
    `scripts/verify-filename-stutter.sh` (pre-commit `filename-stutter` hook
    and the Agent hygiene gate in CI). It checks only Added and Renamed paths,
-   so legacy names never block unrelated work: a file of any type whose name
-   repeats its directory fails, and so does a newly introduced directory
-   whose name starts or ends with its parent's (`query/queryauth` fails,
-   `query/auth` passes). Both compare case-insensitively; `README.md`,
-   `AGENTS.md`, `CLAUDE.md`, `doc.go`, a file named for its own directory,
-   and `testdata` fixture trees are exempt, as are the structural parents
-   `go`, `internal`, `cmd`, `docs`, `scripts`, `specs`, `testdata`, and
-   `tests`.
+   so legacy names never block unrelated work.
+
+   - **Files, any type.** A file fails when its stem repeats its directory's
+     words as a contiguous run, treating `-` and `_` alike and ignoring case
+     and extension case: `run-locally/run-locally-compose.md` and
+     `evidence/6821-evidence.md` fail. Tool-conventional names that repeat
+     the directory are flagged too, so use the plain name: new Compose files
+     belong at `compose/compose.yaml`, not `compose/docker-compose.yml`.
+   - **Directories.** A newly introduced directory fails when its name
+     starts or ends with its parent's (`query/queryauth` fails, `query/auth`
+     passes). A parent shorter than four characters only matches as a whole
+     word (`api/api-auth` fails; `git/github` and `parser/c/cpp` pass).
+   - **Exempt.** `README.md`, `AGENTS.md`, `CLAUDE.md`, `doc.go`, a file
+     named for its own directory, dot-directories such as `.codex`, and the
+     structural parents `go`, `internal`, `cmd`, `docs`, `scripts`, `specs`,
+     `testdata`, and `tests`. Every directory at or below a `testdata` or
+     `fixtures` root is exempt, and so is every non-Go file there, because
+     fixture corpora mirror third-party conventions (`*_test.rb`,
+     `test_*.py`). Directories above such a root are still checked, and Go
+     files under it keep the file rule.
 5. **Refactors must leave names better than they found them.** When moving
    code, apply all four rules to every touched path — do not carry a glued or
    stuttering name into its new home. A move that preserves unreadable names
