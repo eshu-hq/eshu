@@ -136,8 +136,9 @@ below explains was kept over a page-scoped alternative), and `authz_test.go`
 (updated to reflect that `is_dependency` is now edge-derived, not a fake
 row field).
 
-`go test ./internal/query/... -count=1` => 5069 passed, 0 failed (at commit
-f968d8991, the current head of this evidence's fixes).
+`go test ./internal/query/... -count=1 -json` => 9631 test and subtest
+results passed, 0 failed (after the rebase onto origin/main `59c605e48`,
+including the #6800 probe integration).
 `go vet ./internal/query/... ./internal/queryplan/...` => clean.
 `gofumpt -l` on every changed file => no output.
 
@@ -145,7 +146,7 @@ f968d8991, the current head of this evidence's fixes).
 
 *(Rewritten for review finding F4: the original text below predated the
 degradation-disclosure and truncation-detection work and understated the
-current LIMIT. This paragraph reflects head at commit f968d8991.)*
+current LIMIT. This paragraph reflects the branch after the rebase onto `59c605e48`.)*
 
 No-Regression Evidence: this is a correctness fix, not a performance
 optimization, so the acceptance bar is "no regression" on the touched
@@ -220,7 +221,7 @@ same statement this branch already measured above.
 
 ## Observability Evidence
 
-*(Rewritten for review finding F4 to match head at commit f968d8991.)*
+*(Rewritten for review finding F4; current as of the rebase onto `59c605e48`.)*
 
 The repository list's existing `repository_query.stage_started` /
 `repository_query.stage_completed` log events for
