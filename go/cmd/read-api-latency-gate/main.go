@@ -108,7 +108,7 @@ func run(opts runOptions) error {
 		return err
 	}
 	if readModelInstalled {
-		if err := assertInfraServedFromReadModel(ctx, opts.apiBaseURL, opts.apiKey, opts.requestTimeout); err != nil {
+		if err := assertInfraServedFromReadModel(ctx, opts.apiBaseURL, opts.apiKey, opts.requestTimeout, os.Stderr); err != nil {
 			return err
 		}
 		fmt.Fprintln(os.Stderr, "read-api-latency-gate: infra routes report truth.basis hybrid/content_index (served from the read model)")
@@ -266,6 +266,9 @@ func seed(ctx context.Context, opts runOptions) error {
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding content_entities rows mirroring the %d content-derived infra labels and the IaC nodes\n", len(contentDerivedInfraLabels()))
 	if err := SeedInfraContentEntities(ctx, pool, opts.nodesPerLabel, iacFacts, time.Now().UTC()); err != nil {
 		return fmt.Errorf("seed infra content_entities: %w", err)
+	}
+	if err := MarkOwnerLedgerBackfillComplete(ctx, pool, time.Now().UTC()); err != nil {
+		return err
 	}
 	if err := VerifyContentEntityCounts(ctx, pool, expectedContentEntityCounts(opts.nodesPerLabel, iacFacts)); err != nil {
 		return fmt.Errorf("verify seeded content_entities: %w", err)

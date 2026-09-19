@@ -150,18 +150,21 @@ func seedIaCGraphLabelNodes(ctx context.Context, driver neo4j.DriverWithContext,
 // the property values are computed in Go: see bulkNodeRanges and infraNodeRows
 // for the two NornicDB behaviors that make Cypher-side computation wrong.
 func seedLabel(ctx context.Context, driver neo4j.DriverWithContext, database, label string, count int) error {
-	cypher := fmt.Sprintf(
-		`UNWIND $rows AS row
-		 CREATE (n:%s {
-		   id: row.id,
+	props := `id: row.id,
 		   provider: row.provider,
 		   environment: row.environment,
-		   source_system: row.source_system
-		 })`,
-		label,
-	)
+		   source_system: row.source_system`
+	batch := bulkGraphSeedBatchSize
+	if infraLabelNeedsIdentity(label) {
+		props += `,
+		   uid: row.uid,
+		   resource_type: row.resource_type,
+		   source_fact_id: row.source_fact_id`
+		batch = iacGraphSeedBatchSize
+	}
+	cypher := fmt.Sprintf("UNWIND $rows AS row\n\t\t CREATE (n:%s {\n\t\t   %s\n\t\t })", label, props)
 
-	for _, r := range bulkNodeRanges(count, bulkGraphSeedBatchSize) {
+	for _, r := range bulkNodeRanges(count, batch) {
 		if err := runSeedBatch(ctx, driver, database, cypher, map[string]any{"rows": infraNodeRows(label, r)}); err != nil {
 			return fmt.Errorf("nodes %d..%d: %w", r.First, r.Last, err)
 		}

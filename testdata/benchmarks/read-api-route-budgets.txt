@@ -53,7 +53,16 @@
 # counter (NornicDB exposes none this gate can read), so infra/resources/* are
 # guarded by their latency ceiling only. (2) domainBacklogQuery (a #6794
 # sub-mechanism) scans shared_projection_intents, which this seed does not
-# populate, so no budget here can see it; that gap is tracked in #6820. (3) A retracted claim: earlier revisions of this header said the
+# populate, so no budget here can see it; that gap is tracked in #6820. (4) The
+# graph-only labels (CloudResource, TerraformStateResource) are still a whole-label
+# graph scan for /infra/resources/count even when the read model serves the rest:
+# 8.28s on a cold first hit at 150k nodes per label, tracked in #6843; the sweep's
+# discarded warmup requests keep that cold hit out of the measured p95.
+#
+# KNOWN-TIGHT: /api/v0/iac/resources measured 1.23s to 2.07s against its 2s
+# ceiling across three local runs with the real graph. The ceiling is not loosened;
+# the route's work budget guards it, and moving it off the graph is #6793's
+# follow-up work. (3) A retracted claim: earlier revisions of this header said the
 # infra graph was seeded with 150k nodes per label and measured well under
 # 100ms. The bulk seed in fact created ONE node per label (NornicDB evaluates
 # range(0, $count - 1) with a parameter bound as a single element; see

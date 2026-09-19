@@ -23,6 +23,16 @@ func seedInfraID(label string, i int) string {
 	return fmt.Sprintf("%s-seed-%d", label, i)
 }
 
+// infraLabelNeedsIdentity reports whether a label's seeded nodes must carry a
+// real node identity (uid, resource_type, source_fact_id). CloudResource does:
+// eshu-api's startup owner-ledger backfill pages every CloudResource node and
+// rejects one missing any of them, which fails API startup. The label also has a
+// uid UNIQUE constraint in the graph schema, so its nodes are written in the
+// small batches constrained labels need (see iacGraphSeedBatchSize).
+func infraLabelNeedsIdentity(label string) bool {
+	return label == "CloudResource"
+}
+
 // infraNodeRows builds the parameter rows for one bulk CREATE batch covering
 // the inclusive index range r. Every value is computed here: NornicDB stores a
 // Cypher expression inside a CREATE property map as literal text, so a CASE
@@ -30,12 +40,18 @@ func seedInfraID(label string, i int) string {
 func infraNodeRows(label string, r idRange) []map[string]any {
 	rows := make([]map[string]any, 0, r.Last-r.First+1)
 	for i := r.First; i <= r.Last; i++ {
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"id":            seedInfraID(label, i),
 			"provider":      seedProvider(i),
 			"environment":   seedEnvironment(i),
 			"source_system": label,
-		})
+		}
+		if infraLabelNeedsIdentity(label) {
+			row["uid"] = seedInfraID(label, i)
+			row["resource_type"] = "aws_instance"
+			row["source_fact_id"] = fmt.Sprintf("seed-fact-%d", i)
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }

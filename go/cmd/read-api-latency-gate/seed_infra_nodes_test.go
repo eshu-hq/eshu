@@ -50,3 +50,34 @@ func TestInfraNodeRowsUseTheSharedSeedIdentity(t *testing.T) {
 		}
 	}
 }
+
+// TestCloudResourceNodesCarryTheIdentityTheOwnerLedgerBackfillRequires guards a
+// startup failure found the first time eshu-api ran AFTER the seed (issue
+// #6797): its owner-ledger backfill pages every CloudResource node and rejects
+// one with an empty uid, resource_type, or source_fact_id
+// (go/internal/query/cloud_resource_owner_backfill.go), killing the API with
+// "wire api failed". A real CloudResource node has all three.
+func TestCloudResourceNodesCarryTheIdentityTheOwnerLedgerBackfillRequires(t *testing.T) {
+	rows := infraNodeRows("CloudResource", idRange{First: 0, Last: 9})
+
+	uids := map[string]bool{}
+	for i, r := range rows {
+		for _, key := range []string{"uid", "resource_type", "source_fact_id"} {
+			if v, _ := r[key].(string); v == "" {
+				t.Errorf("rows[%d][%q] is empty: the API's startup backfill rejects that node", i, key)
+			}
+		}
+		uids[r["uid"].(string)] = true
+	}
+	if len(uids) != len(rows) {
+		t.Errorf("distinct uids = %d, want %d: CloudResource carries a uid UNIQUE constraint", len(uids), len(rows))
+	}
+}
+
+func TestOnlyCloudResourceNeedsBackfillIdentity(t *testing.T) {
+	for _, label := range infraLabels {
+		if got, want := infraLabelNeedsIdentity(label), label == "CloudResource"; got != want {
+			t.Errorf("infraLabelNeedsIdentity(%q) = %v, want %v", label, got, want)
+		}
+	}
+}

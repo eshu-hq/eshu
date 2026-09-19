@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -103,5 +104,19 @@ func TestExpectedContentEntityCountsAgreeWithTheGraphForContentLabels(t *testing
 	}
 	if content["TerraformResource"] != 110 {
 		t.Errorf("TerraformResource content count = %d, want 110 (100 bulk + 10 correlated)", content["TerraformResource"])
+	}
+}
+
+// TestOwnerLedgerMarkerTargetsTheBackfillStateTable pins the two literals the
+// marker shares with go/internal/storage/postgres/graph_node_owner_backfill_store.go
+// (an unexported key and SQL there), since the gate cannot import them.
+func TestOwnerLedgerMarkerTargetsTheBackfillStateTable(t *testing.T) {
+	if ownerLedgerBackfillKey != "cloud_resource_owner:v1" {
+		t.Errorf("key = %q, want cloud_resource_owner:v1", ownerLedgerBackfillKey)
+	}
+	for _, want := range []string{"graph_node_owner_backfill_state", "backfill_key", "completed_at", "ON CONFLICT (backfill_key) DO NOTHING"} {
+		if !strings.Contains(ownerLedgerBackfillMarkSQL, want) {
+			t.Errorf("marker SQL does not contain %q", want)
+		}
 	}
 }

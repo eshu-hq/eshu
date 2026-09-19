@@ -26,10 +26,10 @@ var infraTruthRoutes = []string{
 // is still marked dirty; sweeping then would measure the old path. This is more
 // direct than inferring the store from latency. The sweep itself keeps plain
 // requests.
-func assertInfraServedFromReadModel(ctx context.Context, baseURL, apiKey string, timeout time.Duration) error {
+func assertInfraServedFromReadModel(ctx context.Context, baseURL, apiKey string, timeout time.Duration, log io.Writer) error {
 	client := &http.Client{Timeout: timeout}
 	for _, route := range infraTruthRoutes {
-		basis, err := infraTruthBasis(ctx, client, baseURL+route, apiKey)
+		basis, err := infraTruthBasisWithRetry(ctx, client, baseURL+route, apiKey, log)
 		if err != nil {
 			return fmt.Errorf("infra read model check %s: %w", route, err)
 		}
@@ -40,28 +40,51 @@ func assertInfraServedFromReadModel(ctx context.Context, baseURL, apiKey string,
 	return nil
 }
 
-func infraTruthBasis(ctx context.Context, client *http.Client, url, apiKey string) (string, error) {
+// infraTruthAttempts bounds how often a 5xx from an infra route is retried.
+// The check asks which store served the route, not how fast: on a cold
+// NornicDB the count route's graph pass for the graph-only labels took 8.3s
+// against the API's 10s deadline, so a FIRST request can 504 while the next
+// succeeds. A wrong basis is never retried; that is the finding.
+const infraTruthAttempts = 3
+
+func infraTruthBasisWithRetry(ctx context.Context, client *http.Client, url, apiKey string, log io.Writer) (string, error) {
+	var lastErr error
+	for attempt := 1; attempt <= infraTruthAttempts; attempt++ {
+		basis, status, err := infraTruthBasis(ctx, client, url, apiKey)
+		if err == nil {
+			return basis, nil
+		}
+		lastErr = err
+		if status < 500 {
+			return "", err
+		}
+		_, _ = fmt.Fprintf(log, "read-api-latency-gate: infra read model check attempt %d/%d failed: %v\n", attempt, infraTruthAttempts, err)
+	}
+	return "", lastErr
+}
+
+func infraTruthBasis(ctx context.Context, client *http.Client, url, apiKey string) (string, int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return "", fmt.Errorf("build request: %w", err)
+		return "", 0, fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Accept", "application/eshu.envelope+json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("request: %w", err)
+		return "", 0, fmt.Errorf("request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return "", fmt.Errorf("read body: %w", err)
+		return "", resp.StatusCode, fmt.Errorf("read body: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		snippet := string(body)
 		if len(snippet) > hardFailedBodyCap {
 			snippet = snippet[:hardFailedBodyCap]
 		}
-		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, snippet)
+		return "", resp.StatusCode, fmt.Errorf("HTTP %d: %s", resp.StatusCode, snippet)
 	}
 	var envelope struct {
 		Truth *struct {
@@ -69,10 +92,10 @@ func infraTruthBasis(ctx context.Context, client *http.Client, url, apiKey strin
 		} `json:"truth"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return "", fmt.Errorf("decode envelope: %w", err)
+		return "", resp.StatusCode, fmt.Errorf("decode envelope: %w", err)
 	}
 	if envelope.Truth == nil {
-		return "", fmt.Errorf("response has no truth envelope")
+		return "", resp.StatusCode, fmt.Errorf("response has no truth envelope")
 	}
-	return envelope.Truth.Basis, nil
+	return envelope.Truth.Basis, resp.StatusCode, nil
 }

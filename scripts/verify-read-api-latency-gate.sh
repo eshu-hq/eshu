@@ -276,7 +276,7 @@ if command -v lsof >/dev/null 2>&1; then
 	lsof -p "${api_pid}" 2>/dev/null | grep -E 'txt|TEXT' || echo "lsof reported no txt mapping for pid ${api_pid}"
 fi
 api_ready=false
-for _ in $(seq 1 60); do
+for _ in $(seq 1 240); do
 	if curl -fsS "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1; then
 		api_ready=true
 		break
