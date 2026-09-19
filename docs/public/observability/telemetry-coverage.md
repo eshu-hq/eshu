@@ -7,12 +7,7 @@ source tree without a corresponding entry here fails the coverage gate. The
 five evidence markers policy (`Performance Evidence:`, `Benchmark Evidence:`,
 `No-Regression Evidence:`, `Observability Evidence:`, `No-Observability-Change:`)
 at `docs/internal/agent-guide.md:120-146` remains the per-PR discipline; this
-doc makes that discipline machine-enforced. Historical precedent lives in
-[#3633](https://github.com/eshu-hq/eshu/issues/3633) (closed 2026-06-23),
-which proved defined-but-never-registered instruments are a real failure
-class; in-flight adoption is [#3680](https://github.com/eshu-hq/eshu/issues/3680)
-(open, 2026-06-24), which lands per-collector envelope telemetry at the
-shared claimed-service dispatch seam. Metric names match
+doc makes that discipline machine-enforced. Metric names match
 `go/internal/telemetry/instruments.go`; dimensions, span names, and log keys
 match `go/internal/telemetry/contract.go` and its `contract_*.go` siblings.
 The public operator contract is `docs/public/reference/telemetry/index.md`.
@@ -118,6 +113,7 @@ or marker that already diagnoses it.
 | security-alert manifest dependency match | go/internal/reducer/packages/correlation/security_alert_manifest_dependency_match.go | No-Observability-Change: pure case-insensitive name matching between a security alert and a manifest dependency (moved unchanged with the family, #6061); it branches on nothing an instrument could record and emits no signal, and the owning pass stays covered by `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds` | reducer runtime |
 | package-correlation typed payload helpers | go/internal/reducer/packages/correlation/payloads.go | No-Observability-Change: pure in-process typed payload composition for existing package ownership/consumption/publication writes; the package source-correlation domains remain covered by `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`, durable reducer_package_* facts, and malformed readback through `eshu_dp_reducer_input_invalid_facts_total`; this helper emits no metric of its own | reducer supply-chain |
 | retry backoff+jitter (projector) | go/internal/storage/postgres/projector_queue.go:315 | `eshu_dp_projector_retry_surge_total` | projector queue |
+| projector Ack busy-scope wait (#6803) | go/internal/projector/service_superseded.go | `eshu_dp_projector_ack_deferrals_total` (by `outcome` at each deferral: retried/abandoned/shutdown; retried is counted before the lease renewal), `eshu_dp_projector_ack_wait_seconds` (by `outcome`: succeeded/abandoned/shutdown/superseded/claim_lost/failed) | projector queue |
 | retry backoff+jitter (reducer) | go/internal/storage/postgres/reducer_queue_helpers.go:255 | `eshu_dp_reducer_retry_surge_total` | reducer queue |
 | batch claim | go/internal/reducer/repo_dependency_projection_runner.go:149 | `eshu_dp_reducer_batch_claim_size`, `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
 | repo-dependency runner configuration and quiescence contract | go/internal/reducer/repo_dependency_projection_config.go | No-Observability-Change: value defaulting and the narrow canonical-code readiness interface are diagnosed by the existing `eshu_dp_shared_projection_cycles_total`, `eshu_dp_shared_projection_step_seconds`, `eshu_dp_shared_projection_intent_wait_seconds`, `eshu_dp_canonical_write_duration_seconds`, and partition-lease signals emitted by the runner; this declaration helper emits no metric of its own | reducer shared projection |
@@ -1072,6 +1068,7 @@ call matches a documented set, and every documented set has a matching variable 
 | scope-assign-seconds | 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
 | fact-emit-seconds | 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300 |
 | projector-run-seconds | 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
+| projector-ack-wait-seconds | 1, 2.5, 5, 10, 30, 60, 120, 180, 300, 600 |
 | projector-stage-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
 | reducer-run-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900 |
 | retention-duration-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900 |

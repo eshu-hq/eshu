@@ -351,6 +351,8 @@
   Heartbeat and retries; supersession or a lost claim ends it quietly, and
   shutdown or `DefaultAckWaitMaxRetries` (about 5 minutes) gives up and lets
   the lease expire. Do not call `WorkSink.Ack` directly from a worker loop.
+  Pass the caller's instruments so each wait feeds
+  `eshu_dp_projector_ack_deferrals_total` and `eshu_dp_projector_ack_wait_seconds` (#6803).
   Record a failed outcome only after `Fail` confirms ownership (`failWork`).
 
 ## Common changes and how to scope them

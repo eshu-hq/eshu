@@ -286,7 +286,7 @@ func drainProjectorWorkItem(
 	// Fail could dead-letter successful work (#4464). A busy scope retries with
 	// lease renewal; superseded, lost, or shutdown-deferred work is dropped.
 	onDeferred := bootstrapAckDeferredLogger(itemCtx, work, workerID, logger)
-	if ackErr := projector.AckWhenScopeFree(itemCtx, workSink, heartbeater, work, result, 0, onDeferred); ackErr != nil {
+	if ackErr := projector.AckWhenScopeFree(itemCtx, workSink, heartbeater, instruments, work, result, 0, onDeferred); ackErr != nil {
 		if dropLostBootstrapClaim(itemCtx, work, workerID, ackErr, "ack", span, logger) ||
 			dropDeferredBootstrapAck(itemCtx, work, workerID, ackErr, span, logger) {
 			return nil

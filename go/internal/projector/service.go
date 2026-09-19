@@ -282,7 +282,7 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 
 	ackCtx := context.WithoutCancel(workCtx)
 	onDeferred := s.ackDeferredLogger(ackCtx, work, workerID)
-	if err := AckWhenScopeFree(workCtx, s.WorkSink, s.Heartbeater, work, result, 0, onDeferred); err != nil {
+	if err := AckWhenScopeFree(workCtx, s.WorkSink, s.Heartbeater, s.Instruments, work, result, 0, onDeferred); err != nil {
 		if s.recordSupersededWork(ackCtx, work, start, len(factsForGeneration), err, workerID) ||
 			s.recordClaimLostWork(ackCtx, work, start, len(factsForGeneration), err, "ack", workerID) ||
 			s.recordAckAbandoned(workCtx, work, start, len(factsForGeneration), err, workerID) {

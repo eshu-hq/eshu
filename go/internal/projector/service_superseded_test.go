@@ -241,7 +241,7 @@ func TestAckWhenScopeFreeReturnsDeferralWhenShutdownInterruptsRenewal(t *testing
 		return fmt.Errorf("heartbeat projector work: %w", ctx.Err())
 	})
 
-	err := AckWhenScopeFree(ctx, sink, renewal, ScopeGenerationWork{}, Result{}, 0, nil)
+	err := AckWhenScopeFree(ctx, sink, renewal, nil, ScopeGenerationWork{}, Result{}, 0, nil)
 	if !errors.Is(err, ErrWorkAckDeferred) {
 		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred", err)
 	}
@@ -271,7 +271,7 @@ func TestAckWhenScopeFreeGivesUpAfterMaxRetries(t *testing.T) {
 		renewals++
 		return nil
 	})
-	err := AckWhenScopeFree(context.Background(), sink, renew, ScopeGenerationWork{}, Result{}, 3, nil)
+	err := AckWhenScopeFree(context.Background(), sink, renew, nil, ScopeGenerationWork{}, Result{}, 3, nil)
 	if !errors.Is(err, ErrWorkAckDeferred) {
 		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred after the bound", err)
 	}
