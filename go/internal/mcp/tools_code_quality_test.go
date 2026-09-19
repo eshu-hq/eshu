@@ -5,6 +5,39 @@ package mcp
 
 import "testing"
 
+// TestCodebaseToolsSplicePreservesQualityOrder pins the long-standing
+// registration positions of the three quality definitions inside
+// codebaseTools. The names are literal here, independent of the child
+// package's own order, so a reorder of codequalitytools.Tools that would
+// silently move the splice fails this test rather than shifting both sides
+// of the comparison.
+func TestCodebaseToolsSplicePreservesQualityOrder(t *testing.T) {
+	t.Parallel()
+
+	want := []string{
+		"calculate_cyclomatic_complexity",
+		"find_most_complex_functions",
+		"inspect_code_quality",
+	}
+	codebase := codebaseTools()
+	start := -1
+	for i, tool := range codebase {
+		if tool.Name == want[0] {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		t.Fatalf("%q not found in codebaseTools()", want[0])
+	}
+	for offset, name := range want {
+		got := codebase[start+offset].Name
+		if got != name {
+			t.Fatalf("codebaseTools()[%d] = %q, want %q", start+offset, got, name)
+		}
+	}
+}
+
 func TestCodeQualityToolIsRegistered(t *testing.T) {
 	t.Parallel()
 

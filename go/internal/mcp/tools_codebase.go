@@ -5,6 +5,7 @@ package mcp
 
 import (
 	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
+	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 )
 
 func codebaseTools() []ToolDefinition {
@@ -18,6 +19,10 @@ func codebaseTools() []ToolDefinition {
 	if len(intel) != 4 {
 		panic("codeinteltools.Tools must return exactly the four spliced definitions")
 	}
+	// quality holds the three complexity/quality definitions owned by the
+	// code/quality package, spliced into this position to preserve the
+	// long-standing registration order.
+	quality := codequalitytools.Tools()
 	tools := []ToolDefinition{
 		{
 			Name:        "find_code",
@@ -210,57 +215,9 @@ func codebaseTools() []ToolDefinition {
 		terraformConfigStateDriftFindingsTool(),
 		replatformingRollupsTool(),
 		replatformingOwnershipTool(),
-		{
-			Name:        "calculate_cyclomatic_complexity",
-			Description: "Calculate the cyclomatic complexity of a specific function to measure its complexity. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"entity_id": map[string]any{
-						"type":        "string",
-						"description": "Exact entity identifier returned by an ambiguity response",
-					},
-					"function_name": map[string]any{
-						"type":        "string",
-						"description": "Name of the function to analyze when entity_id is unknown",
-					},
-					"path": map[string]any{
-						"type":        "string",
-						"description": "Optional file path containing the function",
-					},
-					"repo_id": map[string]any{
-						"type":        "string",
-						"description": "Optional canonical repository identifier",
-					},
-					"scope": map[string]any{
-						"type":        "string",
-						"description": "Analysis scope",
-						"default":     "auto",
-					},
-				},
-				"required": []string{},
-			},
-		},
-		{
-			Name:        "find_most_complex_functions",
-			Description: "Find the most complex functions in the codebase based on cyclomatic complexity. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum number of results to return",
-						"default":     10,
-					},
-					"repo_id": map[string]any{
-						"type":        "string",
-						"description": "Optional canonical repository identifier",
-					},
-				},
-				"required": []string{},
-			},
-		},
-		codeQualityInspectionTool(),
+		quality[0],
+		quality[1],
+		quality[2],
 		{
 			Name:        "execute_cypher_query",
 			Description: "Fallback tool to run a direct, read-only Cypher query against the code graph. Shared-key/all-scope callers only: the query text is caller-supplied and unbounded, so it cannot be intersected against a tenant grant. A scoped or browser-session token is rejected before this tool's request ever reaches the graph.",

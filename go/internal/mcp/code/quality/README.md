@@ -10,14 +10,14 @@ refactoring candidates.
 
 ## Ownership boundary
 
-This package owns complexity/quality family membership and the mapping from
-decoded arguments to a dependency-neutral internal request. `internal/mcp`
-keeps tool registration order (`calculate_cyclomatic_complexity` and
-`find_most_complex_functions` live in the root codebase group in
-`tools_codebase.go`, and `inspect_code_quality` in `tools_code_quality.go`),
-global route fanout, the private `codeQualityRoute` adapter in `dispatch.go`,
-HTTP dispatch, authorization, timeouts, response budgets, envelopes,
-summaries, and telemetry. `internal/query` owns the bounded reads behind
+This package owns complexity/quality family membership, the mapping from
+decoded arguments to a dependency-neutral internal request, and the tool
+definitions. `internal/mcp` keeps the root registration wrapper and
+client-visible order (the three definitions are spliced into the root
+codebase group at their long-standing positions), global route fanout, the
+private `codeQualityRoute` adapter in `dispatch.go`, HTTP dispatch,
+authorization, timeouts, response budgets, envelopes, summaries, and
+telemetry. `internal/query` owns the bounded reads behind
 `/api/v0/code/complexity` and `/api/v0/code/quality/inspect`, including the
 limit clamps and the inspection offset cap.
 
@@ -25,6 +25,7 @@ limit clamps and the inspection offset cap.
 
 - `Route` selects the internal request for a complexity/quality tool without
   executing it, and reports `handled=false` for every other tool.
+- `Tools` returns the three complexity/quality tool definitions.
 
 See `doc.go` for the godoc contract.
 
