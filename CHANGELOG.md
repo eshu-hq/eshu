@@ -9,6 +9,30 @@ recent shipped work grouped by feature area.
 
 ## Unreleased
 
+### Compact-by-default catalog and playbook/workflow list responses
+
+- **`get_capability_catalog`, `list_query_playbooks`, and
+  `list_investigation_workflows` default to small, paginated responses**
+  ([#6795](https://github.com/eshu-hq/eshu/issues/6795)). All three read
+  tools could return payloads large enough to exceed an MCP client's
+  per-result token cap. `list_query_playbooks` and
+  `list_investigation_workflows` had no `limit`/`offset` at all and always
+  serialized every playbook/workflow's full steps, required inputs, failure
+  modes, and tool groups; `get_capability_catalog` paged but repeated the
+  full ~10KB role/grant/data-class authorization catalog on every page and
+  shipped per-capability `profiles` and `proof_signals` unconditionally.
+  All three now default to a **compact** view (id/name/version/description,
+  plus `prompt_family` for playbooks and `domain` for workflows) with
+  `limit`/`offset` paging and `truncated`/`next_offset` in the response;
+  `get_capability_catalog`'s default `limit` dropped from 200 to 12 and its
+  top-level `authorization` field defaults to empty. `view=full` (and, for
+  capabilities, `include_authorization=true`) restores the complete,
+  byte-identical pre-#6795 shape for any caller that needs it — the console
+  capability matrix opts in this way to keep its `proof_signals` counts.
+  Measured default-page reduction: `get_capability_catalog` 217KB->6.7KB,
+  `list_query_playbooks` 46KB->5.5KB, `list_investigation_workflows`
+  27KB->1.1KB (live A/B against the deployed binary).
+
 ### EC2 AMI node class resolves the instance->AMI relationship
 
 - **Materialize the AMI as a CloudResource node so the instance->AMI edge

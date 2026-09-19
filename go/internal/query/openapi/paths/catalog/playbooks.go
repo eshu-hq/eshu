@@ -35,7 +35,8 @@ const Playbooks = `
                     "total": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
-                    "truncated": {"type": "boolean"}
+                    "truncated": {"type": "boolean"},
+                    "next_offset": {"type": "integer", "nullable": true, "description": "offset to fetch the next page, or null when truncated is false."}
                   }
                 }
               }

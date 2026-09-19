@@ -62,7 +62,7 @@ Examples:
 
 | Surface | Operation | Result |
 | --- | --- | --- |
-| HTTP | `GET /api/v0/investigation-workflows` | Bounded `limit`/`offset` paging (default `limit=20`). Default (compact) view lists id/name/version/domain/description; `view=full` lists input shapes, evidence families, output packets, grouped tools, starter prompts, failure modes, and missing-evidence routes. |
+| HTTP | `GET /api/v0/investigation-workflows` | Bounded `limit`/`offset` paging (default `limit=20`, plus `truncated`/`next_offset` in the response). Default (compact) view lists id/name/version/domain/description; `view=full` lists input shapes, evidence families, output packets, grouped tools, starter prompts, failure modes, and missing-evidence routes. |
 | HTTP | `POST /api/v0/investigation-workflows/resolve` | Resolves `workflow_id`, declared string inputs, and `missing_evidence[]` into bounded `recommended_next_calls` plus `blocked_next_calls` when required anchors are missing. |
 | MCP | `list_investigation_workflows` | Dispatches to the HTTP catalog route and returns the canonical envelope as structured content. |
 | MCP | `resolve_investigation_workflow` | Dispatches to the HTTP resolver with `workflow_id`, `inputs`, and `missing_evidence`. |

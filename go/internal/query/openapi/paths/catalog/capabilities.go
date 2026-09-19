@@ -106,6 +106,7 @@ const Capabilities = `
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean"},
+                    "next_offset": {"type": "integer", "nullable": true, "description": "offset to fetch the next page, or null when truncated is false."},
                     "capabilities": {
                       "type": "array",
                       "items": {

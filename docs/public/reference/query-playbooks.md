@@ -142,7 +142,7 @@ The catalog is available through read-only surfaces:
 
 | Surface | Operation | Result |
 | --- | --- | --- |
-| HTTP | `GET /api/v0/query-playbooks` | Bounded `limit`/`offset` paging (default `limit=20`). Default (compact) view lists id/name/version/prompt_family/description; `view=full` lists required inputs, steps, evidence expectations, and failure modes. |
+| HTTP | `GET /api/v0/query-playbooks` | Bounded `limit`/`offset` paging (default `limit=20`, plus `truncated`/`next_offset` in the response). Default (compact) view lists id/name/version/prompt_family/description; `view=full` lists required inputs, steps, evidence expectations, and failure modes. |
 | HTTP | `POST /api/v0/query-playbooks/resolve` | Resolves `playbook_id` plus declared string inputs into an ordered, bounded call sequence. |
 | MCP | `list_query_playbooks` | Dispatches to the HTTP catalog route and returns the canonical envelope as the structured resource block. |
 | MCP | `resolve_query_playbook` | Dispatches to the HTTP resolver route with `playbook_id` and `inputs`. |
