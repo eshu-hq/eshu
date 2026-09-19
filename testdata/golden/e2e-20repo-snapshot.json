@@ -3848,7 +3848,7 @@
         }
       },
       "get_repo_context": {
-        "description": "MCP tool coverage shape for get_repo_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_repo_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). orders-api's only verb-typed outgoing edge is the package-consumption DEPENDS_ON to lib-common, which carries no source_tool, so source_tool_breakdown is correctly omitted here (context-and-stories.md: omitted when no edges carry source_tool). It is asserted on truth by get_repo_context?assert=source_tool_breakdown (#6782).",
         "required_response_fields": [
           "consumers",
           "dependency_count",
@@ -3862,7 +3862,6 @@
           "relationship_overview",
           "relationships",
           "repository",
-          "source_tool_breakdown",
           "workload_count"
         ],
         "minimum_results": 1,
@@ -3874,6 +3873,34 @@
         },
         "arguments": {
           "repo_id": "orders-api"
+        }
+      },
+      "get_repo_context?assert=source_tool_breakdown": {
+        "description": "Second get_repo_context shape (#6782): source_tool_breakdown asserted on a repository whose outgoing edge really carries source_tool. helm-umbrella-chart's Chart.yaml declares one subchart dependency sourced from github.com/acme/deployable-source, which resolves to the HELM_CHART_REFERENCE DEPLOYS_FROM edge rc-34 pins with source_tool=helm. That is the repository's only outgoing dependency, so the breakdown is exactly {helm: 1} on every graph backend. The orders-api shape used to require this field only because the NornicDB v1.3.3 missing-row-key defect stamped its unstamped DEPENDS_ON edge with the literal token row.source_tool.",
+        "required_response_fields": [
+          "consumers",
+          "dependency_count",
+          "entry_points",
+          "file_count",
+          "infrastructure",
+          "languages",
+          "partial_reasons",
+          "platform_count",
+          "relationship_overview",
+          "relationships",
+          "repository",
+          "source_tool_breakdown",
+          "workload_count"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "relationships",
+        "required_json_values": {
+          "repository.name": "helm-umbrella-chart",
+          "source_tool_breakdown.helm": 1
+        },
+        "arguments": {
+          "repo_id": "helm-umbrella-chart"
         }
       },
       "get_relationship_evidence": {

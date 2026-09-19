@@ -124,8 +124,32 @@ Proof, RED/GREEN:
 Consequence for the snapshot: with the fix, orders-api has no stamped outgoing
 edge on either backend, so the documented response omits
 `source_tool_breakdown`. The snapshot's required field for that shape was
-calibrated against the NornicDB junk token, and the decision on correcting it
-is recorded with the PR.
+calibrated against the NornicDB junk token. The owner approved retargeting the
+assertion to a repository where the field is true.
+
+Snapshot change: the orders-api `get_repo_context` shape keeps every other
+field, including its repository id and name pins, its `relationships` bounds,
+`language_breakdown` and `relationship_overview`. It stops requiring
+`source_tool_breakdown`. A second shape,
+`get_repo_context?assert=source_tool_breakdown`, calls the same tool for
+`helm-umbrella-chart`. Its Chart.yaml has one subchart dependency sourced from
+`github.com/acme/deployable-source`, which is the HELM_CHART_REFERENCE
+DEPLOYS_FROM edge that `rc-34` already requires with `source_tool = helm`.
+That is the repository's only outgoing dependency, so the shape requires
+`source_tool_breakdown` and pins `source_tool_breakdown.helm = 1`. The gate has
+routed `?assert=<slug>` MCP keys to the bare tool name since `mcpToolName`
+added them.
+
+Adding a shape keeps more coverage than retargeting the existing one. Moving
+the orders-api selector would have dropped its id pin and the
+`language_breakdown` check, and it would not have pinned the breakdown's value.
+The new shape proves the field is present and correct, not merely present. A
+junk `row.source_tool` key or a wrong count now fails it.
+`TestGoldenSnapshotAssertsSourceToolBreakdownOnTruth` (in
+`go/cmd/golden-corpus-gate`) pins the change. It failed against the previous
+snapshot and passes now, and it checks the shape against a stamped payload
+(pass), an omitted breakdown, a junk-token breakdown, and a wrong count (each
+fails). The live B-7 run is the end-to-end proof.
 
 No-Regression Evidence: the writer change adds one map key per row (a `nil`
 value) on the repo-dependency routes and changes no Cypher text or batch shape.
