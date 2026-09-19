@@ -33,8 +33,17 @@ lanes never exercise.
    infra-labeled graph nodes (`TerraformResource`, `K8sResource`,
    `CloudResource`, ...) into the graph backend via one `UNWIND CREATE` per
    label (`SeedGraph`) — not the real ingestion pipeline, which would blow
-   the CI job's time budget at this scale. Runs `ANALYZE` on the seeded
-   Postgres tables afterward so the sweep plans against fresh statistics.
+   the CI job's time budget at this scale. A second graph write
+   (`SeedIaCGraphNodes`) adds `uid`-bearing nodes whose `uid`/`id`/`name`/
+   `generation_id` match the seeded IaC facts' Postgres `entity_id`/
+   `entity_name`/`generation_id`, so `/api/v0/iac/resources` — which selects
+   candidates from Postgres and hydrates them from the graph by `uid` — finds
+   a matching row for every candidate instead of failing its own
+   consistency check ("current inventory and graph projection disagree").
+   The bulk `SeedGraph` nodes carry no `uid` on purpose: they exist only to
+   give the per-label scan cost realistic volume. Runs `ANALYZE` on the
+   seeded Postgres tables afterward so the sweep plans against fresh
+   statistics.
 4. Starts `eshu-api` against the seeded backends.
 5. Derives every no-arg GET route from the generated surface inventory
    (`capabilitycatalog.LoadSurfaceInventory`, filtered to
@@ -59,7 +68,12 @@ checks, without spending the counted-iteration budget. `RouteQueryArgs`
 supplies a representative seeded selector for routes this gate's own corpus
 can back, so those run for real instead of 400ing. A **5xx always fails**
 the route regardless of how fast it answered (`HardFailed`) — a query error
-or an early 500 must not pass just because it was quick. A client-side
+or an early 500 must not pass just because it was quick. The breach summary
+prints the first counted-sample 5xx response body (capped at 500 bytes) so
+the error envelope is visible without re-running. The run script exports
+`ESHU_COMPONENT_HOME` (an empty temp directory, a supported zero-components
+registry state) because `/api/v0/component-extensions` 503s unconditionally
+without it. A client-side
 timeout is measured as a (large) latency sample rather than aborting the
 sweep, so a regression that manifests as a hung connection — rather than an
 error status — still produces a budget breach instead of a silent pass. Only

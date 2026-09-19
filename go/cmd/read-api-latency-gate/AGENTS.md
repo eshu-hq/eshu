@@ -50,6 +50,33 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   (`seed_plan_test.go`) is a regression test for a real bug this hit live.
   Do not add `"claimed"`/`"running"` back into `factWorkItemStatuses`'s
   weighted cycle.
+- **`SeedIaCGraphNodes` (`seed_graph.go`) must stay correlated with
+  `BuildIaCFacts` (`seed_iac.go`) via `buildIaCGraphNodeRows`
+  (`seed_iac_graph_rows.go`).** `/api/v0/iac/resources`
+  (`go/internal/query/iac/resources.go`) selects candidates from Postgres
+  (`entity_id`/`entity_name`/`generation_id`) and hydrates them from the graph
+  with `MATCH (n:<label>) WHERE n.uid IN $candidate_ids`; `searchHydrationMatches`
+  then 500s ("current inventory and graph projection disagree") unless every
+  candidate has a graph row whose `uid`, `id`, `name`, and `generation_id`
+  all match. `SeedGraph`'s anonymous bulk `infraLabels` nodes carry no `uid`
+  on purpose (they exist only to give the #6793 per-label scan cost realistic
+  volume), so they can never satisfy that query on their own — this is a real
+  gate-environment gap that HardFailed the route on every run until closed.
+  `TestBuildIaCGraphNodeRowsCorrelateWithFacts` pins the correlation.
+- **`BuildIaCFacts`'s `EntityName` is zero-padded (`%06d`) on purpose.**
+  Postgres `SearchActive` orders `entity_name, entity_id` as text, so an
+  unpadded `seed_%d` sorts `seed_1`, `seed_10`, `seed_2` — the "first page"
+  would then be an unpredictable subset of build order.
+  `TestBuildIaCFactsEntityNameIsLexicographicallySortPredictable` guards it.
+- **`ESHU_COMPONENT_HOME` is exported by `verify-read-api-latency-gate.sh`.**
+  `GET /api/v0/component-extensions` 503s unconditionally without it
+  (`go/internal/query/component_extensions.go`), a gate-environment gap that
+  HardFailed the route on every run until set. An empty directory is a
+  supported registry state (zero installed components, not an error).
+- **`HardFailedBody` (`sweep.go`) captures only the FIRST counted-sample 5xx
+  body, capped at `hardFailedBodyCap` bytes.** The first failure is the most
+  informative; overwriting it with a later repeat discards the evidence an
+  operator needs to root-cause a HardFailed route.
 - **A route's status code does not decide whether `sweepOne` fails** — see
   `sweep.go`'s doc comments. A 4xx means "not exercised," not "sweep error";
   only a connection-level failure aborts the run. Do not reintroduce a

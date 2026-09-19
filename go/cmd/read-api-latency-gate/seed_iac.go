@@ -48,7 +48,11 @@ func BuildIaCFacts(scopeID, generationID string, count int) []SeedIaCFact {
 			ScopeID:      scopeID,
 			GenerationID: generationID,
 			EntityID:     fmt.Sprintf("iac-entity-%d", i),
-			EntityName:   fmt.Sprintf("aws_instance.seed_%d", i),
+			// Zero-padded so a Postgres text ORDER BY (SearchActive,
+			// go/internal/query/iac/inventory_postgres.go) sorts the same
+			// way build order does — see
+			// TestBuildIaCFactsEntityNameIsLexicographicallySortPredictable.
+			EntityName:   fmt.Sprintf("aws_instance.seed_%06d", i),
 			EntityType:   entityType,
 			RelativePath: "infra/main.tf",
 			Provider:     "aws",

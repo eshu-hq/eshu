@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 )
 
@@ -68,6 +69,30 @@ func TestBuildIaCFactsPayloadSizeMix(t *testing.T) {
 	}
 	if large == 0 {
 		t.Errorf("expected some large (~15KB) payloads, found none")
+	}
+}
+
+// TestBuildIaCFactsEntityNameIsLexicographicallySortPredictable guards a real
+// bug this gate hit live (issue #6797): inventory_postgres.go's SearchActive
+// orders candidates "ORDER BY entity_name, entity_id" (a Postgres text sort),
+// so if EntityName sorts differently than build (insertion) order, "the
+// first page" is an unpredictable subset of seeded entities -- a correlated
+// graph seed keyed on "the first N by build order" would then miss whichever
+// entities the text sort actually puts first. A non-zero-padded
+// "aws_instance.seed_%d" sorts "seed_1" before "seed_10" before "seed_2" (a
+// classic string-vs-numeric sort mismatch); zero-padding fixes it.
+func TestBuildIaCFactsEntityNameIsLexicographicallySortPredictable(t *testing.T) {
+	facts := BuildIaCFacts("scope-1", "gen-1", 25)
+	names := make([]string, len(facts))
+	for i, f := range facts {
+		names[i] = f.EntityName
+	}
+	sorted := append([]string(nil), names...)
+	sort.Strings(sorted)
+	for i := range names {
+		if names[i] != sorted[i] {
+			t.Fatalf("EntityName build order is not lexicographically sorted at index %d: build order %v, text-sorted order %v", i, names, sorted)
+		}
 	}
 }
 

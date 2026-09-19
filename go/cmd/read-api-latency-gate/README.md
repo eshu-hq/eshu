@@ -22,11 +22,19 @@ not own the routes themselves (`go/internal/query`), the surface inventory
 - `SeedPostgres`, `SeedGraph`, `SeedIaCFacts` — bulk-write a `SeedPlan` (plus
   `BuildIaCFacts`' IaC content_entity facts) into a live Postgres/NornicDB
   pair
+- `SeedIaCGraphNodes` — bulk-writes uid-bearing graph nodes correlated with
+  `BuildIaCFacts`' `entity_id`/`entity_name`/`generation_id`, so
+  `/api/v0/iac/resources`' Postgres-then-graph hydration finds a matching row
+  for every candidate instead of 500ing ("current inventory and graph
+  projection disagree"); additional to, not a replacement for, `SeedGraph`'s
+  anonymous bulk `infraLabels` nodes
 - `NoArgGetRoutes` — the no-arg GET routes to sweep, derived from
   `capabilitycatalog.LoadSurfaceInventory`
 - `SweepRoutes` — measures true nearest-rank p95 latency per route against a
   running eshu-api, over a warmup-discarded counted sample; flags any 5xx
-  response as `HardFailed` regardless of latency. `RouteQueryArgs` supplies
+  response as `HardFailed` regardless of latency and captures the first
+  counted-sample 5xx body (capped) as `HardFailedBody` so an operator can see
+  the error envelope without re-running. `RouteQueryArgs` supplies
   representative selectors (seeded ids) so a route that needs one runs its
   real query instead of 400ing
 - `ParseRouteBudgets`, `EvaluateBudgets` — the budget table and breach check

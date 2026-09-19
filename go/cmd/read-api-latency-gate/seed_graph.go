@@ -59,6 +59,89 @@ func SeedGraph(ctx context.Context, opts SeedGraphOptions) error {
 	return nil
 }
 
+// iacGraphSeedBatchSize bounds the UNWIND parameter list per write. NornicDB's
+// cost per row grows with batch size on a label carrying a uid UNIQUE
+// constraint: measured on a fresh scratch NornicDB v1.3.3 writing 50,000
+// TerraformResource rows over 150,000 pre-existing anonymous nodes, batches of
+// 250 took 6.6s, 1,000 took 14.3s, and 5,000 took 91.7s; one unbatched 50k-row
+// UNWIND stalled a live run for 15+ minutes (issue #6797). 250 sits in the
+// near-linear region.
+const iacGraphSeedBatchSize = 250
+
+// SeedIaCGraphNodes bulk-creates graph nodes correlated by uid with facts'
+// EntityID (via buildIaCGraphNodeRows), one UNWIND CREATE per label, so
+// go/internal/query/iac/resources.go's Postgres-then-graph hydration can find
+// a matching row for every Postgres-selected IaC inventory candidate SeedGraph
+// (or SeedIaCFacts.entity_id) already wrote. This is additional to, not a
+// replacement for, SeedGraph's anonymous bulk infraLabels nodes.
+func SeedIaCGraphNodes(ctx context.Context, opts SeedGraphOptions, facts []SeedIaCFact) error {
+	auth := neo4j.NoAuth()
+	if opts.Username != "" {
+		auth = neo4j.BasicAuth(opts.Username, opts.Password, "")
+	}
+	driver, err := neo4j.NewDriverWithContext(opts.URI, auth)
+	if err != nil {
+		return fmt.Errorf("open graph driver: %w", err)
+	}
+	defer func() { _ = driver.Close(ctx) }()
+
+	byLabel := groupIaCGraphNodeRowsByLabel(buildIaCGraphNodeRows(facts))
+	for _, label := range iacEntityTypes {
+		for _, batch := range batchIaCGraphNodeRows(byLabel[label], iacGraphSeedBatchSize) {
+			if err := seedIaCGraphLabelNodes(ctx, driver, opts.DatabaseName, label, batch); err != nil {
+				return fmt.Errorf("seed IaC graph nodes for label %s: %w", label, err)
+			}
+		}
+	}
+	return nil
+}
+
+// seedIaCGraphLabelNodes runs one UNWIND CREATE for all of rows' nodes under
+// label. label always comes from iacEntityTypes (via SeedIaCFact.EntityType),
+// never external input, so interpolating it into the Cypher text carries no
+// injection risk (same reasoning as seedLabel's doc comment).
+func seedIaCGraphLabelNodes(ctx context.Context, driver neo4j.DriverWithContext, database, label string, rows []IaCGraphNodeRow) error {
+	params := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		params = append(params, map[string]any{
+			"uid":           r.UID,
+			"id":            r.ID,
+			"name":          r.Name,
+			"generation_id": r.GenerationID,
+			"provider":      r.Provider,
+			"resource_type": r.ResourceType,
+		})
+	}
+
+	cypher := fmt.Sprintf(
+		`UNWIND $rows AS row
+		 CREATE (n:%s {
+		   uid: row.uid,
+		   id: row.id,
+		   name: row.name,
+		   generation_id: row.generation_id,
+		   provider: row.provider,
+		   resource_type: row.resource_type
+		 })`,
+		label,
+	)
+
+	session := driver.NewSession(ctx, neo4j.SessionConfig{
+		AccessMode:   neo4j.AccessModeWrite,
+		DatabaseName: database,
+	})
+	defer func() { _ = session.Close(ctx) }()
+
+	result, err := session.Run(ctx, cypher, map[string]any{"rows": params})
+	if err != nil {
+		return fmt.Errorf("run seed cypher: %w\ncypher=%s", err, cypher)
+	}
+	if _, err := result.Consume(ctx); err != nil {
+		return fmt.Errorf("consume seed result: %w", err)
+	}
+	return nil
+}
+
 // seedLabel runs one UNWIND CREATE for label. The label name is interpolated
 // into the Cypher text (Cypher labels cannot be bind parameters); label
 // always comes from the fixed infraLabels slice, never from external input,

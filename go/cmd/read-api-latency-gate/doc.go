@@ -5,8 +5,10 @@
 // benchmark for issue #6797. It seeds a synthetic corpus (ingestion scopes,
 // generations, and fact_work_items across every collector kind
 // scope.AllCollectorKinds reports, IaC content_entity fact_records with a
-// realistic jsonb payload mix, and infra-labeled graph nodes) into a live
-// Postgres and NornicDB/Neo4j backend, sweeps every no-arg GET route the
+// realistic jsonb payload mix, infra-labeled graph nodes, and uid-bearing
+// graph nodes correlated with those IaC facts so /iac/resources can hydrate
+// its Postgres candidates from the graph) into a live Postgres and
+// NornicDB/Neo4j backend, sweeps every no-arg GET route the
 // generated surface inventory reports against a running eshu-api (true
 // nearest-rank p95 over a warmup-discarded sample), and fails when any
 // route exceeds its budget, a 5xx response occurs, the exercised-route

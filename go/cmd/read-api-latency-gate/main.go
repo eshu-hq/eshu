@@ -188,14 +188,20 @@ func seed(ctx context.Context, opts runOptions) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d nodes per infra label (%d labels)\n", opts.nodesPerLabel, len(infraLabels))
-	if err := SeedGraph(ctx, SeedGraphOptions{
+	graphOpts := SeedGraphOptions{
 		URI:           opts.graphURI,
 		Username:      opts.graphUsername,
 		Password:      opts.graphPassword,
 		DatabaseName:  opts.graphDatabase,
 		NodesPerLabel: opts.nodesPerLabel,
-	}); err != nil {
+	}
+	if err := SeedGraph(ctx, graphOpts); err != nil {
 		return fmt.Errorf("seed graph: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d correlated IaC graph nodes (uid = Postgres entity_id)\n", len(iacFacts))
+	if err := SeedIaCGraphNodes(ctx, graphOpts, iacFacts); err != nil {
+		return fmt.Errorf("seed IaC graph nodes: %w", err)
 	}
 
 	fmt.Fprintln(os.Stderr, "read-api-latency-gate: ANALYZE seeded Postgres tables")

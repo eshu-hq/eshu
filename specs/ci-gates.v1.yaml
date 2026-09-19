@@ -2404,6 +2404,7 @@ gates:
       - "scripts/verify-read-api-latency-gate.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-host-helpers.sh"
+      - "scripts/lib/compose_verification_runtime_common.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
       - "docker-compose.yaml"
