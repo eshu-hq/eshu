@@ -33,11 +33,12 @@ func registerUploadRoutes() {
 
 // StoreUploadReceipt receives an upload request and writes the receipt body to
 // S3. The *http.Request parameter is a proven taint source
-// (goSourceParamTypeMarkers: "http.Request"); the s3 client created from
-// s3.NewFromConfig is a proven INVOKES_CLOUD_ACTION receiver binding, so the
-// interproc value-flow fixpoint can trace the request source to the
-// s3:putobject sink within this one function.
+// (goSourceParamTypeMarkers: "http.Request"); the s3 client created by the
+// SDK v2 constructor s3.New (a recognized awsSDKConstructorNames entry, called
+// with a type-correct zero s3.Options) is a proven INVOKES_CLOUD_ACTION
+// receiver binding, so the interproc value-flow fixpoint can trace the request
+// source to the s3:putobject sink within this one function.
 func StoreUploadReceipt(w http.ResponseWriter, r *http.Request) {
-	client := s3.NewFromConfig(nil)
+	client := s3.New(s3.Options{})
 	_, _ = client.PutObject(context.Background(), nil)
 }
