@@ -33,7 +33,9 @@ import (
 // evidence is preserved exactly.
 const collectorFactEvidenceQuery = `
 WITH ` + activeCollectorScopesCTE + `,
-workflow_instances AS (
+-- MATERIALIZED (#6794): active_scopes is estimated at one row, so an inlined
+-- DISTINCT ON here was re-executed once per summary row.
+workflow_instances AS MATERIALIZED (
 SELECT DISTINCT ON (
     workflow_item.collector_kind,
     workflow_item.scope_id,

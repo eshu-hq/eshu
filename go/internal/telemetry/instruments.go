@@ -1555,14 +1555,14 @@ type Instruments struct {
 	// by result (success, error, timeout) to let operators distinguish clean
 	// shutdowns from forced terminations.
 	APIShutdownDuration metric.Float64Histogram
-	// StatusStageCountsCacheTotal counts status-query stage-counts reads
-	// (activeFactWorkItemsCTE via stageCountsQuery, issue #4446) by cache
-	// outcome. Labeled by outcome: hit (served from the in-memory TTL cache,
-	// no Postgres round trip), miss (cache cold or expired, Postgres query ran
-	// and succeeded), or error (Postgres query ran and failed; never cached).
-	// Lets an operator read the cache hit-rate for the status stage-counts
-	// read at 3 AM.
-	StatusStageCountsCacheTotal metric.Int64Counter
+	// StatusSnapshotReadDuration records each read of a status snapshot
+	// (StatusStore.ReadStatusSnapshotFiltered), from issuing the query until
+	// its rows close. Labeled by read, a closed set of reader names such as
+	// active_work_summary or scope_counts, and by outcome (success or error),
+	// so an operator can tell which of a slow status route's reads spent the
+	// time (#6794). It replaced the retired status stage-counts cache
+	// counter.
+	StatusSnapshotReadDuration metric.Float64Histogram
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
 	// resolver reaches (issue #5162, epic #5161), by bounded outcome value:
@@ -4763,18 +4763,18 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register APIShutdownDuration histogram: %w", err)
 	}
 
-	inst.StatusStageCountsCacheTotal, err = meter.Int64Counter(
-		"eshu_dp_status_stage_counts_cache_total",
+	inst.StatusSnapshotReadDuration, err = meter.Float64Histogram(
+		"eshu_dp_status_snapshot_read_duration_seconds",
 		metric.WithDescription(
-			"Status-query stage-counts reads (activeFactWorkItemsCTE via "+
-				"stageCountsQuery) by cache outcome: hit (served from the "+
-				"in-memory TTL cache, no Postgres round trip), miss (cache cold "+
-				"or expired, Postgres query ran and succeeded), or error "+
-				"(Postgres query ran and failed; never cached).",
+			"Duration of each status snapshot read, from issuing the query until "+
+				"its rows close, labeled by read (closed set of reader names) and "+
+				"outcome (success or error).",
 		),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register StatusStageCountsCacheTotal counter: %w", err)
+		return nil, fmt.Errorf("register StatusSnapshotReadDuration histogram: %w", err)
 	}
 
 	inst.OIDCBearerValidationTotal, err = meter.Int64Counter(

@@ -12,8 +12,8 @@ import (
 // TestNewInstrumentedStatusStoreWiresInstruments guards the #4533 follow-up to
 // #4446/#4530: every readiness-probe call site must wire the shared
 // meter-provider Instruments onto the StatusStore it constructs, or the
-// status query cache metric (eshu_dp_status_stage_counts_cache_total,
-// recorded in status_stage_counts_cache.go's listStageCounts) stays
+// per-read status metric (eshu_dp_status_snapshot_read_duration_seconds,
+// recorded by status_read_telemetry.go's statusReadQueryer) stays
 // contract-complete but silent on that process. This test fails if a future
 // edit drops the assignment inside NewInstrumentedStatusStore.
 func TestNewInstrumentedStatusStoreWiresInstruments(t *testing.T) {
@@ -29,7 +29,7 @@ func TestNewInstrumentedStatusStoreWiresInstruments(t *testing.T) {
 }
 
 // TestNewInstrumentedStatusStoreAllowsNilInstruments proves the constructor
-// does not require Instruments to be non-nil: recordStatusStageCountsCacheOutcome
+// does not require Instruments to be non-nil: statusReadQueryer.record
 // treats a nil Instruments as a no-op (never a panic), so a caller without a
 // wired meter provider is unaffected.
 func TestNewInstrumentedStatusStoreAllowsNilInstruments(t *testing.T) {

@@ -38,6 +38,12 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		t.Fatalf("%s no longer names this live-proof enrollment guard; update the guard reference in lockstep", workflowPath)
 	}
 
+	// #6794: the story target-support semantics proof lives in internal/query
+	// and runs as its own step of this gate, against the same Postgres.
+	if !bytes.Contains(workflow, []byte("go test ./internal/query/ -run '^TestServiceStoryTargetSupportSQLSemanticsLive$'")) {
+		t.Fatalf("%s no longer runs TestServiceStoryTargetSupportSQLSemanticsLive against Postgres", workflowPath)
+	}
+
 	runFilter := reducerContentionGateRunFilter(t, string(workflow))
 	selects, err := regexp.Compile(runFilter)
 	if err != nil {
@@ -56,6 +62,12 @@ func TestReducerContentionPostgresProofsRunInTheReducerContentionGate(t *testing
 		"TestDeferredBackfillFanInFailureLeavesEvidenceRecoverable",
 		"TestDeferredBackfillCrashBetweenBatchesAndFanInConverges",
 		"TestFanInActiveGenerationMatchesCorpusLoader",
+		// #6794: the status snapshot's single active-work statement must decode
+		// to exactly what the pre-change standalone reads return, and the
+		// stale-generation/backlog contract is pinned on real Postgres.
+		"TestActiveWorkSummaryMatchesStandaloneReads",
+		"TestStatusActiveWorkQueriesPreserveSemantics",
+		"TestActiveFactWorkItemsFormsSelectTheSameRows",
 	} {
 		if !selects.MatchString(name) {
 			t.Fatalf("the reducer contention gate's -run filter %q does not select %s", runFilter, name)

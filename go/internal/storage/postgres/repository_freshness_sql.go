@@ -71,7 +71,7 @@ WHERE g.scope_id = $1
 
 // repositoryFreshnessStageCountsQuery groups OUTSTANDING fact_work_items rows
 // by (stage, status) for the resolved (scope, generation), mirroring
-// stageCountsQuery's shape (status_queries.go) scoped to a single
+// stageCountsSelect's shape (status_queries.go) scoped to a single
 // generation. fact_work_items_scope_generation_idx (scope_id, generation_id,
 // status, updated_at DESC) makes this an index-only bounded read (Performance
 // Evidence: see this package's README).

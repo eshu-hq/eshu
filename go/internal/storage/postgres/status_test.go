@@ -50,47 +50,23 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 				},
 			},
 			{
+				// One activeWorkSummaryQuery round trip carries the stage
+				// counts, domain backlog, queue snapshot, conflict blockage,
+				// and latest failure sections (#6794).
 				rows: [][]any{
-					{"projector", "pending", int64(2)},
-					{"projector", "running", int64(1)},
-					{"reducer", "retrying", int64(1)},
-				},
-			},
-			{
-				rows: [][]any{
-					{"repository", int64(3), int64(2), int64(1), int64(0), int64(0), 90.0},
-					{"shared-platform", int64(1), int64(1), int64(0), int64(1), int64(0), 30.0},
-				},
-			},
-			{
-				rows: [][]any{
-					{int64(9), int64(4), int64(1), int64(2), int64(1), int64(3), int64(1), int64(0), true, int64(2), 90.0, int64(0)},
+					{"backlog", int64(1), `{"domain":"repository","outstanding_count":3,"in_flight_count":2,"retrying_count":1,"dead_letter_count":0,"failed_count":0,"oldest_outstanding_age_seconds":90.0}`},
+					{"backlog", int64(2), `{"domain":"shared-platform","outstanding_count":1,"in_flight_count":1,"retrying_count":0,"dead_letter_count":1,"failed_count":0,"oldest_outstanding_age_seconds":30.0}`},
+					{"blockage", int64(1), `{"stage":"reducer","domain":"semantic_entity_materialization","conflict_domain":"code_graph","conflict_key":"scope-1:generation-b:code","blocked_count":2,"oldest_blocked_age_seconds":75.0}`},
+					{"failure", int64(1), `{"stage":"reducer","domain":"code_call_materialization","status":"retrying","work_item_id":"work-1","scope_id":"scope-1","generation_id":"generation-b","failure_class":"graph_write_timeout","failure_message":"neo4j execute group timed out after 2s","failure_details":"phase=semantic label=Variable rows=500","updated_at":"2026-04-12T15:59:00+00:00"}`},
+					{"queue", int64(1), `{"total_count":9,"outstanding_count":4,"pending_count":1,"in_flight_count":2,"retrying_count":1,"succeeded_count":3,"dead_letter_count":1,"failed_count":0,"provenance_edge_identity_upgrade_applied":true,"provenance_edge_identity_upgrade_required":2,"oldest_outstanding_age_seconds":90.0,"overdue_claim_count":0}`},
+					{"stage", int64(1), `{"stage":"projector","status":"pending","count":2}`},
+					{"stage", int64(2), `{"stage":"projector","status":"running","count":1}`},
+					{"stage", int64(3), `{"stage":"reducer","status":"retrying","count":1}`},
 				},
 			},
 			{
 				rows: [][]any{
 					{true, 30.0},
-				},
-			},
-			{
-				rows: [][]any{
-					{"reducer", "semantic_entity_materialization", "code_graph", "scope-1:generation-b:code", int64(2), 75.0},
-				},
-			},
-			{
-				rows: [][]any{
-					{
-						"reducer",
-						"code_call_materialization",
-						"retrying",
-						"work-1",
-						"scope-1",
-						"generation-b",
-						"graph_write_timeout",
-						"neo4j execute group timed out after 2s",
-						"phase=semantic label=Variable rows=500",
-						time.Date(2026, 4, 12, 15, 59, 0, 0, time.UTC),
-					},
 				},
 			},
 			{
@@ -212,8 +188,9 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 29 {
-		t.Fatalf("QueryContext() call count = %d, want 29", len(queryer.queries))
+	// 25 round trips: the five active-work reads are one statement (#6794).
+	if len(queryer.queries) != 25 {
+		t.Fatalf("QueryContext() call count = %d, want 25", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -233,7 +210,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"last_failure_class",
 		"WITH active_scopes AS (",
 		"JOIN collector_evidence_summary AS summary",
-		"workflow_instances AS (",
+		"workflow_instances AS MATERIALIZED (",
 		"FROM collector_generation_dead_letters",
 		"FROM semantic_extraction_jobs",
 	} {
@@ -289,11 +266,11 @@ func TestStatusQueriesUseAggregateFilterSyntax(t *testing.T) {
 	if !strings.Contains(domainBacklogQuery, "lease_expires_at > $1") {
 		t.Fatalf("domainBacklogQuery missing active shared projection lease expiry check:\n%s", domainBacklogQuery)
 	}
-	if !strings.Contains(domainBacklogQuery, "shared_projection_domains AS") {
+	if !strings.Contains(domainBacklogQuery, "FULL OUTER JOIN shared_projection_active_leases AS active") {
 		t.Fatalf("domainBacklogQuery missing lease-only shared projection domain source:\n%s", domainBacklogQuery)
 	}
-	if !strings.Contains(domainBacklogQuery, "COALESCE(MAX(active.in_flight_count), 0) > 0") {
-		t.Fatalf("domainBacklogQuery missing in-flight shared projection backlog HAVING:\n%s", domainBacklogQuery)
+	if !strings.Contains(domainBacklogQuery, "COALESCE(active.in_flight_count, 0) AS in_flight_count") {
+		t.Fatalf("domainBacklogQuery missing in-flight shared projection backlog:\n%s", domainBacklogQuery)
 	}
 	if !strings.Contains(domainBacklogQuery, "SUM(in_flight_count)") {
 		t.Fatalf("domainBacklogQuery final HAVING must include in-flight backlog:\n%s", domainBacklogQuery)

@@ -3,19 +3,10 @@
 
 package postgres
 
-import (
-	"context"
-	"fmt"
-	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
-
-	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
-)
-
-var reducerConflictBlockageQuery = `
-WITH ` + activeFactWorkItemsCTE + `,
-` + reducerClaimReadinessRequirementsCTE() + `,
+// reducerConflictBlockageCTEs finds reducer rows that are claimable but fenced
+// by a live row on the same conflict key or by an unmet readiness requirement.
+// It needs active_fact_work_items earlier in the same WITH list.
+var reducerConflictBlockageCTEs = reducerClaimReadinessRequirementsCTE() + `,
 eligible AS (
     SELECT work_item_id,
            scope_id,
@@ -89,62 +80,21 @@ domain_blocked AS (
            COUNT(DISTINCT work_item_id) AS domain_blocked_count
     FROM all_blocked
     GROUP BY domain
-)
-SELECT 'reducer' AS stage,
+)`
+
+// reducerConflictBlockageSelect reports blocked rows per domain and conflict key.
+const reducerConflictBlockageSelect = `SELECT 'reducer' AS stage,
        domain,
        conflict_domain,
        conflict_key,
        domain_blocked_count AS blocked_count,
        oldest_blocked_age_seconds
 FROM blockage_rows
-JOIN domain_blocked USING (domain)
-ORDER BY blocked_count DESC, oldest_blocked_age_seconds DESC, domain ASC, conflict_key ASC
-LIMIT 10
-`
+JOIN domain_blocked USING (domain)`
 
-// listReducerConflictBlockages reports reducer rows that are otherwise
-// claimable but fenced by an active row in the same durable conflict key.
-func listReducerConflictBlockages(
-	ctx context.Context,
-	queryer db.Queryer,
-	asOf time.Time,
-) ([]statuspkg.QueueBlockage, error) {
-	rows, err := queryer.QueryContext(ctx, reducerConflictBlockageQuery, asOf)
-	if err != nil {
-		return nil, fmt.Errorf("list reducer conflict blockages: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
+// reducerConflictBlockageOrder is reducerConflictBlockageSelect's result order;
+// the status surface keeps the first reducerConflictBlockageLimit rows.
+const reducerConflictBlockageOrder = `blocked_count DESC, oldest_blocked_age_seconds DESC, domain ASC, conflict_key ASC`
 
-	blockages := []statuspkg.QueueBlockage{}
-	for rows.Next() {
-		var stage string
-		var domain string
-		var conflictDomain string
-		var conflictKey string
-		var blockedCount int64
-		var oldestBlockedAgeSeconds float64
-		if scanErr := rows.Scan(
-			&stage,
-			&domain,
-			&conflictDomain,
-			&conflictKey,
-			&blockedCount,
-			&oldestBlockedAgeSeconds,
-		); scanErr != nil {
-			return nil, fmt.Errorf("list reducer conflict blockages: %w", scanErr)
-		}
-		blockages = append(blockages, statuspkg.QueueBlockage{
-			Stage:          stage,
-			Domain:         domain,
-			ConflictDomain: conflictDomain,
-			ConflictKey:    conflictKey,
-			Blocked:        int(blockedCount),
-			OldestAge:      durationFromSeconds(oldestBlockedAgeSeconds),
-		})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list reducer conflict blockages: %w", err)
-	}
-
-	return blockages, nil
-}
+// reducerConflictBlockageLimit bounds the blockage rows on the status surface.
+const reducerConflictBlockageLimit = 10

@@ -28,42 +28,30 @@ func (q SQLQueryer) QueryContext(ctx context.Context, query string, args ...any)
 
 // StatusStore reads live operator status aggregates from the Wave 2 schema.
 //
-// stageCountsCache is a pointer field (see status_stage_counts_cache.go) so
-// that StatusStore, which is deliberately copied by value at every call site
-// (see ReadRawSnapshot/ReadStatusSnapshot above), never duplicates the
-// cache's mutex. All value copies of a StatusStore share one cache instance.
-//
 // Instruments is exported and left nil by NewStatusStore (see
-// AWSPaginationCheckpointStore for the identical pattern) so the ~30
-// existing NewStatusStore call sites across go/cmd/* stay source-compatible;
-// a caller that wants the eshu_dp_status_stage_counts_cache_total signal
-// sets the field explicitly after construction. All recording is nil-safe
-// (see recordStatusStageCountsCacheOutcome).
+// AWSPaginationCheckpointStore for the identical pattern) so the ~30 existing
+// NewStatusStore call sites across go/cmd/* stay source-compatible; a caller
+// that wants the per-read eshu_dp_status_snapshot_read_duration_seconds
+// signal sets the field, or uses NewInstrumentedStatusStore. Recording is
+// nil-safe.
 type StatusStore struct {
-	queryer          db.Queryer
-	stageCountsCache *statusStageCountsCache
-	Instruments      *telemetry.Instruments
+	queryer     db.Queryer
+	Instruments *telemetry.Instruments
 }
 
 // NewStatusStore constructs a read-only status store.
 func NewStatusStore(queryer db.Queryer) StatusStore {
-	return StatusStore{queryer: queryer, stageCountsCache: newStatusStageCountsCache()}
+	return StatusStore{queryer: queryer}
 }
 
 // NewInstrumentedStatusStore constructs a read-only status store with the
-// shared meter-provider Instruments already wired, so the status query cache
-// metric (eshu_dp_status_stage_counts_cache_total, recorded in
-// status_stage_counts_cache.go's listStageCounts) emits wherever the store is
-// used by operator status and metrics surfaces, including the hosted runtime
-// (app.NewHostedWithStatusServer / runtime.NewStatusAdminServer) and the API/MCP
-// path wired by cmd/api and cmd/mcp-server's newStatusStore (#4446/#4530).
-//
-// NewStatusStore itself deliberately leaves Instruments nil for
-// source-compatibility across its ~30 existing call sites (see
-// AWSPaginationCheckpointStore for the identical pattern); this constructor is
-// the one place every hosted status call site should use instead so the
-// wiring cannot be silently dropped per call site. instruments may be nil;
-// recording is a no-op in that case (see recordStatusStageCountsCacheOutcome).
+// shared meter-provider Instruments already wired, so every status snapshot
+// read records eshu_dp_status_snapshot_read_duration_seconds labeled by read
+// (see status_read_telemetry.go) wherever the store backs operator status and
+// metrics surfaces: the hosted runtimes (app.NewHostedWithStatusServer /
+// runtime.NewStatusAdminServer) and the API/MCP path wired by cmd/api and
+// cmd/mcp-server's newStatusStore. instruments may be nil; recording is a no-op
+// in that case.
 func NewInstrumentedStatusStore(queryer db.Queryer, instruments *telemetry.Instruments) StatusStore {
 	store := NewStatusStore(queryer)
 	store.Instruments = instruments
@@ -96,88 +84,76 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		return statuspkg.RawSnapshot{}, fmt.Errorf("queryer is required")
 	}
 
-	scopeCounts, err := listNamedCounts(ctx, s.queryer, scopeCountsQuery, "list scope counts")
+	scopeCounts, err := listNamedCounts(ctx, s.read(statusReadScopeCounts), scopeCountsQuery, "list scope counts")
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	generationCounts, err := listNamedCounts(ctx, s.queryer, generationCountsQuery, "list generation counts")
+	generationCounts, err := listNamedCounts(ctx, s.read(statusReadGenerationCounts), generationCountsQuery, "list generation counts")
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	scopeActivity := scopeActivityFromCounts(scopeCounts, generationCounts)
 	generationHistory := generationHistoryFromCounts(generationCounts)
-	generationTransitions, err := listGenerationTransitions(ctx, s.queryer)
+	generationTransitions, err := listGenerationTransitions(ctx, s.read(statusReadGenerationTransitions))
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	stageCounts, err := listStageCounts(ctx, s.queryer, s.stageCountsCache, s.Instruments)
+	// Stage counts, domain backlog, queue snapshot, conflict blockages, and the
+	// latest queue failure all come from one evaluation of
+	// active_fact_work_items in a single round trip (#6794).
+	activeWork, err := readActiveWorkSummary(ctx, s.read(statusReadActiveWorkSummary), asOf.UTC())
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	domainBacklogs, err := listDomainBacklogs(ctx, s.queryer, asOf.UTC())
+	stageCounts := activeWork.StageCounts
+	producerActivity, err := readProducerActivitySnapshot(ctx, s.read(statusReadProducerActivity), asOf.UTC())
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	queueSnapshot, err := readQueueSnapshot(ctx, s.queryer, asOf.UTC())
+	collectorGenerationDeadLetters, err := readCollectorGenerationDeadLetterSnapshot(ctx, s.read(statusReadCollectorGenerationDeadLetters), asOf.UTC())
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	producerActivity, err := readProducerActivitySnapshot(ctx, s.queryer, asOf.UTC())
-	if err != nil {
-		return statuspkg.RawSnapshot{}, err
-	}
-	queueBlockages, err := listReducerConflictBlockages(ctx, s.queryer, asOf.UTC())
-	if err != nil {
-		return statuspkg.RawSnapshot{}, err
-	}
-	latestQueueFailure, err := readLatestQueueFailure(ctx, s.queryer)
-	if err != nil {
-		return statuspkg.RawSnapshot{}, err
-	}
-	collectorGenerationDeadLetters, err := readCollectorGenerationDeadLetterSnapshot(ctx, s.queryer, asOf.UTC())
-	if err != nil {
-		return statuspkg.RawSnapshot{}, err
-	}
-	coordinatorSnapshot, err := readCoordinatorSnapshot(ctx, s.queryer, asOf.UTC())
+	coordinatorSnapshot, err := readCoordinatorSnapshot(ctx, s.read(statusReadCoordinator), asOf.UTC())
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	var registryCollectors []statuspkg.RegistryCollectorSnapshot
 	if selection.IncludeRegistryCollectors {
-		registryCollectors, err = readRegistryCollectorSnapshots(ctx, s.queryer, asOf.UTC())
+		registryCollectors, err = readRegistryCollectorSnapshots(ctx, s.read(statusReadRegistryCollectors), asOf.UTC())
 		if err != nil {
 			return statuspkg.RawSnapshot{}, err
 		}
 	}
-	awsCloudScans, awsCloudScansTruncated, err := readAWSCloudScanStatuses(ctx, s.queryer)
+	awsCloudScans, awsCloudScansTruncated, err := readAWSCloudScanStatuses(ctx, s.read(statusReadAWSCloudScans))
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	awsFreshness, err := readAWSFreshnessSnapshot(ctx, s.queryer, asOf.UTC())
+	awsFreshness, err := readAWSFreshnessSnapshot(ctx, s.read(statusReadAWSFreshness), asOf.UTC())
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	vulnerabilitySources, err := readVulnerabilitySourceStates(ctx, s.queryer)
+	vulnerabilitySources, err := readVulnerabilitySourceStates(ctx, s.read(statusReadVulnerabilitySources))
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	var collectorFactEvidence []statuspkg.CollectorFactEvidence
 	if selection.IncludeCollectorFactEvidence {
-		collectorFactEvidence, err = readCollectorFactEvidence(ctx, s.queryer)
+		collectorFactEvidence, err = readCollectorFactEvidence(ctx, s.read(statusReadCollectorFactEvidence))
 		if err != nil {
 			return statuspkg.RawSnapshot{}, err
 		}
 	}
 	terraformStateEvidence, err := readTerraformStateAdminEvidence(
 		ctx,
-		s.queryer,
+		s.read(statusReadTerraformState),
 		statuspkg.MaxTerraformStateRecentWarnings,
 		asOf.UTC(),
 	)
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	semanticExtraction, err := readSemanticExtractionObservability(ctx, s.queryer)
+	semanticExtraction, err := readSemanticExtractionObservability(ctx, s.read(statusReadSemanticExtraction))
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
@@ -190,11 +166,11 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		GenerationHistory:              generationHistory,
 		GenerationTransitions:          generationTransitions,
 		StageCounts:                    stageCounts,
-		DomainBacklogs:                 domainBacklogs,
+		DomainBacklogs:                 activeWork.DomainBacklogs,
 		ProducerActivity:               producerActivity,
-		QueueBlockages:                 queueBlockages,
-		Queue:                          queueSnapshot,
-		LatestQueueFailure:             latestQueueFailure,
+		QueueBlockages:                 activeWork.Blockages,
+		Queue:                          activeWork.Queue,
+		LatestQueueFailure:             activeWork.LatestFailure,
 		CollectorGenerationDeadLetters: collectorGenerationDeadLetters,
 		Coordinator:                    coordinatorSnapshot,
 		RegistryCollectors:             registryCollectors,
@@ -302,10 +278,6 @@ func listNamedCounts(
 	return counts, nil
 }
 
-// listStageCounts lives in status_stage_counts_cache.go alongside the cache
-// it consults, so the read and its cache stay in one 500-line-cap-compliant
-// file.
-
 func listGenerationTransitions(
 	ctx context.Context,
 	queryer db.Queryer,
@@ -352,120 +324,6 @@ func listGenerationTransitions(
 	}
 
 	return transitions, nil
-}
-
-func listDomainBacklogs(
-	ctx context.Context,
-	queryer db.Queryer,
-	asOf time.Time,
-) ([]statuspkg.DomainBacklog, error) {
-	rows, err := queryer.QueryContext(ctx, domainBacklogQuery, asOf)
-	if err != nil {
-		return nil, fmt.Errorf("list domain backlogs: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	backlogs := []statuspkg.DomainBacklog{}
-	for rows.Next() {
-		var domain string
-		var outstandingCount int64
-		var inFlightCount int64
-		var retryingCount int64
-		var deadLetterCount int64
-		var failedCount int64
-		var oldestOutstandingAgeSeconds float64
-		if scanErr := rows.Scan(
-			&domain,
-			&outstandingCount,
-			&inFlightCount,
-			&retryingCount,
-			&deadLetterCount,
-			&failedCount,
-			&oldestOutstandingAgeSeconds,
-		); scanErr != nil {
-			return nil, fmt.Errorf("list domain backlogs: %w", scanErr)
-		}
-		backlogs = append(backlogs, statuspkg.DomainBacklog{
-			Domain:      domain,
-			Outstanding: int(outstandingCount),
-			InFlight:    int(inFlightCount),
-			Retrying:    int(retryingCount),
-			DeadLetter:  int(deadLetterCount),
-			Failed:      int(failedCount),
-			OldestAge:   durationFromSeconds(oldestOutstandingAgeSeconds),
-		})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list domain backlogs: %w", err)
-	}
-
-	return backlogs, nil
-}
-
-func readQueueSnapshot(
-	ctx context.Context,
-	queryer db.Queryer,
-	asOf time.Time,
-) (statuspkg.QueueSnapshot, error) {
-	rows, err := queryer.QueryContext(ctx, queueSnapshotQuery, asOf)
-	if err != nil {
-		return statuspkg.QueueSnapshot{}, fmt.Errorf("read queue snapshot: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	if !rows.Next() {
-		if err := rows.Err(); err != nil {
-			return statuspkg.QueueSnapshot{}, fmt.Errorf("read queue snapshot: %w", err)
-		}
-		return statuspkg.QueueSnapshot{}, nil
-	}
-
-	var totalCount int64
-	var outstandingCount int64
-	var pendingCount int64
-	var inFlightCount int64
-	var retryingCount int64
-	var succeededCount int64
-	var deadLetterCount int64
-	var failedCount int64
-	var provenanceEdgeIdentityUpgradeApplied bool
-	var provenanceEdgeIdentityUpgradeRequired int64
-	var oldestOutstandingAgeSeconds float64
-	var overdueClaimCount int64
-	if scanErr := rows.Scan(
-		&totalCount,
-		&outstandingCount,
-		&pendingCount,
-		&inFlightCount,
-		&retryingCount,
-		&succeededCount,
-		&deadLetterCount,
-		&failedCount,
-		&provenanceEdgeIdentityUpgradeApplied,
-		&provenanceEdgeIdentityUpgradeRequired,
-		&oldestOutstandingAgeSeconds,
-		&overdueClaimCount,
-	); scanErr != nil {
-		return statuspkg.QueueSnapshot{}, fmt.Errorf("read queue snapshot: %w", scanErr)
-	}
-	if err := rows.Err(); err != nil {
-		return statuspkg.QueueSnapshot{}, fmt.Errorf("read queue snapshot: %w", err)
-	}
-
-	return statuspkg.QueueSnapshot{
-		Total:                                 int(totalCount),
-		Outstanding:                           int(outstandingCount),
-		Pending:                               int(pendingCount),
-		InFlight:                              int(inFlightCount),
-		Retrying:                              int(retryingCount),
-		Succeeded:                             int(succeededCount),
-		DeadLetter:                            int(deadLetterCount),
-		Failed:                                int(failedCount),
-		ProvenanceEdgeIdentityUpgradeApplied:  provenanceEdgeIdentityUpgradeApplied,
-		ProvenanceEdgeIdentityUpgradeRequired: int(provenanceEdgeIdentityUpgradeRequired),
-		OldestOutstandingAge:                  durationFromSeconds(oldestOutstandingAgeSeconds),
-		OverdueClaims:                         int(overdueClaimCount),
-	}, nil
 }
 
 func durationFromSeconds(value float64) time.Duration {

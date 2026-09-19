@@ -19,11 +19,11 @@ import (
 // (#3560) reacts only to genuine graph-write pressure. Readiness-not-ready
 // retrying rows (secrets_iam_endpoint_not_ready and other *_n classes) and
 // generic reducer_retryable rows are deliberately excluded so a readiness
-// backlog never false-throttles unrelated reducer admission. It reuses the
-// active-generation CTE so superseded stale-generation rows do not inflate the
-// signal.
+// backlog never false-throttles unrelated reducer admission. The per-row
+// active-generation filter (selective, so no per-scope build per poll; #6794)
+// keeps superseded stale-generation rows from inflating the signal.
 const reducerGraphWriteTimeoutDepthQuery = `
-WITH ` + activeFactWorkItemsCTE + `
+WITH ` + activeFactWorkItemsPerRowCTE + `
 SELECT COUNT(*) AS count
 FROM active_fact_work_items
 WHERE stage = 'reducer'

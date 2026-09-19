@@ -53,7 +53,7 @@ type RepositoryFreshnessStages struct {
 }
 
 // RepositoryFreshnessOutstanding is one (stage, status) count row for the
-// resolved generation, mirroring stageCountsQuery's shape
+// resolved generation, mirroring stageCountsSelect's shape
 // (storage/postgres/status_queries.go) scoped to a single scope/generation.
 type RepositoryFreshnessOutstanding struct {
 	Stage  string
