@@ -10,14 +10,14 @@ finder.
 
 ## Ownership boundary
 
-This package owns code-intelligence family membership and the mapping from
-decoded arguments to a dependency-neutral internal request. `internal/mcp`
-keeps tool registration order (`find_code`, `find_symbol`,
-`execute_language_query`, and `find_function_call_chain` live in
-`tools_codebase.go`; `investigate_code_topic` in `tools_code_topic.go`;
-`inspect_call_graph_metrics` in `tools_call_graph_metrics.go`;
-`inspect_code_inventory` in `tools_structural_inventory.go`; and
-`trace_route_callers` in `tools_route_to_caller.go`), global route fanout,
+This package owns code-intelligence family membership, the mapping from
+decoded arguments to a dependency-neutral internal request, and four of the
+eight tool definitions (`inspect_code_inventory`,
+`inspect_call_graph_metrics`, `trace_route_callers`,
+`investigate_code_topic`). `internal/mcp` keeps the root registration splice
+and client-visible order (`find_code`, `find_symbol`,
+`execute_language_query`, and `find_function_call_chain` stay in
+`tools_codebase.go` until their own leaf moves them), global route fanout,
 the private `codeIntelRoute` adapter in `dispatch.go`, HTTP dispatch,
 authorization, timeouts, response budgets, envelopes, summaries, and
 telemetry. `internal/query` owns the bounded reads behind each
@@ -35,6 +35,7 @@ side.
 
 - `Route` selects the internal request for a code-intelligence tool without
   executing it, and reports `handled=false` for every other tool.
+- `Tools` returns the four owned code-intelligence tool definitions.
 
 See `doc.go` for the godoc contract.
 

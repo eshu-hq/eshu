@@ -8,11 +8,11 @@
 4. `../../dispatch.go` for `resolveRoute` and the private `codeIntelRoute`
    adapter, consulted as a delegation ahead of the switch that held the eight
    arms before the extraction.
-5. `../../tools_codebase.go`, `../../tools_code_topic.go`,
-   `../../tools_call_graph_metrics.go`, `../../tools_structural_inventory.go`, and
-   `../../tools_route_to_caller.go` for the eight advertised schemas. They stay
-   at the parent's root and must keep naming the same fields this builder
-   selects.
+5. `./tools.go` for the four owned advertised schemas. They live in this
+   package and must keep naming the same fields this builder selects.
+   `../../tools_codebase.go` still holds the remaining four (find_code,
+   find_symbol, execute_language_query, find_function_call_chain) until
+   their own leaf moves them.
 6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. The `go/internal/query` handler behind each path, for the limit/offset
    clamps and required-field checks this package's defaults must stay
@@ -32,9 +32,10 @@
 
 ## Invariants
 
-- Keep only code-intelligence family membership and pure argument-to-request
-  selection here. Global route fanout, the private adapter, and execution
-  stay in the parent MCP package and `internal/query`.
+- Keep only code-intelligence family membership, pure argument-to-request
+  selection, and the four owned tool definitions here. Global route fanout,
+  the private adapter, the root registration splice, and execution stay in
+  the parent MCP package and `internal/query`.
 - Keep the package clause as `package codeinteltools`; the root imports it
   with an explicit alias.
 - Preserve each tool's exact method, path, and body keys. All eight requests

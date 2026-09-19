@@ -5,6 +5,35 @@ package mcp
 
 import "testing"
 
+// TestCodebaseToolsSplicePreservesIntelPositions pins the absolute
+// registration indices of the four code-intelligence definitions owned by
+// the code/intel package, with the interleaved import-dependency and
+// trailing security neighbors. Every name and index is literal here,
+// independent of the child's own order, so a reorder of
+// codeinteltools.Tools or a move of the whole segment fails this test
+// instead of shifting with the code under test.
+func TestCodebaseToolsSplicePreservesIntelPositions(t *testing.T) {
+	t.Parallel()
+
+	codebase := codebaseTools()
+	want := map[int]string{
+		2: "inspect_code_inventory",
+		3: "investigate_import_dependencies",
+		4: "inspect_call_graph_metrics",
+		5: "trace_route_callers",
+		6: "investigate_code_topic",
+		7: "investigate_hardcoded_secrets",
+	}
+	for index, name := range want {
+		if index >= len(codebase) {
+			t.Fatalf("codebaseTools() has %d tools, want index [%d] = %q", len(codebase), index, name)
+		}
+		if got := codebase[index].Name; got != name {
+			t.Fatalf("codebaseTools()[%d] = %q, want %q", index, got, name)
+		}
+	}
+}
+
 func TestResolveRouteMapsCallGraphMetricsToolToBoundedEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -39,36 +68,5 @@ func TestResolveRouteMapsCallGraphMetricsToolToBoundedEndpoint(t *testing.T) {
 	}
 	if got, want := body["offset"], 5; got != want {
 		t.Fatalf("body[offset] = %#v, want %#v", got, want)
-	}
-}
-
-func TestCallGraphMetricsToolSchemaRequiresRepoScopeAndBounds(t *testing.T) {
-	t.Parallel()
-
-	tool := callGraphMetricsTool()
-	if got, want := tool.Name, "inspect_call_graph_metrics"; got != want {
-		t.Fatalf("tool.Name = %q, want %q", got, want)
-	}
-	schema := tool.InputSchema.(map[string]any)
-	required := schema["required"].([]string)
-	if len(required) != 1 || required[0] != "repo_id" {
-		t.Fatalf("required = %#v, want repo_id only", required)
-	}
-	properties := schema["properties"].(map[string]any)
-	metricType := properties["metric_type"].(map[string]any)
-	enums := metricType["enum"].([]string)
-	if got, want := len(enums), 2; got != want {
-		t.Fatalf("metric_type enum count = %d, want %d", got, want)
-	}
-	limit := properties["limit"].(map[string]any)
-	if got, want := limit["maximum"], 200; got != want {
-		t.Fatalf("limit maximum = %#v, want %#v", got, want)
-	}
-	if got, want := limit["minimum"], 1; got != want {
-		t.Fatalf("limit minimum = %#v, want %#v", got, want)
-	}
-	offset := properties["offset"].(map[string]any)
-	if got, want := offset["maximum"], 10000; got != want {
-		t.Fatalf("offset maximum = %#v, want %#v", got, want)
 	}
 }
