@@ -11,19 +11,21 @@ order, the 2 s store lock timeout, and the `DefaultAckWaitMaxRetries` bound
 
 No-Regression Evidence: Scratch Go benchmark (not committed) of
 `AckWhenScopeFree` with an in-memory sink whose Ack succeeds on the first call,
-the path every normal Ack takes, run 5 times on each tree on the same local
-host and Go toolchain. Baseline origin/main 55117d14f: 269-299 ns/op,
-288 B/op, 5 allocs/op. After (this branch): 262-310 ns/op, 288 B/op,
-5 allocs/op. Allocations are identical and the time ranges overlap, so the
-added `time.Now()`, deferred closure, and string local are within noise. A real
-Ack is a Postgres round trip (milliseconds), so the added cost is not visible
-at the Ack budget. The deferral path adds one counter `Add` per 2 s lock
-timeout and one histogram `Record` per waited Ack. There is no backend, row, or
-queue count to compare: the change adds in-process instrumentation only, and
-the focused tests show the same Ack, Heartbeat, and error results as before
-(`go test ./internal/projector ./internal/telemetry ./cmd/bootstrap-index
-./cmd/projector ./cmd/ingester -count=1`, plus `-race -count=3` on the Ack-wait
-tests).
+the path every normal Ack takes, on the same local host and Go toolchain.
+Baseline origin/main 55117d14f against this branch at eea916ed6 (the final
+code; later commits change only this note), 7 runs each: main 188-230 ns/op
+(median ~198), branch 219-281 ns/op (median ~237), both 288 B/op and
+5 allocs/op. An independent reviewer's 6-run re-measurement on the same pair
+gave medians ~279 and ~301 ns/op with the same allocations. The added
+`time.Now()`, deferred closure, and string local therefore cost roughly
+20-40 ns per Ack and add no allocation. A real Ack is at least one Postgres
+transaction round trip, far above the ~0.2-0.3 microseconds measured here. The
+deferral path adds one counter `Add` per 2 s lock timeout and one histogram
+`Record` per waited Ack. There is no backend, row, or queue count to compare:
+the change adds in-process instrumentation only, and the focused tests show the
+same Ack, Heartbeat, and error results as before (`go test ./internal/projector
+./internal/telemetry ./cmd/bootstrap-index ./cmd/projector ./cmd/ingester
+-count=1`, plus `-race -count=3` on the Ack-wait tests).
 
 Observability Evidence: Each deferral increments
 `eshu_dp_projector_ack_deferrals_total` with a closed `outcome` label:
