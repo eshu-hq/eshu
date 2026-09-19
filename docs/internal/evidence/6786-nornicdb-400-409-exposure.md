@@ -76,7 +76,7 @@ above.
 | `graph.DeleteRepositoryFromGraph`, `graph.DeleteFileFromGraph` | #408 (claimed earlier) | Not affected; test-only callers. Deleted | Same nodes and edges as Neo4j after the delete |
 | Canonical File update-existing (`canonicalNodeFileUpdateExistingCypher`, root variant) | #408 (`MATCH`-seeded `WITH`) | Not affected with the schema applied | Two-generation writes match Neo4j row for row |
 | Canonical File create-missing (`canonicalNodeFileCreateMissingCypher`, root variant) | #402, #403 | Affected, latent. The `NOT EXISTS` guard is a no-op with or without the schema, but the graph stays correct because update-existing runs first with the same rows | Read-only twin returns the existing file on NornicDB (2 rows vs 1) |
-| Reducer workload-instance retraction lookup (`cmd/reducer/workload_instance_retraction_lookup.go`) | X9 | Affected: `ListWorkloadInstances` returns nothing on NornicDB, so stale WorkloadInstance nodes are never retracted | Fixed in #6786 (UNWIND variable renamed); live RED/GREEN in the branch's live test |
+| Reducer workload-instance retraction lookup (`cmd/reducer/workload_instance_retraction_lookup.go`) | X9 | Affected: `ListWorkloadInstances` returns nothing on NornicDB, so stale WorkloadInstance nodes are never retracted | Fixed in #6786 (UNWIND variable renamed); live RED/GREEN in `cmd/reducer/nornicdb_workload_instance_retraction_lookup_live_test.go`; see [X9 fix](#x9-fix-workload-instance-retraction-lookup) |
 | Entity repo-identity hydration (`queryselector/entity_repo_identity.go`) | X9, X10 | Affected, fails closed: no repository identity is hydrated on NornicDB | Fixed in a separate change |
 | Two read paths | X4, X5 | Affected; fixed in a separate change | Recorded in that change |
 | Repository list `is_dependency` (`querycontract.RepositoryDependencyMarkerProjection`) | X7, plus invalid scoped Cypher | Affected. Unscoped: always false on NornicDB. Scoped: a syntax error on Neo4j | Fixed in #6786; RED/GREEN in [6786-repository-dependency-marker-and-relationship-repo-anchor.md](6786-repository-dependency-marker-and-relationship-repo-anchor.md) |
@@ -92,6 +92,30 @@ above.
 | Workload dependency lookup, Kubernetes runtime probe | X9 candidates | Not affected: the reused `UNWIND` variable is not a `RETURN` alias | Rows match |
 | Every other production statement | #401, #405, #406, #407, #409, X1, X2, X6, X8, X9, X10 | No production statement has the shape | Static audit; X8 scan found only one statement ending in a relationship `MERGE`, which is correct |
 | #404 | `.id` on node-only `MATCH` | No reachable exposure | Labels that can lack `id`: File, Directory, Module, Environment, CodeownerTeam, Rationale, DocumentationSection, KustomizeOverlay, ShellCommand, Parameter |
+
+## X9 fix: workload-instance retraction lookup
+
+No-Regression Evidence: the fix renames the `UNWIND` binding
+(`repo_id` -> `requested_repo_id`) and updates the one `MATCH` that reads it.
+The `RETURN` clause, its aliases, the `WHERE` filter, and the bound parameters
+(`$repo_ids`, `$evidence_source`) are byte-identical to before. Renaming a
+bound variable does not change the query plan (same labels, same property
+lookups, same `DISTINCT`), so this is a correctness fix with no latency or
+throughput claim. The live test asserts row content, not timing.
+
+Observability Evidence: no new signal is needed. The lookup is a plain graph
+read behind `reducer.ReconcileWorkloadInstanceRetraction`. Its caller,
+`WorkloadMaterializationHandler.Handle`
+(`internal/reducer/workload_materialization_handler.go`), already times and
+counts the whole instance-retraction stage (`timing.instanceRetract`,
+`instanceRetractRows`). A read that silently returned zero rows now shows up
+there as nonzero `instanceRetractRows` once stale instances exist.
+
+Operator note: on NornicDB this lookup never returned rows before the fix, so
+stale `WorkloadInstance` nodes have accumulated. The first reducer runs after
+rollout retract them in a one-time burst, visible as a spike in
+`instanceRetractRows` that settles once the backlog is gone. That burst is
+expected, not a fault.
 
 ## Upstream
 

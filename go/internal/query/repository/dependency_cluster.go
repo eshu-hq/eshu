@@ -200,8 +200,11 @@ const repositoryDependencyEdgesDegradedReason = "dependency_marker_evidence_inco
 
 // logRepositoryDependencyEdgesDegradation logs a structured warning and
 // reports whether the caller must disclose degraded is_dependency /
-// dependency-cluster evidence (append repositoryDependencyEdgesDegradedReason
-// and fold it into the response's truncated/limitations signal).
+// dependency-cluster evidence. The caller appends
+// repositoryDependencyEdgesDegradedReason to partial_reasons (repository list)
+// or limitations (catalog) and never folds it into truncated, which means
+// "more repositories exist beyond this page" (#6786 review F1; see
+// resolveRepositoryDependencyEvidence).
 //
 // The pre-pass degrades rather than fails the request on error or
 // truncation: both listRepositories and listCatalog already treat it as a
