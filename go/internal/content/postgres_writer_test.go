@@ -286,9 +286,35 @@ func (tx recordingTx) ExecContext(_ context.Context, query string, args ...any) 
 	return recordingResult{}, nil
 }
 
-func (tx recordingTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	return nil, context.Canceled
+// QueryContext answers the infra inventory derive lock, which returns the
+// connection's writer session setting; it is recorded with txExecs so the
+// statement counts still see the lock first.
+func (tx recordingTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	if !strings.Contains(query, "pg_advisory_xact_lock") {
+		return nil, context.Canceled
+	}
+	tx.parent.txExecs = append(tx.parent.txExecs, recordingExecCall{query: query, args: args})
+	return &writerSettingRows{}, nil
 }
+
+// writerSettingRows is the derive lock's one-row result: a fenced session.
+type writerSettingRows struct{ read bool }
+
+func (r *writerSettingRows) Next() bool {
+	if r.read {
+		return false
+	}
+	r.read = true
+	return true
+}
+
+func (r *writerSettingRows) Scan(dest ...any) error {
+	*dest[0].(*string) = "derive"
+	return nil
+}
+
+func (r *writerSettingRows) Err() error   { return nil }
+func (r *writerSettingRows) Close() error { return nil }
 
 func (recordingTx) Commit() error   { return nil }
 func (recordingTx) Rollback() error { return nil }
