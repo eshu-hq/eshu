@@ -1161,10 +1161,10 @@ objects.
 ## Change-surface impacted-label whitelist enforced in Go
 
 The scoped change-surface traversal expresses its impacted-label whitelist as a
-`WHERE` attached to a `WITH`. The pinned NornicDB build does not evaluate that
-clause position as a filter, so the whitelist was silently inert and the
-governed read path returned every reachable node. The existing Go post-filter
-re-checked id, environment, repository grant and edge direction, but not labels.
+`WHERE` attached to a `WITH`. The NornicDB build pinned then did not evaluate
+that position as a filter (superseded on v1.3.3, which does; #6786 X11), so the
+whitelist was inert and the governed read returned every reachable node. The Go
+post-filter re-checked id, environment, grant and edge direction, not labels.
 `changeSurfaceImpactedLabels` and `changeSurfaceRowLabelAdmitted` now enforce it
 in `changeSurfaceFilterTraversalRows`. See
 [NornicDB query pitfalls](../../../docs/public/reference/nornicdb-query-pitfalls.md)
