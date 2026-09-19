@@ -144,6 +144,24 @@ type Instruments struct {
 	// from a counter and is proven by the deterministic backoff/jitter unit
 	// tests instead.
 	ProjectorRetrySurge metric.Int64Counter
+	// ProjectorAckDeferrals counts projector Acks deferred because a
+	// same-scope ingestion commit held the scope row (#6803), recorded by
+	// projector.AckWhenScopeFree once per deferred Ack. The closed outcome
+	// label says what the wait loop did next: retried (the loop went on to
+	// renew the lease before another Ack; the renewal's own result lands in
+	// eshu_dp_projector_ack_wait_seconds), abandoned
+	// (DefaultAckWaitMaxRetries ran out), or shutdown (the worker context had
+	// ended). A rising abandoned rate means a
+	// scope row stayed locked for the whole bound and the item will be
+	// re-projected after its lease expires.
+	ProjectorAckDeferrals metric.Int64Counter
+	// ProjectorAckWaitDuration records how long projector.AckWhenScopeFree
+	// waited for a busy scope, from the first Ack attempt to the loop's exit,
+	// only for Acks deferred at least once (#6803). The closed outcome label
+	// is the terminal result: succeeded, abandoned, shutdown, superseded,
+	// claim_lost, or failed. Acks that never waited record nothing, so the
+	// distribution describes busy-scope waits rather than normal Ack latency.
+	ProjectorAckWaitDuration metric.Float64Histogram
 	// ReducerRetrySurge counts every reducer intent retry scheduled via
 	// ReducerQueue.failIntent's retry path (#4450), labeled by failure_class
 	// only (a bounded closed set — the same self-classified or fallback
@@ -1678,6 +1696,25 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ProjectorRetrySurge counter: %w", err)
+	}
+
+	inst.ProjectorAckDeferrals, err = meter.Int64Counter(
+		"eshu_dp_projector_ack_deferrals_total",
+		metric.WithDescription("Total projector Acks deferred by a busy scope row, labeled by what the wait loop did next: retried, abandoned, or shutdown (#6803)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProjectorAckDeferrals counter: %w", err)
+	}
+
+	ackWaitBuckets := []float64{1, 2.5, 5, 10, 30, 60, 120, 180, 300, 600}
+	inst.ProjectorAckWaitDuration, err = meter.Float64Histogram(
+		"eshu_dp_projector_ack_wait_seconds",
+		metric.WithDescription("Time a projector Ack waited for a busy scope row, recorded only for deferred Acks and labeled by terminal outcome (#6803)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(ackWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ProjectorAckWaitDuration histogram: %w", err)
 	}
 
 	inst.ReducerRetrySurge, err = meter.Int64Counter(

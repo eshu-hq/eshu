@@ -90,6 +90,8 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_reconciliation_convergence_total` | Denormalized graph edges classified by the dual-write reconciliation pass, by bounded `domain` and `drift_kind` (`in_sync` / `stale_generation` / `orphan_resolved_id`). Non-`in_sync` values are stranded edges whose denormalized `generation_id`/`resolved_id` no longer match the authoritative Postgres generation after a swap; a sustained nonzero `stale_generation` or `orphan_resolved_id` rate means a Postgres↔graph partial failure left inconsistent edges that the pass is retracting to converge. |
 | `eshu_dp_projector_run_duration_seconds` | Projector claim-and-project cycle cost. |
 | `eshu_dp_projector_stage_duration_seconds` | Projector substage duration. |
+| `eshu_dp_projector_ack_deferrals_total` | Projector Acks deferred because a same-scope ingestion commit held the scope row, by `outcome`: `retried`, `abandoned` (the 150-retry bound ran out), or `shutdown`. A rising `abandoned` rate means work is being dropped for re-projection after its lease expires. |
+| `eshu_dp_projector_ack_wait_seconds` | Time a deferred projector Ack waited for a busy scope, by terminal `outcome`: `succeeded`, `abandoned`, `shutdown`, `superseded`, `claim_lost`, or `failed`. Acks that never waited record nothing. |
 | `eshu_dp_projections_completed_total` | Projection completion volume. |
 | `eshu_dp_reducer_admission_deferrals_total` | Ingester source-local reducer intent admission deferrals by bounded reason. |
 | `eshu_dp_reducer_run_duration_seconds` | Reducer handler execution window. |

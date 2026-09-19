@@ -118,6 +118,7 @@ or marker that already diagnoses it.
 | security-alert manifest dependency match | go/internal/reducer/packages/correlation/security_alert_manifest_dependency_match.go | No-Observability-Change: pure case-insensitive name matching between a security alert and a manifest dependency (moved unchanged with the family, #6061); it branches on nothing an instrument could record and emits no signal, and the owning pass stays covered by `eshu_dp_reducer_executions_total` and `eshu_dp_reducer_run_duration_seconds` | reducer runtime |
 | package-correlation typed payload helpers | go/internal/reducer/packages/correlation/payloads.go | No-Observability-Change: pure in-process typed payload composition for existing package ownership/consumption/publication writes; the package source-correlation domains remain covered by `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`, durable reducer_package_* facts, and malformed readback through `eshu_dp_reducer_input_invalid_facts_total`; this helper emits no metric of its own | reducer supply-chain |
 | retry backoff+jitter (projector) | go/internal/storage/postgres/projector_queue.go:315 | `eshu_dp_projector_retry_surge_total` | projector queue |
+| projector Ack busy-scope wait (#6803) | go/internal/projector/service_superseded.go | `eshu_dp_projector_ack_deferrals_total` (by `outcome`: retried/abandoned/shutdown), `eshu_dp_projector_ack_wait_seconds` (by `outcome`: succeeded/abandoned/shutdown/superseded/claim_lost/failed) | projector queue |
 | retry backoff+jitter (reducer) | go/internal/storage/postgres/reducer_queue_helpers.go:255 | `eshu_dp_reducer_retry_surge_total` | reducer queue |
 | batch claim | go/internal/reducer/repo_dependency_projection_runner.go:149 | `eshu_dp_reducer_batch_claim_size`, `eshu_dp_queue_claim_duration_seconds` | reducer runtime |
 | repo-dependency runner configuration and quiescence contract | go/internal/reducer/repo_dependency_projection_config.go | No-Observability-Change: value defaulting and the narrow canonical-code readiness interface are diagnosed by the existing `eshu_dp_shared_projection_cycles_total`, `eshu_dp_shared_projection_step_seconds`, `eshu_dp_shared_projection_intent_wait_seconds`, `eshu_dp_canonical_write_duration_seconds`, and partition-lease signals emitted by the runner; this declaration helper emits no metric of its own | reducer shared projection |
@@ -1050,9 +1051,7 @@ marker, stages, linked work, and affected flow) is in [Telemetry Coverage Notes]
 <!-- eshu:metric:section=histogram-buckets -->
 ## Histogram Bucket Boundaries
 
-Each documented bucket set maps a short name to the exact boundary values in
-`go/internal/telemetry/instruments.go`. The X2 verifier asserts that every `WithExplicitBucketBoundaries(...)`
-call matches a documented set, and every documented set has a matching variable in the code.
+Each documented bucket set maps a short name to the exact boundary values in `go/internal/telemetry/instruments.go`. The X2 verifier asserts that every `WithExplicitBucketBoundaries(...)` call matches a documented set, and every documented set has a matching variable in the code.
 
 | set_name | boundary_values |
 | --- | --- |
@@ -1072,6 +1071,7 @@ call matches a documented set, and every documented set has a matching variable 
 | scope-assign-seconds | 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30 |
 | fact-emit-seconds | 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300 |
 | projector-run-seconds | 0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
+| projector-ack-wait-seconds | 1, 2.5, 5, 10, 30, 60, 120, 180, 300, 600 |
 | projector-stage-seconds | 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120 |
 | reducer-run-seconds | 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 900 |
 | retention-duration-seconds | 0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900 |
