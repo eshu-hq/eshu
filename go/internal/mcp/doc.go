@@ -52,8 +52,9 @@
 // /api/v0/code/complexity path, the POST /api/v0/code/quality/inspect path,
 // every body key, the limit 10 and offset 0 defaults, the conditional
 // entity_id, and the absent limit on calculate_cyclomatic_complexity are
-// unchanged, and the three advertised definitions stay at this root in
-// tools_codebase.go and tools_code_quality.go.
+// unchanged, and the three advertised definitions live in the codequality
+// child, spliced into the root codebase group at their long-standing
+// positions to preserve registration order.
 // The three entity-resolution selections (resolve_entity,
 // get_entity_context, get_entity_content) live in the entityresolution child
 // and reach dispatch through the entityResolutionRoute adapter defined in

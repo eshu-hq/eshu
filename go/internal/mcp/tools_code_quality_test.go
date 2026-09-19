@@ -5,6 +5,34 @@ package mcp
 
 import "testing"
 
+// TestCodebaseToolsSplicePreservesQualityOrder pins the absolute
+// registration indices of the three quality definitions inside
+// codebaseTools, with the replatforming-ownership predecessor and the
+// execute-cypher successor. Every name and index is literal here,
+// independent of the child package's own order, so a reorder of
+// codequalitytools.Tools or a move of the whole splice fails this test
+// instead of shifting with the code under test.
+func TestCodebaseToolsSplicePreservesQualityOrder(t *testing.T) {
+	t.Parallel()
+
+	codebase := codebaseTools()
+	want := map[int]string{
+		22: "find_unmanaged_resource_owners",
+		23: "calculate_cyclomatic_complexity",
+		24: "find_most_complex_functions",
+		25: "inspect_code_quality",
+		26: "execute_cypher_query",
+	}
+	for index, name := range want {
+		if index >= len(codebase) {
+			t.Fatalf("codebaseTools() has %d tools, want index [%d] = %q", len(codebase), index, name)
+		}
+		if got := codebase[index].Name; got != name {
+			t.Fatalf("codebaseTools()[%d] = %q, want %q", index, got, name)
+		}
+	}
+}
+
 func TestCodeQualityToolIsRegistered(t *testing.T) {
 	t.Parallel()
 

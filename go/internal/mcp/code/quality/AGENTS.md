@@ -10,11 +10,10 @@
    arms before the extraction, and
    `../../dispatch_code_quality_contract_test.go` for the production-boundary
    proof.
-5. `../../tools_codebase.go` and `../../tools_code_quality.go` for the three
-   advertised schemas. They stay at the parent's root and must keep naming
-   the same fields this builder selects; `calculate_cyclomatic_complexity`
-   also advertises `path` and `scope`, which neither this builder selects nor
-   the handler decodes.
+5. `./tools.go` for the three advertised schemas. They live in this package
+   and must keep naming the same fields this builder selects;
+   `calculate_cyclomatic_complexity` also advertises `path` and `scope`,
+   which neither this builder selects nor the handler decodes.
 6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. `go/internal/query/codequery/handler.go` (`handleComplexity`),
    `go/internal/query/codemodel/code_complexity_page.go`, and
@@ -27,9 +26,10 @@
 
 ## Invariants
 
-- Keep only complexity/quality family membership and pure
-  argument-to-request selection here. Global route fanout, the private
-  adapter, and execution stay in the parent MCP package and `internal/query`.
+- Keep only complexity/quality family membership, pure
+  argument-to-request selection, and the tool definitions here. Global route
+  fanout, the private adapter, the root registration splice, and execution
+  stay in the parent MCP package and `internal/query`.
 - Keep the package clause as `package codequalitytools`; the root imports it
   with an explicit alias.
 - Preserve each tool's exact method, path, and body keys. All three requests

@@ -12,6 +12,7 @@ import (
 	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
 	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
 	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/code/owners"
+	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	ecosystemtools "github.com/eshu-hq/eshu/go/internal/mcp/ecosystem"
@@ -182,6 +183,15 @@ func deadCodeTools() []ToolDefinition {
 // code/owners package owns the registration definition.
 func codeownersTools() []ToolDefinition {
 	return codeownerstools.Tools()
+}
+
+// codeQualityTools preserves the root package's constructor name while the
+// code/quality package owns the registration definitions. The codebase
+// group splices the whole family slice at its long-standing position, so a
+// future arity change registers automatically instead of panicking on an
+// index.
+func codeQualityTools() []ToolDefinition {
+	return codequalitytools.Tools()
 }
 
 // contextTools preserves the root package's constructor name while composing

@@ -210,57 +210,13 @@ func codebaseTools() []ToolDefinition {
 		terraformConfigStateDriftFindingsTool(),
 		replatformingRollupsTool(),
 		replatformingOwnershipTool(),
-		{
-			Name:        "calculate_cyclomatic_complexity",
-			Description: "Calculate the cyclomatic complexity of a specific function to measure its complexity. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"entity_id": map[string]any{
-						"type":        "string",
-						"description": "Exact entity identifier returned by an ambiguity response",
-					},
-					"function_name": map[string]any{
-						"type":        "string",
-						"description": "Name of the function to analyze when entity_id is unknown",
-					},
-					"path": map[string]any{
-						"type":        "string",
-						"description": "Optional file path containing the function",
-					},
-					"repo_id": map[string]any{
-						"type":        "string",
-						"description": "Optional canonical repository identifier",
-					},
-					"scope": map[string]any{
-						"type":        "string",
-						"description": "Analysis scope",
-						"default":     "auto",
-					},
-				},
-				"required": []string{},
-			},
-		},
-		{
-			Name:        "find_most_complex_functions",
-			Description: "Find the most complex functions in the codebase based on cyclomatic complexity. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum number of results to return",
-						"default":     10,
-					},
-					"repo_id": map[string]any{
-						"type":        "string",
-						"description": "Optional canonical repository identifier",
-					},
-				},
-				"required": []string{},
-			},
-		},
-		codeQualityInspectionTool(),
+	}...)
+	// The three complexity/quality definitions owned by the code/quality
+	// package splice in at this position to preserve the long-standing
+	// registration order. Appending the whole family slice keeps a future
+	// arity change loud at the order test instead of panicking here.
+	tools = append(tools, codeQualityTools()...)
+	tools = append(tools, []ToolDefinition{
 		{
 			Name:        "execute_cypher_query",
 			Description: "Fallback tool to run a direct, read-only Cypher query against the code graph. Shared-key/all-scope callers only: the query text is caller-supplied and unbounded, so it cannot be intersected against a tenant grant. A scoped or browser-session token is rejected before this tool's request ever reaches the graph.",

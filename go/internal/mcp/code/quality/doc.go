@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package codequalitytools defines pure route selection for the MCP
-// complexity/quality family.
+// Package codequalitytools defines pure route selection and the tool
+// definitions for the MCP complexity/quality family.
 //
 // Route decides whether this package owns a tool and maps decoded arguments
 // to a dependency-neutral internal request without executing it. The parent
-// mcp package owns tool registration and its order
-// (calculate_cyclomatic_complexity and find_most_complex_functions stay in
-// the root codebase group in tools_codebase.go, and inspect_code_quality in
-// tools_code_quality.go), global route fanout, the private adapter, HTTP
-// dispatch, authorization, timeouts, response budgets, envelopes, summaries,
-// and telemetry. The query package owns the bounded reads behind
+// mcp package owns the root registration wrapper and client-visible order,
+// global route fanout, the private adapter, HTTP dispatch, authorization,
+// timeouts, response budgets, envelopes, summaries, and telemetry. The query
+// package owns the bounded reads behind
 // POST /api/v0/code/complexity and POST /api/v0/code/quality/inspect. This
 // package runs no query and must keep every tool name, request path, and
 // body key stable.
