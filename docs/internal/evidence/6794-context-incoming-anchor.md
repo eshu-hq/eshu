@@ -104,21 +104,27 @@ inference comes from timing only.
 
 Before (`925e8016f`) vs. a build of the three anchor rewrites plus the
 related-source `UNION` split recorded on #6812, 3 repositories exercised across
-7 alternating rounds, all HTTP 200s. The split was later removed from this PR;
-that read runs inside the
-`content_infrastructure_overview` stage, and response bodies were identical on
-both sides for these repositories, so the latencies below come from the three
-anchor rewrites. 21/21 responses matched after stripping volatile keys
-(`generated_at`, `as_of`, `observed_at`, durations, `request_id`, `freshness`,
-`truth`):
+7 alternating rounds, all HTTP 200s. The split was later removed from this PR.
+21/21 responses matched after stripping volatile keys (`generated_at`,
+`as_of`, `observed_at`, durations, `request_id`, `freshness`, `truth`).
+
+Attributed to this change -- the per-stage timings of the rewritten reads,
+which the related-source split does not touch:
+
+- `consumers` stage: p50 10.002s (at the 10s graph-read deadline) -> under
+  0.05s;
+- `relationship_overview` stage: 6.752s -> 0.064s.
+
+Not attributable to this change alone -- whole-request timings. The measured
+build also carried the related-source split, which runs inside the
+`content_infrastructure_overview` stage of the same request, so these totals
+are shown for context and are non-comparable as a measurement of this commit:
 
 - graph-fallback repository: p50/p95 17.18s/21.30s -> 1.12s/1.31s;
 - read-model repository with a few hundred incoming edges: p50/p95
   1.27s/12.09s -> 1.34s/1.83s (the 12s is main's first call, outside every
   timed stage);
-- small repository: p50/p95 0.91s/11.88s -> 0.98s/1.57s;
-- `consumers` stage: p50 10.002s (at the 10s graph-read deadline) -> under
-  0.05s; `relationship_overview` stage: 6.752s -> 0.064s.
+- small repository: p50/p95 0.91s/11.88s -> 0.98s/1.57s.
 
 ## Observability
 

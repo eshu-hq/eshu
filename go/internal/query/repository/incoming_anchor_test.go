@@ -17,13 +17,14 @@ import (
 var rightAnchoredRepository = regexp.MustCompile(`\]->\(\w+:Repository \{id: \$repo_id\}\)`)
 
 // TestRepositoryContextIncomingReadsAnchorOnTheBoundRepository guards #6794.
-// NornicDB plans a relationship pattern from its left node, so a right-anchored
-// incoming read, (source:Repository)-[rel]->(r:Repository {id: $repo_id}),
-// scanned every Repository and every typed edge before filtering on the bound
-// id. On a production-scale instance the incoming overview and consumers reads
-// ran past the 10s API deadline and /context rendered no incoming rows. The
-// same pattern written from the bound node, (r:Repository {id: $repo_id})<-[rel]-(source:Repository),
-// returns the same rows from an index seek on repository_id.
+// Timing suggests NornicDB plans a relationship pattern from its left node: a
+// right-anchored incoming read, (source:Repository)-[rel]->(r:Repository {id: $repo_id}),
+// cost time that grew with graph size rather than with the bound repository's
+// degree (the engine source was not read; see the #6794 evidence note). On a
+// production-scale instance the incoming overview and consumers reads ran past
+// the 10s API deadline and /context rendered no incoming rows. The same pattern
+// written from the bound node, (r:Repository {id: $repo_id})<-[rel]-(source:Repository),
+// returned the same rows in milliseconds.
 func TestRepositoryContextIncomingReadsAnchorOnTheBoundRepository(t *testing.T) {
 	t.Parallel()
 
