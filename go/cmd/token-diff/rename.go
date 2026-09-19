@@ -18,8 +18,8 @@ import (
 // repository-internal package move.
 const internalImportPrefix = "github.com/eshu-hq/eshu/go/internal/"
 
-// importRename describes one repository-internal package move as seen from
-// a single importing file: the import path changed from oldPath to newPath,
+// importRename describes one repository-internal import substitution as
+// seen from a single importing file: the import path changed from oldPath to newPath,
 // and every use of the package qualifier changed from oldName to newName.
 type importRename struct {
 	oldPath, newPath string
@@ -69,7 +69,7 @@ func splitImports(src []byte) (parts fileParts, ok bool, err error) {
 }
 
 // internalImportRenameOnly reports whether head equals base after exactly
-// one repository-internal package move: one unaliased import path under
+// one repository-internal import substitution: one unaliased import path under
 // internalImportPrefix replaced by another, and every qualified use of the
 // old package name (oldName.X) replaced by the new one (newName.X), with no
 // other token changed. Plain // comments are ignored, exactly as in the
@@ -79,6 +79,11 @@ func splitImports(src []byte) (parts fileParts, ok bool, err error) {
 // The names are the last path elements of the two import paths, so a
 // package whose clause differs from its directory name never qualifies.
 // Only one rename per file is accepted.
+//
+// Seeing one file, this cannot tell a package move from a swap between two
+// packages that both exist. The caller must prove the move from the tree:
+// scripts/lib/parser_relationship_comment_only_diff.sh checks that the old
+// package directory disappeared and the new one appeared in the same diff.
 func internalImportRenameOnly(baseSrc, headSrc []byte) (importRename, bool, error) {
 	base, baseOK, err := splitImports(baseSrc)
 	if err != nil || !baseOK {

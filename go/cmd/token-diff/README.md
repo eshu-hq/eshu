@@ -37,8 +37,14 @@ comment-only exemption rules.
   `-allow-internal-import-rename`, which the gate always passes. That flag
   also exempts a file whose only change is one package move under
   `github.com/eshu-hq/eshu/go/internal/`: the import path plus every
-  `old.X` qualifier becoming `new.X`, and nothing else. No config file, no
-  state, no network access. Pure function of two file paths' contents.
+  `old.X` qualifier becoming `new.X`, and nothing else. The tool cannot see
+  the tree, so the caller checks the verdict's two paths against git: the
+  old package directory must disappear and the new one appear in the same
+  diff, or the file is a real change. No config file, no state, no network
+  access. Pure function of two file paths' contents.
+- The rename verdict's stdout line
+  (`token-diff: internal import rename only: <old> -> <new> (...)`) is parsed
+  by the caller. Changing its shape breaks the gate; `rename_test.go` pins it.
 - Exit codes are the contract: 0 exempt, 1 real change, 2 error. Every
   caller must treat 1 and 2 identically (fail closed) -- see `doc.go`.
 
