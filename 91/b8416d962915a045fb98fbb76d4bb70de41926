@@ -1,0 +1,21 @@
+go/internal/query/queryselector/README.md
+  s_7deca246baab33::t_84477f831ebf53 81-93
+go/internal/query/queryselector/entity_repo_identity_test.go
+  s_7deca246baab33::t_031561c39e01b5 203-242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "91b8416d962915a045fb98fbb76d4bb70de41926",
+  "prompts": {},
+  "sessions": {
+    "s_7deca246baab33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c6c6328-6cdc-426c-9806-b59928285a23",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
