@@ -1,0 +1,23 @@
+docs/internal/evidence/6786-repository-dependency-edge-transfer-cap.md
+  s_123a29533bca09::t_9a7cb693a9c219 94-96,105-110,184-252
+docs/public/reference/http-api/catalog-workload-selection.md
+  s_123a29533bca09::t_cabc8eb5474bc6 55-57
+docs/public/reference/http-api/repositories-ingesters-bundles.md
+  s_123a29533bca09::t_b6ce8ab9ce77e5 150-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "59d19fd509eb61817a120815ced3e614bbf6efab",
+  "prompts": {},
+  "sessions": {
+    "s_123a29533bca09": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e300fa7a-4aa7-42de-9ba8-0745c8e74ad6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
