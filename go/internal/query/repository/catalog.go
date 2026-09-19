@@ -191,6 +191,7 @@ func (h *Handler) listCatalogRepositoriesFromGraph(
 	dependencyRead := loadRepositoryDependencyEdges(ctx, h.Neo4j, querycontract.RepositoryAccessFilter{AllScopes: true})
 	dependencyTargets := repositoryDependencyTargetSet(dependencyRead.Edges)
 	dependencyDegraded = logRepositoryDependencyEdgesDegradation(ctx, h.Logger, "catalog_list", dependencyRead)
+	logRepositoryDependencyClusterErrors(ctx, h.Logger, "catalog_list", dependencyRead)
 
 	repositories = make([]catalogRepository, 0, len(rows))
 	for _, row := range rows {
