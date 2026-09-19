@@ -720,10 +720,12 @@ type Instruments struct {
 	// first lookup followed by an admitted second one is a successful
 	// request, not a denial (#6786 review).
 	QueryScopedGrantDenied metric.Int64Counter
-	// QueryScopeGrantInlineCapped counts scoped-token infra reads whose grant
-	// set overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
-	// currently 128) so the USES and DEFINES-collision admission families were
-	// truncated (issue #5408). Counted once per read, not once per clause: one
+	// QueryScopeGrantInlineCapped counts scoped-token reads whose grant set
+	// overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
+	// currently 128), so the USES and/or DEFINES-collision admission families
+	// were truncated (issue #5408). The infra reads truncate both families. The
+	// workload name reads (#6801; reasons workload_context_name and
+	// deployment_trace_selector) truncate DEFINES-collision admission only. Counted once per read, not once per clause: one
 	// request builds that disjunction more than once, and per-clause counting
 	// would report a single degraded read as three.
 	//
@@ -731,9 +733,10 @@ type Instruments struct {
 	// admission for the overflow, so rows go missing but never appear that
 	// should not, and direct-ownership and DEPLOYMENT_SOURCE admission still
 	// apply. A non-zero rate is the 3 AM signal that a token is granted more
-	// than 128 repositories and its infra reads are quietly incomplete; the
-	// fix is to widen the cap or move that caller to an all-scopes token, not
-	// to treat the missing rows as absence of infrastructure.
+	// than 128 repositories and its reads are quietly incomplete (missing
+	// infrastructure, or a missing DEFINES-only workload by name). The fix is
+	// to widen the cap or move that caller to an all-scopes token, not to treat
+	// the missing rows as absence.
 	QueryScopeGrantInlineCapped metric.Int64Counter
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
@@ -3178,8 +3181,8 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	inst.QueryScopeGrantInlineCapped, err = meter.Int64Counter(
 		"eshu_dp_query_scope_grant_inline_capped_total",
 		metric.WithDescription(
-			"Total scoped-token infra reads whose grant set overflowed the SHAPE-A inline-map cap, "+
-				"truncating USES and DEFINES-collision admission (fail-closed: rows go missing, never extra); label reason carries the read surface",
+			"Total scoped-token reads (infra, and the workload name reads) whose grant set overflowed the SHAPE-A inline-map cap, "+
+				"truncating USES and/or DEFINES-collision admission (fail-closed: rows go missing, never extra); label reason carries the read surface",
 		),
 	)
 	if err != nil {

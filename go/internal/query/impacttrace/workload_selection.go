@@ -113,7 +113,7 @@ func ResolveWorkloadSelector(
 	nameWhere := "w.name = $service_name"
 	if access.Scoped() {
 		nameWhere += " AND " + querycontract.WorkloadScopePredicate("w", access)
-		recordScopeGrantInlineCapped(ctx, instruments, access, "deployment_trace_selector")
+		recordScopeGrantInlineCapped(ctx, logger, instruments, access, "deployment_trace_selector")
 	}
 	nameRows, err := reader.Run(ctx, fmt.Sprintf("%s\nLIMIT %d", workloadSelectorRowCypher(nameWhere), workloadSelectorCandidateBound+1), params)
 	if err != nil {

@@ -41,11 +41,14 @@ func recordScopedGrantDenied(ctx context.Context, instruments *telemetry.Instrum
 // so a workload admitted only through one of those grants goes missing (fail
 // closed). This is the only signal an operator gets for that. surface is a
 // fixed, low-cardinality string chosen by the caller. Call it once per read.
-func recordScopeGrantInlineCapped(ctx context.Context, instruments *telemetry.Instruments, access querycontract.RepositoryAccessFilter, surface string) {
+func recordScopeGrantInlineCapped(ctx context.Context, logger *slog.Logger, instruments *telemetry.Instruments, access querycontract.RepositoryAccessFilter, surface string) {
 	if !access.GrantInlineCapExceeded() {
 		return
 	}
-	slog.WarnContext(ctx, "scoped token grant set exceeded the inline-map cap; DEFINES-collision admission truncated",
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.WarnContext(ctx, "scoped token grant set exceeded the inline-map cap; DEFINES-collision admission truncated",
 		slog.String("surface", surface),
 		slog.Int("granted_repositories", len(access.AllowedRepositoryIDs)),
 		slog.Int("granted_scopes", len(access.AllowedScopeIDs)),

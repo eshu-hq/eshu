@@ -65,9 +65,10 @@ const WorkloadSelectorCandidateBound = 50
 // ErrWorkloadSelectorCandidatesExceedBound reports that a name-keyed Workload
 // selector matched more rows than WorkloadSelectorCandidateBound. HTTP
 // handlers map it to 409 Conflict with a fixed message that tells the caller
-// to retry with a workload id. The error text never carries the row count:
-// the rows are counted before the grant filter runs, so a count would tell a
-// scoped caller how many ungranted workloads share the name.
+// to retry with a workload id. The error text never carries the row count.
+// For a scoped caller the name read carries WorkloadScopePredicate, so the
+// bound counts granted rows only; the text stays count-free for unscoped
+// callers, and as defense in depth in case a backend ignores the predicate.
 var ErrWorkloadSelectorCandidatesExceedBound = errors.New("workload selector matched more candidates than can be resolved; retry with a workload id")
 
 // WriteWorkloadSelectorOverflow writes the 409 Conflict response for

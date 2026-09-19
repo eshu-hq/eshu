@@ -376,7 +376,7 @@ source_coverage:
       - {symbol: "(*Handler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 9dd90cb74928ac0f21d817744349736e7e0c38a52f5faa7cbd619eda95ab9337, key_bound: single_key, max_results: 2501}}
   - file: impacttrace/workload_selection.go
     calls:
-      - {symbol: "ResolveWorkloadSelector", count: 2, non_hot: {class: keyed_support, source_sha256: 5401ec156789002590eb931da20d39fdab12df2d85125ca0a62ff08139093535, key_bound: single_key, max_results: 51}}
+      - {symbol: "ResolveWorkloadSelector", count: 2, non_hot: {class: keyed_support, source_sha256: 9f8e2cf82d5a6e8c93d76f0227be983968004d6b9208d7b8750432d3dd173d49, key_bound: single_key, max_results: 51}}
   - file: entity/workload_provisioned_platforms.go
     calls:
       - {symbol: "(*Handler).FetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 7e1e17aceda366cdb64d59f03847de40e81d46d08d1420eb570511b2c4b66c31, key_bound: single_key, max_results: 51}}
