@@ -29,7 +29,7 @@ type crossplaneRedriveHookOrderFake struct {
 
 func (f crossplaneRedriveHookOrderFake) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	*f.log = append(*f.log, "exec")
-	return driverResult{}, nil
+	return projectorRowsAffectedResult{rowsAffected: 1}, nil
 }
 
 func (f crossplaneRedriveHookOrderFake) QueryContext(context.Context, string, ...any) (db.Rows, error) {

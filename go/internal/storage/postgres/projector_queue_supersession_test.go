@@ -32,11 +32,11 @@ func TestProjectorQueueAckSupersedesObsoleteTerminalGenerations(t *testing.T) {
 	if err := queue.Ack(context.Background(), work, projector.Result{}); err != nil {
 		t.Fatalf("Ack() error = %v, want nil", err)
 	}
-	if got, want := len(db.execs), 5; got != want {
+	if got, want := len(db.execs), 6; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 
-	query := db.execs[1].query
+	query := db.execs[3].query
 	for _, want := range []string{
 		"UPDATE fact_work_items AS stale",
 		"stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')",

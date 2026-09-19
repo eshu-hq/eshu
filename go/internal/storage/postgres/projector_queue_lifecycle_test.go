@@ -45,8 +45,12 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 	if got, want := db.beginCalls, 1; got != want {
 		t.Fatalf("begin count = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 5; got != want {
+	if got, want := len(db.execs), 6; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
+	}
+	if !strings.Contains(db.execs[0].query, "set_config('lock_timeout', $1, true)") ||
+		len(db.execs[0].args) != 1 || db.execs[0].args[0] != "2000ms" {
+		t.Fatalf("Ack first statement = %q %v, want transaction-local 2s lock_timeout", db.execs[0].query, db.execs[0].args)
 	}
 
 	checks := []struct {
@@ -54,7 +58,30 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 		want  []string
 	}{
 		{
-			query: db.execs[0].query,
+			query: db.execs[1].query,
+			want: []string{
+				"UPDATE ingestion_scopes",
+				"active_generation_id = $3",
+			},
+		},
+		{
+			query: db.execs[2].query,
+			want: []string{
+				"UPDATE fact_work_items",
+				"status = 'succeeded'",
+				"attempt_count = $5",
+			},
+		},
+		{
+			query: db.execs[3].query,
+			want: []string{
+				"UPDATE fact_work_items AS stale",
+				"status = 'superseded'",
+				"stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')",
+			},
+		},
+		{
+			query: db.execs[4].query,
 			want: []string{
 				"UPDATE scope_generations",
 				"status = 'superseded'",
@@ -63,33 +90,11 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 			},
 		},
 		{
-			query: db.execs[1].query,
-			want: []string{
-				"UPDATE fact_work_items AS stale",
-				"status = 'superseded'",
-				"stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')",
-			},
-		},
-		{
-			query: db.execs[2].query,
+			query: db.execs[5].query,
 			want: []string{
 				"UPDATE scope_generations",
 				"status = 'active'",
 				"activated_at = COALESCE(activated_at, $1)",
-			},
-		},
-		{
-			query: db.execs[3].query,
-			want: []string{
-				"UPDATE ingestion_scopes",
-				"active_generation_id = $3",
-			},
-		},
-		{
-			query: db.execs[4].query,
-			want: []string{
-				"UPDATE fact_work_items",
-				"status = 'succeeded'",
 			},
 		},
 	}

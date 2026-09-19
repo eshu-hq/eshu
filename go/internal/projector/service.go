@@ -237,7 +237,8 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	factsForGeneration, err := s.FactStore.LoadFacts(projectCtx, work)
 	if err != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-			if s.recordSupersededWork(workCtx, work, start, 0, heartbeatErr, workerID) {
+			if s.recordSupersededWork(workCtx, work, start, 0, heartbeatErr, workerID) ||
+				s.recordClaimLostWork(workCtx, work, start, 0, heartbeatErr, "heartbeat", workerID) {
 				return nil
 			}
 			return errors.Join(err, heartbeatErr)
@@ -246,11 +247,7 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 			s.recordProjectionShutdownCanceled(workCtx, work, start, 0, err, workerID)
 			return nil
 		}
-		s.recordProjectionResult(workCtx, work, start, "failed", 0, err, workerID)
-		if failErr := s.WorkSink.Fail(workCtx, work, err); failErr != nil {
-			return errors.Join(err, fmt.Errorf("fail projector work: %w", failErr))
-		}
-		return nil
+		return s.failWork(workCtx, work, start, 0, err, workerID)
 	}
 	s.recordWorkStage(projectCtx, work, "load_facts", loadStart, len(factsForGeneration), workerID)
 
@@ -262,7 +259,8 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	result, err := s.Runner.Project(projectCtx, scopeValue, work.Generation, factsForGeneration)
 	if err != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-			if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) {
+			if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) ||
+				s.recordClaimLostWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, "heartbeat", workerID) {
 				return nil
 			}
 			return errors.Join(err, heartbeatErr)
@@ -271,23 +269,25 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 			s.recordProjectionShutdownCanceled(workCtx, work, start, len(factsForGeneration), err, workerID)
 			return nil
 		}
-		s.recordProjectionResult(workCtx, work, start, "failed", len(factsForGeneration), err, workerID)
-		if failErr := s.WorkSink.Fail(workCtx, work, err); failErr != nil {
-			return errors.Join(err, fmt.Errorf("fail projector work: %w", failErr))
-		}
-		return nil
+		return s.failWork(workCtx, work, start, len(factsForGeneration), err, workerID)
 	}
 	s.recordWorkStage(projectCtx, work, "project_generation", projectStart, len(factsForGeneration), workerID)
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-		if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) {
+		if s.recordSupersededWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, workerID) ||
+			s.recordClaimLostWork(workCtx, work, start, len(factsForGeneration), heartbeatErr, "heartbeat", workerID) {
 			return nil
 		}
 		return heartbeatErr
 	}
 
-	ackCtx, cancelAck := projectorAckContext(workCtx)
-	defer cancelAck()
-	if err := s.WorkSink.Ack(ackCtx, work, result); err != nil {
+	ackCtx := context.WithoutCancel(workCtx)
+	onDeferred := s.ackDeferredLogger(ackCtx, work, workerID)
+	if err := AckWhenScopeFree(workCtx, s.WorkSink, s.Heartbeater, work, result, 0, onDeferred); err != nil {
+		if s.recordSupersededWork(ackCtx, work, start, len(factsForGeneration), err, workerID) ||
+			s.recordClaimLostWork(ackCtx, work, start, len(factsForGeneration), err, "ack", workerID) ||
+			s.recordAckAbandoned(workCtx, work, start, len(factsForGeneration), err, workerID) {
+			return nil
+		}
 		s.recordProjectionResult(ackCtx, work, start, "ack_failed", len(factsForGeneration), err, workerID)
 		return fmt.Errorf("ack projector work: %w", err)
 	}
@@ -332,7 +332,9 @@ func (s Service) startHeartbeat(ctx context.Context, work ScopeGenerationWork, w
 						return
 					}
 					heartbeatErr = fmt.Errorf("heartbeat projector work: %w", err)
-					if s.Logger != nil {
+					// A lost claim is expected under attempt fencing; processWork
+					// logs it at WARN, so it must not page as a heartbeat failure.
+					if s.Logger != nil && !errors.Is(err, ErrWorkClaimLost) {
 						scopeAttrs := telemetry.ScopeAttrs(work.Scope.ScopeID, work.Generation.GenerationID, work.Scope.SourceSystem)
 						logAttrs := make([]any, 0, len(scopeAttrs)+4)
 						for _, a := range scopeAttrs {

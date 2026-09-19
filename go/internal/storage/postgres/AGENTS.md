@@ -8,7 +8,7 @@
    `Executor`, `ExecQueryer`, `Transaction`, `Beginner`,
    `ReadOnlyRepeatableReadBeginner` (adapters and bootstrap lock stay in root)
 3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
-   and `Ack`; the five-step atomic ack transaction is the most sensitive path
+   and `Ack`; the atomic, lock-timeout-bounded ack transaction is the most sensitive path
    in this package
 4. `go/internal/storage/postgres/projector_queue_sql.go` — projector claim,
    stale-generation coalescing, duplicate-lease reclaim, and lifecycle SQL
@@ -43,24 +43,24 @@
   payload) purely on commit order; `deduplicateEnvelopes` only protects against
   duplicate `fact_id` values inside one batch, not across batches.
 - **Freshness de-dupe covers in-flight generations** —
-  `CommitScopeGeneration` must compare the incoming `FreshnessHint` with the
-  newest same-scope `pending` or `active` generation. Restricting the check to
-  `ingestion_scopes.active_generation_id` lets local polling recommit the same
-  snapshot while projection is still in flight, which creates avoidable
-  supersession churn. Do not include `failed` generations in this skip path; a
-  failed first projection must remain retryable by a later snapshot.
+  `CommitScopeGeneration` compares the incoming `FreshnessHint` with the newest
+  same-scope `pending` or `active` generation, not only `active_generation_id`,
+  so polling cannot recommit a snapshot still in flight. Exclude `failed`
+  generations so a later snapshot retries a failed first projection. Separately
+  (#6738), the generation upsert rewrites only `pending` rows and never refreshes
+  `observed_at`/`ingested_at`; a finalized same-ID retry rolls back and drains.
 - **JSONB sanitization** — `sanitizeJSONB` removes JSON-encoded U+0000
   characters and raw control bytes before every fact INSERT. It preserves
   literal source text such as the six characters `\u0000`. Skipping this causes
   Postgres errors on repositories with binary or non-UTF-8 content.
-- **Ack atomicity** — `ProjectorQueue.Ack` wraps five SQL statements in a
-  single transaction. If any step fails, the transaction rolls back. Always
-  pass a `SQLDB` or `InstrumentedDB(SQLDB)` to `NewProjectorQueue`; a bare
-  `ExecQueryer` without `Beginner` will fail.
-- **Lease fencing** — `ProjectorQueue.Heartbeat` and `WorkflowControlStore`
-  claims check `lease_owner` on UPDATE. A zero `RowsAffected` returns
-  `ErrProjectorClaimRejected` or `ErrWorkflowClaimRejected`. Callers must stop
-  processing on these errors and must not retry the ack.
+- **Ack atomicity and lock order (#6738)** — one `Ack` transaction, scope first,
+  under a local `lock_timeout` (55P03 → `projector.ErrWorkAckDeferred`; retry via
+  `AckWhenScopeFree`). Scope precedes generation/work everywhere; Heartbeat uses
+  `FOR NO KEY UPDATE SKIP LOCKED`, never waiting on ingestion. Else 40P01.
+- **Lease fencing** — projector Heartbeat/Ack/Fail match `lease_owner` and
+  `attempt_count`; zero rows is `ErrProjectorClaimRejected` (wraps
+  `projector.ErrWorkClaimLost`; drop the attempt). `WorkflowControlStore` checks
+  `lease_owner`; callers stop on `ErrWorkflowClaimRejected`. Rejections are final.
 - **Projector scope ordering** — `ProjectorQueue.Claim` must preserve one
   active source-local generation per `scope_id`. Keep the oldest-ready-row
   subquery with `FOR UPDATE SKIP LOCKED`; without it, parallel claimers can skip
@@ -78,7 +78,8 @@
   Keep the `ProjectorQueue.Heartbeat` supersede check with that claim behavior:
   live older same-scope generations must return `projector.ErrWorkSuperseded`
   once a newer generation is visible, or local polling can spend minutes writing
-  graph state that will be immediately obsolete.
+  graph state that will be immediately obsolete. It demotes only a `pending`
+  generation; an `active` one keeps the scope pointer until successor Ack.
 - **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
   `semantic_entity_materialization` while source-local projection is in-flight
   when the NornicDB gate parameter is true. Do not remove or bypass this gate
@@ -551,7 +552,7 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
 - **Do not use raw SQL string building** when adding new stores. Use parameterized
   queries (`$1`, `$2`, ...) exclusively to prevent injection.
 - **Do not hold long transactions** across graph writes. The projector ack
-  transaction is bounded to five SQL statements; do not add graph or network
+  transaction is bounded to six SQL statements; do not add graph or network
   calls inside it.
 - **Do not add `if backend == "nornicdb"` branches** here. Backend-specific
   queue gate logic is isolated to `ReducerQueue.Claim`'s parameterized gate

@@ -12,7 +12,9 @@
 // partial graph writes must converge on the same graph truth instead of
 // creating hidden second paths. A claimed generation can stop without ack or
 // fail when its heartbeat returns ErrWorkSuperseded, which means a newer
-// same-scope generation replaced stale local polling work. Projector code does
+// same-scope generation replaced stale local polling work, or drop it when a
+// Heartbeat, Ack, or Fail returns ErrWorkClaimLost because another attempt
+// owns the item. Projector code does
 // not make cross-source admission decisions; those belong to internal/reducer.
 // Content materialization only runs for scopes whose metadata carries an
 // explicit repo_id; cloud, registry, and provider scopes without repository

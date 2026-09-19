@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -60,11 +61,25 @@ type ProjectorQueue struct {
 	// on bootstrap-index's ProjectorQueue -- see
 	// runConfigStateDriftTriggerHook's doc comment for why.
 	ConfigStateDriftTrigger ConfigStateDriftTrigger
+	// AckScopeLockTimeout bounds how long Ack waits for a row lock, mainly the
+	// scope row an ingestion commit holds while streaming facts. It must stay
+	// below the caller's Ack budget. Zero uses defaultProjectorAckLockTimeout.
+	AckScopeLockTimeout time.Duration
 }
 
-// ErrProjectorClaimRejected means the claimed projector work item no longer
-// belongs to the current lease owner, so heartbeat/ack/fail must stop.
-var ErrProjectorClaimRejected = errors.New("projector work claim rejected")
+// defaultProjectorAckLockTimeout leaves room inside the projector service's
+// 5 s Ack budget for the transaction's other statements, and
+// maxProjectorAckLockTimeout caps a configured value below that budget.
+const (
+	defaultProjectorAckLockTimeout = 2 * time.Second
+	maxProjectorAckLockTimeout     = 4 * time.Second
+)
+
+// ErrProjectorClaimRejected means the projector work item's owner, attempt,
+// or claimable status changed, so heartbeat, Ack, or Fail must stop. It wraps
+// projector.ErrWorkClaimLost so the projector service drops the stale attempt
+// instead of stopping its other workers.
+var ErrProjectorClaimRejected = fmt.Errorf("projector work claim rejected: %w", projector.ErrWorkClaimLost)
 
 // NewProjectorQueue constructs a Postgres-backed projector work queue.
 func NewProjectorQueue(
@@ -162,10 +177,17 @@ func (q ProjectorQueue) Ack(
 	ctx context.Context,
 	work projector.ScopeGenerationWork,
 	_ projector.Result,
-) error {
+) (err error) {
 	if err := q.validate(); err != nil {
 		return err
 	}
+	// A lock timeout rolled the transaction back, so nothing changed and the
+	// attempt still owns the work; the caller renews the lease and retries.
+	defer func() {
+		if isPostgresLockNotAvailable(err) {
+			err = fmt.Errorf("%w: %w", projector.ErrWorkAckDeferred, err)
+		}
+	}()
 
 	beginner, ok := q.database.(db.Beginner)
 	if !ok {
@@ -183,36 +205,54 @@ func (q ProjectorQueue) Ack(
 		}
 	}()
 
+	lockTimeout := min(q.AckScopeLockTimeout, maxProjectorAckLockTimeout)
+	if lockTimeout < time.Millisecond { // "0ms" would disable lock_timeout
+		lockTimeout = defaultProjectorAckLockTimeout
+	}
+	// PostgreSQL accepts "2000ms" but not Go's "1m30s" duration syntax.
+	lockTimeoutSetting := fmt.Sprintf("%dms", lockTimeout.Milliseconds())
+	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)", lockTimeoutSetting); err != nil {
+		return fmt.Errorf("ack projector work: set lock timeout: %w", err)
+	}
 	now := q.now()
+	// Ingestion commits lock scope, then generation, then work. Locking the
+	// scope first serializes same-scope commits; work precedes generation so
+	// heartbeat and claim operations cannot invert the remaining lock order.
+	if _, err := tx.ExecContext(ctx, updateProjectorScopeGenerationQuery,
+		now, work.Scope.ScopeID, work.Generation.GenerationID); err != nil {
+		return fmt.Errorf("ack projector work: update scope active generation: %w", err)
+	}
+	ackResult, err := tx.ExecContext(ctx, ackProjectorWorkItemQuery,
+		now, work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner, work.AttemptCount)
+	if err != nil {
+		return fmt.Errorf("ack projector work: mark work succeeded: %w", err)
+	}
+	ackRows, err := ackResult.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("ack projector work: rows affected: %w", err)
+	}
+	if ackRows != 1 {
+		return fmt.Errorf("ack projector work: %w", ErrProjectorClaimRejected)
+	}
 	steps := []struct {
 		query string
 		op    string
 		args  []any
 	}{
 		{
-			query: supersedeProjectorActiveGenerationQuery,
-			op:    "supersede active generation",
+			query: supersedeProjectorObsoleteGenerationsQuery,
+			op:    "supersede obsolete terminal generations",
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
 		},
 		{
-			query: supersedeProjectorObsoleteGenerationsQuery,
-			op:    "supersede obsolete terminal generations",
+			query: supersedeProjectorActiveGenerationQuery,
+			op:    "supersede active generation",
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
 		},
 		{
 			query: activateProjectorGenerationQuery,
 			op:    "activate target generation",
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
-		},
-		{
-			query: updateProjectorScopeGenerationQuery,
-			op:    "update scope active generation",
-			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
-		},
-		{
-			query: ackProjectorWorkItemQuery,
-			op:    "mark projector work succeeded",
-			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID, q.LeaseOwner},
 		},
 	}
 	for _, step := range steps {
@@ -255,6 +295,7 @@ func (q ProjectorQueue) Heartbeat(ctx context.Context, work projector.ScopeGener
 		work.Scope.ScopeID,
 		work.Generation.GenerationID,
 		q.LeaseOwner,
+		work.AttemptCount,
 	)
 	if err != nil {
 		return fmt.Errorf("heartbeat projector work: %w", err)
@@ -281,6 +322,7 @@ func (q ProjectorQueue) supersedeRunningWorkIfNewerGenerationExists(
 		work.Scope.ScopeID,
 		work.Generation.GenerationID,
 		q.LeaseOwner,
+		work.AttemptCount,
 	)
 	if err != nil {
 		return false, fmt.Errorf("supersede running projector work: %w", err)
@@ -326,9 +368,18 @@ func (q ProjectorQueue) Fail(
 			work.Scope.ScopeID,
 			work.Generation.GenerationID,
 			q.LeaseOwner,
+			work.AttemptCount,
 		}
-		if _, err := q.database.ExecContext(ctx, retryProjectorWorkQuery, args...); err != nil {
+		result, err := q.database.ExecContext(ctx, retryProjectorWorkQuery, args...)
+		if err != nil {
 			return fmt.Errorf("fail projector work: %w", err)
+		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("fail projector work: rows affected: %w", err)
+		}
+		if rowsAffected != 1 {
+			return ErrProjectorClaimRejected
 		}
 		if q.Instruments != nil && q.Instruments.ProjectorRetrySurge != nil {
 			q.Instruments.ProjectorRetrySurge.Add(ctx, 1, metric.WithAttributes(
@@ -352,11 +403,19 @@ func (q ProjectorQueue) Fail(
 		work.Scope.ScopeID,
 		work.Generation.GenerationID,
 		q.LeaseOwner,
+		work.AttemptCount,
 	}
 
-	_, err := q.database.ExecContext(ctx, failProjectorWorkQuery, args...)
+	result, err := q.database.ExecContext(ctx, failProjectorWorkQuery, args...)
 	if err != nil {
 		return fmt.Errorf("fail projector work: %w", err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("fail projector work: rows affected: %w", err)
+	}
+	if rowsAffected != 1 {
+		return ErrProjectorClaimRejected
 	}
 
 	return nil
@@ -427,4 +486,11 @@ func (q ProjectorQueue) maxAttempts() int {
 	}
 
 	return 3
+}
+
+// isPostgresLockNotAvailable reports SQLSTATE 55P03, raised when lock_timeout
+// expires while a statement waits for a lock.
+func isPostgresLockNotAvailable(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "55P03"
 }

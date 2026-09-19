@@ -31,7 +31,7 @@ type configStateDriftTriggerHookFake struct {
 
 func (f configStateDriftTriggerHookFake) ExecContext(context.Context, string, ...any) (sql.Result, error) {
 	*f.log = append(*f.log, "exec")
-	return driverResult{}, nil
+	return projectorRowsAffectedResult{rowsAffected: 1}, nil
 }
 
 func (f configStateDriftTriggerHookFake) QueryContext(context.Context, string, ...any) (db.Rows, error) {

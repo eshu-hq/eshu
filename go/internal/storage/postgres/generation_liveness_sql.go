@@ -289,7 +289,8 @@ SELECT scope_id, generation_id FROM re_enqueued ORDER BY scope_id, generation_id
 // row already in flight. A healthy quiet projected scope that merely aged or a
 // busy full-corpus bootstrap scope still moving through reducer work/readiness
 // is counted aging, never stuck, so the alarm does not fire on normal idle
-// installations or reducer/backfill backlog.
+// installations or reducer/backfill backlog. Another unresolved same-scope
+// generation also owns forward progress, matching the recovery sweep's gate.
 //
 // Parameter order:
 //
@@ -339,6 +340,12 @@ SELECT
                       AND projector_work.claim_until > $3
                   )
               )
+        ) AND NOT EXISTS (
+            SELECT 1
+            FROM scope_generations AS newer
+            WHERE newer.scope_id = generation.scope_id
+              AND newer.generation_id <> generation.generation_id
+              AND newer.status IN ('pending', 'active')
         ) THEN 'stuck'
         WHEN generation.activated_at < $1 THEN 'aging'
         ELSE 'fresh'

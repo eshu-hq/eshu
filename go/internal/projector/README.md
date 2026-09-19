@@ -106,8 +106,8 @@ high-cardinality repositories running at once.
 - `ClassifyFailure(err, stage)` — maps a projection error to a
   `FailureClassification`; understands Neo4j transient codes, context
   cancellation, network errors, and sentinel error types
-- `ErrWorkSuperseded` — sentinel returned by the heartbeat path when a newer
-  same-scope generation has made the current projector claim obsolete
+- `ErrWorkSuperseded`, `ErrWorkClaimLost` — sentinels: a newer same-scope
+  generation made the claim obsolete, or another attempt now owns the item
 - `StageError`, `InputValidationError`, `ResourceExhaustedError` — typed errors
   the classifier recognizes
 - `EntityTypeLabel(entityType)` — maps content-store entity type strings (e.g.
@@ -383,10 +383,10 @@ projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same bound
   Structured log events: `projector work stage completed` (load_facts and
   project_generation stages), `projector runtime stage completed` (build,
   canonical write, content write, intent enqueue), `projection succeeded`,
-  `projection failed`, `projector work canceled during shutdown`, and
-  `projector work superseded by newer generation`. All events carry `scope_id`,
-  `generation_id`, `source_system`, `worker_id`, `stage`, `duration_seconds`,
-  and `failure_class` on error paths.
+  `projection failed`, `projector work canceled during shutdown`, `projector
+  work superseded by newer generation`, `projector work claim lost to another
+  attempt` and `projector ack waiting for busy scope` (WARN). Most carry `scope_id`, `generation_id`,
+  `source_system`, `worker_id`, `stage`, `duration_seconds`; errors add `failure_class`.
 
 ## Operational notes
 

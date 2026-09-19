@@ -77,9 +77,13 @@ kind, source system, collector kind, and generation ID. This is what makes a
 re-observation of an unchanged source cheap.
 
 The hint is a fast-path optimization, not the authority. An empty hint, or a
-missing scope ID, never triggers a skip. The comparison only looks at the latest
-pending or active generation with a hint, so a hint never resurrects a terminal
-generation.
+missing scope ID, never triggers that skip. A retry of an already published or
+terminal generation ID is also checked inside the ingestion transaction, after
+the scope lock. It rolls back the scope update and drains the fact stream before
+writing facts or enqueuing projector work. A pending same-ID retry may refresh
+its facts, but keeps the generation's original observation and ingestion times
+so it cannot reorder itself ahead of a later generation. Reprojection of a
+published generation uses the explicit recovery path, not a pending re-commit.
 
 ## How git delta sync baselines on the last projected commit
 
@@ -235,17 +239,22 @@ acknowledgement, not at commit. When a projector finishes a generation's work,
 `ProjectorQueue.Ack` (`go/internal/storage/postgres/projector_queue.go`) runs
 five ordered steps in a single transaction:
 
-1. Supersede the scope's current active generation.
-2. Supersede obsolete terminal generations for the scope.
-3. Activate the target generation.
-4. Update the scope's `active_generation_id` to the target generation.
-5. Mark the projector work item succeeded.
+1. Update the scope's `active_generation_id` to the target, locking the scope.
+2. Mark the claimed projector work item succeeded, checking owner and attempt.
+3. Supersede obsolete terminal work and generations for the scope.
+4. Supersede the scope's prior active generation.
+5. Activate the target generation.
+
+If the claim check rejects a stale attempt, the transaction rolls back the
+scope update. The scope lock serializes same-scope ingestion commits with Ack.
 
 Because these run in one transaction, a reader never observes two active
 generations for a scope, and supersession of the old generation and activation
 of the new one are atomic. If a newer generation arrives while a projector is
 still working, the heartbeat path supersedes the in-flight work
-(`ErrWorkSuperseded`) so stale projection cannot overwrite newer truth.
+(`ErrWorkSuperseded`) so stale projection cannot overwrite newer truth. While
+the newer generation's ingestion commit is still open, the heartbeat renews its
+lease and supersedes on a later heartbeat that finds the scope free.
 
 A failed first-generation attempt leaves no active generation. Projection uses
 `IngestionScope.PreviousGenerationExists` (not the presence of an active

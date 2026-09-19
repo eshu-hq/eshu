@@ -97,10 +97,9 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		// Stuck bucket: generations past the full deadline with outstanding
 		// shared_projection_intents (completed_at IS NULL).
 		//   gen-wedged: activated 2h ago, outstanding intent → stuck.
-		//   gen-pending-active: activated 2h ago, outstanding intent → stuck.
-		//     (CountActiveGenerationsByAge does not filter for newer siblings —
-		//      only RecoverWedgedGenerations excludes them via NOT EXISTS.)
-		if got, want := counts["stuck"], int64(2); got != want {
+		//   gen-pending-active has a newer pending generation and cannot be
+		//   recovered yet, so it remains aging rather than triggering the alarm.
+		if got, want := counts["stuck"], int64(1); got != want {
 			t.Fatalf("stuck count = %d, want %d", got, want)
 		}
 		// Fresh bucket: generations with no activated_at or activated within half
@@ -120,7 +119,8 @@ func TestGenerationLivenessIntegration(t *testing.T) {
 		//     aging, not a source-local wedge.
 		//   gen-recovery-inflight: activated 2h ago, outstanding shared intent,
 		//     but liveness recovery is already pending → aging, not stuck.
-		if got, want := counts["aging"], int64(6); got != want {
+		//   gen-pending-active: newer pending generation owns forward progress.
+		if got, want := counts["aging"], int64(7); got != want {
 			t.Fatalf("aging count = %d, want %d", got, want)
 		}
 	})

@@ -339,6 +339,19 @@
   `ErrWorkSuperseded` from `ProjectorWorkHeartbeater` as expected cancellation,
   not a failed projection. The current worker must not ack or fail a generation
   once Postgres proves a newer same-scope generation replaced it.
+- **Lost claims drop one item, not the service (#6738)** — Heartbeat, Ack, and
+  Fail return `ErrWorkClaimLost` (wrapped by
+  `postgres.ErrProjectorClaimRejected`) when another attempt owns the item.
+  `processWork` and the bootstrap drain log it at WARN and return nil; they do
+  not Fail the item, count it as a projection outcome, or cancel other workers.
+  The owning attempt acks or fails it. Never make this error fatal again.
+- **Ack waits for a busy scope without stopping the service (#6738)** —
+  `ErrWorkAckDeferred` means Ack hit its store lock timeout behind a same-scope
+  ingestion commit and changed nothing. `AckWhenScopeFree` renews the lease with
+  Heartbeat and retries; supersession or a lost claim ends it quietly, and
+  shutdown or `DefaultAckWaitMaxRetries` (about 5 minutes) gives up and lets
+  the lease expire. Do not call `WorkSink.Ack` directly from a worker loop.
+  Record a failed outcome only after `Fail` confirms ownership (`failWork`).
 
 ## Common changes and how to scope them
 

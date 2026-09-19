@@ -4,7 +4,13 @@
 package projector
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -58,5 +64,252 @@ func TestServiceRunStopsGracefullyWhenHeartbeatSupersedesWork(t *testing.T) {
 	}
 	if got, want := sink.failCalls, 0; got != want {
 		t.Fatalf("fail calls = %d, want %d", got, want)
+	}
+}
+
+func TestServiceRunDropsWorkWhoseClaimWasLost(t *testing.T) {
+	t.Parallel()
+
+	claimLost := fmt.Errorf("storage rejected stale attempt: %w", ErrWorkClaimLost)
+	tests := []struct {
+		name        string
+		runner      *stubProjectionRunner
+		heartbeater *stubProjectorWorkHeartbeater
+		sink        *stubProjectorWorkSink
+		wantAcks    int
+		wantFails   int
+	}{
+		{
+			name:        "heartbeat",
+			runner:      &stubProjectionRunner{waitForContextCancellation: true},
+			heartbeater: &stubProjectorWorkHeartbeater{failAfter: 1, err: claimLost},
+			sink:        &stubProjectorWorkSink{},
+		},
+		{
+			name:        "ack",
+			runner:      &stubProjectionRunner{},
+			heartbeater: &stubProjectorWorkHeartbeater{},
+			sink:        &stubProjectorWorkSink{ackErr: claimLost},
+			wantAcks:    1,
+		},
+		{
+			name:        "fail",
+			runner:      &stubProjectionRunner{runErr: errors.New("projection failed")},
+			heartbeater: &stubProjectorWorkHeartbeater{},
+			sink:        &stubProjectorWorkSink{failErr: claimLost},
+			wantFails:   1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			work := ScopeGenerationWork{
+				Scope:        scope.IngestionScope{ScopeID: "scope-123", ScopeKind: scope.KindRepository},
+				Generation:   scope.ScopeGeneration{ScopeID: "scope-123", GenerationID: "generation-1"},
+				AttemptCount: 1,
+			}
+			service := Service{
+				PollInterval:      10 * time.Millisecond,
+				WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+				FactStore:         &stubFactStore{},
+				Runner:            tt.runner,
+				WorkSink:          tt.sink,
+				Heartbeater:       tt.heartbeater,
+				HeartbeatInterval: 5 * time.Millisecond,
+				Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+			}
+
+			// Another attempt owns the work now; the stale worker must drop
+			// it rather than stop every projector worker.
+			if err := service.Run(context.Background()); err != nil {
+				t.Fatalf("Run() error = %v, want nil", err)
+			}
+			if got := tt.sink.ackCalls; got != tt.wantAcks {
+				t.Fatalf("ack calls = %d, want %d", got, tt.wantAcks)
+			}
+			if got := tt.sink.failCalls; got != tt.wantFails {
+				t.Fatalf("fail calls = %d, want %d", got, tt.wantFails)
+			}
+		})
+	}
+}
+
+// sequencedAckSink returns ackErrs in order, then nil.
+type sequencedAckSink struct {
+	mu      sync.Mutex
+	ackErrs []error
+	acks    int
+	fails   int
+}
+
+func (s *sequencedAckSink) Ack(context.Context, ScopeGenerationWork, Result) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.acks++
+	if len(s.ackErrs) == 0 {
+		return nil
+	}
+	err := s.ackErrs[0]
+	s.ackErrs = s.ackErrs[1:]
+	return err
+}
+
+func (s *sequencedAckSink) Fail(context.Context, ScopeGenerationWork, error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fails++
+	return nil
+}
+
+func TestServiceRunRetriesAckWhileScopeIsBusy(t *testing.T) {
+	t.Parallel()
+
+	deferred := fmt.Errorf("storage lock timeout: %w", ErrWorkAckDeferred)
+	tests := []struct {
+		name           string
+		heartbeater    *stubProjectorWorkHeartbeater
+		wantAcks       int
+		wantHeartbeats int
+	}{
+		{
+			// Each deferral renews the lease, then Ack is retried until the
+			// ingestion commit releases the scope.
+			name:           "retries until the scope is free",
+			heartbeater:    &stubProjectorWorkHeartbeater{},
+			wantAcks:       3,
+			wantHeartbeats: 2,
+		},
+		{
+			// A newer generation committed while Ack waited: stop without
+			// acking stale work.
+			name:           "stops when the renewal reports supersession",
+			heartbeater:    &stubProjectorWorkHeartbeater{failAfter: 1, err: ErrWorkSuperseded},
+			wantAcks:       1,
+			wantHeartbeats: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sink := &sequencedAckSink{ackErrs: []error{deferred, deferred}}
+			work := ScopeGenerationWork{
+				Scope:        scope.IngestionScope{ScopeID: "scope-123", ScopeKind: scope.KindRepository},
+				Generation:   scope.ScopeGeneration{ScopeID: "scope-123", GenerationID: "generation-1"},
+				AttemptCount: 1,
+			}
+			service := Service{
+				PollInterval:      10 * time.Millisecond,
+				WorkSource:        &stubProjectorWorkSource{workItems: []ScopeGenerationWork{work}},
+				FactStore:         &stubFactStore{},
+				Runner:            &stubProjectionRunner{},
+				WorkSink:          sink,
+				Heartbeater:       tt.heartbeater,
+				HeartbeatInterval: time.Hour, // only the deferral loop heartbeats
+				Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+			}
+
+			if err := service.Run(context.Background()); err != nil {
+				t.Fatalf("Run() error = %v, want nil", err)
+			}
+			if sink.acks != tt.wantAcks || sink.fails != 0 {
+				t.Fatalf("acks=%d fails=%d, want acks=%d fails=0", sink.acks, sink.fails, tt.wantAcks)
+			}
+			if got := tt.heartbeater.calls; got != tt.wantHeartbeats {
+				t.Fatalf("heartbeats = %d, want %d", got, tt.wantHeartbeats)
+			}
+		})
+	}
+}
+
+type heartbeaterFunc func(context.Context, ScopeGenerationWork) error
+
+func (f heartbeaterFunc) Heartbeat(ctx context.Context, work ScopeGenerationWork) error {
+	return f(ctx, work)
+}
+
+// TestAckWhenScopeFreeReturnsDeferralWhenShutdownInterruptsRenewal proves a
+// shutdown that lands during the lease renewal ends the wait as a deferral,
+// so the caller records a shutdown instead of a failed Ack.
+func TestAckWhenScopeFreeReturnsDeferralWhenShutdownInterruptsRenewal(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)}}
+	renewal := heartbeaterFunc(func(ctx context.Context, _ ScopeGenerationWork) error {
+		cancel()
+		return fmt.Errorf("heartbeat projector work: %w", ctx.Err())
+	})
+
+	err := AckWhenScopeFree(ctx, sink, renewal, ScopeGenerationWork{}, Result{}, 0, nil)
+	if !errors.Is(err, ErrWorkAckDeferred) {
+		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred", err)
+	}
+	if sink.acks != 1 {
+		t.Fatalf("acks = %d, want 1", sink.acks)
+	}
+}
+
+// alwaysDeferSink defers every Ack, like a scope row held indefinitely.
+type alwaysDeferSink struct{ acks int }
+
+func (s *alwaysDeferSink) Ack(context.Context, ScopeGenerationWork, Result) error {
+	s.acks++
+	return fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)
+}
+
+func (s *alwaysDeferSink) Fail(context.Context, ScopeGenerationWork, error) error { return nil }
+
+// TestAckWhenScopeFreeGivesUpAfterMaxRetries proves the Ack wait is bounded: a
+// scope row that never frees cannot pin a worker forever.
+func TestAckWhenScopeFreeGivesUpAfterMaxRetries(t *testing.T) {
+	t.Parallel()
+
+	sink := &alwaysDeferSink{}
+	renewals := 0
+	renew := heartbeaterFunc(func(context.Context, ScopeGenerationWork) error {
+		renewals++
+		return nil
+	})
+	err := AckWhenScopeFree(context.Background(), sink, renew, ScopeGenerationWork{}, Result{}, 3, nil)
+	if !errors.Is(err, ErrWorkAckDeferred) {
+		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred after the bound", err)
+	}
+	if sink.acks != 3 || renewals != 2 {
+		t.Fatalf("acks=%d renewals=%d, want 3 acks and 2 renewals", sink.acks, renewals)
+	}
+}
+
+// TestServiceRunDropsAckAbandonedAfterBusyScopeWait proves a worker that hits
+// the Ack wait bound drops the item without stopping the service, and says so.
+func TestServiceRunDropsAckAbandonedAfterBusyScopeWait(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	sink := &alwaysDeferSink{}
+	service := Service{
+		PollInterval: 10 * time.Millisecond,
+		WorkSource: &stubProjectorWorkSource{workItems: []ScopeGenerationWork{{
+			Scope:        scope.IngestionScope{ScopeID: "scope-123", ScopeKind: scope.KindRepository},
+			Generation:   scope.ScopeGeneration{ScopeID: "scope-123", GenerationID: "generation-1"},
+			AttemptCount: 1,
+		}}},
+		FactStore:         &stubFactStore{},
+		Runner:            &stubProjectionRunner{},
+		WorkSink:          sink,
+		Heartbeater:       &stubProjectorWorkHeartbeater{},
+		HeartbeatInterval: time.Hour,
+		Logger:            slog.New(slog.NewJSONHandler(&logs, nil)),
+		Wait:              func(context.Context, time.Duration) error { return context.Canceled },
+	}
+
+	if err := service.Run(context.Background()); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if sink.acks != DefaultAckWaitMaxRetries {
+		t.Fatalf("acks = %d, want %d", sink.acks, DefaultAckWaitMaxRetries)
+	}
+	if !strings.Contains(logs.String(), "projector ack abandoned after waiting for busy scope") {
+		t.Fatalf("missing abandonment log:\n%s", logs.String())
 	}
 }

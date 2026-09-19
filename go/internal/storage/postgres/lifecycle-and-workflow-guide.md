@@ -168,12 +168,13 @@ seen in the triggering provider alert intent.
 non-UTF-8 content. It preserves literal source text such as the six characters
 `\u0000`.
 
-`CommitScopeGeneration` compares the incoming generation `FreshnessHint` with
-the newest pending or active generation for the same scope. When the hint is
-unchanged, the commit path logs and skips the redundant write so local polling
-can observe files without recommitting identical snapshots or superseding
-in-flight projector work. Failed generations do not satisfy this check, so a
-failed first projection can still be retried by the next snapshot.
+`CommitScopeGeneration` skips an incoming hint matching the newest pending
+or active scope generation. After locking the scope, a conflicting published or
+terminal generation ID also skips: rollback precedes fact-stream drain, so its
+facts and work cannot change. A pending same-ID retry keeps its original
+observation and ingestion times. Failed generations do not satisfy the hint
+check, so the next snapshot retries a failed first projection;
+explicit recovery requeues projector work without a pending re-commit.
 
 `CollectorGenerationDeadLetterStore` covers the narrower failure point where a
 collector generation reaches `CommitScopeGeneration` but the durable commit
@@ -225,22 +226,22 @@ same-scope projector rows and their pending or failed `scope_generations` to
 obsolete terminal failures, so durable snapshot history remains available
 without leaving stale local polling generations in the live backlog or health
 summary.
-`ProjectorQueue.Heartbeat` applies the same freshness check to a live claimed
-or running row. When a newer pending or active generation exists for the scope,
-heartbeat marks the older row and its generation `superseded` in one statement
-and returns `projector.ErrWorkSuperseded` so the worker stops without acking
-stale graph state.
+`ProjectorQueue.Heartbeat` supersedes older work when a newer generation exists
+and returns `projector.ErrWorkSuperseded`; only a pending generation is demoted,
+so a published one keeps its scope pointer until successor Ack. Heartbeat never
+waits on the scope row: during an ingestion commit it renews the lease and
+supersedes later. The service drops attempts rejected as stale.
 Expired `claimed` or `running` rows are ordered ahead of ordinary pending rows
 so stale leases are reclaimed before fresh work makes the status surface look
 permanently overdue. Claim also demotes expired same-scope duplicate in-flight
 rows back to `retrying` when a live sibling or a newly claimed sibling owns the
 scope, which repairs queue state left by older owner crashes or claim races
 without breaking the one-active-generation invariant. `Ack` runs a five-step
-atomic transaction: supersede stale active generation → supersede older
-terminal same-scope generations → activate target generation → update scope
-pointer → mark work succeeded. This keeps obsolete failed or dead-letter
-projector rows out of current health after a newer source-local generation has
-successfully become active. If `projector.IsRetryable(cause)` returns true and
+atomic transaction: update scope pointer → mark owned work succeeded → supersede
+older terminal work/generations → supersede old active generation → activate
+target generation, under a 2 s local `lock_timeout`; a busy scope defers the
+Ack (the service renews the lease and retries). A stale claim rolls back all. This keeps obsolete dead letters out of current
+health. If `projector.IsRetryable(cause)` returns true and
 `attempt_count < MaxAttempts`, `Fail` transitions to `retrying` instead of
 `dead_letter`.
 

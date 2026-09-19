@@ -3,6 +3,16 @@
 
 package postgres
 
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+)
+
 const listRepositoryCatalogQuery = `
 SELECT payload, observed_at
 FROM fact_records
@@ -100,11 +110,13 @@ ON CONFLICT (generation_id) DO UPDATE SET
     freshness_hint = EXCLUDED.freshness_hint,
     source_commit_sha = EXCLUDED.source_commit_sha,
     is_delta = EXCLUDED.is_delta,
-    observed_at = EXCLUDED.observed_at,
-    ingested_at = EXCLUDED.ingested_at,
+    -- A generation ID fixes its original chronology. A retry may refresh a
+    -- pending generation's metadata and facts, but must not make it newer
+    -- than a successor or reopen a published/terminal generation.
     status = EXCLUDED.status,
     activated_at = EXCLUDED.activated_at,
     payload = EXCLUDED.payload
+WHERE scope_generations.status = 'pending'
 `
 
 const activeGenerationFreshnessQuery = `
@@ -201,3 +213,118 @@ WHERE stage = 'reducer'
   AND status = 'succeeded'
 ORDER BY updated_at ASC, work_item_id ASC
 `
+
+func upsertIngestionScope(
+	ctx context.Context,
+	database db.ExecQueryer,
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+) error {
+	payloadJSON, err := marshalPayload(stringMapToAny(scopeValue.MetadataCopy()))
+	if err != nil {
+		return fmt.Errorf("marshal scope payload: %w", err)
+	}
+
+	_, err = database.ExecContext(
+		ctx,
+		upsertIngestionScopeQuery,
+		scopeValue.ScopeID,
+		string(scopeValue.ScopeKind),
+		scopeValue.SourceSystem,
+		scopeSourceKey(scopeValue),
+		emptyToNil(scopeValue.ParentScopeID),
+		string(scopeValue.CollectorKind),
+		scopeValue.PartitionKey,
+		generation.ObservedAt.UTC(),
+		generation.IngestedAt.UTC(),
+		string(generation.Status),
+		activeGenerationID(generation),
+		payloadJSON,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+var errGenerationAlreadyFinalized = errors.New("generation already published or terminal")
+
+func upsertScopeGeneration(
+	ctx context.Context,
+	database db.ExecQueryer,
+	generation scope.ScopeGeneration,
+) error {
+	result, err := database.ExecContext(
+		ctx,
+		upsertScopeGenerationQuery,
+		generation.GenerationID,
+		generation.ScopeID,
+		string(generation.TriggerKind),
+		emptyToNil(generation.FreshnessHint),
+		emptyToNil(generation.SourceCommitSHA),
+		generation.IsDelta,
+		generation.ObservedAt.UTC(),
+		generation.IngestedAt.UTC(),
+		string(generation.Status),
+		activeTimestamp(generation),
+	)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("generation upsert rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return errGenerationAlreadyFinalized
+	}
+	if rowsAffected != 1 {
+		return fmt.Errorf("generation upsert affected %d rows, want 1", rowsAffected)
+	}
+
+	return nil
+}
+
+func shouldDiscoverStreamingRelationshipEvidence(scopeValue scope.IngestionScope) bool {
+	return scopeValue.ScopeKind == scope.KindRepository
+}
+
+func scopeSourceKey(scopeValue scope.IngestionScope) string {
+	if scopeValue.Metadata != nil {
+		if sourceKey := strings.TrimSpace(scopeValue.Metadata["source_key"]); sourceKey != "" {
+			return sourceKey
+		}
+	}
+
+	return scopeValue.ScopeID
+}
+
+func activeGenerationID(generation scope.ScopeGeneration) any {
+	if generation.Status == scope.GenerationStatusActive {
+		return generation.GenerationID
+	}
+
+	return nil
+}
+
+func activeTimestamp(generation scope.ScopeGeneration) any {
+	if generation.Status == scope.GenerationStatusActive {
+		return generation.IngestedAt.UTC()
+	}
+
+	return nil
+}
+
+func stringMapToAny(input map[string]string) map[string]any {
+	if len(input) == 0 {
+		return nil
+	}
+
+	output := make(map[string]any, len(input))
+	for key, value := range input {
+		output[key] = value
+	}
+
+	return output
+}

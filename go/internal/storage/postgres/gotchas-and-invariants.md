@@ -5,7 +5,7 @@ operational lessons that future storage changes still need to respect.
 
 ## Query And Queue Invariants
 
-- `ProjectorQueue.Ack` runs five SQL statements inside a transaction. Pass a
+- `ProjectorQueue.Ack` runs six SQL statements inside a transaction. Pass a
   `SQLDB` or an `InstrumentedDB` wrapping a `SQLDB`; a plain `db.ExecQueryer`
   without `db.Beginner` will cause Ack to fail.
 - `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:206`).

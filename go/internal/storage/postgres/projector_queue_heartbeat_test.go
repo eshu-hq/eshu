@@ -91,6 +91,10 @@ func TestProjectorQueueHeartbeatRejectsStaleClaim(t *testing.T) {
 	if !errors.Is(err, ErrProjectorClaimRejected) {
 		t.Fatalf("Heartbeat() error = %v, want %v", err, ErrProjectorClaimRejected)
 	}
+	// The projector service drops a lost claim only when it can see this.
+	if !errors.Is(err, projector.ErrWorkClaimLost) {
+		t.Fatalf("Heartbeat() error = %v, want projector.ErrWorkClaimLost", err)
+	}
 }
 
 func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {
@@ -131,8 +135,8 @@ func TestProjectorQueueHeartbeatSupersedesOlderRunningGeneration(t *testing.T) {
 		"work.lease_owner = $4",
 		"RETURNING work.generation_id",
 		"UPDATE scope_generations AS generation",
-		"status = 'superseded'",
-		"superseded_at = $1",
+		"status = CASE WHEN generation.status = 'pending' THEN 'superseded' ELSE generation.status END",
+		"superseded_at = CASE WHEN generation.status = 'pending' THEN $1 ELSE generation.superseded_at END",
 		"FROM superseded_work",
 		"generation.generation_id = superseded_work.generation_id",
 	} {

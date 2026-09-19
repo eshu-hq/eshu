@@ -46,7 +46,7 @@ flowchart TB
   C --> M["GovernanceAuditStore\ngovernance_audit_events\nprivate bounded audit sink"]
   C --> N["IncidentFreshnessStore\nincident_freshness_triggers\nFOR UPDATE SKIP LOCKED"]
   C --> P["CodeReachabilityStore\ncode_reachability_rows\nactive-generation lookup"]
-  E --> O["Beginner.Begin\natomic ack transaction:\nsupersede active → supersede obsolete terminal → activate → update scope → mark succeeded"]
+  E --> O["Beginner.Begin\natomic ack transaction:\nlocal lock_timeout → update scope → mark owned work succeeded → supersede obsolete terminal → supersede active → activate"]
 ```
 
 ## Lifecycle / workflow
@@ -3596,7 +3596,7 @@ visible and produces no edge — a false negative that, for a Claim repo that
 stops changing, never self-heals. This closes that window with a durable,
 bounded, paged sweep — deliberately NOT an inline fan-out inside
 `ProjectorQueue.Ack`'s transaction (a rejected earlier design: unbounded
-target discovery inside a fixed five-statement generation-activation
+target discovery inside a fixed six-statement generation-activation
 transaction risks stale-lease commits and unbounded lock hold time).
 
 Files:

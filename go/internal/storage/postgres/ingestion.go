@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres //nolint:filelength // Ingestion hot path. Tracked for split in audit § T8; per internal/storage/postgres/AGENTS.md, the CommitScopeGeneration/BackfillAllRelationshipEvidence/ReopenDeploymentMappingWorkItems methods are the bootstrap phase contract. Splitting must preserve call order with cmd/bootstrap-index/main.go.
+package postgres
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -199,9 +198,9 @@ func (s IngestionStore) commitScopeGeneration(
 	}
 	s.logCommitStage(ctx, scopeValue, generation, "begin_transaction", stageStart)
 
-	committed := false
+	transactionClosed := false
 	defer func() {
-		if !committed {
+		if !transactionClosed {
 			_ = tx.Rollback()
 			drainFacts(factStream)
 		}
@@ -231,6 +230,21 @@ func (s IngestionStore) commitScopeGeneration(
 	s.logCommitStage(ctx, scopeValue, generation, "upsert_ingestion_scope", stageStart)
 	stageStart = time.Now()
 	if err := upsertScopeGeneration(ctx, tx, generation); err != nil {
+		if errors.Is(err, errGenerationAlreadyFinalized) {
+			// The scope lock and generation conflict check are in this
+			// transaction. Roll back the scope upsert before draining the
+			// stream; no facts or projector work from a stale retry can land.
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				return fmt.Errorf("rollback finalized generation replay: %w", rollbackErr)
+			}
+			transactionClosed = true
+			if streamErr := drainFactsAndCheckStream(factStream, factStreamErr); streamErr != nil {
+				return fmt.Errorf("read skipped finalized generation stream: %w", streamErr)
+			}
+			telemetry.RecordSkippedRefresh()
+			s.logCommitStage(ctx, scopeValue, generation, "skip_finalized_generation", stageStart)
+			return nil
+		}
 		return fmt.Errorf("upsert scope generation: %w", err)
 	}
 	s.logCommitStage(ctx, scopeValue, generation, "upsert_scope_generation", stageStart)
@@ -340,7 +354,7 @@ func (s IngestionStore) commitScopeGeneration(
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit ingestion transaction: %w", err)
 	}
-	committed = true
+	transactionClosed = true
 	s.logCommitStage(ctx, scopeValue, generation, "commit_transaction", stageStart)
 	s.recordSharedLockHoldDuration(ctx, time.Since(sharedLockAcquiredAt))
 
@@ -462,107 +476,4 @@ func (s IngestionStore) now() time.Time {
 	}
 
 	return time.Now().UTC()
-}
-
-func upsertIngestionScope(
-	ctx context.Context,
-	database db.ExecQueryer,
-	scopeValue scope.IngestionScope,
-	generation scope.ScopeGeneration,
-) error {
-	payloadJSON, err := marshalPayload(stringMapToAny(scopeValue.MetadataCopy()))
-	if err != nil {
-		return fmt.Errorf("marshal scope payload: %w", err)
-	}
-
-	_, err = database.ExecContext(
-		ctx,
-		upsertIngestionScopeQuery,
-		scopeValue.ScopeID,
-		string(scopeValue.ScopeKind),
-		scopeValue.SourceSystem,
-		scopeSourceKey(scopeValue),
-		emptyToNil(scopeValue.ParentScopeID),
-		string(scopeValue.CollectorKind),
-		scopeValue.PartitionKey,
-		generation.ObservedAt.UTC(),
-		generation.IngestedAt.UTC(),
-		string(generation.Status),
-		activeGenerationID(generation),
-		payloadJSON,
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func upsertScopeGeneration(
-	ctx context.Context,
-	database db.ExecQueryer,
-	generation scope.ScopeGeneration,
-) error {
-	_, err := database.ExecContext(
-		ctx,
-		upsertScopeGenerationQuery,
-		generation.GenerationID,
-		generation.ScopeID,
-		string(generation.TriggerKind),
-		emptyToNil(generation.FreshnessHint),
-		emptyToNil(generation.SourceCommitSHA),
-		generation.IsDelta,
-		generation.ObservedAt.UTC(),
-		generation.IngestedAt.UTC(),
-		string(generation.Status),
-		activeTimestamp(generation),
-	)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func shouldDiscoverStreamingRelationshipEvidence(scopeValue scope.IngestionScope) bool {
-	return scopeValue.ScopeKind == scope.KindRepository
-}
-
-func scopeSourceKey(scopeValue scope.IngestionScope) string {
-	if scopeValue.Metadata != nil {
-		if sourceKey := strings.TrimSpace(scopeValue.Metadata["source_key"]); sourceKey != "" {
-			return sourceKey
-		}
-	}
-
-	return scopeValue.ScopeID
-}
-
-func activeGenerationID(generation scope.ScopeGeneration) any {
-	if generation.Status == scope.GenerationStatusActive {
-		return generation.GenerationID
-	}
-
-	return nil
-}
-
-func activeTimestamp(generation scope.ScopeGeneration) any {
-	if generation.Status == scope.GenerationStatusActive {
-		return generation.IngestedAt.UTC()
-	}
-
-	return nil
-}
-
-func stringMapToAny(input map[string]string) map[string]any {
-	if len(input) == 0 {
-		return nil
-	}
-
-	output := make(map[string]any, len(input))
-	for key, value := range input {
-		output[key] = value
-	}
-
-	return output
 }
