@@ -81,12 +81,8 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 		"by_environment":  count.ByEnvironment,
 		"by_label":        count.ByLabel,
 		"scope":           infraResourceAggregateScope(filter),
-	}, BuildTruthEnvelope(
-		h.profile(),
-		infraResourceAggregateCapability,
-		TruthBasisAuthoritativeGraph,
-		"resolved from the authoritative infrastructure graph; per-provider / per-environment / per-label rollups stay separate",
-	))
+	}, infraResourceAggregateTruth(h.profile(), count.Source,
+		"per-provider / per-environment / per-label rollups stay separate"))
 }
 
 func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +149,7 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 	}
 	filter = applyInfraResourceAggregateAccess(filter, access)
 
-	rows, err := h.Aggregates.InfraResourceInventory(r.Context(), filter, dimension, limit+1, offset)
+	rows, source, err := h.Aggregates.InfraResourceInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
 		if WriteGraphReadError(w, r, err, infraResourceAggregateCapability) {
 			return
@@ -175,12 +171,24 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 		"next_offset": nextInfraResourceAggregateOffset(offset, limit, truncated),
 		"scope":       infraResourceAggregateScope(filter),
 	}
-	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
-		h.profile(),
-		infraResourceAggregateCapability,
-		TruthBasisAuthoritativeGraph,
-		"resolved from the authoritative infrastructure graph; one grouped bucket per row, ordered by count desc",
-	))
+	WriteSuccess(w, r, http.StatusOK, body, infraResourceAggregateTruth(h.profile(), source,
+		"one grouped bucket per row, ordered by count desc"))
+}
+
+// infraResourceAggregateTruth maps the serving store onto the truth envelope.
+// A read-model read is hybrid (derived): the entity-derived labels come from
+// the Postgres infra_resource_entities table, which the content writer derives
+// per repository just before the canonical graph write, so for one projection
+// stage the table and the graph can disagree for that repository. The
+// graph-only labels still come from the graph in the same read.
+func infraResourceAggregateTruth(profile QueryProfile, source InfraResourceAggregateSource, detail string) *TruthEnvelope {
+	if source == InfraResourceAggregateSourceReadModel {
+		return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisHybrid,
+			"entity-derived infrastructure labels resolved from the Postgres infra read model and graph-only labels "+
+				"(CloudResource, TerraformStateResource, TerraformModule, TerraformOutput) from the authoritative graph; "+detail)
+	}
+	return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisAuthoritativeGraph,
+		"resolved from the authoritative infrastructure graph; "+detail)
 }
 
 // infraResourceAggregateFilterFromRequest parses the request, validates the

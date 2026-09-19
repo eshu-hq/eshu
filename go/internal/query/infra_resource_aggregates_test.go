@@ -17,6 +17,7 @@ type stubInfraResourceAggregateStore struct {
 	count         InfraResourceAggregateCount
 	countErr      error
 	inventory     []InfraResourceInventoryRow
+	invSource     InfraResourceAggregateSource
 	inventoryErr  error
 	lastFilter    InfraResourceAggregateFilter
 	lastDimension InfraResourceInventoryDimension
@@ -44,16 +45,20 @@ func (s *stubInfraResourceAggregateStore) InfraResourceInventory(
 	dim InfraResourceInventoryDimension,
 	limit int,
 	offset int,
-) ([]InfraResourceInventoryRow, error) {
+) ([]InfraResourceInventoryRow, InfraResourceAggregateSource, error) {
 	s.invCalls++
 	s.lastFilter = filter
 	s.lastDimension = dim
 	s.lastLimit = limit
 	s.lastOffset = offset
 	if s.inventoryErr != nil {
-		return nil, s.inventoryErr
+		return nil, "", s.inventoryErr
 	}
-	return append([]InfraResourceInventoryRow(nil), s.inventory...), nil
+	source := s.invSource
+	if source == "" {
+		source = InfraResourceAggregateSourceGraph
+	}
+	return append([]InfraResourceInventoryRow(nil), s.inventory...), source, nil
 }
 
 // stubInfraGraphQuery records every Cypher + params sent to the graph.
@@ -449,7 +454,7 @@ func TestGraphInfraResourceAggregateInventoryRejectsUnsafeDimension(t *testing.T
 
 	graph := &stubInfraGraphQuery{}
 	store := NewGraphInfraResourceAggregateStore(graph)
-	_, err := store.InfraResourceInventory(
+	_, _, err := store.InfraResourceInventory(
 		context.Background(),
 		InfraResourceAggregateFilter{},
 		InfraResourceInventoryDimension("account_id"),

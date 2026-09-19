@@ -21,4 +21,16 @@
 // runs. Both are idempotent: replaying a call converges on the same rows.
 // Both return an error when the database cannot begin transactions rather than
 // writing without the lock.
+//
+// Generation retention calls LockRepositoriesForGenerations before it prunes
+// content_entities and DeleteOrphanedRows after, inside its own transaction,
+// so the table never keeps a row whose content row was pruned.
+//
+// Backfiller.Run derives every existing repository and then records
+// BackfillMarker. BackfillComplete reports whether the marker exists. Readers
+// must not serve table counts before it does, because until then the table
+// may cover only part of the corpus. Reader, CountBuckets, and
+// DimensionBuckets are the aggregate reads. Their filters and "unknown"
+// buckets mirror the graph aggregate readers clause for clause for the labels
+// in Labels.
 package inventory

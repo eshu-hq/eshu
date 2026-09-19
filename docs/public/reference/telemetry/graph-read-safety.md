@@ -204,3 +204,23 @@ Treat `slow` as completed work that remained inside the budget. Treat
 `deadline` as exhausted graph-read work and investigate the query plan. Treat
 `unavailable` as a health or connectivity event and inspect graph backend
 health before retrying.
+
+## Infra resource aggregate read model
+
+`GET /api/v0/infra/resources/count` and `/inventory` (and their MCP tools)
+read the entity-derived infrastructure labels from the Postgres
+`infra_resource_entities` table once its backfill has completed. The four
+graph-only labels are still read from the graph, in one pass.
+`eshu_dp_infra_inventory_reads_total{route,source}` counts every read by
+route (`count`, `inventory`) and serving store (`read_model`, `graph`).
+
+- After a deploy, `source="read_model"` should become the unscoped share of
+  traffic within one backfill. If `source="graph"` stays high for unscoped
+  traffic, the backfill has not recorded its marker. Look for the
+  `infra_inventory.backfill.failed` log event on the API or MCP server; the
+  next process start retries it.
+- Scoped-token reads always count as `source="graph"`.
+- The content writer logs the per-Write derive as stage
+  `derive_infra_inventory` (`path_count`, `rows_deleted`, `rows_inserted`,
+  `duration_seconds`). Its statements are timed by
+  `eshu_dp_postgres_query_duration_seconds`.
