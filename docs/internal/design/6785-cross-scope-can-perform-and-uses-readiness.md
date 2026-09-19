@@ -377,6 +377,19 @@ is emitted only on committing evaluations
 (`TestIAMCanPerformCrossScopeOutcomesOnlyOnCommit`). The wait log line carries
 `elapsed_since_first_defer` against `max_wait`.
 
+Live Postgres proofs (§5). These tests skip without `ESHU_POSTGRES_DSN`, so a
+plain `go test` run does not exercise them. Run at 4443c4f6e against a
+`postgres:18-alpine` container:
+
+```text
+ESHU_POSTGRES_DSN=… go test ./internal/storage/postgres -run ReadinessWaitSurvivesSupersession -count=1 -v
+ESHU_POSTGRES_DSN=… go test ./internal/storage/postgres/readiness/wait/ -run Live -count=1 -v
+```
+
+- `TestReadinessWaitSurvivesSupersessionLive`: `supersession: N superseded at +6m, N+1 committed at first claim, settled at +10m (anchor from N); writes=2 retracts=2`, then `--- PASS (1.55s)`.
+- `TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive`: `--- PASS (0.10s)`.
+- `TestReadinessWaitResetAnchorSettleAndClearLive`: `--- PASS (0.04s)`.
+
 ## 7. Cassette
 
 - The role (prod and stage anchors) and the inline permission move to
