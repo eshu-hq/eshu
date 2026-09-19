@@ -7,7 +7,6 @@ import (
 	"context"
 	"slices"
 	"testing"
-	"time"
 )
 
 type fixedLookup map[Anchor]struct{}
@@ -16,34 +15,25 @@ func (f fixedLookup) ExistingAnchors(context.Context, []Anchor) (map[Anchor]stru
 	return f, nil
 }
 
-// TestEvaluateDefersUntilTheBoundThenCommits covers the three answers: all
-// anchors present (no defer), one missing inside the bound (defer), one
-// missing past the bound (commit), plus the zero-anchor case that must keep
-// deferring rather than read as infinitely elapsed.
-func TestEvaluateDefersUntilTheBoundThenCommits(t *testing.T) {
+// TestCheckReportsMissingAnchors covers all present, one missing, and the
+// sorted distinct anchor set Check hands the lookup.
+func TestCheckReportsMissingAnchors(t *testing.T) {
 	t.Parallel()
-	now := time.Now()
 	cases := []struct {
-		name      string
-		existing  fixedLookup
-		cycle     time.Time
-		wantDefer bool
-		wantMiss  []Anchor
+		name     string
+		existing fixedLookup
+		wantMiss []Anchor
 	}{
-		{name: "all present", existing: fixedLookup{prod: {}, stage: {}}, cycle: now, wantDefer: false},
-		{name: "missing inside bound", existing: fixedLookup{prod: {}}, cycle: now.Add(-time.Minute), wantDefer: true, wantMiss: []Anchor{stage}},
-		{name: "missing past bound", existing: fixedLookup{prod: {}}, cycle: now.Add(-MaxWait - time.Minute), wantDefer: false, wantMiss: []Anchor{stage}},
-		{name: "unknown cycle anchor", existing: fixedLookup{}, cycle: time.Time{}, wantDefer: true, wantMiss: []Anchor{prod, stage}},
+		{name: "all present", existing: fixedLookup{prod: {}, stage: {}}},
+		{name: "one missing", existing: fixedLookup{prod: {}}, wantMiss: []Anchor{stage}},
+		{name: "none present", existing: fixedLookup{}, wantMiss: []Anchor{prod, stage}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			decision, err := Evaluate(context.Background(), tc.existing, []Anchor{stage, prod, stage}, tc.cycle, now)
+			decision, err := Check(context.Background(), tc.existing, []Anchor{stage, prod, stage})
 			if err != nil {
-				t.Fatalf("Evaluate() error = %v", err)
-			}
-			if decision.Defer != tc.wantDefer {
-				t.Fatalf("Defer = %v, want %v", decision.Defer, tc.wantDefer)
+				t.Fatalf("Check() error = %v", err)
 			}
 			if !slices.Equal(decision.Missing, tc.wantMiss) {
 				t.Fatalf("Missing = %v, want %v", decision.Missing, tc.wantMiss)

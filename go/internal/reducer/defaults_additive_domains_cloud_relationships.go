@@ -55,6 +55,7 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 			ReadinessLookup:           handlers.ReadinessLookup,
 			PriorGenerationCheck:      handlers.PriorGenerationCheck,
 			WorkloadInstanceExistence: handlers.WorkloadInstanceExistence,
+			ReadinessWaits:            handlers.ReadinessWaits,
 			Instruments:               handlers.Instruments,
 		}
 		definitions = append(definitions, workloadCloud)

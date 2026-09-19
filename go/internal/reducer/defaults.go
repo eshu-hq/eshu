@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
@@ -58,19 +59,20 @@ type DefaultHandlers struct {
 	FactLoader FactLoader
 
 	// CrossScopeProducerReadiness gates the #5709 cross-scope readiness floor.
-	//
 	// Optional: nil means "no floor", not "not ready". A deployment that has
 	// not wired it keeps the pre-#5709 behaviour of committing whatever the
 	// cross-scope load resolved, rather than stranding every consumer.
 	CrossScopeProducerReadiness CrossScopeProducerReadiness
 
 	// IAMCanPerformCrossScopeTargets resolves exact CAN_PERFORM targets from
-	// sibling AWS service scopes of the same account (#6785). Nil keeps
-	// resolution same-scope (test wiring).
+	// sibling AWS scopes of the account (#6785). Nil keeps resolution same-scope.
 	IAMCanPerformCrossScopeTargets iamcan.CrossScopeTargetLoader
-	// WorkloadInstanceExistence lets the USES handler defer, bounded, until
-	// its WorkloadInstance endpoints exist (#6785). Nil disables the gate.
+	// WorkloadInstanceExistence lets the USES handler wait, bounded, for its
+	// WorkloadInstance endpoints (#6785). Nil disables the gate.
 	WorkloadInstanceExistence workloadinstance.ExistenceLookup
+	// ReadinessWaits is the (scope, domain) ledger both #6785 handlers anchor
+	// their commit-first wait on. Nil uses the claimed row's cycle anchor.
+	ReadinessWaits crossscope.ReadinessWaitLedger
 
 	// CrossScopeReadinessLogger records each cross-scope readiness deferral as
 	// its own structured line. Optional: nil silences it, and the deferral is

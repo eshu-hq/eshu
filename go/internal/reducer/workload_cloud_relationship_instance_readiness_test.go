@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
 
@@ -77,13 +78,13 @@ var (
 
 // TestWorkloadCloudRelationshipDefersUntilWorkloadInstanceExists is the #6785
 // USES race fix: a resource anchored to a WorkloadInstance that has not
-// materialized yet must defer with a retryable readiness class, not succeed as
-// a MATCH no-op nothing would ever re-run. Once the instances exist, the same
+// materialized yet must, after committing, defer with a retryable readiness
+// class, not succeed as a MATCH no-op nothing would ever re-run. Once the instances exist, the same
 // intent writes both edges.
 func TestWorkloadCloudRelationshipDefersUntilWorkloadInstanceExists(t *testing.T) {
 	t.Parallel()
 
-	t.Run("instance missing defers without touching the graph", func(t *testing.T) {
+	t.Run("instance missing commits then defers", func(t *testing.T) {
 		t.Parallel()
 		writer := &recordingWorkloadCloudRelationshipWriter{}
 		lookup := &fakeWorkloadInstanceExistence{existing: map[workloadinstance.Anchor]struct{}{prodAnchor: {}}}
@@ -101,8 +102,11 @@ func TestWorkloadCloudRelationshipDefersUntilWorkloadInstanceExists(t *testing.T
 		if got := classified.FailureClass(); got != workloadinstance.NotReadyFailureClass {
 			t.Fatalf("failure class = %q, want %q", got, workloadinstance.NotReadyFailureClass)
 		}
-		if writer.writeCalls != 0 || writer.retractCalls != 0 {
-			t.Fatalf("writer touched on defer: writes=%d retracts=%d", writer.writeCalls, writer.retractCalls)
+		// Commit first (#6785): every row is written before the defer; the
+		// stage row's MATCH binds nothing until its instance exists.
+		if writer.writeCalls != 1 || len(writer.writtenRows) != 2 || writer.retractCalls != 1 {
+			t.Fatalf("defer: writes=%d rows=%d retracts=%d, want the commit (1/2/1) before the defer",
+				writer.writeCalls, len(writer.writtenRows), writer.retractCalls)
 		}
 		if len(lookup.calls) != 1 || !slices.Equal(lookup.calls[0], []workloadinstance.Anchor{prodAnchor, stageAnchor}) {
 			t.Fatalf("lookup calls = %v, want one call with the sorted distinct anchors", lookup.calls)
@@ -132,7 +136,7 @@ func TestWorkloadCloudRelationshipCommitsWhenInstanceWaitIsExhausted(t *testing.
 	t.Parallel()
 	writer := &recordingWorkloadCloudRelationshipWriter{}
 	lookup := &fakeWorkloadInstanceExistence{existing: map[workloadinstance.Anchor]struct{}{prodAnchor: {}}}
-	intent := instanceReadinessIntent(time.Now().Add(-workloadinstance.MaxWait - time.Minute))
+	intent := instanceReadinessIntent(time.Now().Add(-crossscope.ProducerReadinessMaxWait - time.Minute))
 	result, err := instanceReadinessHandler(lookup, writer).Handle(context.Background(), intent)
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want commit past the bound", err)

@@ -7,17 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"time"
-
-	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 )
-
-// MaxWait bounds the WorkloadInstance defer by ELAPSED TIME since the current
-// repair cycle began (crossscope.ReadinessCycleAnchor). It cannot be an attempt
-// bound: NotReadyFailureClass is a non-counting readiness class, which freezes
-// attempt_count, so an attempt comparison would never fire. The 30 minutes
-// match the reducer's other cross-scope waits.
-const MaxWait = crossscope.ProducerReadinessMaxWait
 
 // Anchor is one (workload id, environment) pair a USES row needs a
 // WorkloadInstance for.
@@ -35,11 +25,14 @@ type ExistenceLookup interface {
 
 // NotReadyFailureClass classifies a workload-cloud USES intent deferred
 // because a resource names a (workload, environment) whose WorkloadInstance
-// has not materialized yet (#6785). It is enrolled in the reducer queue's
-// nonCountingReducerRetryFailureClasses and bounded by MaxWait elapsed time.
+// has not materialized yet (#6785). The handler returns it only after
+// committing every USES row it has (missing anchors are MATCH no-ops). It is
+// enrolled in the reducer queue's nonCountingReducerRetryFailureClasses and
+// bounded by the readiness-wait ledger's first-defer anchor (see Wait).
 const NotReadyFailureClass = "workload_cloud_relationship_instances_not_ready"
 
-// NotReadyError defers the intent until its WorkloadInstance endpoints exist.
+// NotReadyError re-offers the intent, after its rows committed, until its
+// missing WorkloadInstance endpoints exist or the wait settles.
 type NotReadyError struct {
 	ScopeID      string
 	GenerationID string
@@ -60,7 +53,7 @@ func (NotReadyError) Retryable() bool { return true }
 // FailureClass returns the non-counting readiness class.
 func (NotReadyError) FailureClass() string { return NotReadyFailureClass }
 
-// Decision is the gate's answer for one evaluation.
+// Decision is the existence answer for one evaluation's anchors.
 type Decision struct {
 	// Anchors is the sorted distinct anchor set that was checked.
 	Anchors []Anchor
@@ -68,22 +61,12 @@ type Decision struct {
 	Existing map[Anchor]struct{}
 	// Missing holds the anchors still without a WorkloadInstance, sorted.
 	Missing []Anchor
-	// Defer is true when Missing is non-empty and the bound has not expired,
-	// or the cycle anchor is unknown (zero), which keeps deferring rather than
-	// reading as infinitely elapsed.
-	Defer bool
 }
 
-// Evaluate looks up anchors and decides whether the intent must defer.
-// cycleStartedAt is crossscope.ReadinessCycleAnchor(intent); now is the
-// caller's clock reading.
-func Evaluate(
-	ctx context.Context,
-	lookup ExistenceLookup,
-	anchors []Anchor,
-	cycleStartedAt time.Time,
-	now time.Time,
-) (Decision, error) {
+// Check asks lookup which of anchors have a WorkloadInstance. It does not
+// decide whether to wait; Wait does, through crossscope.DecideWait. A nil
+// lookup or an empty anchor set issues no read and reports nothing missing.
+func Check(ctx context.Context, lookup ExistenceLookup, anchors []Anchor) (Decision, error) {
 	distinct := sortedDistinct(anchors)
 	decision := Decision{Anchors: distinct}
 	if lookup == nil || len(distinct) == 0 {
@@ -98,9 +81,6 @@ func Evaluate(
 		if _, ok := existing[anchor]; !ok {
 			decision.Missing = append(decision.Missing, anchor)
 		}
-	}
-	if len(decision.Missing) > 0 {
-		decision.Defer = cycleStartedAt.IsZero() || now.Sub(cycleStartedAt) < MaxWait
 	}
 	return decision, nil
 }

@@ -258,6 +258,7 @@ func buildReducerService(
 		CrossScopeProducerReadiness:        postgres.CrossScopeProducerReadinessStore{DB: database},
 		IAMCanPerformCrossScopeTargets:     iamCanPerformCrossScopeTargetsFor(database, factStore),
 		WorkloadInstanceExistence:          workloadInstanceExistenceFor(graphReader),
+		ReadinessWaits:                     readinessWaitsFor(database),
 		CrossScopeReadinessLogger:          logger,
 		AdmissionDecisionWriter:            admissionDecisionWriter,
 		CodeCallIntentWriter:               codeCallIntentWriter,
