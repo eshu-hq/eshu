@@ -25,7 +25,12 @@ and writer phase order remain in `internal/storage/cypher`.
   `cypher.PhaseGroupExecutor`. It deliberately does not implement
   `cypher.GroupExecutor`.
 - `DrainReader` and `DrainWriteResult` carry bounded full-refresh retract
-  iterations through a command-owned live Bolt executor.
+  iterations through a command-owned live Bolt executor. `RunWrite` runs the
+  drain write; `RunProbe` runs the bounded existence probe that precedes a
+  bare-label drain (#6822). They are separate interface methods, not one
+  method overloaded by cypher shape, so a command-owned gate or timeout
+  wrapper can label each independently instead of mislabeling the probe as a
+  drain write.
 - `WriterConfig`, `DefaultWriterConfig`, and `ConfigureCanonicalWriter` apply
   the production file/entity/per-label row caps and containment shape.
 - The exported default constants and `DefaultEntityPhaseConcurrency` define the shared
@@ -36,7 +41,11 @@ and writer phase order remain in `internal/storage/cypher`.
 Canonical phases run in dependency order. Whole-materialization atomic writes
 are unsupported on NornicDB because dependent `MATCH` statements do not have
 the required same-transaction visibility for earlier `MERGE` statements.
-Retractions stay sequential or use the bounded drain route. Only entity and
+Retractions stay sequential or use the bounded drain route. Bare-label drains
+run one bounded probe read before the `WITH ... LIMIT ... DETACH DELETE` drain
+loop and skip it when nothing matches, so a retract with nothing to delete ends
+after one read (#6822);
+relationship-anchored drains are not probed. Only entity and
 entity-containment chunks fan out, and only across disjoint label/entity keys.
 
 The command must wrap the inner `GroupExecutor` with one process-wide canonical
@@ -63,6 +72,11 @@ Grouped inner statements continue through the command-owned retry,
 backpressure layers. Drain and autocommit retracts use a command-owned
 `DrainReader`; they share the same backpressure gate and retain the server
 transaction timeout while bypassing grouped retry and instrumentation wrappers.
+The probe (`RunProbe`) and the drain write (`RunWrite`) each draw one permit
+and one client deadline from that shared gate and timeout budget, but under
+separate labels (`canonical_probe` vs `canonical_retract_drain` for
+backpressure; distinct `GraphWriteTimeoutError.Operation` strings for
+timeouts), so an operator can see probe cost separately from drain cost.
 Both the standalone projector and the ingester apply a fresh client timeout to
 each raw drain iteration and return the shared retryable graph-write timeout
 shape, so one lost Bolt response cannot hold a worker indefinitely (#5122 for

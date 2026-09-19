@@ -34,6 +34,17 @@ func (blockingIngesterDrainExecutor) RunWrite(
 	return DrainWriteResult{}, ctx.Err()
 }
 
+// RunProbe blocks exactly like RunWrite, standing in for a NornicDB existence
+// probe whose Bolt response is lost.
+func (blockingIngesterDrainExecutor) RunProbe(
+	ctx context.Context,
+	_ string,
+	_ map[string]any,
+) (DrainWriteResult, error) {
+	<-ctx.Done()
+	return DrainWriteResult{}, ctx.Err()
+}
+
 func newTestNornicDBCanonicalExecutorWithTimeout(
 	raw sourcecypher.Executor,
 	timeout time.Duration,
@@ -96,6 +107,47 @@ func TestIngesterNornicDBDrainUsesPerIterationClientTimeout(t *testing.T) {
 	}
 }
 
+// TestIngesterNornicDBProbeUsesPerIterationClientTimeout is the #6822
+// companion to TestIngesterNornicDBDrainUsesPerIterationClientTimeout: the
+// bounded existence probe that precedes a bare-label drain must get the same
+// per-call client deadline as a drain iteration, but report a distinct
+// GraphWriteTimeoutError.Operation ("nornicdb probe timed out") so an operator
+// (and the queue's retry classifier) can tell a stuck probe from a stuck
+// drain.
+func TestIngesterNornicDBProbeUsesPerIterationClientTimeout(t *testing.T) {
+	t.Parallel()
+
+	executor := newTestNornicDBCanonicalExecutorWithTimeout(blockingIngesterDrainExecutor{}, 10*time.Millisecond)
+	phase, ok := executor.(nornicDBPhaseGroupExecutor)
+	if !ok {
+		t.Fatalf("executor type = %T, want nornicDBPhaseGroupExecutor", executor)
+	}
+	if phase.DrainReader == nil {
+		t.Fatal("NornicDB phase executor has no drain reader")
+	}
+
+	outerCtx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, err := phase.DrainReader.RunProbe(outerCtx, "RETURN elementId(n) LIMIT 1", nil)
+	if err == nil || !strings.Contains(err.Error(), "nornicdb probe timed out after 10ms") {
+		t.Fatalf("RunProbe() error = %v, want per-iteration probe-timeout error", err)
+	}
+	var timeoutErr sourcecypher.GraphWriteTimeoutError
+	if !errors.As(err, &timeoutErr) {
+		t.Fatalf("RunProbe() error = %T, want GraphWriteTimeoutError", err)
+	}
+	if got, want := timeoutErr.Operation, "nornicdb probe timed out"; got != want {
+		t.Fatalf("Operation = %q, want %q", got, want)
+	}
+	if !projector.IsRetryable(err) {
+		t.Fatalf("projector.IsRetryable(%v) = false, want queue retry", err)
+	}
+	if elapsed := time.Since(started); elapsed >= 80*time.Millisecond {
+		t.Fatalf("RunProbe() elapsed = %s, want client timeout well before the outer deadline", elapsed)
+	}
+}
+
 // fakeDrainReader returns a fixed result/error and records the context it was
 // called with, so the wrapper's branch behavior can be asserted directly.
 type fakeDrainReader struct {
@@ -109,6 +161,12 @@ func (r *fakeDrainReader) RunWrite(ctx context.Context, _ string, _ map[string]a
 	r.gotCtx = ctx
 	_, r.hadDeadl = ctx.Deadline()
 	return r.result, r.err
+}
+
+// RunProbe records the same fields as RunWrite; the tests in this file only
+// exercise it through the wrapper's own RunProbe method.
+func (r *fakeDrainReader) RunProbe(ctx context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
+	return r.RunWrite(ctx, cypher, params)
 }
 
 // TestIngesterTimeoutDrainReaderPassthroughWhenTimeoutUnset proves a non-positive
@@ -203,6 +261,17 @@ func (r *slowProgressDrainReader) RunWrite(
 		drained = r.counts[idx]
 	}
 	return DrainWriteResult{Rows: []map[string]any{{"__drained": drained}}}, nil
+}
+
+// RunProbe is unused by this fake's test (an anchored retract is never
+// probed); it delegates to RunWrite only so slowProgressDrainReader satisfies
+// storagenornicdb.DrainReader.
+func (r *slowProgressDrainReader) RunProbe(
+	ctx context.Context,
+	cypher string,
+	params map[string]any,
+) (DrainWriteResult, error) {
+	return r.RunWrite(ctx, cypher, params)
 }
 
 // TestIngesterNornicDBMultiIterationDrainNotCanceledByEarlierIteration proves the

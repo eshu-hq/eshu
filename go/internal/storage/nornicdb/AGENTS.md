@@ -13,6 +13,20 @@
 - Expose `PhaseGroupExecutor` without `GroupExecutor`.
 - Keep dependency phases ordered and entity fan-out bounded to disjoint keys.
 - Keep retracts on sequential autocommit or bounded-drain routes.
+- Bare-label bounded drains probe once before draining (#6822): on NornicDB v1.3.3
+  a `DETACH DELETE` whose `MATCH` is a label scan with property predicates costs
+  a whole-store scan even when nothing matches. Keep the delete in the single
+  predicate-checking drain statement; never split it into delete-by-elementId
+  (a stale attempt could delete nodes a replacement attempt just refreshed).
+  Keep `WITH ... LIMIT` before `RETURN` in the probe, and keep `ORDER BY
+  elementId()` in the bare-label drain (without it NornicDB deletes 0 rows).
+- `DrainReader.RunProbe` and `RunWrite` are separate interface methods
+  (#6822), not one method overloaded by cypher shape: `executeDrainLoop` calls
+  `RunProbe` for the bounded existence probe and `RunWrite` for the drain.
+  Never route the probe through `RunWrite` — a command-owned gate/timeout
+  wrapper labels each method independently (`canonical_probe` vs
+  `canonical_retract_drain`; distinct `GraphWriteTimeoutError.Operation`
+  strings), so folding the probe into `RunWrite` mislabels it as a drain.
 - Fail closed when the inner executor is absent.
 - Keep drivers, env parsing, timeouts, retries, and process gates in commands.
 - Preserve exact graph output and idempotent partial-phase replay.
