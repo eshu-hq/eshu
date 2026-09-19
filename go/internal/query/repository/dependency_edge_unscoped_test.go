@@ -191,6 +191,25 @@ func TestFlattenGroupedRepositoryDependencyEdges(t *testing.T) {
 			wantTruncated: true,
 		},
 		{
+			// collect(t.id) drops nulls, so a group whose target ids are
+			// all null arrives empty. Production writers always set
+			// Repository.id; this pins that such a group still counts
+			// toward the group bound, so truncation stays reported even
+			// though the clipped selection holds fewer than limit edges.
+			name: "a group with only null target ids still counts toward the group bound",
+			rows: []map[string]any{
+				{"source_id": "repository:a", "target_ids": []any{}},
+				{"source_id": "repository:b", "target_ids": []any{"repository:x"}},
+				{"source_id": "repository:c", "target_ids": []any{"repository:x"}},
+				{"source_id": "repository:d", "target_ids": []any{"repository:x"}},
+			},
+			wantEdges: []repositoryDependencyEdge{
+				{Source: "repository:b", Target: "repository:x"},
+				{Source: "repository:c", Target: "repository:x"},
+			},
+			wantTruncated: true,
+		},
+		{
 			name: "duplicate parallel edges are kept like the per-edge read",
 			rows: []map[string]any{
 				{"source_id": "repository:a", "target_ids": []any{"repository:b", "repository:b"}},

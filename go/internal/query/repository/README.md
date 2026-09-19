@@ -76,11 +76,12 @@ repositories of 200 files each, the grouped read costs 0.0045s median against
 7 on NornicDB and Neo4j. `listCatalogRepositoriesFromGraph` went from
 0.60-0.66s (per-edge) to 0.013s.
 
-Performance Evidence (#6786 review R3-F2): on the same graph with 75,000 and
-150,000 Repository `DEPENDS_ON` edges, the capped read transfers 50,100 edges
-instead of all of them. The interleaved loader median moves 0.160s to 0.169s
-and 0.154s to 0.166s on NornicDB, and 0.171s to 0.138s and 0.189s to 0.100s on
-Neo4j. Below the bound the statements are unchanged apart from the
+Performance Evidence (#6786 review R3-F2, recorded in
+`docs/internal/evidence/6786-repository-dependency-edge-transfer-cap.md`): on
+the same graph with 75,000 and 150,000 Repository `DEPENDS_ON` edges, the
+capped read transfers 50,100 edges instead of all of them. The interleaved
+loader median moves 0.160s to 0.169s and 0.154s to 0.166s on NornicDB, and
+0.171s to 0.138s and 0.189s to 0.100s on Neo4j. Below the bound the statements are unchanged apart from the
 parameterized LIMIT (NornicDB at 40,000 edges: 0.0423s to 0.0410s).
 
 Observability Evidence (#6786 review R2-F10, R3-F2): both routes time the read
