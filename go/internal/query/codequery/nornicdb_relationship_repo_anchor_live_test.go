@@ -20,10 +20,23 @@
 // shape (MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(file:File)-[:CONTAINS]->(e))
 // must resolve each request to its own repository's entity on both backends.
 //
-// GraphBackend is left unset on the handler so the request dispatches through
-// the default (Neo4j-labelled) relationshipsGraphRow path even though the
-// backing store is the live NornicDB container -- the exact reachable shape
-// #6786 proved live, and the one this test exercises and fixes.
+// GraphBackend is left unset on the handler so the request dispatches
+// through relationshipsGraphRow's default (Neo4j-labelled) branch even
+// though the backing store is the live NornicDB container. #6786 review F2
+// established that in production this is NOT the default path: config
+// loading (loadGraphBackend -> querycontract.ParseGraphBackend("")) resolves
+// an unset ESHU_GRAPH_BACKEND to GraphBackendNornicDB before CodeHandler is
+// ever constructed, so both cmd/api and cmd/mcp-server always pass a
+// concrete non-empty value; CodeHandler.graphBackend()'s own "" -> Neo4j
+// fallback (a *different* default than ParseGraphBackend's) is reachable
+// only from code, like this test, that constructs CodeHandler directly
+// without going through that config loader. The defect this test proves is
+// therefore reachable in production only when an operator explicitly sets
+// ESHU_GRAPH_BACKEND=neo4j while the backing store is actually NornicDB (a
+// mismatched configuration), not on the default path. The fix is still
+// correct and is defense-in-depth hardening for that path. The
+// "nornicdb_dispatch" subtest below proves the actual default
+// (NornicDB-dispatched, relationships.MetadataRow) path live instead.
 //
 // Run against isolated containers on the pinned images:
 //
@@ -139,28 +152,68 @@ func TestLiveRelationshipRepoAnchorAnswerTruth(t *testing.T) {
 		reader.write(ctx, t, stmt)
 	}
 
-	// GraphBackend intentionally left unset: defect 2 lives on the default
-	// (non-NornicDB-dispatched) relationshipsGraphRow path, which is exactly
-	// what runs here against the live NornicDB container.
-	handler := &CodeHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	t.Run("neo4j_dispatch_hardening", func(t *testing.T) {
+		// GraphBackend intentionally left unset: this exercises
+		// relationshipsGraphRow's default (Neo4j-labelled) branch even
+		// though the backing store here is the live NornicDB container --
+		// see the file-level comment above for why this is defense-in-depth
+		// hardening for a mismatched-config path, not the production
+		// default.
+		handler := &CodeHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
 
-	entityA, repoIDA := queryRunRelationshipEntity(t, handler, relAnchorRepoA)
-	entityB, repoIDB := queryRunRelationshipEntity(t, handler, relAnchorRepoB)
+		entityA, repoIDA := queryRunRelationshipEntity(t, handler, relAnchorRepoA)
+		entityB, repoIDB := queryRunRelationshipEntity(t, handler, relAnchorRepoB)
 
-	if entityA == entityB {
-		t.Fatalf("querying \"Run\" scoped to repo A (%s) and repo B (%s) resolved to the SAME entity %q -- repo_id filter is not being applied", relAnchorRepoA, relAnchorRepoB, entityA)
-	}
-	if entityA != relAnchorFnA {
-		t.Errorf("repo A entity_id = %q, want %q", entityA, relAnchorFnA)
-	}
-	if entityB != relAnchorFnB {
-		t.Errorf("repo B entity_id = %q, want %q", entityB, relAnchorFnB)
-	}
-	if repoIDA != relAnchorRepoA {
-		t.Errorf("repo A response repo_id = %q, want %q", repoIDA, relAnchorRepoA)
-	}
-	if repoIDB != relAnchorRepoB {
-		t.Errorf("repo B response repo_id = %q, want %q", repoIDB, relAnchorRepoB)
+		if entityA == entityB {
+			t.Fatalf("querying \"Run\" scoped to repo A (%s) and repo B (%s) resolved to the SAME entity %q -- repo_id filter is not being applied", relAnchorRepoA, relAnchorRepoB, entityA)
+		}
+		if entityA != relAnchorFnA {
+			t.Errorf("repo A entity_id = %q, want %q", entityA, relAnchorFnA)
+		}
+		if entityB != relAnchorFnB {
+			t.Errorf("repo B entity_id = %q, want %q", entityB, relAnchorFnB)
+		}
+		if repoIDA != relAnchorRepoA {
+			t.Errorf("repo A response repo_id = %q, want %q", repoIDA, relAnchorRepoA)
+		}
+		if repoIDB != relAnchorRepoB {
+			t.Errorf("repo B response repo_id = %q, want %q", repoIDB, relAnchorRepoB)
+		}
+	})
+
+	// #6786 review F2: prove the ACTUAL production default -- GraphBackend
+	// set to whatever loadGraphBackend resolves an unset ESHU_GRAPH_BACKEND
+	// to (GraphBackendNornicDB) -- against a real NornicDB store. This
+	// dispatches to nornicDBRelationshipsGraphRow -> relationships.MetadataRow
+	// (identity.go), a completely different Cypher shape (two separate
+	// forward MATCH clauses, not the backward EXISTS defect 2 fixed) that
+	// this test file's main defect-2 proof never exercises. Only meaningful
+	// against a real NornicDB backend; setting GraphBackendNornicDB while
+	// pointed at Neo4j would send NornicDB-dialect Cypher to Neo4j, which
+	// proves nothing about either backend.
+	if backend == "nornicdb" {
+		t.Run("nornicdb_dispatch", func(t *testing.T) {
+			handler := &CodeHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB}
+
+			entityA, repoIDA := queryRunRelationshipEntity(t, handler, relAnchorRepoA)
+			entityB, repoIDB := queryRunRelationshipEntity(t, handler, relAnchorRepoB)
+
+			if entityA == entityB {
+				t.Fatalf("NornicDB-dispatched: querying \"Run\" scoped to repo A (%s) and repo B (%s) resolved to the SAME entity %q -- repo_id filter is not being applied on the production default path", relAnchorRepoA, relAnchorRepoB, entityA)
+			}
+			if entityA != relAnchorFnA {
+				t.Errorf("NornicDB-dispatched: repo A entity_id = %q, want %q", entityA, relAnchorFnA)
+			}
+			if entityB != relAnchorFnB {
+				t.Errorf("NornicDB-dispatched: repo B entity_id = %q, want %q", entityB, relAnchorFnB)
+			}
+			if repoIDA != relAnchorRepoA {
+				t.Errorf("NornicDB-dispatched: repo A response repo_id = %q, want %q", repoIDA, relAnchorRepoA)
+			}
+			if repoIDB != relAnchorRepoB {
+				t.Errorf("NornicDB-dispatched: repo B response repo_id = %q, want %q", repoIDB, relAnchorRepoB)
+			}
+		})
 	}
 }
 

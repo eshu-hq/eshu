@@ -65,7 +65,7 @@ const Routes = `
                     "offset": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "result_limits": {"type": "object", "description": "Additive drilldown block for the inventory form of get_repository_stats: bounded page limit/offset, deterministic ordering, repository count, truncation flag, and the get_repository_stats drilldown plus inventory context path.", "additionalProperties": true},
-                    "partial_reasons": {"type": "array", "description": "Explicit reasons the inventory page is partial, e.g. repository_inventory_truncated when more repositories exist beyond the page; always present so the envelope shape is stable.", "items": {"type": "string"}}
+                    "partial_reasons": {"type": "array", "description": "Explicit reasons the response is partial. repository_inventory_truncated means more repositories exist beyond this page (mirrors truncated above). repository_group_evidence_missing means at least one returned repository has no source-backed grouping evidence. dependency_marker_evidence_incomplete means the bounded DEPENDS_ON edge read backing each repository's is_dependency field (and its dependency-cluster grouping) failed or was truncated for this request; is_dependency may be under-reported (false where evidence was actually true) on affected rows, and this reason is independent of truncated -- it never means more repositories exist beyond the page. Always present (possibly empty) so the envelope shape is stable.", "items": {"type": "string"}}
                   }
                 }
               }
@@ -226,9 +226,9 @@ const Routes = `
                     "counts": {"type": "object"},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
-                    "truncated": {"type": "boolean"},
+                    "truncated": {"type": "boolean", "description": "True when any catalog collection (repositories or workloads/services) is itself a bounded partial page, i.e. more rows exist beyond limit. A degraded is_dependency read (see limitations) never sets this: the repository/workload rows returned are complete even when the auxiliary dependency marker on them is not."},
                     "workloads_truncated": {"type": "boolean", "description": "True only when the workload and service collections are a bounded partial page; repository-only truncation does not set this field."},
-                    "limitations": {"type": "array", "items": {"type": "string"}}
+                    "limitations": {"type": "array", "description": "Explicit caveats about this response's completeness or truth basis. dependency_marker_evidence_incomplete means the bounded DEPENDS_ON edge read backing each repository's is_dependency field failed or was truncated for this request; is_dependency may be under-reported (false where evidence was actually true) on affected rows. \"workload and service catalog rows require an authoritative graph backend\" appears when no graph backend is configured. Distinct from truncated, which is about row-count paging, not evidence completeness.", "items": {"type": "string"}}
                   }
                 }
               }

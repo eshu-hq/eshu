@@ -16,7 +16,9 @@ OpenAPI remains canonical for the complete request and response schemas.
 
 The response has two truncation signals:
 
-- `truncated` is true when any catalog collection is partial.
+- `truncated` is true when any catalog collection (repositories, or
+  workloads/services) is itself a bounded partial page -- i.e. more rows
+  exist beyond `limit`.
 - `workloads_truncated` is true only when the workload collection, and
   therefore the derived service collection, is partial.
 
@@ -25,6 +27,16 @@ selector should use the narrower field when it is present so it does not warn
 that services are missing merely because repository navigation was bounded.
 For compatibility with an older API that does not return the narrower field,
 clients should fall back to `truncated`.
+
+`truncated` is strictly about row-count paging. It is never set by a
+degraded *auxiliary* read on an otherwise-complete page: each repository
+row's `is_dependency` field is backed by a separate, bounded
+`DEPENDS_ON`-edge marker read, and if that read fails or is truncated the
+repository/workload rows returned are still the complete set -- only
+`is_dependency` on them may be incomplete (under-reported as `false`). That
+case is disclosed through `limitations: ["dependency_marker_evidence_incomplete"]`
+instead, so a caller does not mistake it for "more repositories exist" and
+request a page that is not actually there.
 
 ## Workload resolution
 

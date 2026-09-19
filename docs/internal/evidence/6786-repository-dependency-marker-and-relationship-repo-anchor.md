@@ -52,6 +52,28 @@ already uses — instead of a post-hoc existence check. `RelationshipGraphRowCyp
 (the entity_id and name-only branches) is unchanged, implemented as
 `RelationshipGraphRowCypherAnchored("MATCH (e)", predicate)`.
 
+**Reachability correction (#6786 review F2):** the buggy branch runs inside
+`relationshipsGraphRow` only when `CodeHandler.graphBackend()` is NOT
+`GraphBackendNornicDB` -- NornicDB dispatches earlier, to
+`nornicDBRelationshipsGraphRow` -> `relationships.MetadataRow`
+(`identity.go`), a different, already-correct shape (two separate forward
+`MATCH` clauses, not this backward `EXISTS`). In production,
+`loadGraphBackend` resolves an unset `ESHU_GRAPH_BACKEND` to
+`GraphBackendNornicDB` (`querycontract.ParseGraphBackend("")`) *before*
+`CodeHandler` is constructed, and both `cmd/api` and `cmd/mcp-server` always
+pass that resolved value -- never an empty string.
+`CodeHandler.graphBackend()`'s own `"" -> GraphBackendNeo4j` fallback (a
+*different* default than `ParseGraphBackend`'s) is therefore reachable only
+from code that constructs `CodeHandler` directly without the config loader,
+such as this defect's original live-test harness. **This defect was not
+reachable on the default NornicDB dispatch; it is reachable only when an
+operator explicitly sets `ESHU_GRAPH_BACKEND=neo4j` while the backing store
+is actually NornicDB** (a mismatched configuration). The fix is still
+correct and is defense-in-depth hardening for that path. A live subtest
+(`nornicdb_dispatch`, below) proves the actual default path resolves both
+repositories' entities correctly, live, both before and after this change
+(it was never broken).
+
 ## RED/GREEN
 
 Live tests behind `-tags live_nornicdb_answer_truth`:
@@ -88,24 +110,42 @@ ESHU_NEO4J_URI=bolt://127.0.0.1:27900 ESHU_LIVE_GRAPH_BACKEND=nornicdb go test .
 ESHU_NEO4J_URI=bolt://127.0.0.1:27910 ESHU_LIVE_GRAPH_BACKEND=neo4j   go test ./internal/query/repository -tags live_nornicdb_answer_truth -run TestLiveRepositoryDependencyMarkerAnswerTruth -count=1 -v
   => 4 passed
 ESHU_NEO4J_URI=bolt://127.0.0.1:27900 ESHU_LIVE_GRAPH_BACKEND=nornicdb go test ./internal/query/codequery  -tags live_nornicdb_answer_truth -run TestLiveRelationshipRepoAnchorAnswerTruth -count=1 -v
-  => 1 passed
+  => 3 passed (top level, neo4j_dispatch_hardening subtest, nornicdb_dispatch subtest)
 ESHU_NEO4J_URI=bolt://127.0.0.1:27910 ESHU_LIVE_GRAPH_BACKEND=neo4j   go test ./internal/query/codequery  -tags live_nornicdb_answer_truth -run TestLiveRelationshipRepoAnchorAnswerTruth -count=1 -v
-  => 1 passed
+  => 2 passed (top level, neo4j_dispatch_hardening subtest; nornicdb_dispatch is skipped here -- see F2 above)
 ```
+
+The `nornicdb_dispatch` subtest (#6786 review F2) drives the same two-repo
+same-name seed through `CodeHandler{GraphBackend: GraphBackendNornicDB}`
+against the live NornicDB container -- the actual production default path
+(`nornicDBRelationshipsGraphRow` -> `relationships.MetadataRow`). It passes:
+each repository's `Run` entity resolves to its own repository, confirming
+this path was never affected and needed no fix.
 
 Non-live unit coverage pins the new Cypher/Go shapes:
 `code_relationships_graph_response_test.go`,
 `relationship_repo_anchor_test.go`, `dependency_cluster_test.go` (new
-`repositoryDependencyTargetSet`/`loadRepositoryDependencyEdges` cases),
-`list_dependency_marker_test.go`, `catalog_dependency_marker_test.go`, and
-`authz_test.go` (updated to reflect that `is_dependency` is now
-edge-derived, not a fake row field).
+`repositoryDependencyTargetSet`/`loadRepositoryDependencyEdges` cases,
+`resolveRepositoryDependencyEvidence`, and the seeded RED/GREEN test for
+the X4 AND/OR-after-whitespace guard via `querytestutil.CypherHasBrokenAndOr`),
+`list_dependency_marker_test.go` (rewritten per review F1 to assert
+`truncated=false` for a degraded-but-complete page),
+`catalog_dependency_marker_test.go` (same F1 assertion for the catalog, plus
+the whole-graph pre-pass this evidence's Performance Evidence section
+below explains was kept over a page-scoped alternative), and `authz_test.go`
+(updated to reflect that `is_dependency` is now edge-derived, not a fake
+row field).
 
-`go test ./internal/query/... -count=1` => 4846 passed, 0 failed.
-`go vet ./internal/query/...` => clean. `gofumpt -l` on every changed file
-=> no output.
+`go test ./internal/query/... -count=1` => 5069 passed, 0 failed (at commit
+f968d8991, the current head of this evidence's fixes).
+`go vet ./internal/query/... ./internal/queryplan/...` => clean.
+`gofumpt -l` on every changed file => no output.
 
 ## Performance Evidence
+
+*(Rewritten for review finding F4: the original text below predated the
+degradation-disclosure and truncation-detection work and understated the
+current LIMIT. This paragraph reflects head at commit f968d8991.)*
 
 No-Regression Evidence: this is a correctness fix, not a performance
 optimization, so the acceptance bar is "no regression" on the touched
@@ -126,27 +166,71 @@ Both statements got marginally faster (dropping a per-row EXISTS subquery
 and replacing a scan-then-filter with an anchored MATCH are both cheaper,
 not more expensive) and are within run-to-run noise either way at this
 corpus size — well under the skill's 10%/60s regression stop threshold in
-either direction. `GET /api/v0/catalog`'s only new cost is the ~225µs
-bounded edge pre-pass it previously skipped entirely, which is required for
-correctness (defect 1) and is already the exact query
-`repository.loadRepositoryDependencyEdges` runs, bounded by
-`repositoryDependencyClusterEdgeLimit` (50000) with an `ORDER BY`. No change
-to result cardinality, page limits, or timeout behavior on any touched
-handler. Absolute figures are resource-qualified to this shared host and
-container image pinning; only the relative before/after delta on identical
-inputs is the claim.
+either direction. `GET /api/v0/catalog`'s only new cost is the bounded edge
+pre-pass it previously skipped entirely, which is required for correctness
+(defect 1) and is the exact query `repository.loadRepositoryDependencyEdges`
+runs -- bounded by `repositoryDependencyClusterEdgeFetchLimit` (**50001**,
+one past `repositoryDependencyClusterEdgeLimit`'s 50000, added after this
+table was first measured so truncation is detectable; see review F1) with
+an `ORDER BY`. No change to result cardinality, page limits, or timeout
+behavior on any touched handler. Absolute figures are resource-qualified to
+this shared host and container image pinning; only the relative
+before/after delta on identical inputs is the claim.
+
+**Review finding F6 (catalog page-scoping, evaluated and rejected):** a
+page-scoped alternative for the catalog's read
+(`MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) WHERE t.id IN $page_ids
+RETURN DISTINCT t.id`, bounded by page size instead of the whole graph's
+edge count) was measured live on NornicDB v1.3.3 at 5000 repositories /
+20000 `DEPENDS_ON` edges, schema applied, isolated container. Its cold-path
+cost scales ~linearly with `len($page_ids)` at roughly 55-60ms/element
+(1 element: ~370ms; 10: ~885ms; 100: ~5.9s; 2000, the default catalog page:
+1m55s-2m5s across two independent runs), and — critically — this cost is
+**not cached by statement text, only by exact parameter VALUES**: a second,
+different 2000-element `$page_ids` list on the identical already-warmed
+statement paid the full ~2-minute cost again (1m59.99s measured). A real
+catalog page's repository-id set drifts on ordinary repository churn, so in
+production this would be paid on most requests, not once. This is worse
+than the whole-graph pre-pass it would have replaced, which stays flat at
+70-80ms warm / 250-500ms cold regardless of page size at this same corpus.
+The catalog therefore keeps the whole-graph pre-pass (the row directly
+above this one); the page-scoped shape was not committed. This looks like
+its own NornicDB v1.3.3 performance defect (an `IN`-list evaluation whose
+cold path is not statement-text-cached) distinct from the X1-X10
+correctness shapes catalogued in
+[6786-nornicdb-400-409-exposure.md](6786-nornicdb-400-409-exposure.md);
+recording it here pending a decision on whether it warrants its own
+upstream report.
 
 ## Observability Evidence
 
-Observability Evidence: the existing `repository_query.stage_started` /
+*(Rewritten for review finding F4 to match head at commit f968d8991.)*
+
+The repository list's existing `repository_query.stage_started` /
 `repository_query.stage_completed` log events for
 `operation=repository_list, stage=dependency_cluster_edges` are unchanged in
-shape and now also carry `edge_count` (previously only `cluster_count`),
-giving operators direct visibility into how many DEPENDS_ON edges backed
-both the cluster grouping and the is_dependency marker in one place. No new
-signal was needed for `GET /api/v0/catalog` or the relationship lookup: both
-already flow through the shared `WriteGraphReadError` / bounded-read-error
-telemetry path for any backend failure, and neither introduces a new failure
-mode (the Go-derived marker degrades to `is_dependency=false` on an edge-read
-error, matching the existing "degrade rather than fail the whole list"
-contract `loadRepositoryDependencyEdges`'s doc comment states).
+shape and now also carry `edge_count`, `truncated`, and `error`
+(previously only `cluster_count`), giving operators direct visibility into
+how many `DEPENDS_ON` edges backed both the cluster grouping and the
+`is_dependency` marker, and whether that read was itself degraded.
+
+A failed or truncated dependency-edge read now additionally emits a
+dedicated structured warning, `repository_query.dependency_edges_degraded`
+(`logRepositoryDependencyEdgesDegradation`), with `operation`, `edge_count`,
+`truncated`, and `error` attributes, for both `GET /api/v0/repositories`
+(`operation=repository_list`) and `GET /api/v0/catalog`
+(`operation=catalog_list`). This is new since the original version of this
+section, which claimed "no new signal was needed" -- that was inaccurate
+even at the time this fix first shipped disclosure at all (review F1
+corrected what the disclosure could claim, not whether one existed).
+
+The degraded read never fails the request (see
+`logRepositoryDependencyEdgesDegradation`'s doc comment for why): it
+discloses via `partial_reasons: ["dependency_marker_evidence_incomplete"]`
+on the repository list and `limitations` on the catalog, and explicitly
+does **not** set `truncated` / `result_limits.truncated` /
+`repository_inventory_truncated` -- those mean "more repositories exist
+beyond this page," which a degraded auxiliary read has no bearing on
+(review F1). Both routes also still flow through the shared
+`WriteGraphReadError` / bounded-read-error telemetry path for a failure in
+their *primary* (non-dependency) reads, unchanged by this work.
