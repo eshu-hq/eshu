@@ -128,16 +128,17 @@ type RepoReconcile struct {
 // ReconcileRequest is one reconcile cycle's input.
 type ReconcileRequest struct {
 	// Cursor is the repo_id the walk resumes after; "" starts at the beginning.
+	// It is ignored when Persist is set.
 	Cursor string
 	// Budget bounds the repositories one cycle checks, suspects included.
 	Budget int
 	// Suspects are the repositories the previous cycle found drifted. They are
 	// re-checked first, and repaired if they still differ.
 	Suspects []string
-	// Persist resumes an empty Cursor from the persisted walk cursor
-	// (LoadCursor) and stores the cycle's NextCursor afterwards (SaveCursor),
-	// so a restarted process continues the walk instead of starting over. The
-	// reducer runner always sets it.
+	// Persist claims the walk page from the shared persisted cursor
+	// (ClaimPage) instead of walking from Cursor, which is then ignored.
+	// Replicas claim disjoint pages, and a restarted process continues the
+	// walk instead of starting over. The reducer runner always sets it.
 	Persist bool
 }
 
@@ -218,13 +219,18 @@ func ReconcileCycle(ctx context.Context, database db.ExecQueryer, req ReconcileR
 	if walkBudget == 0 {
 		return batch, nil
 	}
-	cursor := req.Cursor
-	if cursor == "" && req.Persist {
-		if cursor, err = LoadCursor(ctx, database); err != nil {
-			return batch, err
+	var (
+		repos []string
+		next  string
+	)
+	if req.Persist {
+		repos, next, err = ClaimPage(ctx, database, walkBudget)
+	} else {
+		repos, err = reconcileRepositories(ctx, database, req.Cursor, walkBudget)
+		if err == nil && len(repos) == walkBudget {
+			next = repos[len(repos)-1]
 		}
 	}
-	repos, err := reconcileRepositories(ctx, database, cursor, walkBudget)
 	if err != nil {
 		return batch, err
 	}
@@ -237,15 +243,7 @@ func ReconcileCycle(ctx context.Context, database db.ExecQueryer, req ReconcileR
 		}
 		batch.Repos = append(batch.Repos, reconcileOne(ctx, database, repo, false))
 	}
-	batch.NextCursor = ""
-	if len(repos) == walkBudget {
-		batch.NextCursor = repos[len(repos)-1]
-	}
-	if req.Persist {
-		if err := SaveCursor(ctx, database, batch.NextCursor); err != nil {
-			return batch, err
-		}
-	}
+	batch.NextCursor = next
 	return batch, nil
 }
 

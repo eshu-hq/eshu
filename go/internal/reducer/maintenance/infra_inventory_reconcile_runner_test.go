@@ -97,11 +97,11 @@ func TestInfraInventoryReconcileRunnerCountsOutcomesAndAdvancesTheCursor(t *test
 
 	require.Equal(t, []reconcileCall{
 		{cursor: "", budget: 2, persist: true},
-		{cursor: "repo-b", budget: 2, suspects: []string{"repo-b"}, persist: true},
+		{cursor: "", budget: 2, suspects: []string{"repo-b"}, persist: true},
 		{cursor: "", budget: 2, persist: true},
 	}, reconciler.calls,
 		"every cycle persists the walk position; a suspect is re-checked on the next cycle; "+
-			"the cursor advances to NextCursor and wraps when the walk ends")
+			"the page comes from the persisted cursor, never an in-memory one")
 	var rm metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(context.Background(), &rm))
 	for outcome, want := range map[string]int64{"match": 1, "suspect": 1, "repaired": 1, "fenced": 1, "error": 1} {

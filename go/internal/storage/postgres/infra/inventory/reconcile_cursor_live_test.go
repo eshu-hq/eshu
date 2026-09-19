@@ -33,8 +33,11 @@ func TestReconcileCycleLivePersistsAndResumesTheWalkCursor(t *testing.T) {
 		seedDerivedRepo(t, ctx, database, repos[i],
 			contentRow{id: "e", path: "main.tf", entityType: "TerraformResource", name: "r"})
 	}
-	if err := inventory.SaveCursor(ctx, database, prefix); err != nil {
-		t.Fatalf("SaveCursor() error = %v", err)
+	if _, err := sqlDB.ExecContext(ctx, `
+INSERT INTO infra_resource_entity_reconcile_cursor (walk_name, cursor, updated_at)
+VALUES ('infra_resource_entities', $1, now())
+ON CONFLICT (walk_name) DO UPDATE SET cursor = EXCLUDED.cursor`, prefix); err != nil {
+		t.Fatalf("store cursor: %v", err)
 	}
 
 	first, err := inventory.ReconcileCycle(ctx, database, inventory.ReconcileRequest{Budget: 2, Persist: true})

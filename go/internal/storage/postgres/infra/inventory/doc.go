@@ -40,8 +40,9 @@
 // not derive (for example an older binary during a rolling upgrade) leaves
 // rows the backfill marker cannot detect. Once the marker exists, each cycle
 // re-checks the previous cycle's suspects, then walks up to the rest of a
-// budget of repositories after a cursor (LoadCursor and SaveCursor persist
-// it, so a restarted process resumes the walk). ReconcileRepo compares (row count, sum of a per-row hash) of a
+// budget of repositories claimed from a shared persisted cursor (ClaimPage),
+// so replicas take disjoint pages and a restarted process resumes the walk.
+// ReconcileRepo compares (row count, sum of a per-row hash) of a
 // repository's infra content rows against its table rows without a lock. On
 // the walk a mismatch is only ReconcileSuspect, because a Write's content rows
 // commit before its derive; a suspect that still differs on the next cycle is
