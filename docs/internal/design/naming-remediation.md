@@ -142,8 +142,8 @@ mcp/
 ├── iac/management/                ← iacmanagement
 ├── observability/coverage/        ← observabilitycoverage
 ├── package/registry/              ← packageregistry
-├── secrets/iam/                   ← secretsiam
-├── security/alert/                ← securityalert
+├── access/posture/                ← secretsiam (owner-settled; see Decisions taken)
+├── alerts/                        ← securityalert (owner-settled; see Decisions taken)
 ├── service/                       ← already clean, 4 non-test Go files
 │   └── context/                   ← servicecontext
 └── ask/ cicd/ cloud/ content/ documentation/ ecosystem/ freshness/ impact/
@@ -161,6 +161,18 @@ semantics; the directory spelling does not change that format or its ownership.
 
 ## Decisions taken
 
+- **MCP secrets/IAM lives at `access/posture`, not `secrets/iam`.** The
+  family owns identity trust chains and privilege posture observations, not
+  secrets alone, so the posture grouping names the content better than the
+  secret store it reads. The route-selection nest already lived at
+  `access/posture` before the tool definitions moved, so the tools joined
+  the existing nest instead of inventing a parallel one. Owner decision;
+  recorded after the #6816/#6819 leaves landed there.
+- **MCP security-alert family lives at `alerts/`, not `security/alert`.**
+  One plain word, unambiguous inside `internal/mcp` (the only alert
+  family), with package `alerttools` matching the sibling pattern
+  (`codeflowtools`, `secretsiamtools`). Owner decision; recorded after the
+  codex P2 on #6823 proposed the nested path.
 - **`prometheusmimir` becomes `planner/prometheus`.** It builds workflow rows for
   enabled Prometheus or Grafana Mimir metric-metadata targets. The providers
   are alternatives within one planner, not a parent and child. Keep the
