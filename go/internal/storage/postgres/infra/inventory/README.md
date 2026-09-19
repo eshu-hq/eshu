@@ -37,8 +37,8 @@ creates the table is `storage/postgres/migrations/109_infra_resource_entities.sq
 - `WriterSessionSQL`, `WriterConnectOption`, `OpenWriterDB`,
   `ReadModelReady` — the rolling-upgrade fence: derive-aware connections,
   and the readers' gate (marker present and no repository marked dirty)
-- `ReconcileCycle`, `ReconcileRequest`, `ReconcileRepo`, `LoadCursor`,
-  `SaveCursor`,
+- `ReconcileCycle`, `ReconcileRequest`, `ReconcileRepo`, `ClaimPage`,
+  `LoadCursor`,
   `ReconcileBatch`, `RepoReconcile`,
   `ReconcileMatch`/`ReconcileSuspect`/`ReconcileRepaired`/`ReconcileFenced`/`ReconcileError` —
   the reducer's drift check and repair (`cmd/reducer`

@@ -49,15 +49,17 @@ type InfraInventoryReconcileBatch struct {
 // InfraInventoryReconcileRequest is one cycle's input.
 type InfraInventoryReconcileRequest struct {
 	// Cursor is the repo_id the walk resumes after; "" starts at the beginning.
+	// The runner leaves it empty: with Persist the reconciler claims its page
+	// from the shared persisted cursor.
 	Cursor string
 	// Budget bounds the repositories the cycle checks, suspects included.
 	Budget int
 	// Suspects are the repositories the previous cycle found drifted; they are
 	// re-checked first and repaired only if they still differ.
 	Suspects []string
-	// Persist asks the reconciler to resume an empty cursor from the
-	// persisted walk position and to store where this cycle stopped, so a
-	// restarted process continues the walk. The runner always sets it.
+	// Persist asks the reconciler to claim the cycle's page from the shared
+	// persisted walk cursor, so replicas take disjoint pages and a restarted
+	// process continues the walk. The runner always sets it.
 	Persist bool
 }
 
@@ -93,11 +95,10 @@ func (c InfraInventoryReconcileRunnerConfig) repoBudget() int {
 // InfraInventoryReconcileRunner keeps the infra read model (#6793) equal to
 // content_entities when some content writer did not derive it: an older
 // binary during a rolling upgrade, a manual SQL change, or a restore. Each
-// cycle checks at most RepoBudget repositories in repo_id order from where the
-// previous cycle stopped, then waits PollInterval; the walk wraps at the end
-// and its position is persisted, so a restarted process resumes it. A
-// repository that
-// differs is repaired only when the next cycle finds it still differing, so a
+// cycle claims a page of at most RepoBudget repositories in repo_id order from
+// the walk's shared persisted cursor, so replicas take disjoint pages and a
+// restarted process resumes the walk, then waits PollInterval; the walk wraps
+// at the end. A repository that differs is repaired only when the next cycle finds it still differing, so a
 // Write caught between its content commit and its derive is not repaired or
 // reported as drift.
 type InfraInventoryReconcileRunner struct {
@@ -109,7 +110,6 @@ type InfraInventoryReconcileRunner struct {
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
 
-	cursor   string
 	suspects []string
 }
 
@@ -139,7 +139,8 @@ func (r *InfraInventoryReconcileRunner) Run(ctx context.Context) error {
 	}
 }
 
-// RunOnce runs one bounded reconcile cycle from the runner's cursor.
+// RunOnce runs one bounded reconcile cycle; the page comes from the shared
+// persisted walk cursor.
 func (r *InfraInventoryReconcileRunner) RunOnce(ctx context.Context) (InfraInventoryReconcileBatch, error) {
 	if err := r.validate(); err != nil {
 		return InfraInventoryReconcileBatch{}, err
@@ -151,7 +152,6 @@ func (r *InfraInventoryReconcileRunner) RunOnce(ctx context.Context) (InfraInven
 	}
 	start := time.Now()
 	batch, err := r.Reconciler.ReconcileInfraInventory(ctx, InfraInventoryReconcileRequest{
-		Cursor:   r.cursor,
 		Budget:   r.Config.repoBudget(),
 		Suspects: r.suspects,
 		Persist:  true,
@@ -174,7 +174,6 @@ func (r *InfraInventoryReconcileRunner) RunOnce(ctx context.Context) (InfraInven
 		}
 		return batch, nil
 	}
-	r.cursor = batch.NextCursor
 	var suspects []string
 	for _, repo := range batch.Repos {
 		if repo.Outcome == "suspect" {
