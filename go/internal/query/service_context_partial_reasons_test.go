@@ -37,17 +37,18 @@ func TestGetServiceContextAddsPartialReasons(t *testing.T) {
 
 	handler := &EntityHandler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
-			RunSingleByMatch: map[string]map[string]any{
-				"w.name = $service_name": {
-					"id":        "workload:svc-partial-reasons",
-					"name":      "svc-partial-reasons",
-					"kind":      "service",
-					"repo_id":   "repo-svc-partial-reasons",
-					"repo_name": "svc-partial-reasons",
-					"instances": []any{},
-				},
-			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				// #6786: a name-keyed service lookup reads a bounded candidate set.
+				if strings.Contains(cypher, "collect(DISTINCT dr.id) as defining") {
+					return []map[string]any{{
+						"id":        "workload:svc-partial-reasons",
+						"name":      "svc-partial-reasons",
+						"kind":      "service",
+						"repo_id":   "repo-svc-partial-reasons",
+						"repo_name": "svc-partial-reasons",
+						"instances": []any{},
+					}}, nil
+				}
 				switch {
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-svc-partial-reasons", "repo_name": "svc-partial-reasons"}}, nil

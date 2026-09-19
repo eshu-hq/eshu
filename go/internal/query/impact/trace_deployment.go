@@ -117,6 +117,9 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 			querycontract.WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
+		if querycontract.WriteWorkloadSelectorOverflow(w, err) {
+			return
+		}
 		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
 			return
 		}

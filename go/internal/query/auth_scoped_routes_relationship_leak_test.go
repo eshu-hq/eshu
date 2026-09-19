@@ -37,6 +37,10 @@ func crossTenantDependencyGraph() querytestutil.FakeGraphReaderWithSingle {
 			}
 		},
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			// #6786: a name-keyed service lookup reads a bounded candidate set.
+			if strings.Contains(cypher, "collect(DISTINCT dr.id) as defining") {
+				return []map[string]any{{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a", "defining": []any{"repo-a"}}}, nil
+			}
 			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
 				return rows, nil
 			}

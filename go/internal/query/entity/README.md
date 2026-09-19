@@ -55,6 +55,19 @@ a multi-line scoped `WHERE` group was unreliable on the pinned NornicDB
 v1.3.3 image. See `querycontract`'s README for the detail and
 `querycontract.WorkloadGrantAdmitted`.
 
+A name-keyed workload lookup (`GET /services/{name}/context` and its MCP twin)
+reads a bounded candidate set in `workload_lookup.go`: up to
+`querycontract.WorkloadSelectorCandidateBound`+1 rows ordered by `w.id`, each
+carrying `collect(DISTINCT dr.id)` for its DEFINES repositories. Go filters the
+rows with `WorkloadGrantAdmitted` and returns the lowest admitted id, so two
+workloads that share a name no longer depend on which row an unordered
+`LIMIT 1` happened to return. A page over the bound returns
+`querycontract.ErrWorkloadSelectorCandidatesExceedBound`, which the handler
+writes as a count-free 409. An id-only lookup still reads one row, because
+`Workload.id` is unique. `fetchServiceWorkloadContext` counts
+`reason=grant_denied` once per request, and only when the name lookup, the id
+lookup, and the read model all came back empty.
+
 ## Exported surface
 
 Exports exist only for staying callers: the root deployment-trace wrapper,

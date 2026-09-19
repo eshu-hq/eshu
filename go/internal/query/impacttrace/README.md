@@ -26,7 +26,12 @@ NornicDB: `ResolveWorkloadSelector`'s scoped grant is decided in Go over
 an unfiltered, bounded read, not rendered as a Cypher-embedded predicate
 (#6786) -- a multi-line scoped `WHERE` group was unreliable on the pinned
 NornicDB v1.3.3 image. See `querycontract`'s README for the detail and
-`querycontract.WorkloadGrantAdmitted`.
+`querycontract.WorkloadGrantAdmitted`. Ambiguity counts distinct admitted
+workload ids, so duplicate rows for one workload are not ambiguous and a second
+id past the first two rows is still caught. An over-bound name page returns
+`querycontract.ErrWorkloadSelectorCandidatesExceedBound`, which the `impact`
+handlers write as a count-free 409. `reason=grant_denied` is counted once, and
+only when neither the id lookup nor the name lookup admitted a workload.
 
 ## Exported surface
 

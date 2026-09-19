@@ -3,6 +3,11 @@
 
 package querycontract
 
+import (
+	"errors"
+	"net/http"
+)
+
 // WorkloadGrantAdmitted reports whether a scoped caller's grant admits a
 // Workload read whose materialized repo_id is repoID and whose DEFINES-linked
 // repositories are definingRepoIDs. An unscoped caller admits unconditionally.
@@ -42,4 +47,38 @@ func WorkloadGrantAdmitted(access RepositoryAccessFilter, repoID string, definin
 		}
 	}
 	return false
+}
+
+// WorkloadSelectorCandidateBound caps how many Workload rows a name-keyed
+// selector read fetches before its grant, ambiguity, and pick decisions run
+// in Go. Readers fetch WorkloadSelectorCandidateBound+1 rows so a full page
+// is distinguishable from an exact one.
+//
+// Workload names are not unique, and the grant is no longer filtered in the
+// Cypher WHERE (#6786), so a granted row can sit behind ungranted rows. Up to
+// the bound every row is inspected; past it, a granted row may be missing, so
+// callers fail closed with ErrWorkloadSelectorCandidatesExceedBound instead
+// of deciding from a truncated page.
+const WorkloadSelectorCandidateBound = 50
+
+// ErrWorkloadSelectorCandidatesExceedBound reports that a name-keyed Workload
+// selector matched more rows than WorkloadSelectorCandidateBound. HTTP
+// handlers map it to 409 Conflict with a fixed message that tells the caller
+// to retry with a workload id. The error text never carries the row count:
+// the rows are counted before the grant filter runs, so a count would tell a
+// scoped caller how many ungranted workloads share the name.
+var ErrWorkloadSelectorCandidatesExceedBound = errors.New("workload selector matched more candidates than can be resolved; retry with a workload id")
+
+// WriteWorkloadSelectorOverflow writes the 409 Conflict response for
+// ErrWorkloadSelectorCandidatesExceedBound and reports whether err matched.
+// It writes the sentinel's own fixed text, not err.Error(), so a caller that
+// wrapped the sentinel with extra context cannot leak that context either.
+// 409 matches how the same routes report an ambiguous selector: the caller
+// can resolve it by retrying with a workload id.
+func WriteWorkloadSelectorOverflow(w http.ResponseWriter, err error) bool {
+	if !errors.Is(err, ErrWorkloadSelectorCandidatesExceedBound) {
+		return false
+	}
+	WriteError(w, http.StatusConflict, ErrWorkloadSelectorCandidatesExceedBound.Error())
+	return true
 }

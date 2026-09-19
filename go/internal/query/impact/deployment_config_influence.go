@@ -62,6 +62,9 @@ func (h *Handler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r 
 			querycontract.WriteError(w, http.StatusConflict, err.Error())
 			return
 		}
+		if querycontract.WriteWorkloadSelectorOverflow(w, err) {
+			return
+		}
 		if querycontract.WriteGraphReadError(w, r, err, deploymentConfigInfluenceCapability) {
 			return
 		}

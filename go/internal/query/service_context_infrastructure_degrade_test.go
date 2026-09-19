@@ -35,17 +35,18 @@ func TestGetServiceContextInfrastructureDegradeAttributesFailure(t *testing.T) {
 	var logs bytes.Buffer
 	handler := &EntityHandler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
-			RunSingleByMatch: map[string]map[string]any{
-				"w.name = $service_name": {
-					"id":        "workload:svc-infra-degrade",
-					"name":      "svc-infra-degrade",
-					"kind":      "service",
-					"repo_id":   "repo-svc-infra-degrade",
-					"repo_name": "svc-infra-degrade",
-					"instances": []any{},
-				},
-			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				// #6786: a name-keyed service lookup reads a bounded candidate set.
+				if strings.Contains(cypher, "collect(DISTINCT dr.id) as defining") {
+					return []map[string]any{{
+						"id":        "workload:svc-infra-degrade",
+						"name":      "svc-infra-degrade",
+						"kind":      "service",
+						"repo_id":   "repo-svc-infra-degrade",
+						"repo_name": "svc-infra-degrade",
+						"instances": []any{},
+					}}, nil
+				}
 				switch {
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-svc-infra-degrade", "repo_name": "svc-infra-degrade"}}, nil
@@ -110,17 +111,18 @@ func TestGetServiceContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing.T)
 	var logs bytes.Buffer
 	handler := &EntityHandler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
-			RunSingleByMatch: map[string]map[string]any{
-				"w.name = $service_name": {
-					"id":        "workload:svc-infra-healthy",
-					"name":      "svc-infra-healthy",
-					"kind":      "service",
-					"repo_id":   "repo-svc-infra-healthy",
-					"repo_name": "svc-infra-healthy",
-					"instances": []any{},
-				},
-			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				// #6786: a name-keyed service lookup reads a bounded candidate set.
+				if strings.Contains(cypher, "collect(DISTINCT dr.id) as defining") {
+					return []map[string]any{{
+						"id":        "workload:svc-infra-healthy",
+						"name":      "svc-infra-healthy",
+						"kind":      "service",
+						"repo_id":   "repo-svc-infra-healthy",
+						"repo_name": "svc-infra-healthy",
+						"instances": []any{},
+					}}, nil
+				}
 				if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
 					return []map[string]any{{"repo_id": "repo-svc-infra-healthy", "repo_name": "svc-infra-healthy"}}, nil
 				}

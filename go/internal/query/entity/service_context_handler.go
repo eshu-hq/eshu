@@ -44,6 +44,9 @@ func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 
 	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_context")
 	if err != nil {
+		if querycontract.WriteWorkloadSelectorOverflow(w, err) {
+			return
+		}
 		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
 			return
 		}

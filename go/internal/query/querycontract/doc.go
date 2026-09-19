@@ -7,7 +7,11 @@
 // read ports, the content models those ports exchange, the collector-list
 // readiness contract that lets a caller tell an empty page from a disabled
 // collector, and the scoped-token repository-access authorization seam
-// (RepositoryAccessFilter and the inline-map grant predicate primitives).
+// (RepositoryAccessFilter and the inline-map grant predicate primitives),
+// plus the Go-side Workload grant decision (WorkloadGrantAdmitted) and the
+// shared name-selector bound (WorkloadSelectorCandidateBound) whose overflow
+// error, ErrWorkloadSelectorCandidatesExceedBound, handlers write as a
+// count-free 409 through WriteWorkloadSelectorOverflow.
 // Family packages can depend on these contracts without importing the root
 // query router. Capability registration preserves the established profile
 // ceilings, ordered catalog, and unknown-capability panic.

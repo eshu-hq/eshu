@@ -74,6 +74,14 @@ anchor on the same MATCH -- so the grant moved out of the query text entirely
 single-line `IN`-disjunction `WorkloadScopePredicate` (`infra_scope_grant.go`,
 SHAPE-A) is unaffected and still belongs here as a fragment emitter.
 
+`WorkloadSelectorCandidateBound`, `ErrWorkloadSelectorCandidatesExceedBound`,
+and `WriteWorkloadSelectorOverflow` live beside it so the `entity` and
+`impacttrace` name lookups fail closed at the same bound with the same wire
+answer: 409 Conflict and fixed text telling the caller to retry with a workload
+id. The error text carries no row count. The rows are counted before the grant
+filter runs, so a count would tell a scoped caller how many ungranted workloads
+share a name.
+
 ## Exported surface
 
 The exported surface is described in [doc.go](doc.go). Root `query` aliases the

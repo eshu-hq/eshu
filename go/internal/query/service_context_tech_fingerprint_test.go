@@ -36,6 +36,10 @@ func TestGetServiceContextIncludesTechFingerprint(t *testing.T) {
 			return nil, nil
 		},
 		runByMatch: map[string][]map[string]any{
+			// #6786: a name-keyed service lookup reads a bounded candidate set.
+			"collect(DISTINCT dr.id) as defining": {
+				{"id": "workload:fp-service", "name": "fp-service", "kind": "service", "repo_id": "repo-fp-svc"},
+			},
 			"MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)": {
 				{"repo_id": "repo-fp-svc", "repo_name": "fp-service-repo"},
 			},

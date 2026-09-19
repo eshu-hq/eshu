@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -237,7 +238,7 @@ func TestResolveWorkloadSelectorCandidateBoundFailsClosed(t *testing.T) {
 	}}
 
 	_, err := ResolveWorkloadSelector(scopedAuthContext("repo-a"), reader, "orders", nil, nil)
-	if !errors.Is(err, errWorkloadSelectorCandidatesExceedBound) {
+	if !errors.Is(err, querycontract.ErrWorkloadSelectorCandidatesExceedBound) {
 		t.Fatalf("ResolveWorkloadSelector() error = %v, want candidate-bound error", err)
 	}
 }

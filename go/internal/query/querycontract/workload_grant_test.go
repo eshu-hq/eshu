@@ -3,7 +3,14 @@
 
 package querycontract
 
-import "testing"
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
 
 func TestWorkloadGrantAdmittedUnscopedAlwaysAdmits(t *testing.T) {
 	t.Parallel()
@@ -71,5 +78,32 @@ func TestWorkloadGrantAdmittedScopedEmptyGrantDeniesAll(t *testing.T) {
 	access := RepositoryAccessFilter{}
 	if WorkloadGrantAdmitted(access, "repo-a", []string{"repo-b"}) {
 		t.Fatal("WorkloadGrantAdmitted() = true, want false for a scoped caller with no grants")
+	}
+}
+
+// TestWriteWorkloadSelectorOverflowWritesFixedConflict pins the #6786 review
+// contract for the overflow sentinel: 409, the sentinel's fixed text even
+// when a caller wrapped it with more context, and no match for other errors.
+func TestWriteWorkloadSelectorOverflowWritesFixedConflict(t *testing.T) {
+	t.Parallel()
+
+	recorder := httptest.NewRecorder()
+	wrapped := fmt.Errorf("selector %q saw 51 rows: %w", "orders", ErrWorkloadSelectorCandidatesExceedBound)
+	if !WriteWorkloadSelectorOverflow(recorder, wrapped) {
+		t.Fatal("WriteWorkloadSelectorOverflow() = false, want true for a wrapped sentinel")
+	}
+	if got, want := recorder.Code, http.StatusConflict; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	body := recorder.Body.String()
+	if strings.Contains(body, "51") || strings.Contains(body, "orders") {
+		t.Fatalf("body = %s, want only the sentinel's fixed text", body)
+	}
+	if !strings.Contains(body, "retry with a workload id") {
+		t.Fatalf("body = %s, want the retry guidance", body)
+	}
+
+	if WriteWorkloadSelectorOverflow(httptest.NewRecorder(), errors.New("other")) {
+		t.Fatal("WriteWorkloadSelectorOverflow() = true for an unrelated error")
 	}
 }

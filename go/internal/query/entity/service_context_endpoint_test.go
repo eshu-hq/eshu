@@ -20,25 +20,24 @@ func TestGetServiceContextOmitsRepoEntryPoints(t *testing.T) {
 	entryPointQueried := false
 	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
-			RunSingleByMatch: map[string]map[string]any{
-				"w.name = $service_name": {
-					"id":        "workload:service-edge-api",
-					"name":      "service-edge-api",
-					"kind":      "Deployment",
-					"repo_id":   "repo-1",
-					"repo_name": "service-edge-api",
-					"instances": []any{
-						map[string]any{
-							"instance_id":   "inst-1",
-							"platform_name": "eks-prod",
-							"platform_kind": "EKS",
-							"environment":   "production",
-						},
-					},
-				},
-			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "collect(DISTINCT dr.id) as defining"):
+					return []map[string]any{{
+						"id":        "workload:service-edge-api",
+						"name":      "service-edge-api",
+						"kind":      "Deployment",
+						"repo_id":   "repo-1",
+						"repo_name": "service-edge-api",
+						"instances": []any{
+							map[string]any{
+								"instance_id":   "inst-1",
+								"platform_name": "eks-prod",
+								"platform_kind": "EKS",
+								"environment":   "production",
+							},
+						},
+					}}, nil
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-1", "repo_name": "service-edge-api"}}, nil
 				case strings.Contains(cypher, "fn.name IN"):
@@ -81,14 +80,16 @@ func TestFetchWorkloadContextAnchorsFollowUpQueriesByResolvedWorkloadID(t *testi
 
 	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
-			RunSingleByMatch: map[string]map[string]any{
-				"w.name = $service_name": {
-					"id":   "workload:service-edge-api",
-					"name": "service-edge-api",
-					"kind": "service",
-				},
-			},
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "collect(DISTINCT dr.id) as defining") {
+					// The base lookup is the one read that legitimately carries
+					// the broad id-or-name clause.
+					return []map[string]any{{
+						"id":   "workload:service-edge-api",
+						"name": "service-edge-api",
+						"kind": "service",
+					}}, nil
+				}
 				if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
 					return []map[string]any{{"repo_id": "repo-1", "repo_name": "service-edge-api"}}, nil
 				}
@@ -122,17 +123,17 @@ func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testi
 
 	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
-			RunSingleByMatch: map[string]map[string]any{
-				"w.name = $service_name": {
-					"id":        "workload:checkout-service",
-					"name":      "checkout-service",
-					"kind":      "service",
-					"repo_id":   "repo-service",
-					"repo_name": "checkout-service",
-					"instances": []any{},
-				},
-			},
 			RunByMatch: map[string][]map[string]any{
+				"collect(DISTINCT dr.id) as defining": {
+					{
+						"id":        "workload:checkout-service",
+						"name":      "checkout-service",
+						"kind":      "service",
+						"repo_id":   "repo-service",
+						"repo_name": "checkout-service",
+						"instances": []any{},
+					},
+				},
 				"MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)": {
 					{"repo_id": "repo-service", "repo_name": "checkout-service"},
 				},
