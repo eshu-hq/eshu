@@ -1,0 +1,22 @@
+go/internal/reducer/crossscope/readiness_wait_test.go
+  s_0155aa640a8bb1::t_2fe495028150a2 1-196
+go/internal/reducer/crossscope/readiness_wait.go
+  s_0155aa640a8bb1::t_14a147cb0503fb 1-255
+  s_0155aa640a8bb1::t_4bff13112010af 256-257
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6775b80c5c9381b5b327229587b752e077d8bea4",
+  "prompts": {},
+  "sessions": {
+    "s_0155aa640a8bb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ed74ad2-74b8-4517-8e85-303dc193b776",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
