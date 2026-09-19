@@ -1,0 +1,51 @@
+docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md
+  s_5f48821d014007::t_389d8c78f98177 300-398,437-439
+docs/public/reference/http-api/catalog-workload-selection.md
+  s_5f48821d014007::t_206a2e90dc98cf 44-49,52-55
+docs/public/reference/http-api/repositories-ingesters-bundles.md
+  s_5f48821d014007::t_65413a1d25991c 149-153
+go/internal/query/queryplan_legacy_production_binding_test.go
+  s_5f48821d014007::t_f684af9d8c468a 201
+go/internal/query/queryplan_profile_live_test.go
+  s_5f48821d014007::t_18a388fdec520b 39,415
+go/internal/query/queryplan_profile_params_test.go
+  s_5f48821d014007::t_df729d9dd69e25 234
+go/internal/query/repository/README.md
+  s_5f48821d014007::t_ee88040f3ab790 61-65,69-70,79-87,89-90
+go/internal/query/repository/catalog.go
+  s_5f48821d014007::t_7006106599c98a 173-174,204
+go/internal/query/repository/dependency_cluster.go
+  s_5f48821d014007::t_88e19247344d1d 17-24,121-126,128-133,152-158,163-166,168,172,187,285,295-309
+go/internal/query/repository/dependency_cluster_prepass_test.go
+  s_5f48821d014007::t_4cc2e9fd9726c5 156-160,164-167,169-177,180-182
+go/internal/query/repository/dependency_edge_cap.go
+  s_5f48821d014007::t_35243be0c8b1b7 1-84
+go/internal/query/repository/dependency_edge_cap_test.go
+  s_5f48821d014007::t_fbb66bf2e90079 1-275
+go/internal/query/repository/dependency_edge_stage_test.go
+  s_5f48821d014007::t_798712ea621974 1-131
+go/internal/query/repository/dependency_edge_unscoped.go
+  s_5f48821d014007::t_2dddb65c8ba2fe 27-34,36-37,39-40,43-47,49,51,53,55,57,59,92-100,105,108-160,166-179
+go/internal/query/repository/dependency_edge_unscoped_test.go
+  s_5f48821d014007::t_23242a3a24624a 21-24,28-29,31-33,36,46-51,61-62,70,74,76-83,85,87,92,95,228-230,234-240
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_5f48821d014007::t_08f195bfaa9de9 38,983-984,989,993-1019,1028
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_5f48821d014007::t_030eb213d59551 10,599,602-604,607-608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6da4775e210e41e68cd3128b0438fe0b6d82a295",
+  "prompts": {},
+  "sessions": {
+    "s_5f48821d014007": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0fefcd82-b7df-4d9b-8f3e-22e1a9c426d0",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

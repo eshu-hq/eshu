@@ -1,0 +1,27 @@
+docs/internal/evidence/6786-nornicdb-400-409-exposure.md
+  s_3d761bb140daa9::t_66a05d7c83e61f 79,96-119
+docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md
+  s_3d761bb140daa9::t_28b62018f649d7 139-141,149,224
+go/internal/query/repository/dependency_cluster.go
+  s_3d761bb140daa9::t_f979c84a9d9291 203-207
+go/internal/query/repository/dependency_edge_probe.go
+  s_3d761bb140daa9::t_c14666fa1f3ff3 1-3
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_3d761bb140daa9::t_b9e9d43e57523a 963
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f7a1ef1c39331b1d475d97db8ff063c023d54f2b",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
