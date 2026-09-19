@@ -6,7 +6,7 @@
 //
 // The CAN_PERFORM and USES cross-scope edge handlers commit ready edges first
 // and then wait, bounded, for missing endpoints. [Store] keeps one row per
-// (scope_id, domain) in reducer_readiness_waits (migration 109): the
+// (scope_id, domain) in reducer_readiness_waits (migration 110): the
 // first-defer anchor that survives supersession of the per-generation queue
 // row, the capped missing set and its fingerprint, the last partial commit,
 // and when the missing set settled. Every statement is a single-row

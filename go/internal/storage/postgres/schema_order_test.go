@@ -226,4 +226,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// direct lookup of unfinished shared intents on a growing backlog.
 	"shared_projection_generation_pending_index",
 	"infra_resource_entities",
+	// migration 110 (#6785) is the (scope_id, domain) readiness-wait ledger for
+	// the commit-first CAN_PERFORM and USES waits.
+	"reducer_readiness_waits",
 }

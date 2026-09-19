@@ -55,7 +55,7 @@ DELETE FROM reducer_readiness_waits WHERE scope_id = $1 AND domain = $2
 `
 
 // Store implements crossscope.ReadinessWaitLedger over the
-// reducer_readiness_waits table (migration 109). Every statement is a
+// reducer_readiness_waits table (migration 110). Every statement is a
 // single-row primary-key read or write and holds no lock beyond its own
 // statement.
 type Store struct {
