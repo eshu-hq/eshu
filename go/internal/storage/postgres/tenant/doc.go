@@ -16,6 +16,6 @@
 // exported because the identity bootstrap path (still in the postgres root
 // until its own #6693 leaf) writes the bootstrap tenant and workspace in the
 // same transaction as the initial local identity credential. Shared
-// null/blank value shaping lives in the sibling db package, not here.
+// null/blank value shaping lives in the sibling scalars package, not here.
 // This package must not import the parent postgres package.
 package tenantstore

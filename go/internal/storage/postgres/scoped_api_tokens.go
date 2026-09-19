@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 // ScopedAPITokenStore persists hash-only hosted API token registry rows.
@@ -84,9 +85,9 @@ func (s *ScopedAPITokenStore) UpsertToken(ctx context.Context, record ScopedAPIT
 		record.Status,
 		record.PolicyRevisionHash,
 		record.IssuedAt,
-		db.NullTimePtr(record.ExpiresAt),
-		db.NullTime(record.RevokedAt),
-		db.NullTime(record.LastUsedAt),
+		scalars.NullTimePtr(record.ExpiresAt),
+		scalars.NullTime(record.RevokedAt),
+		scalars.NullTime(record.LastUsedAt),
 		record.UpdatedAt,
 	); err != nil {
 		return fmt.Errorf("upsert scoped API token: %w", err)
@@ -170,9 +171,9 @@ func normalizeScopedAPITokenRecord(record ScopedAPITokenRecord) ScopedAPITokenRe
 }
 
 func validateScopedAPITokenRecord(record ScopedAPITokenRecord) error {
-	if db.Blank(record.TokenHash) || db.Blank(record.TenantID) || db.Blank(record.WorkspaceID) ||
-		db.Blank(record.SubjectIDHash) || db.Blank(record.SubjectClass) || db.Blank(record.Status) ||
-		db.Blank(record.PolicyRevisionHash) {
+	if scalars.Blank(record.TokenHash) || scalars.Blank(record.TenantID) || scalars.Blank(record.WorkspaceID) ||
+		scalars.Blank(record.SubjectIDHash) || scalars.Blank(record.SubjectClass) || scalars.Blank(record.Status) ||
+		scalars.Blank(record.PolicyRevisionHash) {
 		return errors.New("token hash, tenant, workspace, subject, status, and policy revision are required")
 	}
 	if record.IssuedAt.IsZero() {
@@ -205,7 +206,7 @@ func scanScopedAPIToken(rows db.Rows) (ScopedAPITokenRecord, error) {
 	); err != nil {
 		return ScopedAPITokenRecord{}, err
 	}
-	record.ExpiresAt = db.TimePtrFromNull(expiresAt)
+	record.ExpiresAt = scalars.TimePtrFromNull(expiresAt)
 	record.RevokedAt = timeFromNull(revokedAt)
 	record.LastUsedAt = timeFromNull(lastUsedAt)
 	return record, nil

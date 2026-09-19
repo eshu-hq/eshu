@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/scalars"
 )
 
 const (
@@ -122,7 +123,7 @@ func (s *TenantWorkspaceGrantStore) UpsertTenant(ctx context.Context, record Ten
 		record.DisplayHandleHash,
 		record.PolicyRevisionHash,
 		record.UpdatedAt,
-		db.NullTime(record.TombstonedAt),
+		scalars.NullTime(record.TombstonedAt),
 	); err != nil {
 		return fmt.Errorf("upsert tenant record: %w", err)
 	}
@@ -147,7 +148,7 @@ func (s *TenantWorkspaceGrantStore) UpsertWorkspace(ctx context.Context, record 
 		record.DisplayHandleHash,
 		record.PolicyRevisionHash,
 		record.UpdatedAt,
-		db.NullTime(record.TombstonedAt),
+		scalars.NullTime(record.TombstonedAt),
 	); err != nil {
 		return fmt.Errorf("upsert workspace record: %w", err)
 	}
@@ -173,8 +174,8 @@ func (s *TenantWorkspaceGrantStore) UpsertScopeGrant(ctx context.Context, grant 
 		grant.GrantSource,
 		grant.PolicyRevisionHash,
 		grant.EffectiveAt,
-		db.NullTimePtr(grant.ExpiresAt),
-		db.NullTime(grant.TombstonedAt),
+		scalars.NullTimePtr(grant.ExpiresAt),
+		scalars.NullTime(grant.TombstonedAt),
 		grant.UpdatedAt,
 	); err != nil {
 		return fmt.Errorf("upsert tenant scope grant: %w", err)
@@ -202,8 +203,8 @@ func (s *TenantWorkspaceGrantStore) UpsertRepositoryGrant(ctx context.Context, g
 		grant.GrantSource,
 		grant.PolicyRevisionHash,
 		grant.EffectiveAt,
-		db.NullTimePtr(grant.ExpiresAt),
-		db.NullTime(grant.TombstonedAt),
+		scalars.NullTimePtr(grant.ExpiresAt),
+		scalars.NullTime(grant.TombstonedAt),
 		grant.UpdatedAt,
 	); err != nil {
 		return fmt.Errorf("upsert tenant repository grant: %w", err)
@@ -365,7 +366,7 @@ func normalizeGrantQuery(query TenantWorkspaceGrantQuery) TenantWorkspaceGrantQu
 }
 
 func validateTenantRecord(record TenantRecord) error {
-	if db.Blank(record.TenantID) || db.Blank(record.Status) || db.Blank(record.PolicyRevisionHash) {
+	if scalars.Blank(record.TenantID) || scalars.Blank(record.Status) || scalars.Blank(record.PolicyRevisionHash) {
 		return errors.New("tenant id, status, and policy revision hash are required")
 	}
 	if record.UpdatedAt.IsZero() {
@@ -375,8 +376,8 @@ func validateTenantRecord(record TenantRecord) error {
 }
 
 func validateWorkspaceRecord(record WorkspaceRecord) error {
-	if db.Blank(record.TenantID) || db.Blank(record.WorkspaceID) ||
-		db.Blank(record.Status) || db.Blank(record.PolicyRevisionHash) {
+	if scalars.Blank(record.TenantID) || scalars.Blank(record.WorkspaceID) ||
+		scalars.Blank(record.Status) || scalars.Blank(record.PolicyRevisionHash) {
 		return errors.New("workspace tenant id, workspace id, status, and policy revision hash are required")
 	}
 	if record.UpdatedAt.IsZero() {
@@ -386,17 +387,17 @@ func validateWorkspaceRecord(record WorkspaceRecord) error {
 }
 
 func validateScopeGrant(grant TenantScopeGrant) error {
-	if db.Blank(grant.TenantID) || db.Blank(grant.WorkspaceID) || db.Blank(grant.ScopeID) ||
-		db.Blank(grant.SubjectClass) || db.Blank(grant.GrantSource) || db.Blank(grant.PolicyRevisionHash) {
+	if scalars.Blank(grant.TenantID) || scalars.Blank(grant.WorkspaceID) || scalars.Blank(grant.ScopeID) ||
+		scalars.Blank(grant.SubjectClass) || scalars.Blank(grant.GrantSource) || scalars.Blank(grant.PolicyRevisionHash) {
 		return errors.New("scope grant tenant, workspace, scope, subject class, source, and policy revision are required")
 	}
 	return validateGrantTimes(grant.EffectiveAt, grant.ExpiresAt, grant.UpdatedAt)
 }
 
 func validateRepositoryGrant(grant TenantRepositoryGrant) error {
-	if db.Blank(grant.TenantID) || db.Blank(grant.WorkspaceID) || db.Blank(grant.RepoID) ||
-		db.Blank(grant.ScopeID) || db.Blank(grant.SubjectClass) || db.Blank(grant.GrantSource) ||
-		db.Blank(grant.PolicyRevisionHash) {
+	if scalars.Blank(grant.TenantID) || scalars.Blank(grant.WorkspaceID) || scalars.Blank(grant.RepoID) ||
+		scalars.Blank(grant.ScopeID) || scalars.Blank(grant.SubjectClass) || scalars.Blank(grant.GrantSource) ||
+		scalars.Blank(grant.PolicyRevisionHash) {
 		return errors.New("repository grant tenant, workspace, repo, scope, subject class, source, and policy revision are required")
 	}
 	return validateGrantTimes(grant.EffectiveAt, grant.ExpiresAt, grant.UpdatedAt)
@@ -416,7 +417,7 @@ func validateGrantTimes(effectiveAt time.Time, expiresAt *time.Time, updatedAt t
 }
 
 func validateGrantQuery(query TenantWorkspaceGrantQuery) error {
-	if db.Blank(query.TenantID) || db.Blank(query.WorkspaceID) || db.Blank(query.SubjectClass) {
+	if scalars.Blank(query.TenantID) || scalars.Blank(query.WorkspaceID) || scalars.Blank(query.SubjectClass) {
 		return errors.New("tenant id, workspace id, and subject class are required")
 	}
 	if query.AsOf.IsZero() {
@@ -443,7 +444,7 @@ func scanTenantScopeGrant(rows db.Rows) (TenantScopeGrant, error) {
 	); err != nil {
 		return TenantScopeGrant{}, err
 	}
-	grant.ExpiresAt = db.TimePtrFromNull(expiresAt)
+	grant.ExpiresAt = scalars.TimePtrFromNull(expiresAt)
 	return grant, nil
 }
 
@@ -463,6 +464,6 @@ func scanTenantRepositoryGrant(rows db.Rows) (TenantRepositoryGrant, error) {
 	); err != nil {
 		return TenantRepositoryGrant{}, err
 	}
-	grant.ExpiresAt = db.TimePtrFromNull(expiresAt)
+	grant.ExpiresAt = scalars.TimePtrFromNull(expiresAt)
 	return grant, nil
 }

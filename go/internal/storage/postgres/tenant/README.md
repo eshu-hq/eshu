@@ -33,7 +33,9 @@ See `doc.go` for the godoc contract.
 ## Dependencies
 
 - `internal/storage/postgres/db` for the shared `ExecQueryer`/`Rows`
-  contracts and the null/blank value helpers.
+  contracts.
+- `internal/storage/postgres/scalars` for the shared null/blank value
+  helpers.
 
 ## Telemetry
 
