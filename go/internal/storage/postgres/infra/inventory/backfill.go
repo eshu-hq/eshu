@@ -30,13 +30,19 @@ SELECT EXISTS (
 )`
 
 // backfillRepositoriesSQL lists every repository that has entity-derived
-// content rows, plus every repository that still has table rows. The second
-// set lets the backfill clear rows whose content disappeared while no derive
-// was running (for example before this binary shipped).
+// content rows, every repository that still has table rows, and every
+// repository carrying a fence mark. The second set lets the backfill clear
+// rows whose content disappeared while no derive was running (for example
+// before this binary shipped). The third covers a repository an older writer
+// emptied of infra rows: it has neither content nor table rows, and without
+// it the backfill would leave its mark and readers would stay on the graph
+// until the reducer's repair.
 const backfillRepositoriesSQL = `
 SELECT repo_id FROM content_entities WHERE entity_type = ANY($1::text[])
 UNION
 SELECT repo_id FROM infra_resource_entities
+UNION
+SELECT repo_id FROM infra_resource_entity_dirty_repos
 ORDER BY 1`
 
 const backfillMarkSQL = `
