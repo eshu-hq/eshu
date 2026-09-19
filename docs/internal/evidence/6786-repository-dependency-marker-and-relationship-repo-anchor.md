@@ -396,6 +396,36 @@ Observability Evidence: `edge_transfer_capped` on the
 `duration_seconds` includes the extra statement
 (`TestDependencyEdgeStageCompletionAttributes`).
 
+### Review finding R3-F3: live proof over non-Repository DEPENDS_ON edges
+
+The unscoped answer now depends on NornicDB's relationship-aggregation fast
+path checking both endpoint labels. The same pin ignores a label predicate in
+`WHERE`, returning 2,317 rows against a true 300 (table above). The committed
+live seed held only Repository→Repository edges, so it could not catch a pin
+that stopped checking labels.
+
+`TestLiveRepositoryDependencyMarkerAnswerTruth` now seeds Workload→Workload
+(w1→w2), Repository→Workload (r1→w1) and Workload→Repository (w2→r3)
+`DEPENDS_ON` edges next to the two Repository edges. Ground truth is
+unchanged. The test asserts cluster membership (`group_key` for
+`group_source=dependency_cluster`: {r1, r2} and {r3, r4}) as well as
+`is_dependency`. A new subtest runs the two production grouped statements,
+`readGroupedRepositoryDependencyEdges` and `readRepositoryDependencyGroupSizes`,
+and fails on any row for this seed that carries a Workload endpoint. The
+group-size statement is the one the capped path runs, and a small live seed
+cannot reach it through the handler. The shared live reader and retry helpers
+moved to `live_reader_test.go`.
+
+RED, seeded: with the endpoint labels temporarily removed from both
+production grouped statements (the shape a skipped label check produces),
+NornicDB v1.3.3 fails `unscoped` (r3 `is_dependency=true`, and all four
+repositories in one cluster keyed r1), `catalog_unscoped` (r3 true) and the
+grouped-reads subtest (Workload ids in both reads). `scoped` still passes,
+because it uses the per-edge read. GREEN at the final head: on fresh
+containers (NornicDB `v1.3.3@sha256:81cedbf4...` on 28040, Neo4j
+`2026-community@sha256:eabfbb04...` on 28050), all four subtests pass on both
+backends, as does `TestLiveRelationshipRepoAnchorAnswerTruth`.
+
 ## Observability Evidence
 
 *(Rewritten for review finding F4; current as of the rebase onto `59c605e48`.)*
