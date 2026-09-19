@@ -85,7 +85,7 @@ Sources used:
 - `go/internal/storage/postgres/graph_projection_phase_repair_queue.go`
 - `go/internal/storage/postgres/aws_freshness_schema_sql.go`
 - `go/internal/storage/postgres/incident_freshness_schema_sql.go`
-- `go/internal/storage/postgres/webhook_trigger_store_schema_sql.go`
+- `go/internal/storage/postgres/webhook/trigger_store_schema_sql.go`
 - `go/internal/storage/postgres/aws_scan_status.go`
 - `go/internal/storage/postgres/aws_pagination_checkpoint.go`
 - `go/internal/storage/postgres/vulnerability_source_state.go`
