@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -228,7 +229,7 @@ func (database *proofDomainDB) QueryContext(_ context.Context, query string, arg
 		// not exercised by the proof harness; return empty rows so the wider
 		// status snapshot can still resolve.
 		return newProofRows(nil), nil
-	case query == semanticExtractionObservabilityQuery:
+	case query == semanticstore.SemanticExtractionObservabilityQuery:
 		return newProofRows(nil), nil
 	case query == awsFreshnessStatusCountsQuery:
 		return newProofRows(nil), nil

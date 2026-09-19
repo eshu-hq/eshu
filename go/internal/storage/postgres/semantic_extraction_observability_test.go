@@ -10,6 +10,7 @@ import (
 	"time"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 )
 
 func TestSemanticExtractionQueueStoreObservabilitySnapshotAggregatesRedactedRows(t *testing.T) {
@@ -43,7 +44,7 @@ func TestSemanticExtractionQueueStoreObservabilitySnapshotAggregatesRedactedRows
 			},
 		}},
 	}
-	store := NewSemanticExtractionQueueStore(db)
+	store := semanticstore.NewSemanticExtractionQueueStore(db)
 
 	snapshot, err := store.ObservabilitySnapshot(context.Background())
 	if err != nil {

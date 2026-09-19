@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -173,7 +174,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		return statuspkg.RawSnapshot{}, err
 	}
 	q, done = s.read(ctx, statusReadSemanticExtraction)
-	semanticExtraction, err := readSemanticExtractionObservability(ctx, q)
+	semanticExtraction, err := semanticstore.ReadSemanticExtractionObservability(ctx, q)
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}

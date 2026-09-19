@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package semanticstore
 
 import (
 	"context"
@@ -22,14 +22,18 @@ func (s SemanticExtractionQueueStore) ObservabilitySnapshot(
 	if s.database == nil {
 		return statuspkg.SemanticExtractionStatus{}, fmt.Errorf("semantic extraction queue store db is required")
 	}
-	return readSemanticExtractionObservability(ctx, s.database)
+	return ReadSemanticExtractionObservability(ctx, s.database)
 }
 
-func readSemanticExtractionObservability(
+// ReadSemanticExtractionObservability reads the redacted semantic-extraction
+// status snapshot for the status page. It stays exported because the status
+// family (still in the postgres root until its own #6693 leaf) renders
+// through it.
+func ReadSemanticExtractionObservability(
 	ctx context.Context,
 	queryer db.Queryer,
 ) (statuspkg.SemanticExtractionStatus, error) {
-	rows, err := queryer.QueryContext(ctx, semanticExtractionObservabilityQuery)
+	rows, err := queryer.QueryContext(ctx, SemanticExtractionObservabilityQuery)
 	if err != nil {
 		return statuspkg.SemanticExtractionStatus{}, fmt.Errorf("read semantic extraction observability: %w", err)
 	}
@@ -220,7 +224,10 @@ func appendNamedCount(rows []statuspkg.NamedCount, name string, count int) []sta
 	return append(rows, statuspkg.NamedCount{Name: name, Count: count})
 }
 
-const semanticExtractionObservabilityQuery = `
+// SemanticExtractionObservabilityQuery is the redacted status snapshot
+// statement. It stays exported because the root proof-domain harness matches
+// query text to stub status reads.
+const SemanticExtractionObservabilityQuery = `
 WITH redacted AS (
     SELECT
         status,

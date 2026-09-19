@@ -16,6 +16,7 @@ import (
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 )
 
 func TestStatusStoreReadRawSnapshot(t *testing.T) {
@@ -353,7 +354,7 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, args ...any)
 		if query == producerActivityQuery {
 			return &fakeRows{rows: [][]any{{false, nil}}}, nil
 		}
-		if query == semanticExtractionObservabilityQuery {
+		if query == semanticstore.SemanticExtractionObservabilityQuery {
 			return &fakeRows{}, nil
 		}
 		if query == semanticQueueDepthQuery || query == semanticQueueOldestAgeQuery {

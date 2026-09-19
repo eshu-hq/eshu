@@ -38,6 +38,7 @@ import (
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/tenant"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -224,7 +225,7 @@ func run(parent context.Context) error {
 		// egress, audits decisions, and terminates allowed jobs as provider-disabled.
 		serviceRunner.SemanticProviderWorker = &coordinator.SemanticProviderWorker{
 			Config:          semanticWorkerCfg,
-			Claimer:         postgres.NewSemanticExtractionQueueStore(postgres.SQLDB{DB: db}),
+			Claimer:         semanticstore.NewSemanticExtractionQueueStore(postgres.SQLDB{DB: db}),
 			Client:          coordinator.DisabledSemanticProviderClient{},
 			GovernanceAudit: governanceAuditStore,
 			Metrics:         semanticWorkerMetrics,
