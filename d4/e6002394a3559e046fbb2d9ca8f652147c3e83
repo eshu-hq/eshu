@@ -1,0 +1,79 @@
+go/internal/query/codequery/relationship_story_override_label_live_test.go
+  s_6fc19beed9436d::t_5e6df5ce4e22a4 1-138
+go/internal/query/codequery/relationships/story/class.go
+  s_6fc19beed9436d::t_60c78bcb40b56d 236-238,262-263,280-293
+go/internal/query/codequery/relationships/story/override_label_filter_test.go
+  s_6fc19beed9436d::t_f6056d3698ea7e 1-51
+go/internal/query/context_story_envelope_test.go
+  s_6fc19beed9436d::t_6460a4c351d42f 146
+go/internal/query/entity/service_context_endpoint_test.go
+  s_6fc19beed9436d::t_0e5e76f39e41d7 141
+go/internal/query/entity/workload_context_nornicdb_test.go
+  s_6fc19beed9436d::t_5ae6173c60acf5 122,302
+go/internal/query/entity/workload_context_test.go
+  s_6fc19beed9436d::t_59ed704b8edef7 55,165,292,355,418
+go/internal/query/impact/change_surface_label_predicate_live_test.go
+  s_6fc19beed9436d::t_41c1260a0a0322 1-166
+go/internal/query/impact/change_surface_label_whitelist_test.go
+  s_6fc19beed9436d::t_5fa3c1038d2523 8,10,95-99,103-113,115-116,119-120
+go/internal/query/impact/change_surface_legacy.go
+  s_6fc19beed9436d::t_98c88ded5cce73 126-134,136-138
+go/internal/query/impact/change_surface_traversal.go
+  s_6fc19beed9436d::t_617f5f4f4db59c 155-157,159-167,197-202,213-214
+go/internal/query/impact/deployment_config_influence_test.go
+  s_6fc19beed9436d::t_96b3bc04adf0f3 251,390
+go/internal/query/impact_trace_deployment_adapter_test.go
+  s_6fc19beed9436d::t_0ba0cde7728b7c 117,227
+go/internal/query/querytestutil/nornicdb_label_predicate.go
+  s_6fc19beed9436d::t_7c98e38e21f7e3 1-309
+go/internal/query/querytestutil/nornicdb_label_predicate_fs_test.go
+  s_6fc19beed9436d::t_56d720781212af 1-16
+go/internal/query/querytestutil/nornicdb_label_predicate_scan_test.go
+  s_6fc19beed9436d::t_d83021214df220 1-161
+go/internal/query/querytestutil/nornicdb_label_predicate_test.go
+  s_6fc19beed9436d::t_6721327fdf6194 1-69
+go/internal/query/querytestutil/repo_graph_reader.go
+  s_6fc19beed9436d::t_c66362ead3b8a7 143
+go/internal/query/repository/infrastructure.go
+  s_6fc19beed9436d::t_6a8f6bd356abe7 189-190,203,205-217,222,353-355
+go/internal/query/repository/infrastructure_label_filter_test.go
+  s_6fc19beed9436d::t_2004a30d800998 1-58
+go/internal/query/repository/infrastructure_label_predicate_live_test.go
+  s_6fc19beed9436d::t_2f8a68ce0bc5af 1-198
+go/internal/query/repository_context_nornicdb_test.go
+  s_6fc19beed9436d::t_90bcfb50ab4a75 46
+go/internal/query/repository_context_tech_fingerprint_test.go
+  s_6fc19beed9436d::t_0984e876782e5c 38,117
+go/internal/query/repository_context_test.go
+  s_6fc19beed9436d::t_d82441a27881e2 425
+go/internal/query/service_context_authz_test.go
+  s_6fc19beed9436d::t_231e02b0f53932 47
+go/internal/query/service_context_tech_fingerprint_test.go
+  s_6fc19beed9436d::t_ee173b18cd77e0 48
+go/internal/query/service_investigation_test.go
+  s_6fc19beed9436d::t_ada22572132226 39
+go/internal/query/service_story_api_surface_test.go
+  s_6fc19beed9436d::t_d7b6d3524eaf32 66
+go/internal/query/service_story_dossier_routes_test.go
+  s_6fc19beed9436d::t_423261504b1650 40,191,247,288
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_6fc19beed9436d::t_f6125006b16e68 541
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_6fc19beed9436d::t_2bb2475aef86e6 608
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d4e6002394a3559e046fbb2d9ca8f652147c3e83",
+  "prompts": {},
+  "sessions": {
+    "s_6fc19beed9436d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a27ed62a-1473-431b-9b7c-a320b40621a5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
