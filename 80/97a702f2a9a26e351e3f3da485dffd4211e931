@@ -1,0 +1,36 @@
+go/internal/storage/cypher/unwind_row_keys_helper_test.go
+  s_45cfbb28f19666::t_1239f74a9cb428 1-167
+go/internal/storage/cypher/unwind_row_keys_writers_test.go
+  s_45cfbb28f19666::t_107f339be0a1f7 1-244
+  s_45cfbb28f19666::t_3e22ec3371b15d 245-282
+go/internal/storage/cypher/canonical_submodule_edges.go
+  s_45cfbb28f19666::t_9c5d78c5afa712 57-60,78
+go/internal/storage/cypher/canonical_submodule_edges_test.go
+  s_45cfbb28f19666::t_49b76f1601cab3 70-75,88-89
+go/internal/storage/cypher/code_interproc_evidence_writer.go
+  s_45cfbb28f19666::t_195256c0b73011 40-43,119,123-133
+go/internal/storage/cypher/edge_writer_code_call_labels.go
+  s_45cfbb28f19666::t_8edb58c44d3b66 94-98,124-128
+go/internal/storage/cypher/edge_writer_ghactions_ref_test.go
+  s_45cfbb28f19666::t_4520a07cda09bf 55,58-62,89-92
+go/internal/storage/cypher/edge_writer_row_keys_test.go
+  s_45cfbb28f19666::t_4ec54271f9fbfb 68
+go/internal/storage/cypher/edge_writer_row_metadata.go
+  s_45cfbb28f19666::t_b58a0ca9109433 112-119,123,127-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8097a702f2a9a26e351e3f3da485dffd4211e931",
+  "prompts": {},
+  "sessions": {
+    "s_45cfbb28f19666": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f03d1c1d-a426-4ce9-830d-f28d93c1483d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

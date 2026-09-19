@@ -1,0 +1,21 @@
+docs/public/reference/graph-backend-installation.md
+  s_f5417eb4bac87d::t_eb14f269a5bd26 19
+go/internal/query/codequery/chain/neo4j_version_floor_test.go
+  s_f5417eb4bac87d::t_cec323a1b64929 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "47a7a63ceb26190e3878cafac03979f832c43021",
+  "prompts": {},
+  "sessions": {
+    "s_f5417eb4bac87d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92c64115-d591-4a9b-ac18-3c30f730d10b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
