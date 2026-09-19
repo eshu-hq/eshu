@@ -27,7 +27,7 @@ constant it defaults to.
 That dependency is why this is its own package rather than part of
 `querycontract`. A family imports `querycontract` for types and should not
 inherit anything else through it; the same reasoning put the handler span in
-`queryspan`.
+`tracing`.
 
 ## Gotchas / invariants
 

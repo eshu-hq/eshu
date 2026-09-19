@@ -79,7 +79,7 @@ Internal packages, all of them leaves that never import root package
   row-value decoders, repository access filter, collector readiness.
 - `internal/query/queryauth` — auth context bounds and normalization.
 - `internal/query/queryselector` — repository-selector resolution.
-- `internal/query/queryspan` — handler span plumbing.
+- `internal/query/tracing` — handler span plumbing.
 - `internal/query/supply/chain/advisory`, `.../impact` — the advisory and
   impact read models.
 
@@ -121,7 +121,7 @@ and the staying root suite (`go test ./internal/query/...`) pins the
 routes, contract matrix, and packet parity through the aliases.
 
 No-Observability-Change: span names, capability strings, attribute keys,
-and the tracer seed (`queryspan.HandlerTracer`) are unchanged; only the
+and the tracer seed (`tracing.HandlerTracer`) are unchanged; only the
 package qualifier moved.
 
 ## Gotchas / invariants

@@ -21,7 +21,7 @@
 //
 // This package imports querycontract (profiles, envelopes, capability
 // registration, HTTP helpers, read ports, and repository-access filtering)
-// and queryspan (the shared handler-span seam); it MUST NOT import the query
+// and tracing (the shared handler-span seam); it MUST NOT import the query
 // root, or root would cycle back through its own compatibility aliases in
 // secrets_alias.go, which import this package for the Handler type alias and
 // the six Postgres/Graph store constructor forwarders cmd/api and

@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryspan"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 func (h *Handler) developerChangePlan(w http.ResponseWriter, r *http.Request) {
-	r, span := queryspan.StartHandlerSpanWith(queryspan.HandlerTracer(),
+	r, span := tracing.StartHandlerSpanWith(tracing.HandlerTracer(),
 		r,
 		telemetry.SpanQueryChangeSurfaceInvestigation,
 		"POST /api/v0/impact/developer-change-plan",

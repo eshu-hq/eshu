@@ -6,6 +6,9 @@ Starts the per-route tracing span for query HTTP reads and tags it with the
 attributes an operator triages on. One function and one tracer accessor; no
 routing, no handler logic, no storage.
 
+This package was `go/internal/query/queryspan` until #6818 moved it here and
+dropped the `query` prefix from the package name.
+
 ## Ownership boundary
 
 This package owns the handler span's name, its attributes, and the tracer name.
@@ -32,7 +35,7 @@ a span or not.
 `eshu/go/internal/query`, deliberately unchanged from when this code lived in
 that directory, because that name is what saved span queries and dashboards
 match on. The row in
-`docs/public/observability/telemetry-coverage.md` points at `handlerspan.go`.
+`docs/public/observability/telemetry-coverage.md` points at `handler.go`.
 
 No-Observability-Change: the span name, its three attributes, and the tracer
 name are identical to what package `query` emitted before this move. Moving the

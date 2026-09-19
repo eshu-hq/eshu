@@ -16,12 +16,12 @@ gates production does).
   `IncidentRepositoryAuthorizer` interfaces from `incident/model/`, never
   on `incident/store/` concretes. Wiring builds concretes through the root
   `NewPostgres*` forwarders.
-- Spans start through `queryspan` with the package-local
-  `incidentHandlerTracer` seam (see the `queryspan` package docs on why the
+- Spans start through `tracing` with the package-local
+  `incidentHandlerTracer` seam (see the `tracing` package docs on why the
   tracer is package-local). The span name, route, and capability
   attributes are unchanged from the root handler.
 - This package imports `incident/model`, `queryauth`, `querycontract`,
-  `queryspan`, and `telemetry`. It MUST NOT import the query root or
+  `tracing`, and `telemetry`. It MUST NOT import the query root or
   `incident/store/`.
 - `queryplan` manifests: the incident family has no entries. Keep it zero.
 

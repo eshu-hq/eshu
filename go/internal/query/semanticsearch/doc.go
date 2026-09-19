@@ -13,7 +13,7 @@
 // depends only on the dependency-neutral leaf packages under internal/query --
 // querycontract (response and truth envelopes, capability gates, repository
 // access filters), queryauth (the request-scoped grant snapshot and the
-// permission-catalog predicates), and queryspan (the per-route HTTP span) --
+// permission-catalog predicates), and tracing (the per-route HTTP span) --
 // never on root package query itself, which would create an import cycle:
 // root's semantic_search_alias.go imports this package for the compatibility
 // aliases cmd/api and cmd/mcp-server still use.

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryspan"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -57,7 +57,7 @@ type entityMapResolverQuery struct {
 }
 
 func (h *Handler) entityMap(w http.ResponseWriter, r *http.Request) {
-	r, span := queryspan.StartHandlerSpanWith(queryspan.HandlerTracer(),
+	r, span := tracing.StartHandlerSpanWith(tracing.HandlerTracer(),
 		r,
 		telemetry.SpanQueryEntityMap,
 		"POST /api/v0/impact/entity-map",

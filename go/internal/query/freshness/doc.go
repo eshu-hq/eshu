@@ -23,7 +23,7 @@
 //
 // This package imports querycontract (profiles, envelopes, capability
 // registration, HTTP helpers, RepositoryAccessFilterFromContext), queryauth
-// (AuthContext, only in tests), queryspan (the shared handler-span seam),
+// (AuthContext, only in tests), tracing (the shared handler-span seam),
 // service (CatalogCorrelationStore/Filter/Row, the service-catalog
 // correlation read model the service-changed-since route's grant binds
 // against), and status (the Postgres-status-store filter/summary/page
