@@ -17,11 +17,13 @@ const (
 	capabilitiesMaxLimit     = 500
 )
 
-// capabilityWireEntry is the serialized shape of one capability catalog entry.
-// Profiles and ProofSignals carry omitempty so the compact view (the default)
-// drops them from the payload instead of sending empty containers; view=full
-// restores capabilitycatalog.Entry's complete shape.
-type capabilityWireEntry struct {
+// capabilityCompactEntry is the default (compact) view's per-entry shape. It
+// hand-picks a subset of capabilitycatalog.Entry's fields, omitting Profiles
+// and ProofSignals, which are the bulk of an entry's serialized size (#6795).
+// view=full instead serializes capabilitycatalog.Entry directly (see list),
+// so the full-view shape is guaranteed byte-identical to the pre-#6795
+// response and cannot silently drop a field added to Entry later.
+type capabilityCompactEntry struct {
 	Capability      string                                    `json:"capability"`
 	DisplayName     string                                    `json:"display_name"`
 	OwnerPackage    string                                    `json:"owner_package,omitempty"`
@@ -29,8 +31,6 @@ type capabilityWireEntry struct {
 	DerivedMaturity capabilitycatalog.Maturity                `json:"derived_maturity"`
 	MaturityReason  string                                    `json:"maturity_reason,omitempty"`
 	Surfaces        []capabilitycatalog.Surface               `json:"surfaces"`
-	Profiles        map[string]capabilitycatalog.EntryProfile `json:"profiles,omitempty"`
-	ProofSignals    []capabilitycatalog.ProofSignal           `json:"proof_signals,omitempty"`
 	KnownGaps       []string                                  `json:"known_gaps,omitempty"`
 	LinkedIssues    []int                                     `json:"linked_issues,omitempty"`
 	Docs            []string                                  `json:"docs,omitempty"`
@@ -38,11 +38,9 @@ type capabilityWireEntry struct {
 	Authorization   capabilitycatalog.CapabilityAuthorization `json:"authorization"`
 }
 
-// toCapabilityWireEntry projects entry into its wire shape. When full is
-// false (the default, compact view) it omits Profiles and ProofSignals, which
-// are the bulk of an entry's serialized size (#6795).
-func toCapabilityWireEntry(entry capabilitycatalog.Entry, full bool) capabilityWireEntry {
-	wire := capabilityWireEntry{
+// toCapabilityCompactEntry projects entry into its compact wire shape.
+func toCapabilityCompactEntry(entry capabilitycatalog.Entry) capabilityCompactEntry {
+	return capabilityCompactEntry{
 		Capability:      entry.Capability,
 		DisplayName:     entry.DisplayName,
 		OwnerPackage:    entry.OwnerPackage,
@@ -56,11 +54,6 @@ func toCapabilityWireEntry(entry capabilitycatalog.Entry, full bool) capabilityW
 		Console:         entry.Console,
 		Authorization:   entry.Authorization,
 	}
-	if full {
-		wire.Profiles = entry.Profiles
-		wire.ProofSignals = entry.ProofSignals
-	}
-	return wire
 }
 
 // CapabilitiesHandler serves the reconciled capability catalog at
@@ -133,9 +126,20 @@ func (h *CapabilitiesHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	total := len(filtered)
 	page, truncated := pageEntries(filtered, offset, limit)
-	wirePage := make([]capabilityWireEntry, len(page))
-	for i, entry := range page {
-		wirePage[i] = toCapabilityWireEntry(entry, full)
+
+	// view=full serializes the catalog entries unchanged (byte-identical to
+	// the pre-#6795 response); the compact default projects a hand-picked
+	// subset. Never wrap page in an intermediate struct for the full case --
+	// that would silently drop a field added to capabilitycatalog.Entry later.
+	var wirePage any
+	if full {
+		wirePage = page
+	} else {
+		compact := make([]capabilityCompactEntry, len(page))
+		for i, entry := range page {
+			compact[i] = toCapabilityCompactEntry(entry)
+		}
+		wirePage = compact
 	}
 
 	authorization := capabilitycatalog.AuthorizationCatalog{}
@@ -155,7 +159,19 @@ func (h *CapabilitiesHandler) list(w http.ResponseWriter, r *http.Request) {
 		"limit":         limit,
 		"offset":        offset,
 		"truncated":     truncated,
+		"next_offset":   nextOffset(offset, limit, truncated),
 	}, truth)
+}
+
+// nextOffset returns the offset value a caller should pass to fetch the next
+// page, or nil when the current page is not truncated. This mirrors the
+// next_offset convention used across the other paginated list handlers in
+// this package (e.g. nextInfraResourceAggregateOffset).
+func nextOffset(offset, limit int, truncated bool) any {
+	if !truncated {
+		return nil
+	}
+	return offset + limit
 }
 
 // parseCatalogView reads the view query param, defaulting to the compact view

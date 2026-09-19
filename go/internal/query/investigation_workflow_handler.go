@@ -34,6 +34,7 @@ type investigationWorkflowListResponse struct {
 	Limit         int                               `json:"limit"`
 	Offset        int                               `json:"offset"`
 	Truncated     bool                              `json:"truncated"`
+	NextOffset    any                               `json:"next_offset"`
 }
 
 type investigationWorkflowResolveRequest struct {
@@ -93,6 +94,7 @@ func (h *InvestigationWorkflowHandler) list(w http.ResponseWriter, r *http.Reque
 		Limit:         limit,
 		Offset:        offset,
 		Truncated:     truncated,
+		NextOffset:    nextOffset(offset, limit, truncated),
 	}, h.truth("deterministic guided investigation workflow catalog; no live backend read"))
 }
 

@@ -4,13 +4,34 @@
 package query
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
 )
+
+// capabilitiesRawBody performs the request and returns the raw response body,
+// for byte-size and byte-identity comparisons that json.Unmarshal into
+// map[string]any would blur (map key order, number formatting).
+func capabilitiesRawBody(t *testing.T, target string) []byte {
+	t.Helper()
+	mux := http.NewServeMux()
+	router := &APIRouter{Capabilities: &CapabilitiesHandler{Profile: ProfileProduction}}
+	router.Mount(mux)
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	return rec.Body.Bytes()
+}
 
 func capabilitiesRequest(t *testing.T, target string) ResponseEnvelope {
 	t.Helper()
@@ -186,6 +207,9 @@ func TestCapabilitiesHandlerPagesDeterministically(t *testing.T) {
 	if truncated, ok := data["truncated"].(bool); !ok || !truncated {
 		t.Fatalf("truncated = %v, want true", data["truncated"])
 	}
+	if got, ok := data["next_offset"].(float64); !ok || int(got) != 2 {
+		t.Fatalf("next_offset = %#v, want 2", data["next_offset"])
+	}
 
 	catalog, _ := capabilitycatalog.Load()
 	second := capabilitiesRequest(t, "/api/v0/capabilities?limit=2&offset=2")
@@ -283,8 +307,126 @@ func TestCapabilitiesHandlerDefaultPageFitsResponseBudget(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 
 	const budget = 8 * 1024
-	if got := rec.Body.Len(); got >= budget {
+	got := rec.Body.Len()
+	t.Logf("default GET /api/v0/capabilities (limit=%d, compact, no authorization) body = %d bytes", capabilitiesDefaultLimit, got)
+	if got >= budget {
 		t.Fatalf("default /api/v0/capabilities body = %d bytes, want < %d", got, budget)
+	}
+}
+
+// TestCapabilitiesHandlerBeforeAfterPayloadSize measures the pre-#6795
+// default payload (view=full, include_authorization=true, the old
+// limit=200 default) against the post-#6795 default and logs both, proving
+// the reduction is real and measured, not asserted (#6795).
+func TestCapabilitiesHandlerBeforeAfterPayloadSize(t *testing.T) {
+	t.Parallel()
+
+	before := capabilitiesRawBody(t, "/api/v0/capabilities?view=full&include_authorization=true&limit=200")
+	after := capabilitiesRawBody(t, "/api/v0/capabilities")
+	t.Logf("get_capability_catalog default payload: before(#6795 shape, limit=200,view=full,include_authorization=true)=%d bytes, after(compact default, limit=%d)=%d bytes",
+		len(before), capabilitiesDefaultLimit, len(after))
+	if len(after) >= len(before) {
+		t.Fatalf("after size %d bytes not smaller than before size %d bytes", len(after), len(before))
+	}
+}
+
+// TestCapabilitiesHandlerFullViewIsByteIdenticalToEntry proves view=full's
+// per-entry JSON is exactly capabilitycatalog.Entry's own serialization --
+// not a hand-copied projection that could silently drop a field Entry gains
+// later (#6795 review finding).
+func TestCapabilitiesHandlerFullViewIsByteIdenticalToEntry(t *testing.T) {
+	t.Parallel()
+
+	catalog, err := capabilitycatalog.Load()
+	if err != nil {
+		t.Fatalf("load catalog: %v", err)
+	}
+	limit := len(catalog.Entries)
+	got := capabilitiesRawBody(t, "/api/v0/capabilities?view=full&include_authorization=true&limit="+strconv.Itoa(limit))
+
+	var envelope struct {
+		Data struct {
+			Capabilities json.RawMessage `json:"capabilities"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(got, &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	want, err := json.Marshal(catalog.Entries)
+	if err != nil {
+		t.Fatalf("marshal catalog.Entries: %v", err)
+	}
+
+	// Compare decoded values, not raw bytes: the handler and this test both
+	// call encoding/json.Marshal on the same []capabilitycatalog.Entry value,
+	// so byte order is already guaranteed identical, but decoding first makes
+	// a future encoder change (e.g. indentation) fail on content, not on
+	// incidental whitespace.
+	var gotEntries, wantEntries []map[string]any
+	if err := json.Unmarshal(envelope.Data.Capabilities, &gotEntries); err != nil {
+		t.Fatalf("decode response capabilities: %v", err)
+	}
+	if err := json.Unmarshal(want, &wantEntries); err != nil {
+		t.Fatalf("decode expected capabilities: %v", err)
+	}
+	if !reflect.DeepEqual(gotEntries, wantEntries) {
+		t.Fatalf("view=full capabilities diverged from capabilitycatalog.Entry's own serialization")
+	}
+	if !bytes.Equal(envelope.Data.Capabilities, want) {
+		t.Fatal("view=full capabilities bytes diverged from json.Marshal(catalog.Entries) bytes")
+	}
+}
+
+// TestCapabilitiesHandlerCompactFieldsMatchFullEntry proves every field the
+// compact view keeps has the same value as the corresponding full-view
+// (capabilitycatalog.Entry) field, for every catalog entry -- the compact
+// projection must be a value-preserving subset, not a lossy rename (#6795
+// review finding).
+func TestCapabilitiesHandlerCompactFieldsMatchFullEntry(t *testing.T) {
+	t.Parallel()
+
+	catalog, err := capabilitycatalog.Load()
+	if err != nil {
+		t.Fatalf("load catalog: %v", err)
+	}
+	limit := len(catalog.Entries)
+
+	compactEnvelope := capabilitiesRequest(t, "/api/v0/capabilities?limit="+strconv.Itoa(limit))
+	compactData := compactEnvelope.Data.(map[string]any)
+	compactEntries := compactData["capabilities"].([]any)
+	if len(compactEntries) != len(catalog.Entries) {
+		t.Fatalf("compact page = %d entries, want %d", len(compactEntries), len(catalog.Entries))
+	}
+
+	for i, raw := range compactEntries {
+		entry := raw.(map[string]any)
+		full := catalog.Entries[i]
+		if got := entry["capability"].(string); got != full.Capability {
+			t.Fatalf("entry %d capability = %q, want %q", i, got, full.Capability)
+		}
+		if got := entry["display_name"].(string); got != full.DisplayName {
+			t.Fatalf("entry %d display_name = %q, want %q", i, got, full.DisplayName)
+		}
+		if got, _ := entry["owner_package"].(string); got != full.OwnerPackage {
+			t.Fatalf("entry %d owner_package = %q, want %q", i, got, full.OwnerPackage)
+		}
+		if got := entry["maturity"].(string); got != string(full.Maturity) {
+			t.Fatalf("entry %d maturity = %q, want %q", i, got, full.Maturity)
+		}
+		if got := len(entry["surfaces"].([]any)); got != len(full.Surfaces) {
+			t.Fatalf("entry %d surfaces = %d, want %d", i, got, len(full.Surfaces))
+		}
+		if got := entry["console"].(bool); got != full.Console {
+			t.Fatalf("entry %d console = %v, want %v", i, got, full.Console)
+		}
+		auth := entry["authorization"].(map[string]any)
+		if got, _ := auth["family"].(string); got != full.Authorization.Family {
+			t.Fatalf("entry %d authorization.family = %q, want %q", i, got, full.Authorization.Family)
+		}
+		if _, ok := entry["profiles"]; ok {
+			t.Fatalf("entry %d compact view still carries profiles", i)
+		}
 	}
 }
 
@@ -309,5 +451,28 @@ func TestCapabilitiesHandlerFullViewIncludesProfilesAndAuthorization(t *testing.
 	entry := capabilities[0].(map[string]any)
 	if _, ok := entry["profiles"]; !ok {
 		t.Fatal("view=full entry missing profiles")
+	}
+}
+
+// TestCapabilitiesHandlerNextOffsetIsNilWhenNotTruncated proves next_offset
+// is present-but-null on the last page, not merely absent, so a caller can
+// always rely on the key existing.
+func TestCapabilitiesHandlerNextOffsetIsNilWhenNotTruncated(t *testing.T) {
+	t.Parallel()
+
+	catalog, err := capabilitycatalog.Load()
+	if err != nil {
+		t.Fatalf("load catalog: %v", err)
+	}
+	envelope := capabilitiesRequest(t, "/api/v0/capabilities?limit="+strconv.Itoa(len(catalog.Entries)))
+	data := envelope.Data.(map[string]any)
+	if truncated, _ := data["truncated"].(bool); truncated {
+		t.Fatal("page truncated with limit == catalog size, want complete page")
+	}
+	if _, exists := data["next_offset"]; !exists {
+		t.Fatal("next_offset key missing, want present (null)")
+	}
+	if data["next_offset"] != nil {
+		t.Fatalf("next_offset = %#v, want nil", data["next_offset"])
 	}
 }

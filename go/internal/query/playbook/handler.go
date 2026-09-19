@@ -56,6 +56,7 @@ type listResponse struct {
 	Limit         int          `json:"limit"`
 	Offset        int          `json:"offset"`
 	Truncated     bool         `json:"truncated"`
+	NextOffset    any          `json:"next_offset"`
 }
 
 type resolveRequest struct {
@@ -113,7 +114,19 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		Limit:         limit,
 		Offset:        offset,
 		Truncated:     truncated,
+		NextOffset:    nextOffset(offset, limit, truncated),
 	}, h.truth("deterministic query playbook catalog; no live backend read"))
+}
+
+// nextOffset returns the offset value a caller should pass to fetch the next
+// page, or nil when the current page is not truncated. This mirrors the
+// next_offset convention the root query package's paginated list handlers use
+// (e.g. capabilities.go's nextOffset).
+func nextOffset(offset, limit int, truncated bool) any {
+	if !truncated {
+		return nil
+	}
+	return offset + limit
 }
 
 // pageDefinitions applies offset and limit and reports whether more entries

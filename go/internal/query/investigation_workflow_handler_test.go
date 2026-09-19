@@ -6,8 +6,10 @@ package query
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -136,6 +138,90 @@ func TestInvestigationWorkflowHandlerViewFullReturnsCompleteWorkflows(t *testing
 	if _, ok := entry["tool_groups"]; !ok {
 		t.Fatal("view=full workflow missing tool_groups")
 	}
+	if got, ok := data["next_offset"].(float64); !ok || int(got) != 1 {
+		t.Fatalf("next_offset = %#v, want 1", data["next_offset"])
+	}
+}
+
+// TestInvestigationWorkflowHandlerFullViewIsByteIdenticalToWorkflow proves
+// view=full's per-workflow JSON is exactly InvestigationWorkflow's own
+// serialization -- not a hand-copied projection that could silently drop a
+// field the type gains later (#6795 review finding).
+func TestInvestigationWorkflowHandlerFullViewIsByteIdenticalToWorkflow(t *testing.T) {
+	t.Parallel()
+
+	catalog := InvestigationWorkflowCatalog()
+	mux := http.NewServeMux()
+	router := &APIRouter{
+		InvestigationWorkflows: &InvestigationWorkflowHandler{Profile: ProfileProduction},
+	}
+	router.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v0/investigation-workflows?view=full&limit=%d", len(catalog)), nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	var envelope struct {
+		Data struct {
+			Workflows json.RawMessage `json:"workflows"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	want, err := json.Marshal(catalog)
+	if err != nil {
+		t.Fatalf("marshal catalog: %v", err)
+	}
+	var gotWorkflows, wantWorkflows []map[string]any
+	if err := json.Unmarshal(envelope.Data.Workflows, &gotWorkflows); err != nil {
+		t.Fatalf("decode response workflows: %v", err)
+	}
+	if err := json.Unmarshal(want, &wantWorkflows); err != nil {
+		t.Fatalf("decode expected workflows: %v", err)
+	}
+	if !reflect.DeepEqual(gotWorkflows, wantWorkflows) {
+		t.Fatal("view=full workflows diverged from InvestigationWorkflow's own serialization")
+	}
+}
+
+// TestInvestigationWorkflowHandlerBeforeAfterPayloadSize measures the
+// pre-#6795 default payload (view=full, unbounded) against the post-#6795
+// default and logs both, proving the reduction is real and measured (#6795).
+func TestInvestigationWorkflowHandlerBeforeAfterPayloadSize(t *testing.T) {
+	t.Parallel()
+
+	catalog := InvestigationWorkflowCatalog()
+	mux := http.NewServeMux()
+	router := &APIRouter{
+		InvestigationWorkflows: &InvestigationWorkflowHandler{Profile: ProfileProduction},
+	}
+	router.Mount(mux)
+
+	before := investigationWorkflowRawBody(t, mux, fmt.Sprintf("/api/v0/investigation-workflows?view=full&limit=%d", len(catalog)))
+	after := investigationWorkflowRawBody(t, mux, "/api/v0/investigation-workflows")
+	t.Logf("list_investigation_workflows default payload: before(#6795 shape, view=full, all %d workflows)=%d bytes, after(compact default, limit=%d)=%d bytes",
+		len(catalog), len(before), investigationWorkflowDefaultLimit, len(after))
+	if len(after) >= len(before) {
+		t.Fatalf("after size %d bytes not smaller than before size %d bytes", len(after), len(before))
+	}
+	const budget = 8 * 1024
+	if len(after) >= budget {
+		t.Fatalf("after size %d bytes, want < %d", len(after), budget)
+	}
+}
+
+func investigationWorkflowRawBody(t *testing.T, mux http.Handler, target string) []byte {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, target, nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	return rec.Body.Bytes()
 }
 
 // TestInvestigationWorkflowHandlerRejectsBadView proves an unrecognized view
