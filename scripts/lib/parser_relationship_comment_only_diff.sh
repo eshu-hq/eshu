@@ -152,8 +152,8 @@ is_internal_package_move() {
   [ -n "$old_hashes" ] && [ "$old_hashes" = "$new_hashes" ]
 }
 
-# go_package_content_hashes REF DIR NAME prints one sorted line per file
-# directly in DIR at REF, excluding Markdown (package docs are expected to
+# go_package_content_hashes REF DIR NAME prints one sorted line per file in
+# DIR at REF, recursively, excluding Markdown (package docs are expected to
 # change on a move): the git blob hash of that file, where for .go files the
 # FIRST package clause (`package NAME` or `package NAME_test`) and the FIRST
 # godoc lead (`// Package NAME ...`) are normalized to a fixed placeholder.
@@ -171,7 +171,9 @@ go_package_content_hashes() {
   case "$name" in
     "" | [0-9]* | *[!A-Za-z0-9_]*) return 1 ;;
   esac
-  listing="$(git -C "$repo_root" ls-tree "$ref" -- "$dir/" 2>/dev/null)" || return 1
+  # -r: embedded assets (and nested packages) under subdirectories move with
+  # the package, so they are compared too. Nested files are hashed as-is.
+  listing="$(git -C "$repo_root" ls-tree -r "$ref" -- "$dir/" 2>/dev/null)" || return 1
   local hashes=()
   while IFS= read -r line; do
     [ -n "$line" ] || continue
@@ -180,6 +182,8 @@ go_package_content_hashes() {
     [ "$type" = blob ] || continue
     case "$path" in
       *.md) continue ;;
+      "$dir"/*/*.go)
+        hash="$(git -C "$repo_root" rev-parse "${ref}:${path}" 2>/dev/null)" || return 1 ;;
       *.go)
         hash="$(set -o pipefail
           git -C "$repo_root" show "${ref}:${path}" \
