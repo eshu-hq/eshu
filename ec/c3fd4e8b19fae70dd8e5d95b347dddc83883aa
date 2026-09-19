@@ -1,0 +1,20 @@
+go/internal/storage/cypher/boolean_line_start_repo_scan_test.go
+  h_78a442cba0b3e6 27-30,34-38
+go/internal/storage/cypher/boolean_line_start_unit_test.go
+  h_78a442cba0b3e6 34-38
+go/internal/storage/cypher/unwind_alias_repo_scan_test.go
+  h_78a442cba0b3e6 21-26,34-39,54,56-60
+go/internal/storage/cypher/unwind_alias_unit_test.go
+  h_78a442cba0b3e6 68-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ecc3fd4e8b19fae70dd8e5d95b347dddc83883aa",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
