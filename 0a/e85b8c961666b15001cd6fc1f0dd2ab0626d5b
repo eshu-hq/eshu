@@ -1,0 +1,37 @@
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_1e5d8a653a4ee7::t_f157e133d49251 557
+go/internal/query/repository/catalog.go
+  s_1e5d8a653a4ee7::t_6bd17eab450e3a 123-128
+  s_1e5d8a653a4ee7::t_9edd4e02502a15 155,157-169
+  s_1e5d8a653a4ee7::t_7c718a8a83a833 156
+go/internal/query/repository/handler.go
+  s_1e5d8a653a4ee7::t_2a54d0d9e2e063 193-196,201,212,215
+go/internal/query/repository/catalog_dependency_marker_test.go
+  s_1e5d8a653a4ee7::t_1d9e07af89eaf6 81
+  s_1e5d8a653a4ee7::t_3ac39c3b035d9e 114-118
+  s_1e5d8a653a4ee7::t_8b8af52714dbae 154-155
+  s_1e5d8a653a4ee7::t_8c26169d14ba15 26-32
+go/internal/query/repository/list_dependency_marker_test.go
+  s_1e5d8a653a4ee7::t_b11696ee631461 283-286
+  s_1e5d8a653a4ee7::t_f084b1fe6eb58f 211-217
+  s_1e5d8a653a4ee7::t_4ddc689cdb28d0 272,332-333,336-338,342-348
+  s_1e5d8a653a4ee7::t_73d5edf2a85b5c 256-257,260-262,266-271
+go/internal/query/repository/dependency_cluster.go
+  s_1e5d8a653a4ee7::t_8727df3a709efd 212-278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0ae85b8c961666b15001cd6fc1f0dd2ab0626d5b",
+  "prompts": {},
+  "sessions": {
+    "s_1e5d8a653a4ee7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b439ad40-11c6-4924-9243-1ef7dd2cc094",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
