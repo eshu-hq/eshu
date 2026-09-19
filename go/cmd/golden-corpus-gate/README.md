@@ -115,9 +115,13 @@ and fails the gate, in both modes, when any property or list element holds an
 unresolved `row.<key>` token. NornicDB v1.3.3 stores that literal text when an
 `UNWIND $rows AS row` writer omits a key its statement reads; Neo4j leaves the
 property absent. The check catches that writer defect even when no required
-correlation or query shape reads the property. A token counts only when its key
-is the property's own name or a snake_case multi-word key, so a File named
-`row.go` passes. The filtering runs in Go (`goldengate.EvaluateUnresolvedRowTokens`)
+correlation or query shape reads the property. A token counts when its key is
+one the Go write path reads (`goldengate.writePathRowKeys`, derived from
+source by a drift test), a snake_case key, or the property's own name. That
+covers every key an `UNWIND ... AS row` statement under `go/internal`,
+`go/cmd`, or `go/pkg` reads, under any property name, and a File named
+`row.go` still passes. `row` is pinned as the only UNWIND binding whose fields a
+write stores; see `go/internal/goldengate/README.md` for the coverage limit. The filtering runs in Go (`goldengate.EvaluateUnresolvedRowTokens`)
 because NornicDB does not reliably evaluate `WHERE` on these shapes.
 
 - Live proof: `TestLiveUnresolvedRowTokenCheck` (build tag

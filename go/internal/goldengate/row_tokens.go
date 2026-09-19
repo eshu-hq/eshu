@@ -29,24 +29,36 @@ var unresolvedRowToken = regexp.MustCompile(`^row\.([A-Za-z_][A-Za-z0-9_]*)$`)
 
 // isUnresolvedRowToken reports whether value is an unresolved read of prop.
 // The bare pattern also matches real data such as a file named "row.go", so a
-// token counts only when its key is the property's own name (1249 of the 1437
-// `x.<prop> = row.<key>` writes in the write path) or a snake_case multi-word
-// key, which a file extension or a dotted identifier does not look like.
+// token counts only when its key is one a writer can have read: a key the
+// write path's Cypher reads (writePathRowKeys, derived from source by
+// TestWritePathRowKeysMatchSource), any snake_case key (which also covers the
+// dynamic `row.<alias>_<field>` keys batch.go builds), or the property's own
+// name. A file extension or dotted identifier matches none of these.
 func isUnresolvedRowToken(prop, value string) bool {
 	m := unresolvedRowToken.FindStringSubmatch(value)
 	if m == nil {
 		return false
 	}
-	return m[1] == prop || strings.Contains(m[1], "_")
+	key := m[1]
+	if _, ok := writePathRowKeys[key]; ok {
+		return true
+	}
+	return key == prop || strings.Contains(key, "_")
 }
 
 // maxRowTokenExamples caps the offending groups a failing finding names.
 const maxRowTokenExamples = 10
 
 // EvaluateUnresolvedRowTokens fails when any node or edge property, or any
-// string element of a list property, holds an unresolved `row.<key>` token.
-// The check is corpus-size independent and always required: a correct writer
-// never stores its own Cypher expression text, on either backend.
+// string element of a list property, holds an unresolved `row.<key>` token
+// whose key isUnresolvedRowToken accepts. That covers every key a
+// `UNWIND ... AS row` statement in the Go write path reads, under any
+// property name; TestOnlyRowBindingWritesMapValues pins that no writing
+// statement stores fields of another UNWIND binding. A writer whose Cypher is
+// not a Go string literal under go/internal, go/cmd, or go/pkg is outside the
+// derivation. The check is corpus-size independent and always required: a
+// correct writer never stores its own Cypher expression text, on either
+// backend.
 func EvaluateUnresolvedRowTokens(elements []GraphElementProperties) Finding {
 	groups := map[string]int{}
 	total := 0
@@ -58,7 +70,7 @@ func EvaluateUnresolvedRowTokens(elements []GraphElementProperties) Finding {
 			}
 		}
 	}
-	detail := fmt.Sprintf("no node or edge property holds an unresolved row.<key> token across %d elements", len(elements))
+	detail := fmt.Sprintf("no node or edge property holds an unresolved row.<key> token (a key the Go write path reads, a snake_case key, or the property's own name) across %d elements", len(elements))
 	if total > 0 {
 		keys := make([]string, 0, len(groups))
 		for k := range groups {

@@ -34,17 +34,24 @@ func TestEvaluateUnresolvedRowTokensSeeded(t *testing.T) {
 		GraphElementProperties{Kind: "node", Name: "EvidenceArtifact", Properties: map[string]any{"refs": []any{"v1", "row.ref_value"}}},
 		// The key-equals-property form, with no underscore in the key.
 		GraphElementProperties{Kind: "node", Name: "Workload", Properties: map[string]any{"name": "row.name"}},
+		// A key that differs from the property and has no underscore (#6782
+		// F-6): the S3/EC2 posture writers and the registry name writers read
+		// row.state, row.reason, row.version under another property name.
+		GraphElementProperties{Kind: "node", Name: "CloudResource", Properties: map[string]any{"s3_internet_exposure_state": "row.state"}},
+		GraphElementProperties{Kind: "node", Name: "PackageVersion", Properties: map[string]any{"name": "row.version"}},
 	)
 	f := EvaluateUnresolvedRowTokens(seeded)
 	if f.OK {
 		t.Fatalf("seeded graph: finding = %+v, want a failure", f)
 	}
 	for _, want := range []string{
-		"5 element properties",
+		"7 element properties",
 		"edge CALLS.call_kind=row.call_kind (2)",
 		"edge DEPENDS_ON.source_tool=row.source_tool (1)",
 		"node EvidenceArtifact.refs=row.ref_value (1)",
 		"node Workload.name=row.name (1)",
+		"node CloudResource.s3_internet_exposure_state=row.state (1)",
+		"node PackageVersion.name=row.version (1)",
 	} {
 		if !strings.Contains(f.Detail, want) {
 			t.Fatalf("seeded detail missing %q:\n%s", want, f.Detail)

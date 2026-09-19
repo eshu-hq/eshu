@@ -158,5 +158,15 @@ are re-projected.
   `assertUnwindRowsCarryReferencedKeys` when it records statements. As a
   backstop, B-7 now fails when any node or edge in the projected corpus holds
   an unresolved `row.<key>` token (`unresolved_row_tokens`,
-  `go/cmd/golden-corpus-gate/graph_row_tokens.go`), whichever writer stored
-  it.
+  `go/cmd/golden-corpus-gate/graph_row_tokens.go`). It matches a token when
+  its key is one the Go write path reads, a snake_case key, or the
+  property's own name. `go/internal/goldengate/row_keys_test.go` derives the
+  plain keys from every non-test Go string literal under `go/internal`,
+  `go/cmd`, and `go/pkg` and fails on drift, and it fails when any
+  `UNWIND` binding other than `row` is dereferenced as a map outside a
+  reviewed read-only list. So the check covers every `UNWIND ... AS row`
+  writer in those trees, under any property name, for writers the corpus
+  exercises. Cypher outside those Go literals is not covered. The first
+  version (f9b6b189d) matched only a key equal to the property or a
+  snake_case key, which missed plain keys stored under another name, such as
+  `s3_internet_exposure_state = row.state` (review finding F-6).
