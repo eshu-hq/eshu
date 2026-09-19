@@ -369,16 +369,26 @@ A pooler that drops session state loses the setting. That fails safe: the
 writes are marked, reads stay on the graph, and the reconcile repairs them.
 
 Performance Evidence: shim on a local PostgreSQL 18 with `content_entities`
-and all of its production indexes, 10 repositories, 100 statements of 500
-rows each (40% infra-typed), three runs each. Insert of 50,000 rows without
-the triggers: 582 / 590 / 614 ms; with the triggers and the writer setting
-(the new binaries' path): 641 / 578 / 605 ms. Upsert of the same rows through
-`ON CONFLICT DO UPDATE`: 802 / 810 / 825 ms without, 855 / 839 / 742 ms with.
-Delete of 50,000 rows: 11 / 14 / 12 ms without, 19 / 20 / 18 ms with, about
-0.14 us per deleted row. For a derive-aware writer the WHEN clause is
-evaluated in the executor and never calls the function. The same load from
-a connection without the setting (the old-binary path) marked all 10
-repositories.
+and all of its production indexes, 10 repositories, a 50,000-row bulk upsert
+as 100 statements of 500 rows (40% infra-typed, `INSERT ... ON CONFLICT
+(entity_id) DO UPDATE` as the content writer runs it), once into an empty
+table (insert path) and again over the same rows (update path). Five rounds,
+configurations alternated in order each round, fresh table and a
+`CHECKPOINT` before each run; medians with the range:
+
+| Configuration | insert path | update path |
+| --- | --- | --- |
+| no triggers | 824 ms (788-922) | 1,135 ms (1,081-1,186) |
+| triggers, derive-aware writer (WHEN false) | 839 ms (761-958), +1.8% | 1,120 ms (1,093-1,247), -1.3% |
+| triggers, unaware writer (WHEN true) | 1,174 ms (1,028-1,242), +42% | 2,168 ms (1,904-2,226), +91% |
+
+The derive-aware path, which every new binary takes, is within run-to-run
+noise: the WHEN clause is evaluated in the executor and never calls the
+function. The unaware path pays one mark upsert per infra row (two on an
+update, for NEW and OLD) and marked all 10 repositories; it runs only while
+older pods are still writing during a rollout. An earlier three-run shim of
+plain deletes measured 11-14 ms without the triggers and 18-20 ms with them
+for 50,000 rows, about 0.14 us per deleted row.
 
 Observability Evidence: `eshu_dp_infra_inventory_reconcile_total{outcome="fenced"}`
 counts repositories repaired after an unaware write; span attribute
