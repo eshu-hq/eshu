@@ -162,7 +162,7 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 		return InfraResourceAggregateCount{}, err
 	}
 
-	useReadModel, err := s.readModelServes(ctx, filter)
+	useReadModel, err := s.readModelServes(ctx, filter, labels)
 	if err != nil {
 		return InfraResourceAggregateCount{}, err
 	}
@@ -279,7 +279,7 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 	if err != nil {
 		return nil, "", err
 	}
-	useReadModel, err := s.readModelServes(ctx, filter)
+	useReadModel, err := s.readModelServes(ctx, filter, labels)
 	if err != nil {
 		return nil, "", err
 	}
