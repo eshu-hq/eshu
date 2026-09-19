@@ -13,7 +13,7 @@
 // admissiondecisions, cicd, codeflow, codeintel, codeowners, codequality,
 // containerimage, content, deadcode, entityresolution, iacmanagement,
 // impact, infrainventory, infrasearch, kubernetes, observabilitycoverage,
-// packageregistry, replatforming, secretsiam, securityalert,
+// packageregistry, replatforming, secretsiam, alerttools,
 // servicecontext, and
 // supplychainimpact children own such a selector without owning a
 // registration.
@@ -167,7 +167,7 @@
 // supply-chain-impact findings, count, inventory, and explanation selectors
 // live in the supplychainimpact child and reach dispatch through the
 // supplyChainImpactRoute adapter, and the three security-alert reconciliation
-// listing, count, and inventory selectors live in the securityalert child and
+// listing, count, and inventory selectors live in the alerts child and
 // reach dispatch through the securityAlertRoute adapter. The one
 // admission-decisions listing selector, which the same repository router
 // answers, lives in the admissiondecisions child and reaches dispatch through

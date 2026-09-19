@@ -7,8 +7,8 @@ import (
 	"reflect"
 	"testing"
 
+	alerttools "github.com/eshu-hq/eshu/go/internal/mcp/alerts"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
-	securityalerttools "github.com/eshu-hq/eshu/go/internal/mcp/securityalert"
 )
 
 // securityAlertRouteTools lists every tool the child package owns.
@@ -80,7 +80,7 @@ func TestResolveRouteUsesExactSecurityAlertChildRequest(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolveRoute(%s, %s) error = %v, want nil", tool, tt.name, err)
 			}
-			request, handled := securityalerttools.Route(tool, routecontract.Arguments(tt.args))
+			request, handled := alerttools.Route(tool, routecontract.Arguments(tt.args))
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}

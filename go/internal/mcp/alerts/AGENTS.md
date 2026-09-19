@@ -20,7 +20,7 @@
   argument-to-request selection, and the aggregate tool definitions here.
   Global route fanout, the private adapter, the root registration wrapper,
   and execution stay in the parent MCP package and `internal/query`.
-- Keep the package clause as `package securityalerttools`; the root imports
+- Keep the package clause as `package alerttools`; the root imports
   it with an explicit alias.
 - Preserve the three tool names and their exact methods, paths, and query
   keys:
@@ -96,8 +96,8 @@
 From `go/`, run:
 
 ```bash
-go test ./internal/mcp/securityalert ./internal/mcp -count=1
-go vet ./internal/mcp/securityalert ./internal/mcp
+go test ./internal/mcp/alerts ./internal/mcp -count=1
+go vet ./internal/mcp/alerts ./internal/mcp
 ```
 
 Run `scripts/verify-package-docs.sh` from the repository root. An intentional

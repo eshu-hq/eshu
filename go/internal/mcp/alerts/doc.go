@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package securityalerttools defines pure route selection and the aggregate
+// Package alerttools defines pure route selection and the aggregate
 // tool definitions for the MCP security-alert reconciliation family.
 //
 // Route decides whether this package owns a tool and maps decoded arguments
@@ -22,4 +22,4 @@
 // inventory adds a group_by falling back to reconciliation_status, a limit
 // defaulting to 100, and an offset defaulting to 0, while the count carries
 // no paging key because its handler reads none.
-package securityalerttools
+package alerttools

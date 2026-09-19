@@ -6,6 +6,7 @@ package mcp
 import (
 	secretsiamtools "github.com/eshu-hq/eshu/go/internal/mcp/access/posture"
 	admissiondecisionstools "github.com/eshu-hq/eshu/go/internal/mcp/admission/decisions"
+	alerttools "github.com/eshu-hq/eshu/go/internal/mcp/alerts"
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
@@ -16,7 +17,6 @@ import (
 	investigationtools "github.com/eshu-hq/eshu/go/internal/mcp/investigation"
 	playbooktools "github.com/eshu-hq/eshu/go/internal/mcp/playbooks"
 	relationshiptools "github.com/eshu-hq/eshu/go/internal/mcp/relationships"
-	securityalerttools "github.com/eshu-hq/eshu/go/internal/mcp/securityalert"
 	semantictools "github.com/eshu-hq/eshu/go/internal/mcp/semantic"
 	servicetools "github.com/eshu-hq/eshu/go/internal/mcp/service"
 	visualizationtools "github.com/eshu-hq/eshu/go/internal/mcp/visualization"
@@ -144,10 +144,10 @@ func serviceCatalogTools() []ToolDefinition {
 }
 
 // securityAlertReconciliationAggregateTools preserves the root package's
-// constructor name while the securityalert package owns the aggregate
+// constructor name while the alerts package owns the aggregate
 // registration definitions.
 func securityAlertReconciliationAggregateTools() []ToolDefinition {
-	return securityalerttools.ReconciliationAggregateTools()
+	return alerttools.ReconciliationAggregateTools()
 }
 
 // admissionDecisionTools preserves the root package's constructor name while

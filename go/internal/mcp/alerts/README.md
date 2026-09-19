@@ -45,8 +45,8 @@ the shared API request duration and error metrics in `internal/query`.
 
 ## Gotchas / invariants
 
-- The import path ends in `securityalert`, while the declared package is
-  `securityalerttools`. The root uses an explicit import alias.
+- The import path ends in `alerts`, while the declared package is
+  `alerttools`. The root uses an explicit import alias.
 - The three key sets are deliberately unequal. The listing carries the nine
   keys `after_reconciliation_id`, `cve_id`, `ghsa_id`, `limit`, `package_id`,
   `provider`, `provider_state`, `reconciliation_status`, and
