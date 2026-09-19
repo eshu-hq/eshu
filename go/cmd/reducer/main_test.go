@@ -157,6 +157,9 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if service.GenerationRetentionRunner == nil {
 		t.Fatal("buildReducerService() generation retention runner = nil, want non-nil")
 	}
+	if service.InfraInventoryReconcileRunner == nil {
+		t.Fatal("buildReducerService() infra inventory reconcile runner = nil, want non-nil")
+	}
 	if service.GraphOrphanSweepRunner == nil {
 		t.Fatal("buildReducerService() graph orphan sweep runner = nil, want non-nil")
 	}

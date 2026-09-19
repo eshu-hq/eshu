@@ -106,6 +106,10 @@ type Service struct {
 	// bounded transactions. Nil disables automated cleanup.
 	GenerationRetentionRunner *maintenance.GenerationRetentionRunner
 
+	// InfraInventoryReconcileRunner re-derives infra read model repositories
+	// whose rows drifted from content_entities (#6793). Nil disables it.
+	InfraInventoryReconcileRunner *maintenance.InfraInventoryReconcileRunner
+
 	// GenerationLivenessRunner re-drives active generations that wedge past the
 	// activation deadline and supersedes orphaned older actives. Nil disables
 	// generation lifecycle self-healing.

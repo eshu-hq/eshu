@@ -265,6 +265,7 @@ func TestSpanNames(t *testing.T) {
 		"postgres.exec",
 		"postgres.query",
 		"neo4j.execute",
+		"reducer.infra_inventory_reconcile",
 		"bootstrap.collector_cycle",
 		"collector.claimed_run",
 		"collector.snapshot_stage",

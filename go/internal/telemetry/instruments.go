@@ -776,6 +776,16 @@ type Instruments struct {
 	// backoff). failed without a later completed means readers are still on the
 	// graph path.
 	InfraInventoryBackfillRuns metric.Int64Counter
+	// InfraInventoryReconcile counts repositories the reducer's infra read
+	// model reconcile checked, by outcome: match (table equals
+	// content_entities), repaired (it differed and was re-derived under the
+	// repository lock), or error (the check or repair failed, or the cycle
+	// could not list repositories; retried next cycle). A sustained repaired
+	// rate outside a deploy window means some content writer is not deriving.
+	InfraInventoryReconcile metric.Int64Counter
+	// InfraInventoryReconcileDuration records the wall time of one reconcile
+	// cycle (at most the configured repository budget).
+	InfraInventoryReconcileDuration metric.Float64Histogram
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
 	// was missing or null (input_invalid). Labels: stage (the projector
@@ -3272,6 +3282,24 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register InfraInventoryBackfillRuns counter: %w", err)
+	}
+
+	inst.InfraInventoryReconcile, err = meter.Int64Counter(
+		"eshu_dp_infra_inventory_reconcile_total",
+		metric.WithDescription("Total repositories checked by the infra read model reconcile, by outcome (match, suspect, repaired, error)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryReconcile counter: %w", err)
+	}
+
+	inst.InfraInventoryReconcileDuration, err = meter.Float64Histogram(
+		"eshu_dp_infra_inventory_reconcile_duration_seconds",
+		metric.WithDescription("Wall time of one infra read model reconcile cycle"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryReconcileDuration histogram: %w", err)
 	}
 
 	inst.QueryK8sSelectCandidateScanTruncated, err = meter.Int64Counter(
