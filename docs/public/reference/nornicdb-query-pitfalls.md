@@ -598,16 +598,11 @@ they are not. The label verdicts above are the same in both modes.
 ### Older builds: a WHERE attached to WITH was not a filter
 
 On `eshu-nornicdb-pr290:3722b483c02c`, `v1.1.11` and NornicDB `main` at
-`8abc2269` the WITH position was the broken one. `MATCH (n) WITH n WHERE
-n:Workload RETURN count(*)` returned 4 against Neo4j's 1. A string operator
-there (`WITH a WHERE a.v STARTS WITH 'al'`) over-returned, and any function
-call on a bound variable (`toUpper(a.v) = 'ALPHA'`, `size(a.v) = 5`,
-`coalesce(a.v,'X') = 'alpha'`) short-circuited to NULL and returned zero rows.
-A bare property compared to a literal worked, as did hoisting the function
-into the WITH projection or moving the WHERE before the WITH. On those builds
-`length(path)` and `labels()` were projected correctly inside a `CALL {}`
-subquery. The function-call-after-WITH shapes have not been re-measured on
-v1.3.3.
+`8abc2269` the WITH position was the broken one: `MATCH (n) WITH n WHERE
+n:Workload RETURN count(*)` returned 4 against Neo4j's 1, `WITH a WHERE a.v
+STARTS WITH 'al'` over-returned, and a function call on a bound variable
+(`toUpper(a.v) = 'ALPHA'`, `size(a.v) = 5`, `coalesce(a.v,'X') = 'alpha'`)
+returned zero rows. A bare property compared to a literal worked.
 
 ### Eshu implications
 
@@ -621,6 +616,12 @@ filter server-side so `LIMIT` runs over the rows the caller should see:
   and `NOT x:Label` do not.
 - `(x:A|B)` in the pattern is not an alternative: it matches zero rows (see
   the label-disjunction pitfall above).
+- A function call on a bound variable or `STARTS WITH` in a WHERE attached
+  to `WITH` is unverified on v1.3.3 (wrong on the older builds). Put it
+  before the `WITH`, or hoist the expression into the projection.
+- A `WITH` added for a label filter makes the read multi-clause, so the next
+  pitfall's projection contract applies: verify every projected column and
+  the row order live, as the infrastructure read's live test does.
 
 `querytestutil.AssertCypherHasNoIgnoredLabelPredicate` rejects the ignored
 shapes in a rendered statement, and
@@ -628,13 +629,12 @@ shapes in a rendered statement, and
 literal under `go/internal` and `go/cmd`.
 
 Three reads were fixed this way. The repository infrastructure read moved its
-20-label test into a WHERE attached to `WITH f, infra`. That is the fastest
-correct shape on both backends, and its full projection was verified live.
-The unscoped change-surface traversal and the OVERRIDES story read use
-`IN labels()` OR-chains, which keeps the single-clause contract #5287 requires
-of the traversal. Before the fix, a repository with more than 5,000 code
-entities returned no infrastructure and reported the page as truncated, and
-`File` rows crowded real change-surface impacts out of the page.
+20-label test into a WHERE attached to `WITH f, infra`, the fastest correct
+shape on both backends. The unscoped change-surface traversal and the
+OVERRIDES story read use `IN labels()` OR-chains, keeping the single-clause
+contract #5287 requires of the traversal. Before the fix, a repository with
+more than 5,000 code entities returned no infrastructure, and `File` rows
+crowded real change-surface impacts out of the page.
 
 Keep the Go-side whitelist wherever one exists, such as
 `changeSurfaceImpactedLabels` or `isRepositoryInfrastructureType`. No single
