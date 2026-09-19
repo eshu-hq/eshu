@@ -169,9 +169,12 @@ END;
 $$;
 
 -- INSERT and UPDATE are statement-level with transition tables: the WHEN is
--- evaluated once per statement, so a derive-aware session pays nothing per
--- row, and an unaware statement takes each mark lock once instead of once per
--- row. An INSERT ... ON CONFLICT DO UPDATE fires both: inserted rows land in
+-- evaluated once per statement and never calls the function in a
+-- derive-aware session, and an unaware statement takes each mark lock once
+-- instead of once per row. PostgreSQL still captures a transition tuple for
+-- every affected row before the WHEN runs, so a derive-aware session pays
+-- that copy: at most 0.36 us per row in the fence evidence note
+-- (docs/internal/evidence/6793-infra-read-model-fence.md). An INSERT ... ON CONFLICT DO UPDATE fires both: inserted rows land in
 -- the INSERT trigger's new_rows, updated rows in the UPDATE trigger's.
 -- Transition tables forbid an UPDATE OF column list, so the UPDATE trigger
 -- fires on every unaware UPDATE statement and its body filters by label.
