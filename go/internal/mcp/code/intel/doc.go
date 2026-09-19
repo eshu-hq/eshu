@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package codeinteltools defines pure route selection for the MCP
-// code-intelligence family.
+// Package codeinteltools defines pure route selection and four of the eight
+// MCP code-intelligence tool definitions.
 //
 // Route decides whether this package owns a tool and maps decoded arguments
 // to a dependency-neutral internal request without executing it. The parent
-// mcp package owns tool registration and its order (the eight tool
-// definitions stay at the root in tools_codebase.go, tools_code_topic.go,
-// tools_call_graph_metrics.go, tools_structural_inventory.go, and
-// tools_route_to_caller.go), global route fanout, the private codeIntelRoute
-// adapter, HTTP dispatch, authorization, timeouts, response budgets,
-// envelopes, summaries, and telemetry. The query package owns the bounded
-// reads behind each POST /api/v0/code/... path. This package runs no query
-// and must keep every tool name, request path, and body key stable.
+// mcp package owns the root registration splice and client-visible order
+// (this package owns the structural-inventory, call-graph-metrics,
+// route-to-caller, and code-topic definitions; find_code, find_symbol,
+// execute_language_query, and find_function_call_chain stay in the root
+// codebase group until their own leaf moves them), global route fanout, the
+// private codeIntelRoute adapter, HTTP dispatch, authorization, timeouts,
+// response budgets, envelopes, summaries, and telemetry. The query package
+// owns the bounded reads behind each POST /api/v0/code/... path. This
+// package runs no query and must keep every tool name, request path, and
+// body key stable.
 //
 // The eight tools — find_code, find_symbol, inspect_code_inventory,
 // inspect_call_graph_metrics, trace_route_callers, investigate_code_topic,

@@ -5,6 +5,40 @@ package mcp
 
 import "testing"
 
+// TestCodebaseToolsSplicePreservesIntelPositions pins the long-standing
+// registration positions of the four code-intelligence definitions owned by
+// the code/intel package. The names are literal here, independent of the
+// child's own order, so a reorder of codeinteltools.Tools that would
+// silently move a splice fails this test rather than shifting both sides of
+// the comparison. The import-dependency and security helpers keep their
+// interleaved positions between the splices.
+func TestCodebaseToolsSplicePreservesIntelPositions(t *testing.T) {
+	t.Parallel()
+
+	codebase := codebaseTools()
+	at := map[string]int{}
+	for i, tool := range codebase {
+		at[tool.Name] = i
+	}
+	inventory, ok := at["inspect_code_inventory"]
+	if !ok {
+		t.Fatal("inspect_code_inventory not found in codebaseTools()")
+	}
+	for name, want := range map[string]int{
+		"inspect_call_graph_metrics": inventory + 2,
+		"trace_route_callers":        inventory + 3,
+		"investigate_code_topic":     inventory + 4,
+	} {
+		got, ok := at[name]
+		if !ok {
+			t.Fatalf("%q not found in codebaseTools()", name)
+		}
+		if got != want {
+			t.Fatalf("%q at codebaseTools()[%d], want [%d]", name, got, want)
+		}
+	}
+}
+
 func TestResolveRouteMapsCallGraphMetricsToolToBoundedEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -39,36 +73,5 @@ func TestResolveRouteMapsCallGraphMetricsToolToBoundedEndpoint(t *testing.T) {
 	}
 	if got, want := body["offset"], 5; got != want {
 		t.Fatalf("body[offset] = %#v, want %#v", got, want)
-	}
-}
-
-func TestCallGraphMetricsToolSchemaRequiresRepoScopeAndBounds(t *testing.T) {
-	t.Parallel()
-
-	tool := callGraphMetricsTool()
-	if got, want := tool.Name, "inspect_call_graph_metrics"; got != want {
-		t.Fatalf("tool.Name = %q, want %q", got, want)
-	}
-	schema := tool.InputSchema.(map[string]any)
-	required := schema["required"].([]string)
-	if len(required) != 1 || required[0] != "repo_id" {
-		t.Fatalf("required = %#v, want repo_id only", required)
-	}
-	properties := schema["properties"].(map[string]any)
-	metricType := properties["metric_type"].(map[string]any)
-	enums := metricType["enum"].([]string)
-	if got, want := len(enums), 2; got != want {
-		t.Fatalf("metric_type enum count = %d, want %d", got, want)
-	}
-	limit := properties["limit"].(map[string]any)
-	if got, want := limit["maximum"], 200; got != want {
-		t.Fatalf("limit maximum = %#v, want %#v", got, want)
-	}
-	if got, want := limit["minimum"], 1; got != want {
-		t.Fatalf("limit minimum = %#v, want %#v", got, want)
-	}
-	offset := properties["offset"].(map[string]any)
-	if got, want := offset["maximum"], 10000; got != want {
-		t.Fatalf("offset maximum = %#v, want %#v", got, want)
 	}
 }

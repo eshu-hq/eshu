@@ -3,7 +3,15 @@
 
 package mcp
 
+import (
+	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
+)
+
 func codebaseTools() []ToolDefinition {
+	// intel holds the four code-intelligence definitions owned by the
+	// code/intel package, spliced into this block at their long-standing
+	// positions around the import-dependency and security helpers.
+	intel := codeinteltools.Tools()
 	tools := []ToolDefinition{
 		{
 			Name:        "find_code",
@@ -98,11 +106,11 @@ func codebaseTools() []ToolDefinition {
 				"required": []string{"symbol"},
 			},
 		},
-		structuralInventoryTool(),
+		intel[0],
 		importDependencyTool(),
-		callGraphMetricsTool(),
-		routeToCallerTool(),
-		codeTopicInvestigationTool(),
+		intel[1],
+		intel[2],
+		intel[3],
 		securityInvestigationTool(),
 	}
 	tools = append(tools, codeRelationshipTools()...)

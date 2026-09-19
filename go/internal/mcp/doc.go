@@ -144,9 +144,11 @@
 // Structural inventory and security investigation tools also stay
 // transport-only and delegate inventory filtering, import dependency
 // investigation, call graph metrics, or redacted finding generation to the
-// query package; their tool definitions live in
-// tools_structural_inventory.go, tools_import_dependencies.go,
-// tools_call_graph_metrics.go, and tools_security.go.
+// query package; the structural-inventory, call-graph-metrics,
+// route-to-caller, and code-topic definitions live in the codeintel child
+// and splice into the root codebase group, while import-dependency and
+// security definitions stay at this root in tools_import_dependencies.go
+// and tools_security.go.
 // Import-dependency dispatch forwards scope and paging unchanged; the query
 // handler owns the 25,000-row candidate ceiling and scope-narrowing response.
 // The get_capability_catalog tool forwards to /api/v0/capabilities and
