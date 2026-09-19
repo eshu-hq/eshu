@@ -79,7 +79,7 @@ repos:
         pass_filenames: false
 
       - id: filename-stutter
-        name: no filename stutter (staged content)
+        name: no filename or directory stutter (staged content)
         entry: scripts/verify-filename-stutter.sh --staged
         language: script
         always_run: true

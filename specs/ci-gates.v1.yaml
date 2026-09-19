@@ -387,24 +387,19 @@ gates:
     hook_id: no-diff-fragments
 
   - id: filename-stutter
-    name: No filename stutter in added/renamed Go files
+    name: No filename or directory stutter in added/renamed paths
     category: hygiene
     tier: pre-commit
     blocking: true
     triggers:
-      # The stutter lands in a file the PR adds or renames (a move into a
-      # nest, or a new file repeating its directory), so a Go-path trigger
-      # covers the case. Legacy family conventions (*_rules.go,
-      # engine_<lang>_*) are never scanned, only newly introduced names.
-      # The gate's own scripts are triggers too, so a PR editing only them
-      # still selects the gate locally instead of first failing in CI.
-      # The gate script scans repo-wide (344 tracked .go files live outside
-      # go/, e.g. sdk/go/**), so the trigger must too -- a go/-scoped
-      # trigger would let those trees skip local promotion and first fail
-      # in CI (#5535 precedent).
-      - "**/*.go"
-      - "scripts/verify-filename-stutter.sh"
-      - "scripts/test-verify-filename-stutter.sh"
+      # The gate checks naming rules 2 and 3 on every Added/Renamed path of
+      # any file type: a file stem repeating its directory, or a new
+      # directory repeating its parent (#6821). A docs-only or YAML-only PR
+      # can introduce either, so the trigger is repo-wide; a Go-path trigger
+      # would let those PRs skip local promotion and first fail in CI (#5535
+      # precedent). Legacy names are never scanned, only newly introduced
+      # ones, so the wide trigger cannot block unrelated work.
+      - "**"
     local:
       # Default mode: merge-base range plus staged files. --staged alone
       # false-greens here because promotion runs on committed trees with a

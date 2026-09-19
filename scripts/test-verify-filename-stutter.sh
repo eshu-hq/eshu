@@ -11,8 +11,19 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 gate="${script_dir}/verify-filename-stutter.sh"
 failures=0
 
-tmp_roots=()
-trap 'rm -rf "${tmp_roots[@]}" 2>/dev/null || true' EXIT
+# new_repo runs inside $(...), so it cannot grow a shell array in this shell.
+# Every temp repo is recorded in a file instead, and the EXIT trap removes
+# them all; the array form leaked every repo and tripped set -u under
+# bash 3.2 at exit.
+tmp_list="$(mktemp)"
+cleanup() {
+  local d
+  while IFS= read -r d; do
+    [ -n "$d" ] && rm -rf "$d"
+  done <"$tmp_list"
+  rm -f "$tmp_list"
+}
+trap cleanup EXIT
 
 check() {
   # $1 = case name, $2 = expected exit (0|1), $3 = actual exit
@@ -27,7 +38,7 @@ check() {
 new_repo() {
   local dir
   dir="$(mktemp -d)"
-  tmp_roots+=("$dir")
+  printf '%s\n' "$dir" >>"$tmp_list"
   git -C "$dir" init -q
   git -C "$dir" config user.email test@example.test
   git -C "$dir" config user.name "Test"
@@ -202,6 +213,283 @@ git -C "$repo12" commit -qm destutter
 rc="$(run_gate)"
 check "default mode over clean tree is GREEN" 0 "$rc"
 unset ESHU_STUTTER_UPSTREAM
+
+# Issue #6821: directory stutter (naming rule 3) and rule 2 for every file type.
+
+# stage_case <name> <expected-exit> <path>... : fresh repo, stage the paths as
+# new files (parent dirs created on demand), run --staged, check the exit.
+stage_case() {
+  local name="$1" want="$2" r p rc
+  shift 2
+  r="$(new_repo)"
+  for p in "$@"; do
+    mkdir -p "$r/$(dirname "$p")"
+    printf 'x\n' > "$r/$p"
+  done
+  export ESHU_STUTTER_REPO_ROOT="$r"
+  git -C "$r" add -A
+  rc="$(run_gate --staged)"
+  check "$name" "$want" "$rc"
+}
+
+# 13. RED: a staged new directory that repeats its parent's name (rule 3).
+stage_case "staged new dir query/queryauth is RED" 1 go/internal/query/queryauth/handler.go
+stage_case "staged new dir with suffix stutter auth-query is RED" 1 go/internal/query/authquery/handler.go
+stage_case "staged new dir query/query-auth (hyphen) is RED" 1 docs/internal/query/query-auth/notes.md
+stage_case "staged new dir query/query_auth (underscore) is RED" 1 docs/internal/query/query_auth/notes.md
+stage_case "staged new dir query/auth_query (underscore suffix) is RED" 1 docs/internal/query/auth_query/notes.md
+stage_case "dir stutter is case-insensitive" 1 go/internal/Query/QueryAuth/handler.go
+stage_case "dir equal to its parent (query/query) is RED" 1 go/internal/query/query/handler.go
+stage_case "stuttering dir deep in a new tree is RED" 1 go/internal/reducer/deep/security/securityalert/handler.go
+
+# 14. GREEN: clean nested directories, and near-miss names that are not
+# a prefix or suffix of the parent.
+stage_case "clean nested dir query/auth is GREEN" 0 go/internal/query/auth/handler.go
+stage_case "dir sharing only the middle of the parent is GREEN" 0 go/internal/query/subqueryish/handler.go
+stage_case "top-level dir has no parent to stutter against" 0 queryauth/handler.go
+
+stage_case "parent docs is exempt" 0 docs/docsite/index.md
+stage_case "parent internal is exempt" 0 go/internal/internalapi/handler.go
+stage_case "parent cmd is exempt" 0 go/cmd/cmdrunner/main.go
+stage_case "parent scripts is exempt" 0 scripts/scriptsupport/run.sh
+stage_case "parent specs is exempt" 0 specs/specsheet/a.yaml
+stage_case "parent testdata is exempt" 0 go/internal/parser/testdata/testdatafoo/a.txt
+stage_case "parent tests is exempt" 0 go/tests/testsuite/a.go
+stage_case "fixture tree under testdata is exempt" 0 go/internal/parser/testdata/fixtures/fixtures-x/sample/sample-a.txt
+
+# Dot-directories (codex/.codex, aider/.aider) are named by external tools.
+stage_case "dot-directory named for its parent is exempt" 0 docs/internal/codex/.codex/config.toml
+stage_case "non-dot directory with the same name is still RED" 1 docs/internal/codex/codex/config.toml
+
+# 16. RED: rule 2 for non-Go files.
+stage_case "stuttering markdown file is RED" 1 docs/internal/evidence/6821-evidence.md
+stage_case "stuttering yaml file is RED" 1 specs/plans/plans_v1.yaml
+stage_case "stuttering shell script is RED" 1 scripts/verify/verify-thing.sh
+stage_case "stuttering sql file is RED" 1 go/internal/storage/postgres/schema/schema_v2.sql
+stage_case "non-Go stuttering file with hyphen segment is RED" 1 docs/internal/design/design-notes.md
+
+# 17. GREEN: non-Go files that obey rule 2 and the idiomatic exemptions.
+stage_case "non-Go near-miss stem is GREEN" 0 docs/internal/evidence/6821-notes.md
+stage_case "non-Go stem equal to leaf dir is GREEN" 0 go/internal/query/openapi/openapi.yaml
+stage_case "README.md in a readme dir is exempt" 0 docs/internal/readme/README.md
+stage_case "AGENTS.md in an agents dir is exempt" 0 docs/internal/agents/AGENTS.md
+stage_case "CLAUDE.md in a claude dir is exempt" 0 docs/internal/claude/CLAUDE.md
+stage_case "doc.go in a doc dir is exempt" 0 go/internal/doc/doc.go
+stage_case "extensionless file without a stutter is GREEN" 0 scripts/lib/Makefile
+stage_case "dotfile without a stutter is GREEN" 0 scripts/lib/.gitkeep
+stage_case "multi-dot non-Go near-miss is GREEN" 0 go/internal/query/schema/values.schema.json
+stage_case "fixture file under testdata is exempt from rule 2" 0 go/internal/parser/testdata/sample/sample-sample.txt
+
+# 18. RED/GREEN: a renamed path landing in a stuttering directory.
+repo18="$(new_repo)"
+mkdir -p "$repo18/go/internal/query/auth"
+printf 'package auth\n' > "$repo18/go/internal/query/auth/handler.go"
+export ESHU_STUTTER_REPO_ROOT="$repo18"
+git -C "$repo18" add -A && git -C "$repo18" commit -qm base
+mkdir -p "$repo18/go/internal/query/queryauth"
+git -C "$repo18" mv go/internal/query/auth/handler.go go/internal/query/queryauth/handler.go
+rc="$(run_gate --staged)"
+check "staged rename landing in new stuttering dir is RED" 1 "$rc"
+git -C "$repo18" commit -qm rename
+rc="$(run_gate --range HEAD~1)"
+check "--range rename landing in new stuttering dir is RED" 1 "$rc"
+
+# 19. GREEN: legacy stuttering directory left alone. A rename or add inside a
+# directory that already exists at the base must not re-flag the directory.
+repo19="$(new_repo)"
+mkdir -p "$repo19/go/internal/query/queryauth"
+printf 'package queryauth\n' > "$repo19/go/internal/query/queryauth/handler.go"
+printf 'package queryauth\n' > "$repo19/go/internal/query/queryauth/old_name.go"
+export ESHU_STUTTER_REPO_ROOT="$repo19"
+git -C "$repo19" add -A && git -C "$repo19" commit -qm base
+printf 'package queryauth\n// touched\n' > "$repo19/go/internal/query/queryauth/handler.go"
+git -C "$repo19" add -A
+rc="$(run_gate --staged)"
+check "modified file in legacy stuttering dir is GREEN" 0 "$rc"
+printf 'package queryauth\n' > "$repo19/go/internal/query/queryauth/extra.go"
+git -C "$repo19" mv go/internal/query/queryauth/old_name.go go/internal/query/queryauth/new_name.go
+git -C "$repo19" add -A
+rc="$(run_gate --staged)"
+check "new and renamed files in legacy stuttering dir are GREEN" 0 "$rc"
+git -C "$repo19" commit -qm touch
+rc="$(run_gate --range HEAD~1)"
+check "--range over legacy stuttering dir is GREEN" 0 "$rc"
+export ESHU_STUTTER_UPSTREAM="HEAD~1"
+rc="$(run_gate)"
+check "default mode over legacy stuttering dir is GREEN" 0 "$rc"
+unset ESHU_STUTTER_UPSTREAM
+
+# 20. Legacy file stutter in a legacy dir stays GREEN when untouched, while a
+# new stuttering directory added next to it is still caught.
+repo20="$(new_repo)"
+mkdir -p "$repo20/go/internal/query/queryauth"
+printf 'x\n' > "$repo20/go/internal/query/queryauth/queryauth_legacy.md"
+export ESHU_STUTTER_REPO_ROOT="$repo20"
+git -C "$repo20" add -A && git -C "$repo20" commit -qm base
+mkdir -p "$repo20/go/internal/query/querycontract"
+printf 'x\n' > "$repo20/go/internal/query/querycontract/a.md"
+git -C "$repo20" add -A
+rc="$(run_gate --staged)"
+check "new stuttering dir beside a legacy one is RED" 1 "$rc"
+
+# 21. Diagnostics name the offending directory and its parent.
+repo21="$(new_repo)"
+mkdir -p "$repo21/go/internal/query/queryauth"
+printf 'x\n' > "$repo21/go/internal/query/queryauth/a.md"
+export ESHU_STUTTER_REPO_ROOT="$repo21"
+git -C "$repo21" add -A
+set +e
+out="$(bash "$gate" --staged 2>&1)"
+rc=$?
+set -e
+check "dir stutter diagnostic run is RED" 1 "$rc"
+case "$out" in
+  *go/internal/query/queryauth*query*) printf 'ok   dir diagnostic names the directory and parent\n' ;;
+  *) printf 'FAIL dir diagnostic names the directory and parent: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
+esac
+
+# 22. --files mode applies both checks (no base tree: every directory is new).
+repo22="$(new_repo)"
+export ESHU_STUTTER_REPO_ROOT="$repo22"
+rc="$(run_gate --files go/internal/query/queryauth/handler.go)"
+check "--files stuttering dir is RED" 1 "$rc"
+rc="$(run_gate --files docs/internal/evidence/6821-evidence.md)"
+check "--files stuttering non-Go file is RED" 1 "$rc"
+rc="$(run_gate --files go/internal/query/auth/handler.go)"
+check "--files clean nested path is GREEN" 0 "$rc"
+
+# Compound names, default-mode directory RED, fixture roots, case, parents.
+
+# F1: a leaf directory that itself contains - or _ must still match when the
+# stem repeats it as a contiguous run of words.
+stage_case "hyphenated leaf repeated in stem is RED" 1 docs/public/run-locally/run-locally-compose.md
+stage_case "underscored leaf repeated in stem is RED" 1 scripts/ci_gates/ci_gates_extra.sh
+stage_case "hyphenated leaf repeated with underscores is RED" 1 docs/public/run-locally/run_locally_compose.md
+stage_case "leaf run in the middle of the stem is RED" 1 docs/public/run-locally/x-run-locally-y.md
+stage_case "hyphenated leaf with a partial run is GREEN" 0 docs/public/run-locally/run-compose.md
+stage_case "hyphenated leaf split around another word is GREEN" 0 docs/public/run-locally/run-fast-locally.md
+stage_case "stem equal to a hyphenated leaf is GREEN" 0 docs/public/run-locally/run-locally.md
+stage_case "stem equal to leaf across hyphen and underscore is GREEN" 0 docs/public/run-locally/run_locally.md
+
+# F2: default mode (the make pre-push path) must catch a COMMITTED new
+# stuttering directory, not only staged ones.
+repo23="$(new_repo)"
+export ESHU_STUTTER_REPO_ROOT="$repo23"
+mkdir -p "$repo23/go/internal/query/auth"
+printf 'package auth\n' > "$repo23/go/internal/query/auth/a.go"
+git -C "$repo23" add -A && git -C "$repo23" commit -qm base
+mkdir -p "$repo23/go/internal/query/queryauth"
+printf 'package queryauth\n' > "$repo23/go/internal/query/queryauth/a.go"
+git -C "$repo23" add -A && git -C "$repo23" commit -qm stutter
+export ESHU_STUTTER_UPSTREAM="HEAD~1"
+rc="$(run_gate)"
+check "default mode over a committed new stuttering dir is RED" 1 "$rc"
+unset ESHU_STUTTER_UPSTREAM
+
+# F3: fixture corpora mirror third-party conventions (Ruby *_test.rb, pytest
+# test_*.py, Dart *_test.dart), so a `fixtures` component exempts like
+# `testdata` does.
+stage_case "non-Go file under tests/fixtures is exempt" 0 tests/fixtures/ruby_app/test/user_test.rb
+stage_case "pytest file under nested fixtures is exempt" 0 go/internal/parser/fixtures/py/test/test_api.py
+stage_case "stuttering dir under tests/fixtures is exempt" 0 tests/fixtures/dogfood/dartrepo/dartrepo_core/a.dart
+stage_case "stuttering dir under a nested fixtures root is exempt" 0 go/internal/parser/fixtures/query/queryauth/a.txt
+stage_case "Go file under fixtures is still checked" 1 go/internal/parser/fixtures/entity/entity_checks.go
+
+# F4: the fixture skip covers the root and everything below it, never the
+# directories above it.
+stage_case "stuttering dir above testdata is RED" 1 go/internal/query/queryauth/testdata/x.json
+stage_case "stuttering dir above fixtures is RED" 1 go/internal/query/queryauth/fixtures/x.json
+stage_case "stuttering dir above testdata with a Go file is RED" 1 go/internal/query/queryauth/testdata/fixture.go
+
+# F7: extensions compare case-insensitively.
+stage_case "uppercase extension stutter is RED" 1 docs/public/images/logo-images.PNG
+stage_case "uppercase Go extension stutter is RED" 1 go/internal/entity/entity_checks.GO
+
+# F13: parent and child differ in case, so a case-sensitive gate fails these.
+stage_case "mixed-case dir stutter (query/QueryAuth) is RED" 1 go/internal/query/QueryAuth/a.go
+stage_case "mixed-case file stutter (Entity/entity_x.go) is RED" 1 go/internal/Entity/entity_x.go
+stage_case "mixed-case hyphenated file stutter (Run-Locally/run-locally-x.md) is RED" 1 docs/Run-Locally/run-locally-x.md
+stage_case "mixed-case leaf with upper-case stem is RED" 1 docs/internal/entity/ENTITY_x.md
+
+# F12: parent-name matching is tiered by the parent's length (owner ruling).
+#   1-2 chars: exact whole-word token only.
+#   3 chars:   exact token OR the child starts with the parent (no suffix).
+#   4+ chars:  prefix or suffix.
+stage_case "1-char parent, prefix of a longer word (parser/c/cpp) is GREEN" 0 go/internal/parser/c/cpp/a.go
+stage_case "1-char parent, whole word (c/c-api) is RED" 1 go/internal/parser/c/c-api/a.go
+stage_case "2-char parent, prefix of a longer word (db/dbmigrate) is GREEN" 0 go/internal/db/dbmigrate/a.go
+stage_case "2-char parent, suffix of a longer word (db/nornicdb) is GREEN" 0 go/internal/db/nornicdb/a.go
+stage_case "2-char parent, whole word prefix (db/db-auth) is RED" 1 go/internal/db/db-auth/a.go
+stage_case "2-char parent, whole word suffix (db/auth_db) is RED" 1 go/internal/db/auth_db/a.go
+stage_case "2-char parent repeated exactly (db/db) is RED" 1 go/internal/db/db/a.go
+stage_case "3-char parent, glued prefix (api/apiauth) is RED" 1 go/internal/api/apiauth/a.go
+stage_case "3-char parent, glued prefix (mcp/mcpserver) is RED" 1 go/internal/mcp/mcpserver/a.go
+stage_case "3-char parent, glued prefix (aws/awsiam) is RED" 1 go/internal/aws/awsiam/a.go
+stage_case "3-char parent, glued prefix (sql/sqlstore) is RED" 1 go/internal/sql/sqlstore/a.go
+stage_case "3-char parent, glued prefix (cli/clitool) is RED" 1 go/internal/cli/clitool/a.go
+stage_case "3-char parent, glued prefix (git/github) is RED" 1 docs/internal/git/github/a.md
+stage_case "3-char parent, whole word (api/api-auth) is RED" 1 go/internal/api/api-auth/a.go
+stage_case "3-char parent, whole word suffix (api/auth_api) is RED" 1 go/internal/api/auth_api/a.go
+stage_case "3-char parent, suffix of a longer word (sql/postgresql) is GREEN" 0 go/internal/sql/postgresql/a.go
+stage_case "3-char parent, suffix of a longer word (net/dotnet) is GREEN" 0 go/internal/net/dotnet/a.go
+stage_case "3-char parent, middle of a longer word (aws/xawsx) is GREEN" 0 go/internal/aws/xawsx/a.go
+stage_case "4-char parent, glued prefix (repo/repoauth) is RED" 1 go/internal/repo/repoauth/a.go
+stage_case "4-char parent, glued suffix (repo/authrepo) is RED" 1 go/internal/repo/authrepo/a.go
+stage_case "4-char parent, middle of a longer word (repo/xrepox) is GREEN" 0 go/internal/repo/xrepox/a.go
+
+# Bulk lowercasing must keep path fields aligned across renames and
+# multi-file batches (uppercase directory, rename, unrelated adds in one run).
+repo24="$(new_repo)"
+mkdir -p "$repo24/go/internal/Query/Auth"
+printf 'x\n' > "$repo24/go/internal/Query/Auth/A.go"
+export ESHU_STUTTER_REPO_ROOT="$repo24"
+git -C "$repo24" add -A && git -C "$repo24" commit -qm base
+mkdir -p "$repo24/go/internal/Query/QueryAuth" "$repo24/docs/Clean"
+git -C "$repo24" mv go/internal/Query/Auth/A.go go/internal/Query/QueryAuth/A.go
+printf 'x\n' > "$repo24/docs/Clean/Notes.md"
+git -C "$repo24" add -A
+set +e
+out="$(bash "$gate" --staged 2>&1)"
+rc=$?
+set -e
+check "mixed-case rename batch is RED" 1 "$rc"
+case "$out" in
+  *go/internal/Query/QueryAuth*) printf 'ok   diagnostic keeps original path case\n' ;;
+  *) printf 'FAIL diagnostic keeps original path case: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
+esac
+
+# A tracked file or symlink at a directory's path does not make that directory
+# pre-existing: replacing file query/queryauth with a directory introduces it.
+file_to_dir_repo() {
+  local r
+  r="$(new_repo)"
+  mkdir -p "$r/go/internal/query"
+  if [ "$1" = "symlink" ]; then
+    ln -s auth "$r/go/internal/query/queryauth"
+  else
+    printf 'x\n' > "$r/go/internal/query/queryauth"
+  fi
+  git -C "$r" add -A && git -C "$r" commit -qm base
+  git -C "$r" rm -q -f go/internal/query/queryauth
+  rm -rf "$r/go/internal/query/queryauth"
+  mkdir -p "$r/go/internal/query/queryauth"
+  printf 'package queryauth\n' > "$r/go/internal/query/queryauth/handler.go"
+  printf '%s\n' "$r"
+}
+for kind in file symlink; do
+  repo25="$(file_to_dir_repo "$kind")"
+  export ESHU_STUTTER_REPO_ROOT="$repo25"
+  git -C "$repo25" add -A
+  rc="$(run_gate --staged)"
+  check "staged $kind replaced by stuttering dir is RED" 1 "$rc"
+  git -C "$repo25" commit -qm replace
+  rc="$(run_gate --range HEAD~1)"
+  check "--range $kind replaced by stuttering dir is RED" 1 "$rc"
+  export ESHU_STUTTER_UPSTREAM="HEAD~1"
+  rc="$(run_gate)"
+  check "default mode $kind replaced by stuttering dir is RED" 1 "$rc"
+  unset ESHU_STUTTER_UPSTREAM
+done
 
 if [ "$failures" != "0" ]; then
   printf 'test-verify-filename-stutter: %d case(s) failed\n' "$failures" >&2
