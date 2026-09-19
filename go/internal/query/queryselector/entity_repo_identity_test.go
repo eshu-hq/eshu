@@ -200,3 +200,43 @@ func TestHydrateResolvedEntityRepoIdentityRepositoryEntitySelfIdentifies(t *test
 }
 
 var _ querycontract.GraphQuery = (*fakeRepoIdentityGraphQuery)(nil)
+
+// TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission pins the
+// #6786 review decision recorded in README.md: hydration checks the
+// repository it attaches, not whether the workload is admitted. The workload
+// here carries a granted repo_id, so querycontract.WorkloadGrantAdmitted
+// would admit it, but the DEFINES repository the backend returned is not
+// granted and must not supply the missing repo_name.
+func TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission(t *testing.T) {
+	t.Parallel()
+
+	graph := &fakeRepoIdentityGraphQuery{
+		rows: []map[string]any{
+			{"entity_id": "workload:1", "repo_id": "repo-2", "repo_name": "ungranted-repo"},
+		},
+	}
+	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repo-1"},
+	})
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
+	if !querycontract.WorkloadGrantAdmitted(access, "repo-1", []string{"repo-2"}) {
+		t.Fatal("precondition: WorkloadGrantAdmitted should admit a workload whose own repo_id is granted")
+	}
+	entity := map[string]any{
+		"id":      "workload:1",
+		"labels":  []string{"Workload"},
+		"repo_id": "repo-1",
+	}
+
+	if _, err := HydrateResolvedEntityRepoIdentity(ctx, graph, nil, []map[string]any{entity}); err != nil {
+		t.Fatalf("HydrateResolvedEntityRepoIdentity() error = %v, want nil", err)
+	}
+
+	if got, want := EntityString(entity, "repo_id"), "repo-1"; got != want {
+		t.Fatalf("entity[repo_id] = %q, want %q", got, want)
+	}
+	if got := EntityString(entity, "repo_name"); got != "" {
+		t.Fatalf("entity[repo_name] = %q, want empty: an ungranted DEFINES repository must not name a granted workload", got)
+	}
+}
