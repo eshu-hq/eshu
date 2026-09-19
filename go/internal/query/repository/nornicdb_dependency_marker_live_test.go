@@ -53,6 +53,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -70,24 +72,49 @@ const (
 	depMarkerR4 = "repository:6786-depmarker-r4"
 )
 
-// depMarkerSeed builds four repositories with two independent DEPENDS_ON
-// edges: r2 -> r1 and r3 -> r4. Ground truth: r1 and r4 are depended upon
-// (is_dependency=true); r2 and r3 depend on something else and are not
-// themselves depended upon (is_dependency=false).
+const (
+	depMarkerW1 = "workload:6786-depmarker-w1"
+	depMarkerW2 = "workload:6786-depmarker-w2"
+)
+
+// depMarkerSeed builds four repositories with two independent
+// Repository-to-Repository DEPENDS_ON edges: r2 -> r1 and r3 -> r4. Ground
+// truth: r1 and r4 are depended upon (is_dependency=true); r2 and r3 depend
+// on something else and are not themselves depended upon
+// (is_dependency=false). The dependency clusters are {r1, r2} and {r3, r4}.
+//
+// It also seeds DEPENDS_ON edges with a non-Repository endpoint: w1 -> w2
+// (Workload to Workload), r1 -> w1 (Repository to Workload) and w2 -> r3
+// (Workload to Repository). Ground truth ignores them. On NornicDB v1.3.3 the
+// unscoped grouped reads rely on the relationship-aggregation fast path
+// checking both endpoint labels; the same pin ignores a label predicate in
+// WHERE (2,317 rows against a true 300, #6786 review R3-F3). If the fast path
+// ever stopped checking labels, these edges would join r1, w1, w2 and r3 into
+// one cluster and mark r3 as a dependency, and this test would fail.
 var depMarkerSeed = []string{
 	`CREATE (:Repository {id: '` + depMarkerR1 + `', name: 'depmarker-r1'})`,
 	`CREATE (:Repository {id: '` + depMarkerR2 + `', name: 'depmarker-r2'})`,
 	`CREATE (:Repository {id: '` + depMarkerR3 + `', name: 'depmarker-r3'})`,
 	`CREATE (:Repository {id: '` + depMarkerR4 + `', name: 'depmarker-r4'})`,
-	depMarkerEdge(depMarkerR2, depMarkerR1),
-	depMarkerEdge(depMarkerR3, depMarkerR4),
+	`CREATE (:Workload {id: '` + depMarkerW1 + `', name: 'depmarker-w1'})`,
+	`CREATE (:Workload {id: '` + depMarkerW2 + `', name: 'depmarker-w2'})`,
+	depMarkerEdge("Repository", depMarkerR2, "Repository", depMarkerR1),
+	depMarkerEdge("Repository", depMarkerR3, "Repository", depMarkerR4),
+	depMarkerEdge("Workload", depMarkerW1, "Workload", depMarkerW2),
+	depMarkerEdge("Repository", depMarkerR1, "Workload", depMarkerW1),
+	depMarkerEdge("Workload", depMarkerW2, "Repository", depMarkerR3),
 }
 
-func depMarkerEdge(fromID, toID string) string {
-	return `MATCH (a:Repository {id: '` + fromID + `'}) MATCH (b:Repository {id: '` + toID + `'}) CREATE (a)-[:DEPENDS_ON]->(b)`
+func depMarkerEdge(fromLabel, fromID, toLabel, toID string) string {
+	return `MATCH (a:` + fromLabel + ` {id: '` + fromID + `'}) MATCH (b:` + toLabel + ` {id: '` + toID + `'}) CREATE (a)-[:DEPENDS_ON]->(b)`
 }
 
-const depMarkerCleanup = `MATCH (n) WHERE n.id STARTS WITH 'repository:6786-depmarker-' DETACH DELETE n`
+// depMarkerCleanup removes every node this test seeds, one prefix per
+// statement.
+var depMarkerCleanup = []string{
+	`MATCH (n) WHERE n.id STARTS WITH 'repository:6786-depmarker-' DETACH DELETE n`,
+	`MATCH (n) WHERE n.id STARTS WITH 'workload:6786-depmarker-' DETACH DELETE n`,
+}
 
 // TestLiveRepositoryDependencyMarkerAnswerTruth drives the real
 // GET /api/v0/repositories (unscoped and scoped) and GET /api/v0/catalog
@@ -116,8 +143,14 @@ func TestLiveRepositoryDependencyMarkerAnswerTruth(t *testing.T) {
 	}
 
 	reader := repositoryLiveReader{driver: driver, database: database}
-	reader.write(ctx, t, depMarkerCleanup)
-	defer reader.write(context.Background(), t, depMarkerCleanup)
+	for _, stmt := range depMarkerCleanup {
+		reader.write(ctx, t, stmt)
+	}
+	defer func() {
+		for _, stmt := range depMarkerCleanup {
+			reader.write(context.Background(), t, stmt)
+		}
+	}()
 
 	schemaBackend := eshugraph.SchemaBackendNeo4j
 	if backend == "nornicdb" {
@@ -134,7 +167,7 @@ func TestLiveRepositoryDependencyMarkerAnswerTruth(t *testing.T) {
 	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 
 	t.Run("unscoped", func(t *testing.T) {
-		got := listRepositoriesIsDependency(t, handler, nil)
+		got, clusters := listRepositoriesDependencyEvidence(t, handler, nil)
 		want := map[string]bool{
 			depMarkerR1: true,
 			depMarkerR2: false,
@@ -146,6 +179,16 @@ func TestLiveRepositoryDependencyMarkerAnswerTruth(t *testing.T) {
 				t.Errorf("unscoped is_dependency[%s] = %v, want %v (all: %v)", id, got[id], wantDep, got)
 			}
 		}
+		assertDepMarkerClusters(t, clusters, map[string]string{
+			depMarkerR1: depMarkerR1,
+			depMarkerR2: depMarkerR1,
+			depMarkerR3: depMarkerR3,
+			depMarkerR4: depMarkerR3,
+		})
+	})
+
+	t.Run("unscoped_grouped_reads_check_endpoint_labels", func(t *testing.T) {
+		assertGroupedReadsExcludeNonRepositoryEdges(ctx, t, reader)
 	})
 
 	t.Run("scoped", func(t *testing.T) {
@@ -158,7 +201,7 @@ func TestLiveRepositoryDependencyMarkerAnswerTruth(t *testing.T) {
 			PolicyRevisionHash:   "sha256:policy-6786",
 			AllowedRepositoryIDs: []string{depMarkerR1, depMarkerR2},
 		}
-		got := listRepositoriesIsDependency(t, handler, &authCtx)
+		got, clusters := listRepositoriesDependencyEvidence(t, handler, &authCtx)
 		want := map[string]bool{
 			depMarkerR1: true,
 			depMarkerR2: false,
@@ -171,6 +214,10 @@ func TestLiveRepositoryDependencyMarkerAnswerTruth(t *testing.T) {
 				t.Errorf("scoped is_dependency[%s] = %v, want %v (all: %v)", id, got[id], wantDep, got)
 			}
 		}
+		assertDepMarkerClusters(t, clusters, map[string]string{
+			depMarkerR1: depMarkerR1,
+			depMarkerR2: depMarkerR1,
+		})
 	})
 
 	t.Run("catalog_unscoped", func(t *testing.T) {
@@ -210,7 +257,10 @@ func TestLiveRepositoryDependencyMarkerAnswerTruth(t *testing.T) {
 	})
 }
 
-func listRepositoriesIsDependency(t *testing.T, handler *Handler, authCtx *queryauth.AuthContext) map[string]bool {
+// listRepositoriesDependencyEvidence drives GET /api/v0/repositories and
+// returns, for this test's repositories, the is_dependency marker and the
+// group_key of every row grouped as a dependency cluster.
+func listRepositoriesDependencyEvidence(t *testing.T, handler *Handler, authCtx *queryauth.AuthContext) (map[string]bool, map[string]string) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=100", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
@@ -229,6 +279,7 @@ func listRepositoriesIsDependency(t *testing.T, handler *Handler, authCtx *query
 	data := envelope.Data.(map[string]any)
 	repos := data["repositories"].([]any)
 	got := map[string]bool{}
+	clusters := map[string]string{}
 	for _, raw := range repos {
 		repo := raw.(map[string]any)
 		id := querycontract.StringVal(repo, "id")
@@ -236,130 +287,66 @@ func listRepositoriesIsDependency(t *testing.T, handler *Handler, authCtx *query
 			continue
 		}
 		got[id] = querycontract.BoolVal(repo, "is_dependency")
-	}
-	return got
-}
-
-// liveGraphDatabaseName returns ESHU_LIVE_GRAPH_DATABASE when set, or the
-// pinned image's default database name for backend ("nornic" for NornicDB,
-// "neo4j" for Neo4j).
-func liveGraphDatabaseName(backend string) string {
-	if db := strings.TrimSpace(os.Getenv("ESHU_LIVE_GRAPH_DATABASE")); db != "" {
-		return db
-	}
-	if backend == "nornicdb" {
-		return "nornic"
-	}
-	return "neo4j"
-}
-
-// repositoryLiveReader is the test-only live GraphQuery + graph.CypherExecutor
-// for this file. The package cannot import root query's Neo4jReader without a
-// cycle (same rationale as entity's entityLiveReader).
-type repositoryLiveReader struct {
-	driver   neo4jdriver.DriverWithContext
-	database string
-}
-
-func (r repositoryLiveReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: r.database})
-	defer func() { _ = session.Close(ctx) }()
-	result, err := session.Run(ctx, cypher, params)
-	if err != nil {
-		return nil, err
-	}
-	records, err := result.Collect(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows := make([]map[string]any, 0, len(records))
-	for _, record := range records {
-		row := make(map[string]any, len(record.Keys))
-		for i, key := range record.Keys {
-			row[key] = record.Values[i]
+		if querycontract.StringVal(repo, "group_source") == repositoryGroupSourceDependencyCluster {
+			clusters[id] = querycontract.StringVal(repo, "group_key")
 		}
-		rows = append(rows, row)
 	}
-	return rows, nil
+	return got, clusters
 }
 
-func (r repositoryLiveReader) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	rows, err := r.Run(ctx, cypher, params)
-	if err != nil || len(rows) == 0 {
-		return nil, err
-	}
-	return rows[0], nil
-}
-
-// ExecuteCypher implements graph.CypherExecutor so this reader can also drive
-// graph.EnsureSchemaWithBackend.
-func (r repositoryLiveReader) ExecuteCypher(ctx context.Context, stmt eshugraph.CypherStatement) error {
-	return runLiveWriteWithRetry(ctx, func(ctx context.Context) error {
-		session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
-		defer func() { _ = session.Close(ctx) }()
-		result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters)
-		if err != nil {
-			return err
-		}
-		_, err = result.Consume(ctx)
-		return err
-	})
-}
-
-func (r repositoryLiveReader) write(ctx context.Context, t *testing.T, cypher string) {
+// assertDepMarkerClusters fails unless exactly want's repositories are
+// grouped as dependency clusters with want's cluster keys.
+func assertDepMarkerClusters(t *testing.T, got, want map[string]string) {
 	t.Helper()
-	err := runLiveWriteWithRetry(ctx, func(ctx context.Context) error {
-		session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.database})
-		defer func() { _ = session.Close(ctx) }()
-		result, err := session.Run(ctx, cypher, nil)
-		if err != nil {
-			return err
-		}
-		_, err = result.Consume(ctx)
-		return err
-	})
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("dependency clusters = %v, want %v", got, want)
+	}
+}
+
+// assertGroupedReadsExcludeNonRepositoryEdges runs the two unscoped grouped
+// statements production uses and fails if any row for this test's seed
+// carries a Workload endpoint. It checks the rows for this seed's ids only,
+// so other data on a shared backend cannot affect it. The group-size read is
+// the statement the capped path runs when the DEPENDS_ON count exceeds the
+// bound, which a small live seed cannot reach through the handler.
+func assertGroupedReadsExcludeNonRepositoryEdges(ctx context.Context, t *testing.T, reader repositoryLiveReader) {
+	t.Helper()
+	seeded := func(id string) bool {
+		return strings.HasPrefix(id, "repository:6786-depmarker-") || strings.HasPrefix(id, "workload:6786-depmarker-")
+	}
+
+	rows, err := readGroupedRepositoryDependencyEdges(ctx, reader, repositoryDependencyClusterEdgeFetchLimit)
 	if err != nil {
-		t.Fatalf("write %q: %v", cypher, err)
+		t.Fatalf("grouped read: %v", err)
 	}
-}
-
-// liveWriteMaxAttempts bounds the retry count for a transient graph-write
-// conflict (see isLiveWriteTransientError). Go runs different test packages
-// concurrently by default even with no t.Parallel(), so this package's live
-// test and a sibling package's live test (e.g. codequery's) can race writes
-// against the same shared NornicDB/Neo4j instance in CI (#6784).
-const liveWriteMaxAttempts = 5
-
-// liveWriteRetryDelay is a small linear backoff for a racing test-seed/
-// cleanup/schema write, not a production retry policy: these are one-shot
-// DDL/seed statements contending with a sibling test package, not a
-// production hot path.
-func liveWriteRetryDelay(attempt int) time.Duration {
-	return time.Duration(attempt) * 100 * time.Millisecond
-}
-
-// isLiveWriteTransientError reports whether err is a transient, safe-to-retry
-// write conflict -- observed live as
-// "Neo.TransientError.Transaction.Outdated ... Please retry" when two test
-// packages' live writes race the same shared NornicDB/Neo4j instance.
-func isLiveWriteTransientError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "TransientError")
-}
-
-// runLiveWriteWithRetry runs run, retrying up to liveWriteMaxAttempts times
-// with a small backoff on a transient write conflict, and returning
-// immediately on success or a non-transient error.
-func runLiveWriteWithRetry(ctx context.Context, run func(context.Context) error) error {
-	var lastErr error
-	for attempt := 1; attempt <= liveWriteMaxAttempts; attempt++ {
-		lastErr = run(ctx)
-		if lastErr == nil {
-			return nil
+	groups := map[string][]string{}
+	for _, row := range rows {
+		source := querycontract.StringVal(row, "source_id")
+		if !seeded(source) {
+			continue
 		}
-		if !isLiveWriteTransientError(lastErr) || attempt == liveWriteMaxAttempts {
-			return lastErr
-		}
-		time.Sleep(liveWriteRetryDelay(attempt))
+		targets := groupedTargetIDs(row["target_ids"])
+		sort.Strings(targets)
+		groups[source] = targets
 	}
-	return lastErr
+	wantGroups := map[string][]string{depMarkerR2: {depMarkerR1}, depMarkerR3: {depMarkerR4}}
+	if !reflect.DeepEqual(groups, wantGroups) {
+		t.Errorf("grouped read rows for the seed = %v, want %v (a Workload id means the endpoint label check was skipped)", groups, wantGroups)
+	}
+
+	rows, err = readRepositoryDependencyGroupSizes(ctx, reader)
+	if err != nil {
+		t.Fatalf("group-size read: %v", err)
+	}
+	sizes := map[string]int64{}
+	for _, row := range rows {
+		source := querycontract.StringVal(row, "source_id")
+		if seeded(source) {
+			sizes[source] = groupTargetCount(row["target_count"])
+		}
+	}
+	wantSizes := map[string]int64{depMarkerR2: 1, depMarkerR3: 1}
+	if !reflect.DeepEqual(sizes, wantSizes) {
+		t.Errorf("group-size rows for the seed = %v, want %v (a Workload id or a size above 1 means the endpoint label check was skipped)", sizes, wantSizes)
+	}
 }
