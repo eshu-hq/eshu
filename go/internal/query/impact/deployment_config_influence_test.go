@@ -251,7 +251,7 @@ func makeDeploymentConfigInfluenceHandler() *Handler {
 				"K8sResource OR":                      {},
 				"fn.name IN":                          {},
 				"DEPLOYMENT_SOURCE":                   {},
-				// ResolveTraceWorkloadSelector's name lookup (#6786 F3: its
+				// ResolveWorkloadSelector's name lookup (#6786 F3: its
 				// id lookup now requires the returned row's own id to equal
 				// the selector, and "svc-1" != "test-service", so it falls
 				// through here) -- same row as the generic RunSingleByMatch
@@ -390,7 +390,7 @@ func TestInvestigateDeploymentConfigInfluenceDisclosesSaturatedUpstreamEvidence(
 					"K8sResource OR":                      {},
 					"fn.name IN":                          {},
 					"DEPLOYMENT_SOURCE":                   {{"instance_id": "instance:test-service", "repo_id": "repo-gitops", "repo_name": "gitops"}},
-					// ResolveTraceWorkloadSelector's name lookup (#6786 F3:
+					// ResolveWorkloadSelector's name lookup (#6786 F3:
 					// its id lookup now requires the returned row's own id
 					// to equal the selector, and "svc-1" != "test-service",
 					// so it falls through here).

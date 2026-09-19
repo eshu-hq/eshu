@@ -113,7 +113,7 @@ func (h *Handler) TraceDeploymentChain(w http.ResponseWriter, r *http.Request) {
 	traceOptions := traceEnrichmentOptions(req)
 	ctx, err := h.traceContext().FetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, h.Instruments, req.ServiceName, traceOptions)
 	if err != nil {
-		if errors.Is(err, impacttrace.ErrAmbiguousTraceWorkloadSelector) {
+		if errors.Is(err, impacttrace.ErrAmbiguousWorkloadSelector) {
 			querycontract.WriteError(w, http.StatusConflict, err.Error())
 			return
 		}

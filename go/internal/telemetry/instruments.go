@@ -668,7 +668,7 @@ type Instruments struct {
 	QueryK8sSelectCandidateScanTruncated metric.Int64Counter
 	// QueryScopedGrantDenied counts a scoped caller's read decided closed on
 	// one of the #6786 Go-side grant-decision seams (GetEntityContext,
-	// FetchWorkloadContextForOperation, ResolveTraceWorkloadSelector) --
+	// FetchWorkloadContextForOperation, ResolveWorkloadSelector) --
 	// those routes stopped rendering the scoped grant as a Cypher predicate
 	// (NornicDB v1.3.3 could silently drop it) and now decide admission in
 	// Go instead, so this is the operator-visible replacement for what a
@@ -676,7 +676,7 @@ type Instruments struct {
 	// operation and reason.
 	//
 	// operation is the bounded caller-supplied value FetchWorkloadContextForOperation
-	// and ResolveTraceWorkloadSelector are invoked with, not a fixed
+	// and ResolveWorkloadSelector are invoked with, not a fixed
 	// per-function constant -- GetEntityContext is the one exception, always
 	// "entity_context". The full closed set actually emitted, by call site:
 	// "entity_context" (GetEntityContext, handler.go), "workload_context"
@@ -687,15 +687,15 @@ type Instruments struct {
 	// (fetchServiceWorkloadContextWithSelector via InvestigateService,
 	// service_investigation.go), "deployment_trace" (fetchServiceTraceContext,
 	// family_impact_trace_deployment.go), and "deployment_trace_selector"
-	// (ResolveTraceWorkloadSelector's own internal constant,
-	// impact_trace_workload_selection.go -- distinct from the
+	// (ResolveWorkloadSelector's own internal constant,
+	// workload_selection.go -- distinct from the
 	// "deployment_trace" its caller passes to the FOLLOW-UP
 	// FetchWorkloadContextForOperation call in the same request). Adding a
 	// caller with a new operation string does not require touching this
 	// list -- it is documentation of the current closed set, not a runtime
 	// enum -- but MUST update it in the same change so this comment does not
 	// drift from the emitted values again (see TestQueryScopedGrantDeniedOperationValues,
-	// entity, and TestResolveTraceWorkloadSelectorOperationLabel, impacttrace,
+	// entity, and TestResolveWorkloadSelectorOperationLabel, impacttrace,
 	// which each pin one call site's literal against this list).
 	//
 	// reason is "grant_denied" for an ordinary scoped-caller-not-granted-this-row

@@ -12,7 +12,7 @@ import (
 )
 
 // recordScopedGrantDenied increments telemetry.Instruments.QueryScopedGrantDenied
-// for ResolveTraceWorkloadSelector, this family's #6786 Go-side
+// for ResolveWorkloadSelector, this family's #6786 Go-side
 // grant-decision seam for the deployment-trace route. instruments is nil in
 // every non-live test in this package and in any caller that has not wired
 // the full telemetry stack; emission is skipped rather than panicking, the

@@ -65,7 +65,7 @@ func fetchServiceTraceContext(
 	traceOptions impact.TraceEnrichmentConfig,
 ) (map[string]any, error) {
 	entityHandler := &entity.Handler{Neo4j: graph, Content: content, Logger: logger, Instruments: instruments}
-	workloadID, err := impacttrace.ResolveTraceWorkloadSelector(ctx, graph, serviceName, logger, instruments)
+	workloadID, err := impacttrace.ResolveWorkloadSelector(ctx, graph, serviceName, logger, instruments)
 	if err != nil {
 		return nil, err
 	}

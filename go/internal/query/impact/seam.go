@@ -62,9 +62,9 @@ const (
 )
 
 // ErrAmbiguousTraceWorkloadSelector is the exported seam for
-// impacttrace.ErrAmbiguousTraceWorkloadSelector, which the deployment-config-influence
+// impacttrace.ErrAmbiguousWorkloadSelector, which the deployment-config-influence
 // family reads from outside the impact move set. See #6060.
-var ErrAmbiguousTraceWorkloadSelector = impacttrace.ErrAmbiguousTraceWorkloadSelector
+var ErrAmbiguousTraceWorkloadSelector = impacttrace.ErrAmbiguousWorkloadSelector
 
 // BoundedK8sResourceResult is the exported seam for boundedK8sResourceResult,
 // which the deployment-config-influence family calls from outside the impact

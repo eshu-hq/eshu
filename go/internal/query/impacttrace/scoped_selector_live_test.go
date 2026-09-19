@@ -5,7 +5,7 @@
 
 // Live scoped-grant answer-truth proof for #6786.
 //
-// ResolveTraceWorkloadSelector backs the scoped grant for
+// ResolveWorkloadSelector backs the scoped grant for
 // POST /api/v0/impact/trace-deployment-chain (and InvestigateDeploymentConfigInfluence).
 // The scoped predicate used to be rendered as a multi-line
 // `AND ( ... OR EXISTS {...} )` Cypher WHERE group appended to the
@@ -25,11 +25,11 @@
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27880 \
 //	  ESHU_LIVE_GRAPH_BACKEND=nornicdb ESHU_LIVE_GRAPH_DATABASE=nornic \
 //	  go test ./internal/query/impacttrace -tags live_nornicdb_answer_truth \
-//	  -run TestLiveResolveTraceWorkloadSelector -count=1 -v
+//	  -run TestLiveResolveWorkloadSelector -count=1 -v
 //	cd go && ESHU_NEO4J_URI=bolt://127.0.0.1:27890 \
 //	  ESHU_LIVE_GRAPH_BACKEND=neo4j ESHU_LIVE_GRAPH_DATABASE=neo4j \
 //	  go test ./internal/query/impacttrace -tags live_nornicdb_answer_truth \
-//	  -run TestLiveResolveTraceWorkloadSelector -count=1 -v
+//	  -run TestLiveResolveWorkloadSelector -count=1 -v
 package impacttrace
 
 import (
@@ -253,67 +253,67 @@ func selectorScopedContext(ctx context.Context, allowedRepositoryIDs ...string) 
 	})
 }
 
-func TestLiveResolveTraceWorkloadSelectorInGrantByID(t *testing.T) {
+func TestLiveResolveWorkloadSelectorInGrantByID(t *testing.T) {
 	reader, baseCtx := selectorLiveFixture(t)
 	ctx := selectorScopedContext(baseCtx, "scoped-selector-6786:repo-a")
 
-	got, err := ResolveTraceWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-in", nil, nil)
+	got, err := ResolveWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-in", nil, nil)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 	if got != "scoped-selector-6786:wl-in" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want the in-grant workload id", got)
+		t.Fatalf("ResolveWorkloadSelector() = %q, want the in-grant workload id", got)
 	}
 }
 
-// TestLiveResolveTraceWorkloadSelectorOutOfGrantByIDReturnsEmpty is the
+// TestLiveResolveWorkloadSelectorOutOfGrantByIDReturnsEmpty is the
 // #6786 answer-truth proof: an out-of-grant id selector must resolve to ""
 // (not found), never to a DIFFERENT, in-grant workload -- the exact failure
 // this package's retired Cypher-embedded grant predicate produced.
-func TestLiveResolveTraceWorkloadSelectorOutOfGrantByIDReturnsEmpty(t *testing.T) {
+func TestLiveResolveWorkloadSelectorOutOfGrantByIDReturnsEmpty(t *testing.T) {
 	reader, baseCtx := selectorLiveFixture(t)
 	ctx := selectorScopedContext(baseCtx, "scoped-selector-6786:repo-a")
 
-	got, err := ResolveTraceWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-out", nil, nil)
+	got, err := ResolveWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-out", nil, nil)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 	if got != "" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want not-found for an ungranted workload id (never a different, in-grant workload)", got)
+		t.Fatalf("ResolveWorkloadSelector() = %q, want not-found for an ungranted workload id (never a different, in-grant workload)", got)
 	}
 }
 
-func TestLiveResolveTraceWorkloadSelectorCollisionAdmittedByDefines(t *testing.T) {
+func TestLiveResolveWorkloadSelectorCollisionAdmittedByDefines(t *testing.T) {
 	reader, baseCtx := selectorLiveFixture(t)
 	ctx := selectorScopedContext(baseCtx, "scoped-selector-6786:repo-a")
 
-	got, err := ResolveTraceWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-collision", nil, nil)
+	got, err := ResolveWorkloadSelector(ctx, reader, "scoped-selector-6786:wl-collision", nil, nil)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 	if got != "scoped-selector-6786:wl-collision" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want the collision workload id (admitted via DEFINES)", got)
+		t.Fatalf("ResolveWorkloadSelector() = %q, want the collision workload id (admitted via DEFINES)", got)
 	}
 }
 
-func TestLiveResolveTraceWorkloadSelectorByNameAmbiguous(t *testing.T) {
+func TestLiveResolveWorkloadSelectorByNameAmbiguous(t *testing.T) {
 	reader, baseCtx := selectorLiveFixture(t)
 	ctx := selectorScopedContext(baseCtx, "scoped-selector-6786:repo-a")
 
-	_, err := ResolveTraceWorkloadSelector(ctx, reader, "svc-ambiguous", nil, nil)
-	if !errors.Is(err, ErrAmbiguousTraceWorkloadSelector) {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want ambiguity", err)
+	_, err := ResolveWorkloadSelector(ctx, reader, "svc-ambiguous", nil, nil)
+	if !errors.Is(err, ErrAmbiguousWorkloadSelector) {
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want ambiguity", err)
 	}
 }
 
-func TestLiveResolveTraceWorkloadSelectorUnscopedUnchanged(t *testing.T) {
+func TestLiveResolveWorkloadSelectorUnscopedUnchanged(t *testing.T) {
 	reader, baseCtx := selectorLiveFixture(t)
 
-	got, err := ResolveTraceWorkloadSelector(baseCtx, reader, "scoped-selector-6786:wl-out", nil, nil)
+	got, err := ResolveWorkloadSelector(baseCtx, reader, "scoped-selector-6786:wl-out", nil, nil)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 	if got != "scoped-selector-6786:wl-out" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want the requested workload id for an unscoped caller", got)
+		t.Fatalf("ResolveWorkloadSelector() = %q, want the requested workload id for an unscoped caller", got)
 	}
 }

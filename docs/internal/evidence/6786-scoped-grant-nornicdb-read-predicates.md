@@ -4,8 +4,8 @@
 
 `GetEntityContext` (`go/internal/query/entity/handler.go`) and the scoped
 Workload lookups (`go/internal/query/entity/workload_context.go`'s
-`FetchWorkloadContextForOperation`, `go/internal/query/impacttrace/impact_trace_workload_selection.go`'s
-`ResolveTraceWorkloadSelector`) rendered a scoped caller's repository grant as
+`FetchWorkloadContextForOperation`, `go/internal/query/impacttrace/workload_selection.go`'s
+`ResolveWorkloadSelector`) rendered a scoped caller's repository grant as
 a Cypher-embedded predicate: a multi-line `AND EXISTS { MATCH ... WHERE
 <grant> }` block for the entity route, and a multi-line
 `AND ( ... OR EXISTS {...} )` group for the two workload lookups (the retired
@@ -41,7 +41,7 @@ repository `DEFINES` too:
 
 - `go/internal/query/entity/scoped_grant_live_test.go` (`TestLiveScoped*`)
 - `go/internal/query/impacttrace/scoped_selector_live_test.go`
-  (`TestLiveResolveTraceWorkloadSelector*`)
+  (`TestLiveResolveWorkloadSelector*`)
 
 Both select the backend/database via `ESHU_LIVE_GRAPH_BACKEND`
 (`nornicdb`|`neo4j`) and `ESHU_LIVE_GRAPH_DATABASE`, the shared env contract
@@ -63,7 +63,7 @@ Pre-fix, 6 of 9 live assertions failed on NornicDB (0 of 9 on Neo4j):
 `.../no_grant_relationship_returns_not_found` both returned the SAME
 name-collision workload (`wl-collision`) regardless of the requested id;
 `TestLiveScopedEntityContextGrant/out_of_grant_returns_not_found_not_another_entity`
-returned 200 instead of 404; `TestLiveResolveTraceWorkloadSelector*
+returned 200 instead of 404; `TestLiveResolveWorkloadSelector*
 InGrantByID`/`OutOfGrantByIDReturnsEmpty` both resolved to
 `wl-collision` regardless of grant; the by-name ambiguity test found no
 ambiguity (the dropped `WHERE` collapsed the two-workload result to one
@@ -83,17 +83,17 @@ The scoped grant is now decided in Go instead of rendered as query text:
   (`access.AllowsRepositoryID`) or from `FetchWorkloadRepositoryForAccess`'s
   existing DEFINES-scoped read (a single-line `WHERE`, unaffected by the
   defect) finding at least one granted repository.
-- `ResolveTraceWorkloadSelector` drops the appended grant clause; each
+- `ResolveWorkloadSelector` drops the appended grant clause; each
   candidate row now carries its `repo_id` and DEFINES-linked repository ids,
   and `querycontract.WorkloadGrantAdmitted` (new, `workload_grant.go`,
   replacing the retired `ScopedWorkloadWhereClause`) decides admission in Go.
   The id-lookup stays a `RunSingle` (Workload.id is unique); the name-lookup
   moved from two sequential `RunSingle` calls (SKIP/LIMIT 1) to one bounded
-  `Run` (`traceWorkloadSelectorCandidateBound = 50`), because deciding the
+  `Run` (`workloadSelectorCandidateBound = 50`), because deciding the
   grant in Go means the raw row order is no longer pre-filtered to granted
   rows only -- a plain first/second-row compare could miss a granted
   duplicate sitting behind ungranted rows. Exceeding the bound fails closed
-  (`errTraceWorkloadSelectorCandidatesExceedBound`) rather than silently
+  (`errWorkloadSelectorCandidatesExceedBound`) rather than silently
   deciding ambiguity from a possibly-truncated page.
 
 `querycontract.WorkloadScopePredicate` (the SHAPE-A single-line `IN`
@@ -115,8 +115,8 @@ what matters):
 | --- | --- | --- | --- |
 | `GetEntityContext` (in-grant entity) | 1.00ms | 0.70ms | -30% (dropping the EXISTS subquery) |
 | `GetWorkloadContext` -> `FetchWorkloadContextForOperation` (in-grant workload) | 2.99ms | 0.56ms | -81% (dropping the OR/EXISTS group) |
-| `ResolveTraceWorkloadSelector` (id lookup) | 0.32ms | 0.27ms | -16% |
-| `ResolveTraceWorkloadSelector` (name lookup) | 0.32ms | 0.49ms | +53% (bounded batch read + `OPTIONAL MATCH`/`collect` replaces an unbounded-but-incorrect single-row read; still sub-millisecond, and this path only runs when the id lookup misses) |
+| `ResolveWorkloadSelector` (id lookup) | 0.32ms | 0.27ms | -16% |
+| `ResolveWorkloadSelector` (name lookup) | 0.32ms | 0.49ms | +53% (bounded batch read + `OPTIONAL MATCH`/`collect` replaces an unbounded-but-incorrect single-row read; still sub-millisecond, and this path only runs when the id lookup misses) |
 
 No index or schema change. The one measurable regression (name-lookup path,
 +0.17ms) is accepted: it is the direct, necessary cost of closing the P0
@@ -182,14 +182,14 @@ all fixed here, TDD, with live re-proof:
   (queryselector/entity_repo_identity_test.go) updated to pin the new shape.
 - **F3 (P2-blocking, defense-in-depth parity):** the entity route's row-id
   equality guard had no equivalent on the workload selector or workload
-  context paths. Added: `ResolveTraceWorkloadSelector`'s id-lookup now
+  context paths. Added: `ResolveWorkloadSelector`'s id-lookup now
   requires the row's own `id` to equal the selector;
   `admittedWorkloadCandidates` (its name-lookup path) drops any row whose
   `name` differs from the selector; `FetchWorkloadContextForOperation`
   rejects a base row whose anchored `id`/`name` does not equal the resolved
   selector (including the OR-combined `w.name = $service_name OR
   w.id = $service_name` shape `serviceLookupWhereClause` exercises). Unit
-  regressions with mismatched fake rows in impact_trace_workload_selection_test.go
+  regressions with mismatched fake rows in workload_selection_test.go
   and workload_repository_selection_test.go (via `FetchWorkloadContextForOperation`
   callers).
 - **F4 (P2-blocking, repo MUST rule):** `AssertCypherHasNoBrokenAndOr` had no
@@ -206,10 +206,10 @@ all fixed here, TDD, with live re-proof:
   `returned_entity_id` and `requested_selector`/`returned_id`/`returned_name`
   respectively, both tagged `reason=backend_anchor_mismatch`. Ordinary grant
   denials (the common, expected case) still log nothing, to avoid noise. The
-  originally-deferred counter and `ResolveTraceWorkloadSelector` logger are
+  originally-deferred counter and `ResolveWorkloadSelector` logger are
   closed in R2-4 below.
 - **R2-4 (telemetry, round-2 follow-up):** closed F5's deferral.
-  `ResolveTraceWorkloadSelector` now takes `logger *slog.Logger` and
+  `ResolveWorkloadSelector` now takes `logger *slog.Logger` and
   `instruments *telemetry.Instruments` (both nil-tolerant); its F3 guards
   (id-lookup row-identity mismatch, name-lookup row-identity mismatch) emit
   the same `reason=backend_anchor_mismatch` `Warn` the entity-family guards
@@ -236,9 +236,9 @@ all fixed here, TDD, with live re-proof:
   (`fetchWorkloadContext`), `service_context` (`GetServiceContext`),
   `service_story` (`GetServiceStory`), `service_investigation`
   (`InvestigateService`), `deployment_trace` (`fetchServiceTraceContext`),
-  and `deployment_trace_selector` (`ResolveTraceWorkloadSelector`'s own
+  and `deployment_trace_selector` (`ResolveWorkloadSelector`'s own
   internal constant, pinned by R3-2's
-  `TestResolveTraceWorkloadSelectorOperationLabel`). Emission helpers:
+  `TestResolveWorkloadSelectorOperationLabel`). Emission helpers:
   `entity.Handler.recordScopedGrantDenied`
   (`entity/scoped_grant_telemetry.go`) and the package-level
   `impacttrace.recordScopedGrantDenied`
@@ -246,7 +246,7 @@ all fixed here, TDD, with live re-proof:
   three Go-side grant-decision seams this PR owns: `GetEntityContext`'s
   anchor-mismatch guard and final grant check, `FetchWorkloadContextForOperation`'s
   anchor-mismatch guard and fail-closed check, and
-  `ResolveTraceWorkloadSelector`'s id-lookup and name-lookup stages (the
+  `ResolveWorkloadSelector`'s id-lookup and name-lookup stages (the
   latter split into `backend_anchor_mismatch` when any row's own name
   disagreed with the selector, vs. `grant_denied` when every row's name
   matched but none was grant-admitted).
@@ -256,7 +256,7 @@ all fixed here, TDD, with live re-proof:
   metric (via an OTEL `sdkmetric.ManualReader`, not a mock) and the emitted
   `Warn` text, for both reasons at each seam; one, mutation-proven RED/GREEN
   by temporarily removing the emission call
-  (`TestResolveTraceWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry`).
+  (`TestResolveWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry`).
   Documented in `go/internal/telemetry/README.md`, as a compact entry in
   the Data-Plane Core table in `docs/public/reference/telemetry/metrics.md`
   (not grandfathered, had headroom; `index.md` did not, see below), and
@@ -291,7 +291,7 @@ all fixed here, TDD, with live re-proof:
   passed through by `FetchWorkloadContextForOperation`'s callers). Corrected
   to the actual closed set above, with two new pinning tests
   (`TestQueryScopedGrantDeniedOperationValues`,
-  `TestResolveTraceWorkloadSelectorOperationLabel`).
+  `TestResolveWorkloadSelectorOperationLabel`).
 
 ## Observability Evidence:
 

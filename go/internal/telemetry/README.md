@@ -248,7 +248,7 @@ when the reducer has a graph orphan observer.
 | `WebhookTriggerDecisions` | `eshu_dp_webhook_trigger_decisions_total` |
 | `WebhookStoreOperations` | `eshu_dp_webhook_store_operations_total` |
 | `QueryScopeGrantInlineCapped` | `eshu_dp_query_scope_grant_inline_capped_total` |
-| `QueryScopedGrantDenied` | `eshu_dp_query_scoped_grant_denied_total` (labels: `operation`, `reason` = `grant_denied` \| `backend_anchor_mismatch`; #6786 R2-4 Go-side scoped-grant decision seams in entity/handler.go, entity/workload_context.go, impacttrace/impact_trace_workload_selection.go) |
+| `QueryScopedGrantDenied` | `eshu_dp_query_scoped_grant_denied_total` (labels: `operation`, `reason` = `grant_denied` \| `backend_anchor_mismatch`; #6786 R2-4 Go-side scoped-grant decision seams in entity/handler.go, entity/workload_context.go, impacttrace/workload_selection.go) |
 
 `DriftUnresolvedModuleCalls` uses
 `MetricDimensionDriftUnresolvedModuleReason` with the bounded reasons

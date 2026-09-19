@@ -155,8 +155,8 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	if impact.ContractImpactCapability != "platform_impact.contract_impact" {
 		t.Fatalf("ContractImpactCapability = %q", impact.ContractImpactCapability)
 	}
-	if !errors.Is(impact.ErrAmbiguousTraceWorkloadSelector, impacttrace.ErrAmbiguousTraceWorkloadSelector) {
-		t.Fatal("ErrAmbiguousTraceWorkloadSelector != impacttrace.ErrAmbiguousTraceWorkloadSelector")
+	if !errors.Is(impact.ErrAmbiguousTraceWorkloadSelector, impacttrace.ErrAmbiguousWorkloadSelector) {
+		t.Fatal("ErrAmbiguousTraceWorkloadSelector != impacttrace.ErrAmbiguousWorkloadSelector")
 	}
 
 	// Renamed ImpactHandler methods resolve and behave.

@@ -58,7 +58,7 @@ func (h *Handler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r 
 	}
 	ctx, err := h.traceContext().FetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, h.Instruments, selector, TraceEnrichmentConfig{MaxDepth: 4})
 	if err != nil {
-		if errors.Is(err, impacttrace.ErrAmbiguousTraceWorkloadSelector) {
+		if errors.Is(err, impacttrace.ErrAmbiguousWorkloadSelector) {
 			querycontract.WriteError(w, http.StatusConflict, err.Error())
 			return
 		}

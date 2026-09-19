@@ -72,12 +72,12 @@ func attrString(t *testing.T, dp metricdata.DataPoint[int64], dimensionKey strin
 	return got.AsString()
 }
 
-// TestResolveTraceWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry is
+// TestResolveWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry is
 // the #6786 R2-4 proof for the id-lookup F3 guard: a row whose own id
 // disagrees with the selector must both Warn-log and count
 // reason=backend_anchor_mismatch, the operator-visible signal for a NornicDB
 // anchor regression, not merely fall through silently.
-func TestResolveTraceWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry(t *testing.T) {
+func TestResolveWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry(t *testing.T) {
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
@@ -91,12 +91,12 @@ func TestResolveTraceWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry(t *t
 		return nil, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(t.Context(), graph, "workload:requested", logger, instruments)
+	got, err := ResolveWorkloadSelector(t.Context(), graph, "workload:requested", logger, instruments)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 	if got != "" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want not-found", got)
+		t.Fatalf("ResolveWorkloadSelector() = %q, want not-found", got)
 	}
 
 	if !strings.Contains(logBuf.String(), "backend_anchor_mismatch") {
@@ -115,11 +115,11 @@ func TestResolveTraceWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry(t *t
 	}
 }
 
-// TestResolveTraceWorkloadSelectorOutOfGrantIDEmitsGrantDeniedTelemetry is
+// TestResolveWorkloadSelectorOutOfGrantIDEmitsGrantDeniedTelemetry is
 // the ordinary-denial half: an exact id match that the grant does not admit
 // must count reason=grant_denied (not backend_anchor_mismatch, and no Warn --
 // this is expected scoped-caller behavior, not a backend regression signal).
-func TestResolveTraceWorkloadSelectorOutOfGrantIDEmitsGrantDeniedTelemetry(t *testing.T) {
+func TestResolveWorkloadSelectorOutOfGrantIDEmitsGrantDeniedTelemetry(t *testing.T) {
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
@@ -133,12 +133,12 @@ func TestResolveTraceWorkloadSelectorOutOfGrantIDEmitsGrantDeniedTelemetry(t *te
 		return nil, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), graph, "workload:out-of-grant", logger, instruments)
+	got, err := ResolveWorkloadSelector(scopedAuthContext("repo-a"), graph, "workload:out-of-grant", logger, instruments)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 	if got != "" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want not-found", got)
+		t.Fatalf("ResolveWorkloadSelector() = %q, want not-found", got)
 	}
 
 	if strings.Contains(logBuf.String(), "backend_anchor_mismatch") {
@@ -154,10 +154,10 @@ func TestResolveTraceWorkloadSelectorOutOfGrantIDEmitsGrantDeniedTelemetry(t *te
 	}
 }
 
-// TestResolveTraceWorkloadSelectorSurvivesNilTelemetry pins that both
+// TestResolveWorkloadSelectorSurvivesNilTelemetry pins that both
 // telemetry parameters are optional: a caller that has not wired the full
 // stack (every other test in this package) must not panic.
-func TestResolveTraceWorkloadSelectorSurvivesNilTelemetry(t *testing.T) {
+func TestResolveWorkloadSelectorSurvivesNilTelemetry(t *testing.T) {
 	t.Parallel()
 
 	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -167,18 +167,18 @@ func TestResolveTraceWorkloadSelectorSurvivesNilTelemetry(t *testing.T) {
 		return nil, nil
 	}}
 
-	if _, err := ResolveTraceWorkloadSelector(t.Context(), graph, "workload:requested", nil, nil); err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+	if _, err := ResolveWorkloadSelector(t.Context(), graph, "workload:requested", nil, nil); err != nil {
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
-	if _, err := ResolveTraceWorkloadSelector(t.Context(), graph, "workload:requested", nil, &telemetry.Instruments{}); err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+	if _, err := ResolveWorkloadSelector(t.Context(), graph, "workload:requested", nil, &telemetry.Instruments{}); err != nil {
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 }
 
-// TestResolveTraceWorkloadSelectorOperationLabel is the #6786 R3-2 review
+// TestResolveWorkloadSelectorOperationLabel is the #6786 R3-2 review
 // follow-up: it pins QueryScopedGrantDenied's operation label for this
 // package's one emission seam at "deployment_trace_selector" --
-// ResolveTraceWorkloadSelector's own internal constant, NOT
+// ResolveWorkloadSelector's own internal constant, NOT
 // "resolve_trace_workload_selector" (the name the metric's doc comment
 // incorrectly listed before this fix) and NOT "deployment_trace" (the
 // distinct operation its caller separately passes to the follow-up
@@ -186,7 +186,7 @@ func TestResolveTraceWorkloadSelectorSurvivesNilTelemetry(t *testing.T) {
 // family_impact_trace_deployment.go). A rename of the internal constant
 // without updating go/internal/telemetry/instruments.go's documented
 // operation set fails this test.
-func TestResolveTraceWorkloadSelectorOperationLabel(t *testing.T) {
+func TestResolveWorkloadSelectorOperationLabel(t *testing.T) {
 	t.Parallel()
 
 	instruments, reader := newTestInstruments(t)
@@ -197,9 +197,9 @@ func TestResolveTraceWorkloadSelectorOperationLabel(t *testing.T) {
 		return nil, nil
 	}}
 
-	_, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), graph, "workload:out-of-grant", nil, instruments)
+	_, err := ResolveWorkloadSelector(scopedAuthContext("repo-a"), graph, "workload:out-of-grant", nil, instruments)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 
 	points := scopedGrantDeniedDataPoints(t, reader)

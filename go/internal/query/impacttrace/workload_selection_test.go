@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
-func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
+func TestResolveWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -35,9 +35,9 @@ func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 		}
 	}}
 
-	_, err := ResolveTraceWorkloadSelector(t.Context(), reader, "orders", nil, nil)
-	if !errors.Is(err, errAmbiguousTraceWorkloadSelector) {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want ambiguity", err)
+	_, err := ResolveWorkloadSelector(t.Context(), reader, "orders", nil, nil)
+	if !errors.Is(err, errAmbiguousWorkloadSelector) {
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want ambiguity", err)
 	}
 }
 
@@ -67,7 +67,7 @@ func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 // TestNormalizeTraceDeploymentChainMaxDepth for the clamp's own boundary
 // behavior, proven directly against the extracted pure function.
 
-func TestResolveTraceWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
+func TestResolveWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -78,18 +78,18 @@ func TestResolveTraceWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
 		return []map[string]any{{"id": "workload:orders"}}, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "workload:orders", nil, nil)
+	got, err := ResolveWorkloadSelector(t.Context(), reader, "workload:orders", nil, nil)
 	if err != nil || got != "workload:orders" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want exact workload id", got, err)
+		t.Fatalf("ResolveWorkloadSelector() = %q, %v, want exact workload id", got, err)
 	}
 }
 
-// TestResolveTraceWorkloadSelectorIDRowMismatchIsNotTrusted is the #6786
+// TestResolveWorkloadSelectorIDRowMismatchIsNotTrusted is the #6786
 // review follow-up (F3): a row whose own id differs from the requested
 // selector must never be trusted as an answer, even if the row itself would
 // otherwise be grant-admitted -- it falls through to the name lookup
 // (finding nothing here) rather than returning a different workload's id.
-func TestResolveTraceWorkloadSelectorIDRowMismatchIsNotTrusted(t *testing.T) {
+func TestResolveWorkloadSelectorIDRowMismatchIsNotTrusted(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -101,19 +101,19 @@ func TestResolveTraceWorkloadSelectorIDRowMismatchIsNotTrusted(t *testing.T) {
 		}
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "workload:requested", nil, nil)
+	got, err := ResolveWorkloadSelector(t.Context(), reader, "workload:requested", nil, nil)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 	if got != "" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want not-found for a row whose id does not match the selector", got)
+		t.Fatalf("ResolveWorkloadSelector() = %q, want not-found for a row whose id does not match the selector", got)
 	}
 }
 
-// TestResolveTraceWorkloadSelectorNameRowMismatchIsNotTrusted is the
+// TestResolveWorkloadSelectorNameRowMismatchIsNotTrusted is the
 // name-lookup half of F3: a name-query row whose own name differs from the
 // selector must be dropped even if it is grant-admitted.
-func TestResolveTraceWorkloadSelectorNameRowMismatchIsNotTrusted(t *testing.T) {
+func TestResolveWorkloadSelectorNameRowMismatchIsNotTrusted(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -127,12 +127,12 @@ func TestResolveTraceWorkloadSelectorNameRowMismatchIsNotTrusted(t *testing.T) {
 		}
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(t.Context(), reader, "orders", nil, nil)
+	got, err := ResolveWorkloadSelector(t.Context(), reader, "orders", nil, nil)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 	if got != "" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want not-found for a name-query row whose name does not match the selector", got)
+		t.Fatalf("ResolveWorkloadSelector() = %q, want not-found for a name-query row whose name does not match the selector", got)
 	}
 }
 
@@ -146,13 +146,13 @@ func scopedAuthContext(allowedRepositoryIDs ...string) context.Context {
 	})
 }
 
-// TestResolveTraceWorkloadSelectorScopedOutOfGrantIDReturnsNotFound is the
+// TestResolveWorkloadSelectorScopedOutOfGrantIDReturnsNotFound is the
 // #6786 regression: a scoped caller's exact-id selector for a workload it has
 // no grant to must resolve to "" (not found), never to a different,
 // unrelated workload the caller happens to be granted -- the failure this
 // package's retired Cypher-embedded grant predicate produced on NornicDB
 // v1.3.3.
-func TestResolveTraceWorkloadSelectorScopedOutOfGrantIDReturnsNotFound(t *testing.T) {
+func TestResolveWorkloadSelectorScopedOutOfGrantIDReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -165,18 +165,18 @@ func TestResolveTraceWorkloadSelectorScopedOutOfGrantIDReturnsNotFound(t *testin
 		return nil, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:out-of-grant", nil, nil)
+	got, err := ResolveWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:out-of-grant", nil, nil)
 	if err != nil {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want nil", err)
 	}
 	if got != "" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, want not-found for an ungranted workload id", got)
+		t.Fatalf("ResolveWorkloadSelector() = %q, want not-found for an ungranted workload id", got)
 	}
 }
 
-// TestResolveTraceWorkloadSelectorScopedDirectGrantAdmits proves the direct
+// TestResolveWorkloadSelectorScopedDirectGrantAdmits proves the direct
 // admission route: the workload's own materialized repo_id is granted.
-func TestResolveTraceWorkloadSelectorScopedDirectGrantAdmits(t *testing.T) {
+func TestResolveWorkloadSelectorScopedDirectGrantAdmits(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -189,16 +189,16 @@ func TestResolveTraceWorkloadSelectorScopedDirectGrantAdmits(t *testing.T) {
 		return nil, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:in-grant", nil, nil)
+	got, err := ResolveWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:in-grant", nil, nil)
 	if err != nil || got != "workload:in-grant" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want workload:in-grant", got, err)
+		t.Fatalf("ResolveWorkloadSelector() = %q, %v, want workload:in-grant", got, err)
 	}
 }
 
-// TestResolveTraceWorkloadSelectorScopedDefinesGrantAdmits proves the
+// TestResolveWorkloadSelectorScopedDefinesGrantAdmits proves the
 // name-collision admission route: the workload's own repo_id names an
 // ungranted repository, but a granted repository DEFINES it.
-func TestResolveTraceWorkloadSelectorScopedDefinesGrantAdmits(t *testing.T) {
+func TestResolveWorkloadSelectorScopedDefinesGrantAdmits(t *testing.T) {
 	t.Parallel()
 
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -211,20 +211,20 @@ func TestResolveTraceWorkloadSelectorScopedDefinesGrantAdmits(t *testing.T) {
 		return nil, nil
 	}}
 
-	got, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:collision", nil, nil)
+	got, err := ResolveWorkloadSelector(scopedAuthContext("repo-a"), reader, "workload:collision", nil, nil)
 	if err != nil || got != "workload:collision" {
-		t.Fatalf("ResolveTraceWorkloadSelector() = %q, %v, want workload:collision (DEFINES-admitted)", got, err)
+		t.Fatalf("ResolveWorkloadSelector() = %q, %v, want workload:collision (DEFINES-admitted)", got, err)
 	}
 }
 
-// TestResolveTraceWorkloadSelectorCandidateBoundFailsClosed proves the
-// fail-closed behavior documented on traceWorkloadSelectorCandidateBound: a
+// TestResolveWorkloadSelectorCandidateBoundFailsClosed proves the
+// fail-closed behavior documented on workloadSelectorCandidateBound: a
 // name-lookup page that reaches the bound is reported as an error rather than
 // silently deciding admission/ambiguity from a possibly-truncated page.
-func TestResolveTraceWorkloadSelectorCandidateBoundFailsClosed(t *testing.T) {
+func TestResolveWorkloadSelectorCandidateBoundFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	overBound := make([]map[string]any, traceWorkloadSelectorCandidateBound+1)
+	overBound := make([]map[string]any, workloadSelectorCandidateBound+1)
 	for i := range overBound {
 		overBound[i] = map[string]any{"id": "workload:dup", "repo_id": "repo-a", "defining": []string{}}
 	}
@@ -236,9 +236,9 @@ func TestResolveTraceWorkloadSelectorCandidateBoundFailsClosed(t *testing.T) {
 		return overBound, nil
 	}}
 
-	_, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), reader, "orders", nil, nil)
-	if !errors.Is(err, errTraceWorkloadSelectorCandidatesExceedBound) {
-		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want candidate-bound error", err)
+	_, err := ResolveWorkloadSelector(scopedAuthContext("repo-a"), reader, "orders", nil, nil)
+	if !errors.Is(err, errWorkloadSelectorCandidatesExceedBound) {
+		t.Fatalf("ResolveWorkloadSelector() error = %v, want candidate-bound error", err)
 	}
 }
 

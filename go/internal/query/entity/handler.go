@@ -67,8 +67,8 @@ func (h *Handler) profile() querycontract.QueryProfile {
 	return querycontract.NormalizeQueryProfile(string(h.Profile))
 }
 
-// ResolveEntityRequest is the request body for entity resolution.
-type ResolveEntityRequest struct {
+// ResolveRequest is the request body for entity resolution.
+type ResolveRequest struct {
 	Name   string `json:"name"`
 	Type   string `json:"type"`
 	RepoID string `json:"repo_id"`
@@ -77,7 +77,7 @@ type ResolveEntityRequest struct {
 
 const serviceLookupWhereClause = "w.name = $service_name OR w.id = $service_name" // #nosec G101 -- Cypher parameterised query template, not a hardcoded credential
 
-// BuildResolveEntityGraphQuery renders the repository-anchored entity
+// BuildResolveGraphQuery renders the repository-anchored entity
 // resolution Cypher for req, or ("", nil) when req carries no RepoID: global
 // resolution never touches the graph. Exported for the staying queryplan
 // production-binding tests that pin builder bytes; see #6060.
@@ -92,8 +92,8 @@ const serviceLookupWhereClause = "w.name = $service_name OR w.id = $service_name
 // clause elsewhere in this file, just never executed here. Removed rather
 // than left as inert bait for a future edit to "fix" the early return and
 // revive it.
-func BuildResolveEntityGraphQuery(
-	req ResolveEntityRequest,
+func BuildResolveGraphQuery(
+	req ResolveRequest,
 	limit int,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
@@ -132,7 +132,7 @@ func BuildResolveEntityGraphQuery(
 
 // ResolveEntity resolves an entity by name and optional type/repo filters. Exported so the staying root resolve tests keep driving the handler; see #6060.
 func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
-	var req ResolveEntityRequest
+	var req ResolveRequest
 	if err := querycontract.ReadJSON(r, &req); err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -211,7 +211,7 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cypher, params := BuildResolveEntityGraphQuery(req, limit, access)
+	cypher, params := BuildResolveGraphQuery(req, limit, access)
 
 	var (
 		rows []map[string]any

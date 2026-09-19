@@ -14,26 +14,26 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-var errAmbiguousTraceWorkloadSelector = errors.New("deployment trace workload selector is ambiguous")
+var errAmbiguousWorkloadSelector = errors.New("deployment trace workload selector is ambiguous")
 
-// ErrAmbiguousTraceWorkloadSelector is the exported form of
-// errAmbiguousTraceWorkloadSelector: the impact package matches it with
+// ErrAmbiguousWorkloadSelector is the exported form of
+// errAmbiguousWorkloadSelector: the impact package matches it with
 // errors.Is from outside this package. See #6060.
-var ErrAmbiguousTraceWorkloadSelector = errAmbiguousTraceWorkloadSelector
+var ErrAmbiguousWorkloadSelector = errAmbiguousWorkloadSelector
 
-// errTraceWorkloadSelectorCandidatesExceedBound is returned when a name-based
+// errWorkloadSelectorCandidatesExceedBound is returned when a name-based
 // selector lookup finds more candidate rows than
-// traceWorkloadSelectorCandidateBound. See that constant's doc comment for
+// workloadSelectorCandidateBound. See that constant's doc comment for
 // why this fails closed rather than silently working from a truncated page.
-var errTraceWorkloadSelectorCandidatesExceedBound = errors.New("deployment trace workload selector candidates exceed bound")
+var errWorkloadSelectorCandidatesExceedBound = errors.New("deployment trace workload selector candidates exceed bound")
 
-// traceWorkloadSelectorCandidateBound caps how many Workload rows a
+// workloadSelectorCandidateBound caps how many Workload rows a
 // name-based selector lookup reads before deciding admission and ambiguity in
 // Go. It mirrors the order of magnitude FetchWorkloadRepositoryForAccess
 // (entity/workload_context.go) uses for its own DEFINES candidate bound.
 //
 // The bound matters because the grant is now decided in Go rather than in the
-// Cypher WHERE (see ResolveTraceWorkloadSelector's doc comment): the retired
+// Cypher WHERE (see ResolveWorkloadSelector's doc comment): the retired
 // implementation compared only the first two name-matching rows (SKIP 1
 // LIMIT 1), which was safe only because the Cypher WHERE had already
 // filtered to the caller's granted rows -- position 1 and 2 were guaranteed
@@ -45,12 +45,12 @@ var errTraceWorkloadSelectorCandidatesExceedBound = errors.New("deployment trace
 // filter) row count reaches it, more candidates may exist beyond what was
 // read, and admission/ambiguity decided from a truncated page could silently
 // drop a granted duplicate that would have made the selector ambiguous.
-// ResolveTraceWorkloadSelector reports
-// errTraceWorkloadSelectorCandidatesExceedBound in that case rather than
+// ResolveWorkloadSelector reports
+// errWorkloadSelectorCandidatesExceedBound in that case rather than
 // guessing.
-const traceWorkloadSelectorCandidateBound = 50
+const workloadSelectorCandidateBound = 50
 
-// ResolveTraceWorkloadSelector resolves selector (a Workload id or name) to
+// ResolveWorkloadSelector resolves selector (a Workload id or name) to
 // the caller's granted Workload id for the deployment-trace impact route, or
 // ("", nil) when nothing matches or the caller has no grant at all.
 //
@@ -72,7 +72,7 @@ const traceWorkloadSelectorCandidateBound = 50
 // same counter with `reason=grant_denied`. See
 // go/internal/query/entity/scoped_grant_telemetry.go for the sibling
 // emission seam this mirrors.
-func ResolveTraceWorkloadSelector(
+func ResolveWorkloadSelector(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
 	selector string,
@@ -116,7 +116,7 @@ func ResolveTraceWorkloadSelector(
 		}
 	}
 
-	nameRows, err := reader.Run(ctx, fmt.Sprintf("%s\nLIMIT %d", workloadSelectorRowCypher("w.name = $service_name"), traceWorkloadSelectorCandidateBound+1), params)
+	nameRows, err := reader.Run(ctx, fmt.Sprintf("%s\nLIMIT %d", workloadSelectorRowCypher("w.name = $service_name"), workloadSelectorCandidateBound+1), params)
 	if err != nil {
 		return "", err
 	}
@@ -141,7 +141,7 @@ func ResolveTraceWorkloadSelector(
 		return "", nil
 	}
 	if len(nameAdmitted) > 1 && querycontract.StringVal(nameAdmitted[0], "id") != querycontract.StringVal(nameAdmitted[1], "id") {
-		return "", fmt.Errorf("%w: %q matched at least two workload ids", errAmbiguousTraceWorkloadSelector, selector)
+		return "", fmt.Errorf("%w: %q matched at least two workload ids", errAmbiguousWorkloadSelector, selector)
 	}
 	return querycontract.StringVal(nameAdmitted[0], "id"), nil
 }
@@ -177,18 +177,18 @@ func workloadSelectorRowCypher(whereClause string) string {
 // the multi-line shape NornicDB v1.3.3 was proven to drop, but a backend
 // that ever regressed that anchor must not silently hand back a different,
 // merely-admitted workload's data. It fails closed with
-// errTraceWorkloadSelectorCandidatesExceedBound when rows reached the fetch
+// errWorkloadSelectorCandidatesExceedBound when rows reached the fetch
 // bound, rather than deciding admission/ambiguity from a page that may be
 // missing granted rows past the bound.
 // admittedWorkloadCandidates also reports nameMismatch (#6786 review
 // follow-up, R2-4): true when at least one row's own `name` disagreed with
 // selector, the same F3 backend-anchor-mismatch signal the id-lookup stage
-// reports. ResolveTraceWorkloadSelector logs and counts it as
+// reports. ResolveWorkloadSelector logs and counts it as
 // `backend_anchor_mismatch`; a name-matched row that the grant simply does
 // not admit is counted as an ordinary `grant_denied` instead.
 func admittedWorkloadCandidates(access querycontract.RepositoryAccessFilter, selector string, rows []map[string]any) (admitted []map[string]any, nameMismatch bool, err error) {
-	if len(rows) > traceWorkloadSelectorCandidateBound {
-		return nil, false, fmt.Errorf("%w: %d", errTraceWorkloadSelectorCandidatesExceedBound, len(rows))
+	if len(rows) > workloadSelectorCandidateBound {
+		return nil, false, fmt.Errorf("%w: %d", errWorkloadSelectorCandidatesExceedBound, len(rows))
 	}
 	admitted = make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
