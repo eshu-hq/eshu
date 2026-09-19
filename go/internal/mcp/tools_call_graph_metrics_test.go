@@ -5,36 +5,31 @@ package mcp
 
 import "testing"
 
-// TestCodebaseToolsSplicePreservesIntelPositions pins the long-standing
-// registration positions of the four code-intelligence definitions owned by
-// the code/intel package. The names are literal here, independent of the
-// child's own order, so a reorder of codeinteltools.Tools that would
-// silently move a splice fails this test rather than shifting both sides of
-// the comparison. The import-dependency and security helpers keep their
-// interleaved positions between the splices.
+// TestCodebaseToolsSplicePreservesIntelPositions pins the absolute
+// registration indices of the four code-intelligence definitions owned by
+// the code/intel package, with the interleaved import-dependency and
+// trailing security neighbors. Every name and index is literal here,
+// independent of the child's own order, so a reorder of
+// codeinteltools.Tools or a move of the whole segment fails this test
+// instead of shifting with the code under test.
 func TestCodebaseToolsSplicePreservesIntelPositions(t *testing.T) {
 	t.Parallel()
 
 	codebase := codebaseTools()
-	at := map[string]int{}
-	for i, tool := range codebase {
-		at[tool.Name] = i
+	want := map[int]string{
+		2: "inspect_code_inventory",
+		3: "investigate_import_dependencies",
+		4: "inspect_call_graph_metrics",
+		5: "trace_route_callers",
+		6: "investigate_code_topic",
+		7: "investigate_hardcoded_secrets",
 	}
-	inventory, ok := at["inspect_code_inventory"]
-	if !ok {
-		t.Fatal("inspect_code_inventory not found in codebaseTools()")
-	}
-	for name, want := range map[string]int{
-		"inspect_call_graph_metrics": inventory + 2,
-		"trace_route_callers":        inventory + 3,
-		"investigate_code_topic":     inventory + 4,
-	} {
-		got, ok := at[name]
-		if !ok {
-			t.Fatalf("%q not found in codebaseTools()", name)
+	for index, name := range want {
+		if index >= len(codebase) {
+			t.Fatalf("codebaseTools() has %d tools, want index [%d] = %q", len(codebase), index, name)
 		}
-		if got != want {
-			t.Fatalf("%q at codebaseTools()[%d], want [%d]", name, got, want)
+		if got := codebase[index].Name; got != name {
+			t.Fatalf("codebaseTools()[%d] = %q, want %q", index, got, name)
 		}
 	}
 }
