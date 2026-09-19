@@ -322,7 +322,7 @@ Observability Evidence: `eshu_dp_infra_inventory_reconcile_total{outcome}`
 (`match`, `suspect`, `repaired`, `error`; `error` also counts a failed cycle,
 but never a clean shutdown), `eshu_dp_infra_inventory_reconcile_duration_seconds`
 (failed cycles included), span `reducer.infra_inventory_reconcile` (repos
-checked, suspect, repaired, failed, walk wrapped), logs `infra_inventory.reconcile.drift` (repo_id, content and
+checked, suspect, repaired, failed, and walk wrapped, which is true only when the walk ran and reached the end), logs `infra_inventory.reconcile.drift` (repo_id, content and
 table row counts), `infra_inventory.reconcile.failed`, and
 `infra_inventory.reconcile.cycle_failed`.
 

@@ -9,7 +9,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // fenceGauge returns the last value of an int64 or float64 gauge.
@@ -68,4 +71,30 @@ func TestInfraInventoryReconcileRunnerRecordsFenceGauges(t *testing.T) {
 	require.NoError(t, reader.Collect(context.Background(), &rm))
 	dirty, _ = fenceGauge(t, rm, "eshu_dp_infra_inventory_dirty_repos")
 	require.Equal(t, 0.0, dirty, "the gauge falls to zero once the marks drain")
+}
+
+// TestInfraInventoryReconcileRunnerReportsWalkWrapOnlyWhenTheWalkWrapped pins
+// walk_wrapped to the batch's explicit Wrapped signal. A cycle whose budget
+// went entirely to fence marks and suspects runs no walk and returns an empty
+// NextCursor; that must not read as a completed walk.
+func TestInfraInventoryReconcileRunnerReportsWalkWrapOnlyWhenTheWalkWrapped(t *testing.T) {
+	spans := tracetest.NewSpanRecorder()
+	reconciler := &fakeInfraInventoryReconciler{batches: []InfraInventoryReconcileBatch{
+		{Ready: true, NextCursor: "", Wrapped: false, Repos: []InfraInventoryReconcileRepo{{RepoID: "repo-d", Outcome: "fenced"}}},
+		{Ready: true, NextCursor: "", Wrapped: true},
+	}}
+	runner := &InfraInventoryReconcileRunner{
+		Reconciler: reconciler,
+		Config:     InfraInventoryReconcileRunnerConfig{PollInterval: time.Minute, RepoBudget: 1},
+		Tracer:     sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans)).Tracer("test"),
+	}
+	for range 2 {
+		_, err := runner.RunOnce(context.Background())
+		require.NoError(t, err)
+	}
+	ended := spans.Ended()
+	require.Len(t, ended, 2)
+	require.Contains(t, ended[0].Attributes(), attribute.Bool("eshu.infra_inventory.walk_wrapped", false),
+		"a cycle that ran no walk did not wrap")
+	require.Contains(t, ended[1].Attributes(), attribute.Bool("eshu.infra_inventory.walk_wrapped", true))
 }

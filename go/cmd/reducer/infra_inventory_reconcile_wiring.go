@@ -86,6 +86,7 @@ func (r postgresInfraInventoryReconciler) ReconcileInfraInventory(
 	out := maintenance.InfraInventoryReconcileBatch{
 		Ready:          batch.Ready,
 		NextCursor:     batch.NextCursor,
+		Wrapped:        batch.Wrapped,
 		DirtyRepos:     batch.DirtyRepos,
 		DirtyOldestAge: batch.DirtyOldestAge,
 		Repos:          make([]maintenance.InfraInventoryReconcileRepo, 0, len(batch.Repos)),

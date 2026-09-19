@@ -148,6 +148,11 @@ type ReconcileBatch struct {
 	// (no backfill marker, or the tables do not exist); nothing was checked.
 	Ready bool
 	Repos []RepoReconcile
+	// Wrapped is true only when this cycle's walk ran and reached the end of
+	// the repository list, so the next cycle starts the walk over. A cycle
+	// whose budget went entirely to fence marks and suspects runs no walk and
+	// leaves Wrapped false.
+	Wrapped bool
 	// DirtyRepos and DirtyOldestAge describe the fence marks at the start of
 	// the cycle (ReadFenceState). They are set whether or not Ready is.
 	DirtyRepos     int64
@@ -251,6 +256,7 @@ func ReconcileCycle(ctx context.Context, database db.ExecQueryer, req ReconcileR
 		batch.Repos = append(batch.Repos, reconcileOne(ctx, database, repo, false))
 	}
 	batch.NextCursor = next
+	batch.Wrapped = next == ""
 	return batch, nil
 }
 

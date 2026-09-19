@@ -44,6 +44,10 @@ type InfraInventoryReconcileBatch struct {
 	Ready      bool
 	Repos      []InfraInventoryReconcileRepo
 	NextCursor string
+	// Wrapped is true only when the cycle's walk ran and reached the end of
+	// the repository list. A cycle whose budget went to fence marks and
+	// suspects runs no walk and does not wrap, even with an empty NextCursor.
+	Wrapped bool
 	// DirtyRepos and DirtyOldestAge describe the rolling-upgrade fence marks
 	// at the start of the cycle. They are set whether or not Ready is.
 	DirtyRepos     int64
@@ -210,7 +214,7 @@ func (r *InfraInventoryReconcileRunner) recordBatch(
 		attribute.Int("eshu.infra_inventory.repos_repaired", counts["repaired"]),
 		attribute.Int("eshu.infra_inventory.repos_fenced", counts["fenced"]),
 		attribute.Int("eshu.infra_inventory.repos_failed", counts["error"]),
-		attribute.Bool("eshu.infra_inventory.walk_wrapped", batch.NextCursor == ""),
+		attribute.Bool("eshu.infra_inventory.walk_wrapped", batch.Wrapped),
 	)
 	if r.Logger != nil {
 		r.Logger.InfoContext(ctx, "infra inventory reconcile cycle completed",
@@ -220,7 +224,7 @@ func (r *InfraInventoryReconcileRunner) recordBatch(
 			slog.Int("repos_repaired", counts["repaired"]),
 			slog.Int("repos_fenced", counts["fenced"]),
 			slog.Int("repos_failed", counts["error"]),
-			slog.Bool("walk_wrapped", batch.NextCursor == ""),
+			slog.Bool("walk_wrapped", batch.Wrapped),
 			slog.Float64("duration_seconds", elapsed.Seconds()),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)

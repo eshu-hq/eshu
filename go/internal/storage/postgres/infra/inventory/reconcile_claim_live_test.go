@@ -138,3 +138,38 @@ func TestReconcileCycleLiveReplicasClaimDisjointPages(t *testing.T) {
 		t.Fatalf("stored cursor after the wrapped page = %q, want repo-b", stored)
 	}
 }
+
+// TestReconcileCycleLiveWrapsOnlyWhenTheWalkReachesTheEnd pins
+// ReconcileBatch.Wrapped: a cycle whose whole budget goes to fence marks
+// runs no walk and does not wrap, even though its NextCursor is empty, and a
+// cycle whose walk reaches the end of the repository list does.
+func TestReconcileCycleLiveWrapsOnlyWhenTheWalkReachesTheEnd(t *testing.T) {
+	sqlDB, ctx := isolatedDB(t)
+	database := postgres.SQLDB{DB: sqlDB}
+	recordMarker(t, ctx, database)
+	for _, repo := range []string{"repo-a", "repo-b"} {
+		seedDerivedRepo(t, ctx, database, repo,
+			contentRow{id: "e", path: "main.tf", entityType: "TerraformResource", name: "r"})
+	}
+	if _, err := sqlDB.ExecContext(ctx, `
+INSERT INTO infra_resource_entity_dirty_repos (repo_id, marked_at)
+VALUES ('repo-a', now()), ('repo-b', now())`); err != nil {
+		t.Fatalf("seed marks: %v", err)
+	}
+
+	busy, err := inventory.ReconcileCycle(ctx, database, inventory.ReconcileRequest{Budget: 2, Persist: true})
+	if err != nil {
+		t.Fatalf("busy ReconcileCycle() error = %v", err)
+	}
+	if len(busy.Repos) != 2 || busy.Wrapped {
+		t.Fatalf("busy cycle = %d repos, wrapped=%v; want the 2 fence repairs and no wrap", len(busy.Repos), busy.Wrapped)
+	}
+
+	walk, err := inventory.ReconcileCycle(ctx, database, inventory.ReconcileRequest{Budget: 10, Persist: true})
+	if err != nil {
+		t.Fatalf("walk ReconcileCycle() error = %v", err)
+	}
+	if !walk.Wrapped || walk.NextCursor != "" {
+		t.Fatalf("walk cycle wrapped=%v next=%q; want a wrap after reaching the end", walk.Wrapped, walk.NextCursor)
+	}
+}
