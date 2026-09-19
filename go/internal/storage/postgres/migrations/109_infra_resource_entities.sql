@@ -57,97 +57,164 @@ CREATE TABLE IF NOT EXISTS infra_resource_entity_reconcile_cursor (
     updated_at TIMESTAMPTZ NOT NULL
 );
 
--- Rolling-upgrade fence. Derive-aware binaries mark every connection with
--- SET eshu.infra_inventory_writer = 'derive' (inventory.WriterSessionSQL);
--- their content_entities writes keep this table in step. A write of an
--- infra-typed row from any other connection (an older ingester, projector,
--- or bootstrap-index binary, or manual SQL) marks its repository here in the
--- same statement. Readers trust the table only while this table is empty,
--- and the reducer's reconcile re-derives and clears each marked repository.
--- The upsert takes the mark's row lock until the writer commits, so a repair
--- that clears the mark waits for that write and re-derives its rows.
+-- Rolling-upgrade fence (#6793). Derive-aware binaries mark every connection
+-- with SET eshu.infra_inventory_writer = 'derive' (inventory.WriterSessionSQL,
+-- run by runtime.OpenPostgres); their content_entities writes keep this table
+-- in step. A write of an infra-typed row from any other session (an older
+-- ingester, projector, bootstrap-index, or reducer, or manual SQL) marks its
+-- repository here in the same transaction. Readers trust the table only while
+-- this set is empty; the reducer's reconcile re-derives each marked repository
+-- and clears the mark under the repository lock.
 CREATE TABLE IF NOT EXISTS infra_resource_entity_dirty_repos (
     repo_id   TEXT PRIMARY KEY,
     marked_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE OR REPLACE FUNCTION mark_infra_resource_entity_dirty_repo()
+-- Every mark upsert is lock-only: ON CONFLICT DO UPDATE ... WHERE false takes
+-- an existing mark's row lock until the writer commits, so a repair's DELETE
+-- of that mark waits for the write and its re-derive reads the rows, but the
+-- row is never rewritten, so a large unaware write leaves no dead tuples.
+-- DO NOTHING takes no lock and would let a repair clear a mark under an open
+-- unaware write. marked_at therefore means "first marked".
+--
+-- The label arrays below must equal inventory.Labels;
+-- TestInfraInventoryFenceTriggerLabels pins all four.
+CREATE OR REPLACE FUNCTION infra_resource_entities_mark_dirty_inserted()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    IF TG_OP IN ('INSERT', 'UPDATE') THEN
-        INSERT INTO infra_resource_entity_dirty_repos (repo_id, marked_at)
-        VALUES (NEW.repo_id, clock_timestamp())
-        ON CONFLICT (repo_id) DO UPDATE SET marked_at = EXCLUDED.marked_at;
-    END IF;
-    IF TG_OP IN ('UPDATE', 'DELETE') THEN
-        INSERT INTO infra_resource_entity_dirty_repos (repo_id, marked_at)
-        VALUES (OLD.repo_id, clock_timestamp())
-        ON CONFLICT (repo_id) DO UPDATE SET marked_at = EXCLUDED.marked_at;
-    END IF;
+    -- Deduplicate before stamping the time: clock_timestamp() differs per
+    -- row, so DISTINCT over (repo_id, clock_timestamp()) would keep every row
+    -- and the upsert would hit one repository twice (SQLSTATE 21000).
+    INSERT INTO infra_resource_entity_dirty_repos AS dirty (repo_id, marked_at)
+    SELECT touched.repo_id, clock_timestamp()
+    FROM (
+        SELECT DISTINCT repo_id FROM new_rows
+        WHERE entity_type = ANY (ARRAY[
+        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
+        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
+        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
+        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
+        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
+        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
+        'HelmChart', 'HelmValues']::text[])
+    ) AS touched
+    ON CONFLICT (repo_id) DO UPDATE SET marked_at = dirty.marked_at WHERE false;
     RETURN NULL;
 END;
 $$;
 
--- The WHEN clauses list inventory.Labels; TestInfraInventoryFenceTriggerLabels
--- pins the three lists to it. A derive-aware writer's rows fail the first
--- predicate, so they never call the function.
-DROP TRIGGER IF EXISTS content_entities_infra_fence_insert ON content_entities;
-CREATE TRIGGER content_entities_infra_fence_insert
+-- UPDATE marks the old and the new repository of every row that is infra
+-- typed before or after the statement, so a row moving into or out of a
+-- label, or between repositories, dirties both sides.
+CREATE OR REPLACE FUNCTION infra_resource_entities_mark_dirty_updated()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO infra_resource_entity_dirty_repos AS dirty (repo_id, marked_at)
+    SELECT touched.repo_id, clock_timestamp()
+    FROM (
+        SELECT repo_id FROM new_rows WHERE entity_type = ANY (ARRAY[
+        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
+        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
+        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
+        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
+        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
+        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
+        'HelmChart', 'HelmValues']::text[])
+        UNION
+        SELECT repo_id FROM old_rows WHERE entity_type = ANY (ARRAY[
+        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
+        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
+        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
+        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
+        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
+        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
+        'HelmChart', 'HelmValues']::text[])
+    ) AS touched
+    ON CONFLICT (repo_id) DO UPDATE SET marked_at = dirty.marked_at WHERE false;
+    RETURN NULL;
+END;
+$$;
+
+-- DELETE is row-level; the trigger's WHEN already filtered the label.
+CREATE OR REPLACE FUNCTION infra_resource_entities_mark_dirty_deleted()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO infra_resource_entity_dirty_repos AS dirty (repo_id, marked_at)
+    VALUES (OLD.repo_id, clock_timestamp())
+    ON CONFLICT (repo_id) DO UPDATE SET marked_at = dirty.marked_at WHERE false;
+    RETURN NULL;
+END;
+$$;
+
+-- TRUNCATE has no row events. After a truncate by anyone every mirrored
+-- repository is wrong, so it marks every repository the table holds and is
+-- not session-gated. No production path truncates content_entities.
+CREATE OR REPLACE FUNCTION infra_resource_entities_mark_all_dirty()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO infra_resource_entity_dirty_repos (repo_id, marked_at)
+    SELECT repos.repo_id, clock_timestamp()
+    FROM (SELECT DISTINCT repo_id FROM infra_resource_entities) AS repos
+    ON CONFLICT (repo_id) DO NOTHING;
+    RETURN NULL;
+END;
+$$;
+
+-- INSERT and UPDATE are statement-level with transition tables: the WHEN is
+-- evaluated once per statement, so a derive-aware session pays nothing per
+-- row, and an unaware statement takes each mark lock once instead of once per
+-- row. An INSERT ... ON CONFLICT DO UPDATE fires both: inserted rows land in
+-- the INSERT trigger's new_rows, updated rows in the UPDATE trigger's.
+-- Transition tables forbid an UPDATE OF column list, so the UPDATE trigger
+-- fires on every unaware UPDATE statement and its body filters by label.
+DROP TRIGGER IF EXISTS content_entities_infra_dirty_insert ON content_entities;
+CREATE TRIGGER content_entities_infra_dirty_insert
 AFTER INSERT ON content_entities
-FOR EACH ROW
-WHEN (
-    current_setting('eshu.infra_inventory_writer', true) IS DISTINCT FROM 'derive'
-    AND NEW.entity_type IN (
-        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
-        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
-        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
-        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
-        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
-        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
-        'HelmChart', 'HelmValues')
-)
-EXECUTE FUNCTION mark_infra_resource_entity_dirty_repo();
+REFERENCING NEW TABLE AS new_rows
+FOR EACH STATEMENT
+WHEN (current_setting('eshu.infra_inventory_writer', true) IS DISTINCT FROM 'derive')
+EXECUTE FUNCTION infra_resource_entities_mark_dirty_inserted();
 
-DROP TRIGGER IF EXISTS content_entities_infra_fence_update ON content_entities;
-CREATE TRIGGER content_entities_infra_fence_update
+DROP TRIGGER IF EXISTS content_entities_infra_dirty_update ON content_entities;
+CREATE TRIGGER content_entities_infra_dirty_update
 AFTER UPDATE ON content_entities
-FOR EACH ROW
-WHEN (
-    current_setting('eshu.infra_inventory_writer', true) IS DISTINCT FROM 'derive'
-    AND (NEW.entity_type IN (
-        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
-        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
-        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
-        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
-        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
-        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
-        'HelmChart', 'HelmValues')
-    OR OLD.entity_type IN (
-        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
-        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
-        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
-        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
-        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
-        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
-        'HelmChart', 'HelmValues'))
-)
-EXECUTE FUNCTION mark_infra_resource_entity_dirty_repo();
+REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows
+FOR EACH STATEMENT
+WHEN (current_setting('eshu.infra_inventory_writer', true) IS DISTINCT FROM 'derive')
+EXECUTE FUNCTION infra_resource_entities_mark_dirty_updated();
 
-DROP TRIGGER IF EXISTS content_entities_infra_fence_delete ON content_entities;
-CREATE TRIGGER content_entities_infra_fence_delete
+-- DELETE is row-level: a retention prune deletes tens of thousands of wide
+-- rows in one statement, and a transition table would copy every one of them
+-- in every session, whereas a false row-level WHEN queues no event. The
+-- session test comes first so a derive-aware session never evaluates the
+-- label array.
+DROP TRIGGER IF EXISTS content_entities_infra_dirty_delete ON content_entities;
+CREATE TRIGGER content_entities_infra_dirty_delete
 AFTER DELETE ON content_entities
 FOR EACH ROW
 WHEN (
     current_setting('eshu.infra_inventory_writer', true) IS DISTINCT FROM 'derive'
-    AND OLD.entity_type IN (
+    AND OLD.entity_type = ANY (ARRAY[
         'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
         'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
         'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
         'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
         'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
         'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
-        'HelmChart', 'HelmValues')
+        'HelmChart', 'HelmValues']::text[])
 )
-EXECUTE FUNCTION mark_infra_resource_entity_dirty_repo();
+EXECUTE FUNCTION infra_resource_entities_mark_dirty_deleted();
+
+DROP TRIGGER IF EXISTS content_entities_infra_dirty_truncate ON content_entities;
+CREATE TRIGGER content_entities_infra_dirty_truncate
+AFTER TRUNCATE ON content_entities
+FOR EACH STATEMENT
+EXECUTE FUNCTION infra_resource_entities_mark_all_dirty();
