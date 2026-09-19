@@ -10,10 +10,35 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// RelationshipGraphRowCypher returns the single-row relationship Cypher fragment.
+// RelationshipGraphRowCypher returns the single-row relationship Cypher
+// fragment matching entities with a bare `MATCH (e)` label scan filtered by
+// predicate. Use RelationshipGraphRowCypherAnchored instead when the caller
+// already knows the entity's repository, so the scan starts from a bounded
+// repository->file->entity path rather than a global scan filtered
+// afterward.
 func RelationshipGraphRowCypher(predicate string) string {
+	return RelationshipGraphRowCypherAnchored("MATCH (e)", predicate)
+}
+
+// RelationshipGraphRowCypherAnchored is RelationshipGraphRowCypher with the
+// entity match clause supplied by the caller instead of the bare "MATCH (e)"
+// scan -- e.g. "MATCH (anchorRepo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(anchorFile:File)-[:CONTAINS]->(e)"
+// to anchor the scan on a known repository.
+//
+// Issue #6786 defect 2: the repo-filtered relationship lookup used to render
+// the repository filter as a backward multi-hop EXISTS spliced into the
+// bare-scan predicate ("e.name = $name AND EXISTS { MATCH (e)<-[:CONTAINS]-
+// (f:File)<-[:REPO_CONTAINS]-(repo:Repository) WHERE repo.id = $repo_id }").
+// NornicDB v1.3.3 silently ignores that backward multi-hop EXISTS, so a
+// same-named entity in a different repository still matched and RunSingle
+// returned whichever row came back first, regardless of the requested
+// repo_id. Anchoring the MATCH itself on the repository -- the same shape
+// entity.BuildResolveEntityGraphQuery already uses -- makes the repository
+// scope part of the graph traversal instead of a post-hoc existence check,
+// which both backends evaluate correctly.
+func RelationshipGraphRowCypherAnchored(matchClause, predicate string) string {
 	return `
-		MATCH (e) WHERE ` + predicate + `
+		` + matchClause + ` WHERE ` + predicate + `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
 		OPTIONAL MATCH (e)-[outgoingRel]->(target)
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)<-[:REPO_CONTAINS]-(targetRepo:Repository)

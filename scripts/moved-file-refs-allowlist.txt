@@ -133,3 +133,14 @@ testdata/golden/e2e-20repo-snapshot.json:go/internal/query/iac_resources.go
 # which reports a new file and no similarity index at all, so the command would
 # no longer produce the output printed next to it.
 go/internal/query/querycontract/README.md:go/internal/query/querycontract/rowvalue.go
+# #6786 deleted go/internal/graph/mutations.go (dead ports of retired Python
+# helpers with no production caller). These documents analyse that code as it
+# stood when they were written: the #5385 workload-identity design notes quote
+# its retract logic at lines 113-129, and the #6689/#6690 answer-truth evidence
+# records where the #408 defect lived. Repointing would falsify the record, and
+# there is no successor file to point at. The citations baseline keeps the
+# design notes' existing LINE rows for the same reason.
+docs/internal/design/5385-workload-identity-key.md:go/internal/graph/mutations.go
+docs/internal/design/5385-workload-identity-options.md:go/internal/graph/mutations.go
+docs/internal/evidence/6689-6690-nornicdb-v133-answer-truth.md:go/internal/graph/mutations.go
+scripts/docs-citations-baseline.txt:go/internal/graph/mutations.go

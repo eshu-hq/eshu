@@ -136,8 +136,17 @@ func TestHandleRelationshipsScopesExactNameLookupToRepoWhenProvided(t *testing.T
 				if !strings.Contains(cypher, "e.name = $name") {
 					t.Fatalf("cypher = %q, want exact name lookup", cypher)
 				}
-				if !strings.Contains(cypher, "repo.id = $repo_id") {
-					t.Fatalf("cypher = %q, want repo-scoped entity resolution", cypher)
+				// Issue #6786 defect 2: the repo scope is now expressed by
+				// anchoring the MATCH itself on the repository
+				// (REPO_CONTAINS -> CONTAINS -> e) rather than a backward
+				// multi-hop EXISTS filter, which NornicDB v1.3.3 silently
+				// ignores. repo_id binds as an inline map property inside
+				// the anchor's MATCH pattern.
+				if !strings.Contains(cypher, "MATCH (anchorRepo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(anchorFile:File)-[:CONTAINS]->(e)") {
+					t.Fatalf("cypher = %q, want repo-anchored entity resolution", cypher)
+				}
+				if strings.Contains(cypher, "EXISTS") {
+					t.Fatalf("cypher = %q, must not fall back to an EXISTS filter", cypher)
 				}
 				if got, want := params["name"], "handlePayment"; got != want {
 					t.Fatalf("params[name] = %#v, want %#v", got, want)

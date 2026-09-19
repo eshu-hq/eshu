@@ -171,11 +171,11 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	cypher := fmt.Sprintf(`
 		MATCH (r:Repository)
 		%s
-		RETURN %s, %s
+		RETURN %s
 		ORDER BY r.name, r.id
 		SKIP $offset
 		LIMIT $limit
-	`, access.GraphWhereClause("r"), querycontract.RepoProjection("r"), querycontract.RepositoryDependencyMarkerProjection("r", access))
+	`, access.GraphWhereClause("r"), querycontract.RepoProjection("r"))
 
 	rows, err := h.Neo4j.Run(r.Context(), cypher, access.GraphParams(map[string]any{"offset": page.Offset, "limit": page.Limit + 1}))
 	if err != nil {
@@ -190,43 +190,29 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		rows = rows[:page.Limit]
 	}
 
-	// Dependency-cluster pre-pass: one bounded edge query over
-	// (:Repository)-[:DEPENDS_ON]->(:Repository), then connected-component
-	// grouping in Go. This is the primary grouping signal (issue #3504):
-	// repositories that depend on each other share a cluster key, and the
-	// per-row decoration below gives that cluster precedence over the
-	// source-backed slug/owner/flag derivation. Repositories in no dependency
-	// edge fall through to honest missing_evidence rather than a name heuristic.
-	//
-	// The pre-pass is instrumented with the existing stage timer so operators
-	// can diagnose its duration and edge count from the
-	// repository_query.stage_started / repository_query.stage_completed log
-	// events (operation=repository_list, stage=dependency_cluster_edges).
-	clusterTimer := startRepositoryQueryStage(r.Context(), h.Logger, "repository_list", "", "dependency_cluster_edges")
-	clusterResult := loadRepositoryDependencyClusters(r.Context(), h.Neo4j, access)
-	clusters := clusterResult.clusters
-	clusterTimer.Done(r.Context(),
-		slog.Int("cluster_count", len(clusters)),
-		slog.Bool("edge_scan_skipped", clusterResult.skipped),
-	)
-	logRepositoryDependencyClusterErrors(r.Context(), h.Logger, clusterResult)
+	// Dependency-edge pre-pass, clustering, and the is_dependency marker;
+	// see resolveRepositoryDependencyEvidence's doc comment (issue #3504,
+	// #6786 defect 1, #6786 review F1).
+	evidence := resolveRepositoryDependencyEvidence(r.Context(), h.Logger, h.Neo4j, access)
 
 	repos := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
+		id := querycontract.StringVal(row, "id")
+		_, isDependency := evidence.Targets[id]
 		repo := map[string]any{
-			"id":            querycontract.StringVal(row, "id"),
+			"id":            id,
 			"name":          querycontract.StringVal(row, "name"),
 			"path":          querycontract.StringVal(row, "path"),
 			"local_path":    querycontract.StringVal(row, "local_path"),
 			"remote_url":    querycontract.StringVal(row, "remote_url"),
 			"repo_slug":     querycontract.StringVal(row, "repo_slug"),
 			"has_remote":    querycontract.BoolVal(row, "has_remote"),
-			"is_dependency": querycontract.BoolVal(row, "is_dependency"),
+			"is_dependency": isDependency,
 		}
-		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, clusters))
+		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, evidence.Clusters))
 	}
 
-	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total, evidence.ExtraPartialReasons...), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 }
 
 func (h *Handler) listRepositoriesFromContent(ctx context.Context) ([]map[string]any, error) {

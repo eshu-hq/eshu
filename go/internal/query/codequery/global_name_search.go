@@ -46,6 +46,13 @@ func relationshipGraphRowCypher(predicate string) string {
 	return codemodel.RelationshipGraphRowCypher(predicate)
 }
 
+// relationshipGraphRowCypherAnchored forwards to the leaf-owned anchored row
+// fragment so relationshipsGraphRow's repo-anchored call site stays
+// unchanged (issue #6786 defect 2).
+func relationshipGraphRowCypherAnchored(matchClause, predicate string) string {
+	return codemodel.RelationshipGraphRowCypherAnchored(matchClause, predicate)
+}
+
 // buildTransitiveRelationshipRowsCypher forwards to the leaf-owned
 // traversal builder so transitiveRelationshipsGraphRow's call site stays
 // unchanged.

@@ -62,17 +62,15 @@ func RepoRefFromRow(row map[string]any) RepoRef {
 	}
 }
 
-// RepositoryDependencyMarkerProjection returns the Cypher fragment marking
-// repositories that have depending-repository nodes eligible under access.
-// It lives here (not in a handler family) so the repository routes and the
-// catalog routes project the marker identically without importing each
-// other (#6060, lane B B3). Like RepoProjection it returns a fragment the
-// caller splices into its own query, never a complete query.
-func RepositoryDependencyMarkerProjection(alias string, access RepositoryAccessFilter) string {
-	const depAlias = "dep"
-	predicate := access.GraphPredicate(depAlias)
-	return fmt.Sprintf(
-		"EXISTS { MATCH (%s)<-[:DEPENDS_ON]-(%s:Repository)%s } as is_dependency",
-		alias, depAlias, predicate,
-	)
-}
+// RepositoryDependencyMarkerProjection previously rendered the is_dependency
+// marker as a per-row `EXISTS { MATCH (r)<-[:DEPENDS_ON]-(dep:Repository)...
+// } as is_dependency` RETURN expression. It was removed for issue #6786
+// defect 1: NornicDB v1.3.3 always evaluates an EXISTS used as a RETURN
+// expression to false, and the scoped caller's grant predicate was spliced
+// directly after the MATCH pattern with no WHERE keyword, which is invalid
+// Cypher on Neo4j (SyntaxError) and silently accepted-but-wrong on NornicDB.
+// The repository and catalog handlers now derive is_dependency in Go from
+// the same bounded, correctly scoped (:Repository)-[:DEPENDS_ON]->(:Repository)
+// edge pre-pass they already run for dependency-cluster grouping
+// (repository.loadRepositoryDependencyEdges), which needs no per-row graph
+// expression and works identically on both backends.
