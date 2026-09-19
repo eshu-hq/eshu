@@ -412,16 +412,38 @@ stage_case "stuttering dir above testdata with a Go file is RED" 1 go/internal/q
 stage_case "uppercase extension stutter is RED" 1 docs/public/images/logo-images.PNG
 stage_case "uppercase Go extension stutter is RED" 1 go/internal/entity/entity_checks.GO
 
-# F9: a short parent only matches as a whole word, so tool and language names
-# that merely start with it are fine nests; a real repeat still fails.
-stage_case "short parent as prefix of a longer word is GREEN (git/github)" 0 docs/internal/git/github/a.md
-stage_case "short parent as prefix (parser/c/cpp) is GREEN" 0 go/internal/parser/c/cpp/a.go
-stage_case "short parent as prefix (db/nornicdb) is GREEN" 0 go/internal/db/nornicdb/a.go
-stage_case "short parent as suffix (net/dotnet) is GREEN" 0 go/internal/net/dotnet/a.go
-stage_case "short parent as whole word prefix (api/api-auth) is RED" 1 go/internal/api/api-auth/a.go
-stage_case "short parent as whole word suffix (api/auth_api) is RED" 1 go/internal/api/auth_api/a.go
-stage_case "short parent repeated exactly (db/db) is RED" 1 go/internal/db/db/a.go
-stage_case "parent of exactly four letters still prefix-matches" 1 go/internal/repo/repoauth/a.go
+# F13: comparison is case-insensitive in every position. The parent and the
+# child differ in case here, so a case-sensitive gate cannot pass these.
+stage_case "mixed-case dir stutter (query/QueryAuth) is RED" 1 go/internal/query/QueryAuth/a.go
+stage_case "mixed-case file stutter (Entity/entity_x.go) is RED" 1 go/internal/Entity/entity_x.go
+stage_case "mixed-case hyphenated file stutter (Run-Locally/run-locally-x.md) is RED" 1 docs/Run-Locally/run-locally-x.md
+stage_case "mixed-case leaf with upper-case stem is RED" 1 docs/internal/entity/ENTITY_x.md
+
+# F12: parent-name matching is tiered by the parent's length (owner ruling).
+#   1-2 chars: exact whole-word token only.
+#   3 chars:   exact token OR the child starts with the parent (no suffix).
+#   4+ chars:  prefix or suffix.
+stage_case "1-char parent, prefix of a longer word (parser/c/cpp) is GREEN" 0 go/internal/parser/c/cpp/a.go
+stage_case "1-char parent, whole word (c/c-api) is RED" 1 go/internal/parser/c/c-api/a.go
+stage_case "2-char parent, prefix of a longer word (db/dbmigrate) is GREEN" 0 go/internal/db/dbmigrate/a.go
+stage_case "2-char parent, suffix of a longer word (db/nornicdb) is GREEN" 0 go/internal/db/nornicdb/a.go
+stage_case "2-char parent, whole word prefix (db/db-auth) is RED" 1 go/internal/db/db-auth/a.go
+stage_case "2-char parent, whole word suffix (db/auth_db) is RED" 1 go/internal/db/auth_db/a.go
+stage_case "2-char parent repeated exactly (db/db) is RED" 1 go/internal/db/db/a.go
+stage_case "3-char parent, glued prefix (api/apiauth) is RED" 1 go/internal/api/apiauth/a.go
+stage_case "3-char parent, glued prefix (mcp/mcpserver) is RED" 1 go/internal/mcp/mcpserver/a.go
+stage_case "3-char parent, glued prefix (aws/awsiam) is RED" 1 go/internal/aws/awsiam/a.go
+stage_case "3-char parent, glued prefix (sql/sqlstore) is RED" 1 go/internal/sql/sqlstore/a.go
+stage_case "3-char parent, glued prefix (cli/clitool) is RED" 1 go/internal/cli/clitool/a.go
+stage_case "3-char parent, glued prefix (git/github) is RED" 1 docs/internal/git/github/a.md
+stage_case "3-char parent, whole word (api/api-auth) is RED" 1 go/internal/api/api-auth/a.go
+stage_case "3-char parent, whole word suffix (api/auth_api) is RED" 1 go/internal/api/auth_api/a.go
+stage_case "3-char parent, suffix of a longer word (sql/postgresql) is GREEN" 0 go/internal/sql/postgresql/a.go
+stage_case "3-char parent, suffix of a longer word (net/dotnet) is GREEN" 0 go/internal/net/dotnet/a.go
+stage_case "3-char parent, middle of a longer word (aws/xawsx) is GREEN" 0 go/internal/aws/xawsx/a.go
+stage_case "4-char parent, glued prefix (repo/repoauth) is RED" 1 go/internal/repo/repoauth/a.go
+stage_case "4-char parent, glued suffix (repo/authrepo) is RED" 1 go/internal/repo/authrepo/a.go
+stage_case "4-char parent, middle of a longer word (repo/xrepox) is GREEN" 0 go/internal/repo/xrepox/a.go
 
 # Bulk lowercasing must keep path fields aligned across renames and
 # multi-file batches (uppercase directory, rename, unrelated adds in one run).

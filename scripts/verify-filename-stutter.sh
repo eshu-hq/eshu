@@ -20,12 +20,23 @@
 # repo-structure words rather than domain names (`go`, `internal`, `cmd`,
 # `docs`, `scripts`, `specs`, `testdata`, `tests`) are skipped, as are
 # dot-directories (`expected/codex/.codex`: named by the tool, not by us).
-# A parent name shorter than four characters only matches as a whole word
-# (`api/api-auth`, `db/db` fail; `git/github`, `db/nornicdb`, `parser/c/cpp`
-# pass): a two- or three-letter parent is routinely the first letters of an
-# unrelated longer word, so prefix matching would flag good nests.
+# Matching is tiered by the parent's length, because the short parents are the
+# busiest domain dirs (`mcp`, `api`, `cli`, `aws`) where prefix glue really
+# happens, yet a two- or three-letter parent is also routinely the first or
+# last letters of an unrelated longer word:
+#   - 1-2 characters: the parent must appear as a whole word, so `db/db-auth`
+#     and `db/auth_db` fail while `db/nornicdb` and `parser/c/cpp` pass.
+#   - exactly 3 characters: a whole word, or the child STARTS WITH the parent
+#     (prefix only, never suffix): `api/apiauth`, `mcp/mcpserver`,
+#     `sql/sqlstore` and `git/github` fail; `sql/postgresql` and
+#     `net/dotnet` pass. (`git/github` is a prefix match and fails; nest it
+#     as `github/` instead.)
+#   - 4 or more characters: the child starts or ends with the parent.
 # Everything at or below a `testdata` or `fixtures` directory is exempt from
-# both checks (see below); the directories above that root are still checked.
+# the directory check and from the file check for non-Go files; Go files
+# there keep the file rule (see below). The directories above that root are
+# still checked. Any path component named `fixtures` counts, first-party
+# e2e helpers included.
 # A directory is "new" only when it does not exist at
 # the merge base (HEAD for --staged), so touching a file inside a legacy
 # stuttering directory never re-flags the directory.
@@ -178,17 +189,19 @@ is_fixture_root() {
   return 1
 }
 
-# dir_stutters <lowercased name> <lowercased parent>: rule 3 text match.
-# A parent of four or more characters matches as a prefix or suffix of the
-# name; a shorter parent only as a whole `_`/`-` separated word.
+# dir_stutters <lowercased name> <lowercased parent>: rule 3 text match,
+# tiered by the parent's length (owner ruling, #6821):
+#   1-2 chars  the parent must appear as a whole `_`/`-` separated word.
+#   3 chars    a whole word, OR the name starts with the parent (prefix only).
+#   4+ chars   the name starts or ends with the parent.
 dir_stutters() {
   local name="${1//-/_}" parent="${2//-/_}"
-  if [ "${#parent}" -ge 4 ]; then
-    [[ "$name" == "$parent"* || "$name" == *"$parent" ]]
-  else
-    case "_${name}_" in *"_${parent}_"*) return 0 ;; esac
-    return 1
-  fi
+  case "_${name}_" in *"_${parent}_"*) return 0 ;; esac
+  case "${#parent}" in
+    1 | 2) return 1 ;;
+    3) [[ "$name" == "$parent"* ]] ;;
+    *) [[ "$name" == "$parent"* || "$name" == *"$parent" ]] ;;
+  esac
 }
 
 # check_dirs <path> <lowercased path>: rule 3 over every directory component
