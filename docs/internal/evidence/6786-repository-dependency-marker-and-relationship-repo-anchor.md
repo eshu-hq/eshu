@@ -127,7 +127,7 @@ Non-live unit coverage pins the new Cypher/Go shapes:
 `relationship_repo_anchor_test.go`, `dependency_cluster_test.go` (new
 `repositoryDependencyTargetSet`/`loadRepositoryDependencyEdges` cases,
 `resolveRepositoryDependencyEvidence`, and the seeded RED/GREEN test for
-the X4 AND/OR-after-whitespace guard via `querytestutil.CypherHasBrokenAndOr`),
+the X4 AND/OR-after-whitespace guard via `querytestutil.AssertCypherHasNoBrokenAndOr`),
 `list_dependency_marker_test.go` (rewritten per review F1 to assert
 `truncated=false` for a degraded-but-complete page),
 `catalog_dependency_marker_test.go` (same F1 assertion for the catalog, plus
