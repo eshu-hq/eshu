@@ -1,0 +1,73 @@
+go/internal/query/impact/selector_overflow_test.go
+  s_7deca246baab33::t_b10d6e3700de22 1-69
+go/internal/query/entity/workload_lookup.go
+  s_7deca246baab33::t_c10fd97f1d9eb5 1-141,149,151
+  s_7deca246baab33::t_4a86b2273d6f55 142-148,150,152-165
+go/internal/query/entity/service_name_selection_test.go
+  s_7deca246baab33::t_504bf1c898ea0a 1-208
+go/internal/query/impacttrace/workload_selection_grant_test.go
+  s_7deca246baab33::t_ea7306a9e23673 1-148
+go/internal/query/impacttrace/workload_selection.go
+  s_7deca246baab33::t_ab68e69c246da3 11,25-29,31-35,37-46,48-51,53-58,76-82,90-92,95-98,100-101,109,113-114,116-120,122-124,135-138,147-160,162,169-178,181
+  s_7deca246baab33::t_2d41ec434de20c 182
+docs/public/reference/http-api/catalog-workload-selection.md
+  s_7deca246baab33::t_303c0dc485a987 51-62
+docs/public/reference/http-api/deployment-trace-and-influence.md
+  s_7deca246baab33::t_02d7dac00bfec8 170-174
+go/internal/query/auth_scoped_routes_relationship_leak_test.go
+  s_7deca246baab33::t_f309bea4048824 40-43
+go/internal/query/entity/README.md
+  s_7deca246baab33::t_da4b7e82b9a26d 58-70
+go/internal/query/entity/service_context_endpoint_test.go
+  s_7deca246baab33::t_079c4c149796ad 25-40,84-92,127-136
+go/internal/query/entity/service_context_handler.go
+  s_7deca246baab33::t_9dfac100f32deb 47-49
+go/internal/query/entity/workload_context.go
+  s_7deca246baab33::t_9bf6cd00b1a35d 25-30,36-38,42,46-50,54-56,58-78,81,89-94,97,100,123,134,146,216
+go/internal/query/entity/workload_context_nornicdb_test.go
+  s_7deca246baab33::t_19e621231092a1 22-27,30-42,44,205-206,210-216,361,365-371
+go/internal/query/impact/deployment_config_influence.go
+  s_7deca246baab33::t_b847058e4fe254 65-67
+go/internal/query/impact/trace_deployment.go
+  s_7deca246baab33::t_df5bc2bfb4ea93 120-122
+go/internal/query/impacttrace/README.md
+  s_7deca246baab33::t_ae085adda15003 29-34
+go/internal/query/impacttrace/workload_selection_test.go
+  s_7deca246baab33::t_55785ed2f485c4 13,241
+go/internal/query/openapi/paths/search/entities.go
+  s_7deca246baab33::t_263b67ec75ba13 186,205
+go/internal/query/querycontract/README.md
+  s_7deca246baab33::t_5d12ff4521763a 77-84
+go/internal/query/querycontract/doc.go
+  s_7deca246baab33::t_196124a4eef86a 10-14
+go/internal/query/querycontract/workload_grant.go
+  s_7deca246baab33::t_ed07e75ac63dee 6-10,51-84
+go/internal/query/querycontract/workload_grant_test.go
+  s_7deca246baab33::t_251f0188aa111a 6-13,83-109
+go/internal/query/service_context_infrastructure_degrade_test.go
+  s_7deca246baab33::t_36811c623a6fd8 39-49,115-125
+go/internal/query/service_context_partial_reasons_test.go
+  s_7deca246baab33::t_5f590a3088b1d3 41-51
+go/internal/query/service_context_tech_fingerprint_test.go
+  s_7deca246baab33::t_9c72dddeb7670b 39-42
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_7deca246baab33::t_97532f61042c12 212-215
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_7deca246baab33::t_2266dd7929b959 218-221,379
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5ece043ec0143f51c1ce0df84fe0fec5a0845d0f",
+  "prompts": {},
+  "sessions": {
+    "s_7deca246baab33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c6c6328-6cdc-426c-9806-b59928285a23",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
