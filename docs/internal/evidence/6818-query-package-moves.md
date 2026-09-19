@@ -10,11 +10,30 @@ unchanged. This note records that evidence, with one section per move. Later
 
 ## `query/queryspan` to `query/tracing`
 
-Baseline: merge base `9e542becc` (`origin/main` when the move was made).
-After: branch `refactor/6818-tracing`, move commits `d2aeb0589`,
-`c594ca6ed`, `af9e66c82`. No backend or version applies. The change is
-compile-time only: no query runs differently, and no Postgres or NornicDB
-work is involved.
+Baseline and after states are named by git tree and blob hashes, not by
+commit. Those hashes come from content, so they stay the same when the branch
+is rebased or squashed, and anyone can resolve them with `git cat-file`. The
+old package is still on `origin/main`, so its hashes can be re-derived there.
+Get the after hashes from the merged commit with `git rev-parse
+<commit>:<path>`.
+
+| State | Path | Object |
+| --- | --- | --- |
+| Before (tree) | `go/internal/query/queryspan` | `d4b0105f3919847a95c153481a5b96f9bddc713e` |
+| After (tree) | `go/internal/query/tracing` | `4c63aa1d588144128c66bb6a07821478b790e93e` |
+| Before (blob) | `go/internal/query/queryspan/handlerspan.go` | `8e433940753f43cc6de10ee131ba1aece051e34d` |
+| After (blob) | `go/internal/query/tracing/handler.go` | `91e9df160dd12981bacb38a5e22e56bb1fcf47e2` |
+| Before (blob) | `go/internal/query/impact/contract.go` | `06f23775ca861a26a4ade98ae8f212e58044237a` |
+| After (blob) | `go/internal/query/impact/contract.go` | `85394ab62e44f16c25efbbe05b2cad8ac8b4e4d3` |
+| Before (blob) | `go/internal/query/impact/resource_investigation.go` | `2c8a0487eb739d7927d0a9d6e9b7a8ffdfc4b36b` |
+| After (blob) | `go/internal/query/impact/resource_investigation.go` | `9d18fc5dcfda8e15c02cb5c38ac28a74532a37d5` |
+
+The before hashes are the same at the pre-rebase merge base `9e542becc` and at
+the current merge base with `origin/main`. The move commits cited in earlier
+drafts (`d2aeb0589`, `c594ca6ed`, `af9e66c82`) are pre-rebase references and
+are not on the branch. No backend or version applies. The change is
+compile-time only: no query runs differently, and no Postgres or NornicDB work
+is involved.
 
 The gate flagged two importers as hot:
 
@@ -31,15 +50,19 @@ In both files the diff changes two lines: the import
 `StartHandlerSpanWith` and `HandlerTracer` becomes `tracing.`.
 
 No-Regression Evidence: the Cypher text and the concurrency code are
-unchanged. The proof applies the substitution to the base blob and checks that
-the result matches the head blob byte for byte:
+unchanged. The proof applies the substitution to each before blob and checks
+that the result hashes to the after blob:
 
 ```bash
-git show 9e542becc:<file> \
-  | sed 's#query/queryspan"#query/tracing"#; s/\bqueryspan\./tracing./g' \
-  | cmp -s - <(git show HEAD:<file>)
-# contract.go: exit 0
-# resource_investigation.go: exit 0
+check() { # check <before-blob> <after-blob>
+  git cat-file -p "$1" \
+    | sed 's#query/queryspan"#query/tracing"#; s/\bqueryspan\./tracing./g' \
+    | git hash-object --stdin | cmp -s - <(printf '%s\n' "$2")
+}
+check 06f23775ca861a26a4ade98ae8f212e58044237a \
+  85394ab62e44f16c25efbbe05b2cad8ac8b4e4d3 # contract.go: exit 0
+check 2c8a0487eb739d7927d0a9d6e9b7a8ffdfc4b36b \
+  9d18fc5dcfda8e15c02cb5c38ac28a74532a37d5 # resource_investigation.go: exit 0
 ```
 
 That leaves no other changed byte, so no Cypher line and no goroutine,
@@ -56,7 +79,12 @@ no performance measurement applies.
 
 No-Observability-Change: the package move leaves the span name, attributes,
 and tracer name unchanged. `tracing/handler.go` differs from
-`queryspan/handlerspan.go` only in its package clause. The tracer is still
+`queryspan/handlerspan.go` only in its package clause. `git diff
+d4b0105f3919847a95c153481a5b96f9bddc713e
+4c63aa1d588144128c66bb6a07821478b790e93e` compares the two package trees
+directly: the Go files differ only in the package clause and the godoc lead,
+and the Markdown files only in the package name, the renamed file, and a note
+recording the move. The tracer is still
 `otel.Tracer("eshu/go/internal/query")`, and the span still carries
 `http.route`, `eshu.capability`, and `service.namespace`. Saved span queries
 and dashboards that match on these names still work. The
