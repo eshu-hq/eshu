@@ -35,12 +35,14 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 		ctx         func() context.Context
 		sink        projector.ProjectorWorkSink
 		heartbeater projector.ProjectorWorkHeartbeater
-		wantLog     string
+		wantLogs    []string
+		wantStatus  string
 	}{
 		{
-			name:    "claim lost at ack",
-			sink:    &claimLostSink{ackErr: claimLost},
-			wantLog: "projector work claim lost to another attempt",
+			name:       "claim lost at ack",
+			sink:       &claimLostSink{ackErr: claimLost},
+			wantLogs:   []string{"projector work claim lost to another attempt"},
+			wantStatus: "claim_lost",
 		},
 		{
 			name: "superseded while ack waits",
@@ -48,7 +50,8 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 			heartbeater: projectorHeartbeaterFunc(func(context.Context, projector.ScopeGenerationWork) error {
 				return projector.ErrWorkSuperseded
 			}),
-			wantLog: "projector ack waiting for busy scope",
+			wantLogs:   []string{"projector ack waiting for busy scope"},
+			wantStatus: "superseded",
 		},
 		{
 			name: "shutdown while ack waits",
@@ -57,8 +60,12 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 				cancel()
 				return ctx
 			},
-			sink:    &claimLostSink{ackErr: deferred},
-			wantLog: "projector ack waiting for busy scope",
+			sink: &claimLostSink{ackErr: deferred},
+			wantLogs: []string{
+				"projector ack waiting for busy scope",
+				"projector ack abandoned at shutdown while scope was busy",
+			},
+			wantStatus: "shutdown_canceled",
 		},
 	}
 	for _, tt := range tests {
@@ -86,14 +93,29 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 			if err != nil {
 				t.Fatalf("drainProjectorWorkItem() error = %v, want nil", err)
 			}
-			if got := len(recorder.Ended()); got != 1 {
+			ended := recorder.Ended()
+			if got := len(ended); got != 1 {
 				t.Fatalf("ended spans = %d, want 1 (projector.run must end on every drop path)", got)
+			}
+			var status string
+			for _, attr := range ended[0].Attributes() {
+				if attr.Key == "status" {
+					status = attr.Value.AsString()
+				}
+			}
+			if status != tt.wantStatus {
+				t.Fatalf("span status = %q, want %q", status, tt.wantStatus)
+			}
+			if got := completed.Load(); got != 0 {
+				t.Fatalf("completed = %d, want 0", got)
 			}
 			mu.Lock()
 			out := logs.String()
 			mu.Unlock()
-			if !strings.Contains(out, tt.wantLog) {
-				t.Fatalf("logs missing %q:\n%s", tt.wantLog, out)
+			for _, want := range tt.wantLogs {
+				if !strings.Contains(out, want) {
+					t.Fatalf("logs missing %q:\n%s", want, out)
+				}
 			}
 		})
 	}

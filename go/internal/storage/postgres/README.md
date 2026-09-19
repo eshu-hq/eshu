@@ -3596,7 +3596,7 @@ visible and produces no edge — a false negative that, for a Claim repo that
 stops changing, never self-heals. This closes that window with a durable,
 bounded, paged sweep — deliberately NOT an inline fan-out inside
 `ProjectorQueue.Ack`'s transaction (a rejected earlier design: unbounded
-target discovery inside a fixed five-statement generation-activation
+target discovery inside a fixed six-statement generation-activation
 transaction risks stale-lease commits and unbounded lock hold time).
 
 Files:

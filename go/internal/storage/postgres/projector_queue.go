@@ -206,7 +206,7 @@ func (q ProjectorQueue) Ack(
 	}()
 
 	lockTimeout := min(q.AckScopeLockTimeout, maxProjectorAckLockTimeout)
-	if lockTimeout <= 0 {
+	if lockTimeout < time.Millisecond { // "0ms" would disable lock_timeout
 		lockTimeout = defaultProjectorAckLockTimeout
 	}
 	// PostgreSQL accepts "2000ms" but not Go's "1m30s" duration syntax.

@@ -57,7 +57,7 @@ const BootstrapIndexProjectorLeaseOwner = "bootstrap-index"
 // generation is already durably active by the time this runs, and enqueueing
 // one reducer intent is a single bounded INSERT (not unbounded fan-out), but
 // keeping it outside Ack's transaction still avoids growing Ack's fixed
-// five-statement critical section for the many scope kinds that never match
+// six-statement critical section for the many scope kinds that never match
 // the state_snapshot prefix.
 //
 // A hook failure is deliberately never returned to the caller: by the time
@@ -67,7 +67,7 @@ const BootstrapIndexProjectorLeaseOwner = "bootstrap-index"
 // Crossplane sweep, a failed TriggerConfigStateDrift call leaves no durable
 // partial state to resume: ReducerQueue.Enqueue is one atomic batch INSERT,
 // so an error here means the work_item_id row was never written, and this
-// call is NEVER retried on its own -- Ack's own five-statement transaction
+// call is NEVER retried on its own -- Ack's own six-statement transaction
 // already committed and must not be blocked or looped waiting on reducer
 // admission a second time (that is what the perf evidence in this branch
 // measured and bounded; see docs/internal/evidence/5593-config-state-drift-ack-latency.md).

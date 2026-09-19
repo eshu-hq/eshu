@@ -24,7 +24,7 @@ type CrossplaneRedriveSweeper interface {
 // Ack's own transaction has committed -- deliberately outside that
 // transaction and on its own error path, mirroring the rejected design's
 // review finding (issue #5476): the sweep's target-discovery fan-out is
-// unbounded work relative to Ack's own fixed five-statement generation
+// unbounded work relative to Ack's own fixed six-statement generation
 // activation, so running it inline would turn every activation into a
 // variable-length transaction holding Ack's row locks for however long the
 // cross-scope sweep takes, including the failure mode where a stale lease

@@ -100,6 +100,8 @@ func TestProjectorAckLockTimeoutIsPostgresUnitsBelowAckBudget(t *testing.T) {
 		// Go formats 90s as "1m30s", which PostgreSQL rejects; it also exceeds
 		// the projector's 5 s Ack budget, so it is clamped.
 		{name: "clamped", config: 90 * time.Second, want: "4000ms"},
+		// "0ms" would disable lock_timeout and restore the unbounded wait.
+		{name: "sub-millisecond uses default", config: 500 * time.Microsecond, want: "2000ms"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
