@@ -22,6 +22,10 @@
 // window. [CollectorEvidenceSummaryMaintainer] keeps the
 // collector_evidence_summary read model reconciled with the active fact set
 // via a lease-guarded periodic atomic resweep.
+// [InfraInventoryReconcileRunner] walks repositories in bounded, keyset-ordered
+// cycles from a random start and re-derives the infra read model rows (#6793)
+// of any repository whose rows differ from content_entities on two
+// consecutive cycles.
 //
 // AcceptedGenerationLookup, AcceptedGenerationPrefetch, and
 // PartitionLeaseManager are declared locally as mirrors of the identically
@@ -53,5 +57,8 @@
 // [AcceptedGenerationPrefetch], [PartitionLeaseManager],
 // [CollectorEvidenceSummaryMaintainer], [CollectorEvidenceSummaryRebuilder],
 // [CollectorEvidenceSummaryLeaseManager], [CollectorEvidenceFreshnessLookup],
-// and [CollectorEvidenceSummaryDomain].
+// [CollectorEvidenceSummaryDomain], [InfraInventoryReconcileRunner],
+// [InfraInventoryReconcileRunnerConfig], [InfraInventoryReconciler],
+// [InfraInventoryReconcileRequest],
+// [InfraInventoryReconcileBatch], and [InfraInventoryReconcileRepo].
 package maintenance

@@ -354,6 +354,9 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_GRAPH_ORPHAN_SWEEP_LEASE_TTL` | duration | `5m` | TTL for the graph orphan sweep partition lease. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_POLL_INTERVAL` | duration | `1h` | Delay between graph orphan sweep passes. |
 | `ESHU_GRAPH_ORPHAN_SWEEP_TTL` | duration | `168h` | Minimum age before a marked graph orphan can be deleted. |
+| `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` | bool | `true` | Run the infra read model reconcile loop, which re-derives repositories whose infra_resource_entities rows drifted from content_entities. |
+| `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` | duration | `5m` | Wait between infra read model reconcile cycles. |
+| `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` | int | `500` | Repositories one infra read model reconcile cycle checks. |
 | `ESHU_REDUCER_ADMISSION_HIGH_WATER_MARK` | int | `10000` | Ingester source-local reducer-intent admission threshold; defers while outstanding reducer queue depth is at or above this value. Set to 0 to disable. |
 | `ESHU_REDUCER_ADMISSION_POLL_INTERVAL` | duration | `1s` | Queue-depth recheck interval while reducer admission is deferring. |
 | `ESHU_REDUCER_ADMISSION_RETRYING_HIGH_WATER_MARK` | int | `500` | Ingester graph-write backpressure: defers source-local reducer-intent admission while retrying-state reducer depth (the durable signal of recurring graph-write timeouts) is at or above this value, so recoverable work is throttled instead of dead-lettered. Set to 0 to disable. |

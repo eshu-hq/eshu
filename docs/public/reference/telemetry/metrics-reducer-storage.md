@@ -52,6 +52,16 @@ Retention metrics intentionally do not label raw scope IDs, generation IDs,
 repository paths, source names, or provider identifiers. Use the retention event
 table's safe hashes and structured logs for authorized drilldown.
 
+## Infra Read Model Reconcile
+
+| Metric | Type | Use |
+| --- | --- | --- |
+| `eshu_dp_infra_inventory_reconcile_total` | counter | Repositories the reducer's infra read model reconcile checked, by `outcome`: `match`, `suspect` (differed once; re-checked next cycle), `repaired` (differed on two checks one interval apart, then re-derived), `error` (a repository check, or a whole cycle, failed). |
+| `eshu_dp_infra_inventory_reconcile_duration_seconds` | histogram | Wall time of one reconcile cycle, failed cycles included (at most `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` repositories). |
+
+Repository ids appear only in the `infra_inventory.reconcile.drift` and
+`infra_inventory.reconcile.failed` logs, never as metric labels.
+
 ## Generation Liveness
 
 | Metric | Type | Use |

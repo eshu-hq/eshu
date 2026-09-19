@@ -225,6 +225,27 @@ route (`count`, `inventory`) and serving store (`read_model`, `graph`).
   writer's derives. `skipped_not_installed` means a writer ran before
   migration 109; the content write succeeded and the backfill covers the
   repository later. `error` fails the content write, which then retries.
+- The reducer's reconcile loop compares each repository's table rows with its
+  content rows (row count plus a per-row hash).
+  `eshu_dp_infra_inventory_reconcile_total{outcome}` counts repositories
+  checked: `match`, `suspect`, `repaired`, or `error`. A single mismatch is
+  only `suspect`: a content Write commits its content rows before its derive
+  runs, so a check between the two sees the table behind. Suspects are
+  re-checked on the next cycle and repaired only if they still differ, so
+  `repaired` means a repository differed on two checks at least one
+  `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` apart. That is a content writer
+  that is not deriving (for example an older ingester or projector still
+  running), a Write whose derive failed and has not retried yet, or, rarely,
+  two checks that both landed inside Writes of a repository being re-indexed
+  continuously. Each repair logs `infra_inventory.reconcile.drift` with
+  `repo_id` and the row counts; the same `repo_id` repeating across walks is
+  the drift signal to chase. A steady `suspect` count during heavy ingestion
+  is normal. `error` also counts a whole cycle that failed (for example the
+  repository listing), not only single repositories.
+  `eshu_dp_infra_inventory_reconcile_duration_seconds` (failed cycles
+  included) and the span `reducer.infra_inventory_reconcile` time each cycle.
+  Each reducer process starts its walk at a random repository. The loop does
+  nothing until the backfill marker exists.
 - Scoped-token reads always count as `source="graph"`.
 - The content writer logs the per-Write derive as stage
   `derive_infra_inventory` (`path_count`, `rows_deleted`, `rows_inserted`,

@@ -476,6 +476,7 @@ func buildReducerService(
 			graphProjectionRepairQueue, database, graphProjectionStateStore, repairCfg, clk, instruments, logger,
 		),
 		GenerationRetentionRunner:       generationRetentionRunner,
+		InfraInventoryReconcileRunner:   infraInventoryReconcileRunnerFor(getenv, database, tracer, instruments, logger),
 		GenerationLivenessRunner:        generationLivenessRunner,
 		PoisonLivenessRunner:            poisonLivenessRunner,
 		GraphOrphanSweepRunner:          graphOrphanSweepRunner,

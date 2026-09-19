@@ -253,6 +253,8 @@ when the reducer has a graph orphan observer.
 | `InfraInventoryReads` | `eshu_dp_infra_inventory_reads_total` |
 | `InfraInventoryDerives` | `eshu_dp_infra_inventory_derives_total` |
 | `InfraInventoryBackfillRuns` | `eshu_dp_infra_inventory_backfill_runs_total` |
+| `InfraInventoryReconcile` | `eshu_dp_infra_inventory_reconcile_total` |
+| `InfraInventoryReconcileDuration` | `eshu_dp_infra_inventory_reconcile_duration_seconds` |
 
 `DriftUnresolvedModuleCalls` uses
 `MetricDimensionDriftUnresolvedModuleReason` with the bounded reasons

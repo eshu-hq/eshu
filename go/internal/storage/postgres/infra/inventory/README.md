@@ -34,6 +34,11 @@ creates the table is `storage/postgres/migrations/109_infra_resource_entities.sq
   gate on
 - `Reader`, `Filter`, `Dimension`, `CountBucket`, `CountBuckets`,
   `DimensionBuckets` — the aggregate reads the query layer serves from
+- `ReconcileCycle`, `ReconcileRequest`, `ReconcileRepo`, `StartCursor`,
+  `ReconcileBatch`, `RepoReconcile`,
+  `ReconcileMatch`/`ReconcileSuspect`/`ReconcileRepaired`/`ReconcileError` —
+  the reducer's drift check and repair (`cmd/reducer`
+  `infra_inventory_reconcile_wiring.go`)
 
 See `doc.go` for the contract.
 
@@ -58,6 +63,10 @@ this one.
 - Retention reports `RowsPruned["infra_resource_entities"]`.
 - The query layer counts reads by serving store with
   `eshu_dp_infra_inventory_reads_total{route,source}`.
+- The reducer's reconcile runner counts repositories checked with
+  `eshu_dp_infra_inventory_reconcile_total{outcome}` and logs each repair as
+  `infra_inventory.reconcile.drift`. A repository is repaired only after it
+  differs on two cycles in a row; one mismatch is only `suspect`.
 
 ## Gotchas / invariants
 
