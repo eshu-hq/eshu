@@ -297,6 +297,105 @@ The Neo4j `PROFILE` gate for the new `QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES`
 entry passes (`TestProductionQueryplanProfilesRejectWholeGraphScans`, tag
 `queryplan_profile_live`, against the Neo4j container above).
 
+### Review finding R3-F2: bounding the grouped read's transfer
+
+The grouped read's `LIMIT` bounds source groups, not edges. With fewer than
+50,001 source repositories, which is every realistic graph, each unscoped
+`/catalog` and `/repositories` request transferred and sorted every
+Repository `DEPENDS_ON` edge, then clipped to 50,000. The per-edge read it
+replaced stopped at 50,001 rows.
+
+Fix: `loadUnscopedRepositoryDependencyEdges` bounds the transfer in every
+case, using the #6800 probe count it already had.
+
+- Probe count 0: no read (unchanged).
+- Probe count at most 50,000: Repository edges are a subset of all
+  `DEPENDS_ON` edges, so they fit. The grouped read runs as before with
+  `$group_limit` = 50,001.
+- Probe count above 50,000, or unreadable: `RepositoryDependencyGroupSizeCypher`
+  (`RETURN s.id AS source_id, count(t) AS target_count ORDER BY source_id
+  LIMIT 50001`, the same WHERE-free fast-path shape with `count` instead of
+  `collect`) runs first. `repositoryDependencyGroupLimit` picks the smallest
+  source prefix whose sizes sum past 50,000, and the grouped read fetches only
+  that prefix. Because groups arrive in source order, the prefix holds the
+  first 50,000 edges in (source, target) order, so the clipped list is
+  unchanged. The read is marked truncated whenever the sizes prove more than
+  50,000 edges, even if fewer ids come back (edges removed between the two
+  reads, or null ids that `collect` drops). This also closes R3-P3-4: a group
+  with only null ids can no longer hide truncation. The completion event gains
+  `edge_transfer_capped`.
+
+Setup: throwaway containers on this host, NornicDB
+`v1.3.3@sha256:81cedbf4...` (Bolt 127.0.0.1:28040) and Neo4j
+`2026-community@sha256:eabfbb04...` (28050, auth off), with the Eshu schema
+applied through `graph.EnsureSchemaWithBackendStrict`. The seed had 500
+`:Repository` nodes, 500 `:Workload` nodes and 2,000 Workload→Workload
+`DEPENDS_ON` edges. Repository→Repository `DEPENDS_ON` edges ran i→i+d over a
+range of d. All counts were read back as rows and matched the probe count on
+both backends. A nonce write preceded every timed call. Medians are over 5
+rounds after one warm-up (7 rounds for the loader comparison).
+
+Scaling curve for R3-P3-5, with 500 Repository `DEPENDS_ON` edges and a
+growing file count per repository (statement medians):
+
+| Files per repo (REPO_CONTAINS / functions) | NornicDB per-edge | NornicDB grouped | Neo4j per-edge | Neo4j grouped |
+| --- | --- | --- | --- | --- |
+| 0 (0 / 0) | 0.0044s | 0.0071s | 0.0073s | 0.0083s |
+| 100 (50,000 / 150,000) | 0.3511s | 0.0085s | 0.0136s | 0.0103s |
+| 200 (100,000 / 300,000) | 1.2609s | 0.0154s | 0.0106s | 0.0091s |
+
+On NornicDB the per-edge read grows with adjacency (0.004s to 1.26s). The
+grouped read stays within about 10ms across the same growth, which is what
+the `tryFastSingleHopAgg` mechanism predicts.
+
+Edge-density curve at 200 files per repository. "Transferred" means edge ids
+crossing the wire. The equality column compares the flattened and clipped
+grouped edges with the per-edge read at LIMIT 50001.
+
+| Repository edges (probe count) | Path | NornicDB: unbounded grouped / sizes + capped grouped | Neo4j: unbounded grouped / sizes + capped grouped | Transferred before → after | Equal to per-edge |
+| --- | --- | --- | --- | --- | --- |
+| 500 (2,500) | uncapped | 0.0154s / n/a | 0.0091s / n/a | 500 → 500 | yes |
+| 40,000 (42,000) | uncapped | 0.0484s / n/a | 0.0690s / n/a | 40,000 → 40,000 | yes |
+| 75,000 (77,000) | capped (334 of 500 groups) | 0.0804s / 0.0587s + 0.0766s | 0.1287s / 0.0408s + 0.0725s | 75,000 → 50,100 | yes (both) |
+| 150,000 (152,000) | capped (167 of 500 groups) | 0.1028s / 0.0732s + 0.0997s | 0.2175s / 0.0803s + 0.0681s | 150,000 → 50,100 | yes (both) |
+
+For reference, the per-edge read cost 2.20s, 3.23s and 4.35s on NornicDB at
+40,000, 75,000 and 150,000 edges.
+
+Performance Evidence: the end-to-end unscoped loader, compared with the
+pre-change loader (probe, then the grouped read at `LIMIT 50001`, then
+flatten). Calls were interleaved in the same process, with 7 rounds. The
+40,000, 75,000 and 500 rows were measured after stepping the density down with
+deletes. The NornicDB 40,000 row was re-measured on a fresh seed at 15 rounds,
+over two passes.
+
+| Repository edges | NornicDB before → after | Neo4j before → after | Edges / truncated (both builds) |
+| --- | --- | --- | --- |
+| 500 | 0.0073s → 0.0076s | 0.0057s → 0.0052s | 500 / false |
+| 40,000 | 0.0423s → 0.0410s, 0.0388s → 0.0394s | 0.1195s → 0.0935s | 40,000 / false |
+| 75,000 | 0.1602s → 0.1688s | 0.1707s → 0.1383s | 50,000 / true |
+| 150,000 | 0.1538s → 0.1664s | 0.1889s → 0.0997s | 50,000 / true |
+
+No-Regression Evidence: at or below the bound the statements are the same as
+before, apart from the parameterized `LIMIT`. The differences are within
+run-to-run noise. A first 7-round NornicDB pass at 40,000 edges, taken after
+deletes, read 0.077s → 0.089s with overlapping samples. The fresh-seed
+15-round re-run above shows no difference. Above the bound, where the response
+is already degraded and truncated, the cap costs about 5-8% on NornicDB.
+NornicDB walks the `DEPENDS_ON` index once per statement, and the extra
+group-size statement costs more than the saved transfer at these sizes. On
+Neo4j the cap is 19-47% faster. On both backends it bounds per-request memory
+and wire transfer at 50,000 edges plus one repository's edges, instead of
+growing with the whole Repository `DEPENDS_ON` set. The absolute figures apply
+only to this shared host; the claim is the relative change on identical
+inputs.
+
+Observability Evidence: `edge_transfer_capped` on the
+`repository_query.stage_completed` event for `stage=dependency_cluster_edges`
+(both routes) shows when a request took the capped path. Its
+`duration_seconds` includes the extra statement
+(`TestDependencyEdgeStageCompletionAttributes`).
+
 ## Observability Evidence
 
 *(Rewritten for review finding F4; current as of the rebase onto `59c605e48`.)*
@@ -335,8 +434,9 @@ read is now timed with the same stage timer as the repository list,
 `repository_query.stage_started` / `repository_query.stage_completed` with
 `operation=catalog_list` and `stage=dependency_cluster_edges`. The completion
 event carries `duration_seconds`, `edge_count`, `truncated`, `error` and
-`edge_scan_skipped`, but no `cluster_count`, because the catalog builds no
-clusters (`TestListCatalogTimesDependencyEdgeStage`). Before this, the only
+`edge_scan_skipped` (and, since R3-F2, `edge_transfer_capped`), but no
+`cluster_count`, because the catalog builds no clusters
+(`TestDependencyEdgeStageCompletionAttributes`, which covers both routes). Before this, the only
 catalog signal for the read was the degraded-read warning, so its duration was
 invisible. The contract is documented in
 `docs/public/reference/http-api/catalog-workload-selection.md`.

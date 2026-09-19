@@ -14,12 +14,14 @@ import (
 )
 
 // repositoryDependencyClusterEdgeLimit bounds the dependency-cluster edge
-// pre-pass. The scoped read returns one row per admitted
-// (:Repository)-[:DEPENDS_ON]->(:Repository) edge the caller is authorized to
-// see, and the unscoped grouped read one row per source repository; the
-// bound applies to both the row count and the flattened edge count, and
-// keeps the grouping pre-pass cheap and predictable even on a dense
-// whole-graph dependency set. At repo scale the repository-to-repository
+// pre-pass: at most this many (:Repository)-[:DEPENDS_ON]->(:Repository)
+// edges reach clustering and is_dependency. It also bounds the transfer. The
+// scoped read returns one row per admitted edge, so its LIMIT caps the rows
+// on the wire. The unscoped grouped read returns one row per source
+// repository, and a LIMIT on groups does not cap edges, so
+// loadUnscopedRepositoryDependencyEdges caps it separately: at most this many
+// edges when the DEPENDS_ON probe proves they fit, otherwise this many plus
+// one source repository's edges (#6786 review R3-F2). At repo scale the repository-to-repository
 // dependency edge count is far below this ceiling, so clustering stays complete
 // in practice; if it is ever hit, loadRepositoryDependencyEdges reports
 // Truncated so the caller discloses the read as partial (see
@@ -116,12 +118,19 @@ func repositoryDependencyClusterEdgeCypher(access querycontract.RepositoryAccess
 // complete evidence (every is_dependency is false, no clusters), not a
 // degraded read. ProbeErr carries a probe failure for telemetry only: the scan
 // still runs after it, so it never degrades the response.
+//
+// TransferCapped reports that the unscoped read could not prove from the probe
+// that every DEPENDS_ON edge fits in the bound, so it read per-source group
+// sizes first and capped the grouped read at the group prefix holding the
+// bound (see loadUnscopedRepositoryDependencyEdges). It is telemetry only; a
+// capped read is complete unless Truncated is also set.
 type repositoryDependencyEdgeRead struct {
-	Edges     []repositoryDependencyEdge
-	Truncated bool
-	Err       error
-	Skipped   bool
-	ProbeErr  error
+	Edges          []repositoryDependencyEdge
+	Truncated      bool
+	Err            error
+	Skipped        bool
+	ProbeErr       error
+	TransferCapped bool
 }
 
 // loadRepositoryDependencyEdges runs the bounded, correctly-scoped
@@ -140,38 +149,27 @@ type repositoryDependencyEdgeRead struct {
 // when the scoped grant predicate was spliced in) with this already-bounded,
 // already-scoped edge read, computed once in Go for both purposes.
 //
-// Unscoped callers first run the DEPENDS_ON cardinality probe and then the
-// grouped read (RepositoryDependencyGroupedEdgeCypher); scoped callers run
-// only the grant-predicated per-edge read (repositoryDependencyClusterEdgeCypher).
-// Both yield edges sorted by (source, target) and clipped to the same bound.
+// Unscoped callers run the DEPENDS_ON cardinality probe and then the grouped
+// read (loadUnscopedRepositoryDependencyEdges), which also reads group sizes
+// first when the probe cannot prove the edges fit the bound; scoped callers
+// run only the grant-predicated per-edge read
+// (repositoryDependencyClusterEdgeCypher). Both yield edges sorted by
+// (source, target) and clipped to the same bound, and both bound how many
+// edges cross the wire.
 func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.GraphQuery, access querycontract.RepositoryAccessFilter) repositoryDependencyEdgeRead {
 	if graph == nil {
 		return repositoryDependencyEdgeRead{}
 	}
-	var probeErr error
-	// The probe is unscoped, so it only runs for callers who may already see
-	// the whole graph. Scoped callers never issue a statement without their
-	// grant predicate; they go straight to the scoped edge scan.
+	// The probe and the grouped reads are unscoped, so they only run for
+	// callers who may already see the whole graph. Scoped callers never issue
+	// a statement without their grant predicate; they go straight to the
+	// scoped per-edge scan below.
 	if !access.Scoped() {
-		noEdges, err := probeRepositoryDependencyEdgesAbsent(ctx, graph)
-		if err != nil {
-			probeErr = err
-		} else if noEdges {
-			return repositoryDependencyEdgeRead{Edges: []repositoryDependencyEdge{}, Skipped: true}
-		}
-		// Unscoped callers take the grouped read NornicDB answers from the
-		// DEPENDS_ON relationship-type index; see
-		// RepositoryDependencyGroupedEdgeCypher for the measurement.
-		rows, err := readGroupedRepositoryDependencyEdges(ctx, graph)
-		if err != nil {
-			return repositoryDependencyEdgeRead{Err: err, ProbeErr: probeErr}
-		}
-		edges, truncated := flattenGroupedRepositoryDependencyEdges(rows, repositoryDependencyClusterEdgeLimit)
-		return repositoryDependencyEdgeRead{Edges: edges, Truncated: truncated, ProbeErr: probeErr}
+		return loadUnscopedRepositoryDependencyEdges(ctx, graph, repositoryDependencyClusterEdgeLimit)
 	}
 	rows, err := graph.Run(ctx, repositoryDependencyClusterEdgeCypher(access), access.GraphParams(nil))
 	if err != nil {
-		return repositoryDependencyEdgeRead{Err: err, ProbeErr: probeErr}
+		return repositoryDependencyEdgeRead{Err: err}
 	}
 	truncated := len(rows) > repositoryDependencyClusterEdgeLimit
 	if truncated {
@@ -186,7 +184,7 @@ func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.Grap
 		}
 		edges = append(edges, repositoryDependencyEdge{Source: source, Target: target})
 	}
-	return repositoryDependencyEdgeRead{Edges: edges, Truncated: truncated, ProbeErr: probeErr}
+	return repositoryDependencyEdgeRead{Edges: edges, Truncated: truncated}
 }
 
 // repositoryDependencyEdgesDegradedReason is the partial_reasons (repository
@@ -284,14 +282,7 @@ func resolveRepositoryDependencyEvidence(
 	dependencyRead := loadRepositoryDependencyEdges(ctx, graph, access)
 	clusters := buildRepositoryDependencyClusters(dependencyRead.Edges)
 	targets := repositoryDependencyTargetSet(dependencyRead.Edges)
-	clusterTimer.Done(
-		ctx,
-		slog.Int("cluster_count", len(clusters)),
-		slog.Int("edge_count", len(dependencyRead.Edges)),
-		slog.Bool("truncated", dependencyRead.Truncated),
-		slog.Bool("error", dependencyRead.Err != nil),
-		slog.Bool("edge_scan_skipped", dependencyRead.Skipped),
-	)
+	clusterTimer.Done(ctx, append([]slog.Attr{slog.Int("cluster_count", len(clusters))}, dependencyEdgeStageAttrs(dependencyRead)...)...)
 	logRepositoryDependencyClusterErrors(ctx, logger, "repository_list", dependencyRead)
 
 	evidence := repositoryDependencyEvidence{Clusters: clusters, Targets: targets}
@@ -299,6 +290,21 @@ func resolveRepositoryDependencyEvidence(
 		evidence.ExtraPartialReasons = append(evidence.ExtraPartialReasons, repositoryDependencyEdgesDegradedReason)
 	}
 	return evidence
+}
+
+// dependencyEdgeStageAttrs returns the stage=dependency_cluster_edges
+// completion attributes both the repository list and the catalog emit for
+// read: the edge count, whether the read was truncated or failed, whether
+// the probe skipped it, and whether the unscoped read capped its transfer
+// with the group-size statement (edge_transfer_capped).
+func dependencyEdgeStageAttrs(read repositoryDependencyEdgeRead) []slog.Attr {
+	return []slog.Attr{
+		slog.Int("edge_count", len(read.Edges)),
+		slog.Bool("truncated", read.Truncated),
+		slog.Bool("error", read.Err != nil),
+		slog.Bool("edge_scan_skipped", read.Skipped),
+		slog.Bool("edge_transfer_capped", read.TransferCapped),
+	}
 }
 
 // repositoryDependencyTargetSet returns the set of repository ids that are

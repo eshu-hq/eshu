@@ -5,7 +5,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -19,17 +18,22 @@ import (
 // `RETURN s.id, collect(t.id)` shape, which NornicDB v1.3.3 answers from the
 // DEPENDS_ON relationship-type index instead of expanding every Repository's
 // adjacency (#6786 review R2-F6), and that the grouped rows flatten into the
-// same (source, target)-ordered edge list the per-edge read returns.
+// same (source, target)-ordered edge list the per-edge read returns. The
+// probe's whole-graph DEPENDS_ON count (3) is within the bound, so every
+// Repository DEPENDS_ON edge fits in the bound too: the grouped read runs
+// directly at the fetch-limit group bound and the group-size read is skipped.
 func TestLoadRepositoryDependencyEdgesUnscopedUsesGroupedRead(t *testing.T) {
 	t.Parallel()
 
-	var edgeCypher string
+	var ran []string
+	var groupLimit any
 	reader := querytestutil.FakeRepoGraphReader{
-		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-			if strings.Contains(cypher, "count(r)") {
+		RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+			ran = append(ran, cypher)
+			if cypher == RepositoryDependencyEdgeCountCypher {
 				return []map[string]any{{"edge_count": int64(3)}}, nil
 			}
-			edgeCypher = cypher
+			groupLimit = params["group_limit"]
 			return []map[string]any{
 				{"source_id": "repository:a", "target_ids": []any{"repository:c", "repository:b"}},
 				{"source_id": "repository:b", "target_ids": []string{"repository:c"}},
@@ -39,8 +43,12 @@ func TestLoadRepositoryDependencyEdgesUnscopedUsesGroupedRead(t *testing.T) {
 
 	result := loadRepositoryDependencyEdges(context.Background(), reader, querycontract.RepositoryAccessFilter{AllScopes: true})
 
-	if edgeCypher != RepositoryDependencyGroupedEdgeCypher {
-		t.Fatalf("unscoped edge read = %q, want the grouped read %q", edgeCypher, RepositoryDependencyGroupedEdgeCypher)
+	wantRan := []string{RepositoryDependencyEdgeCountCypher, RepositoryDependencyGroupedEdgeCypher}
+	if !reflect.DeepEqual(ran, wantRan) {
+		t.Fatalf("unscoped statements = %q, want the probe then the grouped read %q", ran, wantRan)
+	}
+	if groupLimit != repositoryDependencyClusterEdgeFetchLimit {
+		t.Fatalf("group_limit = %#v, want the fetch limit %d", groupLimit, repositoryDependencyClusterEdgeFetchLimit)
 	}
 	want := []repositoryDependencyEdge{
 		{Source: "repository:a", Target: "repository:b"},
@@ -50,8 +58,8 @@ func TestLoadRepositoryDependencyEdgesUnscopedUsesGroupedRead(t *testing.T) {
 	if !reflect.DeepEqual(result.Edges, want) {
 		t.Fatalf("edges = %v, want %v", result.Edges, want)
 	}
-	if result.Truncated || result.Err != nil || result.Skipped {
-		t.Fatalf("result = %+v, want a complete untruncated read", result)
+	if result.Truncated || result.Err != nil || result.Skipped || result.TransferCapped {
+		t.Fatalf("result = %+v, want a complete, uncapped, untruncated read", result)
 	}
 }
 
@@ -59,26 +67,32 @@ func TestLoadRepositoryDependencyEdgesUnscopedUsesGroupedRead(t *testing.T) {
 // the only shape NornicDB's tryFastSingleHopAgg fast path accepts: a fixed
 // 1-hop DEPENDS_ON pattern with both endpoints labelled :Repository, no
 // WHERE clause, and a group key on the start variable followed by
-// collect(end.prop). The LIMIT bounds source groups at the fetch limit.
+// collect(end.prop). The parameterized LIMIT bounds source groups.
 func TestRepositoryDependencyGroupedEdgeCypherShape(t *testing.T) {
 	t.Parallel()
 
-	cypher := RepositoryDependencyGroupedEdgeCypher
-	for _, want := range []string{
-		"MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository)",
+	assertFastPathGroupedShape(t, RepositoryDependencyGroupedEdgeCypher,
 		"RETURN s.id AS source_id, collect(t.id) AS target_ids",
+		"LIMIT $group_limit",
+	)
+}
+
+func assertFastPathGroupedShape(t *testing.T, cypher string, wants ...string) {
+	t.Helper()
+	for _, want := range append([]string{
+		"MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository)",
 		"ORDER BY source_id",
-		fmt.Sprintf("LIMIT %d", repositoryDependencyClusterEdgeFetchLimit),
-	} {
+	}, wants...) {
 		if !strings.Contains(cypher, want) {
-			t.Errorf("grouped edge cypher missing %q:\n%s", want, cypher)
+			t.Errorf("grouped cypher missing %q:\n%s", want, cypher)
 		}
 	}
 	for _, forbidden := range []string{"WHERE", "allowed_repository_ids"} {
 		if strings.Contains(cypher, forbidden) {
-			t.Errorf("grouped edge cypher must not contain %q (it disables the fast path and it is unscoped):\n%s", forbidden, cypher)
+			t.Errorf("grouped cypher must not contain %q (it disables the fast path and it is unscoped):\n%s", forbidden, cypher)
 		}
 	}
+	querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 }
 
 // TestLoadRepositoryDependencyEdgesScopedKeepsPerEdgeGrantRead proves a
@@ -211,11 +225,19 @@ func TestFlattenGroupedRepositoryDependencyEdges(t *testing.T) {
 }
 
 // dependencyEdgeRowsForRead shapes fake graph rows for whichever
-// dependency-edge statement ran: grouped (source_id, target_ids) rows for the
-// unscoped RepositoryDependencyGroupedEdgeCypher, and the given per-edge
+// dependency-edge statement ran: (source_id, target_count) rows for the
+// unscoped RepositoryDependencyGroupSizeCypher, grouped (source_id,
+// target_ids) rows for RepositoryDependencyGroupedEdgeCypher, and the given per-edge
 // (source_id, target_id) rows unchanged for the scoped per-edge read. Groups
 // keep first-appearance source order, as the fakes' rows already are.
 func dependencyEdgeRowsForRead(cypher string, rows []map[string]any) []map[string]any {
+	if cypher == RepositoryDependencyGroupSizeCypher {
+		sizes := make([]map[string]any, 0, len(rows))
+		for _, group := range dependencyEdgeRowsForRead(RepositoryDependencyGroupedEdgeCypher, rows) {
+			sizes = append(sizes, map[string]any{"source_id": group["source_id"], "target_count": int64(len(group["target_ids"].([]any)))})
+		}
+		return sizes
+	}
 	if !strings.Contains(cypher, "collect(t.id)") {
 		return rows
 	}

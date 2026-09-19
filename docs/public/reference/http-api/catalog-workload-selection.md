@@ -41,13 +41,18 @@ request a page that is not actually there.
 The catalog is unscoped, so its marker read first runs a whole-graph
 `DEPENDS_ON` count and skips the edge read when the graph has none. Otherwise
 it reads `(:Repository)-[:DEPENDS_ON]->(:Repository)` grouped by source
-repository (`RETURN s.id, collect(t.id)`), bounded at 50,001 source groups
-and 50,000 flattened edges; exceeding either bound is the truncation case
-above. Operators see this read as a pair of structured log events,
+repository (`RETURN s.id, collect(t.id)`), clipped to 50,000 edges; more edges
+than that is the truncation case above. When the count is above 50,000 or
+could not be read, the read first fetches each source repository's edge count
+and then fetches only the source groups that hold the first 50,000 edges, so
+at most 50,000 edges plus one repository's edges cross the wire. Operators see
+this read as a pair of structured log events,
 `repository_query.stage_started` and `repository_query.stage_completed`, with
 `operation=catalog_list` and `stage=dependency_cluster_edges`. The completion
-event carries `duration_seconds`, `edge_count`, `truncated`, `error`, and
-`edge_scan_skipped` (true when the count proved there were no edges). It has
+event carries `duration_seconds`, `edge_count`, `truncated`, `error`,
+`edge_scan_skipped` (true when the count proved there were no edges), and
+`edge_transfer_capped` (true when the read fetched per-repository edge counts
+first to cap its transfer). It has
 no `cluster_count`, because the catalog builds no dependency clusters. A read
 failure or truncation also logs a `repository_query.dependency_edges_degraded`
 warning with the same `operation`.

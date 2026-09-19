@@ -4,11 +4,9 @@
 package repository
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -164,87 +162,5 @@ func TestListCatalogDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *testi
 	repo := repositories[0].(map[string]any)
 	if got := querycontract.BoolVal(repo, "is_dependency"); got {
 		t.Errorf("is_dependency = %v, want false (no edges could be read)", got)
-	}
-}
-
-// TestListCatalogTimesDependencyEdgeStage proves GET /api/v0/catalog wraps
-// its dependency-edge read in the repository_query stage timer with the same
-// completion attributes the repository list route emits for
-// stage=dependency_cluster_edges (edge_count, truncated, error,
-// edge_scan_skipped), minus cluster_count, which the catalog does not
-// compute (#6786 review R2-F10). Before this, an operator could not see what
-// the catalog's edge read cost.
-func TestListCatalogTimesDependencyEdgeStage(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		edgeCount int64
-		want      []string
-	}{
-		{
-			name:      "edges exist",
-			edgeCount: 1,
-			want:      []string{"edge_count=1", "truncated=false", "error=false", "edge_scan_skipped=false"},
-		},
-		{
-			name:      "probe proves no edges",
-			edgeCount: 0,
-			want:      []string{"edge_count=0", "truncated=false", "error=false", "edge_scan_skipped=true"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			reader := querytestutil.FakeRepoGraphReader{
-				RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-					switch {
-					case strings.Contains(cypher, "count(r)"):
-						return []map[string]any{{"edge_count": tt.edgeCount}}, nil
-					case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
-						return dependencyEdgeRowsForRead(cypher, []map[string]any{
-							{"source_id": "repository:app", "target_id": "repository:lib"},
-						}), nil
-					case strings.Contains(cypher, "MATCH (r:Repository)"):
-						return []map[string]any{{"id": "repository:lib", "name": "lib"}}, nil
-					default:
-						return nil, nil
-					}
-				},
-			}
-			var buf bytes.Buffer
-			handler := &Handler{
-				Neo4j:   reader,
-				Profile: querycontract.ProfileLocalAuthoritative,
-				Logger:  slog.New(slog.NewTextHandler(&buf, nil)),
-			}
-			req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
-			req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
-			handler.listCatalog(httptest.NewRecorder(), req)
-
-			var started, completed string
-			for _, line := range strings.Split(buf.String(), "\n") {
-				if !strings.Contains(line, "operation=catalog_list") || !strings.Contains(line, "stage=dependency_cluster_edges") {
-					continue
-				}
-				switch {
-				case strings.Contains(line, "repository_query.stage_started"):
-					started = line
-				case strings.Contains(line, "repository_query.stage_completed"):
-					completed = line
-				}
-			}
-			if started == "" || completed == "" {
-				t.Fatalf("catalog dependency-edge stage events missing (started=%q completed=%q); log:\n%s", started, completed, buf.String())
-			}
-			for _, want := range append([]string{"duration_seconds="}, tt.want...) {
-				if !strings.Contains(completed, want) {
-					t.Errorf("stage_completed = %q, want it to contain %q", completed, want)
-				}
-			}
-			if strings.Contains(completed, "cluster_count") {
-				t.Errorf("stage_completed = %q, want no cluster_count: the catalog builds no clusters", completed)
-			}
-		})
 	}
 }

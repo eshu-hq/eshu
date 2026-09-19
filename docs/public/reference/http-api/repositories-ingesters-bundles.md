@@ -146,7 +146,11 @@ instrumented with the existing
 stage=`dependency_cluster_edges`), which emits
 `repository_query.stage_started` and `repository_query.stage_completed` log
 events carrying `duration_seconds`, `cluster_count`, `edge_count`,
-`truncated`, `error`, and `edge_scan_skipped`. A probe failure still runs the
+`truncated`, `error`, `edge_scan_skipped`, and `edge_transfer_capped`. The
+unscoped read groups edges by source repository; when the count is above the
+50,000-edge bound or could not be read, it first fetches each source
+repository's edge count and then only the source groups holding the first
+50,000 edges (`edge_transfer_capped=true`). A probe failure still runs the
 scan and emits a `repository_query.dependency_cluster_probe_failed` warning;
 a scan failure also emits `repository_query.dependency_cluster_scan_failed`
 with the error text. On a query error or truncation the handler

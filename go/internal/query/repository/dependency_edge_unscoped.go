@@ -24,36 +24,39 @@ import (
 // statement on the repository list path runs without their grant.
 const RepositoryDependencyEdgeCountCypher = `MATCH ()-[r:DEPENDS_ON]->() RETURN count(r) AS edge_count`
 
-// probeRepositoryDependencyEdgesAbsent runs the DEPENDS_ON cardinality probe
-// and reports whether it proves the graph holds no DEPENDS_ON edges. It is a
-// separate symbol so the query-source coverage manifest can register the probe
-// as a hot, plan-checked call independent of the edge scan.
-func probeRepositoryDependencyEdgesAbsent(ctx context.Context, graph querycontract.GraphQuery) (bool, error) {
+// probeRepositoryDependencyEdgeCount runs the DEPENDS_ON cardinality probe
+// and returns the whole-graph DEPENDS_ON count. known is false when the row
+// is missing or its value is not a recognized integer; the caller then treats
+// the count as unknown rather than zero, because skipping or under-bounding
+// the edge read on an unreadable probe would silently drop real cluster and
+// is_dependency evidence. It is a separate symbol so the query-source
+// coverage manifest can register the probe as a hot, plan-checked call.
+func probeRepositoryDependencyEdgeCount(ctx context.Context, graph querycontract.GraphQuery) (count int64, known bool, err error) {
 	rows, err := graph.Run(ctx, RepositoryDependencyEdgeCountCypher, nil)
-	if err != nil {
-		return false, err
+	if err != nil || len(rows) == 0 {
+		return 0, false, err
 	}
-	return len(rows) > 0 && dependencyEdgeCountIsZero(rows[0]), nil
+	count, known = dependencyEdgeCount(rows[0])
+	return count, known, nil
 }
 
-// dependencyEdgeCountIsZero reports whether the probe row proves the graph has
-// no DEPENDS_ON edges. Only a present, recognized integer zero counts: a
-// missing column or an unrecognized value type returns false so the edge scan
-// still runs, because skipping on an unreadable probe would silently drop real
-// cluster and is_dependency evidence.
-func dependencyEdgeCountIsZero(row map[string]any) bool {
-	switch n := row["edge_count"].(type) {
+// dependencyEdgeCount reads the probe row's edge_count. Only a present,
+// recognized, non-negative integer is known.
+func dependencyEdgeCount(row map[string]any) (int64, bool) {
+	var n int64
+	switch v := row["edge_count"].(type) {
 	case int64:
-		return n == 0
+		n = v
 	case int:
-		return n == 0
+		n = int64(v)
 	case int32:
-		return n == 0
+		n = int64(v)
 	case float64:
-		return n == 0
+		n = int64(v)
 	default:
-		return false
+		return 0, false
 	}
+	return n, n >= 0
 }
 
 // RepositoryDependencyGroupedEdgeCypher is the unscoped repository
@@ -86,34 +89,94 @@ func dependencyEdgeCountIsZero(row map[string]any) bool {
 // endpoints is worse still, because NornicDB v1.3.3 ignores it and returns
 // every DEPENDS_ON edge, including Workload-to-Workload ones.
 //
-// LIMIT bounds source groups, not edges. flattenGroupedRepositoryDependencyEdges
-// reports truncation when either bound is exceeded.
+// $group_limit bounds source groups, not edges, so it alone does not bound
+// how many edges cross the wire: a few sources can hold far more edges than
+// the bound. loadUnscopedRepositoryDependencyEdges supplies the bound that
+// does. When the probe proves the whole graph has at most
+// repositoryDependencyClusterEdgeLimit DEPENDS_ON edges, the Repository
+// subset fits too and $group_limit is the fetch limit. Otherwise it is the
+// group prefix repositoryDependencyGroupLimit computes from
+// RepositoryDependencyGroupSizeCypher, which holds at most the bound plus one
+// source's edges (#6786 review R3-F2).
 const RepositoryDependencyGroupedEdgeCypher = `
 		MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository)
 		RETURN s.id AS source_id, collect(t.id) AS target_ids
 		ORDER BY source_id
-		LIMIT 50001
+		LIMIT $group_limit
 	`
 
-// readGroupedRepositoryDependencyEdges runs RepositoryDependencyGroupedEdgeCypher.
-// It is a separate symbol so the query-source coverage manifest can register
-// the grouped read as a hot, plan-checked call independent of the scoped
-// per-edge read in loadRepositoryDependencyEdges.
-func readGroupedRepositoryDependencyEdges(ctx context.Context, graph querycontract.GraphQuery) ([]map[string]any, error) {
-	return graph.Run(ctx, RepositoryDependencyGroupedEdgeCypher, nil)
+// readGroupedRepositoryDependencyEdges runs RepositoryDependencyGroupedEdgeCypher
+// for the first groupLimit source groups. It is a separate symbol so the
+// query-source coverage manifest can register the grouped read as a hot,
+// plan-checked call independent of the scoped per-edge read in
+// loadRepositoryDependencyEdges.
+func readGroupedRepositoryDependencyEdges(ctx context.Context, graph querycontract.GraphQuery, groupLimit int) ([]map[string]any, error) {
+	return graph.Run(ctx, RepositoryDependencyGroupedEdgeCypher, map[string]any{"group_limit": groupLimit})
+}
+
+// loadUnscopedRepositoryDependencyEdges is the unscoped branch of
+// loadRepositoryDependencyEdges, with the edge bound as a parameter so tests
+// can exercise the capped path. It runs the DEPENDS_ON cardinality probe and
+// then the grouped read, with the transfer bounded in every case:
+//
+//   - probe count zero: no read; Skipped.
+//   - probe count within limit: the grouped read at the fetch-limit group
+//     bound. Repository DEPENDS_ON edges are a subset of all DEPENDS_ON
+//     edges, so at most limit edges come back.
+//   - probe count over limit, or unknown: RepositoryDependencyGroupSizeCypher
+//     first, then the grouped read capped at the group prefix that holds the
+//     first limit edges; TransferCapped is set. The graph can change between
+//     the two reads; the flattened result still reports truncation from what
+//     actually came back, so a stale size only moves the transfer bound.
+//
+// A probe error is carried in ProbeErr for telemetry and never degrades the
+// response on its own.
+func loadUnscopedRepositoryDependencyEdges(ctx context.Context, graph querycontract.GraphQuery, limit int) repositoryDependencyEdgeRead {
+	count, known, probeErr := probeRepositoryDependencyEdgeCount(ctx, graph)
+	if known && count == 0 {
+		return repositoryDependencyEdgeRead{Edges: []repositoryDependencyEdge{}, Skipped: true}
+	}
+	if known && count <= int64(limit) {
+		rows, err := readGroupedRepositoryDependencyEdges(ctx, graph, limit+1)
+		if err != nil {
+			return repositoryDependencyEdgeRead{Err: err, ProbeErr: probeErr}
+		}
+		edges, truncated := flattenGroupedRepositoryDependencyEdges(rows, limit)
+		return repositoryDependencyEdgeRead{Edges: edges, Truncated: truncated, ProbeErr: probeErr}
+	}
+	sizes, err := readRepositoryDependencyGroupSizes(ctx, graph)
+	if err != nil {
+		return repositoryDependencyEdgeRead{Err: err, ProbeErr: probeErr, TransferCapped: true}
+	}
+	groupLimit, over := repositoryDependencyGroupLimit(sizes, limit)
+	if groupLimit == 0 {
+		return repositoryDependencyEdgeRead{Edges: []repositoryDependencyEdge{}, ProbeErr: probeErr, TransferCapped: true}
+	}
+	rows, err := readGroupedRepositoryDependencyEdges(ctx, graph, groupLimit)
+	if err != nil {
+		return repositoryDependencyEdgeRead{Err: err, ProbeErr: probeErr, TransferCapped: true}
+	}
+	edges, truncated := flattenGroupedRepositoryDependencyEdges(rows, limit)
+	return repositoryDependencyEdgeRead{Edges: edges, Truncated: truncated || over, ProbeErr: probeErr, TransferCapped: true}
 }
 
 // flattenGroupedRepositoryDependencyEdges turns grouped rows from
 // RepositoryDependencyGroupedEdgeCypher into edges sorted by (source,
 // target), clipped to limit. It reports truncated when more than limit
-// source groups or more than limit flattened edges came back. Every group
-// holds at least one edge, so the first limit groups in source order always
-// contain the first limit edges in (source, target) order; the clipped list
-// therefore matches the per-edge `ORDER BY source_id, target_id LIMIT limit`
-// read. Rows with a blank source, a target list that is not a list, or blank
-// or non-string target ids are skipped, as the per-edge parser skips blank
-// ids. Parallel edges between the same pair are kept, as the per-edge read
-// returns one row per relationship.
+// source groups or more than limit flattened edges came back. Every MATCHed
+// group holds at least one edge, so the first limit groups in source order
+// contain the first limit edges in (source, target) order, and the clipped
+// list matches the per-edge `ORDER BY source_id, target_id LIMIT limit` read.
+//
+// That equality needs every group to contribute an id. collect drops nulls,
+// so a group whose target ids are all null contributes none; production
+// writers always set Repository.id, so this does not happen in practice. If
+// it did, the clipped selection could differ from the per-edge read only when
+// the read is truncated, and truncation is still reported, because the group
+// count check does not depend on ids. Rows with a blank source, a target list
+// that is not a list, or blank or non-string target ids are skipped, as the
+// per-edge parser skips blank ids. Parallel edges between the same pair are
+// kept, as the per-edge read returns one row per relationship.
 func flattenGroupedRepositoryDependencyEdges(rows []map[string]any, limit int) ([]repositoryDependencyEdge, bool) {
 	truncated := len(rows) > limit
 	if truncated {

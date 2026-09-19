@@ -35,6 +35,7 @@ required_ids:
   - QP-CODEOWNERS-LAST-MATCH-OWNER
   - QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT
   - QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES
+  - QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES
 entries:
   - id: QP-SC-DEPS
     domain: supply_chain
@@ -979,17 +980,17 @@ entries:
     source:
       file: go/internal/query/repository/dependency_edge_unscoped.go
       symbol: RepositoryDependencyGroupedEdgeCypher
-      source_sha256: ed65d4c8419cc8cbad7002084fe61b68b624e5f15c858296e6df04ca2da60f76
-      line_hint: 91
+      source_sha256: 3077a2fcbd2cff29c909df9155cab948364f523d356068f1d157ed33989f30e9
+      line_hint: 101
     required_anchors:
       - label: Repository
         property: id
     required_limits:
-      - "50001"
+      - $group_limit
     requires_order: true
     caveats:
       - "Unscoped repository-to-repository DEPENDS_ON read behind GET /api/v0/catalog is_dependency and the unscoped GET /api/v0/repositories dependency clusters (#6786 review R2-F6). The fixed 1-hop typed pattern with no WHERE and a RETURN s.id, collect(t.id) projection is answered by NornicDB v1.3.3's relationship-aggregation fast path (pkg/cypher traversal_fast_agg.go tryFastSingleHopAgg), which walks the DEPENDS_ON relationship-type index once and batch-checks both endpoint labels, instead of expanding every Repository's adjacency like the per-edge RETURN s.id, t.id read. Measured on NornicDB v1.3.3 with the Eshu schema, 500 repositories x 200 REPO_CONTAINS files, ~2,000 Workload and 300 Repository DEPENDS_ON edges: 0.0045s median against 0.635s for the per-edge read, identical flattened row sets at LIMIT 50001, 100 and 7. Adding any WHERE (including a grant predicate) disables the fast path, so scoped callers keep the per-edge read."
-      - "LIMIT bounds source groups, not edges; flattenGroupedRepositoryDependencyEdges reports truncation when either the group count or the flattened edge count exceeds 50000."
+      - "$group_limit bounds source groups, not edges (#6786 review R3-F2). loadUnscopedRepositoryDependencyEdges supplies 50001 only when the DEPENDS_ON count probe proves at most 50000 DEPENDS_ON edges exist; otherwise it reads QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES first and passes the smallest group prefix whose sizes exceed 50000, so at most 50000 edges plus one source's edges cross the wire. flattenGroupedRepositoryDependencyEdges reports truncation when either the group count or the flattened edge count exceeds 50000."
     plan:
       operators:
         - NodeByLabelScan
@@ -998,4 +999,30 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "10c33af7d9c2c4ea9e1268423a1e1635d2fab49707ee0ae0674e7f4d52971c9d"
+    cypher_sha256: "29c6fce224b6b2c81b81810567e41ed1d28bd35ec254edafa90c26c361480aef"
+  - id: QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES
+    domain: repository
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/repository/dependency_edge_cap.go
+      symbol: RepositoryDependencyGroupSizeCypher
+      source_sha256: 3429e6bf5b00c0faebf459343839be45d2bc73f243cee38e5e34287615720cbf
+      line_hint: 30
+    required_anchors:
+      - label: Repository
+        property: id
+    required_limits:
+      - "50001"
+    requires_order: true
+    caveats:
+      - "Per-source Repository DEPENDS_ON group sizes that cap the unscoped grouped edge read (QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES) when the DEPENDS_ON count probe cannot prove every edge fits the 50000-edge bound (#6786 review R3-F2). Same fixed 1-hop typed, WHERE-free shape as the grouped read with count(t) in place of collect(t.id), which NornicDB v1.3.3's tryFastSingleHopAgg answers from the DEPENDS_ON relationship-type index with one HasLabelBatch label check, returning one integer per source repository. LIMIT bounds source groups; every MATCHed group holds at least one edge, so more than 50000 groups already proves the bound is exceeded."
+    plan:
+      operators:
+        - NodeByLabelScan
+        - Expand
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "8500cbef13c5e1b7820ce2768dfc9abee127b228755a370fc5dd6ef8c71d190b"
