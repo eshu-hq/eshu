@@ -169,8 +169,11 @@ not more expensive) and are within run-to-run noise either way at this
 corpus size — well under the skill's 10%/60s regression stop threshold in
 either direction. `GET /api/v0/catalog`'s only new cost is the bounded edge
 pre-pass it previously skipped entirely, which is required for correctness
-(defect 1) and is the exact query `repository.loadRepositoryDependencyEdges`
-runs -- bounded by `repositoryDependencyClusterEdgeFetchLimit` (**50001**,
+(defect 1) and was, when this table was measured, the exact query
+`repository.loadRepositoryDependencyEdges` ran. That is superseded for
+unscoped callers, which include the catalog, by the grouped read; see "Review
+finding R2-F6" and "Review finding R3-F2" below. It was
+bounded by `repositoryDependencyClusterEdgeFetchLimit` (**50001**,
 one past `repositoryDependencyClusterEdgeLimit`'s 50000, added after this
 table was first measured so truncation is detectable; see review F1) with
 an `ORDER BY`. No change to result cardinality, page limits, or timeout
@@ -216,8 +219,11 @@ runs the scan. #6800's prepass tests now run against `loadRepositoryDependencyEd
 After the rebase, the live `TestLiveRepositoryDependencyMarkerAnswerTruth`
 (unscoped, scoped, catalog_unscoped) and `TestLiveRelationshipRepoAnchorAnswerTruth`
 pass on NornicDB v1.3.3 and Neo4j 2026. No-Regression Evidence: the probe is
-#6800's measured statement, unchanged; on a graph with edges the scan is the
-same statement this branch already measured above.
+#6800's measured statement, unchanged. At the time of that rebase, on a graph
+with edges the scan was the per-edge statement measured above. That is
+superseded for unscoped callers by the grouped read, which is measured
+separately under "Review finding R2-F6" and "Review finding R3-F2" below.
+Scoped callers still run the per-edge statement.
 
 ### Review finding R2-F6: the catalog read on a production-shape graph
 
