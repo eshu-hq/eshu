@@ -1,0 +1,65 @@
+go/internal/query/codeowners/handler_tracing.go
+  s_0155aa640a8bb1::t_54f30975d57375 11,19,22,37
+go/internal/query/codequery/handler_tracing.go
+  s_0155aa640a8bb1::t_8ea894f7ca5553 9,14,23,30
+go/internal/query/freshness/handler_tracing.go
+  s_0155aa640a8bb1::t_b92fd1d1cd0fda 9,14,17,22
+go/internal/query/handler_tracing.go
+  s_0155aa640a8bb1::t_26750a38ca804a 9,16,18,28
+go/internal/query/iac/handler_tracing.go
+  s_0155aa640a8bb1::t_dd0b4e7a5ca821 9,14,17,22
+go/internal/query/impact/change_surface_investigation.go
+  s_0155aa640a8bb1::t_77e89dbf876c23 15,64
+go/internal/query/impact/contract.go
+  s_0155aa640a8bb1::t_faf8217a15ebe3 16,46
+go/internal/query/impact/developer_change_plan.go
+  s_0155aa640a8bb1::t_57ffcb00945af5 12,17
+go/internal/query/impact/entity_map.go
+  s_0155aa640a8bb1::t_1b49cd8c1afbb3 13,60
+go/internal/query/impact/prechange.go
+  s_0155aa640a8bb1::t_71fc50fbca8e5b 14,54
+go/internal/query/impact/resource_investigation.go
+  s_0155aa640a8bb1::t_f595c08a550e6e 15,59
+go/internal/query/impact/trace_deployment_live_evidence.go
+  s_0155aa640a8bb1::t_99e8aca873f940 14,31,71
+go/internal/query/impact/trace_deployment_live_evidence_count.go
+  s_0155aa640a8bb1::t_59f47df066010a 11,30,108
+go/internal/query/incident/handler.go
+  s_0155aa640a8bb1::t_fab55ba226ad7a 15,42,45,48
+go/internal/query/language/handler_tracing.go
+  s_0155aa640a8bb1::t_a02f1e949d2d85 9,14,17,22
+go/internal/query/package/registry/handler_tracing.go
+  s_0155aa640a8bb1::t_85fbbad74bab02 11,16,19,30
+go/internal/query/secrets/handler_tracing.go
+  s_0155aa640a8bb1::t_a21cf4b12c195c 9,14,17,22
+go/internal/query/semanticsearch/handler_tracing.go
+  s_0155aa640a8bb1::t_03e4106d74cb93 11,16,19,29
+go/internal/query/service/catalog.go
+  s_0155aa640a8bb1::t_fab53054f572ac 13,71-72
+go/internal/query/supply/chain/handler_tracing.go
+  s_0155aa640a8bb1::t_432f8cb16c8323 11,19,22,32
+go/internal/query/tracing/doc.go
+  s_0155aa640a8bb1::t_df15b5176ddad5 4,16
+go/internal/query/tracing/handler.go
+  s_0155aa640a8bb1::t_2a59d4012dec29 4
+go/internal/query/tracing/handler_contract_test.go
+  s_0155aa640a8bb1::t_10caf208f74a85 4
+go/internal/query/workitem/handler_tracing.go
+  s_0155aa640a8bb1::t_7b2b2bfe0d84ab 9,14,18,23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3aa04e36d93a127980e90fc2eb9dd8e6d044af42",
+  "prompts": {},
+  "sessions": {
+    "s_0155aa640a8bb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ed74ad2-74b8-4517-8e85-303dc193b776",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
