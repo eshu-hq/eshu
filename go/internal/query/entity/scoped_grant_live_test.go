@@ -75,6 +75,12 @@ var scopedGrantLiveSeed = []string{
 	`CREATE (:Workload {id: 'scoped-grant-6786:wl-in', name: 'wl-in', repo_id: 'scoped-grant-6786:repo-a'})`,
 	`CREATE (:Workload {id: 'scoped-grant-6786:wl-out', name: 'wl-out', repo_id: 'scoped-grant-6786:repo-b'})`,
 	`CREATE (:Workload {id: 'scoped-grant-6786:wl-collision', name: 'wl-collision', repo_id: 'scoped-grant-6786:repo-b'})`,
+	// #6786 review P1: two distinct workloads that share one name. api-1
+	// sorts first by id and belongs to the ungranted repo-b; api-2 belongs to
+	// the granted repo-a. A single unordered `LIMIT 1` read can return api-1
+	// and deny a repo-a caller; the bounded candidate read must not.
+	`CREATE (:Workload {id: 'scoped-grant-6786:api-1', name: 'scoped-grant-6786-api', repo_id: 'scoped-grant-6786:repo-b'})`,
+	`CREATE (:Workload {id: 'scoped-grant-6786:api-2', name: 'scoped-grant-6786-api', repo_id: 'scoped-grant-6786:repo-a'})`,
 	// #6786 review follow-up (F2): a WorkloadInstance of each workload, to
 	// exercise GetEntityContext's queryselector hydration path for entity
 	// types no File CONTAINS -- Workload and WorkloadInstance both resolve
@@ -88,6 +94,8 @@ var scopedGrantLiveSeed = []string{
 	// Every workload's own repository DEFINES it (production shape).
 	scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-a", "DEFINES", "Workload", "scoped-grant-6786:wl-in"),
 	scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-b", "DEFINES", "Workload", "scoped-grant-6786:wl-out"),
+	scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-b", "DEFINES", "Workload", "scoped-grant-6786:api-1"),
+	scopedGrantLiveEdge("Repository", "scoped-grant-6786:repo-a", "DEFINES", "Workload", "scoped-grant-6786:api-2"),
 	scopedGrantLiveEdge("WorkloadInstance", "scoped-grant-6786:wli-in", "INSTANCE_OF", "Workload", "scoped-grant-6786:wl-in"),
 	scopedGrantLiveEdge("WorkloadInstance", "scoped-grant-6786:wli-out", "INSTANCE_OF", "Workload", "scoped-grant-6786:wl-out"),
 	// repo-a DEFINES the collision workload too, even though the workload's
@@ -296,6 +304,72 @@ func TestLiveScopedWorkloadContextGrant(t *testing.T) {
 		}
 		if !strings.Contains(rec.Body.String(), `"scoped-grant-6786:wl-out"`) {
 			t.Fatalf("body = %s, want the requested workload id for an unscoped caller", rec.Body.String())
+		}
+	})
+}
+
+// TestLiveScopedServiceContextNameCollision is the live half of the #6786
+// review P1: GET /services/{name}/context for a name two workloads share must
+// return the workload the caller is granted, on both backends, and pick the
+// same workload every time for a caller granted both.
+func TestLiveScopedServiceContextNameCollision(t *testing.T) {
+	reader, baseCtx := scopedGrantLiveFixture(t)
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	const serviceName = "scoped-grant-6786-api"
+
+	getServiceContext := func(ctx context.Context) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/services/"+serviceName+"/context", nil)
+		req = req.WithContext(ctx)
+		req.SetPathValue("service_name", serviceName)
+		rec := httptest.NewRecorder()
+		handler.GetServiceContext(rec, req)
+		return rec
+	}
+
+	cases := []struct {
+		name    string
+		ctx     context.Context
+		wantID  string
+		wantNot string
+	}{
+		{
+			name:    "repo_a_caller_gets_repo_a_workload",
+			ctx:     scopedRequestContext(baseCtx, "scoped-grant-6786:repo-a"),
+			wantID:  "scoped-grant-6786:api-2",
+			wantNot: "scoped-grant-6786:api-1",
+		},
+		{
+			name:    "repo_b_caller_gets_repo_b_workload",
+			ctx:     scopedRequestContext(baseCtx, "scoped-grant-6786:repo-b"),
+			wantID:  "scoped-grant-6786:api-1",
+			wantNot: "scoped-grant-6786:api-2",
+		},
+		{
+			name:    "caller_granted_both_gets_lowest_id",
+			ctx:     scopedRequestContext(baseCtx, "scoped-grant-6786:repo-a", "scoped-grant-6786:repo-b"),
+			wantID:  "scoped-grant-6786:api-1",
+			wantNot: "scoped-grant-6786:api-2",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := getServiceContext(tc.ctx)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), `"id":"`+tc.wantID+`"`) {
+				t.Fatalf("body = %s, want workload %s", rec.Body.String(), tc.wantID)
+			}
+			if strings.Contains(rec.Body.String(), tc.wantNot) {
+				t.Fatalf("body = %s, leaked the other same-name workload %s", rec.Body.String(), tc.wantNot)
+			}
+		})
+	}
+
+	t.Run("caller_granted_neither_gets_not_found", func(t *testing.T) {
+		rec := getServiceContext(scopedRequestContext(baseCtx, "scoped-grant-6786:repo-z"))
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404; body = %s", rec.Code, rec.Body.String())
 		}
 	})
 }

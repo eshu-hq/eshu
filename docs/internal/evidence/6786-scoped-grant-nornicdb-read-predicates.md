@@ -293,6 +293,84 @@ all fixed here, TDD, with live re-proof:
   (`TestQueryScopedGrantDeniedOperationValues`,
   `TestResolveWorkloadSelectorOperationLabel`).
 
+## Review round 4 (service context by name, telemetry, overflow, naming)
+
+- **P1: service context by name denied granted callers.** The name lookup in
+  `FetchWorkloadContextForOperation` read `MATCH (w:Workload) WHERE
+  w.name = $service_name ... LIMIT 1` with no grant and no `ORDER BY`, then
+  decided the grant. With two workloads named `api` (repo-a granted, repo-b
+  not), a repo-a caller could get repo-b's row and a 404. Fixed in
+  `entity/workload_lookup.go`: a name-keyed lookup reads
+  `ORDER BY w.id LIMIT 51` with `collect(DISTINCT dr.id)`, filters in Go with
+  `WorkloadGrantAdmitted`, and returns the lowest admitted id. Id-only lookups
+  keep the exact single-row read. Unit RED:
+  `TestGetServiceContextNameCollisionReturnsGrantedWorkload` failed with
+  `status = 404, want 200`. Live RED on the pre-fix code (956f6521c) with the
+  new `TestLiveScopedServiceContextNameCollision` (`-count=3`): NornicDB
+  failed 3 of 3 runs and Neo4j 3 of 3, each with a 404 for a granted caller
+  or the other same-name workload's id, depending on which row the unordered
+  read returned. Live GREEN on both backends after the fix.
+- **P2: `grant_denied` counted before a fallback admitted.** Both
+  `ResolveWorkloadSelector` (id, then name) and `fetchServiceWorkloadContext`
+  (name, then id, then read model) now count `grant_denied` once, and only
+  when no lookup admitted a workload. RED:
+  `TestResolveWorkloadSelectorIDDenialThenNameAdmitCountsNoDenial` and
+  `TestFetchServiceWorkloadContextNameDenialThenIDAdmitCountsNoDenial` saw
+  one denial on a successful request; the `DeniedBy*` pair saw `Value:2` for
+  one denied request.
+- **P2: overflow 500 leaked a count.** The selector returned
+  `...candidates exceed bound: 51` and the handlers wrote it as a 500. The
+  typed `querycontract.ErrWorkloadSelectorCandidatesExceedBound` now maps to
+  409 through `querycontract.WriteWorkloadSelectorOverflow`, with fixed text
+  and no count, on trace-deployment-chain, deployment-config-influence, and
+  service context. 409 matches the ambiguous-selector convention these
+  routes already use. RED: both impact handler tests saw
+  `status = 500 ... exceed bound: 51`; service context returned 200 because
+  its single-row read never saw the other 50 rows. OpenAPI gains `409` on `getServiceContext`.
+- **P3: ambiguity compared only rows 0 and 1.** Now decided from distinct
+  admitted ids. RED: `TestResolveWorkloadSelectorAmbiguityUsesDistinctIDs`
+  (rows `a, a, b`) returned no error.
+- **P3: hydration admission rule.** Kept `AllowsRepositoryID` on the attached
+  repository, documented in `queryselector/README.md`, pinned by
+  `TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission`
+  (mutation-checked: swapping in `WorkloadGrantAdmitted` fails it).
+- **Naming.** `impact_trace_workload_selection{,_test}.go` became
+  `workload_selection{,_test}.go`; `ResolveTraceWorkloadSelector` became
+  `ResolveWorkloadSelector`; `ErrAmbiguousTraceWorkloadSelector` became
+  `impacttrace.ErrAmbiguousWorkloadSelector`; `entity.ResolveEntityRequest`
+  and `entity.BuildResolveEntityGraphQuery` became `entity.ResolveRequest`
+  and `entity.BuildResolveGraphQuery`.
+
+No-Regression Evidence: the changed read is the service-context name lookup.
+Harness: median and p90 of 50 sequential `fetchServiceWorkloadContext` calls
+after 5 warm-up calls, scoped caller granted repo-a, the scoped-grant live
+seed plus 500 filler workloads with distinct names, schema applied with
+`graph.EnsureSchemaWithBackendStrict`, fresh containers per side. Before is
+956f6521c (pre-fix); after is this change. Images:
+`timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf4...` on
+`bolt://127.0.0.1:27960` and `neo4j:2026-community@sha256:eabfbb04...` on
+`bolt://127.0.0.1:27970`, both local.
+
+| Backend | Case | Before median (p90) | After median (p90) | Correct before / after |
+| --- | --- | --- | --- | --- |
+| NornicDB v1.3.3 | unique name | 1.333ms (1.454ms) | 1.394ms (1.539ms) | 50/50 / 50/50 |
+| NornicDB v1.3.3 | same-name pair | 0.738ms (0.857ms) | 1.285ms (1.495ms) | 0/50 / 50/50 |
+| Neo4j 2026 | unique name | 6.981ms (7.730ms) | 6.997ms (8.175ms) | 50/50 / 50/50 |
+| Neo4j 2026 | same-name pair | 3.701ms (4.385ms) | 6.198ms (7.335ms) | 0/50 / 50/50 |
+
+The unique-name path moves by +0.06ms on NornicDB and +0.02ms on Neo4j. The
+same-name "before" timings are not comparable: every before call returned a
+404 or the other tenant's row, which skips the repository, topology, and
+dependency reads the correct answer needs. Neo4j plans the candidate read as
+`NodeIndexSeek` on `Workload.name`, then `OptionalExpand(All)` and
+`OrderedAggregation`, with no `AllNodesScan`. Input cardinality is one name
+key; output is at most 51 rows, then one. No index or schema change.
+
+Observability for this round: the overflow logs a `Warn` with
+`reason=candidate_bound_exceeded` and the bound, never the row count or the
+selector. Anchor mismatches in the candidate read keep the existing
+`backend_anchor_mismatch` `Warn` and counter.
+
 ## Observability Evidence:
 
 `service.StartServiceQueryStage`/`timer.Done` call sites and their attributes

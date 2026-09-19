@@ -710,7 +710,13 @@ type Instruments struct {
 	// FetchWorkloadRepositoryForAccess's DEFINES re-check, or
 	// HydrateResolvedEntityRepoIdentity's hydration re-check): those decide a
 	// component the top-level function still has to act on, and counting
-	// both would report one caller-visible denial as two or three.
+	// both would report one caller-visible denial as two or three. For the
+	// same reason a request that tries more than one lookup
+	// (fetchServiceWorkloadContext's name, id, and read-model fallbacks, or
+	// ResolveWorkloadSelector's id then name lookup) counts "grant_denied"
+	// at most once, and only when no lookup admitted a workload: a denied
+	// first lookup followed by an admitted second one is a successful
+	// request, not a denial (#6786 review).
 	QueryScopedGrantDenied metric.Int64Counter
 	// QueryScopeGrantInlineCapped counts scoped-token infra reads whose grant
 	// set overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
