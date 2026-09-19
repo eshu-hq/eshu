@@ -128,6 +128,9 @@ func TestReadinessWaitSurvivesSupersessionLive(t *testing.T) {
 	queue := ReducerQueue{
 		database: SQLDB{DB: sqlDB}, LeaseOwner: "reducer-6785-supersession", LeaseDuration: time.Minute,
 		RetryDelay: 30 * time.Second, MaxAttempts: 3, Now: func() time.Time { return clock },
+		// Claim is queue-global; restricting the domain keeps rows other live
+		// tests leave on a shared database out of this proof.
+		ClaimDomain: reducer.DomainIAMCanPerformMaterialization,
 	}
 	enqueue := func(generation string) {
 		t.Helper()
