@@ -35,7 +35,11 @@
 #      package directory had Go files at the merge base and has none at
 #      HEAD, and the new one had none at the merge base and has some at
 #      HEAD. Pointing an importer at a package that already existed, or at
-#      one that does not replace the old, is a real change.
+#      one that does not replace the old, is a real change. The new
+#      directory's Go files must also be the old directory's Go files, paired
+#      by content with only the package clause and its godoc lead
+#      normalized: a replacement package with the same exported API but a
+#      changed body, comment, or file set is a real change.
 #
 # The exemption guards both the language-query rule and the relationship
 # rule (has_non_comment_language_query_change and
@@ -127,7 +131,10 @@ go_package_dir_has_files() {
 # is_internal_package_move MERGE_BASE OLD_IMPORT NEW_IMPORT succeeds only when
 # the import-path substitution token-diff reported is a real package move in
 # this diff: OLD's directory had Go files at MERGE_BASE and has none at HEAD,
-# and NEW's directory had none at MERGE_BASE and has some at HEAD. Both import
+# and NEW's directory had none at MERGE_BASE and has some at HEAD. It then
+# proves NEW holds the moved implementation, not a different package with the
+# same exported API: NEW's .go files at HEAD must pair one to one by content
+# with OLD's .go files at MERGE_BASE (go_package_content_hashes). Both import
 # paths map to repo directories through the go/ module root
 # (github.com/eshu-hq/eshu/go/...). Anything else fails closed.
 is_internal_package_move() {
@@ -139,7 +146,44 @@ is_internal_package_move() {
   ! go_package_dir_has_files HEAD "$old_dir" || return 1
   ! go_package_dir_has_files "$merge_base" "$new_dir" || return 1
   go_package_dir_has_files HEAD "$new_dir" || return 1
-  return 0
+  local old_hashes new_hashes
+  old_hashes="$(go_package_content_hashes "$merge_base" "$old_dir" "${old_dir##*/}")" || return 1
+  new_hashes="$(go_package_content_hashes HEAD "$new_dir" "${new_dir##*/}")" || return 1
+  [ -n "$old_hashes" ] && [ "$old_hashes" = "$new_hashes" ]
+}
+
+# go_package_content_hashes REF DIR NAME prints one sorted line per .go file
+# directly in DIR at REF: the git blob hash of that file after normalizing
+# its package name NAME to a fixed placeholder. Only two line shapes are
+# normalized: the clause itself (`package NAME` or `package NAME_test`) and
+# the godoc lead (`// Package NAME ...`). Everything else must be byte
+# identical, so two directories print the same list only when their Go files
+# pair up one to one by content -- file renames are allowed, a changed body,
+# comment, or an added or missing file is not. NAME is the directory's last
+# element, the same name token-diff assumes for the qualifier; a package
+# whose clause does not match it is not normalized and so fails the compare.
+# Any git failure, or a NAME that is not a Go identifier, fails closed.
+go_package_content_hashes() {
+  local ref="$1" dir="$2" name="$3" listing line type path hash
+  case "$name" in
+    "" | [0-9]* | *[!A-Za-z0-9_]*) return 1 ;;
+  esac
+  listing="$(git -C "$repo_root" ls-tree "$ref" -- "$dir/" 2>/dev/null)" || return 1
+  local hashes=()
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    read -r _ type _ <<<"${line%%$'\t'*}"
+    path="${line#*$'\t'}"
+    [ "$type" = blob ] || continue
+    case "$path" in *.go) ;; *) continue ;; esac
+    hash="$(set -o pipefail
+      git -C "$repo_root" show "${ref}:${path}" \
+        | sed -E "s/^package ${name}(_test)?\$/package @PKG@\\1/; s/^\/\/ Package ${name}( |\$)/\/\/ Package @PKG@\\1/" \
+        | git -C "$repo_root" hash-object --stdin)" || return 1
+    hashes+=("$hash")
+  done <<<"$listing"
+  [ "${#hashes[@]}" -gt 0 ] || return 0
+  printf '%s\n' "${hashes[@]}" | LC_ALL=C sort
 }
 
 has_non_comment_language_query_change() {

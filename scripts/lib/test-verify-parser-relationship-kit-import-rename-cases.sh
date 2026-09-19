@@ -149,3 +149,56 @@ rename_case rename-r10-relationship-swap "$rel" \
   "$(importer_source relationships go/internal/rtrace/newspan newspan)" \
   "go/internal/rtrace/oldspan go/internal/rtrace/newspan" \
   "go/internal/rtrace/oldspan go/internal/rtrace/newspan" fail
+
+# R13-R17: the move check also proves the new package is the moved
+# implementation. Every .go file in the new directory at HEAD must match a
+# .go file in the old directory at the base byte for byte once the package
+# clause (and its `// Package <name>` godoc lead) is normalized; files may be
+# renamed within the move, so the match is by content, not by name.
+#
+# content_move_case name mode expect
+#   mode  pure-rename   git mv every file to a new name, rewrite only the
+#                       package clause and godoc lead.
+#         changed-body  pure-rename plus one changed function body.
+#         added-file    pure-rename plus one extra .go file.
+#         missing-file  pure-rename minus one .go file.
+#         changed-doc   pure-rename plus an edited comment outside the
+#                       package clause and godoc lead.
+content_move_case() {
+  local name="$1" mode="$2" expect="$3" r
+  r="$(init_repo "$name")"
+  mkdir -p "${r}/$(dirname "$lang")" "${r}/${old_pkg}"
+  printf '// Package queryspan starts spans.\npackage queryspan\n' >"${r}/${old_pkg}/doc.go"
+  printf 'package queryspan\n\n// A returns one.\nfunc A() int { return 1 }\n' >"${r}/${old_pkg}/handlerspan.go"
+  printf 'package queryspan_test\n\nimport "testing"\n\nfunc TestA(t *testing.T) {}\n' >"${r}/${old_pkg}/handlerspan_test.go"
+  printf '%s\n' "$old_src" >"${r}/${lang}"
+  git -C "${r}" add .
+  git -C "${r}" commit -q -m 'move baseline'
+  mkdir -p "${r}/${new_pkg}"
+  git -C "${r}" mv "${old_pkg}/doc.go" "${new_pkg}/doc.go"
+  git -C "${r}" mv "${old_pkg}/handlerspan.go" "${new_pkg}/handler.go"
+  git -C "${r}" mv "${old_pkg}/handlerspan_test.go" "${new_pkg}/handler_test.go"
+  sed -i 's/^package queryspan/package tracing/; s/^\/\/ Package queryspan /\/\/ Package tracing /' \
+    "${r}/${new_pkg}/doc.go" "${r}/${new_pkg}/handler.go" "${r}/${new_pkg}/handler_test.go"
+  case "$mode" in
+    pure-rename) ;;
+    changed-body) sed -i 's/return 1/return 2/' "${r}/${new_pkg}/handler.go" ;;
+    added-file) printf 'package tracing\n\n// B returns two.\nfunc B() int { return 2 }\n' >"${r}/${new_pkg}/extra.go" ;;
+    missing-file) git -C "${r}" rm -q -f "${new_pkg}/handler_test.go" ;;
+    changed-doc) sed -i 's/A returns one/A returns 1/' "${r}/${new_pkg}/handler.go" ;;
+  esac
+  printf '%s\n' "$new_src" >"${r}/${lang}"
+  git -C "${r}" add -A .
+  git -C "${r}" commit -q -m 'move change'
+  if [ "$expect" = pass ]; then
+    expect_pass "${r}"
+  else
+    expect_fail "${r}"
+  fi
+}
+
+content_move_case rename-r13-pure-move-with-file-renames pure-rename pass
+content_move_case rename-r14-replacement-changed-body changed-body fail
+content_move_case rename-r15-replacement-added-file added-file fail
+content_move_case rename-r16-replacement-missing-file missing-file fail
+content_move_case rename-r17-replacement-changed-comment changed-doc fail
