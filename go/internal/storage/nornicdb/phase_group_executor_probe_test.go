@@ -203,8 +203,10 @@ func TestExecuteDrainLoopSucceedsWhenMatchesVanishBeforeDrain(t *testing.T) {
 	}
 }
 
-// TestExecuteDrainLoopPropagatesProbeAndDrainErrors keeps a failed probe or
-// drain visible to the caller with the statement context.
+// TestExecuteDrainLoopPropagatesDrainErrors keeps a failed drain visible to
+// the caller with the statement context. A failed probe deliberately does not
+// propagate: it falls through to the drain, which
+// TestExecuteDrainLoopDrainsWhenProbeFails covers.
 func TestExecuteDrainLoopPropagatesDrainErrors(t *testing.T) {
 	t.Parallel()
 
