@@ -39,9 +39,10 @@ func dropLostBootstrapClaim(
 	return true
 }
 
-// dropDeferredBootstrapAck reports whether err is an Ack that was still waiting
-// for a busy scope when the drain shut down. The item is dropped; its lease
-// expires and a later attempt re-projects the generation.
+// dropDeferredBootstrapAck reports whether err is an Ack that stopped waiting
+// for a busy scope, either because the drain shut down or because the
+// projector.DefaultAckWaitMaxRetries bound ran out. The item is dropped; its
+// lease expires and a later attempt re-projects the generation.
 func dropDeferredBootstrapAck(
 	ctx context.Context,
 	work projector.ScopeGenerationWork,
@@ -53,8 +54,13 @@ func dropDeferredBootstrapAck(
 	if !errors.Is(err, projector.ErrWorkAckDeferred) {
 		return false
 	}
-	logBootstrapDrop(ctx, work, workerID, err, "ack", "shutdown_canceled",
-		"projector ack abandoned at shutdown while scope was busy", span, logger)
+	if ctx.Err() != nil {
+		logBootstrapDrop(ctx, work, workerID, err, "ack", "shutdown_canceled",
+			"projector ack abandoned at shutdown while scope was busy", span, logger)
+		return true
+	}
+	logBootstrapDrop(ctx, work, workerID, err, "ack", "ack_wait_exhausted",
+		"projector ack abandoned after waiting for busy scope", span, logger)
 	return true
 }
 

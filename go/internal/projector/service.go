@@ -247,14 +247,7 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 			s.recordProjectionShutdownCanceled(workCtx, work, start, 0, err, workerID)
 			return nil
 		}
-		s.recordProjectionResult(workCtx, work, start, "failed", 0, err, workerID)
-		if failErr := s.WorkSink.Fail(workCtx, work, err); failErr != nil {
-			if s.recordClaimLostWork(workCtx, work, start, 0, failErr, "fail", workerID) {
-				return nil
-			}
-			return errors.Join(err, fmt.Errorf("fail projector work: %w", failErr))
-		}
-		return nil
+		return s.failWork(workCtx, work, start, 0, err, workerID)
 	}
 	s.recordWorkStage(projectCtx, work, "load_facts", loadStart, len(factsForGeneration), workerID)
 
@@ -276,14 +269,7 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 			s.recordProjectionShutdownCanceled(workCtx, work, start, len(factsForGeneration), err, workerID)
 			return nil
 		}
-		s.recordProjectionResult(workCtx, work, start, "failed", len(factsForGeneration), err, workerID)
-		if failErr := s.WorkSink.Fail(workCtx, work, err); failErr != nil {
-			if s.recordClaimLostWork(workCtx, work, start, len(factsForGeneration), failErr, "fail", workerID) {
-				return nil
-			}
-			return errors.Join(err, fmt.Errorf("fail projector work: %w", failErr))
-		}
-		return nil
+		return s.failWork(workCtx, work, start, len(factsForGeneration), err, workerID)
 	}
 	s.recordWorkStage(projectCtx, work, "project_generation", projectStart, len(factsForGeneration), workerID)
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
@@ -295,13 +281,11 @@ func (s Service) processWork(ctx context.Context, work ScopeGenerationWork, work
 	}
 
 	ackCtx := context.WithoutCancel(workCtx)
-	if err := AckWhenScopeFree(workCtx, s.WorkSink, s.Heartbeater, work, result, s.ackDeferredLogger(ackCtx, work, workerID)); err != nil {
+	onDeferred := s.ackDeferredLogger(ackCtx, work, workerID)
+	if err := AckWhenScopeFree(workCtx, s.WorkSink, s.Heartbeater, work, result, 0, onDeferred); err != nil {
 		if s.recordSupersededWork(ackCtx, work, start, len(factsForGeneration), err, workerID) ||
-			s.recordClaimLostWork(ackCtx, work, start, len(factsForGeneration), err, "ack", workerID) {
-			return nil
-		}
-		if errors.Is(err, ErrWorkAckDeferred) { // shutdown while the scope was busy; the lease expires
-			s.recordProjectionShutdownCanceled(ackCtx, work, start, len(factsForGeneration), err, workerID)
+			s.recordClaimLostWork(ackCtx, work, start, len(factsForGeneration), err, "ack", workerID) ||
+			s.recordAckAbandoned(workCtx, work, start, len(factsForGeneration), err, workerID) {
 			return nil
 		}
 		s.recordProjectionResult(ackCtx, work, start, "ack_failed", len(factsForGeneration), err, workerID)

@@ -153,15 +153,22 @@ func isolateBootstrapProjectorFailure(
 	work projector.ScopeGenerationWork,
 	workerID int,
 	cause error,
+	span trace.Span,
 	logger *slog.Logger,
+	recordFailed func(),
 ) error {
 	if ctx.Err() != nil && (errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded)) {
+		recordFailed()
 		return nil
 	}
-	if failErr := workSink.Fail(ctx, work, cause); failErr != nil {
-		if dropLostBootstrapClaim(ctx, work, workerID, failErr, "fail", nil, logger) {
-			return nil
-		}
+	// Record the failed outcome only once Fail confirms this attempt still owns
+	// the item; a lost claim is dropped and the owner records the real outcome.
+	failErr := workSink.Fail(ctx, work, cause)
+	if dropLostBootstrapClaim(ctx, work, workerID, failErr, "fail", span, logger) {
+		return nil
+	}
+	recordFailed()
+	if failErr != nil {
 		return fmt.Errorf("bootstrap projector fail item (worker %d): %w", workerID, errors.Join(cause, failErr))
 	}
 	return errProjectorItemFailed
@@ -238,8 +245,9 @@ func drainProjectorWorkItem(
 			}
 			loadErr = errors.Join(loadErr, heartbeatErr)
 		}
-		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", 0, loadErr, span, instruments, logger)
-		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, loadErr, logger)
+		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, loadErr, span, logger, func() {
+			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", 0, loadErr, span, instruments, logger)
+		})
 	}
 
 	// Project
@@ -255,8 +263,9 @@ func drainProjectorWorkItem(
 			}
 			projectErr = errors.Join(projectErr, heartbeatErr)
 		}
-		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), projectErr, span, instruments, logger)
-		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, projectErr, logger)
+		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, projectErr, span, logger, func() {
+			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), projectErr, span, instruments, logger)
+		})
 	}
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
 		if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", span, logger) {
@@ -266,15 +275,16 @@ func drainProjectorWorkItem(
 			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "superseded", len(factsForGeneration), nil, span, instruments, logger)
 			return nil
 		}
-		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), heartbeatErr, span, instruments, logger)
-		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, heartbeatErr, logger)
+		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, heartbeatErr, span, logger, func() {
+			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), heartbeatErr, span, instruments, logger)
+		})
 	}
 
 	// Ack failure is fatal, not routed to Fail: Project already committed, so
 	// Fail could dead-letter successful work (#4464). A busy scope retries with
 	// lease renewal; superseded, lost, or shutdown-deferred work is dropped.
 	onDeferred := bootstrapAckDeferredLogger(itemCtx, work, workerID, logger)
-	if ackErr := projector.AckWhenScopeFree(itemCtx, workSink, heartbeater, work, result, onDeferred); ackErr != nil {
+	if ackErr := projector.AckWhenScopeFree(itemCtx, workSink, heartbeater, work, result, 0, onDeferred); ackErr != nil {
 		if dropLostBootstrapClaim(itemCtx, work, workerID, ackErr, "ack", span, logger) ||
 			dropDeferredBootstrapAck(itemCtx, work, workerID, ackErr, span, logger) {
 			return nil
@@ -327,7 +337,8 @@ func startBootstrapProjectorHeartbeat(
 						return
 					}
 					heartbeatErr = fmt.Errorf("heartbeat bootstrap projector work: %w", err)
-					if logger != nil {
+					// The drain logs an expected claim loss at WARN; it must not page.
+					if logger != nil && !errors.Is(err, projector.ErrWorkClaimLost) {
 						scopeAttrs := telemetry.ScopeAttrs(work.Scope.ScopeID, work.Generation.GenerationID, work.Scope.SourceSystem)
 						logAttrs := make([]any, 0, len(scopeAttrs)+5)
 						for _, attr := range scopeAttrs {

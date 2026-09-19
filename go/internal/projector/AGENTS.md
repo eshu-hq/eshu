@@ -349,8 +349,9 @@
   `ErrWorkAckDeferred` means Ack hit its store lock timeout behind a same-scope
   ingestion commit and changed nothing. `AckWhenScopeFree` renews the lease with
   Heartbeat and retries; supersession or a lost claim ends it quietly, and
-  shutdown gives up and lets the lease expire. Do not call `WorkSink.Ack`
-  directly from a worker loop.
+  shutdown or `DefaultAckWaitMaxRetries` (about 5 minutes) gives up and lets
+  the lease expire. Do not call `WorkSink.Ack` directly from a worker loop.
+  Record a failed outcome only after `Fail` confirms ownership (`failWork`).
 
 ## Common changes and how to scope them
 

@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -33,11 +34,39 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 	tests := []struct {
 		name        string
 		ctx         func() context.Context
+		runner      projector.ProjectionRunner
 		sink        projector.ProjectorWorkSink
 		heartbeater projector.ProjectorWorkHeartbeater
 		wantLogs    []string
+		wantNoLogs  []string
 		wantStatus  string
 	}{
+		{
+			name:       "claim lost at fail",
+			runner:     &failingProjectionRunner{failAfter: 0, err: errors.New("projection failed")},
+			sink:       &claimLostSink{failErr: claimLost},
+			wantLogs:   []string{"projector work claim lost to another attempt"},
+			wantNoLogs: []string{"bootstrap projection failed", `"status":"failed"`},
+			wantStatus: "claim_lost",
+		},
+		{
+			name:   "claim lost at heartbeat",
+			runner: &blockingProjectionRunner{started: make(chan struct{})},
+			sink:   &claimLostSink{},
+			heartbeater: projectorHeartbeaterFunc(func(context.Context, projector.ScopeGenerationWork) error {
+				return claimLost
+			}),
+			wantLogs:   []string{"projector work claim lost to another attempt"},
+			wantNoLogs: []string{"bootstrap projector lease heartbeat failed"},
+			wantStatus: "claim_lost",
+		},
+		{
+			name:        "ack wait bound exhausted",
+			sink:        &claimLostSink{ackErr: deferred},
+			heartbeater: projectorHeartbeaterFunc(func(context.Context, projector.ScopeGenerationWork) error { return nil }),
+			wantLogs:    []string{"projector ack abandoned after waiting for busy scope"},
+			wantStatus:  "ack_wait_exhausted",
+		},
 		{
 			name:       "claim lost at ack",
 			sink:       &claimLostSink{ackErr: claimLost},
@@ -88,8 +117,8 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 			var completed atomic.Int64
 			err := drainProjectorWorkItem(ctx,
 				&fakeWorkSource{items: []projector.ScopeGenerationWork{work}},
-				&fakeFactStore{}, &fakeProjectionRunner{}, tt.sink, tt.heartbeater,
-				time.Hour, 0, &completed, tracer, nil, logger)
+				&fakeFactStore{}, runnerOrDefault(tt.runner), tt.sink, tt.heartbeater,
+				time.Millisecond, 0, &completed, tracer, nil, logger)
 			if err != nil {
 				t.Fatalf("drainProjectorWorkItem() error = %v, want nil", err)
 			}
@@ -117,6 +146,18 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 					t.Fatalf("logs missing %q:\n%s", want, out)
 				}
 			}
+			for _, unwanted := range tt.wantNoLogs {
+				if strings.Contains(out, unwanted) {
+					t.Fatalf("logs contain %q for an expected claim loss:\n%s", unwanted, out)
+				}
+			}
 		})
 	}
+}
+
+func runnerOrDefault(runner projector.ProjectionRunner) projector.ProjectionRunner {
+	if runner == nil {
+		return &fakeProjectionRunner{}
+	}
+	return runner
 }
