@@ -1,7 +1,7 @@
 version: 1
 grandfathered_non_hot_baseline: 220989280718f206e53fade8670c3b240d44a9b0
 source_coverage:
-  - file: repository/catalog.go
+  - file: repository/catalog_repositories.go
     calls:
       - symbol: "(*Handler).listCatalogRepositoriesFromGraph"
         count: 1
