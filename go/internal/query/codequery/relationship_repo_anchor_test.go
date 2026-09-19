@@ -5,19 +5,11 @@ package codequery
 
 import (
 	"context"
-	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
-
-// nornicDBAndOrAfterWhitespace matches an AND/OR keyword immediately
-// preceded by a newline or tab. NornicDB v1.3.3 mis-evaluates the whole
-// WHERE clause when this happens (proven live, schema applied, Go driver):
-// the character immediately before AND/OR must be a space, not a bare
-// newline or tab from gofmt-style multi-line formatting.
-var nornicDBAndOrAfterWhitespace = regexp.MustCompile(`[\n\t](AND|OR)\b`)
 
 // TestRelationshipsGraphRowAnchorsOnRepositoryForRepoIDBranch proves the
 // name+repo_id branch of relationshipsGraphRow renders a repository-anchored
@@ -63,7 +55,5 @@ func TestRelationshipsGraphRowAnchorsOnRepositoryForRepoIDBranch(t *testing.T) {
 	if got, want := capturedParams["name"], "Run"; got != want {
 		t.Errorf("name param = %#v, want %#v", got, want)
 	}
-	if loc := nornicDBAndOrAfterWhitespace.FindString(capturedCypher); loc != "" {
-		t.Fatalf("repo_id branch renders %q immediately after a newline/tab, which NornicDB v1.3.3 mis-evaluates:\n%s", loc, capturedCypher)
-	}
+	querytestutil.AssertCypherHasNoBrokenAndOr(t, capturedCypher)
 }
