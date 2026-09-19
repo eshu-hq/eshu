@@ -19,6 +19,19 @@
 # automatically-inserted end-of-line SEMICOLON tokens kept; any `import "C"`
 # file never exempt).
 #
+# The same exemption also covers a repository-internal package move seen from
+# an importing file (#6818): token-diff runs with
+# -allow-internal-import-rename, so a file also counts as unchanged when its
+# only difference is one unaliased import path under
+# github.com/eshu-hq/eshu/go/internal/ replaced by another, plus every
+# `old.X` qualifier rewritten to `new.X` (old/new are the paths' last
+# elements), with no other token changed. That is decided on the token
+# stream too, never by rewriting diff text: a string literal edited from
+# "old.x" to "new.x" is still a real change. A rename with any other code
+# change, an inconsistent qualifier, a second renamed import, an aliased
+# import, or a non-internal path change is still a change. See
+# go/cmd/token-diff/doc.go for the full rule.
+#
 # This function owns everything git-shaped: resolving the same base blob the
 # gate's own diff uses (three-dot merge-base semantics, falling back to a
 # direct two-dot diff against $base exactly like the top-level diff above),
@@ -70,6 +83,7 @@ is_comment_only_diff() {
   # be built/run from script_dir's own go/ module, never from $repo_root/go.
   local rc=1
   if ( cd "$script_dir/../go" && env -u GOROOT go run ./cmd/token-diff \
+    -allow-internal-import-rename \
     -base "$base_tmp" -head "$head_tmp" >/dev/null 2>&1 ); then
     rc=0
   fi

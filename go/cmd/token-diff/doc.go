@@ -4,7 +4,8 @@
 // Command token-diff reports whether two versions of a Go source file are
 // behavior-identical after stripping plain `//` line comments -- the
 // mechanism behind parser-relationship-kit's language-query-source
-// comment-only exemption (issue #6647).
+// comment-only exemption (issue #6647) and its internal import rename
+// exemption (issue #6818).
 //
 // # Why not a line-based diff
 //
@@ -37,11 +38,37 @@
 //   - Any read, parse, or scan error on either side fails closed: report a
 //     real change (exit 1 or 2), never exit 0.
 //
+// # Internal import rename (opt-in)
+//
+// With -allow-internal-import-rename, a file also exits 0 when its only
+// change is one repository-internal package move seen from an importer
+// (issue #6818), for example query/queryspan becoming query/tracing:
+//
+//   - Exactly one import differs between base and head: one unaliased path
+//     under github.com/eshu-hq/eshu/go/internal/ removed and one added. Every
+//     other import (name and path) is unchanged. Import order and grouping
+//     inside the block are not compared, so a gofumpt re-sort still passes.
+//   - The import declarations hold nothing but import tokens and plain //
+//     comments; a block comment or directive there refuses the rename.
+//   - The qualifier names are the two paths' last elements. In the base
+//     file, every use of the old name is a package qualifier (old.X, not a
+//     selector field x.old and not a declared name), and the new name does
+//     not already appear. Each old.X becomes new.X, and the resulting token
+//     stream must equal head's, under the same comment and SEMICOLON rules
+//     as above.
+//
+// Anything else is a real change: a rename plus any other code edit, a
+// qualifier renamed inconsistently, a second renamed import, an aliased
+// import, a path outside the internal tree, or a string literal edited to
+// mention the new name. The check runs on tokens, so text inside strings is
+// never rewritten.
+//
 // # Usage
 //
-//	token-diff -base <path-to-base-version> -head <path-to-head-version>
+//	token-diff [-allow-internal-import-rename] -base <path-to-base-version> -head <path-to-head-version>
 //
-// Exit 0: the streams are identical (safe to treat as a comment-only edit).
+// Exit 0: the streams are identical (safe to treat as a comment-only edit),
+// or, with the flag, the file differs only by one internal import rename.
 // Exit 1: the streams differ (a real change). Exit 2: an error occurred
 // (bad flags, unreadable file, scan/parse failure). Callers MUST treat exit
 // 2 the same as exit 1.

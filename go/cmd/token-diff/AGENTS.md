@@ -31,6 +31,16 @@ case the same way the existing ones were found: think about what a real Go
 program could mean by a `//`-prefixed line, not just what today's fixtures
 cover.
 
+## Keep the import rename exemption narrow
+
+`rename.go` (`-allow-internal-import-rename`) exempts one internal package
+move per file and nothing more. Do not widen it to aliased imports, several
+renames, non-internal paths, or text rewriting without an owner decision. Any
+change to its rules updates `doc.go`'s "Internal import rename" list,
+`rename_test.go`, and
+`scripts/lib/test-verify-parser-relationship-kit-import-rename-cases.sh`
+together. Each refused shape must stay a test that expects exit 1.
+
 ## Fail closed, always
 
 Any new error path (a new os.ReadFile call, a new parser/scanner entry
