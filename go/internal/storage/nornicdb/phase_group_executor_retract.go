@@ -152,7 +152,7 @@ func (e PhaseGroupExecutor) executeAutocommitRetract(
 ) error {
 	sanitized := sanitizedStatement(stmt)
 	if e.DrainReader == nil {
-		// No RunWrite-capable executor is wired (some tests / non-Bolt
+		// No DrainReader-capable executor is wired (some tests / non-Bolt
 		// executors). Run the retract as its own statement through the inner
 		// executor so it is still never batched with the sibling upsert;
 		// correctness does not depend on DrainReader being present.
