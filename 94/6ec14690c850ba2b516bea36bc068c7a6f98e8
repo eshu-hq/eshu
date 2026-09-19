@@ -1,0 +1,22 @@
+go/internal/storage/cypher/unwind_alias_repo_scan_test.go
+  s_3d761bb140daa9::t_3fd638a4068a4d 1-152
+  s_3d761bb140daa9::t_990ea788f82fe6 153-164
+go/internal/storage/cypher/unwind_alias_unit_test.go
+  s_3d761bb140daa9::t_a82fee1d97dbc5 1-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "946ec14690c850ba2b516bea36bc068c7a6f98e8",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
