@@ -340,10 +340,21 @@ after deploy (the shim above is smaller than a production corpus).
 ## Known limits and related issues
 
 - Graph-only labels are still read from the graph. `CloudResource` and
-  `TerraformStateResource` have no content rows, so every unscoped read
-  scans those labels whole, and the cold first-hit cost grows with their
-  size: a gate run with 150,000 nodes per label measured 8.28 s on the first
-  hit (#6843). Warm reads and the table-served labels are unaffected.
+  `TerraformStateResource` have no content rows, so an unscoped read loads
+  every node of both labels, and on a cold NornicDB the first request pays
+  that whole-label scan; later requests are served from NornicDB's result
+  cache (#6843). Two separate observations there:
+  - On NornicDB v1.3.3 with 150,000 nodes in each graph-only label, the
+    exact graph-only count Cypher took 8.28 s on its first execution and
+    about 0 s on a repeat (cached).
+  - One latency-gate run returned HTTP 504 on exactly that first unscoped
+    request, and the next run returned 200.
+
+  The 10 s graph-read deadline leaves little margin at this scale. A
+  production-scale instance measured 0.17-0.19 s cold for the same
+  whole-label part, because it has far fewer nodes in these labels, so this
+  is a scale limit, not a present outage. The table-served labels are
+  unaffected.
 - Live tests: four reducer-queue tests in `go/internal/storage/postgres`
   (`TestWorkloadReplayDuringClaimReturnsAckToPending`,
   `TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken`,
@@ -352,8 +363,9 @@ after deploy (the shim above is smaller than a production corpus).
   intermittently with and without this change. The ACK path stamps
   `visible_at` from the database clock while the claim compares it with the
   application clock, so a claim right after an ACK misses the row whenever
-  the database clock runs ahead. It reproduces on the base commit with the
-  queue clock set behind the database (#6828).
+  the database clock runs ahead. It reproduces on main before this branch
+  (fa9b3bc1e) with the queue clock set behind the database (#6828).
 - Live tests: `TestContentEntityNameMigrationConcurrencyAndInterruptionLive`
   deadlocks (SQLSTATE 40P01) in its concurrent `ApplyBootstrap` on this branch
-  and on its base alike; it is unrelated to the read model (#6848).
+  and on main before this branch (fa9b3bc1e) alike; it is unrelated to the
+  read model (#6848).
