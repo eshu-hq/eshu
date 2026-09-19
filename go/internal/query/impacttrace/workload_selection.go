@@ -144,11 +144,14 @@ func ResolveWorkloadSelector(
 // workload's materialized repo_id and its DEFINES-linked repository ids so
 // the caller can decide grant admission in Go.
 //
-// The predicate is unconditional Cypher -- no scoped grant is appended here.
-// A multi-line `AND ( ... OR EXISTS {...} )` WHERE group is unreliable on the
-// pinned NornicDB v1.3.3 image: it can drop the whole WHERE, including
-// whereClause's own id/name anchor (#6786). The grant is decided by
-// admittedWorkloadCandidates / querycontract.WorkloadGrantAdmitted instead.
+// This function adds no grant of its own. For a scoped caller,
+// ResolveWorkloadSelector appends the single-line SHAPE-A
+// querycontract.WorkloadScopePredicate to the name lookup's whereClause
+// before calling it. It never renders a multi-line `AND ( ... OR EXISTS {...} )`
+// group, which is unreliable on the pinned NornicDB v1.3.3 image and can drop
+// the whole WHERE, including whereClause's own id/name anchor (#6786).
+// admittedWorkloadCandidates / querycontract.WorkloadGrantAdmitted re-check
+// every row in Go.
 func workloadSelectorRowCypher(whereClause string) string {
 	return fmt.Sprintf(`
 		MATCH (w:Workload) WHERE %s

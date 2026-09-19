@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
 // workloadLookupCandidateBound caps the name-keyed Workload candidate read.
@@ -19,8 +20,8 @@ import (
 // size.
 const workloadLookupCandidateBound = querycontract.WorkloadSelectorCandidateBound
 
-// lookupWorkloadRow returns the Workload row whereClause selects for the
-// caller, or nil. denied reports that at least one row matched its anchor but
+// lookupWorkloadRows returns the Workload rows whereClause selects for the
+// caller, lowest id first, or nil. denied reports that at least one row matched its anchor but
 // the caller's grant did not admit it; the caller decides whether that
 // becomes a grant_denied count, because a later fallback lookup may still
 // admit a workload for the same request.
@@ -35,16 +36,16 @@ const workloadLookupCandidateBound = querycontract.WorkloadSelectorCandidateBoun
 // workload. A candidate page over the bound returns
 // querycontract.ErrWorkloadSelectorCandidatesExceedBound rather than
 // deciding from rows that may be missing a granted workload.
-func (h *Handler) lookupWorkloadRow(
+func (h *Handler) lookupWorkloadRows(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
 	whereClause string,
 	params map[string]any,
 	selector string,
 	operation string,
-) (row map[string]any, denied bool, err error) {
+) (rows []map[string]any, denied bool, err error) {
 	if !strings.Contains(whereClause, "w.name =") {
-		row, err = h.Neo4j.RunSingle(ctx, fmt.Sprintf(`
+		row, err := h.Neo4j.RunSingle(ctx, fmt.Sprintf(`
 		MATCH (w:Workload) WHERE %s
 		RETURN w.id as id, w.name as name, w.kind as kind, w.repo_id as repo_id
 		LIMIT 1
@@ -56,7 +57,7 @@ func (h *Handler) lookupWorkloadRow(
 			h.recordWorkloadAnchorMismatch(ctx, operation, selector, row)
 			return nil, false, nil
 		}
-		return row, false, nil
+		return []map[string]any{row}, false, nil
 	}
 
 	// For a scoped caller the SHAPE-A grant predicate joins the candidate
@@ -74,13 +75,13 @@ func (h *Handler) lookupWorkloadRow(
 		candidateWhere = "(" + whereClause + ") AND " + querycontract.WorkloadScopePredicate("w", access)
 		h.recordScopeGrantInlineCapped(ctx, access, "workload_context_name")
 	}
-	rows, err := h.readWorkloadCandidates(ctx, candidateWhere, params, operation)
+	candidates, err := h.readWorkloadCandidates(ctx, candidateWhere, params, operation)
 	if err != nil {
 		return nil, false, err
 	}
-	admitted := make([]map[string]any, 0, len(rows))
+	admitted := make([]map[string]any, 0, len(candidates))
 	var mismatched map[string]any
-	for _, candidate := range rows {
+	for _, candidate := range candidates {
 		if !workloadRowMatchesAnchor(whereClause, selector, candidate) {
 			if mismatched == nil {
 				mismatched = candidate
@@ -105,7 +106,50 @@ func (h *Handler) lookupWorkloadRow(
 	slices.SortStableFunc(admitted, func(a, b map[string]any) int {
 		return strings.Compare(querycontract.StringVal(a, "id"), querycontract.StringVal(b, "id"))
 	})
-	return admitted[0], denied, nil
+	return admitted, denied, nil
+}
+
+// firstGrantedWorkload walks candidates (lowest id first) and returns the
+// first one whose repository grant holds: its own repo_id is granted, or
+// FetchWorkloadRepositoryForAccess resolves a granted DEFINES repository for
+// it. A candidate the name read admitted through its DEFINES ids but the
+// scoped DEFINES re-check rejects (the two reads disagree, i.e. backend
+// drift) is skipped rather than ending the lookup in a 404 (#6801 review
+// F-R5-4); rejected reports that at least one was. The walk is bounded by
+// the candidate bound and costs an extra read only on that drift.
+func (h *Handler) firstGrantedWorkload(
+	ctx context.Context,
+	access querycontract.RepositoryAccessFilter,
+	candidates []map[string]any,
+	operation string,
+) (row map[string]any, repoID string, repoName string, rejected bool, err error) {
+	for _, candidate := range candidates {
+		rawRepoID := querycontract.StringVal(candidate, "repo_id")
+		direct := access.AllowsRepositoryID(rawRepoID)
+		preferredRepoID := rawRepoID
+		if !direct {
+			preferredRepoID = ""
+		}
+		timer := service.StartServiceQueryStage(ctx, h.Logger, operation, querycontract.StringVal(candidate, "name"), preferredRepoID, "repository_lookup")
+		resolvedID, resolvedName, fetchErr := h.FetchWorkloadRepositoryForAccess(
+			ctx, querycontract.StringVal(candidate, "id"), access, preferredRepoID,
+		)
+		timer.Done(ctx, slog.String("resolved_repo_id", resolvedID))
+		if fetchErr != nil {
+			return nil, "", "", rejected, fetchErr
+		}
+		// #6786 grant decision: admitted directly when the workload's own
+		// repo_id is granted, or through DEFINES when the scoped,
+		// single-line-WHERE DEFINES read resolved a granted repository.
+		// Neither means the caller has no relationship to this workload, so
+		// it never reaches the response.
+		if access.Scoped() && !direct && resolvedID == "" {
+			rejected = true
+			continue
+		}
+		return candidate, resolvedID, resolvedName, rejected, nil
+	}
+	return nil, "", "", rejected, nil
 }
 
 // readWorkloadCandidates runs the bounded name-keyed candidate read and

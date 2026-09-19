@@ -217,7 +217,7 @@ source_coverage:
       - {symbol: "(*Handler).FetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: cb428e4a0dbd188049746d47d597b589a242c45997e2cde2143f345cebb343a8, key_bound: single_key, max_results: 51}}
   - file: entity/workload_lookup.go
     calls:
-      - {symbol: "(*Handler).lookupWorkloadRow", count: 1, source_sha256: ad30881dca93ccef685d10116385c7870eff3e0a4555bbb45c27f7bec9bcb80c, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*Handler).lookupWorkloadRows", count: 1, source_sha256: a61f184be4a70ef055676ed09c8053ef46e213baa80bc8f840c2f3b0444b5430, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*Handler).readWorkloadCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 0d203b2e67121fc3d90c1f1475f6f4ef542a7983116ddc6957270221043123a2, key_bound: single_key, max_results: 51}}
   - file: entity/workload_platform.go
     calls:

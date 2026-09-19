@@ -87,8 +87,13 @@ entity; the entity already came from a grant-checked read. It decides which
 repository to attach, and it re-checks that repository with
 `AllowsRepositoryID`. `WorkloadGrantAdmitted` would admit the row whenever the
 workload's own `repo_id` is granted, and would then attach an ungranted
-`DEFINES` repository's id and name. A workload whose own `repo_id` is granted
-already carries that id from the resolver, so the stricter rule loses nothing.
+`DEFINES` repository's id and name. The cost of the stricter rule:
+`GetEntityContext` takes the repository from `CONTAINS`/`DEFINES` and never
+reads `w.repo_id`, so a Workload whose own `repo_id` is granted but which no
+granted repository `DEFINES` is not found on `/entities/{id}/context` (fail
+closed), while `/workloads/{id}/context` admits it. That trade is deliberate:
+a missing context is preferable to attaching an ungranted repository's
+identity.
 `TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission` pins this.
 
 ## Related docs

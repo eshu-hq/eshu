@@ -86,18 +86,23 @@ func (h *Handler) fetchWorkloadContextDecision(ctx context.Context, whereClause 
 	}
 	timer := service.StartServiceQueryStage(ctx, h.Logger, operation, serviceName, "", "workload_lookup")
 	params = access.GraphParams(params)
-	// #6786: the grant is decided in Go (lookupWorkloadRow and the DEFINES
-	// read below), not in this read's WHERE. A multi-line
+	// #6786: the grant is decided in Go (lookupWorkloadRows and
+	// firstGrantedWorkload's DEFINES read), not by a multi-line group in
+	// this read's WHERE. A multi-line
 	// `AND ( ... OR EXISTS {...} )` grant group is unreliable on the pinned
 	// NornicDB v1.3.3 image and can drop the whole WHERE, including the
 	// id/name anchor callers pass in whereClause.
-	row, denied, err := h.lookupWorkloadRow(ctx, access, whereClause, params, serviceName, operation)
-	timer.Done(ctx, slog.Bool("found", row != nil))
+	candidates, denied, err := h.lookupWorkloadRows(ctx, access, whereClause, params, serviceName, operation)
+	timer.Done(ctx, slog.Bool("found", len(candidates) > 0))
+	if err != nil {
+		return nil, false, err
+	}
+	row, repoID, repoName, rejected, err := h.firstGrantedWorkload(ctx, access, candidates, operation)
 	if err != nil {
 		return nil, false, err
 	}
 	if row == nil {
-		return nil, denied, nil
+		return nil, denied || rejected, nil
 	}
 
 	workloadID := querycontract.StringVal(row, "id")
@@ -108,31 +113,6 @@ func (h *Handler) fetchWorkloadContextDecision(ctx context.Context, whereClause 
 		followupParams = map[string]any{"workload_id": workloadID}
 	}
 
-	rawRepoID := querycontract.StringVal(row, "repo_id")
-	directlyGranted := access.AllowsRepositoryID(rawRepoID)
-	preferredRepoID := rawRepoID
-	if !directlyGranted {
-		preferredRepoID = ""
-	}
-	timer = service.StartServiceQueryStage(ctx, h.Logger, operation, querycontract.StringVal(row, "name"), preferredRepoID, "repository_lookup")
-	repoID, repoName, err := h.FetchWorkloadRepositoryForAccess(
-		ctx, workloadID, access, preferredRepoID,
-	)
-	timer.Done(ctx, slog.String("resolved_repo_id", repoID))
-	if err != nil {
-		return nil, false, err
-	}
-	// #6786 grant decision: admitted directly when the workload's own
-	// repo_id is granted, or admitted through DEFINES when
-	// FetchWorkloadRepositoryForAccess (a scoped, single-line-WHERE read
-	// already proven safe on NornicDB) resolved at least one granted
-	// repository defining it. Neither means the caller has no relationship
-	// to this workload at all, so it fails closed to the same not-found path
-	// an absent workload takes, rather than leaking this row's identity
-	// (id/name/kind) to an ungranted caller.
-	if access.Scoped() && !directlyGranted && repoID == "" {
-		return nil, true, nil
-	}
 	if repoName == "" {
 		repoName = querycontract.StringVal(row, "repo_name")
 	}
