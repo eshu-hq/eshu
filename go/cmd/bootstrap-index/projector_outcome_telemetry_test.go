@@ -42,6 +42,21 @@ func TestDrainProjectorWorkItemEndsSpanAndLogsDroppedWork(t *testing.T) {
 		wantStatus  string
 	}{
 		{
+			// Shutdown cancels the projection: no Fail runs, so no failed
+			// outcome is recorded; the lease expires and the item re-projects.
+			name: "shutdown during projection",
+			ctx: func() context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+			runner:     &failingProjectionRunner{failAfter: 0, err: context.Canceled},
+			sink:       &claimLostSink{},
+			wantLogs:   []string{"projector work canceled during shutdown"},
+			wantNoLogs: []string{"bootstrap projection failed"},
+			wantStatus: "shutdown_canceled",
+		},
+		{
 			name:       "claim lost at fail",
 			runner:     &failingProjectionRunner{failAfter: 0, err: errors.New("projection failed")},
 			sink:       &claimLostSink{failErr: claimLost},

@@ -107,3 +107,27 @@ func bootstrapAckDeferredLogger(
 			slog.Int("worker_id", workerID))
 	}
 }
+
+// recordBootstrapShutdownCanceled ends span and logs a projection that shutdown
+// canceled. Like the projector service it records no failed outcome, because
+// the item was not failed: its lease expires and a later attempt re-projects it.
+func recordBootstrapShutdownCanceled(
+	ctx context.Context,
+	work projector.ScopeGenerationWork,
+	workerID int,
+	err error,
+	span trace.Span,
+	logger *slog.Logger,
+) {
+	if span != nil {
+		span.SetAttributes(attribute.String("status", "shutdown_canceled"))
+		span.End()
+	}
+	if logger == nil {
+		return
+	}
+	logger.InfoContext(context.WithoutCancel(ctx), "projector work canceled during shutdown",
+		slog.String("scope_id", work.Scope.ScopeID), slog.String("generation_id", work.Generation.GenerationID),
+		slog.String("status", "shutdown_canceled"), slog.Int("attempt_count", work.AttemptCount),
+		slog.Int("worker_id", workerID), slog.String("error", err.Error()))
+}

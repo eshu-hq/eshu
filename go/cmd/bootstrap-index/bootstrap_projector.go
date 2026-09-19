@@ -158,7 +158,9 @@ func isolateBootstrapProjectorFailure(
 	recordFailed func(),
 ) error {
 	if ctx.Err() != nil && (errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded)) {
-		recordFailed()
+		// Shutdown, not a projection failure: no Fail runs and the lease
+		// expires, so record shutdown_canceled like the projector service.
+		recordBootstrapShutdownCanceled(ctx, work, workerID, cause, span, logger)
 		return nil
 	}
 	// Record the failed outcome only once Fail confirms this attempt still owns
