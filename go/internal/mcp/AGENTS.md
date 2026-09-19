@@ -44,7 +44,7 @@
    `go/internal/mcp/supply/chain/evidence`, whose `supplyChainEvidenceRoute`
    adapter reuses the `dispatch_supply_chain.go` filename rather than adding a
    new one, security-alert reconciliation request selection in
-   `go/internal/mcp/securityalert`,
+   `go/internal/mcp/alerts`,
    admission-decisions request selection in
    `go/internal/mcp/admission/decisions`, Kubernetes-correlation request
    selection in `go/internal/mcp/kubernetes`, infrastructure-search
