@@ -336,3 +336,21 @@ Follow-ups, out of scope for this change: move the backfill out of the API
 and MCP processes into the projector, which owns the derive, and record the
 first production `eshu_dp_infra_inventory_reconcile_duration_seconds` p95
 after deploy (the shim above is smaller than a production corpus).
+
+## Known limits and related issues
+
+- Graph-only labels are still read from the graph. `CloudResource` and
+  `TerraformStateResource` have no content rows, so every unscoped read
+  scans those labels whole, and the cold first-hit cost grows with their
+  size: a gate run with 150,000 nodes per label measured 8.28 s on the first
+  hit (#6843). Warm reads and the table-served labels are unaffected.
+- Live tests: four reducer-queue tests in `go/internal/storage/postgres`
+  (`TestWorkloadReplayDuringClaimReturnsAckToPending`,
+  `TestWorkloadFencedReplaySupersedesOnlyOlderInFlightToken`,
+  `TestWorkloadReplayAndBatchAckContentionConvergesToPending`,
+  `TestRepoDependencyRunsOnFenceComposesQueuePhaseAndProjectionLive`) fail
+  intermittently with and without this change. The ACK path stamps
+  `visible_at` from the database clock while the claim compares it with the
+  application clock, so a claim right after an ACK misses the row whenever
+  the database clock runs ahead. It reproduces on the base commit with the
+  queue clock set behind the database (#6828).
