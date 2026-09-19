@@ -52,7 +52,7 @@ pure stdlib string/args shaping with no SQL text and no I/O.
 
 ## Dependencies
 
-Only the Go standard library (`context`, `database/sql`). The package
+Only the Go standard library (`context`, `database/sql`, `fmt`, `strings`). The package
 performs no I/O and imports no Eshu package -- not even the postgres root.
 A `db` import of root (or of any package that imports root) would recreate
 the cycle this package exists to prevent.

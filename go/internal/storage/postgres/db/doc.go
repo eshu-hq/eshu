@@ -13,6 +13,11 @@
 // references that store, that is an import cycle. Hoisting the contracts here
 // first removes that risk for every later domain move under #6693.
 //
+// The leaf also holds three shared statement-argument builders (CleanIDs,
+// IDPlaceholders, IDArgs): pure stdlib string/args shaping with no SQL text
+// and no I/O, hoisted byte-identically from the webhook trigger store under
+// #6693 so the webhook and incident families share one implementation.
+//
 // The concrete adapters (SQLDB, SQLTx, SQLQueryer), the schema bootstrap and
 // migration ledger, and the advisory-lock machinery stay in the root package
 // with the types they guard. SQLDB.withSchemaBootstrapLock satisfies the
