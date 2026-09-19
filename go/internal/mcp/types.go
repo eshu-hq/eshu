@@ -8,6 +8,7 @@ import (
 	admissiondecisionstools "github.com/eshu-hq/eshu/go/internal/mcp/admission/decisions"
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
+	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
 	doctools "github.com/eshu-hq/eshu/go/internal/mcp/documentation"
 	ecosystemtools "github.com/eshu-hq/eshu/go/internal/mcp/ecosystem"
@@ -159,6 +160,12 @@ func admissionDecisionTools() []ToolDefinition {
 // access/posture package owns the registration definitions.
 func secretsIAMTools() []ToolDefinition {
 	return secretsiamtools.Tools()
+}
+
+// codeFlowTools preserves the root package's constructor name while the
+// code/flow package owns the registration definitions.
+func codeFlowTools() []ToolDefinition {
+	return codeflowtools.Tools()
 }
 
 // contextTools preserves the root package's constructor name while composing

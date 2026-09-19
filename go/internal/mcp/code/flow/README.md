@@ -9,26 +9,29 @@ one repository.
 
 ## Ownership boundary
 
-This package owns code-flow family membership and the mapping from decoded
-arguments to a dependency-neutral internal request. `internal/mcp` keeps tool
-registration order (the four definitions live at the root in
-`tools_code_flow.go`), global route fanout, the private `codeFlowRoute`
-adapter in `dispatch_code_flow.go`, HTTP dispatch, authorization, timeouts,
-response budgets, envelopes, summaries, and telemetry. `internal/query` owns
-the bounded reads behind the four `/api/v0/code/flow/` paths, including the
-limit clamp and the line floor.
+This package owns code-flow family membership, the mapping from decoded
+arguments to a dependency-neutral internal request, and the tool definitions.
+`internal/mcp` keeps the root registration wrapper and client-visible order,
+global route fanout, the private `codeFlowRoute` adapter in
+`dispatch_code_flow.go`, HTTP dispatch, authorization, timeouts, response
+budgets, envelopes, summaries, and telemetry. `internal/query` owns the
+bounded reads behind the four `/api/v0/code/flow/` paths, including the limit
+clamp and the line floor.
 
 ## Exported surface
 
 - `Route` selects the internal request for a code-flow tool without executing
   it, and reports `handled=false` for every other tool.
+- `Tools` returns the four code-flow tool definitions.
 
 See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/mcp/contract/route` owns the dependency-neutral decoded-argument
-  and internal-request shapes used by `Route`.
+- `internal/mcp/contract/route` owns the dependency-neutral decoded-argument and
+  internal-request shapes used by `Route`.
+- `internal/mcp/contract/tool` owns the dependency-neutral tool-definition
+  shape used by `Tools`.
 
 ## Telemetry
 

@@ -172,7 +172,7 @@ is not broken out here).
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 33 | `tools_codebase.go`, `relationships/code_tools.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_route_to_caller.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
-| `codeFlowTools` | 4 | `tools_code_flow.go` |
+| `codeFlowTools` | 4 | `types.go` (wraps `code/flow/tools.go`) |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 23 | `ecosystem/tools.go`, `ecosystem/*_tools.go` |
 | `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |

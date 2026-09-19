@@ -10,9 +10,8 @@
 5. `../../dispatch.go` for `resolveRoute`, which consults the adapter as a
    delegation ahead of its own switch — the same position in the chain the
    family's selector answered from before the extraction.
-6. `../../tools_code_flow.go` for the four advertised schemas. They stay at the
-   parent's root and must keep naming the same six fields this builder
-   selects.
+6. `./tools.go` for the four advertised schemas. They live in this package
+   and must keep naming the same six fields this builder selects.
 7. `../../contract/route/README.md` for the dependency-neutral request contract.
 8. `go/internal/query/codequery/flow.go` for the handler behind all four paths:
    `normalize()` substitutes 25 for a nonpositive `limit`, clamps above 100,
@@ -20,9 +19,10 @@
 
 ## Invariants
 
-- Keep only code-flow family membership and pure argument-to-request selection
-  here. Global route fanout, the private adapter, and execution stay in the
-  parent MCP package and `internal/query`.
+- Keep only code-flow family membership, pure argument-to-request selection,
+  and the tool definitions here. Global route fanout, the private adapter,
+  the root registration wrapper, and execution stay in the parent MCP package
+  and `internal/query`.
 - Keep the package clause as `package codeflowtools`; the root imports it with
   an explicit alias.
 - Preserve each tool's exact method, path, and body keys. All four requests
