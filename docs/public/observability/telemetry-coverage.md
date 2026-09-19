@@ -7,12 +7,7 @@ source tree without a corresponding entry here fails the coverage gate. The
 five evidence markers policy (`Performance Evidence:`, `Benchmark Evidence:`,
 `No-Regression Evidence:`, `Observability Evidence:`, `No-Observability-Change:`)
 at `docs/internal/agent-guide.md:120-146` remains the per-PR discipline; this
-doc makes that discipline machine-enforced. Historical precedent lives in
-[#3633](https://github.com/eshu-hq/eshu/issues/3633) (closed 2026-06-23),
-which proved defined-but-never-registered instruments are a real failure
-class; in-flight adoption is [#3680](https://github.com/eshu-hq/eshu/issues/3680)
-(open, 2026-06-24), which lands per-collector envelope telemetry at the
-shared claimed-service dispatch seam. Metric names match
+doc makes that discipline machine-enforced. Metric names match
 `go/internal/telemetry/instruments.go`; dimensions, span names, and log keys
 match `go/internal/telemetry/contract.go` and its `contract_*.go` siblings.
 The public operator contract is `docs/public/reference/telemetry/index.md`.
@@ -1051,7 +1046,9 @@ marker, stages, linked work, and affected flow) is in [Telemetry Coverage Notes]
 <!-- eshu:metric:section=histogram-buckets -->
 ## Histogram Bucket Boundaries
 
-Each documented bucket set maps a short name to the exact boundary values in `go/internal/telemetry/instruments.go`. The X2 verifier asserts that every `WithExplicitBucketBoundaries(...)` call matches a documented set, and every documented set has a matching variable in the code.
+Each documented bucket set maps a short name to the exact boundary values in
+`go/internal/telemetry/instruments.go`. The X2 verifier asserts that every `WithExplicitBucketBoundaries(...)`
+call matches a documented set, and every documented set has a matching variable in the code.
 
 | set_name | boundary_values |
 | --- | --- |
