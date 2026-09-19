@@ -1,0 +1,21 @@
+scripts/lib/parser_relationship_comment_only_diff.sh
+  s_3d761bb140daa9::t_c04f4ea9f07cbf 155-165,181-198
+scripts/lib/test-verify-parser-relationship-kit-import-rename-cases.sh
+  s_3d761bb140daa9::t_3e9db15c680079 167-174,182-186,194-195,198-201,208-210,227-229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "feacc91177b7685a46202f7cbfe63dc678ef8f74",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
