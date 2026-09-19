@@ -787,9 +787,11 @@ type Instruments struct {
 	// cycle; nothing written), repaired (it differed on two checks and was
 	// re-derived under the repository lock), fenced (it carried a
 	// rolling-upgrade fence mark and was re-derived, once per mark), or error
-	// (the check or repair failed, or the cycle could not claim its page;
-	// retried next cycle). A sustained repaired or fenced rate outside a
-	// deploy window means some content writer is not deriving.
+	// (a repository check or repair failed, or a whole cycle failed: any
+	// cycle error, such as reading the fence state, listing fence-marked
+	// repositories, or claiming the walk page, counts once; retried next
+	// cycle). A sustained repaired or fenced rate outside a deploy window
+	// means some content writer is not deriving.
 	InfraInventoryReconcile metric.Int64Counter
 	// InfraInventoryReconcileDuration records the wall time of one ready
 	// reconcile cycle (at most the configured repository budget), failed

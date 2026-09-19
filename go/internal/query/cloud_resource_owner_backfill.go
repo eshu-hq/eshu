@@ -229,9 +229,9 @@ func clonePresentCloudResourceBackfillFields(row map[string]any) map[string]any 
 // the marker exists, so startup never waits on it. Running it from more than
 // one process at once is safe: the processes serialize per repository on the
 // derive lock and the marker insert is idempotent. The API and the MCP server
-// both run it, so a fresh deploy pays one full derive pass twice, once per
-// process, before the marker exists; a process that starts after the marker
-// is recorded exits at already_complete. Moving the backfill into the
+// both run it, so a fresh deploy pays one full derive pass up to twice, once
+// per process, before the marker exists; a process that starts after the
+// marker is recorded exits at already_complete. Moving the backfill into the
 // projector would remove the duplicate pass; no issue is filed for it yet
 // (see docs/internal/evidence/6793-infra-read-model.md).
 func StartInfraInventoryBackfill(ctx context.Context, db *sql.DB, logger *slog.Logger, instruments *telemetry.Instruments) {
