@@ -121,7 +121,7 @@ live in the repository today.
 | `go/internal/query/querycontract/` | dependency-neutral query profiles, envelopes, capability registry, and read ports |
 | `go/internal/query/decode/` | the query layer's classified fact-decode failure, defaulting an unexpected error to non-retryable |
 | `go/internal/query/queryselector/` | resolves a caller-supplied repository selector to one canonical repository id under the caller's access bounds |
-| `go/internal/query/queryspan/` | the per-route span query HTTP reads emit, startable from a family subpackage without importing root |
+| `go/internal/query/tracing/` | the per-route span query HTTP reads emit, startable from a family subpackage without importing root |
 | `go/internal/query/querytestutil/` | test helpers shared by internal/query and its handler-family subpackages, in non-test files so they are importable |
 | `go/internal/query/semanticsearch/` | curated semantic-search handler family: bounded keyword/semantic/hybrid retrieval, scope resolution, graph reranking, snapshot caching, and the search-vector freshness downgrade |
 | `go/internal/recovery/` | replay and repair domain logic |
@@ -192,7 +192,7 @@ Read and operator surfaces live under:
   handlers
 - `go/internal/query/queryselector/`: repository-selector resolution under
   access bounds
-- `go/internal/query/queryspan/`: the per-route query read span
+- `go/internal/query/tracing/`: the per-route query read span
 - `go/internal/query/querytestutil/`: importable test helpers shared by the
   query packages
 - `go/internal/query/semanticsearch/`: curated semantic-search handler family

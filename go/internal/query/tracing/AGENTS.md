@@ -1,4 +1,4 @@
-# Agent instructions: queryspan
+# Agent instructions: tracing
 
 Read `doc.go` and `README.md` before editing. This package is two functions;
 almost every change here is a contract change.

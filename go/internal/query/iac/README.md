@@ -39,7 +39,7 @@ Twenty-eight production files moved here from root, keeping every
 
 New files added by the move: `capabilities.go` (Support() constructors and
 the two Part C capability mirrors), `handler_tracing.go` (the
-`queryspan.HandlerTracer` seam), `drifted_attributes.go`
+`tracing.HandlerTracer` seam), `drifted_attributes.go`
 (`DriftedAttributesFromAWSEvidence`, moved from root's identically named
 file), `main_test.go` (`TestMain` capability registration), and
 `route_coverage_smoke_test.go` (six thin smoke tests, see Test Disposition).
@@ -172,7 +172,7 @@ digest (path and symbol only; class, count, and disposition unchanged).
 ## No-Observability-Change
 
 No-Observability-Change: this move adds no new span, metric, log key, or runtime knob.
-`handler_tracing.go` seeds its tracer from the same `queryspan.HandlerTracer()`
+`handler_tracing.go` seeds its tracer from the same `tracing.HandlerTracer()`
 seam root's `handler_tracing.go` used before the move (see
 `freshness/handler_tracing.go` for the identical precedent), so every route's
 `telemetry.SpanQueryIaC*`/`telemetry.SpanQueryDeadIaC` span name and

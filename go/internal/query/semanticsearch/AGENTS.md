@@ -8,11 +8,11 @@ Read `doc.go` and `README.md` first.
   already imports this package for its compatibility aliases, so the reverse
   import cycles. If a change needs something only root exposes, either a leaf
   equivalent already exists under `internal/query` (`querycontract`,
-  `queryauth`, `queryspan`) or it does not belong in this family; ask before
+  `queryauth`, `tracing`) or it does not belong in this family; ask before
   adding one.
 - `startQueryHandlerSpan` MUST forward through the package-local
   `semanticSearchTracer` var (`handler_tracing.go`), never call
-  `queryspan.HandlerTracer()` inline at a handler call site. The var is the
+  `tracing.HandlerTracer()` inline at a handler call site. The var is the
   seam a test swaps a recording provider into; bypassing it compiles clean and
   silently emits zero spans to the test's recorder.
 - The capability is registered in `query/contract`

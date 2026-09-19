@@ -9,7 +9,7 @@ relationship-story, and code-search reads. (codeowners-ownership lives in
 It moved out of root package `query` (#6060 lane A) so the family can be
 read, tested, and changed without pulling in the rest of the query
 surface. May import only dependency-neutral leaves (`querycontract`,
-`queryauth`, `queryspan`, the `internal/search*` hybrid ranking packages,
+`queryauth`, `tracing`, the `internal/search*` hybrid ranking packages,
 `internal/facts`, `internal/codeprovenance`) — never on root package
 `query` itself, which would create an import cycle: root's
 `family_code_shim.go` imports this package for the compatibility aliases

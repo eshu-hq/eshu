@@ -112,10 +112,10 @@ for the full file layout and Move evidence.
   add a second read site for either route (see #5001/#4976 in that file's
   doc comments for why a TOCTOU-shaped second read is the specific bug this
   guards against).
-- No route here calls `startQueryHandlerSpan` or any `queryspan` helper
+- No route here calls `startQueryHandlerSpan` or any `tracing` helper
   today. Do not add a `handler_tracing.go` speculatively; if a future route
   genuinely needs a span, follow the freshness/language precedent
-  (`queryspan.HandlerTracer()` seeded into a package-local var) then, not
+  (`tracing.HandlerTracer()` seeded into a package-local var) then, not
   before.
 
 ## Test fixtures (no querytestutil hoist)

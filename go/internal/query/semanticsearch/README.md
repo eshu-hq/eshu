@@ -15,7 +15,7 @@ normalization and parameter bounds, its Postgres index and snapshot stores, its
 scope resolver, its reranker, its response models, and its degraded-search
 telemetry. It does not own auth, the response-envelope and capability contract,
 or the HTTP span helper — those live in `queryauth`, `querycontract`, and
-`queryspan` (see Dependencies).
+`tracing` (see Dependencies).
 
 Root package `query` keeps compatibility aliases and forwarders
 (`semantic_search_alias.go`) for `SemanticSearchHandler`, the index and hybrid
@@ -67,7 +67,7 @@ Internal packages, all of them leaves that never import root package `query`:
 - `internal/query/queryauth` — the request-scoped `AuthContext` and the
   permission-catalog predicates `AllowsPermissionFeature` and
   `AllowsPermissionDataClasses`.
-- `internal/query/queryspan` — `HandlerTracer`/`StartHandlerSpanWith`, wrapped
+- `internal/query/tracing` — `HandlerTracer`/`StartHandlerSpanWith`, wrapped
   by this package's own `startQueryHandlerSpan` (`handler_tracing.go`).
 - `internal/searchdocs`, `internal/searchretrieval`, `internal/searchbench`,
   `internal/searchhybrid` — the document model, the retrieval runner, the mode
@@ -130,9 +130,9 @@ registered on meter `eshu/go/internal/query`
 (`semantic_search_telemetry.go`), the same meter name as before the move, so
 existing dashboards and alerts resolve unchanged. The span is still
 `query.semantic_search` recorded under tracer name `eshu/go/internal/query`:
-both root and this package obtain it from `queryspan.HandlerTracer()`, which
+both root and this package obtain it from `tracing.HandlerTracer()`, which
 returns `otel.Tracer(tracerName)` for a `tracerName` const that
-`queryspan/handlerspan.go` deliberately pins to the old path, with a comment
+`tracing/handler.go` deliberately pins to the old path, with a comment
 saying why. The attributes are set in one place, `StartHandlerSpanWith`, and
 are still exactly `http.route`, `eshu.capability`, and `service.namespace`.
 This package's local `semanticSearchTracer` var changes only which tracer
@@ -160,7 +160,7 @@ value a test can swap in, never the name production records under.
   must never be downgraded by a pending search-vector build
   (`searchVectorBackedMode`).
 - `startQueryHandlerSpan` must forward through the package-local
-  `semanticSearchTracer` var. Calling `queryspan.HandlerTracer()` inline at a
+  `semanticSearchTracer` var. Calling `tracing.HandlerTracer()` inline at a
   call site compiles clean and silently emits zero spans to a test's recorder.
 - Do not import root package `query`. Root's `semantic_search_alias.go` already
   imports this package, so the reverse import cycles.

@@ -20,10 +20,11 @@ var queryHandlerTracer = tracing.HandlerTracer()
 // startQueryHandlerSpan wraps query HTTP handlers in stable spans and attaches
 // low-cardinality route/capability attributes for operator triage.
 //
-// The implementation lives in queryspan so a handler-family subpackage can start
-// the same span without importing this package, which it cannot do without an
-// import cycle through root's compatibility aliases (#6060). The tracer name is
-// unchanged, so emitted spans and the dashboards built on them are unaffected.
+// The implementation lives in package tracing so a handler-family subpackage
+// can start the same span without importing this package, which it cannot do
+// without an import cycle through root's compatibility aliases (#6060). The
+// tracer name is unchanged, so emitted spans and the dashboards built on them
+// are unaffected.
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(queryHandlerTracer, r, spanName, route, capability)
 }

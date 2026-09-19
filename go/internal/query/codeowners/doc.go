@@ -22,7 +22,7 @@
 // surface. It may import only dependency-neutral leaves -- querycontract
 // (envelopes, capabilities, row-value decoders, repository access filter,
 // the shared service-catalog correlation port), queryauth (request auth
-// bounds, tests only), queryspan (span plumbing) -- never root package
+// bounds, tests only), tracing (span plumbing) -- never root package
 // query itself, which would create an import cycle: root's
 // family_codeowners_shim.go imports this package for the compatibility
 // alias cmd/api and cmd/mcp-server still use.

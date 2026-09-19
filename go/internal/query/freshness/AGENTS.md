@@ -22,7 +22,7 @@ moved in verbatim from root -- see README.md's Move evidence.
   capability registration, HTTP helpers, `RepositoryAccessFilterFromContext`),
   `queryauth` (`AuthContext`, tests only), `service`
   (`CatalogCorrelationStore`/`Filter`/`Row`), `querytestutil` (shared
-  two-tenant test fixtures), or `queryspan` (the shared handler-span seam);
+  two-tenant test fixtures), or `tracing` (the shared handler-span seam);
   if none of those has what you need, it does not belong here -- ask before
   adding a new shared home.
 - `ChangedSinceCapability`/`GenerationLifecycleCapability`/

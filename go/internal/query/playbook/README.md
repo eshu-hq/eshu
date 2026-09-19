@@ -228,9 +228,9 @@ scripts/verify-dirgate.sh --all` passes with no exemption row for this new
 leaf directory.
 
 No-Observability-Change: this family emits no request span, unlike the
-`queryspan.HandlerTracer`-seamed leaves (`freshness`, `language`, `incident`)
+`tracing.HandlerTracer`-seamed leaves (`freshness`, `language`, `incident`)
 -- neither the pre-move root files nor this leaf call
-`queryspan.HandlerTracer`, `startQueryHandlerSpan`, or any tracer. The truth
+`tracing.HandlerTracer`, `startQueryHandlerSpan`, or any tracer. The truth
 envelope's `capability`/`basis`/`level` metadata (`querycontract.BuildTruthEnvelope`)
 is the only per-request signal this family emits, and it is unchanged by the
 move: same capability string, same `TruthBasisRuntimeState` basis, same
