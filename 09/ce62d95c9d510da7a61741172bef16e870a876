@@ -1,0 +1,23 @@
+go/cmd/golden-corpus-gate/snapshot_repo_context_source_tool_test.go
+  s_45cfbb28f19666::t_ee192bd3df3c2c 1-97
+docs/internal/evidence/6782-b7-neo4j-divergences.md
+  s_45cfbb28f19666::t_de3c5f50afad5a 127-152
+testdata/golden/e2e-20repo-snapshot.json
+  s_45cfbb28f19666::t_a5892c2c115cee 3829,3856-3883
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09ce62d95c9d510da7a61741172bef16e870a876",
+  "prompts": {},
+  "sessions": {
+    "s_45cfbb28f19666": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f03d1c1d-a426-4ce9-830d-f28d93c1483d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
