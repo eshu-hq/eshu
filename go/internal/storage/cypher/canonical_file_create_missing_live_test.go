@@ -59,9 +59,16 @@ func TestCanonicalFileCreateMissingSkipsExistingFilesLive(t *testing.T) {
 		}
 	}
 	for name, stmt := range map[string]Statement{
+		// File rows are not de-duplicated by path, so one batch can carry the
+		// same missing path twice; it must still create a single node.
 		"nested": {Cypher: canonicalNodeFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
 			row("/live-6798/src/existing.go", "/live-6798/src"),
 			row("/live-6798/src/missing.go", "/live-6798/src"),
+			row("/live-6798/src/missing.go", "/live-6798/src"),
+		}}},
+		// The common re-ingest batch: every file already exists.
+		"all existing": {Cypher: canonicalNodeFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
+			row("/live-6798/src/existing.go", "/live-6798/src"),
 		}}},
 		"root": {Cypher: canonicalNodeRootFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
 			row("/live-6798/existing-root.go", ""),
@@ -83,6 +90,8 @@ func TestCanonicalFileCreateMissingSkipsExistingFilesLive(t *testing.T) {
 		{"one existing nested node", `MATCH (f:File {path: '/live-6798/src/existing.go'}) RETURN count(f) AS count`, 1},
 		{"one existing root node", `MATCH (f:File {path: '/live-6798/existing-root.go'}) RETURN count(f) AS count`, 1},
 		{"missing nested file created", `MATCH (f:File {path: '/live-6798/src/missing.go'}) WHERE f.generation_id = 'gen-2' RETURN count(f) AS count`, 1},
+		{"duplicate missing row creates one node", `MATCH (f:File {path: '/live-6798/src/missing.go'}) RETURN count(f) AS count`, 1},
+		{"duplicate missing row creates one directory edge", `MATCH (:Directory {path: '/live-6798/src'})-[r:CONTAINS]->(:File {path: '/live-6798/src/missing.go'}) RETURN count(r) AS count`, 1},
 		{"missing nested file repo edge", `MATCH (:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File {path: '/live-6798/src/missing.go'}) RETURN count(f) AS count`, 1},
 		{"missing nested file directory edge", `MATCH (:Directory {path: '/live-6798/src'})-[:CONTAINS]->(f:File {path: '/live-6798/src/missing.go'}) RETURN count(f) AS count`, 1},
 		{"missing root file repo edge", `MATCH (:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File {path: '/live-6798/missing-root.go'}) WHERE f.generation_id = 'gen-2' RETURN count(f) AS count`, 1},

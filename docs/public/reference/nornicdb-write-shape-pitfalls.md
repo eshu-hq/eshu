@@ -146,3 +146,47 @@ current list.
 No-Observability-Change: this entry and its guard are documentation and a
 build-time static check only. No runtime metric, span, log field, queue
 stage, worker knob, or graph-write route changes.
+
+## Pitfall: An Uncorrelated `EXISTS {}` Guard Scans The Whole Label Per Row And Never Matches The Row Value
+
+### Observed shape
+
+On NornicDB v1.3.3 an existence subquery whose pattern does not name an outer
+variable is evaluated by loading every node with the label and filtering on
+properties in memory, once per outer row. A property taken from an `UNWIND`
+row (`row.path`) is not matched in that path, so the guard filters nothing:
+
+```cypher
+-- BROKEN: full File scan per row, and existing files still pass the guard
+UNWIND $rows AS row
+MATCH (r:Repository {id: row.repo_id})
+WHERE NOT EXISTS { MATCH (:File {path: row.path}) }
+MERGE (f:File {path: row.path}) ...
+
+-- WORKS: correlated lookup through the File.path index
+UNWIND $rows AS row
+OPTIONAL MATCH (existing:File {path: row.path})
+WITH row, existing
+WHERE existing IS NULL
+MATCH (r:Repository {id: row.repo_id})
+MERGE (f:File {path: row.path}) ...
+```
+
+The source path is `pkg/cypher/executor_mutations.go` `checkSubqueryMatch`,
+which calls `loadNodesWithTemporalViewport(ctx, labels)` for this shape. With
+5 rows (3 existing paths), the broken guard took 0.46 s at 5,000 File nodes,
+2.03 s at 20,000, and 5.88 s at 100,000, and re-stamped all 5 rows; the
+correlated form took 0.003-0.013 s once warm and wrote only the 2 missing rows.
+On ops-qa the broken form hit the 300 s transaction timeout with 1-22 rows
+(#6798). The `WITH ... WHERE existing IS NULL` filter is a bare null test, not
+one of the `WITH`-attached `WHERE` shapes that
+[NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md) records as ignored
+or nulled; `TestCanonicalFileCreateMissingSkipsExistingFilesLive` proves it on
+v1.3.3. This was not measured on Neo4j.
+
+### Eshu implications
+
+Never guard a write with `EXISTS {}`/`NOT EXISTS {}` over a pattern that only
+references row values. Anchor the check on an indexed property with
+`OPTIONAL MATCH` and filter on the bound variable. Evidence:
+`docs/internal/evidence/6798-file-create-missing-index.md`.

@@ -222,9 +222,9 @@
 - **Directory and File nodes update in place** — do not replace current
   `Directory` or `File` nodes just to avoid stale edges. Local NornicDB pays
   heavily for `DETACH DELETE` on those identities. File paths update with
-  `MATCH (f:File {path: row.path})`; missing files use a `WHERE NOT EXISTS`
-  guard before MERGE so existing `File.path` rows avoid the MERGE
-  unique-conflict path.
+  `MATCH (f:File {path: row.path})`; missing files use an index-backed
+  `OPTIONAL MATCH (existing:File {path: row.path}) ... WHERE existing IS NULL`
+  guard, never an uncorrelated `NOT EXISTS {}` (full File scan per row, #6798).
 - **Code-call logs need route clues** — code-call edge statements should keep
   bounded summaries with relationship type, source label, target label, and row
   count. Do not add file paths, entity IDs, or symbols to metric labels or
