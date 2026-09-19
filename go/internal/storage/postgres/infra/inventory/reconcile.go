@@ -69,6 +69,11 @@ FROM (
 // ordered by repo_id, that have content rows or table rows. Each side is a
 // recursive skip scan over its repo_id index, one index probe per distinct
 // repository, so a page costs O(budget) instead of a DISTINCT over every row.
+// PostgreSQL evaluates a recursive CTE only as far as its consumer fetches,
+// and each side's inner LIMIT $2 stops that fetch after budget rows; keep
+// those limits, since the outer ORDER BY would otherwise pull every repository
+// after the cursor. TestReconcileRepositoriesLivePageStopsAtBudget pins this
+// from EXPLAIN ANALYZE.
 // A repository with only non-infra content rows is listed too; its digest is
 // (0, 0) against (0, 0) and costs one small probe.
 const reconcileRepositoriesSQL = `
