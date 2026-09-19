@@ -18,14 +18,24 @@ import (
 	"testing"
 )
 
-// unwindVariablePattern captures the variable an UNWIND clause binds.
-var unwindVariablePattern = regexp.MustCompile(`(?i)\bUNWIND\s+\S+\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)`)
+// unwindVariablePattern captures the variable an UNWIND clause binds. The
+// bound expression may be multi-token (for example
+// `UNWIND coalesce($ids, []) AS repo_id`), so the expression matches
+// non-greedily through the first whitespace-delimited AS; the variable is
+// capture group 2.
+var unwindVariablePattern = regexp.MustCompile(`(?i)\bUNWIND\s+(.+?)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)`)
 
 // unwindFollowingMatchPattern finds a MATCH clause (plain or OPTIONAL).
 var unwindFollowingMatchPattern = regexp.MustCompile(`(?i)\bMATCH\b`)
 
 // unwindReturnTailPattern marks where a RETURN projection list ends.
 var unwindReturnTailPattern = regexp.MustCompile(`(?i)\b(?:ORDER\s+BY|SKIP|LIMIT|UNION)\b|}`)
+
+// unwindBranchBoundaryPattern marks where the UNWIND's own UNION branch ends.
+// An independent branch reuses names with different aliases, so the MATCH
+// search must not cross it; only UNION bounds the branch (ORDER BY, SKIP and
+// LIMIT cannot precede this branch's MATCH in valid Cypher).
+var unwindBranchBoundaryPattern = regexp.MustCompile(`(?i)\bUNION\b`)
 
 // unwindFollowingReturnPattern finds the start of a RETURN clause.
 var unwindFollowingReturnPattern = regexp.MustCompile(`(?i)\bRETURN\b`)
@@ -41,8 +51,13 @@ var unwindFollowingReturnPattern = regexp.MustCompile(`(?i)\bRETURN\b`)
 // different alias is not flagged.
 func hasUnwindVariableReusedAsReturnAlias(value string) bool {
 	for _, loc := range unwindVariablePattern.FindAllStringSubmatchIndex(value, -1) {
-		name := value[loc[2]:loc[3]]
+		name := value[loc[4]:loc[5]]
 		rest := value[loc[1]:]
+		// An independent UNION branch reuses names with different aliases;
+		// only the text before the branch boundary belongs to this UNWIND.
+		if end := unwindBranchBoundaryPattern.FindStringIndex(rest); end != nil {
+			rest = rest[:end[0]]
+		}
 		matchLoc := unwindFollowingMatchPattern.FindStringIndex(rest)
 		if matchLoc == nil {
 			continue

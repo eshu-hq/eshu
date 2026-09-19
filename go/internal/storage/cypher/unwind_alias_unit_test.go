@@ -65,6 +65,16 @@ func TestHasUnwindVariableReusedAsReturnAlias(t *testing.T) {
 			value: "UNWIND $ids AS repo MATCH (r {id: repo}) RETURN r.id AS repo_id",
 			want:  false,
 		},
+		{
+			name:  "multi-token UNWIND expression",
+			value: "UNWIND coalesce($ids, []) AS repo_id MATCH (i:WorkloadInstance {repo_id: repo_id}) RETURN DISTINCT i.repo_id AS repo_id",
+			want:  true,
+		},
+		{
+			name:  "UNION second-branch alias is not this branch's",
+			value: "UNWIND $ids AS repo_id RETURN repo_id AS source_id UNION MATCH (r) RETURN r.id AS repo_id",
+			want:  false,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

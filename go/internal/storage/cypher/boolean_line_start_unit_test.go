@@ -31,6 +31,11 @@ func TestHasLineLedBooleanOperator(t *testing.T) {
 		{name: "tab then space before AND", value: "MATCH (n) WHERE n.id = $x\n\t AND n.k = $r", want: false},
 		{name: "one line", value: "MATCH (n) WHERE n.id = $x AND n.k = $r", want: false},
 		{name: "ORDER BY after a tab is not OR", value: "MATCH (n) RETURN n.id\n\tORDER BY n.id", want: false},
+		{name: "lowercase order by is not or", value: "MATCH (n) RETURN n.id\n\torder by n.id", want: false},
+		{name: "lowercase and after a newline", value: "MATCH (n) WHERE n.id = $x\nand n.k = $r", want: true},
+		{name: "lowercase or after a tab", value: "MATCH (n) WHERE n.id = $x\n\tor n.id = $y", want: true},
+		{name: "lowercase xor after a newline", value: "MATCH (n) WHERE n.a = $x\nxor n.b = $y", want: true},
+		{name: "named-path MATCH with line-led AND", value: "MATCH p = (n) WHERE n.x = 1\nAND n.y = 2 RETURN p", want: true},
 		{name: "Postgres SQL with positional params", value: "SELECT 1 FROM t\nWHERE a = $1\n\tOR b = $2", want: false},
 	}
 	for _, tc := range cases {

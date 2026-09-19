@@ -24,16 +24,18 @@ import (
 // where Neo4j returns the matching row, and with a pattern-predicate disjunct
 // it drops the first condition and returns extra rows instead. The keyword is
 // only recognised when a space character precedes it, so `\n  AND` and
-// `\n\t AND` are correct. The \b after the keyword keeps identifiers such as
-// ORDER, ORIGIN or ANDROID from matching.
-var lineLedBooleanPattern = regexp.MustCompile(`[\n\t](?:AND|OR|XOR)\b`)
+// `\n\t AND` are correct. The match is case-insensitive because Cypher
+// keywords are (`\nand` recurs the same shape). The \b after the keyword keeps
+// identifiers such as ORDER, ORIGIN or ANDROID from matching in any case.
+var lineLedBooleanPattern = regexp.MustCompile(`(?i)[\n\t](?:AND|OR|XOR)\b`)
 
 // cypherMarkerPattern decides whether a string is Cypher rather than SQL, so
 // the scan does not flag Postgres statements (which NornicDB never parses).
-// A Cypher statement has a MATCH/MERGE clause opening a pattern, a
-// relationship arrow, or a named $parameter. Eshu's SQL uses positional $1
-// parameters, which the `\$[A-Za-z_]` branch excludes.
-var cypherMarkerPattern = regexp.MustCompile(`(?i)\b(?:MATCH|MERGE)\s*\(|\]->|<-\[|\$[A-Za-z_]`)
+// A Cypher statement has a MATCH/MERGE clause opening a pattern (including a
+// named-path binding such as `MATCH p = (n)`), a relationship arrow, or a
+// named $parameter. Eshu's SQL uses positional $1 parameters, which the
+// `\$[A-Za-z_]` branch excludes.
+var cypherMarkerPattern = regexp.MustCompile(`(?i)\b(?:MATCH|MERGE)\s*\(|\b(?:MATCH|MERGE)\s+[A-Za-z_]\w*\s*=|\]->|<-\[|\$[A-Za-z_]`)
 
 // hasLineLedBooleanOperator reports whether value looks like Cypher and
 // contains a boolean operator directly after a newline or a tab.
