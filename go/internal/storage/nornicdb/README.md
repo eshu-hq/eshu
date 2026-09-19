@@ -36,7 +36,11 @@ and writer phase order remain in `internal/storage/cypher`.
 Canonical phases run in dependency order. Whole-materialization atomic writes
 are unsupported on NornicDB because dependent `MATCH` statements do not have
 the required same-transaction visibility for earlier `MERGE` statements.
-Retractions stay sequential or use the bounded drain route. Only entity and
+Retractions stay sequential or use the bounded drain route. Bare-label drains
+run one bounded probe read before the `WITH ... LIMIT ... DETACH DELETE` drain
+loop and skip it when nothing matches, so a retract with nothing to delete ends
+after one read (#6822);
+relationship-anchored drains are not probed. Only entity and
 entity-containment chunks fan out, and only across disjoint label/entity keys.
 
 The command must wrap the inner `GroupExecutor` with one process-wide canonical

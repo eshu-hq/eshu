@@ -292,6 +292,7 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 
 | Variable | Type | Default | Notes |
 | --- | --- | --- | --- |
+| `ESHU_CANONICAL_RETRACT_BATCH` | int | `2000` | Nodes deleted per iteration of the NornicDB bounded full-refresh retract drain in the ingester and projector (1-10000; with the nornicdb graph backend, an invalid or out-of-range value fails startup). Size it against the per-iteration canonical write timeout. |
 | `ESHU_GRAPH_BACKEND` | enum | `nornicdb` | Graph database backend. Allowed: `neo4j`, `nornicdb`. |
 | `ESHU_GRAPH_WRITE_CANONICAL_MAX_IN_FLIGHT` | int | — | Per-class in-flight ceiling for canonical (repository/entity/structural-edge) graph writes; overrides ESHU_GRAPH_WRITE_MAX_IN_FLIGHT for this class only (issue #4448). Empty falls back to ESHU_GRAPH_WRITE_MAX_IN_FLIGHT. |
 | `ESHU_GRAPH_WRITE_MAX_IN_FLIGHT` | int | — | Bounds concurrent in-flight graph writes per writer process so a bootstrap+reducer write storm cannot push the graph backend past its throughput knee and cascade into canonical-write timeouts (issue #4456 / #3624). A measured NornicDB concurrent-writer sweep showed write throughput peaks near 12-16 concurrent writers then collapses, with p99 latency climbing to the canonical-write timeout. Empty or non-positive disables the bound (legacy passthrough); the shipped Compose default is 8. Falls back for both per-class ceilings below when neither is set. |
