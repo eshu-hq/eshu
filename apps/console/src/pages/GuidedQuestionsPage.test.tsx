@@ -121,6 +121,18 @@ describe("GuidedQuestionsPage live catalog", () => {
     expect(await screen.findByText(/Guided questions catalog unavailable/i)).toBeInTheDocument();
   });
 
+  it("tells the user when the playbook catalog was truncated at the page cap", async () => {
+    const truncatedPage = {
+      ...(onePlaybookCatalog as Record<string, unknown>),
+      truncated: true,
+      next_offset: 1,
+    };
+    const client = clientReturningCatalog(truncatedPage);
+    render(<GuidedQuestionsPage client={client} source={source()} />);
+
+    expect(await screen.findByText(/catalog was truncated/i)).toBeInTheDocument();
+  });
+
   it("renders whatever playbooks the live API returns, not a hardcoded list", async () => {
     const client = clientReturningCatalog();
     render(<GuidedQuestionsPage client={client} source={source()} />);

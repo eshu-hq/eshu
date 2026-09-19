@@ -108,19 +108,27 @@ function GuidedQuestionsLive({ client }: { readonly client?: EshuApiClient }): R
       ) : catalog.playbooks.length === 0 ? (
         <p className="empty mt">No guided questions are available from this source yet.</p>
       ) : (
-        <ul aria-label="Guided questions" className="evidence-card-list mt">
-          {catalog.playbooks.map((playbook) => (
-            <PlaybookCard
-              client={client}
-              key={playbook.id}
-              onToggle={() =>
-                setSelectedId((current) => (current === playbook.id ? null : playbook.id))
-              }
-              playbook={playbook}
-              selected={selectedId === playbook.id}
-            />
-          ))}
-        </ul>
+        <>
+          {catalog.truncated ? (
+            <p className="empty mt" role="status">
+              Showing the first {catalog.playbooks.length} guided questions; the catalog was
+              truncated.
+            </p>
+          ) : null}
+          <ul aria-label="Guided questions" className="evidence-card-list mt">
+            {catalog.playbooks.map((playbook) => (
+              <PlaybookCard
+                client={client}
+                key={playbook.id}
+                onToggle={() =>
+                  setSelectedId((current) => (current === playbook.id ? null : playbook.id))
+                }
+                playbook={playbook}
+                selected={selectedId === playbook.id}
+              />
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );
