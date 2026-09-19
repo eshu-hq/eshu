@@ -1,0 +1,36 @@
+docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md
+  s_1e5d8a653a4ee7::t_da8725440b3573 113,115,118-124,128-142
+  s_1e5d8a653a4ee7::t_bd7b3d1db10204 146-149,169-203,207-209,212-236
+  s_1e5d8a653a4ee7::t_9c9f655d0ed74b 55-76
+go/internal/query/openapi/paths/repository/routes.go
+  s_1e5d8a653a4ee7::t_f5bb2d80d0704d 229,231
+  s_1e5d8a653a4ee7::t_56d77e9f801184 68
+docs/internal/evidence/6786-nornicdb-400-409-exposure.md
+  s_1e5d8a653a4ee7::t_b95498a98c176e 83
+docs/public/reference/http-api/catalog-workload-selection.md
+  s_1e5d8a653a4ee7::t_95a567a271df12 19-21,31-39
+  s_1e5d8a653a4ee7::t_329be15a4f75bd 40
+go/internal/query/codequery/nornicdb_relationship_repo_anchor_live_test.go
+  s_1e5d8a653a4ee7::t_94f5f89599fa8b 37-39
+  s_1e5d8a653a4ee7::t_ee54e167255b58 23-36
+  s_1e5d8a653a4ee7::t_4f0b4ff335a5b5 155-162,164-165,167-216
+docs/public/reference/http-api/repositories-ingesters-bundles.md
+  s_1e5d8a653a4ee7::t_6e0d0a47796e06 255-265
+  s_1e5d8a653a4ee7::t_daf1c822926db7 131-140,142-152
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "50f484a59d3df80e054a3556f7708313674764d6",
+  "prompts": {},
+  "sessions": {
+    "s_1e5d8a653a4ee7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b439ad40-11c6-4924-9243-1ef7dd2cc094",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

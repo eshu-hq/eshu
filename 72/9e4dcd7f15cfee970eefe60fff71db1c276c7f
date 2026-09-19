@@ -1,0 +1,29 @@
+go/internal/query/repository/dependency_edge_growth_live_test.go
+  s_123a29533bca09::t_321fc5bd058569 1-179
+docs/internal/evidence/6786-repository-dependency-edge-transfer-cap.md
+  s_123a29533bca09::t_9098d92c4a0133 34-36,141-176
+go/internal/query/repository/dependency_cluster.go
+  s_123a29533bca09::t_57804b634115bf 126-127
+go/internal/query/repository/dependency_edge_cap.go
+  s_123a29533bca09::t_0cc1aea0517895 50-53
+go/internal/query/repository/dependency_edge_cap_test.go
+  s_123a29533bca09::t_8766da8344ede3 100-102,126,132,174,278-362
+go/internal/query/repository/dependency_edge_unscoped.go
+  s_123a29533bca09::t_e4631838ba4701 97-102,129-143,168-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "729e4dcd7f15cfee970eefe60fff71db1c276c7f",
+  "prompts": {},
+  "sessions": {
+    "s_123a29533bca09": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e300fa7a-4aa7-42de-9ba8-0745c8e74ad6",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
