@@ -212,7 +212,7 @@ func MirrorPaths(ctx context.Context, database db.ExecQueryer, target Target, pa
 	for start := 0; start < len(unique); start += mirrorPathChunkSize {
 		end := min(start+mirrorPathChunkSize, len(unique))
 		chunk := pgarray.StringArray(unique[start:end])
-		stats, err := deriveInTransaction(ctx, beginner, target.RepoID,
+		stats, err := deriveInTransaction(ctx, beginner, target.RepoID, false,
 			statement{mirrorPathsDeleteSQL, []any{target.RepoID, chunk}},
 			statement{mirrorPathsInsertSQL, []any{target.RepoID, chunk, target.ScopeID, target.GenerationID, pgarray.StringArray(Labels)}})
 		if err != nil {
@@ -236,7 +236,7 @@ func MirrorRepo(ctx context.Context, database db.ExecQueryer, repoID string) (St
 	if !ok {
 		return Stats{}, errors.New("infra inventory derive: database must support transactions")
 	}
-	stats, err := deriveInTransaction(ctx, beginner, repoID,
+	stats, err := deriveInTransaction(ctx, beginner, repoID, true,
 		statement{mirrorRepoDeleteSQL, []any{repoID}},
 		statement{mirrorRepoInsertSQL, []any{repoID, pgarray.StringArray(Labels), "", ""}})
 	if err != nil {
@@ -252,11 +252,14 @@ type statement struct {
 }
 
 // deriveInTransaction runs lock, delete, insert as one transaction and rolls
-// back on any failure so a chunk is never half-derived.
+// back on any failure so a chunk is never half-derived. clearMark adds the
+// fence-mark discharge right after the lock, before the insert takes its
+// snapshot; only a whole-repository derive may set it (see clearDirtySQL).
 func deriveInTransaction(
 	ctx context.Context,
 	beginner db.Beginner,
 	repoID string,
+	clearMark bool,
 	deleteStmt statement,
 	insertStmt statement,
 ) (stats Stats, err error) {
@@ -272,6 +275,11 @@ func deriveInTransaction(
 
 	if _, err = tx.ExecContext(ctx, repoLockSQL, repoID); err != nil {
 		return Stats{}, fmt.Errorf("lock repo: %w", err)
+	}
+	if clearMark {
+		if _, err = tx.ExecContext(ctx, clearDirtySQL, repoID); err != nil {
+			return Stats{}, fmt.Errorf("clear fence mark: %w", err)
+		}
 	}
 	deleted, err := tx.ExecContext(ctx, deleteStmt.query, deleteStmt.args...)
 	if err != nil {
