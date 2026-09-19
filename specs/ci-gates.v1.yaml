@@ -2442,6 +2442,117 @@ gates:
       workflow: "read-api-latency-gate.yml"
       job: "static-mirror (work budget refresh)"
     requirements: []
+  # #6782 slice 1: the same B-7 golden corpus run on the Neo4j compatibility
+  # backend, as the second cell of golden-corpus-gate.yml's corpus-gate matrix.
+  # It lands non-blocking because required-gates judges a PR with main's
+  # registry: a new blocking check_name cannot be introduced in the PR that
+  # first produces it. Flip blocking to true in a follow-up once main is green
+  # on this cell. Triggers mirror golden-corpus-gate exactly.
+  - id: golden-corpus-gate-neo4j
+    name: Golden Corpus Gate on Neo4j (Docker)
+    category: exactness
+    tier: ci-heavy
+    blocking: false
+    triggers:
+      - "go/internal/collector/**"
+      - "go/internal/parser/**"
+      - "go/internal/projector/**"
+      - "go/internal/reducer/**"
+      - "go/internal/query/**"
+      - "go/internal/relationships/**"
+      - "go/internal/workloadid/**"
+      - "go/internal/storage/**"
+      - "sdk/go/factschema/**"
+      - "go/cmd/bootstrap-index/**"
+      - "go/cmd/ingester/**"
+      - "go/cmd/projector/**"
+      - "go/cmd/reducer/**"
+      - "go/cmd/collector-*/**"
+      - "go/cmd/api/**"
+      - "go/cmd/golden-corpus-gate/**"
+      - "go/cmd/mock-prometheus-mimir/**"
+      - "go/cmd/mock-openai-compatible/**"
+      - "go/internal/demospec/**"
+      - "go/cmd/mcp-server/**"
+      - "go/internal/mcp/**"
+      - "go/internal/goldengate/**"
+      - "go/internal/graph/**"
+      - "go/internal/graphowner/**"
+      - "go/internal/graphschemacompat/**"
+      - "go/internal/graphbackpressure/**"
+      - "go/internal/facts/**"
+      - "go/internal/queue/**"
+      - "go/internal/replay/**"
+      - "go/internal/content/**"
+      - "go/internal/contentrefs/**"
+      - "go/internal/codeprovenance/**"
+      - "go/internal/packageidentity/**"
+      - "go/internal/repositoryidentity/**"
+      - "go/internal/sourcetool/**"
+      - "go/internal/terraformschema/**"
+      - "go/internal/environment/**"
+      - "go/internal/exposure/**"
+      - "go/internal/doctruth/**"
+      - "go/internal/serviceintel/**"
+      - "go/internal/serviceintelhttp/**"
+      - "go/internal/correlation/**"
+      - "go/internal/truth/**"
+      - "go/internal/scope/**"
+      - "go/internal/factenvelope/**"
+      - "go/internal/ghactionsref/**"
+      - "go/internal/workflowimage/**"
+      - "go/internal/searchretrieval/**"
+      - "go/internal/searchdocs/**"
+      - "go/internal/searchbench/**"
+      - "go/internal/searchdecay/**"
+      - "go/internal/searchhybrid/**"
+      - "go/internal/searchrerank/**"
+      - "go/internal/searchembed/**"
+      - "go/internal/searchembedprovider/**"
+      - "go/internal/searchembedruntime/**"
+      - "go/internal/searchvector/**"
+      - "go/internal/semanticqueue/**"
+      - "go/internal/semanticpolicy/**"
+      - "go/internal/semanticguard/**"
+      - "go/internal/semanticprofile/**"
+      - "go/internal/iacreachability/**"
+      - "go/internal/rubycontroller/**"
+      - "go/internal/capabilitycatalog/**"
+      - "go/internal/extraction/**"
+      - "go/internal/governanceaudit/**"
+      - "go/internal/status/**"
+      - "go/internal/buildinfo/**"
+      - "go/internal/boundedset/**"
+      - "go/internal/tfstatewarning/**"
+      - "go/internal/ask/**"
+      - "go/internal/askwiring/**"
+      - "go/internal/answerguardrail/**"
+      - "go/internal/answernarration/**"
+      - "go/internal/evidencebundle/**"
+      - "go/internal/urlredact/**"
+      - "testdata/golden/**"
+      - "testdata/cassettes/**"
+      - "tests/fixtures/ecosystems/**"
+      - "specs/demo-first-answers.v1.yaml"
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "scripts/test-verify-golden-corpus-gate.sh"
+      - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/test-golden-corpus-*.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/golden-corpus-gate.yml"
+    local:
+      command: "ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh"
+      test_command: "bash scripts/test-verify-golden-corpus-gate.sh"
+    ci:
+      workflow: golden-corpus-gate.yml
+      job: "corpus-gate"
+      check_names:
+        - "corpus-gate (neo4j)"
+    requirements:
+      - go
+      - docker
     ci_only_reason: ""
 
   # #5538 task 4 root-cause fix: three review rounds each found more packages

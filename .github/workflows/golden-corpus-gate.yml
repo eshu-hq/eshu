@@ -187,6 +187,17 @@ jobs:
       matrix:
         include:
           - graph_backend: nornicdb
+            compose_file: docker-compose.yaml
+          # #6782: the Neo4j compatibility backend runs the same corpus. Its
+          # registry row (golden-corpus-gate-neo4j) is non-blocking until main
+          # is green on this cell.
+          - graph_backend: neo4j
+            compose_file: docker-compose.neo4j.yml
+    env:
+      # The orchestrator names its compose project from this; pinning it lets
+      # the failure-dump and teardown steps address the same project with the
+      # same per-backend compose file the script used.
+      GATE_COMPOSE_PROJECT: eshu-golden-corpus-${{ matrix.graph_backend }}
     steps:
       - name: Check out code
         uses: actions/checkout@v5
@@ -215,8 +226,8 @@ jobs:
 
       - name: Dump service logs on failure
         if: failure()
-        run: docker compose -f docker-compose.yaml logs --tail=200 || true
+        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" logs --tail=200 || true
 
       - name: Tear down Docker services
         if: always()
-        run: docker compose -f docker-compose.yaml down -v || true
+        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f "${{ matrix.compose_file }}" down -v || true
