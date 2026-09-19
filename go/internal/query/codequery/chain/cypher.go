@@ -25,6 +25,11 @@ const AnchorLabelDisjunction = "Function|Class|Struct|Interface|TypeAlias|File"
 // BuildCallChainCypher renders the Neo4j-compat shortestPath call-chain
 // read for req, binding the request's own repository scope and the
 // caller's grant before the LIMIT.
+//
+// A self-recursive request (start and end resolving to the same node) is
+// answered with the shortest cycle back to that node, the same answer the
+// NornicDB breadth-first route gives. The search is a GQL SHORTEST in a scoped
+// CALL subquery, so the statement needs Neo4j 5.23 or later.
 func BuildCallChainCypher(
 	req Request,
 	backend querycontract.GraphBackend,
@@ -70,6 +75,7 @@ func BuildCallChainCypher(
 		)
 	}
 
+	hops := PathHopPredicates(req, access)
 	var cypher strings.Builder
 	cypher.WriteString("\n\t\tMATCH (start:" + AnchorLabelDisjunction + ")\n")
 	cypher.WriteString("\t\tMATCH (end:" + AnchorLabelDisjunction + ")")
@@ -77,28 +83,37 @@ func BuildCallChainCypher(
 		cypher.WriteString("\n\t\tWHERE ")
 		cypher.WriteString(strings.Join(predicates, " AND "))
 	}
-	cypher.WriteString("\n\t\tMATCH path = shortestPath(\n")
-	cypher.WriteString("\t\t\t(start)-[:CALLS*1..")
+	// The search is a GQL SHORTEST, not legacy shortestPath(): shortestPath()
+	// raises Neo.DatabaseError.Statement.ExecutionFailed when a row reaches it
+	// with start = end, which is exactly a self-recursive request, and Neo4j
+	// rejects a statement that mixes the two forms, so one search serves both
+	// kinds of row. SHORTEST accepts a cycle back to its start. Two measured
+	// constraints shape it (neo4j:2026-community, #6782):
+	//   - the hop bound sits INSIDE the quantified pattern, because a WHERE
+	//     after a SHORTEST path filters the path already chosen instead of
+	//     steering the search, which drops a valid longer in-bound chain;
+	//   - the search runs in a scoped CALL subquery, because written inline the
+	//     planner turned both anchors' index seeks into full index scans.
+	cypher.WriteString("\n\t\tCALL (start, end) {\n")
+	cypher.WriteString("\t\t\tMATCH path = SHORTEST 1 (start)(()-[:CALLS]->(node)")
+	if len(hops) > 0 {
+		cypher.WriteString(" WHERE " + strings.Join(hops, " AND "))
+	}
+	cypher.WriteString("){1,")
 	fmt.Fprint(&cypher, req.MaxDepth)
-	cypher.WriteString("]->(end)\n")
-	cypher.WriteString("\t\t)\n")
-	if hops := PathHopPredicates(req, access); len(hops) > 0 {
-		cypher.WriteString("\t\tWHERE all(node IN nodes(path) WHERE " + strings.Join(hops, " AND ") + ")\n")
-	}
-	if backend == querycontract.GraphBackendNornicDB {
-		// NornicDB resolves this path correctly with raw nodes(path) results,
-		// while its inline list projection returns null today.
-		cypher.WriteString("\t\tRETURN nodes(path) as chain,\n")
-	} else {
-		cypher.WriteString("\t\tRETURN [node IN nodes(path) | {id: coalesce(node.id, node.uid), name: node.name, labels: labels(node), language: node.language, docstring: node.docstring, method_kind: node.method_kind}] as chain,\n")
-	}
+	cypher.WriteString("}(end)\n")
+	cypher.WriteString("\t\t\tRETURN path\n")
+	cypher.WriteString("\t\t}\n")
+	cypher.WriteString("\t\tRETURN [node IN nodes(path) | {id: coalesce(node.id, node.uid), name: node.name, labels: labels(node), language: node.language, docstring: node.docstring, method_kind: node.method_kind}] as chain,\n")
 	cypher.WriteString("\t\t       length(path) as depth\n")
 	cypher.WriteString("\t\tLIMIT 5\n\t")
 	return cypher.String(), params
 }
 
-// PathHopPredicates returns the conditions every node on a returned
-// call chain must satisfy, for the Neo4j-compat shortestPath read.
+// PathHopPredicates returns the conditions every hop on a returned call
+// chain must satisfy, for the Neo4j-compat SHORTEST read. The builder writes
+// them inside the quantified CALLS pattern on each hop's target node; the
+// start node is already held by the anchoring WHERE.
 //
 // Binding the two endpoints is not enough here. The projection returns EVERY
 // node on the path -- id, name, labels, language, docstring, method_kind -- so a

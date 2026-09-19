@@ -64,7 +64,7 @@ func (g *GrantGraph) rows(
 	switch {
 	case strings.Contains(cypher, "CALL {"):
 		return g.labelRows(params), nil
-	case strings.Contains(cypher, "shortestPath("):
+	case strings.Contains(cypher, "shortestPath("), strings.Contains(cypher, "SHORTEST 1 ("):
 		return g.shortestPathRows(cypher, params), nil
 	case strings.Contains(cypher, "<-[:CONTAINS]-(f:File)"):
 		return g.metadataRows(cypher, params), nil
@@ -192,16 +192,22 @@ func (g *GrantGraph) shortestPathRows(cypher string, params map[string]any) []ma
 	if !storySeedAdmits(seed, endpointPredicates, params) {
 		return nil
 	}
-	path := g.shortestPath(start.UID, end.UID)
-	if len(path) == 0 {
-		return nil
-	}
-	for _, node := range path {
+	// The hop bound steers the search, as it does on the backend: a hop that
+	// fails it is never expanded, so a longer in-bound chain still answers.
+	admits := func(node GrantEntity) bool {
 		for _, predicate := range hopPredicates {
 			if !callChainHopAdmits(predicate, node.RepoID, params) {
-				return nil
+				return false
 			}
 		}
+		return true
+	}
+	if !admits(start) {
+		return nil
+	}
+	path := g.shortestPath(start.UID, end.UID, admits)
+	if len(path) == 0 {
+		return nil
 	}
 	chain := make([]any, 0, len(path))
 	for _, node := range path {
@@ -227,8 +233,9 @@ func (g *GrantGraph) endpoint(params map[string]any, prefix string) (GrantEntity
 }
 
 // shortestPath returns the node sequence of the shortest CALLS path, endpoints
-// included, or nil when there is none.
-func (g *GrantGraph) shortestPath(startUID, endUID string) []GrantEntity {
+// included, through hops admits accepts, or nil when there is none. start =
+// end yields the shortest cycle back to start.
+func (g *GrantGraph) shortestPath(startUID, endUID string, admits func(GrantEntity) bool) []GrantEntity {
 	type step struct {
 		UID  string
 		path []GrantEntity
@@ -248,7 +255,7 @@ func (g *GrantGraph) shortestPath(startUID, endUID string) []GrantEntity {
 			}
 			for _, calleeUID := range entity.Calls {
 				callee, ok := g.entity(calleeUID)
-				if !ok {
+				if !ok || !admits(callee) {
 					continue
 				}
 				path := append(append([]GrantEntity{}, current.path...), callee)
@@ -267,34 +274,51 @@ func (g *GrantGraph) shortestPath(startUID, endUID string) []GrantEntity {
 	return nil
 }
 
-// ClausePredicates splits the compat statement at its shortestPath
-// clause: endpoint predicates before, hop predicates after (unwrapped from the
-// all(...) they are written inside).
+// ClausePredicates splits a call-chain statement at its path search: endpoint
+// predicates before, hop predicates from the search itself. It reads both
+// shapes the family renders: the Neo4j-compat SHORTEST search, whose hop bound
+// sits inside the quantified pattern
+// `(()-[:CALLS]->(node) WHERE ...){1,N}` (#6782), and the NornicDB builder's
+// legacy shortestPath() with a trailing all(node IN nodes(path) WHERE ...).
 //
 // parsed reports whether the statement had the shape this reader expects. An
-// absent all(...) clause is NOT a parse failure -- a caller with no grant and no
+// absent hop bound is NOT a parse failure -- a caller with no grant and no
 // repository selector legitimately renders none -- but a statement with no
-// shortestPath clause at all, or an all(...) whose block does not terminate, is.
-// The distinction matters because an unrecognised statement yields no predicates,
-// and a fake that applies no predicates admits every row: exactly the false green
-// this batch exists to prevent.
+// path search at all, or a hop block that does not terminate, is. The
+// distinction matters because an unrecognised statement yields no predicates,
+// and a fake that applies no predicates admits every row: exactly the false
+// green this batch exists to prevent.
 func ClausePredicates(cypher string) (endpoints []string, hops []string, parsed bool) {
 	normalized := querycontract.NormalizeCypherWhitespace(cypher)
 	split := strings.Index(normalized, "MATCH path = shortestPath")
+	if shortest := strings.Index(normalized, "MATCH path = SHORTEST 1 ("); shortest >= 0 {
+		split = shortest
+	}
 	if split < 0 {
 		return nil, nil, false
 	}
 	head, tail := normalized[:split], normalized[split:]
+	// The compat search runs inside a scoped CALL subquery; the endpoint
+	// WHERE ends where that subquery begins.
+	if call := strings.Index(head, " CALL ("); call >= 0 {
+		head = head[:call]
+	}
 	if at := strings.Index(head, "WHERE "); at >= 0 {
 		endpoints = storySplitPredicates(strings.TrimSpace(head[at+len("WHERE "):]))
 	}
-	marker := "WHERE all(node IN nodes(path) WHERE "
+	marker, terminator := "WHERE all(node IN nodes(path) WHERE ", ") RETURN "
+	if strings.HasPrefix(tail, "MATCH path = SHORTEST 1 (") {
+		marker, terminator = "(()-[:CALLS]->(node) WHERE ", "){1,"
+		if !strings.Contains(tail, "(()-[:CALLS]->(node)") {
+			return endpoints, nil, false
+		}
+	}
 	at := strings.Index(tail, marker)
 	if at < 0 {
 		return endpoints, nil, true
 	}
 	block := tail[at+len(marker):]
-	end := strings.Index(block, ") RETURN ")
+	end := strings.Index(block, terminator)
 	if end < 0 {
 		return endpoints, nil, false
 	}

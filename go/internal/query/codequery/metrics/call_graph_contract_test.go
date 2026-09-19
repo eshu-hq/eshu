@@ -355,13 +355,13 @@ func TestHandleCallChainReturnsShortestPath(t *testing.T) {
 		GraphBackend: querycontract.GraphBackendNeo4j,
 		Neo4j: querytestutil.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, "shortestPath") {
-					t.Fatalf("cypher = %q, want shortestPath query", cypher)
+				if !strings.Contains(cypher, "SHORTEST 1 (start)") {
+					t.Fatalf("cypher = %q, want shortest-path query", cypher)
 				}
 				if strings.Contains(cypher, "CALLS_FUNCTION") {
 					t.Fatalf("cypher = %q, want canonical CALLS edges only", cypher)
 				}
-				if !strings.Contains(cypher, "[:CALLS*1..6]") {
+				if !strings.Contains(cypher, "){1,6}(end)") {
 					t.Fatalf("cypher = %q, want bounded CALLS traversal", cypher)
 				}
 				if !strings.Contains(cypher, "RETURN [node IN nodes(path)") {
@@ -782,13 +782,13 @@ func TestHandleCallChainSupportsRustImplContextQualifiedLookup(t *testing.T) {
 	handler := &codequery.CodeHandler{
 		Neo4j: querytestutil.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if !strings.Contains(cypher, "shortestPath") {
-					t.Fatalf("cypher = %q, want shortestPath query", cypher)
+				if !strings.Contains(cypher, "SHORTEST 1 (start)") {
+					t.Fatalf("cypher = %q, want shortest-path query", cypher)
 				}
 				if strings.Contains(cypher, "CALLS_FUNCTION") {
 					t.Fatalf("cypher = %q, want canonical CALLS edges only", cypher)
 				}
-				if !strings.Contains(cypher, "[:CALLS*1..3]") {
+				if !strings.Contains(cypher, "){1,3}(end)") {
 					t.Fatalf("cypher = %q, want bounded CALLS traversal", cypher)
 				}
 				if !strings.Contains(cypher, codemodel.GraphEntityIDPredicate("start", "$start_entity_id")) {

@@ -6,8 +6,10 @@ them.
 
 ## Ownership
 
-- `cypher.go` owns both shortestPath dialects, the anchor set, and the
-  hop predicates. Grant binding (request scope + caller grant before
+- `cypher.go` owns both path-search dialects (Neo4j-compat `SHORTEST`,
+  NornicDB `shortestPath`), the anchor set, and the hop predicates. On
+  the Neo4j side keep hop bounds inside the quantified pattern and the
+  search inside `CALL (start, end)`; see README.md for why. Grant binding (request scope + caller grant before
   `LIMIT`) is structural: keep both conjuncts on any rewrite.
 - `request.go` owns validation and repository resolution. The grant
   check at the read is separate; this bound is the request's own

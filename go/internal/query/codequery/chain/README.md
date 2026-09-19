@@ -7,10 +7,14 @@ Call-chain traversal for the code family (`codequery`).
 - `request.go` — the traversal request (decodes the route JSON
   unchanged), validation, and repository resolution: explicit
   start/end selectors in cross-repo mode, else the route repo.
-- `cypher.go` — the Neo4j-compat `shortestPath` builder and the
-  NornicDB dialect builder, plus the hop predicates. Both bind the
-  request's own repository scope and the caller's grant before the
-  `LIMIT`.
+- `cypher.go` — the Neo4j-compat builder and the NornicDB dialect
+  builder, plus the hop predicates. Both bind the request's own
+  repository scope and the caller's grant before the `LIMIT`. The
+  Neo4j-compat builder runs a GQL `SHORTEST 1` search in a scoped
+  `CALL (start, end)` subquery (#6782): legacy `shortestPath()` raises on
+  a self-recursive request (start = end), a trailing path `WHERE` on a
+  `SHORTEST` search post-filters instead of bounding, and inline the
+  planner scans both anchor indexes. It needs Neo4j 5.23 or later.
 - `nodes.go` — node projection and endpoint candidacy shaping.
 
 ## What stays in `codequery`
