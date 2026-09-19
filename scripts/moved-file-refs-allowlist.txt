@@ -133,3 +133,8 @@ testdata/golden/e2e-20repo-snapshot.json:go/internal/query/iac_resources.go
 # which reports a new file and no similarity index at all, so the command would
 # no longer produce the output printed next to it.
 go/internal/query/querycontract/README.md:go/internal/query/querycontract/rowvalue.go
+# #6818 tracing move evidence: this row pins the BEFORE state of the moved
+# file by its blob hash at the pre-move path, so the no-regression comparison
+# stays reproducible after the branch is gone. Repointing it to the new path
+# would compare the new file with itself and falsify the record.
+docs/internal/evidence/6818-query-package-moves.md:go/internal/query/queryspan/handlerspan.go
