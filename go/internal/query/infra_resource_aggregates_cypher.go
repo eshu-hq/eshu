@@ -375,11 +375,9 @@ func (s GraphInfraResourceAggregateStore) countFromReadModel(
 		}()
 	}
 	wg.Wait()
-	if tableErr != nil {
-		return InfraResourceAggregateCount{}, fmt.Errorf("count infra resources from read model: %w", tableErr)
-	}
-	if graphErr != nil {
-		return InfraResourceAggregateCount{}, fmt.Errorf("count graph infra resources: %w", graphErr)
+	if err := readModelLegError(tableErr, graphErr,
+		"count infra resources from read model", "count graph infra resources"); err != nil {
+		return InfraResourceAggregateCount{}, err
 	}
 
 	out := InfraResourceAggregateCount{
@@ -460,11 +458,9 @@ func (s GraphInfraResourceAggregateStore) inventoryFromReadModel(
 		}()
 	}
 	wg.Wait()
-	if tableErr != nil {
-		return nil, "", fmt.Errorf("inventory infra resources from read model: %w", tableErr)
-	}
-	if graphErr != nil {
-		return nil, "", fmt.Errorf("inventory graph infra resources: %w", graphErr)
+	if err := readModelLegError(tableErr, graphErr,
+		"inventory infra resources from read model", "inventory graph infra resources"); err != nil {
+		return nil, "", err
 	}
 	merged := mergeInfraResourceAggregateBuckets(graphRows)
 	for bucket, count := range tableRows {

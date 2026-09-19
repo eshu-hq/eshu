@@ -432,8 +432,8 @@ source_coverage:
       - {symbol: "(GraphInfraResourceAggregateStore).fillBuckets", count: 1, source_sha256: 1461164d77a8cb60bf9544641e88dab27a1215ba40e578550fd78a4fc7790d15, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
   - file: infra_resource_aggregates_cypher.go
     calls:
-      - {symbol: "(GraphInfraResourceAggregateStore).countFromReadModel", count: 1, source_sha256: b1d06d03efd96d08bf60bf61ec1d9a172661dbff4497d586c70ee842b655322f, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE-GRAPH]}
-      - {symbol: "(GraphInfraResourceAggregateStore).inventoryFromReadModel", count: 1, source_sha256: 1f2792c7aaba110d3090f9a0ee104e97982f9b4828c2d2212fe809705ac501a6, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE-GRAPH]}
+      - {symbol: "(GraphInfraResourceAggregateStore).countFromReadModel", count: 1, source_sha256: 4d842082f5e5ec07ce9f727abee0d1e5d03da24017136ffd22bfd2719ec2a45a, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE-GRAPH]}
+      - {symbol: "(GraphInfraResourceAggregateStore).inventoryFromReadModel", count: 1, source_sha256: 987311c8148e746a554ab792dd5d980d7ff5b51a72756e59b2a10faf11e4f2ea, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE-GRAPH]}
   - file: language/directory.go
     calls:
       # The directory branch's own statement, promoted to the plan gate by

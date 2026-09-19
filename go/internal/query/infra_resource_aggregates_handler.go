@@ -4,6 +4,9 @@
 package query
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -321,4 +324,26 @@ func nextInfraResourceAggregateOffset(offset, limit int, truncated bool) any {
 		return nil
 	}
 	return next
+}
+
+// readModelLegError picks the error a read-model read reports once both of
+// its concurrent legs have returned. A failing leg cancels its sibling, so the
+// sibling then reports context.Canceled; the failing leg's own error is the
+// cause and wins. That keeps a graph-leg ErrGraphReadDeadline or
+// ErrGraphUnavailable (504/503 through WriteGraphReadError) from being masked
+// by the table leg's cancellation (a generic 500). When neither error is a
+// sibling cancellation, the table error wins, as before.
+func readModelLegError(tableErr, graphErr error, tablePrefix, graphPrefix string) error {
+	tableCanceled := errors.Is(tableErr, context.Canceled)
+	graphCanceled := errors.Is(graphErr, context.Canceled)
+	switch {
+	case tableErr != nil && tableCanceled && graphErr != nil && !graphCanceled:
+		return fmt.Errorf("%s: %w", graphPrefix, graphErr)
+	case tableErr != nil:
+		return fmt.Errorf("%s: %w", tablePrefix, tableErr)
+	case graphErr != nil:
+		return fmt.Errorf("%s: %w", graphPrefix, graphErr)
+	default:
+		return nil
+	}
 }
