@@ -427,9 +427,13 @@ source_coverage:
       - {symbol: "(*InfraHandler).getRelationships", count: 1, non_hot_reason: "unlabeled relationship-detail lookup is inventoried but cannot be admitted until its production anchor is typed"}
   - file: infra_resource_aggregates.go
     calls:
-      - {symbol: "(GraphInfraResourceAggregateStore).CountInfraResources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(GraphInfraResourceAggregateStore).InfraResourceInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(GraphInfraResourceAggregateStore).CountInfraResources", count: 1, source_sha256: a76371dbd20b45ba318935a0efd656b28659b95bdd3d8a8c262074002e5129bb, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
+      - {symbol: "(GraphInfraResourceAggregateStore).InfraResourceInventory", count: 1, source_sha256: d097d43baf9909b1ba0b70a6a44b9c94165656ab1ffe242a5c2dce6c34a952a0, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
       - {symbol: "(GraphInfraResourceAggregateStore).fillBuckets", count: 1, source_sha256: 1461164d77a8cb60bf9544641e88dab27a1215ba40e578550fd78a4fc7790d15, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
+  - file: infra_resource_aggregates_cypher.go
+    calls:
+      - {symbol: "(GraphInfraResourceAggregateStore).countFromReadModel", count: 1, source_sha256: b1d06d03efd96d08bf60bf61ec1d9a172661dbff4497d586c70ee842b655322f, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE-GRAPH]}
+      - {symbol: "(GraphInfraResourceAggregateStore).inventoryFromReadModel", count: 1, source_sha256: 1f2792c7aaba110d3090f9a0ee104e97982f9b4828c2d2212fe809705ac501a6, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE-GRAPH]}
   - file: language/directory.go
     calls:
       # The directory branch's own statement, promoted to the plan gate by

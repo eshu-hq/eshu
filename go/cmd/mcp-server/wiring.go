@@ -231,7 +231,7 @@ func wireAPI(
 	// indexed owner-ledger list path is mounted, then start the #6793 infra read
 	// model backfill in the background. Graph-disabled profiles skip both.
 	if driver != nil {
-		if err := query.RunStartupBackfills(ctx, rawDB, neo4jReader, logger); err != nil {
+		if err := query.RunStartupBackfills(ctx, rawDB, neo4jReader, logger, instruments); err != nil {
 			_ = rawDB.Close()
 			_ = driver.Close(ctx)
 			return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("backfill cloud resource owner ledger: %w", err)

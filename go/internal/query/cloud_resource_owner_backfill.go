@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
@@ -219,4 +221,41 @@ func clonePresentCloudResourceBackfillFields(row map[string]any) map[string]any 
 		}
 	}
 	return cloned
+}
+
+// StartInfraInventoryBackfill runs the infra read model backfill in the
+// background (inventory.RunBackground) until it records its marker or ctx
+// ends, retrying failed attempts with backoff. Readers stay on the graph until
+// the marker exists, so startup never waits on it. Running it from more than
+// one process at once is safe: the processes serialize per repository on the
+// derive lock and the marker insert is idempotent.
+func StartInfraInventoryBackfill(ctx context.Context, db *sql.DB, logger *slog.Logger, instruments *telemetry.Instruments) {
+	if db == nil {
+		return
+	}
+	go func() {
+		_ = inventory.RunBackground(ctx, postgres.SQLDB{DB: db}, inventory.BackgroundOptions{
+			Logger:      logger,
+			Instruments: instruments,
+		})
+	}()
+}
+
+// RunStartupBackfills runs the query surface's startup backfills for a process
+// that mounts graph-backed routes: the blocking CloudResource owner-ledger
+// seed (#5563), then the background infra read model backfill (#6793). An
+// owner-ledger failure aborts startup exactly as before. The infra backfill
+// never blocks startup.
+func RunStartupBackfills(
+	ctx context.Context,
+	db *sql.DB,
+	graph GraphQuery,
+	logger *slog.Logger,
+	instruments *telemetry.Instruments,
+) error {
+	if err := BackfillCloudResourceOwnerLedger(ctx, db, graph); err != nil {
+		return err
+	}
+	StartInfraInventoryBackfill(ctx, db, logger, instruments)
+	return nil
 }

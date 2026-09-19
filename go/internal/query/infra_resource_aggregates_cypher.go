@@ -7,7 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -148,10 +147,14 @@ const (
 	// graph: a scoped caller, or a read before the read model's backfill
 	// marker exists.
 	InfraResourceAggregateSourceGraph InfraResourceAggregateSource = "graph"
-	// InfraResourceAggregateSourceReadModel means the entity-derived labels
-	// came from the Postgres read model and the graph-only labels
-	// (infraGraphOnlyLabels) from one graph pass.
+	// InfraResourceAggregateSourceReadModel means every resolved label came
+	// from the Postgres read model alone (for example category=k8s).
 	InfraResourceAggregateSourceReadModel InfraResourceAggregateSource = "read_model"
+	// InfraResourceAggregateSourceHybrid means content-derived nodes came from
+	// the Postgres read model, and the graph-only labels (infraGraphOnlyLabels)
+	// plus the mixed-writer labels' other nodes (infraMixedWriterGraphSource)
+	// from one graph pass in the same read.
+	InfraResourceAggregateSourceHybrid InfraResourceAggregateSource = "hybrid"
 )
 
 // InfraResourceReadModel is the Postgres infra read model
@@ -193,7 +196,26 @@ func (s GraphInfraResourceAggregateStore) readModelServes(ctx context.Context, f
 	return ready, nil
 }
 
+// readModelSource names the store that serves a read-model read of this label
+// split: the graph alone when no read-model label resolved (category=cloud),
+// the table alone when no graph branch is needed (category=k8s), else hybrid.
+func readModelSource(table, graphWhole, graphMixed []string) InfraResourceAggregateSource {
+	switch {
+	case len(table) == 0:
+		return InfraResourceAggregateSourceGraph
+	case len(graphWhole)+len(graphMixed) == 0:
+		return InfraResourceAggregateSourceReadModel
+	default:
+		return InfraResourceAggregateSourceHybrid
+	}
+}
+
+// recordRead counts one read: source "read_model" whenever the table served
+// any of it (read_model or hybrid), else "graph".
 func (s GraphInfraResourceAggregateStore) recordRead(ctx context.Context, route string, source InfraResourceAggregateSource) {
+	if source == InfraResourceAggregateSourceHybrid {
+		source = InfraResourceAggregateSourceReadModel
+	}
 	if s.Instruments == nil || s.Instruments.InfraInventoryReads == nil {
 		return
 	}
@@ -201,21 +223,68 @@ func (s GraphInfraResourceAggregateStore) recordRead(ctx context.Context, route 
 		telemetry.AttrRoute(route), telemetry.AttrSource(string(source))))
 }
 
-// splitInfraLabels partitions the resolved label set into read-model labels
-// and graph-only labels, keeping the input order.
-func splitInfraLabels(labels []string) (table []string, graph []string) {
+// splitInfraLabels partitions the resolved label set, keeping input order:
+// table is every read-model label (inventory.Labels), graphWhole the
+// graph-only labels read whole, and graphMixed the read-model labels whose
+// other writer's nodes the graph adds (infraMixedWriterGraphSource).
+func splitInfraLabels(labels []string) (table []string, graphWhole []string, graphMixed []string) {
 	graphOnly := make(map[string]struct{}, len(infraGraphOnlyLabels))
 	for _, label := range infraGraphOnlyLabels {
 		graphOnly[label] = struct{}{}
 	}
 	for _, label := range labels {
 		if _, ok := graphOnly[label]; ok {
-			graph = append(graph, label)
-		} else {
-			table = append(table, label)
+			graphWhole = append(graphWhole, label)
+			continue
+		}
+		table = append(table, label)
+		if _, ok := infraMixedWriterGraphSource[label]; ok {
+			graphMixed = append(graphMixed, label)
 		}
 	}
-	return table, graph
+	return table, graphWhole, graphMixed
+}
+
+// infraReadModelGraphCypher renders the graph side of a read-model read as one
+// CALL { ... UNION ALL ... } pass: each graph-only label whole, and each
+// mixed-writer label only through the indexed evidence_source seek (predicate
+// first, so it anchors the branch), each with the request's filter clauses.
+// Labels are allowlisted; values are bound parameters.
+func infraReadModelGraphCypher(
+	whole []string,
+	mixed []string,
+	filter InfraResourceAggregateFilter,
+	innerReturn func(label string) string,
+	outerReturn string,
+) string {
+	branchWhere := infraResourceAggregateBranchWhere(filter)
+	branches := make([]string, 0, len(whole)+len(mixed))
+	for _, label := range whole {
+		if querycontract.InfraLabelAllowed(label) {
+			branches = append(branches, "MATCH (n:"+label+")"+branchWhere+" "+innerReturn(label))
+		}
+	}
+	for _, label := range mixed {
+		if !querycontract.InfraLabelAllowed(label) {
+			continue
+		}
+		where := " WHERE n.evidence_source = $graph_writer_evidence_source"
+		if branchWhere != "" {
+			where += " AND " + strings.TrimPrefix(branchWhere, " WHERE ")
+		}
+		branches = append(branches, "MATCH (n:"+label+")"+where+" "+innerReturn(label))
+	}
+	return "CALL {\n" + strings.Join(branches, "\nUNION ALL\n") + "\n}\n" + outerReturn
+}
+
+// infraReadModelGraphParams binds the filter parameters, plus the mixed-writer
+// evidence_source when a mixed branch is present.
+func infraReadModelGraphParams(filter InfraResourceAggregateFilter, mixed []string) map[string]any {
+	params := infraResourceAggregateParams(filter)
+	if len(mixed) > 0 {
+		params["graph_writer_evidence_source"] = infraMixedWriterEvidenceSource
+	}
+	return params
 }
 
 func infraReadModelFilter(filter InfraResourceAggregateFilter, labels []string) inventory.Filter {
@@ -235,32 +304,23 @@ func infraReadModelFilter(filter InfraResourceAggregateFilter, labels []string) 
 // shared by every aggregate read.
 const infraResourceEnvironmentGroupExpression = "CASE WHEN n.environment IS NULL OR n.environment = '' THEN 'unknown' ELSE n.environment END"
 
-// infraGraphOnlyCountCypher is one CALL { ... UNION ALL ... } pass over the
-// graph-only labels that groups each branch by a static label literal, the
-// provider bucket, and the environment bucket, so the count route gets its
-// total and all three rollups from one graph read instead of four. Grouping
-// happens inside each branch for the reason documented on
-// infraResourceAggregatePerLabelCypher. Measured on NornicDB at production
-// scale: the combined-key marginals equal the single-key group-bys for all
-// four graph-only labels, with no null keys.
-func infraGraphOnlyCountCypher(labels []string, filter InfraResourceAggregateFilter) string {
-	branchWhere := infraResourceAggregateBranchWhere(filter)
+// infraGraphOnlyCountCypher is the count route's graph pass: one CALL {
+// ... UNION ALL ... } over the graph labels (see infraReadModelGraphCypher)
+// that groups each branch by a static label literal, the provider bucket, and
+// the environment bucket, so one graph read yields the total and all three
+// rollups. Grouping happens inside each branch for the reason documented on
+// infraResourceAggregatePerLabelCypher; measured on NornicDB, the combined-key
+// marginals equal the single-key group-bys with no null keys.
+func infraGraphOnlyCountCypher(whole []string, mixed []string, filter InfraResourceAggregateFilter) string {
 	provider := infraResourceProviderGroupExpression(filter)
-	branches := make([]string, 0, len(labels))
-	for _, label := range labels {
-		if !querycontract.InfraLabelAllowed(label) {
-			continue
-		}
-		branches = append(branches, "MATCH (n:"+label+")"+branchWhere+
-			" RETURN '"+label+"' AS label, "+provider+" AS provider_bucket, "+
-			infraResourceEnvironmentGroupExpression+" AS environment_bucket, count(n) AS bucket_count")
-	}
-	return "CALL {\n" + strings.Join(branches, "\nUNION ALL\n") +
-		"\n}\nRETURN label, provider_bucket, environment_bucket, bucket_count"
+	return infraReadModelGraphCypher(whole, mixed, filter, func(label string) string {
+		return "RETURN '" + label + "' AS label, " + provider + " AS provider_bucket, " +
+			infraResourceEnvironmentGroupExpression + " AS environment_bucket, count(n) AS bucket_count"
+	}, "RETURN label, provider_bucket, environment_bucket, bucket_count")
 }
 
 // countFromReadModel serves the count route from the read model for the
-// entity-derived labels and one combined graph pass for the graph-only labels,
+// content-derived nodes and one combined graph pass for the rest,
 // run concurrently. total = sum(by_label) holds because every infra node
 // carries exactly one candidate label (see CountInfraResources).
 func (s GraphInfraResourceAggregateStore) countFromReadModel(
@@ -268,7 +328,13 @@ func (s GraphInfraResourceAggregateStore) countFromReadModel(
 	labels []string,
 	filter InfraResourceAggregateFilter,
 ) (InfraResourceAggregateCount, error) {
-	tableLabels, graphLabels := splitInfraLabels(labels)
+	tableLabels, graphWhole, graphMixed := splitInfraLabels(labels)
+	source := readModelSource(tableLabels, graphWhole, graphMixed)
+	s.recordRead(ctx, "count", source)
+	// Either leg failing cancels the other, so a table error does not wait
+	// out a graph label scan (and vice versa).
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	var (
 		wg        sync.WaitGroup
 		buckets   []inventory.CountBucket
@@ -281,14 +347,20 @@ func (s GraphInfraResourceAggregateStore) countFromReadModel(
 		go func() {
 			defer wg.Done()
 			buckets, tableErr = s.ReadModel.CountBuckets(ctx, infraReadModelFilter(filter, tableLabels))
+			if tableErr != nil {
+				cancel()
+			}
 		}()
 	}
-	if len(graphLabels) > 0 {
+	if len(graphWhole)+len(graphMixed) > 0 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			graphRows, graphErr = s.Graph.Run(ctx, infraGraphOnlyCountCypher(graphLabels, filter),
-				infraResourceAggregateParams(filter))
+			graphRows, graphErr = s.Graph.Run(ctx, infraGraphOnlyCountCypher(graphWhole, graphMixed, filter),
+				infraReadModelGraphParams(filter, graphMixed))
+			if graphErr != nil {
+				cancel()
+			}
 		}()
 	}
 	wg.Wait()
@@ -296,14 +368,14 @@ func (s GraphInfraResourceAggregateStore) countFromReadModel(
 		return InfraResourceAggregateCount{}, fmt.Errorf("count infra resources from read model: %w", tableErr)
 	}
 	if graphErr != nil {
-		return InfraResourceAggregateCount{}, fmt.Errorf("count graph-only infra resources: %w", graphErr)
+		return InfraResourceAggregateCount{}, fmt.Errorf("count graph infra resources: %w", graphErr)
 	}
 
 	out := InfraResourceAggregateCount{
 		ByProvider:    map[string]int{},
 		ByEnvironment: map[string]int{},
 		ByLabel:       map[string]int{},
-		Source:        InfraResourceAggregateSourceReadModel,
+		Source:        source,
 	}
 	add := func(label, provider, environment string, count int) {
 		if count <= 0 {
@@ -317,7 +389,7 @@ func (s GraphInfraResourceAggregateStore) countFromReadModel(
 	for _, bucket := range buckets {
 		add(bucket.Label, bucket.Provider, bucket.Environment, int(bucket.Count))
 	}
-	// A graph-only branch over an empty label yields one zero-count row with
+	// A graph branch that matches nothing yields one zero-count row with
 	// null keys; add skips it, matching the whole-graph read that never
 	// produced an empty bucket.
 	for _, row := range graphRows {
@@ -328,7 +400,7 @@ func (s GraphInfraResourceAggregateStore) countFromReadModel(
 }
 
 // inventoryFromReadModel serves one inventory page from the read model for the
-// entity-derived labels and one grouped graph pass for the graph-only labels,
+// content-derived nodes and one grouped graph pass for the rest,
 // run concurrently, then merges, orders, and paginates exactly as the graph
 // path does.
 func (s GraphInfraResourceAggregateStore) inventoryFromReadModel(
@@ -339,8 +411,12 @@ func (s GraphInfraResourceAggregateStore) inventoryFromReadModel(
 	groupExpr string,
 	limit int,
 	offset int,
-) ([]InfraResourceInventoryRow, error) {
-	tableLabels, graphLabels := splitInfraLabels(labels)
+) ([]InfraResourceInventoryRow, InfraResourceAggregateSource, error) {
+	tableLabels, graphWhole, graphMixed := splitInfraLabels(labels)
+	source := readModelSource(tableLabels, graphWhole, graphMixed)
+	s.recordRead(ctx, "inventory", source)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	var (
 		wg        sync.WaitGroup
 		tableRows map[string]int64
@@ -354,24 +430,30 @@ func (s GraphInfraResourceAggregateStore) inventoryFromReadModel(
 			defer wg.Done()
 			tableRows, tableErr = s.ReadModel.DimensionBuckets(ctx, infraReadModelFilter(filter, tableLabels),
 				inventory.Dimension(dimension))
+			if tableErr != nil {
+				cancel()
+			}
 		}()
 	}
-	if len(graphLabels) > 0 {
+	if len(graphWhole)+len(graphMixed) > 0 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			cypher := infraResourceAggregatePerLabelCypher(graphLabels, infraResourceAggregateBranchWhere(filter),
-				"RETURN "+groupExpr+" AS bucket, count(n) AS bucket_count",
-				"RETURN bucket, bucket_count")
-			graphRows, graphErr = s.Graph.Run(ctx, cypher, infraResourceAggregateParams(filter))
+			cypher := infraReadModelGraphCypher(graphWhole, graphMixed, filter, func(string) string {
+				return "RETURN " + groupExpr + " AS bucket, count(n) AS bucket_count"
+			}, "RETURN bucket, bucket_count")
+			graphRows, graphErr = s.Graph.Run(ctx, cypher, infraReadModelGraphParams(filter, graphMixed))
+			if graphErr != nil {
+				cancel()
+			}
 		}()
 	}
 	wg.Wait()
 	if tableErr != nil {
-		return nil, fmt.Errorf("inventory infra resources from read model: %w", tableErr)
+		return nil, "", fmt.Errorf("inventory infra resources from read model: %w", tableErr)
 	}
 	if graphErr != nil {
-		return nil, fmt.Errorf("inventory graph-only infra resources: %w", graphErr)
+		return nil, "", fmt.Errorf("inventory graph infra resources: %w", graphErr)
 	}
 	merged := mergeInfraResourceAggregateBuckets(graphRows)
 	for bucket, count := range tableRows {
@@ -379,7 +461,7 @@ func (s GraphInfraResourceAggregateStore) inventoryFromReadModel(
 			merged[strings.TrimSpace(bucket)] += int(count)
 		}
 	}
-	return paginateInfraResourceBuckets(merged, dimension, limit, offset), nil
+	return paginateInfraResourceBuckets(merged, dimension, limit, offset), source, nil
 }
 
 // NewInfraResourceAggregateStore wires the aggregate store the API and MCP
@@ -392,36 +474,4 @@ func NewInfraResourceAggregateStore(graph GraphQuery, db *sql.DB, instruments *t
 		return store
 	}
 	return store.WithReadModel(inventory.Reader{DB: postgres.SQLDB{DB: db}})
-}
-
-// StartInfraInventoryBackfill runs the infra read model backfill in the
-// background until it records its marker or ctx ends. Readers stay on the
-// graph until the marker exists, so startup never waits on it. Running it from
-// more than one process at once is safe: the processes serialize per
-// repository on the derive lock and the marker insert is idempotent. A failure
-// is logged and retried on the next process start.
-func StartInfraInventoryBackfill(ctx context.Context, db *sql.DB, logger *slog.Logger) {
-	if db == nil {
-		return
-	}
-	go func() {
-		backfiller := inventory.Backfiller{DB: postgres.SQLDB{DB: db}, Logger: logger}
-		if _, err := backfiller.Run(ctx); err != nil && ctx.Err() == nil && logger != nil {
-			logger.ErrorContext(ctx, "infra inventory backfill failed; aggregate reads stay on the graph until a later start completes it",
-				"event_name", "infra_inventory.backfill.failed", "error", err)
-		}
-	}()
-}
-
-// RunStartupBackfills runs the query surface's startup backfills for a process
-// that mounts graph-backed routes: the blocking CloudResource owner-ledger
-// seed (#5563), then the background infra read model backfill (#6793). An
-// owner-ledger failure aborts startup exactly as before. The infra backfill
-// never blocks startup.
-func RunStartupBackfills(ctx context.Context, db *sql.DB, graph GraphQuery, logger *slog.Logger) error {
-	if err := BackfillCloudResourceOwnerLedger(ctx, db, graph); err != nil {
-		return err
-	}
-	StartInfraInventoryBackfill(ctx, db, logger)
-	return nil
 }

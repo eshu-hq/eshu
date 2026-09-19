@@ -113,6 +113,79 @@ type Stats struct {
 	Inserted int64
 }
 
+// Change is the set of content changes one Write made to a repository: every
+// path it touched (deleted or not) and every entity id it tombstoned.
+type Change struct {
+	Paths            []string
+	DeletedEntityIDs []string
+}
+
+// mirrorDeletedIDsSQL drops the table rows of tombstoned entities wherever they
+// live. The content writer deletes tombstoned content_entities rows by
+// (repo_id, entity_id), not by the tombstone record's path, and an entity can
+// have moved to another path since the path on its tombstone was recorded.
+const mirrorDeletedIDsSQL = `
+DELETE FROM infra_resource_entities
+WHERE repo_id = $1
+  AND entity_id = ANY($2::text[])
+`
+
+// Mirror re-derives the table rows a content Write affected: it drops the rows
+// of every tombstoned entity id, then re-derives every touched path (see
+// MirrorPaths). Each step runs under the per-repository derive lock.
+func Mirror(ctx context.Context, database db.ExecQueryer, target Target, change Change) (Stats, error) {
+	if strings.TrimSpace(target.RepoID) == "" {
+		return Stats{}, errors.New("infra inventory derive: repo_id is required")
+	}
+	ids := normalizedPaths(change.DeletedEntityIDs)
+	var total Stats
+	if len(ids) > 0 {
+		beginner, ok := database.(db.Beginner)
+		if !ok {
+			return Stats{}, errors.New("infra inventory derive: database must support transactions")
+		}
+		for start := 0; start < len(ids); start += mirrorPathChunkSize {
+			chunk := pgarray.StringArray(ids[start:min(start+mirrorPathChunkSize, len(ids))])
+			stats, err := deleteInTransaction(ctx, beginner, target.RepoID,
+				statement{mirrorDeletedIDsSQL, []any{target.RepoID, chunk}})
+			if err != nil {
+				return total, fmt.Errorf("infra inventory derive %d tombstoned entities for repo %q: %w",
+					len(chunk), target.RepoID, err)
+			}
+			total.Deleted += stats.Deleted
+		}
+	}
+	stats, err := MirrorPaths(ctx, database, target, change.Paths)
+	total.Deleted += stats.Deleted
+	total.Inserted += stats.Inserted
+	return total, err
+}
+
+// deleteInTransaction runs lock then one delete as a transaction.
+func deleteInTransaction(ctx context.Context, beginner db.Beginner, repoID string, deleteStmt statement) (stats Stats, err error) {
+	tx, err := beginner.Begin(ctx)
+	if err != nil {
+		return Stats{}, fmt.Errorf("begin: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err = tx.ExecContext(ctx, repoLockSQL, repoID); err != nil {
+		return Stats{}, fmt.Errorf("lock repo: %w", err)
+	}
+	deleted, err := tx.ExecContext(ctx, deleteStmt.query, deleteStmt.args...)
+	if err != nil {
+		return Stats{}, fmt.Errorf("delete: %w", err)
+	}
+	if err = tx.Commit(); err != nil {
+		return Stats{}, fmt.Errorf("commit: %w", err)
+	}
+	stats.Deleted, _ = deleted.RowsAffected()
+	return stats, nil
+}
+
 // MirrorPaths re-derives the infra_resource_entities rows of the given paths of
 // one repository from content_entities. It must run AFTER the content writer
 // has finished upserting, reaping, and deleting content_entities for those
@@ -216,8 +289,8 @@ func deriveInTransaction(
 	return stats, nil
 }
 
-// normalizedPaths trims, drops blanks, deduplicates, and sorts so chunk
-// boundaries and lock order are reproducible.
+// normalizedPaths trims, drops blanks, deduplicates, and sorts path or id sets
+// so chunk boundaries are reproducible.
 func normalizedPaths(paths []string) []string {
 	seen := make(map[string]struct{}, len(paths))
 	out := make([]string, 0, len(paths))

@@ -13,8 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // upsertContentFileBatches persists file records using batched multi-row
@@ -172,29 +175,58 @@ func (w ContentWriter) upsertContentEntityBatch(ctx context.Context, batch []pre
 // A derive failure fails the Write. The projector retries the whole
 // generation, and the derive is idempotent, so a retry converges.
 func (w ContentWriter) deriveInfraInventory(ctx context.Context, materialization content.Materialization) error {
-	paths := make([]string, 0, len(materialization.Records)+len(materialization.Entities))
+	change := inventory.Change{
+		Paths: make([]string, 0, len(materialization.Records)+len(materialization.Entities)),
+	}
 	for _, record := range materialization.Records {
-		paths = append(paths, record.Path)
+		change.Paths = append(change.Paths, record.Path)
 	}
 	for _, entity := range materialization.Entities {
-		paths = append(paths, entity.Path)
+		change.Paths = append(change.Paths, entity.Path)
+		if entity.Deleted {
+			change.DeletedEntityIDs = append(change.DeletedEntityIDs, entity.EntityID)
+		}
 	}
 	start := time.Now()
-	stats, err := inventory.MirrorPaths(ctx, w.database, inventory.Target{
+	stats, err := inventory.Mirror(ctx, w.database, inventory.Target{
 		RepoID:       materialization.RepoID,
 		ScopeID:      materialization.ScopeID,
 		GenerationID: materialization.GenerationID,
-	}, paths)
+	}, change)
+	if inventory.IsNotInstalled(err) {
+		// Migration 109 is not applied yet. The content rows are committed and
+		// nothing reads the missing table: readers stay on the graph until
+		// the backfill marker exists, and the backfill re-derives every
+		// repository once the table does. Failing here would dead-letter every
+		// projection for the rollout window.
+		w.recordDerive(ctx, "skipped_not_installed")
+		if w.Logger != nil {
+			w.Logger.WarnContext(ctx, "infra read model not installed; derive skipped",
+				"event_name", "infra_inventory.derive.skipped_not_installed",
+				"repo_id", materialization.RepoID, "scope_id", materialization.ScopeID)
+		}
+		return nil
+	}
 	if err != nil {
+		w.recordDerive(ctx, "error")
 		return err
 	}
+	w.recordDerive(ctx, "ok")
 	w.logStage(
 		ctx, materialization, "derive_infra_inventory", start,
-		"path_count", len(paths),
+		"path_count", len(change.Paths),
+		"deleted_entity_count", len(change.DeletedEntityIDs),
 		"rows_deleted", stats.Deleted,
 		"rows_inserted", stats.Inserted,
 	)
 	return nil
+}
+
+func (w ContentWriter) recordDerive(ctx context.Context, outcome string) {
+	if w.instruments == nil || w.instruments.InfraInventoryDerives == nil {
+		return
+	}
+	w.instruments.InfraInventoryDerives.Add(ctx, 1, metric.WithAttributes(telemetry.AttrOutcome(outcome)))
 }
 
 // Value-normalization helpers shared by ContentWriter.Write: content digests,

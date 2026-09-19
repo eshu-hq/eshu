@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 )
@@ -26,6 +27,7 @@ type ContentWriter struct {
 	batchConcurrency int
 	Now              func() time.Time
 	Logger           *slog.Logger
+	instruments      *telemetry.Instruments
 }
 
 // NewContentWriter constructs a Postgres-backed canonical content writer.
@@ -42,6 +44,13 @@ func NewContentWriter(database db.ExecQueryer) ContentWriter {
 // WithLogger returns a copy that emits per-stage write timings to logger.
 func (w ContentWriter) WithLogger(logger *slog.Logger) ContentWriter {
 	w.Logger = logger
+	return w
+}
+
+// WithInstruments returns a copy that records content-writer metrics, such as
+// eshu_dp_infra_inventory_derives_total.
+func (w ContentWriter) WithInstruments(instruments *telemetry.Instruments) ContentWriter {
+	w.instruments = instruments
 	return w
 }
 

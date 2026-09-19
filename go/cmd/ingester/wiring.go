@@ -376,6 +376,7 @@ func buildIngesterProjectorRuntime(
 	}
 	contentWriter := postgres.NewContentWriter(database).
 		WithLogger(logger).
+		WithInstruments(instruments).
 		WithEntityBatchSize(contentConfig.EntityBatchSize)
 
 	return projector.Runtime{

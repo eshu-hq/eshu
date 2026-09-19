@@ -93,8 +93,10 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	// 7 batched statements plus the #5329 stale-entity reap DELETE that runs
 	// after the entity insert for every path with a fresh entity this call
 	// (here, schema.sql).
-	if got, want := len(database.txExecs), 3; got != want {
-		t.Fatalf("infra inventory derive statements = %d, want lock+delete+insert", got)
+	// The fixture tombstones one entity, so the derive runs two transactions:
+	// lock + delete by entity_id, then lock + delete + insert for the paths.
+	if got, want := len(database.txExecs), 5; got != want {
+		t.Fatalf("infra inventory derive statements = %d, want id lock+delete then path lock+delete+insert", got)
 	}
 	if got, want := len(database.execs), 8; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)

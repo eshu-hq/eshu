@@ -208,17 +208,23 @@ health before retrying.
 ## Infra resource aggregate read model
 
 `GET /api/v0/infra/resources/count` and `/inventory` (and their MCP tools)
-read the entity-derived infrastructure labels from the Postgres
-`infra_resource_entities` table once its backfill has completed. The four
-graph-only labels are still read from the graph, in one pass.
+read content-derived infrastructure nodes from the Postgres
+`infra_resource_entities` table once its backfill has completed. CloudResource,
+TerraformStateResource, and the Terraform state projector's TerraformModule
+and TerraformOutput nodes are still read from the graph, in one pass.
 `eshu_dp_infra_inventory_reads_total{route,source}` counts every read by
 route (`count`, `inventory`) and serving store (`read_model`, `graph`).
 
 - After a deploy, `source="read_model"` should become the unscoped share of
   traffic within one backfill. If `source="graph"` stays high for unscoped
-  traffic, the backfill has not recorded its marker. Look for the
-  `infra_inventory.backfill.failed` log event on the API or MCP server; the
-  next process start retries it.
+  traffic, the backfill has not recorded its marker:
+  `eshu_dp_infra_inventory_backfill_runs_total{outcome="failed"}` rises and
+  the `infra_inventory.backfill.failed` log says why. Failed attempts retry
+  with backoff (30s doubling to 10m) in the same process.
+- `eshu_dp_infra_inventory_derives_total{outcome}` counts the content
+  writer's derives. `skipped_not_installed` means a writer ran before
+  migration 109; the content write succeeded and the backfill covers the
+  repository later. `error` fails the content write, which then retries.
 - Scoped-token reads always count as `source="graph"`.
 - The content writer logs the per-Write derive as stage
   `derive_infra_inventory` (`path_count`, `rows_deleted`, `rows_inserted`,

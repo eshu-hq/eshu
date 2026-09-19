@@ -13,10 +13,12 @@
   count for the same label, filter, and grouping. Any change to `Labels`, the
   dimension columns, or the value normalization needs a live
   graph-versus-table differential, not only unit tests.
-- **Add a label only when the canonical node writer is its only writer.** Check
-  every `MERGE (x:<Label>` in `storage/cypher` first. `TerraformModule` and
-  `TerraformOutput` are excluded because the Terraform state projector also
-  writes them.
+- **Know every writer of a label before adding it.** Check every
+  `MERGE (x:<Label>` in `storage/cypher` first. A label with a second writer
+  (today TerraformModule and TerraformOutput, via the Terraform state
+  projector) needs its other nodes identifiable by an indexed property, read
+  from the graph by the query layer (`infraMixedWriterGraphSource`), and a
+  graph schema index on that property.
 - **Keep the transaction order: lock, delete, insert.** The advisory lock must
   be the first statement so the insert's snapshot postdates any other
   deriver's commit for the repository.

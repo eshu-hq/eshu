@@ -167,7 +167,6 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 		return InfraResourceAggregateCount{}, err
 	}
 	if useReadModel {
-		s.recordRead(ctx, "count", InfraResourceAggregateSourceReadModel)
 		return s.countFromReadModel(ctx, labels, filter)
 	}
 	s.recordRead(ctx, "count", InfraResourceAggregateSourceGraph)
@@ -285,9 +284,7 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 		return nil, "", err
 	}
 	if useReadModel {
-		s.recordRead(ctx, "inventory", InfraResourceAggregateSourceReadModel)
-		rows, err := s.inventoryFromReadModel(ctx, labels, filter, dimension, groupExpr, limit, offset)
-		return rows, InfraResourceAggregateSourceReadModel, err
+		return s.inventoryFromReadModel(ctx, labels, filter, dimension, groupExpr, limit, offset)
 	}
 	s.recordRead(ctx, "inventory", InfraResourceAggregateSourceGraph)
 
