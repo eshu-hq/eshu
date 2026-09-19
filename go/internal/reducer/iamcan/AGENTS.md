@@ -51,8 +51,13 @@ Both slices under-approximate on purpose. Before you widen anything:
 - Cross-scope targets (#6785) satisfy exact-ARN matches only. Never feed them
   to glob matching or principal/grantee lookup: the loader returns only the
   ARNs a statement named exactly, so a glob over that view can report one match
-  where the account has several. The cross-scope defer must stay an
-  elapsed-time bound, because its class freezes `attempt_count`.
+  where the account has several. The cross-scope wait must stay an
+  elapsed-time bound on the ledger anchor, because its class freezes
+  `attempt_count` and a superseding generation replaces the queue row.
+- Commit before returning `iam_can_perform_target_not_ready`, and write the
+  readiness-wait ledger only after the graph commit. Returning the error first
+  holds back revoked-grant retraction; writing the ledger first can mark a
+  commit that never happened.
 - A rising `skipped_ambiguous` is not a bug to fix by loosening resolution. It
   means the scope did not scan the target, or the pattern named many nodes.
 

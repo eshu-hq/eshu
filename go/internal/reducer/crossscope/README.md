@@ -29,6 +29,12 @@ This package owns:
   `ConsumerDomains`, `CompletionEdge`, `CompletionEdges`, and
   `DependenciesForRegistration`.
 
+- The commit-first readiness wait (#6785): `ReadinessWait`,
+  `ReadinessWaitLedger` (the port; `storage/postgres/readinesswait` implements
+  it), `DecideWait`, `WaitInput`, `WaitDecision`, `PollEligible`,
+  `SameMissingSet`, `ApplyWaitDecision`, `ReadWait`, `MissingSample`, the
+  `ReadinessWait*` outcome labels, and `ReadinessWaitMaxKeys`.
+
 It owns no domain knowledge beyond the catalog's own producer/consumer
 declarations, no fact decoding, no writer, and no queue or Postgres access. The
 parent reducer package still owns registry composition, runtime and queue
@@ -83,6 +89,29 @@ would read the same value forever and never fire. See the doc comments on
 `ProducerReadinessMaxWait` and `ReadinessCycleAnchor` for the two prior
 incidents (the #5875 P1 ordering bug and the sibling AWS gate's attempt-count
 bound) this repeats the guard against.
+
+## Commit-first readiness wait (#6785)
+
+`DecideWait` is shared by `iam_can_perform_materialization` and
+`workload_cloud_relationship_materialization`. It is pure: the handler reads
+the `(scope_id, domain)` ledger row, evaluates its missing set, and applies
+the decision in this order: commit (scope-wide retract and rewrite), write
+the ledger, then return the not-ready error or succeed.
+
+- An empty missing set commits and clears the row.
+- A settled row with the same fingerprint commits at once (`settled_missing`).
+- Otherwise the row keeps its earliest `FirstDeferredAt` (a settled row with a
+  new set restarts it) and commits unless this generation, queue cycle, and
+  fingerprint already committed. It then defers, or settles once elapsed time
+  since the anchor reaches `MaxWait` (`abandoned`).
+- `PollEligible` lets a handler re-check only the stored missing keys, with no
+  fact load, when the row already committed at its own missing set.
+
+The queue cycle is part of the commit marker so a reopened or rebuilt row
+re-commits rather than trusting a commit whose edges may be gone. The
+supersession proof is `TestReadinessWaitSurvivesSupersessionLive` in
+`internal/storage/postgres`. See
+`docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`.
 
 ## Telemetry
 

@@ -25,10 +25,11 @@
 // service scope and every catalog target into its own service scope, so the
 // CAN_PERFORM handler resolves exact identity-policy target ARNs across the
 // sibling scopes of the same account through [CrossScopeTargetLoader]
-// (#6785). It defers, bounded by elapsed cycle time, while a target's scope is
-// not registered yet or has not committed its CloudResource nodes, and never
-// lets a cross-scope target
-// satisfy a glob.
+// (#6785). It commits the edges it can resolve first, then waits, bounded by
+// the (scope, domain) readiness-wait ledger (crossscope.DecideWait), while a
+// target's scope is not registered yet or has not committed its CloudResource
+// nodes. An unchanged wait polls only the missing ARNs. It never lets a
+// cross-scope target satisfy a glob.
 //
 // [CatalogByAction] exposes the closed CAN_PERFORM action catalog. The reducer
 // root's INVOKES_CLOUD_ACTION intent builder reads it as a defense-in-depth
@@ -55,7 +56,8 @@
 // eshu_dp_iam_can_perform_conditioned_total (by confidence), plus
 // eshu_dp_iam_can_perform_cross_scope_targets_total (by outcome) and
 // eshu_dp_reducer_readiness_waits_total (by domain and outcome) for the
-// cross-scope target lookup and its bounded defer. Facts rejected
+// cross-scope target lookup (committing evaluations only) and its
+// commit-first wait (deferred, abandoned, settled_missing). Facts rejected
 // for a malformed payload increment the shared
 // eshu_dp_reducer_input_invalid_facts_total counter, and the reducer
 // executions that run these handlers stay covered by

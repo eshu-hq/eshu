@@ -17,27 +17,33 @@ through the cross-scope reopen list; the owner chose this bounded gate instead.
 
 | piece | file | what it does |
 |---|---|---|
-| `Anchor`, `ExistenceLookup`, `Evaluate`, `Decision` | `readiness.go` | distinct anchors, lookup, defer-or-commit decision |
+| `Anchor`, `ExistenceLookup`, `Check`, `Decision` | `readiness.go` | distinct anchors and the existence answer |
+| `Wait`, `Evaluation`, `AnchorKey`, `ParseAnchorKey` | `wait.go` | commit-first wait over `crossscope.DecideWait`, cheap poll, wait log |
 | `NotReadyError`, `NotReadyFailureClass` | `readiness.go` | retryable, non-counting readiness class |
 | `GraphExistenceLookup` | `lookup.go` | one bounded UNWIND read with the writer's MATCH shape |
 
 ## Contract
 
-- A missing anchor defers the whole intent before any retract, so the prior
-  generation's USES edges stay readable.
-- The bound is `MaxWait` (30 minutes) of elapsed repair-cycle time, never an
-  attempt count: the class is non-counting, so `attempt_count` is frozen. A
-  zero cycle anchor keeps deferring.
-- Past the bound the handler commits. Missing anchors are MATCH no-ops, are
-  excluded from `CanonicalWrites`, and are logged at WARN with a bounded
-  sample.
+- The handler commits every row first (scope-wide retract and rewrite); a row
+  whose instance is missing is a MATCH no-op and is excluded from
+  `CanonicalWrites`. It then returns `NotReadyError` while anchors are missing.
+- The bound is the handler's `ReadinessMaxWait` (default 30 minutes) since the
+  ledger's `first_deferred_at`, keyed by
+  `(scope_id, workload_cloud_relationship_materialization)`, so it survives a
+  superseding generation. It is never an attempt count: the class is
+  non-counting, so `attempt_count` is frozen.
+- An unchanged poll looks up only the missing anchors and writes nothing. When
+  an instance appears, the next evaluation re-commits once.
+- At the bound the missing set settles and is logged at WARN with a bounded
+  sample; later generations with the same set commit at once.
 - A lookup error is an ordinary error, never the readiness class.
 
 ## Telemetry
 
 No-Observability-Change: this package registers no metric. The root handler
 records `eshu_dp_reducer_readiness_waits_total{domain,outcome}` (`deferred`,
-`abandoned`). Deferrals are durable as the
+`abandoned`, `settled_missing`); `Wait.LogWait` writes the matching log line
+with `elapsed_since_first_defer` and `max_wait`. Deferrals are durable as the
 `workload_cloud_relationship_instances_not_ready` failure class on
 `fact_work_items`, which the golden-corpus drain breakdown reads as
 readiness-deferred.

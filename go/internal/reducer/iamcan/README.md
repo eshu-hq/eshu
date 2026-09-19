@@ -18,7 +18,8 @@ nothing else in the reducer depends on its internals.
 | `Action` / `CatalogByAction` | `iam_can_perform_catalog.go` | the closed, reviewed catalog of sensitive actions |
 | grant builder | `iam_can_perform_grant.go` | the CAN_PERFORM-specific fold, tallying into the CAN_PERFORM catalog |
 | target resolution | `iam_can_perform_target_resolution.go` | exact ARN -> single glob -> ambiguous -> unresolved |
-| cross-scope targets | `iam_can_perform_cross_scope.go` | `CrossScopeTargetLoader` port, per-ARN readiness decision, bounded defer (#6785) |
+| cross-scope targets | `iam_can_perform_cross_scope.go` | `CrossScopeTargetLoader` port, per-ARN readiness classification (#6785) |
+| cross-scope wait | `iam_can_perform_readiness_wait.go` | commit-first wait over `crossscope.DecideWait`, cheap poll path, wait telemetry (#6785) |
 | resource policies | `iam_can_perform_resource_policy.go` | the cross-principal grants a resource policy adds |
 | permission boundaries | `iam_can_perform_boundary.go` | the intersection that removes boundary-blocked grants |
 | skip tally | `iam_can_perform_tally.go` | the bounded skip-reason accounting behind the counters |
@@ -47,18 +48,27 @@ same-scope join therefore resolves no production target. When
   indexes those facts separately so they satisfy exact-ARN matches only. Glob
   patterns stay local: a glob over a view that holds only exactly-named ARNs
   could report one match where the account has several;
-- defers with `iam_can_perform_target_not_ready` (non-counting) while a target
-  sits in an uncommitted scope, could still land in a never-activated pending
-  scope, or names a scope that is not registered at all yet (derived from the
-  ARN: `aws:<account>:<region>:<service>`, any region for S3). Wildcard and glob
-  patterns name no concrete scope and keep the local-only skip semantics. The
-  wait is bounded by 30 minutes of elapsed cycle time
-  (`crossscope.ReadinessCycleAnchor`). Past the bound, not-ready targets
-  commit as unresolved.
+- commits first: the scope-wide retract and rewrite runs with every resolved
+  target, and missing targets are left out (unresolved);
+- then waits with `iam_can_perform_target_not_ready` (non-counting) while a
+  target sits in an uncommitted scope, could still land in a never-activated
+  pending scope, or names a scope that is not registered at all yet (derived
+  from the ARN: `aws:<account>:<region>:<service>`, any region for S3).
+  Wildcard and glob patterns name no concrete scope and keep the local-only
+  skip semantics.
+
+The wait is keyed by `(scope_id, domain)` in `reducer_readiness_waits`
+(`ReadinessWaits`, wired to `readinesswait.Store`), so its anchor survives a
+superseding generation. An unchanged poll asks the loader only about the
+missing ARNs and writes nothing. At first-defer plus `ReadinessMaxWait`
+(default 30 minutes) the missing set settles (`abandoned`); later generations
+with the same set commit at once (`settled_missing`). A revoked grant is
+retracted at the first claim of every generation, even while a target is
+missing.
 
 A newer pending generation beside an active one does not defer. A resource
-added in a later target generation waits for the next IAM generation; scoping
-a completion-driven re-enqueue is an open owner decision (see the design note).
+added in a later target generation waits for the next IAM generation; the
+account-scoped re-enqueue is being built in a separate PR (see the design note).
 Resource-policy grantee resolution stays same-scope. See
 `docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`.
 
@@ -171,16 +181,18 @@ same-scope only. The fact read reuses
 `FactStore.ListFactsByKindAndPayloadValue` on
 `fact_records_scope_generation_idx`, pinned to one generation per candidate
 scope. Both reads run once per CAN_PERFORM evaluation that names an exact
-cross-scope ARN, plus once per defer retry (every `RetryDelay`, 30 s default)
-for at most 30 minutes. The projector's CAN_PERFORM intent builder adds one
+cross-scope ARN. While a wait is open, a poll every `RetryDelay` (30 s
+default) repeats only the scope query and the fact read for the missing ARNs;
+the R2-F3 before/after numbers are in the design note's Evidence section. The projector's CAN_PERFORM intent builder adds one
 probe on the shared fact index per scope generation. The live B-7 run records
 the end-to-end effect (CAN_PERFORM 1, USES 2, drain timings).
 
 Observability Evidence: `eshu_dp_iam_can_perform_cross_scope_targets_total{outcome}`
 and `eshu_dp_reducer_readiness_waits_total{domain,outcome}` are registered in
 `internal/telemetry/instruments.go`. Unit tests drive both through the handler.
-The defer and abandonment paths log at INFO and WARN with `failure_class`,
-counts, and `max_wait`.
+The wait logs at INFO (`deferred`, `settled_missing`) and WARN (`abandoned`,
+with a bounded sample) with `failure_class`, counts,
+`elapsed_since_first_defer`, and `max_wait`.
 
 ## Related docs
 

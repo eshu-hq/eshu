@@ -17,6 +17,13 @@
 // here, rather than into either family's subpackage, precisely because
 // neither family owns it alone.
 //
+// It also owns the commit-first readiness wait (#6785) that the CAN_PERFORM
+// and USES handlers share: [DecideWait] is a pure decision over a
+// [ReadinessWait] ledger row keyed by (scope_id, domain), whose first-defer
+// anchor survives supersession of the per-generation queue row. Handlers
+// commit ready edges first, then wait, and write the ledger through
+// [ReadinessWaitLedger] only after the graph commit.
+//
 // This package imports internal/reducer/contract (the dependency-neutral
 // domain/intent vocabulary) and internal/reducer/factload (for the fact-load
 // error classifier the readiness probe reuses), and nothing else outside the

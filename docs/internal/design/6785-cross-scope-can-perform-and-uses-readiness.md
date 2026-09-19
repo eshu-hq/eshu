@@ -4,9 +4,13 @@ Status: two owner-decided fixes on `gate/6785-golden-corpus-zero-floors`.
 
 1. CAN_PERFORM resolves identity-policy targets across scopes in the same AWS
    account.
-2. `workload_cloud_relationship_materialization` defers until the
-   WorkloadInstance nodes its anchors name exist. It is no longer on the
-   blanket cross-scope reopen list.
+2. `workload_cloud_relationship_materialization` waits for the
+   WorkloadInstance nodes its anchors name. It is no longer on the blanket
+   cross-scope reopen list.
+
+Both handlers commit first and then wait (section 3.4). The wait is bounded
+by a `(scope_id, domain)` ledger row that survives supersession of the
+per-generation queue row (review finding R2-F1).
 
 ## 1. Problem
 
@@ -135,48 +139,102 @@ or any region's `aws:<account>:*:s3` for a bucket ARN, which names no region.
 - **Known limits.** An S3 bucket is satisfied by any registered s3 scope of the
   account, so a bucket in a second region whose s3 scope is not registered yet
   reads settled while another region's is. A service or region this deployment
-  never collects defers every IAM generation for the full bound, then commits;
-  `abandoned` makes that visible.
+  never collects keeps its targets missing. The ready edges still commit at
+  every generation's first claim; the missing set settles once, at
+  first-defer + bound (`abandoned`), and later generations with the same set
+  commit at once (`settled_missing`).
 - **Foreign targets never enter glob matching.** Resolved foreign facts build
   a separate `cloudjoin` index used only for exact-ARN matching.
 - **Quarantine.** Foreign decode failures belong to their own scope's handlers.
 
-### 3.4 Bound
+### 3.4 Commit first, then wait
 
-- Any `not_ready` returns `iamCanPerformTargetNotReadyError`, class
-  `iam_can_perform_target_not_ready`.
-- The class is retryable and enrolled in `nonCountingReducerRetryFailureClasses`
-  and the golden-gate readiness list.
-- **Why the bound is elapsed time, not attempts.** Readiness classes freeze
-  `attempt_count`, and `TestEveryReadinessFailureClassIsEnrolled` forces this
-  one to be a readiness class. An attempt bound could never fire (see the
-  `awsCloudRuntimeDriftStatePendingMaxWait` precedent). So the bound is
-  `crossscope.ProducerReadinessMaxWait`, 30 min, measured from
-  `crossscope.ReadinessCycleAnchor` (CycleStartedAt, which is fresh on reopen).
-  A zero anchor keeps deferring.
-- **Backoff** is the queue's `RetryDelay` at the frozen attempt. **Past the
-  bound**, `not_ready` targets commit as `unresolved`; `abandoned` is counted
-  and logged at WARN.
+Review finding R2-F1 showed the first version of this gate could starve. It
+deferred the whole intent while any target was missing, and bounded the defer
+by the queue row's own `created_at`. Reducer rows are per generation, and the
+claim supersedes an older generation's `retrying` row once a newer generation
+activates. The new row started a new bound. With the default AWS cadence
+(scheduled plans bucket on `ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL`, 30 s
+by default, `go/internal/coordinator/config.go`), a persistent missing target
+meant the domain never committed. Every deferral also held back the retraction
+of revoked grants.
+
+The handler now works in this order:
+
+1. **Read the ledger row** for `(scope_id, iam_can_perform_materialization)`
+   (`reducer_readiness_waits`, migration 109, `storage/postgres/readinesswait`).
+2. **Cheap poll.** If the row says this generation and queue cycle already
+   committed at the row's own missing set (`crossscope.PollEligible`), ask the
+   loader only about the missing ARNs. There is no fact load and no extraction.
+   If the set is unchanged, write nothing and either keep waiting or settle.
+   If a target resolved, fall through to the full evaluation.
+3. **Full evaluation.** Load facts, classify targets (section 3.3), and call
+   `crossscope.DecideWait`:
+
+   | Missing set `M` | Ledger row | Commit? | Then |
+   | --- | --- | --- | --- |
+   | empty | any | yes | clear the row, succeed |
+   | non-empty | settled, same fingerprint | yes | succeed, `settled_missing` |
+   | non-empty | settled, new fingerprint | yes | new anchor, defer |
+   | non-empty | none, or not committed at this generation, cycle, and fingerprint | yes | keep the anchor, defer or settle |
+   | non-empty | committed at this generation, cycle, and fingerprint | no | defer, or settle at the bound |
+
+4. **Commit** is the existing scope-wide retract plus rewrite. Missing targets
+   are left out, so they read as unresolved. The reviewer's condition for a
+   partial CAN_PERFORM commit (scope-wide retract and rewrite) holds.
+5. **Write the ledger after the graph commit.** A crash between the two
+   re-commits once, idempotently. It never skips a commit.
+6. **Return** `iamCanPerformTargetNotReadyError` (non-counting) when the wait
+   continues, or succeed.
+
+**The bound** is `ReadinessMaxWait` (a handler field, default
+`crossscope.ProducerReadinessMaxWait`, 30 min) since the ledger's
+`first_deferred_at`. The ledger keeps the earliest anchor across generations
+(`LEAST` in the upsert). It resets the anchor only when a settled wait sees a
+different missing set. So `abandoned` fires once per (scope, domain, missing
+set), at first-defer + bound, whatever the generation cadence.
+
+**Why the commit marker includes the queue cycle.** `CycleStartedAt` is
+`COALESCE(reopened_at, created_at)`. A graph rebuild re-drives reducer work
+with new rows, and a maintenance pass reopens rows. In both cases the prior
+commit's edges may be gone, so a new cycle always re-commits instead of
+polling.
+
+**Re-commits inside one generation.** The non-counting class freezes
+`AttemptCount`, so on a scope's first generation `shouldSkipRetract` keeps
+skipping the retract when a resolved target triggers a re-commit. That is
+safe: within one generation the fact set is fixed, and the edge set only grows
+as the missing set shrinks (`TestIAMCanPerformFirstGenerationRecommitSkipsRetract`).
+
+**Nil ledger** (test wiring only) treats every evaluation as the first of its
+queue cycle, anchored at the claim's cycle start. Production wires
+`readinesswait.Store` through `DefaultHandlers.ReadinessWaits`
+(`TestDefaultHandlersWireReadinessWaitLedger`).
 
 ## 4. USES WorkloadInstance Readiness
 
 - **Lookup.** After extraction, collect the distinct `(workload_id,
-  environment)` anchors from the rows. Ask
+  environment)` anchors from the rows. `workloadinstance.Check` asks
   `WorkloadInstanceExistenceLookup` (graph read, mirroring
   `GraphContainerImageExistenceLookup`) which of them exist. It uses the
   writer's own shape: `UNWIND $anchors AS anchor MATCH (w:Workload
   {id: anchor.workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance) WHERE
   i.environment = anchor.environment`. So "ready" means exactly "the writer's
   MATCH will bind".
-- **Defer.** If any anchor is missing and the bound is not reached, return
-  `workloadCloudRelationshipInstancesNotReadyError`, class
-  `workload_cloud_relationship_instances_not_ready`. It is non-counting and has
-  the same 30-min elapsed bound. The whole intent defers, so nothing is
-  retracted and the prior generation's USES edges stay readable meanwhile.
-- **Past the bound.** Write all rows (missing anchors are MATCH no-ops). Count
-  `CanonicalWrites` only for ready anchors, and log the missing-anchor count
-  plus a bounded sample of 10 at WARN.
-- **Nil lookup** (test wiring) keeps the old behavior.
+- **Commit first, then wait.** `workloadinstance.Wait` applies the same
+  `crossscope.DecideWait` as section 3.4, keyed
+  `(scope_id, workload_cloud_relationship_materialization)`. The commit writes
+  every row; a row whose instance is missing is a MATCH no-op. The handler then
+  returns `workloadinstance.NotReadyError`, class
+  `workload_cloud_relationship_instances_not_ready` (non-counting). Ledger keys
+  are `workload_id` and `environment` joined by the ASCII unit separator
+  (`AnchorKey`).
+- **Cheap poll.** An unchanged poll looks up only the missing anchors, with no
+  fact load and no graph write. When an instance appears, the next evaluation
+  re-commits once and the MATCH binds.
+- **`CanonicalWrites`** counts only rows whose anchor exists, and only on an
+  evaluation that committed.
+- **Nil lookup** (test wiring) keeps the old behavior: commit, no wait.
 - **Reopen list.** The domain comes off `crossScopeCorrelationReopenDomains`
   (list, comment, and pin test restored to `origin/main`), so F3's per-drain
   replay cost is gone rather than measured.
@@ -185,25 +243,53 @@ or any region's `aws:<account>:*:s3` for a bucket ARN, which names no region.
 
 ```mermaid
 sequenceDiagram
-    participant IAMProj as projector (iam scope)
-    participant S3Proj as projector (s3 scope)
     participant Q as reducer queue
     participant H as CAN_PERFORM handler
-    participant PG as Postgres
+    participant L as reducer_readiness_waits
+    participant PG as Postgres (facts, scopes)
     participant G as graph
-    IAMProj->>Q: enqueue iam_can_perform (iam gen N)
-    Q->>H: claim (own-scope nodes committed)
-    H->>PG: scope states for aws:acct:*:s3
-    PG-->>H: s3 scope pending, never active
-    H-->>Q: iam_can_perform_target_not_ready (retry, non-counting)
-    S3Proj->>PG: activate s3 gen; aws_resource_materialization commits nodes
+    Q->>H: claim gen N (own-scope nodes committed)
+    H->>L: get (scope, domain): no row
+    H->>PG: facts + cross-scope targets: bucket B not ready
+    H->>G: retract scope edges, MERGE ready edges
+    H->>L: upsert anchor=t0, missing={B}, committed=(N, cycle, fp)
+    H-->>Q: iam_can_perform_target_not_ready (non-counting)
     Q->>H: re-claim after RetryDelay
-    H->>PG: scope states (active + committed), then facts by arn at pinned gen
-    H->>G: retract scope edges (if prior gen) then MERGE role-CAN_PERFORM->bucket
+    H->>L: get: committed at N, same cycle
+    H->>PG: targets for {B} only: still not ready
+    H-->>Q: not ready (no graph write, no ledger write)
+    Note over Q: gen N+1 activates; claim supersedes N
+    Q->>H: claim gen N+1
+    H->>L: get: anchor t0 kept
+    H->>PG: facts + targets: B still missing
+    H->>G: retract + rewrite (revoked grants gone now)
+    H->>L: upsert committed=(N+1, cycle, fp), anchor t0
+    H-->>Q: not ready
+    Note over H: at t0 + MaxWait
+    Q->>H: re-claim gen N+1
+    H->>L: settle (settled_at), abandoned counted once
     H-->>Q: succeeded
 ```
 
-- **First-time order is closed by the defer**, in both orders (unit tests).
+- **Supersession.** The superseded row is terminal, and the ledger row is not
+  touched by it. The next generation commits at its first claim and keeps the
+  anchor. Proven on the real queue by
+  `TestReadinessWaitSurvivesSupersessionLive` (removing the ledger makes its
+  last step keep deferring).
+- **Consumers of the success ack.** Commit-first delays a row's success ack
+  until the missing set empties or settles, although its edges are already
+  written. No consumer reads "no success ack" as "no edges written":
+  - neither domain is a producer in `crossscope.dependencyCatalog`;
+  - `cross_scope_completion_events` only accepts `ci_cd_run_correlation` and
+    `container_image_identity` (migration 093);
+  - the writers' edge phase names (`iam_can_perform_edge`,
+    `workload_cloud_relationship_edge`) are statement metadata with no
+    Postgres reader;
+  - the remaining readers (`status_queries.go`,
+    `generation_lifecycle_sql.go`, `queue_observer.go`,
+    `localsupervisor` content-index `open_work`, golden-gate drains) count
+    outstanding rows only. A waiting row keeps them outstanding, as the
+    whole-intent defer already did.
 - **A later target generation is being built in a separate PR under #6785**
   (owner decision, 2026-09-19). A bucket
   added in s3 gen N+1 after CAN_PERFORM succeeded waits for the next iam
@@ -211,21 +297,27 @@ sequenceDiagram
   events are keyed by producer domain only, and the fanout reschedules every
   consumer row. Scoping it needs an account key on
   `cross_scope_completion_events` (migration) plus an emission CTE on the
-  `aws_resource_materialization` ack, the hottest AWS ack path.
-- **Removals.** A retracted target's edge goes with its node or at the next
-  iam retract.
+  `aws_resource_materialization` ack, the hottest AWS ack path. When it lands,
+  CAN_PERFORM keeps commit-first and drops the poll; the ledger stays for USES
+  and for `abandoned`.
+- **Removals.** A revoked grant is retracted at the first claim of the next
+  iam generation, even while another target is missing
+  (`TestIAMCanPerformRevokedGrantRetractsAtFirstEvaluation`).
 - **Idempotency.**
   - Both writers MERGE on the endpoint pair.
   - Retract is scope-wide by `rel.scope_id` and evidence source. It is skipped
     only on attempt 1 of a scope's first generation (`PriorGenerationCheck`).
-    Otherwise every run retracts and rewrites (F2: the corrected comment, plus
-    a `PriorGenerationCheck=true` replay test).
-  - Defer paths return before any retract or write, so a deferred attempt
-    changes nothing.
+  - An unchanged poll performs no graph write and no ledger write.
+  - A replayed ledger upsert leaves the row unchanged; racing upserts keep the
+    earlier anchor (`TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive`).
 - **Locks and leases.**
-  - The claim fence stays `(scope, domain)`.
-  - The new reads are plain SELECT and read-only Cypher with no row locks, so
-    they add no lock-ordering edge.
+  - The claim fence stays `(scope, domain)`, so at most one live worker writes
+    a ledger key. A lease-expired straggler can at worst write an older commit
+    marker, which costs one idempotent re-commit.
+  - Ledger statements are single-row primary-key reads, upserts, and deletes,
+    run outside any open transaction. They add no lock-order edge, and the
+    claim query and `fact_work_items` are unchanged.
+  - The new reads are plain SELECT and read-only Cypher with no row locks.
   - The only new graph contention: a CAN_PERFORM MERGE now touches a bucket
     node that the s3 scope's node writer may be SETting concurrently. Both are
     single-statement and idempotent. A write conflict surfaces as the existing
@@ -233,18 +325,76 @@ sequenceDiagram
 
 ## 6. Telemetry
 
-- `eshu_dp_reducer_readiness_waits_total{domain, outcome=deferred|abandoned}`,
-  one per deferred or bound-expired evaluation, for both domains.
+- `eshu_dp_reducer_readiness_waits_total{domain, outcome}`, one per evaluation
+  that has a missing set, for both domains:
+  - `deferred`: the not-ready error was returned (after any commit);
+  - `abandoned`: the missing set settled at first-defer + bound; once per
+    (scope, domain, missing set);
+  - `settled_missing`: a later evaluation committed at once on an already
+    settled set, with no defer and no poll.
 - `eshu_dp_iam_can_perform_cross_scope_targets_total{outcome}`, one per
-  requested target (`resolved`, `unresolved`, `not_ready`,
-  `scope_unregistered`, `abandoned`, `glob_local_only`). Defer and abandonment logs carry counts and a bounded
-  sample. Labels are closed sets; no ARN, scope, or workload value is a label.
+  requested target, emitted only by evaluations that commit, so `not_ready`
+  no longer scales with polls (review P3-C). Outcomes: `resolved`,
+  `unresolved`, `not_ready`, `scope_unregistered`, `abandoned` (committed as
+  unresolved because the wait settled), `glob_local_only`.
+- Wait logs carry `readiness_wait_outcome`, the missing count, `committed`,
+  `elapsed_since_first_defer`, and `max_wait`; `abandoned` adds a bounded
+  sample of 10. Labels are closed sets; no ARN, scope, or workload value is a
+  label.
+
+## 6a. Evidence
+
+Performance Evidence: R2-F3 per-generation cost of one CAN_PERFORM intent
+waiting on 10 missing targets, measured with
+`go test -tags perf6785_wait ./internal/storage/postgres -run ReadinessWaitCost`
+(`readiness_wait_cost_perf_test.go`). Postgres 16 container on the dev host,
+real `FactStore` and `iamcantargets.Store`, graph writer stubbed out on both
+sides. Scope: 1 000 roles, 3 000 `aws_iam_permission` facts, 1 000 exact S3
+targets (990 ready, 10 in an uncommitted s3 scope), 343 registered scopes in
+the account. 60 evaluations per generation (30 min bound / 30 s `RetryDelay`).
+Three runs each; the "before" run is the same harness at 00ba81ddc with a
+no-op `configureWaitHandler`.
+
+| | Before (00ba81ddc) | After |
+| --- | --- | --- |
+| First evaluation | 106-109 ms, defers, 0 edges | 134-144 ms, commits 990 edges, then defers |
+| Evaluations 2-60 | 82.0-83.6 ms mean (full fact load each) | 1.85-1.92 ms mean, p95 at most 2.8 ms (poll) |
+| Handler time per waiting generation | 4.95-5.04 s | 0.248-0.253 s |
+| Next generation, same missing set | 75-83 ms and defers again; the whole cost repeats every generation | 113-130 ms, commits, succeeds (`settled_missing`); no poll |
+
+The after first evaluation costs about 30 ms more because it extracts and
+builds the 990 edge rows the before run never reached. Graph write time is
+excluded on both sides; the after run adds one scope-wide commit per
+generation, which `main` also paid.
+
+Observability Evidence: `eshu_dp_reducer_readiness_waits_total{domain,outcome}`
+gains `settled_missing`, and `abandoned` now fires once per missing set. The
+handler tests `TestIAMCanPerformSettledMissingSetCommitsWithoutDeferring` and
+`TestWorkloadCloudRelationshipInstanceWaitSettlesAcrossGenerations` assert the
+counter values, and `TestReadinessWaitSurvivesSupersessionLive` asserts
+`abandoned` = 1 on the real queue. `eshu_dp_iam_can_perform_cross_scope_targets_total`
+is emitted only on committing evaluations
+(`TestIAMCanPerformCrossScopeOutcomesOnlyOnCommit`). The wait log line carries
+`elapsed_since_first_defer` against `max_wait`.
 
 ## 7. Cassette
 
 - The role (prod and stage anchors) and the inline permission move to
   `aws:123456789012:us-east-1:iam` (the claim-region convention of the
   cassette's existing iam scope). The bucket moves to
-  `aws:123456789012:us-east-1:s3`, replayed AFTER iam (the adverse order), so
-  B-7 exercises the unregistered-scope defer. Values stay synthetic.
-- Expected B-7: CAN_PERFORM 1 (cross-scope, after a defer) and USES 2.
+  `aws:123456789012:us-east-1:s3`, replayed AFTER iam (the adverse order).
+  Values stay synthetic.
+- Expected B-7: CAN_PERFORM 1 (cross-scope) and USES 2. Whether a given run
+  actually deferred depends on claim timing, so the unit tests cover both
+  orders; a B-7 run cites the reducer's `readiness_wait_outcome` log line when
+  it claims the defer fired (review P3-A).
+
+## 8. Out of scope
+
+- `crossscope.CheckProducerReadinessBeforeLoad` (`readiness_floor.go`) and the
+  AWS runtime-drift gate (`awsCloudRuntimeDriftStatePendingMaxWait`) bound
+  their waits with the same per-row anchor (`ReadinessCycleAnchor`), so they
+  share the supersession hazard class R2-F1 found here. Whether their
+  conditions can be persistent was not checked in this PR. The
+  `reducer_readiness_waits` ledger gives them a fix path if so; the
+  orchestrator files the follow-up issue.
