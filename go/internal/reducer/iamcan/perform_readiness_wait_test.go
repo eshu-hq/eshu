@@ -304,33 +304,6 @@ func TestIAMCanPerformCrossScopeOutcomesOnlyOnCommit(t *testing.T) {
 	}
 }
 
-// TestIAMCanPerformFirstGenerationRecommitSkipsRetract pins the reasoning in
-// shouldSkipRetract: on a scope's first generation the frozen AttemptCount
-// keeps skipping the retract on a re-commit, which is safe because within one
-// generation the edge set only grows as the missing set shrinks.
-func TestIAMCanPerformFirstGenerationRecommitSkipsRetract(t *testing.T) {
-	t.Parallel()
-	clock := waitTestNow()
-	loader := &fakeCrossScopeTargets{snapshot: waitSnapshot(false)}
-	handler, _ := waitHandler(newMemoryWaitLedger(), loader, &clock)
-	handler.PriorGenerationCheck = func(context.Context, string, string) (bool, error) { return false, nil }
-	intent := waitIntent("iam-gen-1", clock)
-	intent.AttemptCount = 1
-	_, err := handler.Handle(context.Background(), intent)
-	requireTargetNotReady(t, err)
-
-	loader.snapshot = waitSnapshot(true)
-	recommit := &recordingIAMCanPerformWriter{}
-	handler.Writer = recommit
-	clock = clock.Add(time.Minute)
-	if _, err := handler.Handle(context.Background(), intent); err != nil {
-		t.Fatalf("re-commit error = %v", err)
-	}
-	if recommit.retractCalls != 0 || len(recommit.edgeRows) != 2 {
-		t.Fatalf("first-generation re-commit: retracts %d rows %d, want 0 retracts and both edges", recommit.retractCalls, len(recommit.edgeRows))
-	}
-}
-
 func waitTestNow() time.Time { return time.Date(2026, time.September, 19, 9, 0, 0, 0, time.UTC) }
 
 func readinessWaitSum(t *testing.T, reader *sdkmetric.ManualReader, outcome string) int64 {

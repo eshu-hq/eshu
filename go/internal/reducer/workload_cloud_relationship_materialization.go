@@ -154,10 +154,11 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	readyRows := 0
 	if eval.Decision.Commit {
 		// The commit is the scope-wide retract plus rewrite of every row; a
-		// missing anchor is a MATCH no-op. Within one generation the edge set
-		// only grows as anchors appear, so skipping the retract on a
-		// first-generation re-commit (AttemptCount frozen at 1) is safe.
-		if err := h.commitEdges(ctx, intent, rows); err != nil {
+		// missing anchor is a MATCH no-op. A re-commit of a generation the
+		// ledger already committed always retracts: the rows come from a fresh
+		// fact load and a resolved anchor can disappear between evaluations.
+		recommit := crossscope.CommittedInGeneration(existingWait, waitFound, intent.GenerationID)
+		if err := h.commitEdges(ctx, intent, rows, recommit); err != nil {
 			return Result{}, err
 		}
 		readyRows = workloadCloudRelationshipReadyRows(rows, eval)
@@ -223,12 +224,16 @@ func (h WorkloadCloudRelationshipMaterializationHandler) instanceWait() workload
 	}
 }
 
-// commitEdges retracts this scope's USES edges (unless skipped) and rewrites
-// every row.
-func (h WorkloadCloudRelationshipMaterializationHandler) commitEdges(ctx context.Context, intent Intent, rows []map[string]any) error {
-	skipRetract, err := h.shouldSkipRetract(ctx, intent)
-	if err != nil {
-		return err
+// commitEdges retracts this scope's USES edges and rewrites every row. The
+// retract is skipped only for the first commit of a scope's first generation;
+// recommit (an earlier commit of this generation is in the ledger) forces it.
+func (h WorkloadCloudRelationshipMaterializationHandler) commitEdges(ctx context.Context, intent Intent, rows []map[string]any, recommit bool) error {
+	skipRetract := false
+	if !recommit {
+		var err error
+		if skipRetract, err = h.shouldSkipRetract(ctx, intent); err != nil {
+			return err
+		}
 	}
 	if !skipRetract {
 		if err := h.EdgeWriter.RetractWorkloadCloudRelationshipEdges(

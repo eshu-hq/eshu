@@ -222,7 +222,8 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 	// committed. Missing targets are left out of the rewrite (unresolved).
 	var commit iamCanPerformCommit
 	if decision.Commit {
-		if commit, err = h.commitEdges(ctx, intent, result.Edges); err != nil {
+		recommit := crossscope.CommittedInGeneration(existingWait, waitFound, intent.GenerationID)
+		if commit, err = h.commitEdges(ctx, intent, result.Edges, recommit); err != nil {
 			return reducercontract.Result{}, err
 		}
 		h.recordTally(ctx, result)
@@ -287,19 +288,25 @@ type iamCanPerformCommit struct {
 }
 
 // commitEdges is the scope-wide retract plus rewrite. Missing cross-scope
-// targets are simply absent from edges (unresolved). Within one generation
-// the edge set only grows as the missing set shrinks, so skipping the retract
-// on a first-generation re-commit (AttemptCount frozen at 1 by the
-// non-counting class) is safe.
+// targets are simply absent from edges (unresolved). recommit reports that
+// the ledger already holds a commit of this generation; such a re-commit
+// always retracts, because the resolved set can shrink between evaluations
+// (a target s3 scope activating a newer generation without a bucket), and
+// AttemptCount stays frozen at 1 under the non-counting defer class, so the
+// first-generation skip alone would leave the removed edge behind.
 func (h IAMCanPerformMaterializationHandler) commitEdges(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	edges []map[string]any,
+	recommit bool,
 ) (iamCanPerformCommit, error) {
 	var commit iamCanPerformCommit
-	skipRetract, err := h.shouldSkipRetract(ctx, intent)
-	if err != nil {
-		return commit, err
+	skipRetract := false
+	if !recommit {
+		var err error
+		if skipRetract, err = h.shouldSkipRetract(ctx, intent); err != nil {
+			return commit, err
+		}
 	}
 	commit.skipRetract = skipRetract
 	if !skipRetract {

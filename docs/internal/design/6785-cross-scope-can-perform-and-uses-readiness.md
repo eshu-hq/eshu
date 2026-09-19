@@ -201,10 +201,16 @@ commit's edges may be gone, so a new cycle always re-commits instead of
 polling.
 
 **Re-commits inside one generation.** The non-counting class freezes
-`AttemptCount`, so on a scope's first generation `shouldSkipRetract` keeps
-skipping the retract when a resolved target triggers a re-commit. That is
-safe: within one generation the fact set is fixed, and the edge set only grows
-as the missing set shrinks (`TestIAMCanPerformFirstGenerationRecommitSkipsRetract`).
+`AttemptCount`, so on a scope's first generation `shouldSkipRetract` alone
+would keep skipping the retract on every re-commit. That is not safe for
+CAN_PERFORM: the iam fact set is fixed, but the cross-scope side is not. A
+target s3 scope can activate a newer generation without a bucket an earlier
+evaluation resolved, so the edge set can shrink (review P3-2). A re-commit of a
+generation the ledger already committed (`crossscope.CommittedInGeneration`)
+therefore always retracts, in both handlers; only the generation's first
+commit may skip it
+(`TestIAMCanPerformFirstGenerationReCommitRetractsShrunkTargets`,
+`TestWorkloadCloudRelationshipFirstGenerationReCommitRetracts`).
 
 **Nil ledger** (test wiring only) treats every evaluation as the first of its
 queue cycle, anchored at the claim's cycle start. Production wires
@@ -306,14 +312,49 @@ sequenceDiagram
 - **Idempotency.**
   - Both writers MERGE on the endpoint pair.
   - Retract is scope-wide by `rel.scope_id` and evidence source. It is skipped
-    only on attempt 1 of a scope's first generation (`PriorGenerationCheck`).
+    only for the first commit of a scope's first generation: attempt 1,
+    `PriorGenerationCheck` false, and no earlier commit of this generation in
+    the ledger (`crossscope.CommittedInGeneration`). A re-commit inside the
+    first generation retracts, because the resolved set can shrink between
+    evaluations: a target s3 scope can activate a newer generation without a
+    bucket that an earlier evaluation resolved (review P3-2,
+    `TestIAMCanPerformFirstGenerationReCommitRetractsShrunkTargets`).
+  - A poll re-checks only the stored missing keys, so a resolved target that
+    disappears mid-wait is not noticed by a poll. It is retracted at the next
+    commit: when a missing key resolves, or at the next iam generation.
   - An unchanged poll performs no graph write and no ledger write.
-  - A replayed ledger upsert leaves the row unchanged; racing upserts keep the
-    earlier anchor (`TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive`).
+  - A replayed ledger upsert leaves the row unchanged; racing upserts at the
+    same epoch keep the earlier anchor
+    (`TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive`).
 - **Locks and leases.**
   - The claim fence stays `(scope, domain)`, so at most one live worker writes
-    a ledger key. A lease-expired straggler can at worst write an older commit
-    marker, which costs one idempotent re-commit.
+    a ledger key. A lease-expired straggler is the only concurrent writer.
+  - `anchor_epoch` fences stragglers (review P3-1). An anchor reset (a settled
+    or cleared row seeing a new missing set) and a clear each move the row to
+    the next epoch. The upsert's `ON CONFLICT ... WHERE EXCLUDED.anchor_epoch >=
+    wait.anchor_epoch` drops a write from an older epoch, so a straggler that
+    read the row before the reset cannot restore the older anchor through
+    `LEAST`. A clear keeps the row as a tombstone at the next epoch instead of
+    deleting it, so a straggler cannot re-insert a stale wait either.
+    `TestReadinessWaitStaleWriterCannotUndoResetLive` races the two writers
+    over 20 rounds, forcing the straggler to commit last on half of them;
+    `TestReadinessWaitStaleWriterCannotResurrectClearedWaitLive` covers the
+    clear. Both failed before the fence (the anchor was restored; the cleared
+    wait came back).
+  - Inside one epoch a straggler can still win last-writer-wins on the other
+    columns. At worst it rewinds the commit marker, which costs one idempotent
+    re-commit, or un-settles a row whose anchor is already past the bound, which
+    settles again on the next evaluation. Truth is unaffected either way: ready
+    edges commit before any ledger write.
+  - A fenced write logs `readiness wait write dropped by the anchor epoch
+    fence` with `scope_id`, `domain`, `readiness_wait_operation`, and
+    `anchor_epoch`.
+  - Rows are never deleted. They are bounded by the key: two domains, so at
+    most two rows per scope that ever waited, each with at most 500 missing
+    keys and a tombstone with none. `ingestion_scopes` and `scope_generations`
+    are not garbage-collected either. A retention sweep would have to prove no
+    straggler can still write, which a lease timeout does not guarantee
+    (review P3-3).
   - Ledger statements are single-row primary-key reads, upserts, and deletes,
     run outside any open transaction. They add no lock-order edge, and the
     claim query and `fact_work_items` are unchanged.
