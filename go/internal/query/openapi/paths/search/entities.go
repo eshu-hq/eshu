@@ -183,7 +183,7 @@ const Entities = `
       "get": {
         "tags": ["entities"],
         "summary": "Get service context",
-        "description": "Returns context for a service by name.",
+        "description": "Returns context for a service by name. A name that matches more workloads than the bounded lookup reads returns 409; retry with a workload id.",
         "operationId": "getServiceContext",
         "x-scoped-token-support": true,
         "parameters": [
@@ -202,6 +202,7 @@ const Entities = `
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
           "404": {"$ref": "#/components/responses/NotFound"},
+          "409": {"$ref": "#/components/responses/Conflict"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

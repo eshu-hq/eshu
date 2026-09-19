@@ -18,7 +18,7 @@ var errWorkloadGraphUnavailable = errors.New("authoritative graph workload resol
 func (h *Handler) writeWorkloadEntityResolution(
 	w http.ResponseWriter,
 	r *http.Request,
-	req ResolveEntityRequest,
+	req ResolveRequest,
 	limit int,
 ) bool {
 	if !strings.EqualFold(strings.TrimSpace(req.Type), "workload") {

@@ -56,10 +56,13 @@ func (h *Handler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r 
 	if selector == "" {
 		selector = req.WorkloadID
 	}
-	ctx, err := h.traceContext().FetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, selector, TraceEnrichmentConfig{MaxDepth: 4})
+	ctx, err := h.traceContext().FetchServiceTraceContext(r.Context(), h.Neo4j, h.Content, h.Logger, h.Instruments, selector, TraceEnrichmentConfig{MaxDepth: 4})
 	if err != nil {
-		if errors.Is(err, impacttrace.ErrAmbiguousTraceWorkloadSelector) {
+		if errors.Is(err, impacttrace.ErrAmbiguousWorkloadSelector) {
 			querycontract.WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
+		if querycontract.WriteWorkloadSelectorOverflow(w, err) {
 			return
 		}
 		if querycontract.WriteGraphReadError(w, r, err, deploymentConfigInfluenceCapability) {

@@ -118,7 +118,7 @@ func (h *Handler) resolveGlobalContentEntities(ctx context.Context, name, typeNa
 func (h *Handler) writeCanonicalContentEntityResolution(
 	w http.ResponseWriter,
 	r *http.Request,
-	req ResolveEntityRequest,
+	req ResolveRequest,
 	limit int,
 ) bool {
 	entities, handled, err := h.resolveCanonicalContentEntityID(

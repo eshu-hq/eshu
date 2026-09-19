@@ -6,6 +6,8 @@ package entity
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -221,6 +223,83 @@ func TestFetchWorkloadRepositoryForAccessAppliesScopedAuthorization(t *testing.T
 	}
 	if gotID != "repo-a" {
 		t.Fatalf("repo_id = %q, want repo-a", gotID)
+	}
+}
+
+// TestFetchWorkloadRepositoryForAccessDropsUngrantedRowDespiteBackendWhere is
+// the #6786 review follow-up (F1): FetchWorkloadRepositoryForAccess's
+// `<-[:DEFINES]-` MATCH carries an inner WHERE grant predicate on a backward
+// pattern -- the same shape class this PR already proved NornicDB v1.3.3 can
+// silently fail to apply. This test simulates that failure directly: the
+// fake graph reader returns a DEFINES candidate row for a repository NOT in
+// the caller's grant, as if the backend's WHERE had not filtered it. Go must
+// still refuse to admit it.
+func TestFetchWorkloadRepositoryForAccessDropsUngrantedRowDespiteBackendWhere(t *testing.T) {
+	t.Parallel()
+
+	ctx := queryauth.ContextWithAuthContext(t.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repo-a"},
+	})
+	reader := querytestutil.FakeWorkloadGraphReader{
+		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+			// The backend's WHERE should have excluded repo-b, but this fake
+			// simulates it not doing so.
+			return []map[string]any{{"repo_id": "repo-b", "repo_name": "beta"}}, nil
+		},
+	}
+	gotID, gotName, err := (&Handler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
+		ctx, "workload:payments", querycontract.RepositoryAccessFilterFromContext(ctx), "",
+	)
+	if err != nil {
+		t.Fatalf("FetchWorkloadRepositoryForAccess() error = %v, want nil", err)
+	}
+	if gotID != "" || gotName != "" {
+		t.Fatalf("repository = (%q, %q), want empty: an ungranted DEFINES row must never be admitted even if the backend's own WHERE failed to filter it", gotID, gotName)
+	}
+}
+
+// TestGetWorkloadContextUngrantedDefinesRowReturnsNotFound is the end-to-end
+// half of F1: FetchWorkloadContextForOperation must 404 a scoped caller for a
+// workload whose own repo_id is ungranted and whose ONLY DEFINES candidate
+// (simulated as leaking past the backend's WHERE) is also ungranted.
+func TestGetWorkloadContextUngrantedDefinesRowReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	reader := querytestutil.FakeWorkloadGraphReader{
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+			if strings.Contains(cypher, "MATCH (w:Workload)") && strings.Contains(cypher, "w.id = $workload_id") {
+				return map[string]any{
+					"id":      "workload:payments",
+					"name":    "payments",
+					"kind":    "service",
+					"repo_id": "repo-team-z",
+				}, nil
+			}
+			return nil, nil
+		},
+		RunByMatch: map[string][]map[string]any{
+			// Simulates the backend's WHERE failing to exclude an ungranted
+			// defining repository (F1): the caller is granted only
+			// repo-team-a, but this row names repo-team-z.
+			"<-[:DEFINES]-(r:Repository)": {
+				{"repo_id": "repo-team-z", "repo_name": "payments"},
+			},
+		},
+	}
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/workload:payments/context", nil)
+	req.SetPathValue("workload_id", "workload:payments")
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repo-team-a"},
+	}))
+	rec := httptest.NewRecorder()
+
+	handler.GetWorkloadContext(rec, req)
+
+	if got, want := rec.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
 }
 

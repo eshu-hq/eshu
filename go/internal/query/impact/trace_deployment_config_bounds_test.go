@@ -70,6 +70,8 @@ func runConfigCandidateBoundTrace(
 			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "w.name = $service_name"):
+					return []map[string]any{workload}, nil
 				case strings.Contains(cypher, "INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)"),
 					strings.Contains(cypher, "MATCH (c:CloudResource)"),
 					strings.Contains(cypher, "MATCH (n:CloudResource)"):

@@ -19,14 +19,15 @@ import (
 func TestTraceDeploymentChainReturnsConflictForDuplicateWorkloadName(t *testing.T) {
 	t.Parallel()
 
-	call := 0
-	reader := querytestutil.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}
 		if strings.Contains(cypher, "w.name = $service_name") {
-			call++
-			return map[string]any{"id": "workload:orders-" + string(rune('a'+call-1))}, nil
+			return []map[string]any{
+				{"id": "workload:orders-a", "name": "orders"},
+				{"id": "workload:orders-b", "name": "orders"},
+			}, nil
 		}
 		return nil, nil
 	}}
@@ -90,6 +91,9 @@ func TestTraceDeploymentChainClampsAbsurdMaxDepthInsteadOfRejecting(t *testing.T
 							sawProvisioningQuery = true
 							gotLimit = params["limit"]
 							return nil, nil
+						}
+						if strings.Contains(cypher, "w.name = $service_name") {
+							return []map[string]any{workload}, nil
 						}
 						if strings.Contains(cypher, "DEFINES]-(r:Repository)") {
 							return []map[string]any{{"repo_id": "repo-orders", "repo_name": "orders-api"}}, nil

@@ -131,7 +131,7 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	// production backend wiring in family_impact_shim.go: a nil
 	// DefaultTraceContext would panic here instead of returning.
 	gotTrace, gotTraceErr := impact.FetchServiceTraceContext(ctx, nil, nil, nil, "", impact.TraceEnrichmentConfig{})
-	wantTrace, wantTraceErr := fetchServiceTraceContext(ctx, nil, nil, nil, "", impact.TraceEnrichmentConfig{})
+	wantTrace, wantTraceErr := fetchServiceTraceContext(ctx, nil, nil, nil, nil, "", impact.TraceEnrichmentConfig{})
 	if !reflect.DeepEqual(gotTrace, wantTrace) || !reflect.DeepEqual(gotTraceErr, wantTraceErr) {
 		t.Fatal("FetchServiceTraceContext != fetchServiceTraceContext")
 	}
@@ -155,8 +155,8 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	if impact.ContractImpactCapability != "platform_impact.contract_impact" {
 		t.Fatalf("ContractImpactCapability = %q", impact.ContractImpactCapability)
 	}
-	if !errors.Is(impact.ErrAmbiguousTraceWorkloadSelector, impacttrace.ErrAmbiguousTraceWorkloadSelector) {
-		t.Fatal("ErrAmbiguousTraceWorkloadSelector != impacttrace.ErrAmbiguousTraceWorkloadSelector")
+	if !errors.Is(impact.ErrAmbiguousTraceWorkloadSelector, impacttrace.ErrAmbiguousWorkloadSelector) {
+		t.Fatal("ErrAmbiguousTraceWorkloadSelector != impacttrace.ErrAmbiguousWorkloadSelector")
 	}
 
 	// Renamed ImpactHandler methods resolve and behave.

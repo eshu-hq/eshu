@@ -62,9 +62,9 @@ const (
 )
 
 // ErrAmbiguousTraceWorkloadSelector is the exported seam for
-// impacttrace.ErrAmbiguousTraceWorkloadSelector, which the deployment-config-influence
+// impacttrace.ErrAmbiguousWorkloadSelector, which the deployment-config-influence
 // family reads from outside the impact move set. See #6060.
-var ErrAmbiguousTraceWorkloadSelector = impacttrace.ErrAmbiguousTraceWorkloadSelector
+var ErrAmbiguousTraceWorkloadSelector = impacttrace.ErrAmbiguousWorkloadSelector
 
 // BoundedK8sResourceResult is the exported seam for boundedK8sResourceResult,
 // which the deployment-config-influence family calls from outside the impact
@@ -217,7 +217,7 @@ func FetchServiceTraceContext(
 	serviceName string,
 	traceOptions TraceEnrichmentConfig,
 ) (map[string]any, error) {
-	return DefaultTraceContext.FetchServiceTraceContext(ctx, graph, content, logger, serviceName, traceOptions)
+	return DefaultTraceContext.FetchServiceTraceContext(ctx, graph, content, logger, nil, serviceName, traceOptions)
 }
 
 // JoinOrNone is the exported seam for impacttrace.JoinOrNone, which the repository and

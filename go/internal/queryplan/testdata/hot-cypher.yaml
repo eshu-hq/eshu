@@ -210,10 +210,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/entity/workload_context.go
-      symbol: (*Handler).FetchWorkloadContextForOperation
-      source_sha256: 422d958032fe8d37bc12c7ed086b19a9e94eaa208a3addc15aae4645714e0192
-      line_hint: 54
+      file: go/internal/query/entity/workload_lookup.go
+      symbol: (*Handler).lookupWorkloadRows
+      source_sha256: a61f184be4a70ef055676ed09c8053ef46e213baa80bc8f840c2f3b0444b5430
+      line_hint: 38
     required_anchors:
       - label: Workload
         property: id

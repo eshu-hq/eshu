@@ -27,6 +27,12 @@ new_repo() {
   git -C "$dir" init -q
   git -C "$dir" config user.email test@example.test
   git -C "$dir" config user.name "Test"
+  # Git 2.4x+ runs auto-maintenance/gc in a detached background process after
+  # commit and merge. Under load it can still be writing .git/objects when the
+  # case's `rm -rf` runs, which fails the suite for a reason unrelated to the
+  # gate under test. These scratch repos never need maintenance.
+  git -C "$dir" config maintenance.auto false
+  git -C "$dir" config gc.auto 0
   mkdir -p "$dir/scripts"
   cp "$gate" "$dir/scripts/verify-no-diff-fragments.sh"
   printf '%s\n' "$dir"

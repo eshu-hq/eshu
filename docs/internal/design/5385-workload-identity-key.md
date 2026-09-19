@@ -1229,7 +1229,7 @@ retracted and rebuilt rather than rewritten in place.
 
    The loud breaks are safer and already have error types: name-selector surfaces
    go ambiguous for collision names —
-   `go/internal/query/impacttrace/impact_trace_workload_selection.go` (`errAmbiguousTraceWorkloadSelector`)
+   `go/internal/query/impacttrace/workload_selection.go` (`errAmbiguousWorkloadSelector`)
    and `go/internal/query/service_workload_resolution.go:93-104` (`serviceWorkloadAmbiguousError`).
    The `repo`/`environment` narrowing arguments those surfaces already accept
    become mandatory for collision names.

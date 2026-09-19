@@ -37,7 +37,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | K8s SELECTS matcher | `k8s_select_match.go` | type aliases and wrappers in `k8s_match_alias.go` |
 | Story-collection helpers | `story_collection_helpers.go` | root and `impact/` callers reference directly |
 | Story-row helpers | `story_row_helpers.go` | root and `impact/` callers reference directly, including `CapMapRows` |
-| Scoped workload WHERE clause | `workload_where_clause.go` | root workload-context callers reference directly |
+| Scoped workload grant decision | `workload_grant.go` | `entity` and `impacttrace` callers reference directly |
 | Permission-denied envelope and gate | `permission_denied.go` | function forwarders `writePermissionDeniedEnvelope`/`requirePermissionFeature` |
 | Unauthorized (401) response, OAuth-challenge types, correlation ID | `unauthorized.go` | exported type alias (`OAuthChallengePolicy`) and function forwarders (`unauthorizedResponse`, `requestWithOAuthChallenge`, `documentationCorrelationID`); `oauthWWWAuthenticateChallengeForRequest` keeps no root forwarder because its only caller moved with it |
 
@@ -61,6 +61,28 @@ no-Cypher rule, recorded the same way in `AGENTS.md`. The bounds and the
 predicate that enforces them stay together on purpose: hand a caller the grant
 bounds without the predicate and it can forget to apply them. A complete query,
 with its own `MATCH`/`RETURN` and result shape, still does not belong here.
+
+`workload_grant.go`'s `WorkloadGrantAdmitted` is the one exception to "emits a
+Cypher fragment": it is a pure Go decision over rows a caller already fetched
+(a workload's `repo_id` plus its DEFINES-linked repository ids), not predicate
+text. NornicDB (grant decisions for the `entity` and `impacttrace` Workload
+lookups) is made in Go for this reason: a multi-line
+`AND ( ... OR EXISTS {...} )` scoped WHERE group is unreliable on the pinned
+v1.3.3 image -- it can drop the whole WHERE, including an unrelated id/name
+anchor on the same MATCH -- so the grant moved out of the query text entirely
+(#6786). The retired `ScopedWorkloadWhereClause` predicate is gone; the
+single-line `IN`-disjunction `WorkloadScopePredicate` (`infra_scope_grant.go`,
+SHAPE-A) is unaffected and still belongs here as a fragment emitter.
+
+`WorkloadSelectorCandidateBound`, `ErrWorkloadSelectorCandidatesExceedBound`,
+and `WriteWorkloadSelectorOverflow` live beside it so the `entity` and
+`impacttrace` name lookups fail closed at the same bound with the same wire
+answer: 409 Conflict and fixed text telling the caller to retry with a workload
+id. The error text carries no row count. For a scoped caller the name read
+carries `WorkloadScopePredicate`, so the bound counts granted rows only and
+ungranted workloads can neither cause the 409 nor be inferred from it. The text
+stays count-free for unscoped callers, and as defense in depth in case a
+backend ignores the predicate.
 
 ## Exported surface
 

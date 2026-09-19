@@ -49,6 +49,29 @@ which is why those two methods are exported. The remaining exports
 staying root tests that pin family behavior; new callers must prefer the
 HTTP surface or `querytestutil` doubles.
 
+NornicDB: `GetEntityContext` and `FetchWorkloadContextForOperation` no longer
+render the multi-line scoped `WHERE` group that was unreliable on the pinned
+NornicDB v1.3.3 image (#6786); the grant is decided in Go. The one Cypher-side
+grant is the single-line SHAPE-A `querycontract.WorkloadScopePredicate` on the
+scoped name read below, which Go still re-checks. See `querycontract`'s README for the detail and
+`querycontract.WorkloadGrantAdmitted`.
+
+A name-keyed workload lookup (`GET /services/{name}/context` and its MCP twin)
+reads a bounded candidate set in `workload_lookup.go`: up to
+`querycontract.WorkloadSelectorCandidateBound`+1 rows ordered by `w.id`, each
+carrying `collect(DISTINCT dr.id)` for its DEFINES repositories. For a scoped
+caller the read's `WHERE` line also carries `WorkloadScopePredicate`, so the
+bound counts granted rows only (past the 128-term SHAPE-A cap it fails closed
+and emits `eshu_dp_query_scope_grant_inline_capped_total` with reason
+`workload_context_name`). Go re-checks the rows with `WorkloadGrantAdmitted` and returns the lowest admitted id, so two
+workloads that share a name no longer depend on which row an unordered
+`LIMIT 1` happened to return. A page over the bound returns
+`querycontract.ErrWorkloadSelectorCandidatesExceedBound`, which the handler
+writes as a count-free 409. An id-only lookup still reads one row, because
+`Workload.id` is unique. `fetchServiceWorkloadContext` counts
+`reason=grant_denied` once per request, and only when the name lookup, the id
+lookup, and the read model all came back empty.
+
 ## Exported surface
 
 Exports exist only for staying callers: the root deployment-trace wrapper,

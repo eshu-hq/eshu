@@ -251,6 +251,20 @@ func makeDeploymentConfigInfluenceHandler() *Handler {
 				"K8sResource OR":                      {},
 				"fn.name IN":                          {},
 				"DEPLOYMENT_SOURCE":                   {},
+				// ResolveWorkloadSelector's name lookup (#6786 F3: its
+				// id lookup now requires the returned row's own id to equal
+				// the selector, and "svc-1" != "test-service", so it falls
+				// through here) -- same row as the generic RunSingleByMatch
+				// entry above, keyed to the specific fragment its Run call
+				// issues.
+				"w.name = $service_name": {
+					{
+						"id":      "svc-1",
+						"name":    "test-service",
+						"kind":    "service",
+						"repo_id": "repo-1",
+					},
+				},
 			},
 		},
 		Content: querytestutil.FakePortContentStore{
@@ -318,14 +332,15 @@ func TestInvestigateDeploymentConfigInfluenceReturns404ForUnknownService(t *test
 func TestInvestigateDeploymentConfigInfluenceReturnsConflictForDuplicateWorkloadName(t *testing.T) {
 	t.Parallel()
 
-	call := 0
-	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}
 		if strings.Contains(cypher, "w.name = $service_name") {
-			call++
-			return map[string]any{"id": fmt.Sprintf("workload:orders-%d", call)}, nil
+			return []map[string]any{
+				{"id": "workload:orders-1", "name": "orders"},
+				{"id": "workload:orders-2", "name": "orders"},
+			}, nil
 		}
 		return nil, nil
 	}}}
@@ -375,6 +390,13 @@ func TestInvestigateDeploymentConfigInfluenceDisclosesSaturatedUpstreamEvidence(
 					"K8sResource OR":                      {},
 					"fn.name IN":                          {},
 					"DEPLOYMENT_SOURCE":                   {{"instance_id": "instance:test-service", "repo_id": "repo-gitops", "repo_name": "gitops"}},
+					// ResolveWorkloadSelector's name lookup (#6786 F3:
+					// its id lookup now requires the returned row's own id
+					// to equal the selector, and "svc-1" != "test-service",
+					// so it falls through here).
+					"w.name = $service_name": {
+						{"id": "svc-1", "name": "test-service", "kind": "service", "repo_id": "repo-1"},
+					},
 				},
 			}
 

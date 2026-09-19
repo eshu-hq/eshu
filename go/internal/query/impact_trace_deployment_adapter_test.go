@@ -120,6 +120,7 @@ func TestFetchServiceTraceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 		},
 		nil,
 		nil,
+		nil,
 		"workload:service-edge-api",
 		impact.TraceEnrichmentOptions(impact.TraceDeploymentChainRequest{ServiceName: "workload:service-edge-api"}),
 	)
@@ -172,6 +173,7 @@ func TestFetchServiceTraceContextPreservesResolvedWorkloadIDWhenAnotherWorkloadN
 		},
 		nil,
 		nil,
+		nil,
 		"workload:orders",
 		impact.TraceEnrichmentOptions(impact.TraceDeploymentChainRequest{ServiceName: "workload:orders"}),
 	)
@@ -208,6 +210,16 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 				},
 			},
 			RunByMatch: map[string][]map[string]any{
+				"w.name = $service_name": {
+					{
+						"id":        "workload:checkout-service",
+						"name":      "checkout-service",
+						"kind":      "service",
+						"repo_id":   "repo-service",
+						"repo_name": "checkout-service",
+						"instances": []any{},
+					},
+				},
 				"MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)": {
 					{"repo_id": "repo-service", "repo_name": "checkout-service"},
 				},
@@ -241,6 +253,7 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 				"(r:Repository {id: $repo_id})-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->": {},
 			},
 		},
+		nil,
 		nil,
 		nil,
 		"checkout-service",
@@ -314,6 +327,23 @@ func TestTraceDeploymentChainKeepsConfigDerivedCloudResourcesAsUncorrelatedCandi
 			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "w.name = $service_name"):
+					return []map[string]any{{
+						"id":        "workload:orders-api",
+						"name":      "orders-api",
+						"kind":      "service",
+						"repo_id":   "repo-orders",
+						"repo_name": "orders-api",
+						"instances": []any{},
+						"deployment_evidence": map[string]any{
+							"artifacts": []map[string]any{
+								{
+									"relationship_type": "READS_CONFIG_FROM",
+									"matched_value":     "/config/orders-api/*",
+								},
+							},
+						},
+					}}, nil
 				case strings.Contains(cypher, "INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)"):
 					return nil, nil
 				case strings.Contains(cypher, "MATCH (c:CloudResource)"):

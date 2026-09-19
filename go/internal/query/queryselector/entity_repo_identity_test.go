@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // fakeRepoIdentityGraphQuery captures the Cypher text and params
@@ -33,11 +34,18 @@ func (f *fakeRepoIdentityGraphQuery) RunSingle(context.Context, string, map[stri
 // TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate
 // pins the workload-backfill statement's shape (UNWIND/MATCH/OPTIONAL MATCH
 // on Repository-[:DEFINES]->Workload, direct and via-instance) and proves
-// the caller's scoped access filter is spliced into both branches: the
-// direct-DEFINES branch takes GraphPredicate's leading-AND form, the
-// via-instance branch takes GraphWhereClause's own WHERE. Losing either
-// splice would let a scoped caller's workload backfill read another
-// tenant's repository identity.
+// the caller's scoped access filter is spliced into both branches, each as
+// GraphWhereClause's own WHERE. Losing either splice would let a scoped
+// caller's workload backfill read another tenant's repository identity.
+//
+// #6786 review follow-up (F2): the UNWIND loop variable is `requested_id`,
+// not `entity_id` -- the retired name collided with the RETURN column alias
+// below it and made NornicDB v1.3.3 return garbage for both (proven live;
+// see entity_repo_identity.go's doc comment on this query). The direct-
+// DEFINES branch anchors on `e` directly (`(repo)-[:DEFINES]->(e)`) rather
+// than a separate `direct` variable plus a `WHERE direct = e` node-equality
+// comparison, which is the second, independently-proven-safe half of that
+// fix.
 func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t *testing.T) {
 	t.Parallel()
 
@@ -60,12 +68,11 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 	}
 
 	for _, want := range []string{
-		"UNWIND $entity_ids AS entity_id",
-		"MATCH (e) WHERE e.id = entity_id",
-		"OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(direct:Workload)",
-		"WHERE direct = e",
+		"UNWIND $entity_ids AS requested_id",
+		"MATCH (e) WHERE e.id = requested_id",
+		"OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(e)",
 		"OPTIONAL MATCH (repoViaInstance:Repository)-[:DEFINES]->(instanceWorkload:Workload)<-[:INSTANCE_OF]-(e)",
-		"RETURN entity_id,",
+		"RETURN e.id AS entity_id,",
 		"coalesce(repo.id, repoViaInstance.id) AS repo_id",
 		"coalesce(repo.name, repoViaInstance.name) AS repo_name",
 	} {
@@ -73,15 +80,19 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 			t.Fatalf("cypher = %q, want it to contain %q", graph.gotCypher, want)
 		}
 	}
+	if strings.Contains(graph.gotCypher, "direct") {
+		t.Fatalf("cypher = %q, want the retired `direct` variable/comparison gone", graph.gotCypher)
+	}
 
-	wantPredicate := " AND (repo.id IN $allowed_repository_ids OR repo.id IN $allowed_scope_ids)"
-	if !strings.Contains(graph.gotCypher, wantPredicate) {
-		t.Fatalf("cypher = %q, want the direct-DEFINES branch to carry %q", graph.gotCypher, wantPredicate)
+	wantRepoWhere := "WHERE (repo.id IN $allowed_repository_ids OR repo.id IN $allowed_scope_ids)"
+	if !strings.Contains(graph.gotCypher, wantRepoWhere) {
+		t.Fatalf("cypher = %q, want the direct-DEFINES branch to carry %q", graph.gotCypher, wantRepoWhere)
 	}
-	wantWhere := "WHERE (repoViaInstance.id IN $allowed_repository_ids OR repoViaInstance.id IN $allowed_scope_ids)"
-	if !strings.Contains(graph.gotCypher, wantWhere) {
-		t.Fatalf("cypher = %q, want the via-instance branch to carry %q", graph.gotCypher, wantWhere)
+	wantViaInstanceWhere := "WHERE (repoViaInstance.id IN $allowed_repository_ids OR repoViaInstance.id IN $allowed_scope_ids)"
+	if !strings.Contains(graph.gotCypher, wantViaInstanceWhere) {
+		t.Fatalf("cypher = %q, want the via-instance branch to carry %q", graph.gotCypher, wantViaInstanceWhere)
 	}
+	querytestutil.AssertCypherHasNoBrokenAndOr(t, graph.gotCypher)
 
 	allowedRepoIDs, ok := graph.gotParams["allowed_repository_ids"].([]string)
 	if !ok || len(allowedRepoIDs) != 1 || allowedRepoIDs[0] != "repo-1" {
@@ -90,6 +101,45 @@ func TestHydrateResolvedEntityRepoIdentityPinsCypherAndSplicesAccessPredicate(t 
 
 	if got, want := entity["repo_id"], "repo-1"; got != want {
 		t.Fatalf("entity[repo_id] = %#v, want %#v", got, want)
+	}
+}
+
+// TestHydrateResolvedEntityRepoIdentityDropsUngrantedHydratedRepo is the
+// #6786 review follow-up (R2-3): the hydration query's own
+// `OPTIONAL MATCH (repo:Repository)-[:DEFINES]->(e) WHERE (grant)` is a
+// backward `-[:DEFINES]->` pattern with an inner WHERE, the same shape class
+// F1 (workload_context.go) stopped trusting alone. This test simulates that
+// WHERE failing to filter: the fake returns a row naming an ungranted
+// repository, as if the backend's WHERE had not applied. Go must still
+// refuse to attach it.
+func TestHydrateResolvedEntityRepoIdentityDropsUngrantedHydratedRepo(t *testing.T) {
+	t.Parallel()
+
+	graph := &fakeRepoIdentityGraphQuery{
+		rows: []map[string]any{
+			// The backend's WHERE should have excluded repo-2 (only repo-1
+			// is granted below), but this fake simulates it not doing so.
+			{"entity_id": "workload:1", "repo_id": "repo-2", "repo_name": "ungranted-repo"},
+		},
+	}
+	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repo-1"},
+	})
+	entity := map[string]any{
+		"id":     "workload:1",
+		"labels": []string{"Workload"},
+	}
+
+	if _, err := HydrateResolvedEntityRepoIdentity(ctx, graph, nil, []map[string]any{entity}); err != nil {
+		t.Fatalf("HydrateResolvedEntityRepoIdentity() error = %v, want nil", err)
+	}
+
+	if got := EntityString(entity, "repo_id"); got != "" {
+		t.Fatalf("entity[repo_id] = %q, want empty: an ungranted hydrated repo must never be attached even if the backend's own WHERE failed to filter it", got)
+	}
+	if got := EntityString(entity, "repo_name"); got != "" {
+		t.Fatalf("entity[repo_name] = %q, want empty alongside the dropped repo_id", got)
 	}
 }
 
@@ -150,3 +200,43 @@ func TestHydrateResolvedEntityRepoIdentityRepositoryEntitySelfIdentifies(t *test
 }
 
 var _ querycontract.GraphQuery = (*fakeRepoIdentityGraphQuery)(nil)
+
+// TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission pins the
+// #6786 review decision recorded in README.md: hydration checks the
+// repository it attaches, not whether the workload is admitted. The workload
+// here carries a granted repo_id, so querycontract.WorkloadGrantAdmitted
+// would admit it, but the DEFINES repository the backend returned is not
+// granted and must not supply the missing repo_name.
+func TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission(t *testing.T) {
+	t.Parallel()
+
+	graph := &fakeRepoIdentityGraphQuery{
+		rows: []map[string]any{
+			{"entity_id": "workload:1", "repo_id": "repo-2", "repo_name": "ungranted-repo"},
+		},
+	}
+	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
+		AllowedRepositoryIDs: []string{"repo-1"},
+	})
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
+	if !querycontract.WorkloadGrantAdmitted(access, "repo-1", []string{"repo-2"}) {
+		t.Fatal("precondition: WorkloadGrantAdmitted should admit a workload whose own repo_id is granted")
+	}
+	entity := map[string]any{
+		"id":      "workload:1",
+		"labels":  []string{"Workload"},
+		"repo_id": "repo-1",
+	}
+
+	if _, err := HydrateResolvedEntityRepoIdentity(ctx, graph, nil, []map[string]any{entity}); err != nil {
+		t.Fatalf("HydrateResolvedEntityRepoIdentity() error = %v, want nil", err)
+	}
+
+	if got, want := EntityString(entity, "repo_id"), "repo-1"; got != want {
+		t.Fatalf("entity[repo_id] = %q, want %q", got, want)
+	}
+	if got := EntityString(entity, "repo_name"); got != "" {
+		t.Fatalf("entity[repo_name] = %q, want empty: an ungranted DEFINES repository must not name a granted workload", got)
+	}
+}

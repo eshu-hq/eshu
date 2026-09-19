@@ -23,6 +23,7 @@ func TestGetEntityContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 			if !strings.Contains(cypher, "allowed_repository_ids") {
 				t.Fatalf("entity context query missing scoped repository predicate:\n%s", cypher)
 			}
+			querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 			allowed, ok := params["allowed_repository_ids"].([]string)
 			if !ok || len(allowed) != 1 || allowed[0] != "repo-team-a" {
 				t.Fatalf("allowed_repository_ids = %#v, want repo-team-a", params["allowed_repository_ids"])

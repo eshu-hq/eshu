@@ -13,10 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
-	"github.com/eshu-hq/eshu/go/internal/query/service"
 	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 
-	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -69,8 +67,8 @@ func (h *Handler) profile() querycontract.QueryProfile {
 	return querycontract.NormalizeQueryProfile(string(h.Profile))
 }
 
-// ResolveEntityRequest is the request body for entity resolution.
-type ResolveEntityRequest struct {
+// ResolveRequest is the request body for entity resolution.
+type ResolveRequest struct {
 	Name   string `json:"name"`
 	Type   string `json:"type"`
 	RepoID string `json:"repo_id"`
@@ -79,25 +77,31 @@ type ResolveEntityRequest struct {
 
 const serviceLookupWhereClause = "w.name = $service_name OR w.id = $service_name" // #nosec G101 -- Cypher parameterised query template, not a hardcoded credential
 
-// BuildResolveEntityGraphQuery renders the repository-anchored entity
+// BuildResolveGraphQuery renders the repository-anchored entity
 // resolution Cypher for req, or ("", nil) when req carries no RepoID: global
 // resolution never touches the graph. Exported for the staying queryplan
 // production-binding tests that pin builder bytes; see #6060.
-func BuildResolveEntityGraphQuery(
-	req ResolveEntityRequest,
+//
+// access is accepted but unused: the function returns before it would ever
+// matter. It used to also render a global (non-repository-anchored) query
+// with a scoped grant, but that whole path -- guarded by
+// `!repositoryAnchored`, which is unreachable past the early return two lines
+// below -- was dead code (#6786 review follow-up), including the last
+// tab-indented `AND EXISTS {...}` block in this file: the same
+// newline/tab-before-AND shape that made NornicDB v1.3.3 drop a live WHERE
+// clause elsewhere in this file, just never executed here. Removed rather
+// than left as inert bait for a future edit to "fix" the early return and
+// revive it.
+func BuildResolveGraphQuery(
+	req ResolveRequest,
 	limit int,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
-	repositoryAnchored := req.RepoID != ""
-	if !repositoryAnchored {
+	if req.RepoID == "" {
 		return "", nil
 	}
-	cypher := `MATCH (e) WHERE e.name = $name`
-	params := map[string]any{"name": req.Name}
-	if repositoryAnchored {
-		cypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e) WHERE e.name = $name`
-		params["repo_id"] = req.RepoID
-	}
+	cypher := `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e) WHERE e.name = $name`
+	params := map[string]any{"name": req.Name, "repo_id": req.RepoID}
 
 	if req.Type != "" {
 		graphLabel, semanticKey, semanticValue, ok := resolveGraphEntityType(req.Type)
@@ -111,26 +115,6 @@ func BuildResolveEntityGraphQuery(
 		}
 	}
 
-	if !repositoryAnchored && access.Scoped() {
-		cypher += `
-			AND EXISTS {
-				MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
-				WHERE ` + access.GraphCondition("scopeRepo") + `
-			}
-		`
-		params = access.GraphParams(params)
-	}
-
-	if !repositoryAnchored {
-		cypher += `
-			OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
-		`
-		if access.Scoped() {
-			cypher += `
-			WHERE ` + access.GraphCondition("r") + `
-		`
-		}
-	}
 	cypher += `
 		RETURN e.id as id, labels(e) as labels, e.name as name,
 		       f.relative_path as file_path,
@@ -148,7 +132,7 @@ func BuildResolveEntityGraphQuery(
 
 // ResolveEntity resolves an entity by name and optional type/repo filters. Exported so the staying root resolve tests keep driving the handler; see #6060.
 func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
-	var req ResolveEntityRequest
+	var req ResolveRequest
 	if err := querycontract.ReadJSON(r, &req); err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -227,7 +211,7 @@ func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cypher, params := BuildResolveEntityGraphQuery(req, limit, access)
+	cypher, params := BuildResolveGraphQuery(req, limit, access)
 
 	var (
 		rows []map[string]any
@@ -305,17 +289,21 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Scoped mode used to add an `AND EXISTS { MATCH ... WHERE <grant> }`
+	// block here to bound e to the caller's granted repositories. On the
+	// pinned NornicDB v1.3.3 image that multi-line `AND EXISTS {...}` group
+	// is unreliable: it can silently drop the WHOLE WHERE, including the
+	// unrelated `e.id = $entity_id` anchor, so a scoped caller's request for
+	// one entity could read back an arbitrary DIFFERENT entity (#6786). The
+	// grant is now decided in Go instead, from the single-line-WHERE
+	// OPTIONAL MATCH below (already proven safe) plus the id/repo_id checks
+	// after RunSingle: the row-id equality check just below guards
+	// e.id = $entity_id even if a future backend regresses that anchor, and
+	// the access.AllowsRepositoryID check after hydration (unchanged) is
+	// what actually fails a scoped, ungranted read closed to not-found.
 	cypher := `
 		MATCH (e) WHERE e.id = $entity_id
 	`
-	if access.Scoped() {
-		cypher += `
-		AND EXISTS {
-			MATCH (e)<-[:CONTAINS]-(scopeFile:File)<-[:REPO_CONTAINS]-(scopeRepo:Repository)
-			WHERE ` + access.GraphCondition("scopeRepo") + `
-		}
-	`
-	}
 	cypher += `
 		OPTIONAL MATCH (e)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
 	`
@@ -347,6 +335,33 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 			}
 			querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 			return
+		}
+	}
+
+	// Defense-in-depth guard against a backend that stops honoring
+	// `e.id = $entity_id` (the exact failure #6786 proved on NornicDB
+	// v1.3.3): a row whose id does not match the requested entity is treated
+	// as no row at all, the same not-found path a genuinely absent entity
+	// takes, rather than trusted as an answer to this request.
+	if row != nil {
+		if gotID := querycontract.StringVal(row, "id"); gotID != entityID {
+			// #6786 review follow-up (F5): this guard firing means the
+			// backend returned a DIFFERENT node than the one anchored on --
+			// backend anchor drift, not ordinary authorization, and an
+			// operator needs to see it. Log outside the `if h.Logger != nil`
+			// gate would panic on a nil Handler in tests that construct one
+			// without a logger; every other Logger use in this package
+			// checks the same way (context_content.go).
+			if h.Logger != nil {
+				h.Logger.WarnContext(r.Context(),
+					"entity context graph row id did not match the requested entity id",
+					"requested_entity_id", entityID,
+					"returned_entity_id", gotID,
+					"reason", "backend_anchor_mismatch",
+				)
+			}
+			h.recordScopedGrantDenied(r.Context(), "entity_context", "backend_anchor_mismatch")
+			row = nil
 		}
 	}
 
@@ -393,6 +408,7 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if access.Scoped() && !access.AllowsRepositoryID(querycontract.StringVal(response, "repo_id")) {
+		h.recordScopedGrantDenied(r.Context(), "entity_context", "grant_denied")
 		querycontract.WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
@@ -407,78 +423,4 @@ func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	response["result_limits"] = contextResultLimits(response, entityID)
 	response["partial_reasons"] = querycontract.ContextPartialReasons(response)
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, contextTruthEnvelope(h.profile()))
-}
-
-// GetServiceContext retrieves the context for a service by name. Exported so the staying graph-read-error tests keep driving the handler; see #6060.
-func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
-	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.context_overview") {
-		querycontract.WriteContractError(
-			w,
-			r,
-			http.StatusNotImplemented,
-			"service context requires authoritative platform context truth",
-			"unsupported_capability",
-			"platform_impact.context_overview",
-			h.profile(),
-			querycontract.RequiredProfile("platform_impact.context_overview"),
-		)
-		return
-	}
-
-	serviceName := querycontract.PathParam(r, "service_name")
-	if serviceName == "" {
-		querycontract.WriteError(w, http.StatusBadRequest, "service_name is required")
-		return
-	}
-	if querycontract.RepositoryAccessFilterFromContext(r.Context()).Empty() {
-		querycontract.WriteError(w, http.StatusNotFound, "service not found")
-		return
-	}
-
-	ctx, err := h.fetchServiceWorkloadContext(r.Context(), serviceName, "service_context")
-	if err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
-		return
-	}
-
-	if ctx == nil {
-		querycontract.WriteError(w, http.StatusNotFound, "service not found")
-		return
-	}
-	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.QueryEnrichmentOptions{
-		IncludeRelatedModuleUsage: true,
-		Logger:                    h.Logger,
-		Operation:                 "service_context",
-	}); err != nil {
-		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
-			return
-		}
-		if querycontract.WriteGraphReadError(w, r, err, "platform_impact.context_overview") {
-			return
-		}
-		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("enrich service context: %v", err))
-		return
-	}
-
-	if langBreakdown, toolBreakdown := repository.QueryServiceTechFingerprint(r.Context(), h.Neo4j, ctx); len(langBreakdown) > 0 || len(toolBreakdown) > 0 {
-		if len(langBreakdown) > 0 {
-			ctx["language_breakdown"] = langBreakdown
-		}
-		if len(toolBreakdown) > 0 {
-			ctx["source_tool_breakdown"] = toolBreakdown
-		}
-	}
-
-	// Promote "limitations" into the OpenAPI-promised "partial_reasons" field
-	// (round-11 review follow-up to #5764, PR #5936): the WorkloadContext
-	// schema this route shares with getWorkloadContext documents
-	// "partial_reasons" as always present, and getWorkloadContext already
-	// makes that true. Without this call an infrastructure-read degradation
-	// or truncation landed in "limitations" but never reached the stable
-	// partial-reason field the contract promises HTTP and MCP callers.
-	ctx["partial_reasons"] = querycontract.ContextPartialReasons(ctx)
-	querycontract.WriteSuccess(w, r, http.StatusOK, ctx, querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisHybrid, "resolved from service context and platform evidence"))
 }

@@ -78,6 +78,24 @@ as if it were a real `repo_id`/`repo_name` value; the scrub
 those four known shapes before any other hydration path runs, so a still-open
 backend bug never gets treated as resolved identity.
 
+**Hydration attaches only a repository the caller is granted, which is a
+different rule from workload admission (#6786 review).** The workload context
+route admits a Workload through `querycontract.WorkloadGrantAdmitted`: its own
+`repo_id` is granted, or a granted repository `DEFINES` it. Hydration does not
+use that rule, on purpose. It does not decide whether the caller may see the
+entity; the entity already came from a grant-checked read. It decides which
+repository to attach, and it re-checks that repository with
+`AllowsRepositoryID`. `WorkloadGrantAdmitted` would admit the row whenever the
+workload's own `repo_id` is granted, and would then attach an ungranted
+`DEFINES` repository's id and name. The cost of the stricter rule:
+`GetEntityContext` takes the repository from `CONTAINS`/`DEFINES` and never
+reads `w.repo_id`, so a Workload whose own `repo_id` is granted but which no
+granted repository `DEFINES` is not found on `/entities/{id}/context` (fail
+closed), while `/workloads/{id}/context` admits it. That trade is deliberate:
+a missing context is preferable to attaching an ungranted repository's
+identity.
+`TestHydrateResolvedEntityRepoIdentityDoesNotUseWorkloadAdmission` pins this.
+
 ## Related docs
 
 - [Cypher performance](../../../../docs/public/reference/cypher-performance.md)

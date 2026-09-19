@@ -345,6 +345,13 @@ func deploymentTraceTestGraph() querytestutil.FakeGraphReaderWithSingle {
 			}
 		},
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			// ResolveWorkloadSelector's name lookup (#6786 F3: its id
+			// lookup now requires the returned row's own id to equal the
+			// selector, and "workload:orders-api" != "orders-api", so it
+			// falls through here).
+			if strings.Contains(cypher, "w.name = $service_name") {
+				return []map[string]any{{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}}, nil
+			}
 			if strings.Contains(cypher, "DEPLOYMENT_SOURCE") {
 				return []map[string]any{
 					{"repo_id": "repo-a", "repo_name": "orders-api-repo", "confidence": 1.0, "reason": "canonical"},

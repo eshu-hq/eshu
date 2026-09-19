@@ -40,6 +40,8 @@ func TestTraceDeploymentChainOmitsLimitsForUnprobedContextCloudResources(t *test
 			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "w.name = $service_name"):
+					return []map[string]any{workload}, nil
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-orders", "repo_name": "orders-api"}}, nil
 				case strings.Contains(cypher, "MATCH (repo:Repository)-[:DEFINES]->(workload:Workload {id: $workload_id})"):
@@ -92,7 +94,10 @@ func TestTraceDeploymentChainPreservesExactEmptyCloudResourceLimits(t *testing.T
 				"w.name = $service_name": workload,
 				"w.id = $workload_id":    workload,
 			},
-			RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+				if strings.Contains(cypher, "w.name = $service_name") {
+					return []map[string]any{workload}, nil
+				}
 				return nil, nil
 			},
 		},

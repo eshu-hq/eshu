@@ -666,10 +666,66 @@ type Instruments struct {
 	// with reason k8s_resource_candidate_scan_truncated_at_5000 for the
 	// specific request that hit it.
 	QueryK8sSelectCandidateScanTruncated metric.Int64Counter
-	// QueryScopeGrantInlineCapped counts scoped-token infra reads whose grant
-	// set overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
-	// currently 128) so the USES and DEFINES-collision admission families were
-	// truncated (issue #5408). Counted once per read, not once per clause: one
+	// QueryScopedGrantDenied counts a scoped caller's read decided closed on
+	// one of the #6786 Go-side grant-decision seams (GetEntityContext,
+	// FetchWorkloadContextForOperation, ResolveWorkloadSelector) --
+	// those routes stopped rendering the scoped grant as a Cypher predicate
+	// (NornicDB v1.3.3 could silently drop it) and now decide admission in
+	// Go instead, so this is the operator-visible replacement for what a
+	// backend-side WHERE denial used to leave no trace of at all. Labels:
+	// operation and reason.
+	//
+	// operation is the bounded caller-supplied value FetchWorkloadContextForOperation
+	// and ResolveWorkloadSelector are invoked with, not a fixed
+	// per-function constant -- GetEntityContext is the one exception, always
+	// "entity_context". The full closed set actually emitted, by call site:
+	// "entity_context" (GetEntityContext, handler.go), "workload_context"
+	// (fetchWorkloadContext, workload_context.go), "service_context"
+	// (fetchServiceWorkloadContext via GetServiceContext,
+	// service_context_handler.go), "service_story" (BuildServiceStoryEnvelope
+	// via GetServiceStory, service_story_handler.go), "service_investigation"
+	// (fetchServiceWorkloadContextWithSelector via InvestigateService,
+	// service_investigation.go), "deployment_trace" (fetchServiceTraceContext,
+	// family_impact_trace_deployment.go), and "deployment_trace_selector"
+	// (ResolveWorkloadSelector's own internal constant,
+	// workload_selection.go -- distinct from the
+	// "deployment_trace" its caller passes to the FOLLOW-UP
+	// FetchWorkloadContextForOperation call in the same request). Adding a
+	// caller with a new operation string does not require touching this
+	// list -- it is documentation of the current closed set, not a runtime
+	// enum -- but MUST update it in the same change so this comment does not
+	// drift from the emitted values again (see TestQueryScopedGrantDeniedOperationValues,
+	// entity, and TestResolveWorkloadSelectorOperationLabel, impacttrace,
+	// which each pin one call site's literal against this list).
+	//
+	// reason is "grant_denied" for an ordinary scoped-caller-not-granted-this-row
+	// outcome, expected at whatever rate scoped callers probe ids they cannot
+	// see. The scoped name reads filter by grant in Cypher first (#6801), so
+	// on those paths grant_denied counts only rows the backend returned despite
+	// that predicate; or "backend_anchor_mismatch" for a row whose own id/name did not
+	// match the request anchor at all -- never expected, and the 3 AM signal
+	// that a backend regressed the query's identity anchor, paired with a
+	// Warn log carrying the same reason.
+	//
+	// Only the top-level HTTP-visible decision points above count here, not
+	// every internal candidate-filtering pass that feeds one of them (e.g.
+	// FetchWorkloadRepositoryForAccess's DEFINES re-check, or
+	// HydrateResolvedEntityRepoIdentity's hydration re-check): those decide a
+	// component the top-level function still has to act on, and counting
+	// both would report one caller-visible denial as two or three. For the
+	// same reason a request that tries more than one lookup
+	// (fetchServiceWorkloadContext's name, id, and read-model fallbacks, or
+	// ResolveWorkloadSelector's id then name lookup) counts "grant_denied"
+	// at most once, and only when no lookup admitted a workload: a denied
+	// first lookup followed by an admitted second one is a successful
+	// request, not a denial (#6786 review).
+	QueryScopedGrantDenied metric.Int64Counter
+	// QueryScopeGrantInlineCapped counts scoped-token reads whose grant set
+	// overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,
+	// currently 128), so the USES and/or DEFINES-collision admission families
+	// were truncated (issue #5408). The infra reads truncate both families. The
+	// workload name reads (#6801; reasons workload_context_name and
+	// deployment_trace_selector) truncate DEFINES-collision admission only. Counted once per read, not once per clause: one
 	// request builds that disjunction more than once, and per-clause counting
 	// would report a single degraded read as three.
 	//
@@ -677,9 +733,10 @@ type Instruments struct {
 	// admission for the overflow, so rows go missing but never appear that
 	// should not, and direct-ownership and DEPLOYMENT_SOURCE admission still
 	// apply. A non-zero rate is the 3 AM signal that a token is granted more
-	// than 128 repositories and its infra reads are quietly incomplete; the
-	// fix is to widen the cap or move that caller to an all-scopes token, not
-	// to treat the missing rows as absence of infrastructure.
+	// than 128 repositories and its reads are quietly incomplete (missing
+	// infrastructure, or a missing DEFINES-only workload by name). The fix is
+	// to widen the cap or move that caller to an all-scopes token, not to treat
+	// the missing rows as absence.
 	QueryScopeGrantInlineCapped metric.Int64Counter
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
@@ -3124,8 +3181,8 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	inst.QueryScopeGrantInlineCapped, err = meter.Int64Counter(
 		"eshu_dp_query_scope_grant_inline_capped_total",
 		metric.WithDescription(
-			"Total scoped-token infra reads whose grant set overflowed the SHAPE-A inline-map cap, "+
-				"truncating USES and DEFINES-collision admission (fail-closed: rows go missing, never extra); label reason carries the read surface",
+			"Total scoped-token reads (infra, and the workload name reads) whose grant set overflowed the SHAPE-A inline-map cap, "+
+				"truncating USES and/or DEFINES-collision admission (fail-closed: rows go missing, never extra); label reason carries the read surface",
 		),
 	)
 	if err != nil {
@@ -3138,6 +3195,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryK8sSelectCandidateScanTruncated counter: %w", err)
+	}
+
+	inst.QueryScopedGrantDenied, err = meter.Int64Counter(
+		"eshu_dp_query_scoped_grant_denied_total",
+		metric.WithDescription(
+			"Total scoped-caller reads decided closed by a #6786 Go-side grant decision (entity/workload context, deployment trace selector), "+
+				"by operation and reason (grant_denied: ordinary scoped denial; backend_anchor_mismatch: a returned row's own id/name did not match the request, a backend regression signal)",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register QueryScopedGrantDenied counter: %w", err)
 	}
 
 	inst.ProjectorInputInvalidFacts, err = meter.Int64Counter(

@@ -39,7 +39,7 @@ func attachSemanticSummary(result map[string]any) {
 // resolveEntityRequest is the request body for entity resolution. Its home
 // is entity/; this alias keeps the staying queryplan production-binding
 // tests spelling the package-local name unchanged. See #6060.
-type resolveEntityRequest = entity.ResolveEntityRequest
+type resolveEntityRequest = entity.ResolveRequest
 
 // buildResolveEntityGraphQuery renders the repository-anchored entity
 // resolution Cypher. Its home is entity/; this forwarder keeps the staying
@@ -49,7 +49,7 @@ func buildResolveEntityGraphQuery(
 	limit int,
 	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
-	return entity.BuildResolveEntityGraphQuery(req, limit, access)
+	return entity.BuildResolveGraphQuery(req, limit, access)
 }
 
 // buildResolveWorkloadQueries renders the property and relationship

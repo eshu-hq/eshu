@@ -48,6 +48,23 @@ The response returns `entities`, `count`, normalized `limit`, and `truncated`.
 Callers must not auto-select one visible row when `truncated` is true, because
 another matching workload may exist beyond the bounded page.
 
+## Service context by name
+
+`GET /api/v0/services/{service_name}/context` tries an exact workload name,
+then an exact workload id, then the repository read model. Workload names are
+not unique, so the name lookup reads a bounded candidate set (51 rows). A
+workload is admitted when its own `repo_id` is granted or a granted repository
+`DEFINES` it. For a scoped caller that grant filters the candidate read itself,
+so the bound counts only workloads the caller may see, and Go re-checks every
+returned row. When several admitted
+workloads share the name, the lowest workload id is returned, so repeated
+calls answer the same way. When more workloads match the name than the lookup
+reads, the route returns HTTP 409 with fixed text asking the caller to retry
+with a workload id; the body never reports how many workloads matched. For a
+scoped caller that happens only when more than 50 granted workloads share the
+name, so workloads outside the grant can neither cause the 409 nor be
+inferred from it.
+
 ## Console selection behavior
 
 The Console catalog is an authorized suggestion set, not the source of truth

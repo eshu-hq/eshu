@@ -22,64 +22,87 @@ func (h *Handler) fetchWorkloadContext(ctx context.Context, whereClause string, 
 }
 
 // fetchServiceWorkloadContext avoids a backend-sensitive OR predicate by
-// trying exact service-name lookup before exact workload-id lookup.
+// trying exact service-name lookup before exact workload-id lookup, then the
+// repository read model.
+//
+// A grant denial is counted once, and only when no lookup produced a
+// workload: a name lookup that finds only an ungranted workload followed by
+// an id lookup that admits one is a successful request, not a denial.
 func (h *Handler) fetchServiceWorkloadContext(ctx context.Context, serviceName string, operation string) (map[string]any, error) {
 	serviceName = strings.TrimSpace(serviceName)
 	if serviceName == "" {
 		return nil, nil
 	}
-	result, err := h.FetchWorkloadContextForOperation(
-		ctx,
-		"w.name = $service_name",
-		map[string]any{"service_name": serviceName},
-		operation,
-	)
+	operation = workloadContextOperation(operation)
+	params := map[string]any{"service_name": serviceName}
+	result, nameDenied, err := h.fetchWorkloadContextDecision(ctx, "w.name = $service_name", params, operation)
 	if err != nil || result != nil {
 		return result, err
 	}
-	result, err = h.FetchWorkloadContextForOperation(
-		ctx,
-		"w.id = $service_name",
-		map[string]any{"service_name": serviceName},
-		operation,
-	)
+	result, idDenied, err := h.fetchWorkloadContextDecision(ctx, "w.id = $service_name", params, operation)
 	if err != nil || result != nil {
 		return result, err
 	}
-	return h.FetchServiceReadModelWorkloadContext(ctx, serviceName)
+	result, err = h.FetchServiceReadModelWorkloadContext(ctx, serviceName)
+	if err == nil && result == nil && (nameDenied || idDenied) {
+		h.recordScopedGrantDenied(ctx, operation, "grant_denied")
+	}
+	return result, err
 }
 
 // FetchWorkloadContextForOperation queries workload context and tags timing
-// logs with the caller operation that will render the context.
+// logs with the caller operation that will render the context. A workload
+// that matched but that the caller's grant does not admit reads as not found
+// and counts one reason=grant_denied.
 func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereClause string, params map[string]any, operation string) (map[string]any, error) {
+	operation = workloadContextOperation(operation)
+	result, denied, err := h.fetchWorkloadContextDecision(ctx, whereClause, params, operation)
+	if err == nil && result == nil && denied {
+		h.recordScopedGrantDenied(ctx, operation, "grant_denied")
+	}
+	return result, err
+}
+
+// workloadContextOperation returns operation, defaulting an empty value to
+// "workload_context".
+func workloadContextOperation(operation string) string {
+	if operation == "" {
+		return "workload_context"
+	}
+	return operation
+}
+
+// fetchWorkloadContextDecision builds workload context for the row
+// whereClause selects. denied reports that a matched workload was refused by
+// the caller's grant; callers decide whether and when to count it.
+func (h *Handler) fetchWorkloadContextDecision(ctx context.Context, whereClause string, params map[string]any, operation string) (map[string]any, bool, error) {
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Empty() {
-		return nil, nil
+		return nil, false, nil
 	}
 	serviceName := querycontract.StringVal(params, "service_name")
 	if serviceName == "" {
 		serviceName = querycontract.StringVal(params, "workload_id")
 	}
-	if operation == "" {
-		operation = "workload_context"
-	}
 	timer := service.StartServiceQueryStage(ctx, h.Logger, operation, serviceName, "", "workload_lookup")
 	params = access.GraphParams(params)
-	whereClause = scopedWorkloadWhereClause(whereClause, access)
-	baseCypher := fmt.Sprintf(`
-		MATCH (w:Workload) WHERE %s
-		RETURN w.id as id, w.name as name, w.kind as kind, w.repo_id as repo_id
-		LIMIT 1
-	`, whereClause)
-
-	row, err := h.Neo4j.RunSingle(ctx, baseCypher, params)
-	timer.Done(ctx, slog.Bool("found", row != nil))
+	// #6786: the grant is decided in Go (lookupWorkloadRows and
+	// firstGrantedWorkload's DEFINES read), not by a multi-line group in
+	// this read's WHERE. A multi-line
+	// `AND ( ... OR EXISTS {...} )` grant group is unreliable on the pinned
+	// NornicDB v1.3.3 image and can drop the whole WHERE, including the
+	// id/name anchor callers pass in whereClause.
+	candidates, denied, err := h.lookupWorkloadRows(ctx, access, whereClause, params, serviceName, operation)
+	timer.Done(ctx, slog.Bool("found", len(candidates) > 0))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-
+	row, repoID, repoName, rejected, err := h.firstGrantedWorkload(ctx, access, candidates, operation)
+	if err != nil {
+		return nil, false, err
+	}
 	if row == nil {
-		return nil, nil
+		return nil, denied || rejected, nil
 	}
 
 	workloadID := querycontract.StringVal(row, "id")
@@ -90,18 +113,6 @@ func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereCla
 		followupParams = map[string]any{"workload_id": workloadID}
 	}
 
-	preferredRepoID := querycontract.StringVal(row, "repo_id")
-	if !access.AllowsRepositoryID(preferredRepoID) {
-		preferredRepoID = ""
-	}
-	timer = service.StartServiceQueryStage(ctx, h.Logger, operation, querycontract.StringVal(row, "name"), preferredRepoID, "repository_lookup")
-	repoID, repoName, err := h.FetchWorkloadRepositoryForAccess(
-		ctx, workloadID, access, preferredRepoID,
-	)
-	timer.Done(ctx, slog.String("resolved_repo_id", repoID))
-	if err != nil {
-		return nil, err
-	}
 	if repoName == "" {
 		repoName = querycontract.StringVal(row, "repo_name")
 	}
@@ -112,7 +123,7 @@ func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereCla
 	)
 	timer.Done(ctx, slog.Int("row_count", len(topology.instances)))
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	instances := topology.instances
 	if len(instances) == 0 {
@@ -182,7 +193,7 @@ func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereCla
 		timer.Done(ctx, repository.InfrastructureDegradeLogAttrs(len(infrastructure), infrastructureDegraded, infrastructureTruncated)...)
 	}
 
-	return result, nil
+	return result, false, nil
 }
 
 // FetchServiceReadModelWorkloadContext exposes repositories with workload
@@ -347,6 +358,15 @@ func (h *Handler) FetchWorkloadRepositoryForAccess(
 		if _, exists := seen[repoID]; exists {
 			continue
 		}
+		// #6786 review follow-up (F1): re-check every candidate against the
+		// grant in Go rather than trusting the backend's WHERE alone. This
+		// query's `<-[:DEFINES]-` MATCH pattern is itself a backward pattern
+		// with an inner WHERE, the same shape class this PR already proved
+		// NornicDB v1.3.3 can silently fail to apply; a candidate that slips
+		// through must not be admitted just because it reached this loop.
+		if !access.AllowsRepositoryID(repoID) {
+			continue
+		}
 		seen[repoID] = struct{}{}
 		candidates = append(candidates, row)
 	}
@@ -364,11 +384,4 @@ func (h *Handler) FetchWorkloadRepositoryForAccess(
 		}
 	}
 	return querycontract.StringVal(selected, "repo_id"), querycontract.StringVal(selected, "repo_name"), nil
-}
-
-// scopedWorkloadWhereClause appends the caller's workload grant predicate to
-// a Workload-anchored WHERE clause. The implementation moved to querycontract
-// for #6060; this wrapper keeps root callers unchanged.
-func scopedWorkloadWhereClause(whereClause string, access querycontract.RepositoryAccessFilter) string {
-	return querycontract.ScopedWorkloadWhereClause(whereClause, access)
 }

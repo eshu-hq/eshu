@@ -109,6 +109,7 @@ Use these to locate the phase that changed before opening logs or traces:
 | `eshu_dp_graph_orphan_nodes` | Bounded zero-relationship graph node count by closed `node_label`. |
 | `eshu_dp_canonical_write_duration_seconds` | Canonical graph/content write latency. |
 | `eshu_dp_search_decay_policy_applications_total` | Search decay scoring decisions by policy id, evidence class, and outcome. |
+| `eshu_dp_query_scoped_grant_denied_total` | Scoped-caller query reads decided closed in Go rather than in a Cypher predicate (#6786), by bounded `operation` and `reason` (`grant_denied` = the Go grant check admitted no candidate, counted once per request; scoped name lookups filter by grant in Cypher first, so there it counts only rows the backend should have excluded; `backend_anchor_mismatch` = a returned row did not match the request, a graph-backend regression signal that should page). |
 
 `eshu_dp_projector_stage_duration_seconds` uses bounded `stage` values such as
 `build_projection`, `graph_write`, `content_write`, and `intent_enqueue`.

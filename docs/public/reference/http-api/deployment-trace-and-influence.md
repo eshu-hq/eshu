@@ -167,5 +167,9 @@ The response preserves `deployment_source_limits` and `k8s_resource_limits` and
 folds upstream truncation or lower-bound state into `coverage`. Deployment
 configuration influence reports missing or inconsistent bound metadata in
 `limitations` and fails coverage closed.
-Ambiguous service or workload selectors return HTTP 409. Rendered targets and
+Ambiguous service or workload selectors return HTTP 409. A name selector that
+matches more workloads than the bounded lookup reads also returns HTTP 409 with
+fixed text asking the caller to retry with a workload id; the response never
+reports how many workloads matched. This applies to both deployment-trace and
+deployment-config-influence requests. Rendered targets and
 image sources are derived only from rows that survived the published bounds.

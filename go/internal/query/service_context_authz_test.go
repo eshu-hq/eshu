@@ -9,15 +9,26 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestGetWorkloadContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 	t.Parallel()
 
 	reader := fakeWorkloadGraphReader{
-		runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (w:Workload)") && strings.Contains(cypher, "w.id = $workload_id") {
-				requireScopedWorkloadPredicate(t, cypher, params)
+				// #6786: this initial match no longer renders a Cypher-embedded
+				// scoped grant predicate (that multi-line form was unreliable on
+				// NornicDB v1.3.3). Admission is decided in Go from the row's
+				// repo_id directly, or from the granted-DEFINES read below
+				// (requireScopedWorkloadRepositories on the "<-[:DEFINES]-"
+				// branch already proves that query still carries the grant).
+				if strings.Contains(cypher, "EXISTS") {
+					t.Fatalf("initial workload match retained the retired EXISTS grant predicate: %s", cypher)
+				}
+				querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 				return map[string]any{
 					"id":      "workload:payments",
 					"name":    "payments",
@@ -60,7 +71,17 @@ func TestFetchWorkloadContextOmitsRepositoryUnownedRuntimeForScopedCaller(t *tes
 	reader := fakeWorkloadGraphReader{
 		runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 			if strings.Contains(cypher, "MATCH (w:Workload)") && strings.Contains(cypher, "w.id = $workload_id") {
-				requireScopedWorkloadRepositories(t, cypher, params, "repo-team-a", "repo-team-b")
+				// #6786: no Cypher-embedded grant predicate here (see the
+				// sibling test above); "workload:payments" own repo_id
+				// (repo-team-z) is deliberately NOT in the caller's grant,
+				// to prove admission through the DEFINES route below
+				// instead -- requireScopedWorkloadRepositories on the
+				// "<-[:DEFINES]-" branch proves that query still carries
+				// the grant.
+				if strings.Contains(cypher, "EXISTS") {
+					t.Fatalf("initial workload match retained the retired EXISTS grant predicate: %s", cypher)
+				}
+				querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 				return map[string]any{
 					"id":      "workload:payments",
 					"name":    "payments",
@@ -164,6 +185,52 @@ func TestFetchWorkloadContextOmitsRepositoryUnownedRuntimeForScopedCaller(t *tes
 	}
 }
 
+// TestGetWorkloadContextNoGrantRelationshipReturnsNotFound is the #6786
+// regression: a scoped caller with a real (non-empty) grant, but no
+// relationship at all to the requested workload -- its own repo_id is
+// ungranted AND no granted repository DEFINES it -- must get a 404, never the
+// workload's identity (id/name/kind). Before the fix, the retired
+// Cypher-embedded EXISTS/OR grant predicate was unreliable on NornicDB
+// v1.3.3 and could resolve to this workload regardless of grant.
+func TestGetWorkloadContextNoGrantRelationshipReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	reader := fakeWorkloadGraphReader{
+		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+			if strings.Contains(cypher, "MATCH (w:Workload)") && strings.Contains(cypher, "w.id = $workload_id") {
+				return map[string]any{
+					"id":      "workload:payments",
+					"name":    "payments",
+					"kind":    "service",
+					"repo_id": "repo-team-z",
+				}, nil
+			}
+			return nil, nil
+		},
+		runByMatch: map[string][]map[string]any{
+			// No DEFINES row at all: no granted repository defines this
+			// workload either.
+			"<-[:DEFINES]-(r:Repository)": {},
+		},
+	}
+	handler := &EntityHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/workloads/workload:payments/context", nil)
+	req.SetPathValue("workload_id", "workload:payments")
+	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
+		Mode:                 AuthModeScoped,
+		TenantID:             "tenant-a",
+		WorkspaceID:          "workspace-a",
+		AllowedRepositoryIDs: []string{"repo-team-a"},
+	}))
+	rec := httptest.NewRecorder()
+
+	handler.GetWorkloadContext(rec, req)
+
+	if got, want := rec.Code, http.StatusNotFound; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
+	}
+}
+
 func TestGetWorkloadContextEmptyGrantReturnsNotFoundWithoutBackendCalls(t *testing.T) {
 	t.Parallel()
 
@@ -192,175 +259,6 @@ func TestGetWorkloadContextEmptyGrantReturnsNotFoundWithoutBackendCalls(t *testi
 	}
 }
 
-func TestGetServiceStoryCandidateQueryAppliesScopedAuthBeforeAmbiguity(t *testing.T) {
-	t.Parallel()
-
-	reader := fakeWorkloadGraphReader{
-		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if strings.Contains(cypher, "w.name = $service_name") {
-				requireScopedWorkloadPredicate(t, cypher, params)
-				return []map[string]any{{
-					"id":      "workload:payments",
-					"name":    "payments",
-					"kind":    "service",
-					"repo_id": "repo-team-a",
-				}}, nil
-			}
-			return nil, nil
-		},
-		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
-			if strings.Contains(cypher, "w.id = $workload_id") {
-				return map[string]any{
-					"id":      "workload:payments",
-					"name":    "payments",
-					"kind":    "service",
-					"repo_id": "repo-team-a",
-				}, nil
-			}
-			if strings.Contains(cypher, "MATCH (r:Repository") {
-				return map[string]any{"repo_name": "payments"}, nil
-			}
-			return nil, nil
-		},
-	}
-	handler := &EntityHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/services/payments/story", nil)
-	req.SetPathValue("service_name", "payments")
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
-		TenantID:             "tenant-a",
-		WorkspaceID:          "workspace-a",
-		AllowedRepositoryIDs: []string{"repo-team-a"},
-	}))
-	rec := httptest.NewRecorder()
-
-	handler.GetServiceStory(rec, req)
-
-	if got, want := rec.Code, http.StatusOK; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-	}
-}
-
-func TestGetServiceContextReadModelFallbackFiltersOutOfScopeRepository(t *testing.T) {
-	t.Parallel()
-
-	content := &recordingServiceContextContentStore{
-		repo: &RepositoryCatalogEntry{ID: "repo-team-b", Name: "payments"},
-		summary: RepositoryReadModelSummary{
-			Available:     true,
-			WorkloadNames: []string{"payments"},
-		},
-	}
-	handler := &EntityHandler{
-		Neo4j:   fakeWorkloadGraphReader{},
-		Content: content,
-		Profile: ProfileLocalAuthoritative,
-	}
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/services/payments/context", nil)
-	req.SetPathValue("service_name", "payments")
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
-		TenantID:             "tenant-a",
-		WorkspaceID:          "workspace-a",
-		AllowedRepositoryIDs: []string{"repo-team-a"},
-	}))
-	rec := httptest.NewRecorder()
-
-	handler.GetServiceContext(rec, req)
-
-	if got, want := rec.Code, http.StatusNotFound; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-	}
-	if got, want := content.resolveRepositoryCalls, 1; got != want {
-		t.Fatalf("resolveRepositoryCalls = %d, want %d", got, want)
-	}
-	if content.summaryCalls != 0 {
-		t.Fatalf("summaryCalls = %d, want 0 before read-model hydration", content.summaryCalls)
-	}
-}
-
-func TestInvestigateServiceCandidateQueryAppliesScopedAuthBeforeAmbiguity(t *testing.T) {
-	t.Parallel()
-
-	candidateQuerySeen := false
-	reader := fakeWorkloadGraphReader{
-		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if strings.Contains(cypher, "w.name = $service_name") {
-				candidateQuerySeen = true
-				requireScopedWorkloadPredicate(t, cypher, params)
-				return []map[string]any{{
-					"id":      "workload:payments",
-					"name":    "payments",
-					"kind":    "service",
-					"repo_id": "repo-team-a",
-				}}, nil
-			}
-			return nil, nil
-		},
-		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
-			if strings.Contains(cypher, "w.id = $workload_id") {
-				return map[string]any{
-					"id":      "workload:payments",
-					"name":    "payments",
-					"kind":    "service",
-					"repo_id": "repo-team-a",
-				}, nil
-			}
-			if strings.Contains(cypher, "MATCH (r:Repository") {
-				return map[string]any{"repo_name": "payments"}, nil
-			}
-			return nil, nil
-		},
-	}
-	handler := &EntityHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/services/payments", nil)
-	req.SetPathValue("service_name", "payments")
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
-		TenantID:             "tenant-a",
-		WorkspaceID:          "workspace-a",
-		AllowedRepositoryIDs: []string{"repo-team-a"},
-	}))
-	rec := httptest.NewRecorder()
-
-	handler.InvestigateService(rec, req)
-
-	if got, want := rec.Code, http.StatusOK; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-	}
-	if !candidateQuerySeen {
-		t.Fatal("service candidate query was not called")
-	}
-}
-
-func TestInvestigateServiceEmptyGrantReturnsNotFoundWithoutBackendCalls(t *testing.T) {
-	t.Parallel()
-
-	reader := &recordingServiceContextGraphReader{}
-	content := &recordingServiceContextContentStore{}
-	handler := &EntityHandler{Neo4j: reader, Content: content, Profile: ProfileLocalAuthoritative}
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/services/payments", nil)
-	req.SetPathValue("service_name", "payments")
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:        AuthModeScoped,
-		TenantID:    "tenant-a",
-		WorkspaceID: "workspace-a",
-	}))
-	rec := httptest.NewRecorder()
-
-	handler.InvestigateService(rec, req)
-
-	if got, want := rec.Code, http.StatusNotFound; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-	}
-	if reader.runSingleCalls != 0 || reader.runCalls != 0 {
-		t.Fatalf("graph calls = runSingle:%d run:%d, want none", reader.runSingleCalls, reader.runCalls)
-	}
-	if content.resolveRepositoryCalls != 0 || content.summaryCalls != 0 {
-		t.Fatalf("content calls = resolve:%d summary:%d, want none", content.resolveRepositoryCalls, content.summaryCalls)
-	}
-}
-
 func requireScopedWorkloadPredicate(t *testing.T, cypher string, params map[string]any) {
 	t.Helper()
 	requireScopedWorkloadRepositories(t, cypher, params, "repo-team-a")
@@ -377,6 +275,7 @@ func requireScopedWorkloadRepositories(
 	if !strings.Contains(cypher, "allowed_repository_ids") {
 		t.Fatalf("query missing scoped repository predicate:\n%s", cypher)
 	}
+	querytestutil.AssertCypherHasNoBrokenAndOr(t, cypher)
 	allowed, ok := params["allowed_repository_ids"].([]string)
 	if !ok || len(allowed) != len(want) {
 		t.Fatalf("allowed_repository_ids = %#v, want %#v", params["allowed_repository_ids"], want)

@@ -11,7 +11,11 @@
 // relationship instead of the real ones. The test drives the real handler
 // against a seed whose right answer is known by construction.
 //
-// Run against an isolated container on the pinned image:
+// Run against an isolated container on the pinned image (ESHU_LIVE_GRAPH_BACKEND
+// defaults to nornicdb and ESHU_LIVE_GRAPH_DATABASE to "nornic" -- see
+// liveGraphBackend, live_schema_helper_test.go -- so this reproduces the
+// original NornicDB-only invocation unchanged; pass both to also run this
+// same test against Neo4j, which #6784 does):
 //
 //	docker run -d --name eshu-answer-truth -e NORNICDB_NO_AUTH=true \
 //	  -e NORNICDB_EMBEDDING_ENABLED=false -p 127.0.0.1:27687:7687 \
@@ -32,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -66,6 +71,8 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 	if uri == "" {
 		t.Fatal("ESHU_NEO4J_URI is required")
 	}
+	backend, database := liveGraphBackend()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	driver, err := neo4jdriver.NewDriverWithContext(uri, neo4jdriver.NoAuth())
@@ -77,7 +84,11 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 		t.Fatalf("verify connectivity: %v", err)
 	}
 
-	reader := entityLiveReader{driver: driver}
+	if err := graph.EnsureSchemaWithBackendStrict(ctx, liveSchemaExecutor{driver: driver, database: database}, nil, backend); err != nil {
+		t.Fatalf("apply schema: %v", err)
+	}
+
+	reader := entityLiveReader{driver: driver, database: database}
 	reader.write(ctx, t, entityAnswerTruthCleanup)
 	for _, stmt := range entityAnswerTruthSeed {
 		reader.write(ctx, t, stmt)
@@ -123,14 +134,28 @@ func TestLiveNornicDBEntityContextAnswerTruth(t *testing.T) {
 	}
 }
 
-// entityLiveReader is the test-only live GraphQuery for this file. The package
-// cannot import root query's Neo4jReader without a cycle.
+// entityLiveReader is the test-only live GraphQuery for this file and its
+// sibling scoped_grant_live_test.go. The package cannot import root query's
+// Neo4jReader without a cycle.
+//
+// database defaults to "nornic" (the zero value triggers that default in
+// sessionConfig below) when a construction site does not set it explicitly;
+// every construction site in this package now does, via liveGraphBackend.
 type entityLiveReader struct {
-	driver neo4jdriver.DriverWithContext
+	driver   neo4jdriver.DriverWithContext
+	database string
+}
+
+// sessionConfigDatabase returns r.database, defaulting to "nornic" when unset.
+func (r entityLiveReader) sessionConfigDatabase() string {
+	if r.database == "" {
+		return "nornic"
+	}
+	return r.database
 }
 
 func (r entityLiveReader) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: "nornic"})
+	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeRead, DatabaseName: r.sessionConfigDatabase()})
 	defer func() { _ = session.Close(ctx) }()
 	result, err := session.Run(ctx, cypher, params)
 	if err != nil {
@@ -161,13 +186,17 @@ func (r entityLiveReader) RunSingle(ctx context.Context, cypher string, params m
 
 func (r entityLiveReader) write(ctx context.Context, t *testing.T, cypher string) {
 	t.Helper()
-	session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: "nornic"})
-	defer func() { _ = session.Close(ctx) }()
-	result, err := session.Run(ctx, cypher, nil)
+	err := retryLiveWrite(ctx, func() error {
+		session := r.driver.NewSession(ctx, neo4jdriver.SessionConfig{AccessMode: neo4jdriver.AccessModeWrite, DatabaseName: r.sessionConfigDatabase()})
+		defer func() { _ = session.Close(ctx) }()
+		result, runErr := session.Run(ctx, cypher, nil)
+		if runErr != nil {
+			return runErr
+		}
+		_, runErr = result.Consume(ctx)
+		return runErr
+	})
 	if err != nil {
 		t.Fatalf("write %q: %v", cypher, err)
-	}
-	if _, err := result.Consume(ctx); err != nil {
-		t.Fatalf("consume %q: %v", cypher, err)
 	}
 }

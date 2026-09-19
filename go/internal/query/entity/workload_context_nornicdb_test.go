@@ -19,24 +19,29 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 
 	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
-			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
-				if strings.Contains(cypher, "OPTIONAL MATCH") || strings.Contains(cypher, "collect(DISTINCT {") {
-					t.Fatalf("cypher = %q, want scalar queries without optional map projection", cypher)
-				}
-				if !strings.Contains(cypher, "RETURN w.id as id, w.name as name, w.kind as kind") {
-					t.Fatalf("unexpected RunSingle cypher: %q", cypher)
-				}
-				if got, want := params["service_name"], "svc-orders"; got != want {
-					t.Fatalf("params[service_name] = %#v, want %#v", got, want)
-				}
-				return map[string]any{
-					"id":   "workload:svc-orders",
-					"name": "svc-orders",
-					"kind": "service",
-				}, nil
+			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+				t.Fatalf("unexpected RunSingle cypher for a name-keyed lookup: %q", cypher)
+				return nil, nil
 			},
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, "OPTIONAL MATCH") || strings.Contains(cypher, "collect(DISTINCT {") {
+				if strings.Contains(cypher, "collect(DISTINCT {") {
+					t.Fatalf("cypher = %q, want scalar queries without optional map projection", cypher)
+				}
+				// The #6786 name-keyed candidate read is the one read allowed an
+				// OPTIONAL MATCH: it collects scalar DEFINES repository ids, the
+				// shape the deployment-trace selector already runs live on
+				// NornicDB, never a map projection.
+				if strings.Contains(cypher, "collect(DISTINCT dr.id) as defining") {
+					if got, want := params["service_name"], "svc-orders"; got != want {
+						t.Fatalf("params[service_name] = %#v, want %#v", got, want)
+					}
+					return []map[string]any{{
+						"id":   "workload:svc-orders",
+						"name": "svc-orders",
+						"kind": "service",
+					}}, nil
+				}
+				if strings.Contains(cypher, "OPTIONAL MATCH") {
 					t.Fatalf("cypher = %q, want scalar queries without optional map projection", cypher)
 				}
 				if strings.Contains(cypher, "MATCH (i)-[runsOn:RUNS_ON]->") {
@@ -197,18 +202,18 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
-				if !strings.Contains(cypher, "RETURN w.id as id, w.name as name, w.kind as kind") {
-					t.Fatalf("unexpected RunSingle cypher: %q", cypher)
-				}
-				return map[string]any{
-					"id":      "workload:sample-service",
-					"name":    "sample-service",
-					"kind":    "service",
-					"repo_id": "repository:r_fdb82379",
-				}, nil
+				t.Fatalf("unexpected RunSingle cypher: %q", cypher)
+				return nil, nil
 			},
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "collect(DISTINCT dr.id) as defining"):
+					return []map[string]any{{
+						"id":      "workload:sample-service",
+						"name":    "sample-service",
+						"kind":    "service",
+						"repo_id": "repository:r_fdb82379",
+					}}, nil
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{
 						"repo_id": "repository:r_fdb82379", "repo_name": "sample-service",
@@ -353,15 +358,17 @@ func TestFetchDeploymentTraceKeepsProvisionedPlatformSeparateWhenInstanceRunsOnM
 				if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {
 					return map[string]any{"repo_name": "legacy-service"}, nil
 				}
-				return map[string]any{
-					"id":      "workload:legacy-service",
-					"name":    "legacy-service",
-					"kind":    "service",
-					"repo_id": "repository:legacy",
-				}, nil
+				return nil, nil
 			},
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
+				case strings.Contains(cypher, "collect(DISTINCT dr.id) as defining"):
+					return []map[string]any{{
+						"id":      "workload:legacy-service",
+						"name":    "legacy-service",
+						"kind":    "service",
+						"repo_id": "repository:legacy",
+					}}, nil
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repository:legacy", "repo_name": "legacy-service"}}, nil
 				case strings.Contains(cypher, "-[runsOn:RUNS_ON]->(p:Platform)"):
