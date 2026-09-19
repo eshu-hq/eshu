@@ -219,40 +219,51 @@ return, so B-7 is green on both. The fix needs the owner to choose the
 semantics (the recommendation is the BFS rule: each reachable node once, at
 its shortest depth, excluding the start). Then the non-selected route should
 change, with a Cypher measurement, and the shape should pin an exact count.
-This belongs to the #6782 Tier-B response diff.
+Tracked in #6849, which belongs to the #6782 Tier-B response diff.
 
-### 3b. `rc-12` INHERITS on NornicDB changes run to run
+### 3b. `rc-12` INHERITS changes run to run on both backends
 
-Across the eight B-7 logs available at this branch and its siblings, Neo4j
-reported 22 both times. NornicDB reported 23 twice (`b7-batch-6782-nornic`,
-`b7-6785a-rebased`) and 22 four times (`b7-6782-nornic`, `b7-batch-6785`,
-`b7-batch-6786pub`, `b7-labels-rebased`). The count on NornicDB is therefore
-not deterministic.
+The Class `INHERITS` count is not deterministic on either backend, so this
+is not a backend divergence. Every B-7 log at this branch and its siblings
+reports `rc-12` as 22 or 23:
+
+| Backend | 22 | 23 |
+| --- | --- | --- |
+| Neo4j | `b7-6782-neo4j`, `b7-batch-6782-neo4j` | `b7-batch2-6782-neo4j` |
+| NornicDB | `b7-6782-nornic`, `b7-6785-ledger`, `b7-batch-6785`, `b7-batch-6786pub`, `b7-labels-rebased`, `b7-batch2-6782-nornic`, `b7-batch2-labels` | `b7-batch-6782-nornic`, `b7-6785a-rebased`, `b7-batch2-6785`, `b7-batch2-6786pub` |
+
+The same-branch pairs show the flip directly. At `f9b6b189d`
+(`b7-batch-6782-*`) NornicDB reported 23 and Neo4j 22. At `be5cc1d5b`
+(`b7-batch2-6782-*`) NornicDB reported 22 and Neo4j 23.
 
 Disproven theory: that NornicDB's relationship `MERGE` in
 `batchCanonicalInheritanceEdgeUpsertCypher` creates a second edge. On both
 pinned images with the schema applied, the production template left exactly
 one `INHERITS` edge per pair in each of three probes: two identical rows in one
 `UNWIND` batch; three sequential runs; and 8 concurrent writers on each of 18
-pairs.
+pairs. The Neo4j 23 in batch2 is consistent with that: the variance does not
+depend on the backend.
 
-Disposition: open, as a finding. The extra edge comes from somewhere other
-than duplicate `MERGE` on a known pair: a different resolved parent, or an
-ordering race between the inheritance retract and upsert, are the next
-theories. Telling them apart needs a projected corpus graph dumped from a
-23-edge NornicDB run. `rc-12` is a floor (`>= 1`), so the flip does not fail
-B-7. It must be root-caused before `rc-12` or an INHERITS count gets an exact
-bound.
+Disposition: open, tracked in #6850. The extra edge most likely comes from
+Eshu's pipeline upstream of the graph write, not from either backend. The
+next theories are a different resolved parent (parent-resolution order) or an
+ordering race between the inheritance retract and upsert. Telling them apart
+needs a projected corpus graph dumped from a 23-edge run on either backend and
+diffed against a 22-edge run. `rc-12` is a floor (`>= 1`), so the flip does not
+fail B-7. It must be root-caused before `rc-12` or an INHERITS count gets an
+exact bound.
 
 ### 3c. The element total
 
-With 3b's extra NornicDB edge, Neo4j carries 3 more elements outside the
-asserted labels and types in that run pair. The logs do not break the total
-down by label, and the snapshot asserts no per-label total for these
-elements, so the 3 elements are not yet identified. They are left open with
-3b, for the slice-2 graph-state tier, which diffs per-label and per-type
-totals between backends. No assertion pins the element total: it is a
-corpus-size readout, not a contract.
+In both same-branch run pairs, Neo4j carries 3 more elements than NornicDB
+once the INHERITS edge from 3b is netted out. At `f9b6b189d` the totals were
+2770 (NornicDB, 23 INHERITS) and 2772 (Neo4j, 22). At `be5cc1d5b` they were
+2770 (NornicDB, 22) and 2774 (Neo4j, 23). The logs do not break the total down
+by label, and the snapshot asserts no per-label total for these elements, so
+the 3 elements are not yet identified. They are left for the slice-2
+graph-state tier, which diffs per-label and per-type totals between backends.
+No assertion pins the element total: it is a corpus-size readout, not a
+contract.
 
 ## Open follow-ups
 
@@ -261,8 +272,8 @@ corpus-size readout, not a contract.
   other production `UNWIND` writer, with four more fixes and a reusable guard,
   is in [6782-unwind-missing-row-key-audit.md](6782-unwind-missing-row-key-audit.md).
 - Section 3 lists the differences that still pass on both backends: the
-  transitive `CALLS` semantics (3a), the NornicDB INHERITS count (3b), and
-  the unidentified element gap (3c).
+  transitive `CALLS` semantics (3a, #6849), the INHERITS count that varies
+  on both backends (3b, #6850), and the unidentified element gap (3c).
 - The two call-chain routes return different numbers of chains. NornicDB's
   breadth-first walk returns up to 5 chains across depths, while Neo4j returns
   one shortest path per endpoint pair. This is pre-existing, and a candidate
