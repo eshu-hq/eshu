@@ -440,7 +440,7 @@ The source-only rollup's `NOT (jsonb_typeof(payload->'x') = 'array' AND ...)`
 evaluates to NULL when one of the three ref keys is absent. So a fact missing
 any of those keys is never counted as source-only. This change preserves that
 behavior for parity, and the story semantics test pins it. The gap is
-tracked separately.
+tracked in #6807.
 
 ## Observability Evidence
 

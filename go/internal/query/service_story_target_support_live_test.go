@@ -29,7 +29,7 @@ import (
 //     observed_at is broken deterministically;
 //   - a kind listed twice counts its facts once (fact_kind = ANY semantics);
 //   - the source-only rollup keeps its pre-existing three-valued-logic
-//     behavior: a fact missing a ref key is not counted (tracked separately).
+//     behavior: a fact missing a ref key is not counted (tracked in #6807).
 //
 // Skipped unless ESHU_POSTGRES_DSN names a disposable Postgres.
 func TestServiceStoryTargetSupportSQLSemanticsLive(t *testing.T) {
