@@ -28,7 +28,7 @@ relying on either answer (spot v1.3.3 re-measurement: grant-join and no-WHERE ag
 ## How To Use This Page
 
 1. Read the matching section before writing or changing a Cypher read/retract
-   shape that anchors on a label disjunction, unions per-branch, aggregates over
+   shape that anchors on a label disjunction, filters on a label, aggregates over
    a `CALL {}` subquery, attaches a `WHERE` to a `WITH`, or places any clause
    between the anchor `MATCH` and the final `RETURN`.
 2. Validate the behavior against the current `NornicDB-New` checkout that built
@@ -556,121 +556,92 @@ Compare stable identity properties: `coalesce(a.id, a.uid) <> coalesce(b.id,
 b.uid)`. The route-to-caller directional reads use this form to exclude the
 handler itself from its own caller/callee set.
 
-## Pitfall: A `WHERE` Attached To `WITH` Is Not Evaluated As A Filter
+## Pitfall: A Label Predicate's Clause Position Decides Whether It Is Evaluated
 
-### Observed shape
+### Observed shape on v1.3.3 (#6786 X11)
 
-A `WHERE` sub-clause attached to a `WITH` is not applied. It fails in both
-directions depending on the predicate, and never errors:
+On `timothyswt/nornicdb-cpu-bge:v1.3.3` a label predicate is evaluated or
+ignored depending on the clause it is attached to, and never errors:
 
 ```cypher
--- IGNORED (over-returns): a label test
-MATCH (n) WITH n WHERE n:Workload RETURN count(*)
--- Neo4j 1, NornicDB 4 -- every node comes back
+-- IGNORED: label test in the WHERE of a MATCH with a relationship pattern
+MATCH (s)-[:DEPENDS_ON]->(t) WHERE s:Repository AND t:Repository RETURN s.id, t.id
+-- Neo4j 2 rows, NornicDB 6 (every DEPENDS_ON edge); same with labelled
+-- pattern nodes, OR, AND with <> or IN, two-hop and variable-length patterns
+MATCH (s)-[:DEPENDS_ON]->(t) WHERE NOT t:Workload RETURN t.id      -- Neo4j 3, NornicDB 0
+MATCH (s)-[:DEPENDS_ON]->(t) WHERE any(l IN labels(t) WHERE l IN $ls) RETURN t.id
+-- ignored; a list comprehension over labels(t) is ignored too
 
--- IGNORED (over-returns): a string operator
-MATCH (a:T) WITH a WHERE a.v STARTS WITH 'al' RETURN count(*)
--- Neo4j 1, NornicDB 2
+-- WORKS in that position: IN labels()
+MATCH (s)-[:DEPENDS_ON]->(t) WHERE 'Repository' IN labels(s) AND $type IN labels(t) RETURN s.id
 
--- NULL (under-returns to zero): any function call on a bound variable or alias
-MATCH (a:T) WITH a WHERE toUpper(a.v) = 'ALPHA' RETURN count(*)       -- Neo4j 1, NornicDB 0
-MATCH (a:T) WITH a WHERE size(a.v) = 5 RETURN count(*)                -- Neo4j 1, NornicDB 0
-MATCH (a:T) WITH a WHERE coalesce(a.v,'X') = 'alpha' RETURN count(*)  -- Neo4j 1, NornicDB 0
+-- After WITH it is the other way round
+MATCH (s)-[:DEPENDS_ON]->(t) WITH s, t WHERE t:Repository RETURN t.id          -- works
+MATCH (n) WITH n WHERE 'Workload' IN labels(n) RETURN count(*)                  -- ignored
+MATCH (s)-[:DEPENDS_ON]->(t) WITH s, t WHERE NOT t:Workload RETURN t.id         -- ignored
 
--- WORKS: a bare property compared to a literal
-MATCH (a:T) WITH a WHERE a.v = 'alpha' RETURN count(*)                -- both 1
-
--- WORKS: hoist the function into the WITH projection, filter on the alias
-MATCH (a:T) WITH a, toUpper(a.v) AS u WHERE u = 'ALPHA' RETURN count(*)  -- both 1
-
--- WORKS: put the WHERE before the WITH
-MATCH (a:T) WHERE toUpper(a.v) = 'ALPHA' WITH a RETURN count(*)       -- both 1
+-- Single-node MATCH: label tests work, quantifiers over labels() return 0 rows
+MATCH (n) WHERE n:Function OR n:Class RETURN n.id                               -- works
+MATCH (n) WHERE any(l IN labels(n) WHERE l IN ['Repository']) RETURN n.id       -- 0 rows
 ```
 
-The NULL mechanism is pinned directly: `WHERE coalesce(a.v,'X') IS NULL` returns
-1 on NornicDB and 0 on Neo4j. Since `coalesce(null,'X')` is `'X'`, the arguments
-resolve — the whole call short-circuits to NULL, which explains why `=`, `<>` and
-`IS NOT NULL` all filter everything. Function calls on literal arguments are
-unaffected (`WHERE size('abcd') = 4` returns 1 on both).
+A property equality `AND`ed with the label test (`WHERE s:R AND s.id = 'r1'`)
+happened to evaluate correctly; do not rely on it. The full probe matrix,
+rows per backend, and the production exposure audit are in
+`docs/internal/evidence/6786-nornicdb-label-predicates.md`.
 
-This is about clause position, not about any particular function. `coalesce` is
-not special; `toUpper` and `size` fail the same way, and `coalesce(a.v, b.v)`
-with no literal argument fails too.
+The probes must read in auto-commit mode (`session.Run`), as production does:
+in a managed transaction v1.3.3 rejects every `CALL { … }` subquery with
+`unknown procedure: CALL {`, which makes CALL-based reads look broken when
+they are not. The label verdicts above are the same in both modes.
 
-### Which builds this was measured on
+### Older builds: a WHERE attached to WITH was not a filter
 
-**This is not fixed upstream.** Re-measured against NornicDB `main` at commit
-`8abc2269` (reports `v1.2.2`), built locally with `-tags nolocalllm`. Every
-signature reproduces:
-
-| Query | Correct | NornicDB main `8abc2269` |
-| --- | ---: | ---: |
-| `MATCH (n) WITH n WHERE n:Workload RETURN count(*)` | 1 | **4** |
-| `MATCH (n) WHERE n:Workload WITH n RETURN count(*)` | 1 | 1 |
-| `MATCH (a:Workload) WITH a WHERE toUpper(a.name) = 'CHECKOUT' RETURN count(*)` | 1 | **0** |
-| `MATCH (a:Workload) WITH a WHERE a.name = 'checkout' RETURN count(*)` | 1 | 1 |
-| `MATCH (a:Workload) WITH a WHERE coalesce(a.name,'X') IS NULL RETURN count(*)` | 0 | **1** |
-
-The production change-surface shape leaks on `main` as well: running arm 1's
-exact `CALL { … WITH path, impacted WHERE impacted:Workload OR
-impacted:CloudResource … }` against a seeded graph returned the `File` node
-alongside the two whitelisted ones. So the Go-side enforcement is **not** a
-legacy-pin workaround — it is required against current upstream.
-
-Two pinned images and one local build are relevant, and this shape was checked
-on all three:
-
-- `eshu-nornicdb-pr290:3722b483c02c` — the Compose default when this shape was
-  measured. The Neo4j-vs-NornicDB counts under
-  **Observed shape** above were measured here against Neo4j 2026.05.0.
-- `timothyswt/nornicdb-cpu-bge:v1.1.11` — the image most of this page's other
-  entries name, and the chart's pin at the time this was measured. #6296 later
-  moved `deploy/helm/eshu/values.yaml` to `v1.2.3` by digest, and this change
-  moves it again to v1.3.1; #6162 subsequently moves the current pin to v1.3.2. The shape has not been re-run on the current pin.
-  The ignored-label-filter behaviour
-  **reproduces here too**: a `WHERE impacted:Workload` clause attached to a
-  `WITH` still admitted a `File` row.
-- NornicDB `main` at `8abc2269` — a local checkout rather than a published
-  image, so it has no pin to cite. Checked to confirm the defect is not already
-  fixed upstream; it is not.
-
-So the defect spans every lane, including current upstream. A related question
-is settled in the other direction: `length(path)` and `labels()` **are**
-projected correctly inside a `CALL {}` subquery — `depth` returned 1 and 2, not
-`0`, and `labels` returned real arrays. Checked on all three builds: v1.1.11,
-`eshu-nornicdb-pr290:3722b483c02c`, and `main` `8abc2269`, with the same seeded
-graph and the same arm-1 shape each time.
-That matters because the adjacent
-[multi-clause read pitfall](#pitfall-multi-clause-read-queries-silently-corrupt-the-projection)
-reports `length(path)` collapsing to `0`, which would make the change-surface
-depth ordering untrustworthy if it applied here. It does not.
-
-One thing deliberately not claimed: on `main` `8abc2269`, `length(path)` also
-returned real values in the *top-level* `MATCH … WITH path, impacted RETURN …
-length(path)` shape. That is one shape, not the full pattern the older pitfall
-documents, so it is recorded here as an observation rather than as evidence that
-the older pitfall is fixed. Someone re-validating that entry should measure it
-directly.
+On `eshu-nornicdb-pr290:3722b483c02c`, `v1.1.11` and NornicDB `main` at
+`8abc2269` the WITH position was the broken one. `MATCH (n) WITH n WHERE
+n:Workload RETURN count(*)` returned 4 against Neo4j's 1. A string operator
+there (`WITH a WHERE a.v STARTS WITH 'al'`) over-returned, and any function
+call on a bound variable (`toUpper(a.v) = 'ALPHA'`, `size(a.v) = 5`,
+`coalesce(a.v,'X') = 'alpha'`) short-circuited to NULL and returned zero rows.
+A bare property compared to a literal worked, as did hoisting the function
+into the WITH projection or moving the WHERE before the WITH. On those builds
+`length(path)` and `labels()` were projected correctly inside a `CALL {}`
+subquery. The function-call-after-WITH shapes have not been re-measured on
+v1.3.3.
 
 ### Eshu implications
 
-Do not express a filter in a `WHERE` attached to a `WITH`. Put the predicate in
-the `MATCH`-attached `WHERE`, or hoist the expression into the `WITH` projection
-and compare the alias.
+Filter labels only in a position the pinned build evaluates, and keep the
+filter server-side so `LIMIT` runs over the rows the caller should see:
 
-Where neither is available, enforce the predicate in Go and say so at the call
-site. The scoped change-surface traversal is the live example: its impacted-label
-whitelist sits in a `WITH`-attached `WHERE`, and the split is not gratuitous —
-combining the `repo_id` predicate and the label predicate in one `WHERE` empties
-that traversal on the same build. With no clause arrangement that filters
-correctly, the whitelist is enforced by `changeSurfaceImpactedLabels` in
-`go/internal/query/impact/change_surface_traversal.go`.
+- After a relationship `MATCH`, write `'Label' IN labels(x)` (an OR-chain for
+  several labels), never `x:Label`, `NOT x:Label`, or a quantifier over
+  `labels()`.
+- After a `WITH`, a positive `x:Label` test works on v1.3.3; `IN labels(x)`
+  and `NOT x:Label` do not.
+- `(x:A|B)` in the pattern is not an alternative: it matches zero rows (see
+  the label-disjunction pitfall above).
 
-A Go-side filter does not fully restore the contract, and the gap is worth
-stating. `LIMIT` still runs server-side against the unfiltered set, so a page
-dominated by rows the server should have excluded returns fewer results than the
-limit allows. Compute the truncation signal from the raw row count, before the
-Go filter, so a short page is reported as truncated rather than as complete.
+`querytestutil.AssertCypherHasNoIgnoredLabelPredicate` rejects the ignored
+shapes in a rendered statement, and
+`TestProductionCypherHasNoIgnoredLabelPredicate` scans every production Cypher
+literal under `go/internal` and `go/cmd`.
+
+Three reads were fixed this way. The repository infrastructure read moved its
+20-label test into a WHERE attached to `WITH f, infra`. That is the fastest
+correct shape on both backends, and its full projection was verified live.
+The unscoped change-surface traversal and the OVERRIDES story read use
+`IN labels()` OR-chains, which keeps the single-clause contract #5287 requires
+of the traversal. Before the fix, a repository with more than 5,000 code
+entities returned no infrastructure and reported the page as truncated, and
+`File` rows crowded real change-surface impacts out of the page.
+
+Keep the Go-side whitelist wherever one exists, such as
+`changeSurfaceImpactedLabels` or `isRepositoryInfrastructureType`. No single
+clause arrangement has been correct across every build. A Go filter cannot
+recover rows that `LIMIT` already discarded, so compute the truncation signal
+from the raw row count before filtering. A short page then reads as
+truncated, not complete.
 
 ## Pitfall: Multi-Clause Read Queries Silently Corrupt The Projection
 
