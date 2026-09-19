@@ -98,6 +98,15 @@ accepting that they keep writing until they are replaced:
   bootstrap-index run that overlaps schema bootstrap keeps writing across the
   new marker, the same way the long-lived runtimes do.
 
+The infra read model (#6793) does not rely on this ordering. Migration 109
+fences writers at the database: a content write from a binary that does not
+maintain the read model marks its repository, the infra aggregate routes serve
+from the graph while any repository is marked, and the reducer repairs the
+marks. Rolling upgrades need no special ordering for that table. A connection
+pooler in front of the DSN must forward the `eshu.infra_inventory_writer`
+session setting; a stripped setting shows as `postgres.session_unfenced` and a
+non-zero `eshu_dp_infra_inventory_dirty_repos`.
+
 Helm renders `deploy/helm/eshu/templates/job-schema-bootstrap.yaml`. With
 `schemaBootstrap.useHelmHooks=true`, the Job runs as a pre-install/pre-upgrade
 hook. Do not attach schema verification to every runtime pod; repeated graph

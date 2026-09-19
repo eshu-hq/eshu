@@ -26,9 +26,12 @@ import (
 // ContentWriter's derive, generation retention's orphan delete) may run it;
 // runtime.OpenPostgres does, through WriterConnectOption.
 //
-// A pooler that drops session state loses the setting. That fails safe: the
-// writes are marked dirty, reads stay on the graph, and the reconcile
-// repairs the repositories.
+// A pooler that drops session state loses the setting. That fails safe for
+// this binary: its writes are marked dirty, reads stay on the graph, and the
+// reconcile repairs the repositories. A transaction-mode pooler can also
+// hand this setting to another client's transaction, so an older binary
+// sharing such a pooler could write unmarked; Eshu's deployment has no
+// pooler, and one placed in front of the DSN must forward the setting.
 const WriterSessionSQL = "SET eshu.infra_inventory_writer = '" + writerSessionValue + "'"
 
 // writerSessionValue is the setting WriterSessionSQL stores and the fence

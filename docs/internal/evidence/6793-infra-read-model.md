@@ -337,68 +337,135 @@ does not close this either, because it cannot see an old writer that is still
 running.
 
 Migration 109 therefore fences old writers in the database, the same approach
-as migration 096's trigger fence against old reducer pods. Every connection
-opened by `runtime.OpenPostgres` runs `SET eshu.infra_inventory_writer =
-'derive'` (`inventory.WriterSessionSQL`, through pgx's after-connect hook).
-Row triggers on `content_entities` (insert, update, delete) skip rows whose
-connection carries that setting. Any other write of an infra-typed row (an
-older binary, or manual SQL) upserts its repository into
-`infra_resource_entity_dirty_repos` in the same statement. Readers
-(`inventory.ReadModelReady`) trust the table only when the marker exists AND
-no repository is marked, one primary-key lookup plus a one-row probe. Each
+as migration 096's trigger fence against old reducer pods. The design and its
+cost thresholds follow a separate arbiter ruling. Every connection opened by
+`runtime.OpenPostgres` runs `SET eshu.infra_inventory_writer = 'derive'`
+(`inventory.WriterSessionSQL`, through pgx's after-connect hook). Triggers on
+`content_entities` skip sessions that carry that setting; any other session
+that writes an infra-typed row (an older ingester, projector, bootstrap-index,
+or reducer, or manual SQL) marks its repository in
+`infra_resource_entity_dirty_repos` in the same transaction. INSERT and UPDATE
+are statement-level triggers with transition tables, so a derive-aware session
+evaluates one WHEN per statement and an unaware statement takes each mark
+lock once. DELETE is row-level with the session test first, so a bulk
+retention prune builds no transition tuplestore. An ungated TRUNCATE trigger
+marks every mirrored repository. Readers (`inventory.ReadModelReady`) trust
+the table only when the marker exists and no repository is marked. Each
 reconcile cycle repairs marked repositories first, oldest first and counted
-against the budget: lock, delete the mark, re-derive, commit (`fenced`). A mark
-proves content changed without a derive, so it needs no second check.
+against the budget: lock, delete the mark, re-derive, commit (`fenced`). A
+mark proves content changed without a derive, so it needs no second check.
+A replica whose mark DELETE finds nothing (another replica or the backfill
+discharged it) rolls back and reports nothing, so each mark is re-derived and
+counted once (`TestWriterFenceLiveTwoReplicasRepairAMarkOnce`). The
+backfill's `MirrorRepo` discharges a mark the same way; path derives never
+do, because an unaware write can have changed any path.
 
-Interleaving: the trigger's upsert is `ON CONFLICT DO UPDATE`, which holds
-the mark's row lock until the unaware write commits. A repair's DELETE of the
-mark then waits for that write and, under Read Committed, re-checks the row
-and deletes it; the re-derive statement that follows takes a new snapshot and
-reads the write's rows. A write that starts after the repair's DELETE inserts
-a new mark that survives the repair. With `DO NOTHING`, which takes no lock,
-a repair could clear the mark and re-derive while the write's rows were still
+Interleaving: the mark upsert is `ON CONFLICT (repo_id) DO UPDATE SET
+marked_at = dirty.marked_at WHERE false`. It takes an existing mark's row
+lock until the unaware write commits, but never rewrites the row, so a large
+unaware write leaves no dead tuples (`TestWriterFenceLiveStatementShapes`
+asserts the mark's `xmin` does not move). A repair's DELETE of the mark waits
+for that write and, under Read Committed, re-checks the row and deletes it;
+the re-derive statement that follows takes a new snapshot and reads the
+write's rows. A write that starts after the repair's DELETE inserts a new mark
+that survives the repair. With `DO NOTHING`, which takes no lock, a repair
+could clear the mark and re-derive while the write's rows were still
 invisible, leaving the table short with no mark.
 `TestWriterFenceLiveRepairWaitsForAnOpenUnawareWrite` holds an unaware write
 open, asserts the repair blocks on the mark (`pg_stat_activity`
 `wait_event_type = 'Lock'`), commits, and asserts the table has the row and
-the mark is gone; swapping the upsert to `DO NOTHING` fails it. Four mutations
-were each run against the live fence tests and each failed: `DO NOTHING`, a
-reader gate on the marker alone, a cycle that skips marked repositories, and
-an insert trigger without the session predicate. Old writers serialize per
-repository on the mark while they run, which only lasts until the rollout
-finishes.
+the mark is gone. Each of these mutations fails a live test: `DO NOTHING`, a
+rewriting upsert, a reader gate on the marker alone, a cycle that skips
+marked repositories, and an insert trigger without the session predicate.
 
-A pooler that drops session state loses the setting. That fails safe: the
-writes are marked, reads stay on the graph, and the reconcile repairs them.
+Lock hold: only unaware sessions take mark locks, and they hold one for the
+rest of their own transaction. The older content writer autocommits each
+300-row batch, about 6 ms each at production index cost in the shim below,
+so another unaware writer of the same repository waits at most that long per
+batch. An older reducer's retention prune holds the marks of every
+repository it prunes for its whole transaction (2.3-4.9 s for a 50,000-fact
+batch in the retention lock proof above), once per prune batch, during the
+rollout only. New sessions never take a mark lock.
+Two older multi-repository transactions can deadlock on marks taken in
+opposite orders; PostgreSQL aborts one and it retries on its next run.
 
-Performance Evidence: shim on a local PostgreSQL 18 with `content_entities`
-and all of its production indexes, 10 repositories, a 50,000-row bulk upsert
-as 100 statements of 500 rows (40% infra-typed, `INSERT ... ON CONFLICT
-(entity_id) DO UPDATE` as the content writer runs it), once into an empty
-table (insert path) and again over the same rows (update path). Five rounds,
-configurations alternated in order each round, fresh table and a
-`CHECKPOINT` before each run; medians with the range:
+A connection pooler that drops or does not forward session settings loses
+the setting. That fails safe for this binary: its writes are marked, reads
+stay on the graph, and the reconcile repairs them. A transaction-mode pooler
+can also hand one binary's setting to another client's transaction, so an
+older binary sharing such a pooler could write unmarked. Eshu's deployment
+has no pooler; one placed in front of the DSN must forward
+`eshu.infra_inventory_writer`, and a stripped setting shows as
+`postgres.session_unfenced` at startup and `ok_unfenced_session` derives.
 
-| Configuration | insert path | update path |
-| --- | --- | --- |
-| no triggers | 824 ms (788-922) | 1,135 ms (1,081-1,186) |
-| triggers, derive-aware writer (WHEN false) | 839 ms (761-958), +1.8% | 1,120 ms (1,093-1,247), -1.3% |
-| triggers, unaware writer (WHEN true) | 1,174 ms (1,028-1,242), +42% | 2,168 ms (1,904-2,226), +91% |
+The ruling's statement-level bodies first used `SELECT DISTINCT repo_id,
+clock_timestamp()`, which keeps one row per content row because the time
+differs per row, so a multi-row unaware statement for one repository failed
+with SQLSTATE 21000. The shipped bodies deduplicate repositories before
+stamping the time, and the live shape test runs a 300-row unaware batch
+upsert.
 
-The derive-aware path, which every new binary takes, is within run-to-run
-noise: the WHEN clause is evaluated in the executor and never calls the
-function. The unaware path pays one mark upsert per infra row (two on an
-update, for NEW and OLD) and marked all 10 repositories; it runs only while
-older pods are still writing during a rollout. An earlier three-run shim of
-plain deletes measured 11-14 ms without the triggers and 18-20 ms with them
-for 50,000 rows, about 0.14 us per deleted row.
+No-Regression Evidence: shim on a local PostgreSQL 18 with
+`content_entities` and all of its production indexes (both trigram GINs),
+the committed migration 109 fence DDL, and 50,000 `K8sResource` rows of one
+repository (every row passes the label filter, the worst case) with
+production-width `source_cache` and `metadata`. Passes: insert and re-upsert
+as 300-row `INSERT ... ON CONFLICT (entity_id) DO UPDATE` statements (the
+content writer's shape), deletes by `(repo_id, relative_path)` in 300-path
+statements (5,000 rows), one bulk `DELETE ... WHERE repo_id` of the other
+45,000 rows (a retention prune's shape), and one 50,000-row single-statement
+insert (the review's worst case, previously 11.7 s unaware). Configurations
+alternated in order each round, fresh table and a `CHECKPOINT` before each;
+medians, microseconds per row against no triggers:
+
+| Pass | no triggers | fenced (new binaries) | unfenced (older binaries) |
+| --- | --- | --- | --- |
+| insert, 5 rounds, production indexes | 1,057 ms | 1,062 ms, +0.09 us/row | 1,038 ms, -0.38 us/row |
+| re-upsert | 1,148 ms | 1,146 ms, -0.05 us/row | 1,172 ms, +0.48 us/row |
+| path deletes, 5,000 rows | 19.2 ms | 18.9 ms, -0.05 us/row | 27.3 ms, +1.62 us/row |
+| bulk delete, 45,000 rows | 12.2 ms | 18.2 ms, +0.13 us/row | 88.2 ms, +1.69 us/row |
+| one 50,000-row statement | 1,020 ms | 1,019 ms, -0.02 us/row | 1,045 ms, +0.51 us/row |
+| insert, 7 rounds, PK only | 157 ms | 162 ms, +0.11 us/row | 166 ms, +0.19 us/row |
+| re-upsert, PK only | 197 ms | 208 ms, +0.22 us/row | 212 ms, +0.30 us/row |
+| path deletes, PK only | 14.6 ms | 15.1 ms, +0.11 us/row | 23.8 ms, +1.86 us/row |
+| bulk delete, PK only | 10.5 ms | 16.2 ms, +0.13 us/row | 88.2 ms, +1.73 us/row |
+| one 50,000-row statement, PK only | 120 ms | 138 ms, +0.36 us/row | 139 ms, +0.39 us/row |
+
+With production indexes the fenced and unfenced insert and upsert deltas
+are inside the round-to-round range (fenced insert 1,022-1,077 ms against
+none 1,010-1,095 ms). The PK-only table resolves the absolute cost: at most
+0.36 us per row for fenced sessions, where the only visible term is the
+transition capture of a single 50,000-row statement (the writer batches 300
+rows), and at most 1.86 us per row for unfenced ones, paid on deletes, where
+the row-level trigger upserts once per deleted infra row. The ruling's
+bounds were 0.5 and 3.0 us per row. The unaware single-statement insert that
+took 11.7 s with the row-level rewriting upsert now costs 1,045 ms against
+1,020 ms. Every fenced run left 0 marks; every unfenced run left exactly 1.
+
+After a rollback to a release before migration 109 the triggers stay,
+because migrations are recorded and not reverted. Every older binary is then
+an unaware writer: it pays the unfenced column above (at most about 2 us per
+deleted infra row, about 0.5 us per upserted one) and accumulates marks that
+nothing repairs until a release with the reconcile runs again. That older
+release does not read the table, so the marks are harmless there. The upgrade
+guide (`docs/public/deploy/kubernetes/upgrades-rollbacks.md`) says to keep the
+triggers, and how to recover if they were dropped: a recorded migration is not
+re-applied, so the operator removes its record and the backfill marker before
+upgrading again.
 
 Observability Evidence: `eshu_dp_infra_inventory_reconcile_total{outcome="fenced"}`
 counts repositories repaired after an unaware write; span attribute
 `eshu.infra_inventory.repos_fenced` and log event
-`infra_inventory.reconcile.fenced` (warn, with `repo_id`) name them. While
-marks exist, unscoped reads count as `eshu_dp_infra_inventory_reads_total{source="graph"}`
-after the marker, which is the signal that the fence is holding reads back.
+`infra_inventory.reconcile.fenced` (warn, with `repo_id`) name them. Gauges
+`eshu_dp_infra_inventory_dirty_repos` and
+`eshu_dp_infra_inventory_dirty_oldest_age_seconds`, recorded every reconcile
+cycle whether or not the marker exists, and the `/admin/status` field
+`infra_inventory` (`state` of `not_installed`, `backfilling`, `fenced`, or
+`ready`, with the count, oldest age, and the reason reads are on the graph)
+say why unscoped reads are on the graph. A derive whose own connection lacks
+the setting counts `eshu_dp_infra_inventory_derives_total{outcome="ok_unfenced_session"}`
+and logs `infra_inventory.derive.unfenced_session` at ERROR, and each writer
+binary logs `postgres.session_unfenced` at startup when its session lacks it.
 
 Follow-ups, out of scope for this change: move the backfill out of the API
 and MCP processes into the projector, which owns the derive, and record the
