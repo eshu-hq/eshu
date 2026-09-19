@@ -67,3 +67,29 @@ func TestAssertCypherHasNoIgnoredLabelPredicateSeededViolations(t *testing.T) {
 		})
 	}
 }
+
+// TestIgnoredLabelPredicateDocumentedBlindSpots pins the label tests the
+// guard does not inspect, which IgnoredLabelPredicate's doc comment lists.
+// The Sprintf and lowercase cases are the measured X11 shape in a form the
+// guard cannot parse; the comprehension cases have not been measured live on
+// v1.3.3. The guard returns "" for all of them. When it learns to catch one,
+// this test fails: move the case into the RED set above and drop it from the
+// doc comment, so a green scan never reads as wider coverage than it has.
+func TestIgnoredLabelPredicateDocumentedBlindSpots(t *testing.T) {
+	t.Parallel()
+
+	blindSpots := map[string]string{
+		"Sprintf label template":    "MATCH (s)-[:DEPENDS_ON]->(t) WHERE t:%s RETURN t.id",
+		"lowercase keywords":        "match (s)-[:DEPENDS_ON]->(t) where t:Repository return t.id",
+		"pattern comprehension":     "MATCH (s:Repository {id: $id}) RETURN [(s)-[:DEPENDS_ON]->(t) WHERE t:Workload | t.id] AS ids",
+		"list comprehension filter": "MATCH p = (s:Repository {id: $id})-[:DEPENDS_ON*1..2]->(t) RETURN [n IN nodes(p) WHERE n:Workload | n.id] AS ids",
+	}
+	for name, cypher := range blindSpots {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if problem := IgnoredLabelPredicate(cypher); problem != "" {
+				t.Fatalf("the guard now reports this documented blind spot (%s); move it to the RED cases and update IgnoredLabelPredicate's doc comment: %q", problem, cypher)
+			}
+		})
+	}
+}

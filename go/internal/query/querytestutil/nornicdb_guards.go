@@ -90,6 +90,20 @@ func AssertCypherHasNoIgnoredLabelPredicate(t cypherAssertionT, cypher string) {
 // IgnoredLabelPredicate returns a description of the first X11 label
 // predicate in cypher, or "" when there is none. The source-scan guard calls
 // it directly so it can report every offending literal in one run.
+//
+// A "" result is not proof that cypher is safe. The guard reads uppercase
+// clause keywords and literal `x:Label` tests only, so it does not see:
+//
+//   - a label interpolated at render time (`WHERE t:%s` passed to Sprintf);
+//     check the rendered statement instead;
+//   - lowercase keywords (`match … where t:Repository`);
+//   - a label test inside a pattern comprehension
+//     (`[(s)-[:D]->(t) WHERE t:W | t.id]`) or a list comprehension filter
+//     (`[n IN nodes(p) WHERE n:W | n.id]`), whose v1.3.3 behavior is
+//     unmeasured.
+//
+// TestIgnoredLabelPredicateDocumentedBlindSpots pins this list. The
+// production scan has a further limit, described on its test.
 func IgnoredLabelPredicate(cypher string) string {
 	text := blankStringLiterals(cypher)
 	frame := innermostBraceOpen(text)

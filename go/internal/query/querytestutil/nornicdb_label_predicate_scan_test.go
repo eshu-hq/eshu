@@ -19,9 +19,12 @@ import (
 // TestProductionCypherHasNoIgnoredLabelPredicate walks every non-test Go file
 // under go/internal and go/cmd and fails on any Cypher string literal, or
 // literal-plus-identifier concatenation, that carries an X11 label predicate
-// (#6786). Fragments joined across separate Go statements are covered by the
-// per-builder unit tests that call AssertCypherHasNoIgnoredLabelPredicate on
-// the rendered statement.
+// (#6786). It only inspects a candidate that contains both "MATCH" and
+// "WHERE" (appendCypherCandidate), so a WHERE fragment held in its own
+// literal, or a statement assembled across separate Go statements, is not
+// scanned here; the per-builder unit tests that call
+// AssertCypherHasNoIgnoredLabelPredicate on the rendered statement cover
+// those. The guard's own blind spots are listed on IgnoredLabelPredicate.
 func TestProductionCypherHasNoIgnoredLabelPredicate(t *testing.T) {
 	t.Parallel()
 	violations := scanProductionCypherForIgnoredLabelPredicates(t, "../..", "../../../cmd")
