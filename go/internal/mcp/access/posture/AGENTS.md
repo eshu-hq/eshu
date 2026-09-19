@@ -13,9 +13,10 @@
 
 ## Invariants
 
-- Keep only secrets/IAM family membership and pure argument-to-request
-  selection here. Global route fanout, the private adapter, and execution stay
-  in the parent MCP package and `internal/query`.
+- Keep only secrets/IAM family membership, pure argument-to-request
+  selection, and the tool definitions here. Global route fanout, the private
+  adapter, the root registration wrapper, and execution stay in the parent MCP
+  package and `internal/query`.
 - Keep the package clause as `package secretsiamtools`; the root imports it with
   an explicit alias.
 - Preserve the five tool names and their exact method, path, and query keys:

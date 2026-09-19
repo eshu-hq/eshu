@@ -9,18 +9,20 @@ scope-anchored posture summary.
 
 ## Ownership boundary
 
-This package owns secrets/IAM family membership and the pure mapping from
-decoded arguments to a dependency-neutral internal request. `internal/mcp` keeps
-tool registration and its client-visible order, global route fanout, the private
-adapter, HTTP dispatch, authorization, timeouts, response budgets, envelopes,
-summaries, and telemetry. `internal/query` owns the bounded reads these paths
-reach, including the required scope anchor, the 1-200 limit bound, and the
-keyset paging each listing pages with.
+This package owns secrets/IAM family membership, the pure mapping from
+decoded arguments to a dependency-neutral internal request, and the tool
+definitions. `internal/mcp` keeps the root registration wrapper and
+client-visible order, global route fanout, the private adapter, HTTP dispatch,
+authorization, timeouts, response budgets, envelopes, summaries, and telemetry.
+`internal/query` owns the bounded reads these paths reach, including the
+required scope anchor, the 1-200 limit bound, and the keyset paging each
+listing pages with.
 
 ## Exported surface
 
 - `Route` selects the internal request for a secrets/IAM tool without executing
   it, and reports `handled=false` for every other tool.
+- `Tools` returns the five secrets/IAM posture tool definitions.
 
 See `doc.go` for the godoc contract.
 

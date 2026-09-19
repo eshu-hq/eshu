@@ -4,6 +4,7 @@
 package mcp
 
 import (
+	secretsiamtools "github.com/eshu-hq/eshu/go/internal/mcp/access/posture"
 	admissiondecisionstools "github.com/eshu-hq/eshu/go/internal/mcp/admission/decisions"
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
@@ -152,6 +153,12 @@ func securityAlertReconciliationAggregateTools() []ToolDefinition {
 // the admission/decisions package owns the registration definition.
 func admissionDecisionTools() []ToolDefinition {
 	return admissiondecisionstools.Tools()
+}
+
+// secretsIAMTools preserves the root package's constructor name while the
+// access/posture package owns the registration definitions.
+func secretsIAMTools() []ToolDefinition {
+	return secretsiamtools.Tools()
 }
 
 // contextTools preserves the root package's constructor name while composing

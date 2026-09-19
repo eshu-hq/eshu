@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package secretsiamtools
 
-// secretsIAMTools returns read-only MCP tools over reducer-owned secrets/IAM
-// trust-chain facts (issue #25). The tools are bounded, scoped, and
-// provenance-only; they never promote graph edges and never expose secret
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
+)
+
+// Tools returns the read-only MCP tool definitions over reducer-owned
+// secrets/IAM trust-chain facts (issue #25). The tools are bounded, scoped,
+// and provenance-only; they never promote graph edges and never expose secret
 // values, raw paths, or token claims.
-func secretsIAMTools() []ToolDefinition {
-	return []ToolDefinition{
+func Tools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{
 		{
 			Name:        "list_secrets_iam_identity_trust_chains",
 			Description: "List reducer-owned secrets/IAM identity trust chains (workload to ServiceAccount to IAM role to Vault policy) by scope, chain, workload object, service account join key, or IAM role fingerprint. State is one of exact, partial, unresolved, stale, permission_hidden, or unsupported; only exact chains have every hop resolved with explicit evidence.",
