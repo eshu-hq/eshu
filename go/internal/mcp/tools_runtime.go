@@ -206,11 +206,14 @@ func runtimeTools() []ToolDefinition {
 						"type":        "integer",
 						"description": "Maximum number of capabilities to return (1-500).",
 						"default":     12,
+						"minimum":     1,
+						"maximum":     500,
 					},
 					"offset": map[string]any{
 						"type":        "integer",
 						"description": "Number of capabilities to skip for paging.",
 						"default":     0,
+						"minimum":     0,
 					},
 					"view": map[string]any{
 						"type":        "string",

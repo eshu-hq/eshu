@@ -30,9 +30,34 @@ func TestToolsPreserveQueryPlaybookRegistrationContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal query playbook tools: %v", err)
 	}
-	const wantDefinitionsHash = "8dfc3c38f977063c9cb1a0c4feed287cc4fda2c72a500c8b1d62d61a847f69ca"
+	const wantDefinitionsHash = "94bfce31d927f071e0d768f002d23c90e72c4ef41dbc592ecf799c92d3c35f2a"
 	if got := fmt.Sprintf("%x", sha256.Sum256(encoded)); got != wantDefinitionsHash {
 		t.Fatalf("query playbook tool definitions hash = %s, want %s", got, wantDefinitionsHash)
+	}
+}
+
+// TestToolsListSchemaBoundsLimitAndOffset proves list_query_playbooks'
+// input schema carries JSON-schema bounds on limit and offset, not just a
+// description, so an MCP client (or a validating gateway) rejects an
+// out-of-range value before it reaches the handler (#6795 review finding).
+func TestToolsListSchemaBoundsLimitAndOffset(t *testing.T) {
+	t.Parallel()
+
+	tools := Tools()
+	schema := tools[0].InputSchema.(map[string]any)
+	properties := schema["properties"].(map[string]any)
+
+	limit := properties["limit"].(map[string]any)
+	if got, want := limit["minimum"], 1; got != want {
+		t.Fatalf("limit minimum = %#v, want %v", got, want)
+	}
+	if got, want := limit["maximum"], 200; got != want {
+		t.Fatalf("limit maximum = %#v, want %v", got, want)
+	}
+
+	offset := properties["offset"].(map[string]any)
+	if got, want := offset["minimum"], 0; got != want {
+		t.Fatalf("offset minimum = %#v, want %v", got, want)
 	}
 }
 

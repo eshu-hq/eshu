@@ -18,11 +18,14 @@ func Tools() []toolcontract.ToolDefinition {
 						"type":        "integer",
 						"description": "Maximum number of playbooks to return (1-200).",
 						"default":     20,
+						"minimum":     1,
+						"maximum":     200,
 					},
 					"offset": map[string]any{
 						"type":        "integer",
 						"description": "Number of playbooks to skip for paging.",
 						"default":     0,
+						"minimum":     0,
 					},
 					"view": map[string]any{
 						"type":        "string",

@@ -18,11 +18,14 @@ func WorkflowTools() []toolcontract.ToolDefinition {
 						"type":        "integer",
 						"description": "Maximum number of workflows to return (1-200).",
 						"default":     20,
+						"minimum":     1,
+						"maximum":     200,
 					},
 					"offset": map[string]any{
 						"type":        "integer",
 						"description": "Number of workflows to skip for paging.",
 						"default":     0,
+						"minimum":     0,
 					},
 					"view": map[string]any{
 						"type":        "string",
