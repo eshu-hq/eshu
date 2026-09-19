@@ -35,8 +35,8 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 		"QP-CODE-REL-STORY-ANCHOR-COLLISION":              {"NodeByLabelScan"},
 		"QP-RELATIONSHIPS-CATALOG-COUNT":                  {"RelationshipCountFromCountStore"},
 		"QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT":             {"RelationshipCountFromCountStore"},
-		"QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES":          {"NodeByLabelScan"},
-		"QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES":            {"NodeByLabelScan"},
+		"QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES":          {"NodeByLabelScan", "DirectedRelationshipTypeScan"},
+		"QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES":            {"NodeByLabelScan", "DirectedRelationshipTypeScan"},
 		"QP-RELATIONSHIPS-EDGES":                          {"DirectedRelationshipTypeScan"},
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY": {"NodeByLabelScan"},
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":   {"DirectedRelationshipTypeScan"},
@@ -411,9 +411,15 @@ func queryplanBoundedAnchorOperators(entryID string) []string {
 	case "QP-GRAPH-ENTITY-LIST", "QP-RESOURCE-INVESTIGATION-SELECTOR", "QP-RESOURCE-INVESTIGATION-REPO-PATHS",
 		"QP-CODE-REL-STORY-ANCHOR-COLLISION",
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY",
-		"QP-INFRA-RESOURCE-SEARCH", "QP-INFRA-RESOURCE-AGGREGATE",
-		"QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES", "QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES":
+		"QP-INFRA-RESOURCE-SEARCH", "QP-INFRA-RESOURCE-AGGREGATE":
 		return []string{"NodeByLabelScan"}
+	case "QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES", "QP-REPOSITORY-DEPENDS-ON-GROUP-SIZES":
+		// The fixed 1-hop typed pattern with both endpoints labelled lets
+		// Neo4j's cost planner anchor on either the :Repository label or the
+		// DEPENDS_ON relationship-type index, depending on graph statistics.
+		// Both bound the read; the type scan is the same walk NornicDB's
+		// relationship-aggregation fast path takes.
+		return []string{"NodeByLabelScan", "DirectedRelationshipTypeScan"}
 	case "QP-RESOURCE-INVESTIGATION-WORKLOADS", "QP-RELATIONSHIPS-EDGES",
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":
 		return []string{"DirectedRelationshipTypeScan"}
