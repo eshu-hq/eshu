@@ -176,7 +176,7 @@ The source path is `pkg/cypher/executor_mutations.go` `checkSubqueryMatch`,
 which calls `loadNodesWithTemporalViewport(ctx, labels)` for this shape. With
 5 rows (3 existing paths), the broken guard took 0.46 s at 5,000 File nodes,
 2.03 s at 20,000, and 5.88 s at 100,000, and re-stamped all 5 rows; the
-correlated form took 0.003-0.013 s once warm and wrote only the 2 missing rows.
+correlated form took 0.003-0.090 s (0.009-0.013 s at 100,000 once warm) and wrote only the 2 missing rows.
 On ops-qa the broken form hit the 300 s transaction timeout with 1-22 rows
 (#6798). The `WITH ... WHERE existing IS NULL` filter is a bare null test, not
 one of the `WITH`-attached `WHERE` shapes that

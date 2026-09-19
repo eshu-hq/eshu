@@ -58,25 +58,29 @@ func TestCanonicalFileCreateMissingSkipsExistingFilesLive(t *testing.T) {
 			"scope_id": "scope-6798", "generation_id": "gen-2",
 		}
 	}
-	for name, stmt := range map[string]Statement{
+	// A slice, not a map, so the batches run in a fixed order.
+	for _, batch := range []struct {
+		name string
+		stmt Statement
+	}{
 		// File rows are not de-duplicated by path, so one batch can carry the
 		// same missing path twice; it must still create a single node.
-		"nested": {Cypher: canonicalNodeFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
+		{name: "nested", stmt: Statement{Cypher: canonicalNodeFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
 			row("/live-6798/src/existing.go", "/live-6798/src"),
 			row("/live-6798/src/missing.go", "/live-6798/src"),
 			row("/live-6798/src/missing.go", "/live-6798/src"),
-		}}},
+		}}}},
 		// The common re-ingest batch: every file already exists.
-		"all existing": {Cypher: canonicalNodeFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
+		{name: "all existing", stmt: Statement{Cypher: canonicalNodeFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
 			row("/live-6798/src/existing.go", "/live-6798/src"),
-		}}},
-		"root": {Cypher: canonicalNodeRootFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
+		}}}},
+		{name: "root", stmt: Statement{Cypher: canonicalNodeRootFileCreateMissingCypher, Parameters: map[string]any{"rows": []any{
 			row("/live-6798/existing-root.go", ""),
 			row("/live-6798/missing-root.go", ""),
-		}}},
+		}}}},
 	} {
-		if err := runner.runCypherGroup(ctx, stmt); err != nil {
-			t.Fatalf("%s create_missing: %v", name, err)
+		if err := runner.runCypherGroup(ctx, batch.stmt); err != nil {
+			t.Fatalf("%s create_missing: %v", batch.name, err)
 		}
 	}
 
