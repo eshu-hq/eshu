@@ -23,7 +23,9 @@ func main() {
 // with fake arguments and captured output instead of a real process.
 //
 // Exit 0 means the two files are token-identical after the comment-only
-// exemption rules below, so a caller may treat the edit as behavior-free.
+// exemption rules below, or, with -allow-internal-import-rename, differ only
+// by one internal package move (see internalImportRenameOnly), so a caller
+// may treat the edit as behavior-free.
 // Exit 1 means they differ (a real change). Exit 2 means an error occurred
 // (bad flags, unreadable file, or a Go parse/scan error); callers MUST treat
 // exit 2 the same as exit 1 -- fail closed, never fail open on an error.
@@ -32,6 +34,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	basePath := fs.String("base", "", "path to the base version of the Go source file")
 	headPath := fs.String("head", "", "path to the head version of the Go source file")
+	allowRename := fs.Bool("allow-internal-import-rename", false,
+		"also exit 0 when the only change is one repository-internal import-path move plus its qualifier rename")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -84,6 +88,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if tokensEqual(baseTokens, headTokens) {
 		_, _ = fmt.Fprintln(stdout, "token-diff: token streams identical (comment-only or whitespace-only change)")
 		return 0
+	}
+	if *allowRename {
+		rename, ok, err := internalImportRenameOnly(baseSrc, headSrc)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "token-diff: checking import rename: %v\n", err)
+			return 2
+		}
+		if ok {
+			_, _ = fmt.Fprintf(stdout, "token-diff: internal import rename only: %s\n", rename)
+			return 0
+		}
 	}
 	_, _ = fmt.Fprintln(stdout, "token-diff: token streams differ")
 	return 1
