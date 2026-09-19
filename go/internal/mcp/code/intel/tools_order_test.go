@@ -55,7 +55,10 @@ func TestSearchToolSchemasRequireTheirScopeKeys(t *testing.T) {
 		}
 	}
 	chain := Tools()[byName["find_function_call_chain"]]
-	schema := chain.InputSchema.(map[string]any)
+	schema, ok := chain.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("find_function_call_chain InputSchema type = %T, want map[string]any", chain.InputSchema)
+	}
 	if got := schema["required"]; !reflect.DeepEqual(got, []string{}) {
 		t.Fatalf("find_function_call_chain required = %#v, want empty", got)
 	}
