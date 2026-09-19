@@ -31,7 +31,9 @@ case, using the #6800 probe count it already had.
   unchanged. The read is marked truncated whenever the sizes prove more than
   50,000 edges, even if fewer ids come back (edges removed between the two
   reads, or null ids that `collect` drops). This also closes R3-P3-4: a group
-  with only null ids can no longer hide truncation. The completion event gains
+  with only null ids can no longer hide truncation. When the sizes fit the
+  bound, the grouped read runs at `$group_limit` = 50,001, the same as the
+  uncapped case (R4-F1 below). The completion event gains
   `edge_transfer_capped`.
 
 Setup: throwaway containers on this host, NornicDB
@@ -135,6 +137,42 @@ because it uses the per-edge read. GREEN at the final head: on fresh
 containers (NornicDB `v1.3.3@sha256:81cedbf4...` on 28040, Neo4j
 `2026-community@sha256:eabfbb04...` on 28050), all four subtests pass on both
 backends, as does `TestLiveRelationshipRepoAnchorAnswerTruth`.
+
+## R4-F1: a group added between the two capped reads
+
+Round 4 found that the capped path, when the group sizes fit the bound, passed
+the group count the size read saw as `$group_limit`. If a source repository
+gained its first `DEPENDS_ON` edge between the size read and the grouped read,
+and its id sorted inside the counted groups, the grouped read returned the new
+group and pushed the last real group off the end. The flattened result fitted
+the bound, so the response reported a complete answer that no single graph
+state would produce.
+
+Fix: when the sizes fit, the grouped read runs at the fetch limit (50,001),
+not at `len(sizes)`. The grouped read then either returns every group or
+returns more than 50,000 groups or edges, which
+`flattenGroupedRepositoryDependencyEdges` reports as truncated. The sizes
+proved at most 50,000 Repository edges a moment earlier, so the transfer stays
+at the same bound as the uncapped case. When the sizes prove the bound is
+exceeded, the prefix limit is unchanged and truncation is still reported.
+
+- Unit RED/GREEN:
+  `TestLoadUnscopedRepositoryDependencyEdgesCappedDetectsConcurrentGrowth`.
+  The size read sees sources [a, b, z]. The grouped read sees [a, b, m, z] and
+  applies `LIMIT $group_limit`. Before the fix, both cases returned [a, b, m]
+  with `truncated=false`. After the fix, bound 5 returns all four edges, not
+  truncated, and bound 3 returns three edges, truncated.
+- Live RED/GREEN: `TestLiveRepositoryDependencyEdgesCappedConcurrentGrowth`
+  (`dependency_edge_growth_live_test.go`) wraps the live reader so a real
+  `CREATE` of m's edge lands on the backend right after the size read returns.
+  Four Workload edges push the probe above the bound, so the capped path runs.
+  It was run on fresh containers: NornicDB `v1.3.3@sha256:81cedbf4...` on
+  127.0.0.1:28080 and Neo4j `2026-community@sha256:eabfbb04...` on 28090, with
+  the schema applied.
+  - With the `if !over` line removed, both backends fail both subtests.
+    Bound 5 returns a, b, m, drops z and reports `truncated=false`. Bound 3
+    returns a, b, m and reports `truncated=false`.
+  - With the line restored, both subtests pass on both backends.
 
 ## Round-3 P3 dispositions
 

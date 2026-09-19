@@ -97,7 +97,9 @@ func TestLoadUnscopedRepositoryDependencyEdgesCapsTransfer(t *testing.T) {
 }
 
 // TestLoadUnscopedRepositoryDependencyEdgesCappedEdgeCases covers the capped
-// path when the group sizes fit the bound, when the sizes prove more edges
+// path when the group sizes fit the bound (the grouped read then asks for the
+// fetch limit, not the group count the size read saw; see
+// TestLoadUnscopedRepositoryDependencyEdgesCappedDetectsConcurrentGrowth), when the sizes prove more edges
 // than the bound but fewer ids come back (edges removed between the two
 // reads, or null ids that collect drops), when there are no Repository
 // DEPENDS_ON edges at all, and when either capped statement fails. Groups cut
@@ -121,13 +123,13 @@ func TestLoadUnscopedRepositoryDependencyEdgesCappedEdgeCases(t *testing.T) {
 		wantErr       bool
 	}{
 		{
-			name: "sizes fit the bound: every group is read and the read is complete",
+			name: "sizes fit the bound: the grouped read uses the fetch limit and the read is complete",
 			sizes: []map[string]any{
 				{"source_id": "repository:a", "target_count": int64(2)},
 				{"source_id": "repository:b", "target_count": int64(1)},
 			},
 			wantRan:    3,
-			wantGroups: 2,
+			wantGroups: limit + 1,
 			wantEdges: []repositoryDependencyEdge{
 				{Source: "repository:a", Target: "repository:x"},
 				{Source: "repository:a", Target: "repository:y"},
@@ -169,7 +171,7 @@ func TestLoadUnscopedRepositoryDependencyEdgesCappedEdgeCases(t *testing.T) {
 			sizes:      []map[string]any{{"source_id": "repository:a", "target_count": int64(1)}},
 			groupedErr: errors.New("grouped unavailable"),
 			wantRan:    3,
-			wantGroups: 1,
+			wantGroups: limit + 1,
 			wantErr:    true,
 		},
 	}
@@ -272,4 +274,89 @@ func TestRepositoryDependencyGroupSizeCypherShape(t *testing.T) {
 		"RETURN s.id AS source_id, count(t) AS target_count",
 		fmt.Sprintf("LIMIT %d", repositoryDependencyClusterEdgeFetchLimit),
 	)
+}
+
+// TestLoadUnscopedRepositoryDependencyEdgesCappedDetectsConcurrentGrowth
+// models a reducer write landing between the group-size read and the grouped
+// read (#6786 review R4-F1). The size read sees sources [a, b, z], which fit
+// the bound; before the grouped read runs, repository m gains its first
+// DEPENDS_ON edge, so the grouped read sees [a, b, m, z]. The fake applies
+// LIMIT $group_limit the way the backend does. If the loader asked for only
+// the three groups the size read counted, z would fall off the end and the
+// read would report a complete answer with z's edge missing. The read must
+// either return every group or disclose truncation.
+func TestLoadUnscopedRepositoryDependencyEdgesCappedDetectsConcurrentGrowth(t *testing.T) {
+	t.Parallel()
+
+	sizesBefore := []map[string]any{
+		{"source_id": "repository:a", "target_count": int64(1)},
+		{"source_id": "repository:b", "target_count": int64(1)},
+		{"source_id": "repository:z", "target_count": int64(1)},
+	}
+	groupsAfter := []map[string]any{
+		{"source_id": "repository:a", "target_ids": []any{"repository:t"}},
+		{"source_id": "repository:b", "target_ids": []any{"repository:t"}},
+		{"source_id": "repository:m", "target_ids": []any{"repository:t"}},
+		{"source_id": "repository:z", "target_ids": []any{"repository:t"}},
+	}
+	allEdges := []repositoryDependencyEdge{
+		{Source: "repository:a", Target: "repository:t"},
+		{Source: "repository:b", Target: "repository:t"},
+		{Source: "repository:m", Target: "repository:t"},
+		{Source: "repository:z", Target: "repository:t"},
+	}
+	tests := []struct {
+		name          string
+		limit         int
+		wantEdges     []repositoryDependencyEdge
+		wantTruncated bool
+	}{
+		{
+			name:      "grown graph still fits the bound: every group is returned",
+			limit:     5,
+			wantEdges: allEdges,
+		},
+		{
+			name:          "grown graph exceeds the bound: truncation is disclosed",
+			limit:         3,
+			wantEdges:     allEdges[:3],
+			wantTruncated: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			reader := querytestutil.FakeRepoGraphReader{
+				RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+					switch cypher {
+					case RepositoryDependencyEdgeCountCypher:
+						return []map[string]any{{"edge_count": int64(90)}}, nil
+					case RepositoryDependencyGroupSizeCypher:
+						return sizesBefore, nil
+					case RepositoryDependencyGroupedEdgeCypher:
+						groupLimit, ok := params["group_limit"].(int)
+						if !ok {
+							return nil, fmt.Errorf("group_limit = %#v, want int", params["group_limit"])
+						}
+						return groupsAfter[:min(groupLimit, len(groupsAfter))], nil
+					default:
+						return nil, fmt.Errorf("unexpected cypher %q", cypher)
+					}
+				},
+			}
+
+			result := loadUnscopedRepositoryDependencyEdges(context.Background(), reader, tt.limit)
+
+			if result.Err != nil {
+				t.Fatalf("Err = %v, want nil", result.Err)
+			}
+			if !reflect.DeepEqual(result.Edges, tt.wantEdges) || result.Truncated != tt.wantTruncated {
+				t.Fatalf("edges = %v truncated = %v, want %v truncated = %v (a group the size read did not count displaced a real group silently)",
+					result.Edges, result.Truncated, tt.wantEdges, tt.wantTruncated)
+			}
+			if !result.TransferCapped {
+				t.Fatalf("TransferCapped = false, want the capped path")
+			}
+		})
+	}
 }

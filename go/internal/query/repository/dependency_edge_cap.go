@@ -47,6 +47,10 @@ func readRepositoryDependencyGroupSizes(ctx context.Context, graph querycontract
 // row when the sum never does. over reports that the sizes prove more than
 // limit edges exist, either because the sum passed limit or because more than
 // limit groups came back; the caller then discloses the read as truncated.
+// The caller uses groups only when over is set. When the sizes fit, it asks
+// the grouped read for the fetch limit instead, because a source that gains
+// its first edge after this read would otherwise push a counted group out of
+// a limit of exactly len(rows) (#6786 review R4-F1).
 //
 // Because the groups arrive in source order and the edges beyond the prefix
 // all have larger sources, the prefix holds every edge the (source, target)
