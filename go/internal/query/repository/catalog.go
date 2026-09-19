@@ -6,6 +6,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -164,9 +165,17 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 // text -- a different 2000-id set on the identical statement paid the full
 // ~2-minute cost again. A real catalog page's id set drifts on ordinary
 // repository churn, so this would cost roughly a full cold run on most
-// requests: far worse than the whole-graph pre-pass it would replace.
-// Reverted pending a different query shape or an owner decision; kept as
-// the pre-existing (already measured, no-regression) whole-graph pre-pass.
+// requests. It was rejected in favour of the whole-graph read.
+//
+// The whole-graph read is NEW cost on this route: before #6786 the catalog
+// issued no dependency-edge read at all (its per-row EXISTS was NornicDB's
+// always-false shape). The catalog is unscoped, so it takes the grouped
+// RepositoryDependencyGroupedEdgeCypher read, gated by the DEPENDS_ON
+// cardinality probe. Measured on NornicDB v1.3.3 at 500 repositories with
+// 200 files each: this function cost 0.046-0.051s before #6786 (with every
+// is_dependency false), 0.59-0.60s with the per-edge read, and the grouped
+// read removes the per-repository adjacency expansion that made up the
+// difference (see the #6786 evidence doc for the after figures).
 func (h *Handler) listCatalogRepositoriesFromGraph(
 	ctx context.Context,
 	limit int,
@@ -188,7 +197,18 @@ func (h *Handler) listCatalogRepositoriesFromGraph(
 	// loadRepositoryDependencyEdges and issue #6786 defect 1. The catalog
 	// endpoint has always been unscoped (AllScopes: true), matching the
 	// EXISTS-based projection it replaces.
+	// Timed as stage=dependency_cluster_edges with the same completion
+	// attributes as the repository list route, minus cluster_count: the
+	// catalog builds no clusters.
+	edgeTimer := startRepositoryQueryStage(ctx, h.Logger, "catalog_list", "", "dependency_cluster_edges")
 	dependencyRead := loadRepositoryDependencyEdges(ctx, h.Neo4j, querycontract.RepositoryAccessFilter{AllScopes: true})
+	edgeTimer.Done(
+		ctx,
+		slog.Int("edge_count", len(dependencyRead.Edges)),
+		slog.Bool("truncated", dependencyRead.Truncated),
+		slog.Bool("error", dependencyRead.Err != nil),
+		slog.Bool("edge_scan_skipped", dependencyRead.Skipped),
+	)
 	dependencyTargets := repositoryDependencyTargetSet(dependencyRead.Edges)
 	dependencyDegraded = logRepositoryDependencyEdgesDegradation(ctx, h.Logger, "catalog_list", dependencyRead)
 	logRepositoryDependencyClusterErrors(ctx, h.Logger, "catalog_list", dependencyRead)

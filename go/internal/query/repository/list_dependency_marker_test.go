@@ -85,9 +85,9 @@ func TestListRepositoriesMarksDependencyFromInboundEdge(t *testing.T) {
 			switch {
 			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
 				capturedEdgeCypher = cypher
-				return []map[string]any{
+				return dependencyEdgeRowsForRead(cypher, []map[string]any{
 					{"source_id": "repository:app", "target_id": "repository:lib"},
-				}, nil
+				}), nil
 			case strings.Contains(cypher, "MATCH (r:Repository)"):
 				return []map[string]any{
 					{"id": "repository:lib", "name": "lib"},
@@ -164,9 +164,9 @@ func TestListRepositoriesScopedDependencyMarkerUsesScopedEdgePrePass(t *testing.
 				// edge unconditionally so the assertion below is purely
 				// about the rendered Cypher text, matching the existing
 				// dependency_cluster_test.go pattern for the same query.
-				return []map[string]any{
+				return dependencyEdgeRowsForRead(cypher, []map[string]any{
 					{"source_id": "repository:outside", "target_id": "repository:lib"},
-				}, nil
+				}), nil
 			case strings.Contains(cypher, "MATCH (r:Repository)"):
 				return []map[string]any{{"id": "repository:lib", "name": "lib"}}, nil
 			default:
@@ -301,7 +301,7 @@ func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnTruncation(t *test
 		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
-				return truncatedEdgeRows, nil
+				return dependencyEdgeRowsForRead(cypher, truncatedEdgeRows), nil
 			case strings.Contains(cypher, "MATCH (r:Repository)"):
 				return []map[string]any{{"id": "repository:lib", "name": "lib"}}, nil
 			default:

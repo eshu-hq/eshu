@@ -34,7 +34,7 @@ func (g *recordingClusterGraph) Run(_ context.Context, cypher string, _ map[stri
 	if g.edgeErr != nil {
 		return nil, g.edgeErr
 	}
-	return g.edges, nil
+	return dependencyEdgeRowsForRead(cypher, g.edges), nil
 }
 
 func (g *recordingClusterGraph) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
