@@ -186,7 +186,7 @@ is not broken out here).
 | `serviceCatalogTools` | 1 | `service/catalog_tools.go` |
 | `codeownersTools` | 1 | `tools_codeowners.go` |
 | `kubernetesTools` | 1 | `tools_kubernetes.go` |
-| `secretsIAMTools` | 5 | `tools_secrets_iam.go` |
+| `secretsIAMTools` | 5 | `types.go` (wraps `access/posture/tools.go`) |
 | `observabilityCoverageTools` | 1 | `tools_observability_coverage.go` |
 | `supplyChainTools` | 7 | `tools_supply_chain.go` |
 | `supplyChainImpactAggregateTools` | 2 | `tools_supply_chain_aggregates.go` |
