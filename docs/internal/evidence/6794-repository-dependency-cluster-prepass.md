@@ -31,6 +31,13 @@ not surface this cost.
 
 ## Change
 
+Naming note (#6786): `loadRepositoryDependencyClusters` below is the name at
+the time of this change. #6786 renamed it to `loadRepositoryDependencyEdges`,
+which also backs `is_dependency`, and moved the probe into
+`repository/dependency_edge_unscoped.go`. The same #6786 work replaced the
+unscoped edge scan with a grouped read and capped its transfer; see
+`docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md`.
+
 For unscoped callers, `loadRepositoryDependencyClusters` first runs
 `MATCH ()-[r:DEPENDS_ON]->() RETURN count(r) AS edge_count`. When the count is
 zero the edge scan is skipped. That skip is exact: an empty edge set yields an
