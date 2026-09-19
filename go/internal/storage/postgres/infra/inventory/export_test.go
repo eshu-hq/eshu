@@ -12,3 +12,7 @@ func (f Filter) ForRepositories(repoIDs ...string) Filter {
 	f.repoIDs = append([]string(nil), repoIDs...)
 	return f
 }
+
+// ReconcileRepositoriesSQL exposes the walk's repository listing so a live
+// plan proof can EXPLAIN the exact production text.
+const ReconcileRepositoriesSQL = reconcileRepositoriesSQL
