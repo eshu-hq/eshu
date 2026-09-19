@@ -94,8 +94,41 @@ the read model. Postgres triggers mark each repository such a write touches,
 and the infra aggregate routes keep reading the graph while any repository is
 marked. After the rollout, the reducer's reconcile repairs each marked
 repository. Reads then switch to the read model on their own. Watch
-`eshu_dp_infra_inventory_reconcile_total{outcome="fenced"}` fall to zero and
-`eshu_dp_infra_inventory_reads_total{source="read_model"}` rise.
+`eshu_dp_infra_inventory_dirty_repos` fall to zero,
+`eshu_dp_infra_inventory_reads_total{source="read_model"}` rise, and the
+`/admin/status` field `infra_inventory` report `state=ready`. Nothing repairs
+marks while `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED=false`.
+
+If a connection pooler sits in front of the Postgres DSN, it must forward the
+session setting `eshu.infra_inventory_writer` (pgbouncer:
+`track_extra_parameters`). A pooler that drops it makes new pods look like old
+ones: reads stay on the graph, `postgres.session_unfenced` is logged at
+startup, and `eshu_dp_infra_inventory_derives_total{outcome="ok_unfenced_session"}`
+rises.
+
+### Rolling back past the infra read model
+
+Migration 109 stays after a Helm rollback to an earlier release, and so do its
+triggers on `content_entities`. The earlier release does not read the read
+model, so the marks its writes leave are harmless, but each of its content
+writes of an infrastructure entity pays the trigger: up to about 2
+microseconds per deleted row and about 0.5 per upserted row. Marks accumulate
+until a release with the read model runs again, and that release's reducer
+repairs them before reads use the table.
+
+Keep the triggers. If you drop them, the schema bootstrap does not re-create
+them on the next upgrade, because migration 109 is already recorded, and
+unmarked writes from the earlier release leave the table stale. Before
+upgrading to a release with the read model again, remove the migration's
+record and the backfill marker, so bootstrap re-applies migration 109 (it is
+idempotent) and the backfill re-derives every repository before readers trust
+the table:
+
+```sql
+DELETE FROM eshu_schema_migrations
+WHERE path = 'go/internal/storage/postgres/migrations/109_infra_resource_entities.sql';
+DELETE FROM infra_resource_entity_backfill_markers;
+```
 
 ## Rollback
 
