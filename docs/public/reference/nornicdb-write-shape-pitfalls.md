@@ -209,11 +209,11 @@ DETACH DELETE n
 RETURN count(n) AS __drained
 ```
 
-The same `MATCH`, `WHERE`, and `WITH ... LIMIT` as a read returns in a few
-milliseconds. Dropping `ORDER BY` does not help and is unsafe: the bare-label
-`WITH n LIMIT k DETACH DELETE n` form still deletes zero rows with no error on
-v1.3.3, as it did on v1.1.9. On ops-qa (1.1M nodes) these retracts took
-45-55 s each while deleting nothing (#6822).
+The same `MATCH`, `WHERE`, and `WITH ... LIMIT` as a read returned in 1-9 ms on
+a local 1M-node store and in 0.10-0.17 s on ops-qa. Dropping `ORDER BY` does
+not help and is unsafe: the bare-label `WITH n LIMIT k DETACH DELETE n` form
+still deletes zero rows with no error on v1.3.3, as it did on v1.1.9. On ops-qa
+(1.1M nodes) these retracts took 45-55 s each while deleting nothing (#6822).
 
 ### Safe shape
 
@@ -229,13 +229,13 @@ RETURN elementId(n) AS __id
 When the probe returns a row, run the single-statement bounded drain loop shown
 above until it drains zero rows. When it returns nothing, skip the drain. A
 retract with nothing to delete then costs one read bounded by its own label
-(about 1 ms for a small label against a 1M-node store) instead of a whole-store
-scan. Probe once per statement, not per batch: the probe scans its label, which
-took 0.11 s for `AtlantisProject`, 2.9-4.4 s for `Directory`, and 31-50 s for
-`Function` on the 1.1M-node ops-qa store, so repeating it would add that cost to
-every drain step. Keep the `WITH ... LIMIT` before
-`RETURN`: `MATCH ... WHERE ... RETURN elementId(n) AS id LIMIT $batch`, without
-the `WITH`, took 15-18 s on the ops-qa store.
+(1-9 ms for a small label on a local 1M-node store; 0.11 s and up on ops-qa)
+instead of a whole-store scan. Probe once per statement, not per batch: the
+probe scans its label, which took 0.11 s for `AtlantisProject`, 2.9-4.4 s for
+`Directory`, and 31-50 s for `Function` on the 1.1M-node ops-qa store, so
+repeating it would add that cost to every drain step. Keep the `WITH ... LIMIT`
+before `RETURN`: `MATCH ... WHERE ... RETURN elementId(n) AS id LIMIT $batch`,
+without the `WITH`, took 15-18 s on the ops-qa store.
 
 Keep the delete in the single drain statement so its `WHERE` clause is
 rechecked atomically. Do not split it into "read the element IDs, then

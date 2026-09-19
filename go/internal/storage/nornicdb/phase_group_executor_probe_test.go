@@ -138,6 +138,48 @@ func TestExecuteDrainLoopNoMatchRunsOneProbe(t *testing.T) {
 	}
 }
 
+// malformedProbeReader returns a probe row whose __id is missing or not a
+// string, then scripts drains like probeReader.
+type malformedProbeReader struct {
+	probeReader
+	row map[string]any
+}
+
+func (r *malformedProbeReader) RunWrite(ctx context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
+	if strings.Contains(cypher, "RETURN elementId(") {
+		r.calls = append(r.calls, probeCall{kind: "probe", cypher: cypher, params: params})
+		return DrainWriteResult{Rows: []map[string]any{r.row}}, nil
+	}
+	return r.probeReader.RunWrite(ctx, cypher, params)
+}
+
+// TestExecuteDrainLoopDrainsWhenProbeRowIsMalformed keeps the probe fail
+// closed: any returned row means something matched, so a row without a usable
+// __id must still run the drain instead of being reported as probe_skipped.
+func TestExecuteDrainLoopDrainsWhenProbeRowIsMalformed(t *testing.T) {
+	t.Parallel()
+
+	for name, row := range map[string]map[string]any{
+		"missing id":    {},
+		"non-string id": {"__id": int64(7)},
+		"empty id":      {"__id": ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := &malformedProbeReader{row: row, probeReader: probeReader{drained: []int64{3, 0}}}
+			executor := PhaseGroupExecutor{DrainReader: reader}
+
+			if err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 1, 1, "retract"); err != nil {
+				t.Fatalf("executeDrainLoop() error = %v, want nil", err)
+			}
+			if got, want := reader.kinds(), []string{"probe", "drain", "drain"}; !reflect.DeepEqual(got, want) {
+				t.Fatalf("call sequence = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
 // TestExecuteDrainLoopSucceedsWhenMatchesVanishBeforeDrain proves a node that
 // another writer removed or refreshed between the probe and the drain is not
 // a failure: the drain rechecks its WHERE clause, deletes nothing, and the
