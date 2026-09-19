@@ -10,11 +10,12 @@ canonical graph edge.
 
 ## Ownership boundary
 
-This package owns admission-decisions family membership and the mapping from
-decoded arguments to a dependency-neutral internal request. `internal/mcp` keeps
-tool registration and its client-visible order, global route fanout, the private
-adapter, HTTP dispatch, authorization, timeouts, response budgets, envelopes,
-summaries, and telemetry. `internal/query` owns the bounded read this path
+This package owns admission-decisions family membership, the mapping from
+decoded arguments to a dependency-neutral internal request, and the tool
+definition. `internal/mcp` keeps the root registration wrapper and
+client-visible order, global route fanout, the private adapter, HTTP dispatch,
+authorization, timeouts, response budgets, envelopes, summaries, and
+telemetry. `internal/query` owns the bounded read this path
 reaches, including the required-key check, the state vocabulary, the anchor-pair
 rule, the limit bound, and the per-decision evidence cap. That bound is
 asymmetric: a nonpositive limit becomes the 50-row default, and only values
@@ -24,6 +25,7 @@ above 200 are capped.
 
 - `Route` selects the internal request for an admission-decisions tool without
   executing it, and reports `handled=false` for every other tool.
+- `Tools` returns the admission-decisions list tool definition.
 
 See `doc.go` for the godoc contract.
 
@@ -31,6 +33,8 @@ See `doc.go` for the godoc contract.
 
 - `internal/mcp/contract/route` owns the dependency-neutral decoded-argument and
   internal-request shapes used by `Route`.
+- `internal/mcp/contract/tool` owns the dependency-neutral tool-definition
+  shape used by `Tools`.
 
 ## Telemetry
 

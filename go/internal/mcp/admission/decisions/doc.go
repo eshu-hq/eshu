@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package admissiondecisionstools defines pure route selection for the MCP
-// admission-decisions family.
+// Package admissiondecisionstools defines pure route selection and the tool
+// definition for the MCP admission-decisions family.
 //
 // Route decides whether this package owns a tool and maps decoded arguments to
 // a dependency-neutral internal request without executing it. The parent mcp
-// package owns tool registration and its order, global route fanout, the
-// private adapter, HTTP dispatch, authorization, timeouts, response budgets,
-// envelopes, summaries, and telemetry. The query package owns the bounded read
+// package owns the root registration wrapper and client-visible order, global
+// route fanout, the private adapter, HTTP dispatch, authorization, timeouts,
+// response budgets, envelopes, summaries, and telemetry. The query package
+// owns the bounded read
 // behind the path, which lists the reducer's correlation admission decisions
 // -- admitted, rejected, ambiguous, stale, missing-evidence, and
 // permission-hidden candidates -- for one domain, scope, and generation. This

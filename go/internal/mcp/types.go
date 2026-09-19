@@ -4,6 +4,7 @@
 package mcp
 
 import (
+	admissiondecisionstools "github.com/eshu-hq/eshu/go/internal/mcp/admission/decisions"
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
@@ -145,6 +146,12 @@ func serviceCatalogTools() []ToolDefinition {
 // registration definitions.
 func securityAlertReconciliationAggregateTools() []ToolDefinition {
 	return securityalerttools.ReconciliationAggregateTools()
+}
+
+// admissionDecisionTools preserves the root package's constructor name while
+// the admission/decisions package owns the registration definition.
+func admissionDecisionTools() []ToolDefinition {
+	return admissiondecisionstools.Tools()
 }
 
 // contextTools preserves the root package's constructor name while composing

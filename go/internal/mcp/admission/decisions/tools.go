@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package mcp
+package admissiondecisionstools
 
-func admissionDecisionTools() []ToolDefinition {
-	return []ToolDefinition{{
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
+)
+
+// Tools returns the admission-decisions list tool definition.
+func Tools() []toolcontract.ToolDefinition {
+	return []toolcontract.ToolDefinition{{
 		Name:        "list_admission_decisions",
 		Description: "List reducer-owned correlation admission decisions by domain, scope, generation, state, or anchor. These rows explain admitted, rejected, ambiguous, stale, missing-evidence, and permission-hidden candidates before or beside canonical graph edges; they are not themselves canonical graph edges.",
 		InputSchema: map[string]any{
