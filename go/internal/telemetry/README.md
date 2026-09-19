@@ -66,6 +66,7 @@ when the reducer has a graph orphan observer.
 | `FactsEmitted` | `eshu_dp_facts_emitted_total` |
 | `FactsCommitted` | `eshu_dp_facts_committed_total` |
 | `ProjectionsCompleted` | `eshu_dp_projections_completed_total` |
+| `ProjectorAckDeferrals` | `eshu_dp_projector_ack_deferrals_total` |
 | `ReducerIntentsEnqueued` | `eshu_dp_reducer_intents_enqueued_total` |
 | `ReducerAdmissionDeferrals` | `eshu_dp_reducer_admission_deferrals_total` |
 | `ReducerExecutions` | `eshu_dp_reducer_executions_total` |
@@ -291,6 +292,7 @@ module prefixes across generations.
 | `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | default |
 | `ProjectorRunDuration` | `eshu_dp_projector_run_duration_seconds` | 0.1–120 s |
 | `ProjectorStageDuration` | `eshu_dp_projector_stage_duration_seconds` | default |
+| `ProjectorAckWaitDuration` | `eshu_dp_projector_ack_wait_seconds` | 1–600 s |
 | `ReducerRunDuration` | `eshu_dp_reducer_run_duration_seconds` | default |
 | `SearchIndexWriteDuration` | `eshu_dp_search_index_write_duration_seconds` | 0.001–21600 s |
 | `ReducerQueueWaitDuration` | `eshu_dp_reducer_queue_wait_seconds` | 0.001–21600 s |
