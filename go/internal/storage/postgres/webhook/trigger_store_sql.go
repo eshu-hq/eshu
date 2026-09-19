@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package postgres
+package webhookstore
 
 const storeWebhookTriggerQuery = `
 INSERT INTO webhook_refresh_triggers (

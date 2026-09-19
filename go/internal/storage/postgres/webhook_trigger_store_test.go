@@ -9,13 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/webhook"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 )
 
 func TestWebhookTriggerSchemaDefinesDurableDedupeKeys(t *testing.T) {
 	t.Parallel()
 
-	schema := WebhookTriggerSchemaSQL()
+	schema := webhookstore.WebhookTriggerSchemaSQL()
 	for _, want := range []string{
 		"CREATE TABLE IF NOT EXISTS webhook_refresh_triggers",
 		"delivery_key TEXT NOT NULL",
@@ -31,7 +32,7 @@ func TestWebhookTriggerSchemaDefinesDurableDedupeKeys(t *testing.T) {
 		"ON webhook_refresh_triggers (status, received_at ASC, trigger_id ASC)",
 	} {
 		if !strings.Contains(schema, want) {
-			t.Fatalf("WebhookTriggerSchemaSQL() missing %q:\n%s", want, schema)
+			t.Fatalf("webhookstore.WebhookTriggerSchemaSQL() missing %q:\n%s", want, schema)
 		}
 	}
 }
@@ -59,7 +60,7 @@ func TestWebhookTriggerStoreStoreTriggerUpsertsAcceptedTrigger(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{webhookTriggerRow(trigger, webhook.TriggerStatusQueued, receivedAt)},
 	}
-	store := NewWebhookTriggerStore(db)
+	store := webhookstore.NewWebhookTriggerStore(db)
 
 	stored, err := store.StoreTrigger(context.Background(), trigger, receivedAt)
 	if err != nil {
@@ -121,7 +122,7 @@ func TestWebhookTriggerStoreStoreTriggerPersistsIgnoredDecision(t *testing.T) {
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{webhookTriggerRow(trigger, webhook.TriggerStatusIgnored, receivedAt)},
 	}
-	store := NewWebhookTriggerStore(db)
+	store := webhookstore.NewWebhookTriggerStore(db)
 
 	stored, err := store.StoreTrigger(context.Background(), trigger, receivedAt)
 	if err != nil {
@@ -153,7 +154,7 @@ func TestWebhookTriggerStoreStoreTriggerReturnsPersistedStatusOnDuplicate(t *tes
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{webhookTriggerRow(trigger, webhook.TriggerStatusHandedOff, receivedAt)},
 	}
-	store := NewWebhookTriggerStore(db)
+	store := webhookstore.NewWebhookTriggerStore(db)
 
 	stored, err := store.StoreTrigger(context.Background(), trigger, receivedAt)
 	if err != nil {
@@ -181,7 +182,7 @@ func TestWebhookTriggerStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 			}}},
 		},
 	}
-	store := NewWebhookTriggerStore(db)
+	store := webhookstore.NewWebhookTriggerStore(db)
 
 	triggers, err := store.ClaimQueuedTriggers(context.Background(), "collector-git", now, 10)
 	if err != nil {
@@ -196,8 +197,8 @@ func TestWebhookTriggerStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 	if !strings.Contains(db.queries[0].query, "FOR UPDATE SKIP LOCKED") {
 		t.Fatalf("claim query missing SKIP LOCKED: %s", db.queries[0].query)
 	}
-	if !strings.Contains(WebhookTriggerSchemaSQL(), "ON webhook_refresh_triggers (status, received_at ASC, trigger_id ASC)") {
-		t.Fatalf("schema missing claim order index:\n%s", WebhookTriggerSchemaSQL())
+	if !strings.Contains(webhookstore.WebhookTriggerSchemaSQL(), "ON webhook_refresh_triggers (status, received_at ASC, trigger_id ASC)") {
+		t.Fatalf("schema missing claim order index:\n%s", webhookstore.WebhookTriggerSchemaSQL())
 	}
 	if !strings.Contains(db.queries[0].query, "status = 'queued'") {
 		t.Fatalf("claim query missing queued filter: %s", db.queries[0].query)
@@ -207,7 +208,7 @@ func TestWebhookTriggerStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 func TestWebhookTriggerStoreMarkTriggersHandedOffRequiresIDs(t *testing.T) {
 	t.Parallel()
 
-	store := NewWebhookTriggerStore(&fakeExecQueryer{})
+	store := webhookstore.NewWebhookTriggerStore(&fakeExecQueryer{})
 	if err := store.MarkTriggersHandedOff(context.Background(), nil, time.Now()); err == nil {
 		t.Fatal("MarkTriggersHandedOff() error = nil, want missing ids error")
 	}
@@ -217,7 +218,7 @@ func TestWebhookTriggerStoreMarkTriggersHandedOffUsesIndividualIDParameters(t *t
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	store := NewWebhookTriggerStore(db)
+	store := webhookstore.NewWebhookTriggerStore(db)
 	now := time.Date(2026, time.May, 12, 14, 0, 0, 0, time.UTC)
 
 	err := store.MarkTriggersHandedOff(context.Background(), []string{"trigger-2", "trigger-1", "trigger-2"}, now)
@@ -248,7 +249,7 @@ func TestWebhookTriggerStoreMarkTriggersFailedPersistsFailureDetails(t *testing.
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	store := NewWebhookTriggerStore(db)
+	store := webhookstore.NewWebhookTriggerStore(db)
 	now := time.Date(2026, time.May, 12, 14, 0, 0, 0, time.UTC)
 
 	err := store.MarkTriggersFailed(context.Background(), []string{"trigger-1"}, now, "sync_git_failed", "git unavailable")
