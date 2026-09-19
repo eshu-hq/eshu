@@ -179,7 +179,7 @@ is not broken out here).
 | `cloudInventoryTools` | 1 | `cloud/inventory_tools.go` |
 | `cloudRuntimeDriftTools` | 1 | `cloud/runtime_drift_tools.go` |
 | `packageRegistryTools` | 2 | `tools_package_registry.go` |
-| `admissionDecisionTools` | 1 | `tools_admission_decisions.go` |
+| `admissionDecisionTools` | 1 | `types.go` (wraps `admission/decisions/tools.go`) |
 | `packageRegistryAggregateTools` | 2 | `tools_package_registry_aggregates.go` |
 | `cicdTools` | 1 | `tools_cicd.go` |
 | `cicdRunCorrelationAggregateTools` | 2 | `tools_cicd_aggregates.go` |
