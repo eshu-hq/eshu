@@ -22,7 +22,7 @@ A theory resting on one sample is marked unproven — none below is.
   synthetic repo boundaries for SQL, asserted an unproven band-cap recall
   claim, and never bound the K-path LIMIT; the v1 arithmetic "8,450 pairs"
   was also wrong (8,385). All are re-measured below; the v1 numbers they
-  replace are struck through, not deleted.
+  replace are summarized next to their replacements, not quoted verbatim.
 - Postgres scratch: `postgres:18-alpine`, image digest
   `sha256:6c538e7206ea40ff740ef27883529390a690b6ead6ba96b44c67a9f7c638e8fd`
   (matches repo compose pin `postgres:18-alpine`), throwaway container, scratch
@@ -133,7 +133,7 @@ Largest buckets hand-labelled (all verified by reading members):
   (dominate renamed buckets at every floor), `testBoundary`, runtimebind
   `init`, fake SDK paginators.
 
-Floor recommendation: default floor 50 (exact multi-buckets drop 1176→724,
+Floor recommendation: default floor 50 (exact multi-buckets drop 1227→741,
 all-remaining are actionable; floor 30 keeps test-scaffold noise). Floor stays
 a tunable with counted suppressions.
 
@@ -252,9 +252,10 @@ grandfathered, so new code goes in new directories (grandfather rows:
 
 ## 10. Verdicts per child
 
-- #6835 (fingerprints): **go** — leaf-walk proven deterministic across all
-  four languages; error policy proven (skip file at 0 functions, exclude
-  `has_error` graphs). Minor contract change, additive columns only.
+- #6835 (fingerprints): **go** — leaf-walk proven deterministic across Go,
+  Python, TypeScript, TSX, and Java; error policy proven (skip file at
+  0 functions, exclude `has_error` graphs). Minor contract change, additive
+  columns only.
 - #6836 (reads): **go** — grouping needs no index; suppression catalogue and
   the `reasons[]`/`score` invariant are specified in §5/§8.
 - #6837 (LSH reducer): **go with bounds** — band index required,
