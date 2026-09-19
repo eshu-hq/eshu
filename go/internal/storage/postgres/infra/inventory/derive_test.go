@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -167,5 +168,19 @@ func TestMirrorDeletesTombstonedEntityIDsUnderTheRepoLock(t *testing.T) {
 	}
 	if got := []string(idTx.execs[1].args[1].(pgarray.StringArray)); len(got) != 2 || got[0] != "e1" || got[1] != "e2" {
 		t.Fatalf("deleted ids = %v, want deduplicated [e1 e2]", got)
+	}
+}
+
+// TestNormalizedPathsKeepsValuesVerbatim pins the documented contract: blank
+// entries are dropped, duplicates collapse, and the rest sort, but a value is
+// never trimmed. The set feeds relative_path = ANY(...) and entity_id matches,
+// so trimming a value would stop it matching its own content row.
+func TestNormalizedPathsKeepsValuesVerbatim(t *testing.T) {
+	t.Parallel()
+
+	got := normalizedPaths([]string{"b.tf", " ", "", " a.tf", "b.tf", "a.tf"})
+	want := []string{" a.tf", "a.tf", "b.tf"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("normalizedPaths() = %q, want %q", got, want)
 	}
 }

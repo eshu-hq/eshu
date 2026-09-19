@@ -289,8 +289,10 @@ func deriveInTransaction(
 	return stats, nil
 }
 
-// normalizedPaths trims, drops blanks, deduplicates, and sorts path or id sets
-// so chunk boundaries are reproducible.
+// normalizedPaths drops blank entries, deduplicates, and sorts path or id
+// sets so chunk boundaries are reproducible. It keeps each value verbatim:
+// the set is matched against stored relative_path and entity_id values, so a
+// trimmed value would miss its own row.
 func normalizedPaths(paths []string) []string {
 	seen := make(map[string]struct{}, len(paths))
 	out := make([]string, 0, len(paths))
