@@ -11,13 +11,12 @@ finder.
 ## Ownership boundary
 
 This package owns code-intelligence family membership, the mapping from
-decoded arguments to a dependency-neutral internal request, and four of the
-eight tool definitions (`inspect_code_inventory`,
+decoded arguments to a dependency-neutral internal request, and all eight
+tool definitions (`find_code`, `find_symbol`, `inspect_code_inventory`,
 `inspect_call_graph_metrics`, `trace_route_callers`,
-`investigate_code_topic`). `internal/mcp` keeps the root registration splice
-and client-visible order (`find_code`, `find_symbol`,
-`execute_language_query`, and `find_function_call_chain` stay in
-`tools_codebase.go` until their own leaf moves them), global route fanout,
+`investigate_code_topic`, `execute_language_query`, and
+`find_function_call_chain`). `internal/mcp` keeps the root registration
+splice and client-visible order, global route fanout,
 the private `codeIntelRoute` adapter in `dispatch.go`, HTTP dispatch,
 authorization, timeouts, response budgets, envelopes, summaries, and
 telemetry. `internal/query` owns the bounded reads behind each
@@ -35,7 +34,7 @@ side.
 
 - `Route` selects the internal request for a code-intelligence tool without
   executing it, and reports `handled=false` for every other tool.
-- `Tools` returns the four owned code-intelligence tool definitions.
+- `Tools` returns the eight owned code-intelligence tool definitions.
 
 See `doc.go` for the godoc contract.
 
@@ -82,10 +81,12 @@ the shared API request duration and error metrics (`request_metrics.go` in
   for `internal/mcp/` path references before this move (none found) and by
   running `TestRouteServesDataRegistry` after it.
 
-No-Observability-Change: this extraction moves only pure code-intelligence
-route selection. The root adapter still feeds the same global fanout,
-dispatch, authorization, budgets, envelopes, summaries, and transport
-telemetry, and the same query handlers execute the requests.
+No-Observability-Change: this extraction moves only the four remaining
+code-intelligence tool definitions alongside the existing pure route
+selection. The root splice keeps the same client-visible order, the root
+adapter still feeds the same global fanout, dispatch, authorization,
+budgets, envelopes, summaries, and transport telemetry, and the same query
+handlers execute the requests.
 
 ## Related docs
 

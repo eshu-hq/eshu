@@ -34,6 +34,31 @@ func TestCodebaseToolsSplicePreservesIntelPositions(t *testing.T) {
 	}
 }
 
+// TestCodebaseToolsSplicePreservesIntelLanguagePositions pins the absolute
+// registration indices of the language-query and call-chain definitions
+// owned by the code/intel package, with their repository-stats predecessor.
+// Every name and index is literal here, independent of the child's own
+// order, so a reorder of codeinteltools.Tools or a move of the segment
+// fails this test instead of shifting with the code under test.
+func TestCodebaseToolsSplicePreservesIntelLanguagePositions(t *testing.T) {
+	t.Parallel()
+
+	codebase := codebaseTools()
+	want := map[int]string{
+		30: "get_repository_stats",
+		31: "execute_language_query",
+		32: "find_function_call_chain",
+	}
+	for index, name := range want {
+		if index >= len(codebase) {
+			t.Fatalf("codebaseTools() has %d tools, want index [%d] = %q", len(codebase), index, name)
+		}
+		if got := codebase[index].Name; got != name {
+			t.Fatalf("codebaseTools()[%d] = %q, want %q", index, got, name)
+		}
+	}
+}
+
 func TestResolveRouteMapsCallGraphMetricsToolToBoundedEndpoint(t *testing.T) {
 	t.Parallel()
 
