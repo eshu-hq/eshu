@@ -26,12 +26,16 @@ recent shipped work grouped by feature area.
   `limit`/`offset` paging and `truncated`/`next_offset` in the response;
   `get_capability_catalog`'s default `limit` dropped from 200 to 12 and its
   top-level `authorization` field defaults to empty. `view=full` (and, for
-  capabilities, `include_authorization=true`) restores the complete,
-  byte-identical pre-#6795 shape for any caller that needs it — the console
-  capability matrix opts in this way to keep its `proof_signals` counts.
-  Measured default-page reduction: `get_capability_catalog` 217KB->6.7KB,
-  `list_query_playbooks` 46KB->5.5KB, `list_investigation_workflows`
-  27KB->1.1KB (live A/B against the deployed binary).
+  capabilities, `include_authorization=true`) restores the complete
+  per-entry shape for any caller that needs it — the console capability
+  matrix and the console/CLI playbook list both opt in this way. Paging
+  still applies under `view=full` for all three, and for
+  `list_query_playbooks`/`list_investigation_workflows`, `count` is the
+  number of items in the returned page, not the catalog total; `total`
+  carries the catalog size. Measured default-page reduction: `get_capability_catalog`
+  217KB->6.7KB, `list_query_playbooks` 46KB->5.5KB,
+  `list_investigation_workflows` 27KB->1.1KB (live A/B against the deployed
+  binary).
 
 ### EC2 AMI node class resolves the instance->AMI relationship
 

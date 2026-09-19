@@ -67,6 +67,12 @@ Examples:
 | MCP | `list_investigation_workflows` | Dispatches to the HTTP catalog route and returns the canonical envelope as structured content. |
 | MCP | `resolve_investigation_workflow` | Dispatches to the HTTP resolver with `workflow_id`, `inputs`, and `missing_evidence`. |
 
+`view=full` restores the complete per-entry shape (input shapes, evidence
+families, output packets, grouped tools, starter prompts, failure modes,
+missing-evidence routes); paging still applies, so `count` is the number of
+workflows in the returned page, not the catalog total, and `total` carries
+the catalog size.
+
 Both routes report `query.investigation_workflows` truth with `runtime_state`
 basis because they describe static workflow-plan data. Scoped-token requests may
 list or resolve workflows because the handler returns catalog data only; the
