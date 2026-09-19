@@ -23,6 +23,13 @@ import (
 // (loadRepositoryDependencyEdges / repositoryDependencyTargetSet), not a
 // per-row EXISTS-as-RETURN-expression. The repository page query's RETURN
 // must carry no EXISTS, DEPENDS_ON, or is_dependency text.
+//
+// A page-scoped alternative (WHERE t.id IN $page_ids) was measured live for
+// issue #6786 review F6 and rejected: on NornicDB v1.3.3 its cold-path cost
+// scales ~linearly with len($page_ids) (~55-60ms/element) and is cached by
+// exact parameter VALUES, not statement text, so a real catalog page (whose
+// repo id set drifts on ordinary churn) would pay that cost on most
+// requests. The whole-graph pre-pass below is the proven-safe shape.
 func TestListCatalogMarksDependencyFromInboundEdgeNoExistsExpression(t *testing.T) {
 	t.Parallel()
 
@@ -71,6 +78,7 @@ func TestListCatalogMarksDependencyFromInboundEdgeNoExistsExpression(t *testing.
 	if strings.Contains(capturedEdgeCypher, "allowed_repository_ids") {
 		t.Errorf("catalog's edge pre-pass must stay unscoped:\n%s", capturedEdgeCypher)
 	}
+	querytestutil.AssertCypherHasNoBrokenAndOr(t, capturedEdgeCypher)
 
 	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
@@ -103,8 +111,11 @@ func TestListCatalogMarksDependencyFromInboundEdgeNoExistsExpression(t *testing.
 // TestListCatalogDisclosesDegradedDependencyEvidenceOnEdgeQueryError proves
 // GET /api/v0/catalog still succeeds when the dependency-edge pre-pass
 // errors (the primary repository/workload rows are healthy), but discloses
-// the degradation via Truncated and Limitations rather than silently
-// reporting every repository as is_dependency=false.
+// the degradation via Limitations ONLY, never Truncated: catalog-workload-
+// selection.md defines Truncated as "true when any catalog collection is
+// partial", and no collection here is partial -- the repository page
+// returned is complete, only the auxiliary is_dependency marker on it may
+// be incomplete (#6786 review F1).
 func TestListCatalogDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *testing.T) {
 	t.Parallel()
 
@@ -140,8 +151,8 @@ func TestListCatalogDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *testi
 	if !ok {
 		t.Fatalf("envelope data type = %T, want map", envelope.Data)
 	}
-	if got, want := querycontract.BoolVal(data, "truncated"), true; got != want {
-		t.Errorf("truncated = %v, want %v (a degraded dependency read must be disclosed)", got, want)
+	if got, want := querycontract.BoolVal(data, "truncated"), false; got != want {
+		t.Errorf("truncated = %v, want %v -- no catalog collection is partial, so a degraded dependency read must NOT set it", got, want)
 	}
 	limitations := querytestutil.RequireStringAnySlice(t, data, "limitations")
 	if !querytestutil.AnySliceContains(limitations, repositoryDependencyEdgesDegradedReason) {

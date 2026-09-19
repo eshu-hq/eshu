@@ -190,49 +190,15 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 		rows = rows[:page.Limit]
 	}
 
-	// Dependency-edge pre-pass: one bounded edge query over
-	// (:Repository)-[:DEPENDS_ON]->(:Repository), read once and used for two
-	// purposes computed in Go: connected-component clustering (the primary
-	// grouping signal, issue #3504) and the is_dependency marker (issue
-	// #6786 defect 1 -- replaces a per-row EXISTS-as-RETURN-expression that
-	// NornicDB v1.3.3 always evaluates false, and whose scoped grant
-	// predicate was invalid Cypher on Neo4j). Repositories that depend on
-	// each other share a cluster key, and the per-row decoration below gives
-	// that cluster precedence over the source-backed slug/owner/flag
-	// derivation. Repositories in no dependency edge fall through to honest
-	// missing_evidence rather than a name heuristic.
-	//
-	// The pre-pass is instrumented with the existing stage timer so operators
-	// can diagnose its duration and edge count from the
-	// repository_query.stage_started / repository_query.stage_completed log
-	// events (operation=repository_list, stage=dependency_cluster_edges).
-	clusterTimer := startRepositoryQueryStage(r.Context(), h.Logger, "repository_list", "", "dependency_cluster_edges")
-	dependencyRead := loadRepositoryDependencyEdges(r.Context(), h.Neo4j, access)
-	clusters := buildRepositoryDependencyClusters(dependencyRead.Edges)
-	dependencyTargets := repositoryDependencyTargetSet(dependencyRead.Edges)
-	clusterTimer.Done(
-		r.Context(),
-		slog.Int("cluster_count", len(clusters)),
-		slog.Int("edge_count", len(dependencyRead.Edges)),
-		slog.Bool("truncated", dependencyRead.Truncated),
-		slog.Bool("error", dependencyRead.Err != nil),
-	)
-	// A failed or truncated pre-pass degrades rather than fails this
-	// otherwise-healthy page (see logRepositoryDependencyEdgesDegradation's
-	// doc comment for why), but must not silently present is_dependency or
-	// dependency_cluster grouping as complete: fold it into the same
-	// truncated/partial_reasons disclosure the page's own truncation uses.
-	dependencyDegraded := logRepositoryDependencyEdgesDegradation(r.Context(), h.Logger, "repository_list", dependencyRead)
-	responseTruncated := truncated || dependencyDegraded
-	var extraPartialReasons []string
-	if dependencyDegraded {
-		extraPartialReasons = append(extraPartialReasons, repositoryDependencyEdgesDegradedReason)
-	}
+	// Dependency-edge pre-pass, clustering, and the is_dependency marker;
+	// see resolveRepositoryDependencyEvidence's doc comment (issue #3504,
+	// #6786 defect 1, #6786 review F1).
+	evidence := resolveRepositoryDependencyEvidence(r.Context(), h.Logger, h.Neo4j, access)
 
 	repos := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		id := querycontract.StringVal(row, "id")
-		_, isDependency := dependencyTargets[id]
+		_, isDependency := evidence.Targets[id]
 		repo := map[string]any{
 			"id":            id,
 			"name":          querycontract.StringVal(row, "name"),
@@ -243,10 +209,10 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 			"has_remote":    querycontract.BoolVal(row, "has_remote"),
 			"is_dependency": isDependency,
 		}
-		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, clusters))
+		repos = append(repos, decorateRepositoryGroupEvidenceWithClusters(repo, evidence.Clusters))
 	}
 
-	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, responseTruncated, total, extraPartialReasons...), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total, evidence.ExtraPartialReasons...), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 }
 
 func (h *Handler) listRepositoriesFromContent(ctx context.Context) ([]map[string]any, error) {

@@ -208,7 +208,13 @@ func TestListRepositoriesScopedDependencyMarkerUsesScopedEdgePrePass(t *testing.
 // healthy) but discloses that is_dependency may be incomplete when the
 // dependency-edge pre-pass errors, rather than silently reporting every
 // repository as is_dependency=false with no indication anything went
-// wrong.
+// wrong. Disclosure MUST be via partial_reasons only: truncated (and the
+// result_limits.truncated / repository_inventory_truncated fields it
+// drives) means "more repositories exist beyond this returned page" per
+// the OpenAPI/HTTP-API-reference contract, an unrelated claim the
+// dependency-edge pre-pass has no bearing on -- a complete 1-of-1 page
+// must still report truncated=false even when this auxiliary read is
+// degraded (#6786 review F1).
 func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *testing.T) {
 	t.Parallel()
 
@@ -247,12 +253,22 @@ func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *
 	if !ok {
 		t.Fatalf("envelope data type = %T, want map", envelope.Data)
 	}
-	if got, want := querycontract.BoolVal(data, "truncated"), true; got != want {
-		t.Errorf("truncated = %v, want %v (a degraded dependency read must be disclosed)", got, want)
+	if got, want := querycontract.BoolVal(data, "truncated"), false; got != want {
+		t.Errorf("truncated = %v, want %v -- a degraded dependency pre-pass must NOT claim more pages exist (this is a complete 1-of-1 page)", got, want)
 	}
 	reasons := querytestutil.RequireStringAnySlice(t, data, "partial_reasons")
+	if querytestutil.AnySliceContains(reasons, "repository_inventory_truncated") {
+		t.Errorf("partial_reasons = %v, want it NOT to contain repository_inventory_truncated (no page truncation occurred)", reasons)
+	}
 	if !querytestutil.AnySliceContains(reasons, repositoryDependencyEdgesDegradedReason) {
 		t.Fatalf("partial_reasons = %v, want it to contain %q", reasons, repositoryDependencyEdgesDegradedReason)
+	}
+	resultLimits, ok := data["result_limits"].(map[string]any)
+	if !ok {
+		t.Fatalf("result_limits type = %T, want map", data["result_limits"])
+	}
+	if got, want := querycontract.BoolVal(resultLimits, "truncated"), false; got != want {
+		t.Errorf("result_limits.truncated = %v, want %v", got, want)
 	}
 	repositories := data["repositories"].([]any)
 	repo := repositories[0].(map[string]any)
@@ -264,9 +280,10 @@ func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnEdgeQueryError(t *
 // TestListRepositoriesDisclosesDegradedDependencyEvidenceOnTruncation proves
 // the same disclosure fires when the edge pre-pass hits its bound instead of
 // erroring: is_dependency for repositories within the returned edge set
-// still stays accurate, but the response marks itself truncated and names
-// the reason so a caller does not treat an is_dependency=false repository
-// outside that window as a confirmed negative.
+// still stays accurate, and the response names the dependency-evidence
+// reason in partial_reasons, but truncated stays false -- the PAGE (one
+// repository, requested and returned) is complete; only the auxiliary
+// dependency-edge read was clipped (#6786 review F1).
 func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnTruncation(t *testing.T) {
 	t.Parallel()
 
@@ -312,12 +329,22 @@ func TestListRepositoriesDisclosesDegradedDependencyEvidenceOnTruncation(t *test
 	if !ok {
 		t.Fatalf("envelope data type = %T, want map", envelope.Data)
 	}
-	if got, want := querycontract.BoolVal(data, "truncated"), true; got != want {
-		t.Errorf("truncated = %v, want %v (an edge-pre-pass truncation must be disclosed)", got, want)
+	if got, want := querycontract.BoolVal(data, "truncated"), false; got != want {
+		t.Errorf("truncated = %v, want %v -- an edge-pre-pass truncation must NOT claim more pages exist (this is a complete 1-of-1 page)", got, want)
 	}
 	reasons := querytestutil.RequireStringAnySlice(t, data, "partial_reasons")
+	if querytestutil.AnySliceContains(reasons, "repository_inventory_truncated") {
+		t.Errorf("partial_reasons = %v, want it NOT to contain repository_inventory_truncated (no page truncation occurred)", reasons)
+	}
 	if !querytestutil.AnySliceContains(reasons, repositoryDependencyEdgesDegradedReason) {
 		t.Fatalf("partial_reasons = %v, want it to contain %q", reasons, repositoryDependencyEdgesDegradedReason)
+	}
+	resultLimits, ok := data["result_limits"].(map[string]any)
+	if !ok {
+		t.Fatalf("result_limits type = %T, want map", data["result_limits"])
+	}
+	if got, want := querycontract.BoolVal(resultLimits, "truncated"), false; got != want {
+		t.Errorf("result_limits.truncated = %v, want %v", got, want)
 	}
 	repositories := data["repositories"].([]any)
 	repo := repositories[0].(map[string]any)

@@ -209,6 +209,73 @@ func logRepositoryDependencyEdgesDegradation(ctx context.Context, logger *slog.L
 	return true
 }
 
+// repositoryDependencyEvidence bundles the repository list's dependency-edge
+// pre-pass results: connected-component Clusters (issue #3504), the
+// is_dependency Targets set (issue #6786 defect 1), and any
+// ExtraPartialReasons the degradation discipline requires (#6786 review F1
+// -- never truncated).
+type repositoryDependencyEvidence struct {
+	Clusters            map[string]string
+	Targets             map[string]struct{}
+	ExtraPartialReasons []string
+}
+
+// resolveRepositoryDependencyEvidence runs one bounded edge query over
+// (:Repository)-[:DEPENDS_ON]->(:Repository) and uses it for two purposes:
+// connected-component clustering (the primary grouping signal, issue
+// #3504) and the is_dependency marker (issue #6786 defect 1 -- replaces a
+// per-row EXISTS-as-RETURN-expression that NornicDB v1.3.3 always
+// evaluates false, and whose scoped grant predicate was invalid Cypher on
+// Neo4j). Repositories that depend on each other share a cluster key,
+// which the caller's per-row decoration gives precedence over the
+// source-backed slug/owner/flag derivation; repositories in no dependency
+// edge fall through to honest missing_evidence rather than a name
+// heuristic.
+//
+// The pre-pass is instrumented with the existing stage timer so operators
+// can diagnose its duration and edge count from the
+// repository_query.stage_started / repository_query.stage_completed log
+// events (operation=repository_list, stage=dependency_cluster_edges).
+//
+// A failed or truncated pre-pass degrades rather than fails this
+// otherwise-healthy page (see logRepositoryDependencyEdgesDegradation's
+// doc comment for why), but must not silently present is_dependency or
+// dependency_cluster grouping as complete. Disclosure is via
+// ExtraPartialReasons ONLY -- the caller MUST NOT fold it into truncated
+// (or, downstream, result_limits.truncated / the
+// repository_inventory_truncated reason): those fields mean "more
+// repositories exist beyond this returned page" (see the
+// OpenAPI/HTTP-API-reference contract for GET /api/v0/repositories), an
+// unrelated claim about the PAGE that the dependency-edge pre-pass has no
+// bearing on. A complete, non-truncated page whose auxiliary dependency
+// evidence is incomplete must still report truncated=false -- otherwise a
+// pager or agent that follows "truncated" asks for a next page that does
+// not exist (#6786 review F1).
+func resolveRepositoryDependencyEvidence(
+	ctx context.Context,
+	logger *slog.Logger,
+	graph querycontract.GraphQuery,
+	access querycontract.RepositoryAccessFilter,
+) repositoryDependencyEvidence {
+	clusterTimer := startRepositoryQueryStage(ctx, logger, "repository_list", "", "dependency_cluster_edges")
+	dependencyRead := loadRepositoryDependencyEdges(ctx, graph, access)
+	clusters := buildRepositoryDependencyClusters(dependencyRead.Edges)
+	targets := repositoryDependencyTargetSet(dependencyRead.Edges)
+	clusterTimer.Done(
+		ctx,
+		slog.Int("cluster_count", len(clusters)),
+		slog.Int("edge_count", len(dependencyRead.Edges)),
+		slog.Bool("truncated", dependencyRead.Truncated),
+		slog.Bool("error", dependencyRead.Err != nil),
+	)
+
+	evidence := repositoryDependencyEvidence{Clusters: clusters, Targets: targets}
+	if logRepositoryDependencyEdgesDegradation(ctx, logger, "repository_list", dependencyRead) {
+		evidence.ExtraPartialReasons = append(evidence.ExtraPartialReasons, repositoryDependencyEdgesDegradedReason)
+	}
+	return evidence
+}
+
 // repositoryDependencyTargetSet returns the set of repository ids that are
 // the target of at least one edge in edges -- i.e. the repositories some
 // other (grant-admitted) repository depends on. This is the is_dependency
