@@ -106,8 +106,10 @@ func TestCanonicalNodeWriterPriorGenerationFilesKeepGuardedCreate(t *testing.T) 
 	if !strings.Contains(fileStatements[0].Cypher, "MATCH (f:File {path: row.path})") {
 		t.Fatalf("prior-generation first file statement must update existing files, got:\n%s", fileStatements[0].Cypher)
 	}
-	if !strings.Contains(fileStatements[1].Cypher, "WHERE NOT EXISTS") {
-		t.Fatalf("prior-generation second file statement must keep guarded create, got:\n%s", fileStatements[1].Cypher)
+	if !strings.Contains(fileStatements[1].Cypher, "OPTIONAL MATCH (existing:File {path: row.path})") ||
+		!strings.Contains(fileStatements[1].Cypher, "WHERE existing IS NULL") ||
+		strings.Contains(fileStatements[1].Cypher, "NOT EXISTS") {
+		t.Fatalf("prior-generation second file statement must keep the index-backed guarded create (#6798), got:\n%s", fileStatements[1].Cypher)
 	}
 }
 

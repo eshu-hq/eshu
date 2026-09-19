@@ -211,8 +211,8 @@ canonical node path, and it is skipped for first-generation scopes because no
 prior repository identity can exist for that source-local scope. Directory rows
 use depth-ordered `MERGE` after the
 repository is present. File rows update current nodes in place with
-`MATCH (f:File {path: row.path})`, then send only missing rows through a
-`WHERE NOT EXISTS { MATCH (:File {path: row.path}) }` guard before `MERGE`.
+`MATCH (f:File {path: row.path})`, then send only missing rows through an
+index-backed `OPTIONAL MATCH ... WHERE existing IS NULL` guard (#6798) before `MERGE`.
 Nested files require a parent `Directory` match for the directory containment
 edge. Repository-root files use a separate Repository-contained statement shape
 so package entrypoint files can materialize without inventing a root
