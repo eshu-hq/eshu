@@ -43,9 +43,13 @@ transaction (`neo4j.ExecuteQuery`), NornicDB v1.3.3 rejects every
 all 15 of those CALL probes are correct, and production reads are auto-commit.
 An early managed-transaction run made the scoped change-surface read look
 broken. All 106 probes were then re-run in both modes on fresh containers.
-Every label-predicate verdict was identical in the two modes: 50 diverged in
-both, and 41 matched in both. Only the CALL probes, and X4-style
-newline-tab-`OR` probe E07, depended on the mode. The live tests below read
+90 of the 91 label-predicate probes returned identical verdicts in the two
+modes: 50 diverged in both, and 41 matched in both. The exception is
+X4-style newline-tab-`OR` probe E07 (`MATCH (n) WHERE n:R` with the `OR`
+led by a newline and tab), whose verdict depended on the mode; its
+mode-specific row counts were not tabulated, so it sits in neither the 50
+nor the 41. All 15 CALL probes are correct in auto-commit mode, and
+production reads are auto-commit. The live tests below read
 in auto-commit mode only.
 
 ## Minimal repro
