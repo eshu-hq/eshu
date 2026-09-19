@@ -222,6 +222,33 @@ package run.
 | `codequery` `TestLiveRelationshipStoryOverrideLabelPredicate` | FAIL (Variable target leaked) / PASS | PASS / PASS |
 | `query` `TestLiveLabelPredicateExposureControls` (3 subtests) | n/a (not affected) | PASS / PASS |
 
+Log lines from the rerun on this branch (fresh containers per package and
+backend, pins above). "Before fix" swaps in the three pre-fix production files
+from `d4e600239^` and runs the same tests:
+
+```text
+before fix, NornicDB:
+--- FAIL: TestLiveRepositoryInfrastructureLabelPredicate/code-heavy
+    infrastructure rows = [] truncated=true, want [K8sResource api-deployment ...]
+--- FAIL: TestLiveChangeSurfaceLabelPredicate/unscoped
+    impacted = [] truncated=true, want [x11-cs:workload] truncated=false
+--- PASS: TestLiveChangeSurfaceLabelPredicate/scoped
+--- FAIL: TestLiveRelationshipStoryOverrideLabelPredicate
+    override rows = [x11-ov:method->x11-ov:base x11-ov:method->x11-ov:var], want [x11-ov:method->x11-ov:base]
+before fix, Neo4j: all three PASS
+after fix, NornicDB and Neo4j (each):
+--- PASS: TestLiveRepositoryInfrastructureLabelPredicate (small, code-heavy)
+--- PASS: TestLiveChangeSurfaceLabelPredicate (unscoped, scoped)
+--- PASS: TestLiveRelationshipStoryOverrideLabelPredicate
+--- PASS: TestLiveLabelPredicateExposureControls (infra_aggregate_provider_filter,
+          argocd_category_NOT_label, entity_resolve_type_filter)
+```
+
+The infrastructure test compares rows in the order the server returns them,
+and seeds two `TerraformResource`s in reverse name order, so `ORDER BY type,
+name` after the new `WITH` is asserted. Changing it to `ORDER BY type, name
+DESC` fails on both backends.
+
 ## Performance
 
 Performance Evidence: the before and after statements were timed
@@ -240,6 +267,20 @@ checked for every shape.
 | change-surface legacy (depth 2, `LIMIT 51`) | 1.0990s, **wrong** → 1.1007s | 0.0201s → 0.0522s |
 | change-surface, rejected WITH alternative | 0.7233s | 0.0293s |
 | overrides story | 0.3926s → 0.4088s | 0.0030s → 0.0025s |
+
+The harness is `go/internal/query/label_predicate_timing_live_test.go`,
+build tag `live_nornicdb_label_predicate_timing`; its header has the run
+command. It holds frozen copies of the timed statements, including the
+pre-fix texts. A rerun on this branch, on fresh containers on a busier host,
+gave these medians. The absolute numbers moved and NornicDB's infrastructure
+ratio was 2.7× rather than 2.1×, but the ordering of shapes and the
+conclusions below held:
+
+| Read | NornicDB before → after | Neo4j before → after |
+| --- | --- | --- |
+| infrastructure | 0.8786s (5,001 rows, wrong) → 2.3655s (20 rows); `IN labels()` 2.5444s | 0.0052s → 0.0045s; `IN labels()` 0.1364s |
+| change-surface legacy | 1.5650s (51 rows, wrong) → 0.9889s (2 rows); WITH 0.6734s | 0.0333s → 0.0599s; WITH 0.0338s |
+| overrides story | 0.4200s → 0.4359s | 0.0032s → 0.0043s |
 
 What the numbers mean:
 
