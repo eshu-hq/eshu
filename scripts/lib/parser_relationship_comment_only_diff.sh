@@ -166,6 +166,14 @@ is_internal_package_move() {
 # element, the same name token-diff assumes for the qualifier; a package
 # whose clause does not match it is not normalized and so fails the compare.
 # Any git failure, or a NAME that is not a Go identifier, fails closed.
+#
+# Known limit (fails closed): only the package clause and godoc lead are
+# normalized, not import paths or qualifiers inside the moved files. A package
+# whose own files import it -- an external `package NAME_test` file, or a
+# nested subpackage that imports the parent -- changes those files' bytes on a
+# move, so the move is not exempt and the kit asks for the doc/test update as
+# for any other change. That is the conservative outcome; normalizing the
+# import path and qualifier per file would be needed to exempt such moves.
 go_package_content_hashes() {
   local ref="$1" dir="$2" name="$3" listing line type path hash
   case "$name" in

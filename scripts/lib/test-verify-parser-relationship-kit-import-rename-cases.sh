@@ -179,6 +179,9 @@ rename_case rename-r10-relationship-swap "$rel" \
 #                       godoc lead is normalized, so the second is a change.
 #         glued-lead    the godoc lead reads `// Package queryspanx`; that is
 #                       not the package-name lead, so it is not normalized.
+#         nested-go     pure-rename plus a changed body in a nested
+#                       subpackage (`sub/sub.go`); nested .go files are
+#                       compared as-is.
 content_move_case() {
   local name="$1" mode="$2" expect="$3" r
   r="$(init_repo "$name")"
@@ -190,6 +193,8 @@ content_move_case() {
   printf '# queryspan\n' >"${r}/${old_pkg}/README.md"
   mkdir -p "${r}/${old_pkg}/tmpl"
   printf 'MATCH (m) RETURN m\n' >"${r}/${old_pkg}/tmpl/t.cypher"
+  mkdir -p "${r}/${old_pkg}/sub"
+  printf 'package sub\n\n// S returns one.\nfunc S() int { return 1 }\n' >"${r}/${old_pkg}/sub/sub.go"
   case "$mode" in
     second-lead) printf '// Package queryspan notes.\npackage queryspan\n\n// Package queryspan also.\nvar x = 1\n' >"${r}/${old_pkg}/notes.go" ;;
     glued-lead) printf '// Package queryspanx is not a lead.\npackage queryspan\n' >"${r}/${old_pkg}/glued.go" ;;
@@ -207,6 +212,7 @@ content_move_case() {
   git -C "${r}" mv "${old_pkg}/query.cypher" "${new_pkg}/query.cypher"
   git -C "${r}" mv "${old_pkg}/README.md" "${new_pkg}/README.md"
   git -C "${r}" mv "${old_pkg}/tmpl" "${new_pkg}/tmpl"
+  git -C "${r}" mv "${old_pkg}/sub" "${new_pkg}/sub"
   case "$mode" in
     second-lead)
       git -C "${r}" mv "${old_pkg}/notes.go" "${new_pkg}/notes.go"
@@ -232,6 +238,7 @@ content_move_case() {
     readme-edit) printf '# tracing\n\nWas queryspan until #6818.\n' >"${r}/${new_pkg}/README.md" ;;
     nested-asset) printf 'MATCH (m) DETACH DELETE m\n' >"${r}/${new_pkg}/tmpl/t.cypher" ;;
     second-lead | glued-lead) ;;
+    nested-go) sed -i 's/return 1/return 2/' "${r}/${new_pkg}/sub/sub.go" ;;
   esac
   printf '%s\n' "$new_src" >"${r}/${lang}"
   git -C "${r}" add -A .
@@ -254,3 +261,4 @@ content_move_case rename-r20-pure-move-with-readme-edit readme-edit pass
 content_move_case rename-r21-replacement-changed-nested-asset nested-asset fail
 content_move_case rename-r22-second-godoc-lead-edited second-lead fail
 content_move_case rename-r23-glued-godoc-lead-rewritten glued-lead fail
+content_move_case rename-r24-replacement-changed-nested-go nested-go fail
