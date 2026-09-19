@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -160,5 +161,30 @@ func TestNoUnwindVariableReusedAsReturnAliasAcrossRepo(t *testing.T) {
 				"Violations:\n  %s",
 			len(hits), strings.Join(hits, "\n  "),
 		)
+	}
+}
+
+// TestScanFileUnwindAliasHitsFoldsConcatenation proves the scan reports
+// the right line for a planted raw-string violation and for one only visible
+// after folding a "+" chain, and stays silent on a clean file.
+func TestScanFileUnwindAliasHitsFoldsConcatenation(t *testing.T) {
+	t.Parallel()
+
+	const src = "package fixture\n" +
+		"\n" +
+		"const clean = `UNWIND $repo_ids AS requested_repo_id MATCH (i:WorkloadInstance {repo_id: requested_repo_id})\nRETURN i.repo_id AS repo_id`\n" +
+		"\n" +
+		"const raw = `UNWIND $repo_ids AS repo_id MATCH (i:WorkloadInstance {repo_id: repo_id})\nRETURN DISTINCT i.repo_id AS repo_id, i.id AS instance_id`\n" +
+		"\n" +
+		"var folded = \"UNWIND $repo_ids AS repo_id MATCH (i:WorkloadInstance {repo_id: repo_id})\\n\" + \"RETURN DISTINCT i.repo_id AS repo_id, i.id AS instance_id\"\n"
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "fixture.go", src, 0)
+	if err != nil {
+		t.Fatalf("parse fixture: %v", err)
+	}
+	got := scanFileUnwindAliasHits(fset, "fixture.go", file)
+	want := []string{"fixture.go:6", "fixture.go:9"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("scanFileUnwindAliasHits = %v, want %v", got, want)
 	}
 }
