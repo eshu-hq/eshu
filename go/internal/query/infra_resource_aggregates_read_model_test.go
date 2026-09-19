@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -84,11 +85,29 @@ func TestInfraReadModelLabelSplitCoversTaxonomyExactly(t *testing.T) {
 			t.Fatalf("infra label %q is served by neither the read model nor the graph", label)
 		}
 	}
-	want := []string{"CloudResource", "TerraformModule", "TerraformOutput", "TerraformStateResource"}
+	want := []string{"CloudResource", "TerraformStateResource"}
 	got := append([]string(nil), infraGraphOnlyLabels...)
 	sort.Strings(got)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("graph-only labels = %v, want %v", got, want)
+	}
+	// Mixed-writer labels are in the table for their content-derived nodes;
+	// the graph keeps only their other writer's nodes.
+	wantMixed := map[string]string{
+		"TerraformModule": "projector/tfstate",
+		"TerraformOutput": "projector/tfstate",
+	}
+	if !reflect.DeepEqual(infraMixedWriterGraphSource, wantMixed) {
+		t.Fatalf("mixed-writer graph sources = %v, want %v", infraMixedWriterGraphSource, wantMixed)
+	}
+	for label, source := range infraMixedWriterGraphSource {
+		if !table[label] {
+			t.Fatalf("mixed-writer label %s must also be in the read model", label)
+		}
+		if source != infraMixedWriterEvidenceSource {
+			t.Fatalf("mixed-writer label %s source %q; the graph read binds one $graph_writer_evidence_source %q",
+				label, source, infraMixedWriterEvidenceSource)
+		}
 	}
 }
 
@@ -119,7 +138,7 @@ func TestInfraAggregateCountUsesReadModelAndOneGraphPassWhenBackfilled(t *testin
 		ByProvider:     map[string]int{"aws": 9, "unknown": 6},
 		ByEnvironment:  map[string]int{"prod": 7, "unknown": 8},
 		ByLabel:        map[string]int{"TerraformResource": 6, "K8sResource": 2, "CloudResource": 3, "TerraformModule": 4},
-		Source:         InfraResourceAggregateSourceReadModel,
+		Source:         InfraResourceAggregateSourceHybrid,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("count:\n got %+v\nwant %+v", got, want)
@@ -130,12 +149,24 @@ func TestInfraAggregateCountUsesReadModelAndOneGraphPassWhenBackfilled(t *testin
 	}
 	cypher := graph.calls[0].Cypher
 	for _, label := range infraGraphOnlyLabels {
-		if !strings.Contains(cypher, "MATCH (n:"+label+")") || !strings.Contains(cypher, "'"+label+"' AS label") {
-			t.Fatalf("graph pass missing graph-only label %s:\n%s", label, cypher)
+		if !strings.Contains(cypher, "MATCH (n:"+label+")\n") && !strings.Contains(cypher, "MATCH (n:"+label+") RETURN") {
+			t.Fatalf("graph pass must read graph-only label %s whole:\n%s", label, cypher)
 		}
 	}
+	for label := range infraMixedWriterGraphSource {
+		if !strings.Contains(cypher, "MATCH (n:"+label+") WHERE n.evidence_source = $graph_writer_evidence_source RETURN '"+label+"' AS label") {
+			t.Fatalf("graph pass must read mixed-writer label %s only through the indexed evidence_source seek:\n%s", label, cypher)
+		}
+	}
+	if graph.calls[0].Params["graph_writer_evidence_source"] != "projector/tfstate" {
+		t.Fatalf("graph params = %v, want graph_writer_evidence_source bound", graph.calls[0].Params)
+	}
+	mixed := map[string]bool{}
+	for label := range infraMixedWriterGraphSource {
+		mixed[label] = true
+	}
 	for _, label := range inventory.Labels {
-		if strings.Contains(cypher, "MATCH (n:"+label+")") {
+		if !mixed[label] && strings.Contains(cypher, "MATCH (n:"+label+")") {
 			t.Fatalf("graph pass reads read-model label %s:\n%s", label, cypher)
 		}
 	}
@@ -212,9 +243,13 @@ func TestInfraAggregateCategoryRoutesToOneSide(t *testing.T) {
 		{Label: "K8sResource", Provider: "unknown", Environment: "prod", Count: 2},
 	}}
 	k8sGraph := &stubInfraGraphQuery{}
-	if _, err := NewGraphInfraResourceAggregateStore(k8sGraph).WithReadModel(k8sModel).
-		CountInfraResources(context.Background(), InfraResourceAggregateFilter{Category: "k8s"}); err != nil {
+	k8sCount, err := NewGraphInfraResourceAggregateStore(k8sGraph).WithReadModel(k8sModel).
+		CountInfraResources(context.Background(), InfraResourceAggregateFilter{Category: "k8s"})
+	if err != nil {
 		t.Fatalf("k8s CountInfraResources() error = %v", err)
+	}
+	if k8sCount.Source != InfraResourceAggregateSourceReadModel {
+		t.Fatalf("k8s source = %q, want read_model (table only)", k8sCount.Source)
 	}
 	if len(k8sGraph.calls) != 0 {
 		t.Fatalf("k8s category read the graph %d times, want 0 (every k8s label is in the read model)", len(k8sGraph.calls))
@@ -225,9 +260,13 @@ func TestInfraAggregateCategoryRoutesToOneSide(t *testing.T) {
 
 	cloudModel := &fakeInfraReadModel{ready: true}
 	cloudGraph := &stubInfraGraphQuery{}
-	if _, err := NewGraphInfraResourceAggregateStore(cloudGraph).WithReadModel(cloudModel).
-		CountInfraResources(context.Background(), InfraResourceAggregateFilter{Category: "cloud"}); err != nil {
+	cloudCount, err := NewGraphInfraResourceAggregateStore(cloudGraph).WithReadModel(cloudModel).
+		CountInfraResources(context.Background(), InfraResourceAggregateFilter{Category: "cloud"})
+	if err != nil {
 		t.Fatalf("cloud CountInfraResources() error = %v", err)
+	}
+	if cloudCount.Source != InfraResourceAggregateSourceGraph {
+		t.Fatalf("cloud source = %q, want graph (graph-only labels)", cloudCount.Source)
 	}
 	if len(cloudModel.countFilters) != 0 {
 		t.Fatal("cloud category queried the read model; CloudResource is graph-only")
@@ -255,8 +294,8 @@ func TestInfraAggregateInventoryMergesReadModelAndGraphBuckets(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InfraResourceInventory() error = %v", err)
 	}
-	if source != InfraResourceAggregateSourceReadModel {
-		t.Fatalf("source = %q, want read_model", source)
+	if source != InfraResourceAggregateSourceHybrid {
+		t.Fatalf("source = %q, want hybrid", source)
 	}
 	want := []InfraResourceInventoryRow{
 		{Dimension: InfraResourceInventoryByProvider, Value: "aws", Count: 13},
@@ -342,9 +381,14 @@ func TestInfraAggregateHandlersReportTruthBasisOfServingStore(t *testing.T) {
 		wantLevel string
 	}{
 		{
-			"count from read model", "/api/v0/infra/resources/count",
-			&stubInfraResourceAggregateStore{count: InfraResourceAggregateCount{Source: InfraResourceAggregateSourceReadModel}},
+			"count from read model and graph", "/api/v0/infra/resources/count",
+			&stubInfraResourceAggregateStore{count: InfraResourceAggregateCount{Source: InfraResourceAggregateSourceHybrid}},
 			"hybrid", "derived",
+		},
+		{
+			"count from read model only", "/api/v0/infra/resources/count",
+			&stubInfraResourceAggregateStore{count: InfraResourceAggregateCount{Source: InfraResourceAggregateSourceReadModel}},
+			"content_index", "derived",
 		},
 		{
 			"count from graph", "/api/v0/infra/resources/count",
@@ -352,8 +396,8 @@ func TestInfraAggregateHandlersReportTruthBasisOfServingStore(t *testing.T) {
 			"authoritative_graph", "exact",
 		},
 		{
-			"inventory from read model", "/api/v0/infra/resources/inventory",
-			&stubInfraResourceAggregateStore{invSource: InfraResourceAggregateSourceReadModel},
+			"inventory from read model and graph", "/api/v0/infra/resources/inventory",
+			&stubInfraResourceAggregateStore{invSource: InfraResourceAggregateSourceHybrid},
 			"hybrid", "derived",
 		},
 		{
@@ -387,5 +431,44 @@ func TestInfraAggregateHandlersReportTruthBasisOfServingStore(t *testing.T) {
 				t.Fatalf("truth = %+v, want basis %s level %s", envelope.Truth, tc.wantBasis, tc.wantLevel)
 			}
 		})
+	}
+}
+
+// failingInfraReadModel fails every table read.
+type failingInfraReadModel struct{ fakeInfraReadModel }
+
+func (f *failingInfraReadModel) CountBuckets(context.Context, inventory.Filter) ([]inventory.CountBucket, error) {
+	return nil, errors.New("table unavailable")
+}
+
+// blockingGraphQuery blocks until its context is canceled.
+type blockingGraphQuery struct{}
+
+func (blockingGraphQuery) Run(ctx context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (blockingGraphQuery) RunSingle(ctx context.Context, _ string, _ map[string]any) (map[string]any, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+// TestInfraAggregateReadModelFailureCancelsTheGraphLeg: a table failure must
+// cancel the concurrent graph pass instead of waiting out a multi-second label
+// scan before returning the error.
+func TestInfraAggregateReadModelFailureCancelsTheGraphLeg(t *testing.T) {
+	t.Parallel()
+
+	readModel := &failingInfraReadModel{fakeInfraReadModel{ready: true}}
+	store := NewGraphInfraResourceAggregateStore(blockingGraphQuery{}).WithReadModel(readModel)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	if _, err := store.CountInfraResources(ctx, InfraResourceAggregateFilter{}); err == nil {
+		t.Fatal("CountInfraResources() error = nil, want the table failure")
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("CountInfraResources() took %s; the graph leg was not canceled", elapsed)
 	}
 }

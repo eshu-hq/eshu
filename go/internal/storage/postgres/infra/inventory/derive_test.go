@@ -146,3 +146,26 @@ func TestDeriveSQLMirrorsCanonicalMetadataPromotion(t *testing.T) {
 }
 
 var errInjected = errors.New("injected")
+
+func TestMirrorDeletesTombstonedEntityIDsUnderTheRepoLock(t *testing.T) {
+	t.Parallel()
+
+	database := &recordingDB{}
+	if _, err := Mirror(context.Background(), database, Target{RepoID: "repo-1"}, Change{
+		Paths:            []string{"a.tf"},
+		DeletedEntityIDs: []string{"e2", "e1", "e1", " "},
+	}); err != nil {
+		t.Fatalf("Mirror() error = %v", err)
+	}
+	if got, want := len(database.txs), 2; got != want {
+		t.Fatalf("transactions = %d, want id delete + path derive", got)
+	}
+	idTx := database.txs[0]
+	if len(idTx.execs) != 2 || !strings.Contains(idTx.execs[0].query, "pg_advisory_xact_lock") ||
+		!strings.Contains(idTx.execs[1].query, "entity_id = ANY") {
+		t.Fatalf("id delete tx = %+v, want lock then delete by entity_id", idTx.execs)
+	}
+	if got := []string(idTx.execs[1].args[1].(pgarray.StringArray)); len(got) != 2 || got[0] != "e1" || got[1] != "e2" {
+		t.Fatalf("deleted ids = %v, want deduplicated [e1 e2]", got)
+	}
+}

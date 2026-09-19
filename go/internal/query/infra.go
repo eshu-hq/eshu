@@ -81,27 +81,32 @@ var infraCategoryLabels = map[string][]string{
 // the root package.
 var allInfraLabels = querycontract.AllInfraLabels
 
-// infraGraphOnlyLabels are the infra labels the aggregate routes always read
-// from the graph, even after the Postgres read model is backfilled (#6793).
-// Every other label in allInfraLabels is served from infra_resource_entities
-// (storage/postgres/infra/inventory.Labels); a test pins that the two sets
-// partition allInfraLabels exactly.
-//
-//   - CloudResource and TerraformStateResource have no content_entities row,
-//     because other collectors write them.
-//   - TerraformModule and TerraformOutput have two writers: the canonical node
-//     writer (from content rows) and the Terraform state projector (no content
-//     row). Reading only the content-derived subset from the table would
-//     undercount them. One combined graph pass over these four labels is a
-//     small fraction of a pass over every infra label, and no index backs
-//     evidence_source, so a tfstate-restricted graph read would scan the same
-//     nodes as reading these two labels whole.
+// infraGraphOnlyLabels are the infra labels the aggregate routes read wholly
+// from the graph, even after the Postgres read model is backfilled (#6793):
+// CloudResource and TerraformStateResource have no content_entities row,
+// because other collectors write them. A test pins that these, plus
+// storage/postgres/infra/inventory.Labels, partition allInfraLabels exactly.
 var infraGraphOnlyLabels = []string{
 	"CloudResource",
 	"TerraformStateResource",
-	"TerraformModule",
-	"TerraformOutput",
 }
+
+// infraMixedWriterGraphSource maps each read-model label that also has a
+// non-content writer to that writer's evidence_source. The table holds the
+// label's content-derived nodes; the graph read adds only the other writer's
+// nodes, through `WHERE n.evidence_source = $graph_writer_evidence_source`,
+// which the tf_module_evidence_source / tf_output_evidence_source indexes turn
+// into a seek. Reading the whole label from the graph instead would scan every
+// node of it on every request.
+var infraMixedWriterGraphSource = map[string]string{
+	"TerraformModule": "projector/tfstate",
+	"TerraformOutput": "projector/tfstate",
+}
+
+// infraMixedWriterEvidenceSource is the single evidence_source value bound as
+// $graph_writer_evidence_source; a test pins that every entry of
+// infraMixedWriterGraphSource uses it.
+const infraMixedWriterEvidenceSource = "projector/tfstate"
 
 // infraSearchReturnColumns is the single source of truth for
 // searchResources's result columns. Both the per-label CALL branch's inner

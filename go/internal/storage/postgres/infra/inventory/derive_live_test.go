@@ -129,8 +129,9 @@ func TestMirrorPathsLiveDerivesOnlyEntityDerivedLabelsWithCanonicalValues(t *tes
 		},
 		contentRow{"ds1", "main.tf", "TerraformDataSource", "data.x", `{"data_type":"aws_iam_policy_document","provider":"aws"}`},
 		contentRow{"k1", "k8s/app.yaml", "K8sResource", "app", `{"kind":"Deployment","environment":"prod"}`},
-		// Not mirrored: a code entity, and a mixed-writer label kept graph-only.
+		// Not mirrored: a code entity.
 		contentRow{"fn1", "main.go", "Function", "main", `{}`},
+		// Mirrored: the content-derived node of a mixed-writer label.
 		contentRow{"mod1", "main.tf", "TerraformModule", "vpc", `{"provider":"aws"}`},
 	)
 
@@ -139,12 +140,13 @@ func TestMirrorPathsLiveDerivesOnlyEntityDerivedLabelsWithCanonicalValues(t *tes
 	if err != nil {
 		t.Fatalf("MirrorPaths() error = %v", err)
 	}
-	if stats.Inserted != 3 || stats.Deleted != 0 {
-		t.Fatalf("stats = %+v, want 3 inserted, 0 deleted", stats)
+	if stats.Inserted != 4 || stats.Deleted != 0 {
+		t.Fatalf("stats = %+v, want 4 inserted, 0 deleted", stats)
 	}
 	want := []string{
 		"ds1|main.tf|TerraformDataSource|data.x|||aws_iam_policy_document|aws|||||scope-a|gen-1",
 		"k1|k8s/app.yaml|K8sResource|app|Deployment||||prod||||scope-a|gen-1",
+		"mod1|main.tf|TerraformModule|vpc||||aws|||||scope-a|gen-1",
 		"tf1|main.tf|TerraformResource|aws_s3_bucket.a||aws_s3_bucket||aws||s3|storage||scope-a|gen-1",
 	}
 	if got := tableRows(t, ctx, sqlDB, repo); !reflect.DeepEqual(got, want) {
@@ -239,5 +241,35 @@ func TestMirrorRepoLiveRederivesWholeRepoAndDropsStaleRows(t *testing.T) {
 	}
 	if got := tableRows(t, ctx, sqlDB, repo); !reflect.DeepEqual(got, want) {
 		t.Fatalf("after backfill:\n got %q\nwant %q", got, want)
+	}
+}
+
+// TestMirrorLiveTombstoneWithStalePathDeletesByEntityID is the regression for
+// a tombstone whose path is not where the row now lives. Generation 1 moves an
+// entity from a.tf to b.tf. Generation 2 tombstones it with the old path
+// a.tf. The content writer deletes content_entities by entity_id, so the derive
+// must drop the table row by entity_id as well; re-deriving only a.tf leaves
+// the row at b.tf with no content row behind it.
+func TestMirrorLiveTombstoneWithStalePathDeletesByEntityID(t *testing.T) {
+	sqlDB, ctx := liveDB(t)
+	database := postgres.SQLDB{DB: sqlDB}
+	repo := uniqueRepo(t)
+	putContent(t, ctx, sqlDB, repo, contentRow{"e1", "a.tf", "TerraformResource", "r.e1", `{}`})
+	if _, err := inventory.Mirror(ctx, database, inventory.Target{RepoID: repo}, inventory.Change{Paths: []string{"a.tf"}}); err != nil {
+		t.Fatalf("generation 0 Mirror() error = %v", err)
+	}
+	putContent(t, ctx, sqlDB, repo, contentRow{"e1", "b.tf", "TerraformResource", "r.e1", `{}`})
+	if _, err := inventory.Mirror(ctx, database, inventory.Target{RepoID: repo}, inventory.Change{Paths: []string{"b.tf"}}); err != nil {
+		t.Fatalf("generation 1 Mirror() error = %v", err)
+	}
+	deleteContent(t, ctx, sqlDB, repo, "e1")
+	if _, err := inventory.Mirror(ctx, database, inventory.Target{RepoID: repo}, inventory.Change{
+		Paths:            []string{"a.tf"},
+		DeletedEntityIDs: []string{repo + "/e1"},
+	}); err != nil {
+		t.Fatalf("generation 2 Mirror() error = %v", err)
+	}
+	if got := tableRows(t, ctx, sqlDB, repo); len(got) != 0 {
+		t.Fatalf("rows after stale-path tombstone = %q, want none", got)
 	}
 }

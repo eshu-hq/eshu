@@ -176,16 +176,23 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 }
 
 // infraResourceAggregateTruth maps the serving store onto the truth envelope.
-// A read-model read is hybrid (derived): the entity-derived labels come from
-// the Postgres infra_resource_entities table, which the content writer derives
-// per repository just before the canonical graph write, so for one projection
-// stage the table and the graph can disagree for that repository. The
-// graph-only labels still come from the graph in the same read.
+// Table-backed reads are derived: the content writer fills
+// infra_resource_entities per repository just before the canonical graph
+// write, so for one projection stage the table and the graph can disagree for
+// that repository. A read served by the table alone reports content_index; a
+// read that also needed the graph pass reports hybrid; a read that needed only
+// the graph (graph-only labels, scoped callers, or before the backfill marker)
+// reports authoritative_graph.
 func infraResourceAggregateTruth(profile QueryProfile, source InfraResourceAggregateSource, detail string) *TruthEnvelope {
 	if source == InfraResourceAggregateSourceReadModel {
+		return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisContentIndex,
+			"resolved from the Postgres infra read model, derived from the same content rows the canonical graph writer projects; "+detail)
+	}
+	if source == InfraResourceAggregateSourceHybrid {
 		return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisHybrid,
-			"entity-derived infrastructure labels resolved from the Postgres infra read model and graph-only labels "+
-				"(CloudResource, TerraformStateResource, TerraformModule, TerraformOutput) from the authoritative graph; "+detail)
+			"content-derived infrastructure nodes resolved from the Postgres infra read model; CloudResource, "+
+				"TerraformStateResource, and the Terraform state projector's TerraformModule/TerraformOutput nodes "+
+				"from the authoritative graph; "+detail)
 	}
 	return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisAuthoritativeGraph,
 		"resolved from the authoritative infrastructure graph; "+detail)

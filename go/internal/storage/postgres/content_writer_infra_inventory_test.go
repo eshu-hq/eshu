@@ -12,9 +12,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // transactionalFakeDB adds db.Beginner to fakeExecQueryer for ContentWriter
@@ -95,12 +100,22 @@ func TestContentWriterWriteDerivesInfraInventoryForEveryTouchedPath(t *testing.T
 		t.Fatalf("Write() error = %v", err)
 	}
 
-	if got, want := len(database.txExecs), 3; got != want {
-		t.Fatalf("derive statements = %d, want lock+delete+insert", got)
+	// Two transactions: the tombstoned entity ids first (lock + delete by
+	// entity_id), then the touched paths (lock + delete + insert).
+	if got, want := len(database.txExecs), 5; got != want {
+		t.Fatalf("derive statements = %d, want id lock+delete then path lock+delete+insert", got)
 	}
-	if database.commits != 1 || database.rollbacks != 0 {
-		t.Fatalf("commits=%d rollbacks=%d, want one committed derive", database.commits, database.rollbacks)
+	if database.commits != 2 || database.rollbacks != 0 {
+		t.Fatalf("commits=%d rollbacks=%d, want two committed derive transactions", database.commits, database.rollbacks)
 	}
+	idDelete := database.txExecs[1]
+	if !strings.Contains(idDelete.query, "entity_id = ANY") {
+		t.Fatalf("tombstone statement = %q, want delete by entity_id", idDelete.query)
+	}
+	if got, want := []string(idDelete.args[1].(pgarray.StringArray)), []string{"e2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("tombstoned ids = %v, want %v", got, want)
+	}
+	database.txExecs = database.txExecs[2:]
 	deleteCall := database.txExecs[1]
 	if !strings.Contains(deleteCall.query, "DELETE FROM infra_resource_entities") {
 		t.Fatalf("second derive statement = %q, want the chunk delete", deleteCall.query)
@@ -138,5 +153,87 @@ func TestContentWriterWriteFailsWhenInfraInventoryDeriveFails(t *testing.T) {
 	}
 	if database.rollbacks != 1 {
 		t.Fatalf("rollbacks = %d, want the failed derive rolled back", database.rollbacks)
+	}
+}
+
+// deriveOutcomes collects eshu_dp_infra_inventory_derives_total by outcome.
+func deriveOutcomes(t *testing.T, reader *sdkmetric.ManualReader) map[string]int64 {
+	t.Helper()
+	var data metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &data); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	out := map[string]int64{}
+	for _, scope := range data.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			if m.Name != "eshu_dp_infra_inventory_derives_total" {
+				continue
+			}
+			for _, point := range m.Data.(metricdata.Sum[int64]).DataPoints {
+				outcome, _ := point.Attributes.Value("outcome")
+				out[outcome.AsString()] += point.Value
+			}
+		}
+	}
+	return out
+}
+
+func newDeriveMeter(t *testing.T) (*telemetry.Instruments, *sdkmetric.ManualReader) {
+	t.Helper()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	instruments, err := telemetry.NewInstruments(provider.Meter("infra-inventory-derive-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	return instruments, reader
+}
+
+// TestContentWriterSkipsInfraDeriveWhenReadModelNotInstalled covers a writer
+// binary that runs before its release's migration 109 (any deploy order other
+// than the Helm pre-upgrade hook). The content statements already committed;
+// failing the whole Write would dead-letter every projection for the window
+// even though nothing reads the missing table. Readers stay on the graph until
+// the backfill marker exists, and the backfill re-derives every repository
+// once the table does, so skipping is safe. It is counted, never silent.
+func TestContentWriterSkipsInfraDeriveWhenReadModelNotInstalled(t *testing.T) {
+	t.Parallel()
+
+	instruments, reader := newDeriveMeter(t)
+	database := withTransactions(&fakeExecQueryer{})
+	database.txExecErr = &pgconn.PgError{Code: "42P01", Message: `relation "infra_resource_entities" does not exist`}
+	writer := NewContentWriter(database).WithInstruments(instruments)
+
+	if _, err := writer.Write(context.Background(), content.Materialization{
+		RepoID:  "repo-1",
+		Records: []content.Record{{Path: "a.tf", Body: "x"}},
+	}); err != nil {
+		t.Fatalf("Write() error = %v, want the content write to succeed without the read model", err)
+	}
+	if got := deriveOutcomes(t, reader); got["skipped_not_installed"] != 1 || got["error"] != 0 {
+		t.Fatalf("derive outcomes = %v, want one skipped_not_installed", got)
+	}
+}
+
+func TestContentWriterCountsInfraDeriveOutcomes(t *testing.T) {
+	t.Parallel()
+
+	instruments, reader := newDeriveMeter(t)
+	ok := NewContentWriter(withTransactions(&fakeExecQueryer{})).WithInstruments(instruments)
+	if _, err := ok.Write(context.Background(), content.Materialization{
+		RepoID: "repo-1", Records: []content.Record{{Path: "a.tf", Body: "x"}},
+	}); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	failing := withTransactions(&fakeExecQueryer{})
+	failing.txExecErr = errors.New("lock timeout")
+	if _, err := NewContentWriter(failing).WithInstruments(instruments).Write(context.Background(), content.Materialization{
+		RepoID: "repo-1", Records: []content.Record{{Path: "a.tf", Body: "x"}},
+	}); err == nil {
+		t.Fatal("Write() error = nil, want the non-installation derive failure surfaced")
+	}
+	if got := deriveOutcomes(t, reader); got["ok"] != 1 || got["error"] != 1 {
+		t.Fatalf("derive outcomes = %v, want ok=1 error=1", got)
 	}
 }

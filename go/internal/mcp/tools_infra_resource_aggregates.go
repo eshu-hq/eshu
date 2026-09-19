@@ -17,7 +17,7 @@ func infraResourceAggregateTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "count_infra_resources",
-			Description: "Return graph-backed infrastructure resource totals for one optional scope without paging through individual resources. Provides total resources and rollups by provider, environment, and label (CloudResource / TerraformResource / TerraformStateResource / K8sResource / CloudFormationResource / ArgoCDApplication / CrossplaneXRD / HelmChart / etc.). Pass `category` (k8s / terraform / argocd / crossplane / helm / cloud) to narrow the label set. Unscoped reads after the infra read model backfill report truth basis hybrid (entity-derived labels counted from the Postgres infra read model, CloudResource / TerraformStateResource / TerraformModule / TerraformOutput from the graph); scoped reads stay on the graph.",
+			Description: "Return graph-backed infrastructure resource totals for one optional scope without paging through individual resources. Provides total resources and rollups by provider, environment, and label (CloudResource / TerraformResource / TerraformStateResource / K8sResource / CloudFormationResource / ArgoCDApplication / CrossplaneXRD / HelmChart / etc.). Pass `category` (k8s / terraform / argocd / crossplane / helm / cloud) to narrow the label set. Unscoped reads after the infra read model backfill report truth basis hybrid (content-derived nodes counted from the Postgres infra read model; CloudResource, TerraformStateResource, and Terraform-state TerraformModule / TerraformOutput nodes from the graph); scoped reads stay on the graph.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

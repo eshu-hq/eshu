@@ -20,7 +20,9 @@ import (
 // only once this row exists. Changing what the table holds, such as a new
 // label or column, needs a new marker name so a populated install re-runs
 // the backfill before readers use the new shape.
-const BackfillMarker = "infra_resource_entities_v1"
+//
+// v2 added TerraformModule and TerraformOutput to Labels.
+const BackfillMarker = "infra_resource_entities_v2"
 
 const backfillCompleteSQL = `
 SELECT EXISTS (
@@ -48,6 +50,13 @@ const backfillProgressEvery = 100
 // undefinedTableSQLState is Postgres' undefined_table error code.
 const undefinedTableSQLState = "42P01"
 
+// IsNotInstalled reports whether err means the read model tables do not exist
+// yet (SQLSTATE 42P01): migration 109 has not been applied to this database.
+func IsNotInstalled(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == undefinedTableSQLState
+}
+
 // BackfillComplete reports whether the backfill marker exists. It is a
 // primary-key lookup, cheap enough for readers to check on every request.
 //
@@ -58,8 +67,7 @@ const undefinedTableSQLState = "42P01"
 func BackfillComplete(ctx context.Context, queryer db.Queryer) (bool, error) {
 	rows, err := queryer.QueryContext(ctx, backfillCompleteSQL, BackfillMarker)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == undefinedTableSQLState {
+		if IsNotInstalled(err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("check infra inventory backfill marker: %w", err)

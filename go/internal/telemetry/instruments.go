@@ -760,12 +760,22 @@ type Instruments struct {
 	// resource aggregate routes by which store served them (#6793). Labels:
 	// route (count, inventory) and source (read_model, graph). read_model
 	// means the Postgres infra_resource_entities table served the
-	// entity-derived labels, with one graph pass for the graph-only labels;
+	// content-derived nodes, with one graph pass for the rest;
 	// graph means the full per-label graph path served the read, because the
 	// caller is a scoped token or the table's backfill marker is not recorded
 	// yet. A graph share that does not fall to near zero after a deploy
 	// means the backfill never completed.
 	InfraInventoryReads metric.Int64Counter
+	// InfraInventoryDerives counts content-writer derives of the infra read
+	// model by outcome (#6793): ok, skipped_not_installed (migration 109 not
+	// applied yet; the content Write still succeeds and the backfill covers the
+	// repository later), or error (the content Write fails and retries).
+	InfraInventoryDerives metric.Int64Counter
+	// InfraInventoryBackfillRuns counts background infra read model backfill
+	// attempts by outcome: completed, already_complete, or failed (retried with
+	// backoff). failed without a later completed means readers are still on the
+	// graph path.
+	InfraInventoryBackfillRuns metric.Int64Counter
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
 	// was missing or null (input_invalid). Labels: stage (the projector
@@ -3246,6 +3256,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register InfraInventoryReads counter: %w", err)
+	}
+
+	inst.InfraInventoryDerives, err = meter.Int64Counter(
+		"eshu_dp_infra_inventory_derives_total",
+		metric.WithDescription("Total content-writer derives of the infra read model by outcome (ok, skipped_not_installed, error)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryDerives counter: %w", err)
+	}
+
+	inst.InfraInventoryBackfillRuns, err = meter.Int64Counter(
+		"eshu_dp_infra_inventory_backfill_runs_total",
+		metric.WithDescription("Total infra read model backfill attempts by outcome (completed, already_complete, failed)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryBackfillRuns counter: %w", err)
 	}
 
 	inst.QueryK8sSelectCandidateScanTruncated, err = meter.Int64Counter(

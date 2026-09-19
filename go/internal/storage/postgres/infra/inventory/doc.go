@@ -12,7 +12,9 @@
 // the table's per-label and per-dimension counts equal the graph's for those
 // labels. Labels outside Labels stay graph-only; see Labels for why.
 //
-// MirrorPaths is called by the content writer after it commits a Write. It
+// Mirror is called by the content writer after it commits a Write. It first
+// drops the rows of every tombstoned entity id (an entity can have moved away
+// from the path its tombstone names), then calls MirrorPaths, which
 // re-derives the given paths of one repository in one transaction per chunk:
 // take the per-repository advisory lock, delete the chunk's rows, and insert
 // them again from content_entities. The lock comes first so the insert reads a

@@ -28,6 +28,7 @@ required_ids:
   - QP-RELATIONSHIPS-EDGES
   - QP-INFRA-RESOURCE-SEARCH
   - QP-INFRA-RESOURCE-AGGREGATE
+  - QP-INFRA-RESOURCE-AGGREGATE-GRAPH
   - QP-CODEOWNERS-OWNERSHIP-LIST
   - QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER
   - QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN
@@ -823,6 +824,35 @@ entries:
         - CartesianProduct
         - UnboundedExpand
     cypher_sha256: "c5c0da930b9583c73ffff79fdea9a7118da9a7ce65d2cc9ea32d052d63efd750"
+  - id: QP-INFRA-RESOURCE-AGGREGATE-GRAPH
+    domain: infra
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/infra_resource_aggregates_cypher.go
+      symbol: infraGraphOnlyCountCypher
+      source_sha256: 76bc6eb4d2b12d54b490a62e6316c6cb68a72441607c9413f4bd526296e0ddfc
+      line_hint: 314
+    required_anchors:
+      - label: TerraformModule
+        property: evidence_source
+      - label: TerraformOutput
+        property: evidence_source
+    required_schema:
+      - tf_module_evidence_source
+      - tf_output_evidence_source
+    caveats:
+      - The graph side of an unscoped infra resource aggregate once the Postgres infra read model is backfilled (#6793). Content-derived nodes come from infra_resource_entities; this one CALL { ... UNION ALL ... } pass adds CloudResource and TerraformStateResource whole (their only writers are other collectors, so each branch is a bounded per-label LabelScan) and the Terraform state projector's TerraformModule/TerraformOutput nodes through WHERE n.evidence_source = $graph_writer_evidence_source, which the tf_module_evidence_source / tf_output_evidence_source indexes make a NodeIndexSeek over a handful of nodes. Shown in its unfiltered count form; the inventory route emits the same branches with a single-bucket RETURN.
+      - Each branch groups internally by a static label literal plus the provider and environment buckets, and the outer RETURN passes rows through without re-aggregating, for the NornicDB CALL-aggregation reason documented on QP-INFRA-RESOURCE-AGGREGATE. Measured on NornicDB v1.3.3 the combined-key marginals equal the single-key group-bys with no null keys, and a CPU profile of the indexed branch shows tryCollectNodesFromPropertyIndex rather than GetNodesByLabel.
+    plan:
+      operators:
+        - NodeByLabelScan
+        - NodeIndexSeek
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "5bfabda32742f7065a2e4afad85fea257559b88183ae83092838a6a992c239bc"
   - id: QP-CODEOWNERS-OWNERSHIP-LIST
     domain: codeowners
     backend: nornicdb

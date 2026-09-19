@@ -159,7 +159,7 @@ func buildProjectorRuntime(
 
 	return projector.Runtime{
 		CanonicalWriter:               canonicalWriter,
-		ContentWriter:                 postgres.NewContentWriter(database).WithEntityBatchSize(contentConfig.EntityBatchSize),
+		ContentWriter:                 postgres.NewContentWriter(database).WithInstruments(instruments).WithEntityBatchSize(contentConfig.EntityBatchSize),
 		IntentWriter:                  intentWriter,
 		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(database),
 		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(database),

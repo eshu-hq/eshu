@@ -3,23 +3,28 @@
 
 package inventory
 
-// Labels is the closed set of entity-derived infrastructure labels mirrored
-// into infra_resource_entities. Each one is written to the canonical graph only
-// by the source-local canonical node writer, from a content_entities row whose
-// entity_type equals the label, with the dimension properties promoted
-// verbatim from the entity metadata (storage/cypher/canonical_node_writer_*.go).
-// That single-writer property is what makes the table's per-label and
-// per-dimension counts equal the graph's.
+// Labels is the closed set of infrastructure labels mirrored into
+// infra_resource_entities. The canonical node writer writes each of them from a
+// content_entities row whose entity_type equals the label, with the dimension
+// properties promoted verbatim from the entity metadata
+// (storage/cypher/canonical_node_writer_*.go). The table therefore holds
+// exactly the content-derived nodes of each label, with the same values.
 //
-// Labels NOT listed here stay graph-only, and the query layer keeps reading
-// them from the graph:
+// For most labels the canonical node writer is the only writer, so the table
+// holds every node. TerraformModule and TerraformOutput have a second writer,
+// the Terraform state projector (storage/cypher/tfstate_canonical_writer.go),
+// which MERGEs nodes with evidence_source 'projector/tfstate' and no content
+// row. The query layer reads those few nodes from the graph through an indexed
+// evidence_source seek and adds them to the table's counts.
 //
-//   - CloudResource and TerraformStateResource have no content_entities row;
-//     other collectors write them.
-//   - TerraformModule and TerraformOutput have a second writer, the Terraform
-//     state projector (storage/cypher/tfstate_canonical_writer.go), which
-//     MERGEs nodes under those labels with no content_entities row. Mirroring
-//     only the content-derived subset would undercount them.
+// storage/cypher/canonical_kustomize_edges.go also MERGEs KustomizeOverlay by
+// uid, but only to set base_refs on overlays of the same materialization, whose
+// nodes its entities phase already created from content rows, so it never adds
+// a node the table lacks.
+//
+// CloudResource and TerraformStateResource are not listed: they have no
+// content_entities row, because other collectors write them, and the query
+// layer reads them from the graph.
 //
 // The query package pins this list against querycontract.AllInfraLabels so a
 // taxonomy change fails a test instead of silently dropping a label.
@@ -27,7 +32,9 @@ var Labels = []string{
 	"K8sResource",
 	"KustomizeOverlay",
 	"TerraformResource",
+	"TerraformModule",
 	"TerraformVariable",
+	"TerraformOutput",
 	"TerraformDataSource",
 	"TerraformProvider",
 	"TerraformLocal",
