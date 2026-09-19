@@ -95,6 +95,8 @@ when the reducer has a graph orphan observer.
 | `DocumentationClaimCandidates` | `eshu_dp_documentation_claim_candidates_extracted_total` |
 | `DocumentationClaimsSuppressed` | `eshu_dp_documentation_claim_candidates_suppressed_total` |
 | `DocumentationDriftFindings` | `eshu_dp_documentation_drift_findings_total` |
+| `CodeFingerprintEntities` | `eshu_dp_code_fingerprint_entities_total` (labels: bounded `language`, `outcome` — `fingerprinted`, `skipped`; bounded `reason` — `below_floor`, `has_error`, `no_body`) |
+| `CodeFingerprintDuration` | `eshu_dp_code_fingerprint_duration_seconds` (labels: bounded `language`) |
 | `SharedEdgeWriteGroups` | `eshu_dp_shared_edge_write_groups_total` (labels: bounded `domain`, `execution_mode` — `group`, `artifact-sequential`) |
 | `SharedEdgeTargetMiss` | `eshu_dp_shared_edge_target_miss_total` (labels: bounded `domain`; one count per deferred batch) |
 | `SharedEdgeRunsOnRetractOmissions` | `eshu_dp_shared_edge_runs_on_retract_omissions_total` (labels: bounded `domain`, `reason`) |

@@ -36,6 +36,21 @@ func (w ContentWriter) upsertAndReapEntities(
 		"batch_concurrency", w.effectiveBatchConcurrency(),
 	)
 
+	fingerprintRows := make([]preparedFingerprintRow, 0)
+	for _, row := range entityUpserts {
+		if row.fingerprint.hasFingerprint {
+			fingerprintRows = append(fingerprintRows, row.fingerprint)
+		}
+	}
+	fingerprintUpsertStart := time.Now()
+	if err := w.upsertFingerprintBatches(ctx, fingerprintRows, indexedAt); err != nil {
+		return err
+	}
+	w.logStage(
+		ctx, materialization, "upsert_fingerprints", fingerprintUpsertStart,
+		"row_count", len(fingerprintRows),
+	)
+
 	entityReapStart := time.Now()
 	if err := w.reapStaleContentEntities(ctx, materialization.RepoID, entityUpserts); err != nil {
 		return err
@@ -45,6 +60,29 @@ func (w ContentWriter) upsertAndReapEntities(
 		"fresh_row_count", len(entityUpserts),
 	)
 
+	fingerprintReapStart := time.Now()
+	if err := w.reapStaleFingerprints(ctx, materialization.RepoID); err != nil {
+		return err
+	}
+	w.logStage(
+		ctx, materialization, "reap_stale_fingerprints", fingerprintReapStart,
+	)
+
+	return nil
+}
+
+// reapStaleFingerprints deletes code_function_fingerprint and
+// code_fingerprint_band rows whose entity no longer exists in
+// content_entities for the repo. It runs after the entity upsert+reap in the
+// same Write call, so tombstoned, churned, and path-reaped entities all
+// converge here; repos without fingerprint data delete nothing.
+func (w ContentWriter) reapStaleFingerprints(ctx context.Context, repoID string) error {
+	if _, err := w.database.ExecContext(ctx, reapStaleFingerprintSQL, repoID); err != nil {
+		return fmt.Errorf("reap stale code_function_fingerprint rows: %w", err)
+	}
+	if _, err := w.database.ExecContext(ctx, reapStaleFingerprintBandSQL, repoID); err != nil {
+		return fmt.Errorf("reap stale code_fingerprint_band rows: %w", err)
+	}
 	return nil
 }
 

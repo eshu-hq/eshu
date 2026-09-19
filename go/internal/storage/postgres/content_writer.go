@@ -117,6 +117,10 @@ type preparedEntityRow struct {
 	iacRelevant     any
 	sourceCache     string
 	metadataJSON    []byte
+	// fingerprint carries the #6835 code-divergence side-table row decoded
+	// from the entity metadata keys. hasFingerprint is false when the
+	// entity was not fingerprinted (absent means "not fingerprinted").
+	fingerprint preparedFingerprintRow
 }
 
 // Write persists canonical file and entity rows and removes tombstoned rows.
@@ -325,6 +329,7 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 			iacRelevant:     optionalBool(entity.IACRelevant),
 			sourceCache:     sourceCache,
 			metadataJSON:    metadataJSON,
+			fingerprint:     fingerprintRowFromMetadata(entity.EntityID, cloned.RepoID, entity.Metadata),
 		})
 	}
 

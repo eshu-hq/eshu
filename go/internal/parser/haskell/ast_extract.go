@@ -4,6 +4,7 @@
 package haskell
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -16,11 +17,16 @@ import (
 // documented permanent exception this package keeps rather than resolving
 // Haskell name binding.
 type haskellExtractor struct {
-	payload       map[string]any
-	source        []byte
-	lines         []string
-	isDependency  bool
-	options       shared.Options
+	payload      map[string]any
+	source       []byte
+	lines        []string
+	isDependency bool
+	options      shared.Options
+	// fpStats/fpHasError carry the #6833 code-divergence fingerprint
+	// state (exact-only tier). fpHasError is set in extract from the live
+	// root; nodes stay live for the whole extract walk.
+	fpStats       *fingerprint.Stats
+	fpHasError    bool
 	exports       map[string]struct{}
 	seenFunctions map[string]struct{}
 	seenVariables map[string]struct{}
@@ -49,6 +55,7 @@ func newHaskellExtractor(
 		lines:         lines,
 		isDependency:  isDependency,
 		options:       options,
+		fpStats:       &fingerprint.Stats{},
 		exports:       make(map[string]struct{}),
 		seenFunctions: make(map[string]struct{}),
 		seenVariables: make(map[string]struct{}),
@@ -65,6 +72,7 @@ func (e *haskellExtractor) extract(root *tree_sitter.Node) {
 	if root == nil {
 		return
 	}
+	e.fpHasError = root.HasError()
 	if header := haskellFirstChildOfKind(root, "header"); header != nil {
 		e.handleHeader(header)
 	}
@@ -241,6 +249,9 @@ func (e *haskellExtractor) handleSignature(node *tree_sitter.Node, classContext,
 		"decorators":           []string{},
 		"dead_code_root_kinds": []string{"haskell.typeclass_method"},
 	}
+	// Type signatures carry no body: record the no-body skip so per-file
+	// telemetry accounts every function row.
+	fingerprint.Attach("haskell", e.fpHasError, nil, e.source, item, e.fpStats)
 	e.functionItems[key] = item
 	shared.AppendBucket(e.payload, "functions", item)
 }
@@ -262,7 +273,15 @@ func (e *haskellExtractor) handleBinding(node *tree_sitter.Node, classContext, i
 	e.funcDecisions[key] += haskellEquationDecisions(node, e.source)
 	e.funcEquations[key]++
 
-	e.ensureFunctionItem(key, name, context, rootKinds, startLine, endLine, sourceEndLine)
+	if item, fresh := e.ensureFunctionItem(key, name, context, rootKinds, startLine, endLine, sourceEndLine); fresh {
+		fingerprint.Attach("haskell", e.fpHasError, node, e.source, item, e.fpStats)
+	} else if _, ok := item[fingerprint.KeyExact]; !ok {
+		// A class-body signature pre-created this row under the same key
+		// (handleSignature runs before the default-implementation binding),
+		// so the real body still needs attaching. When a previous binding
+		// already set keys this is a no-op by the KeyExact check above.
+		fingerprint.Attach("haskell", e.fpHasError, node, e.source, item, e.fpStats)
+	}
 	params := haskellTreeFunctionParameters(node, e.source)
 	e.appendBindingVariables(node)
 	e.appendBindingCalls(name, context, params, startLine, endLine)

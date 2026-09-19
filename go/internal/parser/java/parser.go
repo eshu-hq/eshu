@@ -10,6 +10,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -37,6 +38,11 @@ func Parse(
 	payload["annotations"] = []map[string]any{}
 	payload["enums"] = []map[string]any{}
 	root := tree.RootNode()
+	// Fingerprint state for the #6833 code-divergence report: error graphs
+	// are excluded per the #6834 verdict, and per-file outcomes accumulate
+	// for collector-side telemetry via payload[fingerprint.StatsKey].
+	fpStats := &fingerprint.Stats{}
+	fpHasError := root.HasError()
 	scope := options.NormalizedVariableScope()
 	callInference := buildJavaCallInferenceIndex(root, source)
 	methodReferences := buildJavaMethodReferenceIndex(root, source, callInference)
@@ -65,7 +71,7 @@ func Parse(
 		case "enum_declaration":
 			appendNamedType(payload, "enums", node, source, "java")
 		case "method_declaration", "constructor_declaration":
-			appendJavaFunction(payload, node, source, options, methodReferences)
+			appendJavaFunction(payload, node, source, options, methodReferences, fpHasError, fpStats)
 		case "field_declaration":
 			for _, item := range javaDeclarators(node, node, source, "java") {
 				appendBucket(payload, "variables", item)
@@ -87,6 +93,7 @@ func Parse(
 	})
 
 	sortNamedBucket(payload, "functions")
+	payload[fingerprint.StatsKey] = fpStats.Map()
 	sortNamedBucket(payload, "classes")
 	sortNamedBucket(payload, "interfaces")
 	sortNamedBucket(payload, "annotations")
@@ -138,6 +145,8 @@ func appendJavaFunction(
 	source []byte,
 	options shared.Options,
 	methodReferences *javaMethodReferenceIndex,
+	fpHasError bool,
+	fpStats *fingerprint.Stats,
 ) {
 	nameNode := node.ChildByFieldName("name")
 	name := nodeText(nameNode, source)
@@ -168,6 +177,7 @@ func appendJavaFunction(
 	if options.IndexSource {
 		item["source"] = nodeText(node, source)
 	}
+	fingerprint.Attach("java", fpHasError, node.ChildByFieldName("body"), source, item, fpStats)
 	appendBucket(payload, "functions", item)
 }
 

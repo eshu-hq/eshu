@@ -229,4 +229,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 110 (#6785) is the (scope_id, domain) readiness-wait ledger for
 	// the commit-first CAN_PERFORM and USES waits.
 	"reducer_readiness_waits",
+	// migration 111 (#6835) carries the code-divergence fingerprint side
+	// tables: one row per fingerprinted function plus one row per LSH band
+	// for the #6837 band self-join. Numbered 111 because main merged the
+	// #6785 readiness-waits migration as 110 first.
+	"code_function_fingerprint",
 }

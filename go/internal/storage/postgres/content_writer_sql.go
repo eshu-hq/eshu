@@ -146,6 +146,72 @@ WHERE repo_id = $1
   AND entity_id = $2
 `
 
+// upsertFingerprintBatchPrefix/Suffix persist one code_function_fingerprint
+// row per fingerprinted function entity (#6835). Callers must deduplicate by
+// entity_id before invoking the batched path (entityUpserts already are, via
+// deduplicateEntityRows, and fingerprint rows inherit that dedup).
+const upsertFingerprintBatchPrefix = `INSERT INTO code_function_fingerprint (
+    entity_id, repo_id, fp_exact, fp_renamed, sketch, token_count, indexed_at
+) VALUES `
+
+const upsertFingerprintBatchSuffix = `
+ON CONFLICT (entity_id) DO UPDATE
+SET repo_id = EXCLUDED.repo_id,
+    fp_exact = EXCLUDED.fp_exact,
+    fp_renamed = EXCLUDED.fp_renamed,
+    sketch = EXCLUDED.sketch,
+    token_count = EXCLUDED.token_count,
+    indexed_at = EXCLUDED.indexed_at
+`
+
+// upsertFingerprintBandBatchPrefix/Suffix persist one code_fingerprint_band
+// row per (entity, LSH band). The primary key covers the full row, so
+// re-upserts are DO NOTHING; the (repo_id, band_no, band_hash) lookup index
+// from migration 111 serves the #6837 band self-join.
+const upsertFingerprintBandBatchPrefix = `INSERT INTO code_fingerprint_band (
+    repo_id, band_no, band_hash, entity_id
+) VALUES `
+
+const upsertFingerprintBandBatchSuffix = `
+ON CONFLICT DO NOTHING
+`
+
+// deleteFingerprintBandsForEntitiesSQL removes every code_fingerprint_band
+// row for the given (repo, entity) set. upsertFingerprintBatches runs it for
+// the freshly upserted entities before inserting their new bands: band rows
+// are a pure function of the persisted sketch, so a re-fingerprinted entity
+// must shed its prior bands first or edited functions accumulate orphan
+// bands (false LSH candidates for #6837).
+const deleteFingerprintBandsForEntitiesSQL = `
+DELETE FROM code_fingerprint_band
+WHERE repo_id = $1
+  AND entity_id = ANY($2::text[])
+`
+
+// reapStaleFingerprintSQL deletes code_function_fingerprint rows whose
+// entity no longer exists in content_entities for the repo. It runs after
+// the entity upsert+reap in the same Write call, so tombstoned, churned,
+// and path-reaped entities all converge here.
+const reapStaleFingerprintSQL = `
+DELETE FROM code_function_fingerprint fp
+WHERE fp.repo_id = $1
+  AND NOT EXISTS (
+    SELECT 1 FROM content_entities ce
+    WHERE ce.repo_id = $1 AND ce.entity_id = fp.entity_id
+  )
+`
+
+// reapStaleFingerprintBandSQL is the band-table counterpart of
+// reapStaleFingerprintSQL.
+const reapStaleFingerprintBandSQL = `
+DELETE FROM code_fingerprint_band band
+WHERE band.repo_id = $1
+  AND NOT EXISTS (
+    SELECT 1 FROM content_entities ce
+    WHERE ce.repo_id = $1 AND ce.entity_id = band.entity_id
+  )
+`
+
 const deleteRepositoryRefsQuery = `
 DELETE FROM repository_refs
 WHERE repo_id = $1

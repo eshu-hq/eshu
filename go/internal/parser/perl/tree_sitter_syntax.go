@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -30,6 +31,12 @@ type perlSyntaxIndex struct {
 	exportsByPackage map[string]map[string]struct{}
 	seenVariables    map[string]struct{}
 	seenCalls        map[string]struct{}
+	// fpStats/fpHasError carry the #6833 code-divergence fingerprint
+	// state (exact-only tier) through the collect walk, whose nodes are
+	// only live during the walk because perlSourceAndSyntax closes the
+	// tree before returning.
+	fpStats    *fingerprint.Stats
+	fpHasError bool
 }
 
 func perlSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, perlSyntaxIndex, error) {
@@ -46,12 +53,15 @@ func perlSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, perlS
 	}
 	defer tree.Close()
 
+	root := tree.RootNode()
 	index := perlSyntaxIndex{
 		exportsByPackage: make(map[string]map[string]struct{}),
 		seenVariables:    make(map[string]struct{}),
 		seenCalls:        make(map[string]struct{}),
+		fpStats:          &fingerprint.Stats{},
+		fpHasError:       root.HasError(),
 	}
-	index.collect(tree.RootNode(), source, path, "")
+	index.collect(root, source, path, "")
 	return source, index, nil
 }
 
@@ -100,6 +110,7 @@ func (i *perlSyntaxIndex) collect(node *tree_sitter.Node, source []byte, path st
 				item["class_context"] = shared.LastPathSegment(packageName, "::")
 				item["full_name"] = packageName + "::" + name
 			}
+			fingerprint.Attach("perl", i.fpHasError, node.ChildByFieldName("body"), source, item, i.fpStats)
 			i.functions = append(i.functions, perlFunctionSpan{packageName: packageName, item: item})
 		}
 	case "subroutine_declaration_statement":
@@ -117,6 +128,7 @@ func (i *perlSyntaxIndex) collect(node *tree_sitter.Node, source []byte, path st
 				item["full_name"] = packageName + "::" + name
 			}
 			addPerlRootKind(item, perlFunctionRootKinds(name, packageName, i.exportsByPackage[packageName], path)...)
+			fingerprint.Attach("perl", i.fpHasError, node.ChildByFieldName("body"), source, item, i.fpStats)
 			i.functions = append(i.functions, perlFunctionSpan{packageName: packageName, item: item})
 		}
 	case "variable_declaration":

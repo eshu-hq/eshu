@@ -6,6 +6,7 @@ package kotlin
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -69,9 +70,24 @@ func (w *astWalker) handleFunctionDeclaration(node *tree_sitter.Node, f frame) {
 	if w.indexSource {
 		item["source"] = w.firstLineText(node)
 	}
+	// tree-sitter-kotlin fields the body as neither `body` nor anything else:
+	// function declarations carry an unfielded `function_body` child while
+	// secondary constructors carry a bare `block` child.
+	fingerprint.Attach("kotlin", w.fpHasError, w.kotlinFingerprintBody(node), w.source, item, w.fpStats)
 	shared.AppendBucket(w.payload, "functions", item)
 
 	w.walkChildren(node, f.withFunction(name))
+}
+
+// kotlinFingerprintBody returns the node Attach must walk for a function
+// declaration or secondary constructor: the `function_body` child of the
+// former, the bare `block` child of the latter. A nil result records a
+// no_body skip (interface methods without bodies).
+func (w *astWalker) kotlinFingerprintBody(node *tree_sitter.Node) *tree_sitter.Node {
+	if body := w.childByKind(node, "function_body"); body != nil {
+		return body
+	}
+	return w.childByKind(node, "block")
 }
 
 // handleSecondaryConstructor emits one secondary-constructor row.
@@ -92,6 +108,7 @@ func (w *astWalker) handleSecondaryConstructor(node *tree_sitter.Node, f frame) 
 	if w.indexSource {
 		item["source"] = w.firstLineText(node)
 	}
+	fingerprint.Attach("kotlin", w.fpHasError, w.kotlinFingerprintBody(node), w.source, item, w.fpStats)
 	shared.AppendBucket(w.payload, "functions", item)
 
 	w.walkChildren(node, f.withFunction("constructor"))

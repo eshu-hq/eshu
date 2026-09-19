@@ -220,15 +220,18 @@ type Instruments struct {
 	PoisonLivenessRecovered metric.Int64Counter
 	// PoisonLivenessFailures counts poison-recovery sweep failures by bounded
 	// reason (#4740).
-	PoisonLivenessFailures                    metric.Int64Counter
-	DeltaBaselineFallbacks                    metric.Int64Counter
-	ReconciliationFullSnapshots               metric.Int64Counter
-	ReconciliationDriftRetractions            metric.Int64Counter
-	ReconciliationConvergence                 metric.Int64Counter
-	DocumentationEntityMentions               metric.Int64Counter
-	DocumentationClaimCandidates              metric.Int64Counter
-	DocumentationClaimsSuppressed             metric.Int64Counter
-	DocumentationDriftFindings                metric.Int64Counter
+	PoisonLivenessFailures         metric.Int64Counter
+	DeltaBaselineFallbacks         metric.Int64Counter
+	ReconciliationFullSnapshots    metric.Int64Counter
+	ReconciliationDriftRetractions metric.Int64Counter
+	ReconciliationConvergence      metric.Int64Counter
+	DocumentationEntityMentions    metric.Int64Counter
+	DocumentationClaimCandidates   metric.Int64Counter
+	DocumentationClaimsSuppressed  metric.Int64Counter
+	DocumentationDriftFindings     metric.Int64Counter
+	// CodeFingerprintEntities counts function entities fingerprinted or
+	// skipped by outcome, skip reason, and language (#6835).
+	CodeFingerprintEntities                   metric.Int64Counter
 	TerraformStateSnapshotsObserved           metric.Int64Counter
 	TerraformStateResourcesEmitted            metric.Int64Counter
 	TerraformStateOutputsEmitted              metric.Int64Counter
@@ -1234,6 +1237,8 @@ type Instruments struct {
 	RepositoryFreshnessQueryErrors metric.Int64Counter
 
 	// Histograms track distributions
+	// CodeFingerprintDuration records per-file function fingerprinting time (#6835).
+	CodeFingerprintDuration         metric.Float64Histogram
 	CollectorObserveDuration        metric.Float64Histogram
 	WorkflowClaimWaitDuration       metric.Float64Histogram
 	TerraformStateClaimWaitDuration metric.Float64Histogram
@@ -2077,6 +2082,25 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DocumentationDriftFindings counter: %w", err)
+	}
+
+	inst.CodeFingerprintEntities, err = meter.Int64Counter(
+		"eshu_dp_code_fingerprint_entities_total",
+		metric.WithDescription("Total function entities fingerprinted or skipped by outcome, reason, and language"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CodeFingerprintEntities counter: %w", err)
+	}
+
+	codeFingerprintBuckets := []float64{0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5}
+	inst.CodeFingerprintDuration, err = meter.Float64Histogram(
+		"eshu_dp_code_fingerprint_duration_seconds",
+		metric.WithDescription("Per-file function fingerprinting time"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(codeFingerprintBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register CodeFingerprintDuration histogram: %w", err)
 	}
 
 	inst.TerraformStateSnapshotsObserved, err = meter.Int64Counter(

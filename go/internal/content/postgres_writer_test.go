@@ -92,17 +92,21 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	}
 	// 7 batched statements plus the #5329 stale-entity reap DELETE that runs
 	// after the entity insert for every path with a fresh entity this call
-	// (here, schema.sql).
+	// (here, schema.sql), plus the two #6835 fingerprint side-table reaps
+	// that always run after the entity reap so tombstoned entities never
+	// leave orphan fingerprint rows (no fp upsert here: no fixture entity
+	// carries fingerprint metadata).
 	// The fixture tombstones one entity, so the derive runs two transactions:
 	// lock + delete by entity_id, then lock + delete + insert for the paths.
 	if got, want := len(database.txExecs), 5; got != want {
 		t.Fatalf("infra inventory derive statements = %d, want id lock+delete then path lock+delete+insert", got)
 	}
-	if got, want := len(database.execs), 8; got != want {
+	if got, want := len(database.execs), 10; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	// Batched order: file deletes first, then file reference cleanup and
-	// upsert batch, then entity deletes, then entity upsert batch, then reap.
+	// upsert batch, then entity deletes, then entity upsert batch, then
+	// entity reap, then the fingerprint side-table reaps.
 	if !strings.Contains(database.execs[0].query, "DELETE FROM content_entities") {
 		t.Fatalf("file tombstone entity cleanup query = %q, want content_entities delete", database.execs[0].query)
 	}
@@ -126,6 +130,12 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	}
 	if !strings.Contains(database.execs[7].query, "DELETE FROM content_entities") || !strings.Contains(database.execs[7].query, "entity_id <> ALL") {
 		t.Fatalf("reap query = %q, want the stale-entity reap DELETE", database.execs[7].query)
+	}
+	if !strings.Contains(database.execs[8].query, "DELETE FROM code_function_fingerprint") {
+		t.Fatalf("fingerprint reap query = %q, want the stale-fingerprint reap DELETE", database.execs[8].query)
+	}
+	if !strings.Contains(database.execs[9].query, "DELETE FROM code_fingerprint_band") {
+		t.Fatalf("band reap query = %q, want the stale-band reap DELETE", database.execs[9].query)
 	}
 
 	args := database.execs[4].args

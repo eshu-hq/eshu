@@ -12,30 +12,41 @@ For audited family-level closure status, see
 
 ## Language Parsers
 
-| Parser | Parser Class | Functions | Classes | Interfaces | Traits | Imports | Calls | Variables | Structs | Enums | Macros | Unit Coverage | Integration Coverage | Fixture |
-|--------|--------------|-----------|---------|------------|--------|---------|-------|-----------|---------|-------|--------|---------------|----------------------|---------|
-| C | `DefaultEngine (c)` | Y | - | - | - | Y | Y | Y | Y | Y | Y | 9/9 | 9/9 | - |
-| C++ | `DefaultEngine (cpp)` | Y | Y | - | - | Y | Y | Y | Y | Y | Y | 12/12 | 12/12 | `tests/fixtures/ecosystems/cpp_comprehensive/` |
-| C# | `DefaultEngine (c_sharp)` | Y | Y | Y | - | Y | Y | - | Y | Y | - | 13/13 | 13/13 | `tests/fixtures/ecosystems/csharp_comprehensive/` |
-| Dart | `DefaultEngine (dart)` | Y | Y | - | - | Y | Y | Y | - | Y | - | 11/11 | 11/11 | `tests/fixtures/ecosystems/dart_comprehensive/` |
-| Elixir | `DefaultEngine (elixir)` | Y | Y | - | - | Y | Y | P | - | - | - | 7/7 | 7/7 | `tests/fixtures/ecosystems/elixir_comprehensive/` |
-| Go | `DefaultEngine (go)` | Y | - | Y | - | Y | Y | Y | Y | - | - | 9/9 | 9/9 | `tests/fixtures/ecosystems/go_comprehensive/` |
-| Groovy | `DefaultEngine (groovy)` | - | - | - | - | - | - | - | - | - | - | 6/6 | 6/6 | - |
-| Haskell | `DefaultEngine (haskell)` | Y | - | - | Y | Y | Y | Y | Y | Y | - | 9/9 | 9/9 | `tests/fixtures/ecosystems/haskell_comprehensive/` |
-| Java | `DefaultEngine (java)` | Y | Y | Y | - | Y | Y | Y | - | Y | - | 11/11 | 11/11 | `tests/fixtures/ecosystems/java_comprehensive/` |
-| JavaScript | `DefaultEngine (javascript)` | Y | Y | - | - | Y | Y | Y | - | - | - | 9/9 | 9/9 | `tests/fixtures/ecosystems/javascript_comprehensive/` |
-| JSON Config | `DefaultEngine (json)` | Y | - | - | - | - | - | Y | - | - | - | 5/5 | 5/5 | `tests/fixtures/ecosystems/json_comprehensive/` |
-| Kotlin | `DefaultEngine (kotlin)` | Y | Y | - | - | Y | Y | Y | - | - | - | 8/8 | 8/8 | `tests/fixtures/ecosystems/kotlin_comprehensive/` |
-| Perl | `DefaultEngine (perl)` | Y | Y | - | - | Y | Y | Y | - | - | - | 9/9 | 9/9 | `tests/fixtures/ecosystems/perl_comprehensive/` |
-| PHP | `DefaultEngine (php)` | Y | Y | Y | Y | Y | Y | Y | - | - | - | 10/10 | 10/10 | `tests/fixtures/ecosystems/php_comprehensive/` |
-| Python | `DefaultEngine (python)` | Y | Y | - | - | Y | Y | Y | - | - | - | 6/6 | 6/6 | `tests/fixtures/ecosystems/python_comprehensive/` |
-| Ruby | `DefaultEngine (ruby)` | Y | Y | - | - | Y | Y | Y | - | - | - | 9/9 | 9/9 | `tests/fixtures/ecosystems/ruby_comprehensive/` |
-| Rust | `DefaultEngine (rust)` | Y | - | - | Y | Y | Y | - | Y | Y | - | 8/8 | 8/8 | `tests/fixtures/ecosystems/rust_comprehensive/` |
-| Scala | `DefaultEngine (scala)` | Y | Y | - | Y | Y | Y | Y | - | - | - | 10/10 | 10/10 | `tests/fixtures/ecosystems/scala_comprehensive/` |
-| SQL | `DefaultEngine (sql)` | - | - | - | - | - | - | - | - | - | - | 8/8 | 8/8 | `tests/fixtures/ecosystems/sql_comprehensive/` |
-| Swift | `DefaultEngine (swift)` | Y | Y | - | Y | Y | Y | Y | Y | Y | - | 10/10 | 10/10 | `tests/fixtures/ecosystems/swift_comprehensive/` |
-| TypeScript | `DefaultEngine (typescript)` | Y | Y | Y | - | Y | Y | Y | - | Y | - | 7/7 | 7/7 | `tests/fixtures/ecosystems/typescript_comprehensive/` |
-| TypeScript JSX | `DefaultEngine (tsx)` | Y | Y | Y | - | Y | Y | Y | - | - | - | 6/6 | 6/6 | `tests/fixtures/ecosystems/tsx_comprehensive/` |
+| Parser | Parser Class | Functions | Classes | Interfaces | Traits | Imports | Calls | Variables | Structs | Enums | Macros | Fingerprint | Unit Coverage | Integration Coverage | Fixture |
+|--------|--------------|-----------|---------|------------|--------|---------|-------|-----------|---------|-------|--------|-------------|---------------|----------------------|---------|
+| C | `DefaultEngine (c)` | Y | - | - | - | Y | Y | Y | Y | Y | Y | Exact-only | 9/9 | 9/9 | - |
+| C++ | `DefaultEngine (cpp)` | Y | Y | - | - | Y | Y | Y | Y | Y | Y | Exact-only | 12/12 | 12/12 | `tests/fixtures/ecosystems/cpp_comprehensive/` |
+| C# | `DefaultEngine (c_sharp)` | Y | Y | Y | - | Y | Y | - | Y | Y | - | Exact-only | 13/13 | 13/13 | `tests/fixtures/ecosystems/csharp_comprehensive/` |
+| Dart | `DefaultEngine (dart)` | Y | Y | - | - | Y | Y | Y | - | Y | - | Exact-only | 11/11 | 11/11 | `tests/fixtures/ecosystems/dart_comprehensive/` |
+| Elixir | `DefaultEngine (elixir)` | Y | Y | - | - | Y | Y | P | - | - | - | Exact-only | 7/7 | 7/7 | `tests/fixtures/ecosystems/elixir_comprehensive/` |
+| Go | `DefaultEngine (go)` | Y | - | Y | - | Y | Y | Y | Y | - | - | Full | 9/9 | 9/9 | `tests/fixtures/ecosystems/go_comprehensive/` |
+| Groovy | `DefaultEngine (groovy)` | - | - | - | - | - | - | - | - | - | - | Exact-only | 6/6 | 6/6 | - |
+| Haskell | `DefaultEngine (haskell)` | Y | - | - | Y | Y | Y | Y | Y | Y | - | Exact-only | 9/9 | 9/9 | `tests/fixtures/ecosystems/haskell_comprehensive/` |
+| Java | `DefaultEngine (java)` | Y | Y | Y | - | Y | Y | Y | - | Y | - | Full | 11/11 | 11/11 | `tests/fixtures/ecosystems/java_comprehensive/` |
+| JavaScript | `DefaultEngine (javascript)` | Y | Y | - | - | Y | Y | Y | - | - | - | Full | 9/9 | 9/9 | `tests/fixtures/ecosystems/javascript_comprehensive/` |
+| JSON Config | `DefaultEngine (json)` | Y | - | - | - | - | - | Y | - | - | - | - | 5/5 | 5/5 | `tests/fixtures/ecosystems/json_comprehensive/` |
+| Kotlin | `DefaultEngine (kotlin)` | Y | Y | - | - | Y | Y | Y | - | - | - | Exact-only | 8/8 | 8/8 | `tests/fixtures/ecosystems/kotlin_comprehensive/` |
+| Perl | `DefaultEngine (perl)` | Y | Y | - | - | Y | Y | Y | - | - | - | Exact-only | 9/9 | 9/9 | `tests/fixtures/ecosystems/perl_comprehensive/` |
+| PHP | `DefaultEngine (php)` | Y | Y | Y | Y | Y | Y | Y | - | - | - | Exact-only | 10/10 | 10/10 | `tests/fixtures/ecosystems/php_comprehensive/` |
+| Python | `DefaultEngine (python)` | Y | Y | - | - | Y | Y | Y | - | - | - | Full | 6/6 | 6/6 | `tests/fixtures/ecosystems/python_comprehensive/` |
+| Ruby | `DefaultEngine (ruby)` | Y | Y | - | - | Y | Y | Y | - | - | - | Exact-only | 9/9 | 9/9 | `tests/fixtures/ecosystems/ruby_comprehensive/` |
+| Rust | `DefaultEngine (rust)` | Y | - | - | Y | Y | Y | - | Y | Y | - | Exact-only | 8/8 | 8/8 | `tests/fixtures/ecosystems/rust_comprehensive/` |
+| Scala | `DefaultEngine (scala)` | Y | Y | - | Y | Y | Y | Y | - | - | - | Exact-only | 10/10 | 10/10 | `tests/fixtures/ecosystems/scala_comprehensive/` |
+| SQL | `DefaultEngine (sql)` | - | - | - | - | - | - | - | - | - | - | - | 8/8 | 8/8 | `tests/fixtures/ecosystems/sql_comprehensive/` |
+| Swift | `DefaultEngine (swift)` | Y | Y | - | Y | Y | Y | Y | Y | Y | - | Exact-only | 10/10 | 10/10 | `tests/fixtures/ecosystems/swift_comprehensive/` |
+| TypeScript | `DefaultEngine (typescript)` | Y | Y | Y | - | Y | Y | Y | - | Y | - | Full | 7/7 | 7/7 | `tests/fixtures/ecosystems/typescript_comprehensive/` |
+| TypeScript JSX | `DefaultEngine (tsx)` | Y | Y | Y | - | Y | Y | Y | - | - | - | Full | 6/6 | 6/6 | `tests/fixtures/ecosystems/tsx_comprehensive/` |
+
+## Function Fingerprints
+
+The Fingerprint column records the structural fingerprint tier wired in
+`go/internal/parser/fingerprint` (#6835): `Full` tiers attach the exact hash,
+the token count, the alpha-renamed hash, and the MinHash sketch; `Exact-only`
+tiers attach the exact hash and token count with their grammar's comment kinds
+excluded; `-` means no fingerprint wiring. Bodies below 50 tokens
+(`MinTokenCount`) and bodies from error parses are skipped on every tier.
+Fingerprints are parse-stage metadata for grouping work, not supported query
+behavior.
 
 ## IaC Parsers
 

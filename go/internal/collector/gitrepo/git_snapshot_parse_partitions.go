@@ -410,6 +410,7 @@ func (s NativeRepositorySnapshotter) parseRepositoryFile(
 		))
 	}
 	s.recordParseFileStatus(ctx, "succeeded")
+	s.recordFingerprintStats(ctx, parsed, language)
 	s.recordCloudFormationPositionFallbacks(ctx, parsed, relativePath)
 
 	return parseResult{

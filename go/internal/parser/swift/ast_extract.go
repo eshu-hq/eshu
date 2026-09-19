@@ -6,6 +6,7 @@ package swift
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -15,10 +16,15 @@ import (
 // extraction so imports, nominal types, functions, variables, and calls are keyed
 // by AST spans rather than text-split trimmed lines.
 type swiftExtractor struct {
-	payload       map[string]any
-	source        []byte
-	isDependency  bool
-	options       shared.Options
+	payload      map[string]any
+	source       []byte
+	isDependency bool
+	options      shared.Options
+	// fpStats/fpHasError carry the #6833 code-divergence fingerprint
+	// state (exact-only tier). fpHasError is set in extract from the live
+	// root; nodes stay live for the whole extract walk.
+	fpStats       *fingerprint.Stats
+	fpHasError    bool
 	facts         swiftSemanticFacts
 	seenVariables map[string]struct{}
 	variableTypes map[string]string
@@ -45,6 +51,7 @@ func newSwiftExtractor(
 		source:        source,
 		isDependency:  isDependency,
 		options:       options,
+		fpStats:       &fingerprint.Stats{},
 		facts:         facts,
 		seenVariables: make(map[string]struct{}),
 		variableTypes: make(map[string]string),
@@ -54,6 +61,10 @@ func newSwiftExtractor(
 
 // extract walks the whole tree once, populating payload buckets in AST order.
 func (e *swiftExtractor) extract(root *tree_sitter.Node) {
+	if root == nil {
+		return
+	}
+	e.fpHasError = root.HasError()
 	e.walk(root, swiftTypeScope{})
 }
 
@@ -258,6 +269,7 @@ func (e *swiftExtractor) handleFunction(node *tree_sitter.Node, scope swiftTypeS
 	if rootKinds := swiftFunctionDeadCodeRootKinds(name, isOverride, scope.name, scope.kind, modifiers, e.facts); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
+	fingerprint.Attach("swift", e.fpHasError, node.ChildByFieldName("body"), e.source, item, e.fpStats)
 	shared.AppendBucket(e.payload, "functions", item)
 
 	e.walkChildren(node, scope)

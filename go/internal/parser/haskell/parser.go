@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_haskell "github.com/tree-sitter/tree-sitter-haskell/bindings/go"
@@ -49,6 +50,7 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 
 	extractor := newHaskellExtractor(payload, source, lines, isDependency, options)
 	extractor.extract(tree.RootNode())
+	payload[fingerprint.StatsKey] = extractor.fpStats.Map()
 
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "classes")

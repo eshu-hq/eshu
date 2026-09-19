@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -18,6 +19,12 @@ type groovySyntaxIndex struct {
 	imports   []map[string]any
 	calls     []map[string]any
 	seenCalls map[string]struct{}
+	// fpStats/fpHasError carry the #6833 code-divergence fingerprint
+	// state (exact-only tier) through the collect walk, whose nodes are
+	// only live during the walk because groovySourceAndSyntax closes the
+	// tree before returning.
+	fpStats    *fingerprint.Stats
+	fpHasError bool
 }
 
 func groovySourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, groovySyntaxIndex, error) {
@@ -34,8 +41,13 @@ func groovySourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, gro
 	}
 	defer tree.Close()
 
-	index := groovySyntaxIndex{seenCalls: make(map[string]struct{})}
-	index.collect(tree.RootNode(), source, "")
+	root := tree.RootNode()
+	index := groovySyntaxIndex{
+		seenCalls:  make(map[string]struct{}),
+		fpStats:    &fingerprint.Stats{},
+		fpHasError: root.HasError(),
+	}
+	index.collect(root, source, "")
 	return source, index, nil
 }
 
@@ -72,6 +84,7 @@ func (i *groovySyntaxIndex) collect(node *tree_sitter.Node, source []byte, class
 			if classContext != "" {
 				item["class_context"] = classContext
 			}
+			fingerprint.Attach("groovy", i.fpHasError, body, source, item, i.fpStats)
 			i.functions = append(i.functions, item)
 		}
 	case "import_declaration":

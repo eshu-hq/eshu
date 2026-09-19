@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -39,6 +40,12 @@ func Parse(
 	payload["unions"] = []map[string]any{}
 	payload["macros"] = []map[string]any{}
 	root := tree.RootNode()
+	// Fingerprint state for the #6833 code-divergence report (exact-only
+	// tier): error graphs are excluded per the #6834 verdict, and per-file
+	// outcomes accumulate for collector-side telemetry via
+	// payload[fingerprint.StatsKey].
+	fpStats := &fingerprint.Stats{}
+	fpHasError := root.HasError()
 
 	routes := newCPPRouteCollector()
 
@@ -72,7 +79,7 @@ func Parse(
 		case "type_definition":
 			appendCTypedefAliases(payload, node, source, "cpp")
 		case "function_definition":
-			appendCPPFunction(payload, node, source, options)
+			appendCPPFunction(payload, node, source, options, fpHasError, fpStats)
 			gatheredResolutionNodes = append(gatheredResolutionNodes, shared.CloneNode(node))
 		case "declaration":
 			appendCTypedefAliases(payload, node, source, "cpp")
@@ -97,6 +104,7 @@ func Parse(
 		"macros",
 	)
 	payload["framework_semantics"] = routes.finalize()
+	payload[fingerprint.StatsKey] = fpStats.Map()
 
 	return payload, nil
 }
@@ -110,7 +118,7 @@ func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
 	return shared.CollectBucketNames(payload, "functions", "classes", "structs", "enums", "unions", "macros"), nil
 }
 
-func appendCPPFunction(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options) {
+func appendCPPFunction(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options, fpHasError bool, fpStats *fingerprint.Stats) {
 	nameNode := firstNamedDescendant(node, "identifier", "field_identifier", "destructor_name")
 	name, qualifiedClass := cppFunctionNameAndClass(node, nameNode, source)
 	if name == "" {
@@ -132,6 +140,7 @@ func appendCPPFunction(payload map[string]any, node *tree_sitter.Node, source []
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)
 	}
+	fingerprint.Attach("cpp", fpHasError, node.ChildByFieldName("body"), source, item, fpStats)
 	shared.AppendBucket(payload, "functions", item)
 }
 

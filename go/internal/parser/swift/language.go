@@ -6,6 +6,7 @@ package swift
 import (
 	"slices"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -51,6 +52,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	for _, bucket := range []string{"functions", "classes", "structs", "enums", "protocols", "variables", "imports", "function_calls"} {
 		shared.SortNamedBucket(payload, bucket)
 	}
+	payload[fingerprint.StatsKey] = extractor.fpStats.Map()
 
 	return payload, nil
 }

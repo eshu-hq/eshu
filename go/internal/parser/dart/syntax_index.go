@@ -10,6 +10,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -28,8 +29,16 @@ type dartFunctionSpan struct {
 	source       string
 	startLine    int
 	endLine      int
-	complexity   int
-	isFactory    bool
+	// Fingerprint keys for the #6833 code-divergence report (exact-only
+	// tier), computed while the tree is live. fingerprinted is false when
+	// the body was skipped (below floor, error graph, or no body).
+	fpExact       string
+	fpRenamed     string
+	fpSketch      string
+	fpTokens      int
+	fingerprinted bool
+	complexity    int
+	isFactory     bool
 }
 
 type dartNamedSpan struct {
@@ -44,6 +53,12 @@ type dartSyntaxIndex struct {
 	variables []dartNamedSpan
 	imports   []dartNamedSpan
 	calls     []dartCallSite
+	// fpStats/fpHasError carry the #6833 code-divergence fingerprint
+	// state (exact-only tier) through the collect walk, whose nodes are
+	// only live during the walk because dartSourceAndSyntax closes the
+	// tree before returning.
+	fpStats    *fingerprint.Stats
+	fpHasError bool
 }
 
 func dartSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, dartSyntaxIndex, error) {
@@ -60,14 +75,18 @@ func dartSourceAndSyntax(path string, parser *tree_sitter.Parser) ([]byte, dartS
 	}
 	defer tree.Close()
 
-	index := dartSyntaxIndex{}
+	root := tree.RootNode()
+	index := dartSyntaxIndex{
+		fpStats:    &fingerprint.Stats{},
+		fpHasError: root.HasError(),
+	}
 	lines := strings.Split(string(source), "\n")
 	// One TreeCursor is created here and reused for the entire traversal
 	// (GotoFirstChild/GotoNextSibling/GotoParent), so collect allocates a single
 	// cgo cursor total instead of one node.Walk() plus a NamedChildren []Node
 	// materialization at every node (#5332 mechanism, applied to the merged
 	// #5350 pass).
-	cursor := tree.RootNode().Walk()
+	cursor := root.Walk()
 	defer cursor.Close()
 	index.collect(cursor, source, lines, dartTypeSpan{}, false)
 	return source, index, nil
@@ -136,7 +155,7 @@ func (i *dartSyntaxIndex) collect(cursor *tree_sitter.TreeCursor, source []byte,
 				i.types = append(i.types, typ)
 			}
 		case "method_signature":
-			if fn := dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
+			if fn := i.dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
 				i.functions = append(i.functions, fn)
 			}
 			// Calls-only descent into the signature subtree: the pre-#5350
@@ -149,14 +168,14 @@ func (i *dartSyntaxIndex) collect(cursor *tree_sitter.TreeCursor, source []byte,
 			// nested in a method_signature is already reached in calls-only
 			// mode (its parent set the flag), so this switch is skipped for it.
 			if dartParentKind(node) != "method_signature" {
-				if fn := dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
+				if fn := i.dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
 					i.functions = append(i.functions, fn)
 				}
 				nextCallsOnly = true
 			}
 		case "function_signature":
 			if dartParentKind(node) != "method_signature" {
-				if fn := dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
+				if fn := i.dartFunctionFromNode(node, source, lines, scope); fn.name != "" {
 					i.functions = append(i.functions, fn)
 				}
 				nextCallsOnly = true
@@ -198,7 +217,7 @@ func dartTypeFromNode(node *tree_sitter.Node, source []byte) dartTypeSpan {
 	}
 }
 
-func dartFunctionFromNode(node *tree_sitter.Node, source []byte, lines []string, scope dartTypeSpan) dartFunctionSpan {
+func (i *dartSyntaxIndex) dartFunctionFromNode(node *tree_sitter.Node, source []byte, lines []string, scope dartTypeSpan) dartFunctionSpan {
 	name := dartCallableName(node, source)
 	if name == "" {
 		return dartFunctionSpan{}
@@ -210,7 +229,7 @@ func dartFunctionFromNode(node *tree_sitter.Node, source []byte, lines []string,
 		bodyNode = nil
 	}
 	isFactory := isDartFactoryConstructor(node)
-	return dartFunctionSpan{
+	span := dartFunctionSpan{
 		name:         name,
 		classContext: scope.name,
 		decorators:   dartDecoratorsBeforeLine(lines, startLine),
@@ -220,6 +239,15 @@ func dartFunctionFromNode(node *tree_sitter.Node, source []byte, lines []string,
 		complexity:   dartCyclomaticComplexity(node, bodyNode, source),
 		isFactory:    isFactory,
 	}
+	fpItem := map[string]any{}
+	if reason := fingerprint.Attach("dart", i.fpHasError, bodyNode, source, fpItem, i.fpStats); reason == "" {
+		span.fpExact, _ = fpItem[fingerprint.KeyExact].(string)
+		span.fpRenamed, _ = fpItem[fingerprint.KeyRenamed].(string)
+		span.fpSketch, _ = fpItem[fingerprint.KeySketch].(string)
+		span.fpTokens, _ = fpItem[fingerprint.KeyTokenCount].(int)
+		span.fingerprinted = true
+	}
+	return span
 }
 
 func dartCallableName(node *tree_sitter.Node, source []byte) string {

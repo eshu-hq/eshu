@@ -1,5 +1,6 @@
 src/main/java/com/example/dogfood/User.java	annotations	kind="applied" lang="java" line_number=33 name="Override" target_kind="method_declaration"
 src/main/java/com/example/dogfood/User.java	classes	end_line=37 lang="java" line_number=10 name="User"
+src/main/java/com/example/dogfood/User.java	fingerprint_stats	{below_floor=5 fingerprinted=0 has_error=0 micros_total=0 no_body=0}
 src/main/java/com/example/dogfood/User.java	framework_semantics	{frameworks=[]}
 src/main/java/com/example/dogfood/User.java	functions	class_context="User" cyclomatic_complexity=1 dead_code_root_kinds=["java.constructor"] end_line=19 lang="java" line_number=15 name="User" parameter_count=3 parameter_types=["String","String","String"]
 src/main/java/com/example/dogfood/User.java	functions	class_context="User" cyclomatic_complexity=1 dead_code_root_kinds=["java.override_method"] decorators=["@Override"] end_line=36 lang="java" line_number=34 name="toString" parameter_count=0
@@ -17,6 +18,7 @@ src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied"
 src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied" lang="java" line_number=29 name="RequestParam" target_kind="method_declaration"
 src/main/java/com/example/dogfood/UserController.java	annotations	kind="applied" lang="java" line_number=33 name="GetMapping" target_kind="method_declaration"
 src/main/java/com/example/dogfood/UserController.java	classes	dead_code_root_kinds=["java.spring_component_class"] decorators=["@RestController"] end_line=37 lang="java" line_number=16 name="UserController"
+src/main/java/com/example/dogfood/UserController.java	fingerprint_stats	{below_floor=4 fingerprinted=0 has_error=0 micros_total=0 no_body=0}
 src/main/java/com/example/dogfood/UserController.java	framework_semantics	{frameworks=["spring"] spring={route_entries=[{handler="show" method="GET" path="/users/{id}"},{handler="create" method="POST" path="/users"},{handler="healthCheck" method="GET" path="/health"}] route_methods=["GET","POST"] route_paths=["/users/{id}","/users","/health"]}}
 src/main/java/com/example/dogfood/UserController.java	function_calls	argument_count=1 argument_types=["String"] full_name="userService.getOrThrow" inferred_obj_type="UserService" lang="java" line_number=25 name="getOrThrow"
 src/main/java/com/example/dogfood/UserController.java	function_calls	argument_count=2 argument_types=["String","String"] full_name="userService.create" inferred_obj_type="UserService" lang="java" line_number=30 name="create"
@@ -31,10 +33,12 @@ src/main/java/com/example/dogfood/UserController.java	imports	alias="RequestPara
 src/main/java/com/example/dogfood/UserController.java	imports	alias="RestController" full_import_name="import org.springframework.web.bind.annotation.RestController;" import_type="import" lang="java" line_number=13 name="org.springframework.web.bind.annotation.RestController" source="org.springframework.web.bind.annotation.RestController"
 src/main/java/com/example/dogfood/UserController.java	variables	end_line=17 lang="java" line_number=17 name="userService"
 src/main/java/com/example/dogfood/UserNotFoundException.java	classes	end_line=9 lang="java" line_number=5 name="UserNotFoundException"
+src/main/java/com/example/dogfood/UserNotFoundException.java	fingerprint_stats	{below_floor=1 fingerprinted=0 has_error=0 micros_total=0 no_body=0}
 src/main/java/com/example/dogfood/UserNotFoundException.java	framework_semantics	{frameworks=[]}
 src/main/java/com/example/dogfood/UserNotFoundException.java	functions	class_context="UserNotFoundException" cyclomatic_complexity=1 dead_code_root_kinds=["java.constructor"] end_line=8 lang="java" line_number=6 name="UserNotFoundException" parameter_count=1 parameter_types=["String"]
 src/main/java/com/example/dogfood/UserService.java	annotations	kind="applied" lang="java" line_number=13 name="Service" target_kind="class_declaration"
 src/main/java/com/example/dogfood/UserService.java	classes	dead_code_root_kinds=["java.spring_component_class"] decorators=["@Service"] end_line=34 lang="java" line_number=14 name="UserService"
+src/main/java/com/example/dogfood/UserService.java	fingerprint_stats	{below_floor=4 fingerprinted=0 has_error=0 micros_total=0 no_body=0}
 src/main/java/com/example/dogfood/UserService.java	framework_semantics	{frameworks=[]}
 src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=0 class_context="UserService" full_name="generateId" lang="java" line_number=22 name="generateId"
 src/main/java/com/example/dogfood/UserService.java	function_calls	argument_count=0 full_name="HashMap<>" lang="java" line_number=15 name="HashMap<>"
@@ -60,6 +64,7 @@ src/main/java/com/example/dogfood/UserService.java	variables	end_line=15 lang="j
 src/test/java/com/example/dogfood/UserServiceTest.java	annotations	kind="applied" lang="java" line_number=14 name="Test" target_kind="method_declaration"
 src/test/java/com/example/dogfood/UserServiceTest.java	annotations	kind="applied" lang="java" line_number=21 name="Test" target_kind="method_declaration"
 src/test/java/com/example/dogfood/UserServiceTest.java	classes	end_line=26 lang="java" line_number=13 name="UserServiceTest"
+src/test/java/com/example/dogfood/UserServiceTest.java	fingerprint_stats	{below_floor=2 fingerprinted=0 has_error=0 micros_total=0 no_body=0}
 src/test/java/com/example/dogfood/UserServiceTest.java	framework_semantics	{frameworks=[]}
 src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=0 full_name="UserService" lang="java" line_number=16 name="UserService"
 src/test/java/com/example/dogfood/UserServiceTest.java	function_calls	argument_count=0 full_name="UserService" lang="java" line_number=23 name="UserService"

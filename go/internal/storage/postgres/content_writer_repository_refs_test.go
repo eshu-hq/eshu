@@ -46,9 +46,7 @@ func TestContentWriterUpsertsRepositoryRefs(t *testing.T) {
 	if got, want := result.RepositoryRefCount, 2; got != want {
 		t.Fatalf("RepositoryRefCount = %d, want %d", got, want)
 	}
-	if got, want := len(db.execs), 2; got != want {
-		t.Fatalf("exec count = %d, want %d (stale ref delete + ref upsert)", got, want)
-	}
+	assertExecCountWithFingerprintReaps(t, db.execs, 2, "stale ref delete + ref upsert")
 	if !strings.Contains(db.execs[0].query, "DELETE FROM repository_refs") {
 		t.Fatalf("first query = %q, want repository_refs stale delete", db.execs[0].query)
 	}

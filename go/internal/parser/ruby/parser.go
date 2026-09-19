@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_ruby "github.com/tree-sitter/tree-sitter-ruby/bindings/go"
@@ -83,6 +84,7 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	shared.SortNamedBucket(payload, "variables")
 	shared.SortNamedBucket(payload, "imports")
 	shared.SortNamedBucket(payload, "function_calls")
+	payload[fingerprint.StatsKey] = syntax.fpStats.Map()
 	return payload, nil
 }
 

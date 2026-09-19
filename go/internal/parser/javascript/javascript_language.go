@@ -5,67 +5,16 @@ package javascript
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// jsParseByteCap bounds the size of a single JavaScript/TypeScript/TSX file
-// handed to tree-sitter. Normal hand-written source is tens of KB; the
-// pathological tail is large generated bundles (minified webpack output,
-// bundled vendor code) that tree-sitter parses superlinearly -- a 2.7MB
-// webpack bundle measured 15.9s (~224x a normal parse) and a 3.4MB generated
-// bundle measured 5.1s (#4766). 1 MiB is generous headroom above any
-// hand-written file while remaining well below the pathological range.
-const jsParseByteCap = 1 << 20
-
-// ParserFactory returns a pooled tree-sitter parser for the requested runtime
-// grammar name. The caller must return the parser via the paired ParserReturner
-// after use instead of calling parser.Close directly.
-type ParserFactory func(language string) (*tree_sitter.Parser, error)
-
-// ParserReturner returns a borrowed parser to the runtime pool. It must be
-// called with the same language name that was passed to ParserFactory.
-type ParserReturner func(language string, p *tree_sitter.Parser)
-
-// jsBoundedFileEvent records one file whose size exceeded jsParseByteCap and
-// whose tree-sitter parse was skipped entirely.
-type jsBoundedFileEvent struct {
-	path          string
-	originalBytes int
-}
-
-// row renders one bounded-file event as a payload row for
-// payload["js_parse_bounded"].
-func (e jsBoundedFileEvent) row() map[string]any {
-	return map[string]any{
-		"path":           e.path,
-		"original_bytes": e.originalBytes,
-		"action":         "file_skipped",
-	}
-}
-
-// recordJSBoundedFile appends a js_parse_bounded payload row for one bounded
-// file and emits a matching structured log line so a dropped parse is
-// observable rather than silent.
-func recordJSBoundedFile(payload map[string]any, path string, originalBytes int) {
-	event := jsBoundedFileEvent{path: path, originalBytes: originalBytes}
-	payload["js_parse_bounded"] = append(
-		payload["js_parse_bounded"].([]map[string]any),
-		event.row(),
-	)
-	slog.Warn(
-		"javascript-family parse file bounded",
-		"component", "parser.javascript",
-		"path", event.path,
-		"original_bytes", event.originalBytes,
-		"action", "file_skipped",
-	)
-}
-
 // Parse reads path and returns the JavaScript-family parser payload.
+// Parse-level shared types (ParserFactory, jsParseByteCap, bounded-file
+// events) live in javascript_language_helpers.go.
 // parserReturner must be the paired return function for parserFactory; the
 // borrowed parser is returned to the pool via parserReturner instead of
 // calling parser.Close directly.
@@ -96,6 +45,7 @@ func Parse(
 
 	if len(source) > jsParseByteCap {
 		recordJSBoundedFile(payload, path, len(source))
+		payload[fingerprint.StatsKey] = (&fingerprint.Stats{}).Map()
 		return payload, nil
 	}
 
@@ -111,6 +61,11 @@ func Parse(
 	}
 	scope := options.NormalizedVariableScope()
 	root := tree.RootNode()
+	// Fingerprint state for the #6833 code-divergence report: error graphs
+	// are excluded per the #6834 verdict, and per-file outcomes accumulate
+	// for collector-side telemetry via payload[fingerprint.StatsKey].
+	fpStats := &fingerprint.Stats{}
+	fpHasError := root.HasError()
 	parents := buildJavaScriptParentLookup(root)
 	sourceText := string(source)
 	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(root, source, outputLanguage)
@@ -148,15 +103,15 @@ func Parse(
 		switch node.Kind() {
 		case "function_declaration":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
 		case "generator_function_declaration":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
 			maybeAppendJavaScriptComponent(payload, node, nameNode, source, outputLanguage, reactAliases)
 		case "method_definition":
 			nameNode := node.ChildByFieldName("name")
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
 			if wantFrameworkGather {
 				gatheredMethodDefinitions = append(gatheredMethodDefinitions, cloneNode(node))
 			}
@@ -243,7 +198,7 @@ func Parse(
 			}
 			valueNode := node.ChildByFieldName("value")
 			if isJavaScriptFunctionValue(valueNode) {
-				appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
+				appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
 				maybeAppendJavaScriptComponent(payload, valueNode, nameNode, source, outputLanguage, reactAliases)
 				return
 			}
@@ -286,7 +241,7 @@ func Parse(
 				}
 				return
 			}
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
 		case "import_statement":
 			for _, item := range javaScriptImportEntries(node, source, outputLanguage) {
 				annotateJavaScriptResolvedImport(item, tsConfigImports)
@@ -373,7 +328,7 @@ func Parse(
 			if nameNode == nil {
 				return
 			}
-			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots)
+			appendFunctionDeclaration(payload, path, node, nameNode, source, outputLanguage, options, deadCodeRoots, fpHasError, fpStats)
 		case "jsx_opening_element", "jsx_self_closing_element":
 			if outputLanguage != "tsx" {
 				return
@@ -403,6 +358,7 @@ func Parse(
 	appendJavaScriptTypeReferenceCalls(payload, root, source, outputLanguage)
 	annotateTypeScriptDeclarationMerges(payload, outputLanguage)
 	sortNamedBucket(payload, "functions")
+	payload[fingerprint.StatsKey] = fpStats.Map()
 	sortNamedBucket(payload, "classes")
 	sortNamedBucket(payload, "variables")
 	sortNamedBucket(payload, "modules")
@@ -447,6 +403,8 @@ func appendFunctionDeclaration(
 	lang string,
 	options shared.Options,
 	deadCodeRoots javaScriptDeadCodeEvidence,
+	fpHasError bool,
+	fpStats *fingerprint.Stats,
 ) {
 	name := javaScriptFunctionName(nameNode, source)
 	if strings.TrimSpace(name) == "" {
@@ -491,6 +449,11 @@ func appendFunctionDeclaration(
 	}
 	if options.IndexSource {
 		item["source"] = nodeText(declarationNode, source)
+	}
+	if declarationNode != nil {
+		fingerprint.Attach(lang, fpHasError, declarationNode.ChildByFieldName("body"), source, item, fpStats)
+	} else {
+		fpStats.Record(fingerprint.ReasonNoBody, 0)
 	}
 	appendBucket(payload, "functions", item)
 }
