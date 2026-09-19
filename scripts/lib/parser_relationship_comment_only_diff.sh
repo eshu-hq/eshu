@@ -114,9 +114,14 @@ is_comment_only_diff() {
 
 # go_package_dir_has_files REF DIR succeeds when DIR holds at least one .go
 # file directly (not in a subdirectory) at REF. Any git failure counts as no
-# files.
+# files. The ls-tree output is captured before matching instead of piped
+# into `rg -q`: under the verifier's pipefail, rg -q exits on the first match
+# and a large directory listing can SIGPIPE ls-tree, turning "has files" into
+# "no files" at random. That fails open in the negated move checks below.
 go_package_dir_has_files() {
-  git -C "$repo_root" ls-tree --name-only "$1" -- "$2/" 2>/dev/null | rg -q '\.go$'
+  local listing
+  listing="$(git -C "$repo_root" ls-tree --name-only "$1" -- "$2/" 2>/dev/null || true)"
+  [ -n "$listing" ] && printf '%s\n' "$listing" | rg '\.go$' >/dev/null
 }
 
 # is_internal_package_move MERGE_BASE OLD_IMPORT NEW_IMPORT succeeds only when
