@@ -10,8 +10,14 @@ import (
 func codebaseTools() []ToolDefinition {
 	// intel holds the four code-intelligence definitions owned by the
 	// code/intel package, spliced into this block at their long-standing
-	// positions around the import-dependency and security helpers.
+	// positions around the import-dependency and security helpers. The
+	// interleaved neighbors rule out a whole-slice append, so this guard
+	// makes an arity change fail fast here instead of silently dropping a
+	// fifth definition or panicking on an index below.
 	intel := codeinteltools.Tools()
+	if len(intel) != 4 {
+		panic("codeinteltools.Tools must return exactly the four spliced definitions")
+	}
 	tools := []ToolDefinition{
 		{
 			Name:        "find_code",
