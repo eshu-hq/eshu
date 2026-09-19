@@ -15,6 +15,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
+
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
 const requiredDisposableOptIn = "1"
@@ -55,22 +57,17 @@ func OpenDisposableDatabase(
 	}
 	targetConfig := config.Copy()
 	targetConfig.Database = databaseName
-	targetConnection := stdlib.RegisterConnConfig(targetConfig)
-	targetDB, err := sql.Open("pgx", targetConnection)
-	if err != nil {
-		stdlib.UnregisterConnConfig(targetConnection)
-		dropDisposableDatabase(t, adminDB, databaseName)
-		t.Fatalf("open disposable PostgreSQL database: %v", err)
-	}
+	// Connect the way the service runtimes do (runtime.OpenPostgres): every
+	// connection carries the derive-aware writer setting, so a proof that
+	// seeds infra-typed content rows leaves no rolling-upgrade fence marks.
+	targetDB := stdlib.OpenDB(*targetConfig, inventory.WriterConnectOption())
 	if err := targetDB.PingContext(ctx); err != nil {
 		_ = targetDB.Close()
-		stdlib.UnregisterConnConfig(targetConnection)
 		dropDisposableDatabase(t, adminDB, databaseName)
 		t.Fatalf("ping disposable PostgreSQL database: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = targetDB.Close()
-		stdlib.UnregisterConnConfig(targetConnection)
 		dropDisposableDatabase(t, adminDB, databaseName)
 		_ = adminDB.Close()
 	})
