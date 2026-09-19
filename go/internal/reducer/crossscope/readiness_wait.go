@@ -46,11 +46,12 @@ type ReadinessWait struct {
 	// FirstDeferredAt is the bound's anchor. It survives supersession and is
 	// reset only when a settled or cleared wait sees a new missing set.
 	FirstDeferredAt time.Time
-	// AnchorEpoch counts anchor resets and clears. A write carries the epoch
-	// its evaluation read (plus one when it resets the anchor or clears the
-	// row), and the store drops a write whose epoch is below the stored one,
-	// so a lease-expired straggler cannot restore an anchor that a reset or
-	// clear replaced (review P3-1).
+	// AnchorEpoch counts anchor resets, settles, and clears. A write carries
+	// the epoch its evaluation read (plus one when it resets the anchor,
+	// settles, or clears the row), and the store drops a write whose epoch is
+	// below the stored one, so a lease-expired straggler cannot restore an
+	// anchor that a reset or clear replaced (review P3-1) or un-settle a
+	// settled wait (review P3-a).
 	AnchorEpoch int64
 	// MissingKeys is the sorted missing set, capped at ReadinessWaitMaxKeys.
 	MissingKeys []string
@@ -225,7 +226,11 @@ func DecideWait(in WaitInput) WaitDecision {
 	decision.Elapsed = in.Now.Sub(row.FirstDeferredAt)
 	settledNow := decision.Elapsed >= maxWait
 	if settledNow {
+		// Settling moves to the next epoch, so a straggler that read the
+		// unsettled row cannot write settled_at back to NULL and make the next
+		// evaluation settle (and count abandoned) a second time (review P3-a).
 		row.SettledAt = in.Now
+		row.AnchorEpoch++
 		decision.Outcome = ReadinessWaitAbandoned
 	} else {
 		decision.Defer = true

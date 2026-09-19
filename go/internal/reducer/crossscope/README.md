@@ -106,7 +106,9 @@ the ledger, then return the not-ready error or succeed.
   row with a new set restarts it at the next `AnchorEpoch`, so a lease-expired
   straggler cannot restore the old anchor) and commits unless this generation, queue cycle, and
   fingerprint already committed. It then defers, or settles once elapsed time
-  since the anchor reaches `MaxWait` (`abandoned`).
+  since the anchor reaches `MaxWait` (`abandoned`). A settle also moves the
+  row to the next `AnchorEpoch`, so a straggler that read the unsettled row
+  cannot un-settle it and make the same missing set count `abandoned` twice.
 - `CommittedInGeneration` tells the handler a re-commit in the same
   generation must retract even on a scope's first generation, because the
   resolved edge set can shrink between evaluations.

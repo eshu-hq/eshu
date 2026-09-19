@@ -66,3 +66,21 @@ func TestCommittedInGeneration(t *testing.T) {
 		t.Fatal("CommittedInGeneration() = true for another generation, no row, or no marker; want false")
 	}
 }
+
+// TestDecideWaitSettleAdvancesEpoch is review P3-a: settling moves the row to
+// the next epoch, so a lease-expired straggler that read the unsettled row
+// cannot overwrite settled_at with NULL and make the next evaluation settle
+// (and count abandoned) a second time.
+func TestDecideWaitSettleAdvancesEpoch(t *testing.T) {
+	t.Parallel()
+	row := committedRow("arn:a")
+	row.AnchorEpoch = 4
+	settle := DecideWait(waitInput(&row, "gen-1", waitTestCycle, row.FirstDeferredAt.Add(ProducerReadinessMaxWait), "arn:a"))
+	if settle.Outcome != ReadinessWaitAbandoned || !settle.Upsert || settle.Row.SettledAt.IsZero() {
+		t.Fatalf("expired wait: %+v, want an abandoned settle upsert", settle)
+	}
+	if settle.Row.AnchorEpoch != 5 || !settle.Row.FirstDeferredAt.Equal(row.FirstDeferredAt) {
+		t.Fatalf("settle epoch %d anchor %v, want epoch 5 and the kept anchor %v",
+			settle.Row.AnchorEpoch, settle.Row.FirstDeferredAt, row.FirstDeferredAt)
+	}
+}

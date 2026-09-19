@@ -23,7 +23,7 @@ row is keyed by `(scope_id, domain)`, so it outlives each queue row.
 | `missing_fingerprint` | SHA-256 over the full sorted set. |
 | `committed_generation_id`, `committed_cycle_started_at`, `committed_fingerprint` | The last partial commit. A poll that matches all three writes nothing. |
 | `settled_at` | Set when the bound expired for this missing set. |
-| `anchor_epoch` | Fence against lease-expired stragglers. A reset or a clear moves the row to the next epoch. |
+| `anchor_epoch` | Fence against lease-expired stragglers. An anchor reset, a settle, or a clear moves the row to the next epoch. |
 | `cleared_at` | Set when the missing set emptied. The row stays as a tombstone with no missing set so its epoch keeps fencing. |
 
 The handler decides what to do with `crossscope.DecideWait`; this package only
@@ -54,8 +54,10 @@ whose lease expired can still finish its statements after the next worker has
 claimed. Without the epoch, a straggler that read the row before a settled wait
 reset its anchor would restore the older anchor through `LEAST`, and a new
 missing set would settle at once instead of after the bound (review P3-1). A
-straggler that read the row before a clear would re-insert its stale wait. The
-epoch drops both writes. Graph truth never depended on this: ready edges commit
+straggler that read the row before a clear would re-insert its stale wait. A
+straggler that read the row before it settled would write `settled_at` back to
+NULL, and the next evaluation would settle the same missing set again and count
+`abandoned` twice (review P3-a). The epoch drops all three writes. Graph truth never depended on this: ready edges commit
 before any ledger write.
 
 ## Row growth
