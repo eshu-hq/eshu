@@ -203,6 +203,154 @@ rc="$(run_gate)"
 check "default mode over clean tree is GREEN" 0 "$rc"
 unset ESHU_STUTTER_UPSTREAM
 
+# ---------------------------------------------------------------------------
+# Issue #6821: directory stutter (naming rule 3) and rule 2 for every file type.
+# ---------------------------------------------------------------------------
+
+# stage_case <name> <expected-exit> <path>... : fresh repo, stage the paths as
+# new files (parent dirs created on demand), run --staged, check the exit.
+stage_case() {
+  local name="$1" want="$2" r p rc
+  shift 2
+  r="$(new_repo)"
+  for p in "$@"; do
+    mkdir -p "$r/$(dirname "$p")"
+    printf 'x\n' > "$r/$p"
+  done
+  export ESHU_STUTTER_REPO_ROOT="$r"
+  git -C "$r" add -A
+  rc="$(run_gate --staged)"
+  check "$name" "$want" "$rc"
+}
+
+# 13. RED: a staged new directory that repeats its parent's name (rule 3).
+stage_case "staged new dir query/queryauth is RED" 1 go/internal/query/queryauth/handler.go
+stage_case "staged new dir with suffix stutter auth-query is RED" 1 go/internal/query/authquery/handler.go
+stage_case "staged new dir query/query-auth (hyphen) is RED" 1 docs/internal/query/query-auth/notes.md
+stage_case "staged new dir query/query_auth (underscore) is RED" 1 docs/internal/query/query_auth/notes.md
+stage_case "staged new dir query/auth_query (underscore suffix) is RED" 1 docs/internal/query/auth_query/notes.md
+stage_case "dir stutter is case-insensitive" 1 go/internal/Query/QueryAuth/handler.go
+stage_case "dir equal to its parent (query/query) is RED" 1 go/internal/query/query/handler.go
+stage_case "stuttering dir deep in a new tree is RED" 1 go/internal/reducer/deep/security/securityalert/handler.go
+
+# 14. GREEN: clean nested directories, and near-miss names that are not
+# a prefix or suffix of the parent.
+stage_case "clean nested dir query/auth is GREEN" 0 go/internal/query/auth/handler.go
+stage_case "dir sharing only the middle of the parent is GREEN" 0 go/internal/query/subqueryish/handler.go
+stage_case "top-level dir has no parent to stutter against" 0 queryauth/handler.go
+
+# 15. GREEN: exempt parents and fixture trees never trip the directory check.
+stage_case "parent docs is exempt" 0 docs/docsite/index.md
+stage_case "parent internal is exempt" 0 go/internal/internalapi/handler.go
+stage_case "parent cmd is exempt" 0 go/cmd/cmdrunner/main.go
+stage_case "parent scripts is exempt" 0 scripts/scriptsupport/run.sh
+stage_case "parent specs is exempt" 0 specs/specsheet/a.yaml
+stage_case "parent testdata is exempt" 0 go/internal/parser/testdata/testdatafoo/a.txt
+stage_case "parent tests is exempt" 0 go/tests/testsuite/a.go
+stage_case "fixture tree under testdata is exempt" 0 go/internal/parser/testdata/fixtures/fixtures-x/sample/sample-a.txt
+
+# Tool-mandated dot-directories (fixtures expect codex/.codex, aider/.aider)
+# are named by external tools, not by us.
+stage_case "dot-directory named for its parent is exempt" 0 docs/internal/codex/.codex/config.toml
+stage_case "non-dot directory with the same name is still RED" 1 docs/internal/codex/codex/config.toml
+
+# 16. RED: rule 2 for non-Go files.
+stage_case "stuttering markdown file is RED" 1 docs/internal/evidence/6821-evidence.md
+stage_case "stuttering yaml file is RED" 1 specs/plans/plans_v1.yaml
+stage_case "stuttering shell script is RED" 1 scripts/verify/verify-thing.sh
+stage_case "stuttering sql file is RED" 1 go/internal/storage/postgres/schema/schema_v2.sql
+stage_case "non-Go stuttering file with hyphen segment is RED" 1 docs/internal/design/design-notes.md
+
+# 17. GREEN: non-Go files that obey rule 2 and the idiomatic exemptions.
+stage_case "non-Go near-miss stem is GREEN" 0 docs/internal/evidence/6821-notes.md
+stage_case "non-Go stem equal to leaf dir is GREEN" 0 go/internal/query/openapi/openapi.yaml
+stage_case "README.md in a readme dir is exempt" 0 docs/internal/readme/README.md
+stage_case "AGENTS.md in an agents dir is exempt" 0 docs/internal/agents/AGENTS.md
+stage_case "CLAUDE.md in a claude dir is exempt" 0 docs/internal/claude/CLAUDE.md
+stage_case "doc.go in a doc dir is exempt" 0 go/internal/doc/doc.go
+stage_case "extensionless file without a stutter is GREEN" 0 scripts/lib/Makefile
+stage_case "dotfile without a stutter is GREEN" 0 scripts/lib/.gitkeep
+stage_case "multi-dot non-Go near-miss is GREEN" 0 go/internal/query/schema/values.schema.json
+stage_case "fixture file under testdata is exempt from rule 2" 0 go/internal/parser/testdata/sample/sample-sample.txt
+
+# 18. RED/GREEN: a renamed path landing in a stuttering directory.
+repo18="$(new_repo)"
+mkdir -p "$repo18/go/internal/query/auth"
+printf 'package auth\n' > "$repo18/go/internal/query/auth/handler.go"
+export ESHU_STUTTER_REPO_ROOT="$repo18"
+git -C "$repo18" add -A && git -C "$repo18" commit -qm base
+mkdir -p "$repo18/go/internal/query/queryauth"
+git -C "$repo18" mv go/internal/query/auth/handler.go go/internal/query/queryauth/handler.go
+rc="$(run_gate --staged)"
+check "staged rename landing in new stuttering dir is RED" 1 "$rc"
+git -C "$repo18" commit -qm rename
+rc="$(run_gate --range HEAD~1)"
+check "--range rename landing in new stuttering dir is RED" 1 "$rc"
+
+# 19. GREEN: legacy stuttering directory left alone. A rename or add inside a
+# directory that already exists at the base must not re-flag the directory.
+repo19="$(new_repo)"
+mkdir -p "$repo19/go/internal/query/queryauth"
+printf 'package queryauth\n' > "$repo19/go/internal/query/queryauth/handler.go"
+printf 'package queryauth\n' > "$repo19/go/internal/query/queryauth/old_name.go"
+export ESHU_STUTTER_REPO_ROOT="$repo19"
+git -C "$repo19" add -A && git -C "$repo19" commit -qm base
+printf 'package queryauth\n// touched\n' > "$repo19/go/internal/query/queryauth/handler.go"
+git -C "$repo19" add -A
+rc="$(run_gate --staged)"
+check "modified file in legacy stuttering dir is GREEN" 0 "$rc"
+printf 'package queryauth\n' > "$repo19/go/internal/query/queryauth/extra.go"
+git -C "$repo19" mv go/internal/query/queryauth/old_name.go go/internal/query/queryauth/new_name.go
+git -C "$repo19" add -A
+rc="$(run_gate --staged)"
+check "new and renamed files in legacy stuttering dir are GREEN" 0 "$rc"
+git -C "$repo19" commit -qm touch
+rc="$(run_gate --range HEAD~1)"
+check "--range over legacy stuttering dir is GREEN" 0 "$rc"
+export ESHU_STUTTER_UPSTREAM="HEAD~1"
+rc="$(run_gate)"
+check "default mode over legacy stuttering dir is GREEN" 0 "$rc"
+unset ESHU_STUTTER_UPSTREAM
+
+# 20. Legacy file stutter in a legacy dir stays GREEN when untouched, while a
+# new stuttering directory added next to it is still caught.
+repo20="$(new_repo)"
+mkdir -p "$repo20/go/internal/query/queryauth"
+printf 'x\n' > "$repo20/go/internal/query/queryauth/queryauth_legacy.md"
+export ESHU_STUTTER_REPO_ROOT="$repo20"
+git -C "$repo20" add -A && git -C "$repo20" commit -qm base
+mkdir -p "$repo20/go/internal/query/querycontract"
+printf 'x\n' > "$repo20/go/internal/query/querycontract/a.md"
+git -C "$repo20" add -A
+rc="$(run_gate --staged)"
+check "new stuttering dir beside a legacy one is RED" 1 "$rc"
+
+# 21. Diagnostics name the offending directory and its parent.
+repo21="$(new_repo)"
+mkdir -p "$repo21/go/internal/query/queryauth"
+printf 'x\n' > "$repo21/go/internal/query/queryauth/a.md"
+export ESHU_STUTTER_REPO_ROOT="$repo21"
+git -C "$repo21" add -A
+set +e
+out="$(bash "$gate" --staged 2>&1)"
+rc=$?
+set -e
+check "dir stutter diagnostic run is RED" 1 "$rc"
+case "$out" in
+  *go/internal/query/queryauth*query*) printf 'ok   dir diagnostic names the directory and parent\n' ;;
+  *) printf 'FAIL dir diagnostic names the directory and parent: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
+esac
+
+# 22. --files mode applies both checks (no base tree: every directory is new).
+repo22="$(new_repo)"
+export ESHU_STUTTER_REPO_ROOT="$repo22"
+rc="$(run_gate --files go/internal/query/queryauth/handler.go)"
+check "--files stuttering dir is RED" 1 "$rc"
+rc="$(run_gate --files docs/internal/evidence/6821-evidence.md)"
+check "--files stuttering non-Go file is RED" 1 "$rc"
+rc="$(run_gate --files go/internal/query/auth/handler.go)"
+check "--files clean nested path is GREEN" 0 "$rc"
+
 if [ "$failures" != "0" ]; then
   printf 'test-verify-filename-stutter: %d case(s) failed\n' "$failures" >&2
   exit 1

@@ -32,6 +32,17 @@ refactored today.
    `billingcorrelation.BillingCorrelationWriter`), short consistent receivers,
    names that read well at the call site. The same no-stutter principle
    applies to file names per rule 2.
+   Rules 2 and 3 are enforced for new paths by
+   `scripts/verify-filename-stutter.sh` (pre-commit `filename-stutter` hook
+   and the Agent hygiene gate in CI). It checks only Added and Renamed paths,
+   so legacy names never block unrelated work: a file of any type whose name
+   repeats its directory fails, and so does a newly introduced directory
+   whose name starts or ends with its parent's (`query/queryauth` fails,
+   `query/auth` passes). Both compare case-insensitively; `README.md`,
+   `AGENTS.md`, `CLAUDE.md`, `doc.go`, a file named for its own directory,
+   and `testdata` fixture trees are exempt, as are the structural parents
+   `go`, `internal`, `cmd`, `docs`, `scripts`, `specs`, `testdata`, and
+   `tests`.
 5. **Refactors must leave names better than they found them.** When moving
    code, apply all four rules to every touched path — do not carry a glued or
    stuttering name into its new home. A move that preserves unreadable names
