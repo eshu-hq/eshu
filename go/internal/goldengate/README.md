@@ -32,6 +32,7 @@ tests are unchanged.
 | `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `RequiredSelfLoop`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`, `AbsentWhenPresent`) plus `LoadSnapshot`. |
 | `report.go` | `Finding` and `Report` — the pass/fail accumulator with the required/advisory split. |
 | `evaluate.go` | `DrainCounts` and every `Evaluate*` function (drains, required correlations, edge/node properties, required/present nodes, required self-loops, node/edge counts, query shape, API/MCP/CLI parity, timing). |
+| `row_tokens.go` | `GraphElementProperties` and `EvaluateUnresolvedRowTokens`, the always-required check that no node or edge property holds an unresolved `row.<key>` token (#6782). |
 | `query_shape_paths.go` | Bounded deep JSON path/value assertions for query shapes, including array traversal with `[]`. |
 
 ## Assertion semantics worth knowing
@@ -56,6 +57,9 @@ tests are unchanged.
   the regression. `NodeProperty`/`NodePropertyValue` scope the match to one
   language/family sharing a node label so it is not conflated with another's
   self-loop count.
+- **Row tokens are key-matched.** `EvaluateUnresolvedRowTokens` flags
+  `row.<key>` only when the key is the property's own name or a snake_case
+  multi-word key, so real values such as a File named `row.go` pass.
 - **Query path assertions are explicit.** `RequiredJSONPaths` and
   `RequiredJSONValues` walk only the dot paths named by the snapshot. A `[]`
   suffix traverses a non-empty array, which lets the dead-code replay library

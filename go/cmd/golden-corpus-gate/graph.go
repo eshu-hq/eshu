@@ -12,6 +12,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	gg "github.com/eshu-hq/eshu/go/internal/goldengate"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
@@ -54,6 +55,9 @@ type graphCounter interface {
 	// itself) distinctly from a spurious declaration-vs-call-site self-loop (see
 	// RequiredSelfLoop).
 	CountSelfLoopEdges(ctx context.Context, label, relationship, property, value string) (int64, error)
+	// ListGraphElementProperties returns every node and relationship with its
+	// property map, for the unresolved row-token check (graph_row_tokens.go).
+	ListGraphElementProperties(ctx context.Context) ([]gg.GraphElementProperties, error)
 }
 
 // boltGraphCounter runs counts over the shared Bolt driver used by every Eshu
@@ -454,6 +458,9 @@ func checkGraph(ctx context.Context, c graphCounter, snap Snapshot, requiredOnly
 	// specific fixture's known-closed recursion set, not a scale tolerance), so
 	// they also run before the requiredOnly early return.
 	if err := checkRequiredSelfLoops(ctx, c, snap.Graph.RequiredSelfLoops, r); err != nil {
+		return err
+	}
+	if err := checkUnresolvedRowTokens(ctx, c, r); err != nil {
 		return err
 	}
 	if requiredOnly {

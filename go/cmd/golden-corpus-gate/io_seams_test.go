@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	gg "github.com/eshu-hq/eshu/go/internal/goldengate"
 )
 
 // fakeCounter satisfies graphCounter from maps keyed by identifier.
@@ -28,6 +30,8 @@ type fakeCounter struct {
 	nodeProp map[string][]string
 	// selfLoop keys "label|relationship|property|value" -> self-loop edge count.
 	selfLoop map[string]int64
+	// elements is every node and edge with its property map.
+	elements []gg.GraphElementProperties
 	err      error
 }
 

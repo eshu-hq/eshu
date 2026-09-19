@@ -153,6 +153,10 @@ are re-projected.
 
 - Graphs projected on NornicDB before this fix keep the junk values until each
   edge or artifact is re-projected. There is no one-shot repair.
-- The guard covers the `EdgeWriter` domains and the interproc writer. The
+- The unit guard covers the `EdgeWriter` domains and the interproc writer. The
   other writers were audited by hand. A writer test elsewhere can adopt
-  `assertUnwindRowsCarryReferencedKeys` when it records statements.
+  `assertUnwindRowsCarryReferencedKeys` when it records statements. As a
+  backstop, B-7 now fails when any node or edge in the projected corpus holds
+  an unresolved `row.<key>` token (`unresolved_row_tokens`,
+  `go/cmd/golden-corpus-gate/graph_row_tokens.go`), whichever writer stored
+  it.
