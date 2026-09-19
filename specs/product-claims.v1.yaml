@@ -259,8 +259,8 @@ claims:
     source:
       path: docs/public/reference/mcp-tool-contract-matrix.md
       line: 188
-      quote: "| `get_capability_catalog` | whole reconciled capability catalog from the embedded artifact | optional `maturity` and `owner` filters, `limit`/`offset` paging | yes | prompt-ready deterministic read of capability maturity, public surfaces, proof signals, owner package, known gaps, and linked issues; static embedded artifact with fresh truth and no live backend read <!-- product-claim: id=docs.mcp-tool-contract.capability-catalog-read --> |"
-    claim_text: "The get_capability_catalog MCP tool returns a deterministic embedded-artifact read with maturity, surfaces, proof, owner, gaps, and linked issues."
+      quote: "| `get_capability_catalog` | whole reconciled capability catalog from the embedded artifact | optional `maturity` and `owner` filters, `limit`/`offset` paging | yes | prompt-ready deterministic read of capability maturity, public surfaces, owner package, known gaps, and linked issues; default (compact) view omits per-capability profiles and proof signals and the top-level role/grant/data-class authorization catalog, pass `view=full` and/or `include_authorization=true` to opt into that detail; static embedded artifact with fresh truth and no live backend read <!-- product-claim: id=docs.mcp-tool-contract.capability-catalog-read --> |"
+    claim_text: "The get_capability_catalog MCP tool returns a deterministic embedded-artifact read with maturity, surfaces, proof, owner, gaps, and linked issues, with bounded limit/offset paging; the default compact view omits per-capability profiles/proof_signals and the top-level authorization catalog unless the caller passes view=full and/or include_authorization=true."
     capabilities:
       - id: capability_catalog.list
         claimed_maturity: general_availability
