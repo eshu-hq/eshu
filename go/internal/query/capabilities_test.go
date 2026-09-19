@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
@@ -451,6 +452,90 @@ func TestCapabilitiesHandlerFullViewIncludesProfilesAndAuthorization(t *testing.
 	entry := capabilities[0].(map[string]any)
 	if _, ok := entry["profiles"]; !ok {
 		t.Fatal("view=full entry missing profiles")
+	}
+}
+
+// jsonSliceFieldPaths returns the JSON path (as a slice of key names) for
+// every slice-typed field of t, recursing into nested struct fields. It does
+// not recurse into slice-of-struct element types: the default
+// (include_authorization=false) response's top-level authorization slices
+// are always empty by construction, so there are no elements to inspect.
+func jsonSliceFieldPaths(t reflect.Type, prefix []string) [][]string {
+	var paths [][]string
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		name := strings.Split(field.Tag.Get("json"), ",")[0]
+		if name == "" || name == "-" {
+			continue
+		}
+		path := append(append([]string{}, prefix...), name)
+		switch field.Type.Kind() {
+		case reflect.Slice:
+			paths = append(paths, path)
+		case reflect.Struct:
+			paths = append(paths, jsonSliceFieldPaths(field.Type, path)...)
+		}
+	}
+	return paths
+}
+
+// lookupJSONPath walks m following path's keys through nested
+// map[string]any values, returning the value at that path and whether every
+// segment was present.
+func lookupJSONPath(m map[string]any, path []string) (any, bool) {
+	var cur any = m
+	for _, key := range path {
+		asMap, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		cur, ok = asMap[key]
+		if !ok {
+			return nil, false
+		}
+	}
+	return cur, true
+}
+
+// TestCapabilitiesHandlerDefaultAuthorizationArraysAreNeverNull proves that
+// when include_authorization is false the top-level authorization catalog's
+// array fields -- including nested ones like bootstrap_owner.delegable_roles
+// -- are non-nil empty JSON arrays, not null, matching the OpenAPI fragment's
+// non-nullable array declarations (#6795 review finding). The field set to
+// check is derived from capabilitycatalog.AuthorizationCatalog's own json
+// tags via reflection, so a field added there later is covered automatically
+// instead of silently regressing to null.
+func TestCapabilitiesHandlerDefaultAuthorizationArraysAreNeverNull(t *testing.T) {
+	t.Parallel()
+
+	body := capabilitiesRawBody(t, "/api/v0/capabilities")
+	var envelope struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	authorization, ok := envelope.Data["authorization"].(map[string]any)
+	if !ok {
+		t.Fatalf("authorization field missing or wrong type: %#v", envelope.Data["authorization"])
+	}
+
+	paths := jsonSliceFieldPaths(reflect.TypeOf(capabilitycatalog.AuthorizationCatalog{}), nil)
+	if len(paths) == 0 {
+		t.Fatal("no slice fields discovered on AuthorizationCatalog; reflection helper is broken")
+	}
+	for _, path := range paths {
+		value, ok := lookupJSONPath(authorization, path)
+		joined := "authorization." + strings.Join(path, ".")
+		if !ok {
+			t.Fatalf("%s missing from default response", joined)
+		}
+		if value == nil {
+			t.Fatalf("%s is null, want a non-nil empty array", joined)
+		}
+		if _, isArray := value.([]any); !isArray {
+			t.Fatalf("%s = %#v (%T), want a JSON array", joined, value, value)
+		}
 	}
 }
 

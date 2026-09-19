@@ -5,6 +5,7 @@ package query
 
 import (
 	"net/http"
+	"reflect"
 	"strconv"
 	"sync"
 
@@ -142,7 +143,7 @@ func (h *CapabilitiesHandler) list(w http.ResponseWriter, r *http.Request) {
 		wirePage = compact
 	}
 
-	authorization := capabilitycatalog.AuthorizationCatalog{}
+	authorization := emptyAuthorizationCatalog()
 	if includeAuthorization {
 		authorization = catalog.Authorization
 	}
@@ -240,6 +241,48 @@ func pageEntries(entries []capabilitycatalog.Entry, offset, limit int) ([]capabi
 // querycontract for #6060; this wrapper keeps root callers unchanged.
 func parseBoundedLimit(w http.ResponseWriter, r *http.Request, def, max int) (int, bool) {
 	return querycontract.ParseBoundedLimit(w, r, def, max)
+}
+
+// emptyAuthorizationCatalog returns an AuthorizationCatalog whose slice
+// fields -- including nested ones such as bootstrap_owner.delegable_roles --
+// are non-nil, zero-length slices instead of Go's zero-value nil. The
+// OpenAPI fragment (openapi/paths/catalog/capabilities.go) declares roles,
+// data_classes, permission_families, and bootstrap_owner.delegable_roles as
+// non-nullable JSON arrays; a bare capabilitycatalog.AuthorizationCatalog{}
+// would instead serialize those fields as null (#6795 review finding). Uses
+// reflection so a slice field added later to AuthorizationCatalog, at any
+// nesting depth, is covered automatically instead of silently regressing to
+// null.
+func emptyAuthorizationCatalog() capabilitycatalog.AuthorizationCatalog {
+	var catalog capabilitycatalog.AuthorizationCatalog
+	nilSlicesToEmpty(reflect.ValueOf(&catalog).Elem())
+	return catalog
+}
+
+// nilSlicesToEmpty walks the struct value v and replaces every nil slice
+// field with a non-nil, zero-length slice of the same element type,
+// recursing into nested struct fields.
+func nilSlicesToEmpty(v reflect.Value) {
+	if v.Kind() != reflect.Struct {
+		return
+	}
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+		switch field.Kind() {
+		case reflect.Slice:
+			if field.IsNil() {
+				field.Set(reflect.MakeSlice(field.Type(), 0, 0))
+			}
+		case reflect.Struct:
+			nilSlicesToEmpty(field)
+		default:
+			// Non-slice, non-struct fields (string, bool, ...) need no
+			// nil-to-empty normalization.
+		}
+	}
 }
 
 // parseOffset reads the offset query param, defaulting to 0 and rejecting
