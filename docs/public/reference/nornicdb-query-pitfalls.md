@@ -4,7 +4,7 @@ This page is the query-shape companion to
 [NornicDB Behavior and Pitfalls](nornicdb-pitfalls.md) (which covers
 storage, schema, constraint, and transaction behavior). It records Cypher
 **shapes** that the pinned NornicDB planner/interpreter mishandles — label
-disjunctions, empty-first-branch unions, outer aggregation over `CALL {}`,
+disjunctions, bare unions, arrow-head anchors, outer aggregation over `CALL {}`,
 a `WHERE` attached to a `WITH`, and multi-clause reads — so a read or retract
 that looks correct does not silently return wrong rows.
 
@@ -263,75 +263,73 @@ No-Observability-Change: the change is internal to
 stage, or worker, and each dispatched segment rides the same existing statement
 dispatch path.
 
-## Pitfall: A Bare Top-Level UNION Returns Nothing When Its First Branch Is Empty
+## Pitfall: A Bare Top-Level UNION Runs Only Its First Branch
 
 ### Observed shape
 
-Measured directly against the pinned NornicDB backend (`eshu-nornicdb-pr261`,
-v1.1.11 base) via the Bolt HTTP `tx/commit` endpoint and independently via the
-Go Neo4j driver over Bolt (both paths reproduce it):
+First measured on the v1.1.11 build (`eshu-nornicdb-pr261`, Bolt HTTP
+`tx/commit` and the Go driver) as "an empty first branch empties the union":
 
 ```cypher
 -- CloudResource has 0 matching nodes, TerraformVariable has 10:
 MATCH (n:CloudResource) WHERE n.name CONTAINS 'cluster' RETURN n.id, n.name
 UNION
 MATCH (n:TerraformVariable) WHERE n.name CONTAINS 'cluster' RETURN n.id, n.name
--- returns 0 rows (broken) -- even though the second branch alone returns 10
-
--- Same two branches, order swapped (TerraformVariable now first):
-MATCH (n:TerraformVariable) WHERE n.name CONTAINS 'cluster' RETURN n.id, n.name
-UNION
-MATCH (n:CloudResource) WHERE n.name CONTAINS 'cluster' RETURN n.id, n.name
--- returns the correct 10 rows
-
--- A THIRD branch with an empty match placed in the MIDDLE (not first) also
--- works correctly -- only an empty FIRST branch poisons the whole union.
+-- returns 0 rows; the second branch alone returns 10. Swapping the order
+-- returns the correct 10 rows.
 ```
 
-`UNION ALL` reproduces the identical defect (not specific to `UNION`'s
-deduplication pass). Wrapping the same union in a `CALL {...} RETURN ...`
-subquery avoided it in every case tried, regardless of branch order or which
-branch is empty:
-
-```cypher
-CALL {
-  MATCH (n:CloudResource) WHERE n.name CONTAINS 'cluster' RETURN n.id as id, n.name as name
-  UNION
-  MATCH (n:TerraformVariable) WHERE n.name CONTAINS 'cluster' RETURN n.id as id, n.name as name
-}
-RETURN id, name
--- returns the correct 10 rows even with the empty branch first
-```
+That symptom is one face of a wider defect: branch 2 does not contribute rows.
+#6634 measured zero rows on `nornicdb-cpu-bge:v1.3.2` for an empty first
+branch (`go/cmd/reducer/evidence-6634-workload-dependency-incoming-lookup.md`).
+#6794 measured a NON-empty first branch on
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:v1.3.3`: the related-repository read
+returned only its one outgoing row and dropped the three incoming rows
+(`docs/internal/evidence/6794-context-incoming-anchor.md`). `UNION ALL` was
+not measured on v1.3.3. Wrapping the union in `CALL {...} RETURN ...`
+returned every branch on auto-commit reads in every case tried.
 
 ### Eshu implications
 
-Any handler that builds a per-label (or otherwise conditionally-empty-branch)
-`UNION` chain directly at the top level of a Cypher statement can silently
-return an empty result whenever its first branch happens to match nothing —
-not an error, not a partial result, a *fully empty* result even though later
-branches have real matches. This is easy to miss in testing: it only shows up
-once cardinality is realistic enough that some candidate branches are empty
-and others are not, which a small fixture with only one or two seeded rows
-per label will not expose. Discovered fixing issue #5271's
-`InfraHandler.searchResources` (`go/internal/query/infra.go`): its label list
-starts with `CloudResource`, so any search against a corpus with zero
-matching `CloudResource` nodes silently returned an empty result for every
-other candidate label until the union was wrapped in `CALL {...}`.
-
-Do not ship a top-level per-branch `UNION`/`UNION ALL` chain against this
-backend without either wrapping it in `CALL {...} RETURN ...`, or proving at
-realistic cardinality (not a two-or-three-row fixture) that every branch
-ordering you can produce is exercised with at least one genuinely empty
-branch in the first position.
+A top-level `UNION`/`UNION ALL` chain can return a plausible, partial result
+with no error: a small fixture whose first branch has rows passes while every
+later branch is dead. Do not ship one against this backend. Use either
+`CALL {...} RETURN ...` (the #5271 `InfraHandler.searchResources` fix in
+`go/internal/query/infra.go` and the #6634 reducer lookup), or separate
+single-branch reads merged in Go. `QueryRelatedRepositoryArtifactSources`
+(`go/internal/query/repositoryartifacts`) is the #6794-measured instance of
+this pitfall and is still a bare `UNION` today -- splitting it into two
+anchored reads turns on unmeasured per-source fan-out, so that rewrite needs
+its own performance proof before it lands (tracked in #6812). Prove any union
+with a live test whose later branch is the only one with rows; a recording
+fake cannot see it.
 
 ### Validation
 
-Reproduced via direct Bolt HTTP `tx/commit` calls against an isolated Compose
-stack seeded with real Terraform fixture data (3,178 infra-labeled nodes
-across multiple labels, one label with zero matches for the test query).
 `go test ./internal/query -run TestSearchInfraResourcesWrapsUnionInCallSubquery
--count=1` is the static regression guard that the fix's `CALL {...}` wrapper
-stays in place.
+-count=1` guards the fixed shape. The `QueryRelatedRepositoryArtifactSources`
+defect is unfixed and has no committed live test on `main`; the live
+observation is recorded in the #6794 evidence note and the fix, with its test,
+is tracked in #6812.
+
+## Pitfall: A Pattern Anchored At The Arrow Head Scans Its Tail Label
+
+### Observed shape
+
+On the v1.3.3 image, `(source:Repository)-[rel:T1|T2]->(r:Repository {id: $repo_id})`
+costs far more than its row count explains, even for a bound node with no
+edges. The mirrored `(r:Repository {id: $repo_id})<-[rel:T1|T2]-(source:Repository)`
+returns the same rows in milliseconds. The engine source was not read, so the
+plan is inferred from timing only. #6794 measured both on one seeded graph
+(`docs/internal/evidence/6794-context-incoming-anchor.md`); on a
+production-scale instance the right-anchored reads ran past the 10s API
+deadline and repository context rendered no incoming rows.
+
+### Eshu implications
+
+Write an incoming read from the bound node with `<-[...]-`, keeping `RETURN`
+and `ORDER BY` unchanged. `TestRepositoryContextIncomingReadsAnchorOnTheBoundRepository`
+(`go/internal/query/repository`) guards the repository context reads.
 
 ## Pitfall: Outer Aggregation Over A `CALL { ... }` Subquery Collapses The Group Key
 
@@ -339,8 +337,8 @@ stays in place.
 
 Measured directly against the pinned NornicDB backend (`eshu-nornicdb-pr261`,
 v1.1.11 base) while fixing the infra resource aggregate reads (#5281). When a
-per-label union is wrapped in a `CALL { ... }` subquery (the fix for the
-empty-first-branch pitfall above) and the OUTER query re-aggregates the
+per-label union is wrapped in a `CALL { ... }` subquery (the fix for the bare
+top-level UNION pitfall above) and the OUTER query re-aggregates the
 subquery result, the non-aggregated group key evaluates to `null` and every row
 collapses into a single bogus bucket:
 

@@ -578,7 +578,7 @@ source_coverage:
       - {symbol: "queryRepositoryContextCount", count: 1, non_hot: {class: keyed_support, source_sha256: 1c7253963fb117fd9c61496a3404aa36e87703c67ead1d7a91fb4d83f0554df9, key_bound: single_key, max_results: 1}}
   - file: repository/context_helpers.go
     calls:
-      - {symbol: "queryRepoConsumers", count: 1, non_hot: {class: keyed_support, source_sha256: 49311a64bc9ef3853f3a5805bc456e9f06a9130091bf2b7aa65ebc1050746f02, key_bound: single_key, max_results: 501}}
+      - {symbol: "queryRepoConsumers", count: 1, non_hot: {class: keyed_support, source_sha256: 0b391a135d6172aab6fc53c5b215935ccd1e422df9a66add3daa5b3a69d10c21, key_bound: single_key, max_results: 501}}
       - {symbol: "QueryRepoDependencies", count: 1, non_hot: {class: keyed_support, source_sha256: 92ed93344045cb643d3b08891c4fc6bd14baa007e8efa1247430fe096626d85b, key_bound: single_key, max_results: 501}}
       - {symbol: "QueryRepoEntryPoints", count: 1, non_hot: {class: keyed_support, source_sha256: 0e5d05e5213f67e8436c53123f057680c411852185f922b5d70dfae168d237a0, key_bound: single_key, max_results: 501}}
       - {symbol: "queryRepoLanguageDistribution", count: 1, non_hot: {class: keyed_support, source_sha256: db5421a30fa8b764425be4bb701c09e608d22d355013b8fa1ed9a5b5843c62e1, key_bound: single_key, max_results: 51}}

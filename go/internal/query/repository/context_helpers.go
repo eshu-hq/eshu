@@ -136,7 +136,7 @@ func queryRepoRelationshipOverview(ctx context.Context, reader querycontract.Gra
 		ORDER BY type, target_name
 	`)
 	incoming := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
-		MATCH (source:Repository)-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(r:Repository {id: $repo_id})
+		MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(source:Repository)
 		RETURN 'incoming' AS direction,
 		       type(rel) AS type,
 		       source.name AS source_name,
@@ -220,7 +220,7 @@ func QueryRepoSourceToolBreakdown(ctx context.Context, reader querycontract.Grap
 
 func queryRepoConsumers(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) []map[string]any {
 	rows, err := reader.Run(ctx, `
-		MATCH (consumer:Repository)-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]->(r:Repository {id: $repo_id})
+		MATCH (r:Repository {id: $repo_id})<-[rel:DEPENDS_ON|USES_MODULE|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|READS_CONFIG_FROM|RUNS_ON|CORRELATES_DEPLOYABLE_UNIT]-(consumer:Repository)
 		RETURN consumer.name AS consumer_name, consumer.id AS consumer_id
 		ORDER BY consumer_name
 	`, params)
