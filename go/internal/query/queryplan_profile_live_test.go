@@ -34,6 +34,7 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 		"QP-RESOURCE-INVESTIGATION-REPO-PATHS":            {"NodeByLabelScan"},
 		"QP-CODE-REL-STORY-ANCHOR-COLLISION":              {"NodeByLabelScan"},
 		"QP-RELATIONSHIPS-CATALOG-COUNT":                  {"RelationshipCountFromCountStore"},
+		"QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT":             {"RelationshipCountFromCountStore"},
 		"QP-RELATIONSHIPS-EDGES":                          {"DirectedRelationshipTypeScan"},
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY": {"NodeByLabelScan"},
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":   {"DirectedRelationshipTypeScan"},
@@ -413,7 +414,7 @@ func queryplanBoundedAnchorOperators(entryID string) []string {
 	case "QP-RESOURCE-INVESTIGATION-WORKLOADS", "QP-RELATIONSHIPS-EDGES",
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":
 		return []string{"DirectedRelationshipTypeScan"}
-	case "QP-RELATIONSHIPS-CATALOG-COUNT":
+	case "QP-RELATIONSHIPS-CATALOG-COUNT", "QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT":
 		return []string{"RelationshipCountFromCountStore"}
 	case "QP-GRAPH-ENTITY-COUNT":
 		return []string{"NodeCountFromCountStore"}

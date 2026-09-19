@@ -589,11 +589,12 @@ source_coverage:
       - {symbol: "(*Handler).queryRepositoryGraphCoverageStats", count: 1, non_hot: {class: keyed_support, source_sha256: 8984bc7ac76d84a6c592c3294b15ce83b293c964be99fd9976d44d5d310f92e1, key_bound: single_key, max_results: 1}}
   - file: repository/dependency_cluster.go
     calls:
+      - {symbol: "probeRepositoryDependencyEdgesAbsent", count: 1, source_sha256: f89d420f7aa5540e8049311fa8e068bd801f8165937130b3b749c1a4411d3111, entry_ids: [QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT]}
       - symbol: "loadRepositoryDependencyClusters"
-        count: 2
+        count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 5ebf2d25d72912584c9be182df0af8517b540030c91242b3dc96e41c8af6ec4a
+          source_sha256: 328143c73d27941bb6012889e19cb5dedae0b36eb1ad0b260c1c79ad1881857f
           label: "Repository"
           max_results: 50000
   - file: repository/deployment_evidence.go
