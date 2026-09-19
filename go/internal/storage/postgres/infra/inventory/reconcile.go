@@ -191,7 +191,10 @@ func ReconcileCycle(ctx context.Context, database db.ExecQueryer, req ReconcileR
 		if err := ctx.Err(); err != nil {
 			return batch, err
 		}
-		batch.Repos = append(batch.Repos, repairDirty(ctx, database, repo))
+		result, skipped := repairDirty(ctx, database, repo)
+		if !skipped {
+			batch.Repos = append(batch.Repos, result)
+		}
 	}
 	budget := req.Budget - len(dirty)
 	var suspects []string

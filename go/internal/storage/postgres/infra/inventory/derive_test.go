@@ -111,14 +111,39 @@ func TestMirrorRepoDerivesEveryPathOfTheRepo(t *testing.T) {
 		t.Fatalf("transactions = %d, want %d", got, want)
 	}
 	tx := database.txs[0]
-	if got, want := len(tx.execs), 3; got != want {
-		t.Fatalf("execs = %d, want lock+delete+insert", got)
+	if got, want := len(tx.execs), 4; got != want {
+		t.Fatalf("execs = %d, want lock+clear mark+delete+insert", got)
 	}
-	if strings.Contains(tx.execs[1].query, "relative_path") {
-		t.Fatalf("repo-wide delete must not be path-scoped: %q", tx.execs[1].query)
+	// A whole-repo derive discharges the repository's fence mark, after the
+	// lock and before the insert takes its snapshot.
+	if !strings.Contains(tx.execs[1].query, "DELETE FROM infra_resource_entity_dirty_repos") {
+		t.Fatalf("second statement must clear the fence mark: %q", tx.execs[1].query)
 	}
-	if strings.Contains(tx.execs[2].query, "relative_path = ANY") {
-		t.Fatalf("repo-wide insert must not be path-scoped: %q", tx.execs[2].query)
+	if strings.Contains(tx.execs[2].query, "relative_path") {
+		t.Fatalf("repo-wide delete must not be path-scoped: %q", tx.execs[2].query)
+	}
+	if strings.Contains(tx.execs[3].query, "relative_path = ANY") {
+		t.Fatalf("repo-wide insert must not be path-scoped: %q", tx.execs[3].query)
+	}
+}
+
+// TestMirrorPathsNeverTouchesFenceMarks pins the discharge rule: only a derive
+// that covers the whole repository may clear its fence mark, because an
+// unaware write can have changed any path.
+func TestMirrorPathsNeverTouchesFenceMarks(t *testing.T) {
+	t.Parallel()
+
+	database := &recordingDB{}
+	if _, err := Mirror(context.Background(), database, Target{RepoID: "repo-1"},
+		Change{Paths: []string{"a.tf", "b.tf"}, DeletedEntityIDs: []string{"repo-1/x"}}); err != nil {
+		t.Fatalf("Mirror() error = %v", err)
+	}
+	for _, tx := range database.txs {
+		for _, exec := range tx.execs {
+			if strings.Contains(exec.query, "infra_resource_entity_dirty_repos") {
+				t.Fatalf("a path derive touched the fence marks: %q", exec.query)
+			}
+		}
 	}
 }
 

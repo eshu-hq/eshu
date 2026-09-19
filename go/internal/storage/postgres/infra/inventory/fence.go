@@ -121,29 +121,36 @@ func dirtyRepositories(ctx context.Context, queryer db.Queryer, limit int) ([]st
 
 // repairDirty re-derives a fence-marked repository in one transaction: lock,
 // clear the mark, delete, insert. The mark proves an unaware writer changed
-// content without deriving, so the repair needs no second check.
-func repairDirty(ctx context.Context, database db.ExecQueryer, repoID string) (result RepoReconcile) {
+// content without deriving, so the repair needs no second check. Every
+// reducer replica lists the same marks; the replica whose DELETE finds the
+// mark already gone (another replica, or the backfill, discharged it under
+// the lock) rolls back and reports skipped, so each mark is re-derived and
+// counted once.
+func repairDirty(ctx context.Context, database db.ExecQueryer, repoID string) (result RepoReconcile, skipped bool) {
 	start := time.Now()
 	result = RepoReconcile{RepoID: repoID, Outcome: ReconcileFenced}
 	defer func() { result.Duration = time.Since(start) }()
-	stats, err := repairDirtyTx(ctx, database, repoID)
+	stats, cleared, err := repairDirtyTx(ctx, database, repoID)
 	if err != nil {
 		result.Outcome = ReconcileError
 		result.Err = fmt.Errorf("infra inventory fence repair repo %q: %w", repoID, err)
-		return result
+		return result, false
+	}
+	if !cleared {
+		return result, true
 	}
 	result.Repair = stats
-	return result
+	return result, false
 }
 
-func repairDirtyTx(ctx context.Context, database db.ExecQueryer, repoID string) (stats Stats, err error) {
+func repairDirtyTx(ctx context.Context, database db.ExecQueryer, repoID string) (stats Stats, cleared bool, err error) {
 	beginner, ok := database.(db.Beginner)
 	if !ok {
-		return Stats{}, errors.New("database must support transactions")
+		return Stats{}, false, errors.New("database must support transactions")
 	}
 	tx, err := beginner.Begin(ctx)
 	if err != nil {
-		return Stats{}, fmt.Errorf("begin: %w", err)
+		return Stats{}, false, fmt.Errorf("begin: %w", err)
 	}
 	defer func() {
 		if err != nil {
@@ -151,23 +158,35 @@ func repairDirtyTx(ctx context.Context, database db.ExecQueryer, repoID string) 
 		}
 	}()
 	if _, err = tx.ExecContext(ctx, repoLockSQL, repoID); err != nil {
-		return Stats{}, fmt.Errorf("lock repo: %w", err)
+		return Stats{}, false, fmt.Errorf("lock repo: %w", err)
 	}
-	if _, err = tx.ExecContext(ctx, clearDirtySQL, repoID); err != nil {
-		return Stats{}, fmt.Errorf("clear dirty mark: %w", err)
+	clearedResult, err := tx.ExecContext(ctx, clearDirtySQL, repoID)
+	if err != nil {
+		return Stats{}, false, fmt.Errorf("clear dirty mark: %w", err)
+	}
+	markRows, err := clearedResult.RowsAffected()
+	if err != nil {
+		return Stats{}, false, fmt.Errorf("clear dirty mark: rows affected: %w", err)
+	}
+	if markRows == 0 {
+		// Another replica or the backfill discharged the mark first.
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return Stats{}, false, fmt.Errorf("rollback skipped repair: %w", rollbackErr)
+		}
+		return Stats{}, false, nil
 	}
 	deleted, err := tx.ExecContext(ctx, mirrorRepoDeleteSQL, repoID)
 	if err != nil {
-		return Stats{}, fmt.Errorf("delete: %w", err)
+		return Stats{}, false, fmt.Errorf("delete: %w", err)
 	}
 	inserted, err := tx.ExecContext(ctx, mirrorRepoInsertSQL, repoID, pgarray.StringArray(Labels), "", "")
 	if err != nil {
-		return Stats{}, fmt.Errorf("insert: %w", err)
+		return Stats{}, false, fmt.Errorf("insert: %w", err)
 	}
 	if err = tx.Commit(); err != nil {
-		return Stats{}, fmt.Errorf("commit: %w", err)
+		return Stats{}, false, fmt.Errorf("commit: %w", err)
 	}
 	stats.Deleted, _ = deleted.RowsAffected()
 	stats.Inserted, _ = inserted.RowsAffected()
-	return stats, nil
+	return stats, true, nil
 }
