@@ -383,7 +383,10 @@ func TestCapabilitiesHandlerFullViewIsByteIdenticalToEntry(t *testing.T) {
 // compact view keeps has the same value as the corresponding full-view
 // (capabilitycatalog.Entry) field, for every catalog entry -- the compact
 // projection must be a value-preserving subset, not a lossy rename (#6795
-// review finding).
+// review finding). The field set to compare is derived from
+// capabilityCompactEntry's own json tags via reflection, so a field added to
+// the compact projection later is covered automatically instead of going
+// unchecked.
 func TestCapabilitiesHandlerCompactFieldsMatchFullEntry(t *testing.T) {
 	t.Parallel()
 
@@ -400,35 +403,57 @@ func TestCapabilitiesHandlerCompactFieldsMatchFullEntry(t *testing.T) {
 		t.Fatalf("compact page = %d entries, want %d", len(compactEntries), len(catalog.Entries))
 	}
 
+	fields := jsonFieldNames(reflect.TypeOf(capabilityCompactEntry{}))
+	if len(fields) == 0 {
+		t.Fatal("no json fields discovered on capabilityCompactEntry; reflection helper is broken")
+	}
+
+	fullJSON, err := json.Marshal(catalog.Entries)
+	if err != nil {
+		t.Fatalf("marshal catalog.Entries: %v", err)
+	}
+	var fullEntries []map[string]any
+	if err := json.Unmarshal(fullJSON, &fullEntries); err != nil {
+		t.Fatalf("decode full entries: %v", err)
+	}
+	if len(fullEntries) != len(catalog.Entries) {
+		t.Fatalf("decoded full entries = %d, want %d", len(fullEntries), len(catalog.Entries))
+	}
+
 	for i, raw := range compactEntries {
 		entry := raw.(map[string]any)
-		full := catalog.Entries[i]
-		if got := entry["capability"].(string); got != full.Capability {
-			t.Fatalf("entry %d capability = %q, want %q", i, got, full.Capability)
-		}
-		if got := entry["display_name"].(string); got != full.DisplayName {
-			t.Fatalf("entry %d display_name = %q, want %q", i, got, full.DisplayName)
-		}
-		if got, _ := entry["owner_package"].(string); got != full.OwnerPackage {
-			t.Fatalf("entry %d owner_package = %q, want %q", i, got, full.OwnerPackage)
-		}
-		if got := entry["maturity"].(string); got != string(full.Maturity) {
-			t.Fatalf("entry %d maturity = %q, want %q", i, got, full.Maturity)
-		}
-		if got := len(entry["surfaces"].([]any)); got != len(full.Surfaces) {
-			t.Fatalf("entry %d surfaces = %d, want %d", i, got, len(full.Surfaces))
-		}
-		if got := entry["console"].(bool); got != full.Console {
-			t.Fatalf("entry %d console = %v, want %v", i, got, full.Console)
-		}
-		auth := entry["authorization"].(map[string]any)
-		if got, _ := auth["family"].(string); got != full.Authorization.Family {
-			t.Fatalf("entry %d authorization.family = %q, want %q", i, got, full.Authorization.Family)
+		full := fullEntries[i]
+		for _, field := range fields {
+			gotVal, gotOK := entry[field]
+			wantVal, wantOK := full[field]
+			if gotOK != wantOK {
+				t.Fatalf("entry %d field %q presence = %v, want %v (got=%#v, want=%#v)", i, field, gotOK, wantOK, gotVal, wantVal)
+			}
+			if !reflect.DeepEqual(gotVal, wantVal) {
+				t.Fatalf("entry %d field %q = %#v, want %#v", i, field, gotVal, wantVal)
+			}
 		}
 		if _, ok := entry["profiles"]; ok {
 			t.Fatalf("entry %d compact view still carries profiles", i)
 		}
+		if _, ok := entry["proof_signals"]; ok {
+			t.Fatalf("entry %d compact view still carries proof_signals", i)
+		}
 	}
+}
+
+// jsonFieldNames returns the JSON field name for every exported field of t
+// (a struct type), in field declaration order, derived from its json tags.
+func jsonFieldNames(t reflect.Type) []string {
+	names := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		name := strings.Split(t.Field(i).Tag.Get("json"), ",")[0]
+		if name == "" || name == "-" {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
 }
 
 // TestCapabilitiesHandlerFullViewIncludesProfilesAndAuthorization proves
