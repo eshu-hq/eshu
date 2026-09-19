@@ -46,3 +46,13 @@ CREATE TABLE IF NOT EXISTS infra_resource_entity_backfill_markers (
     marker_name  TEXT PRIMARY KEY,
     completed_at TIMESTAMPTZ NOT NULL
 );
+
+-- The reducer's drift reconcile walk stores where its last cycle stopped, so
+-- a restarted process resumes from one primary-key lookup instead of
+-- enumerating every repository to choose a start, and the walk keeps
+-- advancing however often processes restart.
+CREATE TABLE IF NOT EXISTS infra_resource_entity_reconcile_cursor (
+    walk_name  TEXT PRIMARY KEY,
+    cursor     TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);

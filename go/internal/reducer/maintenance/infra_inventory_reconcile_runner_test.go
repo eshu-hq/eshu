@@ -19,10 +19,10 @@ import (
 )
 
 type reconcileCall struct {
-	cursor      string
-	budget      int
-	suspects    []string
-	randomStart bool
+	cursor   string
+	budget   int
+	suspects []string
+	persist  bool
 }
 
 type fakeInfraInventoryReconciler struct {
@@ -38,7 +38,7 @@ func (f *fakeInfraInventoryReconciler) ReconcileInfraInventory(
 ) (InfraInventoryReconcileBatch, error) {
 	i := len(f.calls)
 	f.calls = append(f.calls, reconcileCall{
-		cursor: req.Cursor, budget: req.Budget, suspects: req.Suspects, randomStart: req.RandomStart,
+		cursor: req.Cursor, budget: req.Budget, suspects: req.Suspects, persist: req.Persist,
 	})
 	if f.cancelOnCall != nil {
 		f.cancelOnCall()
@@ -89,11 +89,11 @@ func TestInfraInventoryReconcileRunnerCountsOutcomesAndAdvancesTheCursor(t *test
 	}
 
 	require.Equal(t, []reconcileCall{
-		{cursor: "", budget: 2, randomStart: true},
-		{cursor: "repo-b", budget: 2, suspects: []string{"repo-b"}},
-		{cursor: "", budget: 2},
+		{cursor: "", budget: 2, persist: true},
+		{cursor: "repo-b", budget: 2, suspects: []string{"repo-b"}, persist: true},
+		{cursor: "", budget: 2, persist: true},
 	}, reconciler.calls,
-		"only the first cycle starts at random; a suspect is re-checked on the next cycle; "+
+		"every cycle persists the walk position; a suspect is re-checked on the next cycle; "+
 			"the cursor advances to NextCursor and wraps when the walk ends")
 	var rm metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(context.Background(), &rm))

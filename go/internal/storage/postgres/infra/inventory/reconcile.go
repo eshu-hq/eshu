@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
-	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -132,13 +130,11 @@ type ReconcileRequest struct {
 	// Suspects are the repositories the previous cycle found drifted. They are
 	// re-checked first, and repaired if they still differ.
 	Suspects []string
-	// RandomStart moves an empty Cursor to a uniformly random repository before
-	// the walk, so a process that restarts often still covers every repository
-	// and replicas do not walk in lockstep. The runner sets it on its first
-	// cycle.
-	RandomStart bool
-	// Pick chooses the start index in [0, n); nil uses math/rand/v2.
-	Pick func(n int) int
+	// Persist resumes an empty Cursor from the persisted walk cursor
+	// (LoadCursor) and stores the cycle's NextCursor afterwards (SaveCursor),
+	// so a restarted process continues the walk instead of starting over. The
+	// reducer runner always sets it.
+	Persist bool
 }
 
 // ReconcileBatch is one bounded reconcile cycle.
@@ -193,8 +189,8 @@ func ReconcileCycle(ctx context.Context, database db.ExecQueryer, req ReconcileR
 		return batch, nil
 	}
 	cursor := req.Cursor
-	if cursor == "" && req.RandomStart {
-		if cursor, err = StartCursor(ctx, database, req.Pick); err != nil {
+	if cursor == "" && req.Persist {
+		if cursor, err = LoadCursor(ctx, database); err != nil {
 			return batch, err
 		}
 	}
@@ -215,6 +211,11 @@ func ReconcileCycle(ctx context.Context, database db.ExecQueryer, req ReconcileR
 	if len(repos) == walkBudget {
 		batch.NextCursor = repos[len(repos)-1]
 	}
+	if req.Persist {
+		if err := SaveCursor(ctx, database, batch.NextCursor); err != nil {
+			return batch, err
+		}
+	}
 	return batch, nil
 }
 
@@ -224,21 +225,6 @@ func reconcileOne(ctx context.Context, database db.ExecQueryer, repo string, rep
 		return RepoReconcile{RepoID: repo, Outcome: ReconcileError, Duration: result.Duration, Err: err}
 	}
 	return result
-}
-
-// StartCursor returns a uniformly random listed repository, chosen by pick
-// (nil uses math/rand/v2), or "" when there is none. It lists every repository
-// once through the same skip scan the walk uses, so it runs only when a
-// process starts its walk.
-func StartCursor(ctx context.Context, database db.ExecQueryer, pick func(n int) int) (string, error) {
-	repos, err := reconcileRepositories(ctx, database, "", math.MaxInt32)
-	if err != nil || len(repos) == 0 {
-		return "", err
-	}
-	if pick == nil {
-		pick = rand.IntN
-	}
-	return repos[pick(len(repos))], nil
 }
 
 func reconcileRepositories(ctx context.Context, database db.ExecQueryer, cursor string, budget int) ([]string, error) {

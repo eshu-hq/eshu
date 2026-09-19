@@ -37,6 +37,8 @@ func TestInfraResourceEntitiesMigrationShape(t *testing.T) {
 		"ON infra_resource_entities (repo_id, relative_path)",
 		"CREATE TABLE IF NOT EXISTS infra_resource_entity_backfill_markers",
 		"marker_name  TEXT PRIMARY KEY",
+		"CREATE TABLE IF NOT EXISTS infra_resource_entity_reconcile_cursor",
+		"walk_name  TEXT PRIMARY KEY",
 	} {
 		if !strings.Contains(sql, want) {
 			t.Fatalf("infra_resource_entities migration missing %q:\n%s", want, sql)

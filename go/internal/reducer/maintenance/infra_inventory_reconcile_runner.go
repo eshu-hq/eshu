@@ -54,9 +54,10 @@ type InfraInventoryReconcileRequest struct {
 	// Suspects are the repositories the previous cycle found drifted; they are
 	// re-checked first and repaired only if they still differ.
 	Suspects []string
-	// RandomStart asks the reconciler to begin an empty-cursor walk at a
-	// random repository. The runner sets it until its first ready cycle.
-	RandomStart bool
+	// Persist asks the reconciler to resume an empty cursor from the
+	// persisted walk position and to store where this cycle stopped, so a
+	// restarted process continues the walk. The runner always sets it.
+	Persist bool
 }
 
 // InfraInventoryReconciler runs one bounded reconcile cycle: it re-checks the
@@ -93,7 +94,8 @@ func (c InfraInventoryReconcileRunnerConfig) repoBudget() int {
 // binary during a rolling upgrade, a manual SQL change, or a restore. Each
 // cycle checks at most RepoBudget repositories in repo_id order from where the
 // previous cycle stopped, then waits PollInterval; the walk wraps at the end
-// and each process starts it at a random repository. A repository that
+// and its position is persisted, so a restarted process resumes it. A
+// repository that
 // differs is repaired only when the next cycle finds it still differing, so a
 // Write caught between its content commit and its derive is not repaired or
 // reported as drift.
@@ -108,7 +110,6 @@ type InfraInventoryReconcileRunner struct {
 
 	cursor   string
 	suspects []string
-	started  bool
 }
 
 // Run reconciles one budget of repositories per poll interval until the
@@ -149,10 +150,10 @@ func (r *InfraInventoryReconcileRunner) RunOnce(ctx context.Context) (InfraInven
 	}
 	start := time.Now()
 	batch, err := r.Reconciler.ReconcileInfraInventory(ctx, InfraInventoryReconcileRequest{
-		Cursor:      r.cursor,
-		Budget:      r.Config.repoBudget(),
-		Suspects:    r.suspects,
-		RandomStart: !r.started,
+		Cursor:   r.cursor,
+		Budget:   r.Config.repoBudget(),
+		Suspects: r.suspects,
+		Persist:  true,
 	})
 	span := trace.SpanFromContext(ctx)
 	if err != nil {
@@ -172,7 +173,6 @@ func (r *InfraInventoryReconcileRunner) RunOnce(ctx context.Context) (InfraInven
 		}
 		return batch, nil
 	}
-	r.started = true
 	r.cursor = batch.NextCursor
 	var suspects []string
 	for _, repo := range batch.Repos {

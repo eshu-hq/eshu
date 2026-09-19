@@ -207,28 +207,6 @@ func TestReconcileCycleLiveDoesNotCountAnInFlightWriteAsRepaired(t *testing.T) {
 	}
 }
 
-// TestReconcileStartCursorLivePicksAListedRepository proves the random start
-// lands on a real repository: the pick receives the number of listed
-// repositories and its index selects one of them.
-func TestReconcileStartCursorLivePicksAListedRepository(t *testing.T) {
-	sqlDB, ctx := liveDB(t)
-	database := postgres.SQLDB{DB: sqlDB}
-	seedDerivedRepo(t, ctx, database, uniqueRepo(t), contentRow{"a", "a.tf", "TerraformResource", "r.a", `{}`})
-	var wantLast string
-	if err := sqlDB.QueryRowContext(ctx, `
-SELECT max(repo_id) FROM (SELECT repo_id FROM content_entities UNION SELECT repo_id FROM infra_resource_entities) r`).Scan(&wantLast); err != nil {
-		t.Fatalf("max repo: %v", err)
-	}
-	var sawN int
-	got, err := inventory.StartCursor(ctx, database, func(n int) int { sawN = n; return n - 1 })
-	if err != nil {
-		t.Fatalf("StartCursor() error = %v", err)
-	}
-	if sawN < 1 || got != wantLast {
-		t.Fatalf("StartCursor() = %q (n=%d), want the last listed repository %q", got, sawN, wantLast)
-	}
-}
-
 // TestReconcileRepoLiveConcurrentDeriveDoesNotDeadlock races the reconcile of
 // a drifted repository against derives of the same repository and against a
 // transaction that holds the repository lock. Both take one repository lock

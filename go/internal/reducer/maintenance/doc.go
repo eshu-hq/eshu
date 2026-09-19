@@ -23,7 +23,7 @@
 // collector_evidence_summary read model reconciled with the active fact set
 // via a lease-guarded periodic atomic resweep.
 // [InfraInventoryReconcileRunner] walks repositories in bounded, keyset-ordered
-// cycles from a random start and re-derives the infra read model rows (#6793)
+// cycles from a persisted cursor and re-derives the infra read model rows (#6793)
 // of any repository whose rows differ from content_entities on two
 // consecutive cycles.
 //
