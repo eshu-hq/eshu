@@ -396,5 +396,5 @@ is emitted only on committing evaluations
   their waits with the same per-row anchor (`ReadinessCycleAnchor`), so they
   share the supersession hazard class R2-F1 found here. Whether their
   conditions can be persistent was not checked in this PR. The
-  `reducer_readiness_waits` ledger gives them a fix path if so; the
-  orchestrator files the follow-up issue.
+  `reducer_readiness_waits` ledger gives them a fix path if so. Tracked in
+  #6814.
