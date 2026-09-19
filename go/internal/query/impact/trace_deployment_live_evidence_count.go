@@ -8,7 +8,7 @@
 // eshu_dp_postgres_query_duration_seconds and postgres.query spans. Neither of
 // that covers the AGGREGATION decision this probe makes (which matched facts
 // contributed to the count, and why), so it starts its own
-// "impact.live_instance_count" child span (queryspan.HandlerTracer(), shared with
+// "impact.live_instance_count" child span (tracing.HandlerTracer(), shared with
 // handler_tracing.go and trace_deployment_live_evidence.go) carrying
 // the expected tracking-id count, the resulting instance count, and whether an
 // observation was found at all -- an operator can read that span at 3 AM to
@@ -27,7 +27,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryspan"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -105,7 +105,7 @@ func (h *Handler) fetchWorkloadLiveInstanceSummary(
 		return nil, nil
 	}
 
-	ctx, span := queryspan.HandlerTracer().Start(ctx, "impact.live_instance_count")
+	ctx, span := tracing.HandlerTracer().Start(ctx, "impact.live_instance_count")
 	defer span.End()
 
 	anchors := impacttrace.ResolveLiveIdentityAnchors(controllers, k8sResources)

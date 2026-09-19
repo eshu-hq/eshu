@@ -8,15 +8,15 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryspan"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 )
 
 // packageregTracer is this package's tracer AND the seam its span tests swap.
 // Mirrors root package query's handler_tracing.go: it must stay a
-// package-local var, seeded from queryspan.HandlerTracer, so a recording
+// package-local var, seeded from tracing.HandlerTracer, so a recording
 // provider swapped in for this package's tests cannot change what any other
 // family or root records, and two such swaps cannot race (#6060).
-var packageregTracer = queryspan.HandlerTracer()
+var packageregTracer = tracing.HandlerTracer()
 
 // startQueryHandlerSpan wraps this family's HTTP handlers in stable spans and
 // attaches low-cardinality route/capability attributes for operator triage.
@@ -27,5 +27,5 @@ var packageregTracer = queryspan.HandlerTracer()
 // is unchanged, so emitted spans and the dashboards built on them are
 // unaffected.
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
-	return queryspan.StartHandlerSpanWith(packageregTracer, r, spanName, route, capability)
+	return tracing.StartHandlerSpanWith(packageregTracer, r, spanName, route, capability)
 }
