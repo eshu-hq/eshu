@@ -94,7 +94,7 @@ func TestNornicDBPhaseGroupExecutorAllRetractPhaseRunsEmptyDrainVarAutocommit(t 
 
 // TestNornicDBPhaseGroupExecutorAllRetractPhaseEmptyDrainVarNilReader proves
 // the same all-retract empty-DrainVar phase still runs (via plain inner
-// Execute) when no RunWrite-capable drainReader is wired, mirroring
+// Execute) when no DrainReader-capable drainReader is wired, mirroring
 // executeAutocommitRetract's nil-reader fallback.
 func TestNornicDBPhaseGroupExecutorAllRetractPhaseEmptyDrainVarNilReader(t *testing.T) {
 	t.Parallel()
