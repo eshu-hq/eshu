@@ -75,10 +75,10 @@ func (r postgresInfraInventoryReconciler) ReconcileInfraInventory(
 	ctx context.Context, req maintenance.InfraInventoryReconcileRequest,
 ) (maintenance.InfraInventoryReconcileBatch, error) {
 	batch, err := inventory.ReconcileCycle(ctx, r.database, inventory.ReconcileRequest{
-		Cursor:      req.Cursor,
-		Budget:      req.Budget,
-		Suspects:    req.Suspects,
-		RandomStart: req.RandomStart,
+		Cursor:   req.Cursor,
+		Budget:   req.Budget,
+		Suspects: req.Suspects,
+		Persist:  req.Persist,
 	})
 	if err != nil {
 		return maintenance.InfraInventoryReconcileBatch{}, err

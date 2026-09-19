@@ -34,7 +34,8 @@ creates the table is `storage/postgres/migrations/109_infra_resource_entities.sq
   gate on
 - `Reader`, `Filter`, `Dimension`, `CountBucket`, `CountBuckets`,
   `DimensionBuckets` — the aggregate reads the query layer serves from
-- `ReconcileCycle`, `ReconcileRequest`, `ReconcileRepo`, `StartCursor`,
+- `ReconcileCycle`, `ReconcileRequest`, `ReconcileRepo`, `LoadCursor`,
+  `SaveCursor`,
   `ReconcileBatch`, `RepoReconcile`,
   `ReconcileMatch`/`ReconcileSuspect`/`ReconcileRepaired`/`ReconcileError` —
   the reducer's drift check and repair (`cmd/reducer`

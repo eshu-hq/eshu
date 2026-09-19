@@ -226,9 +226,11 @@ storage `inventory.ReconcileCycle`). Each cycle checks up to
 `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` repositories (default 500) in
 `repo_id` order from where the last cycle stopped, then waits
 `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` (default 5m). The walk wraps at the
-end, and each reducer process starts it at a uniformly random repository
-(`inventory.StartCursor`), so restarts do not keep re-checking the low end of
-the ordering and replicas do not walk in lockstep. Per repository it compares
+end. Its position is persisted in `infra_resource_entity_reconcile_cursor`
+(`inventory.LoadCursor`, `inventory.SaveCursor`): every cycle stores where it
+stopped, and a restarted process resumes from that one-row lookup, so
+restarts neither re-check the low end of the ordering nor enumerate the
+corpus to choose a start. Per repository it compares
 (row count, sum of a per-row `hashtextextended` over every derived column) of
 the infra-typed content rows against the table rows. A match writes nothing
 and takes no lock.
@@ -256,12 +258,22 @@ it reuses the idempotent, lock-safe `MirrorRepo`. The cost is a stale window.
 For a reducer process that runs uninterrupted it is at most one full walk
 plus one interval: a walk visits every repository in
 (repositories / budget) cycles, and a suspect is repaired on the following
-cycle. Because each process starts at a random repository, frequent restarts
-no longer starve the high end of the ordering, but a repository's expected
-wait then depends on how often the reducer restarts; there is no hard bound
-for a process that restarts more often than one walk takes. Every replica
-runs its own walk without a lease: duplicate checks are read-only, and only
-the first repairer writes (the rest re-check under the lock and match).
+cycle. Because the walk position is persisted, the bound holds across
+restarts: every completed cycle advances the stored cursor, so a full walk
+takes (repositories / budget) completed cycles however often the reducer
+restarts. Suspects are kept in memory, so a restart between a suspect and its
+re-check delays that repair by one walk. Every replica runs its own walk
+without a lease and stores its position in the same row: a replica
+overwrites the cursor only with a position it reached by walking forward
+from a stored one, so the stored walk is at most one page behind the
+furthest replica. Duplicate checks are read-only, and only the first repairer
+writes (the rest re-check under the lock and match).
+`TestReconcileCycleLivePersistsAndResumesTheWalkCursor` proves a fresh
+process resumes after the stored cursor.
+`TestReconcileRepositoriesLivePageStopsAtBudget` proves from EXPLAIN ANALYZE
+that a walk page stops at the budget: with 400 repositories and a budget of
+10, each recursive skip scan produced at most 11 rows, and removing a side's
+inner `LIMIT` makes it produce 401.
 
 Performance Evidence: shim on a local PostgreSQL 18 seeded to a
 production-like shape: 301 repositories (one with 50,000 content rows of
@@ -283,7 +295,11 @@ repositories through the real per-repository check (every repository matched, so
 this is the unlocked digest path the walk runs): 0.46-0.67s, slowest single
 repository 30-44 ms, 0 mismatches. The per-cycle repository listing uses a
 recursive skip scan over each table's `repo_id` index: 2.5 ms for a 100-repo
-page, against 171 ms for a `UNION`/`DISTINCT` over every infra row.
+page, against 171 ms for a `UNION`/`DISTINCT` over every infra row. The
+earlier random start listed every repository through the same scan to pick
+one: on a second local PostgreSQL 18 shim with 20,000 repositories, that
+listing took 260 ms and returned 20,001 ids to the process, against 1.8 ms for
+a 100-repo page. The persisted cursor replaces it with a primary-key lookup.
 
 Not built: the proposed "skip repositories whose max
 `content_entities.indexed_at` predates the last reconcile" watermark. There
