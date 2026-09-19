@@ -129,19 +129,24 @@ apps/console/src/pages/RepositoriesPage.test.tsx` proves the console loader and
 Repositories page consume the source-backed fields.
 
 Observability Evidence: the dependency-cluster edge pre-pass
-(`loadRepositoryDependencyClusters`) issues one bounded
-`MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) … LIMIT 50000` query per
-`GET /api/v0/repositories` call that reaches the graph backend. It is
-instrumented with the existing `startRepositoryQueryStage` / `Done` timer
-(operation=`repository_list`, stage=`dependency_cluster_edges`), which emits
-`repository_query.stage_started` and `repository_query.stage_completed` log
-events carrying `duration_seconds` and `cluster_count`. Operators can observe
-the pre-pass latency and result cardinality from structured logs or any log
-aggregator hooked to those events. On error the function returns an empty map
-and the handler continues with degraded (non-cluster) grouping rather than
-failing the request — the degraded path is visible through the per-row
-`group_source=missing_evidence` values in the response. No new metric label,
-queue work, collector call, Postgres read, or runtime knob is added.
+(`loadRepositoryDependencyClusters`) runs the bounded
+`MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) … LIMIT 50000` query for a
+`GET /api/v0/repositories` call that reaches the graph backend. For unscoped
+callers it first runs the relationship-type count
+`MATCH ()-[r:DEPENDS_ON]->() RETURN count(r)` and skips the edge scan when the
+graph holds no `DEPENDS_ON` edges (an empty edge set yields an empty cluster
+map, so the response is unchanged); scoped callers always run the
+grant-predicated scan. It is instrumented with the existing
+`startRepositoryQueryStage` / `Done` timer (operation=`repository_list`,
+stage=`dependency_cluster_edges`), which emits `repository_query.stage_started`
+and `repository_query.stage_completed` log events carrying `duration_seconds`,
+`cluster_count`, and `edge_scan_skipped`. On a probe or scan error the handler
+continues with degraded (non-cluster) grouping rather than failing the request,
+and emits a `repository_query.dependency_cluster_probe_failed` or
+`repository_query.dependency_cluster_scan_failed` warning event; the degraded
+path is also visible through the per-row `group_source=missing_evidence` values
+in the response. No new metric label, queue work, collector call, Postgres
+read, or runtime knob is added.
 
 `GET /api/v0/repositories/by-language?language=typescript&limit=100&offset=0`
 returns `repository_count`, `file_count`, normalized language aliases, and a

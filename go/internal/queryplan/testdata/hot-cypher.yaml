@@ -33,6 +33,7 @@ required_ids:
   - QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN
   - QP-CODEOWNERS-OWNERSHIP-CURSOR-REF
   - QP-CODEOWNERS-LAST-MATCH-OWNER
+  - QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT
 entries:
   - id: QP-SC-DEPS
     domain: supply_chain
@@ -951,3 +952,22 @@ entries:
         - CartesianProduct
         - UnboundedExpand
     cypher_sha256: "b18dcd0994646aea41750cec8817cd4464e58c737300ad4435e8121373d7bffd"
+  - id: QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT
+    domain: repository
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/repository/dependency_cluster.go
+      symbol: RepositoryDependencyEdgeCountCypher
+      source_sha256: 6f9fd5ec0102c88c0ca8cdbde276ef42d65ebd0e59b22d5fec681861b4d7e863
+      line_hint: 112
+    caveats:
+      - "Whole-graph DEPENDS_ON cardinality probe that gates the repository dependency-cluster edge pre-pass for unscoped callers. It is a bare relationship-type aggregate over anonymous () endpoints, answered by the NornicDB relationship-type index (measured about 0.09s on a production-scale graph where the Repository-anchored edge scan costs seconds). A zero count skips the scan; any regression that turns this into a node or label scan would restore the multi-second route cost, so the plan is frozen to the relationship-type scan."
+    plan:
+      operators:
+        - RelationshipTypeScan
+      forbidden_operators:
+        - AllNodesScan
+        - NodeByLabelScan
+        - CartesianProduct
+    cypher_sha256: "7bc26599824d3881108d48c98d326f639be143e82bfa877e5f31d70aca454186"
