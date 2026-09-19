@@ -204,7 +204,8 @@ sequenceDiagram
 ```
 
 - **First-time order is closed by the defer**, in both orders (unit tests).
-- **A later target generation is OPEN, pending an owner decision.** A bucket
+- **A later target generation is being built in a separate PR under #6785**
+  (owner decision, 2026-09-19). A bucket
   added in s3 gen N+1 after CAN_PERFORM succeeded waits for the next iam
   generation. The completion fanout cannot re-enqueue just that account's row:
   events are keyed by producer domain only, and the fanout reschedules every
