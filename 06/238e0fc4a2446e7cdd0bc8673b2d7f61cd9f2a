@@ -1,0 +1,28 @@
+go/internal/reducer/crossscope/readiness_wait_epoch_test.go
+  s_f5014ac15ef10e::t_ee384ff8571191 69-86
+go/internal/storage/postgres/readiness/wait/store_settle_fence_live_test.go
+  s_f5014ac15ef10e::t_9a7b0ed4f4b95b 1-63
+go/internal/reducer/crossscope/readiness_wait.go
+  s_f5014ac15ef10e::t_9269bc4404956d 49-54
+  s_f5014ac15ef10e::t_22aa3abba5bab4 229-231,233
+go/internal/storage/postgres/readiness/wait/README.md
+  s_f5014ac15ef10e::t_d52783e20fe28c 26,57-60
+go/internal/reducer/crossscope/README.md
+  s_f5014ac15ef10e::t_66436acb0f4149 109-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "06238e0fc4a2446e7cdd0bc8673b2d7f61cd9f2a",
+  "prompts": {},
+  "sessions": {
+    "s_f5014ac15ef10e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "93fa98a1-0ae8-4af4-a23b-69063b3ab370",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
