@@ -122,3 +122,26 @@ func PayloadStringSlice(payload map[string]any, key string) []string {
 		return nil
 	}
 }
+
+// SetOptionalRowString copies an optional string payload field into an
+// UNWIND row map, always writing the key: the value when non-empty, else an
+// explicit nil. A statement that SETs `rel.x = row.x` must receive the key
+// even when it has no value. Neo4j reads a missing key as null, but the
+// pinned NornicDB v1.3.3 stores the literal expression text ("row.x") for a
+// missing key, which is how package-consumption DEPENDS_ON edges gained the
+// bogus source_tool "row.source_tool" (#6782). An explicit nil leaves the
+// property absent on Neo4j and null-valued on NornicDB, so `x IS NOT NULL`
+// reads agree. The leaf writer packages call this exported form; the
+// unexported alias below keeps existing in-package callers unchanged.
+func SetOptionalRowString(rowMap map[string]any, payload map[string]any, key string) {
+	if value := PayloadString(payload, key); value != "" {
+		rowMap[key] = value
+		return
+	}
+	rowMap[key] = nil
+}
+
+// setOptionalRowString is the in-package alias of SetOptionalRowString.
+func setOptionalRowString(rowMap map[string]any, payload map[string]any, key string) {
+	SetOptionalRowString(rowMap, payload, key)
+}

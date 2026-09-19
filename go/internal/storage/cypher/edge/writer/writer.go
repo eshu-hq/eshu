@@ -394,12 +394,8 @@ func buildRowMap(
 				"platform_id":     platformID,
 				"evidence_source": evidenceSource,
 			}
-			if evidenceType := sourcecypher.PayloadString(row.Payload, "evidence_type"); evidenceType != "" {
-				rowMap["evidence_type"] = evidenceType
-			}
-			if sourceTool := sourcecypher.PayloadString(row.Payload, "source_tool"); sourceTool != "" {
-				rowMap["source_tool"] = sourceTool
-			}
+			sourcecypher.SetOptionalRowString(rowMap, row.Payload, "evidence_type")
+			sourcecypher.SetOptionalRowString(rowMap, row.Payload, "source_tool")
 			return sourcecypher.BatchCanonicalRunsOnUpsertCypher, rowMap, true
 		}
 		if targetRepoID == "" {
@@ -410,12 +406,8 @@ func buildRowMap(
 			rowMap["repo_id"] = repoID
 			rowMap["target_repo_id"] = targetRepoID
 			rowMap["evidence_source"] = evidenceSource
-			if evidenceType := sourcecypher.PayloadString(row.Payload, "evidence_type"); evidenceType != "" {
-				rowMap["evidence_type"] = evidenceType
-			}
-			if sourceTool := sourcecypher.PayloadString(row.Payload, "source_tool"); sourceTool != "" {
-				rowMap["source_tool"] = sourceTool
-			}
+			sourcecypher.SetOptionalRowString(rowMap, row.Payload, "evidence_type")
+			sourcecypher.SetOptionalRowString(rowMap, row.Payload, "source_tool")
 			copyRepoRelationshipMetadata(rowMap, row.Payload, row.GenerationID)
 			return sourcecypher.BatchCanonicalRepoDependencyUpsertCypher, rowMap, true
 		}
@@ -424,12 +416,8 @@ func buildRowMap(
 		rowMap["target_repo_id"] = targetRepoID
 		rowMap["relationship_type"] = relationshipType
 		rowMap["evidence_source"] = evidenceSource
-		if evidenceType := sourcecypher.PayloadString(row.Payload, "evidence_type"); evidenceType != "" {
-			rowMap["evidence_type"] = evidenceType
-		}
-		if sourceTool := sourcecypher.PayloadString(row.Payload, "source_tool"); sourceTool != "" {
-			rowMap["source_tool"] = sourceTool
-		}
+		sourcecypher.SetOptionalRowString(rowMap, row.Payload, "evidence_type")
+		sourcecypher.SetOptionalRowString(rowMap, row.Payload, "source_tool")
 		copyRepoRelationshipMetadata(rowMap, row.Payload, row.GenerationID)
 		cypher, ok := sourcecypher.BatchCanonicalTypedRepoRelationshipUpsertCypher(relationshipType)
 		if !ok {
