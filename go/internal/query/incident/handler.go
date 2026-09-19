@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryspan"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -39,13 +39,13 @@ func (h *IncidentHandler) profile() querycontract.QueryProfile {
 }
 
 // incidentHandlerTracer is this package's tracer AND the seam its span
-// tests swap. Seeding it from queryspan.HandlerTracer keeps the swap
+// tests swap. Seeding it from tracing.HandlerTracer keeps the swap
 // private to this package rather than mutating what every other importer
 // reads.
-var incidentHandlerTracer = queryspan.HandlerTracer()
+var incidentHandlerTracer = tracing.HandlerTracer()
 
 func (h *IncidentHandler) getIncidentContext(w http.ResponseWriter, r *http.Request) {
-	r, span := queryspan.StartHandlerSpanWith(
+	r, span := tracing.StartHandlerSpanWith(
 		incidentHandlerTracer,
 		r,
 		telemetry.SpanQueryIncidentContext,

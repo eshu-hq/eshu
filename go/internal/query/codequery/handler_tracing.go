@@ -6,12 +6,12 @@ package codequery
 import (
 	"net/http"
 
-	"github.com/eshu-hq/eshu/go/internal/query/queryspan"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // queryHandlerTracer is the code family's own handler-span tracer, seeded
-// from the same queryspan.HandlerTracer() root's queryHandlerTracer
+// from the same tracing.HandlerTracer() root's queryHandlerTracer
 // (handler_tracing.go) seeds from. The code family cannot share root's var:
 // it lives in its own subpackage and cannot reach an unexported root var at
 // all, and root's span tests swap queryHandlerTracer to a recording provider
@@ -20,12 +20,12 @@ import (
 // var pointed at the same underlying tracer name, so emitted spans are
 // unaffected. handler_tracing_parity_test.go pins this copy byte-behavioral
 // to root's.
-var queryHandlerTracer = queryspan.HandlerTracer()
+var queryHandlerTracer = tracing.HandlerTracer()
 
 // startQueryHandlerSpan wraps a code-family HTTP handler in a stable span
 // using queryHandlerTracer rather than root's. See the var doc above for why
 // the code family needs its own tracer var instead of calling root's
 // startQueryHandlerSpan (handler_tracing.go) directly.
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
-	return queryspan.StartHandlerSpanWith(queryHandlerTracer, r, spanName, route, capability)
+	return tracing.StartHandlerSpanWith(queryHandlerTracer, r, spanName, route, capability)
 }

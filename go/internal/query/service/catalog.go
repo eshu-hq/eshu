@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
-	"github.com/eshu-hq/eshu/go/internal/query/queryspan"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -68,8 +68,8 @@ func (h *CatalogHandler) profile() querycontract.QueryProfile {
 }
 
 func (h *CatalogHandler) listCorrelations(w http.ResponseWriter, r *http.Request) {
-	r, span := queryspan.StartHandlerSpanWith(
-		queryspan.HandlerTracer(),
+	r, span := tracing.StartHandlerSpanWith(
+		tracing.HandlerTracer(),
 		r,
 		telemetry.SpanQueryServiceCatalogCorrelations,
 		"GET /api/v0/service-catalog/correlations",

@@ -11,7 +11,7 @@
 // (go/internal/query/handler_tracing.go, go/internal/query/request_metrics.go)
 // record that trace_deployment_chain ran, not why a specific workload's tier
 // did or did not flip. fetchWorkloadLiveEvidence therefore starts its own
-// "impact.live_evidence_probe" child span (queryspan.HandlerTracer(), shared with
+// "impact.live_evidence_probe" child span (tracing.HandlerTracer(), shared with
 // handler_tracing.go) carrying the image_ref count probed, the number of
 // expected ArgoCD tracking-ids computed, whether an identity-bound match was
 // found, and the tier that decision implies -- an operator can read that
@@ -28,7 +28,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/queryspan"
+	"github.com/eshu-hq/eshu/go/internal/query/tracing"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -68,7 +68,7 @@ func (h *Handler) fetchWorkloadLiveEvidence(
 		return false, nil
 	}
 
-	ctx, span := queryspan.HandlerTracer().Start(ctx, "impact.live_evidence_probe")
+	ctx, span := tracing.HandlerTracer().Start(ctx, "impact.live_evidence_probe")
 	defer span.End()
 	span.SetAttributes(attribute.Int("eshu.image_ref_count", len(imageRefs)))
 
