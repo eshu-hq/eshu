@@ -345,7 +345,7 @@ func TestLogRepositoryDependencyEdgesDegradation(t *testing.T) {
 // scoped edge pre-pass query's "WHERE %s AND %s" join keeps AND on the same
 // line as its left operand (immediately preceded by a space from the format
 // string), never directly after the query's leading "\n\t\tWHERE" newline
-// and tabs. See querytestutil.CypherHasBrokenAndOr for the NornicDB v1.3.3
+// and tabs. See querytestutil.AssertCypherHasNoBrokenAndOr for the NornicDB v1.3.3
 // defect this guards (#6786 X4) and its seeded RED/GREEN proof.
 func TestRepositoryDependencyClusterEdgeCypherAndOrPrecededBySpace(t *testing.T) {
 	t.Parallel()
