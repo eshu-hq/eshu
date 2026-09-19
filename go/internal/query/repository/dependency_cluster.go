@@ -14,10 +14,12 @@ import (
 )
 
 // repositoryDependencyClusterEdgeLimit bounds the dependency-cluster edge
-// pre-pass. The query returns one row per admitted
+// pre-pass. The scoped read returns one row per admitted
 // (:Repository)-[:DEPENDS_ON]->(:Repository) edge the caller is authorized to
-// see; the bound keeps the grouping pre-pass cheap and predictable even on a
-// dense whole-graph dependency set. At repo scale the repository-to-repository
+// see, and the unscoped grouped read one row per source repository; the
+// bound applies to both the row count and the flattened edge count, and
+// keeps the grouping pre-pass cheap and predictable even on a dense
+// whole-graph dependency set. At repo scale the repository-to-repository
 // dependency edge count is far below this ceiling, so clustering stays complete
 // in practice; if it is ever hit, loadRepositoryDependencyEdges reports
 // Truncated so the caller discloses the read as partial (see
@@ -42,48 +44,32 @@ type repositoryDependencyEdge struct {
 	Target string
 }
 
-// repositoryDependencyClusterEdgeCypher returns the bounded Cypher that lists
-// the repository-to-repository DEPENDS_ON edges used to compute dependency
-// clusters. Both endpoints are anchored on the :Repository label and the
-// relationship type is the fixed DEPENDS_ON. The result is bounded by
-// repositoryDependencyClusterEdgeLimit.
+// repositoryDependencyClusterEdgeCypher returns the bounded per-edge Cypher
+// that lists the repository-to-repository DEPENDS_ON edges a SCOPED caller
+// may see. Both endpoints are anchored on the :Repository label, the
+// relationship type is the fixed DEPENDS_ON, and the result is bounded by
+// repositoryDependencyClusterEdgeFetchLimit. loadRepositoryDependencyEdges
+// sends unscoped callers to RepositoryDependencyGroupedEdgeCypher instead.
 //
-// Keep both endpoint labels. They are what makes this query cheap, and the
-// obvious "seed from the relationship-type index" rewrite to bound-but-
-// unlabeled endpoints is far worse. Single observations, one run per shape, no
-// warmup or repetition, against an isolated NornicDB pinned at
-// eshu-nornicdb-pr290:3722b483c02c, seeded through the Bolt driver to 200,900
-// nodes / 900 :Repository / 0 DEPENDS_ON:
+// On NornicDB v1.3.3 this per-edge shape loads every :Repository and expands
+// its full adjacency looking for DEPENDS_ON, so its cost grows with the
+// files, workloads and other edges each repository owns: 0.635s median on a
+// 500-repository graph with 200 files per repository, and 5.3-6.4s on a
+// production-scale graph (#6794). The grouped read avoids that expansion but
+// needs a WHERE-free statement, and a scoped caller's grant is a WHERE
+// predicate, so scoped callers keep this shape and still pay that
+// expansion. See RepositoryDependencyGroupedEdgeCypher and
+// docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md.
 //
-//	MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) ... LIMIT 50000   5.79ms
-//	MATCH (s)-[:DEPENDS_ON]->(t)                       ... LIMIT 50000    571ms
-//
-// Treat those as two individual measurements showing an order-of-magnitude
-// gap, not as a calibrated ratio; a stable figure would need repetition and a
-// distribution. The direction is what matters here. The rendered LIMIT is
-// repositoryDependencyClusterEdgeFetchLimit (50001, one past the 50000 bound
-// above) so loadRepositoryDependencyEdges can detect truncation; that one
-// extra row does not change this timing's order of magnitude.
-//
-// The guard against someone removing these labels is the focused string tests
-// in dependency_cluster_test.go (:151 and :176), which assert
-// "(s:Repository)-[:DEPENDS_ON]->(t:Repository)" verbatim. The queryplan
-// validator's unlabeledMatchPattern check does NOT gate this query:
-// validateCypherEntry runs only for registered manifest entries, and
-// loadRepositoryDependencyEdges (formerly loadRepositoryDependencyClusters,
-// renamed by #6786 when it started backing is_dependency too) is a non_hot
-// callsite in queryplan/testdata/query-source-coverage.yaml. Update those
-// tests, not the validator, if this shape ever changes deliberately.
-//
-// The relationship-type-index win recorded in cypher-performance.md for bare
-// MATCH ()-[r:VERB]->() count(r) aggregates does not transfer to a shape that
-// binds and returns both endpoints.
-//
-// An earlier version of this comment credited the r.id uniqueness constraint
-// for seeding the scan. It does not: the query supplies no id value, and on a
-// fresh database with no repository_id constraint at all the same shape still
-// returns in 1.62ms over that corpus. The constraint is required for identity,
-// not for this query's plan.
+// Keep both endpoint labels. Dropping them to seed from unlabelled endpoints
+// is slower, and moving them into `WHERE s:Repository AND t:Repository` is
+// wrong on NornicDB v1.3.3: the label predicate is ignored and every
+// DEPENDS_ON edge comes back, including Workload-to-Workload edges (measured
+// 2,317 rows against the true 300). The focused string tests in
+// dependency_cluster_test.go assert "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"
+// verbatim; loadRepositoryDependencyEdges is a non_hot callsite in
+// queryplan/testdata/query-source-coverage.yaml, so the queryplan
+// validator's unlabeledMatchPattern check does not gate this query.
 //
 // For a scoped caller the same tenant predicate that guards the repository list
 // is applied to BOTH the source and target repository, so a scoped caller can
@@ -153,6 +139,11 @@ type repositoryDependencyEdgeRead struct {
 // expression (always false on NornicDB v1.3.3, and invalid Cypher on Neo4j
 // when the scoped grant predicate was spliced in) with this already-bounded,
 // already-scoped edge read, computed once in Go for both purposes.
+//
+// Unscoped callers first run the DEPENDS_ON cardinality probe and then the
+// grouped read (RepositoryDependencyGroupedEdgeCypher); scoped callers run
+// only the grant-predicated per-edge read (repositoryDependencyClusterEdgeCypher).
+// Both yield edges sorted by (source, target) and clipped to the same bound.
 func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.GraphQuery, access querycontract.RepositoryAccessFilter) repositoryDependencyEdgeRead {
 	if graph == nil {
 		return repositoryDependencyEdgeRead{}
@@ -168,6 +159,15 @@ func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.Grap
 		} else if noEdges {
 			return repositoryDependencyEdgeRead{Edges: []repositoryDependencyEdge{}, Skipped: true}
 		}
+		// Unscoped callers take the grouped read NornicDB answers from the
+		// DEPENDS_ON relationship-type index; see
+		// RepositoryDependencyGroupedEdgeCypher for the measurement.
+		rows, err := graph.Run(ctx, RepositoryDependencyGroupedEdgeCypher, nil)
+		if err != nil {
+			return repositoryDependencyEdgeRead{Err: err, ProbeErr: probeErr}
+		}
+		edges, truncated := flattenGroupedRepositoryDependencyEdges(rows, repositoryDependencyClusterEdgeLimit)
+		return repositoryDependencyEdgeRead{Edges: edges, Truncated: truncated, ProbeErr: probeErr}
 	}
 	rows, err := graph.Run(ctx, repositoryDependencyClusterEdgeCypher(access), access.GraphParams(nil))
 	if err != nil {

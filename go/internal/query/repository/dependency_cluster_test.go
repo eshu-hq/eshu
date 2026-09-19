@@ -240,8 +240,8 @@ func TestLoadRepositoryDependencyEdgesDetectsTruncation(t *testing.T) {
 		})
 	}
 	reader := querytestutil.FakeRepoGraphReader{
-		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
-			return rows, nil
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			return dependencyEdgeRowsForRead(cypher, rows), nil
 		},
 	}
 	result := loadRepositoryDependencyEdges(context.Background(), reader, querycontract.RepositoryAccessFilter{AllScopes: true})
@@ -271,8 +271,8 @@ func TestLoadRepositoryDependencyEdgesUntruncatedAtTheBound(t *testing.T) {
 		})
 	}
 	reader := querytestutil.FakeRepoGraphReader{
-		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
-			return rows, nil
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			return dependencyEdgeRowsForRead(cypher, rows), nil
 		},
 	}
 	result := loadRepositoryDependencyEdges(context.Background(), reader, querycontract.RepositoryAccessFilter{AllScopes: true})
@@ -417,10 +417,10 @@ func TestListRepositoriesGroupsByDependencyCluster(t *testing.T) {
 			switch {
 			case strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)"):
 				// dependency-cluster edge pre-pass
-				return []map[string]any{
+				return dependencyEdgeRowsForRead(cypher, []map[string]any{
 					{"source_id": "repository:a", "target_id": "repository:b"},
 					{"source_id": "repository:b", "target_id": "repository:c"},
-				}, nil
+				}), nil
 			case strings.Contains(cypher, "MATCH (r:Repository)"):
 				// page query
 				return []map[string]any{

@@ -87,9 +87,9 @@ func TestRepositoryListExposesSourceBackedGroupEvidence(t *testing.T) {
 			// stays untouched by clustering and keeps exercising the
 			// independent slug-namespace evidence tier below.
 			if strings.Contains(cypher, "(s:Repository)-[:DEPENDS_ON]->(t:Repository)") {
-				return []map[string]any{
+				return dependencyEdgeRowsForRead(cypher, []map[string]any{
 					{"source_id": "repo-consumer", "target_id": "repo-library"},
-				}, nil
+				}), nil
 			}
 			return []map[string]any{
 				{
