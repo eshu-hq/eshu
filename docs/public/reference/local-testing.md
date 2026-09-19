@@ -373,8 +373,8 @@ export ESHU_CONTENT_STORE_DSN=postgresql://eshu:change-me@localhost:15432/eshu
 export ESHU_POSTGRES_DSN=postgresql://eshu:change-me@localhost:15432/eshu
 ```
 
-For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database
-`neo4j` instead.
+For `docker-compose.neo4j.yml`, use `ESHU_GRAPH_BACKEND=neo4j` and database `neo4j`
+instead; the [B-7 golden corpus gate](local-testing/golden-corpus-gate.md#running-it-on-neo4j) takes the same switch.
 
 ## What To Run
 

@@ -124,6 +124,27 @@ bash scripts/verify-golden-corpus-gate.sh
 #               (also retains the cross-run lock - see below)
 ```
 
+### Running it on Neo4j
+
+The same gate runs against the Neo4j compatibility backend. Set
+`ESHU_GRAPH_BACKEND=neo4j` and the orchestrator switches to
+`docker-compose.neo4j.yml`, the `neo4j` service, and the `neo4j` database; every
+other step, and every snapshot assertion, is unchanged:
+
+```bash
+ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh
+```
+
+The snapshot is one contract for both backends. A Neo4j-only failure is a
+backend divergence to diagnose, not a reason to loosen the snapshot: find which
+backend matches the documented contract, and fix Eshu (or file the backend
+defect) accordingly. The first Neo4j run (#6782) found two such divergences: a
+Neo4j-only `shortestPath()` error on a self-recursive call chain, and a
+NornicDB-only bogus `source_tool` written from a missing UNWIND row key. See
+[Backend Conformance](../backend-conformance.md#b-7-golden-corpus-on-both-backends).
+The cross-run lock below applies to both backends, so run them one after the
+other on one host.
+
 ### The cross-run lock
 
 The gate binds **fixed host ports** (Postgres, api, mcp) and a compose project
@@ -218,4 +239,8 @@ behavior is unchanged.
 
 In CI the gate runs as the **Golden Corpus Gate** workflow, required on any PR
 that touches a pipeline phase (collector, parser, projector, reducer, query,
-storage, the pipeline command binaries, the cassettes, or the snapshot).
+storage, the pipeline command binaries, the cassettes, or the snapshot). Its
+`corpus-gate` job is a matrix with one cell per graph backend:
+`corpus-gate (nornicdb)` is blocking (`golden-corpus-gate` in
+`specs/ci-gates.v1.yaml`), and `corpus-gate (neo4j)` is registered as the
+non-blocking `golden-corpus-gate-neo4j` until main is green on it.
