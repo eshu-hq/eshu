@@ -174,3 +174,39 @@ func TestResolveTraceWorkloadSelectorSurvivesNilTelemetry(t *testing.T) {
 		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
 	}
 }
+
+// TestResolveTraceWorkloadSelectorOperationLabel is the #6786 R3-2 review
+// follow-up: it pins QueryScopedGrantDenied's operation label for this
+// package's one emission seam at "deployment_trace_selector" --
+// ResolveTraceWorkloadSelector's own internal constant, NOT
+// "resolve_trace_workload_selector" (the name the metric's doc comment
+// incorrectly listed before this fix) and NOT "deployment_trace" (the
+// distinct operation its caller separately passes to the follow-up
+// FetchWorkloadContextForOperation call in the same request, see
+// family_impact_trace_deployment.go). A rename of the internal constant
+// without updating go/internal/telemetry/instruments.go's documented
+// operation set fails this test.
+func TestResolveTraceWorkloadSelectorOperationLabel(t *testing.T) {
+	t.Parallel()
+
+	instruments, reader := newTestInstruments(t)
+	graph := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		if strings.Contains(cypher, "w.id = $service_name") {
+			return []map[string]any{{"id": "workload:out-of-grant", "repo_id": "repo-b", "defining": []string{}}}, nil
+		}
+		return nil, nil
+	}}
+
+	_, err := ResolveTraceWorkloadSelector(scopedAuthContext("repo-a"), graph, "workload:out-of-grant", nil, instruments)
+	if err != nil {
+		t.Fatalf("ResolveTraceWorkloadSelector() error = %v, want nil", err)
+	}
+
+	points := scopedGrantDeniedDataPoints(t, reader)
+	if len(points) != 1 {
+		t.Fatalf("%s data points = %d, want 1: %+v", queryScopedGrantDeniedMetric, len(points), points)
+	}
+	if got, want := attrString(t, points[0], telemetry.MetricDimensionOperation), "deployment_trace_selector"; got != want {
+		t.Fatalf("%s operation = %q, want %q", queryScopedGrantDeniedMetric, got, want)
+	}
+}

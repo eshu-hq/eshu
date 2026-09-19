@@ -245,3 +245,67 @@ func TestRecordScopedGrantDeniedSurvivesNilDependencies(t *testing.T) {
 	(&Handler{}).recordScopedGrantDenied(context.Background(), "workload_context", "grant_denied")
 	(&Handler{Instruments: &telemetry.Instruments{}}).recordScopedGrantDenied(context.Background(), "workload_context", "grant_denied")
 }
+
+// TestQueryScopedGrantDeniedOperationValues is the #6786 R3-2 review
+// follow-up: it pins the remaining entries of
+// telemetry.Instruments.QueryScopedGrantDenied's documented operation set
+// that TestFetchWorkloadContextForOperationGrantDeniedEmitsTelemetry (which
+// already covers "workload_context") and TestGetEntityContextGrantDeniedEmitsTelemetry
+// (which already covers "entity_context") do not: "service_context",
+// "service_story", and "service_investigation". Each is the literal
+// operation string its real HTTP handler passes -- GetServiceContext
+// (service_context_handler.go) calls fetchServiceWorkloadContext with
+// "service_context" directly; GetServiceStory (service_story_handler.go) and
+// InvestigateService (service_investigation.go) route through more
+// indirection (BuildServiceStoryEnvelope /
+// fetchServiceWorkloadContextWithSelector) before reaching
+// FetchWorkloadContextForOperation with "service_story" /
+// "service_investigation" respectively, so this test drives
+// FetchWorkloadContextForOperation directly with those same literals rather
+// than reconstructing that indirection: the claim under test is that
+// QueryScopedGrantDenied's operation label is a verbatim passthrough of
+// whatever operation string reaches FetchWorkloadContextForOperation, which
+// this proves for all three, the same way the existing tests prove it for
+// "workload_context".
+func TestQueryScopedGrantDeniedOperationValues(t *testing.T) {
+	t.Parallel()
+
+	for _, operation := range []string{"service_context", "service_story", "service_investigation"} {
+		t.Run(operation, func(t *testing.T) {
+			t.Parallel()
+
+			instruments, reader := newTestInstruments(t)
+			graph := querytestutil.FakeGraphReader{
+				RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+					return map[string]any{"id": "workload:out-of-grant", "name": "workload:out-of-grant", "repo_id": "repo-b"}, nil
+				},
+				RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+					return nil, nil // no DEFINES candidates: FetchWorkloadRepositoryForAccess resolves "".
+				},
+			}
+			handler := &Handler{Neo4j: graph, Instruments: instruments}
+			ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
+				Mode:                 queryauth.AuthModeScoped,
+				AllowedRepositoryIDs: []string{"repo-a"},
+			})
+
+			got, err := handler.FetchWorkloadContextForOperation(
+				ctx, "w.id = $service_name", map[string]any{"service_name": "workload:out-of-grant"}, operation,
+			)
+			if err != nil {
+				t.Fatalf("FetchWorkloadContextForOperation() error = %v, want nil", err)
+			}
+			if got != nil {
+				t.Fatalf("FetchWorkloadContextForOperation() = %#v, want nil", got)
+			}
+
+			points := scopedGrantDeniedDataPoints(t, reader)
+			if len(points) != 1 {
+				t.Fatalf("%s data points = %d, want 1: %+v", queryScopedGrantDeniedMetric, len(points), points)
+			}
+			if got, want := attrString(t, points[0], telemetry.MetricDimensionOperation), operation; got != want {
+				t.Fatalf("%s operation = %q, want %q", queryScopedGrantDeniedMetric, got, want)
+			}
+		})
+	}
+}

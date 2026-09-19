@@ -673,21 +673,44 @@ type Instruments struct {
 	// (NornicDB v1.3.3 could silently drop it) and now decide admission in
 	// Go instead, so this is the operator-visible replacement for what a
 	// backend-side WHERE denial used to leave no trace of at all. Labels:
-	// operation (the bounded call site: "entity_context", "workload_context",
-	// "service_context", "deployment_trace", or
-	// "resolve_trace_workload_selector") and reason ("grant_denied" for an
-	// ordinary scoped-caller-not-granted-this-row outcome, expected at
-	// whatever rate scoped callers probe ids they cannot see; or
-	// "backend_anchor_mismatch" for a row whose own id/name did not match
-	// the request anchor at all -- never expected, and the 3 AM signal that a
-	// backend regressed the query's identity anchor, paired with a Warn log
-	// carrying the same reason). Only the three top-level HTTP-visible
-	// decision points count here, not every internal candidate-filtering
-	// pass that feeds one of them (e.g. FetchWorkloadRepositoryForAccess's
-	// DEFINES re-check, or HydrateResolvedEntityRepoIdentity's hydration
-	// re-check): those decide a component the top-level function still has
-	// to act on, and counting both would report one caller-visible denial as
-	// two or three.
+	// operation and reason.
+	//
+	// operation is the bounded caller-supplied value FetchWorkloadContextForOperation
+	// and ResolveTraceWorkloadSelector are invoked with, not a fixed
+	// per-function constant -- GetEntityContext is the one exception, always
+	// "entity_context". The full closed set actually emitted, by call site:
+	// "entity_context" (GetEntityContext, handler.go), "workload_context"
+	// (fetchWorkloadContext, workload_context.go), "service_context"
+	// (fetchServiceWorkloadContext via GetServiceContext,
+	// service_context_handler.go), "service_story" (BuildServiceStoryEnvelope
+	// via GetServiceStory, service_story_handler.go), "service_investigation"
+	// (fetchServiceWorkloadContextWithSelector via InvestigateService,
+	// service_investigation.go), "deployment_trace" (fetchServiceTraceContext,
+	// family_impact_trace_deployment.go), and "deployment_trace_selector"
+	// (ResolveTraceWorkloadSelector's own internal constant,
+	// impact_trace_workload_selection.go -- distinct from the
+	// "deployment_trace" its caller passes to the FOLLOW-UP
+	// FetchWorkloadContextForOperation call in the same request). Adding a
+	// caller with a new operation string does not require touching this
+	// list -- it is documentation of the current closed set, not a runtime
+	// enum -- but MUST update it in the same change so this comment does not
+	// drift from the emitted values again (see TestQueryScopedGrantDeniedOperationValues,
+	// entity, and TestResolveTraceWorkloadSelectorOperationLabel, impacttrace,
+	// which each pin one call site's literal against this list).
+	//
+	// reason is "grant_denied" for an ordinary scoped-caller-not-granted-this-row
+	// outcome, expected at whatever rate scoped callers probe ids they cannot
+	// see; or "backend_anchor_mismatch" for a row whose own id/name did not
+	// match the request anchor at all -- never expected, and the 3 AM signal
+	// that a backend regressed the query's identity anchor, paired with a
+	// Warn log carrying the same reason.
+	//
+	// Only the top-level HTTP-visible decision points above count here, not
+	// every internal candidate-filtering pass that feeds one of them (e.g.
+	// FetchWorkloadRepositoryForAccess's DEFINES re-check, or
+	// HydrateResolvedEntityRepoIdentity's hydration re-check): those decide a
+	// component the top-level function still has to act on, and counting
+	// both would report one caller-visible denial as two or three.
 	QueryScopedGrantDenied metric.Int64Counter
 	// QueryScopeGrantInlineCapped counts scoped-token infra reads whose grant
 	// set overflowed the SHAPE-A inline-map cap (maxScopeGrantInlineTerms,

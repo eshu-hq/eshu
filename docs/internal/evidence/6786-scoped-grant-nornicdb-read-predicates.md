@@ -226,10 +226,20 @@ all fixed here, TDD, with live re-proof:
   Added `telemetry.Instruments.QueryScopedGrantDenied`
   (`eshu_dp_query_scoped_grant_denied_total`, registered in
   `go/internal/telemetry/instruments.go` per `telemetry-coverage-discipline`),
-  a counter over bounded `operation` (`entity_context` |
-  `workload_context`/`deployment_trace` | `deployment_trace_selector`) and
-  `reason` (`grant_denied` | `backend_anchor_mismatch`) labels. Emission
-  helpers: `entity.Handler.recordScopedGrantDenied`
+  a counter over bounded `operation` and `reason`
+  (`grant_denied` | `backend_anchor_mismatch`) labels. `operation` is a
+  verbatim passthrough of whatever operation string reaches
+  `FetchWorkloadContextForOperation` (proven by R3-2's
+  `TestQueryScopedGrantDeniedOperationValues`), not a fixed per-function
+  constant; the full closed set actually emitted is `entity_context`
+  (`GetEntityContext`, always this literal), `workload_context`
+  (`fetchWorkloadContext`), `service_context` (`GetServiceContext`),
+  `service_story` (`GetServiceStory`), `service_investigation`
+  (`InvestigateService`), `deployment_trace` (`fetchServiceTraceContext`),
+  and `deployment_trace_selector` (`ResolveTraceWorkloadSelector`'s own
+  internal constant, pinned by R3-2's
+  `TestResolveTraceWorkloadSelectorOperationLabel`). Emission helpers:
+  `entity.Handler.recordScopedGrantDenied`
   (`entity/scoped_grant_telemetry.go`) and the package-level
   `impacttrace.recordScopedGrantDenied`
   (`impacttrace/scoped_grant_telemetry.go`), both nil-tolerant. Wired at all
@@ -247,36 +257,41 @@ all fixed here, TDD, with live re-proof:
   `Warn` text, for both reasons at each seam; one, mutation-proven RED/GREEN
   by temporarily removing the emission call
   (`TestResolveTraceWorkloadSelectorIDMismatchEmitsAnchorMismatchTelemetry`).
-  Documented in `go/internal/telemetry/README.md` and, as a compact entry in
-  the Data-Plane Core table, `docs/public/reference/telemetry/metrics.md`
-  (not grandfathered, had headroom; `index.md` did not -- see the blocker
-  below).
+  Documented in `go/internal/telemetry/README.md`, as a compact entry in
+  the Data-Plane Core table in `docs/public/reference/telemetry/metrics.md`
+  (not grandfathered, had headroom; `index.md` did not, see below), and
+  in `docs/public/observability/telemetry-coverage.md` (see R3-1 below).
 
-  **Known blocker, unresolved, flagged rather than forced through:**
+  **R3-1 (resolved): the X1 coverage-doc row.**
   `docs/public/observability/telemetry-coverage.md` and
   `docs/public/reference/telemetry/index.md` are both pinned at their exact
   Markdown 500-line-cap grandfathered ceiling with zero headroom (`1109` /
   `1270`, `scripts/lib/markdown-line-cap-grandfather.tsv`); the pre-commit
   hook (`scripts/lib/markdown-line-cap-core.sh`) refuses any growth, and
-  explicitly refuses re-pinning the ceiling upward too ("a grandfathered file
-  may shrink but MUST NOT grow, and re-pinning it upward is the same growth
-  wearing a ledger edit"). `index.md`'s content had a sanctioned alternative
-  (moved to `metrics.md` instead, see above), but
-  `telemetry-coverage.md` does not: `scripts/verify-telemetry-coverage.sh`
-  (the X2 gate) reads only that one file and requires a row for every
-  registered metric -- confirmed by re-running it with the row removed, which
-  fails with "instruments.go registers `eshu_dp_query_scoped_grant_denied_total`
-  but the X1 doc has no row that mentions it." No sanctioned override, sibling
-  file, or re-pin path exists for this specific conflict between the X2 gate
-  (row required) and the file-cap hook (file at capacity). The row is
-  deliberately NOT committed here rather than forced through with a trim of
-  unrelated existing rows or a `--no-verify` bypass; `go test
-  ./internal/telemetry -count=1` confirms `QueryScopedGrantDenied` itself
-  builds and registers correctly regardless. This leaves
-  `scripts/verify-telemetry-coverage.sh` failing on this branch until the
-  owner picks a resolution (accept the one-line file growth as an explicit
-  ledger exception, approve splitting `telemetry-coverage.md`, or approve
-  trimming existing rows elsewhere in the same file to net zero growth).
+  explicitly refuses re-pinning the ceiling upward too. `index.md`'s content
+  had a sanctioned alternative (moved to `metrics.md`, above). An earlier
+  revision of this doc treated `telemetry-coverage.md` as having no
+  sanctioned path either, because `scripts/verify-telemetry-coverage.sh`
+  (the X2 gate) reads only that one file and requires a row mentioning the
+  metric -- true, but that overstated the blocker: an EXISTING row can be
+  widened IN PLACE (net zero line growth) rather than a new row added.
+  Precedent: commit `9666a5c7e` edited a row of this same capped file
+  in place, 1 insertion(+)/1 deletion(-). Fixed the same way: the adjacent
+  `query infra` row "Scoped-token SHAPE-A grant-cap degradation disclosure
+  (#5403 follow-up #5408)" (line 893) widened in place to also name the
+  three #6786 emitting files and the new counter, file stays at exactly
+  1109 lines. `ESHU_TELEMETRY_COVERAGE_BASE=origin/main
+  scripts/verify-telemetry-coverage.sh` now exits 0.
+
+  **R3-2 (resolved): the doc comment's operation-value list.**
+  `QueryScopedGrantDenied`'s doc comment previously listed
+  `resolve_trace_workload_selector` (never emitted; the real constant is
+  `deployment_trace_selector`) and omitted `service_context`,
+  `service_story`, and `service_investigation` (all three real,
+  passed through by `FetchWorkloadContextForOperation`'s callers). Corrected
+  to the actual closed set above, with two new pinning tests
+  (`TestQueryScopedGrantDeniedOperationValues`,
+  `TestResolveTraceWorkloadSelectorOperationLabel`).
 
 ## Observability Evidence:
 
