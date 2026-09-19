@@ -48,13 +48,17 @@ same-scope join therefore resolves no production target. When
   patterns stay local: a glob over a view that holds only exactly-named ARNs
   could report one match where the account has several;
 - defers with `iam_can_perform_target_not_ready` (non-counting) while a target
-  sits in an uncommitted scope or could still land in a never-activated
-  pending scope, bounded by 30 minutes of elapsed cycle time
+  sits in an uncommitted scope, could still land in a never-activated pending
+  scope, or names a scope that is not registered at all yet (derived from the
+  ARN: `aws:<account>:<region>:<service>`, any region for S3). Wildcard and glob
+  patterns name no concrete scope and keep the local-only skip semantics. The
+  wait is bounded by 30 minutes of elapsed cycle time
   (`crossscope.ReadinessCycleAnchor`). Past the bound, not-ready targets
   commit as unresolved.
 
-A newer pending generation beside an active one does not defer, and a resource
-added in a later target generation is picked up by the next IAM generation.
+A newer pending generation beside an active one does not defer. A resource
+added in a later target generation waits for the next IAM generation; scoping
+a completion-driven re-enqueue is an open owner decision (see the design note).
 Resource-policy grantee resolution stays same-scope. See
 `docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`.
 
@@ -97,7 +101,7 @@ cannot read different keys.
 | `eshu_dp_iam_can_perform_edges_total` | `iam_can_perform_materialization.go` | `resolution_mode` |
 | `eshu_dp_iam_can_perform_skipped_total` | `iam_can_perform_materialization.go` | `skip_reason` |
 | `eshu_dp_iam_can_perform_conditioned_total` | `iam_can_perform_materialization.go` | `confidence` |
-| `eshu_dp_iam_can_perform_cross_scope_targets_total` | `iam_can_perform_cross_scope.go` | `outcome` (resolved/unresolved/not_ready/abandoned/glob_local_only) |
+| `eshu_dp_iam_can_perform_cross_scope_targets_total` | `iam_can_perform_cross_scope.go` | `outcome` (resolved/unresolved/not_ready/scope_unregistered/abandoned/glob_local_only) |
 | `eshu_dp_reducer_readiness_waits_total` | `iam_can_perform_cross_scope.go` | `domain`, `outcome` (deferred/abandoned) |
 
 The skipped counter is the first place to look when edges stop appearing: every

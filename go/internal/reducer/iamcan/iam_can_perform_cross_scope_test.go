@@ -172,9 +172,9 @@ func TestIAMCanPerformCrossScopeRequestIsBounded(t *testing.T) {
 		Writer:            &recordingIAMCanPerformWriter{},
 		CrossScopeTargets: loader,
 	}
-	if _, err := handler.Handle(context.Background(), crossScopeIntent()); err != nil {
-		t.Fatalf("Handle() error = %v", err)
-	}
+	// The kms key's scope is not registered, so inside the bound this defers;
+	// the assertion here is only about what was requested.
+	_, _ = handler.Handle(context.Background(), crossScopeIntent())
 	if len(loader.requests) != 1 {
 		t.Fatalf("loader calls = %d, want 1", len(loader.requests))
 	}
@@ -317,5 +317,61 @@ func TestIAMCanPerformCrossScopeLoaderErrorIsNotAReadinessMiss(t *testing.T) {
 	var classified interface{ FailureClass() string }
 	if errors.As(err, &classified) && classified.FailureClass() == IAMCanPerformTargetNotReadyFailureClass {
 		t.Fatalf("loader error classified as readiness miss: %v", err)
+	}
+}
+
+// TestIAMCanPerformDefersWhenTargetScopeIsUnregistered is the #6785 adverse
+// order: the iam scope's CAN_PERFORM intent runs before the s3 scope holding
+// its target is even registered. That must be a retryable defer, not a
+// success with 0 edges that nothing re-runs. Once the s3 scope registers and
+// commits its nodes, the retried intent writes the edge.
+func TestIAMCanPerformDefersWhenTargetScopeIsUnregistered(t *testing.T) {
+	t.Parallel()
+	writer := &recordingIAMCanPerformWriter{}
+	loader := &fakeCrossScopeTargets{snapshot: CrossScopeTargetSnapshot{}}
+	handler := crossScopeHandler(loader, writer)
+
+	_, err := handler.Handle(context.Background(), crossScopeIntent())
+	var classified interface {
+		Retryable() bool
+		FailureClass() string
+	}
+	if err == nil || !errors.As(err, &classified) || !classified.Retryable() ||
+		classified.FailureClass() != IAMCanPerformTargetNotReadyFailureClass {
+		t.Fatalf("Handle() error = %v, want a retryable %s defer while the s3 scope is unregistered", err, IAMCanPerformTargetNotReadyFailureClass)
+	}
+	if writer.edgeCalls != 0 || writer.retractCalls != 0 {
+		t.Fatalf("writer touched on defer: edges=%d retracts=%d", writer.edgeCalls, writer.retractCalls)
+	}
+
+	loader.snapshot = committedS3Scope(crossScopeBucketFact(crossScopeBucket))
+	if _, err := handler.Handle(context.Background(), crossScopeIntent()); err != nil {
+		t.Fatalf("retry Handle() error = %v", err)
+	}
+	if len(writer.edgeRows) != 1 {
+		t.Fatalf("edge rows after the s3 scope registered = %d, want 1", len(writer.edgeRows))
+	}
+}
+
+// TestIAMCanPerformExpectedScopeFollowsTheTargetARN proves the expected scope
+// is derived from the ARN: a kms key in us-west-2 is not satisfied by a
+// registered kms scope in another region, while an s3 bucket (whose ARN names
+// no region) is satisfied by any registered s3 scope of the account.
+func TestIAMCanPerformExpectedScopeFollowsTheTargetARN(t *testing.T) {
+	t.Parallel()
+	kmsKey := "arn:aws:kms:us-west-2:123456789012:key/abc"
+	otherRegionKMS := CrossScopeTargetSnapshot{Scopes: []CrossScopeTargetScope{{
+		ScopeID: "aws:123456789012:us-east-1:kms", ActiveGenerationID: "g", GenerationActive: true, NodesCommitted: true,
+	}}}
+	decided := decideCrossScopeTargets([]CrossScopeTarget{{ServiceKind: "kms", Region: "us-west-2", ARN: kmsKey}}, otherRegionKMS)
+	if decided.notReady != 1 || decided.outcomes[crossScopeTargetScopeUnregistered] != 1 {
+		t.Fatalf("kms in unregistered region: notReady=%d outcomes=%v, want 1 scope_unregistered", decided.notReady, decided.outcomes)
+	}
+	anyRegionS3 := CrossScopeTargetSnapshot{Scopes: []CrossScopeTargetScope{{
+		ScopeID: "aws:123456789012:eu-west-1:s3", ActiveGenerationID: "g", GenerationActive: true, NodesCommitted: true,
+	}}}
+	decided = decideCrossScopeTargets([]CrossScopeTarget{{ServiceKind: "s3", ARN: crossScopeBucket}}, anyRegionS3)
+	if decided.notReady != 0 || decided.outcomes[crossScopeTargetUnresolved] != 1 {
+		t.Fatalf("s3 bucket with a settled s3 scope: notReady=%d outcomes=%v, want 1 unresolved", decided.notReady, decided.outcomes)
 	}
 }

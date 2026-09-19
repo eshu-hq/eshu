@@ -551,7 +551,9 @@ type Instruments struct {
 	// (resolved — found in a scope whose CloudResource nodes committed;
 	// unresolved — absent from every settled candidate scope; not_ready — found
 	// in an uncommitted scope, or could still land in a never-activated pending
-	// scope, so the intent deferred; abandoned — still not_ready when the
+	// scope, so the intent deferred; scope_unregistered — the scope the ARN
+	// names is not registered yet (the IAM scope ran first), so the intent
+	// deferred; abandoned — still not_ready when the
 	// readiness bound expired, committed as unresolved; glob_local_only — a glob
 	// pattern that is matched only inside the permission's own scope). A rising
 	// abandoned or not_ready rate means target scopes are stuck, not that
@@ -2957,7 +2959,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.IAMCanPerformCrossScopeTargets, err = meter.Int64Counter(
 		"eshu_dp_iam_can_perform_cross_scope_targets_total",
-		metric.WithDescription("Total IAM CAN_PERFORM identity-policy target ARNs looked up in sibling service scopes of the same AWS account by outcome (resolved/unresolved/not_ready/abandoned/glob_local_only)"),
+		metric.WithDescription("Total IAM CAN_PERFORM identity-policy target ARNs looked up in sibling service scopes of the same AWS account by outcome (resolved/unresolved/not_ready/scope_unregistered/abandoned/glob_local_only)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMCanPerformCrossScopeTargets counter: %w", err)

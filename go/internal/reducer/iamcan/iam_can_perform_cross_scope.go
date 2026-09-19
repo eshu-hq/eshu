@@ -33,11 +33,14 @@ const iamCanPerformTargetReadinessMaxWait = crossscope.ProducerReadinessMaxWait
 // Cross-scope target outcome labels for
 // eshu_dp_iam_can_perform_cross_scope_targets_total. The set is closed.
 const (
-	crossScopeTargetResolved      = "resolved"
-	crossScopeTargetUnresolved    = "unresolved"
-	crossScopeTargetNotReady      = "not_ready"
-	crossScopeTargetAbandoned     = "abandoned"
-	crossScopeTargetGlobLocalOnly = "glob_local_only"
+	crossScopeTargetResolved   = "resolved"
+	crossScopeTargetUnresolved = "unresolved"
+	crossScopeTargetNotReady   = "not_ready"
+	// crossScopeTargetScopeUnregistered is a not-ready target whose expected
+	// scope (derived from the ARN) is not registered at all yet.
+	crossScopeTargetScopeUnregistered = "scope_unregistered"
+	crossScopeTargetAbandoned         = "abandoned"
+	crossScopeTargetGlobLocalOnly     = "glob_local_only"
 )
 
 // Readiness-wait outcome labels for eshu_dp_reducer_readiness_waits_total.
@@ -107,8 +110,9 @@ type CrossScopeTargetLoader interface {
 
 // IAMCanPerformTargetNotReadyFailureClass classifies a CAN_PERFORM intent
 // deferred because an exact target ARN sits in a sibling scope whose
-// CloudResource nodes have not committed, or could still land in a sibling
-// scope that has never activated but is mid-ingestion. Enrolled in
+// CloudResource nodes have not committed, could still land in a sibling scope
+// that has never activated but is mid-ingestion, or names a scope that is not
+// registered at all yet (the iam scope was collected first). Enrolled in
 // nonCountingReducerRetryFailureClasses, and bounded by
 // iamCanPerformTargetReadinessMaxWait elapsed time.
 const IAMCanPerformTargetNotReadyFailureClass = "iam_can_perform_target_not_ready"
@@ -190,7 +194,8 @@ func (h IAMCanPerformMaterializationHandler) resolveCrossScopeTargets(
 			}
 		}
 		outcomes[crossScopeTargetAbandoned] += notReady
-		outcomes[crossScopeTargetNotReady] -= notReady
+		outcomes[crossScopeTargetNotReady] = 0
+		outcomes[crossScopeTargetScopeUnregistered] = 0
 		h.recordReadinessWait(ctx, readinessWaitAbandoned)
 		slog.WarnContext(ctx, "iam can_perform cross-scope readiness bound expired; committing not-ready targets as unresolved",
 			log.ScopeID(intent.ScopeID),
@@ -335,6 +340,12 @@ func decideCrossScopeTargets(targets []CrossScopeTarget, snapshot CrossScopeTarg
 		case len(found) > 0 || pendingCandidateScope(target, snapshot.Scopes):
 			result.outcomes[crossScopeTargetNotReady]++
 			result.notReady++
+		case !registeredCandidateScope(target, snapshot.Scopes):
+			// The scope the ARN names is not registered at all yet, which is
+			// the adverse collection order: the iam scope ran first. Absence
+			// is "not yet", never a verdict, until the bound expires.
+			result.outcomes[crossScopeTargetScopeUnregistered]++
+			result.notReady++
 		default:
 			result.outcomes[crossScopeTargetUnresolved]++
 		}
@@ -351,16 +362,34 @@ func pendingCandidateScope(target CrossScopeTarget, scopes []CrossScopeTargetSco
 		if scope.GenerationActive || !scope.GenerationPending {
 			continue
 		}
-		parts := strings.Split(scope.ScopeID, ":")
-		if len(parts) != 4 || parts[3] != target.ServiceKind {
-			continue
+		if scopeCouldHoldTarget(scope.ScopeID, target) {
+			return true
 		}
-		if target.Region != "" && parts[2] != target.Region {
-			continue
-		}
-		return true
 	}
 	return false
+}
+
+// registeredCandidateScope reports whether the scope the target ARN names is
+// registered: aws:<account>:<region>:<service> for a regional ARN, and any
+// region's s3 scope of the account for an S3 bucket ARN, which names no region.
+// The loader already restricts candidates to the request's account.
+func registeredCandidateScope(target CrossScopeTarget, scopes []CrossScopeTargetScope) bool {
+	for _, scope := range scopes {
+		if scopeCouldHoldTarget(scope.ScopeID, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// scopeCouldHoldTarget matches an aws:<account>:<region>:<service> scope id
+// against the target's service and, when the ARN names one, its region.
+func scopeCouldHoldTarget(scopeID string, target CrossScopeTarget) bool {
+	parts := strings.Split(scopeID, ":")
+	if len(parts) != 4 || parts[3] != target.ServiceKind {
+		return false
+	}
+	return target.Region == "" || parts[2] == target.Region
 }
 
 // recordCrossScopeOutcomes emits one data point per outcome, including zeros,
@@ -371,7 +400,7 @@ func (h IAMCanPerformMaterializationHandler) recordCrossScopeOutcomes(ctx contex
 	}
 	for _, outcome := range []string{
 		crossScopeTargetResolved, crossScopeTargetUnresolved, crossScopeTargetNotReady,
-		crossScopeTargetAbandoned, crossScopeTargetGlobLocalOnly,
+		crossScopeTargetScopeUnregistered, crossScopeTargetAbandoned, crossScopeTargetGlobLocalOnly,
 	} {
 		h.Instruments.IAMCanPerformCrossScopeTargets.Add(ctx, int64(outcomes[outcome]), metric.WithAttributes(
 			telemetry.AttrOutcome(outcome),

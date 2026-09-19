@@ -25,8 +25,9 @@
 // service scope and every catalog target into its own service scope, so the
 // CAN_PERFORM handler resolves exact identity-policy target ARNs across the
 // sibling scopes of the same account through [CrossScopeTargetLoader]
-// (#6785). It defers, bounded by elapsed cycle time, while a target's scope has
-// not committed its CloudResource nodes, and never lets a cross-scope target
+// (#6785). It defers, bounded by elapsed cycle time, while a target's scope is
+// not registered yet or has not committed its CloudResource nodes, and never
+// lets a cross-scope target
 // satisfy a glob.
 //
 // [CatalogByAction] exposes the closed CAN_PERFORM action catalog. The reducer

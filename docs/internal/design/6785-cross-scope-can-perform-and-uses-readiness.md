@@ -55,12 +55,10 @@ Status: two owner-decided fixes on `gate/6785-golden-corpus-zero-floors`.
   - the target's `aws_resource` fact in its scope's active generation;
   - the target's committed CloudResource node, keyed by the same
     `cloudjoin` uid.
-- USES needs the CloudResource node, which is already gated, and the
-  WorkloadInstance node (new gate).
+- USES needs the gated CloudResource node and the WorkloadInstance (new gate).
 
-**Re-trigger.** Both handlers already return retryable, self-classified
-readiness errors. The queue re-offers the row after `RetryDelay`, 30 s by
-default. Section 5 covers what happens when a later generation lands.
+**Re-trigger.** Retryable readiness errors; the queue re-offers the row after
+`RetryDelay` (30 s default). Section 5 covers later generations.
 
 ## 3. CAN_PERFORM Cross-Scope Resolution
 
@@ -112,32 +110,36 @@ triples. For S3, region is empty, meaning any region.
     fans out to the account's S3 regions.
   - Rows returned: at most the number of requested ARNs per scope.
   - It never scans the whole graph or other accounts.
-- **Measured before implementing.** On throwaway Postgres 16 with 105 000
-  scopes (85 000 AWS, spread over 50 accounts x 17 regions x 100 services, plus
-  20 000 git) and 525 000 generations, the scope-state query took 10.9, 11.3,
-  and 13.1 ms over three runs. `ingestion_scopes` is a parallel seq scan
-  (3 530 buffer hits), because the default collation cannot use the PK for
-  `LIKE`. The phase and pending probes are index-only scans. It returned
-  exactly 18 rows: 17 S3 regions plus 1 KMS region.
+- **Measured before implementing** (Postgres 16, 105 000 scopes, 525 000
+  generations): 10.9-13.1 ms over three runs; a seq scan of `ingestion_scopes`
+  (no `LIKE` index under the default collation) plus index-only probes.
 
 ### 3.3 Per-ARN decision
 
-| Found in scope S? | S nodes committed? | Other candidate scope never activated but pending? | Outcome |
-| --- | --- | --- | --- |
-| yes | yes | n/a | `resolved`: the exact-ARN target is usable |
-| yes | no | n/a | `not_ready` (defer) |
-| no | n/a | yes | `not_ready` (defer) |
-| no | n/a | no | `unresolved`: the honest `skipped_unresolved` |
+The expected scope comes from the ARN: `aws:<account>:<region>:<service>`,
+or any region's `aws:<account>:*:s3` for a bucket ARN, which names no region.
 
-- **A newer pending generation is ignored.** It does not defer when an active
-  one exists. Policies often name resources that don't exist, so deferring on
-  every rolling collection would hold CAN_PERFORM at the bound on each cycle.
-- **A scope that has never activated and is not pending** (failed, or absent)
-  is settled: nothing is coming.
+| Found in committed S? | Found, uncommitted? | Expected scope registered? | Never-active pending candidate? | Outcome |
+| --- | --- | --- | --- | --- |
+| yes | n/a | yes | n/a | `resolved` |
+| no | yes | yes | n/a | `not_ready` (defer) |
+| no | no | yes | yes | `not_ready` (defer) |
+| no | no | no | n/a | `scope_unregistered` (defer): the iam scope ran first |
+| no | no | yes | no | `unresolved`: the honest `skipped_unresolved` |
+
+- **A newer pending generation beside an active one does not defer.** Policies
+  name resources that don't exist; deferring on rolling collection would hold
+  every cycle at the bound. A failed, never-active scope is settled.
+- **Wildcard and glob patterns name no concrete scope**, so they keep today's
+  semantics: local-only matching, and `skipped_ambiguous`/`skipped_unresolved`.
+- **Known limits.** An S3 bucket is satisfied by any registered s3 scope of the
+  account, so a bucket in a second region whose s3 scope is not registered yet
+  reads settled while another region's is. A service or region this deployment
+  never collects defers every IAM generation for the full bound, then commits;
+  `abandoned` makes that visible.
 - **Foreign targets never enter glob matching.** Resolved foreign facts build
   a separate `cloudjoin` index used only for exact-ARN matching.
-- **Quarantine.** Foreign facts that fail decode are not re-reported here.
-  They belong to, and are quarantined by, their own scope's handlers.
+- **Quarantine.** Foreign decode failures belong to their own scope's handlers.
 
 ### 3.4 Bound
 
@@ -201,18 +203,16 @@ sequenceDiagram
     H-->>Q: succeeded
 ```
 
-- **A later target generation.** Nothing reschedules a succeeded CAN_PERFORM
-  row. A resource added in s3 gen N+1, or in a target scope not yet registered
-  at all when the iam intent ran (read as settled), is picked up by the next
-  iam generation: staleness is at most one IAM collection interval.
-- **Rejected alternative: the completion fanout** (producer
-  `aws_resource_materialization`, consumer `iam_can_perform`):
-  - It needs a new emission CTE on the hottest ack path.
-  - It is unscoped, so every AWS ack in any account would reschedule every
-    account's IAM row, roughly every 2 s during a collection window.
-  - The owner can override this choice.
-- **Removals.** A retracted target's edge goes with the node or at the next
-  iam retract. USES has the same bound for an instance that appears late.
+- **First-time order is closed by the defer**, in both orders (unit tests).
+- **A later target generation is OPEN, pending an owner decision.** A bucket
+  added in s3 gen N+1 after CAN_PERFORM succeeded waits for the next iam
+  generation. The completion fanout cannot re-enqueue just that account's row:
+  events are keyed by producer domain only, and the fanout reschedules every
+  consumer row. Scoping it needs an account key on
+  `cross_scope_completion_events` (migration) plus an emission CTE on the
+  `aws_resource_materialization` ack, the hottest AWS ack path.
+- **Removals.** A retracted target's edge goes with its node or at the next
+  iam retract.
 - **Idempotency.**
   - Both writers MERGE on the endpoint pair.
   - Retract is scope-wide by `rel.scope_id` and evidence source. It is skipped
@@ -235,8 +235,8 @@ sequenceDiagram
 - `eshu_dp_reducer_readiness_waits_total{domain, outcome=deferred|abandoned}`,
   one per deferred or bound-expired evaluation, for both domains.
 - `eshu_dp_iam_can_perform_cross_scope_targets_total{outcome}`, one per
-  requested target (`resolved`, `unresolved`, `not_ready`, `abandoned`,
-  `glob_local_only`). Defer and abandonment logs carry counts and a bounded
+  requested target (`resolved`, `unresolved`, `not_ready`,
+  `scope_unregistered`, `abandoned`, `glob_local_only`). Defer and abandonment logs carry counts and a bounded
   sample. Labels are closed sets; no ARN, scope, or workload value is a label.
 
 ## 7. Cassette
@@ -244,6 +244,6 @@ sequenceDiagram
 - The role (prod and stage anchors) and the inline permission move to
   `aws:123456789012:us-east-1:iam` (the claim-region convention of the
   cassette's existing iam scope). The bucket moves to
-  `aws:123456789012:us-east-1:s3`. Stable keys and values stay synthetic.
-- Expected B-7: CAN_PERFORM 1 via the cross-scope path, and USES 2 from the iam
-  scope once the instances exist.
+  `aws:123456789012:us-east-1:s3`, replayed AFTER iam (the adverse order), so
+  B-7 exercises the unregistered-scope defer. Values stay synthetic.
+- Expected B-7: CAN_PERFORM 1 (cross-scope, after a defer) and USES 2.

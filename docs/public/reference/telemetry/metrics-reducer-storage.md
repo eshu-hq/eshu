@@ -179,7 +179,7 @@ before assuming the whole write path is bottlenecked.
 | `eshu_dp_iam_can_perform_edges_total` | counter | IAM CAN_PERFORM edges committed by bounded resolution mode. |
 | `eshu_dp_iam_can_perform_skipped_total` | counter | IAM CAN_PERFORM catalog-action evaluations withheld by bounded skip reason. |
 | `eshu_dp_iam_can_perform_conditioned_total` | counter | Condition-gated IAM CAN_PERFORM evidence classified by bounded confidence. |
-| `eshu_dp_iam_can_perform_cross_scope_targets_total` | counter | IAM CAN_PERFORM exact target ARNs looked up in sibling AWS service scopes of the same account, by `outcome` (`resolved`, `unresolved`, `not_ready`, `abandoned`, `glob_local_only`). A rising `abandoned` or `not_ready` rate means target scopes are stuck, not that policies lost grants. |
+| `eshu_dp_iam_can_perform_cross_scope_targets_total` | counter | IAM CAN_PERFORM exact target ARNs looked up in sibling AWS service scopes of the same account, by `outcome` (`resolved`, `unresolved`, `not_ready`, `scope_unregistered`, `abandoned`, `glob_local_only`). `scope_unregistered` means the scope the ARN names (account, region, service) is not registered yet, so the intent deferred. A rising `abandoned` or `not_ready` rate means target scopes are stuck, not that policies lost grants. |
 | `eshu_dp_incident_routing_evidence_total` | counter | PagerDuty incident-routing graph evidence outcomes by reducer domain, outcome, source class, and slot kind. |
 
 No-Regression Evidence: #2409 adds nil-safe OTEL counter/histogram recording to
