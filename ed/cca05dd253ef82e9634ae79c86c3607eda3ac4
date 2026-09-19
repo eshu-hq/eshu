@@ -1,0 +1,36 @@
+go/internal/query/service_context_authz_test.go
+  s_e4670746a61ae9::t_455e0e024c5041 278
+  s_e4670746a61ae9::t_4da7a214409476 12-13
+  s_e4670746a61ae9::t_41f0eec01c0905 84
+  s_e4670746a61ae9::t_5351ca7a75750c 31
+go/internal/query/impacttrace/impact_trace_workload_selection_test.go
+  s_e4670746a61ae9::t_c4ba7da791e893 180
+  s_e4670746a61ae9::t_b3ea9556f3057e 131
+  s_e4670746a61ae9::t_08045f763289f7 153
+  s_e4670746a61ae9::t_a19e095841c7eb 20
+  s_e4670746a61ae9::t_206ebe63975c19 107
+  s_e4670746a61ae9::t_4bb6536d334c07 77
+docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md
+  s_e4670746a61ae9::t_c0a2979b20cf5a 23-33
+  s_e4670746a61ae9::t_f4febdb6f72058 34
+go/internal/query/entity/context_authz_test.go
+  s_e4670746a61ae9::t_e66de22b651ec7 26
+go/internal/query/querytestutil/nornicdb_and_or_whitespace.go
+  s_e4670746a61ae9::t_72a761858f0f45 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "edcca05dd253ef82e9634ae79c86c3607eda3ac4",
+  "prompts": {},
+  "sessions": {
+    "s_e4670746a61ae9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc580f2-3bbc-44f5-b367-e76e1733bdfe",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
