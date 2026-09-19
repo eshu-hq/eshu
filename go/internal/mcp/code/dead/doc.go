@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package deadcodetools defines pure route selection for the MCP dead-code
-// family.
+// Package deadcodetools defines pure route selection and the tool
+// definitions for the MCP dead-code family.
 //
 // Route decides whether this package owns a tool and maps decoded arguments
 // to a dependency-neutral internal request without executing it. The parent
-// mcp package owns tool registration and its order (find_dead_code stays in
-// the root codebase group in tools_codebase.go, investigate_dead_code in
-// tools_dead_code.go, and find_cross_repo_dead_code in
-// tools_cross_repo_dead_code.go), global route fanout, the private adapter,
-// HTTP dispatch, authorization, timeouts, response budgets, envelopes,
-// summaries, and telemetry. The query package owns the bounded reads behind
-// the three POST /api/v0/code/dead-code paths. This package runs no query and
-// must keep every tool name, request path, and body key stable.
+// mcp package owns the root registration wrapper and client-visible order,
+// global route fanout, the private adapter, HTTP dispatch, authorization,
+// timeouts, response budgets, envelopes, summaries, and telemetry. The query
+// package owns the bounded reads behind the three POST
+// /api/v0/code/dead-code paths. This package runs no query and must keep
+// every tool name, request path, and body key stable.
 //
 // The three tools — find_dead_code, investigate_dead_code, and
 // find_cross_repo_dead_code — share the exclude_decorated_with vocabulary

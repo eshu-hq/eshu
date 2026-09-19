@@ -10,10 +10,8 @@
    arms before the extraction, and
    `../../dispatch_dead_code_contract_test.go` for the production-boundary
    proof.
-5. `../../tools_codebase.go`, `../../tools_dead_code.go`, and
-   `../../tools_cross_repo_dead_code.go` for the three advertised schemas. They
-   stay at the parent's root and must keep naming the same fields this
-   builder selects.
+5. `./tools.go` for the three advertised schemas. They live in this package
+   and must keep naming the same fields this builder selects.
 6. `../../contract/route/README.md` for the dependency-neutral request contract.
 7. `go/internal/query/codequery/deadcode/results.go`,
    `go/internal/query/codequery/deadcode/investigation.go`, and
@@ -24,9 +22,10 @@
 
 ## Invariants
 
-- Keep only dead-code family membership and pure argument-to-request
-  selection here. Global route fanout, the private adapter, and execution
-  stay in the parent MCP package and `internal/query`.
+- Keep only dead-code family membership, pure argument-to-request
+  selection, and the tool definitions here. Global route fanout, the private
+  adapter, the root registration splice, and execution stay in the parent
+  MCP package and `internal/query`.
 - Keep the package clause as `package deadcodetools`; the root imports it
   with an explicit alias.
 - Preserve each tool's exact method, path, and body keys. All three requests

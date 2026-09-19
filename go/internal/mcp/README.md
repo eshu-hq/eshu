@@ -171,7 +171,7 @@ is not broken out here).
 
 | Group | Count | Source file |
 |---|---|---|
-| `codebaseTools` | 33 | `tools_codebase.go` (splices `code/intel/tools.go`), `relationships/code_tools.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_security.go`, `tools_iac.go` |
+| `codebaseTools` | 33 | `tools_codebase.go` (splices `code/intel/tools.go`, `code/dead/tools.go`), `relationships/code_tools.go`, `tools_import_dependencies.go`, `tools_security.go`, `tools_iac.go` |
 | `codeFlowTools` | 4 | `types.go` (wraps `code/flow/tools.go`) |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 23 | `ecosystem/tools.go`, `ecosystem/*_tools.go` |
