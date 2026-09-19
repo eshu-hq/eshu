@@ -214,7 +214,7 @@ commit may skip it
 
 **Nil ledger** (test wiring only) treats every evaluation as the first of its
 queue cycle, anchored at the claim's cycle start. Production wires
-`wait.Store` (`storage/postgres/readiness/wait`) through `DefaultHandlers.ReadinessWaits`
+`wait.Store` (`storage/postgres/readiness/wait`) through `DefaultHandlers.CrossScopeHandlers.ReadinessWaits`
 (`TestDefaultHandlersWireReadinessWaitLedger`).
 
 ## 4. USES WorkloadInstance Readiness

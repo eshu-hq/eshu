@@ -4,7 +4,6 @@
 package reducer
 
 import (
-	"log/slog"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -12,11 +11,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
-	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
-	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
@@ -26,7 +23,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
-	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -57,27 +53,6 @@ type DefaultHandlers struct {
 	// FactLoader loads fact envelopes for workload and infrastructure
 	// platform materialization.
 	FactLoader FactLoader
-
-	// CrossScopeProducerReadiness gates the #5709 cross-scope readiness floor.
-	// Optional: nil means "no floor", not "not ready". A deployment that has
-	// not wired it keeps the pre-#5709 behaviour of committing whatever the
-	// cross-scope load resolved, rather than stranding every consumer.
-	CrossScopeProducerReadiness CrossScopeProducerReadiness
-
-	// IAMCanPerformCrossScopeTargets resolves exact CAN_PERFORM targets from
-	// sibling AWS scopes of the account (#6785). Nil keeps resolution same-scope.
-	IAMCanPerformCrossScopeTargets iamcan.CrossScopeTargetLoader
-	// WorkloadInstanceExistence lets the USES handler wait, bounded, for its
-	// WorkloadInstance endpoints (#6785). Nil disables the gate.
-	WorkloadInstanceExistence workloadinstance.ExistenceLookup
-	// ReadinessWaits is the (scope, domain) ledger both #6785 handlers anchor
-	// their commit-first wait on. Nil uses the claimed row's cycle anchor.
-	ReadinessWaits crossscope.ReadinessWaitLedger
-
-	// CrossScopeReadinessLogger records each cross-scope readiness deferral as
-	// its own structured line. Optional: nil silences it, and the deferral is
-	// still durable on the work item's failure_class.
-	CrossScopeReadinessLogger *slog.Logger
 
 	// AdmissionDecisionWriter persists shared explainability decisions for
 	// reducer domains that map local admission outcomes to the cross-domain
@@ -190,6 +165,7 @@ type DefaultHandlers struct {
 	SupplyChainSecurityHandlers
 	IncidentRoutingHandlers
 	CodeEvidenceHandlers
+	CrossScopeHandlers
 
 	// CloudResourceNodeWriter materializes aws_resource facts into canonical
 	// CloudResource graph nodes (issue #805). It must be non-nil alongside

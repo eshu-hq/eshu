@@ -31,7 +31,7 @@ func TestDefaultHandlersWireReadinessWaitLedger(t *testing.T) {
 		FactLoader:                          &stubFactLoader{},
 		IAMCanPerformEdgeWriter:             noopIAMCanPerformWriter{},
 		WorkloadCloudRelationshipEdgeWriter: &recordingWorkloadCloudRelationshipWriter{},
-		ReadinessWaits:                      ledger,
+		CrossScopeHandlers:                  CrossScopeHandlers{ReadinessWaits: ledger},
 	}
 	var sawCanPerform, sawUses bool
 	for _, definition := range appendCloudPostureEdgeAdditiveDomains(nil, handlers) {

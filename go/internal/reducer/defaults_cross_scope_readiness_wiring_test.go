@@ -62,10 +62,12 @@ func TestCICDRunCorrelationRegistrationCarriesTheReadinessSeam(t *testing.T) {
 	readiness := &fixedCrossScopeReadiness{ready: true}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	definitions := appendCorrelationCoreAdditiveDomains(nil, DefaultHandlers{
-		FactLoader:                  &stubCICDRunCorrelationFactLoader{},
-		CICDRunCorrelationWriter:    &recordingCICDRunCorrelationWriter{},
-		CrossScopeProducerReadiness: readiness,
-		CrossScopeReadinessLogger:   logger,
+		FactLoader:               &stubCICDRunCorrelationFactLoader{},
+		CICDRunCorrelationWriter: &recordingCICDRunCorrelationWriter{},
+		CrossScopeHandlers: CrossScopeHandlers{
+			CrossScopeProducerReadiness: readiness,
+			CrossScopeReadinessLogger:   logger,
+		},
 	})
 
 	var handler CICDRunCorrelationHandler
@@ -125,8 +127,10 @@ func TestSupplyChainImpactRegistrationCarriesTheReadinessSeam(t *testing.T) {
 		SupplyChainSecurityHandlers: SupplyChainSecurityHandlers{
 			SupplyChainImpactWriter: &recordingSupplyChainImpactWriter{},
 		},
-		CrossScopeProducerReadiness: readiness,
-		CrossScopeReadinessLogger:   logger,
+		CrossScopeHandlers: CrossScopeHandlers{
+			CrossScopeProducerReadiness: readiness,
+			CrossScopeReadinessLogger:   logger,
+		},
 	})
 
 	var handler supplychaincore.SupplyChainImpactHandler
