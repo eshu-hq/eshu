@@ -199,12 +199,13 @@ func canonicalExecutorForGraphBackend(
 				timeoutHint: canonicalWriteTimeoutEnv,
 			}
 			// Gate the full-refresh DETACH DELETE drain writes too (#4729): the
-			// drain loop calls drainReader.RunWrite on the raw executor, bypassing
-			// the gated inner GroupExecutor above, so without this the drain path
-			// would run ungated and could exceed ESHU_GRAPH_WRITE_MAX_IN_FLIGHT
-			// under concurrent projector workers. The gate wraps the per-iteration
-			// timeout reader (permit outside the deadline), matching the projector
-			// (#5122). Only wrap when a gate is configured (nil gate = passthrough).
+			// drain loop calls drainReader.RunWrite and drainReader.RunProbe on
+			// the raw executor, bypassing the gated inner GroupExecutor above, so
+			// without this the drain path would run ungated and could exceed
+			// ESHU_GRAPH_WRITE_MAX_IN_FLIGHT under concurrent projector workers.
+			// The gate wraps the per-iteration timeout reader (permit outside the
+			// deadline), matching the projector (#5122). Only wrap when a gate is
+			// configured (nil gate = passthrough).
 			if gate != nil {
 				dr = gatedDrainReader{inner: dr, gate: gate}
 			}

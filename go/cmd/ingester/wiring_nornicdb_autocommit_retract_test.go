@@ -88,7 +88,7 @@ func TestNornicDBPhaseGroupExecutorMixedPhaseNilDrainReaderStillUngroupsRetract(
 	executor := nornicDBPhaseGroupExecutor{
 		Inner:         inner,
 		MaxStatements: 100,
-		DrainReader:   nil, // no RunWrite-capable executor wired
+		DrainReader:   nil, // no DrainReader-capable executor wired
 	}
 
 	stmts := []sourcecypher.Statement{
