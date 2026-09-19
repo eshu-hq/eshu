@@ -38,6 +38,9 @@ func BuildCanonicalCodeCallUpsert(p CanonicalCodeCallParams, evidenceSource stri
 		"caller_entity_id": p.CallerEntityID,
 		"callee_entity_id": p.CalleeEntityID,
 		"evidence_source":  evidenceSource,
+		// The CALLS and REFERENCES templates always read $call_kind; an
+		// absent kind is sent as nil so the parameter is never missing.
+		"call_kind": nil,
 	}
 	if p.CallKind != "" {
 		params["call_kind"] = p.CallKind
