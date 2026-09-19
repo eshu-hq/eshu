@@ -1,0 +1,21 @@
+docs/internal/evidence/6782-b7-neo4j-divergences.md
+  s_31b6f580331b60::t_07ed63a4c4d7f0 163-256,263-265
+docs/public/reference/backend-conformance.md
+  s_31b6f580331b60::t_b8381403cb1557 117-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "16bea01c765ab49d36ce786f7d1223ea75f32e51",
+  "prompts": {},
+  "sessions": {
+    "s_31b6f580331b60": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c99a8a4e-2b09-403a-a67b-cd01f8bf03be",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
