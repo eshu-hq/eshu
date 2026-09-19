@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
 )
 
@@ -217,7 +218,8 @@ func TestIAMCanPerformCrossScopeTargetsNeverFeedGlobMatching(t *testing.T) {
 // TestIAMCanPerformDefersWhenCrossScopeTargetNotReady covers both not-ready
 // shapes: the target fact is in a scope whose CloudResource nodes have not
 // committed, and the target could still land in a scope that has never
-// activated but has a pending generation. Neither may write, and both must be a
+// activated but has a pending generation. Both commit what is ready first (the
+// scope-wide retract, no edge for the not-ready target) and then return a
 // retryable readiness class so the queue re-offers the intent.
 func TestIAMCanPerformDefersWhenCrossScopeTargetNotReady(t *testing.T) {
 	t.Parallel()
@@ -251,8 +253,10 @@ func TestIAMCanPerformDefersWhenCrossScopeTargetNotReady(t *testing.T) {
 			if classified.FailureClass() != IAMCanPerformTargetNotReadyFailureClass {
 				t.Fatalf("failure class = %q, want %q", classified.FailureClass(), IAMCanPerformTargetNotReadyFailureClass)
 			}
-			if writer.edgeCalls != 0 || writer.retractCalls != 0 {
-				t.Fatalf("writer touched on defer: edges=%d retracts=%d", writer.edgeCalls, writer.retractCalls)
+			// Commit first (#6785): the scope-wide retract runs before the
+			// defer, and the not-ready target gets no edge.
+			if writer.retractCalls != 1 || len(writer.edgeRows) != 0 {
+				t.Fatalf("defer: retracts=%d edge rows=%d, want the commit (1 retract) and no edge for the not-ready target", writer.retractCalls, len(writer.edgeRows))
 			}
 		})
 	}
@@ -272,7 +276,7 @@ func TestIAMCanPerformCommitsPastCrossScopeReadinessBound(t *testing.T) {
 		Resources: map[string][]facts.Envelope{crossScopeS3Scope: {crossScopeBucketFact(crossScopeBucket)}},
 	}}
 	intent := crossScopeIntent()
-	intent.CycleStartedAt = time.Now().Add(-iamCanPerformTargetReadinessMaxWait - time.Minute)
+	intent.CycleStartedAt = time.Now().Add(-crossscope.ProducerReadinessMaxWait - time.Minute)
 	result, err := crossScopeHandler(loader, writer).Handle(context.Background(), intent)
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want commit past the bound", err)
@@ -322,8 +326,8 @@ func TestIAMCanPerformCrossScopeLoaderErrorIsNotAReadinessMiss(t *testing.T) {
 
 // TestIAMCanPerformDefersWhenTargetScopeIsUnregistered is the #6785 adverse
 // order: the iam scope's CAN_PERFORM intent runs before the s3 scope holding
-// its target is even registered. That must be a retryable defer, not a
-// success with 0 edges that nothing re-runs. Once the s3 scope registers and
+// its target is even registered. That must commit what is ready and then
+// return a retryable defer, not a success with 0 edges that nothing re-runs. Once the s3 scope registers and
 // commits its nodes, the retried intent writes the edge.
 func TestIAMCanPerformDefersWhenTargetScopeIsUnregistered(t *testing.T) {
 	t.Parallel()
@@ -340,8 +344,8 @@ func TestIAMCanPerformDefersWhenTargetScopeIsUnregistered(t *testing.T) {
 		classified.FailureClass() != IAMCanPerformTargetNotReadyFailureClass {
 		t.Fatalf("Handle() error = %v, want a retryable %s defer while the s3 scope is unregistered", err, IAMCanPerformTargetNotReadyFailureClass)
 	}
-	if writer.edgeCalls != 0 || writer.retractCalls != 0 {
-		t.Fatalf("writer touched on defer: edges=%d retracts=%d", writer.edgeCalls, writer.retractCalls)
+	if writer.retractCalls != 1 || len(writer.edgeRows) != 0 {
+		t.Fatalf("defer: retracts=%d edge rows=%d, want the commit (1 retract) and no edge for the unregistered target", writer.retractCalls, len(writer.edgeRows))
 	}
 
 	loader.snapshot = committedS3Scope(crossScopeBucketFact(crossScopeBucket))
@@ -364,14 +368,14 @@ func TestIAMCanPerformExpectedScopeFollowsTheTargetARN(t *testing.T) {
 		ScopeID: "aws:123456789012:us-east-1:kms", ActiveGenerationID: "g", GenerationActive: true, NodesCommitted: true,
 	}}}
 	decided := decideCrossScopeTargets([]CrossScopeTarget{{ServiceKind: "kms", Region: "us-west-2", ARN: kmsKey}}, otherRegionKMS)
-	if decided.notReady != 1 || decided.outcomes[crossScopeTargetScopeUnregistered] != 1 {
-		t.Fatalf("kms in unregistered region: notReady=%d outcomes=%v, want 1 scope_unregistered", decided.notReady, decided.outcomes)
+	if len(decided.missing) != 1 || decided.outcomes[crossScopeTargetScopeUnregistered] != 1 {
+		t.Fatalf("kms in unregistered region: missing=%d outcomes=%v, want 1 scope_unregistered", len(decided.missing), decided.outcomes)
 	}
 	anyRegionS3 := CrossScopeTargetSnapshot{Scopes: []CrossScopeTargetScope{{
 		ScopeID: "aws:123456789012:eu-west-1:s3", ActiveGenerationID: "g", GenerationActive: true, NodesCommitted: true,
 	}}}
 	decided = decideCrossScopeTargets([]CrossScopeTarget{{ServiceKind: "s3", ARN: crossScopeBucket}}, anyRegionS3)
-	if decided.notReady != 0 || decided.outcomes[crossScopeTargetUnresolved] != 1 {
-		t.Fatalf("s3 bucket with a settled s3 scope: notReady=%d outcomes=%v, want 1 unresolved", decided.notReady, decided.outcomes)
+	if len(decided.missing) != 0 || decided.outcomes[crossScopeTargetUnresolved] != 1 {
+		t.Fatalf("s3 bucket with a settled s3 scope: missing=%d outcomes=%v, want 1 unresolved", len(decided.missing), decided.outcomes)
 	}
 }

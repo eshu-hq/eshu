@@ -6,29 +6,14 @@ package iamcan
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sort"
 	"strings"
-	"time"
-
-	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
-	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
-
-// iamCanPerformTargetReadinessMaxWait bounds the cross-scope target defer by
-// ELAPSED TIME since the current repair cycle began
-// (crossscope.ReadinessCycleAnchor), never by attempt count: the defer's own
-// class is a non-counting readiness class, which freezes attempt_count, so an
-// attempt bound could never fire. It reuses the sibling cross-scope floor's 30
-// minutes so every cross-scope wait in the reducer converges on one budget.
-const iamCanPerformTargetReadinessMaxWait = crossscope.ProducerReadinessMaxWait
 
 // Cross-scope target outcome labels for
 // eshu_dp_iam_can_perform_cross_scope_targets_total. The set is closed.
@@ -41,12 +26,6 @@ const (
 	crossScopeTargetScopeUnregistered = "scope_unregistered"
 	crossScopeTargetAbandoned         = "abandoned"
 	crossScopeTargetGlobLocalOnly     = "glob_local_only"
-)
-
-// Readiness-wait outcome labels for eshu_dp_reducer_readiness_waits_total.
-const (
-	readinessWaitDeferred  = "deferred"
-	readinessWaitAbandoned = "abandoned"
 )
 
 // CrossScopeTarget is one exact identity-policy target ARN the CAN_PERFORM
@@ -112,13 +91,15 @@ type CrossScopeTargetLoader interface {
 // deferred because an exact target ARN sits in a sibling scope whose
 // CloudResource nodes have not committed, could still land in a sibling scope
 // that has never activated but is mid-ingestion, or names a scope that is not
-// registered at all yet (the iam scope was collected first). Enrolled in
-// nonCountingReducerRetryFailureClasses, and bounded by
-// iamCanPerformTargetReadinessMaxWait elapsed time.
+// registered at all yet (the iam scope was collected first). The handler
+// returns it only AFTER committing the edges it could resolve, so the class
+// governs when a late edge is added, never whether ready edges are written.
+// Enrolled in nonCountingReducerRetryFailureClasses, and bounded by the
+// readiness-wait ledger's first-defer anchor (crossscope.DecideWait).
 const IAMCanPerformTargetNotReadyFailureClass = "iam_can_perform_target_not_ready"
 
-// iamCanPerformTargetNotReadyError defers the intent until its cross-scope
-// targets are ready.
+// iamCanPerformTargetNotReadyError re-offers the intent, after its ready edges
+// committed, until its missing cross-scope targets are ready or settle.
 type iamCanPerformTargetNotReadyError struct {
 	scopeID      string
 	generationID string
@@ -127,7 +108,7 @@ type iamCanPerformTargetNotReadyError struct {
 
 func (e iamCanPerformTargetNotReadyError) Error() string {
 	return fmt.Sprintf(
-		"%d cross-scope CAN_PERFORM target(s) not ready for scope %s generation %s; deferring rather than committing an unresolved answer",
+		"%d cross-scope CAN_PERFORM target(s) not ready for scope %s generation %s; ready edges committed, waiting for the rest",
 		e.notReady, e.scopeID, e.generationID,
 	)
 }
@@ -146,67 +127,50 @@ type crossScopeTargetResult struct {
 	// requested ARNs, only from scopes whose nodes committed.
 	resources []facts.Envelope
 	outcomes  map[string]int
-	notReady  int
+	// missing holds the ARN of every not-ready or scope-unregistered target.
+	missing []string
 }
 
 // resolveCrossScopeTargets runs the cross-scope lookup for the loaded
-// permission facts. It returns a retryable not-ready error while the bound
-// holds, and past the bound commits not-ready targets as unresolved.
+// permission facts. It only classifies: the caller decides, through
+// crossscope.DecideWait, whether to commit, defer, or settle, and records
+// telemetry only on an evaluation that commits.
 func (h IAMCanPerformMaterializationHandler) resolveCrossScopeTargets(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	permissionEnvelopes []facts.Envelope,
-) ([]facts.Envelope, error) {
+) (crossScopeTargetResult, error) {
+	resolution := crossScopeTargetResult{outcomes: make(map[string]int)}
 	if h.CrossScopeTargets == nil {
-		return nil, nil
+		return resolution, nil
 	}
 	requests, globs := iamCanPerformCrossScopeRequests(intent.ScopeID, permissionEnvelopes)
-	outcomes := map[string]int{crossScopeTargetGlobLocalOnly: globs}
-	var resources []facts.Envelope
-	notReady := 0
+	resolution.outcomes[crossScopeTargetGlobLocalOnly] = globs
 	for _, request := range requests {
-		snapshot, err := h.CrossScopeTargets.LoadCrossScopeTargets(ctx, request)
+		decided, err := h.loadAndDecideCrossScopeTargets(ctx, request)
 		if err != nil {
-			return nil, fmt.Errorf("load cross-scope iam can_perform targets: %w", err)
+			return crossScopeTargetResult{}, err
 		}
-		decided := decideCrossScopeTargets(request.Targets, snapshot)
-		resources = append(resources, decided.resources...)
-		notReady += decided.notReady
+		resolution.resources = append(resolution.resources, decided.resources...)
+		resolution.missing = append(resolution.missing, decided.missing...)
 		for outcome, count := range decided.outcomes {
-			outcomes[outcome] += count
+			resolution.outcomes[outcome] += count
 		}
 	}
+	return resolution, nil
+}
 
-	if notReady > 0 {
-		anchor := crossscope.ReadinessCycleAnchor(intent)
-		if anchor.IsZero() || time.Since(anchor) < iamCanPerformTargetReadinessMaxWait {
-			h.recordCrossScopeOutcomes(ctx, outcomes)
-			h.recordReadinessWait(ctx, readinessWaitDeferred)
-			slog.InfoContext(ctx, "iam can_perform deferred on cross-scope targets",
-				log.ScopeID(intent.ScopeID),
-				log.GenerationID(intent.GenerationID),
-				log.FailureClass(IAMCanPerformTargetNotReadyFailureClass),
-				slog.Int("not_ready_target_count", notReady),
-				slog.Duration("max_wait", iamCanPerformTargetReadinessMaxWait),
-			)
-			return nil, iamCanPerformTargetNotReadyError{
-				scopeID: intent.ScopeID, generationID: intent.GenerationID, notReady: notReady,
-			}
-		}
-		outcomes[crossScopeTargetAbandoned] += notReady
-		outcomes[crossScopeTargetNotReady] = 0
-		outcomes[crossScopeTargetScopeUnregistered] = 0
-		h.recordReadinessWait(ctx, readinessWaitAbandoned)
-		slog.WarnContext(ctx, "iam can_perform cross-scope readiness bound expired; committing not-ready targets as unresolved",
-			log.ScopeID(intent.ScopeID),
-			log.GenerationID(intent.GenerationID),
-			log.FailureClass(IAMCanPerformTargetNotReadyFailureClass),
-			slog.Int("abandoned_target_count", notReady),
-			slog.Duration("max_wait", iamCanPerformTargetReadinessMaxWait),
-		)
+// loadAndDecideCrossScopeTargets asks the loader for one bounded request and
+// applies the per-ARN readiness table to its answer.
+func (h IAMCanPerformMaterializationHandler) loadAndDecideCrossScopeTargets(
+	ctx context.Context,
+	request CrossScopeTargetRequest,
+) (crossScopeTargetResult, error) {
+	snapshot, err := h.CrossScopeTargets.LoadCrossScopeTargets(ctx, request)
+	if err != nil {
+		return crossScopeTargetResult{}, fmt.Errorf("load cross-scope iam can_perform targets: %w", err)
 	}
-	h.recordCrossScopeOutcomes(ctx, outcomes)
-	return resources, nil
+	return decideCrossScopeTargets(request.Targets, snapshot), nil
 }
 
 // iamCanPerformCrossScopeRequests collects, per account, the exact Allow
@@ -339,13 +303,13 @@ func decideCrossScopeTargets(targets []CrossScopeTarget, snapshot CrossScopeTarg
 			result.outcomes[crossScopeTargetResolved]++
 		case len(found) > 0 || pendingCandidateScope(target, snapshot.Scopes):
 			result.outcomes[crossScopeTargetNotReady]++
-			result.notReady++
+			result.missing = append(result.missing, target.ARN)
 		case !registeredCandidateScope(target, snapshot.Scopes):
 			// The scope the ARN names is not registered at all yet, which is
 			// the adverse collection order: the iam scope ran first. Absence
 			// is "not yet", never a verdict, until the bound expires.
 			result.outcomes[crossScopeTargetScopeUnregistered]++
-			result.notReady++
+			result.missing = append(result.missing, target.ARN)
 		default:
 			result.outcomes[crossScopeTargetUnresolved]++
 		}
@@ -390,31 +354,4 @@ func scopeCouldHoldTarget(scopeID string, target CrossScopeTarget) bool {
 		return false
 	}
 	return target.Region == "" || parts[2] == target.Region
-}
-
-// recordCrossScopeOutcomes emits one data point per outcome, including zeros,
-// so each series exists from the first evaluation.
-func (h IAMCanPerformMaterializationHandler) recordCrossScopeOutcomes(ctx context.Context, outcomes map[string]int) {
-	if h.Instruments == nil || h.Instruments.IAMCanPerformCrossScopeTargets == nil {
-		return
-	}
-	for _, outcome := range []string{
-		crossScopeTargetResolved, crossScopeTargetUnresolved, crossScopeTargetNotReady,
-		crossScopeTargetScopeUnregistered, crossScopeTargetAbandoned, crossScopeTargetGlobLocalOnly,
-	} {
-		h.Instruments.IAMCanPerformCrossScopeTargets.Add(ctx, int64(outcomes[outcome]), metric.WithAttributes(
-			telemetry.AttrOutcome(outcome),
-		))
-	}
-}
-
-// recordReadinessWait emits one readiness-wait data point for this domain.
-func (h IAMCanPerformMaterializationHandler) recordReadinessWait(ctx context.Context, outcome string) {
-	if h.Instruments == nil || h.Instruments.ReducerReadinessWaits == nil {
-		return
-	}
-	h.Instruments.ReducerReadinessWaits.Add(ctx, 1, metric.WithAttributes(
-		telemetry.AttrDomain(string(reducercontract.DomainIAMCanPerformMaterialization)),
-		telemetry.AttrOutcome(outcome),
-	))
 }

@@ -11,6 +11,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -26,8 +27,8 @@ func TestIAMCanPerformUnregisteredTargetScopeTelemetry(t *testing.T) {
 		wantTarget string
 		wantWait   string
 	}{
-		{name: "inside bound", cycle: time.Now(), wantTarget: crossScopeTargetScopeUnregistered, wantWait: readinessWaitDeferred},
-		{name: "bound expired", cycle: time.Now().Add(-iamCanPerformTargetReadinessMaxWait - time.Minute), wantTarget: crossScopeTargetAbandoned, wantWait: readinessWaitAbandoned},
+		{name: "inside bound", cycle: time.Now(), wantTarget: crossScopeTargetScopeUnregistered, wantWait: crossscope.ReadinessWaitDeferred},
+		{name: "bound expired", cycle: time.Now().Add(-crossscope.ProducerReadinessMaxWait - time.Minute), wantTarget: crossScopeTargetAbandoned, wantWait: crossscope.ReadinessWaitAbandoned},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

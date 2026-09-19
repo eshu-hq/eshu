@@ -6,7 +6,6 @@ package iamcan
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -15,12 +14,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
-	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 // iamCanPerformEvidenceSource tags the CAN_PERFORM edges this reducer writes so
@@ -100,8 +99,19 @@ type IAMCanPerformMaterializationHandler struct {
 	// collector emits every catalog target (#6785). Nil keeps resolution inside
 	// the intent's own scope (test wiring).
 	CrossScopeTargets CrossScopeTargetLoader
-	Tracer            trace.Tracer
-	Instruments       *telemetry.Instruments
+	// ReadinessWaits is the (scope, domain) readiness-wait ledger. It anchors
+	// the cross-scope wait across superseding generations and records the last
+	// partial commit so an unchanged poll writes nothing (#6785). Nil treats
+	// every evaluation as the first of its queue cycle, anchored at the claim's
+	// cycle start (test wiring); production wires the Postgres ledger.
+	ReadinessWaits crossscope.ReadinessWaitLedger
+	// ReadinessMaxWait bounds the wait since the first defer. Zero means
+	// crossscope.ProducerReadinessMaxWait.
+	ReadinessMaxWait time.Duration
+	// Now is the handler clock. Nil means time.Now.
+	Now         func() time.Time
+	Tracer      trace.Tracer
+	Instruments *telemetry.Instruments
 }
 
 // Handle executes one IAM CAN_PERFORM materialization intent.
@@ -148,6 +158,22 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		}
 	}
 
+	// Commit first, then wait (#6785). The readiness-wait row is read before
+	// the fact load so an unchanged poll can skip the load entirely.
+	existingWait, waitFound, err := h.readCrossScopeWait(ctx, intent)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
+	if crossscope.PollEligible(existingWait, waitFound && h.ReadinessWaits != nil, intent.GenerationID, intent.CycleStartedAt) {
+		handled, err := h.pollCrossScopeWait(ctx, intent, existingWait)
+		if handled {
+			if err != nil {
+				return reducercontract.Result{}, err
+			}
+			return settledResult(intent), nil
+		}
+	}
+
 	loadStart := time.Now()
 	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
@@ -170,15 +196,14 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 	permissionInputs := append([]facts.Envelope{}, permissionEnvelopes...)
 	permissionInputs = append(permissionInputs, permissionBoundaryEnvelopes...)
 
-	// Cross-scope targets are sampled and loaded before extraction and before
-	// any retract, so a deferral leaves the prior generation's edges readable.
-	crossScopeResources, err := h.resolveCrossScopeTargets(ctx, intent, permissionEnvelopes)
+	crossScope, err := h.resolveCrossScopeTargets(ctx, intent, permissionEnvelopes)
 	if err != nil {
 		return reducercontract.Result{}, err
 	}
+	decision := crossscope.DecideWait(h.waitInput(intent, existingWait, waitFound, crossScope.missing))
 
 	extractStart := time.Now()
-	result, err := extractIAMCanPerformEdges(resourceEnvelopes, crossScopeResources, permissionInputs, resourcePolicyEnvelopes)
+	result, err := extractIAMCanPerformEdges(resourceEnvelopes, crossScope.resources, permissionInputs, resourcePolicyEnvelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load, unsupported major, or other
 		// fatal condition factdecode.PartitionDecodeFailures did NOT quarantine) fails the
@@ -192,11 +217,91 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainIAMCanPerformMaterialization, intent.ScopeID, intent.GenerationID, result.Quarantined)
 	extractDuration := time.Since(extractStart)
 
-	skipRetract, err := h.shouldSkipRetract(ctx, intent)
-	if err != nil {
+	// The commit is the scope-wide retract plus rewrite, skipped only when the
+	// ledger shows this generation, queue cycle, and missing set already
+	// committed. Missing targets are left out of the rewrite (unresolved).
+	var commit iamCanPerformCommit
+	if decision.Commit {
+		if commit, err = h.commitEdges(ctx, intent, result.Edges); err != nil {
+			return reducercontract.Result{}, err
+		}
+		h.recordTally(ctx, result)
+		if h.CrossScopeTargets != nil {
+			h.recordCrossScopeOutcomes(ctx, settledOutcomes(crossScope.outcomes, decision))
+		}
+	}
+	// The ledger is written only after the graph commit: a crash between the
+	// two re-commits once, idempotently, and never skips a commit.
+	if err := crossscope.ApplyWaitDecision(ctx, h.ReadinessWaits, decision, intent.ScopeID, reducercontract.DomainIAMCanPerformMaterialization); err != nil {
 		return reducercontract.Result{}, err
 	}
-	var retractDuration time.Duration
+	h.reportWait(ctx, intent, decision, crossScope.missing, decision.Commit)
+
+	logIAMCanPerformCompleted(ctx, iamCanPerformTiming{
+		intent:                  intent,
+		resourceCount:           len(resourceEnvelopes),
+		permissionCount:         len(permissionEnvelopes),
+		permissionBoundaryCount: len(permissionBoundaryEnvelopes),
+		resourcePolicyCount:     len(resourcePolicyEnvelopes),
+		edgeCount:               commit.writes,
+		tally:                   result.Tally,
+		skipRetract:             commit.skipRetract || !decision.Commit,
+		loadDuration:            loadDuration,
+		extractDuration:         extractDuration,
+		retractDuration:         commit.retractDuration,
+		writeDuration:           commit.writeDuration,
+		totalDuration:           time.Since(totalStart),
+	})
+	if decision.Defer {
+		return reducercontract.Result{}, iamCanPerformTargetNotReadyError{
+			scopeID: intent.ScopeID, generationID: intent.GenerationID, notReady: len(crossScope.missing),
+		}
+	}
+
+	return reducercontract.Result{
+		IntentID: intent.IntentID,
+		Domain:   reducercontract.DomainIAMCanPerformMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
+		EvidenceSummary: fmt.Sprintf(
+			"materialized %d CAN_PERFORM edge(s) from %d iam permission fact(s), %d permission boundary fact(s), and %d resource policy permission fact(s); %d skipped, %d conditioned provenance-only, %d input_invalid fact(s) quarantined, %d cross-scope target(s) still missing",
+			commit.writes,
+			len(permissionEnvelopes),
+			len(permissionBoundaryEnvelopes),
+			len(resourcePolicyEnvelopes),
+			result.Tally.total(),
+			result.Tally.conditionedProvenanceOnly,
+			inputInvalidCount,
+			len(crossScope.missing),
+		),
+		CanonicalWrites: commit.writes,
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
+	}, nil
+}
+
+// iamCanPerformCommit reports what one scope-wide commit did.
+type iamCanPerformCommit struct {
+	skipRetract     bool
+	writes          int
+	retractDuration time.Duration
+	writeDuration   time.Duration
+}
+
+// commitEdges is the scope-wide retract plus rewrite. Missing cross-scope
+// targets are simply absent from edges (unresolved). Within one generation
+// the edge set only grows as the missing set shrinks, so skipping the retract
+// on a first-generation re-commit (AttemptCount frozen at 1 by the
+// non-counting class) is safe.
+func (h IAMCanPerformMaterializationHandler) commitEdges(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	edges []map[string]any,
+) (iamCanPerformCommit, error) {
+	var commit iamCanPerformCommit
+	skipRetract, err := h.shouldSkipRetract(ctx, intent)
+	if err != nil {
+		return commit, err
+	}
+	commit.skipRetract = skipRetract
 	if !skipRetract {
 		retractStart := time.Now()
 		if err := h.Writer.RetractIAMCanPerformEdges(
@@ -205,53 +310,19 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 			intent.GenerationID,
 			iamCanPerformEvidenceSource,
 		); err != nil {
-			return reducercontract.Result{}, fmt.Errorf("retract canonical iam can_perform edges: %w", err)
+			return commit, fmt.Errorf("retract canonical iam can_perform edges: %w", err)
 		}
-		retractDuration = time.Since(retractStart)
+		commit.retractDuration = time.Since(retractStart)
 	}
-
 	writeStart := time.Now()
-	if len(result.Edges) > 0 {
-		if err := h.Writer.WriteIAMCanPerformEdges(ctx, result.Edges, intent.ScopeID, intent.GenerationID, iamCanPerformEvidenceSource); err != nil {
-			return reducercontract.Result{}, fmt.Errorf("write canonical iam can_perform edges: %w", err)
+	if len(edges) > 0 {
+		if err := h.Writer.WriteIAMCanPerformEdges(ctx, edges, intent.ScopeID, intent.GenerationID, iamCanPerformEvidenceSource); err != nil {
+			return commit, fmt.Errorf("write canonical iam can_perform edges: %w", err)
 		}
 	}
-	writeDuration := time.Since(writeStart)
-
-	h.recordTally(ctx, result)
-	logIAMCanPerformCompleted(ctx, iamCanPerformTiming{
-		intent:                  intent,
-		resourceCount:           len(resourceEnvelopes),
-		permissionCount:         len(permissionEnvelopes),
-		permissionBoundaryCount: len(permissionBoundaryEnvelopes),
-		resourcePolicyCount:     len(resourcePolicyEnvelopes),
-		edgeCount:               len(result.Edges),
-		tally:                   result.Tally,
-		skipRetract:             skipRetract,
-		loadDuration:            loadDuration,
-		extractDuration:         extractDuration,
-		retractDuration:         retractDuration,
-		writeDuration:           writeDuration,
-		totalDuration:           time.Since(totalStart),
-	})
-
-	return reducercontract.Result{
-		IntentID: intent.IntentID,
-		Domain:   reducercontract.DomainIAMCanPerformMaterialization,
-		Status:   reducercontract.ResultStatusSucceeded,
-		EvidenceSummary: fmt.Sprintf(
-			"materialized %d CAN_PERFORM edge(s) from %d iam permission fact(s), %d permission boundary fact(s), and %d resource policy permission fact(s); %d skipped, %d conditioned provenance-only, %d input_invalid fact(s) quarantined",
-			len(result.Edges),
-			len(permissionEnvelopes),
-			len(permissionBoundaryEnvelopes),
-			len(resourcePolicyEnvelopes),
-			result.Tally.total(),
-			result.Tally.conditionedProvenanceOnly,
-			inputInvalidCount,
-		),
-		CanonicalWrites: len(result.Edges),
-		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
-	}, nil
+	commit.writeDuration = time.Since(writeStart)
+	commit.writes = len(edges)
+	return commit, nil
 }
 
 // firstNotReadyKeyspace returns the first gate keyspace whose
@@ -399,52 +470,4 @@ const IAMCanPerformNodesNotReadyFailureClass = "iam_can_perform_nodes_not_ready"
 
 func (iamCanPerformNotReadyError) FailureClass() string {
 	return IAMCanPerformNodesNotReadyFailureClass
-}
-
-// iamCanPerformTiming groups stage durations and the resolution tally so the
-// completion log identifies fact-load, extraction, retract, and graph-write time,
-// plus why catalog-action evaluations lost edges.
-type iamCanPerformTiming struct {
-	intent                  reducercontract.Intent
-	resourceCount           int
-	permissionCount         int
-	permissionBoundaryCount int
-	resourcePolicyCount     int
-	edgeCount               int
-	tally                   iamCanPerformTally
-	skipRetract             bool
-	loadDuration            time.Duration
-	extractDuration         time.Duration
-	retractDuration         time.Duration
-	writeDuration           time.Duration
-	totalDuration           time.Duration
-}
-
-func logIAMCanPerformCompleted(ctx context.Context, timing iamCanPerformTiming) {
-	slog.InfoContext(
-		ctx, "iam can_perform materialization completed",
-		log.ScopeID(timing.intent.ScopeID),
-		log.GenerationID(timing.intent.GenerationID),
-		log.Domain(string(timing.intent.Domain)),
-		slog.Int("resource_fact_count", timing.resourceCount),
-		slog.Int("iam_permission_fact_count", timing.permissionCount),
-		slog.Int("permission_boundary_fact_count", timing.permissionBoundaryCount),
-		slog.Int("resource_policy_permission_fact_count", timing.resourcePolicyCount),
-		slog.Int("can_perform_edge_count", timing.edgeCount),
-		slog.Int("skipped_uncatalogued_action", timing.tally.skippedUncatalogued),
-		slog.Int("skipped_ambiguous", timing.tally.skippedAmbiguous),
-		slog.Int("skipped_unresolved", timing.tally.skippedUnresolved),
-		slog.Int("skipped_deny", timing.tally.skippedDeny),
-		slog.Int("skipped_conditioned", timing.tally.skippedConditioned),
-		slog.Int("conditioned_provenance_only", timing.tally.conditionedProvenanceOnly),
-		slog.Int("skipped_not_action_resource", timing.tally.skippedNotActionResource),
-		slog.Int("skipped_self_loop", timing.tally.skippedSelfLoop),
-		slog.Int("skipped_permission_boundary", timing.tally.skippedPermissionBoundary),
-		slog.Bool("skip_retract", timing.skipRetract),
-		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
-		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
-		slog.Float64("retract_duration_seconds", timing.retractDuration.Seconds()),
-		slog.Float64("graph_write_duration_seconds", timing.writeDuration.Seconds()),
-		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
-	)
 }

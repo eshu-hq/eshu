@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"sort"
 	"time"
 
@@ -215,6 +216,54 @@ func PollEligible(existing ReadinessWait, found bool, generationID string, cycle
 func SameMissingSet(existing ReadinessWait, keys []string) bool {
 	distinct := sortedDistinctKeys(keys)
 	return len(distinct) == existing.MissingCount && missingFingerprint(distinct) == existing.MissingFingerprint
+}
+
+// ApplyWaitDecision writes the ledger side of decision: Clear, or Upsert the
+// row. Call it only after the graph commit the decision asked for succeeded. A
+// nil ledger is a no-op (test wiring).
+func ApplyWaitDecision(ctx context.Context, ledger ReadinessWaitLedger, decision WaitDecision, scopeID string, domain reducercontract.Domain) error {
+	if ledger == nil {
+		return nil
+	}
+	if decision.Clear {
+		if err := ledger.ClearReadinessWait(ctx, scopeID, domain); err != nil {
+			return fmt.Errorf("clear %s readiness wait: %w", domain, err)
+		}
+		return nil
+	}
+	if decision.Upsert {
+		if err := ledger.UpsertReadinessWait(ctx, decision.Row, decision.ResetAnchor); err != nil {
+			return fmt.Errorf("record %s readiness wait: %w", domain, err)
+		}
+	}
+	return nil
+}
+
+// ReadWait returns the ledger row for (scopeID, domain). With a nil ledger it
+// synthesizes an unsettled, uncommitted row anchored at cycleAnchor, so every
+// evaluation commits and the wait is bounded by the queue row's own cycle
+// (test wiring only; production wires the Postgres ledger). A zero anchor
+// reads as no row.
+func ReadWait(ctx context.Context, ledger ReadinessWaitLedger, scopeID string, domain reducercontract.Domain, cycleAnchor time.Time) (ReadinessWait, bool, error) {
+	if ledger == nil {
+		if cycleAnchor.IsZero() {
+			return ReadinessWait{}, false, nil
+		}
+		return ReadinessWait{ScopeID: scopeID, Domain: domain, FirstDeferredAt: cycleAnchor}, true, nil
+	}
+	wait, found, err := ledger.GetReadinessWait(ctx, scopeID, domain)
+	if err != nil {
+		return ReadinessWait{}, false, fmt.Errorf("read %s readiness wait: %w", domain, err)
+	}
+	return wait, found, nil
+}
+
+// MissingSample returns at most limit keys of a missing set, for logs.
+func MissingSample(keys []string, limit int) []string {
+	if len(keys) > limit {
+		keys = keys[:limit]
+	}
+	return append([]string(nil), keys...)
 }
 
 // sameInstant compares timestamps at the microsecond precision Postgres
