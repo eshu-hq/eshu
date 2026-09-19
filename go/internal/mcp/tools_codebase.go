@@ -5,7 +5,6 @@ package mcp
 
 import (
 	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
-	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 )
 
 func codebaseTools() []ToolDefinition {
@@ -19,10 +18,6 @@ func codebaseTools() []ToolDefinition {
 	if len(intel) != 4 {
 		panic("codeinteltools.Tools must return exactly the four spliced definitions")
 	}
-	// quality holds the three complexity/quality definitions owned by the
-	// code/quality package, spliced into this position to preserve the
-	// long-standing registration order.
-	quality := codequalitytools.Tools()
 	tools := []ToolDefinition{
 		{
 			Name:        "find_code",
@@ -215,9 +210,13 @@ func codebaseTools() []ToolDefinition {
 		terraformConfigStateDriftFindingsTool(),
 		replatformingRollupsTool(),
 		replatformingOwnershipTool(),
-		quality[0],
-		quality[1],
-		quality[2],
+	}...)
+	// The three complexity/quality definitions owned by the code/quality
+	// package splice in at this position to preserve the long-standing
+	// registration order. Appending the whole family slice keeps a future
+	// arity change loud at the order test instead of panicking here.
+	tools = append(tools, codeQualityTools()...)
+	tools = append(tools, []ToolDefinition{
 		{
 			Name:        "execute_cypher_query",
 			Description: "Fallback tool to run a direct, read-only Cypher query against the code graph. Shared-key/all-scope callers only: the query text is caller-supplied and unbounded, so it cannot be intersected against a tenant grant. A scoped or browser-session token is rejected before this tool's request ever reaches the graph.",
