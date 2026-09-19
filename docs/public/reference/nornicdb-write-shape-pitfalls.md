@@ -311,3 +311,33 @@ Compute the `range()` bound in the caller and pass it as its own parameter
 gate), and read the per-label counts back after any bulk seed: a seed that
 silently produces one node is indistinguishable from success without a count.
 The gate does this in `VerifyGraphNodeCounts`.
+
+## Pitfall: A `CASE` Expression Inside A `CREATE` Property Map Is Stored As Literal Text
+
+### Observed shape
+
+A Cypher expression used as a property value inside `CREATE (n:Label {...})`
+is not evaluated. NornicDB substitutes the loop variable into the expression
+text and stores the result as a STRING:
+
+```cypher
+UNWIND range(0, 2) AS i
+CREATE (n:Probe {provider: CASE i % 3 WHEN 0 THEN 'aws' WHEN 1 THEN 'gcp' ELSE 'azure' END})
+-- n.provider = "CASE 0 % 3 WHEN 0 THEN 'aws' WHEN 1 THEN 'gcp' ELSE 'azure' END"
+-- (and "CASE 1 % 3 ...", "CASE 2 % 3 ...": one distinct string per node)
+```
+
+Seen on `nornicdb-cpu-bge:v1.3.3` (`sha256:81cedbf4…`) through the Bolt driver:
+the read-API latency gate (`go/cmd/read-api-latency-gate`, #6797) seeded 150,000
+nodes per label this way and `count(DISTINCT n.provider)` returned 150,000, so
+`/api/v0/infra/resources/count` grouped 150,000 provider buckets instead of 3 and
+returned a response body with a key per node. No error is raised, and a count of
+the nodes looks right. This was not measured on Neo4j.
+
+### Eshu implications
+
+Compute property values in the caller and send them as parameters
+(`UNWIND $rows AS row CREATE (n:Label {provider: row.provider})`). On
+unconstrained labels that shape took 0.14s for 2,000 rows, 0.51s for 10,000 and
+0.98s for 20,000, with the expected 3 distinct providers. After a bulk seed, read
+back a property's distinct count, not only the node count.

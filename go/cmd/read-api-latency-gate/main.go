@@ -34,6 +34,7 @@ func main() {
 	workReportPath := flag.String("work-report", "", "write the per-route Postgres work measured this run as JSON (input to scripts/refresh-read-api-work-budgets.sh)")
 	backgroundIdle := flag.Duration("background-idle", 5*time.Second, "idle window used to measure background Postgres statements before the sweep")
 	skipSeed := flag.Bool("skip-seed", false, "skip Postgres+graph seeding and sweep an already-seeded database")
+	seedOnly := flag.Bool("seed-only", false, "seed Postgres+graph, verify the counts, and exit without sweeping (eshu-api starts after this, so its startup backfill sees the seeded content)")
 	requestTimeout := flag.Duration("request-timeout", 30*time.Second, "per-request timeout for the sweep")
 	flag.Parse()
 
@@ -54,6 +55,7 @@ func main() {
 		workReportPath:  *workReportPath,
 		backgroundIdle:  *backgroundIdle,
 		skipSeed:        *skipSeed,
+		seedOnly:        *seedOnly,
 		requestTimeout:  *requestTimeout,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, "read-api-latency-gate:", err)
@@ -78,6 +80,7 @@ type runOptions struct {
 	workReportPath  string
 	backgroundIdle  time.Duration
 	skipSeed        bool
+	seedOnly        bool
 	requestTimeout  time.Duration
 }
 
@@ -87,10 +90,28 @@ func run(opts runOptions) error {
 	if opts.postgresDSN == "" {
 		return fmt.Errorf("postgres-dsn (or ESHU_POSTGRES_DSN) is required to seed and to meter Postgres work")
 	}
+	if opts.seedOnly && opts.skipSeed {
+		return fmt.Errorf("-seed-only and -skip-seed are mutually exclusive")
+	}
 	if !opts.skipSeed {
 		if err := seed(ctx, opts); err != nil {
 			return err
 		}
+	}
+	if opts.seedOnly {
+		fmt.Fprintln(os.Stderr, "read-api-latency-gate: seed complete (-seed-only); not sweeping")
+		return nil
+	}
+
+	readModelInstalled, err := awaitInfraReadModel(ctx, opts.postgresDSN, os.Stderr)
+	if err != nil {
+		return err
+	}
+	if readModelInstalled {
+		if err := assertInfraServedFromReadModel(ctx, opts.apiBaseURL, opts.apiKey, opts.requestTimeout); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stderr, "read-api-latency-gate: infra routes report truth.basis hybrid/content_index (served from the read model)")
 	}
 
 	meter, closeMeter, err := prepareWorkMeter(ctx, opts.postgresDSN, opts.backgroundIdle, os.Stderr)
@@ -238,6 +259,17 @@ func seed(ctx context.Context, opts runOptions) error {
 	if err := VerifyGraphNodeCounts(ctx, graphOpts, expectedGraphNodeCounts(opts.nodesPerLabel, iacFacts)); err != nil {
 		return fmt.Errorf("verify seeded graph: %w", err)
 	}
+	if err := VerifyGraphDimensions(ctx, graphOpts); err != nil {
+		return fmt.Errorf("verify seeded graph: %w", err)
+	}
+
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding content_entities rows mirroring the %d content-derived infra labels and the IaC nodes\n", len(contentDerivedInfraLabels()))
+	if err := SeedInfraContentEntities(ctx, pool, opts.nodesPerLabel, iacFacts, time.Now().UTC()); err != nil {
+		return fmt.Errorf("seed infra content_entities: %w", err)
+	}
+	if err := VerifyContentEntityCounts(ctx, pool, expectedContentEntityCounts(opts.nodesPerLabel, iacFacts)); err != nil {
+		return fmt.Errorf("verify seeded content_entities: %w", err)
+	}
 
 	fmt.Fprintln(os.Stderr, "read-api-latency-gate: ANALYZE seeded Postgres tables")
 	if err := analyzeSeededTables(ctx, pool); err != nil {
@@ -253,7 +285,7 @@ func seed(ctx context.Context, opts runOptions) error {
 // run-to-run plan and latency variance a COPY-then-immediately-sweep gate
 // would otherwise carry silently.
 func analyzeSeededTables(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, "ANALYZE ingestion_scopes, scope_generations, fact_work_items, fact_records")
+	_, err := pool.Exec(ctx, "ANALYZE ingestion_scopes, scope_generations, fact_work_items, fact_records, content_entities")
 	return err
 }
 

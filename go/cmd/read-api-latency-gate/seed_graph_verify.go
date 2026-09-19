@@ -92,3 +92,66 @@ func countLabel(ctx context.Context, driver neo4j.DriverWithContext, database, l
 	}
 	return int(count), nil
 }
+
+// expectedProviderCount and expectedEnvironmentCount are the distinct values
+// seedProvider and seedEnvironment cycle through.
+var (
+	expectedProviderCount    = len(seedProviders)
+	expectedEnvironmentCount = len(seedEnvironments)
+)
+
+// dimensionMismatches reports a label whose distinct provider or environment
+// count is not the seeded low cardinality.
+func dimensionMismatches(label string, providers, environments int) []string {
+	var mismatches []string
+	if providers != expectedProviderCount {
+		mismatches = append(mismatches, fmt.Sprintf("%s: %d distinct providers, want %d", label, providers, expectedProviderCount))
+	}
+	if environments != expectedEnvironmentCount {
+		mismatches = append(mismatches, fmt.Sprintf("%s: %d distinct environments, want %d", label, environments, expectedEnvironmentCount))
+	}
+	return mismatches
+}
+
+// VerifyGraphDimensions reads back the distinct provider and environment counts
+// of every infra label. NornicDB stores a CASE expression inside a CREATE
+// property map as literal text, which leaves the node count correct and every
+// value unique, so counting nodes cannot catch it.
+func VerifyGraphDimensions(ctx context.Context, opts SeedGraphOptions) error {
+	auth := neo4j.NoAuth()
+	if opts.Username != "" {
+		auth = neo4j.BasicAuth(opts.Username, opts.Password, "")
+	}
+	driver, err := neo4j.NewDriverWithContext(opts.URI, auth)
+	if err != nil {
+		return fmt.Errorf("open graph driver: %w", err)
+	}
+	defer func() { _ = driver.Close(ctx) }()
+
+	var mismatches []string
+	for _, label := range infraLabels {
+		session := driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: opts.DatabaseName})
+		result, err := session.Run(ctx, fmt.Sprintf("MATCH (n:%s) RETURN count(DISTINCT n.provider) AS p, count(DISTINCT n.environment) AS e", label), nil)
+		if err != nil {
+			_ = session.Close(ctx)
+			return fmt.Errorf("count distinct dimensions for %s: %w", label, err)
+		}
+		record, err := result.Single(ctx)
+		_ = session.Close(ctx)
+		if err != nil {
+			return fmt.Errorf("count distinct dimensions for %s: %w", label, err)
+		}
+		p, _ := record.Get("p")
+		e, _ := record.Get("e")
+		pn, pok := p.(int64)
+		en, eok := e.(int64)
+		if !pok || !eok {
+			return fmt.Errorf("distinct dimension query for %s returned %T/%T, want int64", label, p, e)
+		}
+		mismatches = append(mismatches, dimensionMismatches(label, int(pn), int(en))...)
+	}
+	if len(mismatches) > 0 {
+		return fmt.Errorf("seeded graph dimensions are not low cardinality: %s", strings.Join(mismatches, "; "))
+	}
+	return nil
+}

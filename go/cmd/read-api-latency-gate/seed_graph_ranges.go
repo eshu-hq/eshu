@@ -4,10 +4,10 @@
 package main
 
 // bulkGraphSeedBatchSize bounds how many anonymous infra nodes one CREATE
-// statement writes. Measured on NornicDB v1.3.3: 5,000 nodes took 0.85s and
-// 20,000 took 3.3s in one statement, while 50,000 failed with "Txn is too big
-// to fit into one request". 10,000 keeps a 2x margin under the last size
-// that worked.
+// statement writes. Measured on NornicDB v1.3.3 with UNWIND $rows over
+// unconstrained labels: 2,000 rows took 0.14s, 10,000 took 0.51s and 20,000
+// took 0.98s; a single 50,000-row statement fails with "Txn is too big to fit
+// into one request". 10,000 keeps a 2x margin under the last size that worked.
 const bulkGraphSeedBatchSize = 10000
 
 // idRange is an inclusive [First, Last] span of node indexes.

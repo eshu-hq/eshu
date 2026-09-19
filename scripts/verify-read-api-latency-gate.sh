@@ -24,6 +24,12 @@
 #     --keep        leave services running and the work dir in place on exit
 #                   (for debugging a failed run).
 #
+# GATE_STACK_DIR=<dir> takes docker-compose.yaml (and so the db-migrate image build
+# context: migrations and graph schema) from that checkout instead of this one. Use
+# it with GATE_API_BIN built from the SAME checkout when measuring a candidate fix
+# that ships a migration: an eshu-api from the fix against a database migrated by
+# this worktree would silently fall back to the old read path.
+#
 # GATE_API_BIN=<path> uses that pre-built eshu-api binary instead of building
 # one from this worktree — for a RED/GREEN comparison against a different
 # commit's eshu-api (e.g. main with a candidate fix merged) without rebasing
@@ -56,17 +62,19 @@ cd "${repo_root}"
 : "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
 : "${GATE_WORK_REPORT:=}"
 
-compose_file="docker-compose.yaml"
+stack_dir="${GATE_STACK_DIR:-${repo_root}}"
+compose_file="${stack_dir}/docker-compose.yaml"
 database="nornic"
 if [[ "${ESHU_GRAPH_BACKEND}" == "neo4j" ]]; then
-	compose_file="docker-compose.neo4j.yml"
+	compose_file="${stack_dir}/docker-compose.neo4j.yml"
 	database="neo4j"
 fi
+[[ -f "${compose_file}" ]] || { printf 'verify-read-api-latency-gate: compose file not found: %s\n' "${compose_file}" >&2; exit 1; }
 # The override loads pg_stat_statements into postgres so the gate can budget
 # per-route Postgres work. It is passed on EVERY compose call below (up, logs,
 # down): a call without it recomputes a different postgres config and recreates
 # the running container mid-run (same failure class as the port env vars above).
-compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}" -f docker-compose.read-api-latency-gate.yaml)
+compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}" -f "${repo_root}/docker-compose.read-api-latency-gate.yaml")
 
 use_compose=1
 keep=0
@@ -236,6 +244,30 @@ if [[ -n "${GATE_WORK_REPORT}" ]]; then
 	gate_report_args=(-work-report "${GATE_WORK_REPORT}")
 fi
 
+# Two phases, like a real deploy: seed first, THEN start eshu-api. eshu-api's
+# startup backfill of the infra read model derives whatever content_entities
+# already holds, once (it records a marker and never re-runs), so an API started
+# before the seed would backfill an empty table and leave the seeded rows to the
+# dirty-repository fence, which sends reads back to the graph (issue #6797,
+# measured live against the #6793 candidate).
+gate_common_args=(
+	-postgres-dsn "${ESHU_POSTGRES_DSN}"
+	-graph-uri "${NEO4J_URI}"
+	-graph-database "${database}"
+	-graph-username "${NEO4J_USERNAME}"
+	-graph-password "${NEO4J_PASSWORD}"
+	-api-base-url "http://localhost:${GATE_API_PORT}"
+	-api-key "${GATE_API_KEY}"
+	-total-scopes "${GATE_TOTAL_SCOPES}"
+	-nodes-per-label "${GATE_NODES_PER_LABEL}"
+	-iac-fact-count "${GATE_IAC_FACT_COUNT}"
+	-iterations "${GATE_ITERATIONS}"
+)
+
+log "seed (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-label, ${GATE_IAC_FACT_COUNT} IaC facts)"
+"${bin_dir}/eshu-read-api-latency-gate" "${gate_common_args[@]}" -seed-only \
+	|| die "seed failed (see the reason printed above)"
+
 log "start eshu-api"
 start_bg api api_pid "${bin_dir}/eshu-api"
 if command -v lsof >/dev/null 2>&1; then
@@ -244,7 +276,7 @@ if command -v lsof >/dev/null 2>&1; then
 	lsof -p "${api_pid}" 2>/dev/null | grep -E 'txt|TEXT' || echo "lsof reported no txt mapping for pid ${api_pid}"
 fi
 api_ready=false
-for _ in $(seq 1 30); do
+for _ in $(seq 1 60); do
 	if curl -fsS "http://localhost:${GATE_API_PORT}/readyz" >/dev/null 2>&1; then
 		api_ready=true
 		break
@@ -259,20 +291,9 @@ done
 # check that the process we started is still the one alive.
 kill -0 "${api_pid}" 2>/dev/null || die "eshu-api (pid ${api_pid}) is not running even though /readyz answered — a different process is likely bound to port ${GATE_API_PORT}"
 
-log "seed + sweep (${GATE_TOTAL_SCOPES} scopes, ${GATE_NODES_PER_LABEL} nodes/infra-label, ${GATE_IAC_FACT_COUNT} IaC facts, ${GATE_ITERATIONS} requests/route)"
+log "sweep (${GATE_ITERATIONS} requests/route)"
 gate_status=0
-"${bin_dir}/eshu-read-api-latency-gate" \
-	-postgres-dsn "${ESHU_POSTGRES_DSN}" \
-	-graph-uri "${NEO4J_URI}" \
-	-graph-database "${database}" \
-	-graph-username "${NEO4J_USERNAME}" \
-	-graph-password "${NEO4J_PASSWORD}" \
-	-api-base-url "http://localhost:${GATE_API_PORT}" \
-	-api-key "${GATE_API_KEY}" \
-	-total-scopes "${GATE_TOTAL_SCOPES}" \
-	-nodes-per-label "${GATE_NODES_PER_LABEL}" \
-	-iac-fact-count "${GATE_IAC_FACT_COUNT}" \
-	-iterations "${GATE_ITERATIONS}" \
+"${bin_dir}/eshu-read-api-latency-gate" "${gate_common_args[@]}" -skip-seed \
 	-budgets "${GATE_BUDGETS}" \
 	-work-budgets "${GATE_WORK_BUDGETS}" \
 	${gate_report_args[@]+"${gate_report_args[@]}"} || gate_status=$?

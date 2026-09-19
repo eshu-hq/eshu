@@ -143,25 +143,26 @@ func seedIaCGraphLabelNodes(ctx context.Context, driver neo4j.DriverWithContext,
 }
 
 // seedLabel creates count anonymous nodes for label, one bounded UNWIND CREATE
-// per bulkNodeRanges batch. The label name is interpolated into the Cypher text
-// (Cypher labels cannot be bind parameters); label always comes from the fixed
-// infraLabels slice, never from external input, so this carries no injection
-// risk. The range bounds are bound parameters computed in Go — see
-// bulkNodeRanges for why `range(0, $count - 1)` must not be used.
+// per bulkNodeRanges batch over precomputed parameter rows (infraNodeRows). The
+// label name is interpolated into the Cypher text (Cypher labels cannot be bind
+// parameters); label always comes from the fixed infraLabels slice, never from
+// external input, so this carries no injection risk. Both the range bound and
+// the property values are computed in Go: see bulkNodeRanges and infraNodeRows
+// for the two NornicDB behaviors that make Cypher-side computation wrong.
 func seedLabel(ctx context.Context, driver neo4j.DriverWithContext, database, label string, count int) error {
 	cypher := fmt.Sprintf(
-		`UNWIND range($first, $last) AS i
+		`UNWIND $rows AS row
 		 CREATE (n:%s {
-		   id: $label + '-seed-' + toString(i),
-		   provider: CASE i %% 3 WHEN 0 THEN 'aws' WHEN 1 THEN 'gcp' ELSE 'azure' END,
-		   environment: CASE i %% 2 WHEN 0 THEN 'production' ELSE 'staging' END,
-		   source_system: $label
+		   id: row.id,
+		   provider: row.provider,
+		   environment: row.environment,
+		   source_system: row.source_system
 		 })`,
 		label,
 	)
 
 	for _, r := range bulkNodeRanges(count, bulkGraphSeedBatchSize) {
-		if err := runSeedBatch(ctx, driver, database, cypher, map[string]any{"first": r.First, "last": r.Last, "label": label}); err != nil {
+		if err := runSeedBatch(ctx, driver, database, cypher, map[string]any{"rows": infraNodeRows(label, r)}); err != nil {
 			return fmt.Errorf("nodes %d..%d: %w", r.First, r.Last, err)
 		}
 	}

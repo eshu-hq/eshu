@@ -91,3 +91,17 @@ func TestGraphCountMismatchesReportsEveryShortLabel(t *testing.T) {
 		t.Fatalf("mismatches = %v, want exactly K8sResource and CloudResource", mismatches)
 	}
 }
+
+// TestDimensionMismatchesCatchesUniquePerNodeValues is the check that would
+// have caught the CASE-as-literal-text seed bug (issue #6797): the node COUNT was
+// right while every node held a unique provider string, so the distinct counts
+// are what has to be read back.
+func TestDimensionMismatchesCatchesUniquePerNodeValues(t *testing.T) {
+	if got := dimensionMismatches("K8sResource", 3, 2); len(got) != 0 {
+		t.Fatalf("correct dimensions reported as mismatched: %v", got)
+	}
+	got := dimensionMismatches("CloudResource", 150000, 150000)
+	if len(got) != 2 {
+		t.Fatalf("mismatches = %v, want one for providers and one for environments", got)
+	}
+}
