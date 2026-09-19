@@ -24,7 +24,6 @@ import (
 	"log/slog"
 	"os"
 	"reflect"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -33,12 +32,16 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// Ground truth: the repository's one file CONTAINS four infrastructure nodes
-// (K8sResource, TerraformModule, TerraformResource, TerraformDataSource) plus
-// a Function, a Class and a Workload (not infrastructure). The read must
-// return exactly the four, with every projected column intact: the fix moves
-// the label filter into a WHERE attached to WITH, and a multi-clause read is
-// where NornicDB has corrupted projections before. The
+// Ground truth: the repository's one file CONTAINS five infrastructure nodes
+// (K8sResource, TerraformModule, two TerraformResources, TerraformDataSource)
+// plus a Function, a Class and a Workload (not infrastructure). The read must
+// return exactly the five, with every projected column intact and in the
+// server's ORDER BY type, name order: the fix moves the label filter into a
+// WHERE attached to WITH, and a multi-clause read is where NornicDB has
+// corrupted projections before. The two TerraformResources are seeded in
+// reverse name order so the name tiebreak is asserted, not inherited. Rows
+// are compared as returned, because the order decides which rows survive the
+// LIMIT on a repository with more than the page of infrastructure. The
 // "code-heavy" case adds repositoryInfrastructureEntityLimit more Functions,
 // which sort ahead of every infrastructure type under ORDER BY type: when the
 // label filter is ignored they fill the server-side LIMIT window and the Go
@@ -49,6 +52,7 @@ var infraLabelPredicateSeed = []string{
 	`CREATE (:K8sResource {id: 'x11-infra:k8s', name: 'api-deployment', kind: 'Deployment', config_path: 'k8s/deploy.yaml'})`,
 	`CREATE (:TerraformModule {id: 'x11-infra:module', name: 'vpc', source: 'terraform-aws-modules/vpc/aws', terraform_source: 'registry'})`,
 	`CREATE (:TerraformResource {id: 'x11-infra:bucket', name: 'bucket', provider: 'aws', resource_type: 'aws_s3_bucket', resource_service: 's3', resource_category: 'storage'})`,
+	`CREATE (:TerraformResource {id: 'x11-infra:alpha', name: 'alpha', provider: 'aws', resource_type: 'aws_sqs_queue', resource_service: 'sqs', resource_category: 'messaging'})`,
 	`CREATE (:TerraformDataSource {id: 'x11-infra:ami', name: 'ami', provider: 'aws', data_type: 'aws_ami'})`,
 	`CREATE (:Function {id: 'x11-infra:fn', name: 'handler'})`,
 	`CREATE (:Class {id: 'x11-infra:class', name: 'Service'})`,
@@ -57,6 +61,7 @@ var infraLabelPredicateSeed = []string{
 	infraLabelPredicateEdge("File", "x11-infra:file", "CONTAINS", "K8sResource", "x11-infra:k8s"),
 	infraLabelPredicateEdge("File", "x11-infra:file", "CONTAINS", "TerraformModule", "x11-infra:module"),
 	infraLabelPredicateEdge("File", "x11-infra:file", "CONTAINS", "TerraformResource", "x11-infra:bucket"),
+	infraLabelPredicateEdge("File", "x11-infra:file", "CONTAINS", "TerraformResource", "x11-infra:alpha"),
 	infraLabelPredicateEdge("File", "x11-infra:file", "CONTAINS", "TerraformDataSource", "x11-infra:ami"),
 	infraLabelPredicateEdge("File", "x11-infra:file", "CONTAINS", "Function", "x11-infra:fn"),
 	infraLabelPredicateEdge("File", "x11-infra:file", "CONTAINS", "Class", "x11-infra:class"),
@@ -79,6 +84,7 @@ func TestLiveRepositoryInfrastructureLabelPredicate(t *testing.T) {
 		{"type": "K8sResource", "name": "api-deployment", "file_path": "deploy/main.tf", "kind": "Deployment", "config_path": "k8s/deploy.yaml"},
 		{"type": "TerraformDataSource", "name": "ami", "file_path": "deploy/main.tf", "provider": "aws", "resource_type": "aws_ami"},
 		{"type": "TerraformModule", "name": "vpc", "file_path": "deploy/main.tf", "source": "terraform-aws-modules/vpc/aws", "terraform_source": "registry"},
+		{"type": "TerraformResource", "name": "alpha", "file_path": "deploy/main.tf", "provider": "aws", "resource_type": "aws_sqs_queue", "resource_service": "sqs", "resource_category": "messaging"},
 		{"type": "TerraformResource", "name": "bucket", "file_path": "deploy/main.tf", "provider": "aws", "resource_type": "aws_s3_bucket", "resource_service": "s3", "resource_category": "storage"},
 	}
 	assertInfra := func(t *testing.T) {
@@ -89,7 +95,6 @@ func TestLiveRepositoryInfrastructureLabelPredicate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sort.Slice(rows, func(i, j int) bool { return rows[i]["type"].(string) < rows[j]["type"].(string) })
 		t.Logf("backend=%s rows=%d truncated=%v elapsed=%s", os.Getenv("ESHU_LIVE_GRAPH_BACKEND"), len(rows), truncated, elapsed)
 		if !reflect.DeepEqual(rows, want) || truncated {
 			t.Fatalf("infrastructure rows = %v truncated=%v, want %v truncated=false", rows, truncated, want)
