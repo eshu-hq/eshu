@@ -11,6 +11,7 @@ const ResourceAggregate = `
     "/api/v0/infra/resources/count": {
       "get": {
         "summary": "Count graph-backed infrastructure resources without paging the search endpoint",
+        "description": "Counts the canonical graph population of the infrastructure labels. Once the infra read model backfill has completed, unscoped reads count the entity-derived labels from the Postgres infra_resource_entities table and CloudResource, TerraformStateResource, TerraformModule, and TerraformOutput from the graph, and report truth basis hybrid. Scoped tokens, and every read before the backfill completes, read only the graph and report truth basis authoritative_graph.",
         "operationId": "countInfraResources",
         "x-scoped-token-support": true,
         "parameters": [
@@ -49,6 +50,7 @@ const ResourceAggregate = `
     "/api/v0/infra/resources/inventory": {
       "get": {
         "summary": "Group graph-backed infrastructure resources by one dimension without paging the search endpoint",
+        "description": "Groups the canonical graph population of the infrastructure labels by one dimension. Uses the same serving rules as countInfraResources: unscoped reads after the infra read model backfill are truth basis hybrid, and scoped reads and reads before the backfill are authoritative_graph.",
         "operationId": "getInfraResourceInventory",
         "x-scoped-token-support": true,
         "parameters": [

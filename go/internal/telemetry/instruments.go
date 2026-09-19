@@ -756,6 +756,16 @@ type Instruments struct {
 	// to widen the cap or move that caller to an all-scopes token, not to treat
 	// the missing rows as absence.
 	QueryScopeGrantInlineCapped metric.Int64Counter
+	// InfraInventoryReads counts unscoped and scoped reads of the infra
+	// resource aggregate routes by which store served them (#6793). Labels:
+	// route (count, inventory) and source (read_model, graph). read_model
+	// means the Postgres infra_resource_entities table served the
+	// entity-derived labels, with one graph pass for the graph-only labels;
+	// graph means the full per-label graph path served the read, because the
+	// caller is a scoped token or the table's backfill marker is not recorded
+	// yet. A graph share that does not fall to near zero after a deploy
+	// means the backfill never completed.
+	InfraInventoryReads metric.Int64Counter
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
 	// was missing or null (input_invalid). Labels: stage (the projector
@@ -3224,6 +3234,18 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register QueryScopeGrantInlineCapped counter: %w", err)
+	}
+
+	inst.InfraInventoryReads, err = meter.Int64Counter(
+		"eshu_dp_infra_inventory_reads_total",
+		metric.WithDescription(
+			"Total infra resource aggregate reads by route and serving store; "+
+				"source=read_model is the Postgres infra read model, source=graph is the full graph path "+
+				"(scoped tokens, or before the read model backfill marker exists)",
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryReads counter: %w", err)
 	}
 
 	inst.QueryK8sSelectCandidateScanTruncated, err = meter.Int64Counter(

@@ -140,7 +140,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 		},
 		Infra: &query.InfraHandler{
 			Neo4j:          neo4jReader,
-			Aggregates:     query.NewGraphInfraResourceAggregateStore(neo4jReader),
+			Aggregates:     query.NewInfraResourceAggregateStore(neo4jReader, db, instruments),
 			CloudResources: query.NewPostgresCloudResourceListStore(db),
 			Profile:        queryProfile,
 			Instruments:    instruments,
