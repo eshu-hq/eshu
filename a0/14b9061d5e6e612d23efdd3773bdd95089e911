@@ -1,0 +1,29 @@
+.github/workflows/verify-agent-hygiene.yml
+  s_8fb2ad4f3f2879::t_183e1b1595c258 88
+.pre-commit-config.yaml
+  s_8fb2ad4f3f2879::t_39d44564a17c60 82
+docs/internal/naming.md
+  s_8fb2ad4f3f2879::t_a4359841d7ea58 20-22,42-61
+docs/public/reference/ci-gates.md
+  s_8fb2ad4f3f2879::t_1cd8d26eed7203 41
+docs/public/reference/local-testing/pre-commit-hooks.md
+  s_8fb2ad4f3f2879::t_2105c570ef98b6 42,61-79
+specs/ci-gates.v1.yaml
+  s_8fb2ad4f3f2879::t_c34b3abb88220b 390,397-400,411-414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a014b9061d5e6e612d23efdd3773bdd95089e911",
+  "prompts": {},
+  "sessions": {
+    "s_8fb2ad4f3f2879": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c42bb35-8daf-4bd5-9140-4acbf93ae370",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
