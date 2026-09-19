@@ -72,7 +72,7 @@ func (e PhaseGroupExecutor) executeDrainLoop(
 	var probeDuration time.Duration
 	if probed {
 		mode = "probed"
-		probe, err := e.DrainReader.RunWrite(ctx, probeCypher, params)
+		probe, err := e.DrainReader.RunProbe(ctx, probeCypher, params)
 		probeDuration = time.Since(phaseStart)
 		switch {
 		case err != nil:

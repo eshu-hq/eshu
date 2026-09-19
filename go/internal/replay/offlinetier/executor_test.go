@@ -152,6 +152,18 @@ func (e liveExecutor) RunWrite(
 	}, nil
 }
 
+// RunProbe runs the bounded read-only existence probe that precedes a
+// bare-label retract drain (#6822) by delegating to RunWrite: the probe must
+// observe the same graph state and session kind (write session) the drain
+// itself uses.
+func (e liveExecutor) RunProbe(
+	ctx context.Context,
+	cypherText string,
+	parameters map[string]any,
+) (storagenornicdb.DrainWriteResult, error) {
+	return e.RunWrite(ctx, cypherText, parameters)
+}
+
 // ExecuteCypher satisfies graph.CypherExecutor so EnsureSchemaWithBackendStrict
 // can apply the real schema DDL through the same driver.
 func (e liveExecutor) ExecuteCypher(ctx context.Context, stmt graph.CypherStatement) error {

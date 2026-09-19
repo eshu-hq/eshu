@@ -37,22 +37,28 @@ type probeCall struct {
 	params map[string]any
 }
 
-func (r *probeReader) RunWrite(_ context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
-	if strings.Contains(cypher, "RETURN elementId(") {
-		r.calls = append(r.calls, probeCall{kind: "probe", cypher: cypher, params: params})
-		if r.probeErr != nil {
-			return DrainWriteResult{}, r.probeErr
-		}
-		id := ""
-		if r.probes < len(r.probeIDs) {
-			id = r.probeIDs[r.probes]
-		}
-		r.probes++
-		if id == "" {
-			return DrainWriteResult{}, nil
-		}
-		return DrainWriteResult{Rows: []map[string]any{{"__id": id}}}, nil
+// RunProbe records and answers the bounded existence probe (#6822): the
+// production drain loop now routes the probe through this method, not
+// RunWrite, so gate/timeout wrappers can label it separately from a drain.
+func (r *probeReader) RunProbe(_ context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
+	r.calls = append(r.calls, probeCall{kind: "probe", cypher: cypher, params: params})
+	if r.probeErr != nil {
+		return DrainWriteResult{}, r.probeErr
 	}
+	id := ""
+	if r.probes < len(r.probeIDs) {
+		id = r.probeIDs[r.probes]
+	}
+	r.probes++
+	if id == "" {
+		return DrainWriteResult{}, nil
+	}
+	return DrainWriteResult{Rows: []map[string]any{{"__id": id}}}, nil
+}
+
+// RunWrite records and answers one drain iteration. It no longer branches on
+// probe cypher text: the probe is routed through RunProbe instead.
+func (r *probeReader) RunWrite(_ context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
 	r.calls = append(r.calls, probeCall{kind: "drain", cypher: cypher, params: params})
 	if r.drainErr != nil {
 		return DrainWriteResult{}, r.drainErr
@@ -145,12 +151,11 @@ type malformedProbeReader struct {
 	row map[string]any
 }
 
-func (r *malformedProbeReader) RunWrite(ctx context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
-	if strings.Contains(cypher, "RETURN elementId(") {
-		r.calls = append(r.calls, probeCall{kind: "probe", cypher: cypher, params: params})
-		return DrainWriteResult{Rows: []map[string]any{r.row}}, nil
-	}
-	return r.probeReader.RunWrite(ctx, cypher, params)
+// RunProbe overrides the embedded probeReader.RunProbe to always return the
+// malformed row; RunWrite (drain-only) is inherited unchanged.
+func (r *malformedProbeReader) RunProbe(_ context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
+	r.calls = append(r.calls, probeCall{kind: "probe", cypher: cypher, params: params})
+	return DrainWriteResult{Rows: []map[string]any{r.row}}, nil
 }
 
 // TestExecuteDrainLoopDrainsWhenProbeRowIsMalformed keeps the probe fail

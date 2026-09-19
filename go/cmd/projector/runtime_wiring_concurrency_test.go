@@ -200,6 +200,18 @@ func (e *projectorBlockingConcurrencyExecutor) RunWrite(
 	return storagenornicdb.DrainWriteResult{}, e.wait(ctx)
 }
 
+// RunProbe is unused by this file's tests (they drive RunWrite directly); it
+// mirrors RunWrite's admission bookkeeping only so this fake satisfies
+// storagenornicdb.DrainReader.
+func (e *projectorBlockingConcurrencyExecutor) RunProbe(
+	ctx context.Context,
+	_ string,
+	_ map[string]any,
+) (storagenornicdb.DrainWriteResult, error) {
+	e.enter(true)
+	return storagenornicdb.DrainWriteResult{}, e.wait(ctx)
+}
+
 func (e *projectorBlockingConcurrencyExecutor) enter(drain bool) {
 	e.mu.Lock()
 	e.current++

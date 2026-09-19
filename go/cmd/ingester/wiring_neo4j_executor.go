@@ -143,11 +143,12 @@ func ingesterStatementRetractionCounts(
 // ResultSummary.Counters() on the non-drain path.
 type DrainWriteResult = storagenornicdb.DrainWriteResult
 
-// retractDrainReader executes a bounded drain step in a write session and
-// returns the collected records and graph-driver delete counters. It is
-// implemented by ingesterNeo4jExecutor and used by nornicDBPhaseGroupExecutor
-// to drive the drain loop for unbounded full-refresh DETACH DELETE statements
-// on NornicDB.
+// retractDrainReader executes a bounded drain step (RunWrite) and the bounded
+// existence probe that precedes a bare-label drain (RunProbe, #6822) in a
+// write session, returning the collected records and graph-driver delete
+// counters. It is implemented by ingesterNeo4jExecutor and used by
+// nornicDBPhaseGroupExecutor to drive the drain loop for unbounded
+// full-refresh DETACH DELETE statements on NornicDB.
 type retractDrainReader = storagenornicdb.DrainReader
 
 // RunWrite opens a write session, runs the supplied Cypher with the supplied
@@ -195,6 +196,15 @@ func (e ingesterNeo4jExecutor) RunWrite(ctx context.Context, cypher string, para
 		NodesDeleted:         int64(summary.Counters().NodesDeleted()),
 		RelationshipsDeleted: int64(summary.Counters().RelationshipsDeleted()),
 	}, nil
+}
+
+// RunProbe runs the bounded read-only existence probe that precedes a
+// bare-label retract drain (#6822) by delegating to RunWrite: the probe must
+// observe the same graph state and session kind (write session) the drain
+// itself uses, so a probe run in a separate read session could not silently
+// disagree with what the drain sees.
+func (e ingesterNeo4jExecutor) RunProbe(ctx context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
+	return e.RunWrite(ctx, cypher, params)
 }
 
 func (e ingesterNeo4jExecutor) transactionConfigurers() []func(*neo4jdriver.TransactionConfig) {

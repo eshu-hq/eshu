@@ -178,6 +178,18 @@ func (e provenanceReplayExecutor) RunWrite(
 	}, nil
 }
 
+// RunProbe runs the bounded read-only existence probe that precedes a
+// bare-label retract drain (#6822) by delegating to RunWrite: the probe must
+// observe the same graph state and session kind (write session) the drain
+// itself uses.
+func (e provenanceReplayExecutor) RunProbe(
+	ctx context.Context,
+	cypherText string,
+	parameters map[string]any,
+) (storagenornicdb.DrainWriteResult, error) {
+	return e.RunWrite(ctx, cypherText, parameters)
+}
+
 func (e provenanceReplayExecutor) ExecuteCypher(ctx context.Context, stmt graph.CypherStatement) error {
 	return e.Execute(ctx, cypher.Statement{Cypher: stmt.Cypher, Parameters: stmt.Parameters})
 }

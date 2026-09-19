@@ -31,11 +31,14 @@ type drainCountReader struct {
 	failAt       int // 1-based; 0 means never fail
 }
 
-func (r *drainCountReader) RunWrite(_ context.Context, cypher string, _ map[string]any) (DrainWriteResult, error) {
-	if strings.Contains(cypher, "RETURN elementId(") {
-		r.probes++
-		return DrainWriteResult{Rows: []map[string]any{{"__id": "4:probe:" + strconv.Itoa(r.probes)}}}, nil
-	}
+// RunProbe answers the bounded existence probe (#6822): the production drain
+// loop routes the probe through this method, not RunWrite.
+func (r *drainCountReader) RunProbe(context.Context, string, map[string]any) (DrainWriteResult, error) {
+	r.probes++
+	return DrainWriteResult{Rows: []map[string]any{{"__id": "4:probe:" + strconv.Itoa(r.probes)}}}, nil
+}
+
+func (r *drainCountReader) RunWrite(_ context.Context, _ string, _ map[string]any) (DrainWriteResult, error) {
 	r.callIdx++
 	if r.failAt > 0 && r.callIdx == r.failAt {
 		return DrainWriteResult{}, r.lastErr
