@@ -15,6 +15,12 @@ The shape was first seen while measuring the repository-dependency catalog
 branch). There, a `DEPENDS_ON` read with the endpoint labels tested in `WHERE`
 returned 2,317 rows on NornicDB against a true answer of 300.
 
+Both cited files are pending: when this page was written they existed only on
+the unmerged `fix/6786-nornicdb-defect-exposure` branch, not on `main`. They
+are named by file, not linked, so this page does not point at paths that do
+not exist yet. Link them here when that branch merges. Nothing below depends
+on them: every X11 claim on this page has its own probe or live test.
+
 ## Pins and method
 
 | Item | Value |
