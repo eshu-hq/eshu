@@ -52,7 +52,9 @@ this read as a pair of structured log events,
 event carries `duration_seconds`, `edge_count`, `truncated`, `error`,
 `edge_scan_skipped` (true when the count proved there were no edges), and
 `edge_transfer_capped` (true when the read fetched per-repository edge counts
-first to cap its transfer). It has
+first to cap its transfer, which happens whenever the whole-graph `DEPENDS_ON`
+count, Workload edges included, exceeds 50,000 or is unreadable, even when the
+Repository edges fit and the answer is complete). It has
 no `cluster_count`, because the catalog builds no dependency clusters. A read
 failure or truncation also logs a `repository_query.dependency_edges_degraded`
 warning with the same `operation`.

@@ -91,8 +91,9 @@ No-Regression Evidence: at or below the bound the statements are the same as
 before, apart from the parameterized `LIMIT`. The differences are within
 run-to-run noise. A first 7-round NornicDB pass at 40,000 edges, taken after
 deletes, read 0.077s → 0.089s with overlapping samples. The fresh-seed
-15-round re-run above shows no difference. Above the bound, where the response
-is already degraded and truncated, the cap costs about 5-8% on NornicDB.
+15-round re-run above shows no difference. When the Repository edges
+themselves exceed the bound (the 75,000 and 150,000 rows), the response is
+truncated and the cap costs about 5-8% on NornicDB.
 NornicDB walks the `DEPENDS_ON` index once per statement, and the extra
 group-size statement costs more than the saved transfer at these sizes. On
 Neo4j the cap is 19-47% faster. On both backends it bounds per-request memory
@@ -100,6 +101,12 @@ and wire transfer at 50,000 edges plus one repository's edges, instead of
 growing with the whole Repository `DEPENDS_ON` set. The absolute figures apply
 only to this shared host; the claim is the relative change on identical
 inputs.
+
+The capped path is not limited to truncated responses. The trigger is the
+whole-graph probe, which counts every `DEPENDS_ON` edge including Workload
+edges. A graph with more than 50,000 Workload `DEPENDS_ON` edges and few
+Repository edges takes the capped path on every unscoped request, even though
+its answer is complete. R4-F3 below measures that regime.
 
 Observability Evidence: `edge_transfer_capped` on the
 `repository_query.stage_completed` event for `stage=dependency_cluster_edges`
@@ -173,6 +180,75 @@ exceeded, the prefix limit is unchanged and truncation is still reported.
     Bound 5 returns a, b, m, drops z and reports `truncated=false`. Bound 3
     returns a, b, m and reports `truncated=false`.
   - With the line restored, both subtests pass on both backends.
+
+## R4-F3: capped-path cost when Workload edges trigger it
+
+Round 4 found that the regime production is most likely to hit had not been
+measured: a whole-graph `DEPENDS_ON` count above 50,000 because of Workload
+edges, with a complete, non-truncated Repository answer. The sentence above
+also said the capped path runs only on degraded responses; it is now
+corrected.
+
+Setup: fresh containers, NornicDB `v1.3.3@sha256:81cedbf4...` (Bolt
+127.0.0.1:28080) and Neo4j `2026-community@sha256:eabfbb04...` (28090, auth
+off). The Eshu schema was applied with `graph.EnsureSchemaWithBackendStrict`
+at Eshu head `45a1c33aa`.
+
+Seed:
+- 500 `:Repository` nodes, each with 200 `REPO_CONTAINS` files and 3 functions
+  per file (100,000 files, 300,000 functions).
+- 2,500 `:Workload` nodes, 5 per repository via `DEFINES`.
+- 62,000 random Workload→Workload `DEPENDS_ON` edges.
+- Random Repository→Repository `DEPENDS_ON` edges stepped 300 → 5,000 →
+  40,000 by adding edges.
+- Every count was read back as rows and matched the probe (62,300, 67,000 and
+  102,000).
+
+Method: the head loader (`loadUnscopedRepositoryDependencyEdges`: probe, group
+sizes, grouped read) was interleaved with the uncapped loader (probe, grouped
+read at `LIMIT 50001`, flatten) and each statement alone. A nonce write
+preceded every call. Medians are over 9 rounds after one warm-up.
+
+At every step, both loaders returned identical edge lists, with
+`truncated=false` and the head read `TransferCapped=true`.
+
+| Repository edges (probe) | NornicDB uncapped → head | NornicDB probe / sizes / grouped | Neo4j uncapped → head | Neo4j probe / sizes / grouped |
+| --- | --- | --- | --- | --- |
+| 300 (62,300) | 0.0635s → 0.1053s | 0.0219s / 0.0402s / 0.0420s | 0.0056s → 0.0109s | 0.0010s / 0.0045s / 0.0043s |
+| 5,000 (67,000) | 0.0694s → 0.1226s | 0.0219s / 0.0466s / 0.0572s | 0.0142s → 0.0237s | 0.0009s / 0.0078s / 0.0112s |
+| 40,000 (102,000) | 0.2008s → 0.2742s | 0.0463s / 0.1025s / 0.1189s | 0.0914s → 0.1172s | 0.0014s / 0.0275s / 0.0558s |
+
+In this regime the cap adds the group-size statement to a complete answer.
+That costs 0.04-0.07s per unscoped request on NornicDB (+37-77%) and
+0.005-0.026s on Neo4j (+28-95%). The size statement walks the same
+`DEPENDS_ON` relationship-type index as the grouped read, Workload edges
+included, so it costs about as much as the grouped read itself.
+
+For comparison, `main` answered this route with the per-edge read, which cost
+0.6s at 300 edges and 2.2s at 40,000 on NornicDB at this adjacency. Those
+figures come from R2-F6 and the R3-F2 reference line, which were measured with
+2,000 Workload edges. The branch is still a net improvement over `main`
+in this regime; it is only slower than an uncapped grouped read.
+
+Disproven alternative: gate the cap on a Repository-only count so this regime
+skips the size statement. Measured on the same NornicDB seed at 300
+Repository edges (median of 9):
+
+| Statement | Count returned | Median |
+| --- | --- | --- |
+| Whole-graph probe | 62,300 | 0.017s |
+| `MATCH (:Repository)-[r:DEPENDS_ON]->(:Repository) RETURN count(r)` | 300 | 1.009s |
+| `MATCH (s:Repository)-[:DEPENDS_ON]->(t:Repository) RETURN count(t)` | 300 | 1.104s |
+| `RETURN count(*)` over the same pattern | 300 | 1.014s |
+
+On Neo4j every shape took about 2ms. NornicDB v1.3.3 has no fast path for a
+label-anchored global count, and it costs about 25 times the size statement it
+would replace. The size statement is already the cheapest Repository-only
+count on the pinned NornicDB. Removing it would drop the transfer bound for
+graphs with more than 50,000 Repository edges. The cost is therefore kept and
+disclosed: `edge_transfer_capped=true` on the completion event, with the
+extra statement included in its `duration_seconds`, lets an operator see when
+this regime applies.
 
 ## Round-3 P3 dispositions
 
