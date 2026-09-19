@@ -142,13 +142,15 @@ func seedIaCGraphLabelNodes(ctx context.Context, driver neo4j.DriverWithContext,
 	return nil
 }
 
-// seedLabel runs one UNWIND CREATE for label. The label name is interpolated
-// into the Cypher text (Cypher labels cannot be bind parameters); label
-// always comes from the fixed infraLabels slice, never from external input,
-// so this carries no injection risk.
+// seedLabel creates count anonymous nodes for label, one bounded UNWIND CREATE
+// per bulkNodeRanges batch. The label name is interpolated into the Cypher text
+// (Cypher labels cannot be bind parameters); label always comes from the fixed
+// infraLabels slice, never from external input, so this carries no injection
+// risk. The range bounds are bound parameters computed in Go — see
+// bulkNodeRanges for why `range(0, $count - 1)` must not be used.
 func seedLabel(ctx context.Context, driver neo4j.DriverWithContext, database, label string, count int) error {
 	cypher := fmt.Sprintf(
-		`UNWIND range(0, $count - 1) AS i
+		`UNWIND range($first, $last) AS i
 		 CREATE (n:%s {
 		   id: $label + '-seed-' + toString(i),
 		   provider: CASE i %% 3 WHEN 0 THEN 'aws' WHEN 1 THEN 'gcp' ELSE 'azure' END,
@@ -158,13 +160,23 @@ func seedLabel(ctx context.Context, driver neo4j.DriverWithContext, database, la
 		label,
 	)
 
+	for _, r := range bulkNodeRanges(count, bulkGraphSeedBatchSize) {
+		if err := runSeedBatch(ctx, driver, database, cypher, map[string]any{"first": r.First, "last": r.Last, "label": label}); err != nil {
+			return fmt.Errorf("nodes %d..%d: %w", r.First, r.Last, err)
+		}
+	}
+	return nil
+}
+
+// runSeedBatch runs one write statement to completion in its own session.
+func runSeedBatch(ctx context.Context, driver neo4j.DriverWithContext, database, cypher string, params map[string]any) error {
 	session := driver.NewSession(ctx, neo4j.SessionConfig{
 		AccessMode:   neo4j.AccessModeWrite,
 		DatabaseName: database,
 	})
 	defer func() { _ = session.Close(ctx) }()
 
-	result, err := session.Run(ctx, cypher, map[string]any{"count": count, "label": label})
+	result, err := session.Run(ctx, cypher, params)
 	if err != nil {
 		return fmt.Errorf("run seed cypher: %w\ncypher=%s", err, cypher)
 	}

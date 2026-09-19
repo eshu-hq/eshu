@@ -204,6 +204,10 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("seed IaC graph nodes: %w", err)
 	}
 
+	if err := VerifyGraphNodeCounts(ctx, graphOpts, expectedGraphNodeCounts(opts.nodesPerLabel, iacFacts)); err != nil {
+		return fmt.Errorf("verify seeded graph: %w", err)
+	}
+
 	fmt.Fprintln(os.Stderr, "read-api-latency-gate: ANALYZE seeded Postgres tables")
 	if err := analyzeSeededTables(ctx, pool); err != nil {
 		return fmt.Errorf("analyze seeded tables: %w", err)
