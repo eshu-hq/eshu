@@ -1,0 +1,257 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package crossscope
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"sort"
+	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+)
+
+// Readiness-wait outcome labels for eshu_dp_reducer_readiness_waits_total. The
+// set is closed.
+const (
+	// ReadinessWaitDeferred counts an evaluation that returned the
+	// non-counting not-ready error, after committing any ready edges.
+	ReadinessWaitDeferred = "deferred"
+	// ReadinessWaitAbandoned counts the evaluation that settled a missing set
+	// because the elapsed-time bound since the first defer expired. It fires
+	// once per (scope, domain, missing set).
+	ReadinessWaitAbandoned = "abandoned"
+	// ReadinessWaitSettledMissing counts an evaluation that committed at once
+	// because its missing set equals one that already settled, so it neither
+	// deferred nor polled.
+	ReadinessWaitSettledMissing = "settled_missing"
+)
+
+// ReadinessWaitMaxKeys caps the missing keys a ledger row stores. The
+// fingerprint always covers the full set. A row holding fewer keys than
+// MissingCount is not poll-eligible, so its polls fall back to the full
+// evaluation.
+const ReadinessWaitMaxKeys = 500
+
+// ReadinessWait is one (scope, domain) row of the readiness-wait ledger
+// (#6785). The ledger outlives the per-generation queue row, so a wait that
+// spans generations keeps its first-defer anchor when a newer generation
+// supersedes the deferred row.
+type ReadinessWait struct {
+	ScopeID string
+	Domain  reducercontract.Domain
+	// FirstDeferredAt is the bound's anchor. It survives supersession and is
+	// reset only when a settled wait sees a different missing set.
+	FirstDeferredAt time.Time
+	// MissingKeys is the sorted missing set, capped at ReadinessWaitMaxKeys.
+	MissingKeys []string
+	// MissingCount is the size of the full missing set.
+	MissingCount int
+	// MissingFingerprint is a SHA-256 over the full sorted missing set.
+	MissingFingerprint string
+	// CommittedGenerationID, CommittedCycleStartedAt, and CommittedFingerprint
+	// mark the last partial commit. An evaluation whose generation, queue
+	// cycle, and missing fingerprint all match has nothing new to write.
+	CommittedGenerationID   string
+	CommittedCycleStartedAt time.Time
+	CommittedFingerprint    string
+	// SettledAt is set once the bound expired for MissingFingerprint.
+	SettledAt time.Time
+	UpdatedAt time.Time
+}
+
+// Settled reports whether this wait's bound already expired.
+func (w ReadinessWait) Settled() bool { return !w.SettledAt.IsZero() }
+
+// KeysComplete reports whether MissingKeys holds the whole missing set.
+func (w ReadinessWait) KeysComplete() bool { return len(w.MissingKeys) == w.MissingCount }
+
+// ReadinessWaitLedger persists readiness waits keyed by (scope_id, domain).
+// The reducer claim fence is (scope, domain), so at most one live worker
+// writes a key at a time. Implementations must return an error, never a
+// missing row, when they cannot answer.
+type ReadinessWaitLedger interface {
+	// GetReadinessWait returns the row and whether it exists.
+	GetReadinessWait(ctx context.Context, scopeID string, domain reducercontract.Domain) (ReadinessWait, bool, error)
+	// UpsertReadinessWait inserts or updates the row. It keeps the earlier of
+	// the stored and the new FirstDeferredAt unless resetAnchor is true.
+	UpsertReadinessWait(ctx context.Context, wait ReadinessWait, resetAnchor bool) error
+	// ClearReadinessWait deletes the row. Deleting an absent row is not an
+	// error.
+	ClearReadinessWait(ctx context.Context, scopeID string, domain reducercontract.Domain) error
+}
+
+// WaitInput is one evaluation's view for DecideWait.
+type WaitInput struct {
+	// Existing is the ledger row read before the evaluation; Found reports
+	// whether one existed.
+	Existing ReadinessWait
+	Found    bool
+	ScopeID  string
+	Domain   reducercontract.Domain
+	// GenerationID and CycleStartedAt identify the claimed queue row.
+	// CycleStartedAt changes on a reopen or a graph rebuild re-drive, which
+	// forces a re-commit because the prior commit's edges may be gone.
+	GenerationID   string
+	CycleStartedAt time.Time
+	// Missing is the evaluation's missing set in any order, duplicates allowed.
+	Missing []string
+	Now     time.Time
+	// MaxWait is the bound; zero or negative means ProducerReadinessMaxWait.
+	MaxWait time.Duration
+}
+
+// WaitDecision tells a handler what to do, in this order: commit (the
+// scope-wide retract and rewrite), then write the ledger (Clear, or Upsert Row
+// with ResetAnchor), then return the not-ready error when Defer is set, or
+// succeed otherwise. Writing the ledger after the graph commit means a crash
+// between them causes one idempotent re-commit, never a missed one.
+type WaitDecision struct {
+	Commit      bool
+	Defer       bool
+	Clear       bool
+	Upsert      bool
+	ResetAnchor bool
+	Row         ReadinessWait
+	// Outcome is "" when nothing is missing, else one of the ReadinessWait*
+	// labels.
+	Outcome string
+	// Elapsed is the time since FirstDeferredAt, for logs.
+	Elapsed time.Duration
+}
+
+// DecideWait is the shared commit-first readiness decision for cross-scope
+// edge handlers (#6785). It is pure: the caller reads the ledger, evaluates
+// the missing set, and applies the decision.
+//
+// Ready edges are committed at the first evaluation of every generation, so a
+// missing endpoint never holds back other edges or the retraction of a revoked
+// one. The wait only governs when a late endpoint is added: the row polls
+// until the missing set empties or the bound since FirstDeferredAt expires,
+// and a settled set later commits at once without polling.
+func DecideWait(in WaitInput) WaitDecision {
+	missing := sortedDistinctKeys(in.Missing)
+	if len(missing) == 0 {
+		return WaitDecision{Commit: true, Clear: in.Found}
+	}
+	fingerprint := missingFingerprint(missing)
+	if in.Found && in.Existing.Settled() && in.Existing.MissingFingerprint == fingerprint {
+		return WaitDecision{
+			Commit: true, Row: in.Existing, Outcome: ReadinessWaitSettledMissing,
+			Elapsed: in.Now.Sub(in.Existing.FirstDeferredAt),
+		}
+	}
+
+	decision := WaitDecision{}
+	row := ReadinessWait{
+		ScopeID:            in.ScopeID,
+		Domain:             in.Domain,
+		FirstDeferredAt:    in.Now,
+		MissingKeys:        capKeys(missing),
+		MissingCount:       len(missing),
+		MissingFingerprint: fingerprint,
+		UpdatedAt:          in.Now,
+	}
+	if in.Found {
+		row.CommittedGenerationID = in.Existing.CommittedGenerationID
+		row.CommittedCycleStartedAt = in.Existing.CommittedCycleStartedAt
+		row.CommittedFingerprint = in.Existing.CommittedFingerprint
+		if in.Existing.Settled() {
+			// A settled wait that sees a new missing set starts a new bound.
+			decision.ResetAnchor = true
+		} else {
+			row.FirstDeferredAt = in.Existing.FirstDeferredAt
+		}
+	}
+
+	committedCurrent := row.CommittedGenerationID == in.GenerationID &&
+		sameInstant(row.CommittedCycleStartedAt, in.CycleStartedAt) &&
+		row.CommittedFingerprint == fingerprint
+	decision.Commit = !committedCurrent
+	if decision.Commit {
+		row.CommittedGenerationID = in.GenerationID
+		row.CommittedCycleStartedAt = in.CycleStartedAt
+		row.CommittedFingerprint = fingerprint
+	}
+
+	maxWait := in.MaxWait
+	if maxWait <= 0 {
+		maxWait = ProducerReadinessMaxWait
+	}
+	decision.Elapsed = in.Now.Sub(row.FirstDeferredAt)
+	settledNow := decision.Elapsed >= maxWait
+	if settledNow {
+		row.SettledAt = in.Now
+		decision.Outcome = ReadinessWaitAbandoned
+	} else {
+		decision.Defer = true
+		decision.Outcome = ReadinessWaitDeferred
+	}
+	decision.Upsert = !in.Found || decision.Commit || settledNow || decision.ResetAnchor ||
+		in.Existing.MissingFingerprint != fingerprint
+	if !decision.Upsert {
+		row.UpdatedAt = in.Existing.UpdatedAt
+	}
+	decision.Row = row
+	return decision
+}
+
+// PollEligible reports whether an evaluation may take the cheap poll path:
+// re-check only the ledger's missing keys, skipping the fact load and
+// extraction. It requires an unsettled row whose last commit is this
+// generation and queue cycle at the row's own missing set, with every key
+// stored.
+func PollEligible(existing ReadinessWait, found bool, generationID string, cycleStartedAt time.Time) bool {
+	return found && !existing.Settled() && existing.MissingCount > 0 && existing.KeysComplete() &&
+		existing.CommittedGenerationID == generationID &&
+		sameInstant(existing.CommittedCycleStartedAt, cycleStartedAt) &&
+		existing.CommittedFingerprint == existing.MissingFingerprint
+}
+
+// SameMissingSet reports whether keys, in any order and with duplicates, is
+// exactly the set the ledger row stores.
+func SameMissingSet(existing ReadinessWait, keys []string) bool {
+	distinct := sortedDistinctKeys(keys)
+	return len(distinct) == existing.MissingCount && missingFingerprint(distinct) == existing.MissingFingerprint
+}
+
+// sameInstant compares timestamps at the microsecond precision Postgres
+// timestamptz stores, so a value round-tripped through the ledger still
+// matches the claim's CycleStartedAt.
+func sameInstant(a, b time.Time) bool {
+	return a.Truncate(time.Microsecond).Equal(b.Truncate(time.Microsecond))
+}
+
+func sortedDistinctKeys(keys []string) []string {
+	seen := make(map[string]struct{}, len(keys))
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, key)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func capKeys(keys []string) []string {
+	if len(keys) > ReadinessWaitMaxKeys {
+		keys = keys[:ReadinessWaitMaxKeys]
+	}
+	return append([]string(nil), keys...)
+}
+
+// missingFingerprint hashes the sorted set with a NUL separator, which no
+// ARN or anchor key contains.
+func missingFingerprint(sorted []string) string {
+	hash := sha256.New()
+	for _, key := range sorted {
+		hash.Write([]byte(key))
+		hash.Write([]byte{0})
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
