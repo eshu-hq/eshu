@@ -34,6 +34,7 @@ required_ids:
   - QP-CODEOWNERS-OWNERSHIP-CURSOR-REF
   - QP-CODEOWNERS-LAST-MATCH-OWNER
   - QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT
+  - QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES
 entries:
   - id: QP-SC-DEPS
     domain: supply_chain
@@ -971,3 +972,30 @@ entries:
         - NodeByLabelScan
         - CartesianProduct
     cypher_sha256: "7bc26599824d3881108d48c98d326f639be143e82bfa877e5f31d70aca454186"
+  - id: QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES
+    domain: repository
+    backend: nornicdb
+    query_kind: cypher
+    source:
+      file: go/internal/query/repository/dependency_edge_grouped.go
+      symbol: RepositoryDependencyGroupedEdgeCypher
+      source_sha256: ed65d4c8419cc8cbad7002084fe61b68b624e5f15c858296e6df04ca2da60f76
+      line_hint: 45
+    required_anchors:
+      - label: Repository
+        property: id
+    required_limits:
+      - "50001"
+    requires_order: true
+    caveats:
+      - "Unscoped repository-to-repository DEPENDS_ON read behind GET /api/v0/catalog is_dependency and the unscoped GET /api/v0/repositories dependency clusters (#6786 review R2-F6). The fixed 1-hop typed pattern with no WHERE and a RETURN s.id, collect(t.id) projection is answered by NornicDB v1.3.3's relationship-aggregation fast path (pkg/cypher traversal_fast_agg.go tryFastSingleHopAgg), which walks the DEPENDS_ON relationship-type index once and batch-checks both endpoint labels, instead of expanding every Repository's adjacency like the per-edge RETURN s.id, t.id read. Measured on NornicDB v1.3.3 with the Eshu schema, 500 repositories x 200 REPO_CONTAINS files, ~2,000 Workload and 300 Repository DEPENDS_ON edges: 0.0045s median against 0.635s for the per-edge read, identical flattened row sets at LIMIT 50001, 100 and 7. Adding any WHERE (including a grant predicate) disables the fast path, so scoped callers keep the per-edge read."
+      - "LIMIT bounds source groups, not edges; flattenGroupedRepositoryDependencyEdges reports truncation when either the group count or the flattened edge count exceeds 50000."
+    plan:
+      operators:
+        - NodeByLabelScan
+        - Expand
+      forbidden_operators:
+        - AllNodesScan
+        - CartesianProduct
+        - UnboundedExpand
+    cypher_sha256: "10c33af7d9c2c4ea9e1268423a1e1635d2fab49707ee0ae0674e7f4d52971c9d"

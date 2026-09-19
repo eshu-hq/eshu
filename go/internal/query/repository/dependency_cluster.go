@@ -162,7 +162,7 @@ func loadRepositoryDependencyEdges(ctx context.Context, graph querycontract.Grap
 		// Unscoped callers take the grouped read NornicDB answers from the
 		// DEPENDS_ON relationship-type index; see
 		// RepositoryDependencyGroupedEdgeCypher for the measurement.
-		rows, err := graph.Run(ctx, RepositoryDependencyGroupedEdgeCypher, nil)
+		rows, err := readGroupedRepositoryDependencyEdges(ctx, graph)
 		if err != nil {
 			return repositoryDependencyEdgeRead{Err: err, ProbeErr: probeErr}
 		}

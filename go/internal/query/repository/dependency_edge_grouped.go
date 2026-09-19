@@ -4,6 +4,7 @@
 package repository
 
 import (
+	"context"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -15,7 +16,7 @@ import (
 // flattens those groups into the same (source, target)-ordered edge list the
 // per-edge read (repositoryDependencyClusterEdgeCypher) returns. It is
 // exported so the query-plan manifest (QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES)
-// can bind the exact production statement.
+// can bind the exact production statement and freeze its plan.
 //
 // Why this shape: NornicDB v1.3.3 answers a fixed 1-hop typed pattern with
 // no WHERE clause and a `RETURN start.prop, collect(end.prop)` projection
@@ -47,6 +48,14 @@ const RepositoryDependencyGroupedEdgeCypher = `
 		ORDER BY source_id
 		LIMIT 50001
 	`
+
+// readGroupedRepositoryDependencyEdges runs RepositoryDependencyGroupedEdgeCypher.
+// It is a separate symbol so the query-source coverage manifest can register
+// the grouped read as a hot, plan-checked call independent of the scoped
+// per-edge read in loadRepositoryDependencyEdges.
+func readGroupedRepositoryDependencyEdges(ctx context.Context, graph querycontract.GraphQuery) ([]map[string]any, error) {
+	return graph.Run(ctx, RepositoryDependencyGroupedEdgeCypher, nil)
+}
 
 // flattenGroupedRepositoryDependencyEdges turns grouped rows from
 // RepositoryDependencyGroupedEdgeCypher into edges sorted by (source,

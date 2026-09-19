@@ -197,6 +197,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-SC-PKGREG-DEPS":                               packageRegistryDependencies,
 		"QP-DEPLOY-CATALOG-ENV":                           repository.CatalogWorkloadEvidenceEnvironmentCypher,
 		"QP-REPOSITORY-DEPENDS-ON-EDGE-COUNT":             repository.RepositoryDependencyEdgeCountCypher,
+		"QP-REPOSITORY-DEPENDS-ON-GROUPED-EDGES":          repository.RepositoryDependencyGroupedEdgeCypher,
 		"QP-DEPLOY-CATALOG-WORKLOAD-REPO":                 repository.CatalogWorkloadRepoCypher,
 		"QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE":             repository.CatalogWorkloadInstanceEnvironmentCypher,
 		"QP-SVC-RESOLVE":                                  serviceResolve,
