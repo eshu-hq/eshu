@@ -35,8 +35,13 @@ creates the table is `storage/postgres/migrations/109_infra_resource_entities.sq
 - `Reader`, `Filter`, `Dimension`, `CountBucket`, `CountBuckets`,
   `DimensionBuckets` — the aggregate reads the query layer serves from
 - `WriterSessionSQL`, `WriterConnectOption`, `OpenWriterDB`,
-  `ReadModelReady` — the rolling-upgrade fence: derive-aware connections,
-  and the readers' gate (marker present and no repository marked dirty)
+  `VerifyWriterSession`, `ReadModelReady` — the rolling-upgrade fence:
+  derive-aware connections, the writer binaries' startup check that logs
+  `postgres.session_unfenced`, and the readers' gate (marker present and no
+  repository marked dirty)
+- `ReadFenceState`, `FenceState`, `StateNotInstalled`/`StateBackfilling`/
+  `StateFenced`/`StateReady` — the marker and fence marks in one query, for
+  the reducer's dirty gauges and the `/admin/status` `infra_inventory` field
 - `ReconcileCycle`, `ReconcileRequest`, `ReconcileRepo`, `ClaimPage`,
   `LoadCursor`,
   `ReconcileBatch`, `RepoReconcile`,

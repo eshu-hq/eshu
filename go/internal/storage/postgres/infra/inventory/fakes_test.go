@@ -6,6 +6,7 @@ package inventory
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -31,6 +32,9 @@ type recordingDB struct {
 	txs        []*recordingTx
 	execCount  int
 	failOnExec int
+	// unfenced makes the derive lock report a session without the writer
+	// setting.
+	unfenced bool
 }
 
 func (d *recordingDB) Begin(context.Context) (db.Transaction, error) {
@@ -60,9 +64,44 @@ func (t *recordingTx) ExecContext(_ context.Context, query string, args ...any) 
 	return driverResult(1), nil
 }
 
-func (t *recordingTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	panic("recordingTx: unexpected query")
+// QueryContext answers the derive lock, which returns the connection's
+// writer session setting: "derive" unless the parent fakes an unfenced
+// session. It is recorded with the execs so statement-order assertions see it.
+func (t *recordingTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	t.parent.mu.Lock()
+	defer t.parent.mu.Unlock()
+	if !strings.Contains(query, "pg_advisory_xact_lock") {
+		panic("recordingTx: unexpected query")
+	}
+	t.execs = append(t.execs, recordedExec{query: query, args: args})
+	setting := "derive"
+	if t.parent.unfenced {
+		setting = ""
+	}
+	return &settingRows{value: setting}, nil
 }
+
+// settingRows is a one-row, one-column result.
+type settingRows struct {
+	value string
+	read  bool
+}
+
+func (r *settingRows) Next() bool {
+	if r.read {
+		return false
+	}
+	r.read = true
+	return true
+}
+
+func (r *settingRows) Scan(dest ...any) error {
+	*dest[0].(*string) = r.value
+	return nil
+}
+
+func (r *settingRows) Err() error   { return nil }
+func (r *settingRows) Close() error { return nil }
 
 func (t *recordingTx) Commit() error {
 	t.committed = true

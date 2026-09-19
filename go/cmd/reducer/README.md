@@ -330,7 +330,7 @@ Pool Split By Class (#4448)" for the full design note and evidence.
 | `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT` | `100000` | Maximum estimated dependent rows, including content cleanup rows, pruned per cleanup transaction |
 | `ESHU_GENERATION_RETENTION_POLICY_SCOPE` | `global` | Safe policy source recorded in retention events |
 | `ESHU_GENERATION_RETENTION_POLICY_REVISION` | `global-default-v1` | Policy revision recorded with hashed scope/generation retention events |
-| `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` / `_INTERVAL` / `_REPO_BUDGET` | `true` / `5m` / `500` | Infra read model reconcile loop (`infra_inventory_reconcile_wiring.go`): per cycle, check up to the budget of repositories and re-derive drifted ones |
+| `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` / `_INTERVAL` / `_REPO_BUDGET` | `true` / `5m` / `500` | Infra read model reconcile loop (`infra_inventory_reconcile_wiring.go`): per cycle, claim up to the budget of repositories from the shared walk and re-derive drifted ones, after repairing rolling-upgrade fence marks first. Disabling it leaves fence marks unrepaired, so one write from an older binary or manual SQL keeps unscoped infra aggregate reads on the graph (`eshu_dp_infra_inventory_dirty_repos`, admin status `infra_inventory`) |
 
 ### Graph orphan sweep
 

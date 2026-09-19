@@ -209,3 +209,33 @@ func TestNormalizedPathsKeepsValuesVerbatim(t *testing.T) {
 		t.Fatalf("normalizedPaths() = %q, want %q", got, want)
 	}
 }
+
+// TestMirrorReportsAnUnfencedSession pins the fence's loud signal: the derive
+// lock returns the connection's writer session setting in the same round
+// trip, and a derive on a connection without it (a pooler that dropped the
+// SET) reports UnfencedSession so the content writer can count and log it.
+func TestMirrorReportsAnUnfencedSession(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		unfenced bool
+	}{{"fenced", false}, {"unfenced", true}} {
+		database := &recordingDB{unfenced: tc.unfenced}
+		stats, err := Mirror(context.Background(), database, Target{RepoID: "repo-1"},
+			Change{Paths: []string{"a.tf"}, DeletedEntityIDs: []string{"repo-1/x"}})
+		if err != nil {
+			t.Fatalf("%s: Mirror() error = %v", tc.name, err)
+		}
+		if stats.UnfencedSession != tc.unfenced {
+			t.Fatalf("%s: UnfencedSession = %v, want %v", tc.name, stats.UnfencedSession, tc.unfenced)
+		}
+		repoStats, err := MirrorRepo(context.Background(), database, "repo-1")
+		if err != nil {
+			t.Fatalf("%s: MirrorRepo() error = %v", tc.name, err)
+		}
+		if repoStats.UnfencedSession != tc.unfenced {
+			t.Fatalf("%s: MirrorRepo UnfencedSession = %v, want %v", tc.name, repoStats.UnfencedSession, tc.unfenced)
+		}
+	}
+}

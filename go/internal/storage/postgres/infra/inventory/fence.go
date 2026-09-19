@@ -29,7 +29,11 @@ import (
 // A pooler that drops session state loses the setting. That fails safe: the
 // writes are marked dirty, reads stay on the graph, and the reconcile
 // repairs the repositories.
-const WriterSessionSQL = "SET eshu.infra_inventory_writer = 'derive'"
+const WriterSessionSQL = "SET eshu.infra_inventory_writer = '" + writerSessionValue + "'"
+
+// writerSessionValue is the setting WriterSessionSQL stores and the fence
+// triggers skip.
+const writerSessionValue = "derive"
 
 // WriterConnectOption runs WriterSessionSQL on every new pool connection.
 func WriterConnectOption() stdlib.OptionOpenDB {

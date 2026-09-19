@@ -224,7 +224,21 @@ route (`count`, `inventory`) and serving store (`read_model`, `graph`).
 - `eshu_dp_infra_inventory_derives_total{outcome}` counts the content
   writer's derives. `skipped_not_installed` means a writer ran before
   migration 109; the content write succeeded and the backfill covers the
-  repository later. `error` fails the content write, which then retries.
+  repository later. `ok_unfenced_session` means the derive succeeded on a
+  connection without the derive-aware writer setting, so the fence marked
+  its content writes; the `infra_inventory.derive.unfenced_session` log and,
+  at startup, `postgres.session_unfenced` name the cause (usually a
+  connection pooler that does not forward `eshu.infra_inventory_writer`).
+  `error` fails the content write, which then retries.
+- Runbook: `eshu_dp_infra_inventory_dirty_repos > 0` after every pod runs the
+  new release means an unfenced session is still writing `content_entities`:
+  a pooler stripping the writer setting, an operator `psql` session, or an
+  unknown binary. Unscoped count and inventory routes serve from the graph
+  until the reducer drains the marks; `/admin/status` field
+  `infra_inventory` shows `state=fenced`, the count, and the oldest mark's
+  age. If `dirty_oldest_age_seconds` keeps growing, the reconcile loop is not
+  running (`ESHU_INFRA_INVENTORY_RECONCILE_ENABLED=false`, or the reducer is
+  still an older release).
 - The reducer's reconcile loop compares each repository's table rows with its
   content rows (row count plus a per-row hash).
   `eshu_dp_infra_inventory_reconcile_total{outcome}` counts repositories

@@ -159,7 +159,11 @@ Important env vars:
 - `ESHU_GENERATION_RETENTION_MAX_SUPERSEDED_AGE`
 - `ESHU_GENERATION_RETENTION_BATCH_GENERATION_LIMIT`
 - `ESHU_GENERATION_RETENTION_BATCH_ROW_LIMIT`
-- `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` (default `true`)
+- `ESHU_INFRA_INVENTORY_RECONCILE_ENABLED` (default `true`). The loop is also
+  the only thing that repairs rolling-upgrade fence marks; with it off, one
+  write from an older binary or manual SQL keeps unscoped infra aggregate reads
+  on the graph (`eshu_dp_infra_inventory_dirty_repos`, admin status
+  `infra_inventory`).
 - `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` (default `5m`, wait between cycles)
 - `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` (default `500`, repositories per cycle)
 - `ESHU_GRAPH_ORPHAN_SWEEP_ENABLED`

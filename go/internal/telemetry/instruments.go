@@ -786,6 +786,13 @@ type Instruments struct {
 	// InfraInventoryReconcileDuration records the wall time of one reconcile
 	// cycle (at most the configured repository budget).
 	InfraInventoryReconcileDuration metric.Float64Histogram
+	// InfraInventoryDirtyRepos records, each reducer reconcile cycle, how many
+	// repositories carry a rolling-upgrade fence mark (#6793). While it is
+	// above zero, unscoped infra aggregate reads stay on the graph.
+	InfraInventoryDirtyRepos metric.Int64Gauge
+	// InfraInventoryDirtyOldestAge records the age of the oldest fence mark at
+	// each reducer reconcile cycle; a growing value means nothing is draining.
+	InfraInventoryDirtyOldestAge metric.Float64Gauge
 	// ProjectorInputInvalidFacts counts projector canonical-extractor facts
 	// quarantined during typed payload decode because a required identity field
 	// was missing or null (input_invalid). Labels: stage (the projector
@@ -3270,7 +3277,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.InfraInventoryDerives, err = meter.Int64Counter(
 		"eshu_dp_infra_inventory_derives_total",
-		metric.WithDescription("Total content-writer derives of the infra read model by outcome (ok, skipped_not_installed, error)"),
+		metric.WithDescription("Total content-writer derives of the infra read model by outcome (ok, ok_unfenced_session, skipped_not_installed, error)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register InfraInventoryDerives counter: %w", err)
@@ -3300,6 +3307,23 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register InfraInventoryReconcileDuration histogram: %w", err)
+	}
+
+	inst.InfraInventoryDirtyRepos, err = meter.Int64Gauge(
+		"eshu_dp_infra_inventory_dirty_repos",
+		metric.WithDescription("Repositories carrying an infra read model fence mark, sampled each reducer reconcile cycle; unscoped infra aggregate reads stay on the graph while above zero"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryDirtyRepos gauge: %w", err)
+	}
+
+	inst.InfraInventoryDirtyOldestAge, err = meter.Float64Gauge(
+		"eshu_dp_infra_inventory_dirty_oldest_age_seconds",
+		metric.WithDescription("Age of the oldest infra read model fence mark, sampled each reducer reconcile cycle"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register InfraInventoryDirtyOldestAge gauge: %w", err)
 	}
 
 	inst.QueryK8sSelectCandidateScanTruncated, err = meter.Int64Counter(
