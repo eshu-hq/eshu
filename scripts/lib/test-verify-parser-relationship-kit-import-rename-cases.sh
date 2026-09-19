@@ -164,6 +164,14 @@ rename_case rename-r10-relationship-swap "$rel" \
 #         missing-file  pure-rename minus one .go file.
 #         changed-doc   pure-rename plus an edited comment outside the
 #                       package clause and godoc lead.
+#         changed-asset pure-rename plus an edited //go:embed-style asset
+#                       (non-Go files are hashed as-is).
+#         raw-clause    the package has a raw string containing a later line
+#                       that reads `package queryspan`; the move rewrites it.
+#                       Only the FIRST clause is normalized, so this is a
+#                       content change and must fail.
+#         readme-edit   pure-rename plus an edited README.md (Markdown is
+#                       excluded: package docs are expected to change).
 content_move_case() {
   local name="$1" mode="$2" expect="$3" r
   r="$(init_repo "$name")"
@@ -171,6 +179,11 @@ content_move_case() {
   printf '// Package queryspan starts spans.\npackage queryspan\n' >"${r}/${old_pkg}/doc.go"
   printf 'package queryspan\n\n// A returns one.\nfunc A() int { return 1 }\n' >"${r}/${old_pkg}/handlerspan.go"
   printf 'package queryspan_test\n\nimport "testing"\n\nfunc TestA(t *testing.T) {}\n' >"${r}/${old_pkg}/handlerspan_test.go"
+  printf 'MATCH (n) RETURN n\n' >"${r}/${old_pkg}/query.cypher"
+  printf '# queryspan\n' >"${r}/${old_pkg}/README.md"
+  if [ "$mode" = raw-clause ]; then
+    printf 'package queryspan\n\nconst tmpl = `\npackage queryspan\n`\n' >"${r}/${old_pkg}/tmpl.go"
+  fi
   printf '%s\n' "$old_src" >"${r}/${lang}"
   git -C "${r}" add .
   git -C "${r}" commit -q -m 'move baseline'
@@ -178,14 +191,23 @@ content_move_case() {
   git -C "${r}" mv "${old_pkg}/doc.go" "${new_pkg}/doc.go"
   git -C "${r}" mv "${old_pkg}/handlerspan.go" "${new_pkg}/handler.go"
   git -C "${r}" mv "${old_pkg}/handlerspan_test.go" "${new_pkg}/handler_test.go"
+  git -C "${r}" mv "${old_pkg}/query.cypher" "${new_pkg}/query.cypher"
+  git -C "${r}" mv "${old_pkg}/README.md" "${new_pkg}/README.md"
   sed -i 's/^package queryspan/package tracing/; s/^\/\/ Package queryspan /\/\/ Package tracing /' \
     "${r}/${new_pkg}/doc.go" "${r}/${new_pkg}/handler.go" "${r}/${new_pkg}/handler_test.go"
+  if [ "$mode" = raw-clause ]; then
+    git -C "${r}" mv "${old_pkg}/tmpl.go" "${new_pkg}/tmpl.go"
+    sed -i 's/^package queryspan/package tracing/' "${r}/${new_pkg}/tmpl.go"
+  fi
   case "$mode" in
     pure-rename) ;;
     changed-body) sed -i 's/return 1/return 2/' "${r}/${new_pkg}/handler.go" ;;
     added-file) printf 'package tracing\n\n// B returns two.\nfunc B() int { return 2 }\n' >"${r}/${new_pkg}/extra.go" ;;
     missing-file) git -C "${r}" rm -q -f "${new_pkg}/handler_test.go" ;;
     changed-doc) sed -i 's/A returns one/A returns 1/' "${r}/${new_pkg}/handler.go" ;;
+    changed-asset) printf 'MATCH (n) DETACH DELETE n\n' >"${r}/${new_pkg}/query.cypher" ;;
+    raw-clause) ;;
+    readme-edit) printf '# tracing\n\nWas queryspan until #6818.\n' >"${r}/${new_pkg}/README.md" ;;
   esac
   printf '%s\n' "$new_src" >"${r}/${lang}"
   git -C "${r}" add -A .
@@ -202,3 +224,6 @@ content_move_case rename-r14-replacement-changed-body changed-body fail
 content_move_case rename-r15-replacement-added-file added-file fail
 content_move_case rename-r16-replacement-missing-file missing-file fail
 content_move_case rename-r17-replacement-changed-comment changed-doc fail
+content_move_case rename-r18-replacement-changed-embedded-asset changed-asset fail
+content_move_case rename-r19-raw-string-package-line-rewritten raw-clause fail
+content_move_case rename-r20-pure-move-with-readme-edit readme-edit pass

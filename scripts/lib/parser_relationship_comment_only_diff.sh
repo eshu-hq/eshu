@@ -152,14 +152,17 @@ is_internal_package_move() {
   [ -n "$old_hashes" ] && [ "$old_hashes" = "$new_hashes" ]
 }
 
-# go_package_content_hashes REF DIR NAME prints one sorted line per .go file
-# directly in DIR at REF: the git blob hash of that file after normalizing
-# its package name NAME to a fixed placeholder. Only two line shapes are
-# normalized: the clause itself (`package NAME` or `package NAME_test`) and
-# the godoc lead (`// Package NAME ...`). Everything else must be byte
-# identical, so two directories print the same list only when their Go files
-# pair up one to one by content -- file renames are allowed, a changed body,
-# comment, or an added or missing file is not. NAME is the directory's last
+# go_package_content_hashes REF DIR NAME prints one sorted line per file
+# directly in DIR at REF, excluding Markdown (package docs are expected to
+# change on a move): the git blob hash of that file, where for .go files the
+# FIRST package clause (`package NAME` or `package NAME_test`) and the FIRST
+# godoc lead (`// Package NAME ...`) are normalized to a fixed placeholder.
+# Later lines that happen to read the same way (for example a raw-string line)
+# are left alone. Non-Go files such as `//go:embed` assets are hashed as-is.
+# Everything else must be byte identical, so two directories print the same
+# list only when their files pair up one to one by content -- file renames are
+# allowed, a changed body, comment, embedded asset, or an added or missing
+# file is not. NAME is the directory's last
 # element, the same name token-diff assumes for the qualifier; a package
 # whose clause does not match it is not normalized and so fails the compare.
 # Any git failure, or a NAME that is not a Go identifier, fails closed.
@@ -175,11 +178,24 @@ go_package_content_hashes() {
     read -r _ type _ <<<"${line%%$'\t'*}"
     path="${line#*$'\t'}"
     [ "$type" = blob ] || continue
-    case "$path" in *.go) ;; *) continue ;; esac
-    hash="$(set -o pipefail
-      git -C "$repo_root" show "${ref}:${path}" \
-        | sed -E "s/^package ${name}(_test)?\$/package @PKG@\\1/; s/^\/\/ Package ${name}( |\$)/\/\/ Package @PKG@\\1/" \
-        | git -C "$repo_root" hash-object --stdin)" || return 1
+    case "$path" in
+      *.md) continue ;;
+      *.go)
+        hash="$(set -o pipefail
+          git -C "$repo_root" show "${ref}:${path}" \
+            | awk -v name="$name" '
+                !clause && ($0 == "package " name || $0 == "package " name "_test") {
+                  sub("package " name, "package @PKG@"); clause = 1
+                }
+                !lead && index($0, "// Package " name) == 1 &&
+                  (length($0) == length("// Package " name) || substr($0, length("// Package " name) + 1, 1) == " ") {
+                  $0 = "// Package @PKG@" substr($0, length("// Package " name) + 1); lead = 1
+                }
+                { print }' \
+            | git -C "$repo_root" hash-object --stdin)" || return 1 ;;
+      *)
+        hash="$(git -C "$repo_root" rev-parse "${ref}:${path}" 2>/dev/null)" || return 1 ;;
+    esac
     hashes+=("$hash")
   done <<<"$listing"
   [ "${#hashes[@]}" -gt 0 ] || return 0
