@@ -203,8 +203,13 @@ func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	// repository_query.stage_started / repository_query.stage_completed log
 	// events (operation=repository_list, stage=dependency_cluster_edges).
 	clusterTimer := startRepositoryQueryStage(r.Context(), h.Logger, "repository_list", "", "dependency_cluster_edges")
-	clusters := loadRepositoryDependencyClusters(r.Context(), h.Neo4j, access)
-	clusterTimer.Done(r.Context(), slog.Int("cluster_count", len(clusters)))
+	clusterResult := loadRepositoryDependencyClusters(r.Context(), h.Neo4j, access)
+	clusters := clusterResult.clusters
+	clusterTimer.Done(r.Context(),
+		slog.Int("cluster_count", len(clusters)),
+		slog.Bool("edge_scan_skipped", clusterResult.skipped),
+	)
+	logRepositoryDependencyClusterErrors(r.Context(), h.Logger, clusterResult)
 
 	repos := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {

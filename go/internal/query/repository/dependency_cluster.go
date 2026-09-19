@@ -98,20 +98,61 @@ func repositoryDependencyClusterEdgeCypher(access querycontract.RepositoryAccess
 	`, where, repositoryDependencyClusterEdgeLimit)
 }
 
-// loadRepositoryDependencyClusters runs the bounded edge pre-pass and returns a
-// map from repository id to its dependency-cluster key (the lexicographically
-// smallest repository id in the connected component). Repositories that do not
-// participate in any in-scope DEPENDS_ON edge are absent from the map and fall
-// through to the non-cluster grouping path. On query error it returns an empty
-// map so the caller degrades to non-cluster grouping rather than failing the
-// whole repository list.
-func loadRepositoryDependencyClusters(ctx context.Context, graph querycontract.GraphQuery, access querycontract.RepositoryAccessFilter) map[string]string {
+// repositoryDependencyEdgeCountCypher is the whole-graph DEPENDS_ON cardinality
+// probe that gates the edge pre-pass. The bare relationship-type count is
+// answered from the relationship-type index on NornicDB (measured 0.09s on a
+// production-scale graph), while the Repository-anchored edge scan below expands
+// every Repository's full adjacency to look for DEPENDS_ON even when none exist
+// (measured 5.3-6.4s at several hundred repositories with zero DEPENDS_ON edges).
+// The probe is unscoped and therefore only issued for unscoped (shared, admin,
+// local) callers; scoped callers keep the grant-predicated scan so no statement
+// on the repository list path runs without their grant.
+const repositoryDependencyEdgeCountCypher = `MATCH ()-[r:DEPENDS_ON]->() RETURN count(r) AS edge_count`
+
+// repositoryDependencyClusterResult is the outcome of the dependency-cluster
+// pre-pass. clusters maps repository id to cluster key; skipped reports that
+// the edge scan was not run because the graph holds no DEPENDS_ON edges;
+// probeErr and edgeErr carry failures for telemetry instead of being dropped.
+type repositoryDependencyClusterResult struct {
+	clusters map[string]string
+	skipped  bool
+	probeErr error
+	edgeErr  error
+}
+
+// loadRepositoryDependencyClusters runs the bounded edge pre-pass and returns
+// the map from repository id to its dependency-cluster key (the
+// lexicographically smallest repository id in the connected component).
+// Repositories that do not participate in any in-scope DEPENDS_ON edge are
+// absent from the map and fall through to the non-cluster grouping path.
+//
+// A cheap DEPENDS_ON cardinality probe runs first; when it proves the graph has
+// no DEPENDS_ON edges the edge scan is skipped, which is exact because an empty
+// edge set yields an empty cluster map. A probe failure does not suppress the
+// scan (the probe is only an optimization). On edge-scan error the map is empty
+// so the caller degrades to non-cluster grouping rather than failing the whole
+// repository list, and the error is returned on the result for telemetry.
+func loadRepositoryDependencyClusters(ctx context.Context, graph querycontract.GraphQuery, access querycontract.RepositoryAccessFilter) repositoryDependencyClusterResult {
+	result := repositoryDependencyClusterResult{clusters: map[string]string{}}
 	if graph == nil {
-		return map[string]string{}
+		return result
+	}
+	// The probe is unscoped, so it only runs for callers who may already see the
+	// whole graph. Scoped callers never issue a statement without their grant
+	// predicate; they go straight to the scoped edge scan.
+	if !access.Scoped() {
+		countRows, err := graph.Run(ctx, repositoryDependencyEdgeCountCypher, nil)
+		if err != nil {
+			result.probeErr = err
+		} else if len(countRows) > 0 && dependencyEdgeCountIsZero(countRows[0]) {
+			result.skipped = true
+			return result
+		}
 	}
 	rows, err := graph.Run(ctx, repositoryDependencyClusterEdgeCypher(access), access.GraphParams(nil))
 	if err != nil {
-		return map[string]string{}
+		result.edgeErr = err
+		return result
 	}
 	edges := make([]repositoryDependencyEdge, 0, len(rows))
 	for _, row := range rows {
@@ -122,7 +163,28 @@ func loadRepositoryDependencyClusters(ctx context.Context, graph querycontract.G
 		}
 		edges = append(edges, repositoryDependencyEdge{Source: source, Target: target})
 	}
-	return buildRepositoryDependencyClusters(edges)
+	result.clusters = buildRepositoryDependencyClusters(edges)
+	return result
+}
+
+// dependencyEdgeCountIsZero reports whether the probe row proves the graph has
+// no DEPENDS_ON edges. Only a present, recognized integer zero counts: a
+// missing column or an unrecognized value type returns false so the edge scan
+// still runs, because skipping on an unreadable probe would silently drop real
+// cluster evidence.
+func dependencyEdgeCountIsZero(row map[string]any) bool {
+	switch n := row["edge_count"].(type) {
+	case int64:
+		return n == 0
+	case int:
+		return n == 0
+	case int32:
+		return n == 0
+	case float64:
+		return n == 0
+	default:
+		return false
+	}
 }
 
 // buildRepositoryDependencyClusters computes connected components over the

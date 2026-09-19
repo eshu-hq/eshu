@@ -554,7 +554,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: a8299133f407c5db9a6d67d342bdfc3dead6f7d1bbe075998d7355162e6240d5
+          source_sha256: 394a5d4a5b8d4ff7491b6c5577607a8b445043ffb4a28780dd53e139905f3138
           label: "Repository"
           max_results: 501
       - symbol: "queryRepositoryTotal"
@@ -590,10 +590,10 @@ source_coverage:
   - file: repository/dependency_cluster.go
     calls:
       - symbol: "loadRepositoryDependencyClusters"
-        count: 1
+        count: 2
         non_hot:
           class: label_inventory
-          source_sha256: 884fdc3cd8518133984e5c4bbeb70cd9954f5b4e57a8a9873cc7156c4f3dffce
+          source_sha256: 5ebf2d25d72912584c9be182df0af8517b540030c91242b3dc96e41c8af6ec4a
           label: "Repository"
           max_results: 50000
   - file: repository/deployment_evidence.go

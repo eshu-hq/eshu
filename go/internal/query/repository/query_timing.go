@@ -63,3 +63,27 @@ func (t repositoryQueryStageTimer) Done(ctx context.Context, attrs ...slog.Attr)
 	base = append(base, attrs...)
 	t.logger.LogAttrs(ctx, slog.LevelInfo, "repository query stage completed", base...)
 }
+
+// logRepositoryDependencyClusterErrors emits a bounded warning for each failed
+// dependency-cluster query. The repository list still degrades to non-cluster
+// grouping on failure, so without this event a timed-out or failing pre-pass
+// would silently drop cluster evidence with no operator-visible signal.
+func logRepositoryDependencyClusterErrors(ctx context.Context, logger *slog.Logger, result repositoryDependencyClusterResult) {
+	if logger == nil {
+		return
+	}
+	if result.probeErr != nil {
+		logger.WarnContext(ctx, "repository dependency edge probe failed; running edge scan",
+			telemetry.EventAttr("repository_query.dependency_cluster_probe_failed"),
+			log.Operation("repository_list"),
+			slog.String("error", result.probeErr.Error()),
+		)
+	}
+	if result.edgeErr != nil {
+		logger.WarnContext(ctx, "repository dependency edge scan failed; clusters omitted",
+			telemetry.EventAttr("repository_query.dependency_cluster_scan_failed"),
+			log.Operation("repository_list"),
+			slog.String("error", result.edgeErr.Error()),
+		)
+	}
+}
