@@ -354,3 +354,6 @@ after deploy (the shim above is smaller than a production corpus).
   application clock, so a claim right after an ACK misses the row whenever
   the database clock runs ahead. It reproduces on the base commit with the
   queue clock set behind the database (#6828).
+- Live tests: `TestContentEntityNameMigrationConcurrencyAndInterruptionLive`
+  deadlocks (SQLSTATE 40P01) in its concurrent `ApplyBootstrap` on this branch
+  and on its base alike; it is unrelated to the read model (#6848).
