@@ -43,6 +43,10 @@ type RouteLatency struct {
 	// incident: two HardFailed routes had no signal beyond "5xx" until this
 	// was added).
 	HardFailedBody string
+	// Metered is true when the work meter read counters for this route; Work is
+	// meaningful only then. See WorkPerRequest.
+	Metered bool
+	Work    WorkPerRequest
 }
 
 // BudgetBreach is one route that failed the gate: either its measured p95

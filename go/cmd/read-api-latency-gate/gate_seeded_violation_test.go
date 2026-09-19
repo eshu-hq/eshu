@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -82,5 +83,73 @@ func TestGateAcceptsFastRouteGREEN(t *testing.T) {
 	breaches := EvaluateBudgets(results, budgets)
 	if len(breaches) != 0 {
 		t.Fatalf("GREEN case: breaches = %d, want 0 (%+v) — the fix (removing the injected sleep) must clear the breach", len(breaches), breaches)
+	}
+}
+
+// workBudgetsForSeededViolation is the budget row the work-metric RED/GREEN
+// pairs below run against: the ruling's numbers for the #6794 status family
+// (issue #6797).
+const workBudgetsForSeededViolation = "default\t35\t20000\t5000\n"
+
+// sweepWithFakeWork runs the production sweep-then-evaluate path against a fast
+// 200 handler with a fake meter that reports perRequest work, so the RED/GREEN
+// difference is purely the counters, not the (identical, fast) latency.
+func sweepWithFakeWork(t *testing.T, perRequest WorkCounters) []WorkBreach {
+	t.Helper()
+	const iterations = 4
+	var events []string
+	var mu sync.Mutex
+	srv := meteredServer(&events, &mu, http.StatusOK)
+	defer srv.Close()
+	meter := &fakeMeter{events: &events, counters: WorkCounters{
+		Calls: perRequest.Calls * iterations,
+		Rows:  perRequest.Rows * iterations,
+		Blks:  perRequest.Blks * iterations,
+	}}
+
+	results, err := SweepRoutes(SweepOptions{
+		BaseURL: srv.URL, APIKey: "test-key", Routes: []string{"GET /seeded-work-route"},
+		Iterations: iterations, Timeout: 5 * time.Second, Meter: meter,
+	})
+	if err != nil {
+		t.Fatalf("SweepRoutes: %v", err)
+	}
+	budgets, err := ParseRouteWorkBudgets(strings.NewReader(workBudgetsForSeededViolation))
+	if err != nil {
+		t.Fatalf("ParseRouteWorkBudgets: %v", err)
+	}
+	return EvaluateWorkBudgets(results, budgets)
+}
+
+// TestGateCatchesPlanShapeRegressionByBuffersRED is the #6794 shape: the
+// statement count stays within budget (25 of 35) while buffers and rows are
+// orders of magnitude over. Latency is identical and fast, so only the work
+// budget can fail this — which is the point of the metric.
+func TestGateCatchesPlanShapeRegressionByBuffersRED(t *testing.T) {
+	breaches := sweepWithFakeWork(t, WorkCounters{Calls: 25, Blks: 2_000_000, Rows: 70_000})
+
+	if len(breaches) != 1 {
+		t.Fatalf("RED case: breaches = %d, want exactly 1", len(breaches))
+	}
+	if got := strings.Join(breaches[0].Exceeded, ","); got != "blks,rows" {
+		t.Errorf("Exceeded = %q, want blks,rows (calls 25 is within 35)", got)
+	}
+}
+
+// TestGateAcceptsPostFixWorkGREEN is the mirror: the post-fix counters clear
+// the same budget, so the RED test is not just "everything breaches".
+func TestGateAcceptsPostFixWorkGREEN(t *testing.T) {
+	if breaches := sweepWithFakeWork(t, WorkCounters{Calls: 25, Blks: 6000, Rows: 1200}); len(breaches) != 0 {
+		t.Fatalf("GREEN case: breaches = %+v, want none", breaches)
+	}
+}
+
+// TestGateCatchesNPlusOneByCallsRED proves a genuine N+1 is also caught: 900
+// statements per request against a budget of 35.
+func TestGateCatchesNPlusOneByCallsRED(t *testing.T) {
+	breaches := sweepWithFakeWork(t, WorkCounters{Calls: 900, Blks: 6000, Rows: 1200})
+
+	if len(breaches) != 1 || strings.Join(breaches[0].Exceeded, ",") != "calls" {
+		t.Fatalf("RED case: breaches = %+v, want exactly one breach on calls", breaches)
 	}
 }

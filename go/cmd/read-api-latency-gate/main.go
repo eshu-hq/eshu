@@ -29,26 +29,32 @@ func main() {
 	nodesPerLabel := flag.Int("nodes-per-label", 150000, "synthetic graph nodes to seed per infra label")
 	iacFactCount := flag.Int("iac-fact-count", 150000, "IaC content_entity fact_records rows to seed (issue #6793: currentInventoryCTE jsonb detoast cost)")
 	iterations := flag.Int("iterations", 20, "requests per route for the p95 sweep")
-	budgetsPath := flag.String("budgets", "testdata/benchmarks/read-api-route-budgets.txt", "route budget table path")
+	budgetsPath := flag.String("budgets", "testdata/benchmarks/read-api-route-budgets.txt", "route latency budget table path")
+	workBudgetsPath := flag.String("work-budgets", "testdata/benchmarks/read-api-route-work-budgets.txt", "route Postgres work budget table path")
+	workReportPath := flag.String("work-report", "", "write the per-route Postgres work measured this run as JSON (input to scripts/refresh-read-api-work-budgets.sh)")
+	backgroundIdle := flag.Duration("background-idle", 5*time.Second, "idle window used to measure background Postgres statements before the sweep")
 	skipSeed := flag.Bool("skip-seed", false, "skip Postgres+graph seeding and sweep an already-seeded database")
 	requestTimeout := flag.Duration("request-timeout", 30*time.Second, "per-request timeout for the sweep")
 	flag.Parse()
 
 	if err := run(runOptions{
-		postgresDSN:    *postgresDSN,
-		graphURI:       *graphURI,
-		graphDatabase:  *graphDatabase,
-		graphUsername:  *graphUsername,
-		graphPassword:  *graphPassword,
-		apiBaseURL:     *apiBaseURL,
-		apiKey:         *apiKey,
-		totalScopes:    *totalScopes,
-		nodesPerLabel:  *nodesPerLabel,
-		iacFactCount:   *iacFactCount,
-		iterations:     *iterations,
-		budgetsPath:    *budgetsPath,
-		skipSeed:       *skipSeed,
-		requestTimeout: *requestTimeout,
+		postgresDSN:     *postgresDSN,
+		graphURI:        *graphURI,
+		graphDatabase:   *graphDatabase,
+		graphUsername:   *graphUsername,
+		graphPassword:   *graphPassword,
+		apiBaseURL:      *apiBaseURL,
+		apiKey:          *apiKey,
+		totalScopes:     *totalScopes,
+		nodesPerLabel:   *nodesPerLabel,
+		iacFactCount:    *iacFactCount,
+		iterations:      *iterations,
+		budgetsPath:     *budgetsPath,
+		workBudgetsPath: *workBudgetsPath,
+		workReportPath:  *workReportPath,
+		backgroundIdle:  *backgroundIdle,
+		skipSeed:        *skipSeed,
+		requestTimeout:  *requestTimeout,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, "read-api-latency-gate:", err)
 		os.Exit(1)
@@ -56,33 +62,42 @@ func main() {
 }
 
 type runOptions struct {
-	postgresDSN    string
-	graphURI       string
-	graphDatabase  string
-	graphUsername  string
-	graphPassword  string
-	apiBaseURL     string
-	apiKey         string
-	totalScopes    int
-	nodesPerLabel  int
-	iacFactCount   int
-	iterations     int
-	budgetsPath    string
-	skipSeed       bool
-	requestTimeout time.Duration
+	postgresDSN     string
+	graphURI        string
+	graphDatabase   string
+	graphUsername   string
+	graphPassword   string
+	apiBaseURL      string
+	apiKey          string
+	totalScopes     int
+	nodesPerLabel   int
+	iacFactCount    int
+	iterations      int
+	budgetsPath     string
+	workBudgetsPath string
+	workReportPath  string
+	backgroundIdle  time.Duration
+	skipSeed        bool
+	requestTimeout  time.Duration
 }
 
 func run(opts runOptions) error {
 	ctx := context.Background()
 
+	if opts.postgresDSN == "" {
+		return fmt.Errorf("postgres-dsn (or ESHU_POSTGRES_DSN) is required to seed and to meter Postgres work")
+	}
 	if !opts.skipSeed {
-		if opts.postgresDSN == "" {
-			return fmt.Errorf("postgres-dsn (or ESHU_POSTGRES_DSN) is required to seed")
-		}
 		if err := seed(ctx, opts); err != nil {
 			return err
 		}
 	}
+
+	meter, closeMeter, err := prepareWorkMeter(ctx, opts.postgresDSN, opts.backgroundIdle, os.Stderr)
+	if err != nil {
+		return err
+	}
+	defer closeMeter()
 
 	inventory, err := capabilitycatalog.LoadSurfaceInventory()
 	if err != nil {
@@ -101,9 +116,14 @@ func run(opts runOptions) error {
 		QueryArgs:  RouteQueryArgs,
 		Iterations: opts.iterations,
 		Timeout:    opts.requestTimeout,
+		Meter:      meter,
+		Context:    ctx,
 	})
 	if err != nil {
 		return fmt.Errorf("sweep routes: %w", err)
+	}
+	if err := writeWorkReportFile(opts.workReportPath, results); err != nil {
+		return err
 	}
 
 	budgetsFile, err := os.Open(opts.budgetsPath)
@@ -142,6 +162,17 @@ func run(opts runOptions) error {
 		}
 		failures = append(failures, fmt.Sprintf("%d route(s) exceeded their latency budget", len(breaches)))
 	}
+
+	workBudgetsFile, err := os.Open(opts.workBudgetsPath)
+	if err != nil {
+		return fmt.Errorf("open work budgets file %s: %w", opts.workBudgetsPath, err)
+	}
+	defer func() { _ = workBudgetsFile.Close() }()
+	workBudgets, err := ParseRouteWorkBudgets(workBudgetsFile)
+	if err != nil {
+		return fmt.Errorf("parse work budgets file %s: %w", opts.workBudgetsPath, err)
+	}
+	failures = append(failures, reportWorkResults(os.Stderr, results, workBudgets)...)
 
 	if coverageErr := CheckCoverageFloor(results, ExercisedCoverageFloor); coverageErr != nil {
 		fmt.Fprintf(os.Stderr, "read-api-latency-gate: %v\n", coverageErr)
@@ -254,7 +285,7 @@ func countWorkItems(plan SeedPlan) int {
 }
 
 func printReport(w io.Writer, results []RouteLatency, budgets RouteBudgets) {
-	_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s\n", "route", "p95", "budget", "status")
+	_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s %8s %10s %8s\n", "route", "p95", "budget", "status", "calls", "blks", "rows")
 	for _, r := range results {
 		if !r.Exercised {
 			_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s\n", r.Route, "-", "-", fmt.Sprintf("NOT_EXERCISED(%d)", r.Status))
@@ -272,7 +303,13 @@ func printReport(w io.Writer, results []RouteLatency, budgets RouteBudgets) {
 		if r.HardFailed || r.P95 > budget {
 			status = "BREACH"
 		}
-		_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s\n", r.Route, r.P95.Round(time.Millisecond), budget, status)
+		calls, blks, rows := "-", "-", "-"
+		if r.Metered {
+			calls = fmt.Sprintf("%.1f", r.Work.Calls)
+			blks = fmt.Sprintf("%.0f", r.Work.Blks)
+			rows = fmt.Sprintf("%.0f", r.Work.Rows)
+		}
+		_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s %8s %10s %8s\n", r.Route, r.P95.Round(time.Millisecond), budget, status, calls, blks, rows)
 	}
 }
 

@@ -2402,16 +2402,19 @@ gates:
       - "go/**"
       - "testdata/benchmarks/read-api-route-budgets.txt"
       - "scripts/verify-read-api-latency-gate.sh"
+      - "scripts/refresh-read-api-work-budgets.sh"
+      - "scripts/test-refresh-read-api-work-budgets.sh"
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/lib/golden-corpus-host-helpers.sh"
       - "scripts/lib/compose_verification_runtime_common.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
       - "docker-compose.yaml"
+      - "docker-compose.read-api-latency-gate.yaml"
       - ".github/workflows/read-api-latency-gate.yml"
     local:
       command: "bash scripts/verify-read-api-latency-gate.sh"
-      test_command: ""
+      test_command: "bash scripts/test-refresh-read-api-work-budgets.sh"
     ci:
       workflow: read-api-latency-gate.yml
       job: "latency-gate (nornicdb)"

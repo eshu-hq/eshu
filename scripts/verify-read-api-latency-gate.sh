@@ -53,6 +53,8 @@ cd "${repo_root}"
 : "${GATE_IAC_FACT_COUNT:=150000}"
 : "${GATE_ITERATIONS:=20}"
 : "${GATE_BUDGETS:=testdata/benchmarks/read-api-route-budgets.txt}"
+: "${GATE_WORK_BUDGETS:=testdata/benchmarks/read-api-route-work-budgets.txt}"
+: "${GATE_WORK_REPORT:=}"
 
 compose_file="docker-compose.yaml"
 database="nornic"
@@ -60,7 +62,11 @@ if [[ "${ESHU_GRAPH_BACKEND}" == "neo4j" ]]; then
 	compose_file="docker-compose.neo4j.yml"
 	database="neo4j"
 fi
-compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}")
+# The override loads pg_stat_statements into postgres so the gate can budget
+# per-route Postgres work. It is passed on EVERY compose call below (up, logs,
+# down): a call without it recomputes a different postgres config and recreates
+# the running container mid-run (same failure class as the port env vars above).
+compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}" -f docker-compose.read-api-latency-gate.yaml)
 
 use_compose=1
 keep=0
@@ -225,6 +231,11 @@ else
 fi
 build_bin read-api-latency-gate
 
+gate_report_args=()
+if [[ -n "${GATE_WORK_REPORT}" ]]; then
+	gate_report_args=(-work-report "${GATE_WORK_REPORT}")
+fi
+
 log "start eshu-api"
 start_bg api api_pid "${bin_dir}/eshu-api"
 if command -v lsof >/dev/null 2>&1; then
@@ -262,7 +273,9 @@ gate_status=0
 	-nodes-per-label "${GATE_NODES_PER_LABEL}" \
 	-iac-fact-count "${GATE_IAC_FACT_COUNT}" \
 	-iterations "${GATE_ITERATIONS}" \
-	-budgets "${GATE_BUDGETS}" || gate_status=$?
+	-budgets "${GATE_BUDGETS}" \
+	-work-budgets "${GATE_WORK_BUDGETS}" \
+	${gate_report_args[@]+"${gate_report_args[@]}"} || gate_status=$?
 
 if [[ "${gate_status}" -ne 0 ]]; then
 	# main.go already printed the specific reason (budget breach, coverage

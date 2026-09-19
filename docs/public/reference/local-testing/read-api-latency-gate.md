@@ -44,16 +44,27 @@ lanes never exercise.
    give the per-label scan cost realistic volume. Runs `ANALYZE` on the
    seeded Postgres tables afterward so the sweep plans against fresh
    statistics.
-4. Starts `eshu-api` against the seeded backends.
+   After the graph seeds it reads the per-label node counts back
+   (`VerifyGraphNodeCounts`) and fails the run if any label is short: a bulk
+   `UNWIND range(0, $count - 1)` once seeded a single node per label on
+   NornicDB without an error (see
+   [NornicDB Write-Shape Pitfalls](../nornicdb-write-shape-pitfalls.md)).
+4. Starts `eshu-api` against the seeded backends, with `pg_stat_statements`
+   loaded into Postgres by `docker-compose.read-api-latency-gate.yaml`. The gate
+   creates the extension, proves it collects, and refuses a stack that runs more
+   than 2 statements per second while idle (a new poller in the API has to be
+   understood, not absorbed into the budgets).
 5. Derives every no-arg GET route from the generated surface inventory
    (`capabilitycatalog.LoadSurfaceInventory`, filtered to
    `category=api_route`, `readiness=implemented`, method `GET`, no path
    parameter) — so a newly added route is swept automatically — and measures
    each route's p95 latency (`SweepRoutes`).
 6. Compares each route's p95 against `testdata/benchmarks/read-api-route-budgets.txt`
-   (`ParseRouteBudgets`/`EvaluateBudgets`) and fails on any breach, a
-   coverage-floor shortfall, or an explicitly-budgeted route dropping out of
-   coverage.
+   (`ParseRouteBudgets`/`EvaluateBudgets`) and each route's Postgres work per
+   request against `testdata/benchmarks/read-api-route-work-budgets.txt`
+   (`ParseRouteWorkBudgets`/`EvaluateWorkBudgets`), and fails on any breach, an
+   exercised route the meter never read, a coverage-floor shortfall, or an
+   explicitly-budgeted route dropping out of coverage.
 
 **Sampling**: for each route, `SweepRoutes` issues 2 discarded warmup
 requests (a cold connection and cold Postgres/NornicDB caches make the
@@ -103,26 +114,55 @@ Tunables (env, matching the script's own defaults): `GATE_POSTGRES_PORT`
 (15537), `GATE_NEO4J_BOLT_PORT` (7797), `GATE_NEO4J_HTTP_PORT` (7585),
 `GATE_API_PORT` (18097), `GATE_TOTAL_SCOPES` (800), `GATE_NODES_PER_LABEL`
 (150000), `GATE_IAC_FACT_COUNT` (150000 seeded IaC facts), `GATE_ITERATIONS`
-(counted requests per route, 20), `GATE_BUDGETS`. `GATE_API_BIN=<path>`
+(counted requests per route, 20), `GATE_BUDGETS`, `GATE_WORK_BUDGETS`,
+`GATE_WORK_REPORT` (write the per-route measured work as JSON). `GATE_API_BIN=<path>`
 swaps in a pre-built `eshu-api` binary (built from a different commit, e.g.
 main with a candidate fix) instead of building one from this worktree, for a
 RED/GREEN comparison without rebasing.
 
 ## Budgets
 
-`testdata/benchmarks/read-api-route-budgets.txt` requires a `default` row
-that applies to any route the table does not name explicitly, so a newly
-added route is always budgeted — never silently unchecked. Both `default`
-and any named route may appear only once; a duplicate is a hard parse
-error. The `#6793`/`#6794` route families carry post-fix target budgets, not
-what the gate measures on unpatched `main`: those routes are expected to
-breach until the underlying regressions are fixed. For a route
-`RouteCapability` (`budget.go`) maps to a capability with a declared
-production p95, the effective budget is
-`min(catalog_p95 * catalogCIMultiplier, this table's value)` — the catalog
-value only ever tightens the row, never loosens it. See the file's own
-header comment for the full provenance, rationale, and the accepted
-infra-resource-aggregate coverage gap.
+Two tables, with different jobs.
+
+**Latency ceilings** (`testdata/benchmarks/read-api-route-budgets.txt`) are the
+SLO contract. The file requires a `default` row that applies to any route the
+table does not name, so a newly added route is always budgeted. Both `default`
+and any named route may appear only once; a duplicate is a hard parse error.
+For a route `RouteCapability` (`budget.go`) maps to a capability with a
+declared production p95, the effective budget is
+`min(catalog_p95 * catalogCIMultiplier, this table's value)`. These ceilings
+catch catastrophic regressions (timeouts, hung graph reads). They do not fail a
+plan-shape regression at this seed scale: locally, the #6794 fix moves the
+status routes' p95 by only 1.3x to 7.6x and most of them sat under their 1s
+ceiling before it.
+
+**Work budgets** (`testdata/benchmarks/read-api-route-work-budgets.txt`) are the
+regression-sensitive check. For every exercised route the gate resets
+`pg_stat_statements` after the warmup requests, sends the counted requests, and
+reads statements (`calls`), `rows`, and buffer blocks (`blks`: shared, local and
+temp, read and hit) per request. A route breaches when any of the three exceeds
+its budget, and the report prints all three next to the route's p95. Buffers
+separate the pre- and post-fix status routes by 10.7x to 12.7x while the
+statement count moves only 29.1 to 26.0, and they do not depend on runner CPU
+speed (evidence:
+`docs/internal/evidence/6797-read-api-work-metric-shim.md`). The table is
+generated: run the gate on the runner class with `GATE_WORK_REPORT`, then
+`scripts/refresh-read-api-work-budgets.sh REPORT.json...` renders it with
+`calls = ceil(max*1.25)+5`, `blks = ceil(max*3.0)`, `rows = ceil(max*2.0)` over
+the GREEN maximum. The five routes the #6794 fix did not change are guards for
+future regressions; the fix pair cannot prove them RED.
+
+Not covered: NornicDB exposes no work counter, so the graph side of the #6793
+infra aggregate is guarded by its latency ceiling only, and
+`shared_projection_intents` is not seeded, so `domainBacklogQuery` is invisible
+to this gate.
+
+**Producing a RED run.** The workflow's `workflow_dispatch` takes an `api_ref`
+input: that ref's `eshu-api` is built and swept by this branch's gate code, so a
+commit from before a fix shows the gate failing on the real runner class. To keep
+a stack for debugging locally, run the script with `--keep`; it retains the
+live-gate lock and the stack until you `docker compose down -v` and remove
+`eshu-live-gate.lock` and `eshu-live-gate.lock.keep` from the git common dir.
 
 ## Focused (credential-free) proof
 

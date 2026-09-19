@@ -21,27 +21,45 @@
 # TIGHTENS the row below, never loosens it silently. See budget.go's
 # catalogCIMultiplier doc comment for why 1.5x.
 #
-# Provenance: the #6793/#6794 family budgets below are post-fix targets set
-# by issue #6797's own acceptance criteria, not what the gate measures on
-# unpatched main — those routes are expected to breach until the underlying
-# regressions are fixed:
-#   - #6793 (infra resource aggregate / IaC inventory full-scan cost).
-#   - #6794 (status/readiness routes paying per-scope activeFactWorkItemsCTE
-#     cost).
+# ROLE OF THESE CEILINGS: they are the SLO contract, not the mechanism that
+# fails a plan-shape regression. On a shared runner, run-to-run p95 on
+# DB-bound routes varies 1.5-2x, and the #6794 fix separates RED from GREEN
+# by only 1.3x-7.6x in latency at this seed scale (measured locally, RED
+# 59c605e48 vs GREEN 925e8016f: /collectors 774ms vs 503ms against a 1s
+# ceiling; most of the status family sat under 1s BEFORE the fix). No absolute
+# latency number can sit between those and stay stable, so these ceilings catch
+# catastrophic regressions only: timeouts, hung graph reads, the #6793 shape.
+# The regression-sensitive check is the per-request Postgres work budget in
+# testdata/benchmarks/read-api-route-work-budgets.txt (buffers differ 10.7x-12.7x
+# between the same RED and GREEN; see
+# docs/internal/evidence/6797-read-api-work-metric-shim.md).
 #
-# ACCEPTED KNOWN GAP: infra/resources/count and infra/resources/inventory
-# ARE budgeted and exercised by this gate, but they are NOT
-# regression-sensitive at CI seed scale — reviewed and accepted, not an
-# oversight. At the largest seeded graph volume this gate's CI time budget
-# can afford (150k synthetic nodes per infra label, 1.2M total), both
-# measured well under 100ms — the seeded graph scan never got close to the
-# 10s graph-read timeout (query/neo4j_read_policy.go) that produces #6793's
-# live failures. That live slowness depends on NornicDB's actual load and
-# cache state at production scale, which a CI-bounded synthetic seed cannot
-# reproduce; calibrating further is not planned. iac/resources (a DIFFERENT
-# #6793 sub-mechanism, the Postgres jsonb-detoast cost in
-# currentInventoryCTE) DID reproduce and scales as expected with seeded row
-# count.
+# Which routes are RED-provable: the work budget is proven against the 14 routes
+# the RED/GREEN pair (59c605e48 vs 925e8016f) actually changed. The rule applied
+# is "every route the pair actually changed": an identical RED cannot exceed a
+# GREEN-derived budget by construction. The five routes #6808 did not change
+# (collector-readiness, status/collector-readiness, repositories,
+# repositories/language-inventory, iac/resources) get GREEN-derived work budgets as
+# forward regression guards, documented as not RED-provable with this pair.
+#
+# Provenance of the row values below: #6793/#6794 family rows carry the
+# targets from issue #6797's acceptance criteria (#6793 infra resource
+# aggregate / IaC inventory: 2000ms; #6794 status/readiness routes: 1000ms).
+# They are local-machine-independent SLO targets, NOT values calibrated on the
+# CI runner class. A ceiling is never tightened below 2x the runner-measured
+# GREEN p95, and none is derived from local numbers.
+#
+# NOT COVERED: (1) the graph side of the #6793 infra aggregate has no work
+# counter (NornicDB exposes none this gate can read), so infra/resources/* are
+# guarded by their latency ceiling only. (2) domainBacklogQuery (a #6794
+# sub-mechanism) scans shared_projection_intents, which this seed does not
+# populate, so no budget here can see it; that gap is tracked in #6820. (3) A retracted claim: earlier revisions of this header said the
+# infra graph was seeded with 150k nodes per label and measured well under
+# 100ms. The bulk seed in fact created ONE node per label (NornicDB evaluates
+# range(0, $count - 1) with a parameter bound as a single element; see
+# docs/public/reference/nornicdb-write-shape-pitfalls.md), so those figures said
+# nothing about graph scale. The seed now batches by precomputed bounds and
+# VerifyGraphNodeCounts fails the run if any label is short.
 
 default	1500
 
@@ -58,8 +76,8 @@ GET /api/v0/graph/entities	2000	borderline family: near the default budget at se
 # looser than this target, so this row wins per budget.go's tighter-wins
 # rule); iac/resources maps to iac_inventory.resources.list (catalog
 # production p95=3000ms, likewise looser).
-GET /api/v0/infra/resources/count	2000	#6793 post-fix target; catalog p95 2500ms is looser; ACCEPTED KNOWN GAP, see header
-GET /api/v0/infra/resources/inventory	2000	#6793 post-fix target; catalog p95 2500ms is looser; ACCEPTED KNOWN GAP, see header
+GET /api/v0/infra/resources/count	2000	#6793 post-fix target; catalog p95 2500ms is looser; graph side not work-metered, see NOT COVERED in the header
+GET /api/v0/infra/resources/inventory	2000	#6793 post-fix target; catalog p95 2500ms is looser; graph side not work-metered, see NOT COVERED in the header
 GET /api/v0/iac/resources	2000	#6793 post-fix target; catalog p95 3000ms is looser; reproduces at seeded IaC fact scale
 
 # #6794 family: status/readiness/multi-scope routes paying activeFactWorkItemsCTE

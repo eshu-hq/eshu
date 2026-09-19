@@ -13,7 +13,12 @@
 // nearest-rank p95 over a warmup-discarded sample), and fails when any
 // route exceeds its budget, a 5xx response occurs, the exercised-route
 // coverage floor is not met, or an explicitly-budgeted route drops out of
-// coverage.
+// coverage. It also meters the Postgres work each route costs per request
+// (pg_stat_statements calls, rows, and buffer blocks) and fails when any
+// counter exceeds its budget: buffers, unlike latency, separate a plan-shape
+// regression such as #6794's from a healthy build by an order of magnitude
+// regardless of runner speed. After seeding it reads per-label graph node
+// counts back and fails if any label is short.
 //
 // It exists to catch a regression like #6793 (infra resource aggregate
 // full-graph scans, or the Postgres jsonb-detoast cost in

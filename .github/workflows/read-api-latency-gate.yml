@@ -5,8 +5,13 @@ name: Read API Latency Gate
 # full-graph scan) or #6794 (status/readiness routes paying an expensive
 # per-scope activeFactWorkItemsCTE query) cannot merge without this job going
 # red. See go/cmd/read-api-latency-gate/README.md for what it seeds and
-# measures, and testdata/benchmarks/read-api-route-budgets.txt for the
-# budgets it enforces.
+# measures. Two budget tables gate it: the latency ceilings in
+# testdata/benchmarks/read-api-route-budgets.txt (the SLO contract; they catch
+# catastrophic regressions and are NOT what fails a plan-shape regression at
+# this seed scale) and the per-request Postgres work budgets in
+# testdata/benchmarks/read-api-route-work-budgets.txt (the regression-sensitive
+# mechanism, rendered from GREEN reports by
+# scripts/refresh-read-api-work-budgets.sh).
 
 on:
   push:
@@ -25,14 +30,26 @@ on:
       - 'go/**'
       - 'testdata/benchmarks/read-api-route-budgets.txt'
       - 'scripts/verify-read-api-latency-gate.sh'
+      - 'scripts/refresh-read-api-work-budgets.sh'
+      - 'scripts/test-refresh-read-api-work-budgets.sh'
       - 'scripts/lib/live-gate-lock.sh'
       - 'scripts/lib/golden-corpus-host-helpers.sh'
       - 'scripts/lib/compose_verification_runtime_common.sh'
       - 'scripts/ci/install-apt-packages.sh'
       - 'scripts/ci/go-mod-download-retry.sh'
       - 'docker-compose.yaml'
+      - 'docker-compose.read-api-latency-gate.yaml'
       - '.github/workflows/read-api-latency-gate.yml'
-  workflow_dispatch: {} # manual trigger, for calibrating budgets on the CI runner class
+  workflow_dispatch:
+    # Manual trigger, for calibrating budgets on the CI runner class and for
+    # producing a RED run on the real runner: api_ref names a commit, branch or
+    # tag whose eshu-api is built and measured by THIS branch's gate code (the
+    # gate itself is never taken from api_ref).
+    inputs:
+      api_ref:
+        description: 'Optional git ref whose eshu-api is built and swept instead of this ref (e.g. a commit before a fix, to prove the gate fails RED)'
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -72,8 +89,33 @@ jobs:
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 
+      - name: Check out api_ref
+        if: ${{ inputs.api_ref != '' }}
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.api_ref }}
+          path: api-ref
+
+      - name: Build eshu-api from api_ref
+        if: ${{ inputs.api_ref != '' }}
+        working-directory: api-ref/go
+        run: |
+          CGO_ENABLED=1 go build -o "${RUNNER_TEMP}/eshu-api" ./cmd/api
+          echo "GATE_API_BIN=${RUNNER_TEMP}/eshu-api" >> "${GITHUB_ENV}"
+          sha256sum "${RUNNER_TEMP}/eshu-api"
+
       - name: Run read-API latency gate
+        env:
+          GATE_WORK_REPORT: ${{ runner.temp }}/read-api-work-report.json
         run: bash scripts/verify-read-api-latency-gate.sh
+
+      - name: Upload per-route work report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: read-api-work-report
+          path: ${{ runner.temp }}/read-api-work-report.json
+          if-no-files-found: ignore
 
       - name: Show preserved eshu-api log on failure
         if: failure()
@@ -81,8 +123,8 @@ jobs:
 
       - name: Dump service logs on failure
         if: failure()
-        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
+        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml -f docker-compose.read-api-latency-gate.yaml logs --tail=200 || true
 
       - name: Tear down Docker services
         if: always()
-        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true
+        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml -f docker-compose.read-api-latency-gate.yaml down -v || true

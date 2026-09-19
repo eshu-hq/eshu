@@ -77,6 +77,27 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   body, capped at `hardFailedBodyCap` bytes.** The first failure is the most
   informative; overwriting it with a later repeat discards the evidence an
   operator needs to root-cause a HardFailed route.
+- **The work meter is never skipped.** `SweepRoutes` resets the meter after the
+  warmup requests and reads it after the counted ones; a meter error aborts the
+  run, and `UnmeteredExercisedRoutes` fails the run on any exercised route the
+  meter never read. Catching a meter/extension failure and continuing on
+  latency alone is the exact failure the work budget exists to prevent.
+- **`testdata/benchmarks/read-api-route-work-budgets.txt` is generated.**
+  Render it with `scripts/refresh-read-api-work-budgets.sh` from GREEN
+  `-work-report` files (from the runner class the gate enforces on, not a local
+  run); never edit a number by hand. `scripts/test-refresh-read-api-work-budgets.sh`
+  pins the formulas (`calls = ceil(max*1.25)+5`, `blks = ceil(max*3.0)`,
+  `rows = ceil(max*2.0)`).
+- **`docker-compose.read-api-latency-gate.yaml` repeats the base postgres
+  command.** Compose replaces `command` rather than appending, so the override
+  carries the whole base list plus the four `pg_stat_statements` flags;
+  `TestComposeOverrideIsBasePostgresCommandPlusMeterFlags` fails when they
+  drift. The run script passes the override with `-f` on every compose call.
+- **Never write `UNWIND range(0, $count - 1)`.** NornicDB evaluates a parameter
+  expression as the bound to one element, so a bulk seed silently created one
+  node per label. Compute the bound in Go (`bulkNodeRanges`), batch it, and let
+  `VerifyGraphNodeCounts` read the counts back
+  (`docs/public/reference/nornicdb-write-shape-pitfalls.md`).
 - **A route's status code does not decide whether `sweepOne` fails** — see
   `sweep.go`'s doc comments. A 4xx means "not exercised," not "sweep error";
   only a connection-level failure aborts the run. Do not reintroduce a

@@ -7,6 +7,15 @@ gated in CI so a regression like #6793 (infra resource aggregate full-graph
 scan) or #6794 (status/readiness routes paying an expensive per-scope
 `activeFactWorkItemsCTE` query) cannot merge without the CI job going red.
 
+Two budget tables gate it, with different jobs. The latency ceilings
+(`testdata/benchmarks/read-api-route-budgets.txt`) are the SLO contract and
+catch catastrophic regressions; at this seed scale they do NOT fail a
+plan-shape regression (the #6794 fix moves latency only 1.3x-7.6x, mostly
+under the ceiling). The regression-sensitive check is the per-request Postgres
+work budget (`testdata/benchmarks/read-api-route-work-budgets.txt`): buffers per
+request differ 10.7x-12.7x between the pre- and post-fix status routes, and do
+not depend on runner CPU speed.
+
 ## Ownership boundary
 
 Owns: the synthetic seed corpus (scope/generation/fact-work-item and infra
@@ -37,6 +46,17 @@ not own the routes themselves (`go/internal/query`), the surface inventory
   the error envelope without re-running. `RouteQueryArgs` supplies
   representative selectors (seeded ids) so a route that needs one runs its
   real query instead of 400ing
+- `WorkMeter`, `NewPgxWorkMeter`, `EnsureWorkMeterExtension`,
+  `MeasureBackgroundCallRate`, `CheckMeterQuiet` — the `pg_stat_statements`
+  meter (calls, rows, buffer blocks per request), its idle-noise guard, and the
+  interface the hermetic RED/GREEN tests fake
+- `ParseRouteWorkBudgets`, `EvaluateWorkBudgets`, `UnmeteredExercisedRoutes`,
+  `WriteWorkReport` — the work budget table, the breach check (any of calls,
+  blks, rows over budget), the guard against an exercised-but-unmetered route,
+  and the JSON report `scripts/refresh-read-api-work-budgets.sh` renders the
+  table from
+- `VerifyGraphNodeCounts` — reads back per-label node counts after the graph
+  seeds and fails the run when any label is short
 - `ParseRouteBudgets`, `EvaluateBudgets` — the budget table and breach check
   (a `HardFailed` route always breaches); `RouteBudgets.WithCatalog`
   tightens a mapped route's budget to the capability catalog's declared

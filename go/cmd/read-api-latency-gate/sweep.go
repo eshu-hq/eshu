@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -49,6 +50,12 @@ type SweepOptions struct {
 	Iterations int
 	// Timeout bounds each individual request.
 	Timeout time.Duration
+	// Meter, when set, measures the Postgres work of each exercised route's
+	// counted requests: Reset after the warmup requests, Read after the last
+	// counted one. A meter error aborts the run. Nil leaves routes unmetered.
+	Meter WorkMeter
+	// Context bounds meter calls; nil means context.Background().
+	Context context.Context
 }
 
 // SweepRoutes issues warmupRequests discarded probes, then opts.Iterations
@@ -58,6 +65,10 @@ type SweepOptions struct {
 // a not-exercised route, a hard failure, or a sweep-aborting error.
 func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 	client := &http.Client{Timeout: opts.Timeout}
+	ctx := opts.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	results := make([]RouteLatency, 0, len(opts.Routes))
 
 	for _, route := range opts.Routes {
@@ -70,7 +81,7 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 			url += "?" + q
 		}
 
-		result, err := sweepRoute(client, route, url, opts.APIKey, opts.Iterations)
+		result, err := sweepRoute(ctx, client, route, url, opts.APIKey, opts.Iterations, opts.Meter)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +92,7 @@ func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
 }
 
 // sweepRoute runs the warmup-then-counted sweep for one route.
-func sweepRoute(client *http.Client, route, url, apiKey string, iterations int) (RouteLatency, error) {
+func sweepRoute(ctx context.Context, client *http.Client, route, url, apiKey string, iterations int, meter WorkMeter) (RouteLatency, error) {
 	for i := 0; i < warmupRequests; i++ {
 		_, status, _, err := sweepOne(client, url, apiKey)
 		if err != nil {
@@ -89,6 +100,12 @@ func sweepRoute(client *http.Client, route, url, apiKey string, iterations int) 
 		}
 		if status >= 400 && status < 500 {
 			return RouteLatency{Route: route, Exercised: false, Status: status}, nil
+		}
+	}
+
+	if meter != nil {
+		if err := meter.Reset(ctx); err != nil {
+			return RouteLatency{}, fmt.Errorf("sweep %s: reset work meter: %w", route, err)
 		}
 	}
 
@@ -111,14 +128,28 @@ func sweepRoute(client *http.Client, route, url, apiKey string, iterations int) 
 		durations = append(durations, d)
 	}
 
-	return RouteLatency{
+	result := RouteLatency{
 		Route:          route,
 		P95:            p95(durations),
 		Exercised:      true,
 		Status:         status,
 		HardFailed:     hardFailed,
 		HardFailedBody: hardFailedBody,
-	}, nil
+	}
+	if meter != nil {
+		counters, err := meter.Read(ctx)
+		if err != nil {
+			return RouteLatency{}, fmt.Errorf("sweep %s: read work meter: %w", route, err)
+		}
+		n := float64(iterations)
+		result.Metered = true
+		result.Work = WorkPerRequest{
+			Calls: float64(counters.Calls) / n,
+			Rows:  float64(counters.Rows) / n,
+			Blks:  float64(counters.Blks) / n,
+		}
+	}
+	return result, nil
 }
 
 // sweepOne issues one GET request and returns its wall-clock duration and
