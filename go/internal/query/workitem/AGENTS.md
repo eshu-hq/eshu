@@ -21,7 +21,7 @@ root -- see README.md's Move evidence.
   for the compatibility aliases in `work_item_alias.go`, cycling. Reach
   root-only helpers through `querycontract` (profiles, envelopes, HTTP
   helpers, the repository-access-filter port), `queryauth` (scoped-token
-  `AuthContext`), `queryspan` (the shared handler-span seam), or `decode`
+  `AuthContext`), `tracing` (the shared handler-span seam), or `decode`
   (the classified decode-error type); if none of those has what you need, it
   does not belong here -- ask before adding a new shared home.
 - `EvidenceCapability` MUST stay `"work_item.evidence.list"` -- byte-identical

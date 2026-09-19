@@ -111,7 +111,7 @@ consumer-owned ports; concrete adapters remain outside this package.
 
 A new import here is a contract change, not a detail. The point of this package
 is that a family can depend on it for types without inheriting a runtime: the
-handler span lives in `queryspan` rather than here for exactly that reason.
+handler span lives in `tracing` rather than here for exactly that reason.
 
 ## Telemetry
 

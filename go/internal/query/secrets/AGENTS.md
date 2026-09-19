@@ -21,7 +21,7 @@ evidence.
   back for the compatibility aliases in `secrets_alias.go`, cycling. Reach
   root-only helpers through `querycontract` (profiles, envelopes, capability
   registration, HTTP helpers, ports, repository-access filtering) or
-  `queryspan` (the shared handler-span seam); if neither has what you need,
+  `tracing` (the shared handler-span seam); if neither has what you need,
   it does not belong here -- ask before adding a new shared home.
 - The five `IAM*Capability` consts (`handler.go`, `posture_handlers.go`,
   `summary.go`) MUST stay byte-identical to their pre-move string values
@@ -35,7 +35,7 @@ evidence.
   need the package-local name.
 - `secretsHandlerTracer` is this package's own tracer var (the same seam
   `packageregTracer` in `go/internal/query/package/registry/handler_tracing.go`
-  uses): package-local, seeded from `queryspan.HandlerTracer()`. Do not
+  uses): package-local, seeded from `tracing.HandlerTracer()`. Do not
   promote it to an exported var or move the span helper back to root.
 - Every exported type, top-level func, and the five capability consts drop
   the leading `Secrets` word from their pre-move root spelling

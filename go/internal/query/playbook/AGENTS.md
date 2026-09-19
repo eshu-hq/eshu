@@ -48,7 +48,7 @@ moved in verbatim from root -- see README.md's Move evidence.
   precedent, not a hand-copied literal: call `Support()`, never re-type its
   field values into a second literal.
 - This family declares NO span or tracer (unlike `freshness`, `language`, or
-  `incident`'s `queryspan.HandlerTracer` seam) -- neither before nor after
+  `incident`'s `tracing.HandlerTracer` seam) -- neither before nor after
   this move. Do not add one without checking whether root's telemetry
   contract (`docs/public/observability/telemetry-coverage.md`) expects one;
   `BuildTruthEnvelope`'s capability/basis/level metadata is this family's

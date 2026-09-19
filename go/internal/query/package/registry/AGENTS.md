@@ -6,7 +6,7 @@ Read `doc.go` and `README.md` first.
 
 - `startQueryHandlerSpan` MUST forward through the package-local
   `packageregTracer` var (`handler_tracing.go`), never call
-  `queryspan.HandlerTracer()` inline at a handler call site. The var is the
+  `tracing.HandlerTracer()` inline at a handler call site. The var is the
   seam a test swaps a recording provider into; bypassing it compiles clean
   and silently emits zero spans to the test's recorder.
 - `attachCollectorListReadiness`/`collectorListReadiness`
@@ -18,7 +18,7 @@ Read `doc.go` and `README.md` first.
   already imports this package for its compatibility aliases, so the reverse
   import cycles. If a change needs something only root exposes, either it
   already has a leaf equivalent under `internal/query` (`querycontract`,
-  `queryauth`, `decode`, `queryselector`, `queryspan`) or it does not
+  `queryauth`, `decode`, `queryselector`, `tracing`) or it does not
   belong in this family; ask before adding one.
 - This family's six capabilities are registered in ROOT
   (`contract_package_registry.go`, `contract_capability_matrix.go`), not here

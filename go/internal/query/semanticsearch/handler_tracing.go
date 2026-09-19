@@ -21,9 +21,9 @@ var semanticSearchTracer = tracing.HandlerTracer()
 // startQueryHandlerSpan wraps this family's HTTP handlers in stable spans and
 // attaches low-cardinality route/capability attributes for operator triage.
 //
-// The implementation lives in queryspan so this family can start the same span
-// without importing root package query, which it cannot do without an import
-// cycle through root's compatibility aliases (#6060). The tracer name is
+// The implementation lives in package tracing so this family can start the same
+// span without importing root package query, which it cannot do without an
+// import cycle through root's compatibility aliases (#6060). The tracer name is
 // unchanged, so emitted spans and the dashboards built on them are unaffected.
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
 	return tracing.StartHandlerSpanWith(semanticSearchTracer, r, spanName, route, capability)

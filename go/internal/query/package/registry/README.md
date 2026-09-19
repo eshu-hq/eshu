@@ -113,7 +113,7 @@ file-path field changed. `DependenciesCypher`'s digest was re-derived the
 same way. No
 Cypher text, response shape, pagination bound, or capability behavior
 changed. No production-file rename this move required touched the
-`querycontract`/`queryauth`/`decode`/`queryselector`/`queryspan` leaf
+`querycontract`/`queryauth`/`decode`/`queryselector`/`tracing` leaf
 packages it depends on.
 
 ## No-Regression Evidence
@@ -139,8 +139,8 @@ the same change, the way every earlier query rename repointed that registry.
 ## No-Observability-Change
 
 No-Observability-Change (#6642 rename): this package emits the same spans it always did. `handler_tracing.go` holds
-a package-local `packageregTracer = queryspan.HandlerTracer()` and a
-`startQueryHandlerSpan` that forwards to `queryspan.StartHandlerSpanWith`, so
+a package-local `packageregTracer = tracing.HandlerTracer()` and a
+`startQueryHandlerSpan` that forwards to `tracing.StartHandlerSpanWith`, so
 the tracer scope name and every span attribute are unchanged from before the
 move. No metric was added, renamed, or removed, and no log key changed.
 
@@ -160,7 +160,7 @@ The Go standard library, `database/sql`, `go/internal/storage/postgres/pgarray`,
 - `queryauth` -- `AuthContext`, `AuthContextFromContext`,
   `RepositoryAccessFilterFromContext` (via `querycontract`), the scoped-token
   authorization bounds every scoped-access test drives.
-- `queryspan` -- the per-route HTTP span (see Gotchas below).
+- `tracing` -- the per-route HTTP span (see Gotchas below).
 
 It does **not** import root package `query`: that import would cycle, since
 root imports this package for the compatibility aliases above.
@@ -179,10 +179,10 @@ and always runs its own `init()`s. Keep `TestMain`'s values in sync with
 `contract_package_registry.go` and `contract_capability_matrix.go`'s
 `baseCapabilityMatrix` if either changes.
 
-**The tracer is a package-local var, not an inline `queryspan.HandlerTracer()`
+**The tracer is a package-local var, not an inline `tracing.HandlerTracer()`
 call.** `handler_tracing.go` declares `packageregTracer` once and every
 handler forwards through it. A test that swaps in a recording provider
-targets that var; calling `queryspan.HandlerTracer()` directly at each call
+targets that var; calling `tracing.HandlerTracer()` directly at each call
 site instead compiles and emits zero spans to a test recorder -- it silently
 breaks the seam a test relies on.
 

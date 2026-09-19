@@ -8,13 +8,13 @@ Read `doc.go` and `README.md` first.
   `compat_supply_chain.go` already imports this package for its
   compatibility aliases, so the reverse import cycles. If a change needs
   something only root exposes, either a leaf equivalent already exists
-  (`querycontract`, `queryauth`, `queryselector`, `queryspan`) or it does
+  (`querycontract`, `queryauth`, `queryselector`, `tracing`) or it does
   not belong in this family; ask before adding one.
 - Capabilities are registered in ROOT (`contract_supply_chain.go`), not
   here — root owns the router and always links into production. This
   package only declares the constant values.
 - `queryHandlerTracer` MUST stay a package-local var seeded from
-  `queryspan.HandlerTracer`. The moved probe tests swap it; a second
+  `tracing.HandlerTracer`. The moved probe tests swap it; a second
   tracer var, or seeding from anywhere else, breaks their isolation or
   changes emitted spans.
 - `attachCollectorListReadiness` / `collectorListReadiness` are

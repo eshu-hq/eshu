@@ -17,7 +17,7 @@ observations, secret access paths, posture gaps, posture summary), and the
 graph-backed grant-posture store. Does not own the capability registry,
 envelope/profile contract, HTTP param/response helpers, or repository-access
 filtering (`querycontract`), or the handler-span seam construction helper
-(`queryspan`) -- those are separate leaves this package calls into.
+(`tracing`) -- those are separate leaves this package calls into.
 
 ## Layout
 
@@ -110,7 +110,7 @@ No-Observability-Change: every route keeps its span name
 attributes unchanged. `secretsHandlerTracer` is this package's own
 package-local tracer var (mirroring `packageregTracer` in
 `go/internal/query/package/registry/handler_tracing.go`), seeded from
-`queryspan.HandlerTracer()`.
+`tracing.HandlerTracer()`.
 
 ## Related docs
 

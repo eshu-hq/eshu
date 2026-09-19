@@ -113,7 +113,7 @@ attributes, and the per-state span counters
 `workitemHandlerTracer` is this package's own package-local tracer var
 (mirroring `incidentHandlerTracer` in `go/internal/query/incident/handler.go`;
 also used by the sibling #6642 language move's `language/handler_tracing.go`'s
-`languageHandlerTracer`), seeded from `queryspan.HandlerTracer()`.
+`languageHandlerTracer`), seeded from `tracing.HandlerTracer()`.
 
 ## Related docs
 

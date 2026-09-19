@@ -21,7 +21,7 @@ var packageregTracer = tracing.HandlerTracer()
 // startQueryHandlerSpan wraps this family's HTTP handlers in stable spans and
 // attaches low-cardinality route/capability attributes for operator triage.
 //
-// The implementation lives in queryspan so this family can start the same
+// The implementation lives in package tracing so this family can start the same
 // span without importing root package query, which it cannot do without an
 // import cycle through root's compatibility aliases (#6060). The tracer name
 // is unchanged, so emitted spans and the dashboards built on them are
