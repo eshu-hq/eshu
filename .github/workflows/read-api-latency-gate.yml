@@ -1,0 +1,87 @@
+name: Read API Latency Gate
+
+# Issue #6797: backend-backed p95 latency benchmark for every no-arg GET read
+# route, gated so a regression like #6793 (infra resource aggregate
+# full-graph scan) or #6794 (status/readiness routes paying an expensive
+# per-scope activeFactWorkItemsCTE query) cannot merge without this job going
+# red. See go/cmd/read-api-latency-gate/README.md for what it seeds and
+# measures, and testdata/benchmarks/read-api-route-budgets.txt for the
+# budgets it enforces.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      # cmd/api compiles 363 of the repo's 558 internal packages (go list
+      # -deps ./cmd/api, 2026-09) — a narrower,
+      # hand-picked list drifts silently as eshu-api's own imports grow.
+      # "go/**" mirrors the specs/ci-gates.v1.yaml registry row exactly
+      # (kept in lockstep — verify with scripts/verify-ci-gates-registry.sh
+      # --drift) and the same whole-module-compile-in problem the
+      # golden-corpus-filter-exhaustive gate's own trigger solves the same
+      # way.
+      - 'go/**'
+      - 'testdata/benchmarks/read-api-route-budgets.txt'
+      - 'scripts/verify-read-api-latency-gate.sh'
+      - 'scripts/lib/live-gate-lock.sh'
+      - 'scripts/lib/golden-corpus-host-helpers.sh'
+      - 'scripts/ci/install-apt-packages.sh'
+      - 'scripts/ci/go-mod-download-retry.sh'
+      - 'docker-compose.yaml'
+      - '.github/workflows/read-api-latency-gate.yml'
+  workflow_dispatch: {} # manual trigger, for calibrating budgets on the CI runner class
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  latency-gate:
+    name: latency-gate (nornicdb)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Fixed (not PID-derived) so the log-dump and teardown steps below can
+      # target the exact same Compose project the run script used — the
+      # `-p` project name is required for `docker compose logs`/`down` to
+      # find containers created under a non-default project. A GHA runner is single-tenant per job, so a fixed name
+      # cannot collide with another concurrent run.
+      GATE_COMPOSE_PROJECT: eshu-read-api-latency-gate-ci
+      ESHU_GRAPH_BACKEND: nornicdb
+      GATE_NEO4J_PASSWORD: change-me
+      GATE_POSTGRES_PASSWORD: change-me
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install ripgrep
+        run: scripts/ci/install-apt-packages.sh ripgrep
+
+      - name: Pre-warm Go modules
+        run: scripts/ci/go-mod-download-retry.sh
+
+      - name: Run read-API latency gate
+        run: bash scripts/verify-read-api-latency-gate.sh
+
+      - name: Show preserved eshu-api log on failure
+        if: failure()
+        run: cat "${TMPDIR:-/tmp}/read-api-latency-gate-api.log" 2>/dev/null || echo "no preserved eshu-api log found"
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml logs --tail=200 || true
+
+      - name: Tear down Docker services
+        if: always()
+        run: docker compose -p "${GATE_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true

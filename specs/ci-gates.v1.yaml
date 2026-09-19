@@ -2386,6 +2386,42 @@ gates:
       - nornicdb
     ci_only_reason: ""
 
+  - id: read-api-latency-gate
+    name: Read API Latency Gate (Docker)
+    category: exactness
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      # cmd/api compiles 363 of the repo's 558 internal packages (go list
+      # -deps ./cmd/api, 2026-09). A narrower,
+      # hand-picked package list drifts silently as eshu-api's own imports
+      # grow — exactly the gap such a list left (go/internal/status, go.mod/go.sum,
+      # and ~280 other compiled-in packages were missing). "go/**" mirrors
+      # the golden-corpus-filter-exhaustive gate's own trigger below, which
+      # covers the same whole-module-compile-in problem the same way.
+      - "go/**"
+      - "testdata/benchmarks/read-api-route-budgets.txt"
+      - "scripts/verify-read-api-latency-gate.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/lib/golden-corpus-host-helpers.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - "docker-compose.yaml"
+      - ".github/workflows/read-api-latency-gate.yml"
+    local:
+      command: "bash scripts/verify-read-api-latency-gate.sh"
+      test_command: ""
+    ci:
+      workflow: read-api-latency-gate.yml
+      job: "latency-gate (nornicdb)"
+      check_names:
+        - "latency-gate (nornicdb)"
+    requirements:
+      - go
+      - docker
+      - nornicdb
+    ci_only_reason: ""
+
   # #5538 task 4 root-cause fix: three review rounds each found more packages
   # missing from golden-corpus-gate's own path filter because completeness was
   # maintained by hand. This gate makes it converge -- it derives the real

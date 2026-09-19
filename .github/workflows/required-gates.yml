@@ -21,6 +21,7 @@ on:
       - Product Claim Ledger
       - Publish Image and Helm Chart
       - Race Graph Writes
+      - Read API Latency Gate
       - Reducer Contention Gate
       - Replay Coverage Gate
       - Replay Tier (offline NornicDB)

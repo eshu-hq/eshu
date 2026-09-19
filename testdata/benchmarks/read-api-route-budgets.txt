@@ -1,0 +1,94 @@
+# read-api-route-budgets.txt — issue #6797: per-route p95 latency budgets for
+# the backend-backed read-API latency gate.
+#
+# go/cmd/read-api-latency-gate seeds a synthetic corpus (ingestion scopes,
+# generations, and fact_work_items across every collector kind, plus
+# infra-labeled graph nodes and IaC content_entity facts) into a live
+# Postgres+NornicDB pair, sweeps every no-arg GET route the generated surface
+# inventory reports, and fails when a route's p95 exceeds its budget here.
+#
+# Format: route<TAB>budget_ms<TAB>reason. "default" (required, no reason
+# column) is the budget for any route this table does not name explicitly, so
+# a newly added no-arg GET route is budgeted automatically instead of going
+# unchecked. Every other row requires a reason: why this route needs its own
+# number instead of the default. A route named more than once is a hard
+# error — a later row must never silently override an earlier one.
+#
+# budget.go additionally consults the capability catalog
+# (go/internal/capabilitycatalog): for a route RouteCapability maps to a
+# capability with a declared production p95_latency_ms, the effective budget
+# is min(catalog_p95 * 1.5, this table's value) — the catalog value only ever
+# TIGHTENS the row below, never loosens it silently. See budget.go's
+# catalogCIMultiplier doc comment for why 1.5x.
+#
+# Provenance: the #6793/#6794 family budgets below are post-fix targets set
+# by issue #6797's own acceptance criteria, not what the gate measures on
+# unpatched main — those routes are expected to breach until the underlying
+# regressions are fixed:
+#   - #6793 (infra resource aggregate / IaC inventory full-scan cost).
+#   - #6794 (status/readiness routes paying per-scope activeFactWorkItemsCTE
+#     cost).
+#
+# ACCEPTED KNOWN GAP: infra/resources/count and infra/resources/inventory
+# ARE budgeted and exercised by this gate, but they are NOT
+# regression-sensitive at CI seed scale — reviewed and accepted, not an
+# oversight. At the largest seeded graph volume this gate's CI time budget
+# can afford (150k synthetic nodes per infra label, 1.2M total), both
+# measured well under 100ms — the seeded graph scan never got close to the
+# 10s graph-read timeout (query/neo4j_read_policy.go) that produces #6793's
+# live failures. That live slowness depends on NornicDB's actual load and
+# cache state at production scale, which a CI-bounded synthetic seed cannot
+# reproduce; calibrating further is not planned. iac/resources (a DIFFERENT
+# #6793 sub-mechanism, the Postgres jsonb-detoast cost in
+# currentInventoryCTE) DID reproduce and scales as expected with seeded row
+# count.
+
+default	1500
+
+# Borderline family: single-domain reducer-fact aggregates that sit close to
+# a 1s read budget at this gate's seeded scale.
+GET /api/v0/freshness/generations	2000	borderline family: near the default budget at seeded scale
+GET /api/v0/supply-chain/container-images/identities/count	2000	borderline family: near the default budget at seeded scale
+GET /api/v0/supply-chain/impact/findings/count	2000	borderline family: near the default budget at seeded scale
+GET /api/v0/graph/entities	2000	borderline family: near the default budget at seeded scale
+
+# #6793 family: infra resource aggregate / IaC inventory. Post-fix target
+# 2000ms (issue #6797 acceptance). infra/resources/{count,inventory} map to
+# platform_impact.infra_resource_aggregate (catalog production p95=2500ms,
+# looser than this target, so this row wins per budget.go's tighter-wins
+# rule); iac/resources maps to iac_inventory.resources.list (catalog
+# production p95=3000ms, likewise looser).
+GET /api/v0/infra/resources/count	2000	#6793 post-fix target; catalog p95 2500ms is looser; ACCEPTED KNOWN GAP, see header
+GET /api/v0/infra/resources/inventory	2000	#6793 post-fix target; catalog p95 2500ms is looser; ACCEPTED KNOWN GAP, see header
+GET /api/v0/iac/resources	2000	#6793 post-fix target; catalog p95 3000ms is looser; reproduces at seeded IaC fact scale
+
+# #6794 family: status/readiness/multi-scope routes paying activeFactWorkItemsCTE
+# and large intent-table scan cost. Post-fix target 1000ms (issue #6797
+# acceptance). status/operations maps to operations.status (catalog
+# production p95=2000ms, looser than this target, so this row wins); the
+# rest have no mapped capability in RouteCapability (see budget.go's doc
+# comment on why an exhaustive mapping isn't derivable).
+GET /api/v0/collectors	1000	#6794 post-fix target
+GET /api/v0/collector-readiness	1000	#6794 post-fix target
+GET /api/v0/status/collector-readiness	1000	#6794 post-fix target
+GET /api/v0/status/collectors	1000	#6794 post-fix target
+GET /api/v0/status/freshness-causality	1000	#6794 post-fix target
+GET /api/v0/status/governance	1000	#6794 post-fix target
+GET /api/v0/status/hosted-readiness	1000	#6794 post-fix target
+GET /api/v0/status/index	1000	#6794 post-fix target
+GET /api/v0/status/ingesters	1000	#6794 post-fix target
+GET /api/v0/status/operations	1000	#6794 post-fix target; catalog p95 2000ms is looser
+GET /api/v0/status/operator-control-plane	1000	#6794 post-fix target
+GET /api/v0/status/pipeline	1000	#6794 post-fix target
+GET /api/v0/status/semantic-extraction	1000	#6794 post-fix target
+GET /api/v0/index-status	1000	#6794 post-fix target
+GET /api/v0/ingesters	1000	#6794 post-fix target
+GET /api/v0/evidence/bundle	1000	#6794 post-fix target; same activeFactWorkItemsCTE-adjacent shape
+GET /api/v0/repositories	1000	#6794 post-fix target
+GET /api/v0/repositories/language-inventory	1000	#6794 post-fix target
+
+# GET /api/v0/capabilities is not part of either regression family; its row
+# exists to exercise (and test-prove, see budget_test.go
+# TestCatalogBudgetWinsWhenTighter) the catalog-tighter-wins path: catalog
+# production p95=400ms * 1.5 = 600ms, tighter than the 1500ms default.
+GET /api/v0/capabilities	1500	catalog p95 400ms*1.5=600ms is tighter and wins at runtime; row exists so this route is not silently unbudgeted if the catalog entry is ever removed
