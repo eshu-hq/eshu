@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 // TestCodeownersOwnershipDomainResolvesItsMaterializedEdgeTypes pins the
@@ -49,9 +49,9 @@ func TestCodeownersOwnershipDomainResolvesItsMaterializedEdgeTypes(t *testing.T)
 func TestCodeownersOwnershipDomainEdgeTypesComeFromTheWriterRegistry(t *testing.T) {
 	t.Parallel()
 
-	reg, ok := cypher.SingleTypeMaterializedEdgeTypes("codeowners_ownership_edges")
+	reg, ok := materialized.SingleTypeMaterializedEdgeTypes("codeowners_ownership_edges")
 	if !ok {
-		t.Fatal("cypher.SingleTypeMaterializedEdgeTypes(codeowners_ownership_edges) reports not-found; the single-type registry entry is missing")
+		t.Fatal("materialized.SingleTypeMaterializedEdgeTypes(codeowners_ownership_edges) reports not-found; the single-type registry entry is missing")
 	}
 	if len(reg) == 0 {
 		t.Fatal("cypher single-type registry entry for codeowners_ownership_edges is empty; an empty registry makes any graph vacuously pass the live gate")

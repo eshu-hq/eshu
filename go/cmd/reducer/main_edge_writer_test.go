@@ -6,12 +6,12 @@ package main
 import (
 	"testing"
 
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 func assertSharedEdgeWriterConfig(
 	t *testing.T,
-	w *sourcecypher.EdgeWriter,
+	w *edgewriter.EdgeWriter,
 	wantInheritanceGroupSize int,
 	wantSQLRelationshipGroupSize int,
 	wantSQLRelationshipSequentialWrites bool,

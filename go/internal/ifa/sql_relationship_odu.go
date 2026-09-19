@@ -69,7 +69,7 @@ const (
 // sqlrelationship.ExtractSQLRelationshipRows (go/internal/reducer/
 // sqlrelationship/sql_relationship_materialization.go) derives exactly one
 // edge of each of the nine materialized SQL relationship types
-// (cypher.SQLRelationshipMaterializedEdgeTypes,
+// (edgewriter.SQLRelationshipMaterializedEdgeTypes,
 // go/internal/storage/cypher/edge_writer_sql.go): QUERIES_TABLE, READS_FROM,
 // REFERENCES_TABLE, WRITES_TO, HAS_COLUMN, TRIGGERS, EXECUTES, INDEXES, and
 // MIGRATES.

@@ -119,7 +119,7 @@ func (w *CodeInterprocEvidenceWriter) WriteCodeInterprocEvidence(
 		}))
 	}
 
-	batches := buildBatchedStatements(codeInterprocEvidenceUpsertCypher, stamped, w.batchSize)
+	batches := BuildBatchedStatements(codeInterprocEvidenceUpsertCypher, stamped, w.batchSize)
 	for index := range batches {
 		batchRows := batches[index].Parameters["rows"].([]map[string]any)
 		batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseCodeInterprocEvidence

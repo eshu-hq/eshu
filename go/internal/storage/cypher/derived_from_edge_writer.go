@@ -79,7 +79,7 @@ func (w *ProvenanceEdgeWriter) WriteDerivedFromEdges(
 	}
 
 	stmts := tagProvenanceStatements(
-		buildBatchedStatements(canonicalProvenanceDerivedFromCypher, cloned, w.batchSize),
+		BuildBatchedStatements(canonicalProvenanceDerivedFromCypher, cloned, w.batchSize),
 		canonicalPhaseProvenanceDerivedFromEdges, provenanceDerivedFromEdgeLabel, "target=ContainerImage",
 	)
 	// Sequential auto-commit, never ExecuteGroup: this same-label two-MATCH-MERGE

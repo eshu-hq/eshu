@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // reducerNeo4jExecutorSatisfiesProbeExecutor is a compile-time assertion that
@@ -151,7 +152,7 @@ func TestReducerNeo4jExecutorExecuteProbePropagatesQueryCypherExistsError(t *tes
 // inner wraps, so the type assertion here can never by itself detect a
 // capability silently dying at a middle layer -- only a full pass all the way
 // through to the session, as RetractEdges below performs, can.
-func gateWiredEdgeWriterForProbeTest(t *testing.T, probeFound bool) (*sourcecypher.EdgeWriter, *fakeNeo4jSession) {
+func gateWiredEdgeWriterForProbeTest(t *testing.T, probeFound bool) (*edgewriter.EdgeWriter, *fakeNeo4jSession) {
 	t.Helper()
 
 	session := &fakeNeo4jSession{probeFound: probeFound}
@@ -171,7 +172,7 @@ func gateWiredEdgeWriterForProbeTest(t *testing.T, probeFound bool) (*sourcecyph
 		t.Fatalf("gate-wrapped reducerNeo4jExecutor chain (%T) does not satisfy sourcecypher.ProbeExecutor -- the #5998 probe guard has regressed to permanently inert in production", wrapped)
 	}
 
-	return sourcecypher.NewEdgeWriter(wrapped, 0), session
+	return edgewriter.NewEdgeWriter(wrapped, 0), session
 }
 
 // wholeScopeRationaleRefreshRow builds the retract row the two gate-wired probe

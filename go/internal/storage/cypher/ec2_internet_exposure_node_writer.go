@@ -99,7 +99,7 @@ func (w *EC2InternetExposureNodeWriter) WriteEC2InternetExposureNodes(
 		return nil
 	}
 
-	stmts := buildBatchedStatements(canonicalEC2InternetExposureNodeUpsertCypher, existing, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalEC2InternetExposureNodeUpsertCypher, existing, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseEC2InternetExposure

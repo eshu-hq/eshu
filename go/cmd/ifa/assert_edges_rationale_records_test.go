@@ -15,7 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 const rationaleRecordRepoID = "repository:r_fixture"
@@ -39,7 +39,7 @@ func TestRunAssertEdgesCommandDispatchesRationaleFullRecordComparison(t *testing
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(rationale_edges): %v", err)
 	}
-	identity, err := cypher.MaterializedEdgeIdentityProperties("rationale_edges")
+	identity, err := materialized.MaterializedEdgeIdentityProperties("rationale_edges")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeIdentityProperties(rationale_edges): %v", err)
 	}
@@ -309,6 +309,7 @@ func TestAssertRationaleMaterializedEdgeRecordsPropagatesReaderError(t *testing.
 type failingEdgeReader struct{ err error }
 
 func (f failingEdgeReader) StreamNodes(context.Context, func(graphdump.Node) error) error { return nil }
+
 func (f failingEdgeReader) StreamEdges(context.Context, func(graphdump.Edge) error) error {
 	return f.err
 }

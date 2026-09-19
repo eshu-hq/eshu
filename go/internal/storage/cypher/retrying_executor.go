@@ -298,7 +298,7 @@ func classifyRetryableGraphWriteError(err error, stmt Statement) string {
 
 // classifyRetryableGraphWriteGroupError classifies a phase-group write failure
 // as retryable when EVERY statement in the group converges on re-execution
-// (see allStatementsAreReplaySafe) AND the underlying error matches a NornicDB
+// (see AllStatementsAreReplaySafe) AND the underlying error matches a NornicDB
 // relationship snapshot or commit-time UNIQUE conflict pattern. Groups holding
 // a statement that does NOT converge — CREATE, an accumulating SET — are NOT
 // retried, because re-executing one can double-apply effects.
@@ -322,7 +322,7 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 	if err == nil {
 		return ""
 	}
-	if !allStatementsAreReplaySafe(stmts) && !isCanonicalRunsOnReplaySafeGroup(stmts) {
+	if !AllStatementsAreReplaySafe(stmts) && !isCanonicalRunsOnReplaySafeGroup(stmts) {
 		return ""
 	}
 	if isNornicDBRelationshipSnapshotConflict(err) {
@@ -354,7 +354,7 @@ func isNornicDBMergeRelationshipSnapshotConflict(err error, cypher string) bool 
 // nornicDBStatementSyntaxErrorCode, which a genuinely malformed query also
 // uses, so the message carries the discrimination and every caller gates on a
 // MERGE-shaped single statement or a group whose every statement passes
-// allStatementsAreReplaySafe before acting on the result.
+// AllStatementsAreReplaySafe before acting on the result.
 //
 // Replay is safe on the create-side shape for its own reasons, not only by
 // analogy: a MERGE-shaped statement converges on re-execution, and an endpoint

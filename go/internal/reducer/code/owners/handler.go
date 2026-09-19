@@ -119,7 +119,7 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 // homogeneous batches: rows with a nil Payload get a whole-repository
 // retract, rows carrying a delta_projection Payload get the ordinary
 // path-scoped delta retract. Splitting is required because the storage-layer
-// dispatch (cypher.EdgeWriter.RetractEdges) picks exactly one Cypher shape
+// dispatch (edge/writer.EdgeWriter.RetractEdges) picks exactly one Cypher shape
 // per call based on whether ANY row in the batch carries delta scope
 // (cypher.collectDeltaFilePaths); a single batch mixing both row shapes would
 // silently apply the path-scoped shape to a repository that actually needs

@@ -3,7 +3,10 @@
 
 package querycontract
 
-import "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+import (
+	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
+)
 
 // contentContainmentEdgeType is CONTAINS: written for every content-entity
 // label (including every SQL entity label) by the generic File-to-entity
@@ -55,7 +58,7 @@ type EdgeCoverage struct {
 // graph probe: it merges the SQL relationship edge-writer whitelist (the
 // authoritative source for READS_FROM, WRITES_TO, REFERENCES_TABLE,
 // HAS_COLUMN, TRIGGERS, EXECUTES, QUERIES_TABLE, INDEXES, and MIGRATES — see
-// cypher.SQLRelationshipMaterializedEdgeTypes)
+// edgewriter.SQLRelationshipMaterializedEdgeTypes)
 // with the always-on structural CONTAINS edge and structuralEdgeTypes
 // (DEPENDS_ON, REPO_CONTAINS), plus the Crossplane (cypher.CrossplaneRelationship
 // MaterializedEdgeTypes) and Flux (cypher.FluxRelationshipMaterializedEdgeTypes)
@@ -63,7 +66,7 @@ type EdgeCoverage struct {
 // new SQL relationship type or canonical edge type added to one of those
 // whitelists flips this registry automatically without a second edit here.
 func materializedEdgeTypes() map[string]string {
-	out := cypher.SQLRelationshipMaterializedEdgeTypes()
+	out := edgewriter.SQLRelationshipMaterializedEdgeTypes()
 	out[contentContainmentEdgeType] = contentContainmentEdgeReason
 	for edgeType, reason := range structuralEdgeTypes {
 		out[edgeType] = reason

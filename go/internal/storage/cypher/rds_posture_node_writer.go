@@ -128,7 +128,7 @@ func (w *RDSPostureNodeWriter) WriteRDSPostureNodes(
 		return nil
 	}
 
-	stmts := buildBatchedStatements(canonicalRDSPostureUpdateCypher, existing, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalRDSPostureUpdateCypher, existing, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

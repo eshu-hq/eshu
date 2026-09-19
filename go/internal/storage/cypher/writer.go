@@ -80,7 +80,7 @@ type Statement struct {
 	DrainVar string
 }
 
-// allStatementsAreReplaySafe returns true when re-executing every statement in
+// AllStatementsAreReplaySafe returns true when re-executing every statement in
 // stmts, in order, converges on the same graph state as the attempt that
 // failed. That is the property the group retry actually needs: a NornicDB
 // commit failure rolls the whole transaction back rather than tearing it, so
@@ -108,7 +108,7 @@ type Statement struct {
 // transaction made it mixed, and a MERGE-only gate would have turned the
 // commit-time UNIQUE conflict that a concurrent canonical writer produces from
 // a retried, converging write into a dead-lettered work item.
-func allStatementsAreReplaySafe(stmts []Statement) bool {
+func AllStatementsAreReplaySafe(stmts []Statement) bool {
 	if len(stmts) == 0 {
 		return false
 	}

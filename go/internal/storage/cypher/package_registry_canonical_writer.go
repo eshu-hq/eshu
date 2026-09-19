@@ -188,7 +188,7 @@ func packageRegistryBatchedStatements(
 	phase string,
 	mat projector.CanonicalMaterialization,
 ) []Statement {
-	statements := buildBatchedStatements(cypher, rows, batchSize)
+	statements := BuildBatchedStatements(cypher, rows, batchSize)
 	for index := range statements {
 		batchRows := statements[index].Parameters["rows"].([]map[string]any)
 		statements[index].Parameters[StatementMetadataPhaseKey] = phase

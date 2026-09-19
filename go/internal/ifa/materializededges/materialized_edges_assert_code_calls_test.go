@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 // TestCodeCallsDomainResolvesItsMaterializedEdgeTypes pins the registry entry
@@ -103,7 +104,7 @@ func TestInheritanceEdgesDomainResolvesItsMaterializedEdgeTypes(t *testing.T) {
 func TestEverySingleTypeFamilyResolvesThroughTheResolver(t *testing.T) {
 	t.Parallel()
 
-	families := cypher.SingleTypeMaterializedEdgeFamilyNames()
+	families := materialized.SingleTypeMaterializedEdgeFamilyNames()
 	if len(families) == 0 {
 		t.Fatal("no single-type families registered; this test would pass vacuously")
 	}

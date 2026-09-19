@@ -15,7 +15,7 @@
 // (single-label Repository anchors, relationship-type disjunction).
 //
 // The test drives the REAL production write and retract paths
-// (cypher.EdgeWriter.WriteEdges / RetractEdges for
+// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for
 // reducer.DomainRepoDependency). It writes every relationship type the domain
 // can produce — the six typed repository relationships (DEPENDS_ON,
 // DEPLOYS_FROM, DISCOVERS_CONFIG_IN, PROVISIONS_DEPENDENCY_FOR, USES_MODULE,
@@ -39,6 +39,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -81,7 +82,7 @@ func TestReducerRepoDependencyEdgeRetractGraphTruth(t *testing.T) {
 
 	seedRepoDependencyNodes(ctx, t, exec)
 
-	writer := cypher.NewEdgeWriter(exec, 0)
+	writer := edgewriter.NewEdgeWriter(exec, 0)
 
 	writeRows := make([]reducer.SharedProjectionIntentRow, 0, len(repoDepTypedRelationships)+3)
 	for _, relType := range repoDepTypedRelationships {

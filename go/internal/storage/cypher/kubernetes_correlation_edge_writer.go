@@ -144,7 +144,7 @@ func (w *KubernetesCorrelationEdgeWriter) WriteKubernetesCorrelationEdges(
 	var stmts []Statement
 	for _, label := range labels {
 		cypher := fmt.Sprintf(canonicalKubernetesCorrelationEdgeUpsertCypherFormat, label)
-		batches := buildBatchedStatements(cypher, grouped[label], w.batchSize)
+		batches := BuildBatchedStatements(cypher, grouped[label], w.batchSize)
 		for index := range batches {
 			batchRows := batches[index].Parameters["rows"].([]map[string]any)
 			batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseKubernetesCorrelationEdge

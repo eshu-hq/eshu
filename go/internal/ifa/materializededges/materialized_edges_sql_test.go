@@ -10,13 +10,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // TestSQLRelationshipExpectedEdgesCoverEveryRegistryType is the exhaustiveness
 // half of the #5351 vacuity guard: the hand-derived expected-edge-set file
 // must name at least one edge of every relationship type
-// cypher.SQLRelationshipMaterializedEdgeTypes() (the writer's own registry)
+// edgewriter.SQLRelationshipMaterializedEdgeTypes() (the writer's own registry)
 // accepts. A type missing from the expected set would mean an 8th writer
 // type added later has nothing forcing the fixture to grow, silently
 // defeating the exhaustiveness this gate exists to prove.
@@ -33,9 +33,9 @@ func TestSQLRelationshipExpectedEdgesCoverEveryRegistryType(t *testing.T) {
 		seenTypes[e.RelationshipType]++
 	}
 
-	registry := cypher.SQLRelationshipMaterializedEdgeTypes()
+	registry := edgewriter.SQLRelationshipMaterializedEdgeTypes()
 	if len(registry) == 0 {
-		t.Fatal("cypher.SQLRelationshipMaterializedEdgeTypes() returned no types; the registry itself is broken")
+		t.Fatal("edgewriter.SQLRelationshipMaterializedEdgeTypes() returned no types; the registry itself is broken")
 	}
 	for edgeType := range registry {
 		if seenTypes[edgeType] == 0 {

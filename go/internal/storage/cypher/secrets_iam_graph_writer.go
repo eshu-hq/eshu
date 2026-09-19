@@ -296,7 +296,7 @@ func (w *SecretsIAMGraphWriter) writeBatched(ctx context.Context, cypher, label 
 	if w.executor == nil {
 		return fmt.Errorf("secrets/iam graph writer executor is required")
 	}
-	stmts := buildBatchedStatements(cypher, rows, w.batchSize)
+	stmts := BuildBatchedStatements(cypher, rows, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

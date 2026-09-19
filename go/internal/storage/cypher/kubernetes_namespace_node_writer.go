@@ -14,7 +14,7 @@ import (
 // diagnostics.
 const canonicalPhaseKubernetesNamespace = "kubernetes_namespace"
 
-// canonicalKubernetesNamespaceUpsertCypher batches KubernetesNamespace node
+// CanonicalKubernetesNamespaceUpsertCypher batches KubernetesNamespace node
 // upserts for a namespace with NO alias-recognized environment label (issue
 // #5434). MERGE is on the stable uid identity only (the collector-emitted
 // object_id, itself keyed by cluster_id + namespace name); mutable
@@ -39,7 +39,7 @@ const canonicalPhaseKubernetesNamespace = "kubernetes_namespace"
 // correctly under the same managed-transaction path -- consistent with every
 // OTHER property clear in this writer already using SET, never REMOVE. See
 // evidence-5434-namespace-environment-retract.md.
-const canonicalKubernetesNamespaceUpsertCypher = `UNWIND $rows AS row
+const CanonicalKubernetesNamespaceUpsertCypher = `UNWIND $rows AS row
 MERGE (n:KubernetesNamespace {uid: row.uid})
 SET n.id = row.uid,
     n.cluster_id = row.cluster_id,
@@ -58,17 +58,17 @@ SET n.id = row.uid,
     n.environment = null,
     n.evidence_class = null`
 
-// canonicalKubernetesNamespaceWithEnvironmentUpsertCypher is the sibling
+// CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher is the sibling
 // variant for a namespace whose label declared a recognized environment. It
 // extends the base upsert with the environment/evidence_class properties and
 // a MERGE (:Environment)-bound TARGETS_ENVIRONMENT edge -- the same edge
-// type batchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher uses
+// type BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher uses
 // for the repo-manifest environment-alias path, so both producers converge
 // on one canonical Environment node per name. Only rows the reducer
 // classified as environment-bound (a non-empty row.environment) are ever
 // routed through this query; see
 // KubernetesNamespaceNodeWriter.WriteKubernetesNamespaceNodes.
-const canonicalKubernetesNamespaceWithEnvironmentUpsertCypher = `UNWIND $rows AS row
+const CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher = `UNWIND $rows AS row
 MERGE (n:KubernetesNamespace {uid: row.uid})
 SET n.id = row.uid,
     n.cluster_id = row.cluster_id,
@@ -91,14 +91,14 @@ MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)
 SET env_rel.evidence_source = row.evidence_source,
     env_rel.evidence_class = row.evidence_class`
 
-// retractKubernetesNamespaceStaleTargetsEnvironmentCypher removes a
+// RetractKubernetesNamespaceStaleTargetsEnvironmentCypher removes a
 // namespace's PRIOR TARGETS_ENVIRONMENT edge before this generation's write,
 // for every row in the batch (bound and unbound alike). The reducer OWNS
 // this edge (the same TARGETS_ENVIRONMENT type
-// batchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher uses for the
+// BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher uses for the
 // repo-manifest alias path), so neither
-// canonicalKubernetesNamespaceUpsertCypher (which only REMOVEs node
-// properties) nor canonicalKubernetesNamespaceWithEnvironmentUpsertCypher
+// CanonicalKubernetesNamespaceUpsertCypher (which only REMOVEs node
+// properties) nor CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher
 // (which only MERGEs an edge to the row's OWN row.environment, never touches
 // an edge to a DIFFERENT prior Environment) ever retracted a stale edge --
 // codex review finding P1, #5434. Without this: (a) a namespace that loses
@@ -119,7 +119,7 @@ SET env_rel.evidence_source = row.evidence_source,
 // uidConstraintLabels in go/internal/graph/schema_tables.go, issue #5651)
 // and evidence_source (this writer's own edges only), so it never touches an
 // edge a different producer wrote to the same Environment node.
-const retractKubernetesNamespaceStaleTargetsEnvironmentCypher = `UNWIND $rows AS row
+const RetractKubernetesNamespaceStaleTargetsEnvironmentCypher = `UNWIND $rows AS row
 MATCH (n:KubernetesNamespace {uid: row.uid})-[rel:TARGETS_ENVIRONMENT]->(old_env:Environment)
 WHERE rel.evidence_source = $evidence_source
   AND old_env.name <> row.environment
@@ -161,9 +161,9 @@ func NewKubernetesNamespaceNodeWriter(executor Executor, batchSize int) *Kuberne
 // given rows using batched UNWIND statements, routing each row to the
 // no-environment or with-environment Cypher variant by whether its
 // "environment" property is non-empty -- an unbound namespace (row.environment
-// == "") NEVER reaches canonicalKubernetesNamespaceWithEnvironmentUpsertCypher,
+// == "") NEVER reaches CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher,
 // so it can never create an Environment node. Before either upsert variant
-// runs, a retract pass (retractKubernetesNamespaceStaleTargetsEnvironmentCypher,
+// runs, a retract pass (RetractKubernetesNamespaceStaleTargetsEnvironmentCypher,
 // dispatched by dispatchRetract) deletes any TARGETS_ENVIRONMENT edge left
 // over from a prior generation that no longer matches this row's environment,
 // so an unbound-again or re-bound namespace never keeps asserting a stale
@@ -217,8 +217,8 @@ func (w *KubernetesNamespaceNodeWriter) WriteKubernetesNamespaceNodes(
 		return err
 	}
 
-	stmts := w.buildStatements(unbound, canonicalKubernetesNamespaceUpsertCypher)
-	stmts = append(stmts, w.buildStatements(bound, canonicalKubernetesNamespaceWithEnvironmentUpsertCypher)...)
+	stmts := w.buildStatements(unbound, CanonicalKubernetesNamespaceUpsertCypher)
+	stmts = append(stmts, w.buildStatements(bound, CanonicalKubernetesNamespaceWithEnvironmentUpsertCypher)...)
 	if len(stmts) == 0 {
 		return nil
 	}
@@ -300,7 +300,7 @@ func (w *KubernetesNamespaceNodeWriter) buildStatements(rows []map[string]any, c
 	if len(rows) == 0 {
 		return nil
 	}
-	stmts := buildBatchedStatements(cypherText, rows, w.batchSize)
+	stmts := BuildBatchedStatements(cypherText, rows, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert
@@ -315,14 +315,14 @@ func (w *KubernetesNamespaceNodeWriter) buildStatements(rows []map[string]any, c
 }
 
 // buildRetractStatements builds the batched
-// retractKubernetesNamespaceStaleTargetsEnvironmentCypher statements for
+// RetractKubernetesNamespaceStaleTargetsEnvironmentCypher statements for
 // every row in this write (bound and unbound alike), for dispatchRetract to
 // run sequentially ahead of the upsert statements.
 func (w *KubernetesNamespaceNodeWriter) buildRetractStatements(rows []map[string]any, evidenceSource string) []Statement {
 	if len(rows) == 0 {
 		return nil
 	}
-	stmts := buildBatchedRetractStatements(retractKubernetesNamespaceStaleTargetsEnvironmentCypher, rows, w.batchSize)
+	stmts := buildBatchedRetractStatements(RetractKubernetesNamespaceStaleTargetsEnvironmentCypher, rows, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters["evidence_source"] = evidenceSource

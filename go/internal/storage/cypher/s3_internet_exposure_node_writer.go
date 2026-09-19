@@ -100,7 +100,7 @@ func (w *S3InternetExposureNodeWriter) WriteS3InternetExposureNodes(
 		return nil
 	}
 
-	stmts := buildBatchedStatements(canonicalS3InternetExposureNodeUpsertCypher, existing, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalS3InternetExposureNodeUpsertCypher, existing, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseS3InternetExposure

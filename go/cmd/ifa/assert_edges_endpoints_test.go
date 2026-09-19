@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 // labeledEdge builds a graph edge carrying endpoint labels, which sqlEdge omits
@@ -76,7 +76,7 @@ func TestEndpointScopingPartitionsASharedEdgeType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(repo_dependency): %v", err)
 	}
-	repoEndpoints, ok := cypher.MaterializedEdgeEndpointLabels("repo_dependency")
+	repoEndpoints, ok := materialized.MaterializedEdgeEndpointLabels("repo_dependency")
 	if !ok {
 		t.Fatal("repo_dependency has no endpoint constraints; it shares DEPENDS_ON and needs them")
 	}
@@ -91,7 +91,7 @@ func TestEndpointScopingPartitionsASharedEdgeType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(workload_dependency): %v", err)
 	}
-	workloadEndpoints, ok := cypher.MaterializedEdgeEndpointLabels("workload_dependency")
+	workloadEndpoints, ok := materialized.MaterializedEdgeEndpointLabels("workload_dependency")
 	if !ok {
 		t.Fatal("workload_dependency has no endpoint constraints; it shares DEPENDS_ON and needs them")
 	}
@@ -151,7 +151,7 @@ func TestUnconstrainedFamilyMatchesByTypeAlone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(runs_in): %v", err)
 	}
-	endpoints, constrained := cypher.MaterializedEdgeEndpointLabels("runs_in")
+	endpoints, constrained := materialized.MaterializedEdgeEndpointLabels("runs_in")
 	if constrained {
 		t.Fatalf("runs_in unexpectedly carries endpoint constraints %+v", endpoints)
 	}
@@ -375,7 +375,7 @@ func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(repo_dependency): %v", err)
 	}
-	endpoints, ok := cypher.MaterializedEdgeEndpointLabels("repo_dependency")
+	endpoints, ok := materialized.MaterializedEdgeEndpointLabels("repo_dependency")
 	if !ok {
 		t.Fatal("repo_dependency carries no endpoint constraints")
 	}
@@ -410,7 +410,7 @@ func TestProvenancePartitionsRunsOnBetweenTwoLiveWriters(t *testing.T) {
 func TestEvidenceSourceConstraintTracksTheWriterConstant(t *testing.T) {
 	t.Parallel()
 
-	endpoints, ok := cypher.MaterializedEdgeEndpointLabels("repo_dependency")
+	endpoints, ok := materialized.MaterializedEdgeEndpointLabels("repo_dependency")
 	if !ok {
 		t.Fatal("repo_dependency carries no endpoint constraints")
 	}

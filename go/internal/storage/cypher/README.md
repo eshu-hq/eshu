@@ -746,7 +746,7 @@ repository ids, node ids, and statements stay out of metric labels.
   relationship pattern. `workload_dependency` declares `DEPENDS_ON.identity_key`;
   `repo_dependency` declares `RUNS_ON.identity_key`. Concurrent writers converge.
   Unknown families fail closed; reads return copies. The identity drift test
-  (`materialized_edge_families_test.go`) holds each single-type family's real
+  (`edge/materialized/edge_families_test.go`) holds each single-type family's real
   write-path Cypher const by reference and extracts its MERGE property map
   from it, so a declared identity can never drift from what the writer
   actually keys on.
@@ -1846,7 +1846,7 @@ empty defaults instead of a corrupted literal), never telemetry.
 gains two `SET` lines, `artifact.ref_value = row.ref_value` and
 `artifact.ref_pinned = row.ref_pinned`, following the same pattern as the
 existing `start_line`/`end_line`/`commit_sha` properties. `repoEvidenceArtifactRowsFromIntent`
-(`edge_writer_row_metadata.go`) carries the two fields through from the reducer's
+(`edge/writer/edge_row_metadata.go`) carries the two fields through from the reducer's
 evidence-artifact map onto the graph-write row when present; it does not
 compute them -- `go/internal/reducer/crossrepo/cross_repo_evidence_artifacts.go` is the
 sole place `ref_pinned` is classified (via `go/internal/ghactionsref`'s
@@ -1864,14 +1864,14 @@ new properties flow as graph-node data only.
 
 ## Retract helper split (#5528)
 
-`edge_writer_retract.go` was split along a move-only seam to keep headroom under
+`edge/writer/edge_retract.go` was split along a move-only seam to keep headroom under
 the 500-line source cap: the `RetractEdges` dispatch, its
 `execute*RetractStatements` helpers, and `buildRetractStatement` stay in
-`edge_writer_retract.go`; the pure, receiverless row/scope-collection helpers
+`edge/writer/edge_retract.go`; the pure, receiverless row/scope-collection helpers
 (`collectRepoIDs`, `collectScopeIDs`, `collectDeltaFilePaths`,
 `documentationRetractScope`, `collectDocumentationDeltaScope`,
 `buildDocumentationDeltaRetractStatements`) moved verbatim to
-`edge_writer_retract_scope.go`.
+`edge/writer/edge_retract_scope.go`.
 
 No-Regression Evidence: pure code motion -- the moved region is byte-identical to
 the pre-split source, and no retract Cypher statement, `MATCH`/`DETACH DELETE`
@@ -1946,7 +1946,7 @@ status; the narrower ownership check adds no new operator-facing signal.
 
 `MaterializedEdgeIdentityProperties` reads the same kind of package-level map
 literal `SingleTypeMaterializedEdgeTypes` already reads, folded into
-`singleTypeMaterializedEdgeFamilies` in `materialized_edge_families.go`. Its
+`singleTypeMaterializedEdgeFamilies` in `edge/materialized/edge_families.go`. Its
 callers are `materializededges.LoadExpectedEdges` and `cmd/ifa/assert_edges.go`'s
 `assertMaterializedEdges`, both `cmd/ifa` gate-tool read paths, same as the
 edge-type and endpoint-label registries above: no fact is emitted, no work

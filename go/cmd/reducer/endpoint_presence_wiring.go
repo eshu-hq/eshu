@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -88,8 +89,8 @@ func newHandlerEdgeWriter(
 	logger *slog.Logger,
 	inheritanceGroupBatchSize int,
 	sqlRelationshipGroupBatchSize int,
-) *sourcecypher.EdgeWriter {
-	writer := sourcecypher.NewEdgeWriter(neo4jExec, batchSize)
+) *edgewriter.EdgeWriter {
+	writer := edgewriter.NewEdgeWriter(neo4jExec, batchSize)
 	writer.Instruments = instruments
 	writer.Logger = logger
 	writer.InheritanceGroupBatchSize = inheritanceGroupBatchSize

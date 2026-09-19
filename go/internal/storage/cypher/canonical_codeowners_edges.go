@@ -29,7 +29,7 @@ package cypher
 // (pattern, source_path) makes each (rule, owner) pair its own relationship,
 // so parallel DECLARES_CODEOWNER edges between the same repo and team are
 // preserved.
-const batchCanonicalCodeownersOwnershipEdgeCypher = `UNWIND $rows AS row
+const BatchCanonicalCodeownersOwnershipEdgeCypher = `UNWIND $rows AS row
 MERGE (repo:Repository {id: row.repo_id})
 MERGE (team:CodeownerTeam {ref: row.owner_ref})
 MERGE (repo)-[rel:DECLARES_CODEOWNER {pattern: row.pattern, source_path: row.source_path}]->(team)
@@ -37,13 +37,13 @@ SET rel.order_index = row.order_index,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
 
-// retractCodeownersOwnershipEdgesCypher removes every DECLARES_CODEOWNER edge
+// RetractCodeownersOwnershipEdgesCypher removes every DECLARES_CODEOWNER edge
 // this evidence source owns for a set of repositories before they are
 // re-projected (whole-repository retract, used when the generation carries no
 // delta scope). The CodeownerTeam node is intentionally left in place: it is
 // shared, ref-keyed, and identical across repos, so retracting the edge alone
 // is correct.
-const retractCodeownersOwnershipEdgesCypher = `MATCH (repo:Repository)-[rel:DECLARES_CODEOWNER]->(:CodeownerTeam)
+const RetractCodeownersOwnershipEdgesCypher = `MATCH (repo:Repository)-[rel:DECLARES_CODEOWNER]->(:CodeownerTeam)
 WHERE repo.id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -72,28 +72,28 @@ WHERE repo.id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-// buildCodeownersOwnershipRowMap converts a codeowners_ownership intent payload
+// BuildCodeownersOwnershipRowMap converts a codeowners_ownership intent payload
 // into the flat UNWIND parameter map for the DECLARES_CODEOWNER upsert. It
 // skips the row (ok=false) when any MERGE key — repo_id, owner_ref, pattern,
 // or source_path — is empty so an unresolvable edge is never written.
-func buildCodeownersOwnershipRowMap(
+func BuildCodeownersOwnershipRowMap(
 	payload map[string]any,
 	evidenceSource string,
 ) (string, map[string]any, bool) {
-	repoID := payloadString(payload, "repo_id")
-	ownerRef := payloadString(payload, "owner_ref")
-	pattern := payloadString(payload, "pattern")
-	sourcePath := payloadString(payload, "source_path")
+	repoID := PayloadString(payload, "repo_id")
+	ownerRef := PayloadString(payload, "owner_ref")
+	pattern := PayloadString(payload, "pattern")
+	sourcePath := PayloadString(payload, "source_path")
 	if repoID == "" || ownerRef == "" || pattern == "" || sourcePath == "" {
 		return "", nil, false
 	}
-	return batchCanonicalCodeownersOwnershipEdgeCypher, map[string]any{
+	return BatchCanonicalCodeownersOwnershipEdgeCypher, map[string]any{
 		"repo_id":         repoID,
 		"owner_ref":       ownerRef,
 		"pattern":         pattern,
 		"source_path":     sourcePath,
-		"order_index":     payloadInt(payload, "order_index"),
-		"generation_id":   payloadString(payload, "generation_id"),
+		"order_index":     PayloadInt(payload, "order_index"),
+		"generation_id":   PayloadString(payload, "generation_id"),
 		"evidence_source": evidenceSource,
 	}, true
 }
@@ -103,7 +103,7 @@ func buildCodeownersOwnershipRowMap(
 func BuildRetractCodeownersOwnershipEdges(repoIDs []string, evidenceSource string) Statement {
 	return Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractCodeownersOwnershipEdgesCypher,
+		Cypher:    RetractCodeownersOwnershipEdgesCypher,
 		Parameters: map[string]any{
 			"repo_ids":        repoIDs,
 			"evidence_source": evidenceSource,

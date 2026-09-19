@@ -89,7 +89,7 @@ func (w *KubernetesWorkloadNodeWriter) WriteKubernetesWorkloadNodes(
 		annotated = append(annotated, cloned)
 	}
 
-	stmts := buildBatchedStatements(canonicalKubernetesWorkloadUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalKubernetesWorkloadUpsertCypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

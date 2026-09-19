@@ -164,7 +164,7 @@ func (i *InstrumentedExecutor) recordStatementBatchMetrics(ctx context.Context, 
 	if i.Instruments == nil || i.Instruments.Neo4jBatchSize == nil || i.Instruments.Neo4jBatchesExecuted == nil {
 		return
 	}
-	rowCount, ok := statementRowsCount(statement)
+	rowCount, ok := StatementRowsCount(statement)
 	if !ok {
 		return
 	}
@@ -173,8 +173,8 @@ func (i *InstrumentedExecutor) recordStatementBatchMetrics(ctx context.Context, 
 	i.Instruments.Neo4jBatchesExecuted.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
-// statementRowsCount returns the row count for common UNWIND parameter shapes.
-func statementRowsCount(statement Statement) (int, bool) {
+// StatementRowsCount returns the row count for common UNWIND parameter shapes.
+func StatementRowsCount(statement Statement) (int, bool) {
 	rows, ok := statement.Parameters["rows"]
 	if !ok {
 		return 0, false

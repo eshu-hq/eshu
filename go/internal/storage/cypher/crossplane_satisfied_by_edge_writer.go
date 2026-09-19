@@ -137,7 +137,7 @@ func (w *CrossplaneSatisfiedByEdgeWriter) WriteCrossplaneSatisfiedByEdges(
 		cloned = append(cloned, clone)
 	}
 
-	batches := buildBatchedStatements(canonicalCrossplaneSatisfiedByEdgeUpsertCypher, cloned, w.batchSize)
+	batches := BuildBatchedStatements(canonicalCrossplaneSatisfiedByEdgeUpsertCypher, cloned, w.batchSize)
 	for index := range batches {
 		batchRows := batches[index].Parameters["rows"].([]map[string]any)
 		batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseCrossplaneSatisfiedByEdge

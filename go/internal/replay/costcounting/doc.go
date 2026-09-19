@@ -35,7 +35,7 @@
 //     the same wrapper go/cmd/reducer/observed_service_wiring.go applies to
 //     the real Neo4j/NornicDB executor.
 //   - documentation_materialization (documentation_edges_cost_test.go) drives
-//     [storage/cypher.EdgeWriter.WriteEdges] over two in-package fixture rows
+//     [storage/cypher/edge/writer.EdgeWriter.WriteEdges] over two in-package fixture rows
 //     with EdgeWriter.Instruments set — the same field
 //     go/cmd/reducer/endpoint_presence_wiring.go newHandlerEdgeWriter sets on
 //     the production edge writer.
@@ -102,7 +102,7 @@
 //     [storage/cypher.InstrumentedExecutor]'s recordStatementBatchMetrics
 //     helper on Execute or ExecuteGroup.
 //   - eshu_dp_shared_edge_write_groups_total (documentation_materialization) —
-//     incremented once per grouped [storage/cypher.EdgeWriter.WriteEdges]
+//     incremented once per grouped [storage/cypher/edge/writer.EdgeWriter.WriteEdges]
 //     transaction by EdgeWriter.recordGroupedWrite.
 //   - eshu_dp_neo4j_batches_executed_total (ec2_instance_node_materialization,
 //     rds_posture_materialization, s3_external_principal_grant_materialization,

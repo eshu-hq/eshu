@@ -91,7 +91,7 @@ SET rel.confidence = 0.98,
     rel.reason = 'Deployment manifests for workload instance live in deployment repository',
     rel.evidence_source = $evidence_source`
 
-const canonicalRepoDependencyUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
+const CanonicalRepoDependencyUpsertCypher = `MERGE (source_repo:Repository {id: $repo_id})
 ON CREATE SET source_repo.evidence_source = $evidence_source,
               source_repo.generation_id = $generation_id
 MERGE (target_repo:Repository {id: $target_repo_id})
@@ -111,7 +111,7 @@ SET rel.confidence = $confidence,
     rel.rationale = $rationale,
     rel.source_tool = $source_tool`
 
-const canonicalWorkloadDependencyUpsertCypher = `MATCH (source:Workload {id: $workload_id})
+const CanonicalWorkloadDependencyUpsertCypher = `MATCH (source:Workload {id: $workload_id})
 MATCH (target:Workload {id: $target_workload_id})
 MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)
 SET rel.confidence = 0.9,
@@ -149,7 +149,7 @@ SET rel.confidence = 0.95,
 
 // --- Batched UNWIND Cypher (shared projection) ---
 
-const batchCanonicalRepoDependencyUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalRepoDependencyUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
 ON CREATE SET source_repo.evidence_source = row.evidence_source,
               source_repo.generation_id = row.generation_id
@@ -170,7 +170,7 @@ SET rel.confidence = row.confidence,
     rel.rationale = row.rationale,
     rel.source_tool = row.source_tool`
 
-const batchCanonicalWorkloadDependencyUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalWorkloadDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Workload {id: row.workload_id})
 MATCH (target:Workload {id: row.target_workload_id})
 MERGE (source)-[rel:DEPENDS_ON {identity_key: 'canonical'}]->(target)
@@ -180,7 +180,7 @@ SET rel.confidence = 0.9,
 
 // --- Batched UNWIND Cypher (SQL relationship edges) ---
 
-const batchCanonicalSQLQueriesTableUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalSQLQueriesTableUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function {uid: row.source_entity_id})
 MATCH (target:SqlTable {uid: row.target_entity_id})
 MERGE (source)-[rel:QUERIES_TABLE]->(target)
@@ -188,7 +188,7 @@ SET rel.confidence = 0.95,
     rel.reason = 'Parser embedded SQL evidence resolved a function table query edge',
     rel.evidence_source = row.evidence_source`
 
-const batchCanonicalSQLHasColumnUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalSQLHasColumnUpsertCypher = `UNWIND $rows AS row
 MATCH (source:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.source_entity_id})
 MATCH (target:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.target_entity_id})
 MERGE (source)-[rel:HAS_COLUMN]->(target)
@@ -196,7 +196,7 @@ SET rel.confidence = 0.95,
     rel.reason = 'SQL entity metadata resolved a table-column containment edge',
     rel.evidence_source = row.evidence_source`
 
-const batchCanonicalSQLTriggersUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalSQLTriggersUpsertCypher = `UNWIND $rows AS row
 MATCH (source:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.source_entity_id})
 MATCH (target:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.target_entity_id})
 MERGE (source)-[rel:TRIGGERS]->(target)
@@ -204,7 +204,7 @@ SET rel.confidence = 0.95,
     rel.reason = 'SQL entity metadata resolved a trigger edge',
     rel.evidence_source = row.evidence_source`
 
-const batchCanonicalSQLExecutesUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalSQLExecutesUpsertCypher = `UNWIND $rows AS row
 MATCH (source:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.source_entity_id})
 MATCH (target:SqlTable|SqlView|SqlFunction|SqlTrigger|SqlIndex|SqlColumn {uid: row.target_entity_id})
 MERGE (source)-[rel:EXECUTES]->(target)
@@ -227,13 +227,13 @@ SET rel.confidence = 0.95,
 // an unlabeled source scan reliably, and multiple DELETEs grouped in one
 // managed transaction under-apply (#5116 sibling).
 
-const retractRepoDependencyEdgesCypher = `UNWIND $repo_ids AS repo_id
+const RetractRepoDependencyEdgesCypher = `UNWIND $repo_ids AS repo_id
 MATCH (source_repo:Repository {id: repo_id})
 MATCH (source_repo)-[rel:DEPENDS_ON]->(:Repository)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractWorkloadDependencyEdgesCypher = `MATCH (source:Workload)-[rel:DEPENDS_ON]->(:Workload)
+const RetractWorkloadDependencyEdgesCypher = `MATCH (source:Workload)-[rel:DEPENDS_ON]->(:Workload)
 WHERE source.repo_id IN $repo_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -406,7 +406,7 @@ func BuildCanonicalDeploymentSourceUpsert(p CanonicalDeploymentSourceParams, evi
 func BuildCanonicalRepoDependencyUpsert(p CanonicalRepoDependencyParams, evidenceSource string) Statement {
 	return Statement{
 		Operation: OperationCanonicalUpsert,
-		Cypher:    canonicalRepoDependencyUpsertCypher,
+		Cypher:    CanonicalRepoDependencyUpsertCypher,
 		Parameters: map[string]any{
 			"repo_id":           p.RepoID,
 			"target_repo_id":    p.TargetRepoID,
@@ -417,7 +417,7 @@ func BuildCanonicalRepoDependencyUpsert(p CanonicalRepoDependencyParams, evidenc
 			"evidence_count":    p.EvidenceCount,
 			"evidence_kinds":    p.EvidenceKinds,
 			"resolution_source": p.ResolutionSource,
-			"confidence":        repoRelationshipConfidence(p.Confidence),
+			"confidence":        RepoRelationshipConfidence(p.Confidence),
 			"rationale":         p.Rationale,
 			"source_tool":       p.SourceTool,
 		},

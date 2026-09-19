@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // ExpectedEdge is the exported identity triple, plus any relationship-MERGE
@@ -30,7 +32,7 @@ type ExpectedEdge struct {
 	// this edge's MERGE identity, keyed by property name (e.g. "pattern",
 	// "source_path" for a DECLARES_CODEOWNER edge). It is empty for every
 	// family whose writer MERGEs on its two endpoint nodes alone —
-	// cypher.MaterializedEdgeIdentityProperties names which relationship
+	// materialized.MaterializedEdgeIdentityProperties names which relationship
 	// types require it. LoadExpectedEdges validates that a loaded edge's key
 	// set exactly matches its family's declaration.
 	Identity map[string]string `json:"identity,omitempty"`
@@ -123,7 +125,7 @@ func writeLengthPrefixedField(b *strings.Builder, s string) {
 // LoadExpectedEdges reads a hand-derived expected-edge-set fixture file (the
 // same format the pure vacuity guard consumes) into the exported ExpectedEdge
 // shape, validated against family's declared relationship-identity
-// properties (cypher.MaterializedEdgeIdentityProperties). It is the single
+// properties (materialized.MaterializedEdgeIdentityProperties). It is the single
 // loader `cmd/ifa`'s `assert-edges` verb uses, so the live gate and the pure
 // `go test` guard can never drift on the fixture format.
 //
@@ -133,7 +135,7 @@ func writeLengthPrefixedField(b *strings.Builder, s string) {
 // undeclared key, or any Identity entry on a type with no declared identity
 // is a fixture error, not a silently-accepted edge.
 func LoadExpectedEdges(path, family string) ([]ExpectedEdge, error) {
-	identity, err := cypher.MaterializedEdgeIdentityProperties(family)
+	identity, err := materialized.MaterializedEdgeIdentityProperties(family)
 	if err != nil {
 		return nil, fmt.Errorf("ifa: load expected edges for family %q: %w", family, err)
 	}
@@ -272,19 +274,19 @@ func edgeTypeSet(registry map[string]string) map[string]struct{} {
 func MaterializedEdgeDomainEdgeTypes(domain string) (map[string]struct{}, error) {
 	switch domain {
 	case "sql_relationships":
-		return edgeTypeSet(cypher.SQLRelationshipMaterializedEdgeTypes()), nil
+		return edgeTypeSet(edgewriter.SQLRelationshipMaterializedEdgeTypes()), nil
 	case "code_calls":
 		return edgeTypeSet(cypher.CodeCallMaterializedEdgeTypes()), nil
 	case "inheritance_edges":
 		return edgeTypeSet(cypher.InheritanceMaterializedEdgeTypes()), nil
 	case "repo_dependency":
-		return edgeTypeSet(cypher.RepoDependencyMaterializedEdgeTypes()), nil
+		return edgeTypeSet(materialized.RepoDependencyMaterializedEdgeTypes()), nil
 	default:
 		// The single-relationship-type families resolve from the shared registry
 		// table. They are looked up rather than switched on so registering one is
 		// a data change on the writer side, while the multi-type families above
 		// keep explicit arms because their sets span several templates.
-		if reg, ok := cypher.SingleTypeMaterializedEdgeTypes(domain); ok {
+		if reg, ok := materialized.SingleTypeMaterializedEdgeTypes(domain); ok {
 			return edgeTypeSet(reg), nil
 		}
 		return nil, fmt.Errorf("ifa: no materialized-edge family registered for domain %q; register its edge types beside its writer (multi-type) or in cypher.singleTypeMaterializedEdgeFamilies (single-type) before proving it on a live gate", domain)

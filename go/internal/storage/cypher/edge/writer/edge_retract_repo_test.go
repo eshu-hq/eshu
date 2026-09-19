@@ -1,0 +1,446 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package writer
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"log/slog"
+	"strings"
+	"testing"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+)
+
+func TestEdgeWriterRetractEdgesRepoDependencyDispatch(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got, want := len(executor.calls), 3; got != want {
+		t.Fatalf("executor calls = %d, want %d", got, want)
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "source_repo:Repository") {
+		t.Fatalf("cypher missing Repository match: %s", executor.calls[0].Cypher)
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "MATCH (source_repo:Repository {id: $repo_id})") {
+		t.Fatalf("cypher missing indexed source Repository anchor: %s", executor.calls[0].Cypher)
+	}
+	if strings.Contains(executor.calls[0].Cypher, "MATCH (source_repo:Repository {id: $repo_id})-[") {
+		t.Fatalf("cypher expands relationships before completing indexed Repository anchor: %s", executor.calls[0].Cypher)
+	}
+	anchorIndex := strings.Index(executor.calls[0].Cypher, "MATCH (source_repo:Repository {id: $repo_id})")
+	expansionIndex := strings.Index(executor.calls[0].Cypher, "MATCH (source_repo)-[rel:")
+	if anchorIndex < 0 || expansionIndex < 0 || anchorIndex >= expansionIndex {
+		t.Fatalf("cypher must anchor Repository before relationship expansion: %s", executor.calls[0].Cypher)
+	}
+	if !strings.Contains(executor.calls[1].Cypher, "MATCH (repo:Repository {id: $repo_id})") {
+		t.Fatalf("cypher missing indexed RUNS_ON Repository anchor: %s", executor.calls[1].Cypher)
+	}
+	if !strings.Contains(executor.calls[2].Cypher, "HAS_DEPLOYMENT_EVIDENCE") {
+		t.Fatalf("artifact retract cypher missing evidence edge: %s", executor.calls[2].Cypher)
+	}
+	if strings.Contains(executor.calls[2].Cypher, "MATCH (source_repo:Repository {id: $repo_id})-[") {
+		t.Fatalf("artifact retract expands relationships before completing indexed Repository anchor: %s", executor.calls[2].Cypher)
+	}
+	if !strings.Contains(executor.calls[2].Cypher, "DETACH DELETE artifact") {
+		t.Fatalf("artifact retract cypher missing DETACH DELETE: %s", executor.calls[2].Cypher)
+	}
+}
+
+func TestEdgeWriterRetractEdgesRepoDependencyLogsStatementDurations(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Logger = logger
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+		{IntentID: "i2", RepositoryID: "repo-b", Payload: map[string]any{"repo_id": "repo-b"}},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+
+	entries := decodeJSONLogEntries(t, logs.Bytes())
+	if got, want := len(entries), 3; got != want {
+		t.Fatalf("log entries = %d, want %d\nlogs:\n%s", got, want, logs.String())
+	}
+	for i, call := range executor.calls {
+		if _, ok := call.Parameters[sourcecypher.StatementMetadataSummaryKey]; ok {
+			t.Fatalf("executor call %d passed diagnostic statement summary to backend: %#v", i, call.Parameters)
+		}
+	}
+	for i, wantRole := range []string{"repository_relationship_edges", "runs_on_relationships", "evidence_artifacts"} {
+		entry := entries[i]
+		if got, want := entry["msg"], "shared edge retract statement completed"; got != want {
+			t.Fatalf("entry %d msg = %v, want %v", i, got, want)
+		}
+		if got, want := entry["domain"], reducer.DomainRepoDependency; got != want {
+			t.Fatalf("entry %d domain = %v, want %v", i, got, want)
+		}
+		if got, want := entry["evidence_source"], "finalization/workloads"; got != want {
+			t.Fatalf("entry %d evidence_source = %v, want %v", i, got, want)
+		}
+		if got := entry["statement_role"]; got != wantRole {
+			t.Fatalf("entry %d statement_role = %v, want %v", i, got, wantRole)
+		}
+		if got, want := entry["repo_count"], float64(2); got != want {
+			t.Fatalf("entry %d repo_count = %v, want %v", i, got, want)
+		}
+		if _, ok := entry["duration_seconds"]; !ok {
+			t.Fatalf("entry %d missing duration_seconds: %v", i, entry)
+		}
+		if wantRole == "repository_relationship_edges" {
+			summary, _ := entry["statement_summary"].(string)
+			for _, wantRelationship := range []string{
+				"DEPENDS_ON",
+				"DEPLOYS_FROM",
+				"DISCOVERS_CONFIG_IN",
+				"PROVISIONS_DEPENDENCY_FOR",
+				"USES_MODULE",
+				"READS_CONFIG_FROM",
+			} {
+				if !strings.Contains(summary, wantRelationship) {
+					t.Fatalf("entry %d statement_summary = %q, missing %s", i, summary, wantRelationship)
+				}
+			}
+			if strings.Contains(summary, "RUNS_ON") {
+				t.Fatalf("entry %d statement_summary = %q, must not include RUNS_ON", i, summary)
+			}
+		}
+	}
+}
+
+func TestEdgeWriterRetractEdgesRepoDependencyLogsSequentialStatementRoles(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	executor := &sqlSequentialRecordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Logger = logger
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	// The repo-dependency retract runs its three statements sequentially, each
+	// in its own transaction: grouped DELETEs under-apply on NornicDB v1.1.11.
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
+	}
+	if got, want := len(executor.calls), 3; got != want {
+		t.Fatalf("Execute calls = %d, want %d", got, want)
+	}
+	for i, stmt := range executor.calls {
+		if _, ok := stmt.Parameters[sourcecypher.StatementMetadataSummaryKey]; ok {
+			t.Fatalf("statement %d passed diagnostic statement summary to backend: %#v", i, stmt.Parameters)
+		}
+	}
+
+	entries := decodeJSONLogEntries(t, logs.Bytes())
+	if got, want := len(entries), 3; got != want {
+		t.Fatalf("log entries = %d, want %d\nlogs:\n%s", got, want, logs.String())
+	}
+	var summaries []string
+	for _, entry := range entries {
+		if got, want := entry["msg"], "shared edge retract statement completed"; got != want {
+			t.Fatalf("msg = %v, want %v", got, want)
+		}
+		if summary, _ := entry["statement_summary"].(string); summary != "" {
+			summaries = append(summaries, summary)
+		}
+	}
+	for _, want := range []string{
+		"role=repository_relationship_edges",
+		"DEPLOYS_FROM",
+		"DISCOVERS_CONFIG_IN",
+		"PROVISIONS_DEPENDENCY_FOR",
+		"USES_MODULE",
+		"READS_CONFIG_FROM",
+		"role=runs_on_relationships",
+		"role=evidence_artifacts",
+	} {
+		found := false
+		for _, summary := range summaries {
+			if strings.Contains(summary, want) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("statement summaries = %#v, missing %q", summaries, want)
+		}
+	}
+}
+
+func TestEdgeWriterRetractEdgesRepoDependencySingleRepoUsesBoundDeleteShape(t *testing.T) {
+	t.Parallel()
+
+	executor := &sqlSequentialRecordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("ExecuteGroup calls = %d, want 0 (grouped DELETEs under-apply on NornicDB v1.1.11)", got)
+	}
+	group := executor.calls
+	if got, want := len(group), 2; got != want {
+		t.Fatalf("sequential repo dependency statements = %d, want %d", got, want)
+	}
+	repoRelationships := group[0]
+	if strings.Contains(repoRelationships.Cypher, "UNWIND") {
+		t.Fatalf("single-repo relationship retract must avoid UNWIND to stay on bound-delete path: %s", repoRelationships.Cypher)
+	}
+	if !strings.Contains(repoRelationships.Cypher, "MATCH (source_repo:Repository {id: $repo_id})") {
+		t.Fatalf("single-repo relationship retract must use direct repo_id parameter: %s", repoRelationships.Cypher)
+	}
+	if _, ok := repoRelationships.Parameters["repo_id"]; !ok {
+		t.Fatalf("single-repo relationship retract missing repo_id parameter: %#v", repoRelationships.Parameters)
+	}
+	if _, ok := repoRelationships.Parameters["repo_ids"]; ok {
+		t.Fatalf("single-repo relationship retract must not pass repo_ids: %#v", repoRelationships.Parameters)
+	}
+	for i, stmt := range group {
+		if strings.Contains(stmt.Cypher, "RUNS_ON") {
+			t.Fatalf("code-import statement %d must not retract impossible RUNS_ON edges: %s", i, stmt.Cypher)
+		}
+	}
+	if !strings.Contains(group[1].Cypher, "HAS_DEPLOYMENT_EVIDENCE") {
+		t.Fatalf("second statement should retract evidence artifacts: %s", group[1].Cypher)
+	}
+}
+
+func TestEdgeWriterWriteEdgesRejectsCodeImportRunsOn(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	rows := []reducer.SharedProjectionIntentRow{{
+		IntentID:     "i1",
+		RepositoryID: "repo-a",
+		Payload: map[string]any{
+			"repo_id":           "repo-a",
+			"platform_id":       "platform-a",
+			"relationship_type": "RUNS_ON",
+		},
+	}}
+
+	_, err := writer.WriteEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	if err == nil {
+		t.Fatal("WriteEdges() error = nil, want source-capability violation")
+	}
+	if !strings.Contains(err.Error(), "projection/code-imports") || !strings.Contains(err.Error(), "RUNS_ON") {
+		t.Fatalf("WriteEdges() error = %q, want source and relationship type", err)
+	}
+	if got := len(executor.calls); got != 0 {
+		t.Fatalf("executor calls = %d, want 0 after source-capability violation", got)
+	}
+}
+
+func TestEdgeWriterRetractEdgesCodeImportLogsRunsOnOmission(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	executor := &recordingExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Logger = logger
+	rows := []reducer.SharedProjectionIntentRow{{
+		IntentID:     "i1",
+		RepositoryID: "repo-a",
+		Payload:      map[string]any{"repo_id": "repo-a"},
+	}}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "projection/code-imports")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	entries := decodeJSONLogEntries(t, logs.Bytes())
+	if got, want := len(entries), 3; got != want {
+		t.Fatalf("log entries = %d, want %d\nlogs:\n%s", got, want, logs.String())
+	}
+	omission := entries[0]
+	if got, want := omission["msg"], "shared edge retract role omitted"; got != want {
+		t.Fatalf("omission msg = %v, want %v", got, want)
+	}
+	if got, want := omission["evidence_source"], "projection/code-imports"; got != want {
+		t.Fatalf("omission evidence_source = %v, want %v", got, want)
+	}
+	if got, want := omission["statement_role"], "runs_on_relationships"; got != want {
+		t.Fatalf("omission statement_role = %v, want %v", got, want)
+	}
+	if got, want := omission["reason"], "source_capability"; got != want {
+		t.Fatalf("omission reason = %v, want %v", got, want)
+	}
+}
+
+func TestEdgeWriterRetractEdgesRepoDependencyDiagnosticStatementTimingBypassesGroup(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	executor := &recordingRepoDependencyGroupExecutor{}
+	writer := NewEdgeWriter(executor, 0)
+	writer.Logger = logger
+	writer.RepoDependencyRetractStatementTiming = true
+
+	rows := []reducer.SharedProjectionIntentRow{
+		{IntentID: "i1", RepositoryID: "repo-a", Payload: map[string]any{"repo_id": "repo-a"}},
+	}
+
+	err := writer.RetractEdges(context.Background(), reducer.DomainRepoDependency, rows, "finalization/workloads")
+	if err != nil {
+		t.Fatalf("RetractEdges() error = %v", err)
+	}
+	if got := len(executor.groupCalls); got != 0 {
+		t.Fatalf("group calls = %d, want 0 diagnostic grouped calls", got)
+	}
+	if got, want := len(executor.calls), 3; got != want {
+		t.Fatalf("executor calls = %d, want %d diagnostic statement calls", got, want)
+	}
+
+	entries := decodeJSONLogEntries(t, logs.Bytes())
+	if got, want := len(entries), 3; got != want {
+		t.Fatalf("log entries = %d, want %d\nlogs:\n%s", got, want, logs.String())
+	}
+	for i, wantRole := range []string{"repository_relationship_edges", "runs_on_relationships", "evidence_artifacts"} {
+		entry := entries[i]
+		if got, want := entry["msg"], "shared edge retract statement completed"; got != want {
+			t.Fatalf("entry %d msg = %v, want %v", i, got, want)
+		}
+		if got := entry["statement_role"]; got != wantRole {
+			t.Fatalf("entry %d statement_role = %v, want %v", i, got, wantRole)
+		}
+	}
+	if !strings.Contains(executor.calls[0].Cypher, "DEPENDS_ON|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|PROVISIONS_DEPENDENCY_FOR|USES_MODULE|READS_CONFIG_FROM") {
+		t.Fatalf("first diagnostic call must retract repository relationship edges: %s", executor.calls[0].Cypher)
+	}
+	if strings.Contains(executor.calls[0].Cypher, "RUNS_ON") {
+		t.Fatalf("first diagnostic call must not include RUNS_ON cleanup: %s", executor.calls[0].Cypher)
+	}
+	if !strings.Contains(executor.calls[1].Cypher, "RUNS_ON") {
+		t.Fatalf("second diagnostic call must retract RUNS_ON edges: %s", executor.calls[1].Cypher)
+	}
+	if strings.Contains(executor.calls[1].Cypher, "DEPENDS_ON|DEPLOYS_FROM") {
+		t.Fatalf("second diagnostic call must not include repository relationship cleanup: %s", executor.calls[1].Cypher)
+	}
+	if !strings.Contains(executor.calls[2].Cypher, "DETACH DELETE artifact") {
+		t.Fatalf("third diagnostic call must retract evidence artifacts: %s", executor.calls[2].Cypher)
+	}
+}
+
+func TestRepoDependencyRetractSummariesShareRelationshipEdgeTypes(t *testing.T) {
+	t.Parallel()
+
+	grouped := buildRepoDependencyRetractStatements([]string{"repo-a"}, "projection/code-imports")
+	diagnostic := buildRepoDependencyDiagnosticRetractStatements([]string{"repo-a"}, "projection/code-imports")
+	crossRepo := buildRepoDependencyRetractStatements([]string{"repo-a"}, "resolver/cross-repo")
+	prefixCollision := buildRepoDependencyRetractStatements([]string{"repo-a"}, "projection/code-imports-extra")
+
+	wantGroupedSummary := repoDependencyRetractSummary("repository_relationship_edges", sourcecypher.RepoDependencyRelationshipEdgeTypes)
+	if got := grouped[0].Stmt.Parameters[sourcecypher.StatementMetadataSummaryKey]; got != wantGroupedSummary {
+		t.Fatalf("grouped relationship summary = %v, want %s", got, wantGroupedSummary)
+	}
+	if got, want := len(grouped), 2; got != want {
+		t.Fatalf("code-import grouped statements = %d, want %d", got, want)
+	}
+	if got, want := len(diagnostic), 2; got != want {
+		t.Fatalf("code-import diagnostic statements = %d, want %d", got, want)
+	}
+	if got, want := len(crossRepo), 3; got != want {
+		t.Fatalf("cross-repo grouped statements = %d, want %d", got, want)
+	}
+	if got, want := len(prefixCollision), 3; got != want {
+		t.Fatalf("prefix-collision source statements = %d, want %d", got, want)
+	}
+	if got := crossRepo[1].Stmt.Parameters[sourcecypher.StatementMetadataSummaryKey]; got != "role=runs_on_relationships relationships=RUNS_ON" {
+		t.Fatalf("cross-repo RUNS_ON summary = %v, want RUNS_ON role", got)
+	}
+
+	wantDiagnosticSummary := repoDependencyRetractSummary(
+		"repository_relationship_edges",
+		sourcecypher.RepoDependencyRelationshipEdgeTypes,
+	)
+	if got := diagnostic[0].Stmt.Parameters[sourcecypher.StatementMetadataSummaryKey]; got != wantDiagnosticSummary {
+		t.Fatalf("diagnostic relationship summary = %v, want %s", got, wantDiagnosticSummary)
+	}
+	if strings.Contains(wantDiagnosticSummary, "RUNS_ON") {
+		t.Fatalf("diagnostic repository relationship summary must not include RUNS_ON: %s", wantDiagnosticSummary)
+	}
+}
+
+type recordingRepoDependencyGroupExecutor struct {
+	calls      []sourcecypher.Statement
+	groupCalls [][]sourcecypher.Statement
+}
+
+func (r *recordingRepoDependencyGroupExecutor) Execute(_ context.Context, statement sourcecypher.Statement) error {
+	r.calls = append(r.calls, statement)
+	return nil
+}
+
+func (r *recordingRepoDependencyGroupExecutor) ExecuteGroup(_ context.Context, stmts []sourcecypher.Statement) error {
+	cloned := make([]sourcecypher.Statement, len(stmts))
+	copy(cloned, stmts)
+	r.groupCalls = append(r.groupCalls, cloned)
+	return nil
+}
+
+func decodeJSONLogEntries(t *testing.T, raw []byte) []map[string]any {
+	t.Helper()
+
+	lines := bytes.Split(bytes.TrimSpace(raw), []byte("\n"))
+	entries := make([]map[string]any, 0, len(lines))
+	for _, line := range lines {
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		var entry map[string]any
+		if err := json.Unmarshal(line, &entry); err != nil {
+			t.Fatalf("json.Unmarshal(%s) error = %v", line, err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func statementRepoAnchorIDs(stmt sourcecypher.Statement) []string {
+	if repoID, ok := stmt.Parameters["repo_id"].(string); ok {
+		return []string{repoID}
+	}
+	if repoIDs, ok := stmt.Parameters["repo_ids"].([]string); ok {
+		return repoIDs
+	}
+	return nil
+}

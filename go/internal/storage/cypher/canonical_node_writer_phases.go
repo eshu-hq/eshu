@@ -99,7 +99,7 @@ func (w *CanonicalNodeWriter) buildDirectoryNodeStatements(mat projector.Canonic
 	for i, d := range mat.Directories {
 		rows[i] = directoryRowParams(d, mat)
 	}
-	return buildBatchedStatements(canonicalNodeDirectoryNodeCypher, rows, w.batchSize)
+	return BuildBatchedStatements(canonicalNodeDirectoryNodeCypher, rows, w.batchSize)
 }
 
 // buildDirectoryEdgeStatements wires each Directory to its parent: the
@@ -138,7 +138,7 @@ func (w *CanonicalNodeWriter) buildDirectoryEdgeStatements(mat projector.Canonic
 			cypher = canonicalNodeDirectoryDepth0EdgeCypher
 		}
 
-		stmts = append(stmts, buildBatchedStatements(cypher, rows, w.batchSize)...)
+		stmts = append(stmts, BuildBatchedStatements(cypher, rows, w.batchSize)...)
 	}
 	return stmts
 }
@@ -241,7 +241,7 @@ func (w *CanonicalNodeWriter) buildModuleStatements(mat projector.CanonicalMater
 		}
 	}
 
-	return buildBatchedStatements(canonicalNodeModuleUpsertCypher, rows, w.batchSize)
+	return BuildBatchedStatements(canonicalNodeModuleUpsertCypher, rows, w.batchSize)
 }
 
 // --- Phase G: Structural edges ---
@@ -287,7 +287,7 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.Canoni
 				"generation_id":   mat.GenerationID,
 			}
 		}
-		stmts = append(stmts, buildBatchedStatements(canonicalNodeImportEdgeCypher, rows, w.batchSize)...)
+		stmts = append(stmts, BuildBatchedStatements(canonicalNodeImportEdgeCypher, rows, w.batchSize)...)
 	}
 
 	// HAS_PARAMETER edges
@@ -302,7 +302,7 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.Canoni
 				"generation_id": mat.GenerationID,
 			}
 		}
-		stmts = append(stmts, buildBatchedStatements(canonicalNodeHasParameterEdgeCypher, rows, w.batchSize)...)
+		stmts = append(stmts, BuildBatchedStatements(canonicalNodeHasParameterEdgeCypher, rows, w.batchSize)...)
 	}
 
 	// Class CONTAINS Function edges
@@ -317,7 +317,7 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.Canoni
 				"generation_id": mat.GenerationID,
 			}
 		}
-		stmts = append(stmts, buildBatchedStatements(canonicalNodeClassContainsFuncEdgeCypher, rows, w.batchSize)...)
+		stmts = append(stmts, BuildBatchedStatements(canonicalNodeClassContainsFuncEdgeCypher, rows, w.batchSize)...)
 	}
 
 	// Nested Function CONTAINS edges
@@ -332,7 +332,7 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.Canoni
 				"generation_id": mat.GenerationID,
 			}
 		}
-		stmts = append(stmts, buildBatchedStatements(canonicalNodeNestedFuncEdgeCypher, rows, w.batchSize)...)
+		stmts = append(stmts, BuildBatchedStatements(canonicalNodeNestedFuncEdgeCypher, rows, w.batchSize)...)
 	}
 
 	return stmts
@@ -340,8 +340,8 @@ func (w *CanonicalNodeWriter) buildStructuralEdgeStatements(mat projector.Canoni
 
 // --- Batch statement building ---
 
-// buildBatchedStatements splits rows into batches and returns one Statement per batch.
-func buildBatchedStatements(cypher string, rows []map[string]any, batchSize int) []Statement {
+// BuildBatchedStatements splits rows into batches and returns one Statement per batch.
+func BuildBatchedStatements(cypher string, rows []map[string]any, batchSize int) []Statement {
 	if len(rows) == 0 {
 		return nil
 	}

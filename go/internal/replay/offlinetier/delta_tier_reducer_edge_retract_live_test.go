@@ -15,7 +15,7 @@
 // bound the retract.
 //
 // The test drives the REAL production write and retract paths
-// (cypher.EdgeWriter.WriteEdges / RetractEdges for reducer.DomainCodeCalls). It
+// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for reducer.DomainCodeCalls). It
 // writes CALLS (Function->Function), REFERENCES (File->TypeAlias), and
 // INSTANTIATES (Function->Class) edges in one repo scope plus an out-of-scope
 // CALLS edge, retracts the in-scope repo, and asserts the in-scope edges are
@@ -36,6 +36,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -76,7 +77,7 @@ func TestReducerCodeCallEdgeRetractGraphTruth(t *testing.T) {
 
 	seedReducerEdgeNodes(ctx, t, exec)
 
-	writer := cypher.NewEdgeWriter(exec, 0)
+	writer := edgewriter.NewEdgeWriter(exec, 0)
 
 	// Production write path: typed endpoints route to exact-label MATCH Cyphers
 	// (NornicDB matches single labels), so these edges are actually created.

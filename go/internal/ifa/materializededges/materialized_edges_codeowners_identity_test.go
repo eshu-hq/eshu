@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 // declaresCodeowner builds the ExpectedEdge one CODEOWNERS rule projects to.
@@ -140,12 +140,12 @@ func TestExpectedEdgeKeyDistinguishesADroppedRuleFromAnUnrelatedDuplicate(t *tes
 //
 // The registry half of the assertion is what makes this a lockstep guard
 // rather than a comment: adding order_index to
-// cypher.MaterializedEdgeIdentityProperties without updating the row
+// materialized.MaterializedEdgeIdentityProperties without updating the row
 // projection (or the reverse) turns this red.
 func TestCodeownersOwnershipIdentityExcludesOrderIndex(t *testing.T) {
 	t.Parallel()
 
-	declared, err := cypher.MaterializedEdgeIdentityProperties(codeownersOwnershipFamily)
+	declared, err := materialized.MaterializedEdgeIdentityProperties(codeownersOwnershipFamily)
 	if err != nil {
 		t.Fatalf("MaterializedEdgeIdentityProperties(%s): %v", codeownersOwnershipFamily, err)
 	}

@@ -13,7 +13,7 @@
 // (probed while fixing the rationale retract; see nornicdb-pitfalls.md).
 //
 // The test drives the REAL production write and retract paths
-// (cypher.EdgeWriter.WriteEdges / RetractEdges for reducer.DomainCodeCalls
+// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for reducer.DomainCodeCalls
 // with the parser/python-metaclass evidence source). It writes a
 // Class->Class USES_METACLASS edge in one repo scope plus an out-of-scope
 // edge, retracts the in-scope repo, and asserts the in-scope edge is gone,
@@ -31,6 +31,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -67,7 +68,7 @@ func TestReducerMetaclassEdgeRetractGraphTruth(t *testing.T) {
 
 	seedMetaclassEdgeNodes(ctx, t, exec)
 
-	writer := cypher.NewEdgeWriter(exec, 0)
+	writer := edgewriter.NewEdgeWriter(exec, 0)
 
 	// Production write path: the metaclass template is the UNWIND + inline
 	// {uid} anchor shape, which matches on v1.1.11. Payload keys mirror the

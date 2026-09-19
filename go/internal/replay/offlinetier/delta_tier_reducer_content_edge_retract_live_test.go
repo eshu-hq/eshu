@@ -29,6 +29,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -87,7 +88,7 @@ func TestReducerContentEdgeRetractGraphTruth(t *testing.T) {
 
 	seedContentEdgeNodes(ctx, t, exec)
 
-	writer := cypher.NewEdgeWriter(exec, 0)
+	writer := edgewriter.NewEdgeWriter(exec, 0)
 	// The shell-exec orphan ShellCommand cleanup now runs a Go-side anti-join
 	// (S1 candidate keys, S2 connected keys) instead of a relationship-
 	// existence predicate (#5310); it needs a Reader for those reads.

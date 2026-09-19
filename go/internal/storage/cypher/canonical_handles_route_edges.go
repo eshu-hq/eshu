@@ -16,7 +16,7 @@ package cypher
 // retryably on a miss, so a missing endpoint defers the batch instead of
 // completing a silent loss.
 
-const batchCanonicalHandlesRouteEdgeUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalHandlesRouteEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (f:Function {uid: row.function_entity_id})
 MATCH (e:Endpoint {repo_id: row.repo_id, path: row.path})
 MERGE (f)-[rel:HANDLES_ROUTE]->(e)
@@ -26,12 +26,12 @@ SET rel.http_method = row.http_method,
     rel.resolution_method = row.resolution_method,
     rel.evidence_source = row.evidence_source`
 
-// retractHandlesRouteEdgesCypher removes the HANDLES_ROUTE edges this evidence
+// RetractHandlesRouteEdgesCypher removes the HANDLES_ROUTE edges this evidence
 // source owns for a set of repositories before they are re-projected, so a
 // removed or re-resolved handler binding does not leave a stale edge. It matches
 // on the Endpoint's repo_id and the edge evidence_source, mirroring the
 // retract-before-write contract the other shared-projection domains use.
-const retractHandlesRouteEdgesCypher = `UNWIND $repo_ids AS repo_id
+const RetractHandlesRouteEdgesCypher = `UNWIND $repo_ids AS repo_id
 MATCH (:Function)-[rel:HANDLES_ROUTE]->(e:Endpoint {repo_id: repo_id})
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`

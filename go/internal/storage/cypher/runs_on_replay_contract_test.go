@@ -23,13 +23,13 @@ func crossRepoRunsOnReplayGroup() []Statement {
 		}
 	}
 	return []Statement{
-		statement(batchCanonicalRunsOnLegacyIdentityCleanupCypher, rows[0]),
-		statement(batchCanonicalRunsOnLegacyIdentityCleanupCypher, rows[1]),
-		statement(batchCanonicalRunsOnUpsertCypher, rows[0]),
-		statement(batchCanonicalRunsOnUpsertCypher, rows[1]),
+		statement(BatchCanonicalRunsOnLegacyIdentityCleanupCypher, rows[0]),
+		statement(BatchCanonicalRunsOnLegacyIdentityCleanupCypher, rows[1]),
+		statement(BatchCanonicalRunsOnUpsertCypher, rows[0]),
+		statement(BatchCanonicalRunsOnUpsertCypher, rows[1]),
 		{
 			Operation: OperationCanonicalUpsert,
-			Cypher:    batchCanonicalRepoDependencyUpsertCypher,
+			Cypher:    BatchCanonicalRepoDependencyUpsertCypher,
 			Parameters: map[string]any{"rows": []map[string]any{{
 				"repo_id": "repo-a", "target_repo_id": "repo-b",
 				"evidence_source": "resolver/cross-repo",

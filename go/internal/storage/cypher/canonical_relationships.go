@@ -157,7 +157,7 @@ SET rel.confidence = $confidence,
     rel.source_revision = $source_revision,
     rel.first_party_ref_version = $first_party_ref_version`
 
-const batchCanonicalDeploysFromRepoRelationshipUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalDeploysFromRepoRelationshipUpsertCypher = `UNWIND $rows AS row
 MERGE (source_repo:Repository {id: row.repo_id})
 ON CREATE SET source_repo.evidence_source = row.evidence_source,
               source_repo.generation_id = row.generation_id
@@ -272,7 +272,7 @@ SET rel.confidence = row.confidence,
     rel.source_revision = row.source_revision,
     rel.first_party_ref_version = row.first_party_ref_version`
 
-const batchCanonicalRepoEvidenceArtifactUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalRepoEvidenceArtifactUpsertCypher = `UNWIND $rows AS row
 MATCH (source_repo:Repository {id: row.repo_id})
 MATCH (target_repo:Repository {id: row.target_repo_id})
 MERGE (artifact:EvidenceArtifact {id: row.artifact_id})
@@ -307,7 +307,7 @@ SET target_rel.relationship_type = row.relationship_type,
     target_rel.resolved_id = row.resolved_id,
     target_rel.evidence_source = row.evidence_source`
 
-const batchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher = batchCanonicalRepoEvidenceArtifactUpsertCypher + `
+const BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher = BatchCanonicalRepoEvidenceArtifactUpsertCypher + `
 MERGE (env:Environment {name: row.environment})
 MERGE (artifact)-[env_rel:TARGETS_ENVIRONMENT]->(env)
 SET env_rel.evidence_source = row.evidence_source,
@@ -329,9 +329,9 @@ SET rel.confidence = 0.97,
     rel.evidence_source = row.evidence_source,
 	 rel.source_tool = row.source_tool`
 
-const batchCanonicalRunsOnUpsertCypher = canonicalRunsOnUpsertCypher
+const BatchCanonicalRunsOnUpsertCypher = canonicalRunsOnUpsertCypher
 
-const batchCanonicalRunsOnLegacyIdentityCleanupCypher = `UNWIND $rows AS row
+const BatchCanonicalRunsOnLegacyIdentityCleanupCypher = `UNWIND $rows AS row
 MATCH (repo:Repository {id: row.repo_id})-[:DEFINES]->(w:Workload)
 MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)
 MATCH (p:Platform {id: row.platform_id})
@@ -339,17 +339,17 @@ MATCH (i)-[rel:RUNS_ON]->(p)
 WHERE rel.identity_key IS NULL
 DELETE rel`
 
-const repoDependencyRelationshipEdgeTypes = "DEPENDS_ON|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|" +
+const RepoDependencyRelationshipEdgeTypes = "DEPENDS_ON|DEPLOYS_FROM|DISCOVERS_CONFIG_IN|" +
 	"PROVISIONS_DEPENDENCY_FOR|USES_MODULE|READS_CONFIG_FROM"
 
-const retractRepoRelationshipEdgesCypher = `UNWIND $repo_ids AS repo_id
+const RetractRepoRelationshipEdgesCypher = `UNWIND $repo_ids AS repo_id
 MATCH (source_repo:Repository {id: repo_id})
-MATCH (source_repo)-[rel:` + repoDependencyRelationshipEdgeTypes + `]->(:Repository)
+MATCH (source_repo)-[rel:` + RepoDependencyRelationshipEdgeTypes + `]->(:Repository)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSingleRepoRelationshipEdgesCypher = `MATCH (source_repo:Repository {id: $repo_id})
-MATCH (source_repo)-[rel:` + repoDependencyRelationshipEdgeTypes + `]->(:Repository)
+const RetractSingleRepoRelationshipEdgesCypher = `MATCH (source_repo:Repository {id: $repo_id})
+MATCH (source_repo)-[rel:` + RepoDependencyRelationshipEdgeTypes + `]->(:Repository)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
@@ -357,26 +357,26 @@ DELETE rel`
 // RUNS_ON write template above: the chained direction-reversing path deletes
 // nothing (probed), so the retract fans the traversal into shared-variable
 // hops.
-const retractRepoRunsOnEdgesCypher = `UNWIND $repo_ids AS repo_id
+const RetractRepoRunsOnEdgesCypher = `UNWIND $repo_ids AS repo_id
 MATCH (repo:Repository {id: repo_id})-[:DEFINES]->(w:Workload)
 MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)
 MATCH (i)-[rel:RUNS_ON]->(:Platform)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractSingleRepoRunsOnEdgesCypher = `MATCH (repo:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
+const RetractSingleRepoRunsOnEdgesCypher = `MATCH (repo:Repository {id: $repo_id})-[:DEFINES]->(w:Workload)
 MATCH (i:WorkloadInstance)-[:INSTANCE_OF]->(w)
 MATCH (i)-[rel:RUNS_ON]->(:Platform)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractRepoEvidenceArtifactsCypher = `UNWIND $repo_ids AS repo_id
+const RetractRepoEvidenceArtifactsCypher = `UNWIND $repo_ids AS repo_id
 MATCH (source_repo:Repository {id: repo_id})
 MATCH (source_repo)-[rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)
 WHERE rel.evidence_source = $evidence_source
 DETACH DELETE artifact`
 
-const retractSingleRepoEvidenceArtifactsCypher = `MATCH (source_repo:Repository {id: $repo_id})
+const RetractSingleRepoEvidenceArtifactsCypher = `MATCH (source_repo:Repository {id: $repo_id})
 MATCH (source_repo)-[rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)
 WHERE rel.evidence_source = $evidence_source
 DETACH DELETE artifact`
@@ -398,7 +398,7 @@ func BuildCanonicalRepoRelationshipUpsert(p CanonicalRepoRelationshipParams, evi
 			"evidence_count":          p.EvidenceCount,
 			"evidence_kinds":          p.EvidenceKinds,
 			"resolution_source":       p.ResolutionSource,
-			"confidence":              repoRelationshipConfidence(p.Confidence),
+			"confidence":              RepoRelationshipConfidence(p.Confidence),
 			"rationale":               p.Rationale,
 			"source_tool":             p.SourceTool,
 			"source_revision":         p.SourceRevision,
@@ -407,7 +407,7 @@ func BuildCanonicalRepoRelationshipUpsert(p CanonicalRepoRelationshipParams, evi
 	}
 }
 
-func repoRelationshipConfidence(value float64) float64 {
+func RepoRelationshipConfidence(value float64) float64 {
 	if value <= 0 {
 		return 0.9
 	}
@@ -427,14 +427,14 @@ func canonicalTypedRepoRelationshipUpsertCypher(relationshipType string) string 
 	case string(edgetype.ReadsConfigFrom):
 		return canonicalReadsConfigFromRepoRelationshipUpsertCypher
 	default:
-		return canonicalRepoDependencyUpsertCypher
+		return CanonicalRepoDependencyUpsertCypher
 	}
 }
 
-func batchCanonicalTypedRepoRelationshipUpsertCypher(relationshipType string) (string, bool) {
+func BatchCanonicalTypedRepoRelationshipUpsertCypher(relationshipType string) (string, bool) {
 	switch relationshipType {
 	case string(edgetype.DeploysFrom):
-		return batchCanonicalDeploysFromRepoRelationshipUpsertCypher, true
+		return BatchCanonicalDeploysFromRepoRelationshipUpsertCypher, true
 	case string(edgetype.DiscoversConfigIn):
 		return batchCanonicalDiscoversConfigInRepoRelationshipUpsertCypher, true
 	case string(edgetype.ProvisionsDependencyFor):
@@ -461,18 +461,18 @@ func BuildCanonicalRunsOnUpsert(p CanonicalRunsOnParams, evidenceSource string) 
 	}
 }
 
-// buildEdgeRouteStatements removes pre-upgrade propertyless RUNS_ON identities
+// BuildEdgeRouteStatements removes pre-upgrade propertyless RUNS_ON identities
 // before issuing deterministic keyed MERGEs. Workload dependency upgrades use
 // the domain's existing retract-then-replay boundary; keeping migration work
 // out of its hot writer avoids an unbounded relationship scan on every batch.
-func buildEdgeRouteStatements(cypher string, rows []map[string]any, batchSize int) []Statement {
+func BuildEdgeRouteStatements(cypher string, rows []map[string]any, batchSize int) []Statement {
 	statements := make([]Statement, 0, 2)
 	switch cypher {
-	case batchCanonicalRunsOnUpsertCypher:
+	case BatchCanonicalRunsOnUpsertCypher:
 		statements = append(
 			statements,
-			buildBatchedStatements(batchCanonicalRunsOnLegacyIdentityCleanupCypher, rows, batchSize)...,
+			BuildBatchedStatements(BatchCanonicalRunsOnLegacyIdentityCleanupCypher, rows, batchSize)...,
 		)
 	}
-	return append(statements, buildBatchedStatements(cypher, rows, batchSize)...)
+	return append(statements, BuildBatchedStatements(cypher, rows, batchSize)...)
 }

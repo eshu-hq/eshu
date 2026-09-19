@@ -398,8 +398,8 @@ func TestBuildRetractCodeCallEdgesStatement(t *testing.T) {
 	t.Parallel()
 
 	stmts := BuildRetractCodeCallEdgeStatements([]string{"repo-1"}, "parser/code-calls")
-	if len(stmts) != len(codeCallRetractSourceLabels) {
-		t.Fatalf("statements = %d, want %d (one per source label)", len(stmts), len(codeCallRetractSourceLabels))
+	if len(stmts) != len(CodeCallRetractSourceLabels) {
+		t.Fatalf("statements = %d, want %d (one per source label)", len(stmts), len(CodeCallRetractSourceLabels))
 	}
 	var joined strings.Builder
 	for _, stmt := range stmts {

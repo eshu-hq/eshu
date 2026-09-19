@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 // TestSubmodulePinDomainResolvesItsMaterializedEdgeTypes pins the registry
@@ -47,9 +47,9 @@ func TestSubmodulePinDomainResolvesItsMaterializedEdgeTypes(t *testing.T) {
 func TestSubmodulePinDomainEdgeTypesComeFromTheWriterRegistry(t *testing.T) {
 	t.Parallel()
 
-	reg, ok := cypher.SingleTypeMaterializedEdgeTypes(submodulePinEdgesFamily)
+	reg, ok := materialized.SingleTypeMaterializedEdgeTypes(submodulePinEdgesFamily)
 	if !ok {
-		t.Fatalf("cypher.SingleTypeMaterializedEdgeTypes(%s) reports not-found; the single-type registry entry is missing", submodulePinEdgesFamily)
+		t.Fatalf("materialized.SingleTypeMaterializedEdgeTypes(%s) reports not-found; the single-type registry entry is missing", submodulePinEdgesFamily)
 	}
 	if len(reg) == 0 {
 		t.Fatalf("cypher single-type registry entry for %s is empty; an empty registry makes any graph vacuously pass the live gate", submodulePinEdgesFamily)

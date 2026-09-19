@@ -120,7 +120,7 @@
 - **CanonicalNodeWriter.Write wraps escaping errors as retryable** — every
   return path in `CanonicalNodeWriter.Write` (atomic group, phase group, and
   sequential) routes its error through `WrapRetryableNeo4jError`, matching every
-  other graph writer in this package (`edge_writer.go`, `cloud_resource_node_writer.go`,
+  other graph writer in this package (`edge/writer/edge.go`, `cloud_resource_node_writer.go`,
   the EC2/IAM/S3 writers, `semantic_entity.go`). Without this, transient NornicDB
   failures (driver retry-budget exhaustion `*TransactionExecutionLimit`,
   `*ConnectivityError`, and the codes in `retryableNeo4jCodes`) reach the
@@ -250,11 +250,11 @@ No-Observability-Change: inheritance edge writes still flow through `EdgeWriter.
 
 - **Add a new shared projection domain (EdgeWriter)** → add the domain constant
   in `internal/reducer`; add a `batchCypherForDomain` case and a `buildRowMap`
-  case in `edge_writer.go`; add tests in `edge_writer_test.go`. Verify the new
+  case in `edge/writer/edge.go`; add tests in `edge/writer/edge_test.go`. Verify the new
   UNWIND Cypher template against both Neo4j and NornicDB if both backends are
   active.
 
-- **Change SQL relationship writes** → update `edge_writer_sql.go`,
+- **Change SQL relationship writes** → update `edge/writer/edge_sql.go`,
   `canonical.go`, and the SQL retraction tests together. `EXECUTES` is a
   reachability edge from `SqlTrigger` to `SqlFunction`; removing it from either
   the write path or `BuildRetractSQLRelationshipEdgeStatements` can make

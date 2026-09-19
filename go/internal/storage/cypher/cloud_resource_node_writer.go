@@ -177,7 +177,7 @@ func (w *CloudResourceNodeWriter) WriteCloudResourceNodes(
 		annotated = append(annotated, cloned)
 	}
 
-	stmts := buildBatchedStatements(canonicalCloudResourceUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalCloudResourceUpsertCypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

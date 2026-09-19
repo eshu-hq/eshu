@@ -92,7 +92,7 @@ func (w *S3ExternalPrincipalGrantWriter) WriteS3ExternalPrincipalGrants(
 	}
 
 	cypher := fmt.Sprintf(canonicalS3ExternalPrincipalGrantUpsertCypherFormat, s3ExternalPrincipalGrantRelationshipType())
-	stmts := buildBatchedStatements(cypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(cypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseS3ExternalPrincipalGrant

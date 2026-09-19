@@ -22,6 +22,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -365,7 +366,7 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 
-	edgeWriter := sourcecypher.NewEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	edgeWriter := edgewriter.NewEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	// Shell-exec orphan ShellCommand cleanup runs a Go-side anti-join (S1
 	// candidate keys, S2 connected keys) rather than a relationship-existence
 	// predicate, which is mis-evaluated on the pinned NornicDB backends

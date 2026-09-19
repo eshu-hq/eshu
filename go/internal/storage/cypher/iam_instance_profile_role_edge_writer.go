@@ -16,7 +16,7 @@ var iamInstanceProfileRoleRelationshipVocabulary = map[string]struct{}{
 	"HAS_ROLE": {},
 }
 
-const canonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat = `UNWIND $rows AS row
+const CanonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat = `UNWIND $rows AS row
 MATCH (profile:CloudResource {uid: row.profile_uid})
 MATCH (role:CloudResource {uid: row.role_uid})
 MERGE (profile)-[rel:%s]->(role)
@@ -25,7 +25,7 @@ SET rel.resolution_mode = row.resolution_mode,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
 
-const retractIAMInstanceProfileRoleEdgesCypher = `MATCH (:CloudResource)-[rel:HAS_ROLE]->(:CloudResource)
+const RetractIAMInstanceProfileRoleEdgesCypher = `MATCH (:CloudResource)-[rel:HAS_ROLE]->(:CloudResource)
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -78,10 +78,10 @@ func (w *IAMInstanceProfileRoleEdgeWriter) WriteIAMInstanceProfileRoleEdges(
 	}
 
 	cypher := fmt.Sprintf(
-		canonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat,
+		CanonicalIAMInstanceProfileRoleEdgeUpsertCypherFormat,
 		iamInstanceProfileRoleRelationshipType(),
 	)
-	stmts := buildBatchedStatements(cypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(cypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseIAMInstanceProfileRoleEdge
@@ -113,7 +113,7 @@ func (w *IAMInstanceProfileRoleEdgeWriter) RetractIAMInstanceProfileRoleEdges(
 
 	stmt := Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractIAMInstanceProfileRoleEdgesCypher,
+		Cypher:    RetractIAMInstanceProfileRoleEdgesCypher,
 		Parameters: map[string]any{
 			"scope_ids":                     scopeIDs,
 			"evidence_source":               evidenceSource,

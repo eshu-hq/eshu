@@ -21,6 +21,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -56,7 +57,7 @@ func TestRepoDependencyIfaProcessDeathLive(t *testing.T) {
 	defer cleanupDB()
 	store := postgres.NewSharedIntentStore(postgres.SQLDB{DB: db})
 	gate := postgres.NewRepoDependencyAcceptanceUnitGate(postgres.SQLDB{DB: db})
-	baseWriter := cypher.NewEdgeWriter(&cypher.RetryingExecutor{Inner: graphExec}, 0)
+	baseWriter := edgewriter.NewEdgeWriter(&cypher.RetryingExecutor{Inner: graphExec}, 0)
 	prepareRepoDependencyQuarantinePhase(ctx, t, db, store, graphExec, odu, artifactIDs, rows)
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -165,7 +166,7 @@ func runRepoDependencyProcessDeathHelper(t *testing.T) {
 	store := postgres.NewSharedIntentStore(postgres.SQLDB{DB: db})
 	gate := postgres.NewRepoDependencyAcceptanceUnitGate(postgres.SQLDB{DB: db})
 	writer := &repoDependencyProcessDeathWriter{
-		inner: cypher.NewEdgeWriter(&cypher.RetryingExecutor{Inner: graphExec}, 0),
+		inner: edgewriter.NewEdgeWriter(&cypher.RetryingExecutor{Inner: graphExec}, 0),
 	}
 	done := startRepoDependencyQuarantineRunner(
 		ctx,

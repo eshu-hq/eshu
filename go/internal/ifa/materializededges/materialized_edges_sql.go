@@ -16,7 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // sqlRelationshipExpectedEdgesRelPath and sqlRelationshipDeltaExpectedEdgesRelPath
@@ -221,7 +221,7 @@ func anyToStringValue(v any) string {
 //     this is reached).
 //  2. The hand-derived expected-edge-set file exists, parses, and names at
 //     least one edge of EVERY relationship type
-//     cypher.SQLRelationshipMaterializedEdgeTypes() accepts — the
+//     edgewriter.SQLRelationshipMaterializedEdgeTypes() accepts — the
 //     registry-driven exhaustiveness half: an 8th writer type added later
 //     with no matching expected-set entry flips this red.
 //  3. Running odu's own facts through the pure, backend-free
@@ -235,7 +235,7 @@ func resolveSQLRelationshipMaterializedEdges(odu ifa.Odu, expectedEdgesPath stri
 		return false, err.Error()
 	}
 
-	registry := cypher.SQLRelationshipMaterializedEdgeTypes()
+	registry := edgewriter.SQLRelationshipMaterializedEdgeTypes()
 	if missingTypes := missingSQLRelationshipExpectedTypes(expected, registry); len(missingTypes) > 0 {
 		return false, fmt.Sprintf("odù %q: expected-edge-set %s does not cover every registry edge type, missing: %v", odu.Name, expectedEdgesPath, missingTypes)
 	}
@@ -262,7 +262,7 @@ func resolveSQLRelationshipDeltaMaterializedEdges(
 	if err != nil {
 		return false, err.Error()
 	}
-	registry := cypher.SQLRelationshipMaterializedEdgeTypes()
+	registry := edgewriter.SQLRelationshipMaterializedEdgeTypes()
 	if missingTypes := missingSQLRelationshipExpectedTypes(expected, registry); len(missingTypes) > 0 {
 		return false, fmt.Sprintf("odù %q: delta-live expected-edge-set %s does not cover every registry edge type, missing: %v", delta.Name, expectedEdgesPath, missingTypes)
 	}

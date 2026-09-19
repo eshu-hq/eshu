@@ -20,6 +20,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const repoDependencyIfaOduName = "odu:repo-dependency-concurrency"
@@ -53,7 +54,7 @@ func TestRepoDependencyIfaConcurrencyLive(t *testing.T) {
 
 		store := newRepoDependencyIfaStore(baseRows)
 		writer := &repoDependencyOverlapWriter{
-			inner: cypher.NewEdgeWriter(&cypher.RetryingExecutor{Inner: exec}, 0),
+			inner: edgewriter.NewEdgeWriter(&cypher.RetryingExecutor{Inner: exec}, 0),
 			delay: 15 * time.Millisecond,
 		}
 		replayer := &repoDependencyIfaReplayer{}

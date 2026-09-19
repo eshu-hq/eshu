@@ -13,12 +13,12 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // codeownersOwnershipBudgetRelPath is the committed cost budget for the
 // codeowners_ownership scenario. Like documentation_materialization, this
-// projection has no committed cassette: cypher.EdgeWriter.WriteEdges operates
+// projection has no committed cassette: edgewriter.EdgeWriter.WriteEdges operates
 // over flat reducer.SharedProjectionIntentRow values, not a
 // CanonicalMaterialization, so the fixture rows live inline in this file and
 // the budget records that explicitly instead of pointing at a cassette path.
@@ -73,7 +73,7 @@ func codeownersOwnershipEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 }
 
 // newInstrumentedCodeownersOwnershipEdgeWriter builds the production
-// cypher.EdgeWriter used by owners.Handler (root spelling:
+// edgewriter.EdgeWriter used by owners.Handler (root spelling:
 // CodeownersOwnershipEdgeMaterializationHandler,
 // go/internal/reducer/code/owners/handler.go), wired over a
 // groupCountingExecutor that implements GroupExecutor so WriteEdges takes its
@@ -84,7 +84,7 @@ func codeownersOwnershipEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 // WriteEdges call -- the PRIMARY instrument this scenario asserts, not a
 // hand-counted statement slice.
 func newInstrumentedCodeownersOwnershipEdgeWriter(t *testing.T) (
-	writer *cypher.EdgeWriter,
+	writer *edgewriter.EdgeWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -92,7 +92,7 @@ func newInstrumentedCodeownersOwnershipEdgeWriter(t *testing.T) (
 
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
-	writer = cypher.NewEdgeWriter(exec, 500)
+	writer = edgewriter.NewEdgeWriter(exec, 500)
 	writer.Instruments = inst
 	return writer, exec, manualReader
 }
@@ -100,7 +100,7 @@ func newInstrumentedCodeownersOwnershipEdgeWriter(t *testing.T) (
 // TestCostBudget_CodeownersOwnership is the positive cost-counting gate for
 // the codeowners_ownership reducer projection (the "codeowners" family in
 // specs/fact-kind-registry.v1.yaml, issue #5419 Phase 6 replay-coverage
-// gap-close). It drives the production cypher.EdgeWriter.WriteEdges over two
+// gap-close). It drives the production edgewriter.EdgeWriter.WriteEdges over two
 // deterministic DECLARES_CODEOWNER edge rows through a real
 // telemetry.Instruments registry backed by an sdkmetric.ManualReader, then
 // asserts eshu_dp_shared_edge_write_groups_total is within the committed

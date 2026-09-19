@@ -3,7 +3,7 @@
 
 package cypher
 
-const batchCanonicalDeployableUnitCorrelationUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalDeployableUnitCorrelationUpsertCypher = `UNWIND $rows AS row
 MATCH (source_repo:Repository {id: row.repo_id})
 MATCH (deployment_repo:Repository {id: row.deployment_repo_id})
 MERGE (source_repo)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(deployment_repo)
@@ -22,7 +22,7 @@ SET rel.confidence = row.confidence,
     rel.rule_pack = row.rule_pack,
     rel.admission_state = row.admission_state`
 
-const retractDeployableUnitCorrelationEdgesCypher = `UNWIND $repo_ids AS repo_id
+const RetractDeployableUnitCorrelationEdgesCypher = `UNWIND $repo_ids AS repo_id
 MATCH (source_repo:Repository {id: repo_id})-[rel:CORRELATES_DEPLOYABLE_UNIT]->(:Repository)
 WHERE rel.evidence_source = $evidence_source
 DELETE rel`
@@ -33,7 +33,7 @@ DELETE rel`
 func BuildRetractDeployableUnitCorrelationEdges(repoIDs []string, evidenceSource string) Statement {
 	return Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractDeployableUnitCorrelationEdgesCypher,
+		Cypher:    RetractDeployableUnitCorrelationEdgesCypher,
 		Parameters: map[string]any{
 			"repo_ids":        repoIDs,
 			"evidence_source": evidenceSource,

@@ -74,7 +74,7 @@ type Gate struct {
 	// (eshu_dp_cross_scope_ownership_contended_rows_total). Optional: nil
 	// skips the metric and keeps the existing structured-log signal, matching
 	// the sibling cypher writers' Instruments field convention (e.g.
-	// storage/cypher.EdgeWriter.Instruments). Set as a public field after
+	// storage/cypher/edge/writer.EdgeWriter.Instruments). Set as a public field after
 	// NewGate, not a constructor parameter, mirroring that same convention.
 	Instruments *telemetry.Instruments
 }

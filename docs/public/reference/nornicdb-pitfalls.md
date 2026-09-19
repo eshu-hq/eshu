@@ -341,7 +341,7 @@ built on the first shape and was a silent no-op: the mark and sweep writes
 never matched a true orphan, and the `eshu_dp_graph_orphan_nodes` gauge
 reported a constant 0 regardless of how many disconnected nodes existed. The
 same class of bug affected the `ShellCommand` orphan cleanup in
-`edge_writer_shell_exec.go` (documented in
+`edge/writer/edge_writer_shell_exec.go` (documented in
 `go/internal/storage/cypher/evidence-4367-content-edge-retract-sequential.md`,
 which originally and incorrectly claimed the `COUNT { (target)--() } = 0` form
 "works" -- that claim proved only that the DELETE fired, never that it
@@ -1242,11 +1242,11 @@ round trip rather than a saving, and the guards added for this reason can be
 removed together.
 
 This guard covers only the rationale `EXPLAINS` retract. `canonical_retract.go`'s
-code-call retracts, `edge_writer_sql.go`, `canonical_inheritance_retract.go`,
+code-call retracts, `edge/writer/edge_writer_sql.go`, `canonical_inheritance_retract.go`,
 `canonical_documentation_edges.go`, `canonical_codeowners_edges.go`,
 `canonical_submodule_edges.go`, and `canonical_deployable_unit_edges.go` build
 the same label-anchored `MATCH ... DELETE rel` shape and none of them probe
-before deleting. `edge_writer_shell_exec.go` belongs on the list too, and is
+before deleting. `edge/writer/edge_writer_shell_exec.go` belongs on the list too, and is
 worth a closer look if anyone guards these: its two retracts anchor the TARGET
 label but leave the source endpoint untyped (`MATCH ()-[rel:EXECUTES_SHELL]->(target)`),
 and the table above shows leaving an endpoint untyped costing an order of
