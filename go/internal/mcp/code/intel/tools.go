@@ -8,16 +8,121 @@ import (
 )
 
 // Tools returns the code-intelligence tool definitions owned by this
-// package: the structural inventory, call-graph metrics, route-to-caller,
-// and code-topic investigation tools. The find_code, find_symbol,
-// execute_language_query, and find_function_call_chain definitions stay in
-// the root codebase group until their own leaf moves them.
+// package: the find_code and find_symbol search tools, the structural
+// inventory, call-graph metrics, route-to-caller, and code-topic
+// investigation tools, and the language-query and call-chain tools. The
+// root codebase group splices them at their long-standing positions, so
+// this order only fixes the family sequence, never the client-visible
+// registration order.
 func Tools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
+		findCodeTool(),
+		findSymbolTool(),
 		structuralInventoryTool(),
 		callGraphMetricsTool(),
 		routeToCallerTool(),
 		codeTopicInvestigationTool(),
+		executeLanguageQueryTool(),
+		findFunctionCallChainTool(),
+	}
+}
+
+func findCodeTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
+		Name:        "find_code",
+		Description: "Find code entities by case-sensitive name. Repository-selected calls use indexed graph lookup. Global substring calls use the content entity-name index and require at least three Unicode characters; set exact=true for complete names, including shorter names.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"query": map[string]any{
+					"type":        "string",
+					"description": "Case-sensitive entity name or literal substring",
+				},
+				"exact": map[string]any{
+					"type":        "boolean",
+					"description": "Require a complete case-sensitive entity-name match",
+					"default":     false,
+				},
+				"edit_distance": map[string]any{
+					"type":        "number",
+					"description": "Deprecated compatibility field; ignored by case-sensitive name matching",
+					"default":     2,
+				},
+				"repo_id": map[string]any{
+					"type":        "string",
+					"description": "Optional canonical repository identifier to scope the search",
+				},
+				"language": map[string]any{
+					"type":        "string",
+					"description": "Optional language filter applied before the bounded result limit",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum number of results to return",
+					"default":     10,
+					"minimum":     1,
+					"maximum":     200,
+				},
+				"scope": map[string]any{
+					"type":        "string",
+					"description": "Deprecated compatibility field; repo_id controls repository scope",
+					"default":     "auto",
+				},
+			},
+			"required": []string{"query"},
+		},
+	}
+}
+
+func findSymbolTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
+		Name:        "find_symbol",
+		Description: "Find exact or fuzzy symbol definitions with bounded, paged results and source handles. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"symbol": map[string]any{
+					"type":        "string",
+					"description": "Symbol name to locate",
+				},
+				"match_mode": map[string]any{
+					"type":        "string",
+					"description": "Symbol match mode",
+					"enum":        []string{"exact", "fuzzy"},
+					"default":     "exact",
+				},
+				"repo_id": map[string]any{
+					"type":        "string",
+					"description": "Optional canonical repository identifier to scope the lookup",
+				},
+				"language": map[string]any{
+					"type":        "string",
+					"description": "Optional language filter",
+				},
+				"entity_type": map[string]any{
+					"type":        "string",
+					"description": "Optional single entity type filter",
+				},
+				"entity_types": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "string"},
+					"description": "Optional entity type filters such as function, class, component, or module",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum definitions to return",
+					"default":     25,
+					"maximum":     200,
+				},
+				"offset": map[string]any{
+					"type":        "integer",
+					"description": "Zero-based result offset for paging",
+					"default":     0,
+					"maximum":     10000,
+				},
+			},
+			"required": []string{"symbol"},
+		},
 	}
 }
 
@@ -208,6 +313,94 @@ func codeTopicInvestigationTool() toolcontract.ToolDefinition {
 				},
 			},
 			"required": []string{"topic"},
+		},
+	}
+}
+
+func executeLanguageQueryTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
+		Name:        "execute_language_query",
+		Description: "Execute a language-specific query to find code entities (functions, classes, structs, etc.) filtered by programming language. Supports 15 languages: c, cpp, csharp, dart, go, haskell, java, javascript, perl, python, ruby, rust, scala, swift, typescript. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"language": map[string]any{
+					"type":        "string",
+					"description": "Programming language to filter by (e.g., python, go, rust)",
+				},
+				"entity_type": map[string]any{
+					"type":        "string",
+					"description": "Type of code entity to search for",
+					"enum":        []string{"repository", "directory", "file", "module", "function", "class", "struct", "enum", "union", "macro", "variable"},
+				},
+				"query": map[string]any{
+					"type":        "string",
+					"description": "Optional name pattern to filter results",
+				},
+				"repo_id": map[string]any{
+					"type":        "string",
+					"description": "Optional canonical repository identifier to scope the search",
+				},
+				"limit": map[string]any{
+					"type":        "integer",
+					"description": "Maximum number of results to return (default 50, maximum 200)",
+					"default":     50,
+					"minimum":     1,
+					"maximum":     200,
+				},
+			},
+			"required": []string{"language", "entity_type"},
+		},
+	}
+}
+
+func findFunctionCallChainTool() toolcontract.ToolDefinition {
+	return toolcontract.ToolDefinition{
+		Name:        "find_function_call_chain",
+		Description: "Find the transitive call chain between two functions by following CALLS edges in the code graph. Returns shortest paths up to a configurable depth. Scoped tokens receive only chains whose every hop is in a granted repository; an ungranted repository selector is rejected.",
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"start": map[string]any{
+					"type":        "string",
+					"description": "Optional starting function name; use start_entity_id for an exact code graph entity selector",
+				},
+				"end": map[string]any{
+					"type":        "string",
+					"description": "Optional ending function name; use end_entity_id for an exact code graph entity selector",
+				},
+				"repo_id": map[string]any{
+					"type":        "string",
+					"description": "Optional canonical repository identifier used to scope name-based call-chain resolution",
+				},
+				"cross_repo": map[string]any{
+					"type":        "boolean",
+					"description": "Explicit opt-in for bounded cross-repository call-chain traversal",
+					"default":     false,
+				},
+				"start_repo_id": map[string]any{
+					"type":        "string",
+					"description": "Optional starting repository selector for cross-repo call-chain resolution",
+				},
+				"end_repo_id": map[string]any{
+					"type":        "string",
+					"description": "Optional ending repository selector for cross-repo call-chain resolution",
+				},
+				"start_entity_id": map[string]any{
+					"type":        "string",
+					"description": "Optional exact starting code entity ID; avoids ambiguous name resolution when provided",
+				},
+				"end_entity_id": map[string]any{
+					"type":        "string",
+					"description": "Optional exact ending code entity ID; avoids ambiguous name resolution when provided",
+				},
+				"max_depth": map[string]any{
+					"type":        "integer",
+					"description": "Maximum chain depth (1-10)",
+					"default":     5,
+				},
+			},
+			"required": []string{},
 		},
 	}
 }
