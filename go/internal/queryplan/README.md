@@ -41,7 +41,7 @@ output or capture the query emitted by the production execution path, verify the
 fingerprints, and run the full anchor, traversal, ordering, schema, and plan
 validation against those production-owned bytes.
 
-The inventory still contains 19 pre-existing `non_hot_reason` entries. They are
+The inventory still contains 18 pre-existing `non_hot_reason` entries. They are
 immutable migration debt rather than an open classification path, and the count
 is meant to fall only as entries convert to the typed form. That direction is
 not machine-checked.

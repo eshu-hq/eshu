@@ -129,7 +129,13 @@ source_coverage:
       - {symbol: "(*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty", count: 2, source_sha256: 92e00f48c6258d06df21e456d17d13d8be4df2dbb8b664d5e68957e246b962ec, entry_ids: [QP-CODE-REL-STORY-ANCHOR-COLLISION]}
   - file: codequery/relationship_handlers.go
     calls:
-      - {symbol: "(*CodeHandler).relationshipsGraphRow", count: 3, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*CodeHandler).relationshipsGraphRow"
+        count: 3
+        non_hot:
+          class: keyed_support
+          source_sha256: f9978cc3329ea82e524369bc8a6ea5ffb36304e9eab417cf2a4dd68ebcc88347
+          key_bound: single_key
+          max_results: 1
       - {symbol: "(*CodeHandler).transitiveRelationshipsGraphRow", count: 1, non_hot: {class: depth_bounded, source_sha256: 3f078d6a49d10c2ca70b7e44d53f73b30465cd7a8e32d885ef48cccb3e99b909, key_bound: single_key, max_degree: 8, max_depth: 10}}
   - file: codequery/transitive_walk.go
     calls:
