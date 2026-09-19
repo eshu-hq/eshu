@@ -58,11 +58,16 @@ dependency clusters and the `is_dependency` marker, for both
 the whole-graph `DEPENDS_ON` count first and skip the read when it is zero,
 then run `RepositoryDependencyGroupedEdgeCypher` (`RETURN s.id,
 collect(t.id)`), which NornicDB v1.3.3 answers from the relationship-type
-index. Scoped callers run the grant-predicated per-edge read
+index. Its `$group_limit` bounds source groups, not edges, so when the count
+exceeds 50,000 or is unreadable the loader first runs
+`RepositoryDependencyGroupSizeCypher` (`RETURN s.id, count(t)`) and passes the
+smallest group prefix holding the first 50,000 edges. That caps the transfer
+at 50,000 edges plus one source's edges (#6786 review R3-F2). Scoped callers run the grant-predicated per-edge read
 (`repositoryDependencyClusterEdgeCypher`), because a `WHERE` clause disables
 that fast path. Both paths return edges sorted by (source, target) and
 clipped to 50,000, and report truncation. `dependency_edge_unscoped.go` holds
-the unscoped probe and grouped read. Measurements are in
+the unscoped probe, grouped read and loader; `dependency_edge_cap.go` holds the
+group-size read and the prefix computation. Measurements are in
 `docs/internal/evidence/6786-repository-dependency-marker-and-relationship-repo-anchor.md`.
 
 Performance Evidence (#6786 review R2-F6): on NornicDB v1.3.3 with 500
@@ -71,11 +76,18 @@ repositories of 200 files each, the grouped read costs 0.0045s median against
 7 on NornicDB and Neo4j. `listCatalogRepositoriesFromGraph` went from
 0.60-0.66s (per-edge) to 0.013s.
 
-Observability Evidence (#6786 review R2-F10): both routes time the read as
-`repository_query.stage_*` with `stage=dependency_cluster_edges`
+Performance Evidence (#6786 review R3-F2): on the same graph with 75,000 and
+150,000 Repository `DEPENDS_ON` edges, the capped read transfers 50,100 edges
+instead of all of them. The interleaved loader median moves 0.160s to 0.169s
+and 0.154s to 0.166s on NornicDB, and 0.171s to 0.138s and 0.189s to 0.100s on
+Neo4j. Below the bound the statements are unchanged apart from the
+parameterized LIMIT (NornicDB at 40,000 edges: 0.0423s to 0.0410s).
+
+Observability Evidence (#6786 review R2-F10, R3-F2): both routes time the read
+as `repository_query.stage_*` with `stage=dependency_cluster_edges`
 (`operation=repository_list` or `catalog_list`), carrying `edge_count`,
-`truncated`, `error` and `edge_scan_skipped`; only the list route adds
-`cluster_count`.
+`truncated`, `error`, `edge_scan_skipped` and `edge_transfer_capped`; only the
+list route adds `cluster_count`.
 
 ## Dependencies
 

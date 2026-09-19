@@ -153,28 +153,33 @@ func TestLoadRepositoryDependencyEdgesScopedCallerSkipsUnscopedProbe(t *testing.
 	}
 }
 
-// TestDependencyEdgeCountIsZeroRejectsUnreadableProbe proves the skip only
-// fires on a present, recognized zero: a missing column or an unknown value
-// type must not be mistaken for "no edges".
-func TestDependencyEdgeCountIsZeroRejectsUnreadableProbe(t *testing.T) {
+// TestDependencyEdgeCountRejectsUnreadableProbe proves only a present,
+// recognized, non-negative integer counts as a known probe result: a missing
+// column, an unknown value type or a negative count must not be mistaken for
+// "no edges" or for a count that fits the bound.
+func TestDependencyEdgeCountRejectsUnreadableProbe(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name string
-		row  map[string]any
-		want bool
+		name      string
+		row       map[string]any
+		wantCount int64
+		wantKnown bool
 	}{
-		{"int64 zero", map[string]any{"edge_count": int64(0)}, true},
-		{"int zero", map[string]any{"edge_count": 0}, true},
-		{"float zero", map[string]any{"edge_count": float64(0)}, true},
-		{"nonzero", map[string]any{"edge_count": int64(3)}, false},
-		{"missing column", map[string]any{}, false},
-		{"nil value", map[string]any{"edge_count": nil}, false},
-		{"unknown type", map[string]any{"edge_count": "0"}, false},
+		{"int64 zero", map[string]any{"edge_count": int64(0)}, 0, true},
+		{"int zero", map[string]any{"edge_count": 0}, 0, true},
+		{"int32", map[string]any{"edge_count": int32(4)}, 4, true},
+		{"float zero", map[string]any{"edge_count": float64(0)}, 0, true},
+		{"nonzero", map[string]any{"edge_count": int64(3)}, 3, true},
+		{"negative", map[string]any{"edge_count": int64(-1)}, -1, false},
+		{"missing column", map[string]any{}, 0, false},
+		{"nil value", map[string]any{"edge_count": nil}, 0, false},
+		{"unknown type", map[string]any{"edge_count": "0"}, 0, false},
 	}
 	for _, tc := range cases {
-		if got := dependencyEdgeCountIsZero(tc.row); got != tc.want {
-			t.Errorf("%s: dependencyEdgeCountIsZero = %v, want %v", tc.name, got, tc.want)
+		count, known := dependencyEdgeCount(tc.row)
+		if known != tc.wantKnown || (known && count != tc.wantCount) {
+			t.Errorf("%s: dependencyEdgeCount = (%d, %v), want (%d, %v)", tc.name, count, known, tc.wantCount, tc.wantKnown)
 		}
 	}
 }

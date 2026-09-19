@@ -6,7 +6,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -171,7 +170,8 @@ func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 // issued no dependency-edge read at all (its per-row EXISTS was NornicDB's
 // always-false shape). The catalog is unscoped, so it takes the grouped
 // RepositoryDependencyGroupedEdgeCypher read, gated by the DEPENDS_ON
-// cardinality probe. Measured on NornicDB v1.3.3 at 500 repositories with
+// cardinality probe and capped by the group-size read when the probe cannot
+// prove the edges fit the bound (loadUnscopedRepositoryDependencyEdges). Measured on NornicDB v1.3.3 at 500 repositories with
 // 200 files each: this function cost 0.045-0.056s before #6786 (with every
 // is_dependency false), 0.60-0.66s with the per-edge read, and 0.013s with
 // the grouped read; on Neo4j 0.006s, 0.011s and 0.011s (#6786 evidence doc).
@@ -201,13 +201,7 @@ func (h *Handler) listCatalogRepositoriesFromGraph(
 	// catalog builds no clusters.
 	edgeTimer := startRepositoryQueryStage(ctx, h.Logger, "catalog_list", "", "dependency_cluster_edges")
 	dependencyRead := loadRepositoryDependencyEdges(ctx, h.Neo4j, querycontract.RepositoryAccessFilter{AllScopes: true})
-	edgeTimer.Done(
-		ctx,
-		slog.Int("edge_count", len(dependencyRead.Edges)),
-		slog.Bool("truncated", dependencyRead.Truncated),
-		slog.Bool("error", dependencyRead.Err != nil),
-		slog.Bool("edge_scan_skipped", dependencyRead.Skipped),
-	)
+	edgeTimer.Done(ctx, dependencyEdgeStageAttrs(dependencyRead)...)
 	dependencyTargets := repositoryDependencyTargetSet(dependencyRead.Edges)
 	dependencyDegraded = logRepositoryDependencyEdgesDegradation(ctx, h.Logger, "catalog_list", dependencyRead)
 	logRepositoryDependencyClusterErrors(ctx, h.Logger, "catalog_list", dependencyRead)
