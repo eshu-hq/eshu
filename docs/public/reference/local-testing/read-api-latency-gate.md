@@ -44,8 +44,10 @@ lanes never exercise.
    give the per-label scan cost realistic volume. Runs `ANALYZE` on the
    seeded Postgres tables afterward so the sweep plans against fresh
    statistics.
-   After the graph seeds it reads the per-label node counts back
-   (`VerifyGraphNodeCounts`) and fails the run if any label is short: a bulk
+   Right after the Postgres seeds it reads the row counts of
+   `ingestion_scopes`, `scope_generations`, `fact_work_items` and `fact_records`
+   back (`VerifyRelationalCounts`), and after the graph seeds it reads the
+   per-label node counts back (`VerifyGraphNodeCounts`) and fails the run if any label is short: a bulk
    `UNWIND range(0, $count - 1)` once seeded a single node per label on
    NornicDB without an error (see
    [NornicDB Write-Shape Pitfalls](../nornicdb-write-shape-pitfalls.md)).
@@ -81,7 +83,18 @@ can back, so those run for real instead of 400ing. A **5xx always fails**
 the route regardless of how fast it answered (`HardFailed`) — a query error
 or an early 500 must not pass just because it was quick. The breach summary
 prints the first counted-sample 5xx response body (capped at 500 bytes) so
-the error envelope is visible without re-running. The run script exports
+the error envelope is visible without re-running. The route table's status
+column marks `BREACH` for every route the run fails on (latency, work budget,
+unmetered, 5xx, or a route the latency table budgets by name that was not
+exercised), and the run logs the path and sha256 of the two budget tables
+it enforced. A route named in `LatencyExemptions` (`latency_exemption.go`)
+prints `BREACH-EXEMPT(<issue>)` instead when only its latency ceiling is over
+budget -- never `OK` -- and does not fail the run on latency alone; its work
+budget and any 5xx still fail the run exactly like an unexempt route. This
+exists for one route today (`/api/v0/iac/resources`, tracked against #6858,
+see the budgets table header and the seed-findings evidence note) and is not a
+way to raise a ceiling: adding an entry requires an issue reference and a
+reason, and `ValidateLatencyExemptions` refuses to start the gate without them. The run script exports
 `ESHU_COMPONENT_HOME` (an empty temp directory, a supported zero-components
 registry state) because `/api/v0/component-extensions` 503s unconditionally
 without it. A client-side
@@ -152,17 +165,59 @@ generated: run the gate on the runner class with `GATE_WORK_REPORT`, then
 the GREEN maximum. The five routes the #6794 fix did not change are guards for
 future regressions; the fix pair cannot prove them RED.
 
+**Floor.** No named work row is rendered below the `default` row (13 calls, 21
+buffers, 14 rows). Routes that read almost nothing would otherwise get a budget
+of 0 rows and 3 buffers, and the meter window sums the whole database, so a
+single stray statement would be a blocking breach. The floor comes from
+measurement: 47 routes read at most 8 buffers, and across the GREEN and RED
+artifacts their maximum is 6 calls, 7 buffers, 7 rows, identical in every
+report; the `default` row is the formulas over that maximum. The floor changes
+no route that reads real work.
+
+**Adding a route.** The `default` work row is deliberately tight: it comes from
+the largest route the table does not name, so a new route that reads more than it
+breaches until it declares its own budget. The breach line says so. To give a
+route its own row: name it in `testdata/benchmarks/read-api-route-budgets.txt`
+(with a reason), run the gate on a passing build with `GATE_WORK_REPORT=<file>`,
+and re-render the table:
+
+```bash
+bash scripts/refresh-read-api-work-budgets.sh \
+  --out testdata/benchmarks/read-api-route-work-budgets.txt REPORT.json...
+```
+
+Use GREEN reports from the runner class the gate enforces on, and commit the
+rendered file; do not edit a number by hand.
+
+**Non-goal.** This is a latency and work-ceiling gate: a work budget only ever
+fails on more reads, and the seed is verified so a shrunken corpus cannot pass
+silently, but the gate does not assert that a route returns the right rows. A
+GREEN run is not a correctness claim; route result correctness belongs to the
+handler tests and the golden corpus.
+
 Not covered: NornicDB exposes no work counter, so the graph side of the #6793
 infra aggregate is guarded by its latency ceiling only, and
 `shared_projection_intents` is not seeded, so `domainBacklogQuery` is invisible
 to this gate.
 
-**Producing a RED run.** The workflow's `workflow_dispatch` takes an `api_ref`
-input: that ref's `eshu-api` is built and swept by this branch's gate code, so a
-commit from before a fix shows the gate failing on the real runner class. To keep
-a stack for debugging locally, run the script with `--keep`; it retains the
-live-gate lock and the stack until you `docker compose down -v` and remove
-`eshu-live-gate.lock` and `eshu-live-gate.lock.keep` from the git common dir.
+**Producing a RED run.** Build the pre-fix `eshu-api` from the commit you want
+to prove the gate catches (e.g. `cd go && CGO_ENABLED=1 go build -o
+/tmp/eshu-api-pre-fix ./cmd/api` in a worktree checked out at that commit) and
+point the run script at it: `GATE_API_BIN=/tmp/eshu-api-pre-fix bash
+scripts/verify-read-api-latency-gate.sh`. This is a local mechanism only --
+there is deliberately no CI equivalent (a `workflow_dispatch` input that builds
+an operator-supplied ref would check out and execute untrusted code in a
+workflow whose trigger can write to the default branch's Actions cache scope,
+which is what CodeQL's `actions/cache-poisoning/poisonable-step` flags; see the
+workflow's own `workflow_dispatch` comment). Three RED runs against real
+pre-fix commits are already recorded verbatim in
+`docs/internal/evidence/6797-read-api-work-metric-shim.md`. To keep a stack for
+debugging locally, run the script with `--keep`; it leaves Postgres and
+NornicDB up with the seeded corpus and retains the live-gate lock. `eshu-api`
+is stopped on exit either way, so start your own build against the kept stack to
+re-issue a request. Clear the stack with `docker compose -p <project> down -v`
+and remove `eshu-live-gate.lock` and `eshu-live-gate.lock.keep` from the git
+common dir.
 
 ## Focused (credential-free) proof
 

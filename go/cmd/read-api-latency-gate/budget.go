@@ -257,6 +257,12 @@ func EvaluateBudgets(results []RouteLatency, budgets RouteBudgets) []BudgetBreac
 			continue
 		}
 		if r.P95 > budget {
+			// An exempt route's ceiling is advisory (LatencyExemptions), so
+			// it never reaches the breach list here -- only its HardFailed
+			// and work-budget checks can still fail the run.
+			if _, exempt := LatencyExemptions[r.Route]; exempt {
+				continue
+			}
 			breaches = append(breaches, BudgetBreach{
 				Route:  r.Route,
 				P95:    r.P95,
@@ -265,6 +271,28 @@ func EvaluateBudgets(results []RouteLatency, budgets RouteBudgets) []BudgetBreac
 		}
 	}
 	return breaches
+}
+
+// ExemptedLatencyBreaches returns one BudgetBreach per exercised,
+// non-HardFailed route whose p95 exceeded its budget but is covered by
+// LatencyExemptions. EvaluateBudgets excludes these from the run's failures;
+// this is the reporting counterpart so the run's stderr still names them
+// instead of going silent about a route that is, in fact, over its ceiling.
+func ExemptedLatencyBreaches(results []RouteLatency, budgets RouteBudgets) []BudgetBreach {
+	var exempted []BudgetBreach
+	for _, r := range results {
+		if !r.Exercised || r.HardFailed {
+			continue
+		}
+		budget := budgets.For(r.Route)
+		if r.P95 <= budget {
+			continue
+		}
+		if _, exempt := LatencyExemptions[r.Route]; exempt {
+			exempted = append(exempted, BudgetBreach{Route: r.Route, P95: r.P95, Budget: budget})
+		}
+	}
+	return exempted
 }
 
 // RequireNamedRoutesExercised returns every route explicitly named in

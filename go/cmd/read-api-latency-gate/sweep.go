@@ -64,6 +64,9 @@ type SweepOptions struct {
 // RouteLatency's fields and sweepOne for what counts as a measured sample,
 // a not-exercised route, a hard failure, or a sweep-aborting error.
 func SweepRoutes(opts SweepOptions) ([]RouteLatency, error) {
+	if opts.Iterations < 1 {
+		return nil, fmt.Errorf("sweep: iterations must be at least 1, got %d (zero counted requests would pass every budget while measuring nothing)", opts.Iterations)
+	}
 	client := &http.Client{Timeout: opts.Timeout}
 	ctx := opts.Context
 	if ctx == nil {

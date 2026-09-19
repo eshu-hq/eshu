@@ -64,6 +64,13 @@ func reportWorkResults(w io.Writer, results []RouteLatency, budgets RouteWorkBud
 				workCounterLine("rows", b.Measured.Rows, b.Budget.Rows),
 				b.P95.Round(time.Millisecond))
 		}
+		if unnamed := unnamedWorkBreaches(breaches, budgets); len(unnamed) > 0 {
+			_, _ = fmt.Fprintf(w, "  %d of these routes have no named work budget and are held to the tight default row (%s). "+
+				"If the reads are legitimate, name the route in testdata/benchmarks/read-api-route-budgets.txt, run the gate on GREEN "+
+				"with -work-report, then re-render the table: bash scripts/refresh-read-api-work-budgets.sh "+
+				"--out testdata/benchmarks/read-api-route-work-budgets.txt REPORT.json...\n",
+				len(unnamed), strings.Join(unnamed, ", "))
+		}
 		failures = append(failures, fmt.Sprintf("%d route(s) exceeded their work budget", len(breaches)))
 	}
 	return failures
@@ -83,7 +90,7 @@ func writeWorkReportFile(path string, results []RouteLatency) error {
 	if path == "" {
 		return nil
 	}
-	f, err := os.Create(path)
+	f, err := os.Create(path) // #nosec G304 -- path is the -work-report CLI flag, operator-controlled
 	if err != nil {
 		return fmt.Errorf("create work report %s: %w", path, err)
 	}
@@ -95,4 +102,16 @@ func writeWorkReportFile(path string, results []RouteLatency) error {
 		return fmt.Errorf("close work report %s: %w", path, err)
 	}
 	return nil
+}
+
+// unnamedWorkBreaches returns the routes in breaches that fall under the default
+// row because the work table names no row for them.
+func unnamedWorkBreaches(breaches []WorkBreach, budgets RouteWorkBudgets) []string {
+	var unnamed []string
+	for _, b := range breaches {
+		if !budgets.Named(b.Route) {
+			unnamed = append(unnamed, b.Route)
+		}
+	}
+	return unnamed
 }

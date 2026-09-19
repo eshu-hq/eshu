@@ -87,6 +87,9 @@ type runOptions struct {
 func run(opts runOptions) error {
 	ctx := context.Background()
 
+	if err := ValidateLatencyExemptions(LatencyExemptions); err != nil {
+		return fmt.Errorf("latency exemptions: %w", err)
+	}
 	if opts.postgresDSN == "" {
 		return fmt.Errorf("postgres-dsn (or ESHU_POSTGRES_DSN) is required to seed and to meter Postgres work")
 	}
@@ -147,12 +150,11 @@ func run(opts runOptions) error {
 		return err
 	}
 
-	budgetsFile, err := os.Open(opts.budgetsPath)
+	budgetsTable, err := readTable(opts.budgetsPath)
 	if err != nil {
-		return fmt.Errorf("open budgets file %s: %w", opts.budgetsPath, err)
+		return fmt.Errorf("read budgets file %s: %w", opts.budgetsPath, err)
 	}
-	defer func() { _ = budgetsFile.Close() }()
-	budgets, err := ParseRouteBudgets(budgetsFile)
+	budgets, err := ParseRouteBudgets(budgetsTable.reader())
 	if err != nil {
 		return fmt.Errorf("parse budgets file %s: %w", opts.budgetsPath, err)
 	}
@@ -162,7 +164,18 @@ func run(opts runOptions) error {
 	}
 	budgets = budgets.WithCatalog(catalog)
 
-	printReport(os.Stdout, results, budgets)
+	workBudgetsTable, err := readTable(opts.workBudgetsPath)
+	if err != nil {
+		return fmt.Errorf("read work budgets file %s: %w", opts.workBudgetsPath, err)
+	}
+	workBudgets, err := ParseRouteWorkBudgets(workBudgetsTable.reader())
+	if err != nil {
+		return fmt.Errorf("parse work budgets file %s: %w", opts.workBudgetsPath, err)
+	}
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: latency budgets %s\n", budgetsTable.provenance())
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: work budgets %s\n", workBudgetsTable.provenance())
+
+	printReport(os.Stdout, results, budgets, workBudgets)
 
 	exercised, total := ExercisedCoverage(results)
 	fmt.Fprintf(os.Stderr, "\nread-api-latency-gate: exercised %d/%d routes (floor %d)\n", exercised, total, ExercisedCoverageFloor)
@@ -184,15 +197,14 @@ func run(opts runOptions) error {
 		failures = append(failures, fmt.Sprintf("%d route(s) exceeded their latency budget", len(breaches)))
 	}
 
-	workBudgetsFile, err := os.Open(opts.workBudgetsPath)
-	if err != nil {
-		return fmt.Errorf("open work budgets file %s: %w", opts.workBudgetsPath, err)
+	if exempted := ExemptedLatencyBreaches(results, budgets); len(exempted) > 0 {
+		fmt.Fprintf(os.Stderr, "\nread-api-latency-gate: %d route(s) exceeded their latency budget but are exempt (advisory only):\n", len(exempted))
+		for _, b := range exempted {
+			ex := LatencyExemptions[b.Route]
+			fmt.Fprintf(os.Stderr, "  %s: p95 %s > budget %s -- %s: %s\n", b.Route, b.P95, b.Budget, ex.Issue, ex.Reason)
+		}
 	}
-	defer func() { _ = workBudgetsFile.Close() }()
-	workBudgets, err := ParseRouteWorkBudgets(workBudgetsFile)
-	if err != nil {
-		return fmt.Errorf("parse work budgets file %s: %w", opts.workBudgetsPath, err)
-	}
+
 	failures = append(failures, reportWorkResults(os.Stderr, results, workBudgets)...)
 
 	if coverageErr := CheckCoverageFloor(results, ExercisedCoverageFloor); coverageErr != nil {
@@ -237,6 +249,10 @@ func seed(ctx context.Context, opts runOptions) error {
 	iacFacts := BuildIaCFacts(iacScope.ScopeID, iacScope.ActiveGenerationID, opts.iacFactCount)
 	if err := SeedIaCFacts(ctx, pool, iacFacts, time.Now().UTC()); err != nil {
 		return fmt.Errorf("seed IaC facts: %w", err)
+	}
+
+	if err := VerifyRelationalCounts(ctx, pool, expectedRelationalCounts(plan, iacFacts)); err != nil {
+		return fmt.Errorf("verify seeded Postgres tables: %w", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d nodes per infra label (%d labels)\n", opts.nodesPerLabel, len(infraLabels))
@@ -319,11 +335,28 @@ func countWorkItems(plan SeedPlan) int {
 	return n
 }
 
-func printReport(w io.Writer, results []RouteLatency, budgets RouteBudgets) {
+func printReport(w io.Writer, results []RouteLatency, budgets RouteBudgets, workBudgets RouteWorkBudgets) {
+	workBreached := make(map[string]bool)
+	for _, b := range EvaluateWorkBudgets(results, workBudgets) {
+		workBreached[b.Route] = true
+	}
+	for _, route := range UnmeteredExercisedRoutes(results) {
+		workBreached[route] = true
+	}
+	namedMissing := make(map[string]bool)
+	for _, route := range RequireNamedRoutesExercised(results, budgets) {
+		namedMissing[route] = true
+	}
 	_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s %8s %10s %8s\n", "route", "p95", "budget", "status", "calls", "blks", "rows")
 	for _, r := range results {
 		if !r.Exercised {
-			_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s\n", r.Route, "-", "-", fmt.Sprintf("NOT_EXERCISED(%d)", r.Status))
+			status := fmt.Sprintf("NOT_EXERCISED(%d)", r.Status)
+			if namedMissing[r.Route] {
+				// A route the latency table budgets by name must be exercised
+				// (RequireNamedRoutesExercised fails the run otherwise).
+				status += " BREACH"
+			}
+			_, _ = fmt.Fprintf(w, "%-70s %10s %10s %13s\n", r.Route, "-", "-", status)
 			continue
 		}
 		budget := budgets.For(r.Route)
@@ -334,9 +367,29 @@ func printReport(w io.Writer, results []RouteLatency, budgets RouteBudgets) {
 		// gate actually fails on prints as a false "OK" here (issue #6797
 		// live-gate incident: component-extensions and iac/resources showed
 		// "OK" in this table while the same run's breach summary correctly
-		// failed the gate on them).
-		if r.HardFailed || r.P95 > budget {
+		// failed the gate on them). The same holds for the work budget: a
+		// route over its Postgres work budget, or one the meter never read,
+		// fails the run through EvaluateWorkBudgets and
+		// UnmeteredExercisedRoutes, so it is marked here too.
+		switch {
+		case r.HardFailed:
 			status = "BREACH"
+		case workBreached[r.Route]:
+			// Checked before the latency-exemption case: a route can be both
+			// exempt from its ceiling and over its work budget, and the work
+			// budget is this gate's actual regression-catching mechanism, so
+			// that must never read as the advisory BREACH-EXEMPT below.
+			status = "BREACH"
+		case r.P95 > budget:
+			// LatencyExemptions makes this ceiling advisory for a tracked
+			// route (see EvaluateBudgets) only when nothing else about the
+			// route has failed; the column still names it, so a reader never
+			// mistakes BREACH-EXEMPT for a pass.
+			if ex, exempt := LatencyExemptions[r.Route]; exempt {
+				status = fmt.Sprintf("BREACH-EXEMPT(%s)", ex.Issue)
+			} else {
+				status = "BREACH"
+			}
 		}
 		calls, blks, rows := "-", "-", "-"
 		if r.Metered {

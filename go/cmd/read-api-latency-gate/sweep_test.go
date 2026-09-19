@@ -313,3 +313,20 @@ func TestSweepRoutesFailsOnConnectionFailure(t *testing.T) {
 		t.Fatalf("expected error for a connection failure")
 	}
 }
+
+// TestSweepRoutesRejectsNonPositiveIterations guards a vacuous-green hole: with
+// zero counted requests the p95 is 0 and the work averages are 0/0 = NaN, and
+// NaN is never greater than a budget, so every latency and work check passed
+// while measuring nothing (found in review; GATE_ITERATIONS=0 exited 0 with "all
+// routes within budget").
+func TestSweepRoutesRejectsNonPositiveIterations(t *testing.T) {
+	for _, n := range []int{0, -3} {
+		_, err := SweepRoutes(SweepOptions{
+			BaseURL: "http://127.0.0.1:1", APIKey: "k", Routes: []string{"GET /r"},
+			Iterations: n, Timeout: time.Second,
+		})
+		if err == nil || !strings.Contains(err.Error(), "iterations") {
+			t.Errorf("Iterations=%d: err = %v, want an error naming iterations", n, err)
+		}
+	}
+}

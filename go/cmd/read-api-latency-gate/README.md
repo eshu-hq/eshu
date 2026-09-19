@@ -55,8 +55,11 @@ not own the routes themselves (`go/internal/query`), the surface inventory
   blks, rows over budget), the guard against an exercised-but-unmetered route,
   and the JSON report `scripts/refresh-read-api-work-budgets.sh` renders the
   table from
-- `VerifyGraphNodeCounts` — reads back per-label node counts after the graph
-  seeds and fails the run when any label is short
+- `VerifyGraphNodeCounts`, `VerifyGraphDimensions`, `VerifyContentEntityCounts`,
+  `VerifyRelationalCounts` — read back what was seeded (graph node counts and
+  distinct dimensions, `content_entities` and the four seeded Postgres tables'
+  row counts) and fail the run when anything is short, so a shrunken corpus can
+  never read as GREEN
 - `ParseRouteBudgets`, `EvaluateBudgets` — the budget table and breach check
   (a `HardFailed` route always breaches); `RouteBudgets.WithCatalog`
   tightens a mapped route's budget to the capability catalog's declared

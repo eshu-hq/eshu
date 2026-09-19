@@ -4,6 +4,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -97,5 +99,66 @@ func TestUnmeteredExercisedRoutesFlagsAnExercisedRouteWithoutCounters(t *testing
 	got := UnmeteredExercisedRoutes(results)
 	if len(got) != 1 || got[0] != "GET /unmetered" {
 		t.Fatalf("UnmeteredExercisedRoutes = %v, want [GET /unmetered]: a route the meter never read must fail the run, not pass silently", got)
+	}
+}
+
+// TestCommittedWorkBudgetTableParses guards the generated table the gate loads
+// at run time: a malformed or default-less file must fail here, not in CI.
+func TestCommittedWorkBudgetTableParses(t *testing.T) {
+	f, err := os.Open(filepath.Join("..", "..", "..", "testdata", "benchmarks", "read-api-route-work-budgets.txt"))
+	if err != nil {
+		t.Fatalf("open committed work budgets: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+
+	budgets, err := ParseRouteWorkBudgets(f)
+	if err != nil {
+		t.Fatalf("ParseRouteWorkBudgets: %v", err)
+	}
+	if !budgets.Named("GET /api/v0/status/collectors") {
+		t.Error("the status/collectors row is missing from the committed table")
+	}
+}
+
+func loadCommittedWorkBudgets(t *testing.T) RouteWorkBudgets {
+	t.Helper()
+	f, err := os.Open(filepath.Join("..", "..", "..", "testdata", "benchmarks", "read-api-route-work-budgets.txt"))
+	if err != nil {
+		t.Fatalf("open committed work budgets: %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	budgets, err := ParseRouteWorkBudgets(f)
+	if err != nil {
+		t.Fatalf("ParseRouteWorkBudgets: %v", err)
+	}
+	return budgets
+}
+
+// TestNoCommittedNamedRowIsBelowTheDefaultRow pins the refresh script's floor. A
+// budget of 0 rows or 3 buffers on a route that reads almost nothing turns one
+// stray statement in the meter window (which sums the whole database, not one
+// route) into a blocking breach.
+func TestNoCommittedNamedRowIsBelowTheDefaultRow(t *testing.T) {
+	budgets := loadCommittedWorkBudgets(t)
+	def := budgets.def
+	for route, row := range budgets.byRoute {
+		b := row.budget
+		if b.Calls < def.Calls || b.Blks < def.Blks || b.Rows < def.Rows {
+			t.Errorf("%s budget %+v is below the default row %+v", route, b, def)
+		}
+	}
+}
+
+// TestAStrayRowOnAZeroBaseRouteDoesNotBreach is the floor's proof pair, GREEN
+// half: routes that read one call and one buffer and return no rows tolerate a
+// stray row and a few stray buffers from the meter window.
+func TestAStrayRowOnAZeroBaseRouteDoesNotBreach(t *testing.T) {
+	budgets := loadCommittedWorkBudgets(t)
+	results := []RouteLatency{{
+		Route: "GET /api/v0/capabilities", Exercised: true, Metered: true,
+		Work: WorkPerRequest{Calls: 2, Blks: 4, Rows: 1},
+	}}
+	if got := EvaluateWorkBudgets(results, budgets); len(got) != 0 {
+		t.Fatalf("a stray row on a zero-base route breached: %+v", got)
 	}
 }

@@ -267,3 +267,23 @@ func TestRequireNamedRoutesExercisedIgnoresUnnamedRoutes(t *testing.T) {
 		t.Fatalf("RequireNamedRoutesExercised = %v, want none — a route with no explicit budget row is allowed to be not-exercised", missing)
 	}
 }
+
+// TestEveryRouteCapabilityResolvesInTheCatalog: RouteCapability is a
+// hand-maintained map. If a capability id is renamed or removed, For() falls
+// back to the looser configured budget with no failure, so every mapped id has
+// to exist in the loaded catalog.
+func TestEveryRouteCapabilityResolvesInTheCatalog(t *testing.T) {
+	catalog, err := capabilitycatalog.Load()
+	if err != nil {
+		t.Fatalf("capabilitycatalog.Load: %v", err)
+	}
+	known := map[string]bool{}
+	for _, e := range catalog.Entries {
+		known[e.Capability] = true
+	}
+	for route, capability := range RouteCapability {
+		if !known[capability] {
+			t.Errorf("RouteCapability[%q] = %q is not a capability in the catalog", route, capability)
+		}
+	}
+}

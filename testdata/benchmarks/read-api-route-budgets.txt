@@ -40,7 +40,10 @@
 # GREEN-derived budget by construction. The five routes #6808 did not change
 # (collector-readiness, status/collector-readiness, repositories,
 # repositories/language-inventory, iac/resources) get GREEN-derived work budgets as
-# forward regression guards, documented as not RED-provable with this pair.
+# forward regression guards, documented as not RED-provable with this pair. The
+# remaining named rows (the four borderline-family routes, /infra/resources/count,
+# /infra/resources/inventory and /capabilities) are GREEN-derived guards for the
+# same reason: the pair did not change them.
 #
 # Provenance of the row values below: #6793/#6794 family rows carry the
 # targets from issue #6797's acceptance criteria (#6793 infra resource
@@ -48,6 +51,17 @@
 # They are local-machine-independent SLO targets, NOT values calibrated on the
 # CI runner class. A ceiling is never tightened below 2x the runner-measured
 # GREEN p95, and none is derived from local numbers.
+#
+# WORK BUDGET FLOOR: no named row in the work table is below its default row (13
+# calls, 21 buffers, 14 rows). A route that reads almost nothing would otherwise
+# render a budget of 0 rows and 3 buffers, and the meter window sums the whole
+# database, so one stray statement would be a blocking breach. Source figure: 47
+# routes read at most 8 buffers, and across the three GREEN artifacts and the RED
+# artifact their maximum is 6 calls, 7 buffers, 7 rows, identical in every report;
+# the default row is the work formulas over that maximum, so the floor is the
+# measured noise scale with the same margins, not a chosen number. It changes no
+# route that reads real work: the RED build still fails the 14 changed status
+# routes at 3.37x to 3.94x their buffer budget across the RED runs.
 #
 # NOT COVERED: (1) the graph side of the #6793 infra aggregate has no work
 # counter (NornicDB exposes none this gate can read), so infra/resources/* are
@@ -59,10 +73,18 @@
 # 8.28s on a cold first hit at 150k nodes per label, tracked in #6843; the sweep's
 # discarded warmup requests keep that cold hit out of the measured p95.
 #
-# KNOWN-TIGHT: /api/v0/iac/resources measured 1.23s to 2.07s against its 2s
-# ceiling across three local runs with the real graph. The ceiling is not loosened;
-# the route's work budget guards it, and moving it off the graph is #6793's
-# follow-up work. (3) A retracted claim: earlier revisions of this header said the
+# EXEMPT (not loosened): /api/v0/iac/resources measured 1.23s to 2.07s against
+# its 2s ceiling in three local GREEN runs with the real graph, 1.53s in a
+# fourth, 3.20s in one RED run, and 3.01s then 3.12s in two CI-runner-class runs
+# against merged main (work counters identical every time: 2 calls, 108,152
+# buffers, 51 rows). A blocking gate cannot ship
+# red against merged main's own behavior -- every unrelated PR would inherit
+# that failure -- so this route's latency ceiling is advisory via
+# LatencyExemptions (go/cmd/read-api-latency-gate/latency_exemption.go),
+# tracked against #6858 and removed when that issue lands. The ceiling itself
+# is not loosened; the route's work budget still blocks it, and
+# EvaluateBudgets/printReport mark an exempt breach as BREACH-EXEMPT(#6858),
+# never OK. (3) A retracted claim: earlier revisions of this header said the
 # infra graph was seeded with 150k nodes per label and measured well under
 # 100ms. The bulk seed in fact created ONE node per label (NornicDB evaluates
 # range(0, $count - 1) with a parameter bound as a single element; see

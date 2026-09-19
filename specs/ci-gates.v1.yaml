@@ -2401,6 +2401,7 @@ gates:
       # covers the same whole-module-compile-in problem the same way.
       - "go/**"
       - "testdata/benchmarks/read-api-route-budgets.txt"
+      - "testdata/benchmarks/read-api-route-work-budgets.txt"
       - "scripts/verify-read-api-latency-gate.sh"
       - "scripts/refresh-read-api-work-budgets.sh"
       - "scripts/test-refresh-read-api-work-budgets.sh"
@@ -2414,7 +2415,7 @@ gates:
       - ".github/workflows/read-api-latency-gate.yml"
     local:
       command: "bash scripts/verify-read-api-latency-gate.sh"
-      test_command: "bash scripts/test-refresh-read-api-work-budgets.sh"
+      test_command: ""
     ci:
       workflow: read-api-latency-gate.yml
       job: "latency-gate (nornicdb)"
@@ -2424,6 +2425,23 @@ gates:
       - go
       - docker
       - nornicdb
+    ci_only_reason: ""
+  - id: read-api-work-budget-mirror
+    name: Read API work budget refresh mirror (static)
+    category: hygiene
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "scripts/refresh-read-api-work-budgets.sh"
+      - "scripts/test-refresh-read-api-work-budgets.sh"
+    local:
+      command: "bash scripts/test-refresh-read-api-work-budgets.sh"
+      test_command: ""
+      pre_push: floor
+    ci:
+      workflow: "read-api-latency-gate.yml"
+      job: "static-mirror (work budget refresh)"
+    requirements: []
     ci_only_reason: ""
 
   # #5538 task 4 root-cause fix: three review rounds each found more packages

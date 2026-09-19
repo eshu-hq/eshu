@@ -87,8 +87,8 @@ func TestGateAcceptsFastRouteGREEN(t *testing.T) {
 }
 
 // workBudgetsForSeededViolation is the budget row the work-metric RED/GREEN
-// pairs below run against: the ruling's numbers for the #6794 status family
-// (issue #6797).
+// pairs below run against: the buffer, row and call counts measured for the #6794
+// status family (docs/internal/evidence/6797-read-api-work-metric-shim.md).
 const workBudgetsForSeededViolation = "default\t35\t20000\t5000\n"
 
 // sweepWithFakeWork runs the production sweep-then-evaluate path against a fast

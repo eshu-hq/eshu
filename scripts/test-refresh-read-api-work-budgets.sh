@@ -17,13 +17,14 @@ fail() {
 	exit 1
 }
 
-printf 'default\t1500\n\nGET /a\t1000\tnamed a\nGET /b\t1000\tnamed b\n' >"${work}/named.txt"
+printf 'default\t1500\n\nGET /a\t1000\tnamed a\nGET /b\t1000\tnamed b\nGET /z\t1000\tnamed zero-base\n' >"${work}/named.txt"
 
 cat >"${work}/r1.json" <<'JSON'
 {"routes":[
  {"route":"GET /a","p95_ms":1,"work":{"calls":10,"blks":1000,"rows":4}},
  {"route":"GET /b","p95_ms":1,"work":{"calls":26,"blks":63019,"rows":25}},
- {"route":"GET /c","p95_ms":1,"work":{"calls":2,"blks":500,"rows":0}}
+ {"route":"GET /c","p95_ms":1,"work":{"calls":2,"blks":500,"rows":0}},
+ {"route":"GET /z","p95_ms":1,"work":{"calls":1,"blks":1,"rows":0}}
 ]}
 JSON
 cat >"${work}/r2.json" <<'JSON'
@@ -46,6 +47,10 @@ expect() {
 expect "default	9	2100	2"
 expect "GET /a	20	3000	10	GREEN-derived work guard"
 expect "GET /b	38	189057	50	GREEN-derived work guard"
+# A named route whose own work is at the noise floor (1 call, 1 block, 0 rows)
+# would render 7/3/0, so one stray statement or row in the meter window would
+# breach it. Named rows are floored at the default row's values (9/2100/2 here).
+expect "GET /z	9	2100	2	GREEN-derived work guard"
 
 printf '%s\n' "${out1}" | rg -q '^GET /c' && fail "unnamed route GET /c must not get its own row"
 

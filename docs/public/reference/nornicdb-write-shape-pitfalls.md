@@ -257,6 +257,7 @@ anchor (median 0.01 s on ops-qa) and are not probed.
 When you probe this, give each run a unique parameter value. NornicDB serves a
 repeated identical read from its result cache, so a second run can look fast
 without the plan being fast.
+
 ## Pitfall: `UNWIND range(0, $count - 1)` Creates One Node, And One Statement Cannot Create 50,000
 
 ### Observed shape

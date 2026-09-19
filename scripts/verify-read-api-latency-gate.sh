@@ -21,8 +21,10 @@
 #   scripts/verify-read-api-latency-gate.sh [--no-compose] [--keep]
 #     --no-compose  assume Postgres + graph are already running; skip
 #                   compose up/down here.
-#     --keep        leave services running and the work dir in place on exit
-#                   (for debugging a failed run).
+#     --keep        leave Postgres and the graph backend running (with the
+#                   seeded corpus) and the work dir in place on exit, for
+#                   debugging a failed run. eshu-api is stopped on exit; start
+#                   your own build against the kept stack.
 #
 # GATE_STACK_DIR=<dir> takes docker-compose.yaml (and so the db-migrate image build
 # context: migrations and graph schema) from that checkout instead of this one. Use
@@ -94,6 +96,7 @@ command -v go >/dev/null 2>&1 || die "missing required tool: go"
 command -v curl >/dev/null 2>&1 || die "missing required tool: curl"
 if [[ "${use_compose}" -eq 1 ]]; then
 	command -v docker >/dev/null 2>&1 || die "missing required tool: docker"
+	command -v nc >/dev/null 2>&1 || die "missing required tool: nc (used to wait for the graph backend's Bolt port)"
 fi
 
 # shellcheck source=scripts/lib/live-gate-lock.sh
@@ -109,6 +112,12 @@ COMPOSE_CMD=(docker compose "${compose_args[@]}")
 # would otherwise leak the lock until it is later detected as stale.
 work_dir=""
 bg_pids=()
+# stack_up is set immediately before this run's own `docker compose up` (so a
+# partially created project is still torn down) and never earlier: an early exit
+# (a held lock, a --keep marker) must not tear down a Compose project this run
+# did not create, e.g. a retained --keep stack whose name was exported as
+# GATE_COMPOSE_PROJECT.
+stack_up=0
 # shellcheck source=scripts/lib/golden-corpus-host-helpers.sh
 . "${repo_root}/scripts/lib/golden-corpus-host-helpers.sh"
 
@@ -131,7 +140,7 @@ cleanup() {
 		retain_live_gate_lock
 		exit "${status}"
 	fi
-	if [[ "${use_compose}" -eq 1 ]]; then
+	if [[ "${use_compose}" -eq 1 && "${stack_up}" -eq 1 ]]; then
 		docker compose "${compose_args[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 	fi
 	[[ -n "${work_dir}" ]] && rm -rf "${work_dir}"
@@ -191,6 +200,8 @@ unset ESHU_PPROF_ADDR || true
 
 if [[ "${use_compose}" -eq 1 ]]; then
 	log "bring up Postgres + ${ESHU_GRAPH_BACKEND} (Compose project ${GATE_COMPOSE_PROJECT})"
+	# Set before `up` so a partially created project is still torn down.
+	stack_up=1
 	docker compose "${compose_args[@]}" up -d --wait postgres "${ESHU_GRAPH_BACKEND}" \
 		|| { docker compose "${compose_args[@]}" logs --tail=200 || true; die "compose up failed"; }
 	# db-migrate is a one-shot job that exits(0) once schema bootstrap

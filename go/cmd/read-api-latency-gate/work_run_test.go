@@ -55,3 +55,42 @@ func TestReportWorkResultsIsQuietWhenEverythingIsWithinBudget(t *testing.T) {
 		t.Fatalf("failures = %v, output = %q, want none", failures, buf.String())
 	}
 }
+
+// TestReportWorkResultsTellsADeveloperHowToGiveAnUnnamedRouteItsOwnBudget: the
+// default row is deliberately tight (derived from the largest unnamed route), so
+// a new route that reads more than it breaches until it declares a budget. The
+// message has to say how, with the command.
+func TestReportWorkResultsTellsADeveloperHowToGiveAnUnnamedRouteItsOwnBudget(t *testing.T) {
+	budgets, _ := ParseRouteWorkBudgets(strings.NewReader("default\t13\t21\t14\n"))
+	results := []RouteLatency{{
+		Route: "GET /api/v0/new/route", Exercised: true, Metered: true,
+		Work: WorkPerRequest{Calls: 5, Blks: 500, Rows: 3},
+	}}
+
+	var buf bytes.Buffer
+	reportWorkResults(&buf, results, budgets)
+
+	out := buf.String()
+	for _, want := range []string{
+		"no named work budget",
+		"testdata/benchmarks/read-api-route-budgets.txt",
+		"scripts/refresh-read-api-work-budgets.sh",
+		"-work-report",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("breach output for an unnamed route is missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestReportWorkResultsOmitsTheHintForANamedRoute(t *testing.T) {
+	budgets, _ := ParseRouteWorkBudgets(strings.NewReader("default\t13\t21\t14\nGET /r\t1\t1\t1\tnamed\n"))
+	results := []RouteLatency{{Route: "GET /r", Exercised: true, Metered: true, Work: WorkPerRequest{Calls: 5, Blks: 500, Rows: 3}}}
+
+	var buf bytes.Buffer
+	reportWorkResults(&buf, results, budgets)
+
+	if strings.Contains(buf.String(), "refresh-read-api-work-budgets.sh") {
+		t.Errorf("a route that already has a named row must not be told to add one:\n%s", buf.String())
+	}
+}

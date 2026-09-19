@@ -12,6 +12,12 @@ name: Read API Latency Gate
 # testdata/benchmarks/read-api-route-work-budgets.txt (the regression-sensitive
 # mechanism, rendered from GREEN reports by
 # scripts/refresh-read-api-work-budgets.sh).
+#
+# Merge order: this gate is in the required-gates aggregate. It fails on a base
+# where the infra read model (#6793) is absent, because /infra/resources/count
+# and /inventory then take the graph path and time out at the API's 10s
+# deadline against the seeded 1.2M-node graph. Merge #6793's change first; the
+# gate must be green on a tree that contains it before this row is required.
 
 on:
   push:
@@ -29,6 +35,7 @@ on:
       # way.
       - 'go/**'
       - 'testdata/benchmarks/read-api-route-budgets.txt'
+      - 'testdata/benchmarks/read-api-route-work-budgets.txt'
       - 'scripts/verify-read-api-latency-gate.sh'
       - 'scripts/refresh-read-api-work-budgets.sh'
       - 'scripts/test-refresh-read-api-work-budgets.sh'
@@ -41,15 +48,21 @@ on:
       - 'docker-compose.read-api-latency-gate.yaml'
       - '.github/workflows/read-api-latency-gate.yml'
   workflow_dispatch:
-    # Manual trigger, for calibrating budgets on the CI runner class and for
-    # producing a RED run on the real runner: api_ref names a commit, branch or
-    # tag whose eshu-api is built and measured by THIS branch's gate code (the
-    # gate itself is never taken from api_ref).
-    inputs:
-      api_ref:
-        description: 'Optional git ref whose eshu-api is built and swept instead of this ref (e.g. a commit before a fix, to prove the gate fails RED)'
-        required: false
-        type: string
+    # Manual trigger, for calibrating budgets on the CI runner class. There is
+    # deliberately no api_ref input: an earlier version built an
+    # operator-supplied ref here to produce a RED run on the runner class, but
+    # that checks out and executes untrusted code in a workflow whose trigger
+    # can write to the default branch's Actions cache scope -- exactly the
+    # shape CodeQL's actions/cache-poisoning/poisonable-step alert #1099
+    # flagged. Its own "Correct Usage" remediation is to never run untrusted
+    # code in that context at all, and the runner-injected cache token makes
+    # which actions the job declares irrelevant, so isolating the build into
+    # its own job (tried and reverted) does not close it. The RED evidence
+    # this gate needs does not depend on CI building an arbitrary ref: see
+    # "Producing a RED run" in
+    # docs/public/reference/local-testing/read-api-latency-gate.md for the
+    # local command, and the three RED runs already recorded verbatim in
+    # docs/internal/evidence/6797-read-api-work-metric-shim.md.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -59,6 +72,23 @@ permissions:
   contents: read
 
 jobs:
+  # The work budget table's generator has a test mirror that the heavy job below
+  # never runs (it only executes the live gate). It is cheap and needs no Docker,
+  # so a change to the jq formula fails here instead of silently going unproven.
+  static-mirror:
+    name: static-mirror (work budget refresh)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Install ripgrep and jq
+        run: scripts/ci/install-apt-packages.sh ripgrep jq
+
+      - name: Test the work budget refresh script
+        run: bash scripts/test-refresh-read-api-work-budgets.sh
+
   latency-gate:
     name: latency-gate (nornicdb)
     runs-on: ubuntu-latest
@@ -88,21 +118,6 @@ jobs:
 
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
-
-      - name: Check out api_ref
-        if: ${{ inputs.api_ref != '' }}
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.api_ref }}
-          path: api-ref
-
-      - name: Build eshu-api from api_ref
-        if: ${{ inputs.api_ref != '' }}
-        working-directory: api-ref/go
-        run: |
-          CGO_ENABLED=1 go build -o "${RUNNER_TEMP}/eshu-api" ./cmd/api
-          echo "GATE_API_BIN=${RUNNER_TEMP}/eshu-api" >> "${GITHUB_ENV}"
-          sha256sum "${RUNNER_TEMP}/eshu-api"
 
       - name: Run read-API latency gate
         env:

@@ -88,6 +88,10 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   run); never edit a number by hand. `scripts/test-refresh-read-api-work-budgets.sh`
   pins the formulas (`calls = ceil(max*1.25)+5`, `blks = ceil(max*3.0)`,
   `rows = ceil(max*2.0)`).
+- **The default work row is tight on purpose.** A work breach on a route with no
+  named row prints how to name it (latency table row, GREEN `-work-report`,
+  `scripts/refresh-read-api-work-budgets.sh`); `TestReportWorkResultsTellsADeveloper...`
+  pins the hint. Loosen the default only by re-rendering, never by hand.
 - **`docker-compose.read-api-latency-gate.yaml` repeats the base postgres
   command.** Compose replaces `command` rather than appending, so the override
   carries the whole base list plus the four `pg_stat_statements` flags;
@@ -113,6 +117,34 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
 - **A 5xx always sets `HardFailed=true` and always breaches** (`sweep.go`,
   `EvaluateBudgets`), regardless of how fast it answered. Do not let a fast
   failure read as a fast pass.
+- **The route table's status column must agree with every gate verdict**
+  (`printReport`, `main.go`): BREACH for a `HardFailed` route, a p95 over the
+  latency ceiling, a route over its work budget (`EvaluateWorkBudgets`), an
+  exercised route the meter never read (`UnmeteredExercisedRoutes`) and a route
+  the latency table budgets by name that came back not-exercised
+  (`RequireNamedRoutesExercised`, printed `NOT_EXERCISED(N) BREACH`). A route
+  that fails the run must never print `OK`; `TestPrintReportMarksWorkOnlyBreachAsBreach`
+  pins the work case. Each run also logs the path and sha256 of both budget
+  tables it enforced; `readTable` (`tables.go`) hashes the same bytes it hands
+  to the parser, so an artifact says which tables it used.
+- **`LatencyExemptions` (`latency_exemption.go`) is the only way a route's
+  latency ceiling stops being blocking, and it is scoped to that ceiling
+  alone.** `EvaluateBudgets` skips a listed route's non-`HardFailed` latency
+  breach; it never touches `EvaluateWorkBudgets`, so an exempt route's work
+  budget and any 5xx still fail the run (`TestExemptRouteStillBreachesOnWorkBudget`,
+  `TestEvaluateBudgetsStillBreaksExemptRouteOnHardFailed`). `printReport` marks
+  the row `BREACH-EXEMPT(<issue>)` only when nothing else about the route
+  failed -- its `switch` checks `HardFailed` and `workBreached` before the
+  exemption case for exactly this reason: checking `workBreached` after it let
+  a work-budget breach on an exempt route print as advisory instead of
+  `BREACH` (`TestPrintReportShowsPlainBreachWhenExemptRouteAlsoBreaksWorkBudget`
+  pins the fixed order). It never prints `OK`. `ValidateLatencyExemptions`
+  refuses to start the gate if any entry lacks its issue reference or reason,
+  so an exemption can never be silent or permanent by omission
+  (`TestValidateLatencyExemptionsRejectsMissingIssue`). Do not add an entry to
+  loosen a ceiling that is merely inconvenient; this exists for one route
+  today (`/api/v0/iac/resources`, #6858) because a blocking gate cannot ship
+  red against merged main's own behavior.
 - **`RequireNamedRoutesExercised` must run on every named budget row, not
   just the overall floor.** A route this table explicitly budgets losing its
   selector/auth scope must fail the gate loudly even while
