@@ -13,7 +13,7 @@ import (
 )
 
 const activeReducerGraphWorkQuery = `
-WITH ` + activeFactWorkItemsCTE + `
+WITH ` + activeFactWorkItemsPerRowCTE + `
 SELECT EXISTS (
     SELECT 1
     FROM active_fact_work_items

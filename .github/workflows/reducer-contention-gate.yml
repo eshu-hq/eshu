@@ -25,6 +25,7 @@ on:
     paths:
       - "go/internal/storage/postgres/**"
       - "go/internal/reducer/**"
+      - "go/internal/query/service_story_target_support*.go"
       - "schema/data-plane/postgres/**"
       - "scripts/ci/go-mod-download-retry.sh"
       - ".github/workflows/reducer-contention-gate.yml"
@@ -114,7 +115,26 @@ jobs:
         # fact load on every later pass, so the failure is durable rather than
         # transient -- and only real Postgres transactions, real rollbacks, and
         # real advisory locks reproduce it.
+        # TestActiveWorkSummaryMatchesStandaloneReads and
+        # TestStatusActiveWorkQueriesPreserveSemantics (#6794) prove the status
+        # snapshot's single active-work statement decodes to exactly what the
+        # pre-change standalone reads return, and pin the stale-generation and
+        # shared-projection backlog contract.
+        # TestActiveFactWorkItemsFormsSelectTheSameRows keeps the per-row
+        # active-work filter the drain EXISTS uses in step with the materialized
+        # one. They need real Postgres because the parity lives in SQL
+        # ordering, collation, and aggregation.
         # TestReducerContentionPostgresProofsRunInTheReducerContentionGate is
         # the hermetic guard that keeps all five live PostgreSQL proof families
         # inside the -run filter below.
-        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader)' -race -count=1 -timeout 180s -v
+        run: go test ./internal/storage/postgres/ -run '^(TestReducerContentionGate|TestClaimBatchRankOnceRewrite|TestSignInPolicyConcurrencyGate|TestDeferredBackfillSharedScopeGenerationPublishesOneRowPerPartition|TestDeferredBackfillDistinctScopesPublishOneRowEach|TestDeferredBackfillWithholdsPublicationWhenSiblingBatch|TestDeferredBackfillPublishesOncePerPartitionAcrossBatches|TestDeferredBackfillFanIn|TestDeferredBackfillCrashBetweenBatchesAndFanInConverges|TestFanInActiveGenerationMatchesCorpusLoader|TestActiveWorkSummaryMatchesStandaloneReads|TestStatusActiveWorkQueriesPreserveSemantics|TestActiveFactWorkItemsFormsSelectTheSameRows)' -race -count=1 -timeout 180s -v
+      - name: Run story target-support semantics proof
+        working-directory: go
+        env:
+          ESHU_POSTGRES_DSN: postgres://eshu:change-me@localhost:15432/eshu?sslmode=disable
+        # TestServiceStoryTargetSupportSQLSemanticsLive (#6794) runs the story
+        # target-support statements against a seeded fixture: only each scope's
+        # own active generation counts, a repeated kind counts once, and the
+        # observed_at tie order and the source-only rollup match the pre-change
+        # statements. The parity lives in SQL, so it needs real Postgres.
+        run: go test ./internal/query/ -run '^TestServiceStoryTargetSupportSQLSemanticsLive$' -race -count=1 -timeout 180s -v

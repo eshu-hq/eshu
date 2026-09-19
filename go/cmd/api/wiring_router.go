@@ -90,7 +90,7 @@ func newRouterWithSemanticEmbedding(
 	cookieSecureMode query.CookieSecureMode,
 ) (*query.APIRouter, error) {
 	if statusReader == nil {
-		statusReader = newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments)
+		statusReader = newStatusStore(newStatusQueryer(db, instruments), instruments)
 	}
 	if governanceAudit == nil && db != nil {
 		governanceAudit = newGovernanceAuditStore(db, instruments, logger)

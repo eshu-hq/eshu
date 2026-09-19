@@ -137,8 +137,8 @@ func wireAPI(
 	identityResolver := scopedtoken.NewPostgresIdentityResolver(pgstatus.NewScopedAPITokenStore(pgstatus.SQLDB{DB: rawDB}))
 
 	// Build instruments before the status reader so the StatusStore can carry
-	// the shared meter provider (see newStatusStore): the status query cache
-	// metric eshu_dp_status_stage_counts_cache_total only emits when the
+	// the shared meter provider (see newStatusStore): the per-read status
+	// metric eshu_dp_status_snapshot_read_duration_seconds only emits when the
 	// operator status-serving StatusStore has Instruments wired.
 	instruments, err := telemetry.NewInstruments(otel.Meter(telemetry.DefaultSignalName))
 	if err != nil {
@@ -168,7 +168,7 @@ func wireAPI(
 		}
 	}
 	statusReader := status.WithSemanticProviderProfiles(
-		newStatusStore(pgstatus.SQLQueryer{DB: rawDB}, instruments),
+		newStatusStore(newStatusQueryer(rawDB, instruments), instruments),
 		semanticProviderProfiles...,
 	)
 	metricsSource, err := metricsTimeSeriesSourceFromEnv(getenv, nil)

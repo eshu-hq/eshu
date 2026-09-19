@@ -85,6 +85,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"age_bucket",
 		"ecosystem",
 		"cloudformation_section",
+		"read",
 		"source_file_kind",
 		"bootstrap_phase",
 		"stage",

@@ -102,6 +102,11 @@ func (database *InstrumentedDB) QueryContext(ctx context.Context, query string, 
 			),
 		)
 		defer span.End()
+		// A caller that labeled the read (withQuerySummary) names it on the span,
+		// so identical-looking status reads are attributable (#6794).
+		if summary := querySummaryFromContext(ctx); summary != "" {
+			span.SetAttributes(attribute.String("db.query.summary", summary))
+		}
 
 		// Execute the query
 		rows, err := database.Inner.QueryContext(ctx, query, args...)

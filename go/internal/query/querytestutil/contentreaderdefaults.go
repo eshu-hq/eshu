@@ -100,6 +100,15 @@ func contentReaderFactDefaultRows(query string, results []ContentReaderQueryResu
 		!contentReaderHeadHasColumns(results, []string{"payload"}) {
 		return &contentReaderRows{columns: []string{"payload"}, rows: nil}
 	}
+	// The story target-support read probes one fact kind per LATERAL row
+	// (fact.fact_kind = kind.fact_kind, #6794) instead of fact_kind = ANY($1).
+	if strings.Contains(query, "FROM fact_records AS fact") &&
+		strings.Contains(query, "fact.fact_kind = kind.fact_kind") &&
+		strings.Contains(query, "generation.status = 'active'") &&
+		strings.Contains(query, "source_record_id") &&
+		!contentReaderHeadHasColumns(results, []string{"payload"}) {
+		return &contentReaderRows{columns: []string{"payload"}, rows: nil}
+	}
 	supportOnlyColumns := []string{
 		"support_source_only_count",
 		"work_item_source_only_count",

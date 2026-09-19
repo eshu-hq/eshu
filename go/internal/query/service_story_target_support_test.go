@@ -311,9 +311,10 @@ func TestBuildServiceStoryTargetSupportSQLIsTargetScopedAndBounded(t *testing.T)
 	assertSupportSQLContainsAll(
 		t, query,
 		"FROM fact_records AS fact",
-		"fact.fact_kind = ANY($1::text[])",
+		"SELECT DISTINCT unnest($1::text[]) AS fact_kind",
+		"fact.fact_kind = kind.fact_kind",
 		"fact.is_tombstone = FALSE",
-		"scope.active_generation_id = fact.generation_id",
+		"fact.generation_id = scope.active_generation_id",
 		"generation.status = 'active'",
 		"fact.payload @>",
 		"ORDER BY fact.observed_at DESC, fact.fact_id DESC",

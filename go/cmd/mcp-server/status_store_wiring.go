@@ -13,9 +13,9 @@ import (
 // the shared meter-provider instruments onto it. pgstatus.NewStatusStore
 // deliberately leaves Instruments nil so the ~30 existing call sites stay
 // source-compatible (see the AWSPaginationCheckpointStore pattern); the
-// operator status-serving surface sets it explicitly here so the status query
-// cache metric (eshu_dp_status_stage_counts_cache_total, recorded in
-// internal/storage/postgres/status_stage_counts_cache.go's listStageCounts)
+// operator status-serving surface sets it explicitly here so the per-read status
+// metric (eshu_dp_status_snapshot_read_duration_seconds, recorded by
+// internal/storage/postgres/status_read_telemetry.go's statusReadQueryer)
 // actually emits.
 //
 // Extracted from wireMCP — mirroring newWorkflowControlStore (#4459) — so the

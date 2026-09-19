@@ -810,3 +810,11 @@ func (b Bootstrap) ResourceAttributes() map[string]string {
 func (b Bootstrap) InstrumentationScopeName() string {
 	return InstrumentationScopeName
 }
+
+const (
+	// MetricDimensionRead labels eshu_dp_status_snapshot_read_duration_seconds
+	// with the status snapshot reader that ran. The value set is closed: one
+	// constant per reader in postgres.StatusStore.ReadStatusSnapshotFiltered
+	// (scope_counts, active_work_summary, coordinator, and so on).
+	MetricDimensionRead = "read"
+)

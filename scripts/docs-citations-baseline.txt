@@ -385,7 +385,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgre
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/queue_observer.go:168
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/queue_observer.go:57
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/reducer_queue_helpers.go:255
-LINE docs/public/observability/telemetry-coverage.md go/internal/storage/postgres/status_stage_counts_cache.go:121
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:222
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:223
 LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/contract.go:224

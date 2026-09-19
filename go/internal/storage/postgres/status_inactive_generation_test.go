@@ -33,12 +33,12 @@ func inactiveReducerGenerationPredicateFragments() []string {
 	return []string{
 		"active_fact_work_items AS (",
 		"FROM fact_work_items AS work",
-		"JOIN ingestion_scopes AS scope",
-		"scope.active_generation_id = active_generation.generation_id",
+		"FROM ingestion_scopes AS scope",
+		"WHERE generation.generation_id = scope.active_generation_id",
 		"work.stage = 'reducer'",
 		"work.status IN ('pending', 'retrying', 'failed', 'dead_letter')",
-		"stale_generation.ingested_at < active_generation.ingested_at",
-		"stale_generation.generation_id < active_generation.generation_id",
+		"stale_generation.ingested_at < scope_state.active_ingested_at",
+		"stale_generation.generation_id < scope_state.present_active_generation_id",
 		"FROM active_fact_work_items",
 	}
 }

@@ -109,7 +109,8 @@ func TestBuildServiceStoryTargetSupportSourceOnlySQLStaysAggregateOnly(t *testin
 		"COUNT(*) AS support_source_only_count",
 		"COUNT(*) FILTER (WHERE fact.fact_kind LIKE 'work_item.%') AS work_item_source_only_count",
 		"COUNT(*) FILTER (WHERE fact.fact_kind LIKE 'incident_routing.%') AS incident_routing_source_only_count",
-		"fact.fact_kind = ANY($1::text[])",
+		"SELECT DISTINCT unnest($1::text[]) AS fact_kind",
+		"fact.fact_kind = kind.fact_kind",
 		"generation.status = 'active'",
 		"jsonb_array_length",
 	)

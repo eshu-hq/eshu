@@ -1,5 +1,12 @@
 # #4446 — status-query index + caching for activeFactWorkItemsCTE
 
+> Superseded in #6794: the stage counts now arrive in the single active-work
+> statement with the rest of the status snapshot, so the 2s stage-counts cache,
+> `status_stage_counts_cache.go`, and `eshu_dp_status_stage_counts_cache_total`
+> were retired. Per-read status timing is
+> `eshu_dp_status_snapshot_read_duration_seconds` (`status_read_telemetry.go`).
+> This note is kept as the record of the original change.
+
 Evidence note for the A3 status-query optimization (issue #4446). The status
 stage-counts read (`listStageCounts`, which drives the `activeFactWorkItemsCTE`
 status surface) was an O(scan) query re-run on every status poll at repo scale.

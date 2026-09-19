@@ -13,8 +13,8 @@ import (
 // TestNewStatusStoreWiresInstruments guards the #4446 follow-up: the MCP
 // server's operator status-serving path must assign the shared meter-provider
 // Instruments onto the StatusStore it constructs, or the status query cache
-// metric (eshu_dp_status_stage_counts_cache_total, recorded in
-// internal/storage/postgres/status_stage_counts_cache.go's listStageCounts)
+// metric (eshu_dp_status_snapshot_read_duration_seconds, recorded by
+// internal/storage/postgres/status_read_telemetry.go's statusReadQueryer)
 // stays contract-complete but never emits on the MCP path. NewStatusStore
 // deliberately leaves Instruments nil for source-compatibility across the
 // ~30 call sites; this test fails if a future edit drops the assignment
@@ -30,7 +30,7 @@ func TestNewStatusStoreWiresInstruments(t *testing.T) {
 }
 
 // TestNewStatusStoreAllowsNilInstruments proves the wiring helper does not
-// require Instruments to be non-nil: recordStatusStageCountsCacheOutcome
+// require Instruments to be non-nil: statusReadQueryer.record
 // treats a nil Instruments as a no-op (never a panic), so a caller without a
 // wired meter provider is unaffected.
 func TestNewStatusStoreAllowsNilInstruments(t *testing.T) {

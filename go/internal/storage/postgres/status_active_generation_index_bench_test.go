@@ -125,9 +125,9 @@ func BenchmarkStatusActiveFactWorkItemsCTEGrowth(b *testing.B) {
 // backs both self-joins with a materially cheaper plan once ANALYZE has
 // settled, but the planner does not deterministically prefer it over
 // scope_generations_scope_idx on every fresh ANALYZE sample at this shape).
-// The #4446 EXPLAIN evidence in the PR description, and the
-// TestListStageCountsCache* tests in status_stage_counts_cache_test.go
-// (deterministic, no live Postgres/planner dependency), are the load-bearing
+// The #4446 EXPLAIN evidence in the PR description (its stage-counts cache
+// was retired in #6794, when the counts joined the one active-work statement)
+// was the load-bearing
 // proof for this issue; this test only guards against a full-scan
 // regression, which would be a genuine correctness/performance bug
 // regardless of which index resolves it.
@@ -195,6 +195,27 @@ func TestStatusActiveFactWorkItemsCTEUsesGenerationIndex(t *testing.T) {
 				"scope_generations_scope_generation_idx):\n%s",
 			plan,
 		)
+	}
+
+	// The status snapshot runs these reads through activeWorkSummaryQuery
+	// (#6794); it must keep the same no-full-scan property. The summary also
+	// reads the shared-projection backlog and the provenance upgrade columns,
+	// which the claim-benchmark schema does not create.
+	for _, stmt := range []string{
+		MigrationSQL("shared_projection_intents"),
+		`ALTER TABLE fact_work_items ADD COLUMN IF NOT EXISTS provenance_edge_identity_upgrade_required BOOLEAN NOT NULL DEFAULT FALSE`,
+		`CREATE TABLE IF NOT EXISTS cross_scope_completion_upgrade_markers (marker_name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL)`,
+	} {
+		if _, err := conn.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("extend proof schema for activeWorkSummaryQuery: %v", err)
+		}
+	}
+	summaryPlan, err := statusActiveGenerationExplainAnalyze(ctx, conn, activeWorkSummaryQuery, time.Date(2026, time.June, 2, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("explain analyze activeWorkSummaryQuery: %v", err)
+	}
+	if strings.Contains(summaryPlan, "Seq Scan on scope_generations") {
+		t.Fatalf("activeWorkSummaryQuery plans a sequential scan on scope_generations:\n%s", summaryPlan)
 	}
 }
 
@@ -397,12 +418,12 @@ CROSS JOIN work_series`,
 // TestStatusActiveFactWorkItemsCTEUsesGenerationIndex to assert the planner
 // picks an index scan on scope_generations instead of a sequential scan once
 // scope_generations_scope_generation_idx exists.
-func statusActiveGenerationExplainAnalyze(ctx context.Context, database db.Executor, query string) (string, error) {
+func statusActiveGenerationExplainAnalyze(ctx context.Context, database db.Executor, query string, args ...any) (string, error) {
 	queryer, ok := database.(db.Queryer)
 	if !ok {
 		return "", fmt.Errorf("executor does not support QueryContext")
 	}
-	rows, err := queryer.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+query)
+	rows, err := queryer.QueryContext(ctx, "EXPLAIN (ANALYZE, BUFFERS) "+query, args...)
 	if err != nil {
 		return "", fmt.Errorf("explain analyze: %w", err)
 	}

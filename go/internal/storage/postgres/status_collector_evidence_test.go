@@ -158,7 +158,7 @@ func TestReadCollectorFactEvidenceUsesBoundedActiveFactMetadata(t *testing.T) {
 		"collector_kind IN (",
 		"'git'",
 		"'ci_cd_run'",
-		"workflow_instances AS (",
+		"workflow_instances AS MATERIALIZED (",
 		"LIMIT 200",
 	} {
 		if !strings.Contains(query, want) {
@@ -180,7 +180,7 @@ func TestCollectorFactEvidenceQueryPreAggregatesBeforeWorkflowIdentity(t *testin
 	query := collectorFactEvidenceQuery
 	for _, want := range []string{
 		"active_scopes AS (",
-		"workflow_instances AS (",
+		"workflow_instances AS MATERIALIZED (",
 		"SUM(summary.observation_count) AS observation_count",
 		"JOIN collector_evidence_summary AS summary",
 		"LEFT JOIN workflow_instances AS item",

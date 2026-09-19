@@ -645,14 +645,14 @@ in quoted retract Cypher (or its proven absence) plus each handler call site; th
 conflict-key policy lives in `reducer_queue_conflict.go` (`reducerConflictDomainKey`).
 Readiness gates remain in place for every domain (`canonicalNodesReady` /
 `workloadNodesReady` / `endpointsReady` before resolving against endpoint nodes;
-`status_blockage.go:50` surfaces `readiness` as its own blockage class), so no domain
+`status_blockage.go:41` surfaces `readiness` as its own blockage class), so no domain
 resolves edges/posture against uncommitted endpoints. `go test
 ./internal/storage/postgres ./internal/reducer -count=1` stays green (no code change).
 
 No-Observability-Change: the `resource_scope` vs `cloud_resource_node` fence stays
 explicit and observable — `conflict_domain` is a persisted, indexed `fact_work_items`
 column (`schema.go:344,362,381`) surfaced grouped by `domain, conflict_domain,
-conflict_key` in the operator status-blockage query (`status_blockage.go:19-90`); no
+conflict_key` in the operator status-blockage query (`status_blockage.go:9-100`); no
 metric, label, route, or runtime knob changes, and no raw provider locator,
 credential-shaped value, or IP-shaped value enters a conflict key, doc, or commit.
 
