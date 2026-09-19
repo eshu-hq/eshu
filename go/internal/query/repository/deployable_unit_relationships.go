@@ -34,7 +34,7 @@ func queryRepoDeployableUnitRelationshipOverview(
 		ORDER BY target_name
 	`)
 	incoming := queryRepoRelationshipOverviewDirection(ctx, reader, params, `
-		MATCH (source:Repository)-[rel:CORRELATES_DEPLOYABLE_UNIT]->(r:Repository {id: $repo_id})
+		MATCH (r:Repository {id: $repo_id})<-[rel:CORRELATES_DEPLOYABLE_UNIT]-(source:Repository)
 		RETURN 'incoming' AS direction,
 		       type(rel) AS type,
 		       source.name AS source_name,
