@@ -148,6 +148,10 @@ type ReconcileBatch struct {
 	// (no backfill marker, or the tables do not exist); nothing was checked.
 	Ready bool
 	Repos []RepoReconcile
+	// DirtyRepos and DirtyOldestAge describe the fence marks at the start of
+	// the cycle (ReadFenceState). They are set whether or not Ready is.
+	DirtyRepos     int64
+	DirtyOldestAge time.Duration
 	// NextCursor is the repo_id to resume after, or "" when this cycle reached
 	// the end of the repository list and the next cycle starts over.
 	NextCursor string
@@ -171,14 +175,17 @@ func ReconcileCycle(ctx context.Context, database db.ExecQueryer, req ReconcileR
 	if req.Budget <= 0 {
 		return ReconcileBatch{}, errors.New("infra inventory reconcile: budget must be positive")
 	}
-	complete, err := BackfillComplete(ctx, database)
+	state, err := ReadFenceState(ctx, database, time.Now())
 	if err != nil {
 		return ReconcileBatch{}, err
 	}
-	if !complete {
-		return ReconcileBatch{}, nil
+	fence := ReconcileBatch{DirtyRepos: state.DirtyRepos, DirtyOldestAge: state.OldestDirtyAge}
+	if !state.Installed || !state.MarkerPresent {
+		return fence, nil
 	}
-	batch := ReconcileBatch{Ready: true, NextCursor: req.Cursor}
+	batch := fence
+	batch.Ready = true
+	batch.NextCursor = req.Cursor
 	// Fence-marked repositories first: an unaware writer changed their
 	// content without deriving, and readers stay on the graph until every
 	// mark is repaired.

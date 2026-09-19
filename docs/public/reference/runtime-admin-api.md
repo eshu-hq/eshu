@@ -137,6 +137,12 @@ The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 - `registry_collectors`
 - `aws_cloud_scans`
 - `aws_freshness`
+- `infra_inventory`: the infra read model (#6793). `state` is
+  `not_installed`, `backfilling`, `fenced`, or `ready`, plus
+  `marker_present`, `dirty_repos`, `oldest_dirty_age`, and
+  `oldest_dirty_age_seconds`. When the state is not `ready`,
+  `reads_served_from_graph_because` says why unscoped infra aggregate reads
+  are on the graph.
 - `vulnerability_sources`
 - `semantic_extraction`
 - `aws_cloud_scans_truncated`

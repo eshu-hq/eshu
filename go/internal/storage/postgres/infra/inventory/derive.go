@@ -26,6 +26,38 @@ const mirrorPathChunkSize = 500
 // before a projector commit but wrote after it would resurrect stale rows.
 const repoLockSQL = `SELECT pg_advisory_xact_lock(hashtextextended('infra_resource_entities:' || $1, 0))`
 
+// deriveLockSQL is repoLockSQL for the content writer's derives. It also
+// returns the connection's writer session setting in the same round trip, so
+// a derive-aware binary whose connection lost the setting is visible.
+const deriveLockSQL = `
+WITH locked AS (
+    SELECT pg_advisory_xact_lock(hashtextextended('infra_resource_entities:' || $1, 0))
+)
+SELECT coalesce(current_setting('eshu.infra_inventory_writer', true), '') FROM locked`
+
+// lockForDerive takes the repository lock and reports whether the connection
+// lacks the derive-aware writer setting.
+func lockForDerive(ctx context.Context, tx db.Transaction, repoID string) (unfenced bool, err error) {
+	rows, err := tx.QueryContext(ctx, deriveLockSQL, repoID)
+	if err != nil {
+		return false, err
+	}
+	var setting string
+	if rows.Next() {
+		err = rows.Scan(&setting)
+	}
+	if err == nil {
+		err = rows.Err()
+	}
+	if closeErr := rows.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return false, err
+	}
+	return setting != writerSessionValue, nil
+}
+
 const mirrorPathsDeleteSQL = `
 DELETE FROM infra_resource_entities
 WHERE repo_id = $1
@@ -111,6 +143,12 @@ type Target struct {
 type Stats struct {
 	Deleted  int64
 	Inserted int64
+	// UnfencedSession is true when a derive ran on a connection without the
+	// derive-aware writer setting (WriterSessionSQL), for example behind a
+	// pooler that dropped the SET. The derive still succeeds; its content
+	// writes were marked by the fence, so readers stay on the graph until the
+	// reconcile repairs them.
+	UnfencedSession bool
 }
 
 // Change is the set of content changes one Write made to a repository: every
@@ -153,11 +191,13 @@ func Mirror(ctx context.Context, database db.ExecQueryer, target Target, change 
 					len(chunk), target.RepoID, err)
 			}
 			total.Deleted += stats.Deleted
+			total.UnfencedSession = total.UnfencedSession || stats.UnfencedSession
 		}
 	}
 	stats, err := MirrorPaths(ctx, database, target, change.Paths)
 	total.Deleted += stats.Deleted
 	total.Inserted += stats.Inserted
+	total.UnfencedSession = total.UnfencedSession || stats.UnfencedSession
 	return total, err
 }
 
@@ -172,7 +212,7 @@ func deleteInTransaction(ctx context.Context, beginner db.Beginner, repoID strin
 			_ = tx.Rollback()
 		}
 	}()
-	if _, err = tx.ExecContext(ctx, repoLockSQL, repoID); err != nil {
+	if stats.UnfencedSession, err = lockForDerive(ctx, tx, repoID); err != nil {
 		return Stats{}, fmt.Errorf("lock repo: %w", err)
 	}
 	deleted, err := tx.ExecContext(ctx, deleteStmt.query, deleteStmt.args...)
@@ -182,8 +222,8 @@ func deleteInTransaction(ctx context.Context, beginner db.Beginner, repoID strin
 	if err = tx.Commit(); err != nil {
 		return Stats{}, fmt.Errorf("commit: %w", err)
 	}
-	stats.Deleted, _ = deleted.RowsAffected()
-	return stats, nil
+	deletedRows, _ := deleted.RowsAffected()
+	return Stats{Deleted: deletedRows, UnfencedSession: stats.UnfencedSession}, nil
 }
 
 // MirrorPaths re-derives the infra_resource_entities rows of the given paths of
@@ -220,6 +260,7 @@ func MirrorPaths(ctx context.Context, database db.ExecQueryer, target Target, pa
 		}
 		total.Deleted += stats.Deleted
 		total.Inserted += stats.Inserted
+		total.UnfencedSession = total.UnfencedSession || stats.UnfencedSession
 	}
 	return total, nil
 }
@@ -273,7 +314,7 @@ func deriveInTransaction(
 		}
 	}()
 
-	if _, err = tx.ExecContext(ctx, repoLockSQL, repoID); err != nil {
+	if stats.UnfencedSession, err = lockForDerive(ctx, tx, repoID); err != nil {
 		return Stats{}, fmt.Errorf("lock repo: %w", err)
 	}
 	if clearMark {

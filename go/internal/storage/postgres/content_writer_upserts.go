@@ -211,7 +211,21 @@ func (w ContentWriter) deriveInfraInventory(ctx context.Context, materialization
 		w.recordDerive(ctx, "error")
 		return err
 	}
-	w.recordDerive(ctx, "ok")
+	if stats.UnfencedSession {
+		// The derive succeeded, but this binary's connection lacks the
+		// derive-aware writer setting (a pooler dropped the SET), so the fence
+		// marked its content writes and readers stay on the graph until the
+		// reducer's reconcile repairs them.
+		w.recordDerive(ctx, "ok_unfenced_session")
+		if w.Logger != nil {
+			w.Logger.ErrorContext(ctx, "infra read model derive ran on a connection without the writer session setting",
+				"event_name", "infra_inventory.derive.unfenced_session",
+				"repo_id", materialization.RepoID, "scope_id", materialization.ScopeID,
+				"hint", "a connection pooler must forward eshu.infra_inventory_writer; see the infra read model runbook")
+		}
+	} else {
+		w.recordDerive(ctx, "ok")
+	}
 	w.logStage(
 		ctx, materialization, "derive_infra_inventory", start,
 		"path_count", len(change.Paths),

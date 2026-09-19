@@ -151,6 +151,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		RegistryCollectors:             cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
 		AWSCloudScans:                  cloneAWSCloudScanStatuses(raw.AWSCloudScans),
 		AWSFreshness:                   cloneAWSFreshnessSnapshot(raw.AWSFreshness),
+		InfraInventory:                 cloneInfraInventorySnapshot(raw.InfraInventory),
 		VulnerabilitySources:           cloneVulnerabilitySourceStates(raw.VulnerabilitySources),
 		SemanticExtraction:             normalizeSemanticExtractionStatus(raw.SemanticExtraction),
 		AnswerNarration:                normalizeAnswerNarrationStatus(raw.AnswerNarration),
@@ -228,6 +229,7 @@ func RenderText(report Report) string {
 	lines = append(lines, renderRegistryCollectorLines(report.RegistryCollectors)...)
 	lines = append(lines, renderAWSCloudScanLines(report.AWSCloudScans)...)
 	lines = append(lines, renderAWSFreshnessLines(report.AWSFreshness)...)
+	lines = append(lines, renderInfraInventoryLines(report.InfraInventory)...)
 	lines = append(lines, renderVulnerabilitySourceLines(report.VulnerabilitySources)...)
 	lines = append(lines, renderSemanticExtractionLine(report.SemanticExtraction))
 	lines = append(lines, renderCollectorGenerationDeadLetterLine(report.CollectorGenerationDeadLetters))

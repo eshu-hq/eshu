@@ -44,6 +44,10 @@ type InfraInventoryReconcileBatch struct {
 	Ready      bool
 	Repos      []InfraInventoryReconcileRepo
 	NextCursor string
+	// DirtyRepos and DirtyOldestAge describe the rolling-upgrade fence marks
+	// at the start of the cycle. They are set whether or not Ready is.
+	DirtyRepos     int64
+	DirtyOldestAge time.Duration
 }
 
 // InfraInventoryReconcileRequest is one cycle's input.
@@ -165,6 +169,7 @@ func (r *InfraInventoryReconcileRunner) RunOnce(ctx context.Context) (InfraInven
 		span.SetStatus(codes.Error, "reconcile cycle failed")
 		return InfraInventoryReconcileBatch{}, fmt.Errorf("reconcile infra inventory: %w", err)
 	}
+	r.recordFence(ctx, span, batch)
 	if !batch.Ready {
 		r.suspects = nil
 		span.SetAttributes(attribute.Bool("eshu.infra_inventory.ready", false))
@@ -286,5 +291,23 @@ func (r *InfraInventoryReconcileRunner) recordFailure(ctx context.Context, err e
 			telemetry.FailureClassAttr("infra_inventory_reconcile_error"),
 			telemetry.PhaseAttr(telemetry.PhaseReduction),
 		)
+	}
+}
+
+// recordFence records the fence gauges and span attributes every cycle, ready
+// or not, so the reason unscoped reads stay on the graph is visible.
+func (r *InfraInventoryReconcileRunner) recordFence(ctx context.Context, span trace.Span, batch InfraInventoryReconcileBatch) {
+	span.SetAttributes(
+		attribute.Int64("eshu.infra_inventory.dirty_repos", batch.DirtyRepos),
+		attribute.Float64("eshu.infra_inventory.dirty_oldest_age_seconds", batch.DirtyOldestAge.Seconds()),
+	)
+	if r.Instruments == nil {
+		return
+	}
+	if r.Instruments.InfraInventoryDirtyRepos != nil {
+		r.Instruments.InfraInventoryDirtyRepos.Record(ctx, batch.DirtyRepos)
+	}
+	if r.Instruments.InfraInventoryDirtyOldestAge != nil {
+		r.Instruments.InfraInventoryDirtyOldestAge.Record(ctx, batch.DirtyOldestAge.Seconds())
 	}
 }

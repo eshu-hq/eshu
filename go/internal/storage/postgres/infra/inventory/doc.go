@@ -53,5 +53,8 @@
 // infra-typed write from a connection without WriterSessionSQL (an older
 // binary, or manual SQL) marks its repository dirty in the same statement.
 // ReadModelReady keeps readers on the graph while any mark exists, and each
-// ReconcileCycle repairs marked repositories first (ReconcileFenced).
+// ReconcileCycle repairs marked repositories first (ReconcileFenced). A
+// derive reports UnfencedSession when its own connection lacks the setting,
+// and VerifyWriterSession logs it once at writer startup. ReadFenceState
+// feeds the dirty gauges and the admin status field.
 package inventory

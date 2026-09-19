@@ -36,6 +36,9 @@ type transactionalFakeDB struct {
 	commits   int
 	rollbacks int
 	txExecErr error
+	// unfenced makes the derive lock report a connection without the writer
+	// session setting.
+	unfenced bool
 }
 
 func withTransactions(inner *fakeExecQueryer) *transactionalFakeDB {
@@ -58,8 +61,25 @@ func (tx *transactionalFakeTx) ExecContext(_ context.Context, query string, args
 	return fakeResult{}, nil
 }
 
-func (tx *transactionalFakeTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
-	return nil, errors.New("transactionalFakeTx: unexpected query")
+// QueryContext answers the derive lock, which returns the connection's
+// writer session setting. It is recorded with txExecs so statement-order
+// assertions still see the lock first, and fails like an exec when txExecErr
+// is set.
+func (tx *transactionalFakeTx) QueryContext(_ context.Context, query string, args ...any) (db.Rows, error) {
+	tx.parent.txMu.Lock()
+	defer tx.parent.txMu.Unlock()
+	if !strings.Contains(query, "pg_advisory_xact_lock") {
+		return nil, errors.New("transactionalFakeTx: unexpected query")
+	}
+	tx.parent.txExecs = append(tx.parent.txExecs, fakeExecCall{query: query, args: args})
+	if tx.parent.txExecErr != nil {
+		return nil, tx.parent.txExecErr
+	}
+	setting := "derive"
+	if tx.parent.unfenced {
+		setting = ""
+	}
+	return &fakeRows{rows: [][]any{{setting}}}, nil
 }
 
 func (tx *transactionalFakeTx) Commit() error {
