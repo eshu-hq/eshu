@@ -168,11 +168,14 @@ exempt_parent() {
   return 1
 }
 
-# dir_is_new <dir>: true when <dir> is absent from the base tree. With no
-# base tree (--files, first commit) every directory counts as new.
+# dir_is_new <dir>: true unless <dir> is a directory (tree) in the base tree.
+# A file or symlink at the same path does not count as the directory existing:
+# `git cat-file -e` succeeds for any object, so a tracked file `query/queryauth`
+# replaced by a directory of that name would otherwise pass as pre-existing.
+# With no base tree (--files, first commit) every directory counts as new.
 dir_is_new() {
   [ -z "$base_ref" ] && return 0
-  ! git cat-file -e "$base_ref:$1" 2>/dev/null
+  [ "$(git cat-file -t "$base_ref:$1" 2>/dev/null)" != "tree" ]
 }
 
 # Directories already examined (newline-delimited), so a directory shared by

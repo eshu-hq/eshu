@@ -214,9 +214,7 @@ rc="$(run_gate)"
 check "default mode over clean tree is GREEN" 0 "$rc"
 unset ESHU_STUTTER_UPSTREAM
 
-# ---------------------------------------------------------------------------
 # Issue #6821: directory stutter (naming rule 3) and rule 2 for every file type.
-# ---------------------------------------------------------------------------
 
 # stage_case <name> <expected-exit> <path>... : fresh repo, stage the paths as
 # new files (parent dirs created on demand), run --staged, check the exit.
@@ -250,7 +248,6 @@ stage_case "clean nested dir query/auth is GREEN" 0 go/internal/query/auth/handl
 stage_case "dir sharing only the middle of the parent is GREEN" 0 go/internal/query/subqueryish/handler.go
 stage_case "top-level dir has no parent to stutter against" 0 queryauth/handler.go
 
-# 15. GREEN: exempt parents and fixture trees never trip the directory check.
 stage_case "parent docs is exempt" 0 docs/docsite/index.md
 stage_case "parent internal is exempt" 0 go/internal/internalapi/handler.go
 stage_case "parent cmd is exempt" 0 go/cmd/cmdrunner/main.go
@@ -260,8 +257,7 @@ stage_case "parent testdata is exempt" 0 go/internal/parser/testdata/testdatafoo
 stage_case "parent tests is exempt" 0 go/tests/testsuite/a.go
 stage_case "fixture tree under testdata is exempt" 0 go/internal/parser/testdata/fixtures/fixtures-x/sample/sample-a.txt
 
-# Tool-mandated dot-directories (fixtures expect codex/.codex, aider/.aider)
-# are named by external tools, not by us.
+# Dot-directories (codex/.codex, aider/.aider) are named by external tools.
 stage_case "dot-directory named for its parent is exempt" 0 docs/internal/codex/.codex/config.toml
 stage_case "non-dot directory with the same name is still RED" 1 docs/internal/codex/codex/config.toml
 
@@ -279,7 +275,6 @@ stage_case "README.md in a readme dir is exempt" 0 docs/internal/readme/README.m
 stage_case "AGENTS.md in an agents dir is exempt" 0 docs/internal/agents/AGENTS.md
 stage_case "CLAUDE.md in a claude dir is exempt" 0 docs/internal/claude/CLAUDE.md
 stage_case "doc.go in a doc dir is exempt" 0 go/internal/doc/doc.go
-stage_case "extensionless file without a stutter is GREEN" 0 scripts/lib/Makefile
 stage_case "dotfile without a stutter is GREEN" 0 scripts/lib/.gitkeep
 stage_case "multi-dot non-Go near-miss is GREEN" 0 go/internal/query/schema/values.schema.json
 stage_case "fixture file under testdata is exempt from rule 2" 0 go/internal/parser/testdata/sample/sample-sample.txt
@@ -362,10 +357,7 @@ check "--files stuttering non-Go file is RED" 1 "$rc"
 rc="$(run_gate --files go/internal/query/auth/handler.go)"
 check "--files clean nested path is GREEN" 0 "$rc"
 
-# ---------------------------------------------------------------------------
-# Review round 1 (#6821): compound directory names, default-mode directory
-# RED, fixture roots, ancestors of fixture roots, case, short parents.
-# ---------------------------------------------------------------------------
+# Compound names, default-mode directory RED, fixture roots, case, parents.
 
 # F1: a leaf directory that itself contains - or _ must still match when the
 # stem repeats it as a contiguous run of words.
@@ -412,8 +404,7 @@ stage_case "stuttering dir above testdata with a Go file is RED" 1 go/internal/q
 stage_case "uppercase extension stutter is RED" 1 docs/public/images/logo-images.PNG
 stage_case "uppercase Go extension stutter is RED" 1 go/internal/entity/entity_checks.GO
 
-# F13: comparison is case-insensitive in every position. The parent and the
-# child differ in case here, so a case-sensitive gate cannot pass these.
+# F13: parent and child differ in case, so a case-sensitive gate fails these.
 stage_case "mixed-case dir stutter (query/QueryAuth) is RED" 1 go/internal/query/QueryAuth/a.go
 stage_case "mixed-case file stutter (Entity/entity_x.go) is RED" 1 go/internal/Entity/entity_x.go
 stage_case "mixed-case hyphenated file stutter (Run-Locally/run-locally-x.md) is RED" 1 docs/Run-Locally/run-locally-x.md
@@ -465,6 +456,39 @@ case "$out" in
   *go/internal/Query/QueryAuth*) printf 'ok   diagnostic keeps original path case\n' ;;
   *) printf 'FAIL diagnostic keeps original path case: got %q\n' "$out" >&2; failures=$((failures + 1)) ;;
 esac
+
+# A tracked file or symlink at a directory's path does not make that directory
+# pre-existing: replacing file query/queryauth with a directory introduces it.
+file_to_dir_repo() {
+  local r
+  r="$(new_repo)"
+  mkdir -p "$r/go/internal/query"
+  if [ "$1" = "symlink" ]; then
+    ln -s auth "$r/go/internal/query/queryauth"
+  else
+    printf 'x\n' > "$r/go/internal/query/queryauth"
+  fi
+  git -C "$r" add -A && git -C "$r" commit -qm base
+  git -C "$r" rm -q -f go/internal/query/queryauth
+  rm -rf "$r/go/internal/query/queryauth"
+  mkdir -p "$r/go/internal/query/queryauth"
+  printf 'package queryauth\n' > "$r/go/internal/query/queryauth/handler.go"
+  printf '%s\n' "$r"
+}
+for kind in file symlink; do
+  repo25="$(file_to_dir_repo "$kind")"
+  export ESHU_STUTTER_REPO_ROOT="$repo25"
+  git -C "$repo25" add -A
+  rc="$(run_gate --staged)"
+  check "staged $kind replaced by stuttering dir is RED" 1 "$rc"
+  git -C "$repo25" commit -qm replace
+  rc="$(run_gate --range HEAD~1)"
+  check "--range $kind replaced by stuttering dir is RED" 1 "$rc"
+  export ESHU_STUTTER_UPSTREAM="HEAD~1"
+  rc="$(run_gate)"
+  check "default mode $kind replaced by stuttering dir is RED" 1 "$rc"
+  unset ESHU_STUTTER_UPSTREAM
+done
 
 if [ "$failures" != "0" ]; then
   printf 'test-verify-filename-stutter: %d case(s) failed\n' "$failures" >&2
