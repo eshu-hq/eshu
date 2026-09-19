@@ -281,6 +281,8 @@ expect_pass "${content_reader_language_repo}"
 
 # shellcheck source=scripts/lib/test-verify-parser-relationship-kit-dsl-comment-only-cases.sh
 . "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-dsl-comment-only-cases.sh"
+# shellcheck source=scripts/lib/test-verify-parser-relationship-kit-import-rename-cases.sh
+. "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-import-rename-cases.sh"
 unsupported_claim_repo="$(init_repo unsupported-claim)"
 cat >"${unsupported_claim_repo}/docs/public/languages/support-maturity.md" <<'MD'
 # Parser Support Matrix

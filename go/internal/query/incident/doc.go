@@ -8,7 +8,7 @@
 //
 // The response types live in incident/model/, the Postgres reads in
 // incident/store/, the query text in incident/sql/. This package imports
-// the model leaf plus queryauth, querycontract, queryspan, and telemetry;
+// the model leaf plus queryauth, querycontract, tracing, and telemetry;
 // it MUST NOT import the query root or incident/store/ (cycle through the
 // root compatibility aliases).
 package incident

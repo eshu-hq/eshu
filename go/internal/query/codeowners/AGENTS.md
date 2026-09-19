@@ -8,7 +8,7 @@ Read `doc.go` and `README.md` first.
   `family_codeowners_shim.go` already imports this package for its
   compatibility alias, so the reverse import cycles. If a change needs
   something only root exposes, either a leaf equivalent already exists
-  (`querycontract`, `queryauth`, `queryspan`) or it does not belong in
+  (`querycontract`, `queryauth`, `tracing`) or it does not belong in
   this family; ask before adding one.
 - Capabilities are registered in `query/contract`
   (`capability_matrix_ext.go`), not here -- root blank-imports that package
@@ -16,7 +16,7 @@ Read `doc.go` and `README.md` first.
   `OwnershipSupport` constructor the TestMain registers. Do not register
   in this package's non-test code.
 - `queryHandlerTracer` MUST stay a package-local var seeded from
-  `queryspan.HandlerTracer`. The span guard test swaps it; a second
+  `tracing.HandlerTracer`. The span guard test swaps it; a second
   tracer var, or seeding from anywhere else, breaks its isolation or
   changes emitted spans.
 - `startQueryHandlerSpan` is a family-local copy of root's

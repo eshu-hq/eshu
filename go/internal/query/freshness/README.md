@@ -159,7 +159,7 @@ No-Observability-Change: every route keeps its span name
 `http.route`/`eshu.capability` attributes. `freshnessHandlerTracer` is this
 package's own package-local tracer var (mirroring `languageHandlerTracer` in
 `go/internal/query/language/handler_tracing.go`), seeded from
-`queryspan.HandlerTracer()`; `service_changed_since_telemetry_test.go` (moved
+`tracing.HandlerTracer()`; `service_changed_since_telemetry_test.go` (moved
 here for the reason above) proves the handler still emits exactly one span
 per request with the documented attributes, including the
 `eshu.service_changed_since.grant_refused`/`grant_refused_reason` pair.

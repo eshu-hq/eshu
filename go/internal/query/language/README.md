@@ -101,7 +101,7 @@ No-Observability-Change: the span this route emits keeps its name
 attributes. `languageHandlerTracer` is this package's own package-local
 tracer var (mirroring `incidentHandlerTracer` in
 `go/internal/query/incident/handler.go`), seeded from
-`queryspan.HandlerTracer()`; `span_test.go` (moved with the family, since the
+`tracing.HandlerTracer()`; `span_test.go` (moved with the family, since the
 tracer it swaps is now package-local) proves the handler still emits exactly
 one span with those attributes.
 

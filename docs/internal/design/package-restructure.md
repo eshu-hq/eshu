@@ -1904,10 +1904,11 @@ check to repeat for any family this plan did not itemize. What has changed is
 the tense: the four cycles it describes are resolved, by the first of the two
 remedies. For query the hoisted contracts live in `querycontract` (envelopes,
 error codes, profiles, capability registry, read ports), `queryauth`
-(request-scoped authorization bounds), `queryspan` (the per-route span),
-`decode` and `queryselector`. Each of the four packages has since moved at
-least one family on top of that boundary, so "does not compile as written" below
-should be read as the state before #6100, not as a live blocker.
+(request-scoped authorization bounds), `tracing` (the per-route span, named
+`queryspan` until #6818), `decode` and `queryselector`. Each of the four
+packages has since moved at least one family on top of that boundary, so "does
+not compile as written" below should be read as the state before #6100, not as
+a live blocker.
 
 A reviewer caught this in query and reducer, and applying the same check to the
 rest of Part 3 found it in projector and mcp too. It was the one thing in this

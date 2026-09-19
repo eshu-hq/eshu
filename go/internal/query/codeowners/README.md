@@ -88,14 +88,14 @@ Internal packages, all of them leaves that never import root package
 - `internal/query/querycontract` -- envelopes, capabilities, profiles,
   row-value decoders, repository access filter, graph-error mapping, and
   the shared service-catalog correlation port.
-- `internal/query/queryspan` -- handler span plumbing.
+- `internal/query/tracing` -- handler span plumbing.
 - `internal/query/queryauth` -- auth context bounds (tests only: the
   scoped-leak double).
 
 Plus `internal/telemetry` (span names). The tracer and span helper are a
 family-local copy of root's `handler_tracing.go` (mirroring
-`supply/chain/handler_tracing.go`); `handler_tracing_test.go` pins the
-copy's emitted span against the queryspan operator contract so drift fails
+`supply/chain/handler_tracing.go`); `handler_tracing_test.go` pins the copy's
+emitted span against the tracing package's operator contract so drift fails
 loudly.
 
 ## Telemetry
@@ -104,7 +104,7 @@ The route opens one span named `query.codeowners_ownership`
 (`telemetry.SpanQueryCodeownersOwnership`) carrying the `http.route` and
 `eshu.capability` attributes; each graph call retains the adapter's
 `neo4j.execute` dependency span. Span name, capability string, attribute
-keys, and the tracer seed (`queryspan.HandlerTracer`) are unchanged by the
+keys, and the tracer seed (`tracing.HandlerTracer`) are unchanged by the
 move.
 
 ## Move evidence (#6060 lane A L2)

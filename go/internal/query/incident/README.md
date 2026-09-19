@@ -25,7 +25,7 @@ only on the store and authorizer interfaces; wiring builds the concretes.
 The family moved here verbatim from the query root (`incident_context_handler.go`,
 `incident_context_scope.go`, plus the answer trio from
 `answer_packet_routes.go` whose only caller is this handler); only the
-package clause, the `model` / `querycontract` / `queryauth` / `queryspan`
+package clause, the `model` / `querycontract` / `queryauth` / `tracing`
 qualifications, and the destuttered file names changed. The capability row
 moved from the root contract matrix to `capabilities.go` with identical
 ceilings, following the service-leaf precedent.

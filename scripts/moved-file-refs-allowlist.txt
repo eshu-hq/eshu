@@ -144,3 +144,8 @@ docs/internal/design/5385-workload-identity-key.md:go/internal/graph/mutations.g
 docs/internal/design/5385-workload-identity-options.md:go/internal/graph/mutations.go
 docs/internal/evidence/6689-6690-nornicdb-v133-answer-truth.md:go/internal/graph/mutations.go
 scripts/docs-citations-baseline.txt:go/internal/graph/mutations.go
+# #6818 tracing move evidence: this row pins the BEFORE state of the moved
+# file by its blob hash at the pre-move path, so the no-regression comparison
+# stays reproducible after the branch is gone. Repointing it to the new path
+# would compare the new file with itself and falsify the record.
+docs/internal/evidence/6818-query-package-moves.md:go/internal/query/queryspan/handlerspan.go

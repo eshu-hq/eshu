@@ -12,7 +12,7 @@
 // read, tested, and changed without pulling in the rest of the query
 // surface. It may import only dependency-neutral leaves -- querycontract
 // (envelopes, capabilities, row-value decoders, repository access filter),
-// queryauth (request auth bounds), queryspan (span plumbing), the
+// queryauth (request auth bounds), tracing (span plumbing), the
 // internal/search* hybrid ranking packages, internal/facts, and
 // internal/codeprovenance -- never on root package query itself, which
 // would create an import cycle: root's family_code_shim.go imports this
