@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/semanticguard"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticqueue"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 )
 
 func TestBootstrapDefinitionsIncludeSemanticExtractionQueue(t *testing.T) {
@@ -64,7 +65,7 @@ func TestSemanticExtractionQueueStoreApplyPlanUpsertsMetadataOnlyRecords(t *test
 
 	plan := semanticQueueStoragePlan(t)
 	db := &fakeExecQueryer{}
-	store := NewSemanticExtractionQueueStore(db)
+	store := semanticstore.NewSemanticExtractionQueueStore(db)
 	if err := store.ApplyPlan(context.Background(), plan); err != nil {
 		t.Fatalf("ApplyPlan() error = %v, want nil", err)
 	}
@@ -104,7 +105,7 @@ func TestSemanticExtractionQueueStoreSummaryAggregatesRedactedStatus(t *testing.
 			}},
 		},
 	}
-	store := NewSemanticExtractionQueueStore(db)
+	store := semanticstore.NewSemanticExtractionQueueStore(db)
 	summary, err := store.StatusSummary(context.Background(), "repository:eshu", "generation-1")
 	if err != nil {
 		t.Fatalf("StatusSummary() error = %v, want nil", err)
@@ -145,7 +146,7 @@ func TestSemanticExtractionQueueStoreClaimUsesLeaseFencingAndSkipLocked(t *testi
 			}}},
 		},
 	}
-	store := NewSemanticExtractionQueueStore(db)
+	store := semanticstore.NewSemanticExtractionQueueStore(db)
 	record, ok, err := store.ClaimNext(
 		context.Background(),
 		"repository:eshu",
@@ -193,7 +194,7 @@ func TestSemanticExtractionQueueStoreRetryAndDeadLetterUseLeaseFence(t *testing.
 	plan := semanticQueueStoragePlan(t)
 	record := plan.Jobs[0]
 	db := &fakeExecQueryer{}
-	store := NewSemanticExtractionQueueStore(db)
+	store := semanticstore.NewSemanticExtractionQueueStore(db)
 	now := semanticQueueStorageTime().Add(time.Minute)
 	if err := store.RetryClaim(
 		context.Background(),
@@ -242,7 +243,7 @@ func TestSemanticExtractionQueueStoreSkipByPolicyUsesLeaseFenceAndTerminalStatus
 	plan := semanticQueueStoragePlan(t)
 	record := plan.Jobs[0]
 	db := &fakeExecQueryer{}
-	store := NewSemanticExtractionQueueStore(db)
+	store := semanticstore.NewSemanticExtractionQueueStore(db)
 	now := semanticQueueStorageTime().Add(time.Minute)
 	if err := store.SkipClaimByPolicy(
 		context.Background(),
@@ -276,7 +277,7 @@ func TestSemanticExtractionQueueStoreSkipByPolicyRequiresLeaseOwner(t *testing.T
 
 	plan := semanticQueueStoragePlan(t)
 	record := plan.Jobs[0]
-	store := NewSemanticExtractionQueueStore(&fakeExecQueryer{})
+	store := semanticstore.NewSemanticExtractionQueueStore(&fakeExecQueryer{})
 	if err := store.SkipClaimByPolicy(
 		context.Background(),
 		record,
@@ -294,7 +295,7 @@ func TestSemanticExtractionQueueStoreSucceedUsesLeaseFence(t *testing.T) {
 	plan := semanticQueueStoragePlan(t)
 	record := plan.Jobs[0]
 	db := &fakeExecQueryer{}
-	store := NewSemanticExtractionQueueStore(db)
+	store := semanticstore.NewSemanticExtractionQueueStore(db)
 	now := semanticQueueStorageTime().Add(time.Minute)
 	if err := store.SucceedClaim(
 		context.Background(),
@@ -349,7 +350,7 @@ func TestSemanticExtractionQueueStoreClaimMutationsRejectStaleLease(t *testing.T
 			rowsAffectedResult{rowsAffected: 0},
 		},
 	}
-	store := NewSemanticExtractionQueueStore(db)
+	store := semanticstore.NewSemanticExtractionQueueStore(db)
 
 	err := store.RetryClaim(
 		context.Background(),
@@ -359,8 +360,8 @@ func TestSemanticExtractionQueueStoreClaimMutationsRejectStaleLease(t *testing.T
 		now.Add(time.Minute),
 		semanticqueue.Failure{Class: semanticqueue.FailureClassProviderUnavailable},
 	)
-	if !errors.Is(err, ErrSemanticExtractionClaimRejected) {
-		t.Fatalf("RetryClaim() error = %v, want %v", err, ErrSemanticExtractionClaimRejected)
+	if !errors.Is(err, semanticstore.ErrSemanticExtractionClaimRejected) {
+		t.Fatalf("RetryClaim() error = %v, want %v", err, semanticstore.ErrSemanticExtractionClaimRejected)
 	}
 	err = store.DeadLetterClaim(
 		context.Background(),
@@ -369,8 +370,8 @@ func TestSemanticExtractionQueueStoreClaimMutationsRejectStaleLease(t *testing.T
 		now,
 		semanticqueue.Failure{Class: semanticqueue.FailureClassRetryExhausted},
 	)
-	if !errors.Is(err, ErrSemanticExtractionClaimRejected) {
-		t.Fatalf("DeadLetterClaim() error = %v, want %v", err, ErrSemanticExtractionClaimRejected)
+	if !errors.Is(err, semanticstore.ErrSemanticExtractionClaimRejected) {
+		t.Fatalf("DeadLetterClaim() error = %v, want %v", err, semanticstore.ErrSemanticExtractionClaimRejected)
 	}
 	err = store.SucceedClaim(
 		context.Background(),
@@ -380,8 +381,8 @@ func TestSemanticExtractionQueueStoreClaimMutationsRejectStaleLease(t *testing.T
 		"response-hash-v1",
 		semanticqueue.BudgetDecision{Allowed: true, State: semanticqueue.BudgetStateAllowed},
 	)
-	if !errors.Is(err, ErrSemanticExtractionClaimRejected) {
-		t.Fatalf("SucceedClaim() error = %v, want %v", err, ErrSemanticExtractionClaimRejected)
+	if !errors.Is(err, semanticstore.ErrSemanticExtractionClaimRejected) {
+		t.Fatalf("SucceedClaim() error = %v, want %v", err, semanticstore.ErrSemanticExtractionClaimRejected)
 	}
 }
 
@@ -392,7 +393,7 @@ func TestSemanticExtractionQueueStoreClaimSkipsBackoffAndNonProviderRows(t *test
 	db := &fakeExecQueryer{
 		queryResponses: []queueFakeRows{{}},
 	}
-	store := NewSemanticExtractionQueueStore(db)
+	store := semanticstore.NewSemanticExtractionQueueStore(db)
 	_, _, err := store.ClaimNext(
 		context.Background(),
 		"repository:eshu",

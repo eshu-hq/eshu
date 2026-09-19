@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 )
 
 func TestReducerQueueFailClassifiesGraphWriteTimeoutAfterAttemptBudget(t *testing.T) {
@@ -243,7 +244,7 @@ func (f *fakeExecQueryer) QueryContext(
 		if isWorkflowCoordinatorStatusQuery(query) {
 			return &queueFakeRows{}, nil
 		}
-		if query == semanticExtractionObservabilityQuery ||
+		if query == semanticstore.SemanticExtractionObservabilityQuery ||
 			query == semanticQueueDepthQuery ||
 			query == semanticQueueOldestAgeQuery {
 			return &queueFakeRows{}, nil
