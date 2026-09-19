@@ -111,6 +111,31 @@ describe("listPlaybooks", () => {
     ]);
   });
 
+  it("requests the full detail view with a limit covering the whole catalog", async () => {
+    // The API defaults to a compact, paginated view for MCP callers (#6795):
+    // no required_inputs/steps, and only the first page of playbooks. The
+    // console's guided-questions page renders requiredInputs/steps for every
+    // playbook, so it must opt into view=full and a limit large enough to
+    // cover the catalog (the tool's max bound, 200 -- there is no unbounded
+    // option, and the live catalog is far below that ceiling).
+    let gotPath = "";
+    const client = clientWithGet(async (path: string) => {
+      gotPath = path;
+      return {
+        data: { playbooks: [], versions: [], count: 0 },
+        error: null,
+        truth: null,
+      };
+    });
+
+    await listPlaybooks(client);
+
+    const url = new URL(gotPath, "http://localhost");
+    expect(url.pathname).toBe("/api/v0/query-playbooks");
+    expect(url.searchParams.get("view")).toBe("full");
+    expect(Number(url.searchParams.get("limit"))).toBeGreaterThanOrEqual(200);
+  });
+
   it("resolves to an empty provenance when the catalog has no playbooks", async () => {
     const client = clientWithGet(async () => ({
       data: { playbooks: [], versions: [], count: 0 },

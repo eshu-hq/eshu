@@ -239,7 +239,12 @@ function normalizeResolvedPlaybook(wire: ResolvedPlaybookWire): ResolvedPlaybook
 // of throwing.
 export async function listPlaybooks(client: EshuApiClient): Promise<PlaybookCatalogPage> {
   try {
-    const env = await client.get<ListResponseWire>("/api/v0/query-playbooks");
+    // The API defaults to a compact, paginated view for MCP callers (#6795):
+    // no required_inputs/steps, and only the first page of playbooks.
+    // GuidedQuestionsPage renders requiredInputs/steps for every playbook, so
+    // this loader opts into the full detail view and the tool's max page
+    // size (200) to load the whole catalog in one call.
+    const env = await client.get<ListResponseWire>("/api/v0/query-playbooks?view=full&limit=200");
     if (env.error) throw new EshuEnvelopeError(env.error);
     const playbooks = (env.data?.playbooks ?? [])
       .map(normalizePlaybook)

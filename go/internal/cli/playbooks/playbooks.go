@@ -72,15 +72,16 @@ type EnvelopeError struct {
 	Details    map[string]any `json:"details,omitempty"`
 }
 
-// RunList fetches the query-playbook list and writes the envelope to w as
-// indented JSON. Nothing is written when the transport fails, so a failing
-// command never emits a partial document.
+// RunList fetches the full-detail query-playbook list (view=full, limit=200
+// -- the API's default is a compact, paginated view for MCP callers, #6795)
+// and writes the envelope to w as indented JSON. Nothing is written when the
+// transport fails, so a failing command never emits a partial document.
 func RunList(w io.Writer, client EnvelopeClient) error {
 	if client == nil {
 		return errNilClient
 	}
 	var envelope ListEnvelope
-	if err := client.GetEnvelope("/api/v0/query-playbooks", &envelope); err != nil {
+	if err := client.GetEnvelope("/api/v0/query-playbooks?view=full&limit=200", &envelope); err != nil {
 		return err //nolint:wrapcheck // the client's error text is the operator-visible contract; cmd/eshu prints it verbatim
 	}
 	return writeJSON(w, envelope)
