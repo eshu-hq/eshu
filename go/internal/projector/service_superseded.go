@@ -121,6 +121,12 @@ func AckWhenScopeFree(
 		}
 		if heartbeater != nil {
 			if heartbeatErr := heartbeater.Heartbeat(ctx, work); heartbeatErr != nil {
+				// Shutdown during the renewal is still a deferral, not a failed
+				// Ack; supersession and a lost claim keep their own meaning.
+				if ctx.Err() != nil && !errors.Is(heartbeatErr, ErrWorkSuperseded) &&
+					!errors.Is(heartbeatErr, ErrWorkClaimLost) {
+					return err
+				}
 				return heartbeatErr
 			}
 		}

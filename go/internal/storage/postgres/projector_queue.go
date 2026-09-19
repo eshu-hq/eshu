@@ -68,8 +68,12 @@ type ProjectorQueue struct {
 }
 
 // defaultProjectorAckLockTimeout leaves room inside the projector service's
-// 5 s Ack budget for the transaction's other statements.
-const defaultProjectorAckLockTimeout = 2 * time.Second
+// 5 s Ack budget for the transaction's other statements, and
+// maxProjectorAckLockTimeout caps a configured value below that budget.
+const (
+	defaultProjectorAckLockTimeout = 2 * time.Second
+	maxProjectorAckLockTimeout     = 4 * time.Second
+)
 
 // ErrProjectorClaimRejected means the projector work item's owner, attempt,
 // or claimable status changed, so heartbeat, Ack, or Fail must stop. It wraps
@@ -201,11 +205,13 @@ func (q ProjectorQueue) Ack(
 		}
 	}()
 
-	lockTimeout := q.AckScopeLockTimeout
+	lockTimeout := min(q.AckScopeLockTimeout, maxProjectorAckLockTimeout)
 	if lockTimeout <= 0 {
 		lockTimeout = defaultProjectorAckLockTimeout
 	}
-	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)", lockTimeout.String()); err != nil {
+	// PostgreSQL accepts "2000ms" but not Go's "1m30s" duration syntax.
+	lockTimeoutSetting := fmt.Sprintf("%dms", lockTimeout.Milliseconds())
+	if _, err := tx.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, true)", lockTimeoutSetting); err != nil {
 		return fmt.Errorf("ack projector work: set lock timeout: %w", err)
 	}
 	now := q.now()

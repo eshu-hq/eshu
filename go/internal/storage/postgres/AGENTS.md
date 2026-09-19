@@ -60,7 +60,7 @@
 - **Lease fencing** — projector Heartbeat/Ack/Fail match `lease_owner` and
   `attempt_count`; zero rows is `ErrProjectorClaimRejected` (wraps
   `projector.ErrWorkClaimLost`; drop the attempt). `WorkflowControlStore` checks
-  `lease_owner`; callers stop on `ErrWorkflowClaimRejected`. Never retry acks.
+  `lease_owner`; callers stop on `ErrWorkflowClaimRejected`. Rejections are final.
 - **Projector scope ordering** — `ProjectorQueue.Claim` must preserve one
   active source-local generation per `scope_id`. Keep the oldest-ready-row
   subquery with `FOR UPDATE SKIP LOCKED`; without it, parallel claimers can skip
@@ -552,7 +552,7 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
 - **Do not use raw SQL string building** when adding new stores. Use parameterized
   queries (`$1`, `$2`, ...) exclusively to prevent injection.
 - **Do not hold long transactions** across graph writes. The projector ack
-  transaction is bounded to five SQL statements; do not add graph or network
+  transaction is bounded to six SQL statements; do not add graph or network
   calls inside it.
 - **Do not add `if backend == "nornicdb"` branches** here. Backend-specific
   queue gate logic is isolated to `ReducerQueue.Claim`'s parameterized gate

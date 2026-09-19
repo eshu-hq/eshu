@@ -159,7 +159,7 @@ func isolateBootstrapProjectorFailure(
 		return nil
 	}
 	if failErr := workSink.Fail(ctx, work, cause); failErr != nil {
-		if dropLostBootstrapClaim(ctx, work, workerID, failErr, "fail", logger) {
+		if dropLostBootstrapClaim(ctx, work, workerID, failErr, "fail", nil, logger) {
 			return nil
 		}
 		return fmt.Errorf("bootstrap projector fail item (worker %d): %w", workerID, errors.Join(cause, failErr))
@@ -229,7 +229,7 @@ func drainProjectorWorkItem(
 	factsForGeneration, loadErr := factStore.LoadFacts(heartbeatCtx, work)
 	if loadErr != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-			if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", logger) {
+			if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", span, logger) {
 				return nil
 			}
 			if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
@@ -246,7 +246,7 @@ func drainProjectorWorkItem(
 	result, projectErr := runner.Project(heartbeatCtx, work.Scope, work.Generation, factsForGeneration)
 	if projectErr != nil {
 		if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-			if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", logger) {
+			if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", span, logger) {
 				return nil
 			}
 			if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
@@ -259,7 +259,7 @@ func drainProjectorWorkItem(
 		return isolateBootstrapProjectorFailure(itemCtx, workSink, work, workerID, projectErr, logger)
 	}
 	if heartbeatErr := stopHeartbeat(); heartbeatErr != nil {
-		if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", logger) {
+		if dropLostBootstrapClaim(itemCtx, work, workerID, heartbeatErr, "heartbeat", span, logger) {
 			return nil
 		}
 		if errors.Is(heartbeatErr, projector.ErrWorkSuperseded) {
@@ -273,9 +273,14 @@ func drainProjectorWorkItem(
 	// Ack failure is fatal, not routed to Fail: Project already committed, so
 	// Fail could dead-letter successful work (#4464). A busy scope retries with
 	// lease renewal; superseded, lost, or shutdown-deferred work is dropped.
-	if ackErr := projector.AckWhenScopeFree(itemCtx, workSink, heartbeater, work, result, nil); ackErr != nil {
-		if dropLostBootstrapClaim(itemCtx, work, workerID, ackErr, "ack", logger) ||
-			errors.Is(ackErr, projector.ErrWorkSuperseded) || errors.Is(ackErr, projector.ErrWorkAckDeferred) {
+	onDeferred := bootstrapAckDeferredLogger(itemCtx, work, workerID, logger)
+	if ackErr := projector.AckWhenScopeFree(itemCtx, workSink, heartbeater, work, result, onDeferred); ackErr != nil {
+		if dropLostBootstrapClaim(itemCtx, work, workerID, ackErr, "ack", span, logger) ||
+			dropDeferredBootstrapAck(itemCtx, work, workerID, ackErr, span, logger) {
+			return nil
+		}
+		if errors.Is(ackErr, projector.ErrWorkSuperseded) {
+			recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "superseded", len(factsForGeneration), nil, span, instruments, logger)
 			return nil
 		}
 		recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "failed", len(factsForGeneration), ackErr, span, instruments, logger)
@@ -285,29 +290,6 @@ func drainProjectorWorkItem(
 	completed.Add(1)
 	recordBootstrapProjectionResult(itemCtx, work, workerID, itemStart, "succeeded", len(factsForGeneration), nil, span, instruments, logger)
 	return nil
-}
-
-// dropLostBootstrapClaim reports whether err means another attempt now owns
-// the work item. The stale bootstrap worker drops the item without failing it
-// or aborting the drain; the owning attempt acks or fails it.
-func dropLostBootstrapClaim(
-	ctx context.Context,
-	work projector.ScopeGenerationWork,
-	workerID int,
-	err error,
-	operation string,
-	logger *slog.Logger,
-) bool {
-	if !errors.Is(err, projector.ErrWorkClaimLost) {
-		return false
-	}
-	if logger != nil {
-		logger.WarnContext(context.WithoutCancel(ctx), "projector work claim lost to another attempt",
-			slog.String("scope_id", work.Scope.ScopeID), slog.String("generation_id", work.Generation.GenerationID),
-			slog.String("operation", operation), slog.Int("attempt_count", work.AttemptCount),
-			slog.Int("worker_id", workerID), slog.String("error", err.Error()))
-	}
-	return true
 }
 
 type bootstrapProjectorHeartbeatStop func() error

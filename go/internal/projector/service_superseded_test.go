@@ -217,3 +217,32 @@ func TestServiceRunRetriesAckWhileScopeIsBusy(t *testing.T) {
 		})
 	}
 }
+
+type heartbeaterFunc func(context.Context, ScopeGenerationWork) error
+
+func (f heartbeaterFunc) Heartbeat(ctx context.Context, work ScopeGenerationWork) error {
+	return f(ctx, work)
+}
+
+// TestAckWhenScopeFreeReturnsDeferralWhenShutdownInterruptsRenewal proves a
+// shutdown that lands during the lease renewal ends the wait as a deferral,
+// so the caller records a shutdown instead of a failed Ack.
+func TestAckWhenScopeFreeReturnsDeferralWhenShutdownInterruptsRenewal(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sink := &sequencedAckSink{ackErrs: []error{fmt.Errorf("lock timeout: %w", ErrWorkAckDeferred)}}
+	renewal := heartbeaterFunc(func(ctx context.Context, _ ScopeGenerationWork) error {
+		cancel()
+		return fmt.Errorf("heartbeat projector work: %w", ctx.Err())
+	})
+
+	err := AckWhenScopeFree(ctx, sink, renewal, ScopeGenerationWork{}, Result{}, nil)
+	if !errors.Is(err, ErrWorkAckDeferred) {
+		t.Fatalf("AckWhenScopeFree() error = %v, want ErrWorkAckDeferred", err)
+	}
+	if sink.acks != 1 {
+		t.Fatalf("acks = %d, want 1", sink.acks)
+	}
+}

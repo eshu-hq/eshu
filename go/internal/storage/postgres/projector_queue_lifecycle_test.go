@@ -49,7 +49,7 @@ func TestProjectorQueueAckPromotesGenerationAndSupersedesPriorActive(t *testing.
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	if !strings.Contains(db.execs[0].query, "set_config('lock_timeout', $1, true)") ||
-		len(db.execs[0].args) != 1 || db.execs[0].args[0] != "2s" {
+		len(db.execs[0].args) != 1 || db.execs[0].args[0] != "2000ms" {
 		t.Fatalf("Ack first statement = %q %v, want transaction-local 2s lock_timeout", db.execs[0].query, db.execs[0].args)
 	}
 
