@@ -254,8 +254,10 @@ func TestCanonicalNodeWriterBatching(t *testing.T) {
 	if strings.Contains(fileCalls[0].Cypher, "MERGE (f:File") {
 		t.Fatalf("existing-file update statement must not MERGE File: %s", fileCalls[0].Cypher)
 	}
-	if !strings.Contains(fileCalls[1].Cypher, "WHERE NOT EXISTS { MATCH (:File {path: row.path}) }") {
-		t.Fatalf("second file statement = %q, want missing-file guard", fileCalls[1].Cypher)
+	if !strings.Contains(fileCalls[1].Cypher, "OPTIONAL MATCH (existing:File {path: row.path})") ||
+		!strings.Contains(fileCalls[1].Cypher, "WHERE existing IS NULL") ||
+		strings.Contains(fileCalls[1].Cypher, "NOT EXISTS") {
+		t.Fatalf("second file statement = %q, want index-backed missing-file guard (#6798)", fileCalls[1].Cypher)
 	}
 }
 

@@ -191,10 +191,18 @@ MERGE (d)-[dirRel:CONTAINS]->(f)
 SET dirRel.evidence_source = 'projector/canonical',
     dirRel.generation_id = row.generation_id`
 
+// The create_missing templates skip files that already exist with a
+// correlated, index-backed OPTIONAL MATCH on File.path. Do not use
+// NOT EXISTS { MATCH (:File {path: row.path}) }: NornicDB v1.3.3 evaluates an
+// uncorrelated existence subquery by loading every File node per row and never
+// matches row.path, so it scanned the whole label and re-stamped existing
+// files (#6798).
 const canonicalNodeFileCreateMissingCypher = `UNWIND $rows AS row
+OPTIONAL MATCH (existing:File {path: row.path})
+WITH row, existing
+WHERE existing IS NULL
 MATCH (r:Repository {id: row.repo_id})
 MATCH (d:Directory {path: row.dir_path})
-WHERE NOT EXISTS { MATCH (:File {path: row.path}) }
 MERGE (f:File {path: row.path})
 SET f.name = row.name, f.relative_path = row.relative_path,
     f.uid = row.uid,
@@ -241,8 +249,10 @@ SET repoRel.evidence_source = 'projector/canonical',
     repoRel.generation_id = row.generation_id`
 
 const canonicalNodeRootFileCreateMissingCypher = `UNWIND $rows AS row
+OPTIONAL MATCH (existing:File {path: row.path})
+WITH row, existing
+WHERE existing IS NULL
 MATCH (r:Repository {id: row.repo_id})
-WHERE NOT EXISTS { MATCH (:File {path: row.path}) }
 MERGE (f:File {path: row.path})
 SET f.name = row.name, f.relative_path = row.relative_path,
     f.uid = row.uid,
