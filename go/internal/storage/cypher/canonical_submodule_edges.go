@@ -54,9 +54,10 @@ DELETE rel`
 // flat UNWIND parameter map for the PINS_SUBMODULE upsert. It skips the row
 // (ok=false) when any MERGE key — parent_repo_id, resolved_repo_id, or
 // submodule_path — is empty so an unresolvable edge is never written.
-// pinned_sha is included only when known, so a fact with no gitlink observes
-// as a Cypher null (removing any stale property) rather than an empty
-// string.
+// pinned_sha is always sent, nil when unknown, so a fact with no gitlink
+// observes as a Cypher null rather than an empty string. The key must be
+// present even without a value: the pinned NornicDB v1.3.3 stores the literal
+// text "row.pinned_sha" for a missing UNWIND row key (#6782).
 func BuildSubmodulePinRowMap(
 	payload map[string]any,
 	evidenceSource string,
@@ -74,9 +75,7 @@ func BuildSubmodulePinRowMap(
 		"generation_id":    PayloadString(payload, "generation_id"),
 		"evidence_source":  evidenceSource,
 	}
-	if pinnedSHA := PayloadString(payload, "pinned_sha"); pinnedSHA != "" {
-		rowMap["pinned_sha"] = pinnedSHA
-	}
+	setOptionalRowString(rowMap, payload, "pinned_sha")
 	return BatchCanonicalSubmodulePinEdgeCypher, rowMap, true
 }
 

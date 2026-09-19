@@ -52,12 +52,14 @@ func TestRepoEvidenceArtifactRowsFromIntentCarriesRefFields(t *testing.T) {
 	}
 }
 
-// TestRepoEvidenceArtifactRowsFromIntentOmitsRefFieldsWhenAbsent proves that
+// TestRepoEvidenceArtifactRowsFromIntentNilsRefFieldsWhenAbsent proves that
 // when the reducer-computed artifact map carries no ref_value (a local
 // workflow, docker action, or non-GitHub-Actions evidence kind), the graph
-// write row omits both fields rather than fabricating ref_pinned:false or
-// ref_value:"".
-func TestRepoEvidenceArtifactRowsFromIntentOmitsRefFieldsWhenAbsent(t *testing.T) {
+// write row sends both fields as an explicit nil rather than fabricating
+// ref_pinned:false or ref_value:"". The keys must be present: the pinned
+// NornicDB v1.3.3 stores the literal text "row.ref_value" for a missing UNWIND
+// row key (#6782).
+func TestRepoEvidenceArtifactRowsFromIntentNilsRefFieldsWhenAbsent(t *testing.T) {
 	t.Parallel()
 
 	row := reducer.SharedProjectionIntentRow{
@@ -84,10 +86,9 @@ func TestRepoEvidenceArtifactRowsFromIntentOmitsRefFieldsWhenAbsent(t *testing.T
 	}
 	got := rows[0]
 
-	if v, ok := got["ref_value"]; ok {
-		t.Errorf("row[ref_value] = %v, want absent (no fabrication)", v)
-	}
-	if v, ok := got["ref_pinned"]; ok {
-		t.Errorf("row[ref_pinned] = %v, want absent (no fabrication)", v)
+	for _, key := range []string{"ref_value", "ref_pinned"} {
+		if v, ok := got[key]; !ok || v != nil {
+			t.Errorf("row[%s] = %#v (present=%v), want an explicit nil (no fabrication)", key, v, ok)
+		}
 	}
 }

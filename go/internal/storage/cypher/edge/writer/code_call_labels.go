@@ -93,9 +93,11 @@ func buildCodeCallRowMap(
 		"callee_entity_id": calleeEntityID,
 		"evidence_source":  evidenceSource,
 	}
-	if callKind := sourcecypher.PayloadString(payload, "call_kind"); callKind != "" {
-		rowMap["call_kind"] = callKind
-	}
+	// call_kind is optional (the parser stamps it for some call shapes only),
+	// but every code-call template SETs rel.call_kind = row.call_kind, so the
+	// key is always sent, nil when absent. The pinned NornicDB v1.3.3 stores
+	// the literal text "row.call_kind" for a missing UNWIND row key (#6782).
+	sourcecypher.SetOptionalRowString(rowMap, payload, "call_kind")
 	sourceLabel := sourcecypher.PayloadString(payload, "caller_entity_type")
 	targetLabel := sourcecypher.PayloadString(payload, "callee_entity_type")
 	if sourceLabel != "" {
@@ -121,6 +123,11 @@ func buildCodeCallRowMap(
 	if isCodeCallEndpointLabel(sourceLabel) && isCodeCallEndpointLabel(targetLabel) {
 		return buildLabelScopedCodeCallCypher(sourceLabel, targetLabel), rowMap, true
 	}
+	// The unlabelled CALLS template anchors on
+	// coalesce(row.caller_entity_id, row.source_entity_id), so it also reads
+	// the metaclass-style endpoint keys. Send them as nil for the same reason.
+	rowMap["source_entity_id"] = nil
+	rowMap["target_entity_id"] = nil
 	return sourcecypher.BatchCanonicalCodeCallUpsertCypher, rowMap, true
 }
 

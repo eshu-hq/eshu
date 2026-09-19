@@ -113,24 +113,29 @@ func repoEvidenceArtifactRowsFromIntent(
 		}
 		// Propagate byte-level citation fields when the artifact carries them so
 		// the EvidenceArtifact graph node exposes start_line/end_line/commit_sha
-		// to the query surface. Absent fields are omitted to avoid zero-noise.
+		// to the query surface. Every key the artifact upsert reads is always
+		// sent, nil when the artifact has no value: the pinned NornicDB
+		// v1.3.3 stores the literal expression text for a missing UNWIND row
+		// key (#6782). nil leaves the property absent on Neo4j and
+		// null-valued on NornicDB, so readers see no value on both.
+		row["start_line"] = nil
 		if sl := sourcecypher.PayloadInt(artifact, "start_line"); sl > 0 {
 			row["start_line"] = sl
 		}
+		row["end_line"] = nil
 		if el := sourcecypher.PayloadInt(artifact, "end_line"); el > 0 {
 			row["end_line"] = el
 		}
-		if sha := sourcecypher.PayloadString(artifact, "commit_sha"); sha != "" {
-			row["commit_sha"] = sha
-		}
+		sourcecypher.SetOptionalRowString(row, artifact, "commit_sha")
 		// GitHub Actions @ref pin signal (issue #5372). The reducer
 		// (resolvedRelationshipEvidenceArtifacts) is the sole place
 		// ref_value/ref_pinned are computed, scoped there to
 		// GITHUB_ACTIONS_* evidence kinds; this builder only carries the
-		// two fields through together, it never recomputes Pinned() or
-		// widens the scope. Omitted together when the artifact carries no
-		// ref_value (local ./ workflow, docker action, or a non-GitHub-
-		// Actions evidence kind).
+		// widens the scope. Both are nil together when the artifact carries
+		// no ref_value (local ./ workflow, docker action, or a
+		// non-GitHub-Actions evidence kind).
+		row["ref_value"] = nil
+		row["ref_pinned"] = nil
 		if refValue := sourcecypher.PayloadString(artifact, "ref_value"); refValue != "" {
 			row["ref_value"] = refValue
 			row["ref_pinned"] = sourcecypher.PayloadBool(artifact, "ref_pinned")

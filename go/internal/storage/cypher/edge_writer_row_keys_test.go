@@ -5,16 +5,10 @@ package cypher
 
 import (
 	"context"
-	"regexp"
-	"sort"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
-
-// rowKeyReference matches every `row.<key>` property read in an UNWIND
-// statement.
-var rowKeyReference = regexp.MustCompile(`\brow\.([A-Za-z_][A-Za-z0-9_]*)`)
 
 // TestEdgeWriterRepoDependencyRowsCarryEveryReferencedKey is the regression
 // for the B-7 Neo4j run's get_repo_context divergence (#6782).
@@ -71,31 +65,7 @@ func TestEdgeWriterRepoDependencyRowsCarryEveryReferencedKey(t *testing.T) {
 		t.Fatalf("WriteEdges() error = %v", err)
 	}
 
-	checked := 0
-	for _, call := range executor.calls {
-		rowsOut, ok := call.Parameters["rows"].([]map[string]any)
-		if !ok || len(rowsOut) == 0 {
-			continue
-		}
-		referenced := map[string]struct{}{}
-		for _, match := range rowKeyReference.FindAllStringSubmatch(call.Cypher, -1) {
-			referenced[match[1]] = struct{}{}
-		}
-		for _, row := range rowsOut {
-			var missing []string
-			for key := range referenced {
-				if _, present := row[key]; !present {
-					missing = append(missing, key)
-				}
-			}
-			if len(missing) > 0 {
-				sort.Strings(missing)
-				t.Fatalf("row %#v omits %v, which the statement reads; the pinned NornicDB stores the literal "+
-					"expression text for a missing key:\n%s", row, missing, call.Cypher)
-			}
-			checked++
-		}
-	}
+	checked := assertUnwindRowsCarryReferencedKeys(t, executor.calls)
 	if checked < len(rows) {
 		t.Fatalf("checked %d routed rows, want at least %d", checked, len(rows))
 	}
