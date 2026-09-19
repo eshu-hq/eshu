@@ -1,0 +1,27 @@
+go/internal/query/impacttrace/scoped_grant_telemetry.go
+  s_3d761bb140daa9::t_d35302679b20c5 44,48-51
+go/internal/query/impacttrace/workload_selection.go
+  s_3d761bb140daa9::t_4be5d78bbb7b53 116
+go/internal/query/querycontract/workload_grant.go
+  s_3d761bb140daa9::t_e004e23fe1a6b1 68-71
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_3d761bb140daa9::t_1134adb2ccee1c 379
+go/internal/telemetry/instruments.go
+  s_3d761bb140daa9::t_52d35bfded3218 723-728,736-739,3184-3185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8ec0607be285d5b3293144eed8a284e30e35c21c",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

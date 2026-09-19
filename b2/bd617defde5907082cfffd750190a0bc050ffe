@@ -1,0 +1,73 @@
+docs/internal/design/5385-workload-identity-key.md
+  s_7deca246baab33::t_3baf6a753d8c4d 1232
+docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md
+  s_7deca246baab33::t_20cc2349517c8b 7-8,44,66,86,92,96,118-119,185,192,209,212,239,241,249,259,294
+docs/public/observability/telemetry-coverage.md
+  s_7deca246baab33::t_ecffd6129a7b49 893
+go/internal/query/auth_scoped_routes_impact_change_surface_test.go
+  s_7deca246baab33::t_bab875462e1d65 348
+go/internal/query/auth_scoped_routes_impact_evidence_fallback_test.go
+  s_7deca246baab33::t_5712d004e8facf 43
+go/internal/query/auth_scoped_routes_impact_evidence_test.go
+  s_7deca246baab33::t_804f2945898527 49,213
+go/internal/query/entity/content_types.go
+  s_7deca246baab33::t_62c18d26df7e1e 121
+go/internal/query/entity/handler.go
+  s_7deca246baab33::t_5e2f3f819aa582 70-71,80,95-96,135,214
+go/internal/query/entity/resolve_workload.go
+  s_7deca246baab33::t_1fd303e4709eee 21
+go/internal/query/entity_alias.go
+  s_7deca246baab33::t_e4cd97a1475d3b 42,52
+go/internal/query/family_impact_trace_deployment.go
+  s_7deca246baab33::t_480187ab541378 68
+go/internal/query/graph_read_error_impact_test.go
+  s_7deca246baab33::t_1173ddda55391e 135
+go/internal/query/impact/deployment_config_influence.go
+  s_7deca246baab33::t_4211b6a69284ec 61
+go/internal/query/impact/deployment_config_influence_test.go
+  s_7deca246baab33::t_5025db3b2f7172 254,393
+go/internal/query/impact/seam.go
+  s_7deca246baab33::t_1818a49d7b8624 65,67
+go/internal/query/impact/trace_deployment.go
+  s_7deca246baab33::t_af78814154f9f1 116
+go/internal/query/impact_seam_export_test.go
+  s_7deca246baab33::t_a55ccd6d67ab88 158-159
+go/internal/query/impacttrace/README.md
+  s_7deca246baab33::t_5f6bf27c144c29 25
+go/internal/query/impacttrace/scoped_grant_telemetry.go
+  s_7deca246baab33::t_5adbffd4178422 15
+go/internal/query/impacttrace/scoped_grant_telemetry_test.go
+  s_7deca246baab33::t_5b8ce1ec87311c 75,80,94,96,99,118,122,136,138,141,157,160,170-171,173-174,178,181,189,200,202
+go/internal/query/impacttrace/scoped_selector_live_test.go
+  s_7deca246baab33::t_d722c714313b4f 8,28,32,256,260,262,265,269,273,277,279,282,286,290,292,295,299,303-305,309,312,314,317
+go/internal/query/impacttrace/workload_selection.go
+  s_7deca246baab33::t_eae554995132dd 17,19-20,22,24,26,28,30,36,48-49,51,53,75,119,144,180,186,190-191
+go/internal/query/impacttrace/workload_selection_test.go
+  s_7deca246baab33::t_6a9ad9a04a5df5 16,38-40,70,81,83,87,92,104,106,109,113,116,130,132,135,149,155,168,170,173,177,179,192,194,198,201,214,216,220-221,224,227,239-241
+go/internal/query/service_query_enrichment_provisioning_leak_test.go
+  s_7deca246baab33::t_40c452483abfd3 43
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_7deca246baab33::t_f80de0ab763846 33
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_7deca246baab33::t_b681d06bc8ce03 187,374,376
+go/internal/telemetry/README.md
+  s_7deca246baab33::t_6750619cd2d0e1 251
+go/internal/telemetry/instruments.go
+  s_7deca246baab33::t_12eadd7abf5c79 671,679,690-691,698
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b2bd617defde5907082cfffd750190a0bc050ffe",
+  "prompts": {},
+  "sessions": {
+    "s_7deca246baab33": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c6c6328-6cdc-426c-9806-b59928285a23",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

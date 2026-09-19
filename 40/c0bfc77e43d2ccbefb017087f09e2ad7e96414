@@ -1,0 +1,96 @@
+go/internal/query/entity/README.md
+  s_e4670746a61ae9::t_e26815ca121f4c 52-57
+go/internal/query/entity/scoped_grant_live_test.go
+  s_e4670746a61ae9::t_936b16740b39da 47
+  s_e4670746a61ae9::t_6dc04b4a114a7d 1-46,48-229
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_e4670746a61ae9::t_52262334289851 376
+  s_e4670746a61ae9::t_90453be7f0a075 184
+go/internal/query/impacttrace/impact_trace_workload_selection_test.go
+  s_e4670746a61ae9::t_6d543b2dfca62e 12,19,23,25,27-30,72,76,85-88,90-91,93-185
+  s_e4670746a61ae9::t_9e4e5a3aa6d4d0 89,92
+  s_e4670746a61ae9::t_930bc68ade7c07 186
+go/internal/query/impact/trace_deployment_cloud_limits_test.go
+  s_e4670746a61ae9::t_468ea3d80ca0c5 43-44
+  s_e4670746a61ae9::t_60c3ce7cd0120a 97-100
+go/internal/query/impact/trace_deployment_gitops_limits_handler_test.go
+  s_e4670746a61ae9::t_aafc1936960d82 66-67
+go/internal/query/entity/handler.go
+  s_e4670746a61ae9::t_ad029042d68f07 357-365
+  s_e4670746a61ae9::t_ead56d409dd0f0 308-319
+go/internal/query/impact/trace_deployment_config_bounds_test.go
+  s_e4670746a61ae9::t_1f9fc1739efbed 73-74
+go/internal/query/impact/deployment_config_influence_test.go
+  s_e4670746a61ae9::t_a21f24825d8e43 321,326-329
+go/internal/query/service_context_authz_test.go
+  s_e4670746a61ae9::t_b7e31dbf80a01e 184-191,196,201,206-209,213-214,223,225,236-237,245
+  s_e4670746a61ae9::t_0e4bef1b1ae80c 18,20-28
+  s_e4670746a61ae9::t_29fc939504941f 71-80
+  s_3d761bb140daa9::t_6fca2f18dd84aa 230
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_e4670746a61ae9::t_fae91d5c1224d7 215
+go/internal/query/impacttrace/impact_trace_workload_selection.go
+  s_e4670746a61ae9::t_450879c0c3f17d 34-46,55-61,73,77,81,85,98-101,104-113,117,120-124
+  s_e4670746a61ae9::t_73617fb5ea91ef 22-33,47-54,71-72,80,89-92,95-97,102-103,114-116,118-119,125-137
+go/internal/query/service/query_truncation_wiring_test.go
+  s_e4670746a61ae9::t_34cbd0bd413121 54-55
+go/internal/query/impacttrace/README.md
+  s_e4670746a61ae9::t_b272624e58f1fd 25-30
+go/internal/query/entity/workload_context.go
+  s_e4670746a61ae9::t_232d66b445cf5f 101-104,115-124
+  s_e4670746a61ae9::t_7d8123e1551f6f 68-76
+  s_e4670746a61ae9::t_3bbd7991087f19 125
+go/internal/query/entity/nornicdb_answer_truth_live_test.go
+  s_e4670746a61ae9::t_89dee636c2b03d 128-132,134-143,147
+  s_e4670746a61ae9::t_4283a93f3cffdf 178
+go/internal/query/querycontract/workload_grant_test.go
+  s_e4670746a61ae9::t_2e54df4499dcf3 6-74
+  s_3d761bb140daa9::t_d09e06625a0769 1-5,75
+go/internal/query/querycontract/README.md
+  s_e4670746a61ae9::t_2b98865bd2e872 65-76
+  s_e4670746a61ae9::t_7840292bf3ce1a 40
+docs/internal/evidence/6786-scoped-grant-nornicdb-read-predicates.md
+  s_e4670746a61ae9::t_845c7ce6c48fe6 1-104
+go/internal/query/impact/trace_deployment_gitops_own_repo_test.go
+  s_e4670746a61ae9::t_69aeafbd881fb1 208-210
+  s_e4670746a61ae9::t_4aeee2bb97f500 332-334
+  s_e4670746a61ae9::t_26991f2e02cfb2 92-94
+go/internal/query/impacttrace/scoped_selector_live_test.go
+  s_e4670746a61ae9::t_5e48668888de32 1-266
+go/internal/query/service_context_authz_service_test.go
+  s_e4670746a61ae9::t_fcfba3bceccc0b 1-187
+go/internal/query/impact_trace_deployment_adapter_test.go
+  s_e4670746a61ae9::t_3b37292a1f6dbd 211-220
+  s_e4670746a61ae9::t_72b5beafc08d81 327-343
+go/internal/query/impact/trace_deployment_test.go
+  s_e4670746a61ae9::t_1e29cae8db9766 22,27-30
+  s_e4670746a61ae9::t_51c9bb876df5a0 95-97
+go/internal/query/entity/live_schema_helper_test.go
+  s_e4670746a61ae9::t_b826042ac8ea90 1-64
+go/internal/query/querycontract/workload_grant.go
+  s_e4670746a61ae9::t_e0cfa43651acaf 6-8,10-32,34-42,44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "40c0bfc77e43d2ccbefb017087f09e2ad7e96414",
+  "prompts": {},
+  "sessions": {
+    "s_3d761bb140daa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d35d8749-e97c-4422-bdfc-7ac223560f97",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e4670746a61ae9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dc580f2-3bbc-44f5-b367-e76e1733bdfe",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
