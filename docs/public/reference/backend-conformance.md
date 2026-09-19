@@ -114,6 +114,12 @@ Both fixes carry live tests (build tag `live_nornicdb_answer_truth`) that select
 the backend with `ESHU_LIVE_GRAPH_BACKEND=nornicdb|neo4j` and
 `ESHU_NEO4J_URI`. Run each on both backends before changing either path.
 
+Two known differences still pass on both backends, and neither is settled yet.
+Transitive `CALLS` on `POST /api/v0/code/relationships` returns the start node
+and repeat depths on the Neo4j route, but each node once on the NornicDB
+breadth-first route. And the Class `INHERITS` count on NornicDB changes from
+run to run. Both are recorded in `docs/internal/evidence/6782-b7-neo4j-divergences.md`.
+
 ## Profile Matrix
 
 The backend matrix carries a `profile_matrix` gate for every authoritative graph

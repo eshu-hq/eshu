@@ -160,12 +160,109 @@ field. The call-chain route keeps its existing graph-read error path
 (`WriteGraphReadError`), and the edge writer keeps its existing
 `logSharedEdgeWrite` and grouped-write telemetry.
 
+## 3. Differences that pass on both backends (review finding F-7)
+
+After the fixes above, both B-7 cells pass, but the element total that
+`unresolved_row_tokens` reports differs: 2770 on NornicDB and 2772 on Neo4j
+(`b7-batch-6782-nornic.log` and `b7-batch-6782-neo4j.log`, both at
+`f9b6b189d`). Diffing every finding line of the two logs, and leaving out
+timings, finds exactly three differences. All 66 asserted node and edge counts
+are identical on both backends, so the element gap comes from labels and types
+the snapshot does not count.
+
+| Finding line | NornicDB | Neo4j |
+| --- | --- | --- |
+| `POST /api/v0/code/relationships?assert=transitive-callees` (`outgoing`) | 1 result | 2 results |
+| `POST /api/v0/code/relationships?assert=transitive-callers` (`incoming`) | 1 result | 2 results |
+| `rc-12` `(Class)-[:INHERITS]->(Class)` | 23 | 22 |
+| `unresolved_row_tokens` element total | 2770 | 2772 |
+
+### 3a. Transitive `CALLS` relationships: a route divergence, filed here
+
+Reproducible: both earlier run pairs at this branch (`b7-6782-*.log` and
+`b7-batch-6782-*.log`) show 1 against 2 for both shapes.
+
+Root-Cause Evidence: `transitiveRelationshipsGraphRow`
+(`go/internal/query/codequery/relationship_handlers.go`) runs two different
+algorithms. On NornicDB, `relationships.TransitiveRows` walks the graph
+breadth-first. It seeds `seen` with the start entity, so each node appears
+once, at its shortest depth, and the start node never appears. On Neo4j,
+`codemodel.BuildTransitiveRelationshipRowsCypher` returns every
+`(e)-[:CALLS*1..N]->(x)` path. `BuildTransitiveRelationshipGraphResponse`
+dedupes on `(id, name, depth)`, so the same node can appear at more than one
+depth, and on a cycle the start node appears as its own callee.
+
+Live probe: the pinned images above, with fresh containers on ports 28100
+(NornicDB) and 28110 (Neo4j) and Eshu's schema applied. The seed was the
+fixture's shape, `mutualPing -[:CALLS]-> mutualPong -[:CALLS]-> mutualPing`,
+queried from `mutualPing` with `max_depth` 4 through the production functions.
+
+| Route, run on | outgoing | incoming |
+| --- | --- | --- |
+| NornicDB BFS, on Neo4j | `mutualPong`@1 | `mutualPong`@1 |
+| Neo4j Cypher, on Neo4j | `mutualPong`@1, `mutualPing`@2 | `mutualPong`@1, `mutualPing`@2 |
+| NornicDB BFS, on NornicDB | `mutualPong`@1 | `mutualPong`@1 |
+| Neo4j Cypher, on NornicDB | none | none |
+
+On one Neo4j graph the two routes disagree, so the backend's storage is not
+the cause; the routes implement different semantics. (The last row shows why
+NornicDB has a route of its own: the variable-length pattern returns no rows
+there.) The documented contract in `docs/public/reference/http-api/code.md`
+says only that `max_depth` caps the traversal. It does not say whether the
+start node or a repeat visit belongs in the result. So the contract does not
+decide which route is wrong, and changing either one changes a hot-path
+read.
+
+Disposition: this is a real divergence and is left open. The snapshot shape
+allows 1 to 4 results and requires `mutualPong` at depth 1, which both routes
+return, so B-7 is green on both. The fix needs the owner to choose the
+semantics (the recommendation is the BFS rule: each reachable node once, at
+its shortest depth, excluding the start). Then the non-selected route should
+change, with a Cypher measurement, and the shape should pin an exact count.
+This belongs to the #6782 Tier-B response diff.
+
+### 3b. `rc-12` INHERITS on NornicDB changes run to run
+
+Across the eight B-7 logs available at this branch and its siblings, Neo4j
+reported 22 both times. NornicDB reported 23 twice (`b7-batch-6782-nornic`,
+`b7-6785a-rebased`) and 22 four times (`b7-6782-nornic`, `b7-batch-6785`,
+`b7-batch-6786pub`, `b7-labels-rebased`). The count on NornicDB is therefore
+not deterministic.
+
+Disproven theory: that NornicDB's relationship `MERGE` in
+`batchCanonicalInheritanceEdgeUpsertCypher` creates a second edge. On both
+pinned images with the schema applied, the production template left exactly
+one `INHERITS` edge per pair in each of three probes: two identical rows in one
+`UNWIND` batch; three sequential runs; and 8 concurrent writers on each of 18
+pairs.
+
+Disposition: open, as a finding. The extra edge comes from somewhere other
+than duplicate `MERGE` on a known pair: a different resolved parent, or an
+ordering race between the inheritance retract and upsert, are the next
+theories. Telling them apart needs a projected corpus graph dumped from a
+23-edge NornicDB run. `rc-12` is a floor (`>= 1`), so the flip does not fail
+B-7. It must be root-caused before `rc-12` or an INHERITS count gets an exact
+bound.
+
+### 3c. The element total
+
+With 3b's extra NornicDB edge, Neo4j carries 3 more elements outside the
+asserted labels and types in that run pair. The logs do not break the total
+down by label, and the snapshot asserts no per-label total for these
+elements, so the 3 elements are not yet identified. They are left open with
+3b, for the slice-2 graph-state tier, which diffs per-label and per-type
+totals between backends. No assertion pins the element total: it is a
+corpus-size readout, not a contract.
+
 ## Open follow-ups
 
 - The missing-row-key shape is recorded in
   `docs/public/reference/nornicdb-write-shape-pitfalls.md`. The audit of every
   other production `UNWIND` writer, with four more fixes and a reusable guard,
   is in [6782-unwind-missing-row-key-audit.md](6782-unwind-missing-row-key-audit.md).
+- Section 3 lists the differences that still pass on both backends: the
+  transitive `CALLS` semantics (3a), the NornicDB INHERITS count (3b), and
+  the unidentified element gap (3c).
 - The two call-chain routes return different numbers of chains. NornicDB's
   breadth-first walk returns up to 5 chains across depths, while Neo4j returns
   one shortest path per endpoint pair. This is pre-existing, and a candidate
