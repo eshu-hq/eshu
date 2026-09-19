@@ -9,6 +9,7 @@ import (
 	alerttools "github.com/eshu-hq/eshu/go/internal/mcp/alerts"
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
+	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
 	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
 	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/code/owners"
 	"github.com/eshu-hq/eshu/go/internal/mcp/contract/tool"
@@ -167,6 +168,14 @@ func secretsIAMTools() []ToolDefinition {
 // code/flow package owns the registration definitions.
 func codeFlowTools() []ToolDefinition {
 	return codeflowtools.Tools()
+}
+
+// deadCodeTools preserves the root package's constructor name while the
+// code/dead package owns the registration definitions. The codebase group
+// splices the whole family slice at its long-standing position, so a future
+// arity change registers automatically instead of panicking on an index.
+func deadCodeTools() []ToolDefinition {
+	return deadcodetools.Tools()
 }
 
 // codeownersTools preserves the root package's constructor name while the

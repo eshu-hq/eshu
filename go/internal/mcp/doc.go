@@ -42,8 +42,8 @@
 // POST /api/v0/code/dead-code paths, every body key, the limit 100 and
 // offset 0 defaults, and the null-versus-[] absent shapes of
 // exclude_decorated_with and consumer_repo_ids are unchanged, and the three
-// advertised definitions stay at this root in tools_codebase.go,
-// tools_dead_code.go, and tools_cross_repo_dead_code.go.
+// advertised definitions live in the deadcode child behind the deadCodeTools
+// wrapper in types.go, which preserves the root registration order.
 // The three complexity/quality selections (calculate_cyclomatic_complexity,
 // find_most_complex_functions, inspect_code_quality) live in the codequality
 // child and reach dispatch through the codeQualityRoute adapter defined in

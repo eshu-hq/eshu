@@ -120,39 +120,13 @@ func codebaseTools() []ToolDefinition {
 		securityInvestigationTool(),
 	}
 	tools = append(tools, codeRelationshipTools()...)
-	return append(tools, []ToolDefinition{
-		{
-			Name:        "find_dead_code",
-			Description: "Find potentially unused functions (dead code) across the indexed codebase, optionally scoped to a canonical repository identifier and excluding functions with specific decorators. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected. A candidate whose only incoming edges come from repositories outside a scoped token's grant is kept and marked ambiguous with the permission_hidden_consumer reason, never reported as unused and never silently dropped.",
-			InputSchema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"exclude_decorated_with": map[string]any{
-						"type":        "array",
-						"items":       map[string]any{"type": "string"},
-						"description": "List of decorator names to exclude from dead code analysis",
-						"default":     []any{},
-					},
-					"repo_id": map[string]any{
-						"type":        "string",
-						"description": "Optional canonical repository identifier",
-					},
-					"limit": map[string]any{
-						"type":        "integer",
-						"description": "Maximum dead-code candidates to return",
-						"default":     100,
-					},
-					"scope": map[string]any{
-						"type":        "string",
-						"description": "Search scope",
-						"default":     "auto",
-					},
-				},
-				"required": []string{},
-			},
-		},
-		deadCodeInvestigationTool(),
-		crossRepoDeadCodeTool(),
+	tools = append(tools, []ToolDefinition{}...)
+	// The three dead-code definitions owned by the code/dead package splice
+	// in at this position to preserve the long-standing registration order.
+	// Appending the whole family slice keeps a future arity change loud at
+	// the order test instead of panicking on an index.
+	tools = append(tools, deadCodeTools()...)
+	tools = append(tools, []ToolDefinition{
 		{
 			Name:        "find_dead_iac",
 			Description: "Find unused or ambiguous Terraform modules, Helm charts, Kustomize paths, Ansible roles, and Docker Compose services across an explicit set of canonical repository identifiers.",
@@ -471,4 +445,5 @@ func codebaseTools() []ToolDefinition {
 			},
 		},
 	}...)
+	return tools
 }

@@ -10,12 +10,12 @@ exports.
 
 ## Ownership boundary
 
-This package owns dead-code family membership and the mapping from decoded
-arguments to a dependency-neutral internal request. `internal/mcp` keeps tool
-registration order (`find_dead_code` lives in the root codebase group in
-`tools_codebase.go`, `investigate_dead_code` in `tools_dead_code.go`, and
-`find_cross_repo_dead_code` in `tools_cross_repo_dead_code.go`), global route
-fanout, the private `deadCodeRoute` adapter in `dispatch.go`, HTTP dispatch,
+This package owns dead-code family membership, the mapping from decoded
+arguments to a dependency-neutral internal request, and the tool
+definitions. `internal/mcp` keeps the root registration wrapper and
+client-visible order (the three definitions are spliced into the root
+codebase group at their long-standing positions), global route fanout, the
+private `deadCodeRoute` adapter in `dispatch.go`, HTTP dispatch,
 authorization, timeouts, response budgets, envelopes, summaries, and
 telemetry. `internal/query` owns the bounded reads behind the three
 `/api/v0/code/dead-code` paths, including the limit clamp and the
@@ -25,6 +25,7 @@ investigation offset cap.
 
 - `Route` selects the internal request for a dead-code tool without executing
   it, and reports `handled=false` for every other tool.
+- `Tools` returns the three dead-code tool definitions.
 
 See `doc.go` for the godoc contract.
 
