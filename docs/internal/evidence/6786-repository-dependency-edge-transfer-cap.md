@@ -181,7 +181,9 @@ exceeded, the prefix limit is unchanged and truncation is still reported.
   exactly zero is added to the #6787 next-pin re-proof list in
   [6786-nornicdb-400-409-exposure.md](6786-nornicdb-400-409-exposure.md).
 - **R3-P3-2 (`catalog.go` at 496 lines):** the catalog repository reads moved,
-  unchanged, to `catalog_repositories.go`; `catalog.go` is now 405 lines.
+  unchanged, to `catalog_page.go` (first named `catalog_repositories.go`,
+  renamed for the round-4 stutter finding R4-F2); `catalog.go` is now 405
+  lines.
 - **R3-P3-3 (no NornicDB plan check):** NornicDB v1.3.3 cannot provide one.
   Its EXPLAIN/PROFILE builds a static clause-order operator tree
   (`pkg/cypher/explain.go`, `analyzeQuery`) that never consults
