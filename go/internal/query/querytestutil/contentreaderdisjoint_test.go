@@ -58,6 +58,14 @@ func defaultRowsCases() []defaultRowsCase {
 			want:  []string{"payload"},
 		},
 		{
+			name: "active fact payloads by kind probe",
+			query: "SELECT fact.payload FROM ingestion_scopes AS scope CROSS JOIN LATERAL (SELECT fact.source_record_id " +
+				"FROM fact_records AS fact WHERE fact.fact_kind = kind.fact_kind OFFSET 0) AS fact " +
+				"WHERE generation.status = 'active'",
+			group: factGroup,
+			want:  []string{"payload"},
+		},
+		{
 			name: "support source-only rollup",
 			query: "SELECT COUNT(*) AS support_source_only_count, COUNT(*) AS work_item_source_only_count, " +
 				"COUNT(*) AS incident_routing_source_only_count FROM fact_records",

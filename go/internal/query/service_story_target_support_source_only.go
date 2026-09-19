@@ -59,21 +59,14 @@ SELECT
     COUNT(*) AS support_source_only_count,
     COUNT(*) FILTER (WHERE fact.fact_kind LIKE 'work_item.%') AS work_item_source_only_count,
     COUNT(*) FILTER (WHERE fact.fact_kind LIKE 'incident_routing.%') AS incident_routing_source_only_count
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = ANY($1::text[])
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND NOT (
+` + serviceStoryTargetSupportActiveFactsFrom("fact.fact_kind", []string{
+		"fact.is_tombstone = FALSE",
+		`NOT (
       (jsonb_typeof(fact.payload->'candidate_refs') = 'array' AND jsonb_array_length(fact.payload->'candidate_refs') > 0)
    OR (jsonb_typeof(fact.payload->'evidence_refs') = 'array' AND jsonb_array_length(fact.payload->'evidence_refs') > 0)
    OR (jsonb_typeof(fact.payload->'linked_entities') = 'array' AND jsonb_array_length(fact.payload->'linked_entities') > 0)
-  )
+  )`,
+	}) + `
 `, []any{pgarray.Array(factKinds)}
 }
 

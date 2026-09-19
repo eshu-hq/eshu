@@ -115,7 +115,6 @@ func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (
 	factKinds := serviceStoryTargetSupportFactKinds()
 	args = append(args, pgarray.Array(factKinds))
 	clauses := []string{
-		"fact.fact_kind = ANY($1::text[])",
 		"fact.is_tombstone = FALSE",
 	}
 	clauses, args = appendDocumentationTargetClause(
@@ -137,18 +136,52 @@ SELECT jsonb_build_object(
     'observed_at', fact.observed_at,
     'payload', fact.payload
 ) AS payload
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE %s
-  AND generation.status = 'active'
+%s
 ORDER BY fact.observed_at DESC, fact.fact_id DESC
 LIMIT $%d
-`, strings.Join(clauses, " AND "), len(args)), args
+`, serviceStoryTargetSupportActiveFactsFrom(serviceStoryTargetSupportFactColumns, clauses), len(args)), args
+}
+
+// serviceStoryTargetSupportFactColumns are the fact columns the target-support
+// row read projects.
+const serviceStoryTargetSupportFactColumns = `fact.fact_id,
+         fact.fact_kind,
+         fact.scope_id,
+         fact.generation_id,
+         fact.source_system,
+         fact.source_record_id,
+         fact.observed_at,
+         fact.payload`
+
+// serviceStoryTargetSupportActiveFactsFrom returns the FROM/WHERE clause both
+// support reads use: facts of the $1::text[] kinds on each scope's active
+// generation, restricted by factPredicates (fact.* conditions ANDed inside the
+// per-probe subquery) and exposing factColumns as fact.* to the outer query.
+// Each (active scope/generation, kind) pair is probed through a LATERAL
+// subquery so fact_records_scope_generation_idx
+// (scope_id, generation_id, fact_kind, ...) answers with the kind in the index
+// condition (#6794). A plain join made Postgres estimate one fact per active
+// pair (thousands in reality; extended statistics do not apply to join
+// clauses) and scan every fact of every active generation through the keyset
+// index, filtering kinds in the heap. OFFSET 0 is load-bearing: it stops the
+// planner from flattening the LATERAL back into that join. DISTINCT keeps a
+// repeated kind from counting its facts twice, matching fact_kind = ANY($1).
+func serviceStoryTargetSupportActiveFactsFrom(factColumns string, factPredicates []string) string {
+	return `FROM ingestion_scopes AS scope
+JOIN scope_generations AS generation
+  ON generation.scope_id = scope.scope_id
+ AND generation.generation_id = scope.active_generation_id
+CROSS JOIN (SELECT DISTINCT unnest($1::text[]) AS fact_kind) AS kind
+CROSS JOIN LATERAL (
+  SELECT ` + factColumns + `
+  FROM fact_records AS fact
+  WHERE fact.scope_id = scope.scope_id
+    AND fact.generation_id = scope.active_generation_id
+    AND fact.fact_kind = kind.fact_kind
+    AND ` + strings.Join(factPredicates, "\n    AND ") + `
+  OFFSET 0
+) AS fact
+WHERE generation.status = 'active'`
 }
 
 func serviceStoryTargetSupportFactKinds() []string {
