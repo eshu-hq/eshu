@@ -74,16 +74,25 @@ func (e PhaseGroupExecutor) executeDrainLoop(
 		mode = "probed"
 		probe, err := e.DrainReader.RunWrite(ctx, probeCypher, params)
 		probeDuration = time.Since(phaseStart)
-		if err != nil {
-			return fmt.Errorf(
-				"phase-group retract statement %d/%d probe (duration=%s, first_statement=%q): %w",
-				stmtIdx, stmtTotal, probeDuration, statementSummary, err,
+		switch {
+		case err != nil:
+			// A failed probe means "unknown", never "zero rows" (the
+			// sourcecypher.ProbeExecutor contract): run the drain
+			// unconditionally so a probe-only failure cannot fail a
+			// projection whose delete would succeed.
+			mode = "probe_failed"
+			slog.Warn(
+				"nornicdb retract probe failed; draining unconditionally",
+				"statement_index", stmtIdx,
+				"statement_count", stmtTotal,
+				"probe_duration_s", probeDuration.Seconds(),
+				"first_statement", statementSummary,
+				"error", err,
 			)
-		}
-		// Skip only when the probe returned no row. Any row means a node
-		// matched, even one whose __id is missing or malformed, so the drain
-		// runs rather than reporting a silent probe_skipped success.
-		if len(probe.Rows) == 0 {
+		case len(probe.Rows) == 0:
+			// Skip only when the probe returned no row. Any row means a node
+			// matched, even one whose __id is missing or malformed, so the
+			// drain runs rather than reporting a silent probe_skipped success.
 			mode = "probe_skipped"
 			skipDrain = true
 		}

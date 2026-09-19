@@ -200,18 +200,31 @@ func TestExecuteDrainLoopSucceedsWhenMatchesVanishBeforeDrain(t *testing.T) {
 
 // TestExecuteDrainLoopPropagatesProbeAndDrainErrors keeps a failed probe or
 // drain visible to the caller with the statement context.
-func TestExecuteDrainLoopPropagatesProbeAndDrainErrors(t *testing.T) {
+func TestExecuteDrainLoopPropagatesDrainErrors(t *testing.T) {
 	t.Parallel()
 
-	for name, reader := range map[string]*probeReader{
-		"probe": {probeErr: errors.New("bolt: connection reset")},
-		"drain": {probeIDs: []string{"4:a:1"}, drainErr: errors.New("bolt: connection reset")},
-	} {
-		executor := PhaseGroupExecutor{DrainReader: reader}
-		err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 2, 3, "retract")
-		if err == nil || !strings.Contains(err.Error(), "connection reset") || !strings.Contains(err.Error(), "2/3") {
-			t.Fatalf("%s: executeDrainLoop() error = %v, want the error with statement 2/3 context", name, err)
-		}
+	reader := &probeReader{probeIDs: []string{"4:a:1"}, drainErr: errors.New("bolt: connection reset")}
+	executor := PhaseGroupExecutor{DrainReader: reader}
+	err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 2, 3, "retract")
+	if err == nil || !strings.Contains(err.Error(), "connection reset") || !strings.Contains(err.Error(), "2/3") {
+		t.Fatalf("executeDrainLoop() error = %v, want the drain error with statement 2/3 context", err)
+	}
+}
+
+// TestExecuteDrainLoopDrainsWhenProbeFails keeps the ProbeExecutor fail-safe
+// contract (go/internal/storage/cypher/writer.go): a failed probe means
+// "unknown", never "zero rows", so the drain runs unconditionally and a
+// probe-only failure cannot fail a projection whose delete would succeed.
+func TestExecuteDrainLoopDrainsWhenProbeFails(t *testing.T) {
+	t.Parallel()
+
+	reader := &probeReader{probeErr: errors.New("nornicdb: probe timed out"), drained: []int64{4, 0}}
+	executor := PhaseGroupExecutor{DrainReader: reader}
+	if err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 1, 1, "retract"); err != nil {
+		t.Fatalf("executeDrainLoop() error = %v, want nil (probe failure must fall through to the drain)", err)
+	}
+	if got, want := reader.kinds(), []string{"probe", "drain", "drain"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("call sequence = %v, want %v", got, want)
 	}
 }
 
