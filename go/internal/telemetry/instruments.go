@@ -3286,7 +3286,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.InfraInventoryReconcile, err = meter.Int64Counter(
 		"eshu_dp_infra_inventory_reconcile_total",
-		metric.WithDescription("Total repositories checked by the infra read model reconcile, by outcome (match, suspect, repaired, error)"),
+		metric.WithDescription("Total repositories checked by the infra read model reconcile, by outcome (match, suspect, repaired, fenced, error)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register InfraInventoryReconcile counter: %w", err)

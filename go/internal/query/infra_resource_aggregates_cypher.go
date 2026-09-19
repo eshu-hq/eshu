@@ -169,7 +169,8 @@ type InfraResourceReadModel interface {
 }
 
 // WithReadModel returns a copy that serves unscoped reads from readModel once
-// its backfill marker exists.
+// it reports Ready: its backfill marker exists and no repository waits for a
+// repair after a write from a binary that does not derive.
 func (s GraphInfraResourceAggregateStore) WithReadModel(readModel InfraResourceReadModel) GraphInfraResourceAggregateStore {
 	s.ReadModel = readModel
 	return s
@@ -201,7 +202,7 @@ func (s GraphInfraResourceAggregateStore) readModelServes(
 	}
 	ready, err := s.ReadModel.Ready(ctx)
 	if err != nil {
-		return false, fmt.Errorf("check infra read model backfill marker: %w", err)
+		return false, fmt.Errorf("check infra read model readiness: %w", err)
 	}
 	return ready, nil
 }

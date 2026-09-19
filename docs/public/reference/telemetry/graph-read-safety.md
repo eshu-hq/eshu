@@ -228,7 +228,7 @@ route (`count`, `inventory`) and serving store (`read_model`, `graph`).
 - The reducer's reconcile loop compares each repository's table rows with its
   content rows (row count plus a per-row hash).
   `eshu_dp_infra_inventory_reconcile_total{outcome}` counts repositories
-  checked: `match`, `suspect`, `repaired`, or `error`. A single mismatch is
+  checked: `match`, `suspect`, `repaired`, `fenced`, or `error`. A single mismatch is
   only `suspect`: a content Write commits its content rows before its derive
   runs, so a check between the two sees the table behind. Suspects are
   re-checked on the next cycle and repaired only if they still differ, so
@@ -244,8 +244,17 @@ route (`count`, `inventory`) and serving store (`read_model`, `graph`).
   repository listing), not only single repositories.
   `eshu_dp_infra_inventory_reconcile_duration_seconds` (failed cycles
   included) and the span `reducer.infra_inventory_reconcile` time each cycle.
-  Each reducer process starts its walk at a random repository. The loop does
-  nothing until the backfill marker exists.
+  The walk position is persisted, so a restarted reducer resumes it. The loop
+  does nothing until the backfill marker exists.
+- `fenced` counts repositories an older binary (or manual SQL) wrote without
+  deriving, typically during a rolling upgrade. Migration 109's triggers mark
+  such a repository in the same statement; unscoped reads stay on the graph
+  (`eshu_dp_infra_inventory_reads_total{source="graph"}`) while any repository
+  is marked, and the next reconcile cycle re-derives it and clears the mark.
+  Each one logs `infra_inventory.reconcile.fenced` with `repo_id`, and the
+  cycle span carries `eshu.infra_inventory.repos_fenced`. `fenced` that keeps
+  appearing after a rollout finished means something outside the Eshu
+  runtimes is still writing `content_entities`.
 - Scoped-token reads always count as `source="graph"`.
 - The content writer logs the per-Write derive as stage
   `derive_infra_inventory` (`path_count`, `rows_deleted`, `rows_inserted`,

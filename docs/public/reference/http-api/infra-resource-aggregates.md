@@ -15,7 +15,8 @@ Both routes accept optional `category` (`k8s`, `terraform`, `argocd`,
 The count is the canonical graph population of the infrastructure labels.
 Where it is read from depends on the caller:
 
-- Unscoped callers, once the infra read model backfill has completed:
+- Unscoped callers, once the infra read model backfill has completed and no
+  repository waits for a repair after a write from an older binary:
   content-derived nodes (Terraform, Terragrunt, Kubernetes, Kustomize,
   CloudFormation, Argo CD, Crossplane, and Helm entities) are counted from the
   Postgres `infra_resource_entities` table. That table is derived from the
@@ -29,7 +30,8 @@ Where it is read from depends on the caller:
   graph read (for example `k8s`), the basis is `content_index`, also
   `derived`. When it needs only the graph (`cloud`), it is
   `authoritative_graph`.
-- Scoped tokens, and every caller before the backfill completes: every label
+- Scoped tokens, and every other caller (before the backfill completes, or
+  while a repository waits for that repair): every label
   is counted from the graph. The truth basis is `authoritative_graph`. Scoped
   tokens stay on the graph because two infrastructure labels are authorized
   through graph edges.

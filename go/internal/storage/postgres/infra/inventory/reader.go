@@ -206,10 +206,10 @@ type Reader struct {
 	DB db.Queryer
 }
 
-// Ready reports whether the backfill marker exists. Readers must not serve
-// table counts before it does.
+// Ready reports whether readers may serve table counts: the backfill marker
+// exists and no repository carries a fence mark (ReadModelReady).
 func (r Reader) Ready(ctx context.Context) (bool, error) {
-	return BackfillComplete(ctx, r.DB)
+	return ReadModelReady(ctx, r.DB)
 }
 
 // CountBuckets returns CountBuckets(ctx, r.DB, filter).

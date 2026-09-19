@@ -47,4 +47,10 @@
 // commit before its derive; a suspect that still differs on the next cycle is
 // re-checked under the repository's derive lock and re-derived in that
 // transaction with MirrorRepo's delete and insert.
+//
+// Migration 109's content_entities triggers fence rolling upgrades: an
+// infra-typed write from a connection without WriterSessionSQL (an older
+// binary, or manual SQL) marks its repository dirty in the same statement.
+// ReadModelReady keeps readers on the graph while any mark exists, and each
+// ReconcileCycle repairs marked repositories first (ReconcileFenced).
 package inventory

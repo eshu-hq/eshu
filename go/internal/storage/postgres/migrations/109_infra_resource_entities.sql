@@ -56,3 +56,98 @@ CREATE TABLE IF NOT EXISTS infra_resource_entity_reconcile_cursor (
     cursor     TEXT NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
+
+-- Rolling-upgrade fence. Derive-aware binaries mark every connection with
+-- SET eshu.infra_inventory_writer = 'derive' (inventory.WriterSessionSQL);
+-- their content_entities writes keep this table in step. A write of an
+-- infra-typed row from any other connection (an older ingester, projector,
+-- or bootstrap-index binary, or manual SQL) marks its repository here in the
+-- same statement. Readers trust the table only while this table is empty,
+-- and the reducer's reconcile re-derives and clears each marked repository.
+-- The upsert takes the mark's row lock until the writer commits, so a repair
+-- that clears the mark waits for that write and re-derives its rows.
+CREATE TABLE IF NOT EXISTS infra_resource_entity_dirty_repos (
+    repo_id   TEXT PRIMARY KEY,
+    marked_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE OR REPLACE FUNCTION mark_infra_resource_entity_dirty_repo()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF TG_OP IN ('INSERT', 'UPDATE') THEN
+        INSERT INTO infra_resource_entity_dirty_repos (repo_id, marked_at)
+        VALUES (NEW.repo_id, clock_timestamp())
+        ON CONFLICT (repo_id) DO UPDATE SET marked_at = EXCLUDED.marked_at;
+    END IF;
+    IF TG_OP IN ('UPDATE', 'DELETE') THEN
+        INSERT INTO infra_resource_entity_dirty_repos (repo_id, marked_at)
+        VALUES (OLD.repo_id, clock_timestamp())
+        ON CONFLICT (repo_id) DO UPDATE SET marked_at = EXCLUDED.marked_at;
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+-- The WHEN clauses list inventory.Labels; TestInfraInventoryFenceTriggerLabels
+-- pins the three lists to it. A derive-aware writer's rows fail the first
+-- predicate, so they never call the function.
+DROP TRIGGER IF EXISTS content_entities_infra_fence_insert ON content_entities;
+CREATE TRIGGER content_entities_infra_fence_insert
+AFTER INSERT ON content_entities
+FOR EACH ROW
+WHEN (
+    current_setting('eshu.infra_inventory_writer', true) IS DISTINCT FROM 'derive'
+    AND NEW.entity_type IN (
+        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
+        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
+        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
+        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
+        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
+        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
+        'HelmChart', 'HelmValues')
+)
+EXECUTE FUNCTION mark_infra_resource_entity_dirty_repo();
+
+DROP TRIGGER IF EXISTS content_entities_infra_fence_update ON content_entities;
+CREATE TRIGGER content_entities_infra_fence_update
+AFTER UPDATE ON content_entities
+FOR EACH ROW
+WHEN (
+    current_setting('eshu.infra_inventory_writer', true) IS DISTINCT FROM 'derive'
+    AND (NEW.entity_type IN (
+        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
+        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
+        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
+        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
+        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
+        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
+        'HelmChart', 'HelmValues')
+    OR OLD.entity_type IN (
+        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
+        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
+        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
+        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
+        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
+        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
+        'HelmChart', 'HelmValues'))
+)
+EXECUTE FUNCTION mark_infra_resource_entity_dirty_repo();
+
+DROP TRIGGER IF EXISTS content_entities_infra_fence_delete ON content_entities;
+CREATE TRIGGER content_entities_infra_fence_delete
+AFTER DELETE ON content_entities
+FOR EACH ROW
+WHEN (
+    current_setting('eshu.infra_inventory_writer', true) IS DISTINCT FROM 'derive'
+    AND OLD.entity_type IN (
+        'K8sResource', 'KustomizeOverlay', 'TerraformResource', 'TerraformModule',
+        'TerraformVariable', 'TerraformOutput', 'TerraformDataSource', 'TerraformProvider',
+        'TerraformLocal', 'TerraformBackend', 'TerraformImport', 'TerraformMovedBlock',
+        'TerraformRemovedBlock', 'TerraformCheck', 'TerraformLockProvider', 'TerraformBlock',
+        'TerragruntConfig', 'TerragruntDependency', 'CloudFormationResource',
+        'ArgoCDApplication', 'ArgoCDApplicationSet', 'CrossplaneXRD', 'CrossplaneComposition',
+        'HelmChart', 'HelmValues')
+)
+EXECUTE FUNCTION mark_infra_resource_entity_dirty_repo();

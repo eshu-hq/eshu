@@ -56,7 +56,7 @@ table's safe hashes and structured logs for authorized drilldown.
 
 | Metric | Type | Use |
 | --- | --- | --- |
-| `eshu_dp_infra_inventory_reconcile_total` | counter | Repositories the reducer's infra read model reconcile checked, by `outcome`: `match`, `suspect` (differed once; re-checked next cycle), `repaired` (differed on two checks one interval apart, then re-derived), `error` (a repository check, or a whole cycle, failed). |
+| `eshu_dp_infra_inventory_reconcile_total` | counter | Repositories the reducer's infra read model reconcile checked, by `outcome`: `match`, `suspect` (differed once; re-checked next cycle), `repaired` (differed on two checks one interval apart, then re-derived), `fenced` (re-derived because a binary that does not derive, or manual SQL, wrote its content rows; unscoped reads stay on the graph while any repository waits for this), `error` (a repository check, or a whole cycle, failed). |
 | `eshu_dp_infra_inventory_reconcile_duration_seconds` | histogram | Wall time of one reconcile cycle, failed cycles included (at most `ESHU_INFRA_INVENTORY_RECONCILE_REPO_BUDGET` repositories). |
 
 Repository ids appear only in the `infra_inventory.reconcile.drift` and

@@ -34,10 +34,13 @@ creates the table is `storage/postgres/migrations/109_infra_resource_entities.sq
   gate on
 - `Reader`, `Filter`, `Dimension`, `CountBucket`, `CountBuckets`,
   `DimensionBuckets` — the aggregate reads the query layer serves from
+- `WriterSessionSQL`, `WriterConnectOption`, `OpenWriterDB`,
+  `ReadModelReady` — the rolling-upgrade fence: derive-aware connections,
+  and the readers' gate (marker present and no repository marked dirty)
 - `ReconcileCycle`, `ReconcileRequest`, `ReconcileRepo`, `LoadCursor`,
   `SaveCursor`,
   `ReconcileBatch`, `RepoReconcile`,
-  `ReconcileMatch`/`ReconcileSuspect`/`ReconcileRepaired`/`ReconcileError` —
+  `ReconcileMatch`/`ReconcileSuspect`/`ReconcileRepaired`/`ReconcileFenced`/`ReconcileError` —
   the reducer's drift check and repair (`cmd/reducer`
   `infra_inventory_reconcile_wiring.go`)
 
@@ -95,3 +98,17 @@ this one.
 
 - `docs/public/reference/http-api.md` (infra resource aggregate routes)
 - `docs/public/reference/telemetry/index.md`
+
+## Rolling-upgrade fence
+
+A binary from before this table writes `content_entities` without deriving.
+Migration 109 installs row triggers on `content_entities`: a write of an
+infra-typed row from a connection that has not run `WriterSessionSQL` marks
+the repository in `infra_resource_entity_dirty_repos` in the same statement.
+`runtime.OpenPostgres` marks every connection of this binary, so only older
+binaries and manual SQL trip it. Readers (`Reader.Ready`) trust the table only
+while no repository is marked. Each reconcile cycle repairs marked
+repositories first (`fenced`): lock, clear the mark, delete, insert, in one
+transaction. The trigger upserts the mark, which holds its row lock until the
+unaware write commits, so a repair waits for that write and re-derives its
+rows (`TestWriterFenceLiveRepairWaitsForAnOpenUnawareWrite`).

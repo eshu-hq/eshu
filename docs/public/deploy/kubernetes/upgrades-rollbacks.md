@@ -85,6 +85,18 @@ helm upgrade eshu ./deploy/helm/eshu \
 Watch the rollout with `kubectl get pods` and `kubectl rollout status` for the
 API, MCP, ingester, and resolution-engine workloads.
 
+### Infra read model rollout
+
+The release that adds the Postgres infra read model (#6793) is a normal
+rolling upgrade. Until every ingester, projector, and bootstrap-index pod runs
+the new release, an older pod can still write content rows without updating
+the read model. Postgres triggers mark each repository such a write touches,
+and the infra aggregate routes keep reading the graph while any repository is
+marked. After the rollout, the reducer's reconcile repairs each marked
+repository. Reads then switch to the read model on their own. Watch
+`eshu_dp_infra_inventory_reconcile_total{outcome="fenced"}` fall to zero and
+`eshu_dp_infra_inventory_reads_total{source="read_model"}` rise.
+
 ## Rollback
 
 First determine whether the target revision predates Postgres migration 096

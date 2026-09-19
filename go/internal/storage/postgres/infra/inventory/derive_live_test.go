@@ -31,7 +31,10 @@ func liveDB(t *testing.T) (*sql.DB, context.Context) {
 	if dsn == "" {
 		t.Skip("set ESHU_POSTGRES_DSN to run the real-Postgres infra inventory proofs")
 	}
-	sqlDB, err := sql.Open("pgx", dsn)
+	// Open as the derive-aware binaries do, so seeding content rows does not
+	// trip the rolling-upgrade fence; fence_live_test.go opens a plain
+	// connection on purpose.
+	sqlDB, err := inventory.OpenWriterDB(dsn)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}

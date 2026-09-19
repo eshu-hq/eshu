@@ -37,6 +37,16 @@
   in progress. The walk reports a first mismatch as `suspect`; only the next
   cycle's re-check may repair, after a locked re-check. Never repair on the
   unlocked digest alone.
+- **Only derive-aware writers may run `WriterSessionSQL`.** It tells the
+  migration 109 fence triggers to skip a connection's content_entities
+  writes. A binary that writes content rows without keeping this table in
+  step must not open its pool through `OpenWriterDB`, which
+  `runtime.OpenPostgres` uses for every service runtime.
+- **Keep the fence upsert a `DO UPDATE`.** Its row lock is what makes a
+  repair wait for an open unaware write; `DO NOTHING` takes no lock and lets
+  a repair clear the mark while that write's rows are still invisible.
+  `TestInfraInventoryFenceTriggerLabels` pins this and the trigger label
+  lists to `Labels`.
 - **Do not import the parent `postgres` package.** It imports this one.
 
 ## Verification
