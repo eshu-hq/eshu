@@ -197,9 +197,9 @@ The three reads and their new anchors:
   `MATCH (end:...)`. The label disjunction mirrors the authoritative CALLS-source
   label set the canonical edge writer projects
   (`codeCallRetractSourceLabels` in `internal/storage/cypher`), so every
-  call-chain endpoint still resolves. The id/uid and name predicates, the repo
-  scoping, the `(start)-[:CALLS*1..N]->(end)` shortestPath, the projection, and
-  the `LIMIT 5` are byte-identical; only the anchor label moved into the MATCH.
+  call-chain endpoint still resolves. The predicates, repo scoping, projection
+  and `LIMIT 5` stayed byte-identical; only the anchor moved into the MATCH.
+  #6782 later replaced `shortestPath` with GQL `SHORTEST 1` in a scoped `CALL`.
   `buildNornicDBCallChainCypher` keeps its existing inline-property anchor and is
   untouched.
 - `go/internal/query/impact/handler.go` (`traceResourceToCode`, ~line 215 and the ~line
