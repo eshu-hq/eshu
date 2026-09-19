@@ -303,6 +303,7 @@ module prefixes across generations.
 | `QueueClaimDuration` | `eshu_dp_queue_claim_duration_seconds` | default |
 | `PostgresQueryDuration` | `eshu_dp_postgres_query_duration_seconds` | 0.001–2.5 s |
 | `Neo4jQueryDuration` | `eshu_dp_neo4j_query_duration_seconds` | 0.001–10 s |
+| `StatusSnapshotReadDuration` | `eshu_dp_status_snapshot_read_duration_seconds` | 0.001–10 s; `read` (closed reader set), `outcome` |
 | `RelationshipBreakdownPermitWaitDuration` | `eshu_dp_relationship_breakdown_permit_wait_seconds` | 0–30 s; no labels |
 | `RelationshipBreakdownQueued` | `eshu_dp_relationship_breakdown_queued` (Int64 UpDownCounter) | current waiters; no labels |
 | `RelationshipBreakdownInFlight` | `eshu_dp_relationship_breakdown_in_flight` (Int64 UpDownCounter) | current permit holders; no labels |

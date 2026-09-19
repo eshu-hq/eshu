@@ -1556,12 +1556,12 @@ type Instruments struct {
 	// shutdowns from forced terminations.
 	APIShutdownDuration metric.Float64Histogram
 	// StatusSnapshotReadDuration records each read of a status snapshot
-	// (StatusStore.ReadStatusSnapshotFiltered), from issuing the query until
-	// its rows close. Labeled by read, a closed set of reader names such as
-	// active_work_summary or scope_counts, and by outcome (success or error),
-	// so an operator can tell which of a slow status route's reads spent the
-	// time (#6794). It replaced the retired status stage-counts cache
-	// counter.
+	// (StatusStore.ReadStatusSnapshotFiltered), one sample per read until the
+	// reader returns. Labeled by read (AttrRead), a closed set of reader names
+	// such as active_work_summary, and by outcome (error for any query, scan,
+	// or decode failure), so an operator can tell which of a slow status
+	// route's reads spent the time (#6794). It replaced the retired status
+	// stage-counts cache counter.
 	StatusSnapshotReadDuration metric.Float64Histogram
 	// OIDCBearerValidationTotal counts every IdP bearer-token (Authorization:
 	// Bearer <access_token>) validation outcome the internal/oidcbearer
@@ -4766,9 +4766,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	inst.StatusSnapshotReadDuration, err = meter.Float64Histogram(
 		"eshu_dp_status_snapshot_read_duration_seconds",
 		metric.WithDescription(
-			"Duration of each status snapshot read, from issuing the query until "+
-				"its rows close, labeled by read (closed set of reader names) and "+
-				"outcome (success or error).",
+			"Duration of each status snapshot read, until the reader returns "+
+				"(rows scanned and decoded), labeled by read (closed set of reader "+
+				"names) and outcome (error for any query, scan, or decode failure).",
 		),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
@@ -5445,6 +5445,11 @@ func AttrWritePhase(v string) attribute.KeyValue {
 // AttrOutcome returns an outcome attribute for metric recording.
 func AttrOutcome(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOutcome, v)
+}
+
+// AttrRead returns a read attribute naming the status snapshot reader.
+func AttrRead(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionRead, v)
 }
 
 // AttrGuardrail returns a guardrail attribute for metric recording.

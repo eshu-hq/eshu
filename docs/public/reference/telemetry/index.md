@@ -54,7 +54,7 @@ Do not treat a green pod as proof that the graph is complete.
 | `/healthz` | The process is alive. | Work is current. |
 | `/readyz` | The runtime has enough dependencies to serve. | Queues are empty. |
 | `/metrics` | Prometheus can scrape runtime and data-plane signals. | The graph is correct. |
-| `/admin/status` | Runtime backlog, generation, failure, and domain status. | The underlying source did not change after the last collection. |
+| `/admin/status` | Runtime backlog, generation, failure, and domain status; `eshu_dp_status_snapshot_read_duration_seconds` (`read`, `outcome`) times each status read behind it ([Reducer And Storage Metrics](metrics-reducer-storage.md)). | The underlying source did not change after the last collection. |
 | Query/API result | Current read-path answer. | The whole pipeline is healthy. |
 
 Use `/admin/status` and queue metrics when the user-facing question is

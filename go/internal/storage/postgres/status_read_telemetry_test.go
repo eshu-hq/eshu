@@ -170,3 +170,85 @@ func TestInstrumentedDBStampsQuerySummary(t *testing.T) {
 		t.Fatalf("postgres.query span attributes = %v, want db.query.summary=active_work_summary", spans[0].Attributes())
 	}
 }
+
+// outcomeQueryer answers one named query with fixed rows and every other query
+// with no rows.
+type outcomeQueryer struct {
+	query string
+	rows  [][]any
+}
+
+func (q outcomeQueryer) QueryContext(_ context.Context, query string, _ ...any) (db.Rows, error) {
+	if query == q.query {
+		return &fakeRows{rows: q.rows}, nil
+	}
+	return &fakeRows{}, nil
+}
+
+// TestReadStatusSnapshotRecordsConsumerFailuresAsErrors guards #6794 review
+// finding (PR #6808, Codex P2): a read whose rows iterate cleanly but fail to
+// scan or decode is a failed read, so its duration sample must carry
+// outcome=error rather than success.
+func TestReadStatusSnapshotRecordsConsumerFailuresAsErrors(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		queryer outcomeQueryer
+		read    string
+	}{
+		"scan conversion error": {
+			queryer: outcomeQueryer{query: scopeCountsQuery, rows: [][]any{{"active", "not-a-count"}}},
+			read:    "scope_counts",
+		},
+		"post-scan decode error": {
+			queryer: outcomeQueryer{query: activeWorkSummaryQuery, rows: [][]any{{"stage", int64(1), `{not json`}}},
+			read:    "active_work_summary",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := sdkmetric.NewManualReader()
+			instruments, err := telemetry.NewInstruments(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)).Meter("test"))
+			if err != nil {
+				t.Fatalf("NewInstruments() error = %v", err)
+			}
+			store := NewInstrumentedStatusStore(tc.queryer, instruments)
+			if _, err := store.ReadStatusSnapshotFiltered(
+				context.Background(), time.Date(2026, 9, 19, 0, 0, 0, 0, time.UTC), statuspkg.FullSnapshotSelection(),
+			); err == nil {
+				t.Fatal("ReadStatusSnapshotFiltered() error = nil, want the consumer failure")
+			}
+			outcomes := statusReadOutcomes(t, reader)
+			if got := outcomes[tc.read]; !slices.Equal(got, []string{"error"}) {
+				t.Fatalf("read %q outcomes = %v, want [error]; all = %v", tc.read, got, outcomes)
+			}
+		})
+	}
+}
+
+// statusReadOutcomes returns the outcome labels recorded per read label.
+func statusReadOutcomes(t *testing.T, reader *sdkmetric.ManualReader) map[string][]string {
+	t.Helper()
+	var collected metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &collected); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	outcomes := map[string][]string{}
+	for _, scope := range collected.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			histogram, ok := m.Data.(metricdata.Histogram[float64])
+			if m.Name != "eshu_dp_status_snapshot_read_duration_seconds" || !ok {
+				continue
+			}
+			for _, point := range histogram.DataPoints {
+				read, _ := point.Attributes.Value(attribute.Key(telemetry.MetricDimensionRead))
+				outcome, _ := point.Attributes.Value(attribute.Key(telemetry.MetricDimensionOutcome))
+				for range point.Count {
+					outcomes[read.AsString()] = append(outcomes[read.AsString()], outcome.AsString())
+				}
+			}
+		}
+	}
+	return outcomes
+}

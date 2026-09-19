@@ -83,78 +83,98 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if s.queryer == nil {
 		return statuspkg.RawSnapshot{}, fmt.Errorf("queryer is required")
 	}
+	// Each read is labeled and timed; done records its outcome from the
+	// reader's own error, so scan and decode failures count (#6794).
+	var (
+		q    db.Queryer
+		done func(error) error
+	)
 
-	scopeCounts, err := listNamedCounts(ctx, s.read(statusReadScopeCounts), scopeCountsQuery, "list scope counts")
-	if err != nil {
+	q, done = s.read(ctx, statusReadScopeCounts)
+	scopeCounts, err := listNamedCounts(ctx, q, scopeCountsQuery, "list scope counts")
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	generationCounts, err := listNamedCounts(ctx, s.read(statusReadGenerationCounts), generationCountsQuery, "list generation counts")
-	if err != nil {
+	q, done = s.read(ctx, statusReadGenerationCounts)
+	generationCounts, err := listNamedCounts(ctx, q, generationCountsQuery, "list generation counts")
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	scopeActivity := scopeActivityFromCounts(scopeCounts, generationCounts)
 	generationHistory := generationHistoryFromCounts(generationCounts)
-	generationTransitions, err := listGenerationTransitions(ctx, s.read(statusReadGenerationTransitions))
-	if err != nil {
+	q, done = s.read(ctx, statusReadGenerationTransitions)
+	generationTransitions, err := listGenerationTransitions(ctx, q)
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	// Stage counts, domain backlog, queue snapshot, conflict blockages, and the
 	// latest queue failure all come from one evaluation of
 	// active_fact_work_items in a single round trip (#6794).
-	activeWork, err := readActiveWorkSummary(ctx, s.read(statusReadActiveWorkSummary), asOf.UTC())
-	if err != nil {
+	q, done = s.read(ctx, statusReadActiveWorkSummary)
+	activeWork, err := readActiveWorkSummary(ctx, q, asOf.UTC())
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	stageCounts := activeWork.StageCounts
-	producerActivity, err := readProducerActivitySnapshot(ctx, s.read(statusReadProducerActivity), asOf.UTC())
-	if err != nil {
+	q, done = s.read(ctx, statusReadProducerActivity)
+	producerActivity, err := readProducerActivitySnapshot(ctx, q, asOf.UTC())
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	collectorGenerationDeadLetters, err := readCollectorGenerationDeadLetterSnapshot(ctx, s.read(statusReadCollectorGenerationDeadLetters), asOf.UTC())
-	if err != nil {
+	q, done = s.read(ctx, statusReadCollectorGenerationDeadLetters)
+	collectorGenerationDeadLetters, err := readCollectorGenerationDeadLetterSnapshot(ctx, q, asOf.UTC())
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	coordinatorSnapshot, err := readCoordinatorSnapshot(ctx, s.read(statusReadCoordinator), asOf.UTC())
-	if err != nil {
+	q, done = s.read(ctx, statusReadCoordinator)
+	coordinatorSnapshot, err := readCoordinatorSnapshot(ctx, q, asOf.UTC())
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	var registryCollectors []statuspkg.RegistryCollectorSnapshot
 	if selection.IncludeRegistryCollectors {
-		registryCollectors, err = readRegistryCollectorSnapshots(ctx, s.read(statusReadRegistryCollectors), asOf.UTC())
-		if err != nil {
+		q, done = s.read(ctx, statusReadRegistryCollectors)
+		registryCollectors, err = readRegistryCollectorSnapshots(ctx, q, asOf.UTC())
+		if err = done(err); err != nil {
 			return statuspkg.RawSnapshot{}, err
 		}
 	}
-	awsCloudScans, awsCloudScansTruncated, err := readAWSCloudScanStatuses(ctx, s.read(statusReadAWSCloudScans))
-	if err != nil {
+	q, done = s.read(ctx, statusReadAWSCloudScans)
+	awsCloudScans, awsCloudScansTruncated, err := readAWSCloudScanStatuses(ctx, q)
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	awsFreshness, err := readAWSFreshnessSnapshot(ctx, s.read(statusReadAWSFreshness), asOf.UTC())
-	if err != nil {
+	q, done = s.read(ctx, statusReadAWSFreshness)
+	awsFreshness, err := readAWSFreshnessSnapshot(ctx, q, asOf.UTC())
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	vulnerabilitySources, err := readVulnerabilitySourceStates(ctx, s.read(statusReadVulnerabilitySources))
-	if err != nil {
+	q, done = s.read(ctx, statusReadVulnerabilitySources)
+	vulnerabilitySources, err := readVulnerabilitySourceStates(ctx, q)
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 	var collectorFactEvidence []statuspkg.CollectorFactEvidence
 	if selection.IncludeCollectorFactEvidence {
-		collectorFactEvidence, err = readCollectorFactEvidence(ctx, s.read(statusReadCollectorFactEvidence))
-		if err != nil {
+		q, done = s.read(ctx, statusReadCollectorFactEvidence)
+		collectorFactEvidence, err = readCollectorFactEvidence(ctx, q)
+		if err = done(err); err != nil {
 			return statuspkg.RawSnapshot{}, err
 		}
 	}
+	q, done = s.read(ctx, statusReadTerraformState)
 	terraformStateEvidence, err := readTerraformStateAdminEvidence(
 		ctx,
-		s.read(statusReadTerraformState),
+		q,
 		statuspkg.MaxTerraformStateRecentWarnings,
 		asOf.UTC(),
 	)
-	if err != nil {
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
-	semanticExtraction, err := readSemanticExtractionObservability(ctx, s.read(statusReadSemanticExtraction))
-	if err != nil {
+	q, done = s.read(ctx, statusReadSemanticExtraction)
+	semanticExtraction, err := readSemanticExtractionObservability(ctx, q)
+	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
 

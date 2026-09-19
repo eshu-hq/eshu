@@ -464,13 +464,13 @@ read then emits:
 
 Each status snapshot read is now attributable:
 
-- **Read labels.** `StatusStore` runs every reader through a queryer that
+- **Read labels.** `StatusStore.read` hands every reader a queryer that
   labels its context with a bounded read name (`scope_counts`,
   `active_work_summary`, `coordinator`, and so on).
-- **Duration metric.** Each read records
-  `eshu_dp_status_snapshot_read_duration_seconds{read, outcome}` from issuing
-  the query until its rows close. Every process whose status store carries
-  instruments emits it: the hosted runtimes, and the API and MCP servers.
+- **Duration metric.** Each read records one
+  `eshu_dp_status_snapshot_read_duration_seconds{read, outcome}` sample when
+  the reader returns; any query, scan, or decode failure is `outcome=error`.
+  Every process whose status store carries instruments emits it.
 - **Span attribute.** `InstrumentedDB` stamps the read name on the
   `postgres.query` span as `db.query.summary`.
 - **Tests.** `TestReadStatusSnapshotLabelsEveryRead` and

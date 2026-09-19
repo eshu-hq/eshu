@@ -5,10 +5,8 @@ package postgres
 
 import (
 	"context"
-	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
@@ -57,56 +55,41 @@ func querySummaryFromContext(ctx context.Context) string {
 	return summary
 }
 
-// read returns the store's queryer labeled with one status snapshot read, so
-// each of the snapshot's statements is attributable in traces and metrics
-// (#6794): without it, every status read produced an identical span.
-func (s StatusStore) read(label string) db.Queryer {
-	return statusReadQueryer{inner: s.queryer, instruments: s.Instruments, read: label}
-}
-
-// statusReadQueryer labels every query of one status snapshot read and records
-// its duration, from issuing the query until its rows are closed.
-type statusReadQueryer struct {
-	inner       db.Queryer
-	instruments *telemetry.Instruments
-	read        string
-}
-
-// QueryContext runs the query with the read label on ctx and times it.
-func (q statusReadQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
-	ctx = withQuerySummary(ctx, q.read)
+// read starts one labeled status snapshot read (#6794). It returns the store's
+// queryer labeled with the read, so each statement is attributable on the
+// postgres.query span, and a done func the caller passes the reader's returned
+// error to. done records one duration sample per read, from start until the
+// reader returns, with outcome=error for any reader failure: query, iteration,
+// scan conversion, or post-scan decode. It returns err unchanged.
+func (s StatusStore) read(ctx context.Context, label string) (db.Queryer, func(error) error) {
 	start := time.Now()
-	rows, err := q.inner.QueryContext(ctx, query, args...)
-	if err != nil || rows == nil {
-		q.record(ctx, start, err != nil)
-		return rows, err
+	queryer := statusReadQueryer{inner: s.queryer, read: label}
+	return queryer, func(err error) error {
+		s.recordRead(ctx, label, start, err != nil)
+		return err
 	}
-	return &statusReadRows{Rows: rows, done: func(failed bool) { q.record(ctx, start, failed) }}, nil
 }
 
-// record adds one sample to eshu_dp_status_snapshot_read_duration_seconds.
-func (q statusReadQueryer) record(ctx context.Context, start time.Time, failed bool) {
-	if q.instruments == nil || q.instruments.StatusSnapshotReadDuration == nil {
+// recordRead adds one sample to eshu_dp_status_snapshot_read_duration_seconds.
+func (s StatusStore) recordRead(ctx context.Context, label string, start time.Time, failed bool) {
+	if s.Instruments == nil || s.Instruments.StatusSnapshotReadDuration == nil {
 		return
 	}
 	outcome := statusReadOutcomeSuccess
 	if failed {
 		outcome = statusReadOutcomeError
 	}
-	q.instruments.StatusSnapshotReadDuration.Record(ctx, time.Since(start).Seconds(),
-		metric.WithAttributes(attribute.String("read", q.read), attribute.String("outcome", outcome)))
+	s.Instruments.StatusSnapshotReadDuration.Record(ctx, time.Since(start).Seconds(),
+		metric.WithAttributes(telemetry.AttrRead(label), telemetry.AttrOutcome(outcome)))
 }
 
-// statusReadRows records the read's duration once, when its rows close.
-type statusReadRows struct {
-	db.Rows
-	done func(failed bool)
-	once sync.Once
+// statusReadQueryer labels every query of one status snapshot read.
+type statusReadQueryer struct {
+	inner db.Queryer
+	read  string
 }
 
-// Close closes the rows and records the read's duration and outcome.
-func (r *statusReadRows) Close() error {
-	err := r.Rows.Close()
-	r.once.Do(func() { r.done(err != nil || r.Err() != nil) })
-	return err
+// QueryContext runs the query with the read label on ctx.
+func (q statusReadQueryer) QueryContext(ctx context.Context, query string, args ...any) (db.Rows, error) {
+	return q.inner.QueryContext(withQuerySummary(ctx, q.read), query, args...)
 }
