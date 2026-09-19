@@ -16,7 +16,7 @@ func TestContentWriterUpsertsRepositoryRefs(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC) }
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 

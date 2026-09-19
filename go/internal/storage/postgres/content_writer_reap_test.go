@@ -31,7 +31,7 @@ func TestContentWriterReapsStaleEntityOnIDChurn(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	// Simulates the fresh entity set for package.json after a line-shifting
@@ -111,7 +111,7 @@ func TestContentWriterReapsRemovedEntityAlongsideSurvivor(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	// Fresh set after the edit: only "kept-dep" (B) remains; "removed-dep"
@@ -170,7 +170,7 @@ func TestContentWriterReapDoesNotLabelFilter(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	entities := []content.EntityRecord{
@@ -232,7 +232,7 @@ func TestContentWriterReapsStaleLineKeyedDependencyIDOnSectionKeyedMigration(t *
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	const repoID = "repository:r_12345678"

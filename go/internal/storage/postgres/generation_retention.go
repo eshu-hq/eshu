@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
 const (
@@ -169,10 +170,20 @@ func (s GenerationRetentionStore) PruneSupersededGenerations(
 	} else {
 		result.RowsPruned["content_file_references"] = affected
 	}
+	// The infra read model mirrors content_entities (#6793): lock its
+	// repositories before the content prune, drop its orphans after it.
+	if err := inventory.LockRepositoriesForGenerations(ctx, tx, generationIDs); err != nil {
+		return GenerationRetentionResult{}, fmt.Errorf("generation retention: %w", err)
+	}
 	if affected, err := execRowsAffected(ctx, tx, pruneContentEntitiesForGenerationsQuery, generationIDs); err != nil {
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: prune content entities: %w", err)
 	} else {
 		result.RowsPruned["content_entities"] = affected
+	}
+	if affected, err := inventory.DeleteOrphanedRows(ctx, tx, generationIDs); err != nil {
+		return GenerationRetentionResult{}, fmt.Errorf("generation retention: %w", err)
+	} else {
+		result.RowsPruned["infra_resource_entities"] = affected
 	}
 	if affected, err := execRowsAffected(ctx, tx, pruneContentFilesForGenerationsQuery, generationIDs); err != nil {
 		return GenerationRetentionResult{}, fmt.Errorf("generation retention: prune content files: %w", err)

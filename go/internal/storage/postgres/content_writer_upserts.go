@@ -5,9 +5,16 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha1" // #nosec G505 -- non-cryptographic content-addressing digest for body deduplication, not a security primitive
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/content"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 )
 
 // upsertContentFileBatches persists file records using batched multi-row
@@ -151,4 +158,141 @@ func (w ContentWriter) upsertContentEntityBatch(ctx context.Context, batch []pre
 	}
 
 	return nil
+}
+
+// deriveInfraInventory re-derives the infra_resource_entities rows (#6793) of
+// every path this Write touched: every file record, deleted or not, and every
+// entity record, deleted or not. It runs last, after the file and entity
+// upserts, the reap, and every tombstone delete, so it reads exactly the
+// content_entities state this Write committed. A path whose infra entities
+// were all removed therefore ends with no read-model rows, which is how file
+// tombstones, PurgeEntities, entity tombstones, and the stale-entity reap all
+// reach the table without separate mirror statements.
+//
+// A derive failure fails the Write. The projector retries the whole
+// generation, and the derive is idempotent, so a retry converges.
+func (w ContentWriter) deriveInfraInventory(ctx context.Context, materialization content.Materialization) error {
+	paths := make([]string, 0, len(materialization.Records)+len(materialization.Entities))
+	for _, record := range materialization.Records {
+		paths = append(paths, record.Path)
+	}
+	for _, entity := range materialization.Entities {
+		paths = append(paths, entity.Path)
+	}
+	start := time.Now()
+	stats, err := inventory.MirrorPaths(ctx, w.database, inventory.Target{
+		RepoID:       materialization.RepoID,
+		ScopeID:      materialization.ScopeID,
+		GenerationID: materialization.GenerationID,
+	}, paths)
+	if err != nil {
+		return err
+	}
+	w.logStage(
+		ctx, materialization, "derive_infra_inventory", start,
+		"path_count", len(paths),
+		"rows_deleted", stats.Deleted,
+		"rows_inserted", stats.Inserted,
+	)
+	return nil
+}
+
+// Value-normalization helpers shared by ContentWriter.Write: content digests,
+// line counts, and the optional-column coercions that turn empty metadata into
+// SQL NULL. They live here rather than in content_writer.go to keep that file
+// under the 500-line cap.
+
+func fileContentHash(record content.Record) (string, error) {
+	if strings.TrimSpace(record.Digest) != "" {
+		return record.Digest, nil
+	}
+
+	sum := sha1.Sum([]byte(record.Body)) // #nosec G401 -- non-cryptographic body deduplication digest, not a security primitive
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func lineCount(contentText string) int {
+	if contentText == "" {
+		return 0
+	}
+
+	count := strings.Count(contentText, "\n")
+	if strings.HasSuffix(contentText, "\n") {
+		return count
+	}
+
+	return count + 1
+}
+
+func optionalMetadataText(metadata map[string]string, key string) (any, error) {
+	if len(metadata) == 0 {
+		return nil, nil
+	}
+
+	value, ok := metadata[key]
+	if !ok {
+		return nil, nil
+	}
+
+	text := strings.TrimSpace(value)
+	if text == "" {
+		return nil, nil
+	}
+
+	return text, nil
+}
+
+func optionalMetadataBool(metadata map[string]string, key string) (any, error) {
+	if len(metadata) == 0 {
+		return nil, nil
+	}
+
+	value, ok := metadata[key]
+	if !ok {
+		return nil, nil
+	}
+
+	text := strings.TrimSpace(value)
+	if text == "" {
+		return nil, nil
+	}
+
+	parsed, err := strconv.ParseBool(text)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s %q as bool: %w", key, value, err)
+	}
+
+	return parsed, nil
+}
+
+func metadataJSON(metadata map[string]any) ([]byte, error) {
+	if len(metadata) == 0 {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(metadata)
+}
+
+func optionalString(value string) any {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+
+	return trimmed
+}
+
+func optionalInt(value *int) any {
+	if value == nil {
+		return nil
+	}
+
+	return *value
+}
+
+func optionalBool(value *bool) any {
+	if value == nil {
+		return nil
+	}
+
+	return *value
 }

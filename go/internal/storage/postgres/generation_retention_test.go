@@ -97,8 +97,11 @@ func TestGenerationRetentionStorePrunesEligibleGenerationBatch(t *testing.T) {
 		execResults: []sql.Result{
 			fakeResult{},           // retention event insert
 			fakeRowsAffected{n: 2}, // shared_projection_intents delete
+			fakeRowsAffected{n: 0}, // shared_projection_unroutable_intents delete
 			fakeRowsAffected{n: 0}, // content_file_references prune
+			fakeResult{},           // infra inventory repository locks
 			fakeRowsAffected{n: 0}, // content_entities prune
+			fakeRowsAffected{n: 0}, // infra_resource_entities orphan delete
 			fakeRowsAffected{n: 0}, // content_files prune
 			fakeRowsAffected{n: 1}, // scope_generations delete cascades owned rows
 		},
@@ -130,8 +133,32 @@ func TestGenerationRetentionStorePrunesEligibleGenerationBatch(t *testing.T) {
 	// table carries no foreign keys on purpose (an empty scope_id would make an
 	// FK reject the insert that records a loss), so it does not cascade and
 	// needs its own delete or the rows outlive their generation.
-	if len(database.execs) != 7 {
-		t.Fatalf("exec count = %d, want 7", len(database.execs))
+	// 9 since #6793: the infra_resource_entities read model takes the
+	// per-repository derive locks before the content_entities prune and drops
+	// its orphaned rows right after it, in the same transaction.
+	if len(database.execs) != 9 {
+		t.Fatalf("exec count = %d, want 9", len(database.execs))
+	}
+	pruneAt := -1
+	for i, call := range database.execs {
+		if strings.Contains(call.query, "DELETE FROM content_entities") {
+			pruneAt = i
+		}
+	}
+	if pruneAt < 1 || pruneAt+1 >= len(database.execs) {
+		t.Fatalf("content_entities prune at %d, want it bracketed by the infra inventory statements", pruneAt)
+	}
+	if !strings.Contains(database.execs[pruneAt-1].query, "pg_advisory_xact_lock") {
+		t.Fatalf("exec before content_entities prune = %q, want the infra inventory repository locks", database.execs[pruneAt-1].query)
+	}
+	if !strings.Contains(database.execs[pruneAt+1].query, "DELETE FROM infra_resource_entities") {
+		t.Fatalf("exec after content_entities prune = %q, want the infra inventory orphan delete", database.execs[pruneAt+1].query)
+	}
+	if got, want := result.RowsPruned["infra_resource_entities"], int64(0); got != want {
+		t.Fatalf("infra_resource_entities pruned = %d, want %d", got, want)
+	}
+	if _, reported := result.RowsPruned["infra_resource_entities"]; !reported {
+		t.Fatal("RowsPruned must report infra_resource_entities")
 	}
 	if !strings.Contains(database.execs[0].query, "INSERT INTO generation_retention_events") {
 		t.Fatalf("first exec = %q, want retention event before deletion", database.execs[0].query)
@@ -225,8 +252,11 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 		execResults: []sql.Result{
 			fakeResult{},           // retention event insert for generation-small
 			fakeRowsAffected{n: 0}, // shared_projection_intents delete
+			fakeRowsAffected{n: 0}, // shared_projection_unroutable_intents delete
 			fakeRowsAffected{n: 0}, // content_file_references prune
+			fakeResult{},           // infra inventory repository locks
 			fakeRowsAffected{n: 0}, // content_entities prune
+			fakeRowsAffected{n: 0}, // infra_resource_entities orphan delete
 			fakeRowsAffected{n: 0}, // content_files prune
 			fakeRowsAffected{n: 1}, // scope_generations delete
 		},
@@ -258,8 +288,32 @@ func TestGenerationRetentionStoreRowLimitSkipDoesNotBlockLaterCandidate(t *testi
 	// table carries no foreign keys on purpose (an empty scope_id would make an
 	// FK reject the insert that records a loss), so it does not cascade and
 	// needs its own delete or the rows outlive their generation.
-	if len(database.execs) != 7 {
-		t.Fatalf("exec count = %d, want 7", len(database.execs))
+	// 9 since #6793: the infra_resource_entities read model takes the
+	// per-repository derive locks before the content_entities prune and drops
+	// its orphaned rows right after it, in the same transaction.
+	if len(database.execs) != 9 {
+		t.Fatalf("exec count = %d, want 9", len(database.execs))
+	}
+	pruneAt := -1
+	for i, call := range database.execs {
+		if strings.Contains(call.query, "DELETE FROM content_entities") {
+			pruneAt = i
+		}
+	}
+	if pruneAt < 1 || pruneAt+1 >= len(database.execs) {
+		t.Fatalf("content_entities prune at %d, want it bracketed by the infra inventory statements", pruneAt)
+	}
+	if !strings.Contains(database.execs[pruneAt-1].query, "pg_advisory_xact_lock") {
+		t.Fatalf("exec before content_entities prune = %q, want the infra inventory repository locks", database.execs[pruneAt-1].query)
+	}
+	if !strings.Contains(database.execs[pruneAt+1].query, "DELETE FROM infra_resource_entities") {
+		t.Fatalf("exec after content_entities prune = %q, want the infra inventory orphan delete", database.execs[pruneAt+1].query)
+	}
+	if got, want := result.RowsPruned["infra_resource_entities"], int64(0); got != want {
+		t.Fatalf("infra_resource_entities pruned = %d, want %d", got, want)
+	}
+	if _, reported := result.RowsPruned["infra_resource_entities"]; !reported {
+		t.Fatal("RowsPruned must report infra_resource_entities")
 	}
 	deleteIDs, ok := database.execs[1].args[0].([]string)
 	if !ok {

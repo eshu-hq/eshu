@@ -93,6 +93,9 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	// 7 batched statements plus the #5329 stale-entity reap DELETE that runs
 	// after the entity insert for every path with a fresh entity this call
 	// (here, schema.sql).
+	if got, want := len(database.txExecs), 3; got != want {
+		t.Fatalf("infra inventory derive statements = %d, want lock+delete+insert", got)
+	}
 	if got, want := len(database.execs), 8; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
@@ -262,9 +265,31 @@ func TestPostgresContentWriterRejectsMissingRepoID(t *testing.T) {
 	}
 }
 
+// recordingExecQueryer records non-transactional statements in execs and the
+// infra inventory derive transaction's statements in txExecs, so the exact
+// content statement assertions stay independent of the derive step.
 type recordingExecQueryer struct {
-	execs []recordingExecCall
+	execs   []recordingExecCall
+	txExecs []recordingExecCall
 }
+
+func (f *recordingExecQueryer) Begin(context.Context) (db.Transaction, error) {
+	return recordingTx{parent: f}, nil
+}
+
+type recordingTx struct{ parent *recordingExecQueryer }
+
+func (tx recordingTx) ExecContext(_ context.Context, query string, args ...any) (sql.Result, error) {
+	tx.parent.txExecs = append(tx.parent.txExecs, recordingExecCall{query: query, args: args})
+	return recordingResult{}, nil
+}
+
+func (tx recordingTx) QueryContext(context.Context, string, ...any) (db.Rows, error) {
+	return nil, context.Canceled
+}
+
+func (recordingTx) Commit() error   { return nil }
+func (recordingTx) Rollback() error { return nil }
 
 type recordingExecCall struct {
 	query string
