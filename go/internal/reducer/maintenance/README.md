@@ -33,6 +33,7 @@ package mirrors locally (see Dependencies below) so it never imports
 | `GateAcceptedGenerationOnActive`, `GateAcceptedGenerationPrefetchOnActive` | `cmd/reducer` (`newRepoDependencyProjectionRunner`) -- the reducer root's `RepoDependencyProjectionRunner.AcceptedGen`/`AcceptedGenPrefetch` fields stay root-typed, so `main_helpers.go` adapts across the two packages' `AcceptedGenerationPrefetch` spellings with two thin closures (see that file's comment) |
 | `AcceptedGenerationLookup`, `AcceptedGenerationPrefetch` | no cross-package caller; local mirrors of `reducer.AcceptedGenerationLookup`/`AcceptedGenerationPrefetch` so this package's gate functions never import `internal/reducer` |
 | `PartitionLeaseManager` | no cross-package caller; local mirror of `reducer.PartitionLeaseManager` so `GraphOrphanSweepRunner.LeaseManager` never imports `internal/reducer` -- satisfied structurally by whatever concrete lease store the root wires in |
+| `InfraInventoryReconcileRunner`, `InfraInventoryReconcileRunnerConfig`, `InfraInventoryReconciler`, `InfraInventoryReconcileRequest`, `InfraInventoryReconcileBatch`, `InfraInventoryReconcileRepo` | `cmd/reducer` (`infra_inventory_reconcile_wiring.go` adapts `storage/postgres/infra/inventory.ReconcileCycle`); `Service.InfraInventoryReconcileRunner` field |
 | `CollectorEvidenceSummaryMaintainer`, `CollectorEvidenceSummaryRebuilder`, `CollectorEvidenceSummaryLeaseManager`, `CollectorEvidenceFreshnessLookup`, `CollectorEvidenceSummaryDomain` | `cmd/reducer` (`main.go` wires `Service.CollectorEvidenceSummaryMaintainer` directly with this type) |
 
 See `doc.go` for the godoc-rendered contract.
@@ -63,6 +64,7 @@ two thin wrapper closures instead.
 | `eshu_dp_generation_liveness_recovered_total`, `eshu_dp_generation_liveness_superseded_total`, `eshu_dp_generation_liveness_failures_total` | -- |
 | `eshu_dp_poison_liveness_recovered_total`, `eshu_dp_poison_liveness_failures_total` | -- |
 | `eshu_dp_generation_retention_generations_pruned_total`, `eshu_dp_generation_retention_rows_pruned_total`, `eshu_dp_generation_retention_failures_total`, `eshu_dp_generation_retention_skipped_total`, `eshu_dp_generation_retention_duration_seconds`, `eshu_dp_generation_retention_batch_size`, `eshu_dp_generation_retention_oldest_eligible_age_seconds` | `eshu_dp_generation_retention_rows_pruned_total` by `table`; `eshu_dp_generation_retention_skipped_total` by `reason` |
+| `eshu_dp_infra_inventory_reconcile_total`, `eshu_dp_infra_inventory_reconcile_duration_seconds`; span `reducer.infra_inventory_reconcile` | `eshu_dp_infra_inventory_reconcile_total` by `outcome` (`match`/`suspect`/`repaired`/`error`) |
 | `eshu_dp_repo_dependency_gate_decisions_total` | `decision` (`bypassed`/`deferred_error`/`deferred_inactive`/`active`) |
 
 `GraphOrphanSweepRunner` and `CollectorEvidenceSummaryMaintainer` register no

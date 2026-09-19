@@ -4,6 +4,9 @@
 package query
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -81,12 +84,8 @@ func (h *InfraHandler) countInfraResources(w http.ResponseWriter, r *http.Reques
 		"by_environment":  count.ByEnvironment,
 		"by_label":        count.ByLabel,
 		"scope":           infraResourceAggregateScope(filter),
-	}, BuildTruthEnvelope(
-		h.profile(),
-		infraResourceAggregateCapability,
-		TruthBasisAuthoritativeGraph,
-		"resolved from the authoritative infrastructure graph; per-provider / per-environment / per-label rollups stay separate",
-	))
+	}, infraResourceAggregateTruth(h.profile(), count.Source,
+		"per-provider / per-environment / per-label rollups stay separate"))
 }
 
 func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +152,7 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 	}
 	filter = applyInfraResourceAggregateAccess(filter, access)
 
-	rows, err := h.Aggregates.InfraResourceInventory(r.Context(), filter, dimension, limit+1, offset)
+	rows, source, err := h.Aggregates.InfraResourceInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
 		if WriteGraphReadError(w, r, err, infraResourceAggregateCapability) {
 			return
@@ -175,12 +174,32 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 		"next_offset": nextInfraResourceAggregateOffset(offset, limit, truncated),
 		"scope":       infraResourceAggregateScope(filter),
 	}
-	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
-		h.profile(),
-		infraResourceAggregateCapability,
-		TruthBasisAuthoritativeGraph,
-		"resolved from the authoritative infrastructure graph; one grouped bucket per row, ordered by count desc",
-	))
+	WriteSuccess(w, r, http.StatusOK, body, infraResourceAggregateTruth(h.profile(), source,
+		"one grouped bucket per row, ordered by count desc"))
+}
+
+// infraResourceAggregateTruth maps the serving store onto the truth envelope.
+// Table-backed reads are derived: the content writer fills
+// infra_resource_entities per repository just before the canonical graph
+// write, so for one projection stage the table and the graph can disagree for
+// that repository. A read served by the table alone reports content_index; a
+// read that also needed the graph pass reports hybrid; a read that needed only
+// the graph (graph-only labels, scoped callers, or before the read model is
+// ready)
+// reports authoritative_graph.
+func infraResourceAggregateTruth(profile QueryProfile, source InfraResourceAggregateSource, detail string) *TruthEnvelope {
+	if source == InfraResourceAggregateSourceReadModel {
+		return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisContentIndex,
+			"resolved from the Postgres infra read model, derived from the same content rows the canonical graph writer projects; "+detail)
+	}
+	if source == InfraResourceAggregateSourceHybrid {
+		return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisHybrid,
+			"content-derived infrastructure nodes resolved from the Postgres infra read model; CloudResource, "+
+				"TerraformStateResource, and the Terraform state projector's TerraformModule/TerraformOutput nodes "+
+				"from the authoritative graph; "+detail)
+	}
+	return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisAuthoritativeGraph,
+		"resolved from the authoritative infrastructure graph; "+detail)
 }
 
 // infraResourceAggregateFilterFromRequest parses the request, validates the
@@ -305,4 +324,26 @@ func nextInfraResourceAggregateOffset(offset, limit int, truncated bool) any {
 		return nil
 	}
 	return next
+}
+
+// readModelLegError picks the error a read-model read reports once both of
+// its concurrent legs have returned. A failing leg cancels its sibling, so the
+// sibling then reports context.Canceled; the failing leg's own error is the
+// cause and wins. That keeps a graph-leg ErrGraphReadDeadline or
+// ErrGraphUnavailable (504/503 through WriteGraphReadError) from being masked
+// by the table leg's cancellation (a generic 500). When neither error is a
+// sibling cancellation, the table error wins, as before.
+func readModelLegError(tableErr, graphErr error, tablePrefix, graphPrefix string) error {
+	tableCanceled := errors.Is(tableErr, context.Canceled)
+	graphCanceled := errors.Is(graphErr, context.Canceled)
+	switch {
+	case tableErr != nil && tableCanceled && graphErr != nil && !graphCanceled:
+		return fmt.Errorf("%s: %w", graphPrefix, graphErr)
+	case tableErr != nil:
+		return fmt.Errorf("%s: %w", tablePrefix, tableErr)
+	case graphErr != nil:
+		return fmt.Errorf("%s: %w", graphPrefix, graphErr)
+	default:
+		return nil
+	}
 }

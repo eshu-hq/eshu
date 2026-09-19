@@ -20,7 +20,7 @@ func TestContentWriterBatchesFileInserts(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	// Create 3 file records (small batch, should result in 1 query)
@@ -69,7 +69,7 @@ func TestContentWriterBatchesEntityInserts(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	// Create 2 entity records
@@ -133,7 +133,7 @@ func TestContentWriterLogsStageTimings(t *testing.T) {
 
 	db := &fakeExecQueryer{}
 	var logs bytes.Buffer
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 	writer.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
 
@@ -183,7 +183,7 @@ func TestContentWriterBatchesSmallTombstoneDelete(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	// Create 1 deleted record — the batched path still issues one DELETE
@@ -234,7 +234,7 @@ func TestContentWriterMaterializesHostnameReferences(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	_, err := writer.Write(context.Background(), content.Materialization{
@@ -279,7 +279,7 @@ func TestContentWriterMaterializesServiceNameReferences(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	_, err := writer.Write(context.Background(), content.Materialization{
@@ -315,7 +315,7 @@ func TestContentWriterBatchesLargeFileSet(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	// Create 1000 file records (should result in 2 batches: 500 + 500)
@@ -374,7 +374,7 @@ func TestContentWriterBatchesLargeEntitySet(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	// Create 600 entity records (should result in 2 batches: 300 + 300)
@@ -434,7 +434,7 @@ func TestContentWriterUsesCustomEntityBatchSize(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db).WithEntityBatchSize(200)
+	writer := NewContentWriter(withTransactions(db)).WithEntityBatchSize(200)
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	entities := make([]content.EntityRecord, 450)

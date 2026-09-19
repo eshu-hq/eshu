@@ -27,6 +27,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		RegistryCollectors             []registryCollectorJSON           `json:"registry_collectors,omitempty"`
 		AWSCloudScans                  []awsCloudScanJSON                `json:"aws_cloud_scans,omitempty"`
 		AWSFreshness                   *awsFreshnessJSON                 `json:"aws_freshness,omitempty"`
+		InfraInventory                 *infraInventoryJSON               `json:"infra_inventory,omitempty"`
 		VulnerabilitySources           []vulnerabilitySourceJSON         `json:"vulnerability_sources,omitempty"`
 		SemanticExtraction             semanticExtractionJSON            `json:"semantic_extraction"`
 		AnswerNarration                answerNarrationJSON               `json:"answer_narration"`
@@ -62,6 +63,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		RegistryCollectors:             registryCollectorsJSON(report.RegistryCollectors),
 		AWSCloudScans:                  awsCloudScansJSON(report.AWSCloudScans),
 		AWSFreshness:                   awsFreshnessJSONFromReport(report.AWSFreshness),
+		InfraInventory:                 infraInventoryJSONFromReport(report.InfraInventory),
 		VulnerabilitySources:           vulnerabilitySourcesJSON(report.VulnerabilitySources),
 		SemanticExtraction:             semanticExtractionStatusJSON(report.SemanticExtraction),
 		AnswerNarration:                answerNarrationStatusJSON(report.AnswerNarration),

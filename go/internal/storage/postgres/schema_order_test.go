@@ -225,4 +225,5 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 108 (#6738) gives active-generation liveness and recovery a
 	// direct lookup of unfinished shared intents on a growing backlog.
 	"shared_projection_generation_pending_index",
+	"infra_resource_entities",
 }

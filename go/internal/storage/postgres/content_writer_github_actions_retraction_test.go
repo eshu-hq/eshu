@@ -27,7 +27,7 @@ func TestContentWriterReapsStaleWorkflowEntityAgainstFreshIdentity(t *testing.T)
 		ArtifactType: "ansible_playbook",
 	})
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	if _, err := writer.Write(context.Background(), materialization); err != nil {
@@ -56,7 +56,7 @@ func TestContentWriterPurgesLegacyWorkflowEntityWhenPathBecomesIneligible(t *tes
 		t.Fatal("PurgeEntities = false, want true for legacy artifact classification at an ineligible path")
 	}
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	if _, err := writer.Write(context.Background(), materialization); err != nil {
@@ -78,7 +78,7 @@ func TestContentWriterWorkflowRenameTombstonesOldPathAndKeepsFreshPath(t *testin
 		shape.File{Path: newPath, Body: "name: new\n"},
 	)
 	db := &fakeExecQueryer{}
-	writer := NewContentWriter(db)
+	writer := NewContentWriter(withTransactions(db))
 	writer.Now = func() time.Time { return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) }
 
 	if _, err := writer.Write(context.Background(), materialization); err != nil {

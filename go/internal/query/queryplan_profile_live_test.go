@@ -42,6 +42,7 @@ func TestQueryplanBoundedAnchorOperatorPolicyIsClosed(t *testing.T) {
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":   {"DirectedRelationshipTypeScan"},
 		"QP-INFRA-RESOURCE-SEARCH":                        {"NodeByLabelScan"},
 		"QP-INFRA-RESOURCE-AGGREGATE":                     {"NodeByLabelScan"},
+		"QP-INFRA-RESOURCE-AGGREGATE-GRAPH":               {"NodeByLabelScan", "NodeIndexSeek"},
 		"unregistered-or-indexed-production-path":         {"NodeIndexSeek", "NodeUniqueIndexSeek", "NodeCountFromCountStore"},
 	}
 	for entryID, want := range tests {
@@ -420,6 +421,8 @@ func queryplanBoundedAnchorOperators(entryID string) []string {
 		// Both bound the read; the type scan is the same walk NornicDB's
 		// relationship-aggregation fast path takes.
 		return []string{"NodeByLabelScan", "DirectedRelationshipTypeScan"}
+	case "QP-INFRA-RESOURCE-AGGREGATE-GRAPH":
+		return []string{"NodeByLabelScan", "NodeIndexSeek"}
 	case "QP-RESOURCE-INVESTIGATION-WORKLOADS", "QP-RELATIONSHIPS-EDGES",
 		"QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE":
 		return []string{"DirectedRelationshipTypeScan"}

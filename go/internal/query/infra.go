@@ -81,6 +81,33 @@ var infraCategoryLabels = map[string][]string{
 // the root package.
 var allInfraLabels = querycontract.AllInfraLabels
 
+// infraGraphOnlyLabels are the infra labels the aggregate routes read wholly
+// from the graph, even after the Postgres read model is backfilled (#6793):
+// CloudResource and TerraformStateResource have no content_entities row,
+// because other collectors write them. A test pins that these, plus
+// storage/postgres/infra/inventory.Labels, partition allInfraLabels exactly.
+var infraGraphOnlyLabels = []string{
+	"CloudResource",
+	"TerraformStateResource",
+}
+
+// infraMixedWriterGraphSource maps each read-model label that also has a
+// non-content writer to that writer's evidence_source. The table holds the
+// label's content-derived nodes; the graph read adds only the other writer's
+// nodes, through `WHERE n.evidence_source = $graph_writer_evidence_source`,
+// which the tf_module_evidence_source / tf_output_evidence_source indexes turn
+// into a seek. Reading the whole label from the graph instead would scan every
+// node of it on every request.
+var infraMixedWriterGraphSource = map[string]string{
+	"TerraformModule": "projector/tfstate",
+	"TerraformOutput": "projector/tfstate",
+}
+
+// infraMixedWriterEvidenceSource is the single evidence_source value bound as
+// $graph_writer_evidence_source; a test pins that every entry of
+// infraMixedWriterGraphSource uses it.
+const infraMixedWriterEvidenceSource = "projector/tfstate"
+
 // infraSearchReturnColumns is the single source of truth for
 // searchResources's result columns. Both the per-label CALL branch's inner
 // RETURN and the outer RETURN's column list are generated from this slice

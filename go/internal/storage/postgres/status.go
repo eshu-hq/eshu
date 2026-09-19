@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/semantic"
 
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -150,6 +151,11 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 	if err = done(err); err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	q, done = s.read(ctx, statusReadInfraInventory)
+	infraInventory, err := readInfraInventoryStatus(ctx, q, asOf.UTC())
+	if err = done(err); err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 	q, done = s.read(ctx, statusReadVulnerabilitySources)
 	vulnerabilitySources, err := readVulnerabilitySourceStates(ctx, q)
 	if err = done(err); err != nil {
@@ -197,6 +203,7 @@ func (s StatusStore) ReadStatusSnapshotFiltered(
 		RegistryCollectors:             registryCollectors,
 		AWSCloudScans:                  awsCloudScans,
 		AWSFreshness:                   awsFreshness,
+		InfraInventory:                 infraInventory,
 		VulnerabilitySources:           vulnerabilitySources,
 		CollectorFactEvidence:          collectorFactEvidence,
 		AWSCloudScansTruncated:         awsCloudScansTruncated,
@@ -352,4 +359,21 @@ func durationFromSeconds(value float64) time.Duration {
 		return 0
 	}
 	return time.Duration(value * float64(time.Second))
+}
+
+// readInfraInventoryStatus reports the infra read model's state for the admin
+// status surface: one query for the backfill marker and the rolling-upgrade
+// fence marks (inventory.ReadFenceState).
+func readInfraInventoryStatus(ctx context.Context, queryer db.Queryer, asOf time.Time) (statuspkg.InfraInventorySnapshot, error) {
+	state, err := inventory.ReadFenceState(ctx, queryer, asOf)
+	if err != nil {
+		return statuspkg.InfraInventorySnapshot{}, err
+	}
+	return statuspkg.InfraInventorySnapshot{
+		Reported:       true,
+		State:          state.ReadModelState(),
+		MarkerPresent:  state.MarkerPresent,
+		DirtyRepos:     state.DirtyRepos,
+		OldestDirtyAge: state.OldestDirtyAge,
+	}, nil
 }

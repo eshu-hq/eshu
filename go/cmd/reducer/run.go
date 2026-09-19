@@ -15,6 +15,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/infra/inventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -61,6 +62,9 @@ func run(parent context.Context) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
+	// The fence in migration 109 marks content writes from connections
+	// without the derive-aware writer setting; say loudly if ours lack it.
+	inventory.VerifyWriterSession(parent, postgres.SQLQueryer{DB: db}, logger)
 	if _, err := graphschemacompat.RequireCompatibleForRuntime(parent, postgres.SQLQueryer{DB: db}, os.Getenv); err != nil {
 		return err
 	}

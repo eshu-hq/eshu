@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package inventory
+
+// ForRepositories restricts a Filter to the given repositories so live reader
+// tests stay exact in a shared database. Production readers never restrict by
+// repository in this package: scoped-token reads stay on the graph because
+// two infra labels are authorized through edges a repo-keyed table cannot
+// express.
+func (f Filter) ForRepositories(repoIDs ...string) Filter {
+	f.repoIDs = append([]string(nil), repoIDs...)
+	return f
+}
+
+// ReconcileRepositoriesSQL exposes the walk's repository listing so a live
+// plan proof can EXPLAIN the exact production text.
+const ReconcileRepositoriesSQL = reconcileRepositoriesSQL
+
+// ReconcileDigestSQL exposes the per-repository digest pair so the fence race
+// proof can compare content and table under one reader snapshot.
+var ReconcileDigestSQL = reconcileDigestSQL

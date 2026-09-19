@@ -33,13 +33,23 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			// What that schema itself admitted is retained under
 			// graphSchemaNeo4jPreModuleIdentityFingerprint and asserted by
 			// TestPreModuleIdentitySchemaApplicationCarriesTheChainItAdmitted.
-			compatible: []string{graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint},
+			//
+			// #6793 adds the tf_module/tf_output evidence_source indexes, also
+			// read-side only, so the writer on the schema just before them and
+			// the one before that stay admitted.
+			compatible: []string{
+				graphSchemaNeo4jPreInfraEvidenceSourceIndexFingerprint,
+				graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint,
+			},
 		},
 		{
 			name:        "nornicdb",
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
-			compatible:  []string{graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint},
+			compatible: []string{
+				graphSchemaNornicDBPreInfraEvidenceSourceIndexFingerprint,
+				graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint,
+			},
 		},
 	}
 

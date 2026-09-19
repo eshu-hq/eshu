@@ -204,3 +204,76 @@ Treat `slow` as completed work that remained inside the budget. Treat
 `deadline` as exhausted graph-read work and investigate the query plan. Treat
 `unavailable` as a health or connectivity event and inspect graph backend
 health before retrying.
+
+## Infra resource aggregate read model
+
+`GET /api/v0/infra/resources/count` and `/inventory` (and their MCP tools)
+read content-derived infrastructure nodes from the Postgres
+`infra_resource_entities` table once its backfill has completed. CloudResource,
+TerraformStateResource, and the Terraform state projector's TerraformModule
+and TerraformOutput nodes are still read from the graph, in one pass.
+`eshu_dp_infra_inventory_reads_total{route,source}` counts every read by
+route (`count`, `inventory`) and serving store (`read_model`, `graph`).
+
+- After a deploy, `source="read_model"` should become the unscoped share of
+  traffic within one backfill (`category=cloud` reads stay `graph`, because
+  that category has only graph-only labels). If `source="graph"` stays high
+  for other unscoped traffic, either the backfill has not recorded its
+  marker (`eshu_dp_infra_inventory_backfill_runs_total{outcome="failed"}`
+  rises and the `infra_inventory.backfill.failed` log says why; failed
+  attempts retry with backoff, 30s doubling to 10m, in the same process) or
+  fence marks are not draining (`eshu_dp_infra_inventory_dirty_repos` above
+  zero; see below). The `/admin/status` field `infra_inventory` names which.
+- `eshu_dp_infra_inventory_derives_total{outcome}` counts the content
+  writer's derives. `skipped_not_installed` means a writer ran before
+  migration 109; the content write succeeded and the backfill covers the
+  repository later. `ok_unfenced_session` means the derive succeeded on a
+  connection without the derive-aware writer setting, so the fence marked
+  its content writes; the `infra_inventory.derive.unfenced_session` log and,
+  at startup, `postgres.session_unfenced` name the cause (usually a
+  connection pooler that does not forward `eshu.infra_inventory_writer`).
+  `error` fails the content write, which then retries.
+- Runbook: `eshu_dp_infra_inventory_dirty_repos > 0` after every pod runs the
+  new release means an unfenced session is still writing `content_entities`:
+  a pooler stripping the writer setting, an operator `psql` session, or an
+  unknown binary. Unscoped count and inventory routes serve from the graph
+  until the reducer drains the marks; `/admin/status` field
+  `infra_inventory` shows `state=fenced`, the count, and the oldest mark's
+  age. If `dirty_oldest_age_seconds` keeps growing, the reconcile loop is not
+  running (`ESHU_INFRA_INVENTORY_RECONCILE_ENABLED=false`, or the reducer is
+  still an older release).
+- The reducer's reconcile loop compares each repository's table rows with its
+  content rows (row count plus a per-row hash).
+  `eshu_dp_infra_inventory_reconcile_total{outcome}` counts repositories
+  checked: `match`, `suspect`, `repaired`, `fenced`, or `error`. A single mismatch is
+  only `suspect`: a content Write commits its content rows before its derive
+  runs, so a check between the two sees the table behind. Suspects are
+  re-checked on the next cycle and repaired only if they still differ, so
+  `repaired` means a repository differed on two checks at least one
+  `ESHU_INFRA_INVENTORY_RECONCILE_INTERVAL` apart. That is a content writer
+  that is not deriving (for example an older ingester or projector still
+  running), a Write whose derive failed and has not retried yet, or, rarely,
+  two checks that both landed inside Writes of a repository being re-indexed
+  continuously. Each repair logs `infra_inventory.reconcile.drift` with
+  `repo_id` and the row counts; the same `repo_id` repeating across walks is
+  the drift signal to chase. A steady `suspect` count during heavy ingestion
+  is normal. `error` also counts a whole cycle that failed (for example the
+  repository listing), not only single repositories.
+  `eshu_dp_infra_inventory_reconcile_duration_seconds` (failed cycles
+  included) and the span `reducer.infra_inventory_reconcile` time each cycle.
+  The walk position is persisted, so a restarted reducer resumes it. The loop
+  does nothing until the backfill marker exists.
+- `fenced` counts repositories an older binary (or manual SQL) wrote without
+  deriving, typically during a rolling upgrade. Migration 109's triggers mark
+  such a repository in the same statement; unscoped reads stay on the graph
+  (`eshu_dp_infra_inventory_reads_total{source="graph"}`) while any repository
+  is marked, and the next reconcile cycle re-derives it and clears the mark.
+  Each one logs `infra_inventory.reconcile.fenced` with `repo_id`, and the
+  cycle span carries `eshu.infra_inventory.repos_fenced`. `fenced` that keeps
+  appearing after a rollout finished means something outside the Eshu
+  runtimes is still writing `content_entities`.
+- Scoped-token reads always count as `source="graph"`.
+- The content writer logs the per-Write derive as stage
+  `derive_infra_inventory` (`path_count`, `rows_deleted`, `rows_inserted`,
+  `duration_seconds`). Its statements are timed by
+  `eshu_dp_postgres_query_duration_seconds`.

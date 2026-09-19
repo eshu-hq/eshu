@@ -90,7 +90,7 @@ func TestLiveInfraProviderInventoryBucketsNonNull(t *testing.T) {
 	}
 
 	// InfraResourceInventory by-provider (the /infra/resources/inventory dimension).
-	rows, err := store.InfraResourceInventory(ctx, InfraResourceAggregateFilter{}, InfraResourceInventoryByProvider, 100, 0)
+	rows, _, err := store.InfraResourceInventory(ctx, InfraResourceAggregateFilter{}, InfraResourceInventoryByProvider, 100, 0)
 	if err != nil {
 		t.Fatalf("InfraResourceInventory by-provider: %v", err)
 	}
