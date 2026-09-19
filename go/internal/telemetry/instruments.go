@@ -760,15 +760,20 @@ type Instruments struct {
 	// resource aggregate routes by which store served them (#6793). Labels:
 	// route (count, inventory) and source (read_model, graph). read_model
 	// means the Postgres infra_resource_entities table served the
-	// content-derived nodes, with one graph pass for the rest;
-	// graph means the full per-label graph path served the read, because the
-	// caller is a scoped token or the table's backfill marker is not recorded
-	// yet. A graph share that does not fall to near zero after a deploy
-	// means the backfill never completed.
+	// content-derived nodes, with one graph pass for the rest; graph means no
+	// table served the read: the caller is a scoped token, the read model is
+	// not ready (the backfill marker is not recorded yet, or a repository
+	// carries a rolling-upgrade fence mark), or the category resolves only
+	// graph-only labels (category=cloud). An unscoped graph share that does
+	// not fall to near zero after a deploy means the backfill never completed
+	// or fence marks are not draining (see InfraInventoryDirtyRepos).
 	InfraInventoryReads metric.Int64Counter
 	// InfraInventoryDerives counts content-writer derives of the infra read
-	// model by outcome (#6793): ok, skipped_not_installed (migration 109 not
-	// applied yet; the content Write still succeeds and the backfill covers the
+	// model by outcome (#6793): ok, ok_unfenced_session (the derive succeeded
+	// on a connection without the derive-aware writer setting, so the fence
+	// marked its content writes and readers stay on the graph until the
+	// reducer repairs them), skipped_not_installed (migration 109 not applied
+	// yet; the content Write still succeeds and the backfill covers the
 	// repository later), or error (the content Write fails and retries).
 	InfraInventoryDerives metric.Int64Counter
 	// InfraInventoryBackfillRuns counts background infra read model backfill
@@ -778,13 +783,18 @@ type Instruments struct {
 	InfraInventoryBackfillRuns metric.Int64Counter
 	// InfraInventoryReconcile counts repositories the reducer's infra read
 	// model reconcile checked, by outcome: match (table equals
-	// content_entities), repaired (it differed and was re-derived under the
-	// repository lock), or error (the check or repair failed, or the cycle
-	// could not list repositories; retried next cycle). A sustained repaired
-	// rate outside a deploy window means some content writer is not deriving.
+	// content_entities), suspect (it differed once and is re-checked next
+	// cycle; nothing written), repaired (it differed on two checks and was
+	// re-derived under the repository lock), fenced (it carried a
+	// rolling-upgrade fence mark and was re-derived, once per mark), or error
+	// (the check or repair failed, or the cycle could not claim its page;
+	// retried next cycle). A sustained repaired or fenced rate outside a
+	// deploy window means some content writer is not deriving.
 	InfraInventoryReconcile metric.Int64Counter
-	// InfraInventoryReconcileDuration records the wall time of one reconcile
-	// cycle (at most the configured repository budget).
+	// InfraInventoryReconcileDuration records the wall time of one ready
+	// reconcile cycle (at most the configured repository budget), failed
+	// cycles included; a cycle that ran before the backfill marker exists is
+	// not recorded.
 	InfraInventoryReconcileDuration metric.Float64Histogram
 	// InfraInventoryDirtyRepos records, each reducer reconcile cycle, how many
 	// repositories carry a rolling-upgrade fence mark (#6793). While it is
@@ -3267,8 +3277,9 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		"eshu_dp_infra_inventory_reads_total",
 		metric.WithDescription(
 			"Total infra resource aggregate reads by route and serving store; "+
-				"source=read_model is the Postgres infra read model, source=graph is the full graph path "+
-				"(scoped tokens, or before the read model backfill marker exists)",
+				"source=read_model is the Postgres infra read model, source=graph is a graph-only read "+
+				"(scoped tokens, a read model that is not ready because the backfill marker is missing or a "+
+				"fence mark exists, or a graph-only category)",
 		),
 	)
 	if err != nil {

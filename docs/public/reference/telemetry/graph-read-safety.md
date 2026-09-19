@@ -216,11 +216,14 @@ and TerraformOutput nodes are still read from the graph, in one pass.
 route (`count`, `inventory`) and serving store (`read_model`, `graph`).
 
 - After a deploy, `source="read_model"` should become the unscoped share of
-  traffic within one backfill. If `source="graph"` stays high for unscoped
-  traffic, the backfill has not recorded its marker:
-  `eshu_dp_infra_inventory_backfill_runs_total{outcome="failed"}` rises and
-  the `infra_inventory.backfill.failed` log says why. Failed attempts retry
-  with backoff (30s doubling to 10m) in the same process.
+  traffic within one backfill (`category=cloud` reads stay `graph`, because
+  that category has only graph-only labels). If `source="graph"` stays high
+  for other unscoped traffic, either the backfill has not recorded its
+  marker (`eshu_dp_infra_inventory_backfill_runs_total{outcome="failed"}`
+  rises and the `infra_inventory.backfill.failed` log says why; failed
+  attempts retry with backoff, 30s doubling to 10m, in the same process) or
+  fence marks are not draining (`eshu_dp_infra_inventory_dirty_repos` above
+  zero; see below). The `/admin/status` field `infra_inventory` names which.
 - `eshu_dp_infra_inventory_derives_total{outcome}` counts the content
   writer's derives. `skipped_not_installed` means a writer ran before
   migration 109; the content write succeeded and the backfill covers the
