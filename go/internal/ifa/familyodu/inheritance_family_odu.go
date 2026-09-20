@@ -288,7 +288,7 @@ var inheritanceFamilyNilParserKeys = []string{
 // functions cover most domains (grep confirms none named for inheritance);
 // production enqueues it exclusively via
 // inheritanceMaterializationFactEnvelope
-// (go/internal/collector/repo/git/git_followup_facts.go), whose payload shape
+// (go/internal/collector/repo/git/followup_facts.go), whose payload shape
 // this mirrors exactly (#5992 measured the codeowners/documentation analog of
 // this same omission producing zero reducer intents against a live stack).
 func inheritanceFamilyFollowupFact() facts.Envelope {
