@@ -16,7 +16,7 @@ func TestReadOnlyToolsKeepsAskRegistrationPosition(t *testing.T) {
 		if tool.Name != "ask" {
 			continue
 		}
-		if got, want := index+1, 160; got != want {
+		if got, want := index+1, 162; got != want {
 			t.Fatalf("ask registration position = %d, want %d", got, want)
 		}
 		if index == 0 || index+1 >= len(tools) {

@@ -10,6 +10,7 @@ import (
 	asktools "github.com/eshu-hq/eshu/go/internal/mcp/ask"
 	cloudtools "github.com/eshu-hq/eshu/go/internal/mcp/cloud"
 	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
+	codedivergencetools "github.com/eshu-hq/eshu/go/internal/mcp/code/divergence"
 	codeflowtools "github.com/eshu-hq/eshu/go/internal/mcp/code/flow"
 	codeownerstools "github.com/eshu-hq/eshu/go/internal/mcp/code/owners"
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
@@ -192,6 +193,15 @@ func codeownersTools() []ToolDefinition {
 // index.
 func codeQualityTools() []ToolDefinition {
 	return codequalitytools.Tools()
+}
+
+// codeDivergenceTools preserves the root package's constructor name while the
+// code/divergence package owns the registration definitions. The codebase
+// group splices the whole family slice at its long-standing position, so a
+// future arity change registers automatically instead of panicking on an
+// index.
+func codeDivergenceTools() []ToolDefinition {
+	return codedivergencetools.Tools()
 }
 
 // contextTools preserves the root package's constructor name while composing

@@ -120,6 +120,18 @@ func discoverRepositoryScopedSelectors(client *http.Client, apiBaseURL, userToke
 				"relative_path": {"relative_path", "path"},
 			},
 		},
+		{
+			// Divergence fingerprint discovery: the first finding's
+			// fingerprint addresses the investigate probe. Optional: a
+			// repository with no duplicate-function families simply
+			// leaves the class undiscovered and the investigate probe
+			// unresolved, same as any other empty discovery source.
+			path: "/api/v0/code/divergence/findings",
+			body: map[string]any{"repo_id": repositoryID, "limit": 1},
+			classes: map[string][]string{
+				"fingerprint": {"fingerprint"},
+			},
+		},
 	} {
 		payload, err := fetchOptionalSelectorJSONSource(client, apiBaseURL, userToken, source.path, source.body)
 		if err != nil {

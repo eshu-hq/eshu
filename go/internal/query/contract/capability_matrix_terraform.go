@@ -13,6 +13,7 @@ var canonicalCapabilityOrder = []string{
 	"code_search.exact_symbol",
 	"code_search.fuzzy_symbol",
 	"code_search.symbol_lookup",
+	"code_divergence.findings",
 	"code_inventory.structural",
 	"code_flow.taint_path",
 	"code_flow.reaching_def",

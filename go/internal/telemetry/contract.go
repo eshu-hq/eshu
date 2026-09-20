@@ -605,6 +605,7 @@ const (
 	// out of span and metric labels.
 	SpanQueryCloudRuntimeDriftFindings   = "query.cloud_runtime_drift_findings"
 	SpanQueryCodeStructuralInventory     = "query.code_structural_inventory"
+	SpanQueryCodeDivergence              = "query.code_divergence_findings"
 	SpanQueryCodeTopicInvestigation      = "query.code_topic_investigation"
 	SpanQueryDeadCodeInvestigation       = "query.dead_code_investigation"
 	SpanQueryChangeSurfaceInvestigation  = "query.change_surface_investigation"

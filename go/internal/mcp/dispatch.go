@@ -15,6 +15,7 @@ import (
 	"net/url"
 
 	deadcodetools "github.com/eshu-hq/eshu/go/internal/mcp/code/dead"
+	codedivergencetools "github.com/eshu-hq/eshu/go/internal/mcp/code/divergence"
 	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 	contenttools "github.com/eshu-hq/eshu/go/internal/mcp/content"
@@ -183,6 +184,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := codeQualityRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := codeDivergenceRoute(toolName, args); ok {
+		return route, nil
+	}
 	if route, ok := entityResolutionRoute(toolName, args); ok {
 		return route, nil
 	}
@@ -323,6 +327,16 @@ func deadCodeRoute(toolName string, args map[string]any) (*route, bool) {
 // its dirgate pin.
 func codeQualityRoute(toolName string, args map[string]any) (*route, bool) {
 	return adaptChildRoute(codequalitytools.Route(toolName, routecontract.Arguments(args)))
+}
+
+// codeDivergenceRoute adapts the child package's divergence request
+// selection into the root dispatcher's transport route, exactly as
+// codeQualityRoute above adapts its family: same delegation position
+// discipline (family-grouped, after quality), same dirgate reason for
+// living in this file. The adapter claims tool names exactly and no other
+// arm claims these two.
+func codeDivergenceRoute(toolName string, args map[string]any) (*route, bool) {
+	return adaptChildRoute(codedivergencetools.Route(toolName, routecontract.Arguments(args)))
 }
 
 // entityResolutionRoute adapts the child package's entity-resolution request

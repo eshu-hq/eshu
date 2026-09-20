@@ -125,7 +125,7 @@ func TestGraphReadProbeRegistryCoversCurrentDirectSurfaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("currentAPIAndMCPSurfaces() error = %v", err)
 	}
-	if got, want := len(targets), 419; got != want {
+	if got, want := len(targets), 423; got != want {
 		t.Fatalf("current target count = %d, want checked-in current manifest count %d", got, want)
 	}
 }
@@ -135,7 +135,7 @@ func TestCurrentProbeRegistryClassifiesEverySurfaceWithoutGenericUnsupported(t *
 	if err != nil {
 		t.Fatalf("buildCurrentProbeRegistry() error = %v", err)
 	}
-	if got, want := len(registry), 419; got != want {
+	if got, want := len(registry), 423; got != want {
 		t.Fatalf("registry count = %d, want %d", got, want)
 	}
 	seen := map[string]struct{}{}
@@ -187,7 +187,7 @@ func TestCurrentProbeRegistryIsRedactedAndClassifiesMappedDelta(t *testing.T) {
 		"repository_id": {}, "repository_name": {}, "service_id": {}, "service_name": {}, "workload_id": {},
 		"entity_id": {}, "cloud_resource_id": {}, "arn": {}, "search_term": {}, "relative_path": {}, "scope_id": {},
 		"generation_id": {}, "terraform_state_scope": {}, "package_id": {}, "fact_kind": {}, "collector_family": {},
-		"component_id": {}, "finding_id": {}, "packet_id": {}, "incident_id": {}, "relationship_id": {},
+		"component_id": {}, "finding_id": {}, "fingerprint": {}, "packet_id": {}, "incident_id": {}, "relationship_id": {},
 		"workflow_id": {}, "playbook_id": {}, "tag": {}, "oci_repository_id": {},
 	}
 	unknownSelectors := map[string]struct{}{}
@@ -338,7 +338,7 @@ func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
 		"relative_path": "README.md", "scope_id": "repo-scope-fixture", "generation_id": "generation-fixture",
 		"terraform_state_scope": "state_snapshot:s3:fixture", "package_id": "package-fixture",
 		"fact_kind": "repository", "collector_family": "repository", "component_id": "component-fixture",
-		"finding_id": "finding-fixture", "packet_id": "packet-fixture", "relationship_id": "relationship-fixture",
+		"finding_id": "finding-fixture", "fingerprint": "fingerprint-fixture", "packet_id": "packet-fixture", "relationship_id": "relationship-fixture",
 		"workflow_id": "workflow-fixture", "playbook_id": "playbook-fixture", "tag": "tag-fixture",
 		"oci_repository_id": "oci-registry://ghcr.io/eshu-hq/demo",
 	}
@@ -352,7 +352,7 @@ func TestCurrentProbeRegistryResolvesEveryExecutableFixture(t *testing.T) {
 			t.Errorf("resolveProbeSelectors(%s) error = %v", probe.identity, err)
 		}
 	}
-	if got, want := classified, 419; got != want {
+	if got, want := classified, 423; got != want {
 		t.Fatalf("classified registry entries = %d, want %d", got, want)
 	}
 }

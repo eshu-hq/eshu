@@ -91,6 +91,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:ci_cd.run_correlations.list` | baseline | capability_claim | capability-inventory | `ci_cd.run_correlations.list` |
 | `capability:cloud_inventory.readback.list` | baseline | capability_claim | capability-inventory | `cloud_inventory.readback.list` |
 | `capability:cloud_runtime_drift.readback.list` | baseline | capability_claim | capability-inventory | `cloud_runtime_drift.readback.list` |
+| `capability:code_divergence.findings` | baseline | capability_claim | capability-inventory | `code_divergence.findings` |
 | `capability:code_flow.cfg_summary` | baseline | capability_claim | capability-inventory | `code_flow.cfg_summary` |
 | `capability:code_flow.pdg_summary` | baseline | capability_claim | capability-inventory | `code_flow.pdg_summary` |
 | `capability:code_flow.reaching_def` | baseline | capability_claim | capability-inventory | `code_flow.reaching_def` |
