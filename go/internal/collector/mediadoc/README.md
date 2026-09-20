@@ -13,7 +13,7 @@ provenance without promoting transcript text to graph truth.
 ## Ownership boundary
 
 This package owns the post-preflight transcript fact boundary for local media
-inputs. It calls `mediapreflight` first, invokes only an injected transcript
+inputs. It calls `media` preflight first, invokes only an injected transcript
 engine for supported inputs, redacts sensitive-looking transcript segments, and
 emits `documentation_document`, timestamped `documentation_section`, and
 provenance-only `documentation_entity_mention` envelopes.
@@ -42,7 +42,7 @@ See `doc.go` for the godoc-rendered package contract.
 
 ## Dependencies
 
-The package depends on `internal/collector/mediapreflight` for metadata-only
+The package depends on `internal/collector/preflight/media` for metadata-only
 media gating, `internal/doctruth` for conservative mention extraction,
 `internal/facts` for documentation payload and envelope contracts, and
 `internal/scope` for the documentation collector kind. It uses only the Go
@@ -57,7 +57,7 @@ segment counts, redaction counts, logs, spans, and status evidence before
 enablement.
 
 Collector Performance Evidence: `go test ./internal/collector/mediadoc
-./internal/collector/mediapreflight ./internal/doctruth -count=1` proves
+./internal/collector/preflight/media ./internal/doctruth -count=1` proves
 transcript fact construction is bounded by media preflight limits, synthetic
 transcript segments, section text bounds, and deterministic mention extraction
 without adding discovery, queue, graph, or runtime work.
@@ -104,5 +104,5 @@ readback surfaces already carry the emitted documentation facts.
 
 - `docs/internal/design/1737-visual-media-documentation-ingestion.md`
 - `docs/public/reference/incident-media-evidence.md`
-- `go/internal/collector/mediapreflight/README.md`
+- `go/internal/collector/preflight/media/README.md`
 - `docs/public/reference/local-testing.md`

@@ -5,7 +5,7 @@
 1. `go/internal/collector/mediadoc/README.md`
 2. `go/internal/collector/mediadoc/doc.go`
 3. `go/internal/collector/mediadoc/extract.go`
-4. `go/internal/collector/mediapreflight/README.md`
+4. `go/internal/collector/preflight/media/README.md`
 5. `docs/internal/design/1737-visual-media-documentation-ingestion.md`
 
 ## Invariants
@@ -17,7 +17,7 @@
   and provenance-only `documentation_entity_mention` facts. Do not emit claim
   candidates, graph edges, service truth, deployment truth, incident truth, or
   ownership truth from transcript text.
-- Run `mediapreflight` before calling a transcript engine. Non-WAV codecs stay
+- Run `media` preflight before calling a transcript engine. Non-WAV codecs stay
   unsupported until a codec or container dependency review lands.
 - Do not persist raw media bytes, audio samples, video frames, subtitle text,
   speaker names, local paths, private URLs, credentials, usernames, attendee
