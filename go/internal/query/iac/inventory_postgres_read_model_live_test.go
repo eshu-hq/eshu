@@ -131,6 +131,26 @@ CREATE TABLE infra_resource_entity_dirty_repos (
 		t.Fatalf("create proof read model tables: %v", err)
 	}
 	seedIaCInventoryLiveProof(t, ctx, conn)
+	// Module-address rows covering every branch of the module-name CASE:
+	// bare (module.vpc.…), quoted (module."vpc".…), and for_each-indexed
+	// (…main["a"]). All three derive module "vpc" on both paths. They live
+	// in this test's schema only, so the shared seed helper's other
+	// consumers are unaffected.
+	for _, name := range []string{
+		"module.vpc.aws_subnet.main",
+		`module."vpc".aws_subnet.quoted`,
+		`module.vpc.aws_subnet.indexed["a"]`,
+	} {
+		if _, err := conn.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, payload)
+VALUES ($1, 'scope:s1', 'generation:active', 'content_entity',
+  jsonb_build_object('entity_id', $2::text, 'entity_name', $3::text, 'entity_type', 'TerraformResource',
+    'relative_path', 'vpc.tf', 'repo_id', 'repository:r1',
+    'entity_metadata', jsonb_build_object('resource_type', 'aws_subnet', 'provider', 'aws')))`,
+			"fact:"+name, "content-entity:"+name, name); err != nil {
+			t.Fatalf("seed module fact %s: %v", name, err)
+		}
+	}
 
 	unscoped := querycontract.RepositoryAccessFilter{AllScopes: true}
 	scoped := issue5262ScopedAccess("repository:r1", "scope:s1")
@@ -143,6 +163,7 @@ CREATE TABLE infra_resource_entity_dirty_repos (
 		{Kind: resourceKindResource, Provider: "aws", Limit: 10},
 		{Kind: resourceKindModule, Limit: 10},
 		{Kind: resourceKindModule, Query: "module", Limit: 10},
+		{Kind: resourceKindResource, Module: "vpc", Limit: 10},
 		{Kind: resourceKindDataSource, Limit: 10},
 		{Kind: resourceKindResource, Repository: "repository:r2", Limit: 10},
 		{Kind: resourceKindResource, Limit: 1},
@@ -213,6 +234,14 @@ INSERT INTO infra_resource_entities (
 		"TerraformDataSource", "data.aws_caller_identity.current", "", "aws_caller_identity", "aws")
 	insertTableRow("content-entity:private", "repository:r2", "private.tf",
 		"TerraformResource", "aws_s3_bucket.private", "aws_s3_bucket", "", "aws")
+	for _, name := range []string{
+		"module.vpc.aws_subnet.main",
+		`module."vpc".aws_subnet.quoted`,
+		`module.vpc.aws_subnet.indexed["a"]`,
+	} {
+		insertTableRow("content-entity:"+name, "repository:r1", "vpc.tf",
+			"TerraformResource", name, "aws_subnet", "", "aws")
+	}
 	if _, err := conn.ExecContext(ctx, `
 INSERT INTO infra_resource_entity_backfill_markers (marker_name, completed_at)
 VALUES ($1, now())`, inventory.BackfillMarker); err != nil {
@@ -240,6 +269,12 @@ VALUES ($1, now())`, inventory.BackfillMarker); err != nil {
 			if got[j].GenerationID != "" {
 				t.Fatalf("search %d candidate %d: table generation = %q, want backfill empty", i, j, got[j].GenerationID)
 			}
+		}
+		// The Module predicate must match all three address branches on
+		// both paths -- a vacuous empty-equals-empty would hide a broken
+		// module-name derivation.
+		if search.Module == "vpc" && len(got) != 3 {
+			t.Fatalf("module vpc search returned %d candidates, want 3 (bare, quoted, indexed)", len(got))
 		}
 	}
 	tableSummary, err := tableStore.Summary(ctx, unscoped, 200)
