@@ -107,6 +107,10 @@ type CICDRunCorrelationHandler struct {
 	// join whose producer scopes have not activated defers instead. Optional:
 	// nil keeps the pre-#5709 behaviour.
 	ProducerReadiness crossscope.ProducerReadiness
+	// ReadinessWaits is the (scope, domain) readiness-wait ledger that
+	// anchors the producer-wait bound across superseding generations
+	// (#6814). Nil keeps the pre-ledger per-row bound.
+	ReadinessWaits crossscope.ReadinessWaitLedger
 	// Logger records a cross-scope readiness deferral as its own structured
 	// line. Optional: nil silences it. Worth wiring -- the deferral's failure
 	// class freezes attempt_count, so the queue row alone cannot tell an
@@ -161,8 +165,8 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent reducercon
 	// this pass asks nothing, which is not a producer readiness miss.
 	identityLoader := h.crossScopeIdentityLookup(digests, imageRefs)
 	readinessSampledAt := time.Now()
-	readinessSignal, err := crossscope.CheckProducerReadinessBeforeLoad(
-		ctx, h.ProducerReadiness, intent, readinessSampledAt,
+	readinessSignal, err := crossscope.CheckProducerReadinessBeforeLoadWithLedger(
+		ctx, h.ReadinessWaits, h.ProducerReadiness, intent, readinessSampledAt,
 		identityLoader != nil,
 	)
 	if err != nil {
@@ -175,11 +179,10 @@ func (h CICDRunCorrelationHandler) Handle(ctx context.Context, intent reducercon
 	// Returned unwrapped so the queue reads the non-counting failure class off
 	// it (#5709).
 	resolvedByProducer := crossscope.SingleProducerResolvedCounts(readinessSignal.ProducerDomains, len(active))
-	if unready := crossscope.UnreadyProducers(readinessSignal, resolvedByProducer); len(unready) > 0 {
-		crossscope.LogProducerNotReadyDefer(ctx, h.Logger, intent, readinessSampledAt, unready)
-		return reducercontract.Result{}, crossscope.NewProducerNotReadyError(
-			intent.Domain, intent.ScopeID, intent.GenerationID, unready,
-		)
+	if err := crossscope.ApplyProducerReadinessPostLoad(
+		ctx, h.Logger, h.ReadinessWaits, readinessSignal, resolvedByProducer, intent, readinessSampledAt,
+	); err != nil {
+		return reducercontract.Result{}, err
 	}
 	envelopes = append(envelopes, active...)
 

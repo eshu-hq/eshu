@@ -16,9 +16,11 @@
 // derived, ambiguous, unresolved, and rejected decisions so downstream
 // domains (supply_chain_impact) can see both truth and suppressed evidence.
 // A cross-scope join runs behind the #5709 producer-readiness floor
-// ([crossscope.CheckProducerReadinessBeforeLoad]): a correlation that would
-// otherwise run before the container_image_identity scope activates defers
-// instead of writing a durable "no answer."
+// ([crossscope.CheckProducerReadinessBeforeLoadWithLedger]): a correlation
+// that would otherwise run before the container_image_identity scope
+// activates defers instead of writing a durable "no answer." The wait is
+// anchored on the shared readiness-wait ledger, so the bound survives
+// supersession (#6814).
 //
 // This package imports [github.com/eshu-hq/eshu/go/internal/reducer/contract]
 // (the dependency-neutral domain/intent/result vocabulary),

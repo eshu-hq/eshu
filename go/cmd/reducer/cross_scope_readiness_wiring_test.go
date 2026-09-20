@@ -77,6 +77,21 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadiness(t *testing.T) {
 	if !database.probedProducerQuiescence {
 		t.Fatal("the producer-quiescence probe never ran: the readiness store is not wired")
 	}
+	// The deferral anchors its bound on the readiness-wait ledger (#6814), so
+	// the pass must read the row and record its wait even on the first defer.
+	if !database.readReadinessWait {
+		t.Fatal("the readiness-wait ledger was never read: the #6814 anchor is not wired")
+	}
+	recorded := false
+	for _, exec := range database.execs {
+		if strings.Contains(exec.query, "reducer_readiness_waits") {
+			recorded = true
+			break
+		}
+	}
+	if !recorded {
+		t.Fatal("the deferral recorded no readiness wait: the #6814 anchor is not wired")
+	}
 
 	// The logger is wired separately and fails silently on its own. Without it
 	// a deferral leaves no elapsed-versus-bound signal anywhere, because this
@@ -149,6 +164,21 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
 	if !database.probedProducerQuiescence {
 		t.Fatal("the producer-quiescence probe never ran: the readiness store is not wired")
 	}
+	// The deferral anchors its bound on the readiness-wait ledger (#6814), so
+	// the pass must read the row and record its wait even on the first defer.
+	if !database.readReadinessWait {
+		t.Fatal("the readiness-wait ledger was never read: the #6814 anchor is not wired")
+	}
+	recorded := false
+	for _, exec := range database.execs {
+		if strings.Contains(exec.query, "reducer_readiness_waits") {
+			recorded = true
+			break
+		}
+	}
+	if !recorded {
+		t.Fatal("the deferral recorded no readiness wait: the #6814 anchor is not wired")
+	}
 
 	// The logger is wired separately and fails silently on its own. Without it
 	// a deferral leaves no elapsed-versus-bound signal anywhere, because this
@@ -171,6 +201,7 @@ func TestBuildReducerServiceWiresCrossScopeProducerReadinessForSupplyChainImpact
 type supplyChainReadinessWiringDB struct {
 	fakeReducerDB
 	probedProducerQuiescence bool
+	readReadinessWait        bool
 }
 
 func (f *supplyChainReadinessWiringDB) QueryContext(
@@ -200,6 +231,12 @@ func (f *supplyChainReadinessWiringDB) QueryContext(
 		return &crossScopeReadinessRows{rows: [][]any{
 			supplyChainReadinessConsumptionFactRow("scope-123", "generation-456"),
 		}}, nil
+	}
+	// The readiness-wait ledger read (#6814). No wait stands, so the deferral
+	// anchors at the claimed row exactly as before the ledger existed.
+	if strings.Contains(query, "FROM reducer_readiness_waits") {
+		f.readReadinessWait = true
+		return &crossScopeReadinessRows{}, nil
 	}
 	return f.fakeReducerDB.QueryContext(ctx, query, args...)
 }
@@ -278,6 +315,7 @@ func supplyChainReadinessConsumptionFactRow(scopeID, generationID string) []any 
 type crossScopeReadinessWiringDB struct {
 	fakeReducerDB
 	probedProducerQuiescence bool
+	readReadinessWait        bool
 }
 
 func (f *crossScopeReadinessWiringDB) QueryContext(
@@ -303,6 +341,12 @@ func (f *crossScopeReadinessWiringDB) QueryContext(
 		return &crossScopeReadinessRows{rows: [][]any{
 			crossScopeReadinessArtifactFactRow("scope-123", "generation-456"),
 		}}, nil
+	}
+	// The readiness-wait ledger read (#6814). No wait stands, so the deferral
+	// anchors at the claimed row exactly as before the ledger existed.
+	if strings.Contains(query, "FROM reducer_readiness_waits") {
+		f.readReadinessWait = true
+		return &crossScopeReadinessRows{}, nil
 	}
 	return f.fakeReducerDB.QueryContext(ctx, query, args...)
 }

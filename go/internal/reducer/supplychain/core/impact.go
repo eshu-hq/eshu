@@ -111,6 +111,10 @@ type SupplyChainImpactHandler struct {
 	// that no later event disturbs. When wired, such a pass defers instead.
 	// Optional: nil keeps the pre-#5709 behaviour.
 	ProducerReadiness crossscope.ProducerReadiness
+	// ReadinessWaits is the (scope, domain) readiness-wait ledger that
+	// anchors the producer-wait bound across superseding generations
+	// (#6814). Nil keeps the pre-ledger per-row bound.
+	ReadinessWaits crossscope.ReadinessWaitLedger
 	// Logger records a cross-scope readiness deferral as its own structured
 	// line. Optional: nil silences it. Worth wiring -- the deferral's failure
 	// class freezes attempt_count, so the queue row alone cannot tell an

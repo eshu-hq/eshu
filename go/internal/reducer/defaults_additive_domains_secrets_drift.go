@@ -54,6 +54,7 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 			Instruments:        handlers.Instruments,
 			Logger:             handlers.AWSCloudRuntimeDriftLogger,
 			ReadinessChecker:   handlers.AWSCloudRuntimeDriftReadinessChecker,
+			ReadinessWaits:     handlers.ReadinessWaits,
 			FencingTokenIssuer: handlers.AWSCloudRuntimeDriftFencingTokenIssuer,
 		}
 		definitions = append(definitions, awsRuntimeDrift)

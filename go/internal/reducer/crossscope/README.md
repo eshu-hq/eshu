@@ -21,8 +21,13 @@ This package owns:
 
 - The readiness floor: `ProducerReadiness` (the port), `ProducerReadinessByDomain`,
   `ProducerReadinessSignal`, `CheckProducerReadinessBeforeLoad`,
-  `UnreadyProducers`, `SingleProducerResolvedCounts`, `ReadinessCycleAnchor`,
-  `LogProducerNotReadyDefer`, and `ProducerReadinessMaxWait`.
+  `CheckProducerReadinessBeforeLoadWithLedger`,
+  `ApplyProducerReadinessPostLoad`, `UnreadyProducers`,
+  `SingleProducerResolvedCounts`, `ReadinessCycleAnchor`,
+  `LogProducerNotReadyDefer`, and `ProducerReadinessMaxWait`. The WithLedger
+  pair anchors the elapsed bound on the readiness-wait ledger so it survives
+  supersession (#6814); the row-anchored single function stays for unwired
+  callers and its pin tests.
 - The readiness error: `ProducerNotReadyError`, `NewProducerNotReadyError`, and
   `ProducerNotReadyFailureClass`.
 - The dependency catalog: the unexported `dependencyCatalog`, plus
@@ -53,8 +58,9 @@ for the compatibility forwarders it keeps).
 
 The tier is genuinely shared, not merely convenient to share: both
 `ci_cd_run_correlation` and `supply_chain_impact` are registered consumers in
-the catalog, and `LogProducerNotReadyDefer` is called from both
-`ci_cd_run_correlation.go` and `evidence_load.go`. Moving
+the catalog, and `ApplyProducerReadinessPostLoad` is called from both
+`ci_cd_run_correlation.go` and `evidence_load.go` (it logs through the same
+defer line `LogProducerNotReadyDefer` emits). Moving
 it into either family's subpackage would leave the other needing to import a
 sibling family, which the restructure forbids — families import shared-core
 tiers, never each other.

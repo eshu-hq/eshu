@@ -278,8 +278,8 @@ func (h SupplyChainImpactHandler) armCrossScopeProducerFloor(
 	filter SupplyChainImpactFactFilter,
 ) (supplyChainImpactCrossScopeFloor, error) {
 	sampledAt := time.Now()
-	signal, err := crossscope.CheckProducerReadinessBeforeLoad(
-		ctx, h.ProducerReadiness, intent, sampledAt, h.crossScopeProducerLookupPlanned(filter),
+	signal, err := crossscope.CheckProducerReadinessBeforeLoadWithLedger(
+		ctx, h.ReadinessWaits, h.ProducerReadiness, intent, sampledAt, h.crossScopeProducerLookupPlanned(filter),
 	)
 	if err != nil {
 		return supplyChainImpactCrossScopeFloor{}, err
@@ -330,12 +330,9 @@ func (h SupplyChainImpactHandler) crossScopeProducerDeferralAfterLoad(
 	for producer, before := range floor.producerFactsBefore {
 		resolved[producer] -= before
 	}
-	unready := crossscope.UnreadyProducers(floor.signal, resolved)
-	if len(unready) == 0 {
-		return nil
-	}
-	crossscope.LogProducerNotReadyDefer(ctx, h.Logger, intent, floor.sampledAt, unready)
-	return crossscope.NewProducerNotReadyError(intent.Domain, intent.ScopeID, intent.GenerationID, unready)
+	return crossscope.ApplyProducerReadinessPostLoad(
+		ctx, h.Logger, h.ReadinessWaits, floor.signal, resolved, intent, floor.sampledAt,
+	)
 }
 
 // supplyChainImpactProducerFactKindByDomain maps each producer domain

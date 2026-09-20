@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -106,6 +107,11 @@ type AWSCloudRuntimeDriftHandler struct {
 	// #5837's root cause). Nil disables the gate: Handle always writes its
 	// best-available classification, matching pre-#5848 behavior.
 	ReadinessChecker AWSCloudRuntimeDriftReadinessChecker
+	// ReadinessWaits is the (scope, domain) readiness-wait ledger that
+	// anchors the state-pending defer's elapsed-time bound across
+	// superseding generations (#6814). Nil keeps the pre-ledger per-row
+	// bound: the claimed row's own repair-cycle anchor.
+	ReadinessWaits crossscope.ReadinessWaitLedger
 	// FencingTokenIssuer supplies the database-issued, cross-worker-ordering
 	// fencing token (#5875 P1). Required, like EvidenceLoader and Writer: a
 	// nil issuer is a hard Handle() error, never a silent fallback to the
@@ -167,7 +173,7 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 	// look "ready" to write. The actual defer decision (shouldDeferForLoadedEvidence)
 	// runs after classification, combining this pre-load signal with whether
 	// the freshly loaded evidence actually contains an orphaned candidate.
-	readinessSignal, err := h.checkAWSCloudRuntimeDriftReadinessBeforeLoad(ctx, intent, evidenceAsOf)
+	readinessSignal, err := h.checkAWSCloudRuntimeDriftReadinessBeforeLoadWithLedger(ctx, intent, evidenceAsOf)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("check aws cloud runtime drift state readiness: %w", err)
 	}
@@ -187,8 +193,15 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 	admitted := admittedAWSCloudRuntimeDriftCandidates(evaluation)
 	summary := summarizeAWSCloudRuntimeDriftCandidates(admitted)
 
-	if shouldDeferForLoadedEvidence(readinessSignal, admitted) {
-		h.logStatePendingDefer(ctx, intent, admitted, evidenceAsOf)
+	decision, err := h.applyStatePendingWaitPostLoad(ctx, readinessSignal, admitted, intent, evidenceAsOf)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
+	// Log the deferral only for a recorded wait: a ReadWait failure carries a
+	// zero decision, a clear failure means the condition resolved, and a
+	// settle-record failure decided abandoned — none of them deferred.
+	if decision.Defer {
+		h.logStatePendingDefer(ctx, intent, admitted, decision.Elapsed)
 		return reducercontract.Result{}, newAWSCloudRuntimeDriftStatePendingError(intent.ScopeID, intent.GenerationID)
 	}
 
