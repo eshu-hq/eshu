@@ -1,0 +1,22 @@
+go/internal/storage/postgres/readiness_wait_cost_after_perf_test.go
+  s_0155aa640a8bb1::t_68fb71f950ecf8 1-23
+go/internal/storage/postgres/readiness_wait_cost_perf_test.go
+  s_0155aa640a8bb1::t_1faa6bfbf6f5c7 1-192
+  s_0155aa640a8bb1::t_1591a1b62fdce7 193-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e41625c934a9a7b62d96b361fb504a5266f1605d",
+  "prompts": {},
+  "sessions": {
+    "s_0155aa640a8bb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ed74ad2-74b8-4517-8e85-303dc193b776",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
