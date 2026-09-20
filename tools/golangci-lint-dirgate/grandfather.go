@@ -22,7 +22,7 @@ package main
 var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/collector/awscloud": {FileCount: 154, Digest: "5f0ea4b0c73faae13cc03f3c05609b6a7b6befd92941cfa599b08ff5c2fae641"},
 	"internal/collector/gcpcloud": {FileCount: 96, Digest: "0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3"},
-	"internal/collector/gitrepo":  {FileCount: 66, Digest: "774b96b40dbec9964c434c50a6056df7780e8909ecb3a0f43e1ffe17e606eae3"},
+	"internal/collector/gitrepo":  {FileCount: 65, Digest: "dc6a76d7aaf84406f8e7003687ce51e163f22cc8280a817d718babe33002e332"},
 	"internal/coordinator":        {FileCount: 49, Digest: "e39400aa04976497d8e4f169e8b8de10e3e1b16d40a5f9b9f31ff7f7da64377e"},
 	"internal/facts":              {FileCount: 45, Digest: "4622f2b6b606a2878aa88dfa1b5e5916edad5ef536989b4136774e25c1367c4e"},
 	"internal/mcp":                {FileCount: 93, Digest: "2d88cefb5f7b666fbfd8f55216a1a9a6756de20bc3617ea9c09f0dab6cee1e8b"},

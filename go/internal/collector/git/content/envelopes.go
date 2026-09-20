@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package gitrepo
+package gitcontent
 
 import (
 	"fmt"
@@ -15,12 +15,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
-// contentFactEnvelope builds the durable content fact for one snapshot file:
+// ContentFactEnvelope builds the durable content fact for one snapshot file:
 // body, digest, and the language/artifact/template metadata downstream content
 // materialization reads. The stable key is repo+path scoped so re-emission of a
-// generation is idempotent. Extracted from git_fact_builder.go to keep that file
-// within the repo file-size budget.
-func contentFactEnvelope(
+// generation is idempotent.
+func ContentFactEnvelope(
 	repoPath string,
 	repoID string,
 	scopeID string,
@@ -61,12 +60,21 @@ func contentFactEnvelope(
 	)
 }
 
-// contentEntityFactEnvelope builds the durable content-entity fact for one parsed
+// cloneMetadata copies an entity metadata map so envelope construction never
+// aliases the snapshot's live map.
+func cloneMetadata(input map[string]any) map[string]any {
+	out := make(map[string]any, len(input))
+	for k, v := range input {
+		out[k] = v
+	}
+	return out
+}
+
+// ContentEntityFactEnvelope builds the durable content-entity fact for one parsed
 // entity (function, class, etc.): its identity, location, language, and any
 // extra parser metadata. The stable key is the entity uid so re-emission of a
-// generation is idempotent. Extracted from git_fact_builder.go to keep that file
-// within the repo file-size budget.
-func contentEntityFactEnvelope(
+// generation is idempotent.
+func ContentEntityFactEnvelope(
 	repoPath string,
 	repoID string,
 	scopeID string,
@@ -104,7 +112,7 @@ func contentEntityFactEnvelope(
 		payload["iac_relevant"] = *entitySnapshot.IACRelevant
 	}
 	if len(entitySnapshot.Metadata) > 0 {
-		payload["entity_metadata"] = cloneAnyMap(entitySnapshot.Metadata)
+		payload["entity_metadata"] = cloneMetadata(entitySnapshot.Metadata)
 	}
 
 	return gitmodel.FactEnvelope(
@@ -118,12 +126,15 @@ func contentEntityFactEnvelope(
 	)
 }
 
-// repositoryFactEnvelope builds the durable repository fact for one
+// RepositoryFactEnvelope builds the durable repository fact for one
 // generation: identity, parsed-file count, import map, git refs, and delta
 // metadata. The stable key is the repo ID so re-emission of a generation is
-// idempotent. Extracted from git_fact_builder.go to keep that file within the
-// repo file-size budget.
-func repositoryFactEnvelope(
+// idempotent.
+//
+// defaultBranch and gitRefsPayload arrive precomputed by the caller: this is a
+// leaf package and must never import gitrepo (which owns the GitRef type), so
+// ref selection and payload shaping stay on the caller side.
+func RepositoryFactEnvelope(
 	repoPath string,
 	repo repositoryidentity.Metadata,
 	sourceRunID string,
@@ -133,7 +144,8 @@ func repositoryFactEnvelope(
 	parsedFileCount int,
 	importsMap map[string][]string,
 	isDependency bool,
-	gitRefs []GitRef,
+	defaultBranch string,
+	gitRefsPayload []map[string]any,
 	delta bool,
 	deltaRelativePaths []string,
 	deltaDeletedRelativePaths []string,
@@ -159,11 +171,11 @@ func repositoryFactEnvelope(
 	if len(importsMap) > 0 {
 		payload["imports_map"] = importsMap
 	}
-	if defaultBranch := repositoryDefaultBranch(gitRefs); defaultBranch != "" {
+	if defaultBranch != "" {
 		payload["default_branch"] = defaultBranch
 	}
-	if refsPayload := repositoryFactGitRefsPayload(gitRefs); len(refsPayload) > 0 {
-		payload["git_refs"] = refsPayload
+	if len(gitRefsPayload) > 0 {
+		payload["git_refs"] = gitRefsPayload
 	}
 	if delta {
 		payload["delta_generation"] = true
@@ -180,11 +192,9 @@ func repositoryFactEnvelope(
 	return gitmodel.FactEnvelope("repository", scopeID, generationID, observedAt, "repository:"+repo.ID, payload, repoPath)
 }
 
-// fileFactEnvelope builds the durable file fact for one parsed file: its
+// FileFactEnvelope builds the durable file fact for one parsed file: its
 // identity, relative path, and parsed metadata. The stable key is
-// repo+relative-path so re-emission of a generation is idempotent. Extracted
-// from git_fact_builder.go to keep that file within the repo file-size
-// budget.
+// repo+relative-path so re-emission of a generation is idempotent.
 // collapseFingerprintWallClock returns a copy of a parsed file map with the
 // fingerprint wall-clock observation collapsed to zero. MicrosTotal is
 // wall-clock timing: persisting it verbatim would bake machine-specific
@@ -213,7 +223,7 @@ func collapseFingerprintWallClock(fileData map[string]any) map[string]any {
 	return out
 }
 
-func fileFactEnvelope(
+func FileFactEnvelope(
 	repoPath string,
 	repoID string,
 	scopeID string,

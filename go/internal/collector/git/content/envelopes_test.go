@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package gitrepo
+package gitcontent
 
 import (
 	"testing"
@@ -31,7 +31,7 @@ func TestFileFactEnvelopeCollapsesFingerprintWallClock(t *testing.T) {
 		},
 	}
 
-	env := fileFactEnvelope("/repo", "repo-x", "scope-x", "gen-x", time.Date(2026, time.September, 19, 0, 0, 0, 0, time.UTC), fileData, false)
+	env := FileFactEnvelope("/repo", "repo-x", "scope-x", "gen-x", time.Date(2026, time.September, 19, 0, 0, 0, 0, time.UTC), fileData, false)
 
 	pfd, ok := env.Payload["parsed_file_data"].(map[string]any)
 	if !ok {

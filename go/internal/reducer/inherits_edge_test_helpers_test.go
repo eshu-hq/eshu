@@ -42,8 +42,8 @@ func inheritanceEntityFacts() []facts.Envelope {
 				"entity_id":   "content-entity:e_parent",
 				"entity_type": "Class",
 				"entity_name": "ParentClass",
-				// "relative_path" is the key contentEntityFactEnvelope actually
-				// emits (contentEntityFactEnvelope in git_content_fact_envelopes.go);
+				// "relative_path" is the key gitcontent.ContentEntityFactEnvelope actually
+				// emits (go/internal/collector/git/content/envelopes.go);
 				// production carries no
 				// top-level "path" key (#5996).
 				"relative_path": "/repo/parent.py",

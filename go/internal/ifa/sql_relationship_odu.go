@@ -29,7 +29,7 @@ const (
 	sqlFamilySourceRunID  = "run-ifa-sql-family-1"
 
 	// SQLFamilyLocalPath is the repository fact's local_path — the checkout
-	// path the real git collector emits (repositoryFactEnvelope's
+	// path the real git collector emits (gitcontent.RepositoryFactEnvelope's
 	// payload["local_path"] = repo.LocalPath). It is REQUIRED for the delta
 	// retract to work, and its absence was the #5549 P1a live-proof finding:
 	// the projector derives every entity NODE's `path` property as
@@ -81,12 +81,12 @@ const (
 // materialize even though ExtractSQLRelationshipRows itself derived them.
 //
 // content_entity payloads deliberately omit a top-level "path" key: the real
-// git collector's contentEntityFactEnvelope (go/internal/collector/
-// git_content_fact_envelopes.go) never sets one either, only relative_path —
+// git collector's gitcontent.ContentEntityFactEnvelope (go/internal/collector/
+// git/content/envelopes.go) never sets one either, only relative_path —
 // so entityPath/source_path on every derived edge is empty, matching
 // production, not a test-only convenience field. The file fact instead
 // carries the embedded query's source path via parsed_file_data.path
-// (payloadPath(fileData, "path") in the real fileFactEnvelope emitter),
+// (payloadPath(fileData, "path") in the real gitcontent.FileFactEnvelope emitter),
 // which embeddedSQLQuerySources falls back to when the top-level path is
 // blank (sql_relationship_embedded_query.go).
 func sqlFamilyOdu() familyodu.CatalogOdu {
@@ -332,8 +332,8 @@ func sqlFamilyContentEntity(generationID, entityID, entityType, entityName strin
 // that derives the QUERIES_TABLE edge, mirroring
 // sql_relationship_embedded_query_test.go's sqlRelationshipFileWithEmbeddedQuery
 // fixture shape: parsed_file_data.path (not the top-level payload path) is what
-// embeddedSQLQuerySources falls back to, matching what the real fileFactEnvelope
-// emitter (go/internal/collector/git_fact_builder.go) actually produces.
+// embeddedSQLQuerySources falls back to, matching what the real
+// gitcontent.FileFactEnvelope emitter actually produces.
 func sqlFamilyFileWithEmbeddedQuery(generationID string) facts.Envelope {
 	return facts.Envelope{
 		ScopeID:      sqlFamilyScopeID,

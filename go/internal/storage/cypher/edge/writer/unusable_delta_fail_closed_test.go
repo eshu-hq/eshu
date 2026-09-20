@@ -27,7 +27,7 @@ const (
 // unusableDeltaRepositoryFacts is the fact set a delta generation produces when
 // the reducer cannot qualify any of its changed paths.
 //
-// repositoryFactEnvelope (collector/gitrepo/git_content_fact_envelopes.go)
+// gitcontent.RepositoryFactEnvelope (collector/git/content/envelopes.go)
 // writes delta_generation and both delta path slices unconditionally once the
 // snapshot is a delta, but writes local_path only when repositoryidentity
 // resolved one, and never writes "path" at all. The reducer's delta-scope

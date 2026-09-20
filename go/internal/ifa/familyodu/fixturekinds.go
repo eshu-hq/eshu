@@ -10,7 +10,7 @@ package familyodu
 const RepositoryFactKind = "repository"
 
 // ContentFactKind is the raw fact-kind literal the git-content collector
-// emits (go/internal/collector/git_content_fact_envelopes.go). It has no
+// emits (go/internal/collector/git/content/envelopes.go). It has no
 // registry entry (#4783 W1): relationships.DiscoverEvidence dispatches
 // artifact-type/content evidence off this unregistered kind, not off a typed
 // registered one, so Ifá seeds it as a plain string literal too.
@@ -18,7 +18,7 @@ const ContentFactKind = "content"
 
 // ContentEntityFactKind and FileFactKind are the internal wire literals the
 // git collector emits for a parsed entity and a parsed file
-// (go/internal/collector/git_content_fact_envelopes.go, git_fact_builder.go).
+// (go/internal/collector/git/content/envelopes.go, git_fact_builder.go).
 // content_entity has no typed payload contract. file does have the public
 // codegraph/v1.File contract; catalog fixtures that construct file payloads
 // must use that typed struct and factschema.EncodeCodegraphFile before building

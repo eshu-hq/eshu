@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/git/content"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -227,7 +228,7 @@ func TestRepositoryFactEnvelopeCarriesGitRefs(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, time.April, 12, 15, 30, 0, 0, time.UTC)
-	envelope := repositoryFactEnvelope(
+	envelope := gitcontent.RepositoryFactEnvelope(
 		t.TempDir(),
 		repositoryidentity.Metadata{ID: "r_service", Name: "service"},
 		"source-run-1",
@@ -237,11 +238,12 @@ func TestRepositoryFactEnvelopeCarriesGitRefs(t *testing.T) {
 		1,
 		nil,
 		false,
-		[]GitRef{{
-			Name:    "main",
-			Kind:    "branch",
-			HeadSHA: "abc123",
-			Default: true,
+		"main",
+		[]map[string]any{{
+			"name":       "main",
+			"kind":       "branch",
+			"head_sha":   "abc123",
+			"is_default": true,
 		}},
 		false,
 		nil,

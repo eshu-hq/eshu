@@ -228,7 +228,7 @@ func crossplaneContentEntityType(payload map[string]any) string {
 
 // crossplaneEntityMetadataString reads one field from the content_entity
 // payload's entity_metadata map — the wrapper
-// internal/collector/gitrepo/git_content_fact_envelopes.go's contentEntityFactEnvelope
+// internal/collector/git/content/envelopes.go's gitcontent.ContentEntityFactEnvelope
 // nests every extra parser field (api_version, kind, group, claim_kind, ...)
 // under, since none of them are in the reserved top-level key set
 // (internal/projector/entity_metadata.go entityPayloadReservedKeys).

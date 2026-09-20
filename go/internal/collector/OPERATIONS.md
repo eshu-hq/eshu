@@ -267,9 +267,10 @@ and query stages own correlation, drift, and truth decisions.
   durable Postgres stores; and that the new `function_sources` bootstrap schema is
   ordered and mirrored on disk. It is one extra fact per summarized function/source
   only when the off-by-default value-flow gate is on; no new Cypher, graph write,
-  worker, queue, or batch. The `contentFactEnvelope`/`contentEntityFactEnvelope`
-  move into `gitrepo/git_content_fact_envelopes.go` is a pure extraction (no behavior
-  change) to keep `gitrepo/git_fact_builder.go` under the file-size cap.
+  worker, queue, or batch. The `ContentFactEnvelope`/`ContentEntityFactEnvelope`
+  envelopes live in `git/content/envelopes.go` (package `gitcontent`), a pure
+  extraction (no behavior change) that keeps `gitrepo/git_fact_builder.go`
+  under the file-size cap.
 - No-Observability-Change: the `code_function_summary`/`code_function_source`
   facts flow through the existing `streamFacts` channel and Postgres fact
   persistence; they add no metric instrument, metric label, span, worker, queue

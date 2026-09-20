@@ -6,6 +6,7 @@ package gitrepo
 import (
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/git/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -22,7 +23,7 @@ import (
 // carry the "path" key the parser sets to the file's absolute path. repoPath is
 // the repository root the relative path is computed against. The envelope's
 // Payload embeds the parser payload under "parsed_file_data" verbatim except
-// for the fingerprint wall-clock observation, which fileFactEnvelope collapses
+// for the fingerprint wall-clock observation, which gitcontent.FileFactEnvelope collapses
 // to zero so durable facts stay byte-deterministic (a recorder marking that
 // subtree opaque still preserves the parser output byte for byte).
 func ParserFileFactEnvelope(
@@ -34,5 +35,5 @@ func ParserFileFactEnvelope(
 	parsedFile map[string]any,
 	isDependency bool,
 ) facts.Envelope {
-	return fileFactEnvelope(repoPath, repoID, scopeID, generationID, observedAt, parsedFile, isDependency)
+	return gitcontent.FileFactEnvelope(repoPath, repoID, scopeID, generationID, observedAt, parsedFile, isDependency)
 }

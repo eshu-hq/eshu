@@ -147,8 +147,8 @@ func ExtractRationaleEdgeRows(envelopes []facts.Envelope) ([]string, []map[strin
 		// separate repository delta scope qualifies changed paths for target.path
 		// retraction. It rides every edge row as provenance (#2869).
 		//
-		// Read "relative_path", which is the key contentEntityFactEnvelope actually
-		// emits (git_content_fact_envelopes.go), and which every sibling extractor
+		// Read "relative_path", which is the key gitcontent.ContentEntityFactEnvelope actually
+		// emits (collector/git/content/envelopes.go), and which every sibling extractor
 		// reads -- semantic_entity_materialization, sql_relationship_embedded_query,
 		// and sql_relationship_materialization. This read was "path", a key no
 		// content-entity fact carries, so targetPath was empty for every rationale

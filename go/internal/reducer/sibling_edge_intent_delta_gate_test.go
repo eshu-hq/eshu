@@ -15,8 +15,8 @@ import (
 // deltaRepositoryFactWithoutCheckoutPath returns the repository fact a delta
 // generation emits when the reducer cannot qualify any of its changed paths.
 //
-// It is the production shape, not a contrived one. repositoryFactEnvelope
-// (collector/gitrepo/git_content_fact_envelopes.go) writes delta_generation and
+// It is the production shape, not a contrived one. gitcontent.RepositoryFactEnvelope
+// (collector/git/content/envelopes.go) writes delta_generation and
 // both delta path slices unconditionally once the snapshot is a delta, but
 // writes local_path only when repositoryidentity resolved one -- and it never
 // writes "path" at all. The reducer's delta-scope builders qualify every
