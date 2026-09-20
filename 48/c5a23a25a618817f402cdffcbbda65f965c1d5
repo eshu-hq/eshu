@@ -1,0 +1,14 @@
+go/internal/reducer/code/value/cloud_sink_loader_live_test.go
+  h_78a442cba0b3e6 159-235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "48c5a23a25a618817f402cdffcbbda65f965c1d5",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
