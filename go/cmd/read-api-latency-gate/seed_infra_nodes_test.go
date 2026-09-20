@@ -74,10 +74,43 @@ func TestCloudResourceNodesCarryTheIdentityTheOwnerLedgerBackfillRequires(t *tes
 	}
 }
 
-func TestOnlyCloudResourceNeedsBackfillIdentity(t *testing.T) {
+// TestIdentityLabelsAreCloudAndTerraformResource pins which bulk labels carry
+// node identity: CloudResource for the owner-ledger backfill, TerraformResource
+// for the #6858 IaC table hydration. Every other bulk label stays anonymous.
+func TestIdentityLabelsAreCloudAndTerraformResource(t *testing.T) {
 	for _, label := range infraLabels {
-		if got, want := infraLabelNeedsIdentity(label), label == "CloudResource"; got != want {
+		want := label == "CloudResource" || label == "TerraformResource"
+		if got := infraLabelNeedsIdentity(label); got != want {
 			t.Errorf("infraLabelNeedsIdentity(%q) = %v, want %v", label, got, want)
 		}
+	}
+}
+
+// TestTerraformResourceNodesMirrorTheirContentIdentity guards the #6858
+// table path: unscoped /iac/resources hydrates infra_resource_entities
+// candidates from the graph by uid and checks id and name, so every bulk
+// TerraformResource graph node must carry the same uid, id, and name as its
+// content_entities row (the shared seedInfraID).
+func TestTerraformResourceNodesMirrorTheirContentIdentity(t *testing.T) {
+	rows := infraNodeRows("TerraformResource", idRange{First: 0, Last: 9})
+
+	for i, r := range rows {
+		for _, key := range []string{"uid", "name", "resource_type"} {
+			if v, _ := r[key].(string); v == "" {
+				t.Errorf("rows[%d][%q] is empty: the IaC hydration check rejects that node", i, key)
+			}
+		}
+		want := seedInfraID("TerraformResource", i)
+		for _, key := range []string{"uid", "id", "name"} {
+			if r[key] != want {
+				t.Errorf("rows[%d][%q] = %v, want %s: must equal the content row identity", i, key, r[key], want)
+			}
+		}
+	}
+	if infraLabelNeedsSmallBatches("TerraformResource") {
+		t.Error("TerraformResource must keep the bulk batch size: it carries no uid UNIQUE constraint")
+	}
+	if !infraLabelNeedsSmallBatches("CloudResource") {
+		t.Error("CloudResource must keep the small batch size: it carries a uid UNIQUE constraint")
 	}
 }

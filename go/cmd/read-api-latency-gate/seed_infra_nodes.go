@@ -24,12 +24,24 @@ func seedInfraID(label string, i int) string {
 }
 
 // infraLabelNeedsIdentity reports whether a label's seeded nodes must carry a
-// real node identity (uid, resource_type, source_fact_id). CloudResource does:
-// eshu-api's startup owner-ledger backfill pages every CloudResource node and
-// rejects one missing any of them, which fails API startup. The label also has a
-// uid UNIQUE constraint in the graph schema, so its nodes are written in the
-// small batches constrained labels need (see iacGraphSeedBatchSize).
+// real node identity (uid, name, resource_type, source_fact_id).
+// CloudResource does: eshu-api's startup owner-ledger backfill pages every
+// CloudResource node and rejects one missing uid, resource_type, or
+// source_fact_id, which fails API startup. The label also has a uid UNIQUE
+// constraint in the graph schema, so its nodes are written in the small
+// batches constrained labels need (see iacGraphSeedBatchSize).
+// TerraformResource does: unscoped /iac/resources hydrates its
+// infra_resource_entities candidates from the graph by uid (#6858), so every
+// bulk content row needs a graph node with the same uid, id, and name. The
+// label has no uid constraint, so its nodes keep the bulk batch size.
 func infraLabelNeedsIdentity(label string) bool {
+	return label == "CloudResource" || label == "TerraformResource"
+}
+
+// infraLabelNeedsSmallBatches reports whether a label's identity nodes must
+// use the small constrained-label batch size. Only CloudResource carries a
+// uid UNIQUE constraint, whose per-row cost grows with batch size.
+func infraLabelNeedsSmallBatches(label string) bool {
 	return label == "CloudResource"
 }
 
@@ -48,8 +60,11 @@ func infraNodeRows(label string, r idRange) []map[string]any {
 		}
 		if infraLabelNeedsIdentity(label) {
 			row["uid"] = seedInfraID(label, i)
+			row["name"] = seedInfraID(label, i)
 			row["resource_type"] = "aws_instance"
-			row["source_fact_id"] = fmt.Sprintf("seed-fact-%d", i)
+			if infraLabelNeedsSmallBatches(label) {
+				row["source_fact_id"] = fmt.Sprintf("seed-fact-%d", i)
+			}
 		}
 		rows = append(rows, row)
 	}
