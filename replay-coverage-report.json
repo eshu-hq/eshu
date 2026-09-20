@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 437,
-    "covered": 426,
+    "total": 438,
+    "covered": 427,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 11,
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 138,
-      "covered": 138,
+      "total": 139,
+      "covered": 139,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 222,
-      "covered": 217,
+      "total": 223,
+      "covered": 218,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -576,6 +576,16 @@
       "ref": "cloud_runtime_drift.readback.list",
       "proof_gate": "capability-inventory",
       "detail": "capability \"cloud_runtime_drift.readback.list\" matrix profile proofs present (supported=3 refusal=1)"
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:code_divergence.findings",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "capability_claim",
+      "ref": "code_divergence.findings",
+      "proof_gate": "capability-inventory",
+      "detail": "capability \"code_divergence.findings\" matrix profile proofs present (supported=3 refusal=1)"
     },
     {
       "registry": "capability_matrix",
