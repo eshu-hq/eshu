@@ -10,7 +10,7 @@ collector path or treating screenshot text as operational truth.
 ## Ownership boundary
 
 This package owns the post-preflight OCR fact boundary for `.png`, `.jpg`,
-`.jpeg`, and first-frame `.gif` inputs. It calls `imagepreflight` first, invokes
+`.jpeg`, and first-frame `.gif` inputs. It calls `image` preflight first, invokes
 only an injected OCR engine for supported inputs, redacts sensitive-looking OCR
 regions, and emits `documentation_document` plus OCR-region
 `documentation_section` envelopes. Emitted document and section metadata carries
@@ -37,7 +37,7 @@ See `doc.go` for the godoc-rendered package contract.
 
 ## Dependencies
 
-The package depends on `internal/collector/imagepreflight` for metadata-only
+The package depends on `internal/collector/preflight/image` for metadata-only
 image gating, `internal/facts` for documentation payload and envelope contracts,
 and `internal/scope` for the documentation collector kind. It uses only the Go
 standard library otherwise.
@@ -50,7 +50,7 @@ class counts, elapsed time, source bytes, image dimensions, OCR region counts,
 redaction counts, logs, spans, and status evidence before enablement.
 
 Collector Performance Evidence: `go test ./internal/collector/ocrdoc
-./internal/collector/imagepreflight -count=1` proves OCR fact construction is
+./internal/collector/preflight/image -count=1` proves OCR fact construction is
 bounded by image preflight limits, synthetic OCR regions, and section text
 bounds without adding discovery, queue, graph, or runtime work.
 
@@ -90,5 +90,5 @@ readback surfaces already carry the emitted documentation facts.
 ## Related docs
 
 - `docs/internal/design/1737-visual-media-documentation-ingestion.md`
-- `go/internal/collector/imagepreflight/README.md`
+- `go/internal/collector/preflight/image/README.md`
 - `docs/public/reference/local-testing.md`

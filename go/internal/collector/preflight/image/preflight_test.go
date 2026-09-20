@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package imagepreflight
+package image
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"image"
+	stdimage "image"
 	"image/color"
 	"image/gif"
 	"image/jpeg"
@@ -170,10 +170,10 @@ func encodeGIF(t *testing.T, frames int) []byte {
 	t.Helper()
 
 	palette := []color.Color{color.Black, color.White}
-	images := make([]*image.Paletted, 0, frames)
+	images := make([]*stdimage.Paletted, 0, frames)
 	delays := make([]int, 0, frames)
 	for i := 0; i < frames; i++ {
-		frame := image.NewPaletted(image.Rect(0, 0, 2, 1), palette)
+		frame := stdimage.NewPaletted(stdimage.Rect(0, 0, 2, 1), palette)
 		frame.SetColorIndex(i%2, 0, 1)
 		images = append(images, frame)
 		delays = append(delays, 1)
@@ -185,8 +185,8 @@ func encodeGIF(t *testing.T, frames int) []byte {
 	return buffer.Bytes()
 }
 
-func solidImage(width int, height int) image.Image {
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
+func solidImage(width int, height int) stdimage.Image {
+	img := stdimage.NewRGBA(stdimage.Rect(0, 0, width, height))
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			img.Set(x, y, color.RGBA{R: 0x22, G: 0x44, B: 0x66, A: 0xff})

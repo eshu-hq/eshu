@@ -5,7 +5,7 @@
 1. `go/internal/collector/ocrdoc/README.md`
 2. `go/internal/collector/ocrdoc/doc.go`
 3. `go/internal/collector/ocrdoc/extract.go`
-4. `go/internal/collector/imagepreflight/README.md`
+4. `go/internal/collector/preflight/image/README.md`
 5. `docs/internal/design/1737-visual-media-documentation-ingestion.md`
 
 ## Invariants
@@ -16,7 +16,7 @@
 - Emit source facts only: `documentation_document` and `documentation_section`.
   Do not emit entity mentions, claim candidates, graph edges, service truth,
   deployment truth, incident truth, or ownership truth from OCR text.
-- Run `imagepreflight` before calling an OCR engine. WebP stays unsupported
+- Run `image` preflight before calling an OCR engine. WebP stays unsupported
   until a decoder dependency review lands.
 - Do not persist raw pixels, image bytes, EXIF values, local paths, private
   URLs, credentials, usernames, camera serials, OCR intermediates, or sensitive

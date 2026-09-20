@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package imagepreflight
+package image
 
 import (
 	"bytes"
 	"context"
 	"fmt"
-	"image"
+	stdimage "image"
 	"io"
 	"path/filepath"
 	"sort"
@@ -157,7 +157,7 @@ func (r *recorder) classifyImage(ctx context.Context, body []byte, options Optio
 		r.warn(WarningUnsupportedCodec)
 		return
 	}
-	config, decodedFormat, err := image.DecodeConfig(bytes.NewReader(body))
+	config, decodedFormat, err := stdimage.DecodeConfig(bytes.NewReader(body))
 	if err != nil {
 		r.warn(WarningMalformedMedia)
 		return

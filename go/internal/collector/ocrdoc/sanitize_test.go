@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/imagepreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/image"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -36,10 +36,10 @@ func TestExtractRedactsPersonalAndPrivateOCRText(t *testing.T) {
 		}
 	}
 	metadata := stringMapValue(t, section, "source_metadata")
-	if got, want := metadata["redaction_class"], string(imagepreflight.WarningSensitiveValueRedacted); got != want {
+	if got, want := metadata["redaction_class"], string(image.WarningSensitiveValueRedacted); got != want {
 		t.Fatalf("redaction_class = %q, want %q", got, want)
 	}
-	if !strings.Contains(metadata["warning"], string(imagepreflight.WarningSensitiveValueRedacted)) {
+	if !strings.Contains(metadata["warning"], string(image.WarningSensitiveValueRedacted)) {
 		t.Fatalf("warning = %q, want sensitive redaction", metadata["warning"])
 	}
 }
