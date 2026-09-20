@@ -107,8 +107,8 @@ func TestTerraformResourceNodesMirrorTheirContentIdentity(t *testing.T) {
 			}
 		}
 	}
-	if infraLabelNeedsSmallBatches("TerraformResource") {
-		t.Error("TerraformResource must keep the bulk batch size: it carries no uid UNIQUE constraint")
+	if !infraLabelNeedsSmallBatches("TerraformResource") {
+		t.Error("TerraformResource must use the small batch size: it carries a uid UNIQUE constraint")
 	}
 	if !infraLabelNeedsSmallBatches("CloudResource") {
 		t.Error("CloudResource must keep the small batch size: it carries a uid UNIQUE constraint")

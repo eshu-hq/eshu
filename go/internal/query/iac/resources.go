@@ -48,8 +48,10 @@ var resourceKindLabels = map[resourceKind]string{
 }
 
 // resourceRow is one row in the bounded IaC resource list. Candidates for
-// this list always come from the current-inventory Postgres CTE
-// (inventory_postgres.go), which filters to fact_kind = 'content_entity'
+// this list come from the current-inventory Postgres CTE
+// (inventory_postgres.go) for scoped and pre-ready reads, or from
+// infra_resource_entities once the read-model marker exists -- both filter
+// to fact_kind = 'content_entity'
 // -- the config-side generic parser/entity pipeline only, never
 // terraform_state_resource facts -- so kind=resource has only ever hydrated
 // config-declared TerraformResource nodes, both before and after #5443 split

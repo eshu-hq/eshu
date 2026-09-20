@@ -164,6 +164,26 @@ CREATE TABLE infra_resource_entity_dirty_repos (
 	if err != nil {
 		t.Fatalf("CTE summary: %v", err)
 	}
+	// walkPages resumes the (entity_name, entity_id) keyset one row per
+	// page until the store reports an empty page, recording every page.
+	walkPages := func(store PostgresIaCInventoryStore) [][]InventoryCandidate {
+		t.Helper()
+		var pages [][]InventoryCandidate
+		cursor := InventorySearch{Kind: resourceKindResource, Limit: 1}
+		for {
+			page, err := store.SearchActive(ctx, cursor, unscoped)
+			if err != nil {
+				t.Fatalf("walk page after %q/%q: %v", cursor.AfterName, cursor.AfterID, err)
+			}
+			pages = append(pages, page)
+			if len(page) == 0 {
+				return pages
+			}
+			last := page[len(page)-1]
+			cursor.AfterName, cursor.AfterID = last.Name, last.ID
+		}
+	}
+	cteWalk := walkPages(cteStore)
 	for _, stmt := range cteStatements {
 		if strings.Contains(stmt, "infra_resource_entities") {
 			t.Fatalf("pre-marker read touched the table: %.120s", stmt)
@@ -228,6 +248,22 @@ VALUES ($1, now())`, inventory.BackfillMarker); err != nil {
 	}
 	if !reflect.DeepEqual(tableSummary, cteSummary) {
 		t.Fatalf("table summary = %#v, want CTE-identical %#v", tableSummary, cteSummary)
+	}
+	// Keyset continuation: a CTE-issued cursor must resume identically on
+	// the table path, page by page through the whole kind.
+	tableWalk := walkPages(tableStore)
+	if len(tableWalk) != len(cteWalk) {
+		t.Fatalf("table walk took %d pages, CTE %d", len(tableWalk), len(cteWalk))
+	}
+	for i := range tableWalk {
+		if len(tableWalk[i]) != len(cteWalk[i]) {
+			t.Fatalf("walk page %d: table %d rows, CTE %d", i, len(tableWalk[i]), len(cteWalk[i]))
+		}
+		for j := range tableWalk[i] {
+			if tableWalk[i][j].ID != cteWalk[i][j].ID || tableWalk[i][j].Name != cteWalk[i][j].Name {
+				t.Fatalf("walk page %d row %d: table %#v, CTE %#v", i, j, tableWalk[i][j], cteWalk[i][j])
+			}
+		}
 	}
 	sawTable := false
 	for _, stmt := range tableStatements {

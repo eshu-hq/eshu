@@ -34,9 +34,9 @@ func NewPostgresIaCInventoryStore(db inventoryQueryer) PostgresIaCInventoryStore
 // provenance the backfill records as "", so scope-granted callers cannot be
 // bounded from the table the way the CTE bounds them through fact scope_id.
 var iacReadModelLabels = []string{
-	"TerraformResource",
-	"TerraformModule",
-	"TerraformDataSource",
+	resourceKindLabels[resourceKindResource],
+	resourceKindLabels[resourceKindModule],
+	resourceKindLabels[resourceKindDataSource],
 }
 
 // inventoryDBAdapter lets the read-model inventory package query through the
@@ -61,6 +61,14 @@ func (s PostgresIaCInventoryStore) readModelServes(
 ) (bool, error) {
 	if s.db == nil || access.Scoped() {
 		return false, nil
+	}
+	// Fail fast on a dead caller context before touching the connection: a
+	// readiness probe issued under cancellation kills a dedicated pgx
+	// connection ("driver: bad connection"), breaking every later read on
+	// it. The CTE path never probes, so guard here to keep cancelled reads
+	// behaving exactly as they did before the table path existed.
+	if err := ctx.Err(); err != nil {
+		return false, fmt.Errorf("IaC inventory read model readiness: %w", err)
 	}
 	ready, err := inventory.ReadModelReady(ctx, inventoryDBAdapter{query: s.db})
 	if err != nil {

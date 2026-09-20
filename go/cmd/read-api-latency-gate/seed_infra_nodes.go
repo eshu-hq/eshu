@@ -33,16 +33,19 @@ func seedInfraID(label string, i int) string {
 // TerraformResource does: unscoped /iac/resources hydrates its
 // infra_resource_entities candidates from the graph by uid (#6858), so every
 // bulk content row needs a graph node with the same uid, id, and name. The
-// label has no uid constraint, so its nodes keep the bulk batch size.
+// label carries a uid UNIQUE constraint (graph schema_tables.go), so like
+// CloudResource its nodes use the small constrained-label batch size.
 func infraLabelNeedsIdentity(label string) bool {
 	return label == "CloudResource" || label == "TerraformResource"
 }
 
 // infraLabelNeedsSmallBatches reports whether a label's identity nodes must
-// use the small constrained-label batch size. Only CloudResource carries a
-// uid UNIQUE constraint, whose per-row cost grows with batch size.
+// use the small constrained-label batch size (iacGraphSeedBatchSize). Both
+// identity labels carry a uid UNIQUE constraint, whose per-row cost grows
+// with batch size (#6797: 5,000-row batches took 91.7s and larger writes
+// stalled).
 func infraLabelNeedsSmallBatches(label string) bool {
-	return label == "CloudResource"
+	return label == "CloudResource" || label == "TerraformResource"
 }
 
 // infraNodeRows builds the parameter rows for one bulk CREATE batch covering
