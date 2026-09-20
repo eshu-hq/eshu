@@ -149,3 +149,47 @@ scripts/docs-citations-baseline.txt:go/internal/graph/mutations.go
 # stays reproducible after the branch is gone. Repointing it to the new path
 # would compare the new file with itself and falsify the record.
 docs/internal/evidence/6818-query-package-moves.md:go/internal/query/queryspan/handlerspan.go
+# #6694 cypher edge leaf moves: edge_writer_*.go -> cypher/edge/writer/*.go,
+# materialized_edge_*.go -> cypher/edge/materialized/*.go, materializededges/
+# materialized_edges_*.go -> stripped stems. The dated evidence notes, design
+# docs, audit record, and measurement transcript below describe the tree as it
+# stood when written; repointing would falsify the record. The citations
+# baseline keeps these documents' existing LINE rows for the same reason.
+docs/internal/audit/2026-06-09-repo-technical-audit.md:go/internal/storage/cypher/edge_writer_sql.go
+docs/internal/design/2222-resolution-provenance-code-edges.md:go/internal/storage/cypher/edge_writer_code_call_labels.go
+docs/internal/design/2248-retention-semantics-generations-facts-content.md:go/internal/storage/cypher/edge_writer_retract.go
+docs/internal/evidence/5346-sql-migrates-performance.md:go/internal/storage/cypher/edge_writer_sql.go
+docs/internal/evidence/5441-edge-node-properties.md:go/internal/storage/cypher/edge_writer_payload.go
+docs/internal/evidence/5441-edge-node-properties.md:go/internal/storage/cypher/edge_writer_repo_dependency_bench_test.go
+docs/internal/evidence/5441-edge-node-properties.md:go/internal/storage/cypher/edge_writer_row_metadata.go
+docs/internal/evidence/5441-edge-node-properties.md:go/internal/storage/cypher/edge_writer.go
+docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md:go/internal/ifa/materializededges/materialized_edges_handles_route.go
+docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_logging.go
+docs/internal/evidence/5998-rationale-retract-probe-guard.md:go/internal/storage/cypher/edge_writer_rationale_labels.go
+docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md:go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go
+docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md:go/internal/storage/cypher/edge_writer_rationale_nondelta_scope_test.go
+docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md:go/internal/storage/cypher/edge_writer_retract_scope.go
+docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md:go/internal/storage/cypher/edge_writer_retract.go
+docs/internal/evidence/6184-graph-rebuild-artifact-visibility-v133.md:go/internal/storage/cypher/edge_writer_unroutable.go
+docs/internal/evidence/6212-deferred-ifa-defects.md:go/internal/ifa/materializededges/materialized_edges_handles_route.go
+docs/internal/evidence/6216-sibling-delta-gate-and-mixed-batch-retract.md:go/internal/storage/cypher/edge_writer_retract_scope.go
+docs/internal/evidence/6216-sibling-delta-gate-and-mixed-batch-retract.md:go/internal/storage/cypher/edge_writer_retract.go
+docs/internal/evidence/6228-direct-family-coverage.md:go/internal/storage/cypher/materialized_edge_endpoints.go
+docs/internal/evidence/6228-direct-family-coverage.md:go/internal/storage/cypher/materialized_edge_families.go
+docs/internal/evidence/6228-iam-can-assume.md:go/internal/ifa/materializededges/materialized_edges_iam_can_assume.go
+docs/internal/evidence/6228-iam-can-assume.md:go/internal/storage/cypher/materialized_edge_families.go
+docs/internal/evidence/6228-workload-cloud-relationship.md:go/internal/ifa/materializededges/materialized_edges_workload_cloud_relationship.go
+docs/internal/evidence/6228-workload-cloud-relationship.md:go/internal/storage/cypher/materialized_edge_families.go
+docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md:go/internal/storage/cypher/edge_writer_logging.go
+docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md:go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go
+docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md:go/internal/storage/cypher/edge_writer_retract_scope.go
+docs/internal/evidence/6309-direct-family-review-followups.md:go/internal/ifa/materializededges/materialized_edges_iam_instance_profile_role.go
+docs/internal/evidence/6309-direct-family-review-followups.md:go/internal/storage/cypher/materialized_edge_families.go
+docs/internal/measurements.jsonl:go/internal/storage/cypher/edge_writer_retract_repo.go
+go/internal/ifa/evidence-5993-materialized-edge-dispatch.md:go/internal/ifa/materializededges/materialized_edges_deployable_unit.go
+scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_logging.go
+scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go
+scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_retract_repo.go
+scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_retract_scope.go
+scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_sql.go
+docs/internal/evidence/5984-edge-writer-unroutable-rows.md:go/internal/storage/cypher/edge_writer.go

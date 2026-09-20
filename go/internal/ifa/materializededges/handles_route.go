@@ -65,7 +65,7 @@ func handlesRouteExpectedEdgesPath(repoRoot string) string {
 // admission engine the LIVE workload-materialization handler routes every
 // candidate through -- CorrelatedWorkloadProjectionInputLoader.
 // LoadWorkloadProjectionInputs
-// (go/internal/reducer/correlated_workload_projection_input_loader.go:71) ->
+// (go/internal/reducer/correlated_workload_projection_input_loader.go) ->
 // admittedCorrelatedWorkloadCandidates -> deployableUnitRulePack's rule-pack
 // selection (deployableUnitRulePack in go/internal/reducer/deployable_unit_correlation.go). A
 // candidate this guard's pure projection sees as fully materialized can

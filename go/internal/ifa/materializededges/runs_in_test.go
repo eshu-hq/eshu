@@ -26,7 +26,7 @@ func runsInTestRow(functionID, repoID string) reducer.SharedProjectionIntentRow 
 // TestRunsInRowsToExpectedEdgesFansOutOverMultipleWorkloads is the required
 // offline proof of the N-Workload fan-out the write TEMPLATE permits: the
 // live Cypher's (Repository)-[:DEFINES]->(Workload) MATCH carries no LIMIT
-// (go/internal/storage/cypher/canonical_runs_in_edges.go:26), so ONE RUNS_IN
+// (go/internal/storage/cypher/canonical_runs_in_edges.go), so ONE RUNS_IN
 // intent row -- which has no visibility into how many Workloads its
 // repository DEFINES -- WOULD produce one graph edge PER Workload at write
 // time if a repository ever had more than one. This test proves the guard's
@@ -37,7 +37,7 @@ func runsInTestRow(functionID, repoID string) reducer.SharedProjectionIntentRow 
 // reducer.ExtractWorkloadCandidates aggregates workload signals per repo_id
 // alone and reducer.BuildProjectionRows emits exactly one WorkloadRow per
 // candidate (go/internal/reducer/candidate_loader.go,
-// go/internal/reducer/projection.go:259-301), so today's reducer candidate
+// go/internal/reducer/projection.go), so today's reducer candidate
 // path cannot hand one repository more than one Workload -- no live fixture
 // can currently exhibit the shape this test defends against. That does not
 // make the test unnecessary: the no-LIMIT MATCH is a real property of the

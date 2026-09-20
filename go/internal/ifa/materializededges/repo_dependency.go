@@ -19,7 +19,7 @@ import (
 // asserts. It MUST equal "repo_dependency" -- the domain key
 // MaterializedEdgeDomainEdgeTypes switches on (assert.go)
 // and materializedEdgeEndpointsByFamily indexes by
-// (go/internal/storage/cypher/materialized_edge_endpoints.go) -- not
+// (go/internal/storage/cypher/edge/materialized/endpoints.go) -- not
 // "repo_dependency_edges": unlike every sibling family added under the #5543
 // umbrella, this one's surface name has no "_edges" suffix, because it was
 // registered before the #5543 naming convention and nothing has renamed it.

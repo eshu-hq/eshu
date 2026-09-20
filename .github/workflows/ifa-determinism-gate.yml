@@ -366,7 +366,7 @@ on:
       # Glob, not the canonical_ literal: the registry declares this shape, and it
       # is what covers edge/writer/documentation_labels.go -- buildDocumentationRowMap's
       # target_kind switch, whose routing the family guard defers to the live assert.
-      - 'go/internal/storage/cypher/*documentation*.go'
+      - 'go/internal/storage/cypher/edge/writer/*documentation*.go'
       # codeowners_ownership_edges (#5992). Its Odù, cassette, expected-edge
       # set, reducer stage, writer, and live/fault helpers are all inputs to
       # what the live lanes assert, so each one must retrigger them.

@@ -32,7 +32,7 @@ func runsInExpectedEdgesPath(repoRoot string) string {
 // runs in a wholly separate handler over different facts
 // (workload_materialization, not code_call_materialization). The live
 // Cypher's MATCH is (Repository)-[:DEFINES]->(Workload) with NO LIMIT
-// (go/internal/storage/cypher/canonical_runs_in_edges.go:26), so the WRITE
+// (go/internal/storage/cypher/canonical_runs_in_edges.go), so the WRITE
 // TEMPLATE imposes no cap on how many Workloads one row could bind to. This
 // guard therefore derives its fan-out offline rather than assuming 1-to-1: it
 // runs the SAME reducer.ExtractWorkloadCandidates -> reducer.BuildProjectionRows
@@ -45,9 +45,9 @@ func runsInExpectedEdgesPath(repoRoot string) string {
 // CAN PRODUCE for one repository are two different claims, and this guard
 // only exercises the second one live. ExtractWorkloadCandidates aggregates
 // every workload signal into one repoSignals entry keyed by repo_id alone
-// (go/internal/reducer/candidate_loader.go:37,50,69), and BuildProjectionRows
+// (go/internal/reducer/candidate_loader.go), and BuildProjectionRows
 // emits exactly one WorkloadRow per WorkloadCandidate
-// (go/internal/reducer/projection.go:259-301, one loop iteration per
+// (go/internal/reducer/projection.go, one loop iteration per
 // candidate, deduped by workloadID) -- so a single repository yields AT MOST
 // ONE Workload through today's candidate path. The N>1-Workload cross
 // product the no-LIMIT template permits is real and DEFENDED here (the
@@ -62,7 +62,7 @@ func runsInExpectedEdgesPath(repoRoot string) string {
 // admission engine the LIVE workload-materialization handler routes every
 // candidate through -- CorrelatedWorkloadProjectionInputLoader.
 // LoadWorkloadProjectionInputs
-// (go/internal/reducer/correlated_workload_projection_input_loader.go:71) ->
+// (go/internal/reducer/correlated_workload_projection_input_loader.go) ->
 // admittedCorrelatedWorkloadCandidates -> deployableUnitRulePack's rule-pack
 // selection (deployableUnitRulePack in go/internal/reducer/deployable_unit_correlation.go). A
 // candidate this guard's pure projection sees as fully materialized can

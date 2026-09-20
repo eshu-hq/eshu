@@ -59,7 +59,7 @@
 #
 # Which families those are is asserted in code, not only here.
 # guardedDirectMaterializedEdgeFamilies
-# (go/internal/ifa/materializededges/materialized_edges_direct_family_coverage_test.go)
+# (go/internal/ifa/materializededges/direct_family_coverage_test.go)
 # is the roster, and TestGuardedDirectFamiliesStillCarryTheirWaivers holds each
 # entry's LiveProven flag to the ledger: unproven means two waiver rows and no
 # coverage row, live-proven means two coverage rows and no waiver. Retiring a

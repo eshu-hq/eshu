@@ -2924,7 +2924,7 @@ gates:
       - "sdk/go/factschema/codeowners/v1/**"
       - "sdk/go/factschema/submodule/v1/**"
       - "go/internal/storage/cypher/*code_call*.go"
-      - "go/internal/storage/cypher/*documentation*.go"
+      - "go/internal/storage/cypher/edge/writer/*documentation*.go"
       # Glob though only canonical_codeowners_edges.go exists today: the
       # documentation family learned the hard way that a correct literal stops
       # being correct the moment the writer splits into a second file.
@@ -3492,7 +3492,7 @@ gates:
       - "sdk/go/factschema/codeowners/v1/**"
       - "sdk/go/factschema/submodule/v1/**"
       - "go/internal/storage/cypher/*code_call*.go"
-      - "go/internal/storage/cypher/*documentation*.go"
+      - "go/internal/storage/cypher/edge/writer/*documentation*.go"
       # Glob though only canonical_codeowners_edges.go exists today: the
       # documentation family learned the hard way that a correct literal stops
       # being correct the moment the writer splits into a second file.
