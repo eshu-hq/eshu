@@ -130,7 +130,13 @@ P0/P1/P2-blocking 0), `review-attest` capture/verify, `make pre-push`
   importer `gitdocs` ok 0.225s.
 - Terminal counts: 2/2 test-bearing touched packages green, zero failures.
 - Query/concurrency proof: the moved `preflight.go` and `structure.go`
-  pair at 99% similarity (package-clause delta only); the added-line scan
+  pair at 99% similarity (package-clause delta, plus a `//nolint:wrapcheck`
+  comment-only suppression on `xmlBudgetReader.Read`: the move surfaced a
+  pre-existing wrapcheck finding, but the unwrapped return is load-bearing
+  — the decode loop and `xml.Decoder` match terminal `io.EOF` by identity,
+  so wrapping would classify every clean document as malformed; verified
+  against the Go 1.27.1 `encoding/xml` source and the leaf's own
+  `err == io.EOF` check); the added-line scan
   of the Go diff finds no Cypher/SQL keywords, no telemetry identifiers,
   and no new goroutine or error-path lines — logic is byte-identical to
   base.
