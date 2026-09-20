@@ -19,7 +19,7 @@ import (
 // key. Kept as a flag default (not a constant used directly) so a test or an
 // alternate deployment can point at a different variable without a code
 // change.
-const defaultAPIKeyEnv = "DEEPSEEK_API_KEY"
+const defaultAPIKeyEnv = "DEEPSEEK_API_KEY" // #nosec G101 -- environment variable name, not a credential.
 
 const defaultBaseURL = "https://api.deepseek.com"
 
