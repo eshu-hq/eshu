@@ -1,8 +1,8 @@
-# Image Preflight
+# Picture Preflight
 
 ## Purpose
 
-`collector/imagepreflight` classifies image and screenshot documentation
+`collector/preflight/picture` classifies image and screenshot documentation
 sources before any OCR extractor reads pixels, visible text, EXIF metadata, or
 image-derived summaries. It gives future documentation collectors a
 metadata-only guard for resource limits, malformed media, unsupported codecs,
@@ -55,7 +55,7 @@ frame counts, elapsed time, skipped external references, metadata redaction,
 and resource outcomes through collector telemetry before enabling OCR
 ingestion.
 
-Collector Performance Evidence: `go test ./internal/collector/imagepreflight
+Collector Performance Evidence: `go test ./internal/collector/preflight/picture
 -count=1` proves image preflight is bounded by source bytes, pixel limits, and
 metadata-only classification. `go test ./internal/collector -run
 'Image|DocumentationDefaultOff' -count=1` proves image formats remain outside

@@ -727,7 +727,7 @@ land at the same call sites.
 | Diagram preflight | go/internal/collector/preflight/diagram/*.go | `No-Observability-Change: git-source collector metrics cover diagram preflight throughput` | collector preflight |
 | Archive preflight | go/internal/collector/preflight/archive/*.go | `No-Observability-Change: git-source collector metrics cover archive preflight throughput` | collector preflight |
 | Export manifest preflight | go/internal/collector/exportmanifestpreflight/*.go | `No-Observability-Change: git-source collector metrics cover export-manifest preflight throughput` | collector preflight |
-| Image preflight | go/internal/collector/imagepreflight/*.go | `No-Observability-Change: git-source collector metrics cover image preflight throughput` | collector preflight |
+| Image preflight | go/internal/collector/preflight/picture/*.go | `No-Observability-Change: git-source collector metrics cover image preflight throughput` | collector preflight |
 | Media preflight | go/internal/collector/preflight/media/*.go | `No-Observability-Change: git-source collector metrics cover media preflight throughput` | collector preflight |
 | PDF preflight | go/internal/collector/preflight/pdf/*.go | `No-Observability-Change: git-source collector metrics cover PDF preflight throughput` | collector preflight |
 | OOXML preflight | go/internal/collector/ooxmlpreflight/*.go | `No-Observability-Change: git-source collector metrics cover OOXML preflight throughput` | collector preflight |

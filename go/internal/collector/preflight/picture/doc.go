@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package imagepreflight classifies image documentation sources before any OCR
+// Package picture classifies image documentation sources before any OCR
 // extractor reads pixels, text, or image metadata.
 //
 // The package inspects bounded image container metadata for resource limits,
@@ -12,4 +12,4 @@
 // extractor may emit documentation facts. It does not emit facts, persist rows,
 // call providers, run OCR, write graph state, or expose runtime/API/MCP
 // behavior.
-package imagepreflight
+package picture

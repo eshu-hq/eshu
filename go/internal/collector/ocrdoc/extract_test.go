@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/imagepreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/picture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -39,7 +39,7 @@ func TestExtractEmitsOCRDocumentAndRegionSections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
-	assertEngineImage(t, engine.lastImage, imagepreflight.FormatPNG, 4, 2, 0)
+	assertEngineImage(t, engine.lastImage, picture.FormatPNG, 4, 2, 0)
 
 	document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
 	if got, want := document["format"], "image_ocr"; got != want {
@@ -54,7 +54,7 @@ func TestExtractEmitsOCRDocumentAndRegionSections(t *testing.T) {
 		"incident_media_source_class": "ocr_region",
 		"ocr_status":                  "completed",
 		"ocr_region_count":            "1",
-		"image_format":                imagepreflight.FormatPNG,
+		"image_format":                picture.FormatPNG,
 	} {
 		if got := metadata[key]; got != want {
 			t.Fatalf("document source_metadata[%q] = %q, want %q", key, got, want)
@@ -112,22 +112,22 @@ func TestExtractRecordsSkippedImagesAsDocumentWarnings(t *testing.T) {
 			sourceName: "docs/screenshot.webp",
 			body:       []byte("RIFF\x10\x00\x00\x00WEBPVP8 \x00\x00\x00\x00"),
 			wantStatus: "skipped",
-			wantClass:  string(imagepreflight.WarningUnsupportedCodec),
+			wantClass:  string(picture.WarningUnsupportedCodec),
 		},
 		{
 			name:       "malformed_media",
 			sourceName: "docs/broken.png",
 			body:       []byte("not an image"),
 			wantStatus: "skipped",
-			wantClass:  string(imagepreflight.WarningMalformedMedia),
+			wantClass:  string(picture.WarningMalformedMedia),
 		},
 		{
 			name:       "resource_limit",
 			sourceName: "docs/huge.png",
 			body:       encodePNG(t, 2, 2),
-			options:    Options{Preflight: imagepreflight.Options{MaxSourceBytes: 4}},
+			options:    Options{Preflight: picture.Options{MaxSourceBytes: 4}},
 			wantStatus: "skipped",
-			wantClass:  string(imagepreflight.WarningResourceLimitExceeded),
+			wantClass:  string(picture.WarningResourceLimitExceeded),
 		},
 		{
 			name:       "no_text",
@@ -179,13 +179,13 @@ func TestExtractUsesFirstFrameForAnimatedGIFWithWarning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Extract() error = %v, want nil", err)
 	}
-	assertEngineImage(t, engine.lastImage, imagepreflight.FormatGIF, 2, 1, 0)
+	assertEngineImage(t, engine.lastImage, picture.FormatGIF, 2, 1, 0)
 	document := payloadByKind(t, result.Envelopes, facts.DocumentationDocumentFactKind)
 	metadata := stringMapValue(t, document, "source_metadata")
 	if got, want := metadata["gif_frame_policy"], "first_frame"; got != want {
 		t.Fatalf("gif_frame_policy = %q, want %q", got, want)
 	}
-	if !strings.Contains(metadata["warning"], string(imagepreflight.WarningPartialExtraction)) {
+	if !strings.Contains(metadata["warning"], string(picture.WarningPartialExtraction)) {
 		t.Fatalf("warning = %q, want partial extraction", metadata["warning"])
 	}
 	if got := countKind(result.Envelopes, facts.DocumentationSectionFactKind); got != 1 {
@@ -215,13 +215,13 @@ func TestExtractRedactsSensitiveOCRText(t *testing.T) {
 	metadata := stringMapValue(t, section, "source_metadata")
 	for key, want := range map[string]string{
 		"redacted":        "true",
-		"redaction_class": string(imagepreflight.WarningSensitiveValueRedacted),
+		"redaction_class": string(picture.WarningSensitiveValueRedacted),
 	} {
 		if got := metadata[key]; got != want {
 			t.Fatalf("section source_metadata[%q] = %q, want %q", key, got, want)
 		}
 	}
-	if !strings.Contains(metadata["warning"], string(imagepreflight.WarningSensitiveValueRedacted)) {
+	if !strings.Contains(metadata["warning"], string(picture.WarningSensitiveValueRedacted)) {
 		t.Fatalf("warning = %q, want sensitive redaction", metadata["warning"])
 	}
 	if section["text_hash"] == "" || section["excerpt_hash"] == "" {
