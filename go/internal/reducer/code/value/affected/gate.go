@@ -141,3 +141,19 @@ func countRepos(
 	}
 	return len(repos), nil
 }
+
+// ShouldEmitRefresh decides whether a producer ACK emits a value-flow refresh
+// completion event. CanonicalWrites must be positive (an empty run changes no
+// cloud-sink inputs), and an explicit zero affected-repo signal suppresses the
+// event ("gated, none affected"). An absent signal fails open so unwired
+// producers still trigger the refresh rather than silently starving it.
+func ShouldEmitRefresh(canonicalWrites int, signals map[string]float64) bool {
+	if canonicalWrites <= 0 {
+		return false
+	}
+	affected, ok := signals[RefreshAffectedReposSignal]
+	if !ok {
+		return true
+	}
+	return affected > 0
+}

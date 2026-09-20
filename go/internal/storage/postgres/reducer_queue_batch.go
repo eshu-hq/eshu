@@ -70,8 +70,10 @@ func (q ReducerQueue) ClaimBatch(ctx context.Context, limit int) ([]reducer.Inte
 // AckBatch acknowledges multiple claimed reducer work items. Target-domain
 // rows use exact claim epochs; mixed-domain batches use one exact target update
 // and one legacy update so unrelated success cannot mask a fully stale target
-// subset. Implements reducer.BatchWorkSink.
-func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ []reducer.Result) error {
+// subset. Refresh-producer items (issue #6785) are ACKed per domain with a
+// same-statement completion event covering only the emit-gated ids.
+// Implements reducer.BatchWorkSink.
+func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, results []reducer.Result) error {
 	if err := q.validateClaim(); err != nil {
 		return err
 	}
@@ -81,12 +83,53 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, _ 
 
 	now := q.now()
 
+	// results rides parallel to intents at the service call site; a missing
+	// entry degrades to the zero Result, which never emits.
+	resultByID := make(map[string]reducer.Result, len(intents))
+	for i, intent := range intents {
+		if i >= len(results) {
+			break
+		}
+		if _, ok := resultByID[intent.IntentID]; !ok {
+			resultByID[intent.IntentID] = results[i]
+		}
+	}
+
 	targetIntents, cicdIntents, unrelatedIntents, err := splitReducerAckBatchIntents(intents)
 	if err != nil {
 		return err
 	}
 
 	claimRejected := false
+
+	unrelatedIntents, refreshGroups := splitValueFlowRefreshAckIntents(unrelatedIntents, resultByID)
+	for _, group := range refreshGroups {
+		query, args := ackValueFlowRefreshProducerReducerWorkBatchQuery(
+			now,
+			q.LeaseOwner,
+			string(group.domain),
+			group.ids,
+			group.claimedAts,
+			group.emitIDs,
+		)
+		result, err := q.database.ExecContext(ctx, query, args...)
+		if err != nil {
+			return fmt.Errorf(
+				"batch ack reducer work (%d %s items): %w",
+				len(group.ids),
+				group.domain,
+				err,
+			)
+		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("batch ack reducer work: rows affected: %w", err)
+		}
+		if rowsAffected != int64(len(group.ids)) {
+			claimRejected = true
+		}
+	}
+
 	if len(targetIntents) > 0 {
 		query, args := ackContainerImageIdentityReducerWorkBatchQuery(
 			now,

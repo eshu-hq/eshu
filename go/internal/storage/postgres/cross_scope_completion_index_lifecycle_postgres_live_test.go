@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const crossScopeCompletionSourceIndex = "fact_work_items_cross_scope_source_idx"
+const crossScopeCompletionSourceIndex = "fact_work_items_cross_scope_source_v2_idx"
 
 func TestCrossScopeCompletionQueueMigrationLifecycleLive(t *testing.T) {
 	db := openContainerImageIdentityAckCapabilityProofDB(t)
@@ -184,7 +184,7 @@ WHERE work_item_id = 'reducer_5740_index_1'
 		t.Fatalf("drop completion index before invalid recovery: %v", err)
 	}
 	if _, err := db.ExecContext(ctx, `
-CREATE UNIQUE INDEX CONCURRENTLY fact_work_items_cross_scope_source_idx
+CREATE UNIQUE INDEX CONCURRENTLY `+crossScopeCompletionSourceIndex+`
 ON fact_work_items (domain)
 WHERE stage = 'reducer'
   AND status IN ('claimed', 'running', 'succeeded')
@@ -203,7 +203,7 @@ WHERE stage = 'reducer'
 }
 
 func crossScopeCompletionIndexDefinition(t *testing.T) Definition {
-	return crossScopeCompletionDefinition(t, "fact_work_items_cross_scope_source_idx")
+	return crossScopeCompletionDefinition(t, "fact_work_items_cross_scope_source_v2_idx")
 }
 
 func crossScopeCompletionDefinition(t *testing.T, name string) Definition {

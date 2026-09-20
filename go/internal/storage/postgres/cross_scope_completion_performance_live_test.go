@@ -44,7 +44,7 @@ func TestCrossScopeCompletionFinalShapePerformanceLive(t *testing.T) {
 	if _, err := baselineDB.ExecContext(ctx, `
 DROP TABLE cross_scope_completion_events;
 DROP TABLE cross_scope_completion_upgrade_markers;
-DROP INDEX fact_work_items_cross_scope_source_idx;
+DROP INDEX fact_work_items_cross_scope_source_v2_idx;
 ALTER TABLE fact_work_items
     DROP COLUMN cross_scope_replay_required CASCADE,
     DROP COLUMN cross_scope_completion_ack_epoch CASCADE;

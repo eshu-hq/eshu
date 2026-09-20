@@ -1,0 +1,18 @@
+-- #6785: drop the legacy completion consumer-intent lookup index name.
+--
+-- Migration 113 creates fact_work_items_cross_scope_source_v2_idx with the
+-- consumer predicate widened to code_value_flow_refresh, and nothing in this
+-- directory creates the legacy name any more, so this is a one-time
+-- convergence for an install that built it from an earlier release and a
+-- no-op on every boot after it -- and on a fresh database, on every boot
+-- including the first. That matters because this directory has no
+-- applied-migration ledger: had the create of the legacy name been left in
+-- the tree, this drop would undo it and the next startup would build it
+-- again -- a concurrent index build over the populated table on every
+-- startup, forever.
+--
+-- This file holds exactly ONE statement: the migration runner Execs each file
+-- as a single simple-query string and Postgres treats a multi-statement
+-- string as an implicit transaction block -- which DROP INDEX CONCURRENTLY
+-- cannot run inside.
+DROP INDEX CONCURRENTLY IF EXISTS fact_work_items_cross_scope_source_idx;

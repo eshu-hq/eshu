@@ -16,10 +16,17 @@ completions in ANY later generation reopen it — the later-generation
 re-enqueue falls out of the existing join. Retention prunes superseded
 generations only; nothing ever supersedes the lone global generation.
 
-Emit gate (Option A): each producer handler reports
-`value_flow_refresh_affected_repos` (graph gate over written keys) alongside
-the existing `CanonicalWrites`; ACK emits iff both are positive. Relevance
-rides the already-passed `reducer.Result` into single/batch ACK SQL.
+Emit gate (Option A): each producer handler reports `refresh_affected_repos`
+(graph gate over written keys, `affected.ShouldEmitRefresh`) alongside the
+existing `CanonicalWrites`. ACK emits when `CanonicalWrites` is positive and
+the signal is absent (unwired producers fail open) or positive; an explicit
+zero suppresses the event. Relevance rides the already-passed
+`reducer.Result` into single/batch ACK SQL (`value_flow_refresh_ack.go`):
+one emitting statement per producer domain with the gate outcome as a flag,
+bumping `cross_scope_completion_ack_epoch` so the rolling-upgrade fallback
+trigger never double-emits. Migration 093's CHECK, trigger domain list, and
+the fanout consumer index admit the new domains (112 converges older
+installs; the consumer index moves to a v2 name per the no-rebuild rule).
 
 Residual (file separately): the refresh adds one more global
 retract-and-rewrite writer beside the concurrent per-repo summary fixpoint

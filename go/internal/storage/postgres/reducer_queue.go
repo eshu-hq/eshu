@@ -409,8 +409,13 @@ func (q ReducerQueue) Heartbeat(ctx context.Context, intent reducer.Intent) erro
 	return nil
 }
 
-// Ack marks one claimed reducer work item as succeeded.
-func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, _ reducer.Result) error {
+// Ack marks one claimed reducer work item as succeeded. Refresh-producer
+// domains (issue #6785) always take the emitting ACK statement with the gate
+// outcome as $6: a passing gate emits the completion event in the same
+// statement, a suppressed one still succeeds without an event. Routing both
+// through one statement keeps the epoch bump unconditional, so the
+// rolling-upgrade fallback trigger never double-emits a new-path ACK.
+func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, result reducer.Result) error {
 	if err := q.validateClaim(); err != nil {
 		return err
 	}
@@ -429,11 +434,15 @@ func (q ReducerQueue) Ack(ctx context.Context, intent reducer.Intent, _ reducer.
 		args = append(args, intent.ClaimEpoch)
 	}
 	args = append(args, claimedAtValue(intent))
-	result, err := q.database.ExecContext(ctx, query, args...)
+	if isValueFlowRefreshProducer(intent.Domain) {
+		query = ackValueFlowRefreshProducerReducerWorkQuery
+		args = append(args, string(intent.Domain), shouldEmitValueFlowRefresh(result))
+	}
+	execResult, err := q.database.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("ack reducer work: %w", err)
 	}
-	rowsAffected, rowsErr := result.RowsAffected()
+	rowsAffected, rowsErr := execResult.RowsAffected()
 	if rowsErr != nil {
 		return fmt.Errorf("ack reducer work: rows affected: %w", rowsErr)
 	}
