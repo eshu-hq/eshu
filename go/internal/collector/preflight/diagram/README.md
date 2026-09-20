@@ -53,7 +53,7 @@ diagram ingestion.
 
 Collector Performance Evidence: `go test ./internal/collector/preflight/diagram
 -count=1` proves diagram classification is bounded by source bytes, element
-count, and structured-input depth. `go test ./internal/collector/gitrepo -run
+count, and structured-input depth. `go test ./internal/collector/repo/git -run
 'Diagram|DocumentationDefaultOff' -count=1` proves diagram formats remain
 outside documentation extraction by default.
 

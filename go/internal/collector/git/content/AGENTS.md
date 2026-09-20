@@ -4,8 +4,8 @@
 
 1. `go/internal/collector/git/content/README.md` — purpose, exported surface, and the notes below
 2. `go/internal/collector/git/content/doc.go` — the package contract
-3. `go/internal/collector/gitrepo/gitmodel/README.md` — the shared types and the fact-stream writer
-4. `go/internal/collector/gitrepo/README.md` — how the snapshot and fact stream drive this package
+3. `go/internal/collector/repo/git/model/README.md` — the shared types and the fact-stream writer
+4. `go/internal/collector/repo/git/README.md` — how the snapshot and fact stream drive this package
 
 ## The rule that shapes this package
 
@@ -32,6 +32,6 @@ touching emission.
 ## Verification
 
 ```bash
-cd go && go test ./internal/collector/git/content/... ./internal/collector/gitrepo/... -count=1
+cd go && go test ./internal/collector/git/content/... ./internal/collector/repo/git/... -count=1
 cd go && go vet ./internal/collector/...
 ```

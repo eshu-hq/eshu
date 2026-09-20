@@ -134,7 +134,7 @@ func deltaRelativePaths(payload map[string]any) []string {
 
 // candidatePaths lists the exact repo-relative CODEOWNERS locations GitHub
 // honors. This is duplicated from (not imported from)
-// internal/collector/codeowners.CandidatePaths() to respect the
+// internal/collector/repo/codeowners.CandidatePaths() to respect the
 // collector/reducer package ownership boundary
 // (docs/internal/agent-guide.md#ownership-boundaries); the two lists MUST
 // stay in lockstep. CODEOWNERS winner-resolution is inherently whole-repo, so

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
@@ -25,7 +25,7 @@ func ContentFactEnvelope(
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
-	fileSnapshot gitmodel.ContentFileSnapshot,
+	fileSnapshot model.ContentFileSnapshot,
 ) facts.Envelope {
 	payload := map[string]any{
 		"content_path":   fileSnapshot.RelativePath,
@@ -49,7 +49,7 @@ func ContentFactEnvelope(
 		payload["iac_relevant"] = strings.ToLower(fmt.Sprintf("%t", *fileSnapshot.IACRelevant))
 	}
 
-	return gitmodel.FactEnvelope(
+	return model.FactEnvelope(
 		"content",
 		scopeID,
 		generationID,
@@ -80,7 +80,7 @@ func ContentEntityFactEnvelope(
 	scopeID string,
 	generationID string,
 	observedAt time.Time,
-	entitySnapshot gitmodel.ContentEntitySnapshot,
+	entitySnapshot model.ContentEntitySnapshot,
 ) facts.Envelope {
 	payload := map[string]any{
 		"graph_id":      entitySnapshot.EntityID,
@@ -115,7 +115,7 @@ func ContentEntityFactEnvelope(
 		payload["entity_metadata"] = cloneMetadata(entitySnapshot.Metadata)
 	}
 
-	return gitmodel.FactEnvelope(
+	return model.FactEnvelope(
 		"content_entity",
 		scopeID,
 		generationID,
@@ -132,7 +132,7 @@ func ContentEntityFactEnvelope(
 // idempotent.
 //
 // defaultBranch and gitRefsPayload arrive precomputed by the caller: this is a
-// leaf package and must never import gitrepo (which owns the GitRef type), so
+// leaf package and must never import git (which owns the GitRef type), so
 // ref selection and payload shaping stay on the caller side.
 func RepositoryFactEnvelope(
 	repoPath string,
@@ -189,7 +189,7 @@ func RepositoryFactEnvelope(
 		payload["source_run_id"] = sourceRunID
 	}
 
-	return gitmodel.FactEnvelope("repository", scopeID, generationID, observedAt, "repository:"+repo.ID, payload, repoPath)
+	return model.FactEnvelope("repository", scopeID, generationID, observedAt, "repository:"+repo.ID, payload, repoPath)
 }
 
 // FileFactEnvelope builds the durable file fact for one parsed file: its
@@ -233,8 +233,8 @@ func FileFactEnvelope(
 	isDependency bool,
 ) facts.Envelope {
 	fileData = collapseFingerprintWallClock(fileData)
-	filePath := gitmodel.PayloadPath(fileData, "path")
-	relativePath := gitmodel.RepositoryRelativePath(repoPath, filePath)
+	filePath := model.PayloadPath(fileData, "path")
+	relativePath := model.RepositoryRelativePath(repoPath, filePath)
 	payload := map[string]any{
 		"graph_id":         repoID + ":" + relativePath,
 		"graph_kind":       "file",
@@ -243,9 +243,9 @@ func FileFactEnvelope(
 		"parsed_file_data": fileData,
 		"is_dependency":    isDependency,
 	}
-	if language := gitmodel.PayloadString(fileData, "language", "lang"); language != "" {
+	if language := model.PayloadString(fileData, "language", "lang"); language != "" {
 		payload["language"] = language
 	}
 
-	return gitmodel.FactEnvelope("file", scopeID, generationID, observedAt, "file:"+repoID+":"+relativePath, payload, filePath)
+	return model.FactEnvelope("file", scopeID, generationID, observedAt, "file:"+repoID+":"+relativePath, payload, filePath)
 }

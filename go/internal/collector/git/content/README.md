@@ -19,7 +19,7 @@ sync -> discover -> parse -> emit facts -> enqueue -> reducer -> projection -> q
 `gitrepo` drives the repository snapshot and the fact stream. It calls into
 this package during emission; this package never calls back into `gitrepo`.
 Anything both sides need lives in
-`go/internal/collector/gitrepo/gitmodel`.
+`go/internal/collector/repo/git/model`.
 
 ## Exported surface
 

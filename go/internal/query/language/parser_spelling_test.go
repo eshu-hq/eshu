@@ -138,7 +138,7 @@ func newDefaultParserEngine(t *testing.T) *parser.Engine {
 // parseFixtureLanguage writes source to a file with the given extension in a
 // fresh repository root, parses it through the production engine, and returns
 // the language the collector would stamp on the File: the payload's
-// `language` key, else `lang`, trimmed (gitrepo.snapshotPayloadString).
+// `language` key, else `lang`, trimmed (git.snapshotPayloadString).
 func parseFixtureLanguage(t *testing.T, engine *parser.Engine, extension, source string) string {
 	t.Helper()
 	repoRoot := t.TempDir()

@@ -347,7 +347,7 @@ func intFromPayload(value any) int {
 // production ParsePath is never reached with a cold cache: the collector
 // reads the file itself and primes those RAW bytes first, so that ParsePath's
 // own read is a cache hit rather than a second physical read (see
-// go/internal/collector/gitrepo/git_snapshot_parse_partitions.go, the
+// go/internal/collector/repo/git/snapshot_parse_partitions.go, the
 // os.ReadFile + shared.PrimeSource pair). Normalizing only ReadSource's disk
 // path would therefore leave the entire production parse path broken while
 // every cold-cache test in this file still passed -- the same shape of false

@@ -9,7 +9,7 @@ import (
 	"sort"
 	"testing"
 
-	collectorsubmodule "github.com/eshu-hq/eshu/go/internal/collector/submodule"
+	collectorsubmodule "github.com/eshu-hq/eshu/go/internal/collector/repo/submodule"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"

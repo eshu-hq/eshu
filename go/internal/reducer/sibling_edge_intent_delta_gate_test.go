@@ -25,9 +25,9 @@ import (
 // path for its own repository.
 //
 // The same empty-path outcome is reachable a second way, without touching
-// local_path: relativePathsForSnapshotTargets (collector/gitrepo/
-// git_snapshot_delta.go) resolves each changed target through EvalSymlinks but
-// leaves the repo root unresolved in git mode (git_selection_native.go resolves
+// local_path: relativePathsForSnapshotTargets (collector/repo/git/
+// snapshot_delta.go) resolves each changed target through EvalSymlinks but
+// leaves the repo root unresolved in git mode (selection_native.go resolves
 // it only in filesystem mode), so on a symlinked repos root every target
 // relativizes to a "../"-prefixed path that normalizeSnapshotRelativePaths
 // drops -- while repository.Delta stays true, because it was set from the
@@ -168,7 +168,7 @@ func refreshIntentPayloadForRepo(t *testing.T, intents []SharedProjectionIntentR
 // Why widening is data loss, not a slower correct answer. On a delta
 // generation the collector replaces the discovered file set with the changed
 // targets alone (resolveNativeSnapshotFileSetForTargets,
-// collector/gitrepo/git_snapshot_native.go), so the generation carries
+// collector/repo/git/snapshot_native.go), so the generation carries
 // content-entity facts for the CHANGED files only. The per-edge intents
 // therefore re-create only the changed files' edges. A repo-wide
 // `DELETE ... WHERE child.repo_id IN $repo_ids` deletes every UNCHANGED file's

@@ -193,3 +193,14 @@ scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_retra
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_retract_scope.go
 scripts/docs-citations-baseline.txt:go/internal/storage/cypher/edge_writer_sql.go
 docs/internal/evidence/5984-edge-writer-unroutable-rows.md:go/internal/storage/cypher/edge_writer.go
+
+# #6695 repo leaf move: dated evidence notes that inventory the source paths
+# as they stood when those moves landed. Repointing would falsify the record
+# of where each leaf moved from. The live pointers are
+# go/internal/collector/repo/git/docs/ and
+# go/internal/collector/repo/git/snapshot_entity_buckets.go.
+docs/internal/evidence/6695-collector-archive-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_archive.go
+docs/internal/evidence/6695-collector-archive-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_archive_tar.go
+docs/internal/evidence/6695-collector-archive-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_archive_helpers.go
+docs/internal/evidence/6695-collector-diagram-preflight-package-move.md:go/internal/collector/gitrepo/gitdocs/git_documentation_diagram.go
+docs/internal/evidence/6206-unwritten-entity-labels.md:go/internal/collector/gitrepo/git_snapshot_entity_buckets.go

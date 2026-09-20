@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -30,8 +30,8 @@ func TestBuildIngesterCollectorServiceWiresLoggerIntoRepositorySelector(t *testi
 		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
 	}
 
-	source := service.Source.(*gitrepo.GitSource)
-	selector := source.Selector.(gitrepo.NativeRepositorySelector)
+	source := service.Source.(*git.GitSource)
+	selector := source.Selector.(git.NativeRepositorySelector)
 	if selector.Logger == nil {
 		t.Fatal("repository selector logger = nil, want non-nil")
 	}

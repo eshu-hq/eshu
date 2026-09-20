@@ -324,7 +324,7 @@ func TestInheritanceFamilyOduHasAFileFactForEveryContentEntity(t *testing.T) {
 // naming reducer_domain "inheritance_materialization", no build*ReducerIntent
 // probe exists for this domain (production enqueues it exclusively through
 // inheritanceMaterializationFactEnvelope,
-// go/internal/collector/gitrepo/git_followup_facts.go), so a live replay of
+// go/internal/collector/repo/git/followup_facts.go), so a live replay of
 // this cassette would build zero reducer intents regardless of how correct
 // the content_entity facts are.
 func TestInheritanceFamilyOduCarriesTheFollowupFact(t *testing.T) {

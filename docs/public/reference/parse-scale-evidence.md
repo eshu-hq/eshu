@@ -179,7 +179,7 @@ allocation. The ~74 ns/op remaining cost is the CGO boundary overhead of
 Benchmark Evidence: parser pool reuse eliminates all heap allocations on the
 hot parse path. A 4,000-file Python repository that previously made 4,000 CGO
 `ts_parser_new` calls now makes one allocation (on language first load) and
-4,000 lock-free pool borrows with `Reset()`. The 390 collector/discovery tests
+4,000 lock-free pool borrows with `Reset()`. The 390 collector/repo/discovery tests
 and 1,303 parser package tests all pass with the pool active, confirming no
 regression in parse correctness.
 

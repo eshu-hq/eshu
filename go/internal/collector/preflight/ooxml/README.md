@@ -64,7 +64,7 @@ extractor.
 Collector Performance Evidence: `go test ./internal/collector/preflight/ooxml
 -count=1` proves package classification is bounded by source bytes, expanded
 bytes, entry count, XML bytes, XML depth, and compression ratio. `go test
-./internal/collector/gitrepo -run 'OOXML|DocumentationDefaultOff|OfficeSpreadsheet' -count=1` proves
+./internal/collector/repo/git -run 'OOXML|DocumentationDefaultOff|OfficeSpreadsheet' -count=1` proves
 `.docx`, `.xlsx`, and `.pptx` remain on the parser path instead of entering
 documentation extraction by default.
 

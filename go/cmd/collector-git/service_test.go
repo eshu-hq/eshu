@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -32,20 +32,20 @@ func TestBuildCollectorServiceUsesIngestionStoreBoundary(t *testing.T) {
 	if service.Source == nil {
 		t.Fatal("buildCollectorService() source = nil, want non-nil")
 	}
-	if _, ok := service.Source.(*gitrepo.GitSource); !ok {
+	if _, ok := service.Source.(*git.GitSource); !ok {
 		t.Fatalf(
 			"buildCollectorService() source type = %T, want *collector.GitSource",
 			service.Source,
 		)
 	}
-	source := service.Source.(*gitrepo.GitSource)
-	if _, ok := source.Selector.(gitrepo.NativeRepositorySelector); !ok {
+	source := service.Source.(*git.GitSource)
+	if _, ok := source.Selector.(git.NativeRepositorySelector); !ok {
 		t.Fatalf("buildCollectorService() selector type = %T, want collector.NativeRepositorySelector", source.Selector)
 	}
-	if _, ok := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter); !ok {
+	if _, ok := source.Snapshotter.(git.NativeRepositorySnapshotter); !ok {
 		t.Fatalf("buildCollectorService() snapshotter type = %T, want collector.NativeRepositorySnapshotter", source.Snapshotter)
 	}
-	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
+	snapshotter := source.Snapshotter.(git.NativeRepositorySnapshotter)
 	if snapshotter.SCIP.Enabled {
 		t.Fatal("buildCollectorService() SCIP enabled by default = true, want false")
 	}
@@ -86,8 +86,8 @@ func TestBuildCollectorServiceWiresExplicitSCIPEnable(t *testing.T) {
 		t.Fatalf("buildCollectorService() error = %v, want nil", err)
 	}
 
-	source := service.Source.(*gitrepo.GitSource)
-	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
+	source := service.Source.(*git.GitSource)
+	snapshotter := source.Snapshotter.(git.NativeRepositorySnapshotter)
 	if !snapshotter.SCIP.Enabled {
 		t.Fatal("buildCollectorService() SCIP enabled = false, want true")
 	}
@@ -106,11 +106,11 @@ func TestBuildCollectorServiceDoesNotRequireBridgeRepoRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildCollectorService() error = %v, want nil", err)
 	}
-	source, ok := service.Source.(*gitrepo.GitSource)
+	source, ok := service.Source.(*git.GitSource)
 	if !ok {
 		t.Fatalf("buildCollectorService() source type = %T, want *collector.GitSource", service.Source)
 	}
-	if _, ok := source.Selector.(gitrepo.NativeRepositorySelector); !ok {
+	if _, ok := source.Selector.(git.NativeRepositorySelector); !ok {
 		t.Fatalf("buildCollectorService() selector type = %T, want collector.NativeRepositorySelector", source.Selector)
 	}
 }
@@ -138,8 +138,8 @@ func TestBuildCollectorServiceWiresSCIPEnvironment(t *testing.T) {
 		t.Fatalf("buildCollectorService() error = %v, want nil", err)
 	}
 
-	source := service.Source.(*gitrepo.GitSource)
-	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
+	source := service.Source.(*git.GitSource)
+	snapshotter := source.Snapshotter.(git.NativeRepositorySnapshotter)
 	if !snapshotter.SCIP.Enabled {
 		t.Fatal("SCIP enabled = false, want true")
 	}
@@ -167,8 +167,8 @@ func TestBuildCollectorServiceWiresDiscoveryPathGlobOverlay(t *testing.T) {
 		t.Fatalf("buildCollectorService() error = %v, want nil", err)
 	}
 
-	source := service.Source.(*gitrepo.GitSource)
-	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
+	source := service.Source.(*git.GitSource)
+	snapshotter := source.Snapshotter.(git.NativeRepositorySnapshotter)
 	if got, want := len(snapshotter.DiscoveryOptions.IgnoredPathGlobs), 1; got != want {
 		t.Fatalf("IgnoredPathGlobs length = %d, want %d", got, want)
 	}
@@ -196,7 +196,7 @@ func TestBuildCollectorServiceWiresTelemetryIntoSourceAndService(t *testing.T) {
 		t.Fatalf("buildCollectorService() error = %v, want nil", err)
 	}
 
-	source, ok := service.Source.(*gitrepo.GitSource)
+	source, ok := service.Source.(*git.GitSource)
 	if !ok {
 		t.Fatalf("buildCollectorService() source type = %T, want *collector.GitSource", service.Source)
 	}
@@ -209,7 +209,7 @@ func TestBuildCollectorServiceWiresTelemetryIntoSourceAndService(t *testing.T) {
 	if source.Logger == nil || service.Logger == nil {
 		t.Fatal("collector logger wiring = nil, want non-nil")
 	}
-	selector := source.Selector.(gitrepo.NativeRepositorySelector)
+	selector := source.Selector.(git.NativeRepositorySelector)
 	if selector.Logger == nil {
 		t.Fatal("collector selector logger = nil, want non-nil")
 	}

@@ -50,4 +50,4 @@ without re-running the precision study and updating that evidence doc.
   counter by outcome, reason, and language) and
   `eshu_dp_code_fingerprint_duration_seconds` (per-file fingerprint-time
   histogram), emitted from `recordFingerprintStats` in
-  `go/internal/collector/gitrepo/git_snapshot_prescan_stats.go`.
+  `go/internal/collector/repo/git/snapshot_prescan_stats.go`.

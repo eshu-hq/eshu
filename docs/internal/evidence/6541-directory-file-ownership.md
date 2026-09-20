@@ -54,7 +54,7 @@ caller granted it and counted for the caller granted alpha.
 such a row and quarantines the fact. Production discovery
 cannot emit such a path -- every `relative_path` it writes comes from
 `filepath.Rel` against the repository root
-(`go/internal/collector/discovery/filesystem_walk.go`) -- so this is a guard on a
+(`go/internal/collector/repo/discovery/filesystem_walk.go`) -- so this is a guard on a
 malformed or hostile fact, not a reproduction of an observed run.
 
 RED then GREEN, `go/internal/projector`:

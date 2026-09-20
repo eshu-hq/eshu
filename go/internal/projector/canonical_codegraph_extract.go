@@ -200,7 +200,7 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 //
 // Production discovery cannot emit such a path: every relative_path it writes
 // comes from filepath.Rel against the repository root
-// (go/internal/collector/discovery/filesystem_walk.go). This is a guard on a
+// (go/internal/collector/repo/discovery/filesystem_walk.go). This is a guard on a
 // malformed or hostile fact, so a rejected row is QUARANTINED rather than
 // skipped: it would otherwise have produced Directory and File rows, and an
 // operator needs to tell a fact this guard dropped from one that was never

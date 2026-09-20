@@ -11,10 +11,10 @@ import (
 
 // TestScopeSourceKeyUsesMetadataSourceKeyForRepositoryScope pins the storage
 // bridge in the #5192 contract chain: buildScope
-// (go/internal/collector/gitrepo/git_source_processing.go) writes repo.ID into both
+// (go/internal/collector/repo/git/source_processing.go) writes repo.ID into both
 // Metadata["source_key"] and Metadata["repo_id"] (proven by
 // TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID in
-// git_source_processing_test.go), and upsertIngestionScope (ingestion.go:451)
+// source_processing_test.go), and upsertIngestionScope (ingestion.go:451)
 // calls scopeSourceKey to compute the ingestion_scopes.source_key column it
 // persists -- the same column the console operations-board link
 // (repositorySourceHref in apps/console/src/api/operationsBoard.ts) expects
@@ -63,7 +63,7 @@ func TestScopeSourceKeyUsesMetadataSourceKeyForRepositoryScope(t *testing.T) {
 // whitespace-only value. buildScope always populates a non-empty
 // Metadata["source_key"] for repository scopes (see
 // TestBuildScopeRepositorySourceKeyMatchesMetadataRepoID in
-// git_source_processing_test.go), so in production this fallback never fires
+// source_processing_test.go), so in production this fallback never fires
 // for repository-kind scopes today. This test exists so a future change
 // cannot silently widen the fallback condition -- for example treating a
 // present-but-unexpected key as "missing" -- without an explicit test update

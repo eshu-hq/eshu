@@ -148,7 +148,7 @@ func rationaleMaterializationIntent() Intent {
 // changed in this generation, which is a repo-wide refresh, not a delta", and
 // asserted repo-untouched got no delta keys. That reading does not survive the
 // collector. A repository is marked Delta only when its git delta is non-empty
-// (buildSelectedRepositories, collector/gitrepo/git_selection_native.go, guards
+// (buildSelectedRepositories, collector/repo/git/selection_native.go, guards
 // on GitSyncDelta.IsEmpty), so "delta generation, no changed paths" is never
 // emitted for a repository that genuinely had no changes. What DOES emit this
 // exact payload is a delta whose changed paths could not be expressed: on a

@@ -6,12 +6,12 @@ package main
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
-func ingesterSnapshotterForEnv(t *testing.T, env map[string]string) gitrepo.NativeRepositorySnapshotter {
+func ingesterSnapshotterForEnv(t *testing.T, env map[string]string) git.NativeRepositorySnapshotter {
 	t.Helper()
 
 	service, err := buildIngesterCollectorService(
@@ -26,7 +26,7 @@ func ingesterSnapshotterForEnv(t *testing.T, env map[string]string) gitrepo.Nati
 	if err != nil {
 		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
 	}
-	return service.Source.(*gitrepo.GitSource).Snapshotter.(gitrepo.NativeRepositorySnapshotter)
+	return service.Source.(*git.GitSource).Snapshotter.(git.NativeRepositorySnapshotter)
 }
 
 // TestBuildIngesterCollectorServiceHonorsEmitDataflowGate is the regression

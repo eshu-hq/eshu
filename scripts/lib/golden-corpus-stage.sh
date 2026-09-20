@@ -204,9 +204,9 @@ stage_minimal_corpus() {
 			# repositoryidentity with ESHU_GITHUB_ORG=acme below, to the exact same
 			# repo_id the filesystem-synthesized "https://github.com/acme/deployable-source.git"
 			# remote produces for that fixture's own Repository node -- see
-			# go/internal/collector/submodule/resolve.go), then register the gitlink
+			# go/internal/collector/repo/submodule/resolve.go), then register the gitlink
 			# via `git update-index --cacheinfo` rather than a real nested checkout:
-			# gitSubmoduleGitlinkSHA (go/internal/collector/gitrepo/gitsubmodule/git_submodule_pinned_sha.go)
+			# gitSubmoduleGitlinkSHA (go/internal/collector/repo/git/submodule/pinned_sha.go)
 			# reads the pin from the committed tree via `git ls-tree HEAD --
 			# <path>`, never the working directory, so no submodule checkout is
 			# needed for the pin to resolve.

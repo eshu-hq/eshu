@@ -43,7 +43,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -147,19 +147,19 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 	t.Run("claim and handoff trigger targeted repository sync", func(t *testing.T) {
 		var syncedRepoIDs []string
 		claimStart := time.Now()
-		selector := gitrepo.WebhookTriggerRepositorySelector{
-			Config:     gitrepo.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		selector := git.WebhookTriggerRepositorySelector{
+			Config:     git.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
 			Store:      store,
 			Owner:      "collector-git-proof",
 			ClaimLimit: 50,
 			Now:        func() time.Time { return time.Now().UTC() },
-			SyncGit: func(_ context.Context, _ gitrepo.RepoSyncConfig, repositoryIDs []string) (gitrepo.GitSyncSelection, error) {
+			SyncGit: func(_ context.Context, _ git.RepoSyncConfig, repositoryIDs []string) (git.GitSyncSelection, error) {
 				syncedRepoIDs = append([]string(nil), repositoryIDs...)
 				paths := make([]string, 0, len(repositoryIDs))
 				for range repositoryIDs {
 					paths = append(paths, t.TempDir())
 				}
-				return gitrepo.GitSyncSelection{SelectedRepoPaths: paths}, nil
+				return git.GitSyncSelection{SelectedRepoPaths: paths}, nil
 			},
 		}
 		batch, err := selector.SelectRepositories(ctx)
@@ -189,14 +189,14 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 	t.Run("already-drained queue is a no-op for the webhook selector", func(t *testing.T) {
 		// Replay/retry matrix: an empty (already-drained) webhook queue must
 		// return an empty batch without re-syncing the already handed-off repo.
-		selector := gitrepo.WebhookTriggerRepositorySelector{
-			Config: gitrepo.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		selector := git.WebhookTriggerRepositorySelector{
+			Config: git.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
 			Store:  store,
 			Owner:  "collector-git-proof",
 			Now:    func() time.Time { return time.Now().UTC() },
-			SyncGit: func(context.Context, gitrepo.RepoSyncConfig, []string) (gitrepo.GitSyncSelection, error) {
+			SyncGit: func(context.Context, git.RepoSyncConfig, []string) (git.GitSyncSelection, error) {
 				t.Fatal("SyncGit called on drained queue, want no targeted sync")
-				return gitrepo.GitSyncSelection{}, nil
+				return git.GitSyncSelection{}, nil
 			},
 		}
 		batch, err := selector.SelectRepositories(ctx)
@@ -215,28 +215,28 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 		// path. We model scheduled polling with a deterministic selector that
 		// returns the repository the missed webhook would have targeted.
 		var webhookSynced bool
-		webhookSelector := gitrepo.WebhookTriggerRepositorySelector{
-			Config: gitrepo.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		webhookSelector := git.WebhookTriggerRepositorySelector{
+			Config: git.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
 			Store:  store,
 			Owner:  "collector-git-proof",
 			Now:    func() time.Time { return time.Now().UTC() },
-			SyncGit: func(context.Context, gitrepo.RepoSyncConfig, []string) (gitrepo.GitSyncSelection, error) {
+			SyncGit: func(context.Context, git.RepoSyncConfig, []string) (git.GitSyncSelection, error) {
 				webhookSynced = true
-				return gitrepo.GitSyncSelection{}, nil
+				return git.GitSyncSelection{}, nil
 			},
 		}
 		scheduled := &proofScheduledSelector{
-			batch: gitrepo.SelectionBatch{
+			batch: git.SelectionBatch{
 				ObservedAt: time.Now().UTC(),
-				Repositories: []gitrepo.SelectedRepository{{
+				Repositories: []git.SelectedRepository{{
 					RepoPath:    t.TempDir(),
 					RemoteURL:   "https://github.com/eshu-fixture/proof-repo.git",
 					DisplayName: "eshu-fixture/proof-repo",
 				}},
 			},
 		}
-		priority := gitrepo.PriorityRepositorySelector{
-			Selectors: []gitrepo.RepositorySelector{webhookSelector, scheduled},
+		priority := git.PriorityRepositorySelector{
+			Selectors: []git.RepositorySelector{webhookSelector, scheduled},
 		}
 		start := time.Now()
 		batch, err := priority.SelectRepositories(ctx)
@@ -273,13 +273,13 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 			t.Fatalf("total rows = %d, want 2 (distinct commits do not coalesce)", got)
 		}
 
-		failingSelector := gitrepo.WebhookTriggerRepositorySelector{
-			Config: gitrepo.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
+		failingSelector := git.WebhookTriggerRepositorySelector{
+			Config: git.RepoSyncConfig{ReposDir: t.TempDir(), SourceMode: "explicit", CloneDepth: 1},
 			Store:  store,
 			Owner:  "collector-git-proof",
 			Now:    func() time.Time { return time.Now().UTC() },
-			SyncGit: func(context.Context, gitrepo.RepoSyncConfig, []string) (gitrepo.GitSyncSelection, error) {
-				return gitrepo.GitSyncSelection{}, errors.New("simulated git sync failure")
+			SyncGit: func(context.Context, git.RepoSyncConfig, []string) (git.GitSyncSelection, error) {
+				return git.GitSyncSelection{}, errors.New("simulated git sync failure")
 			},
 		}
 		if _, err := failingSelector.SelectRepositories(ctx); err == nil {
@@ -325,11 +325,11 @@ func TestWebhookRefreshProofEndToEnd(t *testing.T) {
 // records whether it was consulted so the proof can assert that polling is the
 // authoritative recovery path when a webhook delivery is missed.
 type proofScheduledSelector struct {
-	batch  gitrepo.SelectionBatch
+	batch  git.SelectionBatch
 	called bool
 }
 
-func (s *proofScheduledSelector) SelectRepositories(context.Context) (gitrepo.SelectionBatch, error) {
+func (s *proofScheduledSelector) SelectRepositories(context.Context) (git.SelectionBatch, error) {
 	s.called = true
 	return s.batch, nil
 }

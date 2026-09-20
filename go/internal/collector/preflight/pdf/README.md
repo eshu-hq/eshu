@@ -55,7 +55,7 @@ collector telemetry before enabling PDF ingestion.
 
 Collector Performance Evidence: `go test ./internal/collector/preflight/pdf
 -count=1` proves PDF preflight is bounded by source bytes and marker-only
-classification. `go test ./internal/collector/gitrepo -run
+classification. `go test ./internal/collector/repo/git -run
 'PDFDocumentationFormatsRemainDefaultOff' -count=1` proves `.pdf` remains outside
 documentation extraction by default.
 

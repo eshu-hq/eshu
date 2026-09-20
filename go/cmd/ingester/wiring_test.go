@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/app"
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -100,17 +100,17 @@ func TestBuildIngesterCollectorServiceUsesNativeSnapshotter(t *testing.T) {
 		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
 	}
 
-	source, ok := service.Source.(*gitrepo.GitSource)
+	source, ok := service.Source.(*git.GitSource)
 	if !ok {
 		t.Fatalf("buildIngesterCollectorService() source type = %T, want *collector.GitSource", service.Source)
 	}
-	if _, ok := source.Selector.(gitrepo.NativeRepositorySelector); !ok {
+	if _, ok := source.Selector.(git.NativeRepositorySelector); !ok {
 		t.Fatalf("buildIngesterCollectorService() selector type = %T, want collector.NativeRepositorySelector", source.Selector)
 	}
-	if _, ok := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter); !ok {
+	if _, ok := source.Snapshotter.(git.NativeRepositorySnapshotter); !ok {
 		t.Fatalf("buildIngesterCollectorService() snapshotter type = %T, want collector.NativeRepositorySnapshotter", source.Snapshotter)
 	}
-	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
+	snapshotter := source.Snapshotter.(git.NativeRepositorySnapshotter)
 	if snapshotter.SCIP.Enabled {
 		t.Fatal("buildIngesterCollectorService() SCIP enabled by default = true, want false")
 	}
@@ -138,8 +138,8 @@ func TestBuildIngesterCollectorServiceUsesWebhookSelectorWithoutScheduledFallbac
 		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
 	}
 
-	source := service.Source.(*gitrepo.GitSource)
-	if _, ok := source.Selector.(gitrepo.WebhookTriggerRepositorySelector); !ok {
+	source := service.Source.(*git.GitSource)
+	if _, ok := source.Selector.(git.WebhookTriggerRepositorySelector); !ok {
 		t.Fatalf("buildIngesterCollectorService() selector type = %T, want collector.WebhookTriggerRepositorySelector", source.Selector)
 	}
 }
@@ -187,8 +187,8 @@ func TestBuildIngesterCollectorServiceWiresDiscoveryPathGlobOverlay(t *testing.T
 		t.Fatalf("buildIngesterCollectorService() error = %v, want nil", err)
 	}
 
-	source := service.Source.(*gitrepo.GitSource)
-	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
+	source := service.Source.(*git.GitSource)
+	snapshotter := source.Snapshotter.(git.NativeRepositorySnapshotter)
 	if got, want := len(snapshotter.DiscoveryOptions.IgnoredPathGlobs), 1; got != want {
 		t.Fatalf("IgnoredPathGlobs length = %d, want %d", got, want)
 	}

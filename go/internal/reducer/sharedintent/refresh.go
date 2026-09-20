@@ -75,7 +75,7 @@ func DeltaScopeRepositorySet(repositoryIDs []string) map[string]struct{} {
 //   - On a delta generation, ALWAYS delta-scoped, even with an empty path list.
 //     The collector replaces the discovered file set with the changed targets
 //     alone on a delta sync (resolveNativeSnapshotFileSetForTargets,
-//     collector/gitrepo/git_snapshot_native.go), so the generation carries
+//     collector/repo/git/snapshot_native.go), so the generation carries
 //     content-entity facts for the CHANGED files only and the per-edge intents
 //     re-create only those files' edges. Widening such a repository's retract to
 //     the whole repository deletes every UNCHANGED file's edge with nothing left

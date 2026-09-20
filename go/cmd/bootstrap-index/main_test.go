@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -209,14 +209,14 @@ func TestBuildBootstrapCollectorUsesNativeSnapshotter(t *testing.T) {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
 	}
 
-	source, ok := deps.source.(*gitrepo.GitSource)
+	source, ok := deps.source.(*git.GitSource)
 	if !ok {
 		t.Fatalf("buildBootstrapCollector() source type = %T, want *collector.GitSource", deps.source)
 	}
-	if _, ok := source.Selector.(gitrepo.NativeRepositorySelector); !ok {
+	if _, ok := source.Selector.(git.NativeRepositorySelector); !ok {
 		t.Fatalf("buildBootstrapCollector() selector type = %T, want collector.NativeRepositorySelector", source.Selector)
 	}
-	if _, ok := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter); !ok {
+	if _, ok := source.Snapshotter.(git.NativeRepositorySnapshotter); !ok {
 		t.Fatalf("buildBootstrapCollector() snapshotter type = %T, want collector.NativeRepositorySnapshotter", source.Snapshotter)
 	}
 }
@@ -239,8 +239,8 @@ func TestBuildBootstrapCollectorWiresDiscoveryPathGlobOverlay(t *testing.T) {
 		t.Fatalf("buildBootstrapCollector() error = %v, want nil", err)
 	}
 
-	source := deps.source.(*gitrepo.GitSource)
-	snapshotter := source.Snapshotter.(gitrepo.NativeRepositorySnapshotter)
+	source := deps.source.(*git.GitSource)
+	snapshotter := source.Snapshotter.(git.NativeRepositorySnapshotter)
 	if got, want := len(snapshotter.DiscoveryOptions.IgnoredPathGlobs), 1; got != want {
 		t.Fatalf("IgnoredPathGlobs length = %d, want %d", got, want)
 	}
