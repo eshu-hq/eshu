@@ -41,7 +41,8 @@ For audited family-level closure status, see
 
 The Fingerprint column records the structural fingerprint tier wired in
 `go/internal/parser/fingerprint` (#6835): `Full` tiers attach the exact hash,
-the token count, the alpha-renamed hash, and the MinHash sketch; `Exact-only`
+the token count, the alpha-renamed hash, the MinHash sketch, and the renamed
+5-shingle set (#6837); `Exact-only`
 tiers attach the exact hash and token count with their grammar's comment kinds
 excluded; `-` means no fingerprint wiring. Bodies below 50 tokens
 (`MinTokenCount`) and bodies from error parses are skipped on every tier.

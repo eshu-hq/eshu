@@ -8715,6 +8715,25 @@
           "data.analysis.dead_code_language_maturity.go": "derived"
         }
       },
+      "POST /api/v0/code/divergence/findings": {
+        "description": "Drifted-family divergence findings read proof (#6837): kind=drifted against orders-api exercises the reducer-derived drifted read surface (active-generation reducer_code_drifted_finding facts through the typed decode seam) through the same mounted route the equality families serve. Zero floor: object-shaped response with no results_field; the required JSON values carry the assertion, not a result count — the corpus is not required to contain an admitted drifted pair.",
+        "envelope": true,
+        "request_body": {
+          "repo_id": "orders-api",
+          "kind": "drifted",
+          "limit": 50
+        },
+        "required_response_fields": [
+          "data",
+          "truth",
+          "error"
+        ],
+        "required_json_values": {
+          "truth.level": "derived",
+          "data.kind": "drifted"
+        },
+        "minimum_results": 0
+      },
       "POST /api/v0/supply-chain/impact/suppressions": {
         "description": "#5465 authenticated suppression-producer coverage. The committed body is a valid synthetic contract example. During the live gate, the helper replaces it in a temporary runtime snapshot with the exact short-lived body already created and drained, so this shape executes as an idempotent retry without creating another generation or queue item. Zero floor: object-shaped response with no results_field; the required JSON values and paths carry the assertion, not a result count.",
         "request_body": {
