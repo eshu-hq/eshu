@@ -92,7 +92,7 @@ All Go commands ran from `go/` with `env -u GOROOT`, a worktree-local
   exit 0 (`preflight/image` ok, `ocrdoc` ok).
 - `gofmt -l` on both touched trees: clean.
 - `scripts/verify-package-docs.sh`, `scripts/verify-telemetry-coverage.sh`,
-  `scripts/verify-moved-file-refs.sh` (5 vacated paths, no dangling refs),
+  `scripts/verify-moved-file-refs.sh` (3 vacated Go paths, no dangling refs),
   `scripts/verify-filename-stutter.sh`,
   `scripts/verify-doc-citations.sh`: all pass on the committed HEAD.
 
