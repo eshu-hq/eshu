@@ -12,9 +12,10 @@ the standard library wherever both are imported, forcing a `stdimage` alias
 in three files; the owner directed a rename of leaf and directory instead,
 per the `golang-engineering` stdlib-shadowing rule. No `package picture`
 collides with the standard library, and the directory/package names match. `Options`, `Result`, `Warning`, `Preflight`, and the format and
-warning constants remain exact. This is the fourth `preflight/` leaf (the
-parent trio and the `archive`, `pdf`, and `diagram` leaves landed earlier);
-the media, ooxml, and manifest siblings stay flat for later slices.
+warning constants remain exact. This is the fifth `preflight/` leaf (the
+parent trio and the `archive`, `pdf`, `diagram`, and `media` (via #6870)
+leaves landed earlier); the ooxml and manifest siblings stay flat for
+later slices.
 
 Filenames are unchanged (`preflight.go` does not repeat its own `picture`
 directory, per the #6627 `cicd/run` precedent which kept `planner.go`).
