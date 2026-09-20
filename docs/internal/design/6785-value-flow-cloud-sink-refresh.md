@@ -43,7 +43,8 @@ It reads the graph chain
 `INVOKES_CLOUD_ACTION`, `RUNS_IN -> Workload`, `Workload <-INSTANCE_OF- WorkloadInstance -USES-> principal -CAN_PERFORM-> resource`
 (`go/internal/reducer/code/value/cloud_sink_loader.go`). The only caller is the
 `code_function_summary` handler, which the projector enqueues once per repo
-generation (`go/internal/projector/code/function/summary/reducer_intent.go:62`).
+generation (`BuildReducerIntent` in
+`go/internal/projector/code/function/summary/reducer_intent.go`).
 The live B-7 run recorded on #6785 showed it running with `workload_row_count=0`
 before `RUNS_IN`, `USES` and `CAN_PERFORM` existed. Nothing re-ran it, so the
 corpus has 0 cloud-sink edges even though `CloudSinkTargetsByPairCypher` now
