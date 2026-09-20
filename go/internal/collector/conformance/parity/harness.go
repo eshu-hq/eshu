@@ -164,7 +164,8 @@ func (h *Harness) applyReadback(committed []facts.Envelope, classByKey map[strin
 		case admissionAdmitted, admissionIdempotent:
 			reached = true
 		case admissionSuperseded, admissionWithheld:
-			// Stale-token and permission-hidden facts never count as reached.
+			// Stale-token and non-admissible (permission-hidden, unsupported)
+			// facts never count as reached.
 		}
 	}
 	return reached
