@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/refresh"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
@@ -73,6 +74,17 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, incidentRepoCorrelation)
+	}
+	// DomainCodeValueFlowRefresh re-runs the global value-flow fixpoint when
+	// late producers land (issue #6785). It needs only the fixpoint
+	// projector: summaries, sources, and graph ids are unchanged by the
+	// producers whose completion enqueues the refresh.
+	if handlers.ValueFlowFixpointProjector != nil {
+		codeValueFlowRefresh := refresh.Definition()
+		codeValueFlowRefresh.Handler = refresh.Handler{
+			Fixpoint: handlers.ValueFlowFixpointProjector,
+		}
+		definitions = append(definitions, codeValueFlowRefresh)
 	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 // FixpointProjector re-runs the global value-flow fixpoint. It is satisfied
@@ -61,4 +62,25 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 		),
 		CanonicalWrites: fixpoint.GraphRows,
 	}, nil
+}
+
+// Definition returns the additive domain definition for the value-flow
+// refresh: it re-runs the global fixpoint (rewriting cloud-sink edges) after
+// late producers land, reading the cross-scope chain the fixpoint loads.
+func Definition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainCodeValueFlowRefresh,
+		Summary: "re-run the global value-flow fixpoint after late producers land",
+		Ownership: reducercontract.OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "code_value_flow_refresh",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+			},
+		},
+	}
 }

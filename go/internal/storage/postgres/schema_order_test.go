@@ -243,4 +243,8 @@ var orderedBootstrapDefinitionNames = []string{
 	"fact_work_items_cross_scope_source_v2_idx",
 	// migration 114 (#6785) drops the legacy name 113 supersedes.
 	"drop_fact_work_items_cross_scope_source_idx_legacy",
+	// migration 115 (#6785) seeds the value-flow refresh singleton anchor:
+	// scope eshu:global with one perpetually-active generation plus the
+	// code_value_flow_refresh item, all ON CONFLICT DO NOTHING.
+	"value_flow_refresh_global_seed",
 }
