@@ -162,7 +162,7 @@ of revoked grants.
 The handler now works in this order:
 
 1. **Read the ledger row** for `(scope_id, iam_can_perform_materialization)`
-   (`reducer_readiness_waits`, migration 109, `storage/postgres/readiness/wait`).
+   (`reducer_readiness_waits`, migration 110, `storage/postgres/readiness/wait`).
 2. **Cheap poll.** If the row says this generation and queue cycle already
    committed at the row's own missing set (`crossscope.PollEligible`), ask the
    loader only about the missing ARNs. There is no fact load and no extraction.
@@ -414,10 +414,10 @@ real `FactStore` and `iamcantargets.Store`, graph writer stubbed out on both
 sides. Scope: 1 000 roles, 3 000 `aws_iam_permission` facts, 1 000 exact S3
 targets (990 ready, 10 in an uncommitted s3 scope), 343 registered scopes in
 the account. 60 evaluations per generation (30 min bound / 30 s `RetryDelay`).
-Three runs each; the "before" run is the same harness at 00ba81ddc with a
-no-op `configureWaitHandler`.
+Three runs each; the "before" run is the same harness on the pre-ledger
+tree of this branch (no-op `configureWaitHandler`).
 
-| | Before (00ba81ddc) | After |
+| | Before (pre-ledger tree) | After |
 | --- | --- | --- |
 | First evaluation | 106-109 ms, defers, 0 edges | 134-144 ms, commits 990 edges, then defers |
 | Evaluations 2-60 | 82.0-83.6 ms mean (full fact load each) | 1.85-1.92 ms mean, p95 at most 2.8 ms (poll) |
@@ -440,10 +440,10 @@ is emitted only on committing evaluations
 `elapsed_since_first_defer` against `max_wait`.
 
 Live Postgres proofs (§5). These tests skip without `ESHU_POSTGRES_DSN`, so a
-plain `go test` run does not exercise them. Run at 84ced6d36 (after the
-settle epoch, P3-a, and the clear compare-and-set, P3-b; rebased on
-6e17adaaf) against the `eshu` database of a `postgres:18-alpine` container;
-both commands exit 0:
+plain `go test` run does not exercise them. Run at the head named in the PR
+body proof block (after the settle epoch and the clear compare-and-set)
+against the `eshu` database of a `postgres:18-alpine` container; both
+commands exit 0:
 
 ```text
 ESHU_POSTGRES_DSN=… go test ./internal/storage/postgres -run ReadinessWait -count=1 -v
@@ -458,9 +458,9 @@ ESHU_POSTGRES_DSN=… go test ./internal/storage/postgres/readiness/wait/ -run L
 - `TestReadinessWaitConcurrentUpsertsKeepEarliestAnchorLive`: `--- PASS (0.10s)`.
 - `TestReadinessWaitResetAnchorSettleAndClearLive`: `--- PASS (0.05s)`.
 
-Migration 109 checksum (review P3-d). 109 was edited in place on this branch
+Migration 110 checksum (review P3-d). 110 was edited in place on this branch
 because it has never shipped. The bootstrap rejects a database that recorded
-an earlier 109 (`checksum changed: recorded …, current …`). Only dev and test
+an earlier 110 (`checksum changed: recorded …, current …`). Only dev and test
 databases that ran an intermediate commit of this branch can hold one; no
 release or `main` database can. Recover such a database, as was done for the
 run above, with:
@@ -469,12 +469,12 @@ run above, with:
 BEGIN;
 DROP TABLE IF EXISTS reducer_readiness_waits;
 DELETE FROM eshu_schema_migrations
-WHERE path = 'go/internal/storage/postgres/migrations/109_reducer_readiness_waits.sql';
+WHERE path = 'go/internal/storage/postgres/migrations/110_reducer_readiness_waits.sql';
 COMMIT;
 ```
 
 The ledger holds only wait timing, so dropping it loses no graph truth. Once
-109 merges it is frozen; a later change needs a new migration.
+110 merges it is frozen; a later change needs a new migration.
 
 ## 7. Cassette
 
