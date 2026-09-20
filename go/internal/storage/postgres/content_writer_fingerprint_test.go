@@ -336,6 +336,73 @@ func TestFingerprintWithdrawalDeletesSideRows(t *testing.T) {
 	}
 }
 
+// TestFingerprintSketchLossInvalidatesBands proves the sketch-loss case: an
+// entity rewritten from sketch-bearing to sketch-less (exact-only tier after
+// a tier demotion, or an undecodable sketch) keeps its fingerprint row but
+// yields zero band rows, so its prior code_fingerprint_band rows must still
+// be invalidated. Without the delete the #6836 grouping path would read
+// bands that no longer derive from the persisted sketch.
+func TestFingerprintSketchLossInvalidatesBands(t *testing.T) {
+	t.Parallel()
+
+	sketch := make([]uint64, fingerprint.SketchRegs)
+	for i := range sketch {
+		sketch[i] = uint64(i + 1)
+	}
+	sketchHex := fingerprint.EncodeSketch(sketch)
+	rowFor := func(sketchHex string) preparedFingerprintRow {
+		row := preparedFingerprintRow{
+			entityID:       "repo-sl|a.go|Function|big|10",
+			repoID:         "repo-sl",
+			fpExact:        "exact-sl",
+			tokenCount:     64,
+			hasFingerprint: true,
+		}
+		if sketchHex != "" {
+			row.fpSketch = sketchHex
+		}
+		return row
+	}
+
+	now := time.Now()
+	fake := &fakeExecQueryer{}
+	writer := NewContentWriter(withTransactions(fake))
+	ctx := context.Background()
+	if err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor(sketchHex)}, now); err != nil {
+		t.Fatalf("sketch-bearing upsertFingerprintBatches: %v", err)
+	}
+	if err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor("")}, now); err != nil {
+		t.Fatalf("sketch-less upsertFingerprintBatches: %v", err)
+	}
+
+	var fpUpserts, bandInserts, scopedBandDeletes int
+	for _, exec := range fake.execs {
+		switch {
+		case strings.Contains(exec.query, "INSERT INTO code_function_fingerprint"):
+			fpUpserts++
+		case strings.Contains(exec.query, "INSERT INTO code_fingerprint_band"):
+			bandInserts++
+		case strings.HasPrefix(strings.TrimSpace(exec.query), "DELETE") &&
+			strings.Contains(exec.query, "code_fingerprint_band") &&
+			strings.Contains(exec.query, "ANY("):
+			assertExecTargetsEntity(t, exec.args, "repo-sl|a.go|Function|big|10")
+			scopedBandDeletes++
+		}
+	}
+	if fpUpserts != 2 {
+		t.Fatalf("fp upserts = %d, want 2 (the fp row persists across the sketch loss)", fpUpserts)
+	}
+	if bandInserts < 1 {
+		t.Fatal("first generation must insert band rows")
+	}
+	// Rewrite invalidation plus sketch-loss invalidation: the second
+	// generation yields no bands, so its scoped delete is the only proof
+	// the prior bands were shed.
+	if scopedBandDeletes != 2 {
+		t.Fatalf("scoped band deletes = %d, want 2 (rewrite + sketch-loss invalidation)", scopedBandDeletes)
+	}
+}
+
 // assertExecTargetsEntity proves a scoped (repo, entity-set) delete carries
 // the withdrawn entity: args are (repo_id, entity text[]) per the shared
 // scoped-delete shape.

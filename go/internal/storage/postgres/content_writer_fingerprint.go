@@ -141,15 +141,19 @@ func (w ContentWriter) upsertFingerprintBatches(ctx context.Context, rows []prep
 		return err
 	}
 	bands := fingerprintBandRows(fpRows)
-	if len(bands) == 0 {
-		return nil
-	}
 	// Shed prior bands for exactly the entities rewritten here before the
-	// fresh bands insert. The delete runs once, serially, ahead of the
-	// concurrent inserts; concurrent batches touch disjoint entity sets, so
-	// no batch can delete a band another batch just inserted.
+	// fresh bands insert, even when this Write yields zero bands: an entity
+	// rewritten from sketch-bearing to sketch-less keeps its fp row but
+	// contributes no new bands, and without this invalidation its prior
+	// bands would survive as current LSH truth. The delete runs once,
+	// serially, ahead of the concurrent inserts; concurrent batches touch
+	// disjoint entity sets, so no batch can delete a band another batch
+	// just inserted.
 	if err := w.deleteFingerprintBandsForEntities(ctx, fpRows); err != nil {
 		return err
+	}
+	if len(bands) == 0 {
+		return nil
 	}
 	return runConcurrentBatches(ctx, len(bands), batchSize, w.effectiveBatchConcurrency(), func(c context.Context, start, end int) error {
 		return w.upsertFingerprintBandBatch(c, bands[start:end])
