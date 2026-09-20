@@ -63,7 +63,7 @@ func attachWorkflowImagesToRuns(runs map[string]*cicdRunEvidence, workflowImages
 
 // cicdWorkflowImageInputOnlyCommandKind is the one extracted command kind whose
 // image the calling workflow does not itself build:
-// workflowimage.evidenceFromReusableWorkflow stamps it on a
+// image.evidenceFromReusableWorkflow stamps it on a
 // `jobs.<job>.with.{image,image_ref,container_image}` value, which is typically
 // a scanner, base, or tooling image passed into a reusable workflow.
 //

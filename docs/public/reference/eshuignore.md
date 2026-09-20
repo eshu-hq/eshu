@@ -99,7 +99,7 @@ Relevant focused tests:
 
 ```bash
 cd go
-go test ./internal/collector/discovery \
+go test ./internal/collector/repo/discovery \
   -run 'TestResolveRepositoryFileSetsHonorsRepoLocalEshuIgnoreScopingAndNestedNegation|TestResolveRepositoryFileSetsHonorsRepoLocalGitignoreScopingAndNestedNegation' \
   -count=1
 go test ./internal/collector \

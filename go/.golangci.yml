@@ -172,7 +172,7 @@ linters:
         - hugeParam
         # ifElseChain flags every multi-branch if/else as refactor
         # bait, including the deliberately-readable chains in
-        # go/internal/collector/gitrepo/git_snapshot_native.go and friends.
+        # go/internal/collector/repo/git/snapshot_native.go and friends.
         - ifElseChain
         # rangeValCopy flags every range over a value type, including
         # the deliberate value-iteration in the parser pipeline.
@@ -371,13 +371,13 @@ linters:
       - path: 'internal/collector/awscloud/services/iam/scanner\.go'
         linters:
           - funlen
-      - path: 'internal/collector/gitrepo/git_fact_builder\.go'
+      - path: 'internal/collector/repo/git/fact_builder\.go'
         linters:
           - funlen
-      - path: 'internal/collector/gitrepo/git_snapshot_native\.go'
+      - path: 'internal/collector/repo/git/snapshot_native\.go'
         linters:
           - funlen
-      - path: 'internal/collector/gitrepo/git_source_stream\.go'
+      - path: 'internal/collector/repo/git/source_stream\.go'
         linters:
           - funlen
       - path: 'internal/coordinator/service\.go'
@@ -592,7 +592,7 @@ linters:
       - path: 'internal/collector/awscloud/services/kms/awssdk/mappers\.go'
         linters:
           - exhaustive
-      - path: 'internal/collector/gitrepo/gitdocs/git_documentation_archive_helpers\.go'
+      - path: 'internal/collector/repo/git/docs/archive_helpers\.go'
         linters:
           - exhaustive
       - path: 'internal/collector/ospackagevulnerability/'
@@ -742,10 +742,10 @@ linters:
           - wrapcheck
       # Git selection filesystem layer is at the boundary with the
       # local filesystem and git CLI.
-      - path: 'internal/collector/gitrepo/git_selection_filesystem\.go'
+      - path: 'internal/collector/repo/git/selection_filesystem\.go'
         linters:
           - wrapcheck
-      - path: 'internal/collector/gitrepo/git_selection_.*\.go'
+      - path: 'internal/collector/repo/git/selection_.*\.go'
         linters:
           - wrapcheck
       # Security alerts runtime is at the boundary with hosted
@@ -856,7 +856,7 @@ linters:
       - path: 'internal/collector/tfstateruntime/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/gitrepo/gitdocs/git_documentation_'
+      - path: 'internal/collector/repo/git/docs/'
         linters:
           - wrapcheck
       - path: 'internal/collector/cloud/azure/'
@@ -899,7 +899,7 @@ linters:
       # Collector discovery, EC2 posture/volume, networkfirewall
       # relationships, and SDK HTTP are at the boundary with the
       # filesystem and AWS SDK.
-      - path: 'internal/collector/discovery/'
+      - path: 'internal/collector/repo/discovery/'
         linters:
           - wrapcheck
       - path: 'internal/collector/awscloud/services/ec2/'
@@ -920,7 +920,7 @@ linters:
       - path: 'internal/collector/preflight/ooxml/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/gitrepo/priority_selector\.go'
+      - path: 'internal/collector/repo/git/priority_selector\.go'
         linters:
           - wrapcheck
       - path: 'internal/collector/servicecatalog/'
@@ -961,13 +961,13 @@ linters:
         linters:
           - wrapcheck
       # The remaining 5-6 wrapcheck violations in the hot-path
-      # collector files (git_snapshot_*, git_source.go) are at the
+      # collector files (snapshot_*, source.go) are at the
       # filesystem boundary; wrap context is added at the projection
       # handler.
-      - path: 'internal/collector/gitrepo/git_snapshot_'
+      - path: 'internal/collector/repo/git/snapshot_'
         linters:
           - wrapcheck
-      - path: 'internal/collector/gitrepo/git_source\.go'
+      - path: 'internal/collector/repo/git/source\.go'
         linters:
           - wrapcheck
       # Reducer and projector writers are at the boundary with the
@@ -1072,7 +1072,7 @@ linters:
       - path: 'internal/collector/extensionhost/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/gitrepo/git_source_processing\.go'
+      - path: 'internal/collector/repo/git/source_processing\.go'
         linters:
           - wrapcheck
       - path: 'internal/collector/fair_claim_dispatcher\.go'

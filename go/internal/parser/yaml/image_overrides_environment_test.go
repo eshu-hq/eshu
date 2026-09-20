@@ -216,7 +216,7 @@ image:
 // This is NOT a fix for a reachable production defect. Every real path
 // reaching this function comes from the collector's file discovery, which
 // cleans every path via filepath.ToSlash(filepath.Clean(...)) in
-// go/internal/collector/discovery (verified: 8 call sites) before the
+// go/internal/collector/repo/discovery (verified: 8 call sites) before the
 // parser ever sees it, so "//" (an empty segment) and "."/".." segments
 // cannot occur in a real collector-produced path. This test calls
 // imageOverrideDirectoryEnvironment directly with raw, uncleaned path

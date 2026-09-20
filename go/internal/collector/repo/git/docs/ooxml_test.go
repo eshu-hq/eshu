@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package docs
+
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/ooxml"
+)
+
+func TestOOXMLPreflightBlocksExtractionOnlyForFatalWarnings(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		input ooxml.Result
+		want  bool
+	}{
+		{
+			name: "hidden and annotation warnings stay extractable",
+			input: ooxml.Result{Warnings: []ooxml.Warning{
+				{Class: ooxml.WarningAnnotationTextSkipped, Count: 1},
+				{Class: ooxml.WarningHiddenContentSkipped, Count: 1},
+			}},
+			want: false,
+		},
+		{
+			name: "external relationships block extraction",
+			input: ooxml.Result{Warnings: []ooxml.Warning{
+				{Class: ooxml.WarningExternalRelationship, Count: 1},
+			}},
+			want: true,
+		},
+		{
+			name: "resource limits block extraction",
+			input: ooxml.Result{Warnings: []ooxml.Warning{
+				{Class: ooxml.WarningResourceLimitExceeded, Count: 1},
+			}},
+			want: true,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := ooxmlPreflightBlocksExtraction(tc.input); got != tc.want {
+				t.Fatalf("ooxmlPreflightBlocksExtraction() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

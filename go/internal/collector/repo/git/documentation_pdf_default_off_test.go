@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package git
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git/docs"
+
+	"github.com/eshu-hq/eshu/go/internal/parser"
+)
+
+func TestPDFDocumentationFormatsRemainDefaultOff(t *testing.T) {
+	t.Parallel()
+
+	repoPath := t.TempDir()
+	relativePath := "docs/runbook.pdf"
+	file := filepath.Join(repoPath, filepath.FromSlash(relativePath))
+	parserFiles, documentationFiles := partitionNativeSnapshotFiles(fileWithSizeSlice(file), parser.Registry{})
+	if len(documentationFiles) != 0 {
+		t.Fatalf("partitionNativeSnapshotFiles(%q) documentationFiles = %#v, want none", file, documentationFiles)
+	}
+	if got, want := len(parserFiles), 1; got != want {
+		t.Fatalf("partitionNativeSnapshotFiles(%q) parserFiles len = %d, want %d", file, got, want)
+	}
+	if _, _, ok := docs.GitDocumentationSourceURIAndFormat(relativePath); ok {
+		t.Fatalf("gitDocumentationSourceURIAndFormat(%q) ok = true, want false", relativePath)
+	}
+	if metas := docs.DocumentationFileMetasForPaths(repoPath, []string{file}, "commit"); len(metas) != 0 {
+		t.Fatalf("documentationFileMetasForPaths(%q) = %#v, want none", file, metas)
+	}
+}

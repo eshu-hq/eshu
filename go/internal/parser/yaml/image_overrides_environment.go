@@ -174,7 +174,7 @@ func imageOverrideDirectoryEnvironment(path string) string {
 // fix for a reachable production bug: every real path reaching this
 // function comes from the collector's file discovery, which cleans every
 // path via filepath.ToSlash(filepath.Clean(...))
-// (go/internal/collector/discovery, 8 call sites, verified) before the
+// (go/internal/collector/repo/discovery, 8 call sites, verified) before the
 // parser ever sees it, so those shapes cannot occur in a real
 // collector-produced path. They are included because an invalid LATER
 // marker must not CLEAR an earlier valid one -- recording "" for a

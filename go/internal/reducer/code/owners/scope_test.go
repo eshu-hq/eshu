@@ -7,14 +7,14 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/codeowners"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/codeowners"
 )
 
 // TestCodeownersOwnershipCandidatePathsMatchCollector locks this package's
 // hand-duplicated candidatePaths to the collector's canonical
 // codeowners.CandidatePaths(). The two lists are intentionally NOT wired by a
 // production import — the collector/reducer package ownership boundary
-// forbids this package importing internal/collector/codeowners — so this
+// forbids this package importing internal/collector/repo/codeowners — so this
 // test is the CI gate that keeps them in lockstep. Adding, removing, or
 // reordering a CODEOWNERS location in one copy without the other would
 // silently break the whole-repo re-projection trigger: the reducer would

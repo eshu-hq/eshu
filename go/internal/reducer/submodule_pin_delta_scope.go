@@ -13,7 +13,7 @@ import (
 
 // submodulePinGitmodulesRelativePath is the exact repo-relative ".gitmodules"
 // location the git collector recognizes (see
-// internal/collector/submodule.IsGitmodulesPath). This is duplicated from
+// internal/collector/repo/submodule.IsGitmodulesPath). This is duplicated from
 // (not imported from) that collector package to respect the collector/reducer
 // package ownership boundary (docs/internal/agent-guide.md#ownership-boundaries);
 // the two values MUST stay in lockstep. Unlike CODEOWNERS (three recognized

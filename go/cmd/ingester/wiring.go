@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo"
+	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/projector"
@@ -140,11 +140,11 @@ func buildIngesterCollectorService(
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (collector.Service, error) {
-	config, err := gitrepo.LoadRepoSyncConfig("ingester", getenv)
+	config, err := git.LoadRepoSyncConfig("ingester", getenv)
 	if err != nil {
 		return collector.Service{}, err
 	}
-	discoveryOptions, err := gitrepo.LoadDiscoveryOptionsFromEnv(getenv)
+	discoveryOptions, err := git.LoadDiscoveryOptionsFromEnv(getenv)
 	if err != nil {
 		return collector.Service{}, err
 	}
@@ -165,19 +165,19 @@ func buildIngesterCollectorService(
 	// projected commit per scope from scope_generations so git delta syncs
 	// baseline on a durable commit instead of the local working-copy HEAD
 	// (epic #2340).
-	nativeSelector := gitrepo.NativeRepositorySelector{
+	nativeSelector := git.NativeRepositorySelector{
 		Config:           config,
 		Logger:           logger,
 		BaselineResolver: committer,
 		Instruments:      instruments,
 	}
-	selector := gitrepo.RepositorySelector(nativeSelector)
-	handoffConfig := gitrepo.LoadWebhookTriggerHandoffConfig("ingester", getenv)
+	selector := git.RepositorySelector(nativeSelector)
+	handoffConfig := git.LoadWebhookTriggerHandoffConfig("ingester", getenv)
 	if !scheduledSyncConfig.Enabled && !handoffConfig.Enabled {
 		return collector.Service{}, errors.New("ESHU_REPO_SCHEDULED_SYNC_ENABLED=false requires ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true")
 	}
 	if handoffConfig.Enabled {
-		webhookSelector := gitrepo.WebhookTriggerRepositorySelector{
+		webhookSelector := git.WebhookTriggerRepositorySelector{
 			Config:           config,
 			Store:            webhookstore.NewWebhookTriggerStore(database),
 			Owner:            handoffConfig.Owner,
@@ -187,7 +187,7 @@ func buildIngesterCollectorService(
 			Instruments:      instruments,
 		}
 		if scheduledSyncConfig.Enabled {
-			selector = gitrepo.PriorityRepositorySelector{Selectors: []gitrepo.RepositorySelector{
+			selector = git.PriorityRepositorySelector{Selectors: []git.RepositorySelector{
 				webhookSelector,
 				nativeSelector,
 			}}
@@ -197,14 +197,14 @@ func buildIngesterCollectorService(
 	}
 
 	return collector.Service{
-		Source: &gitrepo.GitSource{
+		Source: &git.GitSource{
 			Component: "ingester",
 			Selector:  selector,
-			Snapshotter: gitrepo.NativeRepositorySnapshotter{
-				SCIP:             gitrepo.LoadSnapshotSCIPConfig(getenv),
+			Snapshotter: git.NativeRepositorySnapshotter{
+				SCIP:             git.LoadSnapshotSCIPConfig(getenv),
 				ParseWorkers:     config.ParseWorkers,
 				DiscoveryOptions: discoveryOptions,
-				EmitDataflow:     gitrepo.LoadEmitDataflowGate(getenv),
+				EmitDataflow:     git.LoadEmitDataflowGate(getenv),
 				Tracer:           tracer,
 				Instruments:      instruments,
 				Logger:           logger,

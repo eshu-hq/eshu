@@ -248,7 +248,7 @@ func TestClassifyCICDWorkflowImageEvidenceHandlesNoMatch(t *testing.T) {
 }
 
 // An image named by `jobs.<job>.with.image` is CONSUMED by the workflow, not
-// produced by it: workflowimage.evidenceFromReusableWorkflow stamps those
+// produced by it: image.evidenceFromReusableWorkflow stamps those
 // "reusable_workflow_input", and the value is typically a scanner, base, or
 // tooling image. Calling that correlation exact asserts the run produced the
 // image. That is not free: incidentCICDPromotionCandidates prefers a digest
