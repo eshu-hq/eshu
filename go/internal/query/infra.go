@@ -81,15 +81,12 @@ var infraCategoryLabels = map[string][]string{
 // the root package.
 var allInfraLabels = querycontract.AllInfraLabels
 
-// infraGraphOnlyLabels are the infra labels the aggregate routes read wholly
-// from the graph, even after the Postgres read model is backfilled (#6793):
-// CloudResource and TerraformStateResource have no content_entities row,
-// because other collectors write them. A test pins that these, plus
+// The former graph-only labels (CloudResource and TerraformStateResource,
+// inventory.GraphOnlyLabels) have no content_entities row because other
+// collectors write them. Since #6843 the aggregate routes serve them from
+// current-generation fact truth instead of a whole-label graph pass.
+// TestInfraReadModelLabelSplitCoversTaxonomyExactly pins that these, plus
 // storage/postgres/infra/inventory.Labels, partition allInfraLabels exactly.
-var infraGraphOnlyLabels = []string{
-	"CloudResource",
-	"TerraformStateResource",
-}
 
 // infraMixedWriterGraphSource maps each read-model label that also has a
 // non-content writer to that writer's evidence_source. The table holds the

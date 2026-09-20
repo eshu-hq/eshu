@@ -67,11 +67,12 @@
 # counter (NornicDB exposes none this gate can read), so infra/resources/* are
 # guarded by their latency ceiling only. (2) domainBacklogQuery (a #6794
 # sub-mechanism) scans shared_projection_intents, which this seed does not
-# populate, so no budget here can see it; that gap is tracked in #6820. (4) The
-# graph-only labels (CloudResource, TerraformStateResource) are still a whole-label
-# graph scan for /infra/resources/count even when the read model serves the rest:
-# 8.28s on a cold first hit at 150k nodes per label, tracked in #6843; the sweep's
-# discarded warmup requests keep that cold hit out of the measured p95.
+# populate, so no budget here can see it; that gap is tracked in #6820. (4)
+# Historical: the graph-only labels (CloudResource, TerraformStateResource)
+# were a whole-label graph scan for /infra/resources/count even when the read
+# model served the rest (8.28s on a cold first hit at 150k nodes per label,
+# tracked in #6843); since #6843 they come from Postgres fact truth, which the
+# work budgets below meter, and the sweep measures that path.
 #
 # FORMERLY EXEMPT (not loosened at the time): /api/v0/iac/resources measured
 # 1.23s to 2.07s against its 2s ceiling in three local GREEN runs with the
@@ -110,6 +111,7 @@ GET /api/v0/graph/entities	2000	borderline family: near the default budget at se
 GET /api/v0/infra/resources/count	2000	#6793 post-fix target; catalog p95 2500ms is looser; graph side not work-metered, see NOT COVERED in the header
 GET /api/v0/infra/resources/inventory	2000	#6793 post-fix target; catalog p95 2500ms is looser; graph side not work-metered, see NOT COVERED in the header
 GET /api/v0/iac/resources	2000	#6793 post-fix target; catalog p95 3000ms is looser; reproduces at seeded IaC fact scale
+GET /api/v0/cloud/inventory	1500	#6843: cloud category reads CloudResource from current-generation fact truth; named so the work table carries its own row instead of pooling into the default; ceiling kept at the default
 
 # #6794 family: status/readiness/multi-scope routes paying activeFactWorkItemsCTE
 # and large intent-table scan cost. Post-fix target 1000ms (issue #6797

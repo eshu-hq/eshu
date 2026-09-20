@@ -190,13 +190,14 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 func infraResourceAggregateTruth(profile QueryProfile, source InfraResourceAggregateSource, detail string) *TruthEnvelope {
 	if source == InfraResourceAggregateSourceReadModel {
 		return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisContentIndex,
-			"resolved from the Postgres infra read model, derived from the same content rows the canonical graph writer projects; "+detail)
+			"resolved from the Postgres infra read model: content-derived nodes from the same content rows the canonical graph writer projects, "+
+				"CloudResource and TerraformStateResource nodes from current-generation fact truth; "+detail)
 	}
 	if source == InfraResourceAggregateSourceHybrid {
 		return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisHybrid,
-			"content-derived infrastructure nodes resolved from the Postgres infra read model; CloudResource, "+
-				"TerraformStateResource, and the Terraform state projector's TerraformModule/TerraformOutput nodes "+
-				"from the authoritative graph; "+detail)
+			"content-derived infrastructure nodes resolved from the Postgres infra read model; CloudResource and "+
+				"TerraformStateResource nodes from current-generation fact truth; the Terraform state projector's "+
+				"TerraformModule/TerraformOutput nodes from the authoritative graph; "+detail)
 	}
 	return BuildTruthEnvelope(profile, infraResourceAggregateCapability, TruthBasisAuthoritativeGraph,
 		"resolved from the authoritative infrastructure graph; "+detail)

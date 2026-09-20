@@ -21,15 +21,14 @@ Where it is read from depends on the caller:
   CloudFormation, Argo CD, Crossplane, and Helm entities) are counted from the
   Postgres `infra_resource_entities` table. That table is derived from the
   same content rows the canonical graph writer projects. `CloudResource` and
-  `TerraformStateResource`, which other collectors write, are counted from the
-  graph, and so are the Terraform state projector's `TerraformModule` and
-  `TerraformOutput` nodes, through an indexed `evidence_source` lookup. Both
-  graph reads happen in one pass. The response truth basis is `hybrid` and its
-  level `derived`: for the duration of one projection stage, a repository's
-  table rows can lead its graph nodes. When the requested `category` needs no
-  graph read (for example `k8s`), the basis is `content_index`, also
-  `derived`. When it needs only the graph (`cloud`), it is
-  `authoritative_graph`.
+  `TerraformStateResource`, which other collectors write, are counted from
+  current-generation fact truth in Postgres (no backfill marker needed: fact
+  truth is current from normal pipeline operation), and the Terraform state
+  projector's `TerraformModule` and `TerraformOutput` nodes come from the
+  graph through an indexed `evidence_source` lookup. The response truth basis
+  is `hybrid` and its level `derived`. When the requested `category` needs no
+  graph read (for example `k8s`, or `cloud`, which reads only `CloudResource`
+  from fact truth), the basis is `content_index`, also `derived`.
 - Scoped tokens, and every other caller (before the backfill completes, or
   while a repository waits for that repair): every label
   is counted from the graph. The truth basis is `authoritative_graph`. Scoped

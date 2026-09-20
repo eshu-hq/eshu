@@ -10,10 +10,12 @@ import (
 )
 
 // TestInfraAggregateGraphOnlyCategorySkipsReadModelReadiness pins that a
-// category whose labels are all graph-only (category=cloud resolves to
-// CloudResource alone) never consults the read model's readiness check. The
-// complete answer lives in the graph, so a Postgres or marker-table failure
-// must not fail it.
+// category whose labels are all fact-served (category=cloud resolves to
+// CloudResource alone) never consults the read model's readiness check. Fact
+// truth needs no backfill marker: it is current from normal pipeline
+// operation, so a marker-table failure must not fail the read. (A Postgres
+// outage still fails it, like every other read-model read: there is no
+// silent graph fallback.)
 func TestInfraAggregateGraphOnlyCategorySkipsReadModelReadiness(t *testing.T) {
 	t.Parallel()
 
@@ -25,16 +27,16 @@ func TestInfraAggregateGraphOnlyCategorySkipsReadModelReadiness(t *testing.T) {
 	count, err := NewGraphInfraResourceAggregateStore(countGraph).WithReadModel(countModel).
 		CountInfraResources(ctx, filter)
 	if err != nil {
-		t.Fatalf("cloud CountInfraResources() error = %v, want the graph answer despite the read model failure", err)
+		t.Fatalf("cloud CountInfraResources() error = %v, want the facts answer despite the readiness failure", err)
 	}
-	if count.Source != InfraResourceAggregateSourceGraph {
-		t.Fatalf("cloud count source = %q, want graph", count.Source)
+	if count.Source != InfraResourceAggregateSourceReadModel {
+		t.Fatalf("cloud count source = %q, want read_model", count.Source)
 	}
 	if countModel.readyCalls != 0 {
 		t.Fatalf("cloud count checked read model readiness %d times, want 0", countModel.readyCalls)
 	}
-	if len(countGraph.calls) == 0 {
-		t.Fatal("cloud count did not read the graph")
+	if len(countGraph.calls) != 0 {
+		t.Fatalf("cloud count read the graph %d times, want 0", len(countGraph.calls))
 	}
 
 	inventoryModel := &fakeInfraReadModel{readyErr: errors.New("pg down")}
@@ -42,16 +44,16 @@ func TestInfraAggregateGraphOnlyCategorySkipsReadModelReadiness(t *testing.T) {
 	_, source, err := NewGraphInfraResourceAggregateStore(inventoryGraph).WithReadModel(inventoryModel).
 		InfraResourceInventory(ctx, filter, InfraResourceInventoryByProvider, 10, 0)
 	if err != nil {
-		t.Fatalf("cloud InfraResourceInventory() error = %v, want the graph answer despite the read model failure", err)
+		t.Fatalf("cloud InfraResourceInventory() error = %v, want the facts answer despite the readiness failure", err)
 	}
-	if source != InfraResourceAggregateSourceGraph {
-		t.Fatalf("cloud inventory source = %q, want graph", source)
+	if source != InfraResourceAggregateSourceReadModel {
+		t.Fatalf("cloud inventory source = %q, want read_model", source)
 	}
 	if inventoryModel.readyCalls != 0 {
 		t.Fatalf("cloud inventory checked read model readiness %d times, want 0", inventoryModel.readyCalls)
 	}
-	if len(inventoryGraph.calls) == 0 {
-		t.Fatal("cloud inventory did not read the graph")
+	if len(inventoryGraph.calls) != 0 {
+		t.Fatalf("cloud inventory read the graph %d times, want 0", len(inventoryGraph.calls))
 	}
 }
 
