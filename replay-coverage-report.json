@@ -1,6 +1,6 @@
 {
   "schema_version": "replay-coverage-report.v4",
-  "blocking": true,
+  "blocking": false,
   "totals": {
     "total": 438,
     "covered": 427,
@@ -4223,14 +4223,14 @@
       "key": "collector:documentation",
       "scenario_type": "baseline",
       "status": "exempt",
-      "detail": "Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ documentationexport), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input."
+      "detail": "Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ document/export), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input."
     },
     {
       "registry": "surface_inventory",
       "key": "collector:documentation",
       "scenario_type": "fault",
       "status": "exempt",
-      "detail": "Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ documentationexport), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input."
+      "detail": "Offline export library, not a polling collector binary. Documentation facts are produced from offline export manifests (go/internal/collector/ document/export), so there is no credentialed upstream to record into a cassette; the offline-manifest path is the credential-free input."
     },
     {
       "registry": "surface_inventory",

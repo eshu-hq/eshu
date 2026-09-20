@@ -1,4 +1,4 @@
-# documentationexport Agent Notes
+# document/export Agent Notes
 
 Read these before changing this package:
 
@@ -6,7 +6,7 @@ Read these before changing this package:
 - `docs/internal/agent-guide.md`
 - `docs/internal/design/1741-1748-google-workspace-and-external-export-ingestion.md`
 - `go/internal/collector/preflight/manifest/README.md`
-- `go/internal/collector/documentationexport/README.md`
+- `go/internal/collector/document/export/README.md`
 
 ## Invariants
 
@@ -26,7 +26,7 @@ Read these before changing this package:
 Run at minimum:
 
 ```bash
-cd go && go test ./internal/collector/documentationexport -count=1
+cd go && go test ./internal/collector/document/export -count=1
 scripts/verify-package-docs.sh
 git diff --check
 ```

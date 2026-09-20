@@ -31,7 +31,7 @@ fact emission counters cover any future caller that commits returned envelopes.
 Collector Performance Evidence: parser work is bounded by manifest preflight
 limits, explicit file allowlists, and per-section truncation. Local proof uses
 synthetic one-file and two-file manifests through
-`go test ./internal/collector/documentationexport -count=1` plus the combined
+`go test ./internal/collector/document/export -count=1` plus the combined
 collector/query/MCP package test.
 
 Collector Observability Evidence: no new metrics, spans, logs, or status rows
