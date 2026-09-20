@@ -1,0 +1,19 @@
+docs/public/reference/cypher-performance.md
+  s_422bd1301550fb::t_a391f565f1ac53 200-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9023be53cd474962f6a12b2d429f559a23f2b625",
+  "prompts": {},
+  "sessions": {
+    "s_422bd1301550fb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8d34b6c4-05e8-4ed9-aa08-ace4bb361e6d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
