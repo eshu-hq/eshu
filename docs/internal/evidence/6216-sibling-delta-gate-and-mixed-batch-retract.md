@@ -27,7 +27,7 @@ The decision lives in one place, `applyRepoRefreshDeltaScope`
 **Why an unusable delta must fail closed.** On a delta generation the collector
 replaces the discovered file set with the changed targets alone
 (`resolveNativeSnapshotFileSetForTargets`,
-`go/internal/collector/gitrepo/git_snapshot_native.go`), so the generation
+`go/internal/collector/repo/git/snapshot_native.go`), so the generation
 carries `content_entity` facts for the CHANGED files only and the per-edge
 intents re-create only those files' edges. A repo-wide
 `DELETE ... WHERE <child>.repo_id IN $repo_ids` for such a repository therefore
@@ -138,7 +138,7 @@ repo-wide `DELETE` that ran bound to the delta repository, for all four domains.
 One further point that closes the "maybe it just had no changes" reading. A
 repository is marked `Delta` only when its git delta is non-empty
 (`buildSelectedRepositories` guards on `GitSyncDelta.IsEmpty`,
-`go/internal/collector/gitrepo/git_selection_native.go`), so a repository that
+`go/internal/collector/repo/git/selection_native.go`), so a repository that
 genuinely had no changes is never emitted as a delta generation. "Delta
 generation, no qualified paths" therefore always means the delta could not be
 expressed — never "nothing changed" — and the two are indistinguishable in the
