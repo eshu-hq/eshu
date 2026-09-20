@@ -4529,6 +4529,8 @@ hygiene_hooks:
     reason: "self-test of the docs-build verifier + hook wiring"
   - id: console-e2e-verifier-tests
     reason: "self-test of the console-e2e pre-push helper routing"
+  - id: naming-glue-gate
+    reason: "model-judged glued-compound directory name check (naming.md rule 3); pre-commit-only by design -- see go/cmd/naming-glue-gate/AGENTS.md for why it does not also run (and re-bill) in CI on every push of an already-locally-checked branch"
 
 # ─── NON-GATE WORKFLOWS ──────────────────────────────────────────────────────
 # .github/workflows/*.yml files that are deliberately NOT PR gates (deploy,

@@ -25,9 +25,12 @@ const defaultBaseURL = "https://api.deepseek.com"
 
 const defaultModel = "deepseek-flash"
 
-// requestTimeout bounds a single classification call. Kept short: this gate
-// must never be the reason a commit or a CI job hangs.
-const requestTimeout = 20 * time.Second
+// defaultTimeoutSeconds bounds a single classification call by default.
+// Overridable via -timeout-seconds: a PR that introduces many new
+// directories in one push sends a proportionally larger batch, and this
+// gate must never time out on a legitimately larger request while still
+// never being the reason a commit or CI job hangs indefinitely.
+const defaultTimeoutSeconds = 45
 
 // Classifier is the subset of DeepSeekClient's contract run() depends on,
 // so tests inject a fake instead of making a real API call.
@@ -53,10 +56,12 @@ func run(args []string, stdout, stderr io.Writer, classifier Classifier, runner 
 	apiKeyEnv := fs.String("api-key-env", defaultAPIKeyEnv, "environment variable holding the DeepSeek API key")
 	model := fs.String("model", defaultModel, "DeepSeek model name")
 	baseURL := fs.String("base-url", defaultBaseURL, "DeepSeek API base URL")
+	timeoutSeconds := fs.Int("timeout-seconds", defaultTimeoutSeconds, "classification request timeout in seconds")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	dirs := strings.Split(*dirsFlag, ",")
+	timeout := time.Duration(*timeoutSeconds) * time.Second
 
 	if runner == nil {
 		runner = NewGitRunner(*repoRoot)
@@ -80,14 +85,14 @@ func run(args []string, stdout, stderr io.Writer, classifier Classifier, runner 
 
 	if classifier == nil {
 		classifier = &DeepSeekClient{
-			HTTPClient: &http.Client{Timeout: requestTimeout},
+			HTTPClient: &http.Client{Timeout: timeout},
 			BaseURL:    *baseURL,
 			APIKey:     apiKey,
 			Model:      *model,
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	report, err := classifier.Classify(ctx, candidates)
 	if err != nil {
@@ -95,6 +100,7 @@ func run(args []string, stdout, stderr io.Writer, classifier Classifier, runner 
 		return 0
 	}
 
+	report = applyDisposition(report, *blocking)
 	if err := report.WriteJSON(stdout); err != nil {
 		_, _ = fmt.Fprintf(stderr, "naming-glue-gate: writing JSON report: %v\n", err)
 	}

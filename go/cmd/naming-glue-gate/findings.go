@@ -60,6 +60,22 @@ type Report struct {
 	Findings []Finding `json:"findings"`
 }
 
+// applyDisposition sets each finding's Disposition: DispositionBlock for a
+// glued-compound finding when blocking is true (pre-commit mode), otherwise
+// DispositionInform. The model does not set this field itself -- disposition
+// depends on how THIS invocation was run (-blocking), not on the finding's
+// content, so it is computed here rather than asked of the model.
+func applyDisposition(r Report, blocking bool) Report {
+	for i := range r.Findings {
+		if r.Findings[i].Verdict == VerdictGluedCompound && blocking {
+			r.Findings[i].Disposition = DispositionBlock
+		} else {
+			r.Findings[i].Disposition = DispositionInform
+		}
+	}
+	return r
+}
+
 // Violations returns the findings the model classified as a glued
 // compound, sorted by path for deterministic output.
 func (r Report) Violations() []Finding {

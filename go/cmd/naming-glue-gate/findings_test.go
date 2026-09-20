@@ -9,6 +9,30 @@ import (
 	"testing"
 )
 
+func TestApplyDispositionBlockingSetsBlockOnlyForGluedCompound(t *testing.T) {
+	r := applyDisposition(Report{Findings: []Finding{
+		{Path: "a", Verdict: VerdictGluedCompound},
+		{Path: "b", Verdict: VerdictAcceptable},
+	}}, true)
+
+	if r.Findings[0].Disposition != DispositionBlock {
+		t.Errorf("glued_compound finding under blocking=true: Disposition = %q, want %q", r.Findings[0].Disposition, DispositionBlock)
+	}
+	if r.Findings[1].Disposition != DispositionInform {
+		t.Errorf("acceptable finding: Disposition = %q, want %q", r.Findings[1].Disposition, DispositionInform)
+	}
+}
+
+func TestApplyDispositionNonBlockingNeverSetsBlock(t *testing.T) {
+	r := applyDisposition(Report{Findings: []Finding{
+		{Path: "a", Verdict: VerdictGluedCompound},
+	}}, false)
+
+	if r.Findings[0].Disposition != DispositionInform {
+		t.Errorf("glued_compound finding under blocking=false: Disposition = %q, want %q", r.Findings[0].Disposition, DispositionInform)
+	}
+}
+
 func TestReportViolationsFiltersAndSorts(t *testing.T) {
 	r := Report{Findings: []Finding{
 		{Path: "go/internal/query/taghistory", Verdict: VerdictGluedCompound, Evidence: "tag+history"},

@@ -85,6 +85,23 @@ repos:
         always_run: true
         pass_filenames: false
 
+      # Model-judged glued-compound directory names (naming.md rule 3), the
+      # blind spot filename-stutter's parent-repeat check and dirgate's
+      # file-placement check both miss: a brand-new directory whose OWN name
+      # glues two full words together (workloadinstance, iamcantargets,
+      # taghistory all landed uncaught). See go/cmd/naming-glue-gate/doc.go
+      # for why this needs a model rather than a maintained word list, and
+      # AGENTS.md there for why it fails open on a missing key or API error
+      # (an infrastructure problem, not a naming violation) and stays
+      # pre-commit-only for now rather than also running (and re-billing) in
+      # CI on every push of an already-locally-checked branch.
+      - id: naming-glue-gate
+        name: no glued-compound directory names (DeepSeek-judged, staged content)
+        entry: scripts/verify-naming-glue-gate.sh --staged
+        language: script
+        always_run: true
+        pass_filenames: false
+
       - id: no-ai-attribution-content
         name: no AI attribution (staged content)
         entry: scripts/verify-no-ai-attribution.sh --staged
