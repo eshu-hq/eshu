@@ -139,5 +139,8 @@ const StoryWorkloadNamesCypherFragment = "RETURN DISTINCT w.name AS workload_nam
 // among every other graph read issued by getRepositoryContext/getRepositoryStory.
 // It moved here for #6060 lane B B3 because the infrastructure-truncated fold
 // test moved to the repository family package while seven sibling tests stay
-// in root.
-const InfrastructureGraphReadCypherFragment = "WHERE infra:K8sResource"
+// in root. It anchors on the WITH the label filter is attached to (not the
+// filter text itself, which both the old MATCH-attached shape and the new
+// WITH-attached shape contain), so a regression that slides the filter back
+// to the MATCH stops matching handler dispatch and fails loudly.
+const InfrastructureGraphReadCypherFragment = "WITH f, infra"

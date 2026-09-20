@@ -1,4 +1,4 @@
-# #6786 X11: NornicDB v1.3.3 label predicates depend on clause position
+# NornicDB v1.3.3 label predicates depend on clause position (#6786 X11)
 
 X11 extends the #6786 defect catalogue (shapes X1–X10 in
 `docs/internal/evidence/6786-nornicdb-400-409-exposure.md` on the #6786
@@ -227,8 +227,18 @@ package run.
 | `query` `TestLiveLabelPredicateExposureControls` (3 subtests) | n/a (not affected) | PASS / PASS |
 
 Log lines from the rerun on this branch (fresh containers per package and
-backend, pins above). "Before fix" swaps in the three pre-fix production files
-from `d4e600239^` and runs the same tests:
+backend, pins above). "Before fix" checks out the three pre-fix production
+files from `0a56ff08eb35925beee25680d49ed5a9ff0a4311` (the #6857 merge on
+`origin/main`, an ancestor of this branch that no rebase can orphan) over the
+same test files and runs the same tests (the legacy.go change in the fix
+commit is comment-only):
+
+```bash
+git checkout 0a56ff08eb35925beee25680d49ed5a9ff0a4311 -- \
+  go/internal/query/repository/infrastructure.go \
+  go/internal/query/impact/change_surface_traversal.go \
+  go/internal/query/codequery/relationships/story/class.go
+```
 
 ```text
 before fix, NornicDB:

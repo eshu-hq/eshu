@@ -18,18 +18,21 @@ func TestAssertCypherHasNoIgnoredLabelPredicateSeededViolations(t *testing.T) {
 		"label test after a labelled pattern": "MATCH (s:Repository)-[:DEPENDS_ON]->(t) WHERE t:Workload RETURN t.id",
 		"label OR after a two-hop pattern": "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(infra)\n" +
 			"\t\tWHERE infra:K8sResource OR infra:TerraformModule\n\t\t      OR infra:HelmChart\n\t\tRETURN infra.id",
-		"parenthesised label OR":           "MATCH (s)-[:DEPENDS_ON]->(t) WHERE (t:Repository OR t:Workload) AND s.id <> $x RETURN t.id",
-		"negated label after a pattern":    "MATCH (s)-[:DEPENDS_ON]->(t) WHERE NOT t:Workload RETURN t.id",
-		"label test in OPTIONAL MATCH":     "MATCH (s:Repository {id: $id}) OPTIONAL MATCH (s)-[:DEPENDS_ON]->(t) WHERE t:Repository RETURN t.id",
-		"label test after incoming arrow":  "MATCH (t:Repository {id: $id})<-[:DEPENDS_ON]-(s) WHERE s:Workload RETURN s.id",
-		"any over labels after a pattern":  "MATCH path = (a:Repository {id: $id})-[*1..3]->(i) WHERE i.id <> $id AND any(label IN labels(i) WHERE label IN ['Workload']) RETURN i.id",
-		"any over labels on a single node": "MATCH (n) WHERE any(l IN labels(n) WHERE l IN $labels) RETURN n.id",
-		"none over labels":                 "MATCH (n) WHERE none(l IN labels(n) WHERE l = 'File') RETURN n.id",
-		"any over a list testing labels":   "MATCH (s)-[:DEPENDS_ON]->(t) WHERE any(l IN $labels WHERE l IN labels(t)) RETURN t.id",
-		"list comprehension over labels":   "MATCH (s)-[:DEPENDS_ON]->(t) WHERE size([l IN labels(t) WHERE l IN $labels]) > 0 RETURN t.id",
-		"IN labels after WITH":             "MATCH ()-[r:DEPENDS_ON]->() WITH startNode(r) AS s WHERE 'Repository' IN labels(s) RETURN s.id",
-		"negated label after WITH":         "MATCH (s)-[:DEPENDS_ON]->(t) WITH s, t WHERE NOT t:Workload RETURN t.id",
-		"label test inside CALL arm":       "CALL {\n  MATCH (s)-[:DEPENDS_ON]->(t) WHERE t:Repository RETURN t.id AS id\n}\nRETURN id",
+		"parenthesised label OR":                 "MATCH (s)-[:DEPENDS_ON]->(t) WHERE (t:Repository OR t:Workload) AND s.id <> $x RETURN t.id",
+		"negated label after a pattern":          "MATCH (s)-[:DEPENDS_ON]->(t) WHERE NOT t:Workload RETURN t.id",
+		"label test in OPTIONAL MATCH":           "MATCH (s:Repository {id: $id}) OPTIONAL MATCH (s)-[:DEPENDS_ON]->(t) WHERE t:Repository RETURN t.id",
+		"label test after incoming arrow":        "MATCH (t:Repository {id: $id})<-[:DEPENDS_ON]-(s) WHERE s:Workload RETURN s.id",
+		"any over labels after a pattern":        "MATCH path = (a:Repository {id: $id})-[*1..3]->(i) WHERE i.id <> $id AND any(label IN labels(i) WHERE label IN ['Workload']) RETURN i.id",
+		"any over labels on a single node":       "MATCH (n) WHERE any(l IN labels(n) WHERE l IN $labels) RETURN n.id",
+		"none over labels":                       "MATCH (n) WHERE none(l IN labels(n) WHERE l = 'File') RETURN n.id",
+		"any over a list testing labels":         "MATCH (s)-[:DEPENDS_ON]->(t) WHERE any(l IN $labels WHERE l IN labels(t)) RETURN t.id",
+		"list comprehension over labels":         "MATCH (s)-[:DEPENDS_ON]->(t) WHERE size([l IN labels(t) WHERE l IN $labels]) > 0 RETURN t.id",
+		"IN labels after WITH":                   "MATCH ()-[r:DEPENDS_ON]->() WITH startNode(r) AS s WHERE 'Repository' IN labels(s) RETURN s.id",
+		"negated label after WITH":               "MATCH (s)-[:DEPENDS_ON]->(t) WITH s, t WHERE NOT t:Workload RETURN t.id",
+		"label test inside CALL arm":             "CALL {\n  MATCH (s)-[:DEPENDS_ON]->(t) WHERE t:Repository RETURN t.id AS id\n}\nRETURN id",
+		"line comment holding a clause keyword":  "MATCH (s)-[:DEPENDS_ON]->(t) // RETURN output\nWHERE t:Repository RETURN t.id",
+		"line comment holding an apostrophe":     "MATCH (s)-[:DEPENDS_ON]->(t) // don't drop t:Repository rows\nWHERE t:Repository RETURN t.id",
+		"block comment holding a clause keyword": "MATCH (s)-[:DEPENDS_ON]->(t) /* WITH t AS t */ WHERE t:Repository RETURN t.id",
 	}
 	for name, cypher := range redCases {
 		t.Run("red/"+name, func(t *testing.T) {
@@ -55,6 +58,8 @@ func TestAssertCypherHasNoIgnoredLabelPredicateSeededViolations(t *testing.T) {
 		"map literal key":                     "MATCH (s:Repository {id: $id})-[:DEPENDS_ON]->(t) WHERE t.kind = 'Deployment:Apps' RETURN t.id",
 		"labels projected, not filtered":      "MATCH (s)-[:DEPENDS_ON]->(t) WHERE s.id = $id RETURN labels(t) AS labels, head(labels(t)) AS kind",
 		"any over a property list":            "MATCH (s)-[:DEPENDS_ON]->(t) WHERE any(tag IN t.tags WHERE tag IN $tags) RETURN t.id",
+		"label test inside a line comment":    "MATCH (s)-[:DEPENDS_ON]->(t) WHERE t.id = $id // was t:Repository\nRETURN t.id",
+		"slashes inside a string literal":     "MATCH (n:Repository) WHERE n.url = 'https://example.invalid/x' RETURN n.id",
 	}
 	for name, cypher := range greenCases {
 		t.Run("green/"+name, func(t *testing.T) {

@@ -105,7 +105,7 @@ func AssertCypherHasNoIgnoredLabelPredicate(t cypherAssertionT, cypher string) {
 // TestIgnoredLabelPredicateDocumentedBlindSpots pins this list. The
 // production scan has a further limit, described on its test.
 func IgnoredLabelPredicate(cypher string) string {
-	text := blankStringLiterals(cypher)
+	text := blankLiteralsAndComments(cypher)
 	frame := innermostBraceOpen(text)
 	parenDepth := parenDepthWithinFrame(text)
 
@@ -199,15 +199,34 @@ func quantifiesOverLabels(where string) bool {
 	return false
 }
 
-// blankStringLiterals replaces the contents of quoted string literals with
-// spaces so a label-like or keyword-like token inside a literal is not read
-// as Cypher. Offsets are preserved.
-func blankStringLiterals(cypher string) string {
+// blankLiteralsAndComments replaces the contents of quoted string literals
+// and the bodies of `//` line comments and `/* */` block comments with
+// spaces, so a label-like or keyword-like token inside a literal or a comment
+// is not read as Cypher. Newlines inside line comments are preserved and all
+// other offsets are preserved. Strings and comments are scanned in one pass
+// so a `//` inside a literal never starts a comment and a quote inside a
+// comment never starts a literal.
+func blankLiteralsAndComments(cypher string) string {
 	out := []byte(cypher)
 	var quote byte
 	for i := 0; i < len(out); i++ {
 		c := out[i]
 		switch {
+		case quote == 0 && c == '/' && i+1 < len(out) && out[i+1] == '/':
+			out[i], out[i+1] = ' ', ' '
+			for i += 2; i < len(out) && out[i] != '\n'; i++ {
+				out[i] = ' '
+			}
+		case quote == 0 && c == '/' && i+1 < len(out) && out[i+1] == '*':
+			out[i], out[i+1] = ' ', ' '
+			i += 2
+			for ; i+1 < len(out) && (out[i] != '*' || out[i+1] != '/'); i++ {
+				out[i] = ' '
+			}
+			if i+1 < len(out) {
+				out[i], out[i+1] = ' ', ' '
+				i++
+			}
 		case quote == 0 && (c == '\'' || c == '"'):
 			quote = c
 		case quote != 0 && c == '\\':
