@@ -1,0 +1,18 @@
+docs/internal/evidence/6786-nornicdb-label-predicates.md
+  h_78a442cba0b3e6 233-234,239
+go/internal/query/querytestutil/nornicdb_guards.go
+  h_78a442cba0b3e6 223-227
+go/internal/query/querytestutil/nornicdb_label_predicate_test.go
+  h_78a442cba0b3e6 63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "18de17a9972c3e9c04bd3b4e599145ce1c2f8910",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
