@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`collector/ooxmlpreflight` classifies `.docx`, `.xlsx`, and `.pptx` package
+`collector/preflight/ooxml` classifies `.docx`, `.xlsx`, and `.pptx` package
 safety before any Office-document extractor reads document text. It gives future
 documentation collectors a metadata-only guard for resource limits, unsafe
 paths, external relationships, macro-bearing parts, active content, embedded
@@ -61,10 +61,10 @@ attempts, warning classes, skipped packages, bytes inspected, elapsed time, and
 truncation/resource outcomes through collector telemetry before enabling an
 extractor.
 
-Collector Performance Evidence: `go test ./internal/collector/ooxmlpreflight
+Collector Performance Evidence: `go test ./internal/collector/preflight/ooxml
 -count=1` proves package classification is bounded by source bytes, expanded
 bytes, entry count, XML bytes, XML depth, and compression ratio. `go test
-./internal/collector -run 'OOXML|DocumentationDefaultOff' -count=1` proves
+./internal/collector/gitrepo -run 'OOXML|DocumentationDefaultOff|OfficeSpreadsheet' -count=1` proves
 `.docx`, `.xlsx`, and `.pptx` remain on the parser path instead of entering
 documentation extraction by default.
 

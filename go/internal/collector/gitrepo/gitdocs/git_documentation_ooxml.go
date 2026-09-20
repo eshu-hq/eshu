@@ -3,12 +3,12 @@
 
 package gitdocs
 
-import "github.com/eshu-hq/eshu/go/internal/collector/ooxmlpreflight"
+import "github.com/eshu-hq/eshu/go/internal/collector/preflight/ooxml"
 
-func ooxmlPreflightBlocksExtraction(result ooxmlpreflight.Result) bool {
+func ooxmlPreflightBlocksExtraction(result ooxml.Result) bool {
 	for _, warning := range result.Warnings {
 		switch warning.Class {
-		case "", ooxmlpreflight.WarningAnnotationTextSkipped, ooxmlpreflight.WarningHiddenContentSkipped:
+		case "", ooxml.WarningAnnotationTextSkipped, ooxml.WarningHiddenContentSkipped:
 			continue
 		default:
 			return true

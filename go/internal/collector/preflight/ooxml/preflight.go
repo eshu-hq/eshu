@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ooxmlpreflight
+package ooxml
 
 import (
 	"archive/zip"
@@ -402,6 +402,11 @@ func (r *xmlBudgetReader) Read(p []byte) (int, error) {
 	}
 	n, err := r.reader.Read(p)
 	r.remaining -= uint64(n) // #nosec G115 -- bounded: n is the result of Read(p) where len(p) <= r.remaining, so n fits in uint64
+	// Passthrough io.Reader: the decode loop matches decoder errors
+	// against io.EOF by identity, and xml.Decoder propagates the reader's
+	// terminal error unchanged, so wrapping here would classify every
+	// clean document as malformed XML. (Directory-level wrapcheck
+	// exclusion in go/.golangci.yml covers this boundary reader.)
 	return n, err
 }
 

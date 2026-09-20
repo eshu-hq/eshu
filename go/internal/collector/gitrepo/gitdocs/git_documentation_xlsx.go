@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
-	"github.com/eshu-hq/eshu/go/internal/collector/ooxmlpreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/ooxml"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
@@ -47,12 +47,12 @@ func extractWorkbookDocumentation(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	preflight, err := ooxmlpreflight.Preflight(
+	preflight, err := ooxml.Preflight(
 		ctx,
 		path.Base(relativePath),
 		bytes.NewReader(body),
 		int64(len(body)),
-		ooxmlpreflight.Options{},
+		ooxml.Options{},
 	)
 	recordOOXMLPreflightMetadata(document.SourceMetadata, preflight)
 	addDocumentationWarnings(document.SourceMetadata, ooxmlPreflightWarnings(preflight)...)
@@ -109,7 +109,7 @@ func workbookDocumentPayload(
 	return document
 }
 
-func recordOOXMLPreflightMetadata(metadata map[string]string, result ooxmlpreflight.Result) {
+func recordOOXMLPreflightMetadata(metadata map[string]string, result ooxml.Result) {
 	if result.Format != "" {
 		metadata["preflight_format"] = result.Format
 	}
@@ -130,7 +130,7 @@ func recordOOXMLPreflightMetadata(metadata map[string]string, result ooxmlprefli
 	}
 }
 
-func ooxmlPreflightWarnings(result ooxmlpreflight.Result) []string {
+func ooxmlPreflightWarnings(result ooxml.Result) []string {
 	warnings := make([]string, 0, len(result.Warnings))
 	for _, warning := range result.Warnings {
 		if warning.Class != "" {
