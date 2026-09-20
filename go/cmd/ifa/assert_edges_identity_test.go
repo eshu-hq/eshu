@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 // codeownersIdentityForTest resolves codeowners_ownership_edges' declared
@@ -19,7 +19,7 @@ import (
 // cypher package.
 func codeownersIdentityForTest(t *testing.T) map[string][]string {
 	t.Helper()
-	identity, err := cypher.MaterializedEdgeIdentityProperties("codeowners_ownership_edges")
+	identity, err := materialized.MaterializedEdgeIdentityProperties("codeowners_ownership_edges")
 	if err != nil {
 		t.Fatalf("MaterializedEdgeIdentityProperties(codeowners_ownership_edges): %v", err)
 	}

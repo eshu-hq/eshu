@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 type materializedEdgeScan struct {
@@ -25,7 +25,7 @@ func scanMaterializedEdges(
 	ctx context.Context,
 	reader graphdump.Reader,
 	edgeTypes map[string]struct{},
-	endpoints map[string]cypher.MaterializedEdgeEndpoint,
+	endpoints map[string]materialized.MaterializedEdgeEndpoint,
 	identity map[string][]string,
 	expectedPropertyKeys map[string][]string,
 	labels map[string]string,

@@ -18,7 +18,7 @@ import (
 // propertyKeyedMergeTypePattern finds a relationship-MERGE property map in
 // MERGE-pattern edge-bracket position (`-[var:TYPE {`), capturing TYPE. It is
 // deliberately a separate regex from identityMergePropertyOpen
-// (materialized_edge_families_test.go), which has no capture group because
+// (edge/materialized/families_test.go), which has no capture group because
 // its caller already knows the type it is checking; this scan does not, so
 // it needs one.
 //

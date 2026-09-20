@@ -122,7 +122,7 @@ func (w *EC2UsesProfileEdgeWriter) WriteEC2UsesProfileEdges(
 
 	// The vocabulary has a single member, so all validated rows share one token.
 	cypher := fmt.Sprintf(canonicalEC2UsesProfileEdgeUpsertCypherFormat, ec2UsesProfileRelationshipType())
-	stmts := buildBatchedStatements(cypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(cypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseEC2UsesProfileEdge

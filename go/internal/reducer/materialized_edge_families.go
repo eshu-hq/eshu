@@ -177,7 +177,7 @@ var directMaterializedEdgeFamilyByPort = map[string]string{
 // through silently — which is deliberate, not an oversight.
 //
 // TestPortClassificationResidueIsIntentional
-// (go/internal/ifa/materializededges/materialized_edges_port_census_test.go)
+// (go/internal/ifa/materializededges/port_census_test.go)
 // bounds that one-directional contract without coupling the documentation to
 // incidental counts. After removing declared edge and node-only ports, the
 // production typed scan permits only retract-, sweep-, or execute-shaped

@@ -107,7 +107,7 @@ func (w *EC2InstanceNodeWriter) WriteEC2InstanceNodes(
 		annotated = append(annotated, cloned)
 	}
 
-	stmts := buildBatchedStatements(canonicalEC2InstanceUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalEC2InstanceUpsertCypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

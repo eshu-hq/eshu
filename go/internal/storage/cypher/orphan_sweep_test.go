@@ -290,8 +290,8 @@ func TestRepoRelationshipUpsertStampsTargetRepositoryForFutureSweeps(t *testing.
 
 	for _, cypher := range []string{
 		canonicalDeploysFromRepoRelationshipUpsertCypher,
-		canonicalRepoDependencyUpsertCypher,
-		batchCanonicalRepoDependencyUpsertCypher,
+		CanonicalRepoDependencyUpsertCypher,
+		BatchCanonicalRepoDependencyUpsertCypher,
 	} {
 		for _, want := range []string{
 			"ON CREATE SET source_repo.evidence_source",

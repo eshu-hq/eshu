@@ -40,7 +40,12 @@ command -v python3 >/dev/null 2>&1 || exit 0
 SID=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("session_id","na")[:12])' 2>/dev/null)
 FP=$(printf '%s' "$INPUT" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tool_input",{}).get("file_path") or "")' 2>/dev/null)
 [ -z "${FP:-}" ] && exit 0
-eshu_root "$FP" || exit 0
+ROOT="$(eshu_root_path "$FP")" || exit 0
+# Match the arms against the repo-relative path, not the absolute checkout
+# path: a worktree directory whose name contains a domain word (e.g.
+# eshu-6694-cypher-edge) would otherwise trip the broad `*cypher*` arm for
+# every file in the tree and misroute all nudges there. The leading slash
+# keeps the `*/...` arms matching identically to the absolute form.
 
 # NUDGE_EXEMPT_BEGIN
 # Skills with no characteristic file path. They are triggered by an event or an
@@ -62,7 +67,8 @@ NOTE=""
 # bash `case` takes the FIRST match, so the narrow gate surfaces below must stay
 # above the broad `.github/workflows/*` and `scripts/verify-*` arms, and the
 # `*.go` fallback must stay last of all.
-case "$FP" in
+REL="${FP#"$ROOT"/}"
+case "/$REL" in
   *.github/workflows/security-scan.yml)          IDS="eshu-security-scan-gates";;
   */go/go.mod|*/go/go.sum)                       IDS="eshu-security-scan-gates golang-engineering"
                                                  NOTE="a toolchain or dependency bump moves govulncheck and nancy";;

@@ -75,7 +75,7 @@ func wholeScopeRetractReachabilityCases() []wholeScopeRetractReachabilityCase {
 // non-delta narrowing (#6166): inheritance, SQL relationships, shell exec.
 //
 // Each now binds collectWholeScopeRefreshRepoIDs on its non-delta branch
-// (storage/cypher/edge_writer_retract.go), so a retract row without the refresh
+// (storage/cypher/edge/writer/retract.go), so a retract row without the refresh
 // intent_type contributes nothing. That narrowing is only safe while no
 // production emitter can produce such a row. It cannot: each domain's
 // buildXSharedIntentRows stamps retract_via_refresh on every per-edge intent,

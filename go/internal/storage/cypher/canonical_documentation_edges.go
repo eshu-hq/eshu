@@ -14,7 +14,7 @@ package cypher
 // generation's edges without a repository anchor (documentation is scope-scoped,
 // not repo-scoped).
 
-const batchCanonicalDocumentationEntityEdgeCypher = `UNWIND $rows AS row
+const BatchCanonicalDocumentationEntityEdgeCypher = `UNWIND $rows AS row
 MATCH (target:Function|Class|Struct|Interface|TypeAlias|Enum|File|SqlTable {uid: row.target_entity_id})
 MERGE (section:DocumentationSection {uid: row.section_uid})
 SET section.type = 'documentation_section',
@@ -31,7 +31,7 @@ SET rel.confidence = 0.95,
     rel.evidence_source = row.evidence_source,
     rel.mention_kind = row.mention_kind`
 
-const batchCanonicalDocumentationWorkloadEdgeCypher = `UNWIND $rows AS row
+const BatchCanonicalDocumentationWorkloadEdgeCypher = `UNWIND $rows AS row
 MATCH (target:Workload {id: row.target_entity_id})
 MERGE (section:DocumentationSection {uid: row.section_uid})
 SET section.type = 'documentation_section',
@@ -48,22 +48,22 @@ SET rel.confidence = 0.95,
     rel.evidence_source = row.evidence_source,
     rel.mention_kind = row.mention_kind`
 
-// retractDocumentationEdgesCypher removes a scope's prior-generation DOCUMENTS
+// RetractDocumentationEdgesCypher removes a scope's prior-generation DOCUMENTS
 // edges by section scope id and evidence source. Identity-only section nodes are
 // re-MERGEd on the next generation under their stable uid, so they do not
 // accumulate duplicates; orphan-section cleanup is intentionally out of scope.
-const retractDocumentationEdgesCypher = `MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->()
+const RetractDocumentationEdgesCypher = `MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->()
 WHERE section.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractDocumentationEdgesByDocumentCypher = `MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->()
+const RetractDocumentationEdgesByDocumentCypher = `MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->()
 WHERE section.scope_id IN $scope_ids
   AND section.document_id IN $document_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
-const retractDocumentationEdgesBySectionCypher = `MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->()
+const RetractDocumentationEdgesBySectionCypher = `MATCH (section:DocumentationSection)-[rel:DOCUMENTS]->()
 WHERE section.scope_id IN $scope_ids
   AND section.uid IN $section_uids
   AND rel.evidence_source = $evidence_source

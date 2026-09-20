@@ -162,7 +162,7 @@ func rationaleMaterializationIntent() Intent {
 // unchanged file's EXPLAINS edge with nothing left to re-create it -- silent
 // wrong graph, no error, no dead letter. So the repository stays delta-scoped
 // with an empty path list, which collectDeltaFilePaths
-// (storage/cypher/edge_writer_retract_scope.go) rejects before any statement
+// (storage/cypher/edge/writer/retract_scope.go) rejects before any statement
 // runs. The partition fails and the intent dead-letters, which an operator can
 // see and act on.
 //

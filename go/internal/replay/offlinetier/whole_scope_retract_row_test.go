@@ -18,7 +18,7 @@ import "github.com/eshu-hq/eshu/go/internal/reducer"
 // row through this helper rather than leaving Payload nil or writing a bare
 // map[string]any{"repo_id": ...}. Since #6166 the non-delta branch of each of
 // the four binds collectWholeScopeRefreshRepoIDs
-// (go/internal/storage/cypher/edge_writer_retract_scope.go), which requires
+// (go/internal/storage/cypher/edge/writer/retract_scope.go), which requires
 // that intent_type. A nil or bare payload is an unmarked legacy per-edge row --
 // a shape no emitter can produce, because every per-edge intent is stamped
 // retract_via_refresh at emission -- so the dispatch returns before it builds a

@@ -24,7 +24,7 @@ import (
 // (reducer.ExtractWorkloadCandidates -> reducer.BuildProjectionRowsWithInfrastructurePlatforms)
 // and reducer.ReconcileWorkloadDependencyEdges finds one workload at each
 // endpoint. See
-// materializededges/materialized_edges_workload_dependency.go for how this
+// materializededges/workload_dependency.go for how this
 // Odù's own facts drive both seams and the production-shaped in-memory lookup
 // that closes the loop.
 //

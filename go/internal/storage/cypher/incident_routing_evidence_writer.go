@@ -138,7 +138,7 @@ func (w *IncidentRoutingEvidenceWriter) WriteIncidentRoutingEvidence(
 	for _, slot := range slots {
 		relType := incidentRoutingSlotRelationshipTypes[slot]
 		cypher := fmt.Sprintf(canonicalIncidentRoutingEvidenceUpsertCypherFormat, relType)
-		batches := buildBatchedStatements(cypher, grouped[slot], w.batchSize)
+		batches := BuildBatchedStatements(cypher, grouped[slot], w.batchSize)
 		for index := range batches {
 			batchRows := batches[index].Parameters["rows"].([]map[string]any)
 			batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseIncidentRoutingEvidence

@@ -121,7 +121,7 @@ func (w *S3LogsToEdgeWriter) WriteS3LogsToEdges(
 
 	// The vocabulary has a single member, so all validated rows share one token.
 	cypher := fmt.Sprintf(canonicalS3LogsToEdgeUpsertCypherFormat, s3LogsToRelationshipType())
-	stmts := buildBatchedStatements(cypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(cypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseS3LogsToEdge

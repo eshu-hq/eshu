@@ -65,7 +65,7 @@ func logProfiledStatement(
 	if summary, ok := stmt.Parameters[StatementMetadataSummaryKey].(string); ok && summary != "" {
 		attrs = append(attrs, "statement_summary", summary)
 	}
-	if rowCount, ok := statementRowsCount(stmt); ok {
+	if rowCount, ok := StatementRowsCount(stmt); ok {
 		attrs = append(attrs, "row_count", rowCount)
 	}
 	if err != nil {
@@ -97,7 +97,7 @@ func CanonicalFileStatementProfile(stmt Statement) (string, int, bool) {
 	default:
 		return "", 0, false
 	}
-	rows, ok := statementRowsCount(stmt)
+	rows, ok := StatementRowsCount(stmt)
 	if !ok {
 		return "", 0, false
 	}

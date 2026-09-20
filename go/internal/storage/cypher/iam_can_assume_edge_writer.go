@@ -27,7 +27,7 @@ var iamCanAssumeRelationshipVocabulary = map[string]struct{}{
 	"CAN_ASSUME": {},
 }
 
-// canonicalIAMCanAssumeEdgeUpsertCypherFormat batches CAN_ASSUME edge upserts
+// CanonicalIAMCanAssumeEdgeUpsertCypherFormat batches CAN_ASSUME edge upserts
 // between two already-materialized IAM CloudResource nodes: the assuming
 // principal (role/user) and the role whose trust policy grants the assume. The
 // relationship type is a validated static token from the closed vocabulary (the
@@ -37,7 +37,7 @@ var iamCanAssumeRelationshipVocabulary = map[string]struct{}{
 // (principal uid, CAN_ASSUME, role uid). Two MATCHes precede the MERGE so a row
 // whose principal or role node is absent produces no edge and no fabricated
 // node.
-const canonicalIAMCanAssumeEdgeUpsertCypherFormat = `UNWIND $rows AS row
+const CanonicalIAMCanAssumeEdgeUpsertCypherFormat = `UNWIND $rows AS row
 MATCH (principal:CloudResource {uid: row.principal_uid})
 MATCH (role:CloudResource {uid: row.role_uid})
 MERGE (principal)-[rel:%s]->(role)
@@ -47,14 +47,14 @@ SET rel.principal_kind = row.principal_kind,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
 
-// retractIAMCanAssumeEdgesCypher removes this reducer's CAN_ASSUME edges for a
+// RetractIAMCanAssumeEdgesCypher removes this reducer's CAN_ASSUME edges for a
 // set of scopes before a fresh generation reprojects them. CAN_ASSUME is a
 // fixed relationship type between two CloudResource nodes, so the retract
 // matches it directly and scopes by the edge's own scope_id and evidence_source.
 // CloudResource nodes are cross-generation canonical and carry no reducer
 // scope_id, so a node-scoped predicate would leak stale edges across
 // generations.
-const retractIAMCanAssumeEdgesCypher = `MATCH (:CloudResource)-[rel:CAN_ASSUME]->(:CloudResource)
+const RetractIAMCanAssumeEdgesCypher = `MATCH (:CloudResource)-[rel:CAN_ASSUME]->(:CloudResource)
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -121,8 +121,8 @@ func (w *IAMCanAssumeEdgeWriter) WriteIAMCanAssumeEdges(
 	}
 
 	// The vocabulary has a single member, so all validated rows share one token.
-	cypher := fmt.Sprintf(canonicalIAMCanAssumeEdgeUpsertCypherFormat, iamCanAssumeRelationshipType())
-	stmts := buildBatchedStatements(cypher, annotated, w.batchSize)
+	cypher := fmt.Sprintf(CanonicalIAMCanAssumeEdgeUpsertCypherFormat, iamCanAssumeRelationshipType())
+	stmts := BuildBatchedStatements(cypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseIAMCanAssumeEdge
@@ -156,7 +156,7 @@ func (w *IAMCanAssumeEdgeWriter) RetractIAMCanAssumeEdges(
 
 	stmt := Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractIAMCanAssumeEdgesCypher,
+		Cypher:    RetractIAMCanAssumeEdgesCypher,
 		Parameters: map[string]any{
 			"scope_ids":                     scopeIDs,
 			"evidence_source":               evidenceSource,

@@ -35,7 +35,7 @@ import (
 // literals, the two *Target ShellCommand uid literals,
 // ShellExecFamilyCassetteFullPath, and ShellExecFamilyExpectedEdgesPath are
 // exported (#6053/#6199): the
-// materialized_edges_shell_exec.go guard and its tests moved to
+// shell_exec.go guard and its tests moved to
 // go/internal/ifa/materializededges because they exercise this Odù and
 // independently reproduce its canonical-id/target-hash literals against the
 // real content.CanonicalEntityID and shellCommandTargetID algorithms, and that
@@ -89,7 +89,7 @@ const (
 	// ExtractShellExecRows still (correctly) derives the row. Pinned as a
 	// literal and independently reproduced by
 	// TestShellExecCanonicalEntityIDLiterals
-	// (materialized_edges_shell_exec_test.go), mirroring
+	// (shell_exec_test.go), mirroring
 	// TestRationaleCanonicalTargetIDLiterals.
 	ShellExecFamilyDeployFunctionUID  = "content-entity:e_8dccb4300a1b"
 	ShellExecFamilyCleanupFunctionUID = "content-entity:e_79ad678937d5"
@@ -97,7 +97,7 @@ const (
 	ShellExecFamilySilentFunctionUID  = "content-entity:e_0bde1f6623cb"
 
 	// ShellExecFamilyDeployTarget1/2 are the ShellCommand target uids
-	// edge_writer_shell_exec.go's buildShellExecRowMap and the reducer's
+	// edge/writer/shell_exec.go's buildShellExecRowMap and the reducer's
 	// shellCommandTargetID (code/shell/handler.go) derive: sha256(repo_id, source_path, function_entity_id, line_number,
 	// api), each field NUL-terminated, hex-encoded and prefixed
 	// "shell-command:". source_path here is parsed_file_data.path (the full

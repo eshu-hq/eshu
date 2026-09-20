@@ -14,7 +14,7 @@
 // transactions — see the #5116 code-call fix).
 //
 // The test drives the production write and retract paths
-// (cypher.EdgeWriter.WriteEdges / RetractEdges for reducer.DomainInheritanceEdges).
+// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for reducer.DomainInheritanceEdges).
 // It writes INHERITS (Class->Class) and IMPLEMENTS (Class->Interface) edges in
 // one repo scope plus an out-of-scope INHERITS edge, retracts the in-scope repo,
 // and asserts the in-scope edges are gone (0), the out-of-scope edge survives (1,
@@ -33,6 +33,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -76,7 +77,7 @@ func TestReducerInheritanceEdgeRetractGraphTruth(t *testing.T) {
 
 	seedInheritEdgeNodes(ctx, t, exec)
 
-	writer := cypher.NewEdgeWriter(exec, 0)
+	writer := edgewriter.NewEdgeWriter(exec, 0)
 
 	// Production write path: typed endpoints route to exact-label MATCH Cyphers
 	// (NornicDB matches single labels), so these edges are actually created.

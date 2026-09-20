@@ -16,7 +16,7 @@ import (
 // repo-wide-retract domain (handles_route / runs_in / invokes_cloud_action).
 //
 // RetractEdges mirrors the real repo-wide retract Cypher
-// (retractHandlesRouteEdgesCypher et al., edge_writer_retract.go): it deletes
+// (retractHandlesRouteEdgesCypher et al., edge/writer/retract.go): it deletes
 // EVERY edge for each repo present in the batch, regardless of which specific
 // edges the batch carries. WriteEdges adds each row's edge to its repo's set.
 //

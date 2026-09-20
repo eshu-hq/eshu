@@ -27,7 +27,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			path: filepath.Join("go", "internal", "ifa", "materializededges", "README.md"),
 			required: []string{
 				"`codeCallFamilyOdu` (`code_call_family_catalog.go`",
-				"repository dependencies\n  (`materialized_edges_repo_dependency.go`)",
+				"repository dependencies\n  (`repo_dependency.go`)",
 				"`repoDependencyFamilyOdu` (`repo_dependency_family_catalog.go`)",
 				"carries seven\nunique repository scopes and 18 facts",
 				"18 facts: six target-only scopes first and the\nevidence-bearing source scope last",
@@ -125,7 +125,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges_documentation_test.go"),
+			path: filepath.Join("go", "internal", "ifa", "materializededges", "documentation_test.go"),
 			required: []string{
 				"Both dimensions are now",
 				"live-proven and covered (#5994)",
@@ -138,7 +138,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges_rationale_test.go"),
+			path: filepath.Join("go", "internal", "ifa", "materializededges", "rationale_test.go"),
 			required: []string{
 				"MaterializedEdgeDomainEdgeTypes recognizes rationale_edges as EXPLAINS",
 				"Both live gates drive the rationale cassette and exact-assert its full EXPLAINS records.",
@@ -248,7 +248,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges_rationale.go"),
+			path: filepath.Join("go", "internal", "ifa", "materializededges", "rationale.go"),
 			required: []string{
 				"Parser-source tests pin the production-reachable exclusions; reducer guard tests pin malformed-envelope and precedence cases.",
 			},
@@ -269,7 +269,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges_family_coverage_test.go"),
+			path: filepath.Join("go", "internal", "ifa", "materializededges", "family_coverage_test.go"),
 			required: []string{
 				"The waiver rows and the edge-type registries",
 			},

@@ -114,7 +114,7 @@ Supported today:
   per-framework code paths and are proven generically by
   `go/internal/reducer/handles_route_projection_process_test.go` (intent to
   `HANDLES_ROUTE` edge write with endpoint-presence gating),
-  `go/internal/storage/cypher/edge_writer_handles_route_test.go` (edge Cypher
+  `go/internal/storage/cypher/edge/writer/handles_route_test.go` (edge Cypher
   dispatch), and `go/internal/query/codequery/route_to_caller_live_test.go` (live
   NornicDB read of a materialized `HANDLES_ROUTE` edge).
 - Gradle plugin/task/DSL roots, JUnit tests and lifecycle methods,

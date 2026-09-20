@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -88,11 +89,38 @@ func newHandlerEdgeWriter(
 	logger *slog.Logger,
 	inheritanceGroupBatchSize int,
 	sqlRelationshipGroupBatchSize int,
-) *sourcecypher.EdgeWriter {
-	writer := sourcecypher.NewEdgeWriter(neo4jExec, batchSize)
+) *edgewriter.EdgeWriter {
+	writer := edgewriter.NewEdgeWriter(neo4jExec, batchSize)
 	writer.Instruments = instruments
 	writer.Logger = logger
 	writer.InheritanceGroupBatchSize = inheritanceGroupBatchSize
 	writer.SQLRelationshipGroupBatchSize = sqlRelationshipGroupBatchSize
+	return writer
+}
+
+// newSharedProjectionEdgeWriter constructs the writer behind the
+// shared-projection runner: handler tuning plus the orphan-sweep reader and
+// code-call batch sizes. Sequential-write routing and retract timing stay with
+// the caller beside the backend condition that selects them.
+//
+// The reader runs bounded read queries for retract paths that must compute a
+// Go-side anti-join before deleting instead of relying on a Cypher
+// relationship-existence predicate, which is mis-evaluated on the pinned
+// NornicDB backends (#5310; see docs/public/reference/nornicdb-pitfalls.md).
+func newSharedProjectionEdgeWriter(
+	neo4jExec sourcecypher.Executor,
+	batchSize int,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
+	reader sourcecypher.OrphanSweepReader,
+	codeCallBatchSize int,
+	codeCallGroupBatchSize int,
+	inheritanceGroupBatchSize int,
+	sqlRelationshipGroupBatchSize int,
+) *edgewriter.EdgeWriter {
+	writer := newHandlerEdgeWriter(neo4jExec, batchSize, instruments, logger, inheritanceGroupBatchSize, sqlRelationshipGroupBatchSize)
+	writer.Reader = reader
+	writer.CodeCallBatchSize = codeCallBatchSize
+	writer.CodeCallGroupBatchSize = codeCallGroupBatchSize
 	return writer
 }

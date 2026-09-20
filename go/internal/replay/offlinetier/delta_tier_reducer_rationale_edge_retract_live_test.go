@@ -18,7 +18,7 @@
 // shape.
 //
 // The test drives the REAL production write and retract paths
-// (cypher.EdgeWriter.WriteEdges / RetractEdges for
+// (edgewriter.EdgeWriter.WriteEdges / RetractEdges for
 // reducer.DomainRationaleEdges). It writes EXPLAINS edges onto a Function and
 // a File target in one changed file, plus an EXPLAINS edge in an unchanged
 // file of the same repository, delta-retracts the changed file, and asserts
@@ -39,6 +39,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -76,7 +77,7 @@ func TestReducerRationaleEdgeRetractGraphTruth(t *testing.T) {
 
 	seedRationaleEdgeTargets(ctx, t, exec)
 
-	writer := cypher.NewEdgeWriter(exec, 0)
+	writer := edgewriter.NewEdgeWriter(exec, 0)
 
 	// Production write path: the rationale template MERGEs the Rationale node
 	// inline and MATCHes the target by uid. Payload shapes mirror what the

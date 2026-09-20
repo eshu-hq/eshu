@@ -98,7 +98,7 @@ func (w *EC2InstanceIdentityNodeWriter) WriteEC2InstanceIdentityNodes(
 		return nil
 	}
 
-	stmts := buildBatchedStatements(canonicalEC2InstanceIdentityUpdateCypher, existing, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalEC2InstanceIdentityUpdateCypher, existing, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

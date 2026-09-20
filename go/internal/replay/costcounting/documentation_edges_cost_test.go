@@ -12,12 +12,12 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // documentationMaterializationBudgetRelPath is the committed cost budget for
 // the documentation_materialization scenario. Like semantic-entity, this
-// projection has no committed cassette: cypher.EdgeWriter.WriteEdges operates
+// projection has no committed cassette: edgewriter.EdgeWriter.WriteEdges operates
 // over flat reducer.SharedProjectionIntentRow values, not a
 // CanonicalMaterialization, so the fixture rows live inline in this file and
 // the budget records that explicitly instead of pointing at a cassette path.
@@ -71,7 +71,7 @@ func documentationEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 	}
 }
 
-// newInstrumentedDocumentationEdgeWriter builds the production cypher.EdgeWriter
+// newInstrumentedDocumentationEdgeWriter builds the production edgewriter.EdgeWriter
 // used by DocumentationEdgeMaterializationHandler
 // (go/internal/reducer/documentation_edge_materialization.go), wired over a
 // groupCountingExecutor that implements GroupExecutor so WriteEdges takes its
@@ -82,7 +82,7 @@ func documentationEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 // call — the PRIMARY instrument this scenario asserts, not a hand-counted
 // statement slice.
 func newInstrumentedDocumentationEdgeWriter(t *testing.T) (
-	writer *cypher.EdgeWriter,
+	writer *edgewriter.EdgeWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -90,7 +90,7 @@ func newInstrumentedDocumentationEdgeWriter(t *testing.T) (
 
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
-	writer = cypher.NewEdgeWriter(exec, 500)
+	writer = edgewriter.NewEdgeWriter(exec, 500)
 	writer.Instruments = inst
 	return writer, exec, manualReader
 }
@@ -98,14 +98,14 @@ func newInstrumentedDocumentationEdgeWriter(t *testing.T) (
 // TestCostBudget_DocumentationMaterialization is the positive cost-counting
 // gate for the documentation_materialization reducer projection (the
 // "documentation" family in specs/fact-kind-registry.v1.yaml, C-14 issue
-// #4367). It drives the production cypher.EdgeWriter.WriteEdges over two
+// #4367). It drives the production edgewriter.EdgeWriter.WriteEdges over two
 // deterministic DOCUMENTS edge rows through a real telemetry.Instruments
 // registry backed by an sdkmetric.ManualReader, then asserts
 // eshu_dp_shared_edge_write_groups_total is within the committed budget.
 //
 // This scenario calls WriteEdges only, not RetractEdges: the whole-scope
 // RetractEdges path for documentation issues a single non-grouped
-// Executor.Execute call (edge_writer_retract.go), which never reaches
+// Executor.Execute call (edge/writer/retract.go), which never reaches
 // EdgeWriter.recordGroupedWrite, so including it would not move the asserted
 // instrument while adding an unreviewable extra statement to the fixture —
 // the same simplification the nested-directory-tree scenario makes by relying

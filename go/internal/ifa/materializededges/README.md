@@ -20,29 +20,29 @@ headroom under the repository's directory file-count gate (`go-dir-gate`)
 before the families still queued consumed it. ifa was under the cap when the
 split was taken, not over it. It owns:
 
-- The family guards: SQL relationships (`materialized_edges_sql.go`),
-  documentation edges (`materialized_edges_documentation.go`), code calls
-  (`materialized_edges_code_calls.go`), rationale edges
-  (`materialized_edges_rationale.go`), codeowners ownership
-  (`materialized_edges_codeowners.go`), deployable-unit edges
-  (`materialized_edges_deployable_unit.go`), repository dependencies
-  (`materialized_edges_repo_dependency.go`), submodule pins
-  (`materialized_edges_submodule_pin.go`), inheritance edges
-  (`materialized_edges_inheritance.go`), shell-exec edges
-  (`materialized_edges_shell_exec.go`), workload dependencies
-  (`materialized_edges_workload_dependency.go`), handles_route
-  (`materialized_edges_handles_route.go`), runs_in
-  (`materialized_edges_runs_in.go`), and invokes_cloud_action
-  (`materialized_edges_invokes_cloud_action.go`). The last three share one
+- The family guards: SQL relationships (`sql.go`),
+  documentation edges (`documentation.go`), code calls
+  (`code_calls.go`), rationale edges
+  (`rationale.go`), codeowners ownership
+  (`codeowners.go`), deployable-unit edges
+  (`deployable_unit.go`), repository dependencies
+  (`repo_dependency.go`), submodule pins
+  (`submodule_pin.go`), inheritance edges
+  (`inheritance.go`), shell-exec edges
+  (`shell_exec.go`), workload dependencies
+  (`workload_dependency.go`), handles_route
+  (`handles_route.go`), runs_in
+  (`runs_in.go`), and invokes_cloud_action
+  (`invokes_cloud_action.go`). The last three share one
   cassette/Odù and backend-free extraction seam, plumbed through
-  `materialized_edges_symbol_runtime_shared.go`; each still owns its own
+  `symbol_runtime_shared.go`; each still owns its own
   row-to-edge derivation (see "Symbol-runtime trio" below for what that
   buys and what it does not). Deliberately uncounted: a count in
   prose has no gate and drifts the moment a family lands.
 - The shared dispatch/coverage-reconciliation machinery
   (`materialized_edges.go`), the waiver manifest loader
-  (`materialized_edges_manifest.go`), and the shared expected-edge fixture
-  loader (`materialized_edges_assert.go`).
+  (`manifest.go`), and the shared expected-edge fixture
+  loader (`assert.go`).
 - Every test that exercises a moved guard, including the family's
   compiled-catalog-vs-cassette lockstep test (moved with its guard from
   `ifa/<family>_family_odu_test.go` for the same reason: it can only reach
@@ -203,7 +203,7 @@ exact wording and fails if they drift.
   `MaterializedEdgeOduResolver`, `MaterializedEdgeWaiver`,
   `LoadMaterializedEdgeWaivers`, `MaterializedEdgeCoverageInputs`,
   `RunMaterializedEdgeCoverage` (`materialized_edges.go`,
-  `materialized_edges_manifest.go`, #5351) - the `materialized_edges:<domain>`
+  `manifest.go`, #5351) - the `materialized_edges:<domain>`
   exhaustiveness gate: binds an Odù expectation to each
   `reducer.MaterializedEdgeFamilies()` and
   `reducer.DirectMaterializedEdgeFamilies()` entry — the ledger is split across
@@ -225,7 +225,7 @@ exact wording and fails if they drift.
   `sql_relationship_materialization` / `sql_relationships` work item (a
   domain-scoped claimed-row precondition and a SQL edge MERGE anchor, not
   `CloudResource`).
-- `materialized_edges_sql.go`'s `resolveSQLRelationshipMaterializedEdges` is
+- `sql.go`'s `resolveSQLRelationshipMaterializedEdges` is
   the first family vacuity guard (`sql_relationships`): it asserts the
   hand-derived expected-edge-set fixture covers every
   `cypher.SQLRelationshipMaterializedEdgeTypes()` key, then reproduces it
@@ -246,7 +246,7 @@ exact wording and fails if they drift.
   graph-write fault. Together those gates prove all four code-call writer types
   and satisfy the family's baseline and fault manifest rows without waivers.
 - `ExpectedEdge`, `LoadExpectedEdges`, `MaterializedEdgeDomainEdgeTypes`
-  (`materialized_edges_assert.go`, #5351) - the exported surface `cmd/ifa`'s
+  (`assert.go`, #5351) - the exported surface `cmd/ifa`'s
   `assert-edges` verb uses for the LIVE, set-exact non-vacuity assertion: it
   loads the SAME hand-derived expected-edge-set fixture the pure vacuity guard
   consumes (so the live gate and the pure `go test` guard cannot drift on the
@@ -291,7 +291,7 @@ exact wording and fails if they drift.
   path stay unchanged.
 
 - `RationaleExpectedNodeRecord`, `RationaleExpectedEdgeRecord`, and
-  `LoadRationaleExpectedEdgeRecords` (`materialized_edges_rationale.go`, #5998)
+  `LoadRationaleExpectedEdgeRecords` (`rationale.go`, #5998)
   extend the single rationale expected fixture with the complete source node,
   EXPLAINS relationship, and target node record used by the live CLI assertion.
   The loader rejects an empty or mixed repository scope and any disagreement
@@ -300,7 +300,7 @@ exact wording and fails if they drift.
   and exact-assert its full EXPLAINS records; the determinism matrix also drives
   generation 2 and checks the exact one-record survivor.
 
-- `LoadDocumentationExpectedEdges` (`materialized_edges_documentation.go`,
+- `LoadDocumentationExpectedEdges` (`documentation.go`,
   #5994) loads the exact three-edge DOCUMENTS set used by the live CLI
   assertion. Both live matrices drive the documentation cassette and
   exact-assert its three DOCUMENTS edges in baseline and domain-scoped recovery
@@ -312,9 +312,9 @@ exact wording and fails if they drift.
 `handles_route` (#5995), `runs_in` (#6000), and `invokes_cloud_action` (#5997)
 share one cassette/Odù (`ifa.SymbolRuntimeFamilyOdu`) and one backend-free
 extraction seam (`reducer.ExtractSymbolRuntimeIntentRows`), plumbed through
-`materialized_edges_symbol_runtime_shared.go`. Each family's own guard file
-(`materialized_edges_handles_route.go`, `materialized_edges_runs_in.go`,
-`materialized_edges_invokes_cloud_action.go`) owns only its own row-to-edge
+`symbol_runtime_shared.go`. Each family's own guard file
+(`handles_route.go`, `runs_in.go`,
+`invokes_cloud_action.go`) owns only its own row-to-edge
 derivation, because the three bend that relationship three different ways:
 `HANDLES_ROUTE` dedupes N intent rows (one per HTTP method on the same route)
 onto the single edge the MERGE identity actually produces; `RUNS_IN` fans one
@@ -322,9 +322,9 @@ intent row out to N edges for N `Workload`s the live Cypher's unbounded
 `(Repository)-[:DEFINES]->(Workload)` MATCH can resolve to (today's reducer
 candidate path caps a single repository at one `Workload`, so this fixture's
 own fan-out stays 1-to-1; the N>1 direction is proven by a synthetic offline
-unit test instead, see `materialized_edges_runs_in_test.go`);
+unit test instead, see `runs_in_test.go`);
 `INVOKES_CLOUD_ACTION` is a direct 1:1 mapping. See
-`materialized_edges_symbol_runtime_shared.go`'s own doc comment for the full
+`symbol_runtime_shared.go`'s own doc comment for the full
 derivation.
 
 Each of the three has a hand-derived expected-edge-set fixture (2, 2, and 1

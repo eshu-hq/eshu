@@ -151,7 +151,7 @@ just in family name. `submodule_pin_family_catalog.go` adds
 representation of the checked-in cassette — with no Cypher, worker claim,
 batching, or concurrency code of its own;
 `TestSubmodulePinFamilyIsCatalogedAndResolvable` pins it against that cassette
-via `reflect.DeepEqual`. `materializededges/materialized_edges_submodule_pin.go` adds
+via `reflect.DeepEqual`. `materializededges/submodule_pin.go` adds
 `resolveSubmodulePinMaterializedEdges`, a pure offline vacuity guard: it loads
 the hand-derived expected-edge fixture, asserts it covers every relationship
 type `submodule_pin_edges`' writer registry accepts, then runs

@@ -23,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/db"
 )
@@ -63,7 +64,7 @@ func TestRepoDependencyIfaQuarantineLive(t *testing.T) {
 		cleanupRepoDependencyConcurrencyScope(cleanupCtx, t, exec, artifactIDs)
 		assertRepoDependencyIfaCleanup(cleanupCtx, t, exec, artifactIDs)
 	})
-	baseWriter := cypher.NewEdgeWriter(&cypher.RetryingExecutor{Inner: exec}, 0)
+	baseWriter := edgewriter.NewEdgeWriter(&cypher.RetryingExecutor{Inner: exec}, 0)
 	prepareRepoDependencyQuarantinePhase(ctx, t, sqlDB, store, exec, odu, artifactIDs, rows)
 	runRepoDependencyQuarantineUntil(ctx, t, store, gate, baseWriter, acceptedGeneration, "baseline", 1, func() bool {
 		return repoDependencyQuarantinePendingCount(ctx, t, sqlDB) == 0

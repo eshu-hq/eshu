@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -55,7 +56,7 @@ func TestRunsOnPairIsolationLive(t *testing.T) {
 			assertRunsOnPairFixture(t, ctx, runner, fixture, "seeded")
 
 			materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil))
-			edgeWriter := cypher.NewEdgeWriter(newReducerNeo4jExecutor(runner, nil), 2)
+			edgeWriter := edgewriter.NewEdgeWriter(newReducerNeo4jExecutor(runner, nil), 2)
 			writeWorkloads := func() {
 				t.Helper()
 				rows := make([]reducer.RuntimePlatformRow, 0, 2)
@@ -149,7 +150,7 @@ func TestRunsOnPairIsolationLive(t *testing.T) {
 						},
 					})
 				}
-				writer := cypher.NewEdgeWriter(newReducerNeo4jExecutor(probe, nil), 2)
+				writer := edgewriter.NewEdgeWriter(newReducerNeo4jExecutor(probe, nil), 2)
 				if _, err := writer.WriteEdges(ctx, reducer.DomainRepoDependency, rows, reducer.CrossRepoEvidenceSource); err != nil {
 					t.Fatalf("cross-repo WriteEdges() after synthetic conflict: %v", err)
 				}

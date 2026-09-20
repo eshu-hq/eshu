@@ -37,7 +37,7 @@ const (
 	// local_path (the collector never emits a top-level "path" — see
 	// projector/canonical_codegraph_extract.go's "collector does not emit
 	// path" comment), and the file-scoped SQL delta retract anchors on that
-	// node `path` property (edge_writer_sql.go's
+	// node `path` property (edge/writer/sql.go's
 	// `MATCH (source:SqlIndex {path: file_path})`). With no local_path the
 	// node path is unqualified AND deltaScope.filePathsByRepoID is empty, so
 	// the retract matches nothing and a retargeted INDEXES edge leaves its
@@ -69,8 +69,8 @@ const (
 // sqlrelationship.ExtractSQLRelationshipRows (go/internal/reducer/
 // sqlrelationship/sql_relationship_materialization.go) derives exactly one
 // edge of each of the nine materialized SQL relationship types
-// (cypher.SQLRelationshipMaterializedEdgeTypes,
-// go/internal/storage/cypher/edge_writer_sql.go): QUERIES_TABLE, READS_FROM,
+// (edgewriter.SQLRelationshipMaterializedEdgeTypes,
+// go/internal/storage/cypher/edge/writer/sql.go): QUERIES_TABLE, READS_FROM,
 // REFERENCES_TABLE, WRITES_TO, HAS_COLUMN, TRIGGERS, EXECUTES, INDEXES, and
 // MIGRATES.
 //
@@ -152,7 +152,7 @@ func sqlFamilyOdu() familyodu.CatalogOdu {
 // QUERIES_TABLE edge is expected to persist only through the durable
 // file-scoped partition the live P4 proof asserts over the accumulated graph
 // (graphdump), not through this generation's own pure
-// ExtractSQLRelationshipRows output — see materialized_edges_sql.go's doc
+// ExtractSQLRelationshipRows output — see sql.go's doc
 // comment for the generation-local vs. accumulated-graph distinction.
 func sqlFamilyDeltaOdu() familyodu.CatalogOdu {
 	odu := familyodu.Odu{

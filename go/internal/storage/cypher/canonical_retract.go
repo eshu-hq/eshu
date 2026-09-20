@@ -16,7 +16,7 @@ import (
 func BuildCanonicalWorkloadDependencyUpsert(p CanonicalWorkloadDependencyParams, evidenceSource string) Statement {
 	return Statement{
 		Operation: OperationCanonicalUpsert,
-		Cypher:    canonicalWorkloadDependencyUpsertCypher,
+		Cypher:    CanonicalWorkloadDependencyUpsertCypher,
 		Parameters: map[string]any{
 			"workload_id":        p.WorkloadID,
 			"target_workload_id": p.TargetWorkloadID,
@@ -59,7 +59,7 @@ func BuildCanonicalCodeCallUpsert(p CanonicalCodeCallParams, evidenceSource stri
 func BuildRetractRepoDependencyEdges(repoIDs []string, evidenceSource string) Statement {
 	return Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractRepoDependencyEdgesCypher,
+		Cypher:    RetractRepoDependencyEdgesCypher,
 		Parameters: map[string]any{
 			"repo_ids":        repoIDs,
 			"evidence_source": evidenceSource,
@@ -72,7 +72,7 @@ func BuildRetractRepoDependencyEdges(repoIDs []string, evidenceSource string) St
 func BuildRetractWorkloadDependencyEdges(repoIDs []string, evidenceSource string) Statement {
 	return Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractWorkloadDependencyEdgesCypher,
+		Cypher:    RetractWorkloadDependencyEdgesCypher,
 		Parameters: map[string]any{
 			"repo_ids":        repoIDs,
 			"evidence_source": evidenceSource,
@@ -80,9 +80,9 @@ func BuildRetractWorkloadDependencyEdges(repoIDs []string, evidenceSource string
 	}
 }
 
-// codeCallRetractSourceLabels lists the source node labels a code-call edge
+// CodeCallRetractSourceLabels lists the source node labels a code-call edge
 // (CALLS/REFERENCES/INSTANTIATES) can originate from.
-var codeCallRetractSourceLabels = []string{"Function", "Class", "Struct", "Interface", "TypeAlias", "File"}
+var CodeCallRetractSourceLabels = []string{"Function", "Class", "Struct", "Interface", "TypeAlias", "File"}
 
 // codeCallMetaclassRetractSourceLabels lists the source labels a USES_METACLASS
 // edge can originate from — a narrower set than the code-call edges.
@@ -108,7 +108,7 @@ func codeCallRetractSourceLabelsFor(evidenceSource string) []string {
 	if evidenceSource == "parser/python-metaclass" {
 		return codeCallMetaclassRetractSourceLabels
 	}
-	return codeCallRetractSourceLabels
+	return CodeCallRetractSourceLabels
 }
 
 // buildCodeCallRetractStatements emits one retract statement per source label.
@@ -158,7 +158,7 @@ func BuildRetractCodeCallEdgeStatementsByFilePath(filePaths []string, evidenceSo
 }
 
 // SQL relationship edge retraction is built per source label by
-// BuildRetractSQLRelationshipEdgeStatements[ByFilePath] in edge_writer_sql.go
+// BuildRetractSQLRelationshipEdgeStatements[ByFilePath] in edge/writer/sql.go
 // (the SQL sibling of #5116); the old single-statement unlabeled-scan builder
 // silently under-deleted on NornicDB v1.1.11 and was removed.
 
@@ -199,7 +199,7 @@ func isCrossRepoRunsOnReplaySafeGroup(stmts []Statement) bool {
 	lastCleanup, firstUpsert := -1, len(stmts)
 	for index, stmt := range stmts {
 		switch stmt.Cypher {
-		case batchCanonicalRunsOnLegacyIdentityCleanupCypher:
+		case BatchCanonicalRunsOnLegacyIdentityCleanupCypher:
 			if stmt.Operation != OperationCanonicalUpsert {
 				return false
 			}
@@ -209,7 +209,7 @@ func isCrossRepoRunsOnReplaySafeGroup(stmts []Statement) bool {
 			}
 			cleanupRows = append(cleanupRows, rows)
 			lastCleanup = index
-		case batchCanonicalRunsOnUpsertCypher:
+		case BatchCanonicalRunsOnUpsertCypher:
 			if stmt.Operation != OperationCanonicalUpsert {
 				return false
 			}
@@ -254,14 +254,14 @@ func isCanonicalRepoDependencyReplayStatement(stmt Statement) bool {
 		return false
 	}
 	switch stmt.Cypher {
-	case batchCanonicalRepoDependencyUpsertCypher,
-		batchCanonicalDeploysFromRepoRelationshipUpsertCypher,
+	case BatchCanonicalRepoDependencyUpsertCypher,
+		BatchCanonicalDeploysFromRepoRelationshipUpsertCypher,
 		batchCanonicalDiscoversConfigInRepoRelationshipUpsertCypher,
 		batchCanonicalProvisionsDependencyForRepoRelationshipUpsertCypher,
 		batchCanonicalUsesModuleRepoRelationshipUpsertCypher,
 		batchCanonicalReadsConfigFromRepoRelationshipUpsertCypher,
-		batchCanonicalRepoEvidenceArtifactUpsertCypher,
-		batchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher:
+		BatchCanonicalRepoEvidenceArtifactUpsertCypher,
+		BatchCanonicalRepoEvidenceArtifactWithEnvironmentUpsertCypher:
 		return true
 	default:
 		return false

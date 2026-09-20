@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 // assertEdgesOptions holds the parsed command-line inputs for one
@@ -86,10 +86,10 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
 	// Resolved before the backend opens, fail-closed like MaterializedEdgeDomainEdgeTypes
-	// above: an unregistered family (cypher.MaterializedEdgeIdentityProperties)
+	// above: an unregistered family (materialized.MaterializedEdgeIdentityProperties)
 	// must not silently fall back to "no relationship-property identity" once a
 	// live graph connection is on the line.
-	identity, err := cypher.MaterializedEdgeIdentityProperties(o.domain)
+	identity, err := materialized.MaterializedEdgeIdentityProperties(o.domain)
 	if err != nil {
 		return fmt.Errorf("ifa assert-edges: %w", err)
 	}
@@ -125,7 +125,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 	// MaterializedEdgeEndpointLabels returns a nil map with ok=false there, and a
 	// nil map's lookups report not-constrained, so the filter is a no-op rather
 	// than a silent match-nothing.
-	endpoints, _ := cypher.MaterializedEdgeEndpointLabels(o.domain)
+	endpoints, _ := materialized.MaterializedEdgeEndpointLabels(o.domain)
 
 	if err := assertMaterializedEdges(ctx, reader, o.domain, edgeTypes, endpoints, identity, expected); err != nil {
 		return err
@@ -170,7 +170,7 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // "match nothing" — the latter would assert an empty population and pass any
 // graph.
 //
-// identity is cypher.MaterializedEdgeIdentityProperties(domain): the
+// identity is materialized.MaterializedEdgeIdentityProperties(domain): the
 // relationship properties, beyond the two endpoints, that participate in a
 // type's MERGE identity (e.g. DECLARES_CODEOWNER's pattern and source_path).
 // A live edge of a type with a declared identity is keyed by
@@ -185,12 +185,12 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // expectedEdgeLabel renders e as a human-readable "TYPE|source|target"
 // diagnostic label, with "|k=v" appended per Identity property in sorted
 // order -- the same shape ExpectedEdge.Key() rendered before it needed to
-// become an injective netstring encoding (materialized_edges_assert.go).
+// become an injective netstring encoding (assert.go).
 // Deliberately NOT Key(): injectivity matters for equality comparison, not
 // for display, and printing Key()'s netstring in the assert-edges failure
 // report ("18:DECLARES_CODEOWNER6:repo-1...") would make the one surface an
 // operator reads at 3 AM illegible. Mirrors rationaleEdgeLabel's key/label
-// split (go/internal/ifa/materializededges/materialized_edges_rationale.go), the existing
+// split (go/internal/ifa/materializededges/rationale.go), the existing
 // precedent for this exact pattern in the sibling package.
 func expectedEdgeLabel(e materializededges.ExpectedEdge) string {
 	label := fmt.Sprintf("%s|%s|%s", e.RelationshipType, e.SourceEntityID, e.TargetEntityID)
@@ -223,7 +223,7 @@ func assertMaterializedEdges(
 	reader graphdump.Reader,
 	domain string,
 	edgeTypes map[string]struct{},
-	endpoints map[string]cypher.MaterializedEdgeEndpoint,
+	endpoints map[string]materialized.MaterializedEdgeEndpoint,
 	identity map[string][]string,
 	expected []materializededges.ExpectedEdge,
 ) error {

@@ -61,7 +61,7 @@ var nonBucketProjectorLabels = map[string]string{
 	"PackageRegistryPackageVersion":    "package registry collector; package_registry_canonical_writer.go",
 	"PackageVersion":                   "package registry collector; package_registry_canonical_writer.go",
 	"Parameter":                        "canonical phase G, extractRelationships over param_name facts",
-	"ShellCommand":                     "shell-exec evidence path; edge_writer_shell_exec.go",
+	"ShellCommand":                     "shell-exec evidence path; edge/writer/shell_exec.go",
 }
 
 // TestEveryProjectorLabelHasASource is the totality gate: no label may sit in

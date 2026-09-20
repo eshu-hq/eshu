@@ -13,12 +13,12 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 // submodulePinBudgetRelPath is the committed cost budget for the
 // submodule_pin scenario. Like codeowners_ownership, this projection has no
-// committed cassette: cypher.EdgeWriter.WriteEdges operates over flat
+// committed cassette: edgewriter.EdgeWriter.WriteEdges operates over flat
 // reducer.SharedProjectionIntentRow values, not a CanonicalMaterialization,
 // so the fixture rows live inline in this file and the budget records that
 // explicitly instead of pointing at a cassette path.
@@ -72,7 +72,7 @@ func submodulePinEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 }
 
 // newInstrumentedSubmodulePinEdgeWriter builds the production
-// cypher.EdgeWriter used by SubmodulePinEdgeMaterializationHandler
+// edgewriter.EdgeWriter used by SubmodulePinEdgeMaterializationHandler
 // (go/internal/reducer/submodule_pin_materialization.go), wired over a
 // groupCountingExecutor that implements GroupExecutor so WriteEdges takes its
 // atomic-transaction path. EdgeWriter.Instruments is the same field
@@ -82,7 +82,7 @@ func submodulePinEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 // WriteEdges call -- the PRIMARY instrument this scenario asserts, not a
 // hand-counted statement slice.
 func newInstrumentedSubmodulePinEdgeWriter(t *testing.T) (
-	writer *cypher.EdgeWriter,
+	writer *edgewriter.EdgeWriter,
 	exec *groupCountingExecutor,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -90,7 +90,7 @@ func newInstrumentedSubmodulePinEdgeWriter(t *testing.T) (
 
 	inst, manualReader := newManualReaderInstruments(t)
 	exec = &groupCountingExecutor{}
-	writer = cypher.NewEdgeWriter(exec, 500)
+	writer = edgewriter.NewEdgeWriter(exec, 500)
 	writer.Instruments = inst
 	return writer, exec, manualReader
 }
@@ -98,7 +98,7 @@ func newInstrumentedSubmodulePinEdgeWriter(t *testing.T) (
 // TestCostBudget_SubmodulePin is the positive cost-counting gate for the
 // submodule_pin reducer projection (the "submodule" family in
 // specs/fact-kind-registry.v1.yaml, issue #5420 Phase 5 replay-coverage
-// gap-close). It drives the production cypher.EdgeWriter.WriteEdges over two
+// gap-close). It drives the production edgewriter.EdgeWriter.WriteEdges over two
 // deterministic PINS_SUBMODULE edge rows through a real telemetry.Instruments
 // registry backed by an sdkmetric.ManualReader, then asserts
 // eshu_dp_shared_edge_write_groups_total is within the committed budget.
@@ -106,7 +106,7 @@ func newInstrumentedSubmodulePinEdgeWriter(t *testing.T) (
 // This scenario calls WriteEdges only, not RetractEdges: the whole-repository
 // RetractEdges path for submodule pins issues a single non-grouped
 // Executor.Execute call (canonical_submodule_edges.go's
-// retractSubmodulePinEdgesCypher, dispatched via edge_writer_retract.go),
+// retractSubmodulePinEdgesCypher, dispatched via edge/writer/retract.go),
 // which never reaches EdgeWriter.recordGroupedWrite, so including it would
 // not move the asserted instrument while adding an unreviewable extra
 // statement to the fixture -- the same simplification

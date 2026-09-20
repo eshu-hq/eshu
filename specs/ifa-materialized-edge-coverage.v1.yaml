@@ -59,7 +59,7 @@
 #
 # WAIVER GRANULARITY — per (surface × proof_gate), NOT per family.
 # `waivers:` is a small addition on top of replaycoverage's generic Manifest
-# schema (parsed separately by go/internal/ifa/materializededges/materialized_edges_manifest.go
+# schema (parsed separately by go/internal/ifa/materializededges/manifest.go
 # LoadMaterializedEdgeWaivers): a waiver softens an otherwise-required
 # uncovered finding into an advisory one that still names the issue in every
 # report, mirroring the C-13/C-14/F-6 gates' waiver-with-tracked-issue pattern.

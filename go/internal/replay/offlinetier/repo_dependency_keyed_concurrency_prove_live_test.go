@@ -31,6 +31,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -178,7 +179,7 @@ func runRepoDependencySourceCycle(
 	fixture repoDependencyConcurrencyFixture,
 	source string,
 ) error {
-	writer := cypher.NewEdgeWriter(exec, 0)
+	writer := edgewriter.NewEdgeWriter(exec, 0)
 	retractRows := []reducer.SharedProjectionIntentRow{{
 		IntentID:     "retract-" + source,
 		RepositoryID: source,
@@ -289,7 +290,7 @@ func seedRepoDependencyConcurrencyStaleEdges(
 			},
 		})
 	}
-	if _, err := cypher.NewEdgeWriter(exec, 0).WriteEdges(
+	if _, err := edgewriter.NewEdgeWriter(exec, 0).WriteEdges(
 		ctx,
 		reducer.DomainRepoDependency,
 		rows,

@@ -32,7 +32,7 @@ import (
 //     RelDeploysFrom resolved relationship deployable_unit_edges materializes
 //     on.
 //
-// The guard (materialized_edges_deployable_unit.go) runs those two real
+// The guard (deployable_unit.go) runs those two real
 // production seams over this Odù's facts before calling
 // reducer.ExtractDeployableUnitCorrelationRows -- it never hand-authors a
 // relationships.ResolvedRelationship.

@@ -25,9 +25,9 @@ IFA_FAMILY_ASSERT_FN[shell_exec]="ifa_shell_exec_assert"
 IFA_FAMILY_CASSETTE_VAR[shell_exec]="shell_exec_cassette"
 IFA_FAMILY_EXPECTED_VAR[shell_exec]="shell_exec_expected_edges"
 
-# go/internal/storage/cypher/edge_writer_shell_exec.go:23. Single relationship
+# go/internal/storage/cypher/edge/writer/shell_exec.go:25. Single relationship
 # type, so unlike inheritance_edges this anchor covers the family's whole write
-# surface. Note the writer MERGEs the ShellCommand target node first (:14); the
+# surface. Note the writer MERGEs the ShellCommand target node first (:16); the
 # anchor names the relationship MERGE because that is the write whose failure
 # and recovery this family's fault cell is about.
 IFA_FAMILY_ANCHOR[shell_exec]="MERGE (source)-[rel:EXECUTES_SHELL]->(target)"

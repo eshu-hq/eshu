@@ -167,7 +167,7 @@ func (w *ObservabilityCoverageEdgeWriter) WriteObservabilityCoverageEdges(
 	var stmts []Statement
 	for _, cypherType := range cypherTypes {
 		cypher := fmt.Sprintf(canonicalObservabilityCoverageEdgeUpsertCypherFormat, cypherType)
-		batches := buildBatchedStatements(cypher, grouped[cypherType], w.batchSize)
+		batches := BuildBatchedStatements(cypher, grouped[cypherType], w.batchSize)
 		for index := range batches {
 			batchRows := batches[index].Parameters["rows"].([]map[string]any)
 			batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseObservabilityCoverageEdge

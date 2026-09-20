@@ -124,7 +124,7 @@ func (w *CodeTaintEvidenceWriter) WriteCodeTaintEvidence(
 		}))
 	}
 
-	batches := buildBatchedStatements(codeTaintEvidenceUpsertCypher, stamped, w.batchSize)
+	batches := BuildBatchedStatements(codeTaintEvidenceUpsertCypher, stamped, w.batchSize)
 	for index := range batches {
 		batchRows := batches[index].Parameters["rows"].([]map[string]any)
 		batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseCodeTaintEvidence

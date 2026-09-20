@@ -16,7 +16,7 @@ var workloadCloudRelationshipVocabulary = map[string]struct{}{
 	"USES": {},
 }
 
-const workloadCloudRelationshipUpsertCypherFormat = `UNWIND $rows AS row
+const WorkloadCloudRelationshipUpsertCypherFormat = `UNWIND $rows AS row
 MATCH (resource:CloudResource {uid: row.cloud_resource_uid})
 MATCH (workload:Workload {id: row.workload_id})<-[:INSTANCE_OF]-(instance:WorkloadInstance)
 WHERE instance.environment = row.environment
@@ -35,7 +35,7 @@ SET rel.resolution_mode = row.resolution_mode,
     rel.source_record_id = row.source_record_id,
     rel.collector_kind = row.collector_kind`
 
-const retractWorkloadCloudRelationshipEdgesCypher = `MATCH (:WorkloadInstance)-[rel:USES]->(:CloudResource)
+const RetractWorkloadCloudRelationshipEdgesCypher = `MATCH (:WorkloadInstance)-[rel:USES]->(:CloudResource)
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
@@ -87,10 +87,10 @@ func (w *WorkloadCloudRelationshipWriter) WriteWorkloadCloudRelationshipEdges(
 	}
 
 	cypher := fmt.Sprintf(
-		workloadCloudRelationshipUpsertCypherFormat,
+		WorkloadCloudRelationshipUpsertCypherFormat,
 		workloadCloudRelationshipType(),
 	)
-	stmts := buildBatchedStatements(cypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(cypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseWorkloadCloudRelationshipEdge
@@ -122,7 +122,7 @@ func (w *WorkloadCloudRelationshipWriter) RetractWorkloadCloudRelationshipEdges(
 
 	stmt := Statement{
 		Operation: OperationCanonicalRetract,
-		Cypher:    retractWorkloadCloudRelationshipEdgesCypher,
+		Cypher:    RetractWorkloadCloudRelationshipEdgesCypher,
 		Parameters: map[string]any{
 			"scope_ids":                     scopeIDs,
 			"evidence_source":               evidenceSource,

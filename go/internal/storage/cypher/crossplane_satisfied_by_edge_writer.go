@@ -57,7 +57,7 @@ DELETE rel`
 
 // crossplaneSatisfiedByWriteReasons is the single source of truth for the
 // relationship types this writer accepts, mirroring
-// sqlRelationshipWriteReasons (edge_writer_sql.go). It backs
+// sqlRelationshipWriteReasons (edge/writer/sql.go). It backs
 // CrossplaneRelationshipMaterializedEdgeTypes, the registry-derived accessor
 // the blast-radius edge-materialization coverage registry
 // (go/internal/query/edge_materialization_coverage.go) merges in, so
@@ -137,7 +137,7 @@ func (w *CrossplaneSatisfiedByEdgeWriter) WriteCrossplaneSatisfiedByEdges(
 		cloned = append(cloned, clone)
 	}
 
-	batches := buildBatchedStatements(canonicalCrossplaneSatisfiedByEdgeUpsertCypher, cloned, w.batchSize)
+	batches := BuildBatchedStatements(canonicalCrossplaneSatisfiedByEdgeUpsertCypher, cloned, w.batchSize)
 	for index := range batches {
 		batchRows := batches[index].Parameters["rows"].([]map[string]any)
 		batches[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseCrossplaneSatisfiedByEdge

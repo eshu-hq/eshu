@@ -194,7 +194,7 @@ func writeSecurityGroupEndpointNodes(
 		annotated = append(annotated, cloned)
 	}
 
-	stmts := buildBatchedStatements(upsertCypher, annotated, batchSize)
+	stmts := BuildBatchedStatements(upsertCypher, annotated, batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Operation = OperationCanonicalUpsert

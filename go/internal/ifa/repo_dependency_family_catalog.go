@@ -24,7 +24,7 @@ import (
 // fact's artifact_type/body, with no resolved-relationship precondition the
 // way deployable_unit_edges' deployment_repo_id has. So this Odù needs no
 // second production seam beyond DiscoveredEvidence -> relationships.Resolve
-// (see materialized_edges_repo_dependency.go). The seventh type, RUNS_ON,
+// (see repo_dependency.go). The seventh type, RUNS_ON,
 // derives from an ArgoCD Application destination in a typed file fact. That
 // same fact carries a Kubernetes Deployment in namespace prod, so the
 // production workload extraction/projection seams derive the exact

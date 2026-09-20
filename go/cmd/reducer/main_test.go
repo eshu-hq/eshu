@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -137,9 +138,9 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	if got := service.CodeReachabilityProjectionRunner.Config.BatchLimit; got <= 0 {
 		t.Fatalf("buildReducerService() code reachability batch limit = %d, want positive", got)
 	}
-	codeCallEdgeWriter, ok := service.CodeCallProjectionRunner.EdgeWriter.(*sourcecypher.EdgeWriter)
+	codeCallEdgeWriter, ok := service.CodeCallProjectionRunner.EdgeWriter.(*edgewriter.EdgeWriter)
 	if !ok {
-		t.Fatalf("code call edge writer type = %T, want *cypher.EdgeWriter", service.CodeCallProjectionRunner.EdgeWriter)
+		t.Fatalf("code call edge writer type = %T, want *edgewriter.EdgeWriter", service.CodeCallProjectionRunner.EdgeWriter)
 	}
 	if got, want := codeCallEdgeWriter.CodeCallBatchSize, defaultCodeCallEdgeBatchSize; got != want {
 		t.Fatalf("code call edge batch size = %d, want %d", got, want)
@@ -272,9 +273,9 @@ func TestBuildReducerServiceWiresSharedEdgeGroupBatchOverrides(t *testing.T) {
 		t.Fatalf("buildReducerService() error = %v", err)
 	}
 
-	edgeWriter, ok := service.SharedProjectionRunner.EdgeWriter.(*sourcecypher.EdgeWriter)
+	edgeWriter, ok := service.SharedProjectionRunner.EdgeWriter.(*edgewriter.EdgeWriter)
 	if !ok {
-		t.Fatalf("shared projection edge writer type = %T, want *cypher.EdgeWriter", service.SharedProjectionRunner.EdgeWriter)
+		t.Fatalf("shared projection edge writer type = %T, want *edgewriter.EdgeWriter", service.SharedProjectionRunner.EdgeWriter)
 	}
 	assertSharedEdgeWriterConfig(t, edgeWriter, 3, 4, false)
 }
@@ -306,9 +307,9 @@ func TestBuildReducerServiceWiresRepoDependencyRetractStatementTiming(t *testing
 		t.Fatalf("buildReducerService() error = %v", err)
 	}
 
-	edgeWriter, ok := service.RepoDependencyProjectionRunner.EdgeWriter.(*sourcecypher.EdgeWriter)
+	edgeWriter, ok := service.RepoDependencyProjectionRunner.EdgeWriter.(*edgewriter.EdgeWriter)
 	if !ok {
-		t.Fatalf("repo dependency edge writer type = %T, want *cypher.EdgeWriter", service.RepoDependencyProjectionRunner.EdgeWriter)
+		t.Fatalf("repo dependency edge writer type = %T, want *edgewriter.EdgeWriter", service.RepoDependencyProjectionRunner.EdgeWriter)
 	}
 	if !edgeWriter.RepoDependencyRetractStatementTiming {
 		t.Fatal("repo dependency retract statement timing = false, want true")

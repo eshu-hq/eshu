@@ -24,7 +24,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/metric"
@@ -332,7 +332,7 @@ func seedSearchVectorScopeState(
 func newRepoDependencyProjectionRunner(
 	intentStore *postgres.SharedIntentStore,
 	database db.ExecQueryer,
-	edgeWriter *sourcecypher.EdgeWriter,
+	edgeWriter *edgewriter.EdgeWriter,
 	workQueue postgres.ReducerQueue,
 	relationshipGenerationActive maintenance.RelationshipGenerationActiveLookup,
 	acceptedGenerationPrefetch reducer.AcceptedGenerationPrefetch,

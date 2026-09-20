@@ -124,7 +124,7 @@ func (w *IAMCanPerformEdgeWriter) WriteIAMCanPerformEdges(
 		}))
 	}
 
-	stmts := buildBatchedStatements(canonicalIAMCanPerformEdgeUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalIAMCanPerformEdgeUpsertCypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseIAMCanPerformEdge

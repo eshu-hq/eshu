@@ -19,6 +19,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -113,7 +114,7 @@ func TestReducerSQLRelationshipRetractGraphTruth(t *testing.T) {
 			fixtures := append(append([]sqlRetractFixture{}, sqlRetractInScopeFixtures...), control, wrongEvidence)
 			seedSQLRetractNodes(ctx, t, exec, fixtures)
 
-			writer := cypher.NewEdgeWriter(exec, 0)
+			writer := edgewriter.NewEdgeWriter(exec, 0)
 			writer.SQLRelationshipSequentialWrites = true
 			writeSQLRetractFixtures(ctx, t, writer, fixtures)
 			for _, fixture := range fixtures {
@@ -173,7 +174,7 @@ func seedSQLRetractNodes(ctx context.Context, t *testing.T, exec liveExecutor, f
 	}
 }
 
-func writeSQLRetractFixtures(ctx context.Context, t *testing.T, writer *cypher.EdgeWriter, fixtures []sqlRetractFixture) {
+func writeSQLRetractFixtures(ctx context.Context, t *testing.T, writer *edgewriter.EdgeWriter, fixtures []sqlRetractFixture) {
 	t.Helper()
 	for _, fixture := range fixtures {
 		row := reducer.SharedProjectionIntentRow{

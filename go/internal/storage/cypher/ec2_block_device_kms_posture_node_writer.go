@@ -111,7 +111,7 @@ func (w *EC2BlockDeviceKMSPostureNodeWriter) WriteEC2BlockDeviceKMSPostureNodes(
 		return nil
 	}
 
-	stmts := buildBatchedStatements(canonicalEC2BlockDeviceKMSPostureNodeUpsertCypher, existing, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalEC2BlockDeviceKMSPostureNodeUpsertCypher, existing, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseEC2BlockDeviceKMSPosture

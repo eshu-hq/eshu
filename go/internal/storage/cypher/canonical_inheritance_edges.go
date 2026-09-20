@@ -21,10 +21,10 @@ package cypher
 // first MERGE below yields INHERITS alone and undercounts the family fourfold —
 // TestInheritanceRegistryMatchesRetractDisjunction pins the lists together.
 var inheritanceMaterializedEdgeTypes = map[string]string{
-	"INHERITS":   "class/type inheritance (batchCanonicalInheritanceEdgeUpsertCypher)",
-	"OVERRIDES":  "member override (batchCanonicalInheritanceOverrideUpsertCypher)",
-	"ALIASES":    "trait or type alias adaptation (batchCanonicalInheritanceAliasUpsertCypher)",
-	"IMPLEMENTS": "interface implementation (batchCanonicalImplementsEdgeUpsertCypher)",
+	"INHERITS":   "class/type inheritance (BatchCanonicalInheritanceEdgeUpsertCypher)",
+	"OVERRIDES":  "member override (BatchCanonicalInheritanceOverrideUpsertCypher)",
+	"ALIASES":    "trait or type alias adaptation (BatchCanonicalInheritanceAliasUpsertCypher)",
+	"IMPLEMENTS": "interface implementation (BatchCanonicalImplementsEdgeUpsertCypher)",
 }
 
 // InheritanceMaterializedEdgeTypes returns the inheritance domain's materialized
@@ -42,7 +42,7 @@ func InheritanceMaterializedEdgeTypes() map[string]string {
 	return out
 }
 
-const batchCanonicalInheritanceEdgeUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalInheritanceEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.child_entity_id})
 MATCH (parent:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.parent_entity_id})
 MERGE (child)-[rel:INHERITS]->(parent)
@@ -52,7 +52,7 @@ SET rel.confidence = row.confidence,
     rel.evidence_source = row.evidence_source,
     rel.relationship_type = row.relationship_type`
 
-const batchCanonicalInheritanceOverrideUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalInheritanceOverrideUpsertCypher = `UNWIND $rows AS row
 MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.child_entity_id})
 MATCH (parent:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.parent_entity_id})
 MERGE (child)-[rel:OVERRIDES]->(parent)
@@ -62,7 +62,7 @@ SET rel.confidence = row.confidence,
     rel.evidence_source = row.evidence_source,
     rel.relationship_type = row.relationship_type`
 
-const batchCanonicalInheritanceAliasUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalInheritanceAliasUpsertCypher = `UNWIND $rows AS row
 MATCH (child:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.child_entity_id})
 MATCH (parent:Function|Class|Interface|Trait|Struct|Enum|Protocol {uid: row.parent_entity_id})
 MERGE (child)-[rel:ALIASES]->(parent)

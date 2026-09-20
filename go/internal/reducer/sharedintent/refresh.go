@@ -81,7 +81,7 @@ func DeltaScopeRepositorySet(repositoryIDs []string) map[string]struct{} {
 //     the whole repository deletes every UNCHANGED file's edge with nothing left
 //     to restore it: silent wrong graph, no error, no dead letter. An empty list
 //     instead reaches collectDeltaFilePaths
-//     (storage/cypher/edge_writer_retract_scope.go), which rejects it before any
+//     (storage/cypher/edge/writer/retract_scope.go), which rejects it before any
 //     statement runs, so the partition fails and the intent dead-letters. That
 //     is the intended outcome -- a dead letter an operator can see beats a graph
 //     that quietly lost edges. A repository reaches this state when its changed

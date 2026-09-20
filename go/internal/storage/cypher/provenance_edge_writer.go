@@ -217,11 +217,11 @@ func (w *ProvenanceEdgeWriter) WritePublishesEdges(
 
 	var stmts []Statement
 	stmts = append(stmts, tagProvenanceStatements(
-		buildBatchedStatements(canonicalProvenancePublishesPackageCypher, packageRows, w.batchSize),
+		BuildBatchedStatements(canonicalProvenancePublishesPackageCypher, packageRows, w.batchSize),
 		canonicalPhaseProvenancePublishesEdges, provenancePublishesEdgeLabel, "target=Package",
 	)...)
 	stmts = append(stmts, tagProvenanceStatements(
-		buildBatchedStatements(canonicalProvenancePublishesPackageVersionCypher, versionRows, w.batchSize),
+		BuildBatchedStatements(canonicalProvenancePublishesPackageVersionCypher, versionRows, w.batchSize),
 		canonicalPhaseProvenancePublishesEdges, provenancePublishesEdgeLabel, "target=PackageVersion",
 	)...)
 
@@ -251,7 +251,7 @@ func (w *ProvenanceEdgeWriter) WriteBuiltFromEdges(
 	}
 
 	stmts := tagProvenanceStatements(
-		buildBatchedStatements(canonicalProvenanceBuiltFromCypher, cloned, w.batchSize),
+		BuildBatchedStatements(canonicalProvenanceBuiltFromCypher, cloned, w.batchSize),
 		canonicalPhaseProvenanceBuiltFromEdges, provenanceBuiltFromEdgeLabel, "target=Repository",
 	)
 	return w.dispatch(ctx, stmts)

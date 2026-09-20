@@ -37,16 +37,16 @@ package cypher
 // baseline gate silently ignores.
 //
 // All four are genuinely written, not aspirational: buildCodeCallRowMap in
-// edge_writer_code_call_labels.go dispatches to the metaclass, INSTANTIATES,
+// edge/writer/code_call_labels.go dispatches to the metaclass, INSTANTIATES,
 // REFERENCES, and CALLS templates, and the default retract disjunction in
 // canonical_retract.go names the same four. Reading only the first MERGE in this
 // file yields CALLS alone and undercounts the family threefold —
 // TestCodeCallRegistryMatchesRetractDisjunction pins the two lists together.
 var codeCallMaterializedEdgeTypes = map[string]string{
-	"CALLS":          "parser-resolved call edge (batchCanonicalCodeCallUpsertCypher)",
-	"REFERENCES":     "non-call symbol reference (batchCanonicalCodeReferenceUpsertCypher)",
-	"USES_METACLASS": "Python metaclass relationship (batchCanonicalMetaclassUpsertCypher)",
-	"INSTANTIATES":   "constructor/instantiation edge (batchCanonicalInstantiatesUpsertCypher)",
+	"CALLS":          "parser-resolved call edge (BatchCanonicalCodeCallUpsertCypher)",
+	"REFERENCES":     "non-call symbol reference (BatchCanonicalCodeReferenceUpsertCypher)",
+	"USES_METACLASS": "Python metaclass relationship (BatchCanonicalMetaclassUpsertCypher)",
+	"INSTANTIATES":   "constructor/instantiation edge (BatchCanonicalInstantiatesUpsertCypher)",
 }
 
 // CodeCallMaterializedEdgeTypes returns the code-call domain's materialized
@@ -64,7 +64,7 @@ func CodeCallMaterializedEdgeTypes() map[string]string {
 	return out
 }
 
-const batchCanonicalCodeCallUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalCodeCallUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function|Class|File {uid: coalesce(row.caller_entity_id, row.source_entity_id)})
 MATCH (target:Function|Class|File {uid: coalesce(row.callee_entity_id, row.target_entity_id)})
 MERGE (source)-[rel:CALLS]->(target)
@@ -74,7 +74,7 @@ SET rel.confidence = row.confidence,
     rel.evidence_source = row.evidence_source,
     rel.call_kind = row.call_kind`
 
-const batchCanonicalCodeReferenceUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalCodeReferenceUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function|Class|Struct|Interface|TypeAlias|File {uid: row.caller_entity_id})
 MATCH (target:Function|Class|Struct|Interface|TypeAlias|File {uid: row.callee_entity_id})
 MERGE (source)-[rel:REFERENCES]->(target)
@@ -84,7 +84,7 @@ SET rel.confidence = row.confidence,
     rel.evidence_source = row.evidence_source,
     rel.call_kind = row.call_kind`
 
-const batchCanonicalMetaclassUpsertCypher = `UNWIND $rows AS row
+const BatchCanonicalMetaclassUpsertCypher = `UNWIND $rows AS row
 MATCH (source:Function|Class|File {uid: row.source_entity_id})
 MATCH (target:Function|Class|File {uid: row.target_entity_id})
 MERGE (source)-[rel:USES_METACLASS]->(target)

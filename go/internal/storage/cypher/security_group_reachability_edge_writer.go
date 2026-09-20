@@ -164,7 +164,7 @@ func (w *SecurityGroupReachabilityWriter) WriteSecurityGroupRuleNodes(
 		annotated = append(annotated, cloneRowWith(row, map[string]any{"evidence_source": evidenceSource}))
 	}
 
-	stmts := buildBatchedStatements(canonicalSecurityGroupRuleNodeUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalSecurityGroupRuleNodeUpsertCypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseSecurityGroupRuleNode
@@ -277,7 +277,7 @@ func (w *SecurityGroupReachabilityWriter) writeTokenGroupedEdges(
 	var stmts []Statement
 	for _, token := range tokens {
 		cypher := fmt.Sprintf(cypherFormat, token)
-		batches := buildBatchedStatements(cypher, grouped[token], w.batchSize)
+		batches := BuildBatchedStatements(cypher, grouped[token], w.batchSize)
 		for index := range batches {
 			batchRows := batches[index].Parameters["rows"].([]map[string]any)
 			batches[index].Parameters[StatementMetadataPhaseKey] = phase

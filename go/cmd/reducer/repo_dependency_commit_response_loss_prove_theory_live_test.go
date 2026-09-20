@@ -22,7 +22,7 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -88,7 +88,7 @@ func TestLiveRepoDependencyGroupedCommitResponseLossIsExactlyReplayable(t *testi
 		},
 	}
 
-	proxiedWriter := sourcecypher.NewEdgeWriter(
+	proxiedWriter := edgewriter.NewEdgeWriter(
 		newReducerNeo4jExecutor(neo4jSessionRunner{Driver: proxyDriver}, nil),
 		0,
 	)
@@ -102,7 +102,7 @@ func TestLiveRepoDependencyGroupedCommitResponseLossIsExactlyReplayable(t *testi
 	proxy.WaitForDroppedCommit(t, ctx)
 	committed := readRepoCommitLossEdge(t, ctx, directRunner, sourceID, targetID, evidenceSource, resolvedID)
 
-	directWriter := sourcecypher.NewEdgeWriter(
+	directWriter := edgewriter.NewEdgeWriter(
 		newReducerNeo4jExecutor(directRunner, nil),
 		0,
 	)

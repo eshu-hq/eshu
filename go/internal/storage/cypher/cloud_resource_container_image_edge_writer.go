@@ -130,7 +130,7 @@ func (w *CloudResourceContainerImageEdgeWriter) WriteCloudResourceContainerImage
 	}
 
 	cypher := fmt.Sprintf(canonicalCloudResourceContainerImageEdgeUpsertCypherFormat, cloudResourceContainerImageRelationshipType())
-	stmts := buildBatchedStatements(cypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(cypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseCloudResourceContainerImageEdge

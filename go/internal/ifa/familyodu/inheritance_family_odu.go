@@ -30,7 +30,7 @@ import (
 //
 // InheritanceFamilyOduName, InheritanceFamilyRepoID, and
 // InheritanceFamilyCassetteRelPath are exported (#6053/#6199): the
-// materialized_edges_inheritance.go guard and its test moved to
+// inheritance.go guard and its test moved to
 // go/internal/ifa/materializededges because they exercise this Odù, and that
 // package can only look up this catalog entry, cross-check the fixture's
 // repository identity, and locate the committed cassette by reading these

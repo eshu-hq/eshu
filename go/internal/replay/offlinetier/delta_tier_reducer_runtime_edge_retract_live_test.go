@@ -12,7 +12,7 @@
 // retracts each one on the pinned backend would be a false green.
 //
 // The test drives the REAL production write and retract paths
-// (cypher.EdgeWriter.WriteEdges / RetractEdges) for DomainHandlesRoute
+// (edgewriter.EdgeWriter.WriteEdges / RetractEdges) for DomainHandlesRoute
 // (Function->Endpoint), DomainRunsIn (Function->Workload via the
 // Repository-DEFINES chain), DomainInvokesCloudAction (Function->CloudAction,
 // the action node MERGEd inline), and DomainWorkloadDependency
@@ -30,6 +30,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -75,7 +76,7 @@ func TestReducerRuntimeEdgeRetractGraphTruth(t *testing.T) {
 
 	seedRuntimeEdgeNodes(ctx, t, exec)
 
-	writer := cypher.NewEdgeWriter(exec, 0)
+	writer := edgewriter.NewEdgeWriter(exec, 0)
 	inRows := func(domain string, rows []reducer.SharedProjectionIntentRow) {
 		t.Helper()
 		if _, err := writer.WriteEdges(ctx, domain, rows, rtSource); err != nil {

@@ -115,7 +115,7 @@ func (w *IAMEscalationEdgeWriter) WriteIAMEscalationEdges(
 		}))
 	}
 
-	stmts := buildBatchedStatements(canonicalIAMEscalationEdgeUpsertCypher, annotated, w.batchSize)
+	stmts := BuildBatchedStatements(canonicalIAMEscalationEdgeUpsertCypher, annotated, w.batchSize)
 	for index := range stmts {
 		batchRows := stmts[index].Parameters["rows"].([]map[string]any)
 		stmts[index].Parameters[StatementMetadataPhaseKey] = canonicalPhaseIAMEscalationEdge

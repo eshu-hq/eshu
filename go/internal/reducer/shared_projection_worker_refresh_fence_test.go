@@ -42,7 +42,7 @@ func TestRepoWideRetractRefreshPartitionKeyShapeIsPinned(t *testing.T) {
 	if got := repoWideRetractRefreshPartitionKey(DomainRationaleEdges, repoID); got != want {
 		t.Fatalf("repoWideRetractRefreshPartitionKey(%q, %q) = %q, want %q\n"+
 			"The whole-scope refresh key scheme changed. storage/cypher's\n"+
-			"edge_writer_retract_scope_test.go mirrors this exact string as a\n"+
+			"edge/writer/retract_scope_test.go mirrors this exact string as a\n"+
 			"literal to prove the delta and whole-scope retract collectors stay\n"+
 			"disjoint; update that mirror in lockstep, or its rows will keep\n"+
 			"sharing the stale key and collapse for the wrong reason.",

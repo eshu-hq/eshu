@@ -5,9 +5,9 @@ package cypher
 
 import "fmt"
 
-// inheritanceRetractChildLabels lists the child node labels an inheritance edge
+// InheritanceRetractChildLabels lists the child node labels an inheritance edge
 // (INHERITS/OVERRIDES/ALIASES/IMPLEMENTS) can originate from.
-var inheritanceRetractChildLabels = []string{"Function", "Class", "Interface", "Trait", "Struct", "Enum", "Protocol"}
+var InheritanceRetractChildLabels = []string{"Function", "Class", "Interface", "Trait", "Struct", "Enum", "Protocol"}
 
 // buildInheritanceRetractStatements emits one retract statement per child label.
 //
@@ -22,8 +22,8 @@ var inheritanceRetractChildLabels = []string{"Function", "Class", "Interface", "
 // key carrying scopeValues. The statements run sequentially, not grouped (see
 // executeInheritanceRetractStatements).
 func buildInheritanceRetractStatements(scopeField, scopeParam string, scopeValues []string, evidenceSource string) []Statement {
-	stmts := make([]Statement, 0, len(inheritanceRetractChildLabels))
-	for _, label := range inheritanceRetractChildLabels {
+	stmts := make([]Statement, 0, len(InheritanceRetractChildLabels))
+	for _, label := range InheritanceRetractChildLabels {
 		cypher := fmt.Sprintf(
 			"MATCH (child:%s)-[rel:INHERITS|OVERRIDES|ALIASES|IMPLEMENTS]->()\nWHERE child.%s IN $%s\n  AND rel.evidence_source = $evidence_source\nDELETE rel",
 			label, scopeField, scopeParam,

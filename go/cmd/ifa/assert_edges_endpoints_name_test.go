@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa/graphdump"
 	"github.com/eshu-hq/eshu/go/internal/ifa/materializededges"
-	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	materialized "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/materialized"
 )
 
 // environmentEndpointEdge builds the exact shape a live TARGETS_ENVIRONMENT
@@ -54,7 +54,7 @@ func TestNameFallbackResolvesEnvironmentEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MaterializedEdgeDomainEdgeTypes(kubernetes_namespace_environment): %v", err)
 	}
-	endpoints, ok := cypher.MaterializedEdgeEndpointLabels("kubernetes_namespace_environment")
+	endpoints, ok := materialized.MaterializedEdgeEndpointLabels("kubernetes_namespace_environment")
 	if !ok {
 		t.Fatal("MaterializedEdgeEndpointLabels(kubernetes_namespace_environment) reported no constraints; this family is endpoint-scoped and the case would not exercise the real filter")
 	}

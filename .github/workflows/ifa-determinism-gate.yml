@@ -129,13 +129,13 @@ on:
       # exactly as the registry spells it or the gates become
       # selectable-but-never-started.
       - 'go/internal/reducer/**'
-      - 'go/internal/storage/cypher/materialized_edge_endpoints.go'
+      - 'go/internal/storage/cypher/edge/materialized/endpoints.go'
       - 'go/internal/collector/gitrepo/git_fact_builder*.go'
       - 'go/internal/collector/gitrepo/git_followup_facts.go'
       - 'go/internal/projector/canonical_import_extract.go'
       - 'go/internal/projector/workload_dependency_cassette_admission_test.go'
       - 'go/internal/storage/postgres/ingestion_reopen*.go'
-      - 'go/internal/storage/cypher/materialized_edge_repo_dependency.go'
+      - 'go/internal/storage/cypher/edge/materialized/repo_dependency.go'
       - 'go/internal/storage/cypher/canonical_relationships.go'
       - 'go/internal/storage/postgres/migrations/**'
       - 'go/internal/graphschemacompat/**'
@@ -249,11 +249,11 @@ on:
       - 'go/cmd/reducer/config_projection.go'
       - 'go/cmd/reducer/main_helpers.go'
       - 'go/internal/storage/cypher/*code_call*.go'
-      - 'go/internal/storage/cypher/edge_writer_payload.go'
+      - 'go/internal/storage/cypher/payload_accessors.go'
       - 'go/internal/storage/cypher/canonical_instantiates_edges.go'
-      - 'go/internal/storage/cypher/edge_writer.go'
+      - 'go/internal/storage/cypher/edge/writer/writer.go'
       - 'go/internal/storage/cypher/canonical_retract.go'
-      - 'go/internal/storage/cypher/edge_writer_retract*.go'
+      - 'go/internal/storage/cypher/edge/writer/retract*.go'
       - 'go/internal/storage/cypher/canonical_node_writer.go'
       - 'go/internal/storage/cypher/canonical_node_writer_phases.go'
       - 'go/internal/storage/cypher/canonical_node_writer_entities.go'
@@ -339,7 +339,7 @@ on:
       # by a live replay of the family. A write-path-only regression to the SQL
       # edge writer or materialization handler is exactly the silent-no-op class
       # the pure seam cannot catch, so it MUST retrigger these live lanes.
-      - 'go/internal/storage/cypher/edge_writer_sql.go'
+      - 'go/internal/storage/cypher/edge/writer/sql.go'
       - 'specs/ifa-materialized-edge-coverage.v1.yaml'
       - 'specs/ifa-materialized-edge-coverage-direct.v1.yaml'
       - 'testdata/cassettes/sqlrelationships/**'
@@ -364,9 +364,9 @@ on:
       - 'go/internal/ifa/testdata/documentation/**'
       - 'sdk/go/factschema/documentation/v1/**'
       # Glob, not the canonical_ literal: the registry declares this shape, and it
-      # is what covers edge_writer_documentation_labels.go -- buildDocumentationRowMap's
+      # is what covers edge/writer/documentation_labels.go -- buildDocumentationRowMap's
       # target_kind switch, whose routing the family guard defers to the live assert.
-      - 'go/internal/storage/cypher/*documentation*.go'
+      - 'go/internal/storage/cypher/edge/writer/*documentation*.go'
       # codeowners_ownership_edges (#5992). Its Odù, cassette, expected-edge
       # set, reducer stage, writer, and live/fault helpers are all inputs to
       # what the live lanes assert, so each one must retrigger them.
@@ -386,7 +386,7 @@ on:
       # submodule_pin_edges (#6002). Its Odù, cassette, expected-edge set,
       # reducer stage, and live/fault helpers are all inputs to what the live
       # lanes assert, so each one must retrigger them. The family's guard
-      # (materialized_edges_submodule_pin.go) lives in
+      # (submodule_pin.go) lives in
       # go/internal/ifa/materializededges/, already a trigger above (the
       # #6199 split's directory glob) -- not repeated here. Its reducer-side
       # decode file (go/internal/reducer/factschema_decode_submodule.go) and
@@ -412,7 +412,7 @@ on:
       # split is the exact shape #6200 is about, and the next one now needs no
       # row at all.
       - 'go/internal/storage/cypher/canonical_deployable_unit_edges.go'
-      - 'go/internal/storage/cypher/edge_writer_rowmaps.go'
+      - 'go/internal/storage/cypher/edge/writer/rowmaps.go'
       - 'testdata/cassettes/deployableunit/**'
       - 'go/internal/ifa/testdata/deployableunit/**'
       - 'go/cmd/bootstrap-index/**'
@@ -427,15 +427,15 @@ on:
       # registry gate during local path selection.
       - 'go/internal/replay/canonical.go'
       - 'go/internal/storage/cypher/canonical_rationale_edges.go'
-      - 'go/internal/storage/cypher/edge_writer_rationale_labels.go'
+      - 'go/internal/storage/cypher/edge/writer/rationale_labels.go'
       - 'go/internal/storage/cypher/canonical.go'
       - 'go/internal/storage/cypher/backpressure_executor.go'
       - 'testdata/cassettes/rationale/**'
       - 'go/internal/ifa/testdata/rationale/**'
       - 'go/internal/storage/cypher/canonical_implements_edges.go'
       - 'go/internal/storage/cypher/canonical_inheritance_retract.go'
-      - 'go/internal/storage/cypher/edge_writer_inheritance_labels.go'
-      - 'go/internal/storage/cypher/edge_writer_shell_exec.go'
+      - 'go/internal/storage/cypher/edge/writer/inheritance_labels.go'
+      - 'go/internal/storage/cypher/edge/writer/shell_exec.go'
       - 'testdata/cassettes/inheritance/**'
       - 'testdata/cassettes/shellexec/**'
       - 'go/internal/ifa/testdata/inheritance/**'
@@ -493,6 +493,7 @@ on:
       # Shared committed family fixture paths + existence guards, sourced by
       # BOTH live gates: a change here changes what every cell drives.
       - 'go/internal/storage/cypher/materialized_edge_*.go'
+      - 'go/internal/storage/cypher/edge/materialized/**'
       - 'go/internal/storage/cypher/canonical_code_call_edges.go'
       - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
       - '.github/workflows/ifa-determinism-gate.yml'

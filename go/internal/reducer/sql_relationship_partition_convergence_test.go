@@ -30,7 +30,7 @@ import (
 // the sqlrelationship package's own exported surface.
 
 // sqlRelationshipStateModelingEdgeWriter models the canonical SQL relationship
-// edge STATE the way the real edge writer dispatch does (edge_writer_sql.go,
+// edge STATE the way the real edge writer dispatch does (edge/writer/sql.go,
 // DomainSQLRelationships branch):
 //
 //   - RetractEdges: if ANY row carries delta_projection=true, delete only the
