@@ -598,9 +598,6 @@ linters:
       - path: 'internal/collector/ospackagevulnerability/'
         linters:
           - exhaustive
-      - path: 'internal/collector/parity/harness\.go'
-        linters:
-          - exhaustive
       - path: 'internal/collector/scannerworker/imageanalyzer/rootfs_snapshot\.go'
         linters:
           - exhaustive

@@ -163,6 +163,8 @@ func (h *Harness) applyReadback(committed []facts.Envelope, classByKey map[strin
 		switch h.readback.offer(envelope, class) {
 		case admissionAdmitted, admissionIdempotent:
 			reached = true
+		case admissionSuperseded, admissionWithheld:
+			// Stale-token and permission-hidden facts never count as reached.
 		}
 	}
 	return reached
