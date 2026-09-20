@@ -121,7 +121,7 @@ completion path, with an affected-repo gate at emit time.**
 - Add reducer domain `code_value_flow_refresh`. Its handler calls **only**
   `ProjectValueFlowFixpointEvidence` and skips summary, source and graph-id
   persistence (unchanged by the producers).
-- The three producers emit a completion event only when the ACKed run wrote
+- The four producers (workload_materialization, workload_cloud_relationship_materialization, aws_resource_materialization and iam_can_perform_materialization) emit a completion event only when the ACKed run wrote
   more than 0 rows **and** the affected-repo gate below is non-empty. That means
   a producer-specific ACK query plus a handler-computed "relevant" flag carried
   on the result.
@@ -218,11 +218,13 @@ sequenceDiagram
 
 ## Telemetry and tests (after the decision)
 
-Telemetry: counter `eshu_dp_value_flow_refresh_intents_total{producer_domain, outcome}`
-(`enqueued|coalesced|skipped_irrelevant|executed`), span
-`reducer.code_value_flow_refresh`, and a structured log with
-`affected_repo_count`, `cloud_sink_target_count`, `finding_count` and
-`graph_rows`, documented under `docs/public/reference/telemetry/`.
+Telemetry: counter `eshu_dp_value_flow_refresh_gate_evaluations_total{domain, outcome}`
+(`affected|suppressed|fail_open`, one point per producer gate evaluation),
+span `reducer.value_flow_refresh_gate` carrying the `outcome` and
+`affected_repo_count` attributes, and a `value-flow refresh completed`
+structured log with `scope_id`, `generation_id`, `fixpoint_finding_count`,
+`fixpoint_graph_rows` and `fixpoint_unresolved_endpoint_count`, documented
+under `docs/public/reference/telemetry/`.
 
 Tests: RED handler test where the chain lands after the first summary run and
 nothing re-triggers. Unit tests for the emit gate and for coalescing (N

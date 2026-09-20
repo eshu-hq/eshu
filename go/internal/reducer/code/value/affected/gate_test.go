@@ -89,6 +89,24 @@ func TestReposWithCloudCallersForPrincipals(t *testing.T) {
 	}
 }
 
+func TestReposWithCloudCallersForResources(t *testing.T) {
+	t.Parallel()
+
+	g := &fakeRunner{rows: map[string][]map[string]any{
+		principalReposWithCloudCallersCypher: {repoRow("r7")},
+	}}
+	n, err := ReposWithCloudCallersForResources(context.Background(), g, []string{"res-1"})
+	if err != nil {
+		t.Fatalf("ReposWithCloudCallersForResources() error = %v", err)
+	}
+	if n != 1 {
+		t.Errorf("ReposWithCloudCallersForResources() = %d, want 1", n)
+	}
+	if len(g.seen) != 1 || g.seen[0] != principalReposWithCloudCallersCypher {
+		t.Errorf("ran statements %v, want exactly the shared principal statement", g.seen)
+	}
+}
+
 func TestGateStatementsAvoidMisansweredShapes(t *testing.T) {
 	t.Parallel()
 

@@ -27,18 +27,25 @@ func (h IAMCanPerformMaterializationHandler) refreshResultSignals(
 	count := 0.0
 	if writes > 0 {
 		count = 1
-		if h.AffectedGraph != nil {
-			n, err := affected.ReposWithCloudCallersForPrincipals(ctx, h.AffectedGraph, committedPrincipalUIDs(edges))
-			if err != nil {
-				slog.Warn("value-flow refresh gate failed open",
-					"domain", reducercontract.DomainIAMCanPerformMaterialization,
-					"scope_id", intent.ScopeID,
-					"generation_id", intent.GenerationID,
-					"error", err,
-				)
-			} else {
-				count = float64(n)
-			}
+		gateCtx, gate := affected.BeginRefreshGateEvaluation(ctx, h.Tracer, h.Instruments, reducercontract.DomainIAMCanPerformMaterialization)
+		if h.AffectedGraph == nil {
+			gate.End(affected.RefreshGateFailOpen, 0)
+		} else if n, err := affected.ReposWithCloudCallersForPrincipals(gateCtx, h.AffectedGraph, committedPrincipalUIDs(edges)); err != nil {
+			slog.Warn("value-flow refresh gate failed open",
+				"domain", reducercontract.DomainIAMCanPerformMaterialization,
+				"scope_id", intent.ScopeID,
+				"generation_id", intent.GenerationID,
+				"outcome", affected.RefreshGateFailOpen,
+				"affected_repo_count", 0,
+				"error", err,
+			)
+			gate.End(affected.RefreshGateFailOpen, 0)
+		} else if n == 0 {
+			count = 0
+			gate.End(affected.RefreshGateSuppressed, 0)
+		} else {
+			count = float64(n)
+			gate.End(affected.RefreshGateAffected, n)
 		}
 	}
 	return affected.WithRefreshSignal(base, count)

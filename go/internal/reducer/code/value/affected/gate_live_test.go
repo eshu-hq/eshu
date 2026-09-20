@@ -152,6 +152,14 @@ func TestLiveAffectedGate(t *testing.T) {
 			},
 			want: 1,
 		},
+		"resources": {
+			run: func(ctx context.Context, g affectedLiveGraph) (int, error) {
+				return ReposWithCloudCallersForResources(ctx, g, []string{
+					"answer-truth-affected:vp-role",
+				})
+			},
+			want: 1,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			n, err := tc.run(ctx, graph)
