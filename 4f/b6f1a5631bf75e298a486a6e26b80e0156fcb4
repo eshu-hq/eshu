@@ -1,0 +1,19 @@
+go/internal/storage/postgres/readiness_wait_supersession_live_test.go
+  s_0155aa640a8bb1::t_8f3a037bd8236a 131-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4fb6f1a5631bf75e298a486a6e26b80e0156fcb4",
+  "prompts": {},
+  "sessions": {
+    "s_0155aa640a8bb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ed74ad2-74b8-4517-8e85-303dc193b776",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

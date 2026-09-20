@@ -1,0 +1,31 @@
+go/internal/storage/postgres/readinesswait/store_test.go
+  s_0155aa640a8bb1::t_c4c3378dc1490e 1-144
+go/internal/storage/postgres/readinesswait/store_live_test.go
+  s_0155aa640a8bb1::t_1b769745e516f4 1-144
+go/internal/storage/postgres/migrations/109_reducer_readiness_waits.sql
+  s_0155aa640a8bb1::t_4261e9e8351515 1-32
+go/internal/storage/postgres/readinesswait/doc.go
+  s_0155aa640a8bb1::t_bc9a683f01be44 1-15
+go/internal/storage/postgres/readinesswait/store.go
+  s_0155aa640a8bb1::t_7069e0ebc4d596 1-147
+go/internal/storage/postgres/readinesswait/AGENTS.md
+  s_0155aa640a8bb1::t_37cb7808036ee2 1-18
+go/internal/storage/postgres/readinesswait/README.md
+  s_0155aa640a8bb1::t_398c441971c989 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1fc5ac0de37bbe22d3fb4260d517130dc29b8b41",
+  "prompts": {},
+  "sessions": {
+    "s_0155aa640a8bb1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ed74ad2-74b8-4517-8e85-303dc193b776",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
