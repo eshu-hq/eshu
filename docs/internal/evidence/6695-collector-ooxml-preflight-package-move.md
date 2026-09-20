@@ -9,7 +9,7 @@ flat path `go/internal/collector/ooxmlpreflight` to
 `go/internal/collector/preflight/ooxml`. The package name changes to
 `ooxml`; `Options`, `Result`, `Warning`, `Preflight`, the structure
 classifier, and the format and warning constants remain exact. This is the
-sixth `preflight/` leaf (the parent trio and the `archive`, `pdf`,
+seventh `preflight/` slice (the sixth leaf; the parent trio and the `archive`, `pdf`,
 `diagram`, `picture`, and `media` leaves landed earlier); the manifest
 sibling stays flat for a later slice.
 
@@ -81,10 +81,13 @@ repointed importer (including
   changed (plus gofmt import ordering).
 - The moved README's evidence commands are corrected since those lines
   were already in this diff: the first names the new leaf path, and the
-  second names the `gitdocs` package where the routing test lives
-  (`TestOOXMLPreflightBlocksExtractionOnlyForFatalWarnings`, confirmed by
-  `-list`; a `go test ./internal/collector -run ...` form selects zero
-  tests).
+  second names the `gitrepo` package where the routing tests live
+  (`TestUnsupportedMacroEnabledOOXMLDocumentationFormatsRemainDefaultOff`
+  and `TestOfficeSpreadsheetDocumentationFormatsAreDocumentationFiles`,
+  both confirmed by `-list` and green; the `gitdocs`-level
+  `TestOOXMLPreflightBlocksExtractionOnlyForFatalWarnings` covers only the
+  warning predicate, and a `go test ./internal/collector -run ...` form
+  selects zero tests).
 - No wire, API, fact, reducer, query, graph, storage, queue, lease,
   concurrency, or runtime behavior changes.
 
@@ -130,13 +133,15 @@ P0/P1/P2-blocking 0), `review-attest` capture/verify, `make pre-push`
   importer `gitdocs` ok 0.225s.
 - Terminal counts: 2/2 test-bearing touched packages green, zero failures.
 - Query/concurrency proof: the moved `preflight.go` and `structure.go`
-  pair at 99% similarity (package-clause delta, plus a `//nolint:wrapcheck`
-  comment-only suppression on `xmlBudgetReader.Read`: the move surfaced a
-  pre-existing wrapcheck finding, but the unwrapped return is load-bearing
-  — the decode loop and `xml.Decoder` match terminal `io.EOF` by identity,
-  so wrapping would classify every clean document as malformed; verified
-  against the Go 1.27.1 `encoding/xml` source and the leaf's own
-  `err == io.EOF` check); the added-line scan
+  pair at 99% similarity (package-clause delta, plus reason comments on
+  `xmlBudgetReader.Read`: the move surfaced a pre-existing wrapcheck
+  finding, but the unwrapped return is load-bearing — the decode loop and
+  `xml.Decoder` match terminal `io.EOF` by identity, so wrapping would
+  classify every clean document as malformed; verified against the
+  Go 1.27.1 `encoding/xml` source and the leaf's own `err == io.EOF`
+  check. The pre-existing directory-level wrapcheck exclusion for the old
+  path is repointed to the new path in `go/.golangci.yml`, preserving the
+  team's boundary-reader policy with no behavior change); the added-line scan
   of the Go diff finds no Cypher/SQL keywords, no telemetry identifiers,
   and no new goroutine or error-path lines — logic is byte-identical to
   base.

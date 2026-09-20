@@ -917,7 +917,7 @@ linters:
       - path: 'internal/collector/sdk/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/ooxmlpreflight/'
+      - path: 'internal/collector/preflight/ooxml/'
         linters:
           - wrapcheck
       - path: 'internal/collector/gitrepo/priority_selector\.go'

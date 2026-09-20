@@ -405,8 +405,9 @@ func (r *xmlBudgetReader) Read(p []byte) (int, error) {
 	// Passthrough io.Reader: the decode loop matches decoder errors
 	// against io.EOF by identity, and xml.Decoder propagates the reader's
 	// terminal error unchanged, so wrapping here would classify every
-	// clean document as malformed XML.
-	return n, err //nolint:wrapcheck // io.EOF identity must survive.
+	// clean document as malformed XML. (Directory-level wrapcheck
+	// exclusion in go/.golangci.yml covers this boundary reader.)
+	return n, err
 }
 
 func (r *recorder) classifyXMLElement(start xml.StartElement) {
