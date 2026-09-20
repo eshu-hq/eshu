@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
-	"github.com/eshu-hq/eshu/go/internal/collector/ooxmlpreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/ooxml"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
@@ -40,12 +40,12 @@ func extractWordDocumentation(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	preflight, err := ooxmlpreflight.Preflight(
+	preflight, err := ooxml.Preflight(
 		ctx,
 		path.Base(relativePath),
 		bytes.NewReader(body),
 		int64(len(body)),
-		ooxmlpreflight.Options{},
+		ooxml.Options{},
 	)
 	recordOOXMLPreflightMetadata(document.SourceMetadata, preflight)
 	addDocumentationWarnings(document.SourceMetadata, ooxmlPreflightWarnings(preflight)...)

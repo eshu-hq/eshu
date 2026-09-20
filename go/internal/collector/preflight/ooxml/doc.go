@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package ooxmlpreflight classifies OOXML documentation packages before any
+// Package ooxml classifies OOXML documentation packages before any
 // document extractor reads source content.
 //
 // The package inspects ZIP/package metadata, relationship parts, bounded
@@ -11,4 +11,4 @@
 // deciding whether to run a format-specific extractor. It does not emit facts,
 // persist rows, call providers, write graph state, or expose runtime/API/MCP
 // behavior.
-package ooxmlpreflight
+package ooxml

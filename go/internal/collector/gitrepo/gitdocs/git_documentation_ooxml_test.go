@@ -6,7 +6,7 @@ package gitdocs
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/ooxmlpreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/ooxml"
 )
 
 func TestOOXMLPreflightBlocksExtractionOnlyForFatalWarnings(t *testing.T) {
@@ -14,28 +14,28 @@ func TestOOXMLPreflightBlocksExtractionOnlyForFatalWarnings(t *testing.T) {
 
 	for _, tc := range []struct {
 		name  string
-		input ooxmlpreflight.Result
+		input ooxml.Result
 		want  bool
 	}{
 		{
 			name: "hidden and annotation warnings stay extractable",
-			input: ooxmlpreflight.Result{Warnings: []ooxmlpreflight.Warning{
-				{Class: ooxmlpreflight.WarningAnnotationTextSkipped, Count: 1},
-				{Class: ooxmlpreflight.WarningHiddenContentSkipped, Count: 1},
+			input: ooxml.Result{Warnings: []ooxml.Warning{
+				{Class: ooxml.WarningAnnotationTextSkipped, Count: 1},
+				{Class: ooxml.WarningHiddenContentSkipped, Count: 1},
 			}},
 			want: false,
 		},
 		{
 			name: "external relationships block extraction",
-			input: ooxmlpreflight.Result{Warnings: []ooxmlpreflight.Warning{
-				{Class: ooxmlpreflight.WarningExternalRelationship, Count: 1},
+			input: ooxml.Result{Warnings: []ooxml.Warning{
+				{Class: ooxml.WarningExternalRelationship, Count: 1},
 			}},
 			want: true,
 		},
 		{
 			name: "resource limits block extraction",
-			input: ooxmlpreflight.Result{Warnings: []ooxmlpreflight.Warning{
-				{Class: ooxmlpreflight.WarningResourceLimitExceeded, Count: 1},
+			input: ooxml.Result{Warnings: []ooxml.Warning{
+				{Class: ooxml.WarningResourceLimitExceeded, Count: 1},
 			}},
 			want: true,
 		},
