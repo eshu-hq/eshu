@@ -249,7 +249,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 0174482dc973e28479db2ea4145108280c422e802f49123681cfe2fcdefe10be
+          source_sha256: f7212a6c4cc744d1a52c4b225bc86e248555a78a9367f5e18898897700402ab9
           key_bound: bounded_key_batch
           max_keys: 201
           max_results: 201
