@@ -47,7 +47,11 @@ pg() {
 # Round-4 review P3-2 (#6782): bind the log to the tested commit so a gate
 # log is self-identifying without relying on timestamps plus the author's run
 # record. Lives in this sourced lib, not the orchestrator, to keep that file
-# under the 500-line cap; log() is defined before the orchestrator sources
-# this file, and the script already cd'd to the repo root, so HEAD is the
-# tested commit in both compose and --no-compose modes.
-log "tested commit: $(git rev-parse HEAD)"
+# under the 500-line cap; log() is defined before either sourcing script
+# sources this file. PR #6867 review (codex P2): this lib is also sourced by
+# verify-read-api-latency-gate.sh, which can measure a DIFFERENT checkout
+# (GATE_STACK_DIR) and binary (GATE_API_BIN) than the controller checkout this
+# rev-parse runs in — so name the measured artifacts explicitly instead of
+# letting the controller SHA pose as the tested identity. Unset in the
+# golden-corpus gate, where HEAD is the tested commit.
+log "tested commit: $(git rev-parse HEAD)${GATE_STACK_DIR:+ (measured stack: ${GATE_STACK_DIR})}${GATE_API_BIN:+ (measured api binary: ${GATE_API_BIN})}"
