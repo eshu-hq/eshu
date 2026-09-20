@@ -4,6 +4,7 @@
 package goldengate
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -296,17 +297,84 @@ func EvaluateQueryShape(name string, shape QueryShape, body []byte) Finding {
 		return mk(false, pathDetail)
 	}
 
+	// The success detail must always report the REAL length of the asserted
+	// (or, absent an assertion, every top-level array-valued) response field —
+	// never a misleading placeholder (#6785). needsArrayResult already proved
+	// items is the real unmarshal of resp[arrayField] above; when no bound was
+	// set, items was never populated, so attempt a best-effort unmarshal here
+	// purely for the diagnostic count. A non-array value is only a Finding
+	// failure when needsArrayResult required it (handled above); here it is
+	// just noted as non-array rather than reported as "0 results".
+	arrayFieldIsArray := needsArrayResult
+	arrayFieldIsNull := false
+	if arrayField != "" && !needsArrayResult {
+		arrayFieldIsNull = isJSONNull(resp[arrayField])
+		arrayFieldIsArray = !arrayFieldIsNull && json.Unmarshal(resp[arrayField], &items) == nil
+	}
+
 	detail := fmt.Sprintf("fields %v present", shape.RequiredResponseFields)
 	if len(shape.RequiredResponseFields) == 0 {
 		detail = fmt.Sprintf("fields [] present; response keys %v", responseKeys(resp))
 	}
-	if arrayField != "" {
+	switch {
+	case arrayField != "" && arrayFieldIsArray:
 		detail = fmt.Sprintf("%q has %d results; item fields %v present", arrayField, len(items), shape.ResultItemRequiredFields)
+	case arrayField != "" && arrayFieldIsNull:
+		detail = fmt.Sprintf("%q is null (absent, not an empty array); item fields %v present", arrayField, shape.ResultItemRequiredFields)
+	case arrayField != "":
+		detail = fmt.Sprintf("%q is not an array-valued field (non-array); item fields %v present", arrayField, shape.ResultItemRequiredFields)
+	default:
+		if counts := arrayFieldCounts(resp); len(counts) > 0 {
+			detail += "; array_counts=" + formatArrayCounts(counts)
+		}
 	}
 	if pathDetail != "" {
 		detail += "; " + pathDetail
 	}
 	return mk(true, detail)
+}
+
+// arrayFieldCounts returns the length of every top-level array-valued field in
+// resp. It backs EvaluateQueryShape's success detail when a shape sets no
+// results_field: without it, an operator calibrating a zero floor from a live
+// gate run saw no count at all for any response field (#6785).
+func arrayFieldCounts(resp map[string]json.RawMessage) map[string]int {
+	counts := make(map[string]int, len(resp))
+	for field, raw := range resp {
+		if isJSONNull(raw) {
+			// json.Unmarshal accepts null into a slice with length 0; a null
+			// field is absent, so it must not print as a zero count (#6785 F4).
+			continue
+		}
+		var items []json.RawMessage
+		if err := json.Unmarshal(raw, &items); err != nil {
+			continue
+		}
+		counts[field] = len(items)
+	}
+	return counts
+}
+
+// isJSONNull reports whether raw is the JSON literal null (ignoring
+// surrounding whitespace).
+func isJSONNull(raw json.RawMessage) bool {
+	return string(bytes.TrimSpace(raw)) == "null"
+}
+
+// formatArrayCounts renders counts as a sorted, deterministic "{field:n,...}"
+// summary so repeated runs against the same response produce byte-identical
+// Finding detail strings (map iteration order is not deterministic).
+func formatArrayCounts(counts map[string]int) string {
+	fields := make([]string, 0, len(counts))
+	for field := range counts {
+		fields = append(fields, field)
+	}
+	sort.Strings(fields)
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		parts = append(parts, fmt.Sprintf("%s:%d", field, counts[field]))
+	}
+	return "{" + strings.Join(parts, ",") + "}"
 }
 
 func responseKeys(resp map[string]json.RawMessage) []string {

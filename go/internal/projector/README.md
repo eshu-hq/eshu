@@ -230,13 +230,13 @@ enqueue, retry, and telemetry ownership.
 
 `appendScopeGenerationReducerIntents` builds one shared, read-only
 `reducerIntentFactIndex` (`reducer_intent_fact_index.go`) over `inputFacts` and
-passes it to all 44 reducer-intent builder probes instead of the raw
+passes it to all 45 reducer-intent builder probes instead of the raw
 `inputFacts` slice (issue #4875). Each probe used to independently re-scan the
 full generation for its own trigger fact kind(s); the shared index groups fact
 positions by `FactKind` once, so a probe that only cares about one or a
 handful of kinds looks them up directly instead of walking every fact in the
 generation. `inputFacts` is immutable once a scope generation is claimed for
-projection, so sharing one read-only index across all 44 probes is
+projection, so sharing one read-only index across all 45 probes is
 concurrency-safe. Probes that pick their anchor fact from more than one
 candidate kind (e.g. `impact.BuildSupplyChainImpactReducerIntent`,
 `identity.BuildContainerImageIdentityReducerIntent`) use the index's
@@ -247,12 +247,12 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/aws/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/cloud/aws/iam/trust`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbom/attestation`, `internal/projector/service/catalog`, `internal/projector/access/posture`, `internal/projector/observability/coverage`, `internal/projector/cloud/aws/iam/instance/profile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplane/satisfaction`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
+`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workload/cloud`, `internal/projector/incident/routing`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/cloud/aws/iam/trust`, `internal/projector/cloud/aws/iam/perform`, `internal/projector/package/source`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbom/attestation`, `internal/projector/service/catalog`, `internal/projector/access/posture`, `internal/projector/observability/coverage`, `internal/projector/cloud/aws/iam/instance/profile`, `internal/projector/cicd/run/correlation`, `internal/projector/container/image/identity`, `internal/projector/supply/chain/impact`, `internal/projector/crossplane/satisfaction`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
 families import that neutral lookup (semantic/entity does not: it is per-fact);
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
 command wiring remains source-compatible.
-The "44 probes" count above is not a bare claim: `documentedReducerIntentProbeCount`
+The "45 probes" count above is not a bare claim: `documentedReducerIntentProbeCount`
 in `reducer_intent_fact_index.go` pins it, and
 `TestReducerIntentProbeCountMatchesDocumentedCount` parses
 `scope_generation_intents.go` with `go/ast` to count the real distinct
@@ -640,8 +640,8 @@ Benchmark Evidence: issue #4875's shared `reducerIntentFactIndex` refactor is
 covered by `BenchmarkAppendScopeGenerationReducerIntentsFanOut`
 (`scope_generation_intents_fanout_bench_test.go`), which runs
 `appendScopeGenerationReducerIntents` against a representative multi-domain
-fixture (`fanOutParityFixture`, spanning 42 emitted domains across all 44 probes)
-padded to 5,005 total facts with source-code-domain decoy kinds none of the 44
+fixture (`fanOutParityFixture`, spanning 43 emitted domains across all 45 probes)
+padded to 5,005 total facts with source-code-domain decoy kinds none of the 45
 probes match — the dominant real shape the issue describes: a source-heavy
 generation where most cloud/k8s/supply-chain probes scan the whole generation
 and find nothing. `go test ./internal/projector/... -run '^$' -bench

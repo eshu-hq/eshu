@@ -19,9 +19,10 @@ before touching any file in this directory.
    `reducer.DefaultHandlers` composition root + the returned `reducer.Service`).
    The adapter-gated handler groups (`DriftHandlers`, `SearchDocumentHandlers`,
    `CloudInventoryHandlers`, `KubernetesHandlers`, `SupplyChainSecurityHandlers`,
-   `IncidentRoutingHandlers`, `CodeEvidenceHandlers`) are built by the
-   `buildReducer*Handlers` helpers in the sibling `wiring_handlers.go`; add a new
-   adapter group there, not inline in the `DefaultHandlers` literal.
+   `IncidentRoutingHandlers`, `CodeEvidenceHandlers`, `CrossScopeHandlers`) are
+   built by the `buildReducer*Handlers` helpers in the sibling
+   `wiring_handlers.go`; add a new adapter group there, not inline in the
+   `DefaultHandlers` literal.
 
 ## Invariants (cite file:line)
 

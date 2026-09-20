@@ -16,7 +16,7 @@ type reducerIntentFactIndex struct {
 	lookup projectorintent.FactLookup
 }
 
-// newReducerIntentFactIndex builds one order-preserving lookup for the 44
+// newReducerIntentFactIndex builds one order-preserving lookup for the 45
 // reducer-intent builder probes. The lookup borrows inputFacts, which projection
 // keeps immutable for the lifetime of this index.
 func newReducerIntentFactIndex(inputFacts []facts.Envelope) *reducerIntentFactIndex {
@@ -45,4 +45,4 @@ func (idx *reducerIntentFactIndex) firstAcrossKinds(
 // builder probes appendScopeGenerationReducerIntents calls, cited in README.md.
 // TestReducerIntentProbeCountMatchesDocumentedCount parses the dispatcher with
 // go/ast and fails if this count or its documented prose drifts.
-const documentedReducerIntentProbeCount = 44
+const documentedReducerIntentProbeCount = 45

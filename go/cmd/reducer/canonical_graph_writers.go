@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 type canonicalGraphWriters struct {
@@ -69,6 +70,22 @@ type canonicalGraphWriters struct {
 	// to, so it must serialize against that gate on the identical
 	// advisory-lock key.
 	ec2InstanceIdentityNode *graphowner.EC2InstanceIdentityLockedWriter
+}
+
+// newGraphOwnerGates builds the two Postgres-backed gates the canonical node
+// writers share. ownerGate resolves cross-scope same-uid nodes to the
+// max-(observed_at, source_fact_id) contributor through the owner ledger
+// (#5007); a database without a transaction beginner yields a pass-through
+// gate. lockGate serializes posture/exposure writers against ownerGate's
+// same-uid base-property writes on the same advisory lock with no ledger row
+// (#5062). Both carry the instruments for the locked-rows counter and
+// lock-wait histogram (#5101).
+func newGraphOwnerGates(database db.ExecQueryer, instruments *telemetry.Instruments) (*graphowner.Gate, *graphowner.LockOnlyGate) {
+	ownerGate := graphowner.NewGate(reducerBeginner(database))
+	ownerGate.Instruments = instruments
+	lockGate := graphowner.NewLockOnlyGate(reducerBeginner(database))
+	lockGate.Instruments = instruments
+	return ownerGate, lockGate
 }
 
 // newCanonicalGraphWriters wires the canonical graph writers. reader backs

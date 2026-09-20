@@ -6,6 +6,10 @@ package reducer
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
@@ -347,4 +351,31 @@ type CodeEvidenceHandlers struct {
 	// CodeTaintEvidenceProjectedNodeLedger records and enumerates node uids of
 	// projected CodeTaintEvidence nodes for anchored-delete retraction.
 	CodeTaintEvidenceProjectedNodeLedger taint.ProjectedNodeLedger
+}
+
+// CrossScopeHandlers groups the adapters for reducer domains whose inputs span
+// scopes: the #5709 producer-readiness floor and the #6785 commit-first
+// readiness wait of the CAN_PERFORM and USES edge handlers. Every member is
+// optional; nil keeps the pre-wiring behavior documented on each field.
+type CrossScopeHandlers struct {
+	// CrossScopeProducerReadiness gates the #5709 cross-scope readiness floor.
+	// Optional: nil means "no floor", not "not ready". A deployment that has
+	// not wired it keeps the pre-#5709 behaviour of committing whatever the
+	// cross-scope load resolved, rather than stranding every consumer.
+	CrossScopeProducerReadiness CrossScopeProducerReadiness
+
+	// IAMCanPerformCrossScopeTargets resolves exact CAN_PERFORM targets from
+	// sibling AWS scopes of the account (#6785). Nil keeps resolution same-scope.
+	IAMCanPerformCrossScopeTargets iamcan.CrossScopeTargetLoader
+	// WorkloadInstanceExistence lets the USES handler wait, bounded, for its
+	// WorkloadInstance endpoints (#6785). Nil disables the gate.
+	WorkloadInstanceExistence workloadinstance.ExistenceLookup
+	// ReadinessWaits is the (scope, domain) ledger both #6785 handlers anchor
+	// their commit-first wait on. Nil uses the claimed row's cycle anchor.
+	ReadinessWaits crossscope.ReadinessWaitLedger
+
+	// CrossScopeReadinessLogger records each cross-scope readiness deferral as
+	// its own structured line. Optional: nil silences it, and the deferral is
+	// still durable on the work item's failure_class.
+	CrossScopeReadinessLogger *slog.Logger
 }

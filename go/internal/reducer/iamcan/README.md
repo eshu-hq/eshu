@@ -18,6 +18,8 @@ nothing else in the reducer depends on its internals.
 | `Action` / `CatalogByAction` | `iam_can_perform_catalog.go` | the closed, reviewed catalog of sensitive actions |
 | grant builder | `iam_can_perform_grant.go` | the CAN_PERFORM-specific fold, tallying into the CAN_PERFORM catalog |
 | target resolution | `iam_can_perform_target_resolution.go` | exact ARN -> single glob -> ambiguous -> unresolved |
+| cross-scope targets | `perform_cross_scope.go` | `CrossScopeTargetLoader` port, per-ARN readiness classification (#6785) |
+| cross-scope wait | `perform_readiness_wait.go` | commit-first wait over `crossscope.DecideWait`, cheap poll path, wait telemetry (#6785) |
 | resource policies | `iam_can_perform_resource_policy.go` | the cross-principal grants a resource policy adds |
 | permission boundaries | `iam_can_perform_boundary.go` | the intersection that removes boundary-blocked grants |
 | skip tally | `iam_can_perform_tally.go` | the bounded skip-reason accounting behind the counters |
@@ -29,10 +31,51 @@ conditions, permission boundaries and unscanned targets all degrade to a counted
 skip, never to a guessed edge. A CAN_PERFORM edge is a claim an operator can act
 on; that only holds while the refusals stay conservative.
 
+## Cross-scope targets (#6785)
+
+The awscloud collector writes roles and `aws_iam_permission` into the IAM
+service scope (`aws:<account>:<claim-region>:iam`) and every catalog target into
+its own service scope (`aws:<account>:<region>:s3`, `...:kms`, and so on). A
+same-scope join therefore resolves no production target. When
+`CrossScopeTargets` is wired, the handler:
+
+- collects the exact Allow identity-policy resource ARNs of a catalog type in
+  the permission's own account (S3 bucket ARNs carry no account or region, so
+  any region of that account);
+- asks the loader for candidate-scope readiness and the matching
+  `aws_resource` facts, pinned to each scope's active generation;
+- resolves a target only from a scope whose CloudResource nodes committed, and
+  indexes those facts separately so they satisfy exact-ARN matches only. Glob
+  patterns stay local: a glob over a view that holds only exactly-named ARNs
+  could report one match where the account has several;
+- commits first: the scope-wide retract and rewrite runs with every resolved
+  target, and missing targets are left out (unresolved);
+- then waits with `iam_can_perform_target_not_ready` (non-counting) while a
+  target sits in an uncommitted scope, could still land in a never-activated
+  pending scope, or names a scope that is not registered at all yet (derived
+  from the ARN: `aws:<account>:<region>:<service>`, any region for S3).
+  Wildcard and glob patterns name no concrete scope and keep the local-only
+  skip semantics.
+
+The wait is keyed by `(scope_id, domain)` in `reducer_readiness_waits`
+(`ReadinessWaits`, wired to `wait.Store` (`storage/postgres/readiness/wait`)), so its anchor survives a
+superseding generation. An unchanged poll asks the loader only about the
+missing ARNs and writes nothing. At first-defer plus `ReadinessMaxWait`
+(default 30 minutes) the missing set settles (`abandoned`); later generations
+with the same set commit at once (`settled_missing`). A revoked grant is
+retracted at the first claim of every generation, even while a target is
+missing.
+
+A newer pending generation beside an active one does not defer. A resource
+added in a later target generation waits for the next IAM generation; the
+account-scoped re-enqueue is being built in a separate PR (see the design note).
+Resource-policy grantee resolution stays same-scope. See
+`docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`.
+
 ## Package boundary
 
 Imports point strictly downward. This package reaches `reducer/contract`,
-`reducer/cloudjoin`, `reducer/factdecode`, `reducer/factload`,
+`reducer/cloudjoin`, `reducer/crossscope`, `reducer/factdecode`, `reducer/factload`,
 `reducer/gpphase`, `reducer/iampolicy`, `reducer/payloadcore`,
 `reducer/schemadecode`, `internal/facts`, `internal/graph/edgetype`,
 `internal/telemetry`, `internal/truth` and the factschema SDK. It never imports
@@ -40,7 +83,7 @@ the parent `internal/reducer` package. The dependency runs the other way: the
 root keeps compatibility aliases in the iam-can stanza of `compat_projection.go` for the four wiring
 types the reducer command and the cypher writers name
 (`IAMCanAssumeEdgeWriter`, `IAMCanPerformEdgeWriter`, and the two handlers) plus
-the two readiness failure classes `internal/storage/postgres` classifies queue
+the three readiness failure classes `internal/storage/postgres` classifies queue
 rows with.
 
 Two shared leaves were carved out for this move, because their symbols have
@@ -68,6 +111,8 @@ cannot read different keys.
 | `eshu_dp_iam_can_perform_edges_total` | `iam_can_perform_materialization.go` | `resolution_mode` |
 | `eshu_dp_iam_can_perform_skipped_total` | `iam_can_perform_materialization.go` | `skip_reason` |
 | `eshu_dp_iam_can_perform_conditioned_total` | `iam_can_perform_materialization.go` | `confidence` |
+| `eshu_dp_iam_can_perform_cross_scope_targets_total` | `perform_cross_scope.go` | `outcome` (resolved/unresolved/not_ready/scope_unregistered/abandoned/glob_local_only) |
+| `eshu_dp_reducer_readiness_waits_total` | `perform_cross_scope.go` | `domain`, `outcome` (deferred/abandoned) |
 
 The skipped counter is the first place to look when edges stop appearing: every
 conservative refusal increments it under a named reason rather than vanishing.
@@ -120,6 +165,34 @@ same before and after the move.
 - **`assumeEdgeKey` is function-local and unrelated to `iampolicy.EdgeKey`.** It
   dedupes CAN_ASSUME rows by (principal, role); the shared `EdgeKey` dedupes by
   (principal, target). Same shape, different identity.
+
+## #6785 cross-scope evidence
+
+Performance Evidence: the cross-scope scope-state query
+(`iamCanPerformCrossScopeTargetScopesQuery`) was measured before it was built,
+on throwaway Postgres 16 with the real `001`/`002`/`012` DDL. The shape was
+105 000 scopes (85 000 AWS across 50 accounts x 17 regions x 100 services, plus
+20 000 git), 525 000 generations, and 85 000 committed phase rows. Three
+`EXPLAIN (ANALYZE, BUFFERS)` runs took 10.9, 11.3, and 13.1 ms. The plan is a
+parallel seq scan of `ingestion_scopes` (3 530 shared hits) followed by
+index-only phase and pending probes, and it returned exactly the 18 candidate
+scopes. Baseline: there was no cross-scope read before, and resolution was
+same-scope only. The fact read reuses
+`FactStore.ListFactsByKindAndPayloadValue` on
+`fact_records_scope_generation_idx`, pinned to one generation per candidate
+scope. Both reads run once per CAN_PERFORM evaluation that names an exact
+cross-scope ARN. While a wait is open, a poll every `RetryDelay` (30 s
+default) repeats only the scope query and the fact read for the missing ARNs;
+the R2-F3 before/after numbers are in the design note's Evidence section. The projector's CAN_PERFORM intent builder adds one
+probe on the shared fact index per scope generation. The live B-7 run records
+the end-to-end effect (CAN_PERFORM 1, USES 2, drain timings).
+
+Observability Evidence: `eshu_dp_iam_can_perform_cross_scope_targets_total{outcome}`
+and `eshu_dp_reducer_readiness_waits_total{domain,outcome}` are registered in
+`internal/telemetry/instruments.go`. Unit tests drive both through the handler.
+The wait logs at INFO (`deferred`, `settled_missing`) and WARN (`abandoned`,
+with a bounded sample) with `failure_class`, counts,
+`elapsed_since_first_defer`, and `max_wait`.
 
 ## Related docs
 

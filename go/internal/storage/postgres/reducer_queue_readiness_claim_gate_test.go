@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
 
 // claimGatedDomainsWithoutAClaimGate lists reducer domains that return a
@@ -205,6 +206,12 @@ var readinessClassOwningDomain = map[string]string{
 	// workload materialization input loader. Placed on that domain explicitly
 	// for the same naming reason.
 	reducer.WorkloadMaterializationResolutionNotReadyFailureClass: string(reducer.DomainWorkloadMaterialization),
+	// #6785: cross-scope waits inside handlers that already carry their own
+	// scope's cloud_resource_uid claim row. The awaited endpoint lives in
+	// another scope (sibling-service targets, repository WorkloadInstance), so
+	// no claim-time row can express it; the handler defer is bounded instead.
+	reducer.IAMCanPerformTargetNotReadyFailureClass: string(reducer.DomainIAMCanPerformMaterialization),
+	workloadinstance.NotReadyFailureClass:           string(reducer.DomainWorkloadCloudRelationshipMaterialization),
 }
 
 // domainForReadinessClass returns the domain owning class, and whether it could

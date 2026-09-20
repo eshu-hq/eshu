@@ -113,8 +113,8 @@ func fanOutParityScopeAndGeneration() (scope.IngestionScope, scope.ScopeGenerati
 	return scopeValue, generation
 }
 
-// fanOutParityFixture builds one inputFacts slice spanning 42 emitted domains
-// across the 44 reducer-intent builder probes
+// fanOutParityFixture builds one inputFacts slice spanning 43 emitted domains
+// across the 45 reducer-intent builder probes
 // appendScopeGenerationReducerIntents fans out to
 // (issue #4875). It exists to prove the shared reducerIntentFactIndex
 // refactor is behavior-preserving: TestAppendScopeGenerationReducerIntentsFanOutParity
@@ -252,6 +252,13 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 		// materialization must skip it and pick the trust statement below.
 		iamTrustPermissionEnvelope("iam-permission-identity-1", scopeID, generationID, "identity"),
 		iamTrustPermissionEnvelope("iam-permission-trust-1", scopeID, generationID, "trust"),
+
+		// IAM permission with an inline identity policy_source:
+		// iam_can_perform_materialization must skip the non-trust "identity"
+		// fact above (not one of its two qualifying policy_source values) and
+		// the trust statement above (CAN_ASSUME's trigger, not CAN_PERFORM's),
+		// and anchor this one instead.
+		iamTrustPermissionEnvelope("iam-permission-inline-1", scopeID, generationID, "inline"),
 
 		// S3 posture without a logging target: anchors the unconditional
 		// s3_internet_exposure_materialization probe. s3_logs_to_

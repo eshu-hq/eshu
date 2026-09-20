@@ -264,3 +264,22 @@ func buildReducerCodeEvidenceHandlers(
 		CodeTaintEvidenceProjectedNodeLedger: codeTaintLedger,
 	}
 }
+
+// buildReducerCrossScopeHandlers wires the reducer's cross-scope adapter group: the
+// #5709 producer-readiness floor and the #6785 CAN_PERFORM target store, USES
+// WorkloadInstance lookup, and shared readiness-wait ledger
+// (cross_scope_readiness_wiring.go).
+func buildReducerCrossScopeHandlers(
+	database db.ExecQueryer,
+	factStore *postgres.FactStore,
+	graphReader query.GraphQuery,
+	logger *slog.Logger,
+) reducer.CrossScopeHandlers {
+	return reducer.CrossScopeHandlers{
+		CrossScopeProducerReadiness:    postgres.CrossScopeProducerReadinessStore{DB: database},
+		IAMCanPerformCrossScopeTargets: iamCanPerformCrossScopeTargetsFor(database, factStore),
+		WorkloadInstanceExistence:      workloadInstanceExistenceFor(graphReader),
+		ReadinessWaits:                 readinessWaitsFor(database),
+		CrossScopeReadinessLogger:      logger,
+	}
+}

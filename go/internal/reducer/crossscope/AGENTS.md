@@ -13,6 +13,7 @@
   parent reducer package or a domain-family subpackage. Budget:
   `internal/reducer/contract`, `internal/reducer/factload`,
   `github.com/eshu-hq/eshu/go/pkg/log`, and the standard library.
+  (`DecideWait` uses `crypto/sha256` from the standard library.)
 - `CheckProducerReadinessBeforeLoad` MUST be called BEFORE the consumer's
   cross-scope load, never after. Sampling after the load reopens the #5875 P1
   ordering bug: a producer activating in the window between the load and a
@@ -27,6 +28,11 @@
   `nonCountingReducerRetryFailureClasses`), so a count-based bound reads the
   same frozen value forever and can never fire. The sibling AWS gate shipped
   that mistake first.
+- `DecideWait` stays pure (no clock, no I/O). Handlers must commit before they
+  return a not-ready error, and call `ApplyWaitDecision` only after the graph
+  commit succeeded. The wait's bound anchors on the ledger's
+  `FirstDeferredAt`, never on the queue row: a superseding generation replaces
+  the row and would restart a per-row bound (review finding R2-F1).
 - `UnreadyProducers` and `SingleProducerResolvedCounts` must stay PER PRODUCER
   DOMAIN, never a single aggregate bool/count pair. #6093 found
   `supply_chain_impact` committing findings with no deployment context because

@@ -15,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/clock"
-	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
@@ -102,17 +101,8 @@ func buildReducerService(
 
 	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
 	edgeWriterForHandlers.SQLRelationshipSequentialWrites = graphBackend == runtimecfg.GraphBackendNornicDB
-	// #5007: gate the canonical cloud/EC2/K8s node writers on the Postgres owner
-	// ledger so cross-scope same-uid nodes resolve deterministically to the
-	// max-(observed_at, source_fact_id) contributor. A database that does not
-	// expose a transaction beginner yields a pass-through gate (prior behavior).
-	ownerGate := graphowner.NewGate(reducerBeginner(database))
-	ownerGate.Instruments = instruments
-	// #5062: lockGate serializes posture/exposure writers against ownerGate's same-uid base-property writes (same advisory lock, no ledger row).
-	lockGate := graphowner.NewLockOnlyGate(reducerBeginner(database))
-	// #5101: wire the lock-only locked-rows counter and lock-wait histogram
-	// alongside the pre-existing "slow lock wait" log, mirroring ownerGate.
-	lockGate.Instruments = instruments
+	// #5007/#5062: owner-ledger and lock-only gates for the canonical node writers.
+	ownerGate, lockGate := newGraphOwnerGates(database, instruments)
 	graphWriters := newCanonicalGraphWriters(neo4jExec, graphReader, neo4jBatchSize(getenv), ownerGate, lockGate)
 	secretsIAMGraphWriter, err := secretsIAMGraphProjectionWriter(getenv, neo4jExec, neo4jBatchSize(getenv), logger)
 	if err != nil {
@@ -255,8 +245,7 @@ func buildReducerService(
 		InfrastructurePlatformMaterializer: reducer.NewInfrastructurePlatformMaterializer(cypherExec),
 		InfrastructurePlatformLookup:       reducer.GraphInfrastructurePlatformLookup{Graph: graphReader},
 		FactLoader:                         factStore,
-		CrossScopeProducerReadiness:        postgres.CrossScopeProducerReadinessStore{DB: database},
-		CrossScopeReadinessLogger:          logger,
+		CrossScopeHandlers:                 buildReducerCrossScopeHandlers(database, factStore, graphReader, logger),
 		AdmissionDecisionWriter:            admissionDecisionWriter,
 		CodeCallIntentWriter:               codeCallIntentWriter,
 		GraphProjectionPhasePublisher:      graphProjectionStateStore,
@@ -348,12 +337,10 @@ func buildReducerService(
 		ServiceDocumentationEvidenceLoader: serviceDocumentationEvidenceLoader,
 		ServiceIncidentEvidenceLoader:      serviceIncidentEvidenceLoader,
 		// ServiceRuntimeInstanceLoader sources the runtime evidence family (#1986)
-		// from the canonical graph's WorkloadInstance/Platform nodes for each
-		// correlated service's repository. It is wired only alongside
-		// ServiceMaterializationWriter so the runtime family stays purely additive
-		// to the ownership/deployment lineage; the loader anchors on the
-		// workload_instance_repo_id index and runs once per
-		// service-catalog-correlation intent.
+		// from the graph's WorkloadInstance/Platform nodes per correlated
+		// service's repository. It is wired only alongside
+		// ServiceMaterializationWriter so the runtime family stays additive; it
+		// anchors on workload_instance_repo_id, once per correlation intent.
 		ServiceRuntimeInstanceLoader: reducer.GraphServiceRuntimeInstanceLoader{Graph: graphReader},
 		// ServiceVulnerabilityAdvisoryLoader sources the vulnerabilities evidence
 		// family (#1990, #2127) from active reducer_supply_chain_impact_finding facts

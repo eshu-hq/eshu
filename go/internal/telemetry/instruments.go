@@ -544,7 +544,31 @@ type Instruments struct {
 	// bounded confidence. Label: confidence (provenance_only). The reducer never
 	// promotes conditioned evidence into exact CAN_PERFORM edges because scanner
 	// facts omit condition values and request context.
-	IAMCanPerformConditioned   metric.Int64Counter
+	IAMCanPerformConditioned metric.Int64Counter
+	// IAMCanPerformCrossScopeTargets counts exact identity-policy target ARNs the
+	// CAN_PERFORM projection looked up in sibling service scopes of the same AWS
+	// account (#6785), one data point per target per evaluation that commits
+	// (a poll that writes nothing emits none). Label: outcome
+	// (resolved — found in a scope whose CloudResource nodes committed;
+	// unresolved — absent from every settled candidate scope; not_ready — found
+	// in an uncommitted scope, or could still land in a never-activated pending
+	// scope, so the intent waits after committing; scope_unregistered — the
+	// scope the ARN names is not registered yet (the IAM scope ran first), so
+	// the intent waits; abandoned — committed as unresolved because its wait
+	// settled; glob_local_only — a glob
+	// pattern that is matched only inside the permission's own scope). A rising
+	// abandoned or not_ready rate means target scopes are stuck, not that
+	// policies lost grants.
+	IAMCanPerformCrossScopeTargets metric.Int64Counter
+	// ReducerReadinessWaits counts evaluations of the #6785 commit-first
+	// cross-scope readiness wait that had a missing set. Labels: domain (the
+	// reducer domain), outcome (deferred — ready edges committed, then a
+	// retryable readiness class was returned; abandoned — the missing set
+	// settled at first-defer plus the bound, once per (scope, domain, missing
+	// set); settled_missing — a later evaluation committed at once on an
+	// already settled set). A steady abandoned or settled_missing rate names
+	// upstream nodes that never materialize.
+	ReducerReadinessWaits      metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings  metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
@@ -2934,6 +2958,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMCanPerformSkipped counter: %w", err)
+	}
+
+	inst.IAMCanPerformCrossScopeTargets, err = meter.Int64Counter(
+		"eshu_dp_iam_can_perform_cross_scope_targets_total",
+		metric.WithDescription("Total IAM CAN_PERFORM identity-policy target ARNs looked up in sibling service scopes of the same AWS account by outcome (resolved/unresolved/not_ready/scope_unregistered/abandoned/glob_local_only)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMCanPerformCrossScopeTargets counter: %w", err)
+	}
+
+	inst.ReducerReadinessWaits, err = meter.Int64Counter(
+		"eshu_dp_reducer_readiness_waits_total",
+		metric.WithDescription("Total reducer cross-scope readiness-wait evaluations with a missing set, by domain and outcome (deferred/abandoned/settled_missing)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ReducerReadinessWaits counter: %w", err)
 	}
 
 	inst.IAMCanPerformConditioned, err = meter.Int64Counter(

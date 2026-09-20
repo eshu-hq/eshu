@@ -75,10 +75,11 @@ func iamCanPerformResourceTypeOfARN(arn string) string {
 // single prefix/glob -> wildcard/many (ambiguous) -> zero (unresolved). It returns
 // the resolved uid, the resolution mode (exact_arn / single_glob), and the status.
 func resolveIAMCanPerformTarget(
-	index cloudjoin.CloudResourceJoinIndex,
+	targets iamCanPerformTargetIndex,
 	grant iampolicy.PrincipalGrant,
 	entry Action,
 ) (string, string, iampolicy.TargetStatus) {
+	index := targets.local
 	resources := iampolicy.CollectTrustedResources(grant.StatementsCovering(entry.Action))
 	if len(resources) == 0 {
 		return "", "", iampolicy.TargetUnresolved
@@ -103,7 +104,7 @@ func resolveIAMCanPerformTarget(
 			}
 			continue
 		}
-		if uid, ok := index.ByARN[pattern]; ok && iamCanPerformResourceTypeOfARN(pattern) == entry.ExpectedResourceType {
+		if uid, ok := targets.exactUID(pattern); ok && iamCanPerformResourceTypeOfARN(pattern) == entry.ExpectedResourceType {
 			exactMatches[uid] = struct{}{}
 		}
 	}
@@ -131,6 +132,33 @@ func resolveIAMCanPerformTarget(
 		return "", "", iampolicy.TargetAmbiguous
 	}
 	return "", "", iampolicy.TargetUnresolved
+}
+
+// iamCanPerformTargetIndex pairs the permission scope's own join index with
+// the cross-scope target index (#6785). Only exactUID and arnForUID consult the
+// cross-scope side; glob matching reads local alone, because the cross-scope
+// view holds only exactly-named ARNs and a glob over it could report one match
+// where the account has several.
+type iamCanPerformTargetIndex struct {
+	local      cloudjoin.CloudResourceJoinIndex
+	crossScope cloudjoin.CloudResourceJoinIndex
+}
+
+// exactUID resolves an exact ARN, preferring the permission's own scope.
+func (t iamCanPerformTargetIndex) exactUID(arn string) (string, bool) {
+	if uid, ok := t.local.ByARN[arn]; ok {
+		return uid, true
+	}
+	uid, ok := t.crossScope.ByARN[arn]
+	return uid, ok
+}
+
+// arnForUID returns the ARN of a resolved target uid from either side.
+func (t iamCanPerformTargetIndex) arnForUID(uid string) (string, bool) {
+	if arn, ok := t.local.ARNForUID(uid); ok {
+		return arn, true
+	}
+	return t.crossScope.ARNForUID(uid)
 }
 
 // singleUID returns the only uid in a single-element set. The caller guarantees

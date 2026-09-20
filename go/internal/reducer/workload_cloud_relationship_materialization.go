@@ -7,9 +7,14 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
@@ -52,6 +57,23 @@ type WorkloadCloudRelationshipMaterializationHandler struct {
 	EdgeWriter           WorkloadCloudRelationshipEdgeWriter
 	ReadinessLookup      GraphProjectionReadinessLookup
 	PriorGenerationCheck PriorGenerationCheck
+	// WorkloadInstanceExistence reports which (workload, environment) anchors
+	// already have a materialized WorkloadInstance. When set, the handler
+	// commits every row first (a missing anchor is a MATCH no-op) and then
+	// waits, bounded, for the missing instances instead of succeeding with
+	// nothing that would re-run it (#6785). Nil keeps the pre-#6785 behavior
+	// (test wiring); production wires the graph-backed lookup.
+	WorkloadInstanceExistence workloadinstance.ExistenceLookup
+	// ReadinessWaits is the (scope, domain) readiness-wait ledger that anchors
+	// the WorkloadInstance wait across superseding generations and records the
+	// last partial commit. Nil treats every evaluation as the first of its
+	// queue cycle (test wiring); production wires the Postgres ledger.
+	ReadinessWaits crossscope.ReadinessWaitLedger
+	// ReadinessMaxWait bounds the wait since the first defer. Zero means
+	// crossscope.ProducerReadinessMaxWait.
+	ReadinessMaxWait time.Duration
+	// Now is the handler clock. Nil means time.Now.
+	Now func() time.Time
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
 	// when an aws_resource fact is quarantined as input_invalid during workload
 	// anchor extraction. Optional: a nil pointer skips the counter (the
@@ -82,6 +104,26 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 		}
 	}
 
+	// Commit first, then wait (#6785). The ledger row is read before the fact
+	// load so an unchanged poll skips the load and the graph entirely.
+	wait := h.instanceWait()
+	existingWait, waitFound, err := wait.Read(ctx, intent)
+	if err != nil {
+		return Result{}, fmt.Errorf("workload cloud relationship: %w", err)
+	}
+	if polled, handled, err := wait.Poll(ctx, intent, existingWait, waitFound); handled {
+		if err != nil {
+			return Result{}, fmt.Errorf("workload cloud relationship: %w", err)
+		}
+		return h.finishInstanceWait(ctx, intent, wait, polled, false, Result{
+			IntentID: intent.IntentID,
+			Domain:   DomainWorkloadCloudRelationshipMaterialization,
+			Status:   ResultStatusSucceeded,
+			EvidenceSummary: fmt.Sprintf(
+				"workload instance wait settled; USES edges were committed earlier in generation %s", intent.GenerationID),
+		})
+	}
+
 	envelopes, err := loadFactsForKinds(
 		ctx,
 		h.FactLoader,
@@ -105,46 +147,37 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 	// counter + structured error log — while every valid workload anchor still
 	// projects its edge below.
 	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainWorkloadCloudRelationshipMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
-	skipRetract, err := h.shouldSkipRetract(ctx, intent)
+	eval, err := wait.Evaluate(ctx, intent, existingWait, waitFound, workloadCloudRelationshipAnchors(rows))
 	if err != nil {
-		return Result{}, err
+		return Result{}, fmt.Errorf("workload cloud relationship: %w", err)
 	}
-	if !skipRetract {
-		if err := h.EdgeWriter.RetractWorkloadCloudRelationshipEdges(
-			ctx,
-			[]string{intent.ScopeID},
-			intent.GenerationID,
-			workloadCloudRelationshipEvidenceSource,
-		); err != nil {
-			return Result{}, fmt.Errorf("retract workload cloud USES edges: %w", err)
+	readyRows := 0
+	if eval.Decision.Commit {
+		// The commit is the scope-wide retract plus rewrite of every row; a
+		// missing anchor is a MATCH no-op. A re-commit of a generation the
+		// ledger already committed always retracts: the rows come from a fresh
+		// fact load and a resolved anchor can disappear between evaluations.
+		recommit := crossscope.CommittedInGeneration(existingWait, waitFound, intent.GenerationID)
+		if err := h.commitEdges(ctx, intent, rows, recommit); err != nil {
+			return Result{}, err
 		}
+		readyRows = workloadCloudRelationshipReadyRows(rows, eval)
 	}
-	if len(rows) > 0 {
-		if err := h.EdgeWriter.WriteWorkloadCloudRelationshipEdges(
-			ctx,
-			rows,
-			intent.ScopeID,
-			intent.GenerationID,
-			workloadCloudRelationshipEvidenceSource,
-		); err != nil {
-			return Result{}, fmt.Errorf("write workload cloud USES edges: %w", err)
-		}
-	}
-
-	return Result{
+	return h.finishInstanceWait(ctx, intent, wait, eval, eval.Decision.Commit, Result{
 		IntentID: intent.IntentID,
 		Domain:   DomainWorkloadCloudRelationshipMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d workload cloud USES edge(s) from %d aws resource fact(s); %d candidate(s) skipped; %d input_invalid fact(s) quarantined",
-			len(rows),
+			"materialized %d workload cloud USES edge(s) from %d aws resource fact(s); %d candidate(s) skipped; %d input_invalid fact(s) quarantined; %d workload instance anchor(s) missing",
+			readyRows,
 			len(envelopes),
 			tally.totalSkipped(),
 			inputInvalidCount,
+			len(eval.Missing),
 		),
-		CanonicalWrites: len(rows),
+		CanonicalWrites: readyRows,
 		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
-	}, nil
+	})
 }
 
 func (h WorkloadCloudRelationshipMaterializationHandler) endpointsReady(intent Intent) bool {
@@ -179,6 +212,111 @@ func (h WorkloadCloudRelationshipMaterializationHandler) endpointsReady(intent I
 		}
 	}
 	return true
+}
+
+// instanceWait builds the commit-first WorkloadInstance wait for this handler.
+func (h WorkloadCloudRelationshipMaterializationHandler) instanceWait() workloadinstance.Wait {
+	return workloadinstance.Wait{
+		Lookup:  h.WorkloadInstanceExistence,
+		Ledger:  h.ReadinessWaits,
+		MaxWait: h.ReadinessMaxWait,
+		Now:     h.Now,
+	}
+}
+
+// commitEdges retracts this scope's USES edges and rewrites every row. The
+// retract is skipped only for the first commit of a scope's first generation;
+// recommit (an earlier commit of this generation is in the ledger) forces it.
+func (h WorkloadCloudRelationshipMaterializationHandler) commitEdges(ctx context.Context, intent Intent, rows []map[string]any, recommit bool) error {
+	skipRetract := false
+	if !recommit {
+		var err error
+		if skipRetract, err = h.shouldSkipRetract(ctx, intent); err != nil {
+			return err
+		}
+	}
+	if !skipRetract {
+		if err := h.EdgeWriter.RetractWorkloadCloudRelationshipEdges(
+			ctx,
+			[]string{intent.ScopeID},
+			intent.GenerationID,
+			workloadCloudRelationshipEvidenceSource,
+		); err != nil {
+			return fmt.Errorf("retract workload cloud USES edges: %w", err)
+		}
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	if err := h.EdgeWriter.WriteWorkloadCloudRelationshipEdges(
+		ctx,
+		rows,
+		intent.ScopeID,
+		intent.GenerationID,
+		workloadCloudRelationshipEvidenceSource,
+	); err != nil {
+		return fmt.Errorf("write workload cloud USES edges: %w", err)
+	}
+	return nil
+}
+
+// finishInstanceWait writes the ledger after any commit, emits the wait
+// signal, and returns the not-ready error when the wait continues.
+func (h WorkloadCloudRelationshipMaterializationHandler) finishInstanceWait(
+	ctx context.Context,
+	intent Intent,
+	wait workloadinstance.Wait,
+	eval workloadinstance.Evaluation,
+	committed bool,
+	result Result,
+) (Result, error) {
+	if err := wait.Finish(ctx, intent, eval); err != nil {
+		return Result{}, fmt.Errorf("workload cloud relationship: %w", err)
+	}
+	if eval.Decision.Outcome != "" {
+		h.recordReadinessWait(ctx, eval.Decision.Outcome)
+		wait.LogWait(ctx, intent, eval, committed)
+	}
+	if eval.Decision.Defer {
+		return Result{}, workloadinstance.NotReadyError{ScopeID: intent.ScopeID, GenerationID: intent.GenerationID, Missing: len(eval.Missing)}
+	}
+	return result, nil
+}
+
+// workloadCloudRelationshipAnchors lists each row's (workload, environment).
+func workloadCloudRelationshipAnchors(rows []map[string]any) []workloadinstance.Anchor {
+	anchors := make([]workloadinstance.Anchor, 0, len(rows))
+	for _, row := range rows {
+		anchors = append(anchors, workloadinstance.Anchor{WorkloadID: anyToString(row["workload_id"]), Environment: anyToString(row["environment"])})
+	}
+	return anchors
+}
+
+// workloadCloudRelationshipReadyRows counts the rows whose WorkloadInstance
+// exists, which are the rows the writer's MATCH binds. With no lookup every
+// row counts.
+func workloadCloudRelationshipReadyRows(rows []map[string]any, eval workloadinstance.Evaluation) int {
+	if len(eval.Missing) == 0 {
+		return len(rows)
+	}
+	ready := 0
+	for _, anchor := range workloadCloudRelationshipAnchors(rows) {
+		if _, ok := eval.Existing[anchor]; ok {
+			ready++
+		}
+	}
+	return ready
+}
+
+// recordReadinessWait emits one eshu_dp_reducer_readiness_waits_total point.
+func (h WorkloadCloudRelationshipMaterializationHandler) recordReadinessWait(ctx context.Context, outcome string) {
+	if h.Instruments == nil || h.Instruments.ReducerReadinessWaits == nil {
+		return
+	}
+	h.Instruments.ReducerReadinessWaits.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrDomain(string(DomainWorkloadCloudRelationshipMaterialization)),
+		telemetry.AttrOutcome(outcome),
+	))
 }
 
 func (h WorkloadCloudRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {

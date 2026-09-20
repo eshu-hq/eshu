@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
+	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 )
 
 const (
@@ -91,6 +92,11 @@ var nonCountingReducerRetryFailureClasses = []string{
 	rdsposture.RDSPostureNodesNotReadyFailureClass,
 	secgroup.SecurityGroupReachabilityNodesNotReadyFailureClass,
 	reducer.WorkloadCloudRelationshipNodesNotReadyFailureClass,
+	// #6785: USES waiting on its WorkloadInstance endpoint and CAN_PERFORM
+	// waiting on sibling-scope targets. Both are bounded by elapsed time since
+	// the repair cycle began, not by this budget.
+	workloadinstance.NotReadyFailureClass,
+	reducer.IAMCanPerformTargetNotReadyFailureClass,
 	ec2blockkms.EC2BlockDeviceKMSPostureNodesNotReadyFailureClass,
 	internetexposure.EC2InternetExposureNodesNotReadyFailureClass,
 	ec2usesprofile.EC2UsesProfileNodesNotReadyFailureClass,

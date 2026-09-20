@@ -185,9 +185,13 @@ const (
 	// DomainWorkloadCloudRelationshipMaterialization projects exact
 	// reducer-owned service/workload anchors on CloudResource facts into
 	// canonical WorkloadInstance USES CloudResource graph edges. Queue claiming
-	// gates on CloudResource node readiness; the graph writer still uses
-	// MATCH-only endpoint anchoring so missing workload instances are a no-op
-	// instead of fabricated graph truth.
+	// gates on CloudResource node readiness in this domain's own scope; the
+	// handler then defers, bounded by 30 minutes from the ledger's first
+	// defer, until every anchored
+	// WorkloadInstance (materialized from a different, repository scope)
+	// exists (#6785). The graph writer stays MATCH-only, so an anchor still
+	// missing when the bound expires is a counted no-op, never fabricated
+	// graph truth.
 	DomainWorkloadCloudRelationshipMaterialization = reducercontract.DomainWorkloadCloudRelationshipMaterialization
 	// DomainEC2InstanceNodeMaterialization materializes ec2_instance_posture facts
 	// into canonical :CloudResource graph nodes on the existing cloud_resource_uid

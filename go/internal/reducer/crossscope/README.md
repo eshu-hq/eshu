@@ -29,6 +29,12 @@ This package owns:
   `ConsumerDomains`, `CompletionEdge`, `CompletionEdges`, and
   `DependenciesForRegistration`.
 
+- The commit-first readiness wait (#6785): `ReadinessWait`,
+  `ReadinessWaitLedger` (the port; `storage/postgres/readiness/wait` implements
+  it), `DecideWait`, `WaitInput`, `WaitDecision`, `PollEligible`,
+  `SameMissingSet`, `ApplyWaitDecision`, `ReadWait`, `MissingSample`, the
+  `ReadinessWait*` outcome labels, and `ReadinessWaitMaxKeys`.
+
 It owns no domain knowledge beyond the catalog's own producer/consumer
 declarations, no fact decoding, no writer, and no queue or Postgres access. The
 parent reducer package still owns registry composition, runtime and queue
@@ -83,6 +89,39 @@ would read the same value forever and never fire. See the doc comments on
 `ProducerReadinessMaxWait` and `ReadinessCycleAnchor` for the two prior
 incidents (the #5875 P1 ordering bug and the sibling AWS gate's attempt-count
 bound) this repeats the guard against.
+
+## Commit-first readiness wait (#6785)
+
+`DecideWait` is shared by `iam_can_perform_materialization` and
+`workload_cloud_relationship_materialization`. It is pure: the handler reads
+the `(scope_id, domain)` ledger row, evaluates its missing set, and applies
+the decision in this order: commit (scope-wide retract and rewrite), write
+the ledger, then return the not-ready error or succeed.
+
+- An empty missing set commits and clears the row. A clear leaves a
+  tombstone at the next `AnchorEpoch`; a tombstone with an empty set writes
+  nothing. The clear carries the `RowVersion` it read, and the ledger applies
+  it only if no other write landed since, so a straggler cannot tombstone a
+  wait a live worker just rewrote.
+- A settled row with the same fingerprint commits at once (`settled_missing`).
+- Otherwise the row keeps its earliest `FirstDeferredAt` (a settled or cleared
+  row with a new set restarts it at the next `AnchorEpoch`, so a lease-expired
+  straggler cannot restore the old anchor) and commits unless this generation, queue cycle, and
+  fingerprint already committed. It then defers, or settles once elapsed time
+  since the anchor reaches `MaxWait` (`abandoned`). A settle also moves the
+  row to the next `AnchorEpoch`, so a straggler that read the unsettled row
+  cannot un-settle it and make the same missing set count `abandoned` twice.
+- `CommittedInGeneration` tells the handler a re-commit in the same
+  generation must retract even on a scope's first generation, because the
+  resolved edge set can shrink between evaluations.
+- `PollEligible` lets a handler re-check only the stored missing keys, with no
+  fact load, when the row already committed at its own missing set.
+
+The queue cycle is part of the commit marker so a reopened or rebuilt row
+re-commits rather than trusting a commit whose edges may be gone. The
+supersession proof is `TestReadinessWaitSurvivesSupersessionLive` in
+`internal/storage/postgres`. See
+`docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md`.
 
 ## Telemetry
 
