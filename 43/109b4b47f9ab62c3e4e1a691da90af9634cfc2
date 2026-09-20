@@ -1,0 +1,24 @@
+go/internal/reducer/code/value/affected/AGENTS.md
+  h_78a442cba0b3e6 1-26
+go/internal/reducer/code/value/affected/README.md
+  h_78a442cba0b3e6 1-17
+go/internal/reducer/code/value/affected/doc.go
+  h_78a442cba0b3e6 1-15
+go/internal/reducer/code/value/affected/gate.go
+  h_78a442cba0b3e6 1-114
+go/internal/reducer/code/value/affected/gate_live_test.go
+  h_78a442cba0b3e6 1-166
+go/internal/reducer/code/value/affected/gate_test.go
+  h_78a442cba0b3e6 1-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "43109b4b47f9ab62c3e4e1a691da90af9634cfc2",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+go/internal/reducer/code/value/refresh/definition_test.go
+  h_78a442cba0b3e6 1-28
+go/internal/reducer/code/value/refresh/handler.go
+  h_78a442cba0b3e6 13,66-86
+go/internal/reducer/defaults_additive_domains_incident_code.go
+  h_78a442cba0b3e6 8,78-88
+go/internal/reducer/defaults_additive_domains_refresh_test.go
+  h_78a442cba0b3e6 1-40
+go/internal/storage/postgres/migrations/115_value_flow_refresh_global_seed.sql
+  h_78a442cba0b3e6 1-51
+go/internal/storage/postgres/schema_order_test.go
+  h_78a442cba0b3e6 246-249
+go/internal/storage/postgres/value_flow_refresh_fanout_live_test.go
+  h_78a442cba0b3e6 1-171
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "903a917b3d6005d2a0d1991d63e305fba8a11dbb",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
