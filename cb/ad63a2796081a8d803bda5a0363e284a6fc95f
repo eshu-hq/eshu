@@ -1,0 +1,48 @@
+docs/internal/design/6785-value-flow-cloud-sink-refresh.md
+  h_78a442cba0b3e6 19-29
+go/internal/reducer/code/value/affected/doc.go
+  h_78a442cba0b3e6 8-9,11-12
+go/internal/reducer/code/value/affected/emit_test.go
+  h_78a442cba0b3e6 1-34
+go/internal/reducer/code/value/affected/gate.go
+  h_78a442cba0b3e6 144-159
+go/internal/storage/postgres/cross_scope_completion_index_lifecycle_postgres_live_test.go
+  h_78a442cba0b3e6 15,187,206
+go/internal/storage/postgres/cross_scope_completion_performance_live_test.go
+  h_78a442cba0b3e6 47
+go/internal/storage/postgres/cross_scope_completion_schema_test.go
+  h_78a442cba0b3e6 51,57,148
+go/internal/storage/postgres/migrations/093_cross_scope_completion_queue.sql
+  h_78a442cba0b3e6 39,219
+go/internal/storage/postgres/migrations/112_value_flow_refresh_producer_domains.sql
+  h_78a442cba0b3e6 1-58
+go/internal/storage/postgres/migrations/113_fact_work_items_cross_scope_source_v2_idx.sql
+  h_78a442cba0b3e6 1-19,25
+go/internal/storage/postgres/migrations/114_drop_fact_work_items_cross_scope_source_idx_legacy.sql
+  h_78a442cba0b3e6 1-18
+go/internal/storage/postgres/reducer_queue.go
+  h_78a442cba0b3e6 412-418,437-441,445
+go/internal/storage/postgres/reducer_queue_batch.go
+  h_78a442cba0b3e6 73-76,86-97,104-132
+go/internal/storage/postgres/schema_order_test.go
+  h_78a442cba0b3e6 235-245
+go/internal/storage/postgres/value_flow_refresh_ack.go
+  h_78a442cba0b3e6 1-206
+go/internal/storage/postgres/value_flow_refresh_ack_live_test.go
+  h_78a442cba0b3e6 1-223
+scripts/lib/dirgate-grandfather.tsv
+  h_78a442cba0b3e6 90
+tools/golangci-lint-dirgate/grandfather.go
+  h_78a442cba0b3e6 37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cbad63a2796081a8d803bda5a0363e284a6fc95f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

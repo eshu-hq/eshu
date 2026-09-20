@@ -1,0 +1,14 @@
+go/internal/reducer/code/value/affected/README.md
+  h_78a442cba0b3e6 18-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8af82fe5866bb5004a3c96cdc24bfc507b2c1b93",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
