@@ -33,6 +33,9 @@ const (
 	DomainCloudInventoryAdmission Domain = "cloud_inventory_admission"
 	// DomainCodeCallMaterialization owns code-call materialization.
 	DomainCodeCallMaterialization Domain = "code_call_materialization"
+	// DomainCodeDrifted owns drifted parallel-implementation materialization
+	// (epic #6833, child #6837).
+	DomainCodeDrifted Domain = "code_drifted"
 	// DomainCodeFunctionSummary owns code function summaries.
 	DomainCodeFunctionSummary Domain = "code_function_summary"
 	// DomainCodeImportRepoEdge owns code-import repository edges.
@@ -239,6 +242,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainGovernance:                               {},
 	DomainWorkloadMaterialization:                  {},
 	DomainCodeCallMaterialization:                  {},
+	DomainCodeDrifted:                              {},
 	DomainPlatformInfraMaterialization:             {},
 	DomainSemanticEntityMaterialization:            {},
 	DomainSQLRelationshipMaterialization:           {},

@@ -358,9 +358,11 @@ func (w ContentWriter) Write(ctx context.Context, materialization content.Materi
 
 	// Batch upsert entity records, then reap any content_entities row an
 	// identity churn or removal left stale (see upsertAndReapEntities).
-	if err := w.upsertAndReapEntities(ctx, cloned, entityUpserts, indexedAt); err != nil {
+	fingerprintsChanged, err := w.upsertAndReapEntities(ctx, cloned, entityUpserts, indexedAt)
+	if err != nil {
 		return content.Result{}, err
 	}
+	result.FingerprintsChanged = fingerprintsChanged
 
 	// Mirror the committed content_entities state of every touched path into
 	// the infra read model; see deriveInfraInventory.

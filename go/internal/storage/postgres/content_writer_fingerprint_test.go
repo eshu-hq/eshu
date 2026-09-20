@@ -5,6 +5,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"testing"
 	"time"
@@ -243,11 +244,15 @@ func TestFingerprintRewriteInvalidatesBands(t *testing.T) {
 	fake := &fakeExecQueryer{}
 	writer := NewContentWriter(withTransactions(fake))
 	ctx := context.Background()
-	if err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor(sketchFor(1))}, now); err != nil {
+	if changed, err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor(sketchFor(1))}, now); err != nil {
 		t.Fatalf("first upsertFingerprintBatches: %v", err)
+	} else if !changed {
+		t.Fatal("fp-bearing upsert must report changed")
 	}
-	if err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor(sketchFor(2))}, now); err != nil {
+	if changed, err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor(sketchFor(2))}, now); err != nil {
 		t.Fatalf("second upsertFingerprintBatches: %v", err)
+	} else if !changed {
+		t.Fatal("fp-bearing upsert must report changed")
 	}
 
 	var bandInserts []int
@@ -418,11 +423,15 @@ func TestFingerprintSketchLossInvalidatesBands(t *testing.T) {
 	fake := &fakeExecQueryer{}
 	writer := NewContentWriter(withTransactions(fake))
 	ctx := context.Background()
-	if err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor(sketchHex)}, now); err != nil {
+	if changed, err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor(sketchHex)}, now); err != nil {
 		t.Fatalf("sketch-bearing upsertFingerprintBatches: %v", err)
+	} else if !changed {
+		t.Fatal("fp-bearing upsert must report changed")
 	}
-	if err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor("")}, now); err != nil {
+	if changed, err := writer.upsertFingerprintBatches(ctx, []preparedFingerprintRow{rowFor("")}, now); err != nil {
 		t.Fatalf("sketch-less upsertFingerprintBatches: %v", err)
+	} else if !changed {
+		t.Fatal("fp row without sketch still (re)publishes the fp row")
 	}
 
 	var fpUpserts, bandInserts, scopedBandDeletes int
@@ -480,7 +489,7 @@ func TestDeleteWithdrawnFingerprintsChunksAtFileBatchSize(t *testing.T) {
 
 	fake := &fakeExecQueryer{}
 	writer := NewContentWriter(withTransactions(fake))
-	if err := writer.deleteWithdrawnFingerprints(context.Background(), rows); err != nil {
+	if _, err := writer.deleteWithdrawnFingerprints(context.Background(), rows); err != nil {
 		t.Fatalf("deleteWithdrawnFingerprints: %v", err)
 	}
 
@@ -546,7 +555,7 @@ func TestDeleteFingerprintBandsForEntitiesChunksAtFileBatchSize(t *testing.T) {
 
 	fake := &fakeExecQueryer{}
 	writer := NewContentWriter(withTransactions(fake))
-	if err := writer.deleteFingerprintBandsForEntities(context.Background(), rows); err != nil {
+	if _, err := writer.deleteFingerprintBandsForEntities(context.Background(), rows); err != nil {
 		t.Fatalf("deleteFingerprintBandsForEntities: %v", err)
 	}
 
@@ -610,5 +619,102 @@ func assertExecTargetsEntity(t *testing.T, args []any, entityID string) {
 	}
 	if !found {
 		t.Fatalf("scoped delete must target %q, got args %v", entityID, args)
+	}
+}
+
+// TestWriteReportsFingerprintsChanged proves the #6837 trigger contract:
+// Write reports whether this call (re)published fingerprint side-table
+// truth, so the projector enqueues exactly one drifted intent per
+// fingerprint-bearing generation. A fingerprinted entity marks changed; a
+// fingerprint-free write stays quiet; a withdrawn entity whose deletes hit
+// rows marks changed so stale findings retire.
+func TestWriteReportsFingerprintsChanged(t *testing.T) {
+	t.Parallel()
+
+	write := func(entities []content.EntityRecord, zeroDeletes bool) content.Result {
+		fake := &fakeExecQueryer{}
+		if zeroDeletes {
+			// Over-provision zero-affected results: the default fake
+			// reports 1 affected row per Exec, which would mark every
+			// delete leg changed. Queued results drain FIFO; leftovers
+			// are ignored, so the count need not match the exec count.
+			for i := 0; i < 64; i++ {
+				fake.execResults = append(fake.execResults, fakeResultWithRowsAffected{})
+			}
+		}
+		writer := NewContentWriter(withTransactions(fake))
+		res, err := writer.Write(context.Background(), content.Materialization{
+			RepoID:       "repo-fc",
+			ScopeID:      "repo:repo-fc",
+			GenerationID: "gen-1",
+			Records:      []content.Record{{Path: "a.go", Body: "package p\n", Digest: "d1"}},
+			Entities:     entities,
+		})
+		if err != nil {
+			t.Fatalf("Write: %v", err)
+		}
+		return res
+	}
+
+	fingerprinted := []content.EntityRecord{{
+		EntityID:   "repo-fc|a.go|Function|big|10",
+		Path:       "a.go",
+		EntityType: "Function",
+		EntityName: "big",
+		StartLine:  10,
+		EndLine:    40,
+		Metadata: map[string]any{
+			fingerprint.KeyExact:      "exact-fc",
+			fingerprint.KeyTokenCount: 64,
+		},
+	}}
+	if res := write(fingerprinted, false); !res.FingerprintsChanged {
+		t.Fatal("fingerprinted Write must report FingerprintsChanged")
+	}
+
+	plain := []content.EntityRecord{{
+		EntityID:   "repo-fc|a.go|Class|C|1",
+		Path:       "a.go",
+		EntityType: "Class",
+		EntityName: "C",
+		StartLine:  1,
+		EndLine:    5,
+	}}
+	// Zero-affected deletes model the already-clean side table: no stale
+	// rows disappear, so nothing changed.
+	if res := write(plain, true); res.FingerprintsChanged {
+		t.Fatal("fingerprint-free Write must stay quiet")
+	}
+}
+
+// TestWithdrawnDeletesReportAffected proves the withdrawal leg of the #6837
+// trigger signal: a withdrawn entity whose scoped deletes hit stale rows
+// counts as changed (stale findings must retire), while no-op deletes on an
+// already-clean side table stay quiet.
+func TestWithdrawnDeletesReportAffected(t *testing.T) {
+	t.Parallel()
+
+	rows := []preparedFingerprintRow{{entityID: "repo-wd|a.go|Function|f|1", repoID: "repo-wd"}}
+
+	quiet := &fakeExecQueryer{}
+	for i := 0; i < 8; i++ {
+		quiet.execResults = append(quiet.execResults, fakeResultWithRowsAffected{})
+	}
+	writer := NewContentWriter(withTransactions(quiet))
+	if affected, err := writer.deleteWithdrawnFingerprints(context.Background(), rows); err != nil {
+		t.Fatalf("deleteWithdrawnFingerprints: %v", err)
+	} else if affected != 0 {
+		t.Fatalf("no-op deletes affected = %d, want 0", affected)
+	}
+
+	hit := &fakeExecQueryer{execResults: []sql.Result{
+		fakeResultWithRowsAffected{rowsAffected: 1},
+		fakeResultWithRowsAffected{rowsAffected: 2},
+	}}
+	writer = NewContentWriter(withTransactions(hit))
+	if affected, err := writer.deleteWithdrawnFingerprints(context.Background(), rows); err != nil {
+		t.Fatalf("deleteWithdrawnFingerprints: %v", err)
+	} else if affected != 3 {
+		t.Fatalf("hit deletes affected = %d, want 3 (fp + band)", affected)
 	}
 }

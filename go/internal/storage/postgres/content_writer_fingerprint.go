@@ -123,7 +123,10 @@ func fingerprintBandRows(rows []preparedFingerprintRow) []preparedFingerprintBan
 // concurrent batches do not contend on the same row. Withdrawn deletes run
 // serially first on entity sets disjoint from the upserts, so no batch can
 // delete a row another batch just inserted.
-func (w ContentWriter) upsertFingerprintBatches(ctx context.Context, rows []preparedFingerprintRow, indexedAt time.Time) error {
+// upsertFingerprintBatches reports whether this call (re)published
+// fingerprint side-table truth for the #6837 trigger signal: fingerprinted
+// rows upserted, or withdrawn deletes that actually removed stale rows.
+func (w ContentWriter) upsertFingerprintBatches(ctx context.Context, rows []preparedFingerprintRow, indexedAt time.Time) (bool, error) {
 	fpRows := make([]preparedFingerprintRow, 0, len(rows))
 	withdrawn := make([]preparedFingerprintRow, 0)
 	for _, row := range rows {
@@ -133,17 +136,18 @@ func (w ContentWriter) upsertFingerprintBatches(ctx context.Context, rows []prep
 			withdrawn = append(withdrawn, row)
 		}
 	}
-	if err := w.deleteWithdrawnFingerprints(ctx, withdrawn); err != nil {
-		return err
+	withdrawnAffected, err := w.deleteWithdrawnFingerprints(ctx, withdrawn)
+	if err != nil {
+		return false, err
 	}
 	if len(fpRows) == 0 {
-		return nil
+		return withdrawnAffected > 0, nil
 	}
 	batchSize := w.effectiveEntityBatchSize()
 	if err := runConcurrentBatches(ctx, len(fpRows), batchSize, w.effectiveBatchConcurrency(), func(c context.Context, start, end int) error {
 		return w.upsertFingerprintBatch(c, fpRows[start:end], indexedAt)
 	}); err != nil {
-		return err
+		return false, err
 	}
 	bands := fingerprintBandRows(fpRows)
 	// Shed prior bands for exactly the entities rewritten here before the
@@ -154,15 +158,18 @@ func (w ContentWriter) upsertFingerprintBatches(ctx context.Context, rows []prep
 	// serially, ahead of the concurrent inserts; concurrent batches touch
 	// disjoint entity sets, so no batch can delete a band another batch
 	// just inserted.
-	if err := w.deleteFingerprintBandsForEntities(ctx, fpRows); err != nil {
-		return err
+	if _, err := w.deleteFingerprintBandsForEntities(ctx, fpRows); err != nil {
+		return false, err
 	}
 	if len(bands) == 0 {
-		return nil
+		return true, nil
 	}
-	return runConcurrentBatches(ctx, len(bands), batchSize, w.effectiveBatchConcurrency(), func(c context.Context, start, end int) error {
+	if err := runConcurrentBatches(ctx, len(bands), batchSize, w.effectiveBatchConcurrency(), func(c context.Context, start, end int) error {
 		return w.upsertFingerprintBandBatch(c, bands[start:end])
-	})
+	}); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // deleteFingerprintBandsForEntities removes every code_fingerprint_band row
@@ -172,19 +179,38 @@ func (w ContentWriter) upsertFingerprintBatches(ctx context.Context, rows []prep
 // Entity sets chunk at contentFileBatchSize, matching the sibling delete
 // convention in Write(): a repo-scale Write rewrites thousands of entities,
 // and one unbounded text[] per repo would ship multi-megabyte parameters.
-func (w ContentWriter) deleteFingerprintBandsForEntities(ctx context.Context, rows []preparedFingerprintRow) error {
+// It returns the total rows deleted: the #6837 trigger signal counts a
+// withdrawal as changed only when stale rows actually disappeared.
+func (w ContentWriter) deleteFingerprintBandsForEntities(ctx context.Context, rows []preparedFingerprintRow) (int64, error) {
 	byRepo := map[string][]string{}
 	for _, row := range rows {
 		byRepo[row.repoID] = append(byRepo[row.repoID], row.entityID)
 	}
+	var affected int64
 	for repoID, entityIDs := range byRepo {
 		for _, chunk := range chunkEntityIDs(entityIDs, contentFileBatchSize) {
-			if _, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(chunk)); err != nil {
-				return fmt.Errorf("delete code_fingerprint_band rows for %d rewritten entities: %w", len(chunk), err)
+			res, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(chunk))
+			if err != nil {
+				return 0, fmt.Errorf("delete code_fingerprint_band rows for %d rewritten entities: %w", len(chunk), err)
 			}
+			affected += rowsAffected(res)
 		}
 	}
-	return nil
+	return affected, nil
+}
+
+// rowsAffected returns the deleted/written row count of an Exec result,
+// treating an uncountable result as zero rather than failing the Write: the
+// count feeds the #6837 trigger signal only, never correctness.
+func rowsAffected(res interface{ RowsAffected() (int64, error) }) int64 {
+	if res == nil {
+		return 0
+	}
+	n, err := res.RowsAffected()
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }
 
 // chunkEntityIDs splits an entity ID set into contentFileBatchSize chunks so
@@ -213,25 +239,34 @@ func chunkEntityIDs(ids []string, size int) [][]string {
 // contentFileBatchSize per table, matching the scoped-delete shape the band
 // invalidation already uses: withdrawn holds every non-fingerprinted entity
 // in the Write, so an unchunked array would grow with the repo.
-func (w ContentWriter) deleteWithdrawnFingerprints(ctx context.Context, rows []preparedFingerprintRow) error {
+// deleteWithdrawnFingerprints returns the total stale side-table rows its
+// scoped deletes removed: the #6837 trigger signal counts a withdrawal as
+// changed only when rows actually disappeared, so an already-clean side
+// table stays quiet.
+func (w ContentWriter) deleteWithdrawnFingerprints(ctx context.Context, rows []preparedFingerprintRow) (int64, error) {
 	if len(rows) == 0 {
-		return nil
+		return 0, nil
 	}
 	byRepo := map[string][]string{}
 	for _, row := range rows {
 		byRepo[row.repoID] = append(byRepo[row.repoID], row.entityID)
 	}
+	var affected int64
 	for repoID, entityIDs := range byRepo {
 		for _, chunk := range chunkEntityIDs(entityIDs, contentFileBatchSize) {
-			if _, err := w.database.ExecContext(ctx, deleteWithdrawnFingerprintSQL, repoID, pgarray.StringArray(chunk)); err != nil {
-				return fmt.Errorf("delete withdrawn code_function_fingerprint rows for %d entities: %w", len(chunk), err)
+			res, err := w.database.ExecContext(ctx, deleteWithdrawnFingerprintSQL, repoID, pgarray.StringArray(chunk))
+			if err != nil {
+				return 0, fmt.Errorf("delete withdrawn code_function_fingerprint rows for %d entities: %w", len(chunk), err)
 			}
-			if _, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(chunk)); err != nil {
-				return fmt.Errorf("delete withdrawn code_fingerprint_band rows for %d entities: %w", len(chunk), err)
+			affected += rowsAffected(res)
+			res, err = w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(chunk))
+			if err != nil {
+				return 0, fmt.Errorf("delete withdrawn code_fingerprint_band rows for %d entities: %w", len(chunk), err)
 			}
+			affected += rowsAffected(res)
 		}
 	}
-	return nil
+	return affected, nil
 }
 
 // upsertFingerprintBatch inserts one batch of fingerprint rows.

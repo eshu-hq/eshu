@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -32,6 +33,11 @@ func (r Runtime) writeContentProjection(ctx context.Context, scopeValue scope.In
 	if err != nil {
 		return content.Result{}, fmt.Errorf("write content materialization: %w", err)
 	}
+	if contentResult.FingerprintsChanged {
+		if err := r.enqueueDriftedIntent(ctx, scopeValue, mat); err != nil {
+			return content.Result{}, err
+		}
+	}
 	if r.Instruments != nil {
 		r.Instruments.ProjectorStageDuration.Record(ctx, time.Since(contentStart).Seconds(), metric.WithAttributes(
 			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
@@ -47,6 +53,37 @@ func (r Runtime) writeContentProjection(ctx context.Context, scopeValue scope.In
 	)
 
 	return contentResult, nil
+}
+
+// enqueueDriftedIntent admits one code_drifted reducer intent for a content
+// generation that (re)published fingerprint side-table truth (epic #6833,
+// child #6837). The queue dedupes by (domain, scope_id, generation_id), so
+// an identical re-publish of the same generation collapses onto the existing
+// work item instead of duplicating handler work. A nil IntentWriter is a
+// wiring gap: fail closed rather than silently drop the generation, mirroring
+// the required-writer check on the projection intent path in Project.
+func (r Runtime) enqueueDriftedIntent(ctx context.Context, scopeValue scope.IngestionScope, mat content.Materialization) error {
+	if r.IntentWriter == nil {
+		return errors.New("reducer intent writer is required when fingerprints changed")
+	}
+	intent := ReducerIntent{
+		ScopeID:      mat.ScopeID,
+		GenerationID: mat.GenerationID,
+		Domain:       reducer.DomainCodeDrifted,
+		EntityKey:    "code_drifted:" + mat.ScopeID,
+		Reason:       "fingerprints published",
+		SourceSystem: mat.SourceSystem,
+		Payload:      map[string]any{"repo_id": mat.RepoID},
+	}
+	if _, err := r.IntentWriter.Enqueue(ctx, []ReducerIntent{intent}); err != nil {
+		return fmt.Errorf("enqueue code drifted intent: %w", err)
+	}
+	if r.Instruments != nil {
+		r.Instruments.ReducerIntentsEnqueued.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
+		))
+	}
+	return nil
 }
 
 func (r Runtime) writeCanonicalProjection(
