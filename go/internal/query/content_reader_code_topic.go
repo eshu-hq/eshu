@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -308,6 +309,47 @@ func (cr *ContentReader) DivergenceGroupStats(
 		return nil, err
 	}
 	return stats, nil
+}
+
+// driftedFindingStore adapts the drifted findings store over this reader's
+// handle with the reader's tracer, mirroring the Terraform drift adapter:
+// the query package owns the read contract, the postgres package owns the
+// SQL.
+func (cr *ContentReader) driftedFindingStore() postgres.PostgresCodeDriftedFindingStore {
+	storeDB := &postgres.InstrumentedDB{
+		Inner:     postgres.SQLDB{DB: cr.db},
+		Tracer:    cr.tracer,
+		StoreName: "code_drifted_findings",
+	}
+	return postgres.PostgresCodeDriftedFindingStore{DB: storeDB}
+}
+
+// DriftedFindingStats returns one stat per active drifted finding in the
+// repo for the merged cross-kind page: the writer finding id as fingerprint
+// with the pair token max, ranked on the same members x tokens currency as
+// the equality kinds.
+func (cr *ContentReader) DriftedFindingStats(
+	ctx context.Context,
+	repoID string,
+) ([]codedivergence.GroupStat, error) {
+	if cr == nil || cr.db == nil {
+		return nil, nil
+	}
+	return cr.driftedFindingStore().DriftedFindingStats(ctx, repoID)
+}
+
+// DriftedFindingRows hydrates exactly the given finding ids into drifted
+// rows keyed by finding id. The caller passes only the page window, so a
+// large active set never turns hydration into a full-repo fetch.
+func (cr *ContentReader) DriftedFindingRows(
+	ctx context.Context,
+	repoID string,
+	findingIDs []string,
+) (map[string]codedivergence.DriftedRow, error) {
+	if cr == nil || cr.db == nil {
+		return map[string]codedivergence.DriftedRow{}, nil
+	}
+	return cr.driftedFindingStore().DriftedFindingRows(ctx, repoID, findingIDs)
 }
 
 // DivergenceMembers hydrates the members of exactly the given fingerprints

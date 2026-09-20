@@ -13,7 +13,7 @@ const Divergence = `
       "post": {
         "tags": ["code"],
         "summary": "Find parallel implementations",
-        "description": "Reports repo-scoped parallel_implementation.exact and .renamed findings: functions with identical token streams or identical streams up to renaming, ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
+        "description": "Reports repo-scoped parallel_implementation findings: functions with identical token streams (exact), identical streams up to renaming (renamed), or reducer-verified near-duplicate pairs (drifted), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "findCodeDivergence",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -25,7 +25,7 @@ const Divergence = `
                 "required": ["repo_id"],
                 "properties": {
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
-                  "kind": {"type": "string", "enum": ["", "exact", "renamed"], "default": "", "description": "Equality family; blank reads both"},
+                  "kind": {"type": "string", "enum": ["", "exact", "renamed", "drifted"], "default": "", "description": "Family; blank reads all three"},
                   "limit": {"type": "integer", "default": 25, "maximum": 100},
                   "offset": {"type": "integer", "default": 0, "maximum": 10000},
                   "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set"}
@@ -66,7 +66,7 @@ const Divergence = `
                 "required": ["repo_id", "kind", "fingerprint"],
                 "properties": {
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
-                  "kind": {"type": "string", "enum": ["exact", "renamed", "parallel_implementation.exact", "parallel_implementation.renamed"]},
+                  "kind": {"type": "string", "enum": ["exact", "renamed", "drifted", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted"]},
                   "fingerprint": {"type": "string", "description": "Finding fingerprint from a findings report entry"},
                   "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set"}
                 }

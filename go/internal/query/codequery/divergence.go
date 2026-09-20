@@ -29,9 +29,9 @@ var errDivergenceFindingsUnavailable = errors.New("divergence findings content i
 
 // DivergenceFindingsRequest is the POST /api/v0/code/divergence/findings
 // body. RepoID is required and resolved against the caller's grant (an
-// ungranted repo rejects with 400 before any read); Kind selects the
-// equality family ("" reads both); IncludeTests opts test-file copies back
-// into the member set.
+// ungranted repo rejects with 400 before any read); Kind selects the family
+// ("" reads all three: exact, renamed, and drifted); IncludeTests opts
+// test-file copies back into the member set.
 type DivergenceFindingsRequest struct {
 	RepoID       string `json:"repo_id"`
 	Kind         string `json:"kind"`
@@ -43,10 +43,15 @@ type DivergenceFindingsRequest struct {
 }
 
 // divergenceStore is the narrow content-store surface the findings read
-// needs. ContentReader satisfies it; tests substitute a fixture fake.
+// needs. ContentReader satisfies it; tests substitute a fixture fake. The
+// drifted pair adds its own stats/rows pair because drifted findings read
+// from reducer fact rows (keyed by writer finding id), not fingerprint
+// groups.
 type divergenceStore interface {
 	DivergenceGroupStats(context.Context, string, codedivergence.Kind, int) ([]codedivergence.GroupStat, error)
 	DivergenceMembers(context.Context, string, codedivergence.Kind, []string) (map[string][]codedivergence.Member, error)
+	DriftedFindingStats(context.Context, string) ([]codedivergence.GroupStat, error)
+	DriftedFindingRows(context.Context, string, []string) (map[string]codedivergence.DriftedRow, error)
 }
 
 func (r DivergenceFindingsRequest) validate() error {
@@ -54,9 +59,10 @@ func (r DivergenceFindingsRequest) validate() error {
 		return fmt.Errorf("repo_id is required")
 	}
 	switch r.Kind {
-	case "", "exact", "renamed":
+	case "", "exact", "renamed", "drifted",
+		string(codedivergence.KindExact), string(codedivergence.KindRenamed), string(codedivergence.KindDrifted):
 	default:
-		return fmt.Errorf("kind must be one of: \"\", \"exact\", \"renamed\"")
+		return fmt.Errorf("kind must be one of: \"\", \"exact\", \"renamed\", \"drifted\" (qualified \"parallel_implementation.*\" spellings accepted)")
 	}
 	if r.Limit > divergenceFindingsMaxLimit {
 		return fmt.Errorf("limit must be <= 100")
@@ -72,12 +78,14 @@ func (r DivergenceFindingsRequest) validate() error {
 
 func (r DivergenceFindingsRequest) kinds() []codedivergence.Kind {
 	switch r.Kind {
-	case "exact":
+	case "exact", string(codedivergence.KindExact):
 		return []codedivergence.Kind{codedivergence.KindExact}
-	case "renamed":
+	case "renamed", string(codedivergence.KindRenamed):
 		return []codedivergence.Kind{codedivergence.KindRenamed}
+	case "drifted", string(codedivergence.KindDrifted):
+		return []codedivergence.Kind{codedivergence.KindDrifted}
 	default:
-		return []codedivergence.Kind{codedivergence.KindExact, codedivergence.KindRenamed}
+		return []codedivergence.Kind{codedivergence.KindExact, codedivergence.KindRenamed, codedivergence.KindDrifted}
 	}
 }
 
@@ -136,6 +144,13 @@ func (h *CodeHandler) handleDivergenceFindings(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	basis := "resolved from bounded fingerprint equality groups"
+	for _, kind := range req.kinds() {
+		if kind == codedivergence.KindDrifted {
+			basis = "resolved from bounded fingerprint equality groups and active drifted-pair facts"
+			break
+		}
+	}
 	WriteSuccess(
 		w,
 		r,
@@ -152,7 +167,7 @@ func (h *CodeHandler) handleDivergenceFindings(w http.ResponseWriter, r *http.Re
 			"suppressions":   data.suppressions,
 			"source_backend": "postgres_content_store",
 		},
-		BuildTruthEnvelope(h.profile(), divergenceFindingsCapability, TruthBasisContentIndex, "resolved from bounded fingerprint equality groups"),
+		BuildTruthEnvelope(h.profile(), divergenceFindingsCapability, TruthBasisContentIndex, basis),
 	)
 }
 
@@ -196,6 +211,14 @@ func (h *CodeHandler) divergenceFindingsData(
 	// asc, with a one-group probe past the display limit.
 	stats := make([]codedivergence.GroupStat, 0, 64)
 	for _, kind := range req.kinds() {
+		if kind == codedivergence.KindDrifted {
+			driftedStats, err := reader.DriftedFindingStats(ctx, req.RepoID)
+			if err != nil {
+				return divergenceFindingsData{}, err
+			}
+			stats = append(stats, driftedStats...)
+			continue
+		}
 		kindStats, err := reader.DivergenceGroupStats(ctx, req.RepoID, kind, codedivergence.TokenFloor)
 		if err != nil {
 			return divergenceFindingsData{}, err
@@ -208,12 +231,25 @@ func (h *CodeHandler) divergenceFindingsData(
 		window = window[:displayLimit]
 	}
 	// Phase two: hydrate exactly the window's members, one lookup per kind.
+	// Drifted hydrates fact rows by writer finding id instead of group
+	// members by fingerprint.
 	byKind := map[codedivergence.Kind][]string{}
 	for _, stat := range window {
 		byKind[stat.Kind] = append(byKind[stat.Kind], stat.Fingerprint)
 	}
 	memberLookup := make(map[codedivergence.Kind]map[string][]codedivergence.Member, len(byKind))
+	driftedRows := map[string]codedivergence.DriftedRow{}
 	for kind, fingerprints := range byKind {
+		if kind == codedivergence.KindDrifted {
+			rows, err := reader.DriftedFindingRows(ctx, req.RepoID, fingerprints)
+			if err != nil {
+				return divergenceFindingsData{}, err
+			}
+			for id, row := range rows {
+				driftedRows[id] = row
+			}
+			continue
+		}
 		members, err := reader.DivergenceMembers(ctx, req.RepoID, kind, fingerprints)
 		if err != nil {
 			return divergenceFindingsData{}, err
@@ -230,6 +266,9 @@ func (h *CodeHandler) divergenceFindingsData(
 	// the emitted scores stay exact.
 	byKindGroups := map[codedivergence.Kind][]codedivergence.Group{}
 	for _, stat := range window {
+		if stat.Kind == codedivergence.KindDrifted {
+			continue
+		}
 		byKindGroups[stat.Kind] = append(byKindGroups[stat.Kind], codedivergence.Group{
 			Fingerprint: stat.Fingerprint,
 			Members:     memberLookup[stat.Kind][stat.Fingerprint],
@@ -237,12 +276,34 @@ func (h *CodeHandler) divergenceFindingsData(
 	}
 	assembled := make([]codedivergence.Finding, 0, len(window))
 	suppressions := map[string]int{}
-	for kind, kindGroups := range byKindGroups {
-		page, counts := codedivergence.AssemblePage(req.RepoID, kind, kindGroups, req.IncludeTests)
+	mergeCounts := func(counts map[string]int) {
 		for rule, count := range counts {
 			suppressions[rule] += count
 		}
+	}
+	for kind, kindGroups := range byKindGroups {
+		page, counts := codedivergence.AssemblePage(req.RepoID, kind, kindGroups, req.IncludeTests)
+		mergeCounts(counts)
 		assembled = append(assembled, page...)
+	}
+	// Drifted rows assemble from their fact payloads (similarity, threshold,
+	// band evidence ride the row, not a fingerprint group). A windowed row
+	// missing from hydration drops out silently: the stat ranked it, but
+	// the fact went stale between the two reads.
+	for _, stat := range window {
+		if stat.Kind != codedivergence.KindDrifted {
+			continue
+		}
+		row, ok := driftedRows[stat.Fingerprint]
+		if !ok {
+			continue
+		}
+		finding, ok := codedivergence.AssembleDriftedFinding(req.RepoID, row, req.IncludeTests)
+		mergeCounts(finding.Suppressions)
+		if !ok {
+			continue
+		}
+		assembled = append(assembled, finding)
 	}
 	codedivergence.SortFindings(assembled)
 	findings := make([]map[string]any, 0, len(assembled))
@@ -302,129 +363,4 @@ func nextDivergenceOffset(offset, consumed int, truncated bool) any {
 		return nil
 	}
 	return offset + consumed
-}
-
-// DivergenceInvestigateRequest is the POST
-// /api/v0/code/divergence/investigate body: one finding addressed by
-// (repo_id, kind, fingerprint). Kind is required here (no both-kinds
-// default): a fingerprint is only unique within its equality family.
-type DivergenceInvestigateRequest struct {
-	RepoID       string `json:"repo_id"`
-	Kind         string `json:"kind"`
-	Fingerprint  string `json:"fingerprint"`
-	IncludeTests bool   `json:"include_tests"`
-}
-
-func (r DivergenceInvestigateRequest) validate() error {
-	if strings.TrimSpace(r.RepoID) == "" {
-		return fmt.Errorf("repo_id is required")
-	}
-	switch r.Kind {
-	case "exact", "renamed", string(codedivergence.KindExact), string(codedivergence.KindRenamed):
-	default:
-		return fmt.Errorf("kind must be one of: \"exact\", \"renamed\" (qualified \"parallel_implementation.*\" spellings accepted)")
-	}
-	if strings.TrimSpace(r.Fingerprint) == "" {
-		return fmt.Errorf("fingerprint is required")
-	}
-	return nil
-}
-
-// kind normalizes the short and qualified kind spellings to one family:
-// a kind copied verbatim from a findings entry (qualified) addresses the
-// same family as the short form.
-func (r DivergenceInvestigateRequest) kind() codedivergence.Kind {
-	switch r.Kind {
-	case "renamed", string(codedivergence.KindRenamed):
-		return codedivergence.KindRenamed
-	default:
-		return codedivergence.KindExact
-	}
-}
-
-func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http.Request) {
-	r, span := startQueryHandlerSpan(
-		r,
-		telemetry.SpanQueryCodeDivergence,
-		"POST /api/v0/code/divergence/investigate",
-		divergenceFindingsCapability,
-	)
-	defer span.End()
-
-	var req DivergenceInvestigateRequest
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if querycontract.CapabilityUnsupported(h.profile(), divergenceFindingsCapability) {
-		WriteContractError(
-			w,
-			r,
-			http.StatusNotImplemented,
-			"code divergence findings require a supported query profile",
-			ErrorCodeUnsupportedCapability,
-			divergenceFindingsCapability,
-			h.profile(),
-			querycontract.RequiredProfile(divergenceFindingsCapability),
-		)
-		return
-	}
-	if err := req.validate(); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, divergenceFindingsCapability) {
-		return
-	}
-	if h == nil || h.Content == nil {
-		WriteError(w, http.StatusServiceUnavailable, errDivergenceFindingsUnavailable.Error())
-		return
-	}
-	reader, ok := h.Content.(divergenceStore)
-	if !ok {
-		WriteError(w, http.StatusServiceUnavailable, errDivergenceFindingsUnavailable.Error())
-		return
-	}
-	if _, blocked := codeContentGrantScope(r.Context(), req.RepoID); blocked {
-		WriteError(w, http.StatusNotFound, "divergence finding not found")
-		return
-	}
-	membersByFP, err := reader.DivergenceMembers(r.Context(), req.RepoID, req.kind(), []string{req.Fingerprint})
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	members := membersByFP[req.Fingerprint]
-	if len(members) == 0 {
-		WriteError(w, http.StatusNotFound, "divergence finding not found")
-		return
-	}
-	finding, ok := codedivergence.AssembleFinding(req.RepoID, req.kind(), req.Fingerprint, members, req.IncludeTests)
-	if !ok {
-		WriteError(w, http.StatusNotFound, "divergence finding not found")
-		return
-	}
-	steps, truncated := codedivergence.InvestigateSteps(req.RepoID, finding)
-	stepResults := make([]map[string]any, 0, len(steps))
-	for _, step := range steps {
-		stepResults = append(stepResults, map[string]any{
-			"tool":    step.Tool,
-			"args":    step.Args,
-			"purpose": step.Purpose,
-		})
-	}
-	WriteSuccess(
-		w,
-		r,
-		http.StatusOK,
-		map[string]any{
-			"repo_id":        req.RepoID,
-			"finding":        divergenceFindingResult(finding),
-			"next_steps":     stepResults,
-			"truncated":      truncated,
-			"suppressions":   finding.Suppressions,
-			"source_backend": "postgres_content_store",
-		},
-		BuildTruthEnvelope(h.profile(), divergenceFindingsCapability, TruthBasisContentIndex, "resolved from one fingerprint equality group with bounded follow-ups"),
-	)
 }
