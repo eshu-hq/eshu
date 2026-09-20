@@ -1,4 +1,4 @@
-# #6695 collector image preflight package move
+# #6695 collector picture preflight package move
 
 ## Scope
 
@@ -6,26 +6,25 @@ Base: `origin/main` at `b7618bb2c`.
 
 This slice moves the image safety-classifier package from the historical
 flat path `go/internal/collector/imagepreflight` to
-`go/internal/collector/preflight/image`. The package name changes to
-`image`; `Options`, `Result`, `Warning`, `Preflight`, and the format and
+`go/internal/collector/preflight/picture`. The package name changes to
+`picture` (not `image`: a review thread caught that `package image` shadows
+the standard library wherever both are imported, forcing a `stdimage` alias
+in three files; the owner directed a rename of leaf and directory instead,
+per the `golang-engineering` stdlib-shadowing rule. No `package picture`
+collides with the standard library, and the directory/package names match. `Options`, `Result`, `Warning`, `Preflight`, and the format and
 warning constants remain exact. This is the fourth `preflight/` leaf (the
 parent trio and the `archive`, `pdf`, and `diagram` leaves landed earlier);
 the media, ooxml, and manifest siblings stay flat for later slices.
 
-Filenames are unchanged (`preflight.go` does not repeat its own `image`
+Filenames are unchanged (`preflight.go` does not repeat its own `picture`
 directory, per the #6627 `cicd/run` precedent which kept `planner.go`).
-The `image` package name follows the existing repo precedent
-(`projector/container/image`, `projector/aws/cloud/image`). Inside the
-leaf and its test, and inside the `ocrdoc` test that also exercises the
-standard library, the stdlib `image` import is aliased `stdimage` so the
-leaf keeps its plain-English package name without colliding with it. The
-`ocrdoc` caller imports the new path without an alias, so its selectors
-read `image.*` per naming.md rule 5 (no glued name carried into the new
+The `ocrdoc` caller imports the new path without an alias, so its selectors
+read `picture.*` per naming.md rule 5 (no glued name carried into the new
 home).
 
 The `go/internal/collector/preflight` parent stays a documentation-only
-namespace: this slice only adds the `image` child to its prose. The
-`image` leaf owns metadata-only classification of `.png`, `.jpeg`, `.jpg`,
+namespace: this slice only adds the `picture` child to its prose. The
+`picture` leaf owns metadata-only classification of `.png`, `.jpeg`, `.jpg`,
 and `.gif` sources. It is not an independently deployable service.
 Extraction, fact emission, ACL handling, security review, and telemetry
 stay in the owning collector slice.
@@ -35,12 +34,11 @@ stay in the owning collector slice.
 At the base, the leaf contained exactly five files: `AGENTS.md`,
 `README.md`, `doc.go`, `preflight.go`, and `preflight_test.go` (two
 non-test Go files, all `package imagepreflight`). The destination
-contains those same five file names as `package image`. No new parent
+contains those same five file names as `package picture`. No new parent
 trio: `preflight/{doc.go,README.md,AGENTS.md}` already exists.
 
-The destination leaf's production imports remain standard-library only
-(plus the `stdimage` alias of the stdlib `image` package it already
-imported). It imports neither the collector root nor a sibling collector.
+The destination leaf's production imports remain standard-library only,
+unaliased. It imports neither the collector root nor a sibling collector.
 No dirgate ledger row changes: nothing pinned (`awscloud`, `gcpcloud`,
 `gitrepo`) is touched, and no collector-root file repeats the new
 `preflight` parent name, so no naming finding is introduced.
@@ -54,7 +52,7 @@ two test files): import repoint plus qualifier rename only.
 tests, per `golang-engineering`):
 
 ```text
-go test -list '.*' ./internal/collector/preflight/image/
+go test -list '.*' ./internal/collector/preflight/picture/
 TestPreflightAcceptsSafeImageMetadata
 TestPreflightClassifiesUnsupportedMalformedAndLimits
 TestPreflightClassifiesMetadataSensitiveAndExternalMarkers
@@ -70,10 +68,11 @@ the repointed importer.
 
 - `Preflight`, `Options` normalization, warning classes, counts, JSON
   shape, resource budgets, and error behavior are unchanged.
-- `ocrdoc` selectors are renamed `imagepreflight.*` to `image.*`
+- `ocrdoc` selectors are renamed `imagepreflight.*` to `picture.*`
   (same identifiers otherwise); only the import lines and the qualifier
-  changed (plus the `stdimage` alias where the stdlib `image` package is
-  also imported, and gofmt import ordering).
+  changed (plus gofmt import ordering). No alias in either direction: the
+  leaf no longer shadows the standard library, so both the leaf and its
+  tests import stdlib `image` plain.
 - The moved README's evidence commands are corrected since those lines
   were already in this diff: both name the new leaf path.
 - No wire, API, fact, reducer, query, graph, storage, queue, lease,
@@ -84,12 +83,12 @@ the repointed importer.
 All Go commands ran from `go/` with `env -u GOROOT`, a worktree-local
 `GOCACHE`, and `GOTMPDIR=/tmp/e6695image`, serially:
 
-- `go build ./internal/collector/preflight/image/ ./internal/collector/ocrdoc/`:
+- `go build ./internal/collector/preflight/picture/ ./internal/collector/ocrdoc/`:
   exit 0.
-- `go vet ./internal/collector/preflight/image/ ./internal/collector/ocrdoc/`:
+- `go vet ./internal/collector/preflight/picture/ ./internal/collector/ocrdoc/`:
   exit 0.
-- `go test -count=1 ./internal/collector/preflight/image/ ./internal/collector/ocrdoc/`:
-  exit 0 (`preflight/image` ok, `ocrdoc` ok).
+- `go test -count=1 ./internal/collector/preflight/picture/ ./internal/collector/ocrdoc/`:
+  exit 0 (`preflight/picture` ok, `ocrdoc` ok).
 - `gofmt -l` on both touched trees: clean.
 - `scripts/verify-package-docs.sh`, `scripts/verify-telemetry-coverage.sh`,
   `scripts/verify-moved-file-refs.sh` (3 vacated Go paths, no dangling refs),
@@ -108,7 +107,7 @@ P0/P1/P2-blocking 0), `review-attest` capture/verify, `make pre-push`
   throwaway worktree (`/tmp/img-base`, removed after the run) on the
   old path `go/internal/collector/imagepreflight`.
 - After: branch `feat/6695-image-leaf` at the refactor commit,
-  new path `go/internal/collector/preflight/image`.
+  new path `go/internal/collector/preflight/picture`.
 - Backend/version: no live backend exercised. Unit tests only against the
   in-repo classifier; no NornicDB, Postgres, or Docker in these packages.
   Toolchain `go1.27.1 darwin/arm64` both sides, same machine, serial runs.
@@ -117,11 +116,11 @@ P0/P1/P2-blocking 0), `review-attest` capture/verify, `make pre-push`
   (branch); `go test -list '.*'` for test discovery.
 - Baseline measurement: `imagepreflight` ok 0.386s (6 tests), `ocrdoc`
   ok 0.352s.
-- After measurement: `preflight/image` ok 0.201s (same 6 tests,
+- After measurement: `preflight/picture` ok 0.201s (same 6 tests,
   confirmed by name via `-list`); importer `ocrdoc` ok 0.313s.
 - Terminal counts: 2/2 test-bearing touched packages green, zero failures.
 - Query/concurrency proof: the moved `preflight.go` pairs at 99%
-  similarity (package-clause plus `stdimage` alias delta); the added-line
+  similarity (package-clause delta only); the added-line
   scan of the Go diff finds no Cypher/SQL keywords, no telemetry
   identifiers, and no new goroutine or error-path lines — logic is
   byte-identical to base.
@@ -135,6 +134,6 @@ P0/P1/P2-blocking 0), `review-attest` capture/verify, `make pre-push`
 ## No-Observability-Change (#6695):
 
 - The `telemetry-coverage.md` row for image preflight names the new
-  `preflight/image/*.go` path with the same `No-Observability-Change`
+  `preflight/picture/*.go` path with the same `No-Observability-Change`
   reason: git-source collector metrics cover image preflight throughput.
 - `scripts/verify-telemetry-coverage.sh` agrees: no new untracked stages.

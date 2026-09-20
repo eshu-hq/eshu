@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/preflight/image"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/picture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -32,7 +32,7 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 		ctx = context.Background()
 	}
 	sourceName := firstNonEmpty(req.SourceName, req.SourceURI, req.ExternalID)
-	preflight, err := image.Preflight(
+	preflight, err := picture.Preflight(
 		ctx,
 		sourceName,
 		bytes.NewReader(req.Body),
@@ -89,7 +89,7 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 	return result, nil
 }
 
-func buildDocument(req Request, preflight image.Result, sourceHash string) facts.DocumentationDocumentPayload {
+func buildDocument(req Request, preflight picture.Result, sourceHash string) facts.DocumentationDocumentPayload {
 	metadata := map[string]string{
 		"format_family":               formatImageOCR,
 		"incident_media_source_class": incidentMediaClassOCRRegion,
@@ -105,7 +105,7 @@ func buildDocument(req Request, preflight image.Result, sourceHash string) facts
 	addPositiveInt64(metadata, "pixel_count", preflight.PixelCount)
 	addPositiveInt64(metadata, "source_bytes", preflight.SourceBytes)
 	addPositiveInt(metadata, "frame_count", preflight.FrameCount)
-	if preflight.Format == image.FormatGIF && preflight.FrameCount > 1 {
+	if preflight.Format == picture.FormatGIF && preflight.FrameCount > 1 {
 		metadata["gif_frame_policy"] = "first_frame"
 	}
 	addWarnings(metadata, warningClasses(preflight.Warnings)...)
@@ -182,7 +182,7 @@ func buildSections(
 		}
 		if redacted {
 			metadata["redacted"] = "true"
-			metadata["redaction_class"] = string(image.WarningSensitiveValueRedacted)
+			metadata["redaction_class"] = string(picture.WarningSensitiveValueRedacted)
 		}
 		if region.Confidence > 0 && region.Confidence < 0.50 {
 			warnings = append(warnings, "ocr_low_confidence")
@@ -208,12 +208,12 @@ func buildSections(
 	return sections
 }
 
-func skipPreflight(preflight image.Result) bool {
+func skipPreflight(preflight picture.Result) bool {
 	if len(preflight.Warnings) == 0 {
 		return false
 	}
 	for _, warning := range preflight.Warnings {
-		if warning.Class != image.WarningPartialExtraction {
+		if warning.Class != picture.WarningPartialExtraction {
 			return true
 		}
 	}
@@ -223,7 +223,7 @@ func skipPreflight(preflight image.Result) bool {
 func persistedContent(text string, maxChars int) (string, []string, bool) {
 	warnings := []string{}
 	if containsSensitiveMarker(text) {
-		return "[redacted]", []string{string(image.WarningSensitiveValueRedacted)}, true
+		return "[redacted]", []string{string(picture.WarningSensitiveValueRedacted)}, true
 	}
 	if maxChars <= 0 {
 		maxChars = defaultMaxSectionChars
@@ -295,7 +295,7 @@ func schemaVersion(kind string) string {
 	return facts.DocumentationFactSchemaVersion
 }
 
-func warningClasses(warnings []image.Warning) []string {
+func warningClasses(warnings []picture.Warning) []string {
 	out := make([]string, 0, len(warnings))
 	for _, warning := range warnings {
 		if warning.Count > 0 {

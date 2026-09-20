@@ -5,7 +5,7 @@
 1. `go/internal/collector/ocrdoc/README.md`
 2. `go/internal/collector/ocrdoc/doc.go`
 3. `go/internal/collector/ocrdoc/extract.go`
-4. `go/internal/collector/preflight/image/README.md`
+4. `go/internal/collector/preflight/picture/README.md`
 5. `docs/internal/design/1737-visual-media-documentation-ingestion.md`
 
 ## Invariants

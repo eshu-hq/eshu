@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/preflight/image"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/picture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -18,7 +18,7 @@ type Engine interface {
 
 // Options bounds OCR extraction work delegated by this package.
 type Options struct {
-	Preflight       image.Options
+	Preflight       picture.Options
 	MaxSectionChars int
 }
 
@@ -80,7 +80,7 @@ type Bounds struct {
 // Result contains the document and section payloads plus ready-to-persist
 // envelopes for one OCR extraction attempt.
 type Result struct {
-	Preflight image.Result
+	Preflight picture.Result
 	Document  facts.DocumentationDocumentPayload
 	Sections  []facts.DocumentationSectionPayload
 	Envelopes []facts.Envelope
