@@ -99,6 +99,55 @@ func TestCodeHandlerDivergenceInvestigateReturnsBoundedNextSteps(t *testing.T) {
 	}
 }
 
+// TestCodeHandlerDivergenceInvestigateIncludeTestsOptsBackIn pins the P1
+// leg from the #6877 owner review: a test-file-only group 404s by default
+// but assembles when the caller opts test files back in, matching the
+// findings list behavior with include_tests=true.
+func TestCodeHandlerDivergenceInvestigateIncludeTestsOptsBackIn(t *testing.T) {
+	t.Parallel()
+
+	post := func(t *testing.T, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		handler := &CodeHandler{Content: fakeDivergenceStore{}, Profile: ProfileLocalAuthoritative}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+		req := httptest.NewRequest(http.MethodPost, "/api/v0/code/divergence/investigate", bytes.NewBufferString(body))
+		req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	excluded := post(t, `{"repo_id":"repo-x","kind":"exact","fingerprint":"fp-tests"}`)
+	if got, want := excluded.Code, http.StatusNotFound; got != want {
+		t.Fatalf("default status = %d, want %d body=%s", got, want, excluded.Body.String())
+	}
+
+	included := post(t, `{"repo_id":"repo-x","kind":"exact","fingerprint":"fp-tests","include_tests":true}`)
+	if got, want := included.Code, http.StatusOK; got != want {
+		t.Fatalf("include_tests status = %d, want %d body=%s", got, want, included.Body.String())
+	}
+	var envelope struct {
+		Data struct {
+			Finding struct {
+				Members []struct {
+					EntityID string `json:"entity_id"`
+				} `json:"members"`
+			} `json:"finding"`
+			Suppressions map[string]int `json:"suppressions"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(included.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v body=%s", err, included.Body.String())
+	}
+	if got, want := len(envelope.Data.Finding.Members), 2; got != want {
+		t.Fatalf("opted-in members = %d, want %d", got, want)
+	}
+	if got := envelope.Data.Suppressions["test_file"]; got != 0 {
+		t.Fatalf("opted-in test_file suppressions = %d, want 0", got)
+	}
+}
+
 // TestCodeHandlerDivergenceInvestigateUnknownFingerprint404s pins the miss
 // leg: an unknown fingerprint is a 404, not an empty finding.
 func TestCodeHandlerDivergenceInvestigateUnknownFingerprint404s(t *testing.T) {

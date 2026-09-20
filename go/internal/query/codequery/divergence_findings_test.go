@@ -42,13 +42,18 @@ func (fakeDivergenceStore) DivergenceMembers(
 ) (map[string][]codedivergence.Member, error) {
 	out := map[string][]codedivergence.Member{}
 	for _, fingerprint := range fingerprints {
-		if fingerprint != "fp-fixture" {
-			continue
-		}
-		out[fingerprint] = []codedivergence.Member{
-			{EntityID: "e1", EntityName: "cloneStringMap", EntityType: "Function", RelativePath: "a/maps.go", Language: "go", StartLine: 10, EndLine: 60, TokenCount: 210},
-			{EntityID: "e2", EntityName: "cloneStringMap", EntityType: "Function", RelativePath: "b/maps.go", Language: "go", StartLine: 12, EndLine: 62, TokenCount: 210},
-			{EntityID: "e3", EntityName: "cloneStringMap", EntityType: "Function", RelativePath: "gen/maps.pb.go", Language: "go", StartLine: 8, EndLine: 58, TokenCount: 210},
+		switch fingerprint {
+		case "fp-fixture":
+			out[fingerprint] = []codedivergence.Member{
+				{EntityID: "e1", EntityName: "cloneStringMap", EntityType: "Function", RelativePath: "a/maps.go", Language: "go", StartLine: 10, EndLine: 60, TokenCount: 210},
+				{EntityID: "e2", EntityName: "cloneStringMap", EntityType: "Function", RelativePath: "b/maps.go", Language: "go", StartLine: 12, EndLine: 62, TokenCount: 210},
+				{EntityID: "e3", EntityName: "cloneStringMap", EntityType: "Function", RelativePath: "gen/maps.pb.go", Language: "go", StartLine: 8, EndLine: 58, TokenCount: 210},
+			}
+		case "fp-tests":
+			out[fingerprint] = []codedivergence.Member{
+				{EntityID: "t1", EntityName: "cloneStringMap", EntityType: "Function", RelativePath: "a/maps_test.go", Language: "go", StartLine: 10, EndLine: 60, TokenCount: 210},
+				{EntityID: "t2", EntityName: "cloneStringMap", EntityType: "Function", RelativePath: "b/maps_test.go", Language: "go", StartLine: 12, EndLine: 62, TokenCount: 210},
+			}
 		}
 	}
 	return out, nil
@@ -86,7 +91,9 @@ func TestCodeHandlerDivergenceFindingsAgreesWithFixture(t *testing.T) {
 					Value int `json:"value"`
 				} `json:"reasons"`
 				Members []struct {
-					EntityID string `json:"entity_id"`
+					EntityID  string `json:"entity_id"`
+					StartLine int    `json:"start_line"`
+					EndLine   int    `json:"end_line"`
 				} `json:"members"`
 			} `json:"findings"`
 			Suppressions map[string]int `json:"suppressions"`
@@ -119,6 +126,16 @@ func TestCodeHandlerDivergenceFindingsAgreesWithFixture(t *testing.T) {
 	if got, want := len(finding.Members), 2; got != want {
 		t.Fatalf("members = %d, want %d (generated copy suppressed)", got, want)
 	}
+	// P0 (#6877 review): member line spans must reach the response or
+	// investigate follow-ups point at line 0-0.
+	for i, want := range [][2]int{{10, 60}, {12, 62}} {
+		if got := finding.Members[i].StartLine; got != want[0] {
+			t.Fatalf("member %d start_line = %d, want %d", i, got, want[0])
+		}
+		if got := finding.Members[i].EndLine; got != want[1] {
+			t.Fatalf("member %d end_line = %d, want %d", i, got, want[1])
+		}
+	}
 	if got := envelope.Data.Suppressions["generated_file"]; got != 1 {
 		t.Fatalf("generated_file suppressions = %d, want 1", got)
 	}
@@ -127,6 +144,86 @@ func TestCodeHandlerDivergenceFindingsAgreesWithFixture(t *testing.T) {
 	}
 	if envelope.Truth.Level != "derived" {
 		t.Fatalf("truth.level = %q, want derived", envelope.Truth.Level)
+	}
+}
+
+// crossKindCollisionStore returns the same fingerprint in both equality
+// families: the P2 case from the #6877 owner review.
+type crossKindCollisionStore struct {
+	querytestutil.FakePortContentStore
+}
+
+func (crossKindCollisionStore) DivergenceGroupStats(
+	_ context.Context, _ string, kind codedivergence.Kind, _ int,
+) ([]codedivergence.GroupStat, error) {
+	return []codedivergence.GroupStat{
+		{Kind: kind, Fingerprint: "fp-shared", Members: 2, Tokens: 100},
+	}, nil
+}
+
+func (crossKindCollisionStore) DivergenceMembers(
+	_ context.Context, _ string, kind codedivergence.Kind, fingerprints []string,
+) (map[string][]codedivergence.Member, error) {
+	out := map[string][]codedivergence.Member{}
+	for _, fingerprint := range fingerprints {
+		if fingerprint != "fp-shared" {
+			continue
+		}
+		prefix := "x"
+		if kind == codedivergence.KindRenamed {
+			prefix = "r"
+		}
+		out[fingerprint] = []codedivergence.Member{
+			{EntityID: prefix + "1", EntityName: "shared", EntityType: "Function", RelativePath: "a/s.go", Language: "go", StartLine: 1, EndLine: 60, TokenCount: 100},
+			{EntityID: prefix + "2", EntityName: "shared", EntityType: "Function", RelativePath: "b/s.go", Language: "go", StartLine: 1, EndLine: 60, TokenCount: 100},
+		}
+	}
+	return out, nil
+}
+
+// TestCodeHandlerDivergenceFindingsKeepsCrossKindCollision pins the P2 fix
+// end to end: a fingerprint present in both families assembles once per
+// kind instead of colliding on the fingerprint alone.
+func TestCodeHandlerDivergenceFindingsKeepsCrossKindCollision(t *testing.T) {
+	t.Parallel()
+
+	handler := &CodeHandler{Content: crossKindCollisionStore{}, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/divergence/findings",
+		bytes.NewBufferString(`{"repo_id":"repo-x","kind":""}`),
+	)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	var envelope struct {
+		Data struct {
+			Findings []struct {
+				FindingID string `json:"finding_id"`
+				Kind      string `json:"kind"`
+			} `json:"findings"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v body=%s", err, w.Body.String())
+	}
+	if got, want := len(envelope.Data.Findings), 2; got != want {
+		t.Fatalf("findings = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	seen := map[string]string{}
+	for _, finding := range envelope.Data.Findings {
+		if prev, dup := seen[finding.FindingID]; dup {
+			t.Fatalf("duplicate finding id %q for kinds %q and %q", finding.FindingID, prev, finding.Kind)
+		}
+		seen[finding.FindingID] = finding.Kind
+	}
+	if len(seen) != 2 {
+		t.Fatalf("kinds seen = %v, want one exact and one renamed finding", seen)
 	}
 }
 

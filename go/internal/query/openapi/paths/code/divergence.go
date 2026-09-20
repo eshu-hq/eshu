@@ -67,7 +67,8 @@ const Divergence = `
                 "properties": {
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
                   "kind": {"type": "string", "enum": ["exact", "renamed"]},
-                  "fingerprint": {"type": "string", "description": "Finding fingerprint from a findings report entry"}
+                  "fingerprint": {"type": "string", "description": "Finding fingerprint from a findings report entry"},
+                  "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set"}
                 }
               }
             }

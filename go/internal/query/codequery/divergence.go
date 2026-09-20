@@ -207,27 +207,27 @@ func (h *CodeHandler) divergenceFindingsData(
 	for _, stat := range window {
 		byKind[stat.Kind] = append(byKind[stat.Kind], stat.Fingerprint)
 	}
-	groups := make([]codedivergence.Group, 0, len(window))
+	memberLookup := make(map[codedivergence.Kind]map[string][]codedivergence.Member, len(byKind))
 	for kind, fingerprints := range byKind {
 		members, err := reader.DivergenceMembers(ctx, req.RepoID, kind, fingerprints)
 		if err != nil {
 			return divergenceFindingsData{}, err
 		}
-		for _, fingerprint := range fingerprints {
-			groups = append(groups, codedivergence.Group{
-				Fingerprint: fingerprint,
-				Members:     members[fingerprint],
-			})
-		}
+		memberLookup[kind] = members
 	}
 	// Assemble per kind (the finding kind stamps from its stream), merge
-	// suppression counts, and emit in window order. Suppression can only
+	// suppression counts, and emit in window order. Groups rebuild from
+	// the window stats, so the kind travels with its fingerprint: a
+	// fingerprint shared by both kinds assembles once per kind instead of
+	// colliding on the fingerprint alone (#6877 P2). Suppression can only
 	// remove window entries, never reorder them, so the merged page keeps
 	// the exact score-desc, finding-id order PageStats produced.
 	byKindGroups := map[codedivergence.Kind][]codedivergence.Group{}
-	for _, group := range groups {
-		kind := groupKind(window, group.Fingerprint)
-		byKindGroups[kind] = append(byKindGroups[kind], group)
+	for _, stat := range window {
+		byKindGroups[stat.Kind] = append(byKindGroups[stat.Kind], codedivergence.Group{
+			Fingerprint: stat.Fingerprint,
+			Members:     memberLookup[stat.Kind][stat.Fingerprint],
+		})
 	}
 	byID := map[string]map[string]any{}
 	suppressions := map[string]int{}
@@ -247,18 +247,6 @@ func (h *CodeHandler) divergenceFindingsData(
 		}
 	}
 	return divergenceFindingsData{findings: findings, suppressions: suppressions, truncated: truncated}, nil
-}
-
-// groupKind recovers a window group's kind by fingerprint. Fingerprints are
-// unique per kind stream in the window (phase one groups by one column), so
-// the first stat carrying the fingerprint owns it.
-func groupKind(window []codedivergence.GroupStat, fingerprint string) codedivergence.Kind {
-	for _, stat := range window {
-		if stat.Fingerprint == fingerprint {
-			return stat.Kind
-		}
-	}
-	return codedivergence.KindExact
 }
 
 func divergenceFindingResult(finding codedivergence.Finding) map[string]any {
@@ -318,9 +306,10 @@ func nextDivergenceOffset(offset, count int, truncated bool) any {
 // (repo_id, kind, fingerprint). Kind is required here (no both-kinds
 // default): a fingerprint is only unique within its equality family.
 type DivergenceInvestigateRequest struct {
-	RepoID      string `json:"repo_id"`
-	Kind        string `json:"kind"`
-	Fingerprint string `json:"fingerprint"`
+	RepoID       string `json:"repo_id"`
+	Kind         string `json:"kind"`
+	Fingerprint  string `json:"fingerprint"`
+	IncludeTests bool   `json:"include_tests"`
 }
 
 func (r DivergenceInvestigateRequest) validate() error {
@@ -402,7 +391,7 @@ func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http
 		WriteError(w, http.StatusNotFound, "divergence finding not found")
 		return
 	}
-	finding, ok := codedivergence.AssembleFinding(req.RepoID, req.kind(), req.Fingerprint, members, false)
+	finding, ok := codedivergence.AssembleFinding(req.RepoID, req.kind(), req.Fingerprint, members, req.IncludeTests)
 	if !ok {
 		WriteError(w, http.StatusNotFound, "divergence finding not found")
 		return

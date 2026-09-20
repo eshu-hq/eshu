@@ -23,9 +23,10 @@ func Route(toolName string, args routecontract.Arguments) (routecontract.Request
 		}}, true
 	case "investigate_code_divergence":
 		return routecontract.Request{Method: "POST", Path: "/api/v0/code/divergence/investigate", Body: map[string]any{
-			"repo_id":     args.String("repo_id"),
-			"kind":        args.String("kind"),
-			"fingerprint": args.String("fingerprint"),
+			"repo_id":       args.String("repo_id"),
+			"kind":          args.String("kind"),
+			"fingerprint":   args.String("fingerprint"),
+			"include_tests": args.BoolOr("include_tests", false),
 		}}, true
 	default:
 		return routecontract.Request{}, false

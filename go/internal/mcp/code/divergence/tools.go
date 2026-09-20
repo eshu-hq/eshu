@@ -78,6 +78,11 @@ func investigateCodeDivergenceTool() toolcontract.ToolDefinition {
 					"type":        "string",
 					"description": "Finding fingerprint from a findings report entry",
 				},
+				"include_tests": map[string]any{
+					"type":        "boolean",
+					"description": "Opt test-file copies back into the member set; test files suppress by default",
+					"default":     false,
+				},
 			},
 			"required": []string{"repo_id", "kind", "fingerprint"},
 		},

@@ -69,3 +69,17 @@ func TestDivergenceGroupStatsQueryShape(t *testing.T) {
 		t.Fatal("member query must join content_entities")
 	}
 }
+
+// TestDivergenceMembersQueryProjectsLineRange is the P0 regression for
+// the #6877 owner review: hydration must select the entity line span,
+// otherwise every finding member reports 0/0 and investigate's
+// get_file_lines follow-ups point at line 0-0.
+func TestDivergenceMembersQueryProjectsLineRange(t *testing.T) {
+	t.Parallel()
+
+	for _, column := range []string{"e.start_line", "e.end_line"} {
+		if !strings.Contains(divergenceMembersQuery, column) {
+			t.Fatalf("member query must project %s, got:\n%s", column, divergenceMembersQuery)
+		}
+	}
+}

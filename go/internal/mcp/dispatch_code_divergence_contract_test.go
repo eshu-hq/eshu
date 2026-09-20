@@ -24,7 +24,7 @@ var codeDivergenceRouteTools = map[string]string{
 // even if the child and the parity test drift together.
 var codeDivergenceBodyKeys = map[string][]string{
 	"find_code_divergence":        {"repo_id", "kind", "limit", "offset", "include_tests"},
-	"investigate_code_divergence": {"repo_id", "kind", "fingerprint"},
+	"investigate_code_divergence": {"repo_id", "kind", "fingerprint", "include_tests"},
 }
 
 func TestResolveRouteUsesExactCodeDivergenceChildRequest(t *testing.T) {

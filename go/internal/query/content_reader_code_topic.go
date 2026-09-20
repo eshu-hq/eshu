@@ -244,7 +244,8 @@ func divergenceGroupStatsQuery(fingerprintColumn string) string {
 // the qualified fingerprint column (one of two literals, never caller text).
 const divergenceMembersQuery = `
 	SELECT %s AS fp, e.entity_id, e.entity_name, e.entity_type,
-	       e.relative_path, coalesce(e.language, ''), f.token_count
+	       e.relative_path, coalesce(e.language, ''), f.token_count,
+	       e.start_line, e.end_line
 	FROM code_function_fingerprint f
 	JOIN content_entities e ON e.entity_id = f.entity_id AND e.repo_id = f.repo_id
 	WHERE f.repo_id = $1 AND %s = ANY($2)
@@ -357,6 +358,8 @@ func (cr *ContentReader) DivergenceMembers(
 			&member.RelativePath,
 			&member.Language,
 			&member.TokenCount,
+			&member.StartLine,
+			&member.EndLine,
 		); err != nil {
 			span.RecordError(err)
 			return nil, fmt.Errorf("scan divergence member: %w", err)
