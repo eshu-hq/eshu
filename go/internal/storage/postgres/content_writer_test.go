@@ -447,7 +447,11 @@ func TestContentWriterBatchesLargeEntitySet(t *testing.T) {
 	}
 
 	// 2 insert batches of 300 + 1 reap DELETE (600 entities share one path).
-	assertExecCountWithFingerprintReaps(t, db.execs, 3, 1, 1, "2 insert batches + reap")
+	// All 600 carry no fingerprint keys, so the withdrawn converges split
+	// 500+100 at contentFileBatchSize: 2 scoped fp deletes + 2 scoped band
+	// deletes (see TestDeleteWithdrawnFingerprintsChunksAtFileBatchSize for
+	// the bound pin; this test pins the Write-level statement shape).
+	assertExecCountWithFingerprintReaps(t, db.execs, 3, 2, 2, "2 insert batches + reap + 500/100 withdrawn chunks")
 
 	for i, exec := range db.execs[:2] {
 		if !strings.Contains(exec.query, "INSERT INTO content_entities") {
@@ -459,9 +463,11 @@ func TestContentWriterBatchesLargeEntitySet(t *testing.T) {
 		}
 	}
 
-	// The stale-entity reap runs fifth: two entity insert batches, then the
-	// two withdrawn fingerprint deletes (entities carry no keys).
-	reapQuery := db.execs[4].query
+	// The stale-entity reap runs seventh: two entity insert batches, then
+	// the four withdrawn fingerprint deletes (fp+band per 500/100 chunk;
+	// entities carry no keys). Chunk deletes run serially after the insert
+	// batches join, so the index is deterministic.
+	reapQuery := db.execs[6].query
 	if !strings.Contains(reapQuery, "DELETE FROM content_entities") || !strings.Contains(reapQuery, "entity_id <> ALL") {
 		t.Fatalf("fifth query should be the stale-entity reap: %s", reapQuery)
 	}
