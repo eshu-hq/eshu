@@ -168,7 +168,9 @@ After the fixes above, both B-7 cells pass, but the element total that
 `f9b6b189d`). Diffing every finding line of the two logs, and leaving out
 timings, finds exactly three differences. All 66 asserted node and edge counts
 are identical on both backends, so the element gap comes from labels and types
-the snapshot does not count.
+the snapshot does not count. At the r4 runs (`b7-6782-s1-r4-nornic.log` and
+`b7-6782-s1-r4-neo4j.log`, both at `8068a0a27`) the totals are 2795 on NornicDB
+and 2798 on Neo4j: the 3-element Neo4j surplus reproduces.
 
 | Finding line | NornicDB | Neo4j |
 | --- | --- | --- |

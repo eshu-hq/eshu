@@ -103,7 +103,7 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   assertion. Tools needing a selector pass it in `arguments` (`get_repo_summary`
   → `repo_name`; `list_kubernetes_correlations` → `cluster_id`).
 - **`graph_bolt.go` and `graph.go` are content-flagged by the perf-evidence
-  gate** (`graph_bolt.go` holds the scalar-count Cypher). Any edit to it — even a comment — needs a tracked
+  gate** (`graph_bolt.go` holds the scalar-count Cypher). Any edit to either file — even a comment — needs a tracked
   `evidence-*.md` (No-Regression + No-Observability-Change is fine when no
   Cypher/perf/telemetry changed). The verifier diffs `HEAD~1` locally but
   `origin/main` in CI, so reproduce a CI failure with

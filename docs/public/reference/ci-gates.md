@@ -9,7 +9,6 @@ and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
 The registry currently defines 111 gates. Local execution runs the primary
-The registry currently defines 109 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
