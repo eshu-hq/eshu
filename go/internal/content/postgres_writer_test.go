@@ -95,18 +95,21 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	// (here, schema.sql), plus the two #6835 fingerprint side-table reaps
 	// that always run after the entity reap so tombstoned entities never
 	// leave orphan fingerprint rows (no fp upsert here: no fixture entity
-	// carries fingerprint metadata).
+	// carries fingerprint metadata), plus the two withdrawn converges for
+	// those keyless entities.
 	// The fixture tombstones one entity, so the derive runs two transactions:
 	// lock + delete by entity_id, then lock + delete + insert for the paths.
 	if got, want := len(database.txExecs), 5; got != want {
 		t.Fatalf("infra inventory derive statements = %d, want id lock+delete then path lock+delete+insert", got)
 	}
-	if got, want := len(database.execs), 10; got != want {
+	if got, want := len(database.execs), 12; got != want {
 		t.Fatalf("exec count = %d, want %d", got, want)
 	}
 	// Batched order: file deletes first, then file reference cleanup and
-	// upsert batch, then entity deletes, then entity upsert batch, then
-	// entity reap, then the fingerprint side-table reaps.
+	// upsert batch, then entity deletes, then entity upsert batch, then the
+	// withdrawn fingerprint converges (scoped, ANY()) inside the fingerprint
+	// batch call, then the entity reap, then the fingerprint side-table
+	// reaps.
 	if !strings.Contains(database.execs[0].query, "DELETE FROM content_entities") {
 		t.Fatalf("file tombstone entity cleanup query = %q, want content_entities delete", database.execs[0].query)
 	}
@@ -128,14 +131,20 @@ func TestPostgresContentWriterUpsertsFileAndEntityRowsAndDeletesTombstones(t *te
 	if !strings.Contains(database.execs[6].query, "INSERT INTO content_entities") {
 		t.Fatalf("entity query = %q, want content_entities insert", database.execs[6].query)
 	}
-	if !strings.Contains(database.execs[7].query, "DELETE FROM content_entities") || !strings.Contains(database.execs[7].query, "entity_id <> ALL") {
-		t.Fatalf("reap query = %q, want the stale-entity reap DELETE", database.execs[7].query)
+	if !strings.Contains(database.execs[9].query, "DELETE FROM content_entities") || !strings.Contains(database.execs[9].query, "entity_id <> ALL") {
+		t.Fatalf("reap query = %q, want the stale-entity reap DELETE", database.execs[9].query)
 	}
-	if !strings.Contains(database.execs[8].query, "DELETE FROM code_function_fingerprint") {
-		t.Fatalf("fingerprint reap query = %q, want the stale-fingerprint reap DELETE", database.execs[8].query)
+	if !strings.Contains(database.execs[7].query, "DELETE FROM code_function_fingerprint") || !strings.Contains(database.execs[7].query, "ANY(") {
+		t.Fatalf("withdrawn fingerprint query = %q, want the scoped withdrawn DELETE", database.execs[7].query)
 	}
-	if !strings.Contains(database.execs[9].query, "DELETE FROM code_fingerprint_band") {
-		t.Fatalf("band reap query = %q, want the stale-band reap DELETE", database.execs[9].query)
+	if !strings.Contains(database.execs[8].query, "DELETE FROM code_fingerprint_band") || !strings.Contains(database.execs[8].query, "ANY(") {
+		t.Fatalf("withdrawn band query = %q, want the scoped withdrawn DELETE", database.execs[8].query)
+	}
+	if !strings.Contains(database.execs[10].query, "DELETE FROM code_function_fingerprint") {
+		t.Fatalf("fingerprint reap query = %q, want the stale-fingerprint reap DELETE", database.execs[10].query)
+	}
+	if !strings.Contains(database.execs[11].query, "DELETE FROM code_fingerprint_band") {
+		t.Fatalf("band reap query = %q, want the stale-band reap DELETE", database.execs[11].query)
 	}
 
 	args := database.execs[4].args
