@@ -203,7 +203,7 @@ non-test Go file under `go/internal` and `go/cmd`.
   `change_surface_legacy.go:126` and `infrastructure.go:209`.
 - GREEN: after the fixes it reports nothing.
 - Seeded pair: `TestAssertCypherHasNoIgnoredLabelPredicateSeededViolations`
-  (15 RED, 12 GREEN) and `TestProductionCypherScanFindsSeededViolation`, a
+  (18 RED, 15 GREEN) and `TestProductionCypherScanFindsSeededViolation`, a
   temp-dir file in RED and fixed form.
 - Cross-check against all 106 live probe verdicts. Every probe the guard
   passes but NornicDB gets wrong is one of: another documented defect
