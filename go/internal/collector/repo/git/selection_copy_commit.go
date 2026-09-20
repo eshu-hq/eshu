@@ -13,7 +13,6 @@ import (
 	"hash"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -52,16 +51,15 @@ func loadManagedCopyCommitExpectation(
 	default:
 		return nil
 	}
-	output, err := exec.CommandContext(
+	output, err := newGitCommand(
 		ctx,
-		"git",
 		"-C",
 		sourcePath,
 		"ls-tree",
 		"-rz",
 		"--full-tree",
 		commitSHA,
-	).Output() // #nosec G204 -- fixed Git query over an internally resolved repository and validated object identity
+	).Output()
 	if err != nil {
 		return nil
 	}

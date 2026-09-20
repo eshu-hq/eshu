@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os/exec"
 	"sort"
 	"strings"
 )
@@ -167,7 +166,7 @@ func remoteGitRefs(
 // git for-each-ref. It does not require an origin remote — it reads
 // refs/heads/ and refs/tags/ directly from the local repo.
 func localGitRefs(ctx context.Context, repoPath string) ([]GitRef, error) {
-	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, // #nosec G204 -- controlled repo path
+	cmd := newGitCommand(ctx, "-C", repoPath,
 		"for-each-ref",
 		"--format=%(objectname) %(refname) %(*objectname)",
 		"refs/heads/",
@@ -252,7 +251,10 @@ func parseLocalGitRefs(output string, repoPath string) ([]GitRef, error) {
 
 	// Discover default branch from local HEAD.
 	defaultBranch := ""
-	cmd := exec.Command("git", "-C", repoPath, // #nosec G204 -- controlled repo path
+	// Background context preserves the previous behavior of this uncancelable
+	// probe (it ran without any context before); local symbolic-ref never
+	// forks git helpers, so there is nothing to strand on cancel.
+	cmd := newGitCommand(context.Background(), "-C", repoPath,
 		"symbolic-ref", "HEAD")
 	if out, err := cmd.Output(); err == nil {
 		headLine := strings.TrimSpace(string(out))
