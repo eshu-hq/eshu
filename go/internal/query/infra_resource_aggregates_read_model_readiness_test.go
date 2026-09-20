@@ -14,8 +14,8 @@ import (
 // CloudResource alone) never consults the read model's readiness check. Fact
 // truth needs no backfill marker: it is current from normal pipeline
 // operation, so a marker-table failure must not fail the read. (A Postgres
-// outage still fails it, like every other read-model read: there is no
-// silent graph fallback.)
+// table outage falls back to the graph path reporting source graph: the
+// fallback is explicit in the truth envelope, never silent.)
 func TestInfraAggregateGraphOnlyCategorySkipsReadModelReadiness(t *testing.T) {
 	t.Parallel()
 

@@ -464,21 +464,54 @@ func (blockingGraphQuery) RunSingle(ctx context.Context, _ string, _ map[string]
 	return nil, ctx.Err()
 }
 
-// TestInfraAggregateReadModelFailureCancelsTheGraphLeg: a table failure must
-// cancel the concurrent graph pass instead of waiting out a multi-second label
-// scan before returning the error.
-func TestInfraAggregateReadModelFailureCancelsTheGraphLeg(t *testing.T) {
+// cancelTimingGraphQuery records how long each graph call ran. It blocks
+// like blockingGraphQuery; the first (concurrent-leg) call ends when the
+// table failure cancels it, while a P2-2 fallback call runs to the deadline.
+type cancelTimingGraphQuery struct {
+	mu   sync.Mutex
+	durs []time.Duration
+}
+
+func (q *cancelTimingGraphQuery) Run(ctx context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	start := time.Now()
+	<-ctx.Done()
+	q.mu.Lock()
+	q.durs = append(q.durs, time.Since(start))
+	q.mu.Unlock()
+	return nil, ctx.Err()
+}
+
+func (q *cancelTimingGraphQuery) RunSingle(ctx context.Context, _ string, _ map[string]any) (map[string]any, error) {
+	if _, err := q.Run(ctx, "", nil); err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+// TestInfraAggregateReadModelFailureCancelsTheGraphLegThenFallsBack: a table
+// failure must still cancel the concurrent graph pass promptly (P2-2 keeps
+// the cancellation instead of waiting out a multi-second label scan), then
+// the fallback re-reads the graph sequentially. Against a hung graph the
+// route fails with the caller's deadline: the canceled concurrent leg ends
+// fast even though the fallback consumes the budget.
+func TestInfraAggregateReadModelFailureCancelsTheGraphLegThenFallsBack(t *testing.T) {
 	t.Parallel()
 
 	readModel := &failingInfraReadModel{fakeInfraReadModel{ready: true}}
-	store := NewGraphInfraResourceAggregateStore(blockingGraphQuery{}).WithReadModel(readModel)
+	graph := &cancelTimingGraphQuery{}
+	store := NewGraphInfraResourceAggregateStore(graph).WithReadModel(readModel)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	start := time.Now()
-	if _, err := store.CountInfraResources(ctx, InfraResourceAggregateFilter{}); err == nil {
-		t.Fatal("CountInfraResources() error = nil, want the table failure")
+	_, err := store.CountInfraResources(ctx, InfraResourceAggregateFilter{})
+	if !errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		t.Fatalf("CountInfraResources() error = %v, want the fallback deadline without a cancellation", err)
 	}
-	if elapsed := time.Since(start); elapsed > 2*time.Second {
-		t.Fatalf("CountInfraResources() took %s; the graph leg was not canceled", elapsed)
+	graph.mu.Lock()
+	defer graph.mu.Unlock()
+	if len(graph.durs) != 2 {
+		t.Fatalf("graph calls = %d, want 2 (canceled concurrent leg plus one fallback)", len(graph.durs))
+	}
+	if graph.durs[0] > 2*time.Second {
+		t.Fatalf("concurrent graph leg took %s; the table failure did not cancel it promptly", graph.durs[0])
 	}
 }

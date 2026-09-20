@@ -831,10 +831,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/infra_resource_aggregates_cypher.go
+      file: go/internal/query/infra_resource_aggregates_read_model.go
       symbol: infraMixedWriterCountCypher
       source_sha256: 02873d0f17f957b4bdc31b9682d82f6d86518b72f12eeb1ca1387b99ddd35217
-      line_hint: 330
+      line_hint: 173
     required_anchors:
       - label: TerraformModule
         property: evidence_source

@@ -34,6 +34,12 @@ Where it is read from depends on the caller:
   is counted from the graph. The truth basis is `authoritative_graph`. Scoped
   tokens stay on the graph because two infrastructure labels are authorized
   through graph edges.
+- When the Postgres table leg of a read-model read fails while the graph is
+  usable, the route falls back to the full graph path and reports
+  `authoritative_graph`: a Postgres outage must not fail an answer the graph
+  holds whole. The fallback is explicit in the truth envelope, never silent.
+  A failed readiness check still fails marker-gated reads rather than
+  switching stores.
 
 Operators can see which path served each read with
 `eshu_dp_infra_inventory_reads_total{route,source}`.

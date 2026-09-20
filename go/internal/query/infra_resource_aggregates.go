@@ -169,64 +169,7 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 	if useReadModel {
 		return s.countFromReadModel(ctx, labels, filter)
 	}
-	s.recordRead(ctx, "count", InfraResourceAggregateSourceGraph)
-
-	branchWhere := infraResourceAggregateBranchWhere(filter)
-	params := infraResourceAggregateParams(filter)
-
-	// Per-label count branches each return exactly one count row (0 for an
-	// empty label), so the total is their sum. Aggregating in Go avoids the
-	// NornicDB CALL-subquery aggregation collapse documented in
-	// infraResourceAggregatePerLabelCypher.
-	//
-	// Invariant: summing per-label counts equals the old whole-graph
-	// `MATCH (n) WHERE (n:A OR n:B ...)` deduped total ONLY because every infra
-	// resource node carries exactly one of the candidate labels — the
-	// source-local projector materializes each cloud/IaC resource under a single
-	// canonical label (CloudResource XOR TerraformResource XOR K8sResource XOR
-	// ...), never a combination from allInfraLabels. A node carrying two
-	// candidate labels would be counted once per label here and once total by
-	// the old shape; if the projector ever assigns multiple infra labels to one
-	// node, this count (and the buckets below) must switch to distinct-node
-	// identity aggregation. The candidate taxonomy is `allInfraLabels`
-	// (infra.go); TestInfraLabelsAreSinglePrimaryTaxonomy records this
-	// single-label invariant so a taxonomy change surfaces the assumption.
-	totalRows, err := s.Graph.Run(ctx,
-		infraResourceAggregatePerLabelCypher(labels, branchWhere, "RETURN count(n) AS bucket_count", "RETURN bucket_count"),
-		params)
-	if err != nil {
-		return InfraResourceAggregateCount{}, fmt.Errorf("count infra resources: %w", err)
-	}
-	var total int
-	for _, row := range totalRows {
-		total += IntVal(row, "bucket_count")
-	}
-
-	out := InfraResourceAggregateCount{
-		TotalResources: total,
-		ByProvider:     map[string]int{},
-		ByEnvironment:  map[string]int{},
-		ByLabel:        map[string]int{},
-		Source:         InfraResourceAggregateSourceGraph,
-	}
-	if err := s.fillBuckets(ctx, labels, branchWhere, params,
-		infraResourceProviderGroupExpression(filter),
-		out.ByProvider); err != nil {
-		return InfraResourceAggregateCount{}, err
-	}
-	if err := s.fillBuckets(ctx, labels, branchWhere, params,
-		"CASE WHEN n.environment IS NULL OR n.environment = '' THEN 'unknown' ELSE n.environment END",
-		out.ByEnvironment); err != nil {
-		return InfraResourceAggregateCount{}, err
-	}
-	// Group by the node's primary label. `labels(n)` returns a list; we
-	// surface the first label, which is the canonical type for these nodes.
-	if err := s.fillBuckets(ctx, labels, branchWhere, params,
-		"head(labels(n))",
-		out.ByLabel); err != nil {
-		return InfraResourceAggregateCount{}, err
-	}
-	return out, nil
+	return s.countFromGraph(ctx, labels, filter)
 }
 
 func (s GraphInfraResourceAggregateStore) fillBuckets(
@@ -286,43 +229,9 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 	if useReadModel {
 		return s.inventoryFromReadModel(ctx, labels, filter, dimension, groupExpr, limit, offset)
 	}
-	s.recordRead(ctx, "inventory", InfraResourceAggregateSourceGraph)
-
-	branchWhere := infraResourceAggregateBranchWhere(filter)
-	params := infraResourceAggregateParams(filter)
-
-	// Fetch every per-label grouped bucket, then merge, order, and paginate in
-	// Go. The distinct-bucket cardinality is small (bounded by the number of
-	// distinct provider/environment/kind values across the fixed label set), so
-	// fetching the full unioned set is cheap, and Go-side ordering/pagination
-	// replaces the ORDER BY / SKIP / LIMIT that cannot run over a per-label CALL
-	// subquery without triggering the NornicDB aggregation collapse documented
-	// in infraResourceAggregatePerLabelCypher.
-	cypher := infraResourceAggregatePerLabelCypher(labels, branchWhere,
-		"RETURN "+groupExpr+" AS bucket, count(n) AS bucket_count",
-		"RETURN bucket, bucket_count")
-	rows, err := s.Graph.Run(ctx, cypher, params)
-	if err != nil {
-		return nil, "", fmt.Errorf("inventory infra resources: %w", err)
-	}
-	return paginateInfraResourceBuckets(mergeInfraResourceAggregateBuckets(rows), dimension, limit, offset),
-		InfraResourceAggregateSourceGraph, nil
+	return s.inventoryFromGraph(ctx, labels, filter, dimension, groupExpr, limit, offset)
 }
 
-// infraResourceAggregateFilterClauses renders the optional indexed-property
-// filters shared by every per-label aggregate branch, WITHOUT any label
-// predicate (each branch's `MATCH (n:Label)` supplies the label). Filter
-// values flow through bound parameters; nothing user-supplied is interpolated.
-//
-// Property predicates use direct equality on TerraformResource fields for
-// category-specific Terraform reads. The clauses only render when the caller
-// passed a non-empty filter value, so the coalesce-wrapped form is semantically
-// equivalent to direct equality (Cypher equality is null-rejecting). Direct
-// equality keeps the predicate eligible for the `tf_resource_provider` /
-// `tf_resource_environment` / `tf_resource_service` / `tf_resource_category`
-// indexes on TerraformResource; the coalesce wrapper would block planner
-// index selection. The all-category scope uses an OR across equivalent
-// provider/service fields so CloudResource rows remain reachable.
 func infraResourceAggregateFilterClauses(filter InfraResourceAggregateFilter) []string {
 	clauses := []string{}
 	if filter.Kind != "" {
