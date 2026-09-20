@@ -75,6 +75,6 @@ The harness emits no metrics, spans, or logs. It is test/proof infrastructure.
 
 `No-Regression Evidence:` in-memory harness; drives the real `ClaimedService`
 with stub stores and asserts claim/commit/readback contracts.
-`go test ./internal/collector/parity -count=1`.
+`go test ./internal/collector/conformance/parity -count=1`.
 `No-Observability-Change:` emits no telemetry; verifies existing collector
 claim/commit/dead-letter behavior only.

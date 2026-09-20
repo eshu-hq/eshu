@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/parity"
+	"github.com/eshu-hq/eshu/go/internal/collector/conformance/parity"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
