@@ -92,7 +92,7 @@ the projector, #5198 for the ingester). The timeout is per iteration, not
 phase-wide: the deadline resets every iteration, so a drain that keeps making
 progress across many iterations is never canceled by an earlier one. The probe
 now gets its per-call deadline from the grouped `sourcecypher.TimeoutExecutor`
-instead (the same `ESHU_NORNICDB_CANONICAL_WRITE_TIMEOUT_S` budget the drain
+instead (the same `ESHU_CANONICAL_WRITE_TIMEOUT` budget the drain
 iteration budget is derived from): each `ExecuteProbe` call opens its own
 fresh child context sized to that same duration, so the probe is bounded
 identically to before, just under a `neo4j execute probe timed out` operation

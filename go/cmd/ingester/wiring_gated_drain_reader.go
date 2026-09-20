@@ -48,9 +48,8 @@ func (r ingesterTimeoutDrainReader) RunWrite(
 	return r.runBounded(ctx, cypher, params, r.inner.RunWrite, "nornicdb drain timed out", "run nornicdb drain")
 }
 
-// runBounded is the shared per-call deadline logic behind RunWrite: it
-// differs only in which inner method it calls and which
-// timeout-operation/error-prefix labels the resulting error carries.
+// runBounded applies the per-call deadline logic behind RunWrite,
+// taking the timeout-operation and error-prefix labels its error carries.
 func (r ingesterTimeoutDrainReader) runBounded(
 	ctx context.Context,
 	cypher string,
