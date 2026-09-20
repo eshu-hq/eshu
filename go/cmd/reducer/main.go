@@ -175,6 +175,13 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
+	// Retire stale generations when the graph-writer shape moved on: a
+	// deployment upgrading into writer-semantics fixes reprojects with the
+	// fixed writers on the next drain instead of serving persisted stale
+	// output until an operator refinalizes (issue #6868).
+	if err := ensureReducerGraphWriterShape(database); err != nil {
+		return reducer.Service{}, err
+	}
 	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
 	// boundSemanticEntityExecutor.
 	semanticEntityExecutor := graphWriteGate.boundSemanticEntityExecutor(

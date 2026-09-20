@@ -100,6 +100,11 @@ backend, or any network connection directly.
   store-side.
 - `Handler.Refinalize(ctx, filter)` — validates filter, delegates to
   `ReplayStore.RefinalizeScopeProjections`.
+- `Handler.EnsureGraphWriterShape(ctx, shapes, key, version)` — compares the
+  binary's graph-writer shape version against the deployment's applied
+  marker; the atomic-claim winner runs one all-scopes refinalize so an
+  upgrade into writer-semantics fixes heals without an operator refinalize
+  (#6868), and every other starter is a no-op.
 - `Handler.ReplayCollectorGenerations(ctx, filter)` — validates filter,
   delegates to `ReplayStore.ReplayCollectorGenerations`.
 

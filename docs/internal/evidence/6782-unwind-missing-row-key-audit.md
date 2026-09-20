@@ -152,17 +152,20 @@ are re-projected.
 ## Open
 
 - Graphs projected on NornicDB before this fix keep the junk values until each
-  edge or artifact is re-projected. There is no one-shot repair. Ordinary
-  operation never reopens completed work, so an upgrade alone does not heal
-  these graphs: the operator path is `POST /admin/refinalize` with the affected
-  `scope_ids`, whose recovery sequence re-enqueues projector work for those
-  scopes with the `rebuildreset` dedup reset (reducer work reaped, shared
-  intents reopened, generations retired;
+  edge or artifact is re-projected. Ordinary operation never reopens
+  completed work, so the reducer now retires stale generations itself on
+  upgrade: `ensureReducerGraphWriterShape` (go/cmd/reducer) compares the
+  binary's `sourcecypher.GraphWriterShapeVersion` against the
+  `graph_writer_shape` marker at startup, and the atomic-claim winner runs
+  one all-scopes `recovery.Handler.Refinalize` through the same dedup-reset
+  sequence the operator path uses (reducer work reaped, shared intents
+  reopened, generations retired;
   `go/internal/storage/postgres/rebuildreset/doc.go`,
-  `go/internal/runtime/recovery_handler.go`). Automatic affected-domain
-  retirement on upgrade is tracked as follow-up #6868. Until it lands, re-run
-  the junk-token query above after any upgrade and refinalize when it is
-  non-zero.
+  `go/internal/runtime/recovery_handler.go`), so the next drain reprojects
+  with the fixed writers (follow-up #6868). The operator path remains
+  `POST /admin/refinalize` with the affected `scope_ids` for out-of-band
+  repair. Re-run the junk-token query above after any upgrade to confirm
+  the count falls as elements re-project.
 - The unit guard covers the `EdgeWriter` domains and the interproc writer. The
   other writers were audited by hand. A writer test elsewhere can adopt
   `assertUnwindRowsCarryReferencedKeys` when it records statements. As a

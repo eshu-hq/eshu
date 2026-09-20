@@ -11,11 +11,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/writershape"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -147,6 +149,34 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 			lockGate, rawEC2InstanceIdentityNode.WriteEC2InstanceIdentityNodes, rawEC2InstanceIdentityNode.RetractEC2InstanceIdentityNodes,
 		),
 	}
+}
+
+// ensureReducerGraphWriterShape retires every active scope's generations
+// when the binary's graph-writer shape version is newer than the
+// deployment's applied marker, so a graph that persisted stale writer
+// output heals without an operator refinalize (issue #6868). It runs
+// against context.Background() like the ledger backfills below: it must
+// complete before the reducer service begins serving work. Concurrent
+// starters converge on one winner through the marker claim; the rest are
+// no-ops.
+func ensureReducerGraphWriterShape(database db.ExecQueryer) error {
+	shapes := writershape.NewStore(database)
+	if err := shapes.EnsureSchema(context.Background()); err != nil {
+		return fmt.Errorf("ensure graph writer shape schema: %w", err)
+	}
+	handler, err := recovery.NewHandler(postgres.NewRecoveryStore(database))
+	if err != nil {
+		return fmt.Errorf("graph writer shape recovery handler: %w", err)
+	}
+	if _, err := handler.EnsureGraphWriterShape(
+		context.Background(),
+		shapes,
+		recovery.WriterShapeKey,
+		sourcecypher.GraphWriterShapeVersion,
+	); err != nil {
+		return fmt.Errorf("ensure graph writer shape version: %w", err)
+	}
+	return nil
 }
 
 // seedReducerProjectedSourceLedgers runs buildReducerService's three one-time,
