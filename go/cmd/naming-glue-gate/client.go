@@ -108,8 +108,16 @@ func (c *DeepSeekClient) Classify(ctx context.Context, candidates []Candidate) (
 	if err := reconcile(report, candidates); err != nil {
 		return Report{}, err
 	}
+	byPath := make(map[string]string, len(candidates))
+	for _, c := range candidates {
+		byPath[c.Path] = c.Name
+	}
 	for i := range report.Findings {
+		// Kind and Name are both derived from the candidate, never trusted
+		// from the model's echo -- reconcile already guarantees every
+		// finding's Path is a known candidate, so this lookup cannot miss.
 		report.Findings[i].Kind = "directory"
+		report.Findings[i].Name = byPath[report.Findings[i].Path]
 	}
 	return report, nil
 }

@@ -174,6 +174,24 @@ func TestClassifyReturnsErrorOnUnknownVerdict(t *testing.T) {
 	}
 }
 
+func TestClassifyOverwritesNameFromCandidateRegardlessOfModelEcho(t *testing.T) {
+	// reconcile() validates Path and Verdict but never checked Name, unlike
+	// Kind which is force-overwritten from a constant a few lines later --
+	// a hallucinated or swapped Name for a correctly-matched Path shipped
+	// straight into the report undetected. Name should be as trustworthy as
+	// Kind: derived from the candidate, never from the model's echo.
+	server := contentServer(t, `{"findings":[{"path":"go/internal/reducer/workloadinstance","name":"totallywrongname","verdict":"glued_compound"}]}`)
+	client := &DeepSeekClient{HTTPClient: server.Client(), BaseURL: server.URL, APIKey: "k", Model: "deepseek-flash"}
+
+	report, err := client.Classify(context.Background(), []Candidate{{Path: "go/internal/reducer/workloadinstance", Name: "workloadinstance"}})
+	if err != nil {
+		t.Fatalf("Classify: %v", err)
+	}
+	if got := report.Findings[0].Name; got != "workloadinstance" {
+		t.Errorf("Findings[0].Name = %q, want %q (overwritten from the candidate, not the model's echo)", got, "workloadinstance")
+	}
+}
+
 func TestClassifyWithNoCandidatesDoesNotCallServer(t *testing.T) {
 	called := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
