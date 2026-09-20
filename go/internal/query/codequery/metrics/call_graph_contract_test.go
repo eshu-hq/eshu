@@ -629,14 +629,17 @@ func TestHandleRelationshipsReturnsTransitiveCallers(t *testing.T) {
 				if !strings.Contains(cypher, codemodel.GraphEntityIDPredicate("e", "$entity_id")) {
 					t.Fatalf("cypher = %q, want bridged entity-id predicate", cypher)
 				}
-				if !strings.Contains(cypher, "MATCH path = (e)<-[:CALLS*1..7]-(source)") {
-					t.Fatalf("cypher = %q, want transitive incoming CALLS traversal", cypher)
+				if !strings.Contains(cypher, "MATCH path = (source)-[:CALLS*1..7]->(e)") {
+					t.Fatalf("cypher = %q, want directed transitive incoming CALLS traversal", cypher)
+				}
+				if !strings.Contains(cypher, "source <> e") {
+					t.Fatalf("cypher = %q, want anchor exclusion from transitive callers", cypher)
 				}
 				if !strings.Contains(cypher, "source.name as source_name") {
 					t.Fatalf("cypher = %q, want source metadata projection", cypher)
 				}
-				if !strings.Contains(cypher, "length(path) as depth") {
-					t.Fatalf("cypher = %q, want explicit depth projection", cypher)
+				if !strings.Contains(cypher, "min(length(path)) AS depth") {
+					t.Fatalf("cypher = %q, want minimum-depth aggregation per caller", cypher)
 				}
 				if got, want := params["entity_id"], "fn-helper"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
