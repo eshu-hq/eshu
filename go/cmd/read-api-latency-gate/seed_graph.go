@@ -158,9 +158,13 @@ func seedLabel(ctx context.Context, driver neo4j.DriverWithContext, database, la
 	if infraLabelNeedsIdentity(label) {
 		props += `,
 		   uid: row.uid,
-		   resource_type: row.resource_type,
+		   name: row.name,
+		   resource_type: row.resource_type`
+		if infraLabelNeedsSmallBatches(label) {
+			props += `,
 		   source_fact_id: row.source_fact_id`
-		batch = iacGraphSeedBatchSize
+			batch = iacGraphSeedBatchSize
+		}
 	}
 	cypher := fmt.Sprintf("UNWIND $rows AS row\n\t\t CREATE (n:%s {\n\t\t   %s\n\t\t })", label, props)
 

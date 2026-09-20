@@ -48,8 +48,10 @@ var resourceKindLabels = map[resourceKind]string{
 }
 
 // resourceRow is one row in the bounded IaC resource list. Candidates for
-// this list always come from the current-inventory Postgres CTE
-// (inventory_postgres.go), which filters to fact_kind = 'content_entity'
+// this list come from the current-inventory Postgres CTE
+// (inventory_postgres.go) for scoped and pre-ready reads, or from
+// infra_resource_entities once the read-model marker exists -- both filter
+// to fact_kind = 'content_entity'
 // -- the config-side generic parser/entity pipeline only, never
 // terraform_state_resource facts -- so kind=resource has only ever hydrated
 // config-declared TerraformResource nodes, both before and after #5443 split
@@ -228,21 +230,32 @@ func (h *Handler) listResources(w http.ResponseWriter, r *http.Request) {
 		h.profile(),
 		ResourcesCapability,
 		querycontract.TruthBasisHybrid,
-		"current active-generation identities resolved from Postgres and hydrated from the authoritative Terraform/IaC graph; bounded list ordered by name then id",
+		"current inventory identities selected in Postgres (active-generation CTE for scoped and pre-ready reads, infra_resource_entities once the read-model marker exists) and hydrated from the authoritative Terraform/IaC graph; bounded list ordered by name then id",
 	))
 }
 
+// searchHydrationMatches checks the graph hydration against the candidate
+// identities already selected, filtered, authorized, and paginated by
+// Postgres. Candidates carrying a generation (the active-inventory CTE path)
+// must match it exactly, so a retained historical graph node never leaks into
+// current truth. Candidates from infra_resource_entities carry no generation
+// provenance (the backfill records scope_id and generation_id as "", see
+// storage/postgres/infra/inventory MirrorRepo), so they match on identity and
+// name only; their currency comes from the table's derive, which mirrors
+// current content rows. A candidate with an empty ID or name never matches.
 func searchHydrationMatches(candidates []InventoryCandidate, rows []map[string]any) bool {
 	if len(candidates) != len(rows) {
 		return false
 	}
 	type expectedHydration struct {
-		name         string
+		name string
+		// generationID is empty when the candidate carries no generation
+		// provenance (table path); only a non-empty generation is checked.
 		generationID string
 	}
 	want := make(map[string]expectedHydration, len(candidates))
 	for _, candidate := range candidates {
-		if candidate.ID == "" || candidate.Name == "" || candidate.GenerationID == "" {
+		if candidate.ID == "" || candidate.Name == "" {
 			return false
 		}
 		want[candidate.ID] = expectedHydration{name: candidate.Name, generationID: candidate.GenerationID}
@@ -253,8 +266,10 @@ func searchHydrationMatches(candidates []InventoryCandidate, rows []map[string]a
 	for _, row := range rows {
 		id := querycontract.StringVal(row, "id")
 		expected, ok := want[id]
-		if !ok || expected.name != querycontract.StringVal(row, "name") ||
-			expected.generationID != querycontract.StringVal(row, "generation_id") {
+		if !ok || expected.name != querycontract.StringVal(row, "name") {
+			return false
+		}
+		if expected.generationID != "" && expected.generationID != querycontract.StringVal(row, "generation_id") {
 			return false
 		}
 		delete(want, id)

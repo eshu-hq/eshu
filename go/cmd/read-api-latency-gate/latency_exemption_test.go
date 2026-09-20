@@ -143,19 +143,14 @@ func TestLatencyExemptionsIsEmptyUnlessExplicitlyGranted(t *testing.T) {
 	}
 }
 
-// TestLatencyExemptionsCurrentGrantMatchesTheDocumentedOne pins the one
-// standing grant this gate ships with, so a silent addition or a dropped
-// issue reference fails a test instead of drifting unnoticed.
-func TestLatencyExemptionsCurrentGrantMatchesTheDocumentedOne(t *testing.T) {
-	if len(LatencyExemptions) != 1 {
-		t.Fatalf("LatencyExemptions has %d entries, want exactly 1 (GET /api/v0/iac/resources, #6858); update this test deliberately if the grant set changes", len(LatencyExemptions))
-	}
-	got, ok := LatencyExemptions["GET /api/v0/iac/resources"]
-	if !ok {
-		t.Fatalf("LatencyExemptions is missing GET /api/v0/iac/resources")
-	}
-	if got.Issue != "#6858" {
-		t.Errorf("LatencyExemptions[\"GET /api/v0/iac/resources\"].Issue = %q, want \"#6858\"", got.Issue)
+// TestLatencyExemptionsIsEmptyAfter6858 pins that the gate ships with no
+// standing grant: #6858 moved unscoped /iac/resources onto
+// infra_resource_entities and removed its exemption, so a silent addition
+// fails a test instead of drifting unnoticed. Update this test deliberately
+// if a new grant is ever added.
+func TestLatencyExemptionsIsEmptyAfter6858(t *testing.T) {
+	if len(LatencyExemptions) != 0 {
+		t.Fatalf("LatencyExemptions has %d entries, want 0 (#6858 removed the last grant); update this test deliberately if the grant set changes", len(LatencyExemptions))
 	}
 	if err := ValidateLatencyExemptions(LatencyExemptions); err != nil {
 		t.Errorf("the shipped LatencyExemptions table fails its own validation: %v", err)
