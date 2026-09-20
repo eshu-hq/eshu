@@ -192,7 +192,7 @@ and nothing was renamed here.
 
 The widely-cited `entity.EntityType` usage across
 `go/internal/reducer/servicecatalog`, `go/internal/projector`,
-`go/internal/collector/gitrepo`, `go/internal/content/shape`,
+`go/internal/collector/repo/git`, `go/internal/content/shape`,
 `go/internal/storage/postgres`, `go/internal/searchpostgres`, and assorted
 `go/internal/query/*` files (measured via
 `rg -l '\bentity\.EntityType\b' --glob '!go/internal/query/entity/**' go`,
@@ -202,7 +202,7 @@ hit is a local loop or parameter variable literally named `entity` (of some
 other type, e.g. `querycontract.EntityContent` or `shape.Entity`) accessing
 that other type's own `EntityType` field. Verified for a sample of the list
 (`go/internal/reducer/servicecatalog/service_catalog_correlation_index.go`,
-`go/internal/collector/gitrepo/discovery_advisory.go`) by confirming no
+`go/internal/collector/repo/git/discovery_advisory.go`) by confirming no
 `"github.com/eshu-hq/eshu/go/internal/query/entity"` import exists in those
 files.
 

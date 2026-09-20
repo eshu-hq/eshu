@@ -53,7 +53,7 @@ their own bounded extraction signals.
 
 Collector Performance Evidence: `go test ./internal/collector/preflight/archive -count=1`
 proves archive classification is bounded by source bytes, expanded bytes,
-entry count, and compression ratio. `go test ./internal/collector/gitrepo -run
+entry count, and compression ratio. `go test ./internal/collector/repo/git -run
 'ZIPArchive|TARArchive|ArchiveRouting' -count=1` proves reviewed documentation
 packets route through preflight before ZIP, tar, or gzip-compressed tar
 extraction.

@@ -6,13 +6,13 @@
    surface, telemetry, and an index of the docs below
 2. `go/internal/collector/service.go` — `Service.Run` and `commitWithTelemetry`;
    understand the poll loop before touching concurrency or `AfterBatchDrained`
-3. `go/internal/collector/gitrepo/git_source.go` — `GitSource.startStream`, the
+3. `go/internal/collector/repo/git/source.go` — `GitSource.startStream`, the
    two-lane scheduling design, and the large-repo semaphore lifecycle; read
    `go/internal/collector/SCHEDULING.md` before changing giant-repo or
    parse-partition scheduling
-4. `go/internal/collector/gitrepo/git_snapshot_native.go` — `NativeRepositorySnapshotter.SnapshotRepository`;
+4. `go/internal/collector/repo/git/snapshot_native.go` — `NativeRepositorySnapshotter.SnapshotRepository`;
    the five snapshot stages and the two-phase memory design
-5. `go/internal/collector/gitrepo/git_selection_config.go` — `RepoSyncConfig` and
+5. `go/internal/collector/repo/git/selection_config.go` — `RepoSyncConfig` and
    `LoadRepoSyncConfig`; env var names and defaults
 6. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
    names before adding new telemetry

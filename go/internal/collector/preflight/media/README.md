@@ -59,7 +59,7 @@ ingestion.
 
 Collector Performance Evidence: `go test ./internal/collector/preflight/media
 -count=1` proves media preflight is bounded by source bytes, duration limits,
-and metadata-only classification. `go test ./internal/collector/gitrepo -run
+and metadata-only classification. `go test ./internal/collector/repo/git -run
 'Media|DocumentationDefaultOff' -count=1` proves media formats remain outside
 documentation extraction by default.
 

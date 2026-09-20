@@ -9,5 +9,5 @@
 // shaping stay on the caller side for the same reason — the GitRef type lives
 // in gitrepo, so callers pass the precomputed default branch and ref payload.
 // Anything both sides need lives in
-// go/internal/collector/gitrepo/gitmodel.
+// go/internal/collector/repo/git/model.
 package gitcontent

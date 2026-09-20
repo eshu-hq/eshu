@@ -66,7 +66,7 @@ emitted by the `ci_cd_run` collector's GitHub Actions provider path
 `ci_cd_run_correlation` domain (`go/internal/reducer/cicdrun`, issue #6061).
 `WorkflowImageEvidence` is emitted by a
 DIFFERENT collector — the git collector's static workflow-file scanner
-(`go/internal/collector/gitrepo/workflowimage/git_workflow_image_facts.go`) — but shares the
+(`go/internal/collector/repo/git/workflow/image/facts.go`) — but shares the
 `ci.workflow_image_evidence` fact kind and `ci_cd_run` schema version
 (`facts.CICDSchemaVersion`), and the reducer's `ci_cd_run_correlation` domain
 reads both origins together. It lives in this package because it is part of

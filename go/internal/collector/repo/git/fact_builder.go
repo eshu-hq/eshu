@@ -190,8 +190,7 @@ func streamFacts(
 	for i, fileData := range snapshot.FileData {
 		w.Send(gitcontent.FileFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileData, isDependency))
 		relativePath := model.RepositoryRelativePath(repoPath, model.PayloadPath(fileData, "path"))
-		observability.EmitObservabilityFactsForFile(			w, repoPath, repo.ID, scopeID, generationID, observedAt, fileData, sourceRevisions[relativePath],
-		)
+		observability.EmitObservabilityFactsForFile(w, repoPath, repo.ID, scopeID, generationID, observedAt, fileData, sourceRevisions[relativePath])
 		snapshot.FileData[i] = nil
 	}
 	snapshot.FileData = nil
@@ -223,7 +222,8 @@ func streamFacts(
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, meta.RelativePath, bodyStr)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, meta.RelativePath, bodyStr)
 
-			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, model.ContentFileSnapshot{				RelativePath:    meta.RelativePath,
+			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, model.ContentFileSnapshot{
+				RelativePath:    meta.RelativePath,
 				Body:            bodyStr,
 				Digest:          meta.Digest,
 				Language:        meta.Language,
@@ -267,7 +267,7 @@ func streamFacts(
 			submodule.NoteSubmoduleCandidate(gitmodulesCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			codeowners.NoteCodeownersCandidate(codeownersCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
-			catalog.EmitServiceCatalogFactsForContentFile(				w,
+			catalog.EmitServiceCatalogFactsForContentFile(w,
 				scopeID,
 				generationID,
 				observedAt,
@@ -361,7 +361,8 @@ func streamFacts(
 	// Content entity facts
 	for i, entitySnapshot := range snapshot.ContentEntities {
 		w.Send(gitcontent.ContentEntityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, entitySnapshot))
-		snapshot.ContentEntities[i] = model.ContentEntitySnapshot{}	}
+		snapshot.ContentEntities[i] = model.ContentEntitySnapshot{}
+	}
 	snapshot.ContentEntities = nil
 
 	// Value-flow taint evidence facts (opt-in via ESHU_EMIT_DATAFLOW; the slice is

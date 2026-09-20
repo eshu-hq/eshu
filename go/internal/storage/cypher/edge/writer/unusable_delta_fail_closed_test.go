@@ -184,8 +184,8 @@ func refreshIntentRows(rows []reducer.SharedProjectionIntentRow) []reducer.Share
 //
 // The failure it guards is silent graph data loss. On a delta generation the
 // collector replaces the discovered file set with the changed targets alone
-// (resolveNativeSnapshotFileSetForTargets, collector/gitrepo/
-// git_snapshot_native.go), so the generation carries content-entity facts for
+// (resolveNativeSnapshotFileSetForTargets, collector/repo/git/
+// snapshot_native.go), so the generation carries content-entity facts for
 // the CHANGED files only and the per-edge intents re-create only those files'
 // edges. If the refresh intent for such a repository degrades to a whole-scope
 // refresh, RetractEdges binds it to a repo-wide
