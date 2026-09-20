@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // edgeWriterSparseCase drives one EdgeWriter domain with only the identity
@@ -253,7 +254,7 @@ func TestCodeInterprocEvidenceRowsCarryEveryReferencedKey(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
-	writer := NewCodeInterprocEvidenceWriter(executor, 0)
+	writer := sourcecypher.NewCodeInterprocEvidenceWriter(executor, 0)
 	rows := []map[string]any{{
 		"uid":                 "flow-1",
 		"source_function_uid": "fn-src",

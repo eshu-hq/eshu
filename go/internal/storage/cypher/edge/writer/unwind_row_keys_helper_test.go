@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"fmt"
@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // unwindMapBinding matches `UNWIND $<param> AS <var>` so the row-key guard can
@@ -89,7 +91,7 @@ func unwindParamRows(value any) ([]map[string]any, bool) {
 // Any writer test that records its statements can call it:
 //
 //	checked := assertUnwindRowsCarryReferencedKeys(t, executor.calls)
-func assertUnwindRowsCarryReferencedKeys(t testing.TB, statements []Statement) int {
+func assertUnwindRowsCarryReferencedKeys(t testing.TB, statements []sourcecypher.Statement) int {
 	t.Helper()
 	total := 0
 	for _, statement := range statements {
