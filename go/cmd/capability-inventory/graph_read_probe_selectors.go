@@ -121,13 +121,15 @@ func discoverRepositoryScopedSelectors(client *http.Client, apiBaseURL, userToke
 			},
 		},
 		{
-			// Divergence fingerprint discovery: the first finding's
-			// fingerprint addresses the investigate probe. Optional: a
-			// repository with no duplicate-function families simply
-			// leaves the class undiscovered and the investigate probe
-			// unresolved, same as any other empty discovery source.
+			// Divergence fingerprint discovery: the first exact-family
+			// finding's fingerprint addresses the investigate probe,
+			// which pins kind exact. The discovery scopes to the same
+			// family so a renamed-topping repo cannot hand the probe
+			// a fingerprint that 404s under KindExact. Optional: a
+			// repository with no exact-family groups simply leaves the
+			// class undiscovered, same as any other empty source.
 			path: "/api/v0/code/divergence/findings",
-			body: map[string]any{"repo_id": repositoryID, "limit": 1},
+			body: map[string]any{"repo_id": repositoryID, "kind": "exact", "limit": 1},
 			classes: map[string][]string{
 				"fingerprint": {"fingerprint"},
 			},
