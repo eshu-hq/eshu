@@ -35,6 +35,9 @@ const (
 	// summary (its structural Effects) to the function-summary store so the
 	// interprocedural fixpoint can recompose summaries across runs and repos.
 	DomainCodeFunctionSummary = reducercontract.DomainCodeFunctionSummary
+	// DomainCodeValueFlowRefresh re-runs the global value-flow fixpoint after
+	// late producers land, without re-persisting summaries (issue #6785).
+	DomainCodeValueFlowRefresh = reducercontract.DomainCodeValueFlowRefresh
 	// DomainOwnership resolves ownership and responsibility records.
 	DomainOwnership = reducercontract.DomainOwnership
 	// DomainGovernance resolves governance and policy attribution.
