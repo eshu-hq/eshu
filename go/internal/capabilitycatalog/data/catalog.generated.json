@@ -714,6 +714,7 @@
           "graph_query.",
           "symbol_graph.",
           "code_quality.",
+          "code_divergence.",
           "security.hardcoded_secrets",
           "call_graph.",
           "code_to_cloud.",
@@ -2174,6 +2175,76 @@
         ],
         "default_roles": [
           "security_analyst",
+          "owner"
+        ],
+        "sensitive_data": true
+      }
+    },
+    {
+      "capability": "code_divergence.findings",
+      "display_name": "Code Divergence Findings",
+      "maturity": "preview",
+      "derived_maturity": "preview",
+      "surfaces": [
+        {
+          "tool": "find_code_divergence",
+          "kind": "mcp"
+        },
+        {
+          "tool": "investigate_code_divergence",
+          "kind": "mcp"
+        }
+      ],
+      "profiles": {
+        "local_authoritative": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host_plus_graph",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
+        },
+        "local_full_stack": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "full_stack",
+          "p95_latency_ms": 1000,
+          "max_scope_size": "indexed_workspace"
+        },
+        "local_lightweight": {
+          "status": "supported",
+          "max_truth_level": "derived",
+          "required_runtime": "local_host",
+          "p95_latency_ms": 800,
+          "max_scope_size": "active_repo"
+        },
+        "production": {
+          "status": "unsupported",
+          "max_truth_level": "unsupported",
+          "required_runtime": "deployed_services",
+          "max_scope_size": "none"
+        }
+      },
+      "proof_signals": [
+        {
+          "kind": "go_test",
+          "ref": "./internal/query"
+        }
+      ],
+      "console": false,
+      "authorization": {
+        "family": "repository_content",
+        "action": "repository.content.read",
+        "data_classes": [
+          "repository_metadata",
+          "source_content"
+        ],
+        "scope_levels": [
+          "tenant",
+          "workspace",
+          "repository"
+        ],
+        "default_roles": [
+          "developer",
           "owner"
         ],
         "sensitive_data": true

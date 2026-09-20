@@ -125,6 +125,7 @@ func codebaseTools() []ToolDefinition {
 	// registration order. Appending the whole family slice keeps a future
 	// arity change loud at the order test instead of panicking here.
 	tools = append(tools, codeQualityTools()...)
+	tools = append(tools, codeDivergenceTools()...)
 	tools = append(tools, []ToolDefinition{
 		{
 			Name:        "execute_cypher_query",

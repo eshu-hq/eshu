@@ -61,6 +61,12 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthDerived,
 		ProductionMax:         &truthDerived,
 	},
+	"code_divergence.findings": {
+		LocalLightweightMax:   &truthDerived,
+		LocalAuthoritativeMax: &truthDerived,
+		LocalFullStackMax:     &truthDerived,
+		ProductionMax:         nil,
+	},
 	"code_search.variable_lookup": {
 		LocalLightweightMax:   &truthDerived,
 		LocalAuthoritativeMax: &truthExact,

@@ -5,10 +5,7 @@ questions, call-graph reads, and bounded diagnostics. Detailed request and
 response schemas live in `GET /api/v0/openapi.json`; this page keeps the public
 contract map short.
 
-Repository-scoped requests accept `repo_id` as a repository ID, name, slug, or
-indexed path. The server resolves that selector to the canonical repository ID
-before querying. Treat returned file locations as `repo_id + relative_path`;
-absolute server paths are not portable client identifiers.
+Repository-scoped requests accept `repo_id` as a repository ID, name, slug, or indexed path, resolved to the canonical ID before querying. Treat returned file locations as `repo_id + relative_path`; absolute server paths are not portable client identifiers.
 
 ## Route Index
 
@@ -31,6 +28,7 @@ absolute server paths are not portable client identifiers.
 | `POST /api/v0/code/dead-code` | Lower-level graph-backed dead-code candidate scan. |
 | `POST /api/v0/code/dead-code/cross-repo` | Producer-repository dead-code candidates classified against deterministic consumer evidence. |
 | `POST /api/v0/code/dead-code/investigate` | Dead-code investigation packet with cleanup-ready and ambiguous buckets. |
+| `POST /api/v0/code/divergence/findings` | Parallel-implementation findings (exact/renamed fingerprint groups) for one repository, ranked members x tokens with per-rule suppression counts; `POST /api/v0/code/divergence/investigate` drills into one finding by repo, kind, and fingerprint with bounded follow-up calls. |
 | `POST /api/v0/code/complexity` | Single-function relationship metrics or a bounded list of complex functions. |
 | `POST /api/v0/code/quality/inspect` | Complexity, function length, argument count, or refactoring-candidate inspections. |
 | `POST /api/v0/code/language-query` | Language/entity-type queries that do not fit the focused routes above. |

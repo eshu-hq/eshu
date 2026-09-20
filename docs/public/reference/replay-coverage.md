@@ -4,14 +4,14 @@
 
 Every non-exempt required surface maps to a committed scenario and the named proof gate that must pass. Exempt rows carry the audited reason that a proof class does not apply. The inventory check itself is credential-free and Docker-free; backend-required scenarios run in their named proof gates. This dashboard is generated from the C-1 coverage manifest and the source-of-truth registries (epic [#4172](https://github.com/eshu-hq/eshu/issues/4172)); it is refreshed by the replay-coverage gate so the gap is reviewable in a PR diff.
 
-**Overall: 437/437 surfaces satisfied (100.00%)** — mode: blocking.
+**Overall: 438/438 surfaces satisfied (100.00%)** — mode: blocking.
 
 ## Coverage by axis
 
 | Axis | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | authorization_catalog | 24 | 24 | 100.00% | 0 | 0 |
-| Capability claims | 138 | 138 | 100.00% | 0 | 0 |
+| Capability claims | 139 | 139 | 100.00% | 0 | 0 |
 | Read surfaces (CLI) | 7 | 7 | 100.00% | 0 | 0 |
 | Read surfaces (API/MCP) | 25 | 25 | 100.00% | 0 | 1 |
 | Parsers | 4 | 4 | 100.00% | 0 | 0 |
@@ -21,13 +21,13 @@ Every non-exempt required surface maps to a committed scenario and the named pro
 | Retractable edge types (delta) | 64 | 64 | 100.00% | 0 | 1 |
 | Retractable node types (delta) | 100 | 100 | 100.00% | 0 | 1 |
 | Collectors | 34 | 34 | 100.00% | 0 | 8 |
-| **Total** | **437** | **437** | **100.00%** | **0** | **11** |
+| **Total** | **438** | **438** | **100.00%** | **0** | **11** |
 
 ## Coverage by scenario type
 
 | Scenario type | Satisfied | Total | % | Uncovered | Exempt |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| baseline | 222 | 222 | 100.00% | 0 | 5 |
+| baseline | 223 | 223 | 100.00% | 0 | 5 |
 | cost | 28 | 28 | 100.00% | 0 | 0 |
 | crash | 2 | 2 | 100.00% | 0 | 0 |
 | delta_tombstone | 165 | 165 | 100.00% | 0 | 2 |
@@ -46,7 +46,7 @@ Every ledger language is satisfied by corpus or parser fixture coverage.
 
 None. Every non-exempt required surface has a replay scenario; exemptions carry audited reasons.
 
-## Covered surfaces (437)
+## Covered surfaces (438)
 
 | Surface | Scenario type | Scenario | Proof gate | Artifact / exemption reason |
 | --- | --- | --- | --- | --- |
@@ -91,6 +91,7 @@ None. Every non-exempt required surface has a replay scenario; exemptions carry 
 | `capability:ci_cd.run_correlations.list` | baseline | capability_claim | capability-inventory | `ci_cd.run_correlations.list` |
 | `capability:cloud_inventory.readback.list` | baseline | capability_claim | capability-inventory | `cloud_inventory.readback.list` |
 | `capability:cloud_runtime_drift.readback.list` | baseline | capability_claim | capability-inventory | `cloud_runtime_drift.readback.list` |
+| `capability:code_divergence.findings` | baseline | capability_claim | capability-inventory | `code_divergence.findings` |
 | `capability:code_flow.cfg_summary` | baseline | capability_claim | capability-inventory | `code_flow.cfg_summary` |
 | `capability:code_flow.pdg_summary` | baseline | capability_claim | capability-inventory | `code_flow.pdg_summary` |
 | `capability:code_flow.reaching_def` | baseline | capability_claim | capability-inventory | `code_flow.reaching_def` |

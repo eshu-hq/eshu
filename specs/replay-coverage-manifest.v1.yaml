@@ -242,6 +242,7 @@ coverage:
   - {surface: capability:ci_cd.run_correlations.list, scenario: capability_claim, scenario_type: baseline, ref: ci_cd.run_correlations.list, proof_gate: capability-inventory}
   - {surface: capability:cloud_inventory.readback.list, scenario: capability_claim, scenario_type: baseline, ref: cloud_inventory.readback.list, proof_gate: capability-inventory}
   - {surface: capability:cloud_runtime_drift.readback.list, scenario: capability_claim, scenario_type: baseline, ref: cloud_runtime_drift.readback.list, proof_gate: capability-inventory}
+  - {surface: capability:code_divergence.findings, scenario: capability_claim, scenario_type: baseline, ref: code_divergence.findings, proof_gate: capability-inventory}
   - {surface: capability:code_flow.cfg_summary, scenario: capability_claim, scenario_type: baseline, ref: code_flow.cfg_summary, proof_gate: capability-inventory}
   - {surface: capability:code_flow.pdg_summary, scenario: capability_claim, scenario_type: baseline, ref: code_flow.pdg_summary, proof_gate: capability-inventory}
   - {surface: capability:code_flow.reaching_def, scenario: capability_claim, scenario_type: baseline, ref: code_flow.reaching_def, proof_gate: capability-inventory}

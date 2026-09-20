@@ -106,6 +106,13 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //   - POST /api/v0/code/quality/inspect -- buildCodeQualityCypher
 //     (code_quality.go) appends the grant to the same MATCH-attached WHERE its
 //     optional filters use, so it lands before the SKIP/LIMIT.
+//   - POST /api/v0/code/divergence/findings and
+//     POST /api/v0/code/divergence/investigate -- required-repo pattern (like
+//     call-graph metrics): applyRepositorySelectorForCapability resolves repo_id
+//     against the grant and rejects an ungranted repo with 400 before any
+//     read, so both statements bind repo_id equality and nothing wider. A
+//     grantless scoped caller gets the empty page (findings) or 404
+//     (investigate) without touching the store.
 //   - POST /api/v0/code/complexity -- all three builders in
 //     code_complexity_queries.go: the ranked list, the by-name lookup (whose
 //     ambiguity candidate list would otherwise name ungranted repositories),
@@ -168,6 +175,8 @@ func scopedCodeGraphGrantRoute(r *http.Request) bool {
 		"/api/v0/code/dead-code/cross-repo",
 		"/api/v0/code/call-graph/metrics",
 		"/api/v0/code/quality/inspect",
+		"/api/v0/code/divergence/findings",
+		"/api/v0/code/divergence/investigate",
 		"/api/v0/code/complexity",
 		"/api/v0/code/language-query",
 		"/api/v0/code/imports/investigate",

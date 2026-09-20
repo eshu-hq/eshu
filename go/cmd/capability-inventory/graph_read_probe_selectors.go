@@ -120,6 +120,20 @@ func discoverRepositoryScopedSelectors(client *http.Client, apiBaseURL, userToke
 				"relative_path": {"relative_path", "path"},
 			},
 		},
+		{
+			// Divergence fingerprint discovery: the first exact-family
+			// finding's fingerprint addresses the investigate probe,
+			// which pins kind exact. The discovery scopes to the same
+			// family so a renamed-topping repo cannot hand the probe
+			// a fingerprint that 404s under KindExact. Optional: a
+			// repository with no exact-family groups simply leaves the
+			// class undiscovered, same as any other empty source.
+			path: "/api/v0/code/divergence/findings",
+			body: map[string]any{"repo_id": repositoryID, "kind": "exact", "limit": 1},
+			classes: map[string][]string{
+				"fingerprint": {"fingerprint"},
+			},
+		},
 	} {
 		payload, err := fetchOptionalSelectorJSONSource(client, apiBaseURL, userToken, source.path, source.body)
 		if err != nil {

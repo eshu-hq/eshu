@@ -31,7 +31,7 @@ func TestToolDefinitionAliasPreservesNeutralContractIdentity(t *testing.T) {
 }
 
 func TestReadOnlyToolsRegistrationOrderContract(t *testing.T) {
-	const wantHash = "8256c2bf64a304185a32bfb1924a6ffd8b3439e9d7d82078ba223382360aa45b"
+	const wantHash = "99e5ce09eabe1aad115e337eaf8e7d1a719d4a906b7fb054584fa3ca0fb423e0"
 
 	// This hash covers names and registration order only. It is not a metadata
 	// or input-schema compatibility guard.
@@ -40,7 +40,7 @@ func TestReadOnlyToolsRegistrationOrderContract(t *testing.T) {
 	for _, tool := range tools {
 		_, _ = fmt.Fprintf(hash, "%d:%s\n", len(tool.Name), tool.Name)
 	}
-	if got, want := len(tools), 162; got != want {
+	if got, want := len(tools), 164; got != want {
 		t.Fatalf("ReadOnlyTools count = %d, want %d", got, want)
 	}
 	if got := fmt.Sprintf("%x", hash.Sum(nil)); got != wantHash {

@@ -21,7 +21,9 @@ func TestCodebaseToolsSplicePreservesQualityOrder(t *testing.T) {
 		23: "calculate_cyclomatic_complexity",
 		24: "find_most_complex_functions",
 		25: "inspect_code_quality",
-		26: "execute_cypher_query",
+		26: "find_code_divergence",
+		27: "investigate_code_divergence",
+		28: "execute_cypher_query",
 	}
 	for index, name := range want {
 		if index >= len(codebase) {

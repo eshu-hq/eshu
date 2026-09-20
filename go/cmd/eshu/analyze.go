@@ -100,6 +100,21 @@ func init() {
 	deadCodeCmd.Flags().Bool("fail-on-found", false, "Exit non-zero when any dead-code candidates are found")
 	analyzeCmd.AddCommand(deadCodeCmd)
 
+	// analyze divergence
+	divergenceCmd := &cobra.Command{
+		Use:   "divergence",
+		Short: "Find parallel function implementations",
+		RunE:  runAnalyzeDivergence,
+	}
+	addRemoteFlags(divergenceCmd)
+	divergenceCmd.Flags().String("repo", "", "Optional repository selector (ID, name, slug, or path)")
+	divergenceCmd.Flags().String("repo-id", "", "Optional repository ID filter")
+	divergenceCmd.Flags().String("kind", "", "Equality family: exact, renamed, or blank for both")
+	divergenceCmd.Flags().Int("limit", 25, "Maximum divergence findings to return")
+	divergenceCmd.Flags().Int("offset", 0, "Zero-based findings offset for paging")
+	divergenceCmd.Flags().Bool("include-tests", false, "Opt test-file copies back into the member set")
+	analyzeCmd.AddCommand(divergenceCmd)
+
 	// analyze overrides
 	overridesCmd := &cobra.Command{
 		Use:   "overrides <name>",
@@ -271,6 +286,32 @@ func runAnalyzeDeadCode(cmd *cobra.Command, args []string) error {
 		if rows, ok := result["results"].([]any); ok && len(rows) > 0 {
 			return fmt.Errorf("found %d dead-code candidates", len(rows))
 		}
+	}
+	printJSON(result)
+	return nil
+}
+
+func runAnalyzeDivergence(cmd *cobra.Command, args []string) error {
+	client := apiClientFromCmd(cmd)
+	repoID, err := resolveRepositorySelectorFromFlags(cmd, client)
+	if err != nil {
+		return err
+	}
+	kind, _ := cmd.Flags().GetString("kind")
+	limit, _ := cmd.Flags().GetInt("limit")
+	offset, _ := cmd.Flags().GetInt("offset")
+	includeTests, _ := cmd.Flags().GetBool("include-tests")
+
+	var result map[string]any
+	err = client.Post("/api/v0/code/divergence/findings", map[string]any{
+		"repo_id":       repoID,
+		"kind":          kind,
+		"limit":         limit,
+		"offset":        offset,
+		"include_tests": includeTests,
+	}, &result)
+	if err != nil {
+		return err
 	}
 	printJSON(result)
 	return nil

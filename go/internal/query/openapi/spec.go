@@ -83,6 +83,7 @@ func Spec() string {
 			code.RouteToCaller+
 			code.Graph+
 			code.Quality+
+			code.Divergence+
 			code.Security+
 			dead.Scan+
 			dead.Investigation+

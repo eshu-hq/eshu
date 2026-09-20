@@ -2210,6 +2210,29 @@
           "limit": 20
         }
       },
+      "find_code_divergence": {
+        "description": "MCP tool coverage shape for find_code_divergence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: the corpus repos carry no guaranteed duplicate-function families, so no minimum_results; the echo fields and the per-rule suppression counts carry the assertion that the read path ran against the content store.",
+        "required_response_fields": [
+          "repo_id",
+          "kind",
+          "limit",
+          "offset",
+          "findings",
+          "count",
+          "truncated",
+          "next_offset",
+          "suppressions",
+          "source_backend"
+        ],
+        "required_json_values": {
+          "repo_id": "repository:r_3eddcea1",
+          "source_backend": "postgres_content_store"
+        },
+        "arguments": {
+          "repo_id": "repository:r_3eddcea1",
+          "limit": 10
+        }
+      },
       "find_symbol": {
         "description": "MCP tool coverage shape for find_symbol; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [
@@ -2412,6 +2435,15 @@
           "method": "GET",
           "path": "user",
           "limit": 10
+        }
+      },
+      "investigate_code_divergence": {
+        "description": "MCP refusal shape for investigate_code_divergence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). A fingerprint that names no group in the corpus repo must refuse with the 404 leg (fingerprints are content-derived, so no static success fingerprint can be pinned here; the success leg is covered by handler and dispatch contract tests).",
+        "expected_error_contains": "divergence finding not found",
+        "arguments": {
+          "repo_id": "repository:r_3eddcea1",
+          "kind": "exact",
+          "fingerprint": "e2e-20repo-snapshot-covers-no-such-fingerprint"
         }
       },
       "investigate_code_topic": {

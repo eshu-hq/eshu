@@ -440,6 +440,14 @@ func applyMappedDeltaFixtures(registry []graphReadProbe) {
 			probe.arguments = map[string]any{"repository_id": selector("repository_id"), "limit": 1}
 		case "mcp:list_terraform_config_state_drift_findings":
 			probe.arguments = map[string]any{"scope_id": selector("scope_id"), "limit": 1, "offset": 0}
+		case "mcp:investigate_code_divergence":
+			// kind is a closed enum, not a discoverable identity: pin the
+			// exact family. fingerprint resolves via the divergence
+			// findings discovery source above.
+			probe.arguments = map[string]any{
+				"repo_id": selector("repository_id"), "kind": "exact",
+				"fingerprint": selector("fingerprint"),
+			}
 		case "api:GET /api/v0/images/tag-history":
 			// repository_id here must be the oci-registry://-shaped class, not
 			// the discovered git-shaped "repository_id": TagHistoryHandler
