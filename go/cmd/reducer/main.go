@@ -245,16 +245,21 @@ func buildReducerService(
 		WorkloadMaterializer:               newProbedWorkloadMaterializer(cypherExec, logger, instruments),
 		InfrastructurePlatformMaterializer: reducer.NewInfrastructurePlatformMaterializer(cypherExec),
 		InfrastructurePlatformLookup:       reducer.GraphInfrastructurePlatformLookup{Graph: graphReader},
-		FactLoader:                         factStore,
-		CrossScopeHandlers:                 buildReducerCrossScopeHandlers(database, factStore, graphReader, logger),
-		AdmissionDecisionWriter:            admissionDecisionWriter,
-		CodeCallIntentWriter:               codeCallIntentWriter,
-		GraphProjectionPhasePublisher:      graphProjectionStateStore,
-		GraphProjectionRepairQueue:         graphProjectionRepairQueue,
-		ReadinessLookup:                    graphProjectionReadinessLookup,
-		ReadinessPrefetch:                  graphProjectionReadinessPrefetch,
-		SemanticEntityWriter:               semanticEntityWriter,
-		SQLRelationshipEdgeWriter:          edgeWriterForHandlers,
+		// The value-flow refresh emit gate (#6785) reads each producer's
+		// committed edges through the shared graph query runner. A nil
+		// graphReader (binaries without a graph read path) leaves the field
+		// nil and every gate failed open.
+		RefreshAffectedGraph:          graphReader,
+		FactLoader:                    factStore,
+		CrossScopeHandlers:            buildReducerCrossScopeHandlers(database, factStore, graphReader, logger),
+		AdmissionDecisionWriter:       admissionDecisionWriter,
+		CodeCallIntentWriter:          codeCallIntentWriter,
+		GraphProjectionPhasePublisher: graphProjectionStateStore,
+		GraphProjectionRepairQueue:    graphProjectionRepairQueue,
+		ReadinessLookup:               graphProjectionReadinessLookup,
+		ReadinessPrefetch:             graphProjectionReadinessPrefetch,
+		SemanticEntityWriter:          semanticEntityWriter,
+		SQLRelationshipEdgeWriter:     edgeWriterForHandlers,
 		// Inheritance edges ride the shared-projection intent path (#2867): the
 		// handler emits file-scoped per-edge intents plus a per-repo refresh intent
 		// to the same shared intent acceptance writer CALLS-adjacent domains use,

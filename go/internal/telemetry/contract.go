@@ -480,6 +480,10 @@ const (
 	// condition, NotAction/NotResource, self-loop) without fabricating or dangling
 	// edges.
 	SpanReducerIAMCanPerformMaterialization = "reducer.iam_can_perform_materialization"
+	// SpanReducerValueFlowRefreshGate bounds one producer's affected-repo
+	// gate read (issue #6785), carrying the producer domain, the outcome,
+	// and the affected repo count.
+	SpanReducerValueFlowRefreshGate = "reducer.value_flow_refresh_gate"
 	// SpanReducerSecretsIAMGraphProjection wraps the secrets/IAM graph projection
 	// (exact read-model rows into SecretsIAM* nodes and SECRETS_IAM_* edges).
 	SpanReducerSecretsIAMGraphProjection = "reducer.secrets_iam_graph_projection"

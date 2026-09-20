@@ -26,17 +26,26 @@ func (h WorkloadCloudRelationshipMaterializationHandler) refreshResultSignals(
 	count := 0.0
 	if readyRows > 0 {
 		count = 1
-		if h.AffectedGraph != nil {
-			n, err := affected.ReposWithCloudCallersForWorkloads(ctx, h.AffectedGraph, committedWorkloadIDs(rows))
-			if err != nil {
+		gateCtx, gate := beginRefreshGateEvaluation(ctx, h.Tracer, h.Instruments, DomainWorkloadCloudRelationshipMaterialization)
+		if h.AffectedGraph == nil {
+			gate.end(refreshGateFailOpen, 0)
+		} else {
+			if n, err := affected.ReposWithCloudCallersForWorkloads(gateCtx, h.AffectedGraph, committedWorkloadIDs(rows)); err != nil {
 				slog.Warn("value-flow refresh gate failed open",
 					"domain", DomainWorkloadCloudRelationshipMaterialization,
 					"scope_id", intent.ScopeID,
 					"generation_id", intent.GenerationID,
+					"outcome", refreshGateFailOpen,
+					"affected_repo_count", 0,
 					"error", err,
 				)
+				gate.end(refreshGateFailOpen, 0)
+			} else if n == 0 {
+				count = 0
+				gate.end(refreshGateSuppressed, 0)
 			} else {
 				count = float64(n)
+				gate.end(refreshGateAffected, n)
 			}
 		}
 	}

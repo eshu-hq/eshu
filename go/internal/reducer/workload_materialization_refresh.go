@@ -26,18 +26,25 @@ func (h WorkloadMaterializationHandler) refreshResultSignals(
 	count := 0.0
 	if totalWrites > 0 {
 		count = 1
-		if h.AffectedGraph != nil {
-			n, err := affected.ReposWithCloudCallers(ctx, h.AffectedGraph, repoIDs)
-			if err != nil {
-				slog.Warn("value-flow refresh gate failed open",
-					"domain", DomainWorkloadMaterialization,
-					"scope_id", intent.ScopeID,
-					"generation_id", intent.GenerationID,
-					"error", err,
-				)
-			} else {
-				count = float64(n)
-			}
+		gateCtx, gate := beginRefreshGateEvaluation(ctx, h.Tracer, h.Instruments, DomainWorkloadMaterialization)
+		if h.AffectedGraph == nil {
+			gate.end(refreshGateFailOpen, 0)
+		} else if n, err := affected.ReposWithCloudCallers(gateCtx, h.AffectedGraph, repoIDs); err != nil {
+			slog.Warn("value-flow refresh gate failed open",
+				"domain", DomainWorkloadMaterialization,
+				"scope_id", intent.ScopeID,
+				"generation_id", intent.GenerationID,
+				"outcome", refreshGateFailOpen,
+				"affected_repo_count", 0,
+				"error", err,
+			)
+			gate.end(refreshGateFailOpen, 0)
+		} else if n == 0 {
+			count = 0
+			gate.end(refreshGateSuppressed, 0)
+		} else {
+			count = float64(n)
+			gate.end(refreshGateAffected, n)
 		}
 	}
 	return affected.WithRefreshSignal(base, count)

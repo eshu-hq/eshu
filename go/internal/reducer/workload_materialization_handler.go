@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // ResolvedRelationshipLoader loads resolved repo relationships for one scope.
@@ -106,6 +109,13 @@ type WorkloadMaterializationHandler struct {
 	// projection materialized. Nil skips the gate and reports affected (fail
 	// open); production wires the graph query runner.
 	AffectedGraph affected.Runner
+	// Tracer bounds the refresh emit-gate read in a span. Nil skips the span
+	// (test wiring); production wires the reducer tracer.
+	Tracer trace.Tracer
+	// Instruments records the eshu_dp_value_flow_refresh_gate_evaluations_total
+	// counter. Nil skips emission (test wiring); production wires the reducer
+	// instruments.
+	Instruments *telemetry.Instruments
 }
 
 // workloadMaterializationTiming keeps success-path stage timings comparable

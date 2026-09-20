@@ -10,6 +10,8 @@ import (
 	"sort"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -91,6 +93,9 @@ type AWSResourceMaterializationHandler struct {
 	// resource uids. Nil skips the gate and reports affected (fail open);
 	// production wires the graph query runner.
 	AffectedGraph affected.Runner
+	// Tracer bounds the refresh emit-gate read in a span. Nil skips the span
+	// (test wiring); production wires the reducer tracer.
+	Tracer trace.Tracer
 }
 
 // Handle executes one AWS resource materialization intent.

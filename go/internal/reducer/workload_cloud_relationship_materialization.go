@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
@@ -84,6 +85,9 @@ type WorkloadCloudRelationshipMaterializationHandler struct {
 	// workload ids. Nil skips the gate and reports affected (fail open);
 	// production wires the graph query runner.
 	AffectedGraph affected.Runner
+	// Tracer bounds the refresh emit-gate read in a span. Nil skips the span
+	// (test wiring); production wires the reducer tracer.
+	Tracer trace.Tracer
 }
 
 func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
