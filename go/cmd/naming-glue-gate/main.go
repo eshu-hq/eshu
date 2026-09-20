@@ -76,7 +76,7 @@ func run(args []string, stdout, stderr io.Writer, classifier Classifier, runner 
 		return 2
 	}
 	if len(candidates) == 0 {
-		_, _ = fmt.Fprintln(stdout, "naming-glue-gate: PASS (no newly introduced directory names to classify)")
+		_, _ = fmt.Fprintln(stderr, "naming-glue-gate: PASS (no newly introduced directory names to classify)")
 		return 0
 	}
 
@@ -110,7 +110,7 @@ func run(args []string, stdout, stderr io.Writer, classifier Classifier, runner 
 
 	violations := report.Violations()
 	if len(violations) == 0 {
-		_, _ = fmt.Fprintf(stdout, "naming-glue-gate: PASS (%d candidate(s) reviewed, 0 glued compounds)\n", len(candidates))
+		_, _ = fmt.Fprintf(stderr, "naming-glue-gate: PASS (%d candidate(s) reviewed, 0 glued compounds)\n", len(candidates))
 		return 0
 	}
 

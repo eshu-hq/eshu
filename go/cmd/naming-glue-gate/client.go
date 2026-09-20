@@ -134,10 +134,20 @@ func reconcile(report Report, candidates []Candidate) error {
 	for _, c := range candidates {
 		known[c.Path] = true
 	}
+	seen := make(map[string]bool, len(candidates))
 	for _, f := range report.Findings {
 		if !known[f.Path] {
 			return fmt.Errorf("naming-glue-gate: model returned a finding for %q, which was not one of the candidates sent", f.Path)
 		}
+		if seen[f.Path] {
+			// A duplicate can pass both the count check (matching totals)
+			// and the membership check (both paths known) while a third
+			// candidate goes unjudged, crowded out with no error to show
+			// for it -- reject it explicitly rather than rely on the count
+			// check alone to catch this shape.
+			return fmt.Errorf("naming-glue-gate: model returned duplicate findings for %q", f.Path)
+		}
+		seen[f.Path] = true
 		if f.Verdict != VerdictGluedCompound && f.Verdict != VerdictAcceptable {
 			return fmt.Errorf("naming-glue-gate: model returned unrecognized verdict %q for %q", f.Verdict, f.Path)
 		}

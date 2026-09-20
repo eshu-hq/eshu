@@ -151,6 +151,19 @@ func TestClassifyReturnsErrorOnUnknownPath(t *testing.T) {
 	}
 }
 
+func TestClassifyReturnsErrorOnDuplicatePath(t *testing.T) {
+	// Two findings for "a" satisfy both the count check (2 findings, 2
+	// candidates) and the membership check (both paths are known), but "b"
+	// is never judged at all -- crowded out silently without this check.
+	server := contentServer(t, `{"findings":[{"path":"a","name":"a","verdict":"acceptable"},{"path":"a","name":"a","verdict":"glued_compound"}]}`)
+	client := &DeepSeekClient{HTTPClient: server.Client(), BaseURL: server.URL, APIKey: "k", Model: "deepseek-flash"}
+
+	_, err := client.Classify(context.Background(), []Candidate{{Path: "a", Name: "a"}, {Path: "b", Name: "b"}})
+	if err == nil {
+		t.Fatal("Classify() error = nil, want non-nil when two findings name the same candidate, silently leaving another candidate unjudged")
+	}
+}
+
 func TestClassifyReturnsErrorOnUnknownVerdict(t *testing.T) {
 	server := contentServer(t, `{"findings":[{"path":"a","name":"a","verdict":"glued-compound"}]}`)
 	client := &DeepSeekClient{HTTPClient: server.Client(), BaseURL: server.URL, APIKey: "k", Model: "deepseek-flash"}
