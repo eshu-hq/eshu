@@ -12,7 +12,7 @@ import (
 
 // assertInt64CounterValue, assertFloat64HistogramCount, assertInt64HistogramCount,
 // assertMetricMissing and attributesMatch duplicate the telemetry assertion
-// helpers from the edge/writer leaf (edge_writer_telemetry_test.go). Test
+// helpers from the edge/writer leaf (edge/writer/telemetry_test.go). Test
 // helpers cannot be imported across the package split, so each side carries
 // its own copy.
 

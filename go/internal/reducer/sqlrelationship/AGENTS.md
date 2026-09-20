@@ -69,7 +69,7 @@ the full ownership boundary and exported surface.
   drift risk is low, but check on future edits to either copy).
 - **`ExtractSQLRelationshipRows` is also driven directly by the Ifá
   `sql_relationships` golden-corpus gate**
-  (`internal/ifa/materializededges/materialized_edges_sql.go` and its
+  (`internal/ifa/materializededges/sql.go` and its
   cassette test). A behavior change here changes what that gate asserts;
   run `go test ./internal/ifa/materializededges/...` after any edit to
   `ExtractSQLRelationshipRows` or its target-resolution helpers.

@@ -91,7 +91,7 @@ func CodeownersFamilyCassetteFullPath(repoRoot string) string {
 }
 
 // codeownersFamilyExpectedEdgesPath moved to
-// materializededges/materialized_edges_codeowners.go with the rest of the
+// materializededges/codeowners.go with the rest of the
 // codeowners_ownership_edges vacuity guard (#6053): it was called only from
 // MaterializedEdgeOduResolver.Resolve's dispatch, which moved there too.
 

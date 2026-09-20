@@ -22,7 +22,7 @@ table, from embedded SQL query evidence on parsed file facts).
 **Owns:** `SQLRelationshipMaterializationHandler` (the reducer intent
 handler), `ExtractSQLRelationshipRows` (the pure extraction seam used both by
 the handler and by the Ifá `sql_relationships` golden-corpus gate,
-`internal/ifa/materializededges/materialized_edges_sql.go`), the delta-scope
+`internal/ifa/materializededges/sql.go`), the delta-scope
 builder and shared-intent promotion, target-resolution rules for every edge
 type above, and the embedded-SQL-query scanner.
 

@@ -96,7 +96,7 @@ WHERE rationale.repo_id IN $repo_ids
 RETURN true LIMIT 1`
 
 // The delta (by-file) EXPLAINS retract is built per target label by
-// buildRationaleDeltaRetractStatements in edge_writer_rationale_labels.go, not
+// buildRationaleDeltaRetractStatements in edge/writer/rationale_labels.go, not
 // as a single constant: on NornicDB v1.1.11 a bare MATCH whose target carries
 // a node-label disjunction matches zero rows (probed — the disjunction retract
 // deleted nothing while the same per-label statements deleted every edge), so

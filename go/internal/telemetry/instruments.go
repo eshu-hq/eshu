@@ -1460,8 +1460,8 @@ type Instruments struct {
 	// deleted / unsupported / probe_error) and scope (whole_scope /
 	// delta_by_file_path) -- see retractRationaleEdgesWithProbe and
 	// executeGuardedRationaleDeltaRetracts in
-	// go/internal/storage/cypher/edge_writer_rationale_labels.go and
-	// edge_writer_retract.go.
+	// go/internal/storage/cypher/edge/writer/rationale_labels.go and
+	// edge/writer/retract.go.
 	//
 	// scope separates the two guarded paths because they fire at very
 	// different rates: whole_scope runs one statement per RetractEdges batch

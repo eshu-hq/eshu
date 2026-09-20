@@ -79,7 +79,7 @@ func SubmodulePinFamilyCassetteFullPath(repoRoot string) string {
 }
 
 // submodulePinFamilyExpectedEdgesPath moved to
-// materializededges/materialized_edges_submodule_pin.go with the rest of the
+// materializededges/submodule_pin.go with the rest of the
 // submodule_pin_edges vacuity guard: it was called only from
 // MaterializedEdgeOduResolver.Resolve's dispatch, which moved there too.
 

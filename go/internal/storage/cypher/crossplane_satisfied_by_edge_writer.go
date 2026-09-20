@@ -57,7 +57,7 @@ DELETE rel`
 
 // crossplaneSatisfiedByWriteReasons is the single source of truth for the
 // relationship types this writer accepts, mirroring
-// sqlRelationshipWriteReasons (edge_writer_sql.go). It backs
+// sqlRelationshipWriteReasons (edge/writer/sql.go). It backs
 // CrossplaneRelationshipMaterializedEdgeTypes, the registry-derived accessor
 // the blast-radius edge-materialization coverage registry
 // (go/internal/query/edge_materialization_coverage.go) merges in, so

@@ -60,7 +60,7 @@ func roundTripPayloads(t *testing.T, rows []SharedProjectionIntentRow) []SharedP
 // TestRationaleProductionIntentsNeverReachRetractAsUnmarkedRows is the
 // reachability half of #6166.
 //
-// collectRepoIDs (storage/cypher/edge_writer_retract_scope.go) binds the WHOLE
+// collectRepoIDs (storage/cypher/edge/writer/retract_scope.go) binds the WHOLE
 // batch into the non-delta whole-repository EXPLAINS DELETE with no
 // intent_type filter, so any rationale row that reaches RetractEdges as a
 // retract row hands its repository a repo-wide delete. That is only a live

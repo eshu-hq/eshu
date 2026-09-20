@@ -109,7 +109,7 @@ func newInstrumentedCodeownersOwnershipEdgeWriter(t *testing.T) (
 // This scenario calls WriteEdges only, not RetractEdges: the whole-repository
 // RetractEdges path for codeowners issues a single non-grouped
 // Executor.Execute call (canonical_codeowners_edges.go's
-// retractCodeownersOwnershipEdgesCypher, dispatched via edge_writer_retract.go),
+// retractCodeownersOwnershipEdgesCypher, dispatched via edge/writer/retract.go),
 // which never reaches EdgeWriter.recordGroupedWrite, so including it would not
 // move the asserted instrument while adding an unreviewable extra statement to
 // the fixture -- the same simplification documentation_edges_cost_test.go

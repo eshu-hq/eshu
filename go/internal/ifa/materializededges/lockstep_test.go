@@ -290,7 +290,7 @@ func TestMaterializedEdgeCoverageLockstepAgainstRealSpecs(t *testing.T) {
 		for _, trigger := range []string{
 			"go/internal/reducer/deployable_unit*.go",
 			"go/internal/storage/cypher/canonical_deployable_unit_edges.go",
-			"go/internal/storage/cypher/edge_writer_rowmaps.go",
+			"go/internal/storage/cypher/edge/writer/rowmaps.go",
 			"go/internal/ifa/deployable_unit_family_catalog.go",
 			"go/internal/ifa/familyodu/deployable_unit_family_odu.go",
 			"testdata/cassettes/deployableunit/**",

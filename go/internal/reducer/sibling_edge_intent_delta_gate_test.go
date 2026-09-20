@@ -178,7 +178,7 @@ func refreshIntentPayloadForRepo(t *testing.T, intents []SharedProjectionIntentR
 // So the gate is membership in the delta scope's repositoryIDs -- the
 // repositories whose repository fact carried delta_generation -- and NOT "does
 // this repository have qualified paths". An empty path list reaches
-// collectDeltaFilePaths (storage/cypher/edge_writer_retract_scope.go), which
+// collectDeltaFilePaths (storage/cypher/edge/writer/retract_scope.go), which
 // rejects it before any statement runs. A dead letter an operator can see beats
 // a silently wrong graph.
 //

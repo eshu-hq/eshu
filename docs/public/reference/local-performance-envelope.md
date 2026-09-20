@@ -868,7 +868,7 @@ metric, label, queue domain, or runtime knob.
 
 Precursor to a future `documentation_edges` partition promotion. The documentation
 retract Cypher binds `WHERE section.scope_id IN $scope_ids`
-(`canonical_documentation_edges.go`), but `edge_writer_retract.go` threaded repo ids
+(`canonical_documentation_edges.go`), but `edge/writer/retract.go` threaded repo ids
 there (`collectRepoIDs`). It only worked because the handler stuffed the scope id
 into `RepositoryID` and left `ScopeID` empty; once the promotion emits intents with
 distinct `repo_id` and `scope_id` the retract would bind repo ids and clear nothing
@@ -878,7 +878,7 @@ retract rows.
 
 No-Regression Evidence: the change does not alter retract cost — it is the same
 statement shape with the correct `$scope_ids` value — proven by before/after Cypher
-tests in `go/internal/storage/cypher/edge_writer_documentation_test.go`
+tests in `go/internal/storage/cypher/edge/writer/documentation_test.go`
 (`TestEdgeWriterRetractEdgesDocumentationWholeScopeBindsScopeIDNotRepoID` and
 `...DeltaBindsScopeIDNotRepoID` bind the rows' scope ids, not repo ids) plus
 `TestBuildDocumentationRetractRowsCarryScopeID`. `go test ./internal/storage/cypher

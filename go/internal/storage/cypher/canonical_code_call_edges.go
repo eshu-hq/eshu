@@ -37,7 +37,7 @@ package cypher
 // baseline gate silently ignores.
 //
 // All four are genuinely written, not aspirational: buildCodeCallRowMap in
-// edge_writer_code_call_labels.go dispatches to the metaclass, INSTANTIATES,
+// edge/writer/code_call_labels.go dispatches to the metaclass, INSTANTIATES,
 // REFERENCES, and CALLS templates, and the default retract disjunction in
 // canonical_retract.go names the same four. Reading only the first MERGE in this
 // file yields CALLS alone and undercounts the family threefold —

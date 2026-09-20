@@ -106,7 +106,7 @@ func newInstrumentedSubmodulePinEdgeWriter(t *testing.T) (
 // This scenario calls WriteEdges only, not RetractEdges: the whole-repository
 // RetractEdges path for submodule pins issues a single non-grouped
 // Executor.Execute call (canonical_submodule_edges.go's
-// retractSubmodulePinEdgesCypher, dispatched via edge_writer_retract.go),
+// retractSubmodulePinEdgesCypher, dispatched via edge/writer/retract.go),
 // which never reaches EdgeWriter.recordGroupedWrite, so including it would
 // not move the asserted instrument while adding an unreviewable extra
 // statement to the fixture -- the same simplification

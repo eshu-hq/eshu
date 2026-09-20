@@ -9,7 +9,7 @@ import (
 )
 
 // assertBoltCount duplicates the live-backend count assertion from the
-// edge/writer leaf (edge_writer_retract_repo_live_test.go). Test helpers
+// edge/writer leaf (edge/writer/retract_repo_live_test.go). Test helpers
 // cannot be imported across the package split, so each side carries its
 // own copy.
 

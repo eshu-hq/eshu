@@ -105,7 +105,7 @@ func newInstrumentedDocumentationEdgeWriter(t *testing.T) (
 //
 // This scenario calls WriteEdges only, not RetractEdges: the whole-scope
 // RetractEdges path for documentation issues a single non-grouped
-// Executor.Execute call (edge_writer_retract.go), which never reaches
+// Executor.Execute call (edge/writer/retract.go), which never reaches
 // EdgeWriter.recordGroupedWrite, so including it would not move the asserted
 // instrument while adding an unreviewable extra statement to the fixture —
 // the same simplification the nested-directory-tree scenario makes by relying

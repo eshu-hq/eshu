@@ -152,7 +152,7 @@ session.
   has an identical digest in every cell and passes the digest comparison
   vacuously; the absolute expected set catches that regression. The coverage
   manifest records one row per (surface, scenario) under two proof-gate IDs;
-  the count is derived and asserted in materialized_edges_family_coverage_test.go
+  the count is derived and asserted in family_coverage_test.go
   rather than written here, because a hand-written total goes stale silently.
   `sql_relationships` has three rows. Baseline and delta use `ifa-determinism`;
   fault uses `ifa-fault-injection`.

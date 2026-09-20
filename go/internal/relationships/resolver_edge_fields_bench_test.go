@@ -16,7 +16,7 @@ import (
 // pass over every candidate's evidence facts), and the #5441 P0 fix added
 // three evidenceFieldWinner.consider() calls plus three per-fact Details
 // reads inside its main loop; this benchmark isolates that cost the same way
-// edge_writer_repo_dependency_bench_test.go isolates the graph-writer side.
+// edge/writer/repo_dependency_bench_test.go isolates the graph-writer side.
 //
 // Each fact carries both source_revision and first_party_ref_version (via
 // source_ref, forcing the ExtractTerraformRefPin fallback path) so every new

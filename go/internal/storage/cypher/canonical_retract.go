@@ -158,7 +158,7 @@ func BuildRetractCodeCallEdgeStatementsByFilePath(filePaths []string, evidenceSo
 }
 
 // SQL relationship edge retraction is built per source label by
-// BuildRetractSQLRelationshipEdgeStatements[ByFilePath] in edge_writer_sql.go
+// BuildRetractSQLRelationshipEdgeStatements[ByFilePath] in edge/writer/sql.go
 // (the SQL sibling of #5116); the old single-statement unlabeled-scan builder
 // silently under-deleted on NornicDB v1.1.11 and was removed.
 

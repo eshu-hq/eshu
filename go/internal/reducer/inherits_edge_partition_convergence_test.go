@@ -21,7 +21,7 @@ import (
 )
 
 // inheritanceStateModelingEdgeWriter models the canonical inheritance edge STATE
-// the way the real edge writer dispatch does (edge_writer_retract.go,
+// the way the real edge writer dispatch does (edge/writer/retract.go,
 // reducercontract.DomainInheritanceEdges branch):
 //
 //   - RetractEdges: if ANY row carries delta_projection=true, delete only the

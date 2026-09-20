@@ -20,7 +20,7 @@ import (
 // live baseline gate stops asserting while still calling the family exhaustive.
 //
 // The retract string's ORDER is deliberately not asserted. A relationship-type
-// disjunction is a set, and edge_writer_test.go already pins the "CALLS|REFERENCES"
+// disjunction is a set, and edge/writer/dispatch_test.go already pins the "CALLS|REFERENCES"
 // prefix as a literal substring; sorting the disjunction to match this map's
 // iteration order would break that test for no semantic gain.
 func TestCodeCallRegistryMatchesRetractDisjunction(t *testing.T) {

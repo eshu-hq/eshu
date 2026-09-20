@@ -159,7 +159,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "SqlTable",
 		BaselineSeverity: SeverityMedium,
 		GraphBacked:      true,
-		Provenance:       "reducer/sqlrelationship/sql_relationship_embedded_query.go and storage/cypher/edge_writer_sql.go (Function-[:QUERIES_TABLE]->SqlTable)",
+		Provenance:       "reducer/sqlrelationship/sql_relationship_embedded_query.go and storage/cypher/edge/writer/sql.go (Function-[:QUERIES_TABLE]->SqlTable)",
 	},
 	// Internet-exposed endpoint sink: a security-group rule that reaches the public
 	// internet (0.0.0.0/0 or ::/0), captured by the is_internet flag on the CIDR
@@ -184,7 +184,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "ShellCommand",
 		BaselineSeverity: SeverityCritical,
 		GraphBacked:      true,
-		Provenance:       "reducer/code/shell/handler.go and storage/cypher/edge_writer_shell_exec.go (Function-[:EXECUTES_SHELL]->ShellCommand)",
+		Provenance:       "reducer/code/shell/handler.go and storage/cypher/edge/writer/shell_exec.go (Function-[:EXECUTES_SHELL]->ShellCommand)",
 	},
 	// Config/IaC sinks are closed-vocabulary #3191 fixtures but intentionally
 	// non-GraphBacked for now. The current value-flow fixpoint graph loader only
@@ -291,7 +291,9 @@ func predicatesSatisfied(predicates []SinkPredicate, props map[string]string) bo
 //
 // #6547 bumped it from 6db744b6723ff2943dd78c5ceeb095f9479b489f921708dd7c4bfd94191a6ed3
 // by repointing four Provenance paths stranded by the #6061 reducer moves.
-const sinkCatalogVersionGolden = "91a71ebd48ef65ff372bda82c38c62d12525192ac9bffbf9ac82c2d0dcdd970e"
+// #6694 bumps it from 91a71ebd48ef65ff372bda82c38c62d12525192ac9bffbf9ac82c2d0dcdd970e
+// by repointing two Provenance paths stranded by the cypher edge leaf moves.
+const sinkCatalogVersionGolden = "ada8c1555900dc04d6cfc94d23beb6b1a79efb74ee015b87d6f8c57e62100855"
 
 // SinkCatalogVersion returns a deterministic content hash over the curated
 // cloud-sink catalog. Any change to the catalog (added, removed, or edited spec,

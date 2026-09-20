@@ -185,12 +185,12 @@ func runAssertEdgesCommand(ctx context.Context, args []string, stdout, stderr io
 // expectedEdgeLabel renders e as a human-readable "TYPE|source|target"
 // diagnostic label, with "|k=v" appended per Identity property in sorted
 // order -- the same shape ExpectedEdge.Key() rendered before it needed to
-// become an injective netstring encoding (materialized_edges_assert.go).
+// become an injective netstring encoding (assert.go).
 // Deliberately NOT Key(): injectivity matters for equality comparison, not
 // for display, and printing Key()'s netstring in the assert-edges failure
 // report ("18:DECLARES_CODEOWNER6:repo-1...") would make the one surface an
 // operator reads at 3 AM illegible. Mirrors rationaleEdgeLabel's key/label
-// split (go/internal/ifa/materializededges/materialized_edges_rationale.go), the existing
+// split (go/internal/ifa/materializededges/rationale.go), the existing
 // precedent for this exact pattern in the sibling package.
 func expectedEdgeLabel(e materializededges.ExpectedEdge) string {
 	label := fmt.Sprintf("%s|%s|%s", e.RelationshipType, e.SourceEntityID, e.TargetEntityID)

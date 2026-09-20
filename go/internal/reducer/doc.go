@@ -41,7 +41,7 @@
 // which internal/storage/postgres constructs and implements,
 // WithQuarantineWriter, which Service stashes on the execution context,
 // the factload stanza of compat_decode.go's FactLoader, which internal/storage/cypher's
-// edge_writer_unusable_delta_fail_closed_test.go names to type its
+// edge/writer/unusable_delta_fail_closed_test.go names to type its
 // materialization-handler test harness, and the secrets stanza of
 // compat_projection.go's SecretsIAMGraphWriter and PostgresSecretsIAMTrustChainWriter, which
 // cmd/reducer wires, SecretsIAMEndpointNotReadyFailureClass and

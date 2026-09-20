@@ -22,7 +22,7 @@ import (
 // of the twelve remaining #5543 families is blocked here rather than on fixtures.
 //
 // The set is FOUR types, not one. The domain's write path
-// (edge_writer_code_call_labels.go) reaches CALLS, REFERENCES, USES_METACLASS,
+// (edge/writer/code_call_labels.go) reaches CALLS, REFERENCES, USES_METACLASS,
 // and INSTANTIATES, and the default retract disjunction in canonical_retract.go
 // names the same four. An earlier draft of this test asserted CALLS alone,
 // reading only the first MERGE template in canonical_code_call_edges.go; that is

@@ -182,7 +182,7 @@ func gateWiredEdgeWriterForProbeTest(t *testing.T, probeFound bool) (*edgewriter
 //
 // The intent_type is what makes these tests exercise anything. Since #6166 the
 // rationale non-delta branch binds collectWholeScopeRefreshRepoIDs
-// (go/internal/storage/cypher/edge_writer_retract_scope.go), which keeps only
+// (go/internal/storage/cypher/edge/writer/retract_scope.go), which keeps only
 // rows carrying the refresh intent_type. These tests previously passed a bare
 // map[string]any{"repo_id": "repo-a"} -- an unmarked legacy per-edge row, a
 // shape no emitter can produce because every per-edge rationale intent is

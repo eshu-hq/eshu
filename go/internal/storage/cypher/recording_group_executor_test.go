@@ -8,7 +8,7 @@ import (
 )
 
 // recordingGroupExecutor duplicates the recording fake from the edge/writer leaf
-// (edge_writer_sql_transaction_test.go). Test fakes cannot be imported across
+// (edge/writer/sql_transaction_test.go). Test fakes cannot be imported across
 // the package split, so each side carries its own copy.
 
 type recordingGroupExecutor struct {
