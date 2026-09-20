@@ -15,7 +15,7 @@ import (
 // domains whose delta branch returned before any whole-scope retract could run,
 // plus the Cypher fragment that identifies its file-scoped statement. Rationale
 // is deliberately absent: it already carries this branch (#5998 review F6) and
-// has its own tests in edge_writer_rationale_mixed_scope_test.go.
+// has its own tests in rationale_mixed_scope_test.go.
 type siblingDeltaDispatchCase struct {
 	name           string
 	domain         string
@@ -130,7 +130,7 @@ func TestEdgeWriterRetractEdgesSiblingMixedBatchRetractsBothDeltaAndWholeScopeRe
 // whose delta could not be qualified has no correct retract available here --
 // the file-scoped one has nothing to bind, and the repo-wide one deletes every
 // unchanged file's edge that this generation's changed-files-only facts cannot
-// re-create. See collectDeltaFilePaths (edge_writer_retract_scope.go) and
+// re-create. See collectDeltaFilePaths (retract_scope.go) and
 // TestUnusableDeltaRefreshFailsClosedInsteadOfRetractingRepoWide, which drives
 // the real reducer handler into this same dispatch.
 func TestEdgeWriterRetractEdgesSiblingEmptyDeltaFilePathsFailsThePartition(t *testing.T) {

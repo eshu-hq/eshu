@@ -92,7 +92,7 @@ func sqlFamilyDeltaLiveExpectedEdgesPath(repoRoot string) string {
 // excluding source_path (production content_entity facts never carry a
 // top-level "path" key — see sql_relationship_odu.go's doc comment — so
 // source_path is not part of any edge's identity here). Field order and
-// types MUST stay identical to ExpectedEdge (materialized_edges_assert.go):
+// types MUST stay identical to ExpectedEdge (assert.go):
 // LoadExpectedEdges converts directly between the two structs, and the
 // compiler rejects that conversion the moment their shapes diverge.
 type sqlRelationshipExpectedEdge struct {
@@ -118,7 +118,7 @@ type sqlRelationshipExpectedEdgesFile struct {
 // that introduced it -- renaming would ripple across a dozen-plus call sites
 // and comments in this package's tests, not "a few"), this is the SHARED
 // loader every family's guard calls through LoadExpectedEdges
-// (materialized_edges_assert.go:140), including handles_route/runs_in/
+// (assert.go:140), including handles_route/runs_in/
 // invokes_cloud_action. Its own error strings are therefore family-neutral
 // ("expected edges", never "sql relationship expected edges"): a mutation-test
 // pass on the symbol-runtime trio found the old wording surfacing as "sql
@@ -161,7 +161,7 @@ func loadSQLRelationshipExpectedEdges(path string) ([]sqlRelationshipExpectedEdg
 // expected or derived edge, using the same length-prefixed
 // ("<byte length>:<content>") encoding as ExpectedEdge.Key()'s
 // Identity-bearing path (writeLengthPrefixedField,
-// materialized_edges_assert.go) rather than a raw "|"-joined string. A raw
+// assert.go) rather than a raw "|"-joined string. A raw
 // join is not injective: nothing stops relationshipType, sourceEntityID, or
 // targetEntityID from containing "|" itself, so two distinct edges could
 // render the identical key (see TestSQLRelationshipEdgeKeyIsInjective).

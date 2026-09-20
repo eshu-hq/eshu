@@ -34,5 +34,5 @@ telemetry behavior changes.
 
 - Instrument names, labels, and emission sites are unchanged
   (`eshu_dp_shared_edge_*`); only the file paths holding them moved.
-- `edge_writer_telemetry_test.go` and the root instrumented-executor
+- `telemetry_test.go` and the root instrumented-executor
   tests assert the same instruments and pass in both packages.

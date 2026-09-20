@@ -2,12 +2,12 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // This file holds the relationship-merge READER split out of
-// materialized_edges_direct_family_scan_test.go, which had grown past the
+// direct_family_scan_test.go, which had grown past the
 // 500-line cap CLAUDE.md sets for every file in this repository. The seam is
 // the question each half answers: everything here decides whether a span of
 // Cypher TEXT merges a relationship, while the scan file decides which Cypher a
 // reducer port reaches. The reader is also what stripCypherComments in
-// materialized_edges_cypher_comment_scan_test.go exists to serve, so the two
+// cypher_comment_scan_test.go exists to serve, so the two
 // belong next to each other in review. Merging either back restores the cap
 // violation.
 

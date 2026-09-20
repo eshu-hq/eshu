@@ -91,7 +91,7 @@ func (w *EdgeWriter) RetractEdges(
 	// FENCED repo-wide-retract domains never reach here: retractFencedRepoWideDomain
 	// above handled them, narrowing to collectWholeScopeRefreshRepoIDs. WHICH
 	// domains those are is the narrowed half of wholeScopeRetractDomains
-	// (edge_writer_retract_scope.go), never a count restated here (#6276).
+	// (retract_scope.go), never a count restated here (#6276).
 	repoIDs := collectRepoIDs(rows)
 	if domain == reducer.DomainCodeCalls {
 		// Deliberately the batch-wide repoIDs, and NOT the narrowing its
@@ -344,7 +344,7 @@ func buildRetractStatement(
 
 // retractFencedRepoWideDomain handles the domains whose retract is owned by a
 // per-repo refresh intent behind the #2898 fence: the narrowed half of
-// wholeScopeRetractDomains (edge_writer_retract_scope.go), which the guard below
+// wholeScopeRetractDomains (retract_scope.go), which the guard below
 // asks rather than re-listing (#6276). It reports handled=false for every other
 // domain, so RetractEdges falls through to the repo-keyed group.
 //
@@ -492,7 +492,7 @@ func (w *EdgeWriter) retractFencedRepoWideDomain(
 	// wholeScopeRetractDomains with no branch above; falling through to the
 	// batch-wide repo-keyed group is the over-delete the narrowing prevents.
 	return true, fmt.Errorf(
-		"domain %q is narrowed in wholeScopeRetractDomains (edge_writer_retract_scope.go) but retractFencedRepoWideDomain has no branch for it",
+		"domain %q is narrowed in wholeScopeRetractDomains (retract_scope.go) but retractFencedRepoWideDomain has no branch for it",
 		domain,
 	)
 }

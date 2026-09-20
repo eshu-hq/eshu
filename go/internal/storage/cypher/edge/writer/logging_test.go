@@ -20,7 +20,7 @@ import (
 // Batch size scales with BatchLimit (default 100), so an unbounded repoIDs
 // attribute would put roughly a hundred identifiers on every span event and
 // log line per retract -- the same bounded-signal shape
-// reportUnroutableRows (edge_writer_unroutable.go) already uses for its
+// reportUnroutableRows (unroutable.go) already uses for its
 // input_rows/dropped_rows counts plus one sample_intent_id.
 func TestObserveRationaleRetractProbeUsesBoundedRepoSignal(t *testing.T) {
 	t.Parallel()

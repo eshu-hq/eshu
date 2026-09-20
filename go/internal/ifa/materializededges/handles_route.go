@@ -27,7 +27,7 @@ func handlesRouteExpectedEdgesPath(repoRoot string) string {
 // resolveHandlesRouteMaterializedEdges is handles_route's named vacuity
 // guard (#5995).
 //
-// HANDLES_ROUTE's crux (see materialized_edges_symbol_runtime_shared.go):
+// HANDLES_ROUTE's crux (see symbol_runtime_shared.go):
 // the intent-level dedupe key (functionID, repoID, path, http_method)
 // permits two intent rows -- one per HTTP method -- for the same route, but
 // the graph-write MERGE identity is only the (Function, HANDLES_ROUTE,

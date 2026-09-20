@@ -35,7 +35,7 @@ import (
 // greppable.
 //
 // The subtests are driven from wholeScopeNarrowedDomains()
-// (edge_writer_retract_scope.go) rather than from a literal list, so the
+// (retract_scope.go) rather than from a literal list, so the
 // loop covers whatever the dispatch actually narrows and no count is stated in
 // prose anywhere (#6276). TestWholeScopeRetractDomainsHalvesAreNonEmpty floors
 // that half, because ranging over an empty one would pass having tested

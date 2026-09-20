@@ -46,7 +46,7 @@ type ExpectedEdge struct {
 // Every path -- Identity empty or not -- uses the SAME fully injective,
 // length-prefixed (netstring-style) encoding of each component in order:
 // RelationshipType, SourceEntityID, TargetEntityID (delegated to
-// sqlRelationshipEdgeKey, materialized_edges_sql.go), then, when Identity is
+// sqlRelationshipEdgeKey, sql.go), then, when Identity is
 // non-empty, each Identity property in SORTED KEY ORDER. When Properties is
 // non-empty, an explicit version marker and section lengths keep the Identity
 // and Properties maps structurally distinct before their sorted key/value
@@ -115,7 +115,7 @@ func (e ExpectedEdge) Key() string {
 // injectivity property Key() relies on for its Identity-bearing keys.
 // strconv.Itoa plus direct Builder writes, not fmt.Fprintf: profiling showed
 // fmt's reflection-based formatting roughly quadrupling this path's cost
-// (BenchmarkExpectedEdgeKey, go/internal/ifa/materializededges/materialized_edges_assert_test.go).
+// (BenchmarkExpectedEdgeKey, go/internal/ifa/materializededges/assert_test.go).
 func writeLengthPrefixedField(b *strings.Builder, s string) {
 	b.WriteString(strconv.Itoa(len(s)))
 	b.WriteByte(':')

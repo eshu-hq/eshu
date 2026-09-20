@@ -14,7 +14,7 @@ import (
 // writeSymbolRuntimeExpectedEdgesFixture writes edges to a fresh
 // expected-edge-set fixture file under t.TempDir(), through the SAME
 // sqlRelationshipExpectedEdge/sqlRelationshipExpectedEdgesFile shape
-// LoadExpectedEdges reads back (materialized_edges_sql.go) -- so every
+// LoadExpectedEdges reads back (sql.go) -- so every
 // perturbation this package's handles_route/runs_in/invokes_cloud_action
 // negative tests exercise goes through the real JSON field names
 // ("relationship_type", "source_entity_id", ...), not a hand-typed
@@ -90,8 +90,8 @@ func corruptTargetEntityID(s string) string {
 // every `materialized_edges:*` coverage row for all three families would
 // resolve covered forever. That would have been invisible to the rest of
 // this package's committed suite before the resolve*-driven negative tests
-// in materialized_edges_handles_route_test.go, materialized_edges_runs_in_test.go,
-// and materialized_edges_invokes_cloud_action_test.go existed; those now
+// in handles_route_test.go, runs_in_test.go,
+// and invokes_cloud_action_test.go existed; those now
 // fail through this function too, so the stub is caught there as well as
 // here.
 //

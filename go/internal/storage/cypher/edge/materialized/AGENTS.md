@@ -4,9 +4,9 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for Cypher storage conventions.
-3. `materialized_edge_families.go` for the family registries,
-   `materialized_edge_endpoints.go` for endpoints, and
-   `materialized_edge_repo_dependency.go` for the alternation and split
+3. `families.go` for the family registries,
+   `endpoints.go` for endpoints, and
+   `repo_dependency.go` for the alternation and split
    retract builder.
 
 ## Invariants

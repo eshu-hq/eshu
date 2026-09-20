@@ -22,7 +22,7 @@ the package contract.
 
 - `eshu_dp_shared_edge_write_groups_total`, group duration/statement-count
   histograms; probe and retract paths emit the same instruments the
-  pre-split package emitted (see `edge_writer_telemetry_test.go`).
+  pre-split package emitted (see `telemetry_test.go`).
 
 ## Change guidance
 
@@ -30,7 +30,7 @@ the package contract.
   predicate changes need their own issue with `EXPLAIN` and contention
   proof per `cypher-query-rigor`.
 - Whole-scope narrowing must keep its single sanctioned call site
-  (`edge_writer_retract_narrowing_test.go` guards this).
+  (`retract_narrowing_test.go` guards this).
 - Test fakes duplicated from `package cypher` (`bolt_harness_test.go`,
   `recording_executor_test.go`) are copies, not the source of truth;
   change behavior in both or reunite them when the canonical leaf moves.

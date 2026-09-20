@@ -124,7 +124,7 @@ func (w *EdgeWriter) recordSharedEdgeRunsOnRetractOmission(
 
 // observeRationaleRetractProbe records the #5998 rationale retract
 // probe-guard decision (retractRationaleEdgesWithProbe,
-// edge_writer_rationale_labels.go) through every signal an operator needs to
+// rationale_labels.go) through every signal an operator needs to
 // distinguish a working guard from a broken probe at 3 AM: a bounded
 // outcome-labelled counter, a span event, and a structured log, all carrying
 // the same repo_count/sample_repo_id and outcome so the three never disagree.
@@ -146,7 +146,7 @@ func (w *EdgeWriter) recordSharedEdgeRunsOnRetractOmission(
 // batch size scales with BatchLimit (default 100), so a full list would put
 // roughly a hundred identifiers on every span event and log line per retract.
 // This mirrors reportUnroutableRows' input_rows/dropped_rows counts plus one
-// sample_intent_id in edge_writer_unroutable.go -- the established pattern in
+// sample_intent_id in unroutable.go -- the established pattern in
 // this file's package for a per-write operator signal that must stay bounded
 // regardless of batch size.
 //
@@ -232,7 +232,7 @@ func sharedEdgeStatementSummaries(stmts []sourcecypher.Statement) []string {
 // that would otherwise leave no trace anywhere.
 //
 // The narrowed half of wholeScopeRetractDomains
-// (edge_writer_retract_scope.go) binds collectWholeScopeRefreshRepoIDs, so
+// (retract_scope.go) binds collectWholeScopeRefreshRepoIDs, so
 // a retract row that carries no refresh intent_type contributes no repository
 // id -- which domains those are is that table's business, not this comment's
 // (#6276). When

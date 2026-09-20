@@ -237,7 +237,7 @@ func TestKubernetesNamespaceNodeWriterUsesGroupExecutorAtomically(t *testing.T) 
 
 // TestKubernetesNamespaceNodeWriterRetractNeverGroups is the no-group
 // dispatch guard for codex review finding P1 (#5434), mirroring
-// cloud_edge_retract_dispatch_test.go's TestKubernetesCorrelationEdgeWriterRetractNeverGroups
+// cloud_retract_dispatch_test.go's TestKubernetesCorrelationEdgeWriterRetractNeverGroups
 // et al.: on the pinned NornicDB v1.1.11 a retract DELETE dispatched through
 // ExecuteGroup (the real production reducer executor for this writer) can
 // under-apply even as the sole statement, while the identical statement run

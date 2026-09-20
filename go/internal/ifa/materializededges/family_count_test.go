@@ -73,7 +73,7 @@ type materializedEdgeCountClaimFile struct {
 // but its waived-count claim was rewritten away from the "N ... families"
 // shape the regex below matches, the same way specs' was.
 var materializedEdgeCountClaimFiles = []materializedEdgeCountClaimFile{
-	{filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges_lockstep_test.go"), 1},
+	{filepath.Join("go", "internal", "ifa", "materializededges", "lockstep_test.go"), 1},
 	{filepath.Join("go", "internal", "reducer", "materialized_edge_families.go"), 1},
 }
 

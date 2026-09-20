@@ -194,7 +194,7 @@ func refreshIntentRows(rows []reducer.SharedProjectionIntentRow) []reducer.Share
 // letter, wrong graph.
 //
 // So the required behavior is fail-closed. collectDeltaFilePaths
-// (edge_writer_retract_scope.go) rejects a delta-flagged row with no paths
+// (retract_scope.go) rejects a delta-flagged row with no paths
 // BEFORE any statement executes, which retries and then dead-letters. An
 // operator can see a dead letter; they cannot see edges that quietly stopped
 // existing.

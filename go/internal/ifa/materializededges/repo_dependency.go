@@ -17,7 +17,7 @@ import (
 
 // repoDependencyEdgesFamily is the materialized-edge family key this guard
 // asserts. It MUST equal "repo_dependency" -- the domain key
-// MaterializedEdgeDomainEdgeTypes switches on (materialized_edges_assert.go)
+// MaterializedEdgeDomainEdgeTypes switches on (assert.go)
 // and materializedEdgeEndpointsByFamily indexes by
 // (go/internal/storage/cypher/materialized_edge_endpoints.go) -- not
 // "repo_dependency_edges": unlike every sibling family added under the #5543

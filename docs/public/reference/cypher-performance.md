@@ -1245,7 +1245,7 @@ sync), so a collapsed `outcome` count could not show which guard is
 doing the work, and a delta guard that silently stopped engaging would hide
 behind the whole-scope path's counts. Both paths emit through the single
 `observeRationaleRetractProbe` dispatcher in
-`go/internal/storage/cypher/edge/writer/edge_writer_logging.go`, which also emits a
+`go/internal/storage/cypher/edge/writer/logging.go`, which also emits a
 matching `rationale_retract_probe` span event and structured log carrying the
 same `outcome`/`scope` pair. See
 [Telemetry Coverage](../observability/telemetry-coverage.md) for the dispatcher

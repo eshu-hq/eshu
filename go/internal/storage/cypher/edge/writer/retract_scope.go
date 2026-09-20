@@ -4,7 +4,7 @@
 package writer
 
 // This file holds the row/scope collection helpers that feed RetractEdges
-// (edge_writer_retract.go): extracting repo ids, scope ids, delta file paths,
+// (retract.go): extracting repo ids, scope ids, delta file paths,
 // and documentation delta scope from retract rows, plus the documentation
 // delta statement builder that consumes that scope.
 
@@ -42,7 +42,7 @@ import (
 // The four FENCED repo-wide-retract domains do NOT use this collector on their
 // whole-scope path any more; they use collectWholeScopeRefreshRepoIDs. The
 // difference between the two groups is where the rows come from, not what the
-// DELETE looks like. See RetractEdges (edge_writer_retract.go) for the split.
+// DELETE looks like. See RetractEdges (retract.go) for the split.
 func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 	seen := make(map[string]struct{}, len(rows))
 	var result []string
@@ -373,7 +373,7 @@ func buildDocumentationDeltaRetractStatements(
 // sharedintent.DomainHasRepoWideRetract fences (reducer/sharedintent/refresh.go)
 // into the two groups RetractEdges treats differently. It is the ONE place
 // either group is written down: retractFencedRepoWideDomain
-// (edge_writer_retract.go) gates on isWholeScopeNarrowedDomain and reaches the
+// (retract.go) gates on isWholeScopeNarrowedDomain and reaches the
 // narrowed half through narrowedWholeScopeRepoIDs, and the nil-fence and
 // fenced-but-not-narrowed tests loop over the halves instead of over a
 // hand-typed literal, so the size of either group is never stated in prose
@@ -484,7 +484,7 @@ func (w *EdgeWriter) narrowedWholeScopeRepoIDs(
 ) (repoIDs []string, skip bool, err error) {
 	if !isWholeScopeNarrowedDomain(domain) {
 		return nil, false, fmt.Errorf(
-			"whole-scope retract narrowing requested for domain %q, which is not in the narrowed half of wholeScopeRetractDomains (edge_writer_retract_scope.go); register it there so the nil-fence and logging contracts cover it",
+			"whole-scope retract narrowing requested for domain %q, which is not in the narrowed half of wholeScopeRetractDomains (retract_scope.go); register it there so the nil-fence and logging contracts cover it",
 			domain,
 		)
 	}

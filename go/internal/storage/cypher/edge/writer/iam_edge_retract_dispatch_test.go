@@ -20,7 +20,7 @@ package writer
 // test.go), which implements GroupExecutor and records group calls, so a
 // revert to the grouped dispatch() fails here. They mirror
 // TestKubernetesCorrelationEdgeWriterRetractNeverGroups et al.
-// (cloud_edge_retract_dispatch_test.go).
+// (cloud_retract_dispatch_test.go).
 
 import (
 	"context"

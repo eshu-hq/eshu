@@ -124,7 +124,7 @@ func TestRepoDependencyRegistryDerivesTheAlternationRatherThanRelistingIt(t *tes
 // every reprojection and no exact hand-derived set can pin it.
 //
 // TARGETS_ENVIRONMENT is also written by kubernetes_namespace_node_writer.go,
-// but that is no longer why it is excluded: materialized_edge_endpoints.go can
+// but that is no longer why it is excluded: endpoints.go can
 // now separate the two writers by endpoint label. Stating the real ground here
 // stops a maintainer lifting the exclusion on the strength of the endpoint table
 // and discovering the identity problem at the cost of a live-gate acquisition.

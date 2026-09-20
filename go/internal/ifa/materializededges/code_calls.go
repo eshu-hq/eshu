@@ -136,7 +136,7 @@ func normalizeCodeCallRelationshipType(relationshipType string) string {
 
 // codeCallEdgeKey uses the same length-prefixed encoding as
 // sqlRelationshipEdgeKey and ExpectedEdge.Key() (writeLengthPrefixedField,
-// materialized_edges_assert.go) rather than a raw "|"-joined string. code_calls
+// assert.go) rather than a raw "|"-joined string. code_calls
 // is already proven live on both live gates; a raw join is not injective, so a
 // "|" inside a code-entity uid (legal -- these uids are path-derived) could
 // silently collapse two distinct edges (see TestCodeCallEdgeKeyIsInjective).

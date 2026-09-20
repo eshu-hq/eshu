@@ -33,7 +33,7 @@ import (
 // BatchCanonicalRunsOnUpsertCypher stamped reducer.CrossRepoEvidenceSource,
 // while workload materialization writes the identical shape
 // (workload_materializer.go) stamped reducer.EvidenceSourceWorkloads. Endpoint
-// labels are identical on both, so materialized_edge_endpoints.go partitions
+// labels are identical on both, so endpoints.go partitions
 // them by evidence_source — the same property RetractRepoRunsOnEdgesCypher
 // scopes its DELETE on. Do not treat membership here as "every RUNS_ON edge in
 // the graph": it is the subset this family stamped.
@@ -61,7 +61,7 @@ import (
 //     gate. Stated residual gap, not an oversight.
 //   - TARGETS_ENVIRONMENT. It is written here from an EvidenceArtifact source
 //     and by kubernetes_namespace_node_writer.go from a KubernetesNamespace one,
-//     so the two ARE label-separable and materialized_edge_endpoints.go could now
+//     so the two ARE label-separable and endpoints.go could now
 //     express that. It stays excluded on the same ground as the two edges below:
 //     its source EvidenceArtifact is MERGEd with a generation-embedded id, so its
 //     endpoint identity changes on every reprojection and no exact hand-derived

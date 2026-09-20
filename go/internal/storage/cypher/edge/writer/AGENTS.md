@@ -4,9 +4,9 @@
 
 1. `README.md` and `doc.go` in this directory.
 2. `../../AGENTS.md` for Cypher storage conventions.
-3. `edge_writer.go`, `edge_writer_retract.go`, and
-   `edge_writer_retract_scope.go` for the write/retract/narrowing core.
-4. `edge_writer_retract_narrowing_test.go` for the sanctioned-call-site
+3. `writer.go`, `retract.go`, and
+   `retract_scope.go` for the write/retract/narrowing core.
+4. `retract_narrowing_test.go` for the sanctioned-call-site
    guard before touching any whole-scope path.
 
 ## Invariants

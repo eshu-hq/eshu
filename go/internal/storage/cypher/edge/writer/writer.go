@@ -496,5 +496,5 @@ func buildRowMap(
 }
 
 // buildHandlesRouteRowMap and buildDeployableUnitCorrelationRowMap live in
-// edge_writer_rowmaps.go (split out to keep this file under the 500-line
+// rowmaps.go (split out to keep this file under the 500-line
 // cap when the submodule_pin domain case was added, issue #5420 Phase 3).

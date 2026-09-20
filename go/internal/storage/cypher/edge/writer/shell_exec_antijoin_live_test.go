@@ -16,7 +16,7 @@ import (
 
 // legacyShellCommandCleanupCypher is a verbatim copy of the pre-#5310
 // cleanupOrphanShellCommandsCypher (see git history of
-// edge_writer_shell_exec.go before this branch). It is reproduced here, not
+// shell_exec.go before this branch). It is reproduced here, not
 // imported, specifically to demonstrate on the live backend that the
 // `COUNT { (target)--() } = 0` relationship-existence predicate is a
 // permanently-true tautology that deletes every in-scope ShellCommand,

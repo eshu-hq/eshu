@@ -300,7 +300,7 @@ func TestHandlesRouteFamilyMissingRegistryTypeIsCaught(t *testing.T) {
 //
 // An earlier version of this test rebuilt the guard's format string by hand and
 // asserted on its own copy. That was a false green: reverting
-// materialized_edges_handles_route.go:115 from %q back to %v left the test
+// handles_route.go:115 from %q back to %v left the test
 // passing, so it could not red on the one defect it was written for. Two
 // reviewers caught it independently. The lesson is the one this PR is otherwise
 // about — a regression test must drive the real subject, because a copy of the

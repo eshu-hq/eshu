@@ -109,7 +109,7 @@ func TestResolveInvokesCloudActionMaterializedEdgesRejectsAMissingEdge(t *testin
 // and RUNS_IN (2 edges each), INVOKES_CLOUD_ACTION's fixture carries exactly
 // 1 edge, so dropping it produces an EMPTY expected set rather than a short
 // one. loadSQLRelationshipExpectedEdges rejects a zero-edge file at load
-// time (materialized_edges_sql.go), so this proves that rejection actually
+// time (sql.go), so this proves that rejection actually
 // reaches resolveInvokesCloudActionMaterializedEdges's caller for THIS
 // family specifically, mirroring TestShellExecFamilyExpectedSetIsVacuityGuarded.
 func TestResolveInvokesCloudActionMaterializedEdgesRejectsEmptyExpectedSet(t *testing.T) {

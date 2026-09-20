@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // This file holds the ledger-halves machinery split out of
-// materialized_edges_direct_family_blindness_test.go, which had grown past the
+// direct_family_blindness_test.go, which had grown past the
 // 500-line cap CLAUDE.md sets for every file in this repository. The seam is a
 // real one and not an arbitrary cut: everything here answers "which HALF of the
 // split ledger does a row live in", while the blindness file answers "is this
@@ -203,7 +203,7 @@ func TestEachLedgerHalfHoldsOnlyItsOwnFamilies(t *testing.T) {
 	// nicety. A family in both would be owned by whichever half its row happens
 	// to sit in, so a misplaced row would satisfy the owner test on either
 	// side and this check would assert nothing for it -- vacuous in exactly the
-	// way a guard that cannot fail is. materialized_edges_waiver_issue_test.go
+	// way a guard that cannot fail is. waiver_issue_test.go
 	// records the same property as an observation its resolution order leans
 	// on; here it is the thing being leaned on, so it fails fast instead.
 	sharedFamilies := setOf(reducer.MaterializedEdgeFamilies())

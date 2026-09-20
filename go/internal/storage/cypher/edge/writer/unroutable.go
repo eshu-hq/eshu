@@ -243,20 +243,20 @@ func buildTargetPresenceProbeStatement(domain string, rows []map[string]any) (so
 	}, true
 }
 
-// edgeTargetMissingError fails a batch whose runtime target is absent from
+// targetMissingError fails a batch whose runtime target is absent from
 // the graph. Retryable() keeps the rows queued: the target commits later in
 // the same generation (its presence row proves these facts derive it) and
 // the re-selected batch binds then. It must never be terminalized into an
 // unroutable completion — an absent target here is a timing state, not a
 // payload defect.
-type edgeTargetMissingError struct {
+type targetMissingError struct {
 	domain         string
 	batchRows      int
 	sampleRepoID   string
 	sampleIntentID string
 }
 
-func (e *edgeTargetMissingError) Error() string {
+func (e *targetMissingError) Error() string {
 	return fmt.Sprintf(
 		"%s batch of %d row(s) has no graph target (sample repo %q intent %q); deferring the batch until materialization commits the target",
 		e.domain, e.batchRows, e.sampleRepoID, e.sampleIntentID,
@@ -264,21 +264,21 @@ func (e *edgeTargetMissingError) Error() string {
 }
 
 // Retryable opts the miss into bounded queue retries.
-func (e *edgeTargetMissingError) Retryable() bool { return true }
+func (e *targetMissingError) Retryable() bool { return true }
 
-// edgeTargetProbeError fails a batch whose target-existence probe could not
+// targetProbeError fails a batch whose target-existence probe could not
 // run. Retryable() keeps the rows queued on the same non-counting class as a
 // detected miss: writing unchecked would recreate the exact silent zero-edge
 // loss the guard exists to prevent whenever the probe fails (timeout or
 // rejection under load) while a target is actually absent (#6730 Codex P1).
-type edgeTargetProbeError struct {
+type targetProbeError struct {
 	domain         string
 	batchRows      int
 	sampleIntentID string
 	err            error
 }
 
-func (e *edgeTargetProbeError) Error() string {
+func (e *targetProbeError) Error() string {
 	return fmt.Sprintf(
 		"%s batch of %d row(s) target-existence probe failed (sample intent %q); deferring the unverified batch rather than writing unchecked: %v",
 		e.domain, e.batchRows, e.sampleIntentID, e.err,
@@ -286,11 +286,11 @@ func (e *edgeTargetProbeError) Error() string {
 }
 
 // Retryable opts the probe failure into bounded queue retries.
-func (e *edgeTargetProbeError) Retryable() bool { return true }
+func (e *targetProbeError) Retryable() bool { return true }
 
 // Unwrap exposes the probe failure to errors.Is/As without changing the
 // retryable failure class.
-func (e *edgeTargetProbeError) Unwrap() error { return e.err }
+func (e *targetProbeError) Unwrap() error { return e.err }
 
 // checkBatchTargetsPresent probes one routed batch for runtime-target
 // completeness before its write statements run. It returns nil when the
@@ -323,7 +323,7 @@ func (w *EdgeWriter) checkBatchTargetsPresent(
 				"error", err,
 			)
 		}
-		return &edgeTargetProbeError{
+		return &targetProbeError{
 			domain:         domain,
 			batchRows:      len(rows),
 			sampleIntentID: sampleIntentID,
@@ -348,7 +348,7 @@ func (w *EdgeWriter) checkBatchTargetsPresent(
 			"sample_intent_id", sampleIntentID,
 		)
 	}
-	return &edgeTargetMissingError{
+	return &targetMissingError{
 		domain:         domain,
 		batchRows:      len(rows),
 		sampleRepoID:   sampleRepoID,

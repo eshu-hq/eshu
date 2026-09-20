@@ -104,12 +104,12 @@ func BuildProbeRationaleEdges(repoIDs []string, evidenceSource string) sourcecyp
 // the call site still compiles. The type stops a typed `string` variable from
 // being passed; what actually caught the real mistake -- a test handing an
 // evidence source in as the scope -- was asserting the emitted labels back in
-// edge_writer_logging_test.go. Keep that assertion.
+// logging_test.go. Keep that assertion.
 type rationaleProbeOutcome string
 
 // Outcome values for the rationale retract probe guard (#5998). Kept as a
 // bounded enum, not free text, so the metric label stays low cardinality and
-// the structured log/span event (edge_writer_logging.go's
+// the structured log/span event (logging.go's
 // observeRationaleRetractProbe) agree with it exactly.
 const (
 	rationaleRetractProbeOutcomeSkipped     rationaleProbeOutcome = "skipped"     // probe found zero rows; DELETE not executed

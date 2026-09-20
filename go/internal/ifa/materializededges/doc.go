@@ -10,7 +10,7 @@
 // plus the replaycoverage.Resolver that dispatches a coverage-manifest row
 // to the right guard by family name. The last three (handles_route, runs_in,
 // invokes_cloud_action) share one cassette/Odù and one backend-free
-// extraction seam (materialized_edges_symbol_runtime_shared.go); each has its
+// extraction seam (symbol_runtime_shared.go); each has its
 // own hand-derived exact-set fixture (2, 2, and 1 edges respectively),
 // proven live on both the ifa-determinism and ifa-fault-injection gates,
 // with no remaining waiver (#5995/#6000/#5997).

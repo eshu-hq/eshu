@@ -199,8 +199,8 @@ func rationaleRowsToExpectedEdges(rows []map[string]any) []rationaleExpectedEdge
 
 // rationaleEdgeKey renders e's comparison key using the same
 // writeLengthPrefixedField netstring encoding as ExpectedEdge.Key(),
-// sqlRelationshipEdgeKey, and codeCallEdgeKey (materialized_edges_assert.go,
-// materialized_edges_sql.go, materialized_edges_code_calls.go). It used to
+// sqlRelationshipEdgeKey, and codeCallEdgeKey (assert.go,
+// sql.go, code_calls.go). It used to
 // join its seven fields with a raw "\x00" delimiter instead; unified onto the
 // shared encoding so no comparison key in this package depends on a
 // delimiter byte its fields happen not to contain.

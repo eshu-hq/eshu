@@ -21,8 +21,8 @@ import (
 // before either deliberate break below is trusted to mean anything. SQL delta
 // is checked separately below; the fault gate (also resolved, via the same
 // resolver, bound to a separate manifest row -- #5555) has its own coverage
-// in materialized_edges_lockstep_test.go and
-// materialized_edges_waiver_granularity_test.go.
+// in lockstep_test.go and
+// waiver_granularity_test.go.
 func TestMaterializedEdgeFalseGreenBaselineSQLRelationshipsCovered(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)

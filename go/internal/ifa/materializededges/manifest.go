@@ -120,8 +120,8 @@ func LoadMaterializedEdgeWaivers(path string) ([]MaterializedEdgeWaiver, error) 
 //
 // A caller reconciling ONE half deliberately is the only exception, and it must
 // pass that half's families alongside: the two shared-half fixtures in
-// materialized_edges_falsegreen_test.go and
-// materialized_edges_waiver_granularity_test.go run against
+// falsegreen_test.go and
+// waiver_granularity_test.go run against
 // reducer.MaterializedEdgeFamilies(), which the direct half's waivers do not
 // name. Both say so at the call site.
 //

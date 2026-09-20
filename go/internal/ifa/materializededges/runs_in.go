@@ -26,7 +26,7 @@ func runsInExpectedEdgesPath(repoRoot string) string {
 
 // resolveRunsInMaterializedEdges is runs_in's named vacuity guard (#6000).
 //
-// RUNS_IN's crux (see materialized_edges_symbol_runtime_shared.go): the
+// RUNS_IN's crux (see symbol_runtime_shared.go): the
 // intent row carries only (function_id, repo_id) -- it has no visibility
 // into how many Workloads the repository DEFINES, because that admission
 // runs in a wholly separate handler over different facts
@@ -90,7 +90,7 @@ func runsInExpectedEdgesPath(repoRoot string) string {
 // 1-to-1 here (2 rows, 2 edges); the N>1 Workload cross product this guard
 // would perform if the projection ever contained one is proven only by a
 // synthetic offline unit test that hand-builds a two-entry workloadIDs map
-// under one repo key (materialized_edges_runs_in_test.go), never by a live
+// under one repo key (runs_in_test.go), never by a live
 // fixture -- no live fixture can produce that shape today.
 func resolveRunsInMaterializedEdges(odu ifa.Odu, expectedEdgesPath string) (bool, string) {
 	expected, err := LoadExpectedEdges(expectedEdgesPath, runsInFamily)

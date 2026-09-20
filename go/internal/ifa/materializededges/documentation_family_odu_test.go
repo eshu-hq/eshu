@@ -16,7 +16,7 @@ import (
 
 // TestDocumentationFamilyIsCatalogedAndResolvable pins the production
 // coverage seam, not just the extractor helper used by the tests in
-// materialized_edges_documentation_test.go. A manifest row cannot honestly
+// documentation_test.go. A manifest row cannot honestly
 // resolve unless the installed binary carries the Odù and the
 // materialized-edge resolver dispatches through the family's own exact guard
 // -- and, distinctly for #5994's review finding, unless the compiled catalog

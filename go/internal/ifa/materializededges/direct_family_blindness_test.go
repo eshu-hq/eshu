@@ -3,7 +3,7 @@
 
 // The ledger-halves machinery this file leans on -- materializedEdgeLedgerHalves,
 // loadMaterializedEdgeLedgerRows, ledgerSurfaceHalves and the per-half
-// assertion -- lives in materialized_edges_ledger_halves_test.go. It was split
+// assertion -- lives in ledger_halves_test.go. It was split
 // out when this file passed the 500-line cap CLAUDE.md sets, and the seam is
 // the question each half answers: this file asks whether a family is claimed at
 // all, that one asks which half of the ledger the claim sits in.

@@ -45,7 +45,7 @@ func TestResolveDeployableUnitMaterializedEdgesReproducesExpectedSet(t *testing.
 // family resolved through the switch's default branch ("no vacuity guard
 // registered") no matter how correct the guard itself was. Mirrors
 // TestDocumentationFamilyResolvesThroughTheManifestResolver
-// (materialized_edges_documentation_test.go).
+// (documentation_test.go).
 func TestDeployableUnitFamilyResolvesThroughTheManifestResolver(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)

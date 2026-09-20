@@ -209,7 +209,7 @@ func identityPropertyKey(segment string) (string, bool) {
 // (assumed single) relationship-MERGE property map in cypher — a family's own
 // held IdentityCypher write template — or nil if its MERGE keys on endpoints
 // alone. This inspects only the one known write-path const each family
-// declares in materialized_edge_families.go, never package doc comments or
+// declares in families.go, never package doc comments or
 // unrelated source, so — unlike the source-directory scan this replaces — it
 // has no comment-exclusion failure mode.
 func identityPropertiesFromCypher(cypher string) []string {
