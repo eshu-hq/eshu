@@ -56,7 +56,10 @@ func TestReducerContentionGateAckFanoutProbe(t *testing.T) {
 	store := NewCrossScopeCompletionStore(fanoutConn)
 	store.Now = func() time.Time { return now }
 	for trial := range 40 {
-		if _, err := database.ExecContext(ctx, `UPDATE fact_work_items SET status='running', attempt_count=1, lease_owner='ack-6488', claim_until=$1, last_attempt_at=$2, cross_scope_replay_required=FALSE`, now.Add(time.Hour), now); err != nil {
+		// The probe measures only its own 64 rows: the standing eshu:global
+		// refresh singleton migration 115 seeds stays succeeded and out of
+		// every count below.
+		if _, err := database.ExecContext(ctx, `UPDATE fact_work_items SET status='running', attempt_count=1, lease_owner='ack-6488', claim_until=$1, last_attempt_at=$2, cross_scope_replay_required=FALSE WHERE scope_id <> 'eshu:global'`, now.Add(time.Hour), now); err != nil {
 			t.Fatal(err)
 		}
 		event := insertCrossScopeCompletionEvent(t, ctx, database, reducer.DomainCICDRunCorrelation, "claimed", "fanout-6488", now.Add(time.Hour), 1, now)
@@ -99,7 +102,7 @@ func TestReducerContentionGateAckFanoutProbe(t *testing.T) {
 			return
 		}
 		var pending, running, replay, events int
-		if err := database.QueryRowContext(ctx, `SELECT count(*) FILTER(WHERE status='pending'), count(*) FILTER(WHERE status='running'), count(*) FILTER(WHERE cross_scope_replay_required) FROM fact_work_items`).Scan(&pending, &running, &replay); err != nil {
+		if err := database.QueryRowContext(ctx, `SELECT count(*) FILTER(WHERE status='pending'), count(*) FILTER(WHERE status='running'), count(*) FILTER(WHERE cross_scope_replay_required) FROM fact_work_items WHERE scope_id <> 'eshu:global'`).Scan(&pending, &running, &replay); err != nil {
 			t.Fatal(err)
 		}
 		if err := database.QueryRowContext(ctx, `SELECT count(*) FROM cross_scope_completion_events`).Scan(&events); err != nil {

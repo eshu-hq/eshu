@@ -170,7 +170,8 @@ type valueFlowRefreshAckGroup struct {
 
 // splitValueFlowRefreshAckIntents pulls refresh-producer items out of the
 // unrelated batch tail and groups them by domain in sorted order (stable
-// statement sequence). Emit membership comes from each item's paired result.
+// statement sequence). Emit membership comes from each item's paired result,
+// fail-open when the entry is missing.
 func splitValueFlowRefreshAckIntents(
 	unrelated []reducer.Intent,
 	resultByID map[string]reducer.Result,
@@ -189,7 +190,12 @@ func splitValueFlowRefreshAckIntents(
 		}
 		group.ids = append(group.ids, intent.IntentID)
 		group.claimedAts = append(group.claimedAts, claimedAtValue(intent))
-		if shouldEmitValueFlowRefresh(resultByID[intent.IntentID]) {
+		// A refresh-producer intent with no paired result entry fails open:
+		// the production call site always pairs results, so a missing entry
+		// is a future caller bug, and a bounded spurious refresh is the
+		// documented better outcome versus a silent missed one (#6884 P2).
+		result, paired := resultByID[intent.IntentID]
+		if !paired || shouldEmitValueFlowRefresh(result) {
 			group.emitIDs = append(group.emitIDs, intent.IntentID)
 		}
 	}

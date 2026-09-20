@@ -84,7 +84,8 @@ func (q ReducerQueue) AckBatch(ctx context.Context, intents []reducer.Intent, re
 	now := q.now()
 
 	// results rides parallel to intents at the service call site; a missing
-	// entry degrades to the zero Result, which never emits.
+	// entry fails open to emit (a bounded spurious refresh beats a silent
+	// missed one), while a paired zero Result still suppresses.
 	resultByID := make(map[string]reducer.Result, len(intents))
 	for i, intent := range intents {
 		if i >= len(results) {
