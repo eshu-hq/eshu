@@ -71,8 +71,8 @@ func investigateCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"kind": map[string]any{
 					"type":        "string",
-					"description": "Equality family the fingerprint belongs to",
-					"enum":        []string{"exact", "renamed"},
+					"description": "Equality family the fingerprint belongs to; accepts the short (exact, renamed) and qualified (parallel_implementation.exact, parallel_implementation.renamed) spellings",
+					"enum":        []string{"exact", "renamed", "parallel_implementation.exact", "parallel_implementation.renamed"},
 				},
 				"fingerprint": map[string]any{
 					"type":        "string",

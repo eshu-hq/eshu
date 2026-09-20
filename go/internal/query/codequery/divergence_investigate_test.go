@@ -148,6 +148,36 @@ func TestCodeHandlerDivergenceInvestigateIncludeTestsOptsBackIn(t *testing.T) {
 	}
 }
 
+// TestCodeHandlerDivergenceInvestigateAcceptsQualifiedKind pins the P1
+// leg from the owner review: a kind copied verbatim from a findings
+// entry (parallel_implementation.exact) addresses the same family as
+// the short form instead of 400ing.
+func TestCodeHandlerDivergenceInvestigateAcceptsQualifiedKind(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []string{"parallel_implementation.exact", "parallel_implementation.renamed"} {
+		handler := &CodeHandler{Content: fakeDivergenceStore{}, Profile: ProfileLocalAuthoritative}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/code/divergence/investigate",
+			bytes.NewBufferString(`{"repo_id":"repo-x","kind":"`+kind+`","fingerprint":"fp-fixture"}`),
+		)
+		req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		// fp-fixture members exist in the fake for either family read,
+		// so both qualified spellings must validate and assemble.
+		if got, want := w.Code, http.StatusOK; got != want {
+			t.Fatalf("kind %q status = %d, want %d body=%s", kind, got, want, w.Body.String())
+		}
+	}
+	if err := (DivergenceInvestigateRequest{RepoID: "r", Kind: "drifted"}).validate(); err == nil {
+		t.Fatal("validate() must still reject unknown kinds")
+	}
+}
+
 // TestCodeHandlerDivergenceInvestigateUnknownFingerprint404s pins the miss
 // leg: an unknown fingerprint is a 404, not an empty finding.
 func TestCodeHandlerDivergenceInvestigateUnknownFingerprint404s(t *testing.T) {

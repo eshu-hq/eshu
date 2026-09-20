@@ -227,6 +227,147 @@ func TestCodeHandlerDivergenceFindingsKeepsCrossKindCollision(t *testing.T) {
 	}
 }
 
+// suppressionPagingStore serves three groups for the paging and ordering
+// legs: fp-dead (2 generated copies, fully suppressed, stat 600),
+// fp-big (2 good + 1 generated at 100 tokens: stat 300, final 200), and
+// fp-small (2 good at 120 tokens: stat and final 240).
+type suppressionPagingStore struct {
+	querytestutil.FakePortContentStore
+}
+
+func (suppressionPagingStore) DivergenceGroupStats(
+	_ context.Context, _ string, kind codedivergence.Kind, _ int,
+) ([]codedivergence.GroupStat, error) {
+	// Exact-only groups (the renamed stream is empty here; cross-kind
+	// coverage lives in the collision test).
+	if kind != codedivergence.KindExact {
+		return nil, nil
+	}
+	return []codedivergence.GroupStat{
+		{Kind: kind, Fingerprint: "fp-dead", Members: 2, Tokens: 300},
+		{Kind: kind, Fingerprint: "fp-big", Members: 3, Tokens: 100},
+		{Kind: kind, Fingerprint: "fp-small", Members: 2, Tokens: 120},
+	}, nil
+}
+
+func (suppressionPagingStore) DivergenceMembers(
+	_ context.Context, _ string, _ codedivergence.Kind, fingerprints []string,
+) (map[string][]codedivergence.Member, error) {
+	out := map[string][]codedivergence.Member{}
+	for _, fingerprint := range fingerprints {
+		switch fingerprint {
+		case "fp-dead":
+			out[fingerprint] = []codedivergence.Member{
+				{EntityID: "d1", EntityName: "dead", EntityType: "Function", RelativePath: "gen/a.pb.go", Language: "go", StartLine: 1, EndLine: 60, TokenCount: 300},
+				{EntityID: "d2", EntityName: "dead", EntityType: "Function", RelativePath: "gen/b.pb.go", Language: "go", StartLine: 1, EndLine: 60, TokenCount: 300},
+			}
+		case "fp-big":
+			out[fingerprint] = []codedivergence.Member{
+				{EntityID: "b1", EntityName: "big", EntityType: "Function", RelativePath: "a/b.go", Language: "go", StartLine: 1, EndLine: 60, TokenCount: 100},
+				{EntityID: "b2", EntityName: "big", EntityType: "Function", RelativePath: "b/b.go", Language: "go", StartLine: 1, EndLine: 60, TokenCount: 100},
+				{EntityID: "b3", EntityName: "big", EntityType: "Function", RelativePath: "gen/c.pb.go", Language: "go", StartLine: 1, EndLine: 60, TokenCount: 100},
+			}
+		case "fp-small":
+			out[fingerprint] = []codedivergence.Member{
+				{EntityID: "s1", EntityName: "small", EntityType: "Function", RelativePath: "a/s.go", Language: "go", StartLine: 1, EndLine: 60, TokenCount: 120},
+				{EntityID: "s2", EntityName: "small", EntityType: "Function", RelativePath: "b/s.go", Language: "go", StartLine: 1, EndLine: 60, TokenCount: 120},
+			}
+		}
+	}
+	return out, nil
+}
+
+type divergencePage struct {
+	Findings []struct {
+		FindingID string `json:"finding_id"`
+		Score     int    `json:"score"`
+	} `json:"findings"`
+	Truncated  bool `json:"truncated"`
+	NextOffset any  `json:"next_offset"`
+}
+
+func postDivergenceFindings(t *testing.T, store ContentStore, body string) divergencePage {
+	t.Helper()
+	handler := &CodeHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/divergence/findings", bytes.NewBufferString(body))
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	var envelope struct {
+		Data divergencePage `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v body=%s", err, w.Body.String())
+	}
+	return envelope.Data
+}
+
+// TestCodeHandlerDivergenceFindingsNextOffsetChainsPastSuppression pins
+// the P1 leg: next_offset advances by consumed stats, so a
+// fully-suppressed window still moves the cursor and chained pages never
+// overlap or repeat.
+func TestCodeHandlerDivergenceFindingsNextOffsetChainsPastSuppression(t *testing.T) {
+	t.Parallel()
+
+	store := suppressionPagingStore{}
+	page1 := postDivergenceFindings(t, store, `{"repo_id":"repo-x","limit":1,"offset":0}`)
+	if got, want := len(page1.Findings), 0; got != want {
+		t.Fatalf("page 1 findings = %d, want %d (dead group suppresses fully)", got, want)
+	}
+	if !page1.Truncated {
+		t.Fatal("page 1 must report truncated with stats behind the window")
+	}
+	if got, want := page1.NextOffset, float64(1); got != want {
+		t.Fatalf("page 1 next_offset = %v, want %v (must advance past the consumed window)", got, want)
+	}
+	page2 := postDivergenceFindings(t, store, `{"repo_id":"repo-x","limit":1,"offset":1}`)
+	if got, want := len(page2.Findings), 1; got != want {
+		t.Fatalf("page 2 findings = %d, want %d", got, want)
+	}
+	if got, want := page2.NextOffset, float64(2); got != want {
+		t.Fatalf("page 2 next_offset = %v, want %v", got, want)
+	}
+	page3 := postDivergenceFindings(t, store, `{"repo_id":"repo-x","limit":1,"offset":2}`)
+	if got, want := len(page3.Findings), 1; got != want {
+		t.Fatalf("page 3 findings = %d, want %d", got, want)
+	}
+	if page3.Truncated || page3.NextOffset != nil {
+		t.Fatalf("page 3 must end the chain, got truncated=%v next=%v", page3.Truncated, page3.NextOffset)
+	}
+	seen := map[string]bool{}
+	for _, page := range []divergencePage{page1, page2, page3} {
+		for _, finding := range page.Findings {
+			if seen[finding.FindingID] {
+				t.Fatalf("duplicate finding %q across chained pages", finding.FindingID)
+			}
+			seen[finding.FindingID] = true
+		}
+	}
+}
+
+// TestCodeHandlerDivergenceFindingsEmitFinalScoreOrder pins the P2 leg:
+// emission follows final post-suppression scores (240 before 200) even
+// though the stat window ranked the 300-stat group first.
+func TestCodeHandlerDivergenceFindingsEmitFinalScoreOrder(t *testing.T) {
+	t.Parallel()
+
+	page := postDivergenceFindings(t, suppressionPagingStore{}, `{"repo_id":"repo-x","limit":10}`)
+	if got, want := len(page.Findings), 2; got != want {
+		t.Fatalf("findings = %d, want %d (dead group drops)", got, want)
+	}
+	if got, want := page.Findings[0].Score, 240; got != want {
+		t.Fatalf("first score = %d, want %d (final order, not stat order)", got, want)
+	}
+	if got, want := page.Findings[1].Score, 200; got != want {
+		t.Fatalf("second score = %d, want %d", got, want)
+	}
+}
+
 // TestDivergenceFindingsValidationBounds pins request validation: repo_id
 // is required, kind is closed, limit/offset are bounded.
 func TestDivergenceFindingsValidationBounds(t *testing.T) {

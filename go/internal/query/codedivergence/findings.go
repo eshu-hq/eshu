@@ -305,3 +305,12 @@ func sortFindings(findings []Finding) {
 		return findings[i].ID < findings[j].ID
 	})
 }
+
+// SortFindings orders assembled findings by final post-suppression score
+// desc, finding id asc. The read surface emits merged cross-kind pages in
+// this order: stat-score window order ranks pre-suppression groups for
+// paging, but suppression changes scores unequally, so emission follows
+// the final scores the client actually sees.
+func SortFindings(findings []Finding) {
+	sortFindings(findings)
+}

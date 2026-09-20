@@ -148,7 +148,7 @@ func (h *CodeHandler) handleDivergenceFindings(w http.ResponseWriter, r *http.Re
 			"findings":       data.findings,
 			"count":          len(data.findings),
 			"truncated":      data.truncated,
-			"next_offset":    nextDivergenceOffset(req.Offset, len(data.findings), data.truncated),
+			"next_offset":    nextDivergenceOffset(req.Offset, data.consumed, data.truncated),
 			"suppressions":   data.suppressions,
 			"source_backend": "postgres_content_store",
 		},
@@ -160,6 +160,11 @@ type divergenceFindingsData struct {
 	findings     []map[string]any
 	suppressions map[string]int
 	truncated    bool
+	// consumed is the pre-suppression stat window length behind this
+	// page: next_offset advances past consumed stats, not past emitted
+	// findings, so a fully-suppressed window still moves the cursor and
+	// a partially-suppressed one never re-emits.
+	consumed int
 }
 
 func (h *CodeHandler) divergenceFindingsData(
@@ -215,13 +220,14 @@ func (h *CodeHandler) divergenceFindingsData(
 		}
 		memberLookup[kind] = members
 	}
-	// Assemble per kind (the finding kind stamps from its stream), merge
-	// suppression counts, and emit in window order. Groups rebuild from
-	// the window stats, so the kind travels with its fingerprint: a
-	// fingerprint shared by both kinds assembles once per kind instead of
-	// colliding on the fingerprint alone (#6877 P2). Suppression can only
-	// remove window entries, never reorder them, so the merged page keeps
-	// the exact score-desc, finding-id order PageStats produced.
+	// Assemble per kind (the finding kind stamps from its stream) and merge
+	// suppression counts. Groups rebuild from the window stats, so the
+	// kind travels with its fingerprint: a fingerprint shared by both
+	// kinds assembles once per kind instead of colliding on the
+	// fingerprint alone. Emission follows final post-suppression score
+	// order, not stat-score window order: suppression changes scores
+	// unequally, so the window order goes stale under suppression while
+	// the emitted scores stay exact.
 	byKindGroups := map[codedivergence.Kind][]codedivergence.Group{}
 	for _, stat := range window {
 		byKindGroups[stat.Kind] = append(byKindGroups[stat.Kind], codedivergence.Group{
@@ -229,24 +235,21 @@ func (h *CodeHandler) divergenceFindingsData(
 			Members:     memberLookup[stat.Kind][stat.Fingerprint],
 		})
 	}
-	byID := map[string]map[string]any{}
+	assembled := make([]codedivergence.Finding, 0, len(window))
 	suppressions := map[string]int{}
 	for kind, kindGroups := range byKindGroups {
 		page, counts := codedivergence.AssemblePage(req.RepoID, kind, kindGroups, req.IncludeTests)
 		for rule, count := range counts {
 			suppressions[rule] += count
 		}
-		for _, finding := range page {
-			byID[finding.ID] = divergenceFindingResult(finding)
-		}
+		assembled = append(assembled, page...)
 	}
-	findings := make([]map[string]any, 0, len(window))
-	for _, stat := range window {
-		if result, ok := byID[codedivergence.StatID(req.RepoID, stat.Kind, stat.Fingerprint)]; ok {
-			findings = append(findings, result)
-		}
+	codedivergence.SortFindings(assembled)
+	findings := make([]map[string]any, 0, len(assembled))
+	for _, finding := range assembled {
+		findings = append(findings, divergenceFindingResult(finding))
 	}
-	return divergenceFindingsData{findings: findings, suppressions: suppressions, truncated: truncated}, nil
+	return divergenceFindingsData{findings: findings, suppressions: suppressions, truncated: truncated, consumed: len(window)}, nil
 }
 
 func divergenceFindingResult(finding codedivergence.Finding) map[string]any {
@@ -294,11 +297,11 @@ func divergenceFindingResult(finding codedivergence.Finding) map[string]any {
 	}
 }
 
-func nextDivergenceOffset(offset, count int, truncated bool) any {
+func nextDivergenceOffset(offset, consumed int, truncated bool) any {
 	if !truncated {
 		return nil
 	}
-	return offset + count
+	return offset + consumed
 }
 
 // DivergenceInvestigateRequest is the POST
@@ -317,9 +320,9 @@ func (r DivergenceInvestigateRequest) validate() error {
 		return fmt.Errorf("repo_id is required")
 	}
 	switch r.Kind {
-	case "exact", "renamed":
+	case "exact", "renamed", string(codedivergence.KindExact), string(codedivergence.KindRenamed):
 	default:
-		return fmt.Errorf("kind must be one of: \"exact\", \"renamed\"")
+		return fmt.Errorf("kind must be one of: \"exact\", \"renamed\" (qualified \"parallel_implementation.*\" spellings accepted)")
 	}
 	if strings.TrimSpace(r.Fingerprint) == "" {
 		return fmt.Errorf("fingerprint is required")
@@ -327,11 +330,16 @@ func (r DivergenceInvestigateRequest) validate() error {
 	return nil
 }
 
+// kind normalizes the short and qualified kind spellings to one family:
+// a kind copied verbatim from a findings entry (qualified) addresses the
+// same family as the short form.
 func (r DivergenceInvestigateRequest) kind() codedivergence.Kind {
-	if r.Kind == "renamed" {
+	switch r.Kind {
+	case "renamed", string(codedivergence.KindRenamed):
 		return codedivergence.KindRenamed
+	default:
+		return codedivergence.KindExact
 	}
-	return codedivergence.KindExact
 }
 
 func (h *CodeHandler) handleDivergenceInvestigate(w http.ResponseWriter, r *http.Request) {
