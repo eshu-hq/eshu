@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -41,6 +42,11 @@ func Parse(
 	payload["modules"] = []map[string]any{}
 	payload["type_annotations"] = []map[string]any{}
 	root := tree.RootNode()
+	// Fingerprint state for the #6833 code-divergence report: error graphs
+	// are excluded per the #6834 verdict, and per-file outcomes accumulate
+	// for collector-side telemetry via payload[fingerprint.StatsKey].
+	fpStats := &fingerprint.Stats{}
+	fpHasError := root.HasError()
 	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(root, source)
 	scope := options.NormalizedVariableScope()
 	lambdaHandlers := pythonLambdaHandlerRoots(repoRoot, path)
@@ -160,12 +166,19 @@ func Parse(
 			if options.IndexSource {
 				item["source"] = functionSource
 			}
+			fingerprint.Attach("python", fpHasError, node.ChildByFieldName("body"), source, item, fpStats)
 			appendBucket(payload, "functions", item)
 			for _, annotation := range pythonTypeAnnotations(node, source, name) {
 				appendBucket(payload, "type_annotations", annotation)
 			}
 		case "assignment":
 			if lambdaItem, ok := pythonLambdaAssignmentItem(node, source, options); ok {
+				lambdaNode := node.ChildByFieldName("right")
+				var lambdaBody *tree_sitter.Node
+				if lambdaNode != nil {
+					lambdaBody = lambdaNode.ChildByFieldName("body")
+				}
+				fingerprint.Attach("python", fpHasError, lambdaBody, source, lambdaItem, fpStats)
 				appendBucket(payload, "functions", lambdaItem)
 			}
 			if scope == "module" && !pythonModuleScoped(node) {
@@ -226,12 +239,14 @@ func Parse(
 			}
 		case "lambda":
 			if lambdaItem, ok := pythonAnonymousLambdaItem(node, source, options); ok {
+				fingerprint.Attach("python", fpHasError, node.ChildByFieldName("body"), source, lambdaItem, fpStats)
 				appendBucket(payload, "functions", lambdaItem)
 			}
 		}
 	})
 
 	sortNamedBucket(payload, "functions")
+	payload[fingerprint.StatsKey] = fpStats.Map()
 	sortNamedBucket(payload, "classes")
 	sortNamedBucket(payload, "modules")
 	sortNamedBucket(payload, "variables")

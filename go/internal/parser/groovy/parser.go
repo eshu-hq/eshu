@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	tree_sitter_groovy "github.com/dekobon/tree-sitter-groovy/bindings/go"
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -81,6 +82,7 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	shared.SortNamedBucket(payload, "functions")
 	shared.SortNamedBucket(payload, "function_calls")
 	shared.SortNamedBucket(payload, "imports")
+	payload[fingerprint.StatsKey] = syntax.fpStats.Map()
 	if options.IndexSource {
 		payload["source"] = sourceText
 	}

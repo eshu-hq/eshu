@@ -100,6 +100,12 @@ func TestPartitionedConcurrentParseMatchesSequentialComposition(t *testing.T) {
 	if !reflect.DeepEqual(gotShape, seqShape) {
 		t.Fatalf("concurrent shape files differ from sequential\n got: %#v\nwant: %#v", gotShape, seqShape)
 	}
+	// Fingerprint wall-clock is telemetry, not parsed truth: concurrent and
+	// sequential schedules legitimately differ in micros_total, so pin it
+	// before comparing (same collapse the fixture recorder applies to
+	// durable payloads).
+	pinParsedFileWallClock(gotParsed)
+	pinParsedFileWallClock(seqParsed)
 	if !reflect.DeepEqual(gotParsed, seqParsed) {
 		t.Fatalf("concurrent parsed files differ from sequential\n got: %#v\nwant: %#v", gotParsed, seqParsed)
 	}
@@ -352,5 +358,18 @@ func writeCollectorBenchmarkFile(b *testing.B, path string, body string) {
 	}
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		b.Fatalf("WriteFile(%q) error = %v, want nil", path, err)
+	}
+}
+
+// pinParsedFileWallClock zeroes the fingerprint wall-clock observation in
+// every parsed file map so schedule comparisons cover parsed truth only.
+// See the collapse rationale in parserfixture.DurablePayload.
+func pinParsedFileWallClock(parsed []map[string]any) {
+	for _, fileData := range parsed {
+		stats, ok := fileData["fingerprint_stats"].(map[string]any)
+		if !ok {
+			continue
+		}
+		stats["micros_total"] = int64(0)
 	}
 }

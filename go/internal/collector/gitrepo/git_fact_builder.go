@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/collector/git/content"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitcodeowners"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitdocs"
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
@@ -165,10 +166,11 @@ func streamFacts(
 	w := gitmodel.NewFactStreamWriter(ch, count, ref)
 
 	// Repository fact
-	w.Send(repositoryFactEnvelope(
+	w.Send(gitcontent.RepositoryFactEnvelope(
 		repoPath, repo, sourceRunID, scopeID, generationID, observedAt,
 		snapshot.FileCount, snapshot.ImportsMap, isDependency,
-		snapshot.GitRefs,
+		repositoryDefaultBranch(snapshot.GitRefs),
+		repositoryFactGitRefsPayload(snapshot.GitRefs),
 		snapshot.Delta, snapshot.DeltaRelativePaths, snapshot.DeletedRelativePaths,
 		snapshot.Reconcile,
 	))
@@ -186,7 +188,7 @@ func streamFacts(
 	// File metadata facts
 	sourceRevisions := commitSHAByRelativePath(repoPath, snapshot)
 	for i, fileData := range snapshot.FileData {
-		w.Send(fileFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileData, isDependency))
+		w.Send(gitcontent.FileFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileData, isDependency))
 		relativePath := gitmodel.RepositoryRelativePath(repoPath, gitmodel.PayloadPath(fileData, "path"))
 		gitobs.EmitObservabilityFactsForFile(
 			w, repoPath, repo.ID, scopeID, generationID, observedAt, fileData, sourceRevisions[relativePath],
@@ -222,7 +224,7 @@ func streamFacts(
 			gitsubmodule.NoteSubmoduleCandidate(gitmodulesCandidates, meta.RelativePath, bodyStr)
 			gitcodeowners.NoteCodeownersCandidate(codeownersCandidates, meta.RelativePath, bodyStr)
 
-			w.Send(contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, gitmodel.ContentFileSnapshot{
+			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, gitmodel.ContentFileSnapshot{
 				RelativePath:    meta.RelativePath,
 				Body:            bodyStr,
 				Digest:          meta.Digest,
@@ -266,7 +268,7 @@ func streamFacts(
 		for i, fileSnapshot := range snapshot.ContentFiles {
 			gitsubmodule.NoteSubmoduleCandidate(gitmodulesCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
 			gitcodeowners.NoteCodeownersCandidate(codeownersCandidates, fileSnapshot.RelativePath, fileSnapshot.Body)
-			w.Send(contentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
+			w.Send(gitcontent.ContentFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileSnapshot))
 			gitsvccatalog.EmitServiceCatalogFactsForContentFile(
 				w,
 				scopeID,
@@ -361,7 +363,7 @@ func streamFacts(
 
 	// Content entity facts
 	for i, entitySnapshot := range snapshot.ContentEntities {
-		w.Send(contentEntityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, entitySnapshot))
+		w.Send(gitcontent.ContentEntityFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, entitySnapshot))
 		snapshot.ContentEntities[i] = gitmodel.ContentEntitySnapshot{}
 	}
 	snapshot.ContentEntities = nil

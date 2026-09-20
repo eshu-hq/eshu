@@ -12,8 +12,8 @@ import (
 
 // crossplaneContentEntityEnvelope builds a minimal content_entity fact
 // envelope for the given entity_type and entity_metadata, mirroring the
-// shape internal/collector/gitrepo/git_content_fact_envelopes.go's
-// contentEntityFactEnvelope emits.
+// shape internal/collector/git/content/envelopes.go's
+// gitcontent.ContentEntityFactEnvelope emits.
 func crossplaneContentEntityEnvelope(entityID, entityType string, metadata map[string]any) facts.Envelope {
 	return facts.Envelope{
 		FactID:   entityID,

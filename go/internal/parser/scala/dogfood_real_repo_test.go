@@ -145,7 +145,22 @@ func dogfoodRowLines(payload map[string]any) []string {
 	sort.Strings(keys)
 	var lines []string
 	for _, key := range keys {
-		switch value := payload[key].(type) {
+		value := payload[key]
+		// Fingerprint timing is wall-clock nondeterministic, so the snapshot
+		// pins only the deterministic outcome counts; the per-file timing
+		// observation is covered by the collector telemetry unit test
+		// instead (same normalization as the rationale cassette lock test).
+		if key == "fingerprint_stats" {
+			if stats, ok := value.(map[string]any); ok {
+				normalized := make(map[string]any, len(stats))
+				for k, v := range stats {
+					normalized[k] = v
+				}
+				normalized["micros_total"] = 0
+				value = normalized
+			}
+		}
+		switch value := value.(type) {
 		case []map[string]any:
 			for _, row := range value {
 				lines = append(lines, key+"\t"+dogfoodCanonicalMap(row))

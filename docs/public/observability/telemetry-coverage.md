@@ -459,9 +459,8 @@ The reducer drains queue work items through the worker pool, projects shared edg
 <!-- eshu:metric:section=projector-stages -->
 ## Projector Stages
 
-The projector drains queue work items from `fact_work_items` (stage
-`projector`) and writes source-local canonical graph nodes. It shares the
-queue-depth and claim-wait surfaces with the reducer.
+The projector drains `fact_work_items` (stage `projector`) into source-local
+canonical graph nodes, sharing queue-depth and claim-wait surfaces with the reducer.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
@@ -500,8 +499,7 @@ queue-depth and claim-wait surfaces with the reducer.
 
 Every collector family runs under the shared claimed-service worker harness
 (`go/internal/collector/claimed_service.go`). One row per dispatch chokepoint
-covers all collector families; per-collector volume counters and durations
-land at the same call sites.
+covers all families; volume counters and durations land at the same call sites.
 
 | stage | file:line | required metric name(s) | category |
 | --- | --- | --- | --- |
@@ -515,6 +513,7 @@ land at the same call sites.
 | bootstrap NornicDB entity-phase dispatch | go/cmd/bootstrap-index/nornicdb_entity_phase_group_concurrent.go | No-Observability-Change: covered by `eshu_dp_canonical_write_duration_seconds`, `eshu_dp_canonical_projection_duration_seconds`, `eshu_dp_neo4j_query_duration_seconds`, and structured `bootstrap nornicdb phase-group chunk completed` logs with bounded phase, label, chunk, duration, and concurrency fields | collector chokepoint |
 | repo snapshot | go/internal/collector/gitrepo/git_source_processing.go:211 | `eshu_dp_repo_snapshot_duration_seconds`, `eshu_dp_repos_snapshotted_total`, `eshu_dp_files_parsed_total` | collector per-collector |
 | snapshot stage timing | go/internal/collector/gitrepo/git_snapshot_native.go:330 | `eshu_dp_collector_snapshot_stage_duration_seconds` | collector per-collector |
+| snapshot function fingerprinting (#6835) | go/internal/collector/gitrepo/git_snapshot_prescan_stats.go (recordFingerprintStats) | `eshu_dp_code_fingerprint_entities_total`, `eshu_dp_code_fingerprint_duration_seconds` | collector per-collector |
 | snapshot helper defaulting and parser construction | go/internal/collector/gitrepo/git_snapshot_native_helpers.go | No-Observability-Change: pure in-process defaulting for parser workers and parser engine/registry construction extracted from git_snapshot_native.go for the 500-line cap; the discovery, pre-scan, parse, and materialization work remains timed by `eshu_dp_collector_snapshot_stage_duration_seconds`, while repository-level completion remains covered by `eshu_dp_repo_snapshot_duration_seconds`; this file emits no metric of its own | collector per-collector |
 | git fact-stream writer and envelope helpers | go/internal/collector/gitrepo/gitmodel/factstream.go | `eshu_dp_facts_emitted_total` | collector per-collector |
 | git collector shared content records | go/internal/collector/gitrepo/gitmodel/content.go | No-Observability-Change: the `ContentFileSnapshot`/`ContentFileMeta`/`ContentEntitySnapshot` record types, moved verbatim out of `git_source_types.go` when the git collector became its own package (#6056); type declarations only, no statements and no instrumentation — the stages that build and consume them stay covered by `eshu_dp_collector_snapshot_stage_duration_seconds` (snapshot stage timing row above) | collector per-collector |
@@ -1098,6 +1097,7 @@ call matches a documented set, and every documented set has a matching variable 
 | deferred-backfill-fact-count | 0, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000 |
 | reducer-input-invalid-fact-write-batch-size | 0, 1, 2, 5, 10, 25, 50, 100, 250, 500 |
 | query-input-invalid-facts-duration-seconds | 0, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 |
+| code-fingerprint-seconds | 0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5 |
 | lock-only-gate-lock-wait-seconds | 0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 5, 10 |
 
 Bucket sets for `eshu_dp_cloud_resource_list_*` are defined in

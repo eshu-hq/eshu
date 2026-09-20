@@ -190,7 +190,7 @@ func ExtractExecRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 		// "path" is read raw off the top-level envelope first, then falls
 		// back to parsed_file_data's own "path" key, preserving the exact
 		// pre-Contract-System precedence: "path" is NOT a typed
-		// codegraphv1.File field (fileFactEnvelope never writes it to the
+		// codegraphv1.File field (gitcontent.FileFactEnvelope never writes it to the
 		// payload in production — it routes the checkout path to
 		// SourceRef.SourceURI, per codegraphv1.Repository's LocalPath
 		// precedent in code/call/intents.go), so it is read

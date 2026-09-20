@@ -244,6 +244,14 @@ func rationaleFamilyParsedFile(relativePath, name, uid string, startLine, endLin
 		"imports": []any{}, "modules": []any{}, "orm_table_mappings": []any{},
 		"type_annotations": []any{}, "variables": []any{},
 		"framework_semantics": map[string]any{"frameworks": []any{}},
+		// Fingerprint emission (#6835) attaches one fingerprint_stats rollup
+		// per parsed file. Every rationale fixture function is a stub below
+		// the 50-token floor, so each file records exactly one below_floor
+		// skip and a zero micros_total, matching the replay cassette.
+		"fingerprint_stats": map[string]any{
+			"below_floor": float64(1), "fingerprinted": float64(0),
+			"has_error": float64(0), "micros_total": float64(0), "no_body": float64(0),
+		},
 	}
 	for _, key := range rationaleFamilyNilParserKeys {
 		parsed[key] = nil

@@ -6,6 +6,7 @@ package kotlin
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -21,6 +22,11 @@ type astWalker struct {
 	payload     map[string]any
 	packageName string
 	indexSource bool
+	// fpStats/fpHasError carry the #6833 code-divergence fingerprint
+	// state (exact-only tier). Nodes stay live through both walk passes
+	// because the tree closes after the walk returns.
+	fpStats    *fingerprint.Stats
+	fpHasError bool
 
 	// classTypeParameters maps a declared class/interface name to its type
 	// parameter names, used for generic return-type substitution.
@@ -131,11 +137,14 @@ func walkFile(repoRoot, path string, isDependency bool, options shared.Options, 
 		return nil, err
 	}
 
+	walkRoot := tree.RootNode()
 	w := &astWalker{
 		source:                 source,
 		payload:                shared.BasePayload(path, "kotlin", isDependency),
 		packageName:            packageName,
 		indexSource:            options.IndexSource,
+		fpStats:                &fingerprint.Stats{},
+		fpHasError:             walkRoot.HasError(),
 		classTypeParameters:    make(map[string][]string),
 		classPropertyTypes:     make(map[string]map[string]string),
 		interfaceMethods:       make(map[string]map[string]struct{}),
@@ -170,6 +179,7 @@ func walkFile(repoRoot, path string, isDependency bool, options shared.Options, 
 	shared.SortNamedBucket(w.payload, "variables")
 	shared.SortNamedBucket(w.payload, "imports")
 	shared.SortNamedBucket(w.payload, "function_calls")
+	w.payload[fingerprint.StatsKey] = w.fpStats.Map()
 
 	return w.payload, nil
 }

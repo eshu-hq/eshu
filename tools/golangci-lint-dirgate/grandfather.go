@@ -22,7 +22,7 @@ package main
 var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/collector/awscloud": {FileCount: 154, Digest: "5f0ea4b0c73faae13cc03f3c05609b6a7b6befd92941cfa599b08ff5c2fae641"},
 	"internal/collector/gcpcloud": {FileCount: 96, Digest: "0cb76eb63cd133ea5dc15c2556fb64b08db61757f23372af1c0e170845858af3"},
-	"internal/collector/gitrepo":  {FileCount: 66, Digest: "774b96b40dbec9964c434c50a6056df7780e8909ecb3a0f43e1ffe17e606eae3"},
+	"internal/collector/gitrepo":  {FileCount: 65, Digest: "dc6a76d7aaf84406f8e7003687ce51e163f22cc8280a817d718babe33002e332"},
 	"internal/coordinator":        {FileCount: 49, Digest: "e39400aa04976497d8e4f169e8b8de10e3e1b16d40a5f9b9f31ff7f7da64377e"},
 	"internal/facts":              {FileCount: 45, Digest: "4622f2b6b606a2878aa88dfa1b5e5916edad5ef536989b4136774e25c1367c4e"},
 	"internal/mcp":                {FileCount: 93, Digest: "2d88cefb5f7b666fbfd8f55216a1a9a6756de20bc3617ea9c09f0dab6cee1e8b"},
@@ -34,6 +34,6 @@ var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/reducer":            {FileCount: 123, Digest: "52df10fa9dfa38d3963a2ba16ead3ad2f2f1acea2dcf05854f57aea42811b366"},
 	"internal/status":             {FileCount: 45, Digest: "c7dfe62bb4c04da7f242ba8d2a8fb744865937c103df10c5374f05df25ce9261"},
 	"internal/storage/cypher":     {FileCount: 110, Digest: "a8e7f5307d4d7f26fdcdc2f0b09d957165373df81da137a0a0d1a1adea1999ad"},
-	"internal/storage/postgres":   {FileCount: 362, Digest: "304f2a20dfe436f7705e9c39e63f483c886fae3f96a2ed5f238f946be85c8a15"},
+	"internal/storage/postgres":   {FileCount: 363, Digest: "9958219d22906c48ef8729032240e83b024b63917d099459f8841f96f9bbe174"},
 	"internal/telemetry":          {FileCount: 42, Digest: "b33686b92bd3c69804d61fc7ee9bc9e8ccd5a111b3b96cd74a9ea7b8d71313c9"},
 }

@@ -93,6 +93,13 @@
               "data_quality_checks": null,
               "embedded_shell_commands": [],
               "enums": null,
+              "fingerprint_stats": {
+                "below_floor": 1,
+                "fingerprinted": 0,
+                "has_error": 0,
+                "micros_total": 0,
+                "no_body": 0
+              },
               "flux_buckets": null,
               "flux_git_repositories": null,
               "flux_helm_releases": null,

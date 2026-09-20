@@ -49,7 +49,7 @@ VALUES ($1, $2, $3, 'repository', $1, 'git', $1, $4, $4, $5::jsonb)`,
 // argocd_applicationsets). The empty keys prove the deferred candidate
 // predicate admits the fact ONLY via the non-empty flux_git_repositories array,
 // never via a bare-key or an ArgoCD false positive. The fact carries NO
-// artifact_type and NO content, exactly like the real fileFactEnvelope.
+// artifact_type and NO content, exactly like the real gitcontent.FileFactEnvelope.
 func seedFluxGitRepositoryFileFact(
 	t *testing.T,
 	ctx context.Context,

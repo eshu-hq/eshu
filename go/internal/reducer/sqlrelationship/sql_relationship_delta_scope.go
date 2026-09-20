@@ -174,7 +174,7 @@ func BuildDeltaScope(envelopes []facts.Envelope) DeltaScope {
 		// pre-Contract-System precedence documented in
 		// code/call/intents.go's
 		// buildCodeCallDeltaFileScopesByRepoID: "path" is NOT a typed
-		// codegraphv1.Repository field (repositoryFactEnvelope never writes
+		// codegraphv1.Repository field (gitcontent.RepositoryFactEnvelope never writes
 		// it to the payload in production), so it is read raw here only to
 		// preserve behavior for callers/fixtures that carry the checkout
 		// path under "path".

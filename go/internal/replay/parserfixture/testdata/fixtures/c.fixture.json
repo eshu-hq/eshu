@@ -15,6 +15,13 @@
           "parsed_file_data": {
             "classes": [],
             "enums": [],
+            "fingerprint_stats": {
+              "below_floor": 2,
+              "fingerprinted": 0,
+              "has_error": 0,
+              "micros_total": 0,
+              "no_body": 0
+            },
             "framework_semantics": {
               "frameworks": []
             },

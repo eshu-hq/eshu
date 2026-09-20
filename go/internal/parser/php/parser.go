@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -86,6 +87,11 @@ type phpParseState struct {
 	slimRouteCandidates    []*tree_sitter.Node
 	slimReceiverVars       map[string]struct{}
 	laravelRouteCandidates []*tree_sitter.Node
+	// fpStats/fpHasError carry the #6833 code-divergence fingerprint
+	// state (exact-only tier). fpHasError is set in Parse from the live
+	// root; declaration nodes stay live through phase 1.
+	fpStats    *fingerprint.Stats
+	fpHasError bool
 
 	// Phase-2 gather slice: candidate nodes collected during phase 1's
 	// WalkNamed and resolved in-memory after phase 1 completes, eliminating
@@ -112,6 +118,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 
 	if len(source) > phpParseByteCap {
 		recordPHPBoundedFile(payload, path, len(source))
+		payload[fingerprint.StatsKey] = (&fingerprint.Stats{}).Map()
 		return payload, nil
 	}
 
@@ -140,6 +147,8 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 
 	root := tree.RootNode()
 	parents := buildPHPParentLookup(root)
+	state.fpStats = &fingerprint.Stats{}
+	state.fpHasError = root.HasError()
 
 	// Phase 1: collect declarations, imports, type evidence, dead-code facts,
 	// and candidate route attributes so call and variable inference in phase 2
@@ -200,6 +209,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	} {
 		shared.SortNamedBucket(payload, bucket)
 	}
+	payload[fingerprint.StatsKey] = state.fpStats.Map()
 
 	return payload, nil
 }

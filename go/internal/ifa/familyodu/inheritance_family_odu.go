@@ -172,8 +172,8 @@ func inheritanceFamilyEntityID(relativePath, entityType, entityName string, star
 }
 
 // inheritanceFamilyContentEntity builds one live content_entity envelope. The
-// payload uses "relative_path", the key contentEntityFactEnvelope
-// (go/internal/collector/git_content_fact_envelopes.go) emits and the
+// payload uses "relative_path", the key gitcontent.ContentEntityFactEnvelope
+// (go/internal/collector/git/content/envelopes.go) emits and the
 // inheritance extractor now reads for child_path and inheritanceEntityRef.path.
 // Keeping the real collector key here prevents the vacuity guard from passing
 // against a fixture-only "path" field that production never emits.

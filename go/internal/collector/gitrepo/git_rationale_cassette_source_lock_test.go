@@ -127,6 +127,14 @@ func normalizeRationaleCassettePayload(payload map[string]any, repoRoot string) 
 	normalized := strings.ReplaceAll(string(raw), filepath.ToSlash(repoRoot), rationaleCassetteRepoPath)
 	var result map[string]any
 	_ = json.Unmarshal([]byte(normalized), &result)
+	// Fingerprint timing is wall-clock nondeterministic, so the cassette
+	// pins only the deterministic outcome counts; the per-file histogram
+	// observation is covered by the telemetry unit test instead.
+	if parsed, ok := result["parsed_file_data"].(map[string]any); ok {
+		if stats, ok := parsed["fingerprint_stats"].(map[string]any); ok {
+			stats["micros_total"] = float64(0)
+		}
+	}
 	return result
 }
 

@@ -6,6 +6,7 @@ package elixir
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -22,6 +23,11 @@ type elixirExtractor struct {
 	facts        elixirDeadCodeFacts
 	seenCalls    map[string]struct{}
 	functions    []elixirFunctionSpan
+	// fpStats/fpHasError carry the #6833 code-divergence fingerprint
+	// state (exact-only tier). fpHasError is set in extract from the live
+	// root; nodes stay live for the whole extract walk.
+	fpStats    *fingerprint.Stats
+	fpHasError bool
 }
 
 // elixirModuleScope carries the enclosing module identity discovered while
@@ -54,11 +60,16 @@ func newElixirExtractor(
 		options:      options,
 		facts:        newElixirDeadCodeFacts(),
 		seenCalls:    make(map[string]struct{}),
+		fpStats:      &fingerprint.Stats{},
 	}
 }
 
 // extract walks the whole tree once, populating payload buckets in AST order.
 func (e *elixirExtractor) extract(root *tree_sitter.Node) {
+	if root == nil {
+		return
+	}
+	e.fpHasError = root.HasError()
 	e.walk(root, elixirModuleScope{}, nil)
 }
 
@@ -218,6 +229,10 @@ func (e *elixirExtractor) handleFunctionCall(
 	}
 
 	e.markFunctionDynamicDispatch(node, item)
+	// Elixir definitions carry their body in a `do` block without a
+	// dedicated body field, so the exact-only walk covers the whole
+	// definition node (deterministic; signature text included).
+	fingerprint.Attach("elixir", e.fpHasError, node, e.source, item, e.fpStats)
 	shared.AppendBucket(e.payload, "functions", item)
 
 	e.functions = append(e.functions, elixirFunctionSpan{

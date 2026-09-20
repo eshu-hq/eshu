@@ -418,7 +418,7 @@ func (s CrossplaneSatisfiedByRedriveSweeper) loadActiveXRDJoinKeys(
 // CrossplaneXRD content_entity payload. Mirrors
 // reducer.crossplaneXRDCandidateFromPayload's field paths exactly (nested
 // under entity_metadata, per
-// internal/collector/gitrepo/git_content_fact_envelopes.go's contentEntityFactEnvelope);
+// internal/collector/git/content/envelopes.go's gitcontent.ContentEntityFactEnvelope);
 // duplicated locally rather than imported because the reducer package's
 // helpers are unexported and this package must not reach into reducer
 // internals. Keep both in sync if the parser's payload shape changes.

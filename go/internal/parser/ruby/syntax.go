@@ -6,6 +6,7 @@ package ruby
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -46,6 +47,10 @@ type rubySyntax struct {
 	seenCalls     map[string]struct{}
 	classRegistry rubyClassRegistry
 	root          *tree_sitter.Node
+	// fpStats accumulates the #6833 code-divergence fingerprint outcomes
+	// (exact-only tier) for collector-side telemetry. Nodes are live
+	// throughout the syntax walk.
+	fpStats *fingerprint.Stats
 }
 
 // rubyClassRegistry is the same-file, top-down transitive superclass view
@@ -90,6 +95,7 @@ func rubyBuildSyntax(source []byte, tree *tree_sitter.Tree, options shared.Optio
 	syntax := &rubySyntax{
 		source:    source,
 		lines:     strings.Split(string(source), "\n"),
+		fpStats:   &fingerprint.Stats{},
 		seenCalls: make(map[string]struct{}),
 		classRegistry: rubyClassRegistry{
 			superclass: make(map[string]string),
@@ -307,6 +313,7 @@ func (s *rubySyntax) visitMethod(
 	if options.IndexSource {
 		item["source"] = s.rawLine(shared.NodeLine(node))
 	}
+	fingerprint.Attach("ruby", s.root.HasError(), node.ChildByFieldName("body"), s.source, item, s.fpStats)
 	s.functions = append(s.functions, item)
 	scope := rubyScope{kind: rubyScopeDef, name: name}
 	body := node.ChildByFieldName("body")

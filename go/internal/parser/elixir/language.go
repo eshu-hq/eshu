@@ -9,6 +9,7 @@ import (
 
 	tree_sitter_elixir "github.com/tree-sitter/tree-sitter-elixir/bindings/go"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -52,6 +53,7 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	for _, bucket := range []string{"functions", "modules", "protocols", "variables", "imports", "function_calls"} {
 		shared.SortNamedBucket(payload, bucket)
 	}
+	payload[fingerprint.StatsKey] = extractor.fpStats.Map()
 	return payload, nil
 }
 

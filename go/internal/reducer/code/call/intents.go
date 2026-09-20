@@ -256,7 +256,7 @@ func buildCodeCallDeltaFilePathsByRepoID(envelopes []facts.Envelope) map[string]
 //
 // The repository checkout path is resolved from the raw "path" key first, then
 // the typed LocalPath — preserving the exact pre-Contract-System precedence.
-// "path" is NOT a typed Repository field: repositoryFactEnvelope never writes
+// "path" is NOT a typed Repository field: gitcontent.RepositoryFactEnvelope never writes
 // it to the payload (it routes the checkout path to SourceRef.SourceURI), so in
 // production this raw read is always absent and LocalPath is used. It is read
 // raw here only to preserve behavior for callers (and tests) that carry the

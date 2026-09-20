@@ -6,6 +6,7 @@ package php
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -170,6 +171,7 @@ func collectPHPFunction(state *phpParseState, node *tree_sitter.Node, typeName s
 	}
 
 	state.recordPHPFunctionParameterTypes(node, typeName, name)
+	fingerprint.Attach("php", state.fpHasError, node.ChildByFieldName("body"), state.source, item, state.fpStats)
 	recordPHPDeadCodeFunction(state.deadCodeFacts, name, typeName, typeKind, parameters)
 	state.deadCodeFunctions = append(state.deadCodeFunctions, phpDeadCodeFunctionFact{
 		item:        item,

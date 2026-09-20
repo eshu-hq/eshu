@@ -6,9 +6,11 @@ package gitrepo
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -42,4 +44,34 @@ func preScanLanguageSummary(
 		languageStats.record(stat.Language, stat.DurationSeconds)
 	}
 	return languageStats.summaries()
+}
+
+// recordFingerprintStats emits the #6835 code-divergence telemetry for one
+// parsed file: the fingerprinted-vs-skipped counter by outcome, skip reason,
+// and language, plus the per-file fingerprint-time histogram. Payloads from
+// before fingerprint emission carry no StatsKey and stay silent.
+func (s NativeRepositorySnapshotter) recordFingerprintStats(ctx context.Context, parsed map[string]any, language string) {
+	if s.Instruments == nil {
+		return
+	}
+	raw, _ := parsed[fingerprint.StatsKey].(map[string]any)
+	if raw == nil {
+		return
+	}
+	stats := fingerprint.StatsFromMap(raw)
+	count := func(n int, attrs ...attribute.KeyValue) {
+		if n <= 0 {
+			return
+		}
+		s.Instruments.CodeFingerprintEntities.Add(ctx, int64(n), metric.WithAttributes(attrs...))
+	}
+	lang := telemetry.AttrLanguage(language)
+	count(stats.Fingerprinted, lang, telemetry.AttrOutcome("fingerprinted"))
+	skipped := telemetry.AttrOutcome("skipped")
+	count(stats.BelowFloor, lang, skipped, telemetry.AttrReason(fingerprint.ReasonBelowFloor))
+	count(stats.HasErrorSkipped, lang, skipped, telemetry.AttrReason(fingerprint.ReasonHasError))
+	count(stats.NoBody, lang, skipped, telemetry.AttrReason(fingerprint.ReasonNoBody))
+	if total := stats.Fingerprinted + stats.BelowFloor + stats.HasErrorSkipped + stats.NoBody; total > 0 {
+		s.Instruments.CodeFingerprintDuration.Record(ctx, float64(stats.MicrosTotal)/1e6, metric.WithAttributes(lang))
+	}
 }

@@ -167,7 +167,13 @@ func assertEnvelopeEqual(t *testing.T, want, got facts.Envelope) {
 	// slip past the field-by-field checks above. Compare the JSON encodings (which
 	// sort map keys and normalize numeric types) so the check is exact on content
 	// without tripping on the int-vs-float64 coercion a JSON round trip introduces.
-	if wantJSON, gotJSON := mustJSON(t, want.Payload), mustJSON(t, got.Payload); wantJSON != gotJSON {
+	// Both sides pass through the recorder's durability collapse first:
+	// fingerprint_stats.micros_total is wall-clock timing, collapsed to zero on
+	// record, so comparing the live value against the recorded zero would fail
+	// every run without saying anything about durability. Every other field,
+	// including the fingerprint outcome counts and hashes, is still compared
+	// exactly.
+	if wantJSON, gotJSON := mustJSON(t, parserfixture.DurablePayload(want.Payload)), mustJSON(t, parserfixture.DurablePayload(got.Payload)); wantJSON != gotJSON {
 		t.Errorf("payload mismatch for %q:\n want %s\n  got %s", want.StableFactKey, wantJSON, gotJSON)
 	}
 }

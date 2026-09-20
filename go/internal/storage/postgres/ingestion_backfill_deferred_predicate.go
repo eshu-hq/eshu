@@ -60,7 +60,7 @@ const deferredRelationshipFamilySaltGitfsContentMarkerSQL = `(CASE
 // (relationships.discoverStructuredFluxEvidence, issue #5483 C2) consumes. That
 // resolver reads parsed_file_data.flux_git_repositories[].url, but a "file"
 // fact carries NO artifact_type and NO content/content_body (see
-// collector/git_fact_builder.go fileFactEnvelope), and a Flux GitRepository
+// collector/git/content/envelopes.go gitcontent.FileFactEnvelope), and a Flux GitRepository
 // manifest can live under ANY path — so none of the artifact_type, path, or
 // content-marker arms admit it, and before this arm the deferred corpus-wide
 // backfill silently dropped every Flux GitRepository file fact. That is the

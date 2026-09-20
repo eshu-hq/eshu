@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	tree_sitter_dart "github.com/UserNobody14/tree-sitter-dart/bindings/go"
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -87,6 +88,16 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 		if options.IndexSource {
 			item["source"] = fn.source
 		}
+		if fn.fingerprinted {
+			item[fingerprint.KeyExact] = fn.fpExact
+			item[fingerprint.KeyTokenCount] = fn.fpTokens
+			if fn.fpRenamed != "" {
+				item[fingerprint.KeyRenamed] = fn.fpRenamed
+			}
+			if fn.fpSketch != "" {
+				item[fingerprint.KeySketch] = fn.fpSketch
+			}
+		}
 		shared.AppendBucket(payload, "functions", item)
 	}
 	for _, variable := range syntax.variables {
@@ -110,6 +121,7 @@ func ParseWithParser(path string, isDependency bool, options shared.Options, par
 	shared.SortNamedBucket(payload, "variables")
 	shared.SortNamedBucket(payload, "imports")
 	shared.SortNamedBucket(payload, "function_calls")
+	payload[fingerprint.StatsKey] = syntax.fpStats.Map()
 	return payload, nil
 }
 

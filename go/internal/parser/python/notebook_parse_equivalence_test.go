@@ -91,6 +91,11 @@ func TestParseNotebookMatchesEquivalentPythonSource(t *testing.T) {
 	// the rest of the payload byte-for-byte.
 	notebookPayload["path"] = "NORMALIZED"
 	pythonPayload["path"] = "NORMALIZED"
+	// Fingerprint wall-clock is telemetry, not parsed truth: the two parses
+	// legitimately differ in micros_total, so pin it before comparing (same
+	// collapse the fixture recorder applies to durable payloads).
+	pinFingerprintWallClock(notebookPayload)
+	pinFingerprintWallClock(pythonPayload)
 
 	if !reflect.DeepEqual(notebookPayload, pythonPayload) {
 		t.Fatalf(
@@ -146,4 +151,17 @@ func newEquivalenceTestPythonParser(t *testing.T) *tree_sitter.Parser {
 		t.Fatalf("SetLanguage() error = %v, want nil", err)
 	}
 	return parser
+}
+
+// pinFingerprintWallClock zeroes the fingerprint wall-clock observation in a
+// live parser payload so exact comparisons cover parsed truth only. See the
+// collapse rationale in parserfixture.DurablePayload.
+func pinFingerprintWallClock(payload map[string]any) {
+	// Engine payloads carry the stats map top-level (the collector nests a
+	// copy under parsed_file_data at fact emission).
+	stats, ok := payload["fingerprint_stats"].(map[string]any)
+	if !ok {
+		return
+	}
+	stats["micros_total"] = int64(0)
 }

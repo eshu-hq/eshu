@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -66,6 +67,11 @@ func Parse(
 	}
 	scope := options.NormalizedVariableScope()
 	packageImportPath := strings.TrimSpace(options.GoPackageImportPath)
+	// Fingerprint state for the #6833 code-divergence report: error graphs
+	// are excluded per the #6834 verdict, and per-file outcomes accumulate
+	// for collector-side telemetry via payload[fingerprint.StatsKey].
+	fpStats := &fingerprint.Stats{}
+	fpHasError := root.HasError()
 
 	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
@@ -106,6 +112,7 @@ func Parse(
 			if options.IndexSource {
 				item["source"] = nodeText(node, source)
 			}
+			fingerprint.Attach("go", fpHasError, node.ChildByFieldName("body"), source, item, fpStats)
 			shared.AppendBucket(payload, "functions", item)
 		case "type_spec":
 			nameNode := node.ChildByFieldName("name")
@@ -212,6 +219,7 @@ func Parse(
 	}
 
 	shared.SortNamedBucket(payload, "functions")
+	payload[fingerprint.StatsKey] = fpStats.Map()
 	shared.SortNamedBucket(payload, "structs")
 	shared.SortNamedBucket(payload, "interfaces")
 	shared.SortNamedBucket(payload, "variables")

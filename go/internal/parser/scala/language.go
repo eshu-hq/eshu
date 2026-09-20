@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -30,6 +31,12 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 	payload := shared.BasePayload(path, "scala", isDependency)
 	payload["traits"] = []map[string]any{}
 	root := tree.RootNode()
+	// Fingerprint state for the #6833 code-divergence report (exact-only
+	// tier): error graphs are excluded per the #6834 verdict, and per-file
+	// outcomes accumulate for collector-side telemetry via
+	// payload[fingerprint.StatsKey].
+	fpStats := &fingerprint.Stats{}
+	fpHasError := root.HasError()
 	scope := options.NormalizedVariableScope()
 	traitMethods, typeTraits := scalaCollectTypeContracts(root, source)
 
@@ -59,6 +66,8 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 				options,
 				traitMethods,
 				typeTraits,
+				fpHasError,
+				fpStats,
 				"class_definition",
 				"object_definition",
 				"trait_definition",
@@ -92,6 +101,7 @@ func Parse(path string, isDependency bool, options shared.Options, parser *tree_
 		shared.SortNamedBucket(payload, bucket)
 	}
 	payload["framework_semantics"] = buildScalaFrameworkSemantics(payloadMapSlice(payload["imports"]), http4sRoutes)
+	payload[fingerprint.StatsKey] = fpStats.Map()
 
 	return payload, nil
 }
@@ -258,6 +268,8 @@ func appendFunctionWithContext(
 	options shared.Options,
 	traitMethods map[string]map[string]struct{},
 	typeTraits map[string]map[string]struct{},
+	fpHasError bool,
+	fpStats *fingerprint.Stats,
 	contextKinds ...string,
 ) {
 	nameNode := node.ChildByFieldName("name")
@@ -292,6 +304,7 @@ func appendFunctionWithContext(
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)
 	}
+	fingerprint.Attach(lang, fpHasError, node.ChildByFieldName("body"), source, item, fpStats)
 	shared.AppendBucket(payload, "functions", item)
 }
 

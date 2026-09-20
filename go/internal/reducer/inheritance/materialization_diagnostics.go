@@ -11,8 +11,8 @@ import (
 )
 
 // inheritanceEntityPathKey is the payload key every content_entity fact
-// actually carries its file path under. contentEntityFactEnvelope
-// (contentEntityFactEnvelope in go/internal/collector/gitrepo/git_content_fact_envelopes.go) emits
+// actually carries its file path under. gitcontent.ContentEntityFactEnvelope
+// (go/internal/collector/git/content/envelopes.go) emits
 // "relative_path", never "path" -- no content_entity fact this collector
 // produces carries a top-level "path" key. Reading "path" (the pre-#5996
 // behavior) returned "" for every inheritance edge in production, which

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -35,6 +36,12 @@ func Parse(
 	payload["macros"] = []map[string]any{}
 	payload["typedefs"] = []map[string]any{}
 	root := tree.RootNode()
+	// Fingerprint state for the #6833 code-divergence report (exact-only
+	// tier): error graphs are excluded per the #6834 verdict, and per-file
+	// outcomes accumulate for collector-side telemetry via
+	// payload[fingerprint.StatsKey].
+	fpStats := &fingerprint.Stats{}
+	fpHasError := root.HasError()
 	scope := options.NormalizedVariableScope()
 
 	// Gather dead-code-root resolution-candidate node pointers during the
@@ -65,7 +72,7 @@ func Parse(
 		case "type_definition":
 			appendCTypedefAliases(payload, node, source, "c")
 		case "function_definition":
-			appendCFunction(payload, node, source, options)
+			appendCFunction(payload, node, source, options, fpHasError, fpStats)
 		case "declaration":
 			gatheredResolutionNodes = append(gatheredResolutionNodes, shared.CloneNode(node))
 			if strings.HasPrefix(strings.TrimSpace(shared.NodeText(node, source)), "typedef ") {
@@ -96,6 +103,7 @@ func Parse(
 		"typedefs",
 	)
 	payload["framework_semantics"] = map[string]any{"frameworks": []string{}}
+	payload[fingerprint.StatsKey] = fpStats.Map()
 
 	return payload, nil
 }
@@ -109,7 +117,7 @@ func PreScan(path string, parser *tree_sitter.Parser) ([]string, error) {
 	return shared.CollectBucketNames(payload, "functions", "structs", "enums", "unions", "macros", "typedefs"), nil
 }
 
-func appendCFunction(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options) {
+func appendCFunction(payload map[string]any, node *tree_sitter.Node, source []byte, options shared.Options, fpHasError bool, fpStats *fingerprint.Stats) {
 	nameNode := firstNamedDescendant(node, "identifier", "field_identifier")
 	name := shared.NodeText(nameNode, source)
 	if strings.TrimSpace(name) == "" {
@@ -126,6 +134,7 @@ func appendCFunction(payload map[string]any, node *tree_sitter.Node, source []by
 	if options.IndexSource {
 		item["source"] = shared.NodeText(node, source)
 	}
+	fingerprint.Attach("c", fpHasError, node.ChildByFieldName("body"), source, item, fpStats)
 	shared.AppendBucket(payload, "functions", item)
 }
 
