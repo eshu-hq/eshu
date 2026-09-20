@@ -1,0 +1,20 @@
+docs/internal/evidence/6782-unwind-missing-row-key-audit.md
+  h_78a442cba0b3e6 156-166
+go/cmd/reducer/main.go
+  h_78a442cba0b3e6 178,380,475
+scripts/test-verify-package-docs.sh
+  h_78a442cba0b3e6 238-267
+scripts/verify-package-docs.sh
+  h_78a442cba0b3e6 157-178,185-202
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e45b9f606f538ce6426351fa48dd057ed44c6f15",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
