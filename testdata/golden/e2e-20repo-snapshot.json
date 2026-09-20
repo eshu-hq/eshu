@@ -7220,7 +7220,7 @@
           "incoming"
         ],
         "minimum_results": 1,
-        "maximum_results": 4,
+        "maximum_results": 1,
         "results_field": "incoming",
         "request_body": {
           "name": "mutualPing",
@@ -7247,7 +7247,7 @@
           "outgoing"
         ],
         "minimum_results": 1,
-        "maximum_results": 4,
+        "maximum_results": 1,
         "results_field": "outgoing",
         "request_body": {
           "name": "mutualPing",
