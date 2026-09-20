@@ -159,4 +159,11 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	// here on purpose.
 	{FactKindReducerTerraformConfigStateDriftFinding, "evidence"}:      {},
 	{FactKindReducerTerraformConfigStateDriftFinding, "source_layers"}: {},
+	// The #6837 drifted-pair writer emits these collections unconditionally
+	// and normalizes empty values to [] so the read model never sees a null
+	// list. suppressions stays omitempty (genuinely absent for every
+	// admitted pair, which survived every rule) and is not listed here on
+	// purpose.
+	{FactKindReducerCodeDriftedFinding, "evidence"}:      {},
+	{FactKindReducerCodeDriftedFinding, "source_layers"}: {},
 }

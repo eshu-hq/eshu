@@ -207,6 +207,60 @@ type TerraformConfigStateDriftFinding struct {
 	SourceLayers             []string         `json:"source_layers"`
 }
 
+// CodeDriftedMember is one function in a drifted pair. StartLine/EndLine
+// are the member's body ranges from content_entities: the pair differs
+// somewhere within these function-granularity ranges (shingle sets prove
+// overlap below identity but cannot localize lines without source, which the
+// grouping path must never read).
+type CodeDriftedMember struct {
+	EntityID     string `json:"entity_id"`
+	EntityName   string `json:"entity_name"`
+	EntityType   string `json:"entity_type"`
+	RelativePath string `json:"relative_path"`
+	Language     string `json:"language"`
+	StartLine    int    `json:"start_line"`
+	EndLine      int    `json:"end_line"`
+	TokenCount   int    `json:"token_count"`
+}
+
+// CodeDriftedFinding is the schema-version-1 payload for
+// "reducer_code_drifted_finding" (epic #6833, child #6837). One row per
+// admitted drifted pair: two function bodies whose renamed 5-shingle sets
+// verify at Jaccard >= DriftedSimilarityThreshold (0.7) but share no
+// equality fingerprint, so neither the exact nor the renamed read surface
+// claims them. TruthLevel is always "derived"; Suppressions carries the
+// per-rule counts evaluated before the write (a suppressed pair is counted,
+// never silently dropped).
+type CodeDriftedFinding struct {
+	ReducerDomain string `json:"reducer_domain"`
+	IntentID      string `json:"intent_id"`
+	ScopeID       string `json:"scope_id"`
+	GenerationID  string `json:"generation_id"`
+	SourceSystem  string `json:"source_system"`
+	Cause         string `json:"cause"`
+	FindingID     string `json:"finding_id"`
+	RepoID        string `json:"repo_id"`
+	// Similarity is the exact Jaccard over the pair's shingle sets;
+	// Threshold records the ship bound the pair admitted under.
+	Similarity float64 `json:"similarity"`
+	Threshold  float64 `json:"threshold"`
+	// SharedBands is the count of LSH bands the pair shares: the candidate
+	// evidence that nominated this pair for verification.
+	SharedBands int               `json:"shared_bands"`
+	MemberA     CodeDriftedMember `json:"member_a"`
+	MemberB     CodeDriftedMember `json:"member_b"`
+	TruthLevel  string            `json:"truth_level"`
+	// Suppressions carries per-rule suppression counts evaluated before
+	// this write, in the sibling reducer_Suppression map shape
+	// (map[string]any, omitempty): a written finding's pair survived every
+	// rule, so the key is usually absent and the read path reports its own
+	// per-rule maps. Counts encode as JSON numbers; readers convert from
+	// float64.
+	Suppressions map[string]any   `json:"suppressions,omitempty"`
+	Evidence     []map[string]any `json:"evidence"`
+	SourceLayers []string         `json:"source_layers"`
+}
+
 // MultiCloudRuntimeDriftFinding is the schema-version-1 payload for
 // "reducer_multi_cloud_runtime_drift_finding". It is the provider-neutral
 // runtime drift read model keyed by canonical cloud_resource_uid.

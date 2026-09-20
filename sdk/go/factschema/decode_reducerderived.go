@@ -20,6 +20,10 @@ const (
 	// FactKindReducerTerraformConfigStateDriftFinding identifies one Terraform
 	// config-vs-state drift finding written by the reducer (issue #5442).
 	FactKindReducerTerraformConfigStateDriftFinding = "reducer_terraform_config_state_drift_finding"
+	// FactKindReducerCodeDriftedFinding identifies one drifted
+	// parallel-implementation pair written by the reducer (epic #6833, child
+	// #6837).
+	FactKindReducerCodeDriftedFinding = "reducer_code_drifted_finding"
 	// FactKindReducerPackageOwnershipCorrelation identifies one reducer-owned
 	// package source-hint ownership decision.
 	FactKindReducerPackageOwnershipCorrelation = "reducer_package_ownership_correlation"
@@ -76,6 +80,18 @@ func DecodeReducerTerraformConfigStateDriftFinding(env Envelope) (reducerderived
 // EncodeReducerTerraformConfigStateDriftFinding marshals a typed Terraform
 // config-vs-state drift finding into the map payload shape an Envelope carries.
 func EncodeReducerTerraformConfigStateDriftFinding(finding reducerderivedv1.TerraformConfigStateDriftFinding) (map[string]any, error) {
+	return encodeDirectPayload(finding)
+}
+
+// DecodeReducerCodeDriftedFinding decodes env.Payload into the latest
+// reducerderivedv1.CodeDriftedFinding struct.
+func DecodeReducerCodeDriftedFinding(env Envelope) (reducerderivedv1.CodeDriftedFinding, error) {
+	return decodeLatestMajor[reducerderivedv1.CodeDriftedFinding](FactKindReducerCodeDriftedFinding, env)
+}
+
+// EncodeReducerCodeDriftedFinding marshals a typed drifted-pair finding into
+// the map payload shape an Envelope carries.
+func EncodeReducerCodeDriftedFinding(finding reducerderivedv1.CodeDriftedFinding) (map[string]any, error) {
 	return encodeDirectPayload(finding)
 }
 

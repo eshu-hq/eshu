@@ -163,6 +163,7 @@ func TestSchemasHaveNoDrift(t *testing.T) {
 		{file: "reducer_aws_cloud_runtime_drift_finding.v1.schema.json", generate: schemagen.ReducerAWSCloudRuntimeDriftFindingSchema},
 		{file: "reducer_multi_cloud_runtime_drift_finding.v1.schema.json", generate: schemagen.ReducerMultiCloudRuntimeDriftFindingSchema},
 		{file: "reducer_terraform_config_state_drift_finding.v1.schema.json", generate: schemagen.ReducerTerraformConfigStateDriftFindingSchema},
+		{file: "reducer_code_drifted_finding.v1.schema.json", generate: schemagen.ReducerCodeDriftedFindingSchema},
 		{file: "reducer_package_ownership_correlation.v1.schema.json", generate: schemagen.ReducerPackageOwnershipCorrelationSchema},
 		{file: "reducer_package_consumption_correlation.v1.schema.json", generate: schemagen.ReducerPackageConsumptionCorrelationSchema},
 		{file: "reducer_package_publication_correlation.v1.schema.json", generate: schemagen.ReducerPackagePublicationCorrelationSchema},

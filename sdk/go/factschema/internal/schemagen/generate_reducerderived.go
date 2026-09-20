@@ -49,6 +49,16 @@ func ReducerMultiCloudRuntimeDriftFindingSchema() ([]byte, error) {
 	return reflectSchema(ReducerMultiCloudRuntimeDriftFindingSchemaID, "Eshu reducer_multi_cloud_runtime_drift_finding Payload (schema version 1)", &reducerderivedv1.MultiCloudRuntimeDriftFinding{})
 }
 
+// ReducerCodeDriftedFindingSchemaID is the checked-in JSON Schema $id for
+// the schema-version-1 "reducer_code_drifted_finding" payload.
+const ReducerCodeDriftedFindingSchemaID = schemaBaseID + "reducerderived/v1/code_drifted_finding.schema.json"
+
+// ReducerCodeDriftedFindingSchema returns the JSON Schema bytes for
+// reducerderivedv1.CodeDriftedFinding.
+func ReducerCodeDriftedFindingSchema() ([]byte, error) {
+	return reflectSchema(ReducerCodeDriftedFindingSchemaID, "Eshu reducer_code_drifted_finding Payload (schema version 1)", &reducerderivedv1.CodeDriftedFinding{})
+}
+
 // ReducerPackageOwnershipCorrelationSchemaID is the checked-in JSON Schema $id
 // for the schema-version-1 "reducer_package_ownership_correlation" payload.
 const ReducerPackageOwnershipCorrelationSchemaID = schemaBaseID + "reducerderived/v1/package_ownership_correlation.schema.json"

@@ -37,6 +37,10 @@ const (
 	// go/internal/correlation/drift/tfconfigstate/doc.go for the outcome-model
 	// reasoning.
 	ReducerTerraformConfigStateDriftFindingFactKind = "reducer_terraform_config_state_drift_finding"
+	// ReducerCodeDriftedFindingFactKind identifies one reducer-owned drifted
+	// parallel-implementation pair persisted for the code-divergence drifted
+	// read surface (epic #6833, child #6837).
+	ReducerCodeDriftedFindingFactKind = "reducer_code_drifted_finding"
 	// ReducerCloudAssetResolutionFactKind identifies the reducer-internal cloud
 	// asset resolution canonicalization row. It is registered as
 	// admission-exempt, not versioned.
@@ -55,6 +59,7 @@ var reducerDerivedFactKinds = []string{
 	ReducerPackageConsumptionCorrelationFactKind,
 	ReducerPackagePublicationCorrelationFactKind,
 	ReducerTerraformConfigStateDriftFindingFactKind,
+	ReducerCodeDriftedFindingFactKind,
 }
 
 var reducerDerivedSchemaVersions = map[string]string{
@@ -65,6 +70,7 @@ var reducerDerivedSchemaVersions = map[string]string{
 	ReducerPackageConsumptionCorrelationFactKind:    ReducerDerivedSchemaVersionV1,
 	ReducerPackagePublicationCorrelationFactKind:    ReducerDerivedSchemaVersionV1,
 	ReducerTerraformConfigStateDriftFindingFactKind: ReducerDerivedSchemaVersionV1,
+	ReducerCodeDriftedFindingFactKind:               ReducerDerivedSchemaVersionV1,
 }
 
 // ReducerDerivedFactKinds returns governed reducer-derived fact kinds.
