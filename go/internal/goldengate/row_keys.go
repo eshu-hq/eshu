@@ -46,6 +46,7 @@ var writePathRowKeys = map[string]struct{}{
 	"finding":        {},
 	"framework":      {},
 	"hashes":         {},
+	"id":             {},
 	"kind":           {},
 	"labels":         {},
 	"language":       {},

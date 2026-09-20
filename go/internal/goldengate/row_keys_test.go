@@ -140,6 +140,9 @@ var readOnlyMapBindings = map[string]string{
 	// Orphan-sweep reads and marker writes: candidate_key.key_N only anchors
 	// MATCH/WHERE; the writes store $observed_at_unix or REMOVE the marker.
 	"candidate_key": "storage/cypher/orphan_sweep_queries.go, orphan_sweep_writes.go",
+	// existingAnchorsCypher: MATCH/WHERE read of anchor.workload_id and
+	// anchor.environment; nothing writes the binding's fields.
+	"anchor": "reducer/workloadinstance/lookup.go",
 }
 
 // mapDereferencedBindings returns the UNWIND bindings other than row that lit
