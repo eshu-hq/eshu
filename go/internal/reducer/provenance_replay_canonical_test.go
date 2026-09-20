@@ -178,16 +178,24 @@ func (e provenanceReplayExecutor) RunWrite(
 	}, nil
 }
 
-// RunProbe runs the bounded read-only existence probe that precedes a
-// bare-label retract drain (#6822) by delegating to RunWrite: the probe must
-// observe the same graph state and session kind (write session) the drain
-// itself uses.
-func (e provenanceReplayExecutor) RunProbe(
-	ctx context.Context,
-	cypherText string,
-	parameters map[string]any,
-) (storagenornicdb.DrainWriteResult, error) {
-	return e.RunWrite(ctx, cypherText, parameters)
+// ExecuteProbe implements sourcecypher.ProbeExecutor (#6852): it runs stmt as
+// a read-only existence check in the same write-session kind RunWrite uses,
+// so the probe observes the same graph state a following drain would.
+// newProvenanceReplayProjectorRuntime wires this same provenanceReplayExecutor
+// value as both Inner (the ProbeExecutor the drain loop now probes through)
+// and DrainReader (the RunWrite path).
+func (e provenanceReplayExecutor) ExecuteProbe(ctx context.Context, stmt cypher.Statement) (bool, error) {
+	session := e.driver.NewSession(ctx, e.sessionConfig(neo4jdriver.AccessModeWrite))
+	defer func() { _ = session.Close(ctx) }()
+	result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters)
+	if err != nil {
+		return false, fmt.Errorf("execute probe: %w", err)
+	}
+	hasNext := result.Next(ctx)
+	if err := result.Err(); err != nil {
+		return false, fmt.Errorf("iterate probe: %w", err)
+	}
+	return hasNext, nil
 }
 
 func (e provenanceReplayExecutor) ExecuteCypher(ctx context.Context, stmt graph.CypherStatement) error {

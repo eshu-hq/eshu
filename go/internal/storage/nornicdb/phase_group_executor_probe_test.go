@@ -6,7 +6,6 @@ package nornicdb
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -18,17 +17,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// probeReader scripts a probed bare-label drain: each probe returns the next
-// scripted element ID (or none), and each drain reports the next scripted
-// __drained count. It records every call so tests can assert the sequence.
+// probeReader scripts a probed bare-label drain (#6852): it implements
+// sourcecypher.ProbeExecutor (installed as PhaseGroupExecutor.Inner) for the
+// bounded existence probe, and DrainReader's RunWrite (installed as
+// PhaseGroupExecutor.DrainReader) for the drain iterations themselves. It
+// records every call so tests can assert the sequence.
 type probeReader struct {
-	probeIDs []string // "" means the probe finds nothing
-	drained  []int64
-	probeErr error
-	drainErr error
-	calls    []probeCall
-	probes   int
-	drains   int
+	probeFound []bool // successive ExecuteProbe answers; false past the end
+	drained    []int64
+	probeErr   error
+	drainErr   error
+	calls      []probeCall
+	probes     int
+	drains     int
 }
 
 type probeCall struct {
@@ -37,27 +38,28 @@ type probeCall struct {
 	params map[string]any
 }
 
-// RunProbe records and answers the bounded existence probe (#6822): the
-// production drain loop now routes the probe through this method, not
-// RunWrite, so gate/timeout wrappers can label it separately from a drain.
-func (r *probeReader) RunProbe(_ context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
-	r.calls = append(r.calls, probeCall{kind: "probe", cypher: cypher, params: params})
+// Execute is unused by these tests (the drain loop never calls it directly);
+// it exists only so *probeReader satisfies sourcecypher.Executor, which
+// PhaseGroupExecutor.Inner requires.
+func (r *probeReader) Execute(context.Context, sourcecypher.Statement) error { return nil }
+
+// ExecuteProbe records and answers the bounded existence probe: the
+// production drain loop routes the probe through PhaseGroupExecutor.Inner as
+// a sourcecypher.ProbeExecutor, carrying sourcecypher.OperationCanonicalProbe.
+func (r *probeReader) ExecuteProbe(_ context.Context, stmt sourcecypher.Statement) (bool, error) {
+	r.calls = append(r.calls, probeCall{kind: "probe", cypher: stmt.Cypher, params: stmt.Parameters})
 	if r.probeErr != nil {
-		return DrainWriteResult{}, r.probeErr
+		return false, r.probeErr
 	}
-	id := ""
-	if r.probes < len(r.probeIDs) {
-		id = r.probeIDs[r.probes]
+	found := false
+	if r.probes < len(r.probeFound) {
+		found = r.probeFound[r.probes]
 	}
 	r.probes++
-	if id == "" {
-		return DrainWriteResult{}, nil
-	}
-	return DrainWriteResult{Rows: []map[string]any{{"__id": id}}}, nil
+	return found, nil
 }
 
-// RunWrite records and answers one drain iteration. It no longer branches on
-// probe cypher text: the probe is routed through RunProbe instead.
+// RunWrite records and answers one drain iteration.
 func (r *probeReader) RunWrite(_ context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
 	r.calls = append(r.calls, probeCall{kind: "drain", cypher: cypher, params: params})
 	if r.drainErr != nil {
@@ -83,6 +85,14 @@ func (r *probeReader) kinds() []string {
 	return out
 }
 
+// probedExecutor wires reader as both PhaseGroupExecutor.Inner (the
+// ProbeExecutor the drain loop probes through) and PhaseGroupExecutor.
+// DrainReader (the RunWrite path), mirroring how production wires the same
+// raw executor value into both roles.
+func probedExecutor(reader *probeReader, retractBatchSize int) PhaseGroupExecutor {
+	return PhaseGroupExecutor{RetractBatchSize: retractBatchSize, Inner: reader, DrainReader: reader}
+}
+
 func bareLabelRetract() sourcecypher.Statement {
 	return sourcecypher.Statement{
 		Operation: sourcecypher.OperationCanonicalRetract,
@@ -102,8 +112,8 @@ func bareLabelRetract() sourcecypher.Statement {
 func TestExecuteDrainLoopProbesOnceThenDrainsBacklog(t *testing.T) {
 	t.Parallel()
 
-	reader := &probeReader{probeIDs: []string{"4:a:1"}, drained: []int64{2, 1, 0}}
-	executor := PhaseGroupExecutor{RetractBatchSize: 2, DrainReader: reader}
+	reader := &probeReader{probeFound: []bool{true}, drained: []int64{2, 1, 0}}
+	executor := probedExecutor(reader, 2)
 
 	if err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 1, 1, "retract"); err != nil {
 		t.Fatalf("executeDrainLoop() error = %v, want nil", err)
@@ -134,54 +144,13 @@ func TestExecuteDrainLoopNoMatchRunsOneProbe(t *testing.T) {
 	t.Parallel()
 
 	reader := &probeReader{}
-	executor := PhaseGroupExecutor{DrainReader: reader}
+	executor := probedExecutor(reader, 0)
 
 	if err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 1, 1, "retract"); err != nil {
 		t.Fatalf("executeDrainLoop() error = %v, want nil", err)
 	}
 	if got, want := reader.kinds(), []string{"probe"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("call sequence = %v, want %v", got, want)
-	}
-}
-
-// malformedProbeReader returns a probe row whose __id is missing or not a
-// string, then scripts drains like probeReader.
-type malformedProbeReader struct {
-	probeReader
-	row map[string]any
-}
-
-// RunProbe overrides the embedded probeReader.RunProbe to always return the
-// malformed row; RunWrite (drain-only) is inherited unchanged.
-func (r *malformedProbeReader) RunProbe(_ context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
-	r.calls = append(r.calls, probeCall{kind: "probe", cypher: cypher, params: params})
-	return DrainWriteResult{Rows: []map[string]any{r.row}}, nil
-}
-
-// TestExecuteDrainLoopDrainsWhenProbeRowIsMalformed keeps the probe fail
-// closed: any returned row means something matched, so a row without a usable
-// __id must still run the drain instead of being reported as probe_skipped.
-func TestExecuteDrainLoopDrainsWhenProbeRowIsMalformed(t *testing.T) {
-	t.Parallel()
-
-	for name, row := range map[string]map[string]any{
-		"missing id":    {},
-		"non-string id": {"__id": int64(7)},
-		"empty id":      {"__id": ""},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			reader := &malformedProbeReader{row: row, probeReader: probeReader{drained: []int64{3, 0}}}
-			executor := PhaseGroupExecutor{DrainReader: reader}
-
-			if err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 1, 1, "retract"); err != nil {
-				t.Fatalf("executeDrainLoop() error = %v, want nil", err)
-			}
-			if got, want := reader.kinds(), []string{"probe", "drain", "drain"}; !reflect.DeepEqual(got, want) {
-				t.Fatalf("call sequence = %v, want %v", got, want)
-			}
-		})
 	}
 }
 
@@ -192,8 +161,8 @@ func TestExecuteDrainLoopDrainsWhenProbeRowIsMalformed(t *testing.T) {
 func TestExecuteDrainLoopSucceedsWhenMatchesVanishBeforeDrain(t *testing.T) {
 	t.Parallel()
 
-	reader := &probeReader{probeIDs: []string{"4:a:1"}, drained: []int64{0}}
-	executor := PhaseGroupExecutor{DrainReader: reader}
+	reader := &probeReader{probeFound: []bool{true}, drained: []int64{0}}
+	executor := probedExecutor(reader, 0)
 
 	if err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 1, 1, "retract"); err != nil {
 		t.Fatalf("executeDrainLoop() error = %v, want nil", err)
@@ -210,8 +179,8 @@ func TestExecuteDrainLoopSucceedsWhenMatchesVanishBeforeDrain(t *testing.T) {
 func TestExecuteDrainLoopPropagatesDrainErrors(t *testing.T) {
 	t.Parallel()
 
-	reader := &probeReader{probeIDs: []string{"4:a:1"}, drainErr: errors.New("bolt: connection reset")}
-	executor := PhaseGroupExecutor{DrainReader: reader}
+	reader := &probeReader{probeFound: []bool{true}, drainErr: errors.New("bolt: connection reset")}
+	executor := probedExecutor(reader, 0)
 	err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 2, 3, "retract")
 	if err == nil || !strings.Contains(err.Error(), "connection reset") || !strings.Contains(err.Error(), "2/3") {
 		t.Fatalf("executeDrainLoop() error = %v, want the drain error with statement 2/3 context", err)
@@ -226,12 +195,38 @@ func TestExecuteDrainLoopDrainsWhenProbeFails(t *testing.T) {
 	t.Parallel()
 
 	reader := &probeReader{probeErr: errors.New("nornicdb: probe timed out"), drained: []int64{4, 0}}
-	executor := PhaseGroupExecutor{DrainReader: reader}
+	executor := probedExecutor(reader, 0)
 	if err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 1, 1, "retract"); err != nil {
 		t.Fatalf("executeDrainLoop() error = %v, want nil (probe failure must fall through to the drain)", err)
 	}
 	if got, want := reader.kinds(), []string{"probe", "drain", "drain"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("call sequence = %v, want %v", got, want)
+	}
+}
+
+// probeUnsupportedExecutor implements sourcecypher.Executor only, never
+// sourcecypher.ProbeExecutor, standing in for a raw executor (e.g. Neo4j's,
+// which has no ExecuteProbe) wired as PhaseGroupExecutor.Inner.
+type probeUnsupportedExecutor struct{}
+
+func (probeUnsupportedExecutor) Execute(context.Context, sourcecypher.Statement) error { return nil }
+
+// TestExecuteDrainLoopDrainsWhenInnerLacksProbeExecutor keeps the fail-safe
+// contract when Inner does not implement sourcecypher.ProbeExecutor at all
+// (as opposed to implementing it and returning an error): the drain loop
+// treats "no capability" the same as "probe error" -- unknown, never "zero
+// rows" -- and runs the drain unconditionally.
+func TestExecuteDrainLoopDrainsWhenInnerLacksProbeExecutor(t *testing.T) {
+	t.Parallel()
+
+	reader := &probeReader{drained: []int64{2, 0}}
+	executor := PhaseGroupExecutor{Inner: probeUnsupportedExecutor{}, DrainReader: reader}
+
+	if err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 1, 1, "retract"); err != nil {
+		t.Fatalf("executeDrainLoop() error = %v, want nil", err)
+	}
+	if got, want := reader.kinds(), []string{"drain", "drain"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("call sequence = %v, want %v (Inner has no ExecuteProbe, so no probe call is ever made)", got, want)
 	}
 }
 
@@ -244,9 +239,9 @@ func TestExecuteDrainLoopProbedEnforcesSafetyCap(t *testing.T) {
 	for i := range drained {
 		drained[i] = 1
 	}
-	reader := &probeReader{probeIDs: []string{fmt.Sprintf("4:a:%d", 1)}, drained: drained}
+	reader := &probeReader{probeFound: []bool{true}, drained: drained}
 	// 5,000,000/2,500,000 + 2 = 4 iterations allowed.
-	executor := PhaseGroupExecutor{RetractBatchSize: 2_500_000, DrainReader: reader}
+	executor := probedExecutor(reader, 2_500_000)
 
 	err := executor.executeDrainLoop(context.Background(), bareLabelRetract(), 1, 1, "retract")
 	if err == nil || !strings.Contains(err.Error(), "safety cap exceeded after 4 iterations") {
@@ -265,8 +260,9 @@ func TestExecuteDrainLoopProbedRecordsDriftRetractions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
-	reader := &probeReader{probeIDs: []string{"4:a:1"}, drained: []int64{3, 1, 0}}
-	executor := PhaseGroupExecutor{DrainReader: reader, Instruments: instruments}
+	reader := &probeReader{probeFound: []bool{true}, drained: []int64{3, 1, 0}}
+	executor := probedExecutor(reader, 0)
+	executor.Instruments = instruments
 	stmt := bareLabelRetract()
 	stmt.Parameters[sourcecypher.StatementMetadataReconciliationDriftKey] = true
 	stmt.Parameters[sourcecypher.StatementMetadataPhaseKey] = "retract"
@@ -305,7 +301,7 @@ func TestExecuteDrainLoopKeepsUnprobedDrainForAnchoredRetract(t *testing.T) {
 	t.Parallel()
 
 	reader := &probeReader{}
-	executor := PhaseGroupExecutor{DrainReader: reader}
+	executor := probedExecutor(reader, 0)
 	stmt := sourcecypher.Statement{
 		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher: "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)\n" +

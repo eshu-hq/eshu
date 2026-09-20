@@ -25,12 +25,14 @@ and writer phase order remain in `internal/storage/cypher`.
   `cypher.PhaseGroupExecutor`. It deliberately does not implement
   `cypher.GroupExecutor`.
 - `DrainReader` and `DrainWriteResult` carry bounded full-refresh retract
-  iterations through a command-owned live Bolt executor. `RunWrite` runs the
-  drain write; `RunProbe` runs the bounded existence probe that precedes a
-  bare-label drain (#6822). They are separate interface methods, not one
-  method overloaded by cypher shape, so a command-owned gate or timeout
-  wrapper can label each independently instead of mislabeling the probe as a
-  drain write.
+  iterations through a command-owned live Bolt executor. `RunWrite` is
+  `DrainReader`'s only method; it runs the drain write. The bounded existence
+  probe that precedes a bare-label drain (#6822) is not a `DrainReader`
+  method: `executeDrainLoop` dispatches it through `PhaseGroupExecutor.Inner`
+  as a `sourcecypher.ProbeExecutor` carrying `sourcecypher.
+  OperationCanonicalProbe` (#6852), the same instrumented executor chain
+  (backpressure, timeout, `InstrumentedExecutor`, `RetryingExecutor`) every
+  other canonical write goes through.
 - `WriterConfig`, `DefaultWriterConfig`, and `ConfigureCanonicalWriter` apply
   the production file/entity/per-label row caps and containment shape.
 - The exported default constants and `DefaultEntityPhaseConcurrency` define the shared
@@ -70,19 +72,32 @@ parsing and reject values outside that range.
 Grouped inner statements continue through the command-owned retry,
 `cypher.InstrumentedExecutor`, client timeout, server transaction timeout, and
 backpressure layers. Drain and autocommit retracts use a command-owned
-`DrainReader`; they share the same backpressure gate and retain the server
-transaction timeout while bypassing grouped retry and instrumentation wrappers.
-The probe (`RunProbe`) and the drain write (`RunWrite`) each draw one permit
-and one client deadline from that shared gate and timeout budget, but under
-separate labels (`canonical_probe` vs `canonical_retract_drain` for
-backpressure; distinct `GraphWriteTimeoutError.Operation` strings for
-timeouts), so an operator can see probe cost separately from drain cost.
+`DrainReader`; the drain write shares the same backpressure gate and retains
+the server transaction timeout while bypassing grouped retry and
+instrumentation wrappers. The bounded existence probe that precedes a
+bare-label drain (#6822) is NOT routed through `DrainReader`: it dispatches
+through `PhaseGroupExecutor.Inner` as a `sourcecypher.ProbeExecutor` (#6852),
+so it draws its permit and client deadline from the SAME grouped
+backpressure/`TimeoutExecutor` chain as every other canonical write, under the
+`canonical_probe` operation label, and is instrumented with a
+`neo4j.execute_probe` span and a `Neo4jQueryDuration{operation=probe}` point
+via `cypher.InstrumentedExecutor` -- telemetry the drain write's `RunWrite`
+path does not get. An operator can therefore see probe cost (span/metric) and
+backpressure wait (`canonical_probe` vs `canonical_retract_drain` gate labels)
+separately from drain cost.
 Both the standalone projector and the ingester apply a fresh client timeout to
 each raw drain iteration and return the shared retryable graph-write timeout
 shape, so one lost Bolt response cannot hold a worker indefinitely (#5122 for
 the projector, #5198 for the ingester). The timeout is per iteration, not
 phase-wide: the deadline resets every iteration, so a drain that keeps making
-progress across many iterations is never canceled by an earlier one.
+progress across many iterations is never canceled by an earlier one. The probe
+now gets its per-call deadline from the grouped `sourcecypher.TimeoutExecutor`
+instead (the same `ESHU_CANONICAL_WRITE_TIMEOUT` budget the drain
+iteration budget is derived from): each `ExecuteProbe` call opens its own
+fresh child context sized to that same duration, so the probe is bounded
+identically to before, just under a `neo4j execute probe timed out` operation
+label from `TimeoutExecutor` rather than the drain wrapper's
+`nornicdb probe timed out` label.
 Drain logs and reconciliation counters provide the dedicated operator surface.
 The adapter also emits bounded phase/chunk logs and rolling entity-label
 summaries. No metric label contains repository paths, entity IDs, or symbols.

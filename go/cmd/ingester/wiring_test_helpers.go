@@ -42,6 +42,19 @@ type recordingGroupChunkExecutor struct {
 	callCount         int
 	failAtCall        int
 	err               error
+	// probeCalls counts ExecuteProbe calls (#6852): the bounded existence
+	// probe that precedes a bare-label retract drain now dispatches through
+	// PhaseGroupExecutor.Inner as a sourcecypher.ProbeExecutor, so this fake
+	// -- used as Inner in the shared drain-loop tests -- must implement it.
+	probeCalls int
+}
+
+// ExecuteProbe always reports a match (found=true), mirroring the old
+// drainCountReader.RunProbe fake it replaces, so existing drain-loop
+// iteration-count assertions are unaffected by the probe's outcome.
+func (r *recordingGroupChunkExecutor) ExecuteProbe(context.Context, sourcecypher.Statement) (bool, error) {
+	r.probeCalls++
+	return true, nil
 }
 
 func (r *recordingGroupChunkExecutor) Execute(_ context.Context, stmt sourcecypher.Statement) error {

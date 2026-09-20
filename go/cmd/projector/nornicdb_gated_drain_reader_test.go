@@ -42,58 +42,44 @@ func (o *recordingBackpressureObserver) last() string {
 // never asserted.
 type projectorDrainProbeStub struct{}
 
-func (projectorDrainProbeStub) RunProbe(context.Context, string, map[string]any) (storagenornicdb.DrainWriteResult, error) {
-	return storagenornicdb.DrainWriteResult{}, nil
-}
-
 func (projectorDrainProbeStub) RunWrite(context.Context, string, map[string]any) (storagenornicdb.DrainWriteResult, error) {
 	return storagenornicdb.DrainWriteResult{}, nil
 }
 
-// TestProjectorGatedDrainReaderLabelsProbeAndDrainDistinctly is the #6822
-// regression: projectorGatedDrainReader must label the bounded existence
-// probe separately from the DETACH DELETE drain write it precedes, so
-// backpressure telemetry and the in-flight ceiling attribute the probe
-// correctly instead of folding it into the drain write's
-// "canonical_retract_drain" label.
-func TestProjectorGatedDrainReaderLabelsProbeAndDrainDistinctly(t *testing.T) {
+// TestProjectorGatedDrainReaderLabelsDrainWrite is the #6822 regression,
+// narrowed by #6852: the bounded existence probe that used to share this
+// wrapper now dispatches through PhaseGroupExecutor.Inner as a
+// sourcecypher.ProbeExecutor instead (see
+// TestExecuteDrainLoopRoutesProbeThroughInnerWithCanonicalProbeOperation in
+// internal/storage/nornicdb), so projectorGatedDrainReader only needs to
+// label its remaining DETACH DELETE drain write.
+func TestProjectorGatedDrainReaderLabelsDrainWrite(t *testing.T) {
 	t.Parallel()
 
 	observer := &recordingBackpressureObserver{}
 	gate := sourcecypher.NewBackpressureGate(1, observer)
 	reader := projectorGatedDrainReader{inner: projectorDrainProbeStub{}, gate: gate}
 
-	assertAcquireLabel := func(t *testing.T, call func() error, want string) {
-		t.Helper()
-
-		release, err := gate.Acquire(context.Background(), "hold")
-		if err != nil {
-			t.Fatalf("Acquire() error = %v, want nil", err)
-		}
-		done := make(chan error, 1)
-		go func() { done <- call() }()
-		time.Sleep(50 * time.Millisecond)
-		release()
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Fatalf("call() error = %v, want nil", err)
-			}
-		case <-time.After(2 * time.Second):
-			t.Fatal("call did not finish after releasing the held permit")
-		}
-		if got := observer.last(); got != want {
-			t.Fatalf("acquire label = %q, want %q", got, want)
-		}
+	release, err := gate.Acquire(context.Background(), "hold")
+	if err != nil {
+		t.Fatalf("Acquire() error = %v, want nil", err)
 	}
-
-	assertAcquireLabel(t, func() error {
-		_, err := reader.RunProbe(context.Background(), "RETURN elementId(n)", nil)
-		return err
-	}, "canonical_probe")
-
-	assertAcquireLabel(t, func() error {
+	done := make(chan error, 1)
+	go func() {
 		_, err := reader.RunWrite(context.Background(), "DETACH DELETE n", nil)
-		return err
-	}, "canonical_retract_drain")
+		done <- err
+	}()
+	time.Sleep(50 * time.Millisecond)
+	release()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("RunWrite() error = %v, want nil", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("RunWrite did not finish after releasing the held permit")
+	}
+	if got, want := observer.last(), "canonical_retract_drain"; got != want {
+		t.Fatalf("acquire label = %q, want %q", got, want)
+	}
 }

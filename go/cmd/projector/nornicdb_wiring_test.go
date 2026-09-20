@@ -253,60 +253,6 @@ func TestProjectorNornicDBDrainUsesPerIterationClientTimeout(t *testing.T) {
 	}
 }
 
-// TestProjectorNornicDBProbeUsesPerIterationClientTimeout is the #6822
-// companion to TestProjectorNornicDBDrainUsesPerIterationClientTimeout: the
-// bounded existence probe that precedes a bare-label drain must get the same
-// per-call client deadline as a drain iteration, but report a distinct
-// GraphWriteTimeoutError.Operation ("nornicdb probe timed out") so an operator
-// (and the queue's retry classifier) can tell a stuck probe from a stuck
-// drain.
-func TestProjectorNornicDBProbeUsesPerIterationClientTimeout(t *testing.T) {
-	t.Parallel()
-
-	getenv := func(name string) string {
-		if name == canonicalWriteTimeoutEnv {
-			return "10ms"
-		}
-		return ""
-	}
-	raw := blockingProjectorDrainExecutor{}
-	executor := projectorCanonicalExecutorForGraphBackend(
-		raw,
-		runtimecfg.GraphBackendNornicDB,
-		projectorNornicDBConfigForTest(t, getenv),
-		getenv,
-		nil,
-		nil,
-	)
-	phase, ok := executor.(storagenornicdb.PhaseGroupExecutor)
-	if !ok {
-		t.Fatalf("executor type = %T, want nornicdb.PhaseGroupExecutor", executor)
-	}
-	if phase.DrainReader == nil {
-		t.Fatal("NornicDB phase executor has no drain reader")
-	}
-	outerCtx, cancel := context.WithTimeout(context.Background(), 120*time.Millisecond)
-	defer cancel()
-	started := time.Now()
-	_, err := phase.DrainReader.RunProbe(outerCtx, "RETURN elementId(n) LIMIT 1", nil)
-	if err == nil || !strings.Contains(err.Error(), "nornicdb probe timed out after 10ms") {
-		t.Fatalf("RunProbe() error = %v, want per-iteration probe-timeout error", err)
-	}
-	var timeoutErr sourcecypher.GraphWriteTimeoutError
-	if !errors.As(err, &timeoutErr) {
-		t.Fatalf("RunProbe() error = %T, want GraphWriteTimeoutError", err)
-	}
-	if got, want := timeoutErr.Operation, "nornicdb probe timed out"; got != want {
-		t.Fatalf("Operation = %q, want %q", got, want)
-	}
-	if !projector.IsRetryable(err) {
-		t.Fatalf("projector.IsRetryable(%v) = false, want true", err)
-	}
-	if elapsed := time.Since(started); elapsed >= 80*time.Millisecond {
-		t.Fatalf("RunProbe() elapsed = %s, want client timeout before outer deadline", elapsed)
-	}
-}
-
 func TestProjectorCanonicalWriterDrainTimeoutRemainsQueueRetryable(t *testing.T) {
 	t.Parallel()
 
@@ -362,17 +308,6 @@ func (blockingProjectorDrainExecutor) ExecuteGroup(context.Context, []sourcecyph
 }
 
 func (blockingProjectorDrainExecutor) RunWrite(
-	ctx context.Context,
-	_ string,
-	_ map[string]any,
-) (storagenornicdb.DrainWriteResult, error) {
-	<-ctx.Done()
-	return storagenornicdb.DrainWriteResult{}, ctx.Err()
-}
-
-// RunProbe blocks exactly like RunWrite, standing in for a NornicDB existence
-// probe whose Bolt response is lost.
-func (blockingProjectorDrainExecutor) RunProbe(
 	ctx context.Context,
 	_ string,
 	_ map[string]any,

@@ -143,12 +143,14 @@ func ingesterStatementRetractionCounts(
 // ResultSummary.Counters() on the non-drain path.
 type DrainWriteResult = storagenornicdb.DrainWriteResult
 
-// retractDrainReader executes a bounded drain step (RunWrite) and the bounded
-// existence probe that precedes a bare-label drain (RunProbe, #6822) in a
-// write session, returning the collected records and graph-driver delete
-// counters. It is implemented by ingesterNeo4jExecutor and used by
+// retractDrainReader executes a bounded drain step (RunWrite) in a write
+// session, returning the collected records and graph-driver delete counters.
+// It is implemented by ingesterNeo4jExecutor and used by
 // nornicDBPhaseGroupExecutor to drive the drain loop for unbounded
-// full-refresh DETACH DELETE statements on NornicDB.
+// full-refresh DETACH DELETE statements on NornicDB. The bounded existence
+// probe that precedes a bare-label drain dispatches separately through
+// ingesterNeo4jExecutor.ExecuteProbe (sourcecypher.ProbeExecutor, #6852), not
+// through this seam.
 type retractDrainReader = storagenornicdb.DrainReader
 
 // RunWrite opens a write session, runs the supplied Cypher with the supplied
@@ -198,13 +200,40 @@ func (e ingesterNeo4jExecutor) RunWrite(ctx context.Context, cypher string, para
 	}, nil
 }
 
-// RunProbe runs the bounded read-only existence probe that precedes a
-// bare-label retract drain (#6822) by delegating to RunWrite: the probe must
-// observe the same graph state and session kind (write session) the drain
-// itself uses, so a probe run in a separate read session could not silently
-// disagree with what the drain sees.
-func (e ingesterNeo4jExecutor) RunProbe(ctx context.Context, cypher string, params map[string]any) (DrainWriteResult, error) {
-	return e.RunWrite(ctx, cypher, params)
+// ExecuteProbe implements sourcecypher.ProbeExecutor (#6852): it runs stmt as
+// a read-only existence check and reports whether it matched at least one
+// row. AccessModeWrite for a read-only statement is deliberate, mirroring
+// go/cmd/reducer/neo4j_wiring.go's QueryCypherExists: the probe guards a
+// following DELETE decision, so it must observe the same leader-routed graph
+// state a write session would rather than risk a lagging-follower false
+// negative on a routed deployment. This is the seam
+// nornicdb.PhaseGroupExecutor.executeDrainLoop dispatches the bounded
+// bare-label retract existence probe through via PhaseGroupExecutor.Inner,
+// replacing the former DrainReader.RunProbe method, which bypassed
+// InstrumentedExecutor and so emitted neither a neo4j.execute_probe span nor
+// a Neo4jQueryDuration{operation=probe} point (#6822 follow-up).
+func (e ingesterNeo4jExecutor) ExecuteProbe(ctx context.Context, stmt sourcecypher.Statement) (bool, error) {
+	if e.Driver == nil {
+		return false, fmt.Errorf("neo4j driver is required")
+	}
+
+	session := e.Driver.NewSession(ctx, neo4jdriver.SessionConfig{
+		AccessMode:   neo4jdriver.AccessModeWrite,
+		DatabaseName: e.DatabaseName,
+	})
+	defer func() {
+		_ = session.Close(ctx)
+	}()
+
+	result, err := session.Run(ctx, stmt.Cypher, stmt.Parameters, e.transactionConfigurers()...)
+	if err != nil {
+		return false, err
+	}
+	hasNext := result.Next(ctx)
+	if err := result.Err(); err != nil {
+		return false, err
+	}
+	return hasNext, nil
 }
 
 func (e ingesterNeo4jExecutor) transactionConfigurers() []func(*neo4jdriver.TransactionConfig) {
