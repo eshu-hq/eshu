@@ -111,8 +111,11 @@ each side:
 | `get_repo_context` `source_tool_breakdown` for `orders-api` | NornicDB write path | The batched repo-dependency writer omitted `source_tool` from UNWIND rows that had none. NornicDB v1.3.3 stored the literal text `row.source_tool`, while Neo4j left the edge unstamped as the [provenance contract](edge-source-tool-provenance.md) requires. | The writer always sends the key, `nil` when absent. |
 
 Both fixes carry live tests (build tag `live_nornicdb_answer_truth`) that select
-their backend in each test's preamble, with `ESHU_NEO4J_URI` pointing at Neo4j
-for the Neo4j leg. Run each on both backends before changing either path.
+their backend in each test's preamble: NornicDB unless the preamble's test-only
+backend knob names Neo4j, with `ESHU_NEO4J_URI` pointing at that leg's container
+(see the preamble in `go/internal/query/codequery/chain/self_recursion_live_test.go`
+for the exact knob). Setting the URI without the knob silently runs the NornicDB
+path, so run each test on both backends before changing either path.
 
 Two known differences still pass on both backends, and neither is settled yet.
 Transitive `CALLS` on `POST /api/v0/code/relationships` returns the start node

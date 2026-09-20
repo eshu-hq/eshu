@@ -407,8 +407,9 @@ cd go && go test ./internal/storage/cypher -run 'RowKey|RowsCarry|Sparse' -count
 
 The live proofs are `TestLiveRepoDependencyWithoutSourceToolStaysUnstamped`
 and `TestLiveSparseWriterRowsLeaveOptionalPropertiesNull` (build tag
-`live_nornicdb_answer_truth`; each selects its backend in its preamble, with
-`ESHU_NEO4J_URI` for the Neo4j leg). Both are RED on NornicDB with the old
+`live_nornicdb_answer_truth`; each selects its backend in its preamble —
+NornicDB unless the preamble's test-only backend knob names Neo4j, with
+`ESHU_NEO4J_URI` for that leg's container). Both are RED on NornicDB with the old
 conditional row maps and GREEN on both backends with the fix. The audit table
 covering every writer is in the repository at
 `docs/internal/evidence/6782-unwind-missing-row-key-audit.md`.
