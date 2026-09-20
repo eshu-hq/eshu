@@ -90,10 +90,11 @@ exercised), and the run logs the path and sha256 of the two budget tables
 it enforced. A route named in `LatencyExemptions` (`latency_exemption.go`)
 prints `BREACH-EXEMPT(<issue>)` instead when only its latency ceiling is over
 budget -- never `OK` -- and does not fail the run on latency alone; its work
-budget and any 5xx still fail the run exactly like an unexempt route. This
-exists for one route today (`/api/v0/iac/resources`, tracked against #6858,
-see the budgets table header and the seed-findings evidence note) and is not a
-way to raise a ceiling: adding an entry requires an issue reference and a
+budget and any 5xx still fail the run exactly like an unexempt route. No
+route carries an exemption today: the last grant (`/api/v0/iac/resources`,
+tracked against #6858) was removed when that issue moved the route's
+unscoped path onto the Postgres read model. The mechanism is not a way to
+raise a ceiling: adding an entry requires an issue reference and a
 reason, and `ValidateLatencyExemptions` refuses to start the gate without them. The run script exports
 `ESHU_COMPONENT_HOME` (an empty temp directory, a supported zero-components
 registry state) because `/api/v0/component-extensions` 503s unconditionally

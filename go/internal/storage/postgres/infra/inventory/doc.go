@@ -32,9 +32,12 @@
 // BackfillMarker. BackfillComplete reports whether the marker exists. Readers
 // must not serve table counts before it does, because until then the table
 // may cover only part of the corpus. Reader, CountBuckets, and
-// DimensionBuckets are the aggregate reads. Their filters and "unknown"
-// buckets mirror the graph aggregate readers clause for clause for the labels
-// in Labels.
+// DimensionBuckets are the aggregate reads. SearchIaCEntities and
+// SummarizeIaCEntities are the IaC list reads over the Terraform labels in
+// Labels; their filters and facets mirror the active-inventory CTE clause
+// for clause so unscoped /iac/resources pages agree with it. Every read's
+// filters and "unknown" buckets mirror the graph readers clause for clause
+// for the labels in Labels.
 //
 // ReconcileCycle is the reducer's drift repair. A content writer that does
 // not derive (for example an older binary during a rolling upgrade) leaves

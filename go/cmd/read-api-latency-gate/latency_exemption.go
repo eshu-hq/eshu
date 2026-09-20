@@ -23,24 +23,15 @@ type LatencyExemption struct {
 }
 
 // LatencyExemptions is the closed, hand-curated set of routes whose latency
-// ceiling is advisory rather than blocking. It is empty except for the
-// entries below: an unlisted route is never exempt, so this map cannot widen
-// coverage by omission -- only an explicit, reviewed addition can.
+// ceiling is advisory rather than blocking. It is empty: an unlisted route
+// is never exempt, so this map cannot widen coverage by omission -- only an
+// explicit, reviewed addition can.
 //
-// GET /api/v0/iac/resources (#6858): the route reads the graph directly and
-// has measured 1.23s-3.20s against its 2s ceiling across local and CI runs
-// (docs/internal/evidence/6797-infra-read-model-and-seed-findings.md), while
-// its Postgres work counters stay flat. A blocking gate cannot ship red
-// against merged main's own current behavior -- every unrelated PR would
-// inherit that failure -- so the ceiling here is advisory until #6858 moves
-// this route off the graph. The route's work budget still blocks; only its
-// latency ceiling does not. Remove this entry when #6858 lands.
-var LatencyExemptions = map[string]LatencyExemption{
-	"GET /api/v0/iac/resources": {
-		Issue:  "#6858",
-		Reason: "graph-backed aggregate measured 1.23s-3.20s against its 2s ceiling; moving it off the graph is tracked separately",
-	},
-}
+// GET /api/v0/iac/resources was exempt under #6858 while its unscoped path
+// read the active-inventory CTE; that issue moved the unscoped search and
+// summary onto infra_resource_entities, so the grant is removed and the 2s
+// ceiling blocks again.
+var LatencyExemptions = map[string]LatencyExemption{}
 
 // ValidateLatencyExemptions rejects any entry with an empty Issue or Reason.
 // An untracked exemption can never be found and removed, so the gate refuses
