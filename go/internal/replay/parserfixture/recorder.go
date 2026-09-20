@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/replay"
 )
 
@@ -112,11 +113,49 @@ func toFact(env facts.Envelope) Fact {
 		CollectorKind:    env.CollectorKind,
 		FencingToken:     env.FencingToken,
 		SourceConfidence: env.SourceConfidence,
-		Payload:          env.Payload,
+		Payload:          DurablePayload(env.Payload),
 		SourceSystem:     recordedSourceSystem(env),
 		SourceURI:        env.SourceRef.SourceURI,
 		SourceRecordID:   recordedSourceRecordID(env),
 	}
+}
+
+// DurablePayload returns a copy of a parser payload with wall-clock
+// observations collapsed for durable recording: fingerprint_stats.micros_total
+// is wall-clock timing, so recording it verbatim would make every re-record
+// differ and poison committed fixtures with machine-specific noise (the same
+// class as the observed_at collapse in the canonical fixture form). Outcome
+// counts are durable and preserved verbatim; live collector telemetry keeps
+// the real timing from the uncollapsed payload. Payloads without a fingerprint
+// stats map are returned unchanged.
+func DurablePayload(payload map[string]any) map[string]any {
+	pfd, ok := payload["parsed_file_data"].(map[string]any)
+	if !ok {
+		return payload
+	}
+	stats, ok := pfd[fingerprint.StatsKey].(map[string]any)
+	if !ok {
+		return payload
+	}
+	if _, ok := stats["micros_total"]; !ok {
+		return payload
+	}
+	out := make(map[string]any, len(payload))
+	for k, v := range payload {
+		out[k] = v
+	}
+	pfdCopy := make(map[string]any, len(pfd))
+	for k, v := range pfd {
+		pfdCopy[k] = v
+	}
+	statsCopy := make(map[string]any, len(stats))
+	for k, v := range stats {
+		statsCopy[k] = v
+	}
+	statsCopy["micros_total"] = int64(0)
+	pfdCopy[fingerprint.StatsKey] = statsCopy
+	out["parsed_file_data"] = pfdCopy
+	return out
 }
 
 // recordedSourceSystem omits the provenance source system when it equals the
