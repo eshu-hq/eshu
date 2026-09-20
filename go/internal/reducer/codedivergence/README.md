@@ -53,7 +53,7 @@ generation.
 | `DriftedSimilarityThreshold` | ship threshold 0.7 |
 | `MaxCandidatesPerEntity` | per-entity verification budget 200 |
 
-## Benchmark Evidence (worst-case single-intent drain)
+## Benchmark Evidence: worst-case single-intent drain
 
 `BenchmarkCodeDriftedHandlerWorstCaseBacklog`
 (`handler_concurrency_test.go`): one intent carrying a full-budget page of
@@ -67,7 +67,7 @@ isolates verification, assembly, and telemetry — Postgres I/O excluded.
   single-repo; ~10s-order full pairs CTE at 88k functions, one intent per
   repo generation, worker pool isolates).
 
-## Observability Evidence
+## Observability Evidence: per-intent drift counters and logs
 
 Per-intent `code drifted generation evaluated` log (candidates, admitted,
 suppressed, budget_exhausted) plus `eshu_dp_correlation_rule_matches_total`
