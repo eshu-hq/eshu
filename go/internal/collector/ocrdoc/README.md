@@ -10,7 +10,7 @@ collector path or treating screenshot text as operational truth.
 ## Ownership boundary
 
 This package owns the post-preflight OCR fact boundary for `.png`, `.jpg`,
-`.jpeg`, and first-frame `.gif` inputs. It calls `image` preflight first, invokes
+`.jpeg`, and first-frame `.gif` inputs. It calls `picture` preflight first, invokes
 only an injected OCR engine for supported inputs, redacts sensitive-looking OCR
 regions, and emits `documentation_document` plus OCR-region
 `documentation_section` envelopes. Emitted document and section metadata carries
