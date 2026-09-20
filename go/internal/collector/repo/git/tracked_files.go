@@ -7,7 +7,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -40,7 +39,7 @@ import (
 // their pre-#5591 behavior — gitignore filtering with no tracked-file
 // exception — never as "nothing is tracked."
 func gitTrackedFiles(ctx context.Context, gitDir string) (map[string]struct{}, bool) {
-	command := exec.CommandContext(ctx, "git", "-C", gitDir, "ls-files", "-z") // #nosec G204 -- runs git with fixed internally-constructed arguments over an already-resolved local repo path
+	command := newGitCommand(ctx, "-C", gitDir, "ls-files", "-z")
 	output, err := command.Output()
 	if err != nil {
 		return nil, false
@@ -53,7 +52,7 @@ func gitTrackedFilesAtCommit(ctx context.Context, gitDir, commitSHA string) (map
 	if commitSHA == "" {
 		return gitTrackedFiles(ctx, gitDir)
 	}
-	command := exec.CommandContext(ctx, "git", "-C", gitDir, "ls-tree", "-r", "-z", "--name-only", commitSHA) // #nosec G204 -- runs git with internally selected commit and resolved local repository path
+	command := newGitCommand(ctx, "-C", gitDir, "ls-tree", "-r", "-z", "--name-only", commitSHA)
 	output, err := command.Output()
 	if err != nil {
 		return nil, false

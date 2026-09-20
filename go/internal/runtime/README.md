@@ -5,7 +5,8 @@
 `runtime` owns the shared process wiring used by every Eshu binary at startup.
 It provides: admin HTTP muxes, health and readiness probes, status metrics
 endpoints, data-store configuration and connection helpers, retry policy
-defaults, memory limit tuning, API key resolution, and recovery admin routes.
+defaults, memory limit tuning, orphan zombie reaping, API key resolution, and
+recovery admin routes.
 No binary implements this wiring on its own; each calls the helpers here.
 
 ## Where this fits in the pipeline
@@ -169,6 +170,28 @@ ComposeLifecycles in `internal/app` chains multiple Lifecycle values
   unconditionally sets `GODEBUG=madvdontneed=1`; respects explicit
   `GOMEMLIMIT` env var as highest priority
 
+### Process reaping
+
+- `OrphanReaper` / `NewOrphanReaper(minAge, interval, logger)` — periodic
+  reaper for adopted zombie children no `os/exec` Cmd tracks (collector git
+  helpers orphan one per fetch/clone; without an init process they accumulate
+  until fork fails). `ScanOnce` reaps only zombies observed for at least
+  `minAge` (`DefaultOrphanReaperMinAge`, 2 minutes — tracked children are
+  reaped by Go within milliseconds, so the age gate cannot race a legitimate
+  `Wait`); `Run(ctx)` scans every `interval` (`DefaultOrphanReaperInterval`,
+  30 seconds)
+- `EnableChildSubreaper(logger)` — best-effort `PR_SET_CHILD_SUBREAPER` so
+  orphans reparent here (Linux only; no-op elsewhere)
+- `StartOrphanReaper(ctx, logger)` — enables the subreaper and starts the
+  background reaper with defaults; wired by `cmd/ingester` and
+  `cmd/collector-git`, the long-running binaries that drive collector git
+  fetch/clone churn
+- `NewProcessGroupCommand(ctx, name, args...)` — builds a cancellable command
+  as a process-group leader whose group is SIGKILLed on context cancel, so
+  cancelled operations never strand helper grandchildren (collector git's
+  remote-https wrapper strands this way); the cancel-path companion to the
+  orphan reaper, which stays the backstop for the success-path race
+
 ### API key
 
 - `ResolveAPIKey(getenv)` — resolution order: explicit `ESHU_API_KEY` env,
@@ -257,6 +280,33 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
   schema-not-applied (`status_schema`) without shelling into the pod. Liveness
   (`/healthz`) stays dependency-free. The Helm `readinessProbe.failureThreshold`
   (3) debounces transient blips before pulling the pod from Service endpoints.
+- Adopted zombie reaping (`StartOrphanReaper`, wired by `cmd/ingester` and
+  `cmd/collector-git`) exists because every collector git fetch/clone orphans
+  one short-lived helper grandchild that reparents to PID 1; with no init
+  process in the image those zombies accumulated (~45/min on ops-qa, pids
+  cgroup saturation at 75,412 with pod-wide fork failures) until this fix.
+
+  No-Regression Evidence: the spawn path is behavior-preserving — call-site
+  argv and env are byte-identical, only the constructor changed (one Setpgid
+  syscall per fork), and cancellation previously killed just the direct
+  child. The reaper runs off the hot path (one /proc scan per 30s tick) and
+  only reaps zombies observed for over 2 minutes, which no tracked child
+  can reach given the codebase's synchronous-wait discipline (every spawn in
+  the reaper-hosting collector processes waits via Run/Output). Backend:
+  container Linux (NornicDB Bolt +
+  Postgres via existing pools); no new pool, worker, queue, or metric.
+  Verified by `go test ./internal/runtime ./internal/collector/repo/git
+  -count=1` in a Linux container (reaper reaps exactly the abandoned zombie,
+  age gate and tracked-child safety proven, routing guard green with seeded
+  RED/GREEN). Post-deploy ops-qa `pids.current` observation under fetch
+  churn is the follow-on that proves the incident fixed (issue #6873).
+
+  Observability Evidence: each reap logs pid and zombie age at info level, so
+  an operator can watch reaping keep up with spawn churn without shelling
+  into the pod; spawn-side pressure was already visible as pids cgroup
+  growth. No new OTEL metric — the existing `git repository sync
+  started/completed/failed` logs and `eshu_dp_collector_observe_duration_seconds`
+  still cover the operations themselves.
 - `eshu_runtime_queue_oldest_outstanding_age_seconds` aging means workers
   cannot keep up with ingest rate; investigate worker count and graph backend
   latency before changing pool sizes.

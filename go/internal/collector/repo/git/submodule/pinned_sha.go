@@ -5,8 +5,9 @@ package submodule
 
 import (
 	"context"
-	"os/exec"
 	"strings"
+
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
 // gitlinkTreeMode is the git tree-entry mode reserved for a gitlink: a
@@ -48,7 +49,7 @@ func GitSubmoduleGitlinkSHA(ctx context.Context, repoPath, commitSHA, submoduleP
 	if treeish == "" {
 		treeish = "HEAD"
 	}
-	command := exec.CommandContext(ctx, "git", "-C", repoPath, "ls-tree", treeish, "--", submodulePath) // #nosec G204 -- runs git with internally selected commit and resolved local repository path
+	command := runtimecfg.NewProcessGroupCommand(ctx, "git", "-C", repoPath, "ls-tree", treeish, "--", submodulePath) // #nosec G204 -- runs git with internally selected commit and resolved local repository path
 	output, err := command.Output()
 	if err != nil {
 		return nil

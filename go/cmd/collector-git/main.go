@@ -77,6 +77,12 @@ func run(parent context.Context) error {
 		}()
 	}
 
+	// Reap adopted git-helper zombies: the git sync loop forks helper
+	// grandchildren per fetch/clone that can outlive their parent and
+	// reparent here; without an init process they accumulate until fork
+	// fails (see internal/runtime OrphanReaper).
+	runtimecfg.StartOrphanReaper(parent, logger)
+
 	db, err := runtimecfg.OpenPostgres(parent, os.Getenv)
 	if err != nil {
 		return err

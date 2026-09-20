@@ -89,6 +89,16 @@
   update the NornicDB ADR and the embedded-local-backends ADR. Do not add
   `if backend == ...` branches outside documented narrow seams.
 
+- **Wire orphan reaping in a subprocess-spawning binary** → call
+  `StartOrphanReaper(ctx, logger)` after telemetry/logger setup and before the
+  main blocking work in that binary's `main`/`run`. Every long-running binary
+  that forks helpers (currently `cmd/ingester` and `cmd/collector-git`, which
+  both drive collector git fetch/clone churn) must wire it: orphaned
+  grandchildren reparent to PID 1 and, with no init process in the image,
+  accumulate as zombies until fork fails. One-shot binaries
+  (`cmd/bootstrap-index`) are excluded — their transient zombies die with the
+  container. Run `go test ./internal/runtime -count=1`.
+
 - **Expose pprof from another binary** → call `NewPprofServer(os.Getenv)`
   after telemetry/logger setup and before the main blocking work in that
   binary's `main`/`run`; check for a nil return, then `Start(ctx)`, log the

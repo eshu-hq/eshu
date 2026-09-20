@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -228,7 +227,7 @@ func materializationEntitiesToSnapshots(
 }
 
 func gitCommitSHA(ctx context.Context, repoPath string) string {
-	command := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "HEAD") // #nosec G204 -- runs git with fixed internally-constructed arguments, no user input
+	command := newGitCommand(ctx, "-C", repoPath, "rev-parse", "HEAD")
 	output, err := command.Output()
 	if err != nil {
 		return ""
@@ -237,9 +236,8 @@ func gitCommitSHA(ctx context.Context, repoPath string) string {
 }
 
 func gitCleanWorktreeCommitSHA(ctx context.Context, repoPath string) string {
-	command := exec.CommandContext(
+	command := newGitCommand(
 		ctx,
-		"git",
 		"-C",
 		repoPath,
 		"status",
@@ -249,7 +247,7 @@ func gitCleanWorktreeCommitSHA(ctx context.Context, repoPath string) string {
 		"--ignore-submodules=none",
 		"--",
 		".",
-	) // #nosec G204 -- runs git with fixed internally-constructed arguments over an already-resolved local repo path
+	)
 	output, err := command.Output()
 	if err != nil {
 		return ""

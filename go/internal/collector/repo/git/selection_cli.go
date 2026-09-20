@@ -14,9 +14,19 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 )
 
 const staleGitLockMinAge = 5 * time.Minute
+
+// newGitCommand builds the process-group command for a git invocation. Every
+// git spawn in this package must route through it so cancelled sweeps never
+// strand remote-https helpers (enforced by
+// TestGitSpawnsRouteThroughConstructor).
+func newGitCommand(ctx context.Context, args ...string) *exec.Cmd {
+	return runtimecfg.NewProcessGroupCommand(ctx, "git", args...) // #nosec G204 -- git binary is fixed; args are internally constructed, never user text
+}
 
 func syncGitRepositoriesWithLogger(
 	ctx context.Context,
@@ -152,9 +162,8 @@ func cloneRepository(
 		logGitSyncFailed(ctx, logger, event, err)
 		return false, err
 	}
-	command := exec.CommandContext( // #nosec G204 -- runs git with internally-constructed clone arguments; binary is fixed, args are program-generated
+	command := newGitCommand(
 		ctx,
-		"git",
 		"clone",
 		"--progress",
 		fmt.Sprintf("--depth=%d", config.CloneDepth),
@@ -457,7 +466,7 @@ func gitRunWithStderrWriter(
 	commandArgs := make([]string, 0, len(args)+2)
 	commandArgs = append(commandArgs, "-C", repoPath)
 	commandArgs = append(commandArgs, args...)
-	command := exec.CommandContext(ctx, "git", commandArgs...) // #nosec G204 -- runs git with internally-constructed arguments derived from config and validated repo paths
+	command := newGitCommand(ctx, commandArgs...)
 	command.Env = gitCommandEnv(config, token)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
