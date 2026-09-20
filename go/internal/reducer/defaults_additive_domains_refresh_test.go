@@ -7,7 +7,11 @@ import (
 	"context"
 	"testing"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // TestAdditiveDomainsRegisterValueFlowRefresh pins refresh registration: the
@@ -168,6 +172,76 @@ func TestAdditiveDomainsWireRefreshAffectedGraph(t *testing.T) {
 	}
 	if got := unwiredWorkload.refreshResultSignals(ctx, intent, nil, 2, []string{"repo-wired"})[affected.RefreshAffectedReposSignal]; got != 1 {
 		t.Errorf("unwired workload signal = %v, want 1 fail-open", got)
+	}
+}
+
+// TestAdditiveDomainsWireRefreshGateTracer pins the F-R3-01 close: every
+// refresh producer handler carries the production tracer so its gate
+// evaluation records the reducer.value_flow_refresh_gate span, not just the
+// counter. Counter-only assertions missed the AWS literal dropping Tracer.
+func TestAdditiveDomainsWireRefreshGateTracer(t *testing.T) {
+	t.Parallel()
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	tracer := provider.Tracer("wiring-proof")
+	probe := &wiringProbeRunner{}
+	defs := implementedDefaultDomainDefinitions(DefaultHandlers{
+		FactLoader:                          &stubFactLoader{},
+		CloudResourceNodeWriter:             wiringProbeNodeWriter{},
+		WorkloadCloudRelationshipEdgeWriter: wiringProbeRelationshipWriter{},
+		IAMCanPerformEdgeWriter:             wiringProbePerformWriter{},
+		WorkloadMaterializer:                &WorkloadMaterializer{},
+		RefreshAffectedGraph:                probe,
+		Tracer:                              tracer,
+	})
+	byDomain := unwiredByDomain(defs)
+	ctx := context.Background()
+	intent := Intent{ScopeID: "tracer-proof", GenerationID: "genesis"}
+
+	workload, ok := byDomain[DomainWorkloadMaterialization].Handler.(WorkloadMaterializationHandler)
+	if !ok {
+		t.Fatal("DomainWorkloadMaterialization handler missing or wrong type")
+	}
+	if workload.Tracer == nil {
+		t.Error("workload handler Tracer not wired")
+	}
+	uses, ok := byDomain[DomainWorkloadCloudRelationshipMaterialization].Handler.(WorkloadCloudRelationshipMaterializationHandler)
+	if !ok {
+		t.Fatal("DomainWorkloadCloudRelationshipMaterialization handler missing or wrong type")
+	}
+	if uses.Tracer == nil {
+		t.Error("USES handler Tracer not wired")
+	}
+	perform, ok := byDomain[DomainIAMCanPerformMaterialization].Handler.(IAMCanPerformMaterializationHandler)
+	if !ok {
+		t.Fatal("DomainIAMCanPerformMaterialization handler missing or wrong type")
+	}
+	if perform.Tracer == nil {
+		t.Error("CAN_PERFORM handler Tracer not wired")
+	}
+	resources, ok := byDomain[DomainAWSResourceMaterialization].Handler.(AWSResourceMaterializationHandler)
+	if !ok {
+		t.Fatal("DomainAWSResourceMaterialization handler missing or wrong type")
+	}
+	if resources.Tracer == nil {
+		t.Error("aws_resource handler Tracer not wired")
+	}
+
+	// Drive the three same-package producers through the wired handlers and
+	// require one ended gate span per evaluation. (The iamcan package pins
+	// its own span path; its wiring is pinned above.)
+	_ = workload.refreshResultSignals(ctx, intent, nil, 1, []string{"repo-wired"})
+	_ = uses.refreshResultSignals(ctx, intent, nil, 1, []map[string]any{{"workload_id": "wl-wired"}})
+	_ = resources.refreshResultSignals(ctx, intent, nil, 1, []map[string]any{{"uid": "res-wired"}})
+	spans := recorder.Ended()
+	if len(spans) != 3 {
+		t.Fatalf("ended gate spans = %d, want 3 (one per same-package producer)", len(spans))
+	}
+	for _, span := range spans {
+		if span.Name() != telemetry.SpanReducerValueFlowRefreshGate {
+			t.Errorf("span name = %q, want %q", span.Name(), telemetry.SpanReducerValueFlowRefreshGate)
+		}
 	}
 }
 
