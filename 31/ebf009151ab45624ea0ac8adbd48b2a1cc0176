@@ -1,0 +1,14 @@
+docs/internal/design/6785-value-flow-cloud-sink-refresh.md
+  h_78a442cba0b3e6 46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31ebf009151ab45624ea0ac8adbd48b2a1cc0176",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
