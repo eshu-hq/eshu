@@ -11,13 +11,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/query"
-	"github.com/eshu-hq/eshu/go/internal/recovery"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/writershape"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -149,43 +147,6 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 			lockGate, rawEC2InstanceIdentityNode.WriteEC2InstanceIdentityNodes, rawEC2InstanceIdentityNode.RetractEC2InstanceIdentityNodes,
 		),
 	}
-}
-
-// prepareWriterShapeUpgrade returns the deferred upgrade runner when the
-// binary's graph-writer shape version is newer than the deployment's
-// applied marker, so a graph that persisted stale writer output heals
-// without an operator refinalize (issue #6868). It returns nil, nil on a
-// current marker: the common path installs no runner.
-//
-// The runner must execute beside serving, never inside startup: the
-// upgrade's refinalize waits for the reducer drain, which only completes
-// while the service processes work. Running it here hung single-replica
-// boots into pending generations for the full drain timeout, breaking the
-// fault-injection kill cells on fresh stacks. This function performs only
-// the cheap marker read; claiming and refinalizing happen on the runner's
-// first tick, once the service is serving.
-func prepareWriterShapeUpgrade(database db.ExecQueryer) (*recovery.WriterShapeUpgradeRunner, error) {
-	shapes := writershape.NewStore(database)
-	if err := shapes.EnsureSchema(context.Background()); err != nil {
-		return nil, fmt.Errorf("ensure graph writer shape schema: %w", err)
-	}
-	applied, err := shapes.AppliedVersion(context.Background(), recovery.WriterShapeKey)
-	if err != nil {
-		return nil, fmt.Errorf("read applied writer shape version: %w", err)
-	}
-	if applied >= sourcecypher.GraphWriterShapeVersion {
-		return nil, nil
-	}
-	handler, err := recovery.NewHandler(postgres.NewRecoveryStore(database))
-	if err != nil {
-		return nil, fmt.Errorf("graph writer shape recovery handler: %w", err)
-	}
-	return &recovery.WriterShapeUpgradeRunner{
-		Handler:        handler,
-		Shapes:         shapes,
-		Key:            recovery.WriterShapeKey,
-		CurrentVersion: sourcecypher.GraphWriterShapeVersion,
-	}, nil
 }
 
 // seedReducerProjectedSourceLedgers runs buildReducerService's three one-time,

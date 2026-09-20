@@ -154,11 +154,51 @@ staged_rename_dest() {
   printf '%s\n' "$dest"
 }
 
+# staged_dir_deleted reports whether every staged change under dir is a
+# deletion (no renames, modifications, or additions reference it). Used to
+# tell a whole-package removal apart from a partial move that drops files.
+staged_dir_deleted() {
+  local dir="$1" s old new
+  local rows found=0
+  rows="$(git -C "$repo_root" diff --cached --name-status 2>/dev/null || true)"
+  [[ -n "$rows" ]] || return 1
+  while IFS=$'\t' read -r s old _new; do
+    case "$old" in
+      "${dir}/"*) ;;
+      *) continue ;;
+    esac
+    case "$s" in
+      D*) ;;
+      *) return 1 ;;
+    esac
+    found=1
+  done <<<"$rows"
+  [[ "$found" -eq 1 ]]
+}
+
 missing=0
 for dir in "${package_dirs[@]}"; do
   check_dir="$dir"
   if [ ! -f "$repo_root/$dir/doc.go" ] && dest="$(staged_rename_dest "$dir")"; then
     check_dir="$dest"
+  fi
+  # Staged package deletion: the dir list derives from the committed
+  # base...HEAD diff while the doc check reads the live worktree, so a
+  # commit that removes a whole package still names its added files after
+  # the worktree already lost them. Skip only when BOTH hold: the worktree
+  # dir holds no Go sources anymore, AND every staged row under the
+  # committed dir is a deletion. The second condition keeps partial moves
+  # honest: a staged rename that drops a doc file at the destination still
+  # fails below, as does a surviving package that merely lost a doc file.
+  has_go=0
+  for _g in "$repo_root/$check_dir"/*.go; do
+    if [ -e "$_g" ]; then
+      has_go=1
+      break
+    fi
+  done
+  if [ "$has_go" -eq 0 ] && staged_dir_deleted "$dir"; then
+    continue
   fi
   for required in doc.go README.md AGENTS.md; do
     if [ ! -f "$repo_root/$check_dir/$required" ]; then

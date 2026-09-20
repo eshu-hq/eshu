@@ -175,15 +175,7 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
-	// Retire stale generations when the graph-writer shape moved on: a
-	// deployment upgrading into writer-semantics fixes reprojects with the
-	// fixed writers on the next drain instead of serving persisted stale
-	// output until an operator refinalizes (issue #6868). The runner
-	// executes beside serving, never here: see prepareWriterShapeUpgrade.
-	writerShapeUpgradeRunner, err := prepareWriterShapeUpgrade(database)
-	if err != nil {
-		return reducer.Service{}, err
-	}
+
 	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
 	// boundSemanticEntityExecutor.
 	semanticEntityExecutor := graphWriteGate.boundSemanticEntityExecutor(
@@ -385,7 +377,7 @@ func buildReducerService(
 	reducerGraphDrain := reducerGraphDrainFor(projectorDrainGate, database)
 
 	workers := loadReducerWorkerCount(getenv, graphBackend)
-	svc := reducer.Service{
+	return reducer.Service{
 		PollInterval:               time.Second,
 		WorkSource:                 workQueue,
 		Executor:                   executor,
@@ -480,14 +472,7 @@ func buildReducerService(
 		Tracer:           tracer,
 		Instruments:      instruments,
 		Logger:           logger,
-	}
-	// Attach the deferred writer-shape upgrade only when the marker is
-	// stale. The pointer comparison keeps a typed-nil runner from becoming
-	// a non-nil side-runner interface that would fail closed at serve time.
-	if writerShapeUpgradeRunner != nil {
-		svc.WriterShapeUpgradeRunner = writerShapeUpgradeRunner
-	}
-	return svc, nil
+	}, nil
 }
 
 // reducerDomainStrings lives in main_helpers.go to keep this file within the

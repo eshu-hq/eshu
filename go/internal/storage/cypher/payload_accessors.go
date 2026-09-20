@@ -8,19 +8,6 @@ import (
 	"strings"
 )
 
-// GraphWriterShapeVersion is the current graph-writer shape version. Bump
-// it in the same change as any fix that changes what the UNWIND writers
-// persist, so a deployment running an older graph retires its generations
-// and reprojects with the fixed writers on the next reducer startup (see
-// recovery.EnsureGraphWriterShape, issue #6868). Ordinary operation never
-// reopens completed work, so without the retirement persisted stale output
-// would keep serving indefinitely.
-//
-//   - v1: slice-1 UNWIND row-key writers always send every row.<key> the
-//     statement reads (nil when absent) instead of omitting absent keys,
-//     which NornicDB stored as the literal token text (#6782).
-const GraphWriterShapeVersion = 1
-
 // PayloadString reads a string-typed payload field, returning "" when the field
 // is absent or not a string.
 func PayloadString(payload map[string]any, key string) string {

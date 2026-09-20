@@ -153,19 +153,17 @@ are re-projected.
 
 - Graphs projected on NornicDB before this fix keep the junk values until each
   edge or artifact is re-projected. Ordinary operation never reopens
-  completed work, so the reducer now retires stale generations itself on
-  upgrade: `ensureReducerGraphWriterShape` (go/cmd/reducer) compares the
-  binary's `sourcecypher.GraphWriterShapeVersion` against the
-  `graph_writer_shape` marker at startup, and the atomic-claim winner runs
-  one all-scopes `recovery.Handler.Refinalize` through the same dedup-reset
-  sequence the operator path uses (reducer work reaped, shared intents
-  reopened, generations retired;
-  `go/internal/storage/postgres/rebuildreset/doc.go`,
-  `go/internal/runtime/recovery_handler.go`), so the next drain reprojects
-  with the fixed writers (follow-up #6868). The operator path remains
-  `POST /admin/refinalize` with the affected `scope_ids` for out-of-band
-  repair. Re-run the junk-token query above after any upgrade to confirm
-  the count falls as elements re-project.
+  completed work, so a deployment upgrading into these writer fixes heals
+  through the operator path: `POST /admin/refinalize` with the affected
+  `scope_ids` for out-of-band repair. Automatic retirement on upgrade was
+  attempted as #6868 and cut from this branch before merge: the startup
+  ensure hung single-replica boots in the reducer-drain wait (fault-injection
+  shards 1, 2, 4), and the deferred side-runner variant wiped banked
+  readiness phase state on fresh stacks (killworkeriaminstanceprofilerole
+  cell). #6868 stays open for a redesign that retires only generations with
+  completed stale output, never pending work. Re-run the junk-token query
+  above after any upgrade to confirm the count falls as elements
+  re-project.
 - The unit guard covers the `EdgeWriter` domains and the interproc writer. The
   other writers were audited by hand. A writer test elsewhere can adopt
   `assertUnwindRowsCarryReferencedKeys` when it records statements. As a

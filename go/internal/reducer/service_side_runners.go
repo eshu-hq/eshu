@@ -62,9 +62,6 @@ func (s Service) startSideRunners(
 	if s.CrossScopeCompletionRunner != nil {
 		startServiceSideRunner(ctx, wg, recordErr, s.CrossScopeCompletionRunner)
 	}
-	if s.WriterShapeUpgradeRunner != nil {
-		startServiceSideRunner(ctx, wg, recordErr, s.WriterShapeUpgradeRunner)
-	}
 }
 
 func startServiceSideRunner(
