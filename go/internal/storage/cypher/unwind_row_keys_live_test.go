@@ -28,6 +28,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const liveSparsePrefix = "live-6782-sparse:"
@@ -53,7 +54,7 @@ func TestLiveSparseWriterRowsLeaveOptionalPropertiesNull(t *testing.T) {
 		MERGE (s)-[rel:CALLS]->(t) SET rel.call_kind = 'row.call_kind'`,
 		map[string]any{"s": liveSparsePrefix + "fn-1", "t": liveSparsePrefix + "fn-3"})
 
-	edges := sourcecypher.NewEdgeWriter(live, 0)
+	edges := edgewriter.NewEdgeWriter(live, 0)
 	write := func(domain string, payloads ...map[string]any) {
 		t.Helper()
 		rows := make([]reducer.SharedProjectionIntentRow, 0, len(payloads))

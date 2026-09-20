@@ -50,6 +50,9 @@ func (f *fakeReducerDB) QueryContext(_ context.Context, query string, args ...an
 	// coupling to refinalize fixtures. The real upgrade path is covered by
 	// the writershape marker and recovery handler tests.
 	if strings.Contains(query, "FROM graph_writer_shape") && strings.Contains(query, "applied_version") {
+		if f.writerShapeUpgradePending {
+			return &fakeAppliedVersionRows{value: 0}, nil
+		}
 		return &fakeAppliedVersionRows{value: sourcecypher.GraphWriterShapeVersion}, nil
 	}
 	return nil, fmt.Errorf("unexpected query: %s", query)

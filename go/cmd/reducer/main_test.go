@@ -435,6 +435,10 @@ func TestBuildReducerServiceWiresRetryConfigFromEnv(t *testing.T) {
 
 type fakeReducerDB struct {
 	execs []fakeReducerExecCall
+	// writerShapeUpgradePending reports a stale writer-shape marker from
+	// the applied-version lookup, so build exercises the deferred upgrade
+	// path instead of the current-marker short-circuit.
+	writerShapeUpgradePending bool
 }
 
 type fakeReducerTransactionalDB struct {

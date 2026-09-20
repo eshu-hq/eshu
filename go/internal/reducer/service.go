@@ -138,6 +138,16 @@ type Service struct {
 	// current-generation canonical consumer rows. Nil disables completion fanout.
 	CrossScopeCompletionRunner *CrossScopeCompletionRunner
 
+	// WriterShapeUpgradeRunner executes a claimed graph-writer-shape upgrade
+	// after the service is serving. Nil disables it, which is the common
+	// case: the marker is already current and there is nothing to retire.
+	// It must run beside serving, never inside startup: the upgrade's
+	// refinalize waits for the reducer drain, which only completes while
+	// this service processes work (issue #6868). The field is the
+	// side-runner interface (concrete type recovery.WriterShapeUpgradeRunner)
+	// so this package does not import the recovery tree it coordinates.
+	WriterShapeUpgradeRunner serviceSideRunner
+
 	// QuarantineWriter persists durable per-fact input_invalid quarantine rows
 	// (issue #4630) to the reducer_input_invalid_facts read surface.
 	// executeWithTelemetry stashes it on the execution context via
