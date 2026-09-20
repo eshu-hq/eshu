@@ -51,7 +51,7 @@ ledger statements and the supersede CTE are live-proven by the #6785 suite
   candidate (gate 2); in-memory ledgers mirroring the store's
   earliest-anchor rule and epoch fence; cmd wiring tests drive the real
   `buildReducerService` with the real ledger SQL strings.
-- Terminal counts: 7 new tests (4 crossscope, 3 awscloud), each RED on the
+- Terminal counts: 10 new tests (6 crossscope, 4 awscloud), each RED on the
   naive implementation for the intended reason and GREEN after; full
   `go test ./internal/reducer/... ./cmd/reducer/ -count=1` green with all
   pre-existing floor, drift, reopen-grace, and wiring suites unchanged;
