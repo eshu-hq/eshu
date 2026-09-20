@@ -51,7 +51,8 @@ eshu6834-pg host, 109,600 synthetic fingerprint rows in one repo with
 400 exact and 200 renamed planted duplicate groups): exact-family
 grouping Seq Scan + HashAggregate 22.2ms, renamed-family 7.2ms,
 25-fingerprint member hydration (parallel seq scan + PK index scan)
-14.5ms. These are statement timings on the local scratch host, not
+15.7ms with the shipped column list including the line span. These are
+statement timings on the local scratch host, not
 endpoint p95s, and not comparable to the #6834 theory-host baseline
 (31.0ms grouping at full-corpus scale); they confirm the same plan
 shape the theory accepted (planner-optimal seq scan + hash aggregate).
