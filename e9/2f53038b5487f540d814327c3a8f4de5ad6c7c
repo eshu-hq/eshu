@@ -1,0 +1,26 @@
+go/internal/reducer/code/value/refresh/AGENTS.md
+  h_78a442cba0b3e6 1-28
+go/internal/reducer/code/value/refresh/README.md
+  h_78a442cba0b3e6 1-19
+go/internal/reducer/code/value/refresh/doc.go
+  h_78a442cba0b3e6 1-16
+go/internal/reducer/code/value/refresh/handler.go
+  h_78a442cba0b3e6 1-64
+go/internal/reducer/code/value/refresh/handler_test.go
+  h_78a442cba0b3e6 1-97
+go/internal/reducer/contract/domain.go
+  h_78a442cba0b3e6 44-46,237
+go/internal/reducer/intent.go
+  h_78a442cba0b3e6 38-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e92f53038b5487f540d814327c3a8f4de5ad6c7c",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
