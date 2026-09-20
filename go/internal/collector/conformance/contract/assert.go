@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package contracttest
+package contract
 
 import (
 	"context"
@@ -18,14 +18,14 @@ type FactKindShape struct {
 	RequiredPayloadKeys []string
 }
 
-// Contract describes the expected fact shape for one collector.
-type Contract struct {
+// CollectorContract describes the expected fact shape for one collector.
+type CollectorContract struct {
 	CollectorKind string
 	FactKinds     []FactKindShape
 }
 
 // Lookup returns the FactKindShape for kind, or nil.
-func (c Contract) Lookup(kind string) *FactKindShape {
+func (c CollectorContract) Lookup(kind string) *FactKindShape {
 	for i := range c.FactKinds {
 		if c.FactKinds[i].Kind == kind {
 			return &c.FactKinds[i]
@@ -35,7 +35,7 @@ func (c Contract) Lookup(kind string) *FactKindShape {
 }
 
 // AssertFactKinds asserts every emitted fact kind is declared in the contract.
-func AssertFactKinds(t *testing.T, contract Contract, envelopes []facts.Envelope) {
+func AssertFactKinds(t *testing.T, contract CollectorContract, envelopes []facts.Envelope) {
 	t.Helper()
 	for i, envelope := range envelopes {
 		if contract.Lookup(envelope.FactKind) == nil {
@@ -46,7 +46,7 @@ func AssertFactKinds(t *testing.T, contract Contract, envelopes []facts.Envelope
 
 // AssertRequiredPayloadKeys asserts every fact has all required payload keys
 // declared in the contract. It only checks facts whose kind is in the contract.
-func AssertRequiredPayloadKeys(t *testing.T, contract Contract, envelopes []facts.Envelope) {
+func AssertRequiredPayloadKeys(t *testing.T, contract CollectorContract, envelopes []facts.Envelope) {
 	t.Helper()
 	for i, envelope := range envelopes {
 		shape := contract.Lookup(envelope.FactKind)
@@ -63,7 +63,7 @@ func AssertRequiredPayloadKeys(t *testing.T, contract Contract, envelopes []fact
 
 // AssertFactShape runs both fact-kind and required-payload-key assertions in
 // a single call. This is the primary entry point.
-func AssertFactShape(t *testing.T, contract Contract, envelopes []facts.Envelope) {
+func AssertFactShape(t *testing.T, contract CollectorContract, envelopes []facts.Envelope) {
 	t.Helper()
 	AssertFactKinds(t, contract, envelopes)
 	AssertRequiredPayloadKeys(t, contract, envelopes)
@@ -112,7 +112,7 @@ func EnvelopeCounts(envelopes []facts.Envelope) map[string]int {
 }
 
 // ValidateCollectorKind asserts every envelope has the expected collector kind.
-func ValidateCollectorKind(t *testing.T, contract Contract, envelopes []facts.Envelope) {
+func ValidateCollectorKind(t *testing.T, contract CollectorContract, envelopes []facts.Envelope) {
 	t.Helper()
 	for i, envelope := range envelopes {
 		if envelope.CollectorKind != contract.CollectorKind {

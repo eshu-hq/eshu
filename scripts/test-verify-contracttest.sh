@@ -28,7 +28,7 @@ ESHU_CONTRACTTEST_REPO_ROOT="$tmp_root" \
   ESHU_CONTRACTTEST_SPEC="$spec" \
   "${repo_root}/scripts/generate-contracttest.sh" >/tmp/eshu-contracttest-generate.out
 
-gen_file="${tmp_root}/go/internal/collector/contracttest/contract_data.go"
+gen_file="${tmp_root}/go/internal/collector/conformance/contract/data.go"
 if [ ! -f "$gen_file" ]; then
   printf 'generate-contracttest: expected generated file %s not found\n' "$gen_file" >&2
   exit 1

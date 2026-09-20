@@ -1,8 +1,8 @@
-# AGENTS.md - internal/collector/contracttest guidance
+# AGENTS.md - internal/collector/conformance/contract guidance
 
 ## Read First
 1. `README.md` — package purpose and exported surface.
-2. `contracttest.go` — the helpers.
+2. `assert.go` — the helpers.
 3. `doc.go` — package contract statement.
 4. `specs/collector_fact_contract.v1.yaml` — the per-collector spec.
 

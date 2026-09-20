@@ -11,7 +11,7 @@ go_dir="${ESHU_CONTRACTTEST_GO_DIR:-${repo_root}/go}"
 spec="${ESHU_CONTRACTTEST_SPEC:-${repo_root}/specs/collector_fact_contract.v1.yaml}"
 
 cd "$go_dir"
-go run ./internal/collector/contracttest/gen \
+go run ./internal/collector/conformance/contract/gen \
   -repo-root "$repo_root" \
   -spec "$spec" \
   -check

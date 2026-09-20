@@ -729,8 +729,8 @@ covers all families; volume counters and durations land at the same call sites.
 | PDF preflight | go/internal/collector/preflight/pdf/*.go | `No-Observability-Change: git-source collector metrics cover PDF preflight throughput` | collector preflight |
 | OOXML preflight | go/internal/collector/preflight/ooxml/*.go | `No-Observability-Change: git-source collector metrics cover OOXML preflight throughput` | collector preflight |
 | Extension host | go/internal/collector/extensionhost/*.go | `No-Observability-Change: collector.claimed_run metrics (WorkflowClaimRunDuration, WorkflowClaimFactsEmitted) cover extension-host runs` | collector extension host |
-| Contract test (data) | go/internal/collector/contracttest/contract_data.go | `No-Observability-Change: generated contract data file with no runtime execution path; the Contract Source of Truth CI gate covers staleness detection` | collector contracttest |
-| Contract test (generator) | go/internal/collector/contracttest/gen/main.go | `No-Observability-Change: build-time code generator invoked via scripts/generate-contracttest.sh; no runtime metrics needed` | collector contracttest |
+| Contract test (data) | go/internal/collector/conformance/contract/data.go | `No-Observability-Change: generated contract data file with no runtime execution path; the Contract Source of Truth CI gate covers staleness detection` | collector conformance |
+| Contract test (generator) | go/internal/collector/conformance/contract/gen/main.go | `No-Observability-Change: build-time code generator invoked via scripts/generate-contracttest.sh; no runtime metrics needed` | collector conformance |
 
 <!-- eshu:metric:section=parser-language-sub-packages -->
 ## Parser Language Sub-Packages

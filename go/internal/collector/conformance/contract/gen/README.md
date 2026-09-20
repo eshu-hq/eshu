@@ -1,8 +1,8 @@
-# contracttest-gen
+# contract-gen
 
 ## Purpose
 Reads `specs/collector_fact_contract.v1.yaml` (the source-of-truth fact-shape
-contract spec) and emits `go/internal/collector/contracttest/contract_data.go`
+contract spec) and emits `go/internal/collector/conformance/contract/data.go`
 with the corresponding Go contract variables. Pass `-check` to verify the
 committed output is current without writing.
 
@@ -17,7 +17,7 @@ scripts/verify-contracttest.sh
 
 ## Ownership boundary
 This command owns the YAML-to-Go contract code generation. It does not own the
-contract types (`Contract`, `FactKindShape`) — those are defined in the parent
+contract types (`CollectorContract`, `FactKindShape`) — those are defined in the parent
 `contracttest` package. It does not own the YAML spec — that is owned by Epic A
 (#3736) and governed by the collector contract spec process.
 
@@ -33,14 +33,14 @@ contract types (`Contract`, `FactKindShape`) — those are defined in the parent
 - Parent `contracttest` package — contract types are consumed by generated code.
 
 ## Evidence
-- No-Regression Evidence: contracttest-gen is a build-time code generator with
+- No-Regression Evidence: contract-gen is a build-time code generator with
   no runtime execution path. It reads a YAML spec and writes a Go file. No
   Cypher, concurrency, queue, database, or graph operations are involved.
   The generator is run once per spec change, not per request or event.
-- No-Observability-Change: contracttest-gen is invoked at build time (CI gate
+- No-Observability-Change: contract-gen is invoked at build time (CI gate
   and local regeneration). No runtime telemetry, spans, metrics, or logs are
   affected. The CI workflow produces only a pass/fail status.
 
 ## Related docs
 - `specs/collector_fact_contract.v1.yaml` — source-of-truth spec.
-- `go/internal/collector/contracttest/README.md` — parent package docs.
+- `go/internal/collector/conformance/contract/README.md` — parent package docs.
