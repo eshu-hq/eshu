@@ -23,9 +23,9 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # the _materialization form and not the registry name.
 IFA_FAMILY_PIN_WAIT_KEY="shell_exec_materialization"
 
-# go/internal/storage/cypher/edge/writer/shell_exec.go:23. Single relationship
+# go/internal/storage/cypher/edge/writer/shell_exec.go:25. Single relationship
 # type, so unlike inheritance_edges this anchor covers the family's entire write
-# surface. The same statement MERGEs the ShellCommand target node first (:14);
+# surface. The same statement MERGEs the ShellCommand target node first (:16);
 # the anchor names the RELATIONSHIP merge because that is the write whose
 # failure and recovery the fault cell is about.
 IFA_FAMILY_PIN_ANCHOR="MERGE (source)-[rel:EXECUTES_SHELL]->(target)"
