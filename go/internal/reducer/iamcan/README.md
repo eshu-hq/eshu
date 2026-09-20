@@ -18,7 +18,7 @@ nothing else in the reducer depends on its internals.
 | `Action` / `CatalogByAction` | `iam_can_perform_catalog.go` | the closed, reviewed catalog of sensitive actions |
 | grant builder | `iam_can_perform_grant.go` | the CAN_PERFORM-specific fold, tallying into the CAN_PERFORM catalog |
 | target resolution | `iam_can_perform_target_resolution.go` | exact ARN -> single glob -> ambiguous -> unresolved |
-| cross-scope targets | `iam_can_perform_cross_scope.go` | `CrossScopeTargetLoader` port, per-ARN readiness classification (#6785) |
+| cross-scope targets | `perform_cross_scope.go` | `CrossScopeTargetLoader` port, per-ARN readiness classification (#6785) |
 | cross-scope wait | `perform_readiness_wait.go` | commit-first wait over `crossscope.DecideWait`, cheap poll path, wait telemetry (#6785) |
 | resource policies | `iam_can_perform_resource_policy.go` | the cross-principal grants a resource policy adds |
 | permission boundaries | `iam_can_perform_boundary.go` | the intersection that removes boundary-blocked grants |
@@ -111,8 +111,8 @@ cannot read different keys.
 | `eshu_dp_iam_can_perform_edges_total` | `iam_can_perform_materialization.go` | `resolution_mode` |
 | `eshu_dp_iam_can_perform_skipped_total` | `iam_can_perform_materialization.go` | `skip_reason` |
 | `eshu_dp_iam_can_perform_conditioned_total` | `iam_can_perform_materialization.go` | `confidence` |
-| `eshu_dp_iam_can_perform_cross_scope_targets_total` | `iam_can_perform_cross_scope.go` | `outcome` (resolved/unresolved/not_ready/scope_unregistered/abandoned/glob_local_only) |
-| `eshu_dp_reducer_readiness_waits_total` | `iam_can_perform_cross_scope.go` | `domain`, `outcome` (deferred/abandoned) |
+| `eshu_dp_iam_can_perform_cross_scope_targets_total` | `perform_cross_scope.go` | `outcome` (resolved/unresolved/not_ready/scope_unregistered/abandoned/glob_local_only) |
+| `eshu_dp_reducer_readiness_waits_total` | `perform_cross_scope.go` | `domain`, `outcome` (deferred/abandoned) |
 
 The skipped counter is the first place to look when edges stop appearing: every
 conservative refusal increments it under a named reason rather than vanishing.
