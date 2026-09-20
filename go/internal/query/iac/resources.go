@@ -230,7 +230,7 @@ func (h *Handler) listResources(w http.ResponseWriter, r *http.Request) {
 		h.profile(),
 		ResourcesCapability,
 		querycontract.TruthBasisHybrid,
-		"current active-generation identities resolved from Postgres and hydrated from the authoritative Terraform/IaC graph; bounded list ordered by name then id",
+		"current inventory identities selected in Postgres (active-generation CTE for scoped and pre-ready reads, infra_resource_entities once the read-model marker exists) and hydrated from the authoritative Terraform/IaC graph; bounded list ordered by name then id",
 	))
 }
 
