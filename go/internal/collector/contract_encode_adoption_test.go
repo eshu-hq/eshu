@@ -201,7 +201,7 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "documentationexport/facts.go",
+			path: "document/export/facts.go",
 			calls: []string{
 				"EncodeDocumentationDocument",
 				"EncodeDocumentationLink",

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package exportmanifestpreflight
+package manifest
 
 import (
 	"bytes"
@@ -68,7 +68,7 @@ func TestPreflightClassifiesManifestShapeFailures(t *testing.T) {
 		{
 			name:      "malformed_json",
 			manifest:  []byte(`{"source_system":`),
-			wantClass: WarningExportManifestInvalid,
+			wantClass: WarningInvalid,
 		},
 		{
 			name: "missing_file_allowlist",
@@ -89,7 +89,7 @@ func TestPreflightClassifiesManifestShapeFailures(t *testing.T) {
 				"acl_policy":      ACLPolicyEvaluated,
 				"files":           []map[string]any{{"path": "issues/1.json"}},
 			}),
-			wantClass: WarningExportManifestInvalid,
+			wantClass: WarningInvalid,
 		},
 		{
 			name: "oversized_manifest",
@@ -341,7 +341,7 @@ func TestPreflightClassifiesInvalidACLEnum(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Preflight() error = %v, want nil", err)
 	}
-	assertWarning(t, result, WarningExportManifestInvalid)
+	assertWarning(t, result, WarningInvalid)
 	assertNoResultLeak(t, result, "private-acl-policy")
 }
 

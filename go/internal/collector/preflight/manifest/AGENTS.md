@@ -1,10 +1,10 @@
-# AGENTS.md - collector/exportmanifestpreflight guidance for LLM assistants
+# AGENTS.md - collector/preflight/manifest guidance for LLM assistants
 
 ## Read first
 
-1. `go/internal/collector/exportmanifestpreflight/README.md`
-2. `go/internal/collector/exportmanifestpreflight/doc.go`
-3. `go/internal/collector/exportmanifestpreflight/preflight.go`
+1. `go/internal/collector/preflight/manifest/README.md`
+2. `go/internal/collector/preflight/manifest/doc.go`
+3. `go/internal/collector/preflight/manifest/preflight.go`
 4. `docs/internal/design/1741-1748-google-workspace-and-external-export-ingestion.md`
 5. `go/internal/collector/README.md`
 

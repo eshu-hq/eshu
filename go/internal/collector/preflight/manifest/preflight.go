@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package exportmanifestpreflight
+package manifest
 
 import (
 	"context"
@@ -48,8 +48,8 @@ const (
 type WarningClass string
 
 const (
-	// WarningExportManifestInvalid marks malformed or incomplete import manifests.
-	WarningExportManifestInvalid WarningClass = "export_manifest_invalid"
+	// WarningInvalid marks malformed or incomplete import manifests.
+	WarningInvalid WarningClass = "export_manifest_invalid"
 	// WarningExportFormatUnsupported marks unsupported source systems or formats.
 	WarningExportFormatUnsupported WarningClass = "export_format_unsupported"
 	// WarningAllowlistRequired marks missing explicit files or source scopes.
@@ -120,19 +120,19 @@ type recorder struct {
 	seen   map[WarningClass]int
 }
 
-type manifest struct {
-	SourceSystem    string         `json:"source_system"`
-	SourceScopeID   string         `json:"source_scope_id"`
-	SourceScopeKind string         `json:"source_scope_kind"`
-	ExportedAt      string         `json:"exported_at"`
-	SourceRevision  string         `json:"source_revision"`
-	SourceCursor    string         `json:"source_cursor"`
-	ACLPolicy       string         `json:"acl_policy"`
-	Files           []manifestFile `json:"files"`
-	Metadata        manifestMeta   `json:"metadata"`
+type candidate struct {
+	SourceSystem    string          `json:"source_system"`
+	SourceScopeID   string          `json:"source_scope_id"`
+	SourceScopeKind string          `json:"source_scope_kind"`
+	ExportedAt      string          `json:"exported_at"`
+	SourceRevision  string          `json:"source_revision"`
+	SourceCursor    string          `json:"source_cursor"`
+	ACLPolicy       string          `json:"acl_policy"`
+	Files           []candidateFile `json:"files"`
+	Metadata        candidateMeta   `json:"metadata"`
 }
 
-type manifestFile struct {
+type candidateFile struct {
 	Path           string `json:"path"`
 	Kind           string `json:"kind"`
 	ContentType    string `json:"content_type"`
@@ -143,7 +143,7 @@ type manifestFile struct {
 	PrivateChannel bool   `json:"private_channel"`
 }
 
-type manifestMeta struct {
+type candidateMeta struct {
 	PrivateChannel bool `json:"private_channel"`
 }
 
@@ -163,17 +163,17 @@ func Preflight(ctx context.Context, sourceName string, reader io.Reader, options
 		rec.warn(WarningTimeout)
 		return rec.finalize(), err
 	}
-	body, ok := readBoundedManifest(reader, opts.MaxSourceBytes, &rec)
+	body, ok := readBounded(reader, opts.MaxSourceBytes, &rec)
 	if !ok {
 		return rec.finalize(), nil
 	}
 
-	var decoded manifest
+	var decoded candidate
 	if err := json.Unmarshal(body, &decoded); err != nil {
-		rec.warn(WarningExportManifestInvalid)
+		rec.warn(WarningInvalid)
 		return rec.finalize(), nil
 	}
-	rec.classifyManifest(ctx, decoded, opts)
+	rec.classify(ctx, decoded, opts)
 	return rec.finalize(), nil
 }
 
@@ -187,10 +187,10 @@ func normalizeOptions(options Options) Options {
 	return options
 }
 
-func readBoundedManifest(reader io.Reader, maxBytes int64, rec *recorder) ([]byte, bool) {
+func readBounded(reader io.Reader, maxBytes int64, rec *recorder) ([]byte, bool) {
 	body, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
 	if err != nil {
-		rec.warn(WarningExportManifestInvalid)
+		rec.warn(WarningInvalid)
 		return nil, false
 	}
 	rec.result.SourceBytes = int64(len(body))
@@ -201,7 +201,7 @@ func readBoundedManifest(reader io.Reader, maxBytes int64, rec *recorder) ([]byt
 	return body, true
 }
 
-func (r *recorder) classifyManifest(ctx context.Context, decoded manifest, options Options) {
+func (r *recorder) classify(ctx context.Context, decoded candidate, options Options) {
 	if err := ctx.Err(); err != nil {
 		r.warn(WarningTimeout)
 		return
@@ -209,7 +209,7 @@ func (r *recorder) classifyManifest(ctx context.Context, decoded manifest, optio
 	r.classifySource(decoded)
 	r.classifyACL(decoded.ACLPolicy)
 	if decoded.ExportedAt == "" && decoded.SourceRevision == "" && decoded.SourceCursor == "" {
-		r.warn(WarningExportManifestInvalid)
+		r.warn(WarningInvalid)
 	}
 	if decoded.SourceScopeID == "" {
 		r.warn(WarningAllowlistRequired)
@@ -245,7 +245,7 @@ func (r *recorder) classifyManifest(ctx context.Context, decoded manifest, optio
 	}
 }
 
-func (r *recorder) classifySource(decoded manifest) {
+func (r *recorder) classifySource(decoded candidate) {
 	if supportedSourceSystem(decoded.SourceSystem) {
 		r.result.SourceSystem = decoded.SourceSystem
 		return
@@ -269,13 +269,13 @@ func (r *recorder) classifyACL(policy string) {
 		r.result.ACLUnavailableCount++
 		r.warn(WarningACLUnavailable)
 	default:
-		r.warn(WarningExportManifestInvalid)
+		r.warn(WarningInvalid)
 	}
 }
 
-func (r *recorder) classifyFile(file manifestFile, seenSourceItems map[string]struct{}) {
+func (r *recorder) classifyFile(file candidateFile, seenSourceItems map[string]struct{}) {
 	r.classifySourceItem(file.SourceItemID, seenSourceItems)
-	if unsafeManifestPath(file.Path) {
+	if unsafePath(file.Path) {
 		r.result.PathEscapeCount++
 		r.warn(WarningExportPathEscape)
 	}
@@ -344,7 +344,7 @@ func broadScope(scopeID, scopeKind string) bool {
 	}
 }
 
-func unsafeManifestPath(name string) bool {
+func unsafePath(name string) bool {
 	if name == "" || strings.ContainsRune(name, 0) || strings.Contains(name, "\\") {
 		return true
 	}
@@ -409,7 +409,7 @@ func sensitiveQueryKey(key string) bool {
 	}
 }
 
-func attachmentReference(file manifestFile) bool {
+func attachmentReference(file candidateFile) bool {
 	if strings.EqualFold(file.Kind, "attachment") {
 		return true
 	}

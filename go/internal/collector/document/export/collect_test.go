@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package documentationexport
+package export
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/exportmanifestpreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/manifest"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -28,7 +28,7 @@ func TestCollectEmitsOfflineExportDocumentationFacts(t *testing.T) {
 	}{
 		{
 			name:         "github issue export",
-			sourceSystem: exportmanifestpreflight.SourceSystemGitHub,
+			sourceSystem: manifest.SourceSystemGitHub,
 			path:         "github/issues/42.json",
 			record: map[string]any{
 				"id":    "issue-42",
@@ -49,7 +49,7 @@ func TestCollectEmitsOfflineExportDocumentationFacts(t *testing.T) {
 		},
 		{
 			name:         "jira issue export",
-			sourceSystem: exportmanifestpreflight.SourceSystemJira,
+			sourceSystem: manifest.SourceSystemJira,
 			path:         "jira/issues/work-item.json",
 			record: map[string]any{
 				"id":    "jira-100",
@@ -65,7 +65,7 @@ func TestCollectEmitsOfflineExportDocumentationFacts(t *testing.T) {
 		},
 		{
 			name:         "slack thread export",
-			sourceSystem: exportmanifestpreflight.SourceSystemSlack,
+			sourceSystem: manifest.SourceSystemSlack,
 			path:         "slack/threads/thread.json",
 			record: map[string]any{
 				"id":    "thread-1",
@@ -80,7 +80,7 @@ func TestCollectEmitsOfflineExportDocumentationFacts(t *testing.T) {
 		},
 		{
 			name:         "teams thread export",
-			sourceSystem: exportmanifestpreflight.SourceSystemTeams,
+			sourceSystem: manifest.SourceSystemTeams,
 			path:         "teams/chats/thread.json",
 			record: map[string]any{
 				"id":    "teams-thread-1",
@@ -132,7 +132,7 @@ func TestCollectEmitsOfflineExportDocumentationFacts(t *testing.T) {
 func TestCollectFailsClosedWhenManifestPreflightWarns(t *testing.T) {
 	t.Parallel()
 
-	request := safeRequest(t, exportmanifestpreflight.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
+	request := safeRequest(t, manifest.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
 		"id":    "thread-1",
 		"title": "Private thread",
 		"messages": []map[string]any{{
@@ -140,7 +140,7 @@ func TestCollectFailsClosedWhenManifestPreflightWarns(t *testing.T) {
 			"body": "must not emit",
 		}},
 	})
-	request.Manifest = manifestJSON(t, exportmanifestpreflight.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
+	request.Manifest = manifestJSON(t, manifest.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
 		"private_channel": true,
 	})
 
@@ -159,10 +159,10 @@ func TestCollectFailsClosedWhenManifestPreflightWarns(t *testing.T) {
 func TestCollectEmitsMetadataOnlyWarningsForBadRecords(t *testing.T) {
 	t.Parallel()
 
-	request := safeRequest(t, exportmanifestpreflight.SourceSystemGitHub, "github/issues/42.json", nil)
+	request := safeRequest(t, manifest.SourceSystemGitHub, "github/issues/42.json", nil)
 	request.Files["github/issues/42.json"] = []byte(`{"id":`)
 	unsupportedPath := "github/issues/43.json"
-	request.Manifest = manifestJSONWithFiles(t, exportmanifestpreflight.SourceSystemGitHub, []string{
+	request.Manifest = manifestJSONWithFiles(t, manifest.SourceSystemGitHub, []string{
 		"github/issues/42.json",
 		unsupportedPath,
 	}, nil)
@@ -193,7 +193,7 @@ func TestCollectEmitsMetadataOnlyWarningsForBadRecords(t *testing.T) {
 func TestCollectRedactsTokenBearingLinks(t *testing.T) {
 	t.Parallel()
 
-	request := safeRequest(t, exportmanifestpreflight.SourceSystemGenericDocumentationExport, "docs/thread.json", map[string]any{
+	request := safeRequest(t, manifest.SourceSystemGenericDocumentationExport, "docs/thread.json", map[string]any{
 		"id":    "thread-1",
 		"title": "Support packet",
 		"body":  "See the private link.",
@@ -225,7 +225,7 @@ func TestCollectRedactsTokenBearingLinks(t *testing.T) {
 func TestCollectRedactsUnsafeLocalLinkTargets(t *testing.T) {
 	t.Parallel()
 
-	request := safeRequest(t, exportmanifestpreflight.SourceSystemGenericDocumentationExport, "docs/thread.json", map[string]any{
+	request := safeRequest(t, manifest.SourceSystemGenericDocumentationExport, "docs/thread.json", map[string]any{
 		"id":    "thread-1",
 		"title": "Support packet",
 		"body":  "See the attached files.",
@@ -259,7 +259,7 @@ func TestCollectRedactsUnsafeLocalLinkTargets(t *testing.T) {
 func TestCollectContentHashIncludesNestedSections(t *testing.T) {
 	t.Parallel()
 
-	first, err := Collect(context.Background(), safeRequest(t, exportmanifestpreflight.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
+	first, err := Collect(context.Background(), safeRequest(t, manifest.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
 		"id":    "thread-1",
 		"title": "Deploy discussion",
 		"messages": []map[string]any{{
@@ -270,7 +270,7 @@ func TestCollectContentHashIncludesNestedSections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collect(first) error = %v, want nil", err)
 	}
-	second, err := Collect(context.Background(), safeRequest(t, exportmanifestpreflight.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
+	second, err := Collect(context.Background(), safeRequest(t, manifest.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
 		"id":    "thread-1",
 		"title": "Deploy discussion",
 		"messages": []map[string]any{{
@@ -291,12 +291,12 @@ func TestCollectContentHashIncludesNestedSections(t *testing.T) {
 func TestCollectFingerprintsUnknownSourceScopeKind(t *testing.T) {
 	t.Parallel()
 
-	request := safeRequest(t, exportmanifestpreflight.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
+	request := safeRequest(t, manifest.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
 		"id":    "thread-1",
 		"title": "Deploy discussion",
 		"body":  "Wait for queue zero before deploy.",
 	})
-	request.Manifest = manifestJSONWithScopeKind(t, exportmanifestpreflight.SourceSystemSlack, "slack/threads/thread.json", "private-channel-kind")
+	request.Manifest = manifestJSONWithScopeKind(t, manifest.SourceSystemSlack, "slack/threads/thread.json", "private-channel-kind")
 
 	result, err := Collect(context.Background(), request)
 	if err != nil {
@@ -319,7 +319,7 @@ func TestCollectTruncatesSectionsOnUTF8Boundary(t *testing.T) {
 	t.Parallel()
 
 	content := strings.Repeat("a", maxSectionBytes-1) + "étail"
-	result, err := Collect(context.Background(), safeRequest(t, exportmanifestpreflight.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
+	result, err := Collect(context.Background(), safeRequest(t, manifest.SourceSystemSlack, "slack/threads/thread.json", map[string]any{
 		"id":    "thread-1",
 		"title": "Deploy discussion",
 		"body":  content,
@@ -403,7 +403,7 @@ func manifestJSONWithFilesAndScopeKind(t *testing.T, sourceSystem string, filePa
 		"source_scope_kind": scopeKind,
 		"exported_at":       "2026-06-09T00:00:00Z",
 		"source_cursor":     "private-cursor",
-		"acl_policy":        exportmanifestpreflight.ACLPolicyEvaluated,
+		"acl_policy":        manifest.ACLPolicyEvaluated,
 		"metadata":          metadata,
 		"files":             files,
 	})

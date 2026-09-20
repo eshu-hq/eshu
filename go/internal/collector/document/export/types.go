@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package documentationexport
+package export
 
 import (
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/exportmanifestpreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/manifest"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -22,11 +22,11 @@ type Request struct {
 
 // Result contains preflight evidence and any source-neutral documentation facts.
 type Result struct {
-	Preflight exportmanifestpreflight.Result
+	Preflight manifest.Result
 	Envelopes []facts.Envelope
 }
 
-type manifest struct {
+type exportManifest struct {
 	SourceSystem    string         `json:"source_system"`
 	SourceScopeID   string         `json:"source_scope_id"`
 	SourceScopeKind string         `json:"source_scope_kind"`

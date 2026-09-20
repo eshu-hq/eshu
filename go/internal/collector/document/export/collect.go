@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package documentationexport
+package export
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/exportmanifestpreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/manifest"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -23,15 +23,15 @@ func Collect(ctx context.Context, req Request) (Result, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	preflight, err := exportmanifestpreflight.Preflight(ctx, req.ManifestName, bytes.NewReader(req.Manifest), exportmanifestpreflight.Options{})
+	preflight, err := manifest.Preflight(ctx, req.ManifestName, bytes.NewReader(req.Manifest), manifest.Options{})
 	result := Result{Preflight: preflight}
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("export manifest preflight: %w", err)
 	}
 	if !preflight.Safe {
 		return result, nil
 	}
-	var decoded manifest
+	var decoded exportManifest
 	if err := json.Unmarshal(req.Manifest, &decoded); err != nil {
 		return result, nil
 	}
@@ -61,7 +61,7 @@ func Collect(ctx context.Context, req Request) (Result, error) {
 
 	for _, file := range decoded.Files {
 		if err := ctx.Err(); err != nil {
-			return result, err
+			return result, fmt.Errorf("export collection cancelled: %w", err)
 		}
 		envelopes, err := collectFile(decoded, file, req.Files[file.Path], scopeID, generationID, observedAt)
 		if err != nil {
@@ -72,7 +72,7 @@ func Collect(ctx context.Context, req Request) (Result, error) {
 	return result, nil
 }
 
-func collectFile(decoded manifest, file manifestFile, body []byte, scopeID string, generationID string, observedAt time.Time) ([]facts.Envelope, error) {
+func collectFile(decoded exportManifest, file manifestFile, body []byte, scopeID string, generationID string, observedAt time.Time) ([]facts.Envelope, error) {
 	var record exportRecord
 	warning := ""
 	if len(body) == 0 {

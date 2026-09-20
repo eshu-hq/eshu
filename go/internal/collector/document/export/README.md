@@ -18,7 +18,7 @@ canonical incident, deployment, ownership, or work-item state.
 map, then receive preflight evidence plus documentation fact envelopes.
 
 ## Dependencies
-The package depends on `go/internal/collector/exportmanifestpreflight` for
+The package depends on `go/internal/collector/preflight/manifest` for
 allowlist, ACL, path, attachment, private-channel, and sensitive-value guards.
 It emits payloads from `go/internal/facts` and marks envelopes with
 `scope.CollectorDocumentation`.
@@ -31,7 +31,7 @@ fact emission counters cover any future caller that commits returned envelopes.
 Collector Performance Evidence: parser work is bounded by manifest preflight
 limits, explicit file allowlists, and per-section truncation. Local proof uses
 synthetic one-file and two-file manifests through
-`go test ./internal/collector/documentationexport -count=1` plus the combined
+`go test ./internal/collector/document/export -count=1` plus the combined
 collector/query/MCP package test.
 
 Collector Observability Evidence: no new metrics, spans, logs, or status rows
@@ -65,4 +65,4 @@ guess; that disclosure decision is reserved for security review).
 
 ## Related docs
 - `docs/internal/design/1741-1748-google-workspace-and-external-export-ingestion.md`
-- `go/internal/collector/exportmanifestpreflight`
+- `go/internal/collector/preflight/manifest`

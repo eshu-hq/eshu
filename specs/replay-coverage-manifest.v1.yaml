@@ -834,7 +834,7 @@ exemptions:
     reason: >-
       Offline export library, not a polling collector binary. Documentation
       facts are produced from offline export manifests (go/internal/collector/
-      documentationexport), so there is no credentialed upstream to record into
+      document/export), so there is no credentialed upstream to record into
       a cassette; the offline-manifest path is the credential-free input.
   - surface: collector:webhook
     reason: >-

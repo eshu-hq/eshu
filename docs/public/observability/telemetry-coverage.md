@@ -722,10 +722,10 @@ covers all families; volume counters and durations land at the same call sites.
 | Cassette replay format | go/internal/replay/cassette/format.go | `No-Observability-Change: cassette file loading is a startup-path read; no runtime metrics needed` | replay cassette |
 | Cassette replay README | go/internal/replay/cassette/README.md | `No-Observability-Change: documentation file, no runtime stage` | replay cassette |
 | Cassette replay AGENTS | go/internal/replay/cassette/AGENTS.md | `No-Observability-Change: agent instructions file, no runtime stage` | replay cassette |
-| Documentation export | go/internal/collector/documentationexport/*.go | `No-Observability-Change: git-source collector metrics (FactsEmitted, RepoSnapshotDuration, CollectorSnapshotStageDuration) cover documentation export throughput` | collector documentation |
+| Documentation export | go/internal/collector/document/export/*.go | `No-Observability-Change: git-source collector metrics (FactsEmitted, RepoSnapshotDuration, CollectorSnapshotStageDuration) cover documentation export throughput` | collector documentation |
 | Diagram preflight | go/internal/collector/preflight/diagram/*.go | `No-Observability-Change: git-source collector metrics cover diagram preflight throughput` | collector preflight |
 | Archive preflight | go/internal/collector/preflight/archive/*.go | `No-Observability-Change: git-source collector metrics cover archive preflight throughput` | collector preflight |
-| Export manifest preflight | go/internal/collector/exportmanifestpreflight/*.go | `No-Observability-Change: git-source collector metrics cover export-manifest preflight throughput` | collector preflight |
+| Export manifest preflight | go/internal/collector/preflight/manifest/*.go | `No-Observability-Change: git-source collector metrics cover export-manifest preflight throughput` | collector preflight |
 | Image preflight | go/internal/collector/preflight/picture/*.go | `No-Observability-Change: git-source collector metrics cover image preflight throughput` | collector preflight |
 | Media preflight | go/internal/collector/preflight/media/*.go | `No-Observability-Change: git-source collector metrics cover media preflight throughput` | collector preflight |
 | PDF preflight | go/internal/collector/preflight/pdf/*.go | `No-Observability-Change: git-source collector metrics cover PDF preflight throughput` | collector preflight |
