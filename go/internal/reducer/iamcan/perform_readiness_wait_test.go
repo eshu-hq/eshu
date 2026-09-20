@@ -202,6 +202,52 @@ func TestIAMCanPerformCommitsReadyEdgesBeforeDeferring(t *testing.T) {
 	}
 }
 
+// stubRefreshGraph replays canned gate rows (or an error) for the value-flow
+// refresh emit gate.
+type stubRefreshGraph struct {
+	rows []map[string]any
+	err  error
+}
+
+func (s *stubRefreshGraph) Run(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	return s.rows, s.err
+}
+
+// TestIAMCanPerformReportsAffectedRepos pins the #6785 emit gate: a
+// productive run reports the affected-repo count for the refresh ACK.
+func TestIAMCanPerformReportsAffectedRepos(t *testing.T) {
+	t.Parallel()
+	clock := waitTestNow()
+	handler, _ := waitHandler(newMemoryWaitLedger(), &fakeCrossScopeTargets{snapshot: waitSnapshot(true)}, &clock)
+	handler.AffectedGraph = &stubRefreshGraph{rows: []map[string]any{{"repo_id": "r1"}}}
+	result, err := handler.Handle(context.Background(), waitIntent("iam-gen-1", clock))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if result.CanonicalWrites == 0 {
+		t.Fatal("CanonicalWrites = 0, want the committed edges")
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 1 {
+		t.Errorf("refresh_affected_repos = %v, want 1", got)
+	}
+}
+
+// TestIAMCanPerformGateErrorFailsOpen pins fail-open: a gate read error must
+// not suppress the refresh.
+func TestIAMCanPerformGateErrorFailsOpen(t *testing.T) {
+	t.Parallel()
+	clock := waitTestNow()
+	handler, _ := waitHandler(newMemoryWaitLedger(), &fakeCrossScopeTargets{snapshot: waitSnapshot(true)}, &clock)
+	handler.AffectedGraph = &stubRefreshGraph{err: errors.New("graph down")}
+	result, err := handler.Handle(context.Background(), waitIntent("iam-gen-1", clock))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 1 {
+		t.Errorf("refresh_affected_repos = %v, want 1 (fail open)", got)
+	}
+}
+
 // TestIAMCanPerformRevokedGrantRetractsAtFirstEvaluation is §4.5 item 2: gen
 // N+1 drops the grant on the ready bucket while another target stays missing.
 // The scope-wide retract runs at N+1's first evaluation, so the revoked edge

@@ -1,6 +1,32 @@
 # #6785: Value-flow cloud-sink refresh after late producers
 
-Status: **design, blocked on one owner decision (see "Open question").**
+Status: **decided 2026-09-20: Option A singleton fixpoint-only refresh, 4
+producers** (workload_materialization, workload_cloud_relationship_materialization,
+iam_can_perform_materialization, aws_resource_materialization). The
+account-keyed migration from earlier notes had no owner source and is dropped;
+B-7 (565 pass, sl-value-flow-cloud-sink count=1 with no refresh) proves the
+corpus drain converges without it, so the refresh is production-race insurance
+for continuous ingestion, where no later generation re-runs the summary.
+
+Singleton anchor (no fanout SQL change): migration seeds scope `eshu:global`
+(kind `global`) with one perpetually-active generation plus a
+`code_value_flow_refresh:global` item. The existing fanout
+`current_consumers` join matches it via active_generation_id, so producer
+completions in ANY later generation reopen it — the later-generation
+re-enqueue falls out of the existing join. Retention prunes superseded
+generations only; nothing ever supersedes the lone global generation.
+
+Emit gate (Option A): each producer handler reports
+`value_flow_refresh_affected_repos` (graph gate over written keys) alongside
+the existing `CanonicalWrites`; ACK emits iff both are positive. Relevance
+rides the already-passed `reducer.Result` into single/batch ACK SQL.
+
+Residual (file separately): the refresh adds one more global
+retract-and-rewrite writer beside the concurrent per-repo summary fixpoint
+runs (pre-existing summary-vs-summary race class); the refresh serializes
+against itself on a global conflict key.
+
+Open question below is retained as the rejected-alternatives record.
 
 ## Problem
 

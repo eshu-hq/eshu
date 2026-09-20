@@ -268,6 +268,78 @@ func TestAWSResourceMaterializationHandleWritesNodes(t *testing.T) {
 	}
 }
 
+// productiveAWSResourceGateHandler builds the two-node productive setup for
+// the emit-gate tests.
+func productiveAWSResourceGateHandler(graph *stubAffectedGraph) (AWSResourceMaterializationHandler, *recordingCloudResourceNodeWriter) {
+	writer := &recordingCloudResourceNodeWriter{}
+	loader := &stubFactLoader{envelopes: []facts.Envelope{
+		awsResourceEnvelope(map[string]any{
+			"account_id":    "111122223333",
+			"region":        "us-east-1",
+			"resource_type": "aws_ec2_vpc",
+			"resource_id":   "vpc-123",
+		}),
+		awsResourceEnvelope(map[string]any{
+			"account_id":    "111122223333",
+			"region":        "us-east-1",
+			"resource_type": "aws_iam_role",
+			"resource_id":   "arn:aws:iam::111122223333:role/app",
+			"arn":           "arn:aws:iam::111122223333:role/app",
+		}),
+	}}
+	return AWSResourceMaterializationHandler{
+		FactLoader:    loader,
+		NodeWriter:    writer,
+		AffectedGraph: graph,
+	}, writer
+}
+
+func awsResourceGateIntent() Intent {
+	return Intent{
+		IntentID:     "intent-gate",
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		Domain:       DomainAWSResourceMaterialization,
+		EnqueuedAt:   time.Now(),
+		AvailableAt:  time.Now(),
+	}
+}
+
+// TestAWSResourceMaterializationReportsAffectedRepos pins the #6785 emit
+// gate: a productive run reports the affected-repo count for the refresh ACK.
+func TestAWSResourceMaterializationReportsAffectedRepos(t *testing.T) {
+	t.Parallel()
+
+	handler, _ := productiveAWSResourceGateHandler(&stubAffectedGraph{
+		rows: []map[string]any{{"repo_id": "r1"}},
+	})
+	result, err := handler.Handle(context.Background(), awsResourceGateIntent())
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if result.CanonicalWrites != 2 {
+		t.Fatalf("CanonicalWrites = %d, want 2", result.CanonicalWrites)
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 1 {
+		t.Errorf("refresh_affected_repos = %v, want 1", got)
+	}
+}
+
+// TestAWSResourceMaterializationGateErrorFailsOpen pins fail-open: a gate
+// read error must not suppress the refresh.
+func TestAWSResourceMaterializationGateErrorFailsOpen(t *testing.T) {
+	t.Parallel()
+
+	handler, _ := productiveAWSResourceGateHandler(&stubAffectedGraph{err: errors.New("graph down")})
+	result, err := handler.Handle(context.Background(), awsResourceGateIntent())
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 1 {
+		t.Errorf("refresh_affected_repos = %v, want 1 (fail open)", got)
+	}
+}
+
 func TestAWSResourceMaterializationHandleNoFactsIsNoOp(t *testing.T) {
 	t.Parallel()
 

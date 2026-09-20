@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -86,6 +87,10 @@ type AWSResourceMaterializationHandler struct {
 	// extraction. Optional: a nil pointer skips the counter (the structured
 	// per-fact error log still emits).
 	Instruments *telemetry.Instruments
+	// AffectedGraph runs the value-flow refresh emit gate over the committed
+	// resource uids. Nil skips the gate and reports affected (fail open);
+	// production wires the graph query runner.
+	AffectedGraph affected.Runner
 }
 
 // Handle executes one AWS resource materialization intent.
@@ -195,7 +200,7 @@ func (h AWSResourceMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      h.refreshResultSignals(ctx, intent, inputInvalidSubSignals(inputInvalidCount), len(rows), rows),
 	}, nil
 }
 

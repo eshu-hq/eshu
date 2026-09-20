@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -112,6 +113,10 @@ type IAMCanPerformMaterializationHandler struct {
 	Now         func() time.Time
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
+	// AffectedGraph runs the value-flow refresh emit gate over the committed
+	// edge principal uids. Nil skips the gate and reports affected (fail
+	// open); production wires the graph query runner.
+	AffectedGraph affected.Runner
 }
 
 // Handle executes one IAM CAN_PERFORM materialization intent.
@@ -275,7 +280,7 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 			len(crossScope.missing),
 		),
 		CanonicalWrites: commit.writes,
-		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      h.refreshResultSignals(ctx, intent, factdecode.InputInvalidSubSignals(inputInvalidCount), commit.writes, result.Edges),
 	}, nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -101,6 +102,10 @@ type WorkloadMaterializationHandler struct {
 	// default) makes presence publication a no-op, keeping the hot workload
 	// materialization path byte-identical.
 	EndpointPresenceWriter EndpointPresenceWriter
+	// AffectedGraph runs the value-flow refresh emit gate over the repos this
+	// projection materialized. Nil skips the gate and reports affected (fail
+	// open); production wires the graph query runner.
+	AffectedGraph affected.Runner
 }
 
 // workloadMaterializationTiming keeps success-path stage timings comparable
@@ -421,6 +426,7 @@ func (h WorkloadMaterializationHandler) Handle(
 			materializeResult.EndpointsWritten,
 		),
 		CanonicalWrites: totalWrites,
+		SubSignals:      h.refreshResultSignals(ctx, intent, nil, totalWrites, repoReadinessRepoIDs),
 		SubDurations:    workloadMaterializationSubDurations(timing),
 	}, nil
 }

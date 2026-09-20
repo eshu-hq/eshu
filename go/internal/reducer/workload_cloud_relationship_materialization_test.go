@@ -62,6 +62,89 @@ func workloadCloudRelationshipIntent() Intent {
 	}
 }
 
+// stubAffectedGraph replays canned gate rows (or an error) for the
+// value-flow refresh emit gate.
+type stubAffectedGraph struct {
+	rows []map[string]any
+	err  error
+}
+
+func (s *stubAffectedGraph) Run(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+	return s.rows, s.err
+}
+
+func workloadCloudGateHandler(graph *stubAffectedGraph) (WorkloadCloudRelationshipMaterializationHandler, *recordingWorkloadCloudRelationshipWriter) {
+	writer := &recordingWorkloadCloudRelationshipWriter{}
+	return WorkloadCloudRelationshipMaterializationHandler{
+		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
+			awsResourceEnvelope(map[string]any{
+				"account_id":    "111122223333",
+				"region":        "us-east-1",
+				"resource_type": "aws_iam_role",
+				"resource_id":   "arn:aws:iam::111122223333:role/app",
+				"environment":   "prod",
+				"workload_id":   "workload:orders-api",
+			}),
+		}},
+		EdgeWriter:           writer,
+		ReadinessLookup:      readyLookup(true, true),
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
+		AffectedGraph:        graph,
+	}, writer
+}
+
+// TestWorkloadCloudRelationshipReportsAffectedRepos pins the #6785 emit gate:
+// a productive run reports the affected-repo count for the refresh ACK.
+func TestWorkloadCloudRelationshipReportsAffectedRepos(t *testing.T) {
+	t.Parallel()
+
+	handler, _ := workloadCloudGateHandler(&stubAffectedGraph{
+		rows: []map[string]any{{"repo_id": "r1"}, {"repo_id": "r1"}, {"repo_id": "r2"}},
+	})
+	result, err := handler.Handle(context.Background(), workloadCloudRelationshipIntent())
+	if err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 2 {
+		t.Errorf("refresh_affected_repos = %v, want 2 distinct repos", got)
+	}
+}
+
+// TestWorkloadCloudRelationshipGateErrorFailsOpen pins fail-open: a gate read
+// error must not suppress the refresh (a spurious solve beats silent staleness).
+func TestWorkloadCloudRelationshipGateErrorFailsOpen(t *testing.T) {
+	t.Parallel()
+
+	handler, _ := workloadCloudGateHandler(&stubAffectedGraph{err: errors.New("graph down")})
+	result, err := handler.Handle(context.Background(), workloadCloudRelationshipIntent())
+	if err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 1 {
+		t.Errorf("refresh_affected_repos = %v, want 1 (fail open)", got)
+	}
+}
+
+// TestWorkloadCloudRelationshipNoWritesReportsZeroAffected pins the free
+// short-circuit: with no canonical writes the gate never runs.
+func TestWorkloadCloudRelationshipNoWritesReportsZeroAffected(t *testing.T) {
+	t.Parallel()
+
+	graph := &stubAffectedGraph{rows: []map[string]any{{"repo_id": "r1"}}}
+	handler, _ := workloadCloudGateHandler(graph)
+	handler.FactLoader = &stubFactLoader{}
+	result, err := handler.Handle(context.Background(), workloadCloudRelationshipIntent())
+	if err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if result.CanonicalWrites != 0 {
+		t.Fatalf("CanonicalWrites = %d, want 0", result.CanonicalWrites)
+	}
+	if got := result.SubSignals["refresh_affected_repos"]; got != 0 {
+		t.Errorf("refresh_affected_repos = %v, want 0", got)
+	}
+}
+
 func workloadCloudAWSResourceEnvelope(factID string, payload map[string]any) facts.Envelope {
 	return facts.Envelope{
 		FactID:        factID,

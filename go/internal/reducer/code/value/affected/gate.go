@@ -15,6 +15,25 @@ type Runner interface {
 	Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error)
 }
 
+// RefreshAffectedReposSignal is the Result.SubSignals key carrying the
+// affected-repo count for the value-flow refresh ACK: the ACK emits a
+// completion event only when CanonicalWrites is positive and this signal is
+// absent (unwired producers fail open) or positive. Producers report an
+// explicit zero when the gate runs empty so the ACK can tell "gated, none
+// affected" from "gate not wired".
+const RefreshAffectedReposSignal = "refresh_affected_repos"
+
+// WithRefreshSignal sets RefreshAffectedReposSignal on an existing SubSignals
+// map, allocating one when the input-invalid constructor returned nil for the
+// zero case. The signal is always explicit (even zero) for the reason above.
+func WithRefreshSignal(signals map[string]float64, count float64) map[string]float64 {
+	if signals == nil {
+		signals = make(map[string]float64, 1)
+	}
+	signals[RefreshAffectedReposSignal] = count
+	return signals
+}
+
 // reposWithCloudCallersCypher lists the repos (from a candidate set) that own
 // at least one Function calling a cloud action: the same
 // INVOKES_CLOUD_ACTION + RUNS_IN shape CloudSinkWorkloadRowsCypher reads.
@@ -75,6 +94,16 @@ func ReposWithCloudCallersForWorkloads(ctx context.Context, g Runner, workloadID
 // that calls a cloud action.
 func ReposWithCloudCallersForPrincipals(ctx context.Context, g Runner, principalUIDs []string) (int, error) {
 	return countRepos(ctx, g, principalReposWithCloudCallersCypher, "principal_uids", principalUIDs)
+}
+
+// ReposWithCloudCallersForResources counts repos whose workloads run
+// instances using any of the resource uids and owning at least one Function
+// that calls a cloud action. The aws_resource producer writes CloudResource
+// nodes (not edges); a newly written node can only grow a sink through an
+// instance USES edge, which is the same chain the principal statement reads,
+// so this shares its statement under a resource-named entry point.
+func ReposWithCloudCallersForResources(ctx context.Context, g Runner, resourceUIDs []string) (int, error) {
+	return countRepos(ctx, g, principalReposWithCloudCallersCypher, "principal_uids", resourceUIDs)
 }
 
 func countRepos(

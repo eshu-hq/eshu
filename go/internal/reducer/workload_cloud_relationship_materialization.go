@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/affected"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/workloadinstance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -79,6 +80,10 @@ type WorkloadCloudRelationshipMaterializationHandler struct {
 	// anchor extraction. Optional: a nil pointer skips the counter (the
 	// structured per-fact error log still emits).
 	Instruments *telemetry.Instruments
+	// AffectedGraph runs the value-flow refresh emit gate over the committed
+	// workload ids. Nil skips the gate and reports affected (fail open);
+	// production wires the graph query runner.
+	AffectedGraph affected.Runner
 }
 
 func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
@@ -176,7 +181,7 @@ func (h WorkloadCloudRelationshipMaterializationHandler) Handle(
 			len(eval.Missing),
 		),
 		CanonicalWrites: readyRows,
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      h.refreshResultSignals(ctx, intent, inputInvalidSubSignals(inputInvalidCount), readyRows, rows),
 	})
 }
 
@@ -281,31 +286,6 @@ func (h WorkloadCloudRelationshipMaterializationHandler) finishInstanceWait(
 		return Result{}, workloadinstance.NotReadyError{ScopeID: intent.ScopeID, GenerationID: intent.GenerationID, Missing: len(eval.Missing)}
 	}
 	return result, nil
-}
-
-// workloadCloudRelationshipAnchors lists each row's (workload, environment).
-func workloadCloudRelationshipAnchors(rows []map[string]any) []workloadinstance.Anchor {
-	anchors := make([]workloadinstance.Anchor, 0, len(rows))
-	for _, row := range rows {
-		anchors = append(anchors, workloadinstance.Anchor{WorkloadID: anyToString(row["workload_id"]), Environment: anyToString(row["environment"])})
-	}
-	return anchors
-}
-
-// workloadCloudRelationshipReadyRows counts the rows whose WorkloadInstance
-// exists, which are the rows the writer's MATCH binds. With no lookup every
-// row counts.
-func workloadCloudRelationshipReadyRows(rows []map[string]any, eval workloadinstance.Evaluation) int {
-	if len(eval.Missing) == 0 {
-		return len(rows)
-	}
-	ready := 0
-	for _, anchor := range workloadCloudRelationshipAnchors(rows) {
-		if _, ok := eval.Existing[anchor]; ok {
-			ready++
-		}
-	}
-	return ready
 }
 
 // recordReadinessWait emits one eshu_dp_reducer_readiness_waits_total point.
