@@ -186,7 +186,8 @@ const (
 	// reducer-owned service/workload anchors on CloudResource facts into
 	// canonical WorkloadInstance USES CloudResource graph edges. Queue claiming
 	// gates on CloudResource node readiness in this domain's own scope; the
-	// handler then defers, bounded by elapsed cycle time, until every anchored
+	// handler then defers, bounded by 30 minutes from the ledger's first
+	// defer, until every anchored
 	// WorkloadInstance (materialized from a different, repository scope)
 	// exists (#6785). The graph writer stays MATCH-only, so an anchor still
 	// missing when the bound expires is a counted no-op, never fabricated

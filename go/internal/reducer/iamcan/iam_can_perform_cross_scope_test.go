@@ -379,3 +379,30 @@ func TestIAMCanPerformExpectedScopeFollowsTheTargetARN(t *testing.T) {
 		t.Fatalf("s3 bucket with a settled s3 scope: missing=%d outcomes=%v, want 1 unresolved", len(decided.missing), decided.outcomes)
 	}
 }
+
+// TestIAMCanPerformCrossScopeRequestIgnoresPayloadAccountMismatch proves the
+// lookup account comes from the intent scope, never the fact payload: a
+// permission whose payload account disagrees with its containing scope must
+// not direct a lookup at another account (which could materialize a
+// cross-account edge from the locally resolved principal).
+func TestIAMCanPerformCrossScopeRequestIgnoresPayloadAccountMismatch(t *testing.T) {
+	t.Parallel()
+
+	mismatched := crossScopePermission([]string{"s3:putobject"}, []string{crossScopeBucket})
+	mismatched.Payload["account_id"] = "999999999999"
+	loader := &fakeCrossScopeTargets{snapshot: CrossScopeTargetSnapshot{}}
+	handler := IAMCanPerformMaterializationHandler{
+		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
+			crossScopeRoleFact(),
+			mismatched,
+		}},
+		Writer:            &recordingIAMCanPerformWriter{},
+		CrossScopeTargets: loader,
+	}
+	// The handler defers on the phantom B request; the assertion is that no
+	// lookup at another account happens at all.
+	_, _ = handler.Handle(context.Background(), crossScopeIntent())
+	if len(loader.requests) != 0 {
+		t.Fatalf("loader calls = %d, want 0 for a payload account outside the intent scope (got %+v)", len(loader.requests), loader.requests)
+	}
+}

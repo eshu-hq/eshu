@@ -177,7 +177,17 @@ func (h IAMCanPerformMaterializationHandler) loadAndDecideCrossScopeTargets(
 // identity-policy resource ARNs that classify as a catalog target type. It also
 // counts catalog-service glob patterns, which stay local-only. Undecodable
 // permission facts are skipped here: the extractor quarantines them.
+//
+// The lookup account comes from the intent scope, never the fact payload: a
+// permission whose payload account disagrees with its containing scope is
+// skipped, so a stray fact can never direct a lookup at another account (and
+// no cross-account edge can materialize from it). Other accounts are never
+// looked up.
 func iamCanPerformCrossScopeRequests(scopeID string, permissionEnvelopes []facts.Envelope) ([]CrossScopeTargetRequest, int) {
+	scopeAccount := ""
+	if parts := strings.Split(scopeID, ":"); len(parts) == 4 && parts[0] == "aws" {
+		scopeAccount = parts[1]
+	}
 	byAccount := make(map[string]map[CrossScopeTarget]struct{})
 	globs := 0
 	for _, env := range permissionEnvelopes {
@@ -187,6 +197,9 @@ func iamCanPerformCrossScopeRequests(scopeID string, permissionEnvelopes []facts
 		permission, err := schemadecode.DecodeAWSIAMPermission(env)
 		if err != nil || !strings.EqualFold(permission.Effect, "Allow") ||
 			!iamCanPerformIdentityPolicySource(permission.PolicySource) {
+			continue
+		}
+		if scopeAccount == "" || permission.AccountID != scopeAccount {
 			continue
 		}
 		for _, resource := range permission.Resources {

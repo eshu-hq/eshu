@@ -265,7 +265,7 @@
       "USES": {
         "min": 2,
         "max": 100,
-        "note": "WorkloadInstance\u2192CloudResource workload-cloud binding (#6785 CAN_PERFORM/value-flow fixture). The awscloud cassette's deployable-source-app-role aws_iam_role facts sit in the IAM service scope (aws:123456789012:us-east-1:iam, where the awscloud IAM scanner emits roles) and anchor workload:deployable-source in both its prod and stage environments (two facts sharing one CloudResource identity). The workload-cloud handler defers, bounded by 30 minutes of elapsed cycle time, until those WorkloadInstance nodes exist, so USES converges to 2 (one edge per environment) instead of racing workload materialization; floor raised from 0 accordingly."
+        "note": "WorkloadInstance\u2192CloudResource workload-cloud binding (#6785 CAN_PERFORM/value-flow fixture). The awscloud cassette's deployable-source-app-role aws_iam_role facts sit in the IAM service scope (aws:123456789012:us-east-1:iam, where the awscloud IAM scanner emits roles) and anchor workload:deployable-source in both its prod and stage environments (two facts sharing one CloudResource identity). The workload-cloud handler defers, bounded by 30 minutes from the ledger's first defer (first_deferred_at, which survives supersession), until those WorkloadInstance nodes exist, so USES converges to 2 (one edge per environment) instead of racing workload materialization; floor raised from 0 accordingly. Endpoint shape pinned by rc-175."
       },
       "GRANTS_ACCESS_TO": {
         "min": 0,
@@ -280,7 +280,7 @@
       "CAN_PERFORM": {
         "min": 1,
         "max": 200,
-        "note": "IAM capability edges from cloud permission projection. The #6785 fixture uses the production scope layout: deployable-source-app-role and its inline aws_iam_permission (s3:putobject on arn:aws:s3:::scd-upload-receipts) sit in aws:123456789012:us-east-1:iam, and the bucket sits in aws:123456789012:us-east-1:s3. The projector's BuildIAMCanPerformMaterializationReducerIntent enqueues the domain (previously nothing did), and the handler resolves the exact target ARN from the sibling S3 scope of the same account. The cassette replays the iam scope BEFORE the s3 scope (the adverse order), so the intent first defers as iam_can_perform_target_not_ready (scope_unregistered) and writes the edge once the s3 scope registers and commits its CloudResource nodes, giving deployable-source-app-role -[:CAN_PERFORM]-> scd-upload-receipts; floor raised from 0 to 1, the #6785 target."
+        "note": "IAM capability edges from cloud permission projection. The #6785 fixture uses the production scope layout: deployable-source-app-role and its inline aws_iam_permission (s3:putobject on arn:aws:s3:::scd-upload-receipts) sit in aws:123456789012:us-east-1:iam, and the bucket sits in aws:123456789012:us-east-1:s3. The projector's BuildIAMCanPerformMaterializationReducerIntent enqueues the domain (previously nothing did), and the handler resolves the exact target ARN from the sibling S3 scope of the same account. The cassette replays the iam scope BEFORE the s3 scope (the adverse order), so the intent first defers as iam_can_perform_target_not_ready (scope_unregistered) and writes the edge once the s3 scope registers and commits its CloudResource nodes, giving deployable-source-app-role -[:CAN_PERFORM]-> scd-upload-receipts; floor raised from 0 to 1, the #6785 target. Endpoint shape pinned by rc-176."
       },
       "DEPLOYMENT_SOURCE": {
         "min": 7,
@@ -1940,6 +1940,22 @@
         "id": "rc-174",
         "description": "issue #5717: at least one CloudResource(aws_ec2_instance)-[:AWS_ec2_instance_uses_ami]->CloudResource(aws_ec2_ami) edge. #5448 shipped the instance->AMI aws_relationship fact, but no AMI aws_resource fact existed, so DomainAWSRelationshipMaterialization's join index (buildCloudResourceJoinIndex, go/internal/reducer/aws_relationship_join.go) could never resolve the AMI target -- it always fell through to joinModeUnresolved and the edge was counted, never written (no CloudResource-typed node existed for resource_type=aws_ec2_ami to MATCH against). This is the non-vacuous proof the edge now resolves: before #5717 this assertion is provably 0, because the awscloud cassette's ec2 scope carried the instance's aws_resource fact and the relationship fact but no aws_resource fact for the AMI itself. #5717 adds that AMI aws_resource fact (resource_type=aws_ec2_ami, resource_id=ami-000000000000000a, no ARN/name/state metadata -- amiResourceObservation in go/internal/collector/awscloud/services/ec2/ami_identity.go deliberately reads no DescribeImages data), which materializes through the SAME generic AWS resource node materialization every other resource type uses (no new node class, no new writer), so the relationship's bare-id target join now resolves and the edge writes with Cypher type AWS_ec2_instance_uses_ami (CloudResourceEdgeWriter's AWS_<relationship_type> convention).",
         "relationship": "AWS_ec2_instance_uses_ami",
+        "from_label": "CloudResource",
+        "to_label": "CloudResource",
+        "minimum_count": 1
+      },
+      {
+        "id": "rc-175",
+        "description": "issue #6785: at least two WorkloadInstance-[:USES]->CloudResource edges with the workload-cloud endpoints. The awscloud cassette's deployable-source-app-role aws_iam_role facts anchor workload:deployable-source in both its prod and stage environments, and the workload-cloud handler writes one USES edge per environment once the WorkloadInstance nodes exist (workloadCloudRelationshipUpsertCypherFormat MATCHes (workload:Workload)<-[:INSTANCE_OF]-(instance:WorkloadInstance) and (resource:CloudResource)). A count-only floor could pass with the right number of USES edges on wrong endpoints; this pins the (WorkloadInstance, CloudResource) shape with minimum 2, provably 0 before #6785 because the handler raced workload materialization and wrote nothing.",
+        "relationship": "USES",
+        "from_label": "WorkloadInstance",
+        "to_label": "CloudResource",
+        "minimum_count": 2
+      },
+      {
+        "id": "rc-176",
+        "description": "issue #6785: at least one CloudResource-[:CAN_PERFORM]->CloudResource edge with the cross-scope endpoints. The #6785 fixture puts deployable-source-app-role and its inline aws_iam_permission (s3:putobject on arn:aws:s3:::scd-upload-receipts) in aws:123456789012:us-east-1:iam and the bucket in aws:123456789012:us-east-1:s3; the handler resolves the exact ARN from the sibling S3 scope of the same account and the writer MERGEs (p:CloudResource)-[:CAN_PERFORM]->(r:CloudResource) by uid. A count-only floor could pass with the edge on wrong endpoint labels or from another producer of the same type; this pins the (CloudResource, CloudResource) shape with minimum 1, provably 0 before #6785 because nothing enqueued the domain.",
+        "relationship": "CAN_PERFORM",
         "from_label": "CloudResource",
         "to_label": "CloudResource",
         "minimum_count": 1
