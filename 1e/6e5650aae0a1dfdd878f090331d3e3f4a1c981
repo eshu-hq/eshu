@@ -1,0 +1,14 @@
+docs/internal/design/6785-cross-scope-can-perform-and-uses-readiness.md
+  h_78a442cba0b3e6 165,417-418,420,443-446,461,463,472,477
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1e6e5650aae0a1dfdd878f090331d3e3f4a1c981",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
