@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`collector/mediapreflight` classifies audio and video documentation sources
+`collector/preflight/media` classifies audio and video documentation sources
 before any transcript extractor reads audio samples, video frames, subtitles,
 speaker labels, or transcript text. It gives future documentation collectors a
 metadata-only guard for resource limits, malformed media, unsupported codecs,
@@ -57,9 +57,9 @@ outcomes, elapsed time, skipped external references, metadata redaction, and
 resource outcomes through collector telemetry before enabling transcription
 ingestion.
 
-Collector Performance Evidence: `go test ./internal/collector/mediapreflight
+Collector Performance Evidence: `go test ./internal/collector/preflight/media
 -count=1` proves media preflight is bounded by source bytes, duration limits,
-and metadata-only classification. `go test ./internal/collector -run
+and metadata-only classification. `go test ./internal/collector/gitrepo -run
 'Media|DocumentationDefaultOff' -count=1` proves media formats remain outside
 documentation extraction by default.
 

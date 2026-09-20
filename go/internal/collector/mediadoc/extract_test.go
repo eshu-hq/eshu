@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/mediapreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/media"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -41,7 +41,7 @@ func TestExtractEmitsTranscriptDocumentAndTimestampSections(t *testing.T) {
 	if engine.calls != 1 {
 		t.Fatalf("Transcribe() calls = %d, want 1", engine.calls)
 	}
-	if got, want := engine.lastMedia.Format, mediapreflight.FormatWAV; got != want {
+	if got, want := engine.lastMedia.Format, media.FormatWAV; got != want {
 		t.Fatalf("Media.Format = %q, want %q", got, want)
 	}
 	if engine.lastMedia.DurationMillis <= 0 {
@@ -61,7 +61,7 @@ func TestExtractEmitsTranscriptDocumentAndTimestampSections(t *testing.T) {
 		"incident_media_source_class": "transcript_chunk",
 		"transcript_status":           "completed",
 		"transcript_segment_count":    "1",
-		"media_format":                mediapreflight.FormatWAV,
+		"media_format":                media.FormatWAV,
 	} {
 		if got := metadata[key]; got != want {
 			t.Fatalf("document source_metadata[%q] = %q, want %q", key, got, want)
@@ -122,27 +122,27 @@ func TestExtractRecordsSkippedMediaAsDocumentWarnings(t *testing.T) {
 			name:       "unsupported_codec",
 			sourceName: "docs/incident.mp3",
 			body:       []byte("ID3 unsupported local transcript codec"),
-			wantClass:  string(mediapreflight.WarningUnsupportedCodec),
+			wantClass:  string(media.WarningUnsupportedCodec),
 		},
 		{
 			name:       "malformed_wav",
 			sourceName: "docs/broken.wav",
 			body:       []byte("not media"),
-			wantClass:  string(mediapreflight.WarningMalformedMedia),
+			wantClass:  string(media.WarningMalformedMedia),
 		},
 		{
 			name:       "resource_limit",
 			sourceName: "docs/huge.wav",
 			body:       encodeTestWAV(t, 5000),
-			options:    Options{Preflight: mediapreflight.Options{MaxSourceBytes: 4}},
-			wantClass:  string(mediapreflight.WarningResourceLimitExceeded),
+			options:    Options{Preflight: media.Options{MaxSourceBytes: 4}},
+			wantClass:  string(media.WarningResourceLimitExceeded),
 		},
 		{
 			name:       "duration_limit",
 			sourceName: "docs/long.wav",
 			body:       encodeTestWAV(t, 5000),
-			options:    Options{Preflight: mediapreflight.Options{MaxDurationMillis: 100}},
-			wantClass:  string(mediapreflight.WarningResourceLimitExceeded),
+			options:    Options{Preflight: media.Options{MaxDurationMillis: 100}},
+			wantClass:  string(media.WarningResourceLimitExceeded),
 		},
 	}
 	for _, tt := range tests {
@@ -224,13 +224,13 @@ func TestExtractRedactsSensitiveTranscriptText(t *testing.T) {
 	metadata := stringMapValue(t, section, "source_metadata")
 	for key, want := range map[string]string{
 		"redacted":        "true",
-		"redaction_class": string(mediapreflight.WarningSensitiveValueRedacted),
+		"redaction_class": string(media.WarningSensitiveValueRedacted),
 	} {
 		if got := metadata[key]; got != want {
 			t.Fatalf("section source_metadata[%q] = %q, want %q", key, got, want)
 		}
 	}
-	if !strings.Contains(metadata["warning"], string(mediapreflight.WarningSensitiveValueRedacted)) {
+	if !strings.Contains(metadata["warning"], string(media.WarningSensitiveValueRedacted)) {
 		t.Fatalf("warning = %q, want sensitive redaction", metadata["warning"])
 	}
 	if section["text_hash"] == "" || section["excerpt_hash"] == "" {

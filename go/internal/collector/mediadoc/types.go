@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/mediapreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/media"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -19,7 +19,7 @@ type Engine interface {
 
 // Options bounds media transcript extraction work delegated by this package.
 type Options struct {
-	Preflight       mediapreflight.Options
+	Preflight       media.Options
 	MaxSectionChars int
 }
 
@@ -75,7 +75,7 @@ type Segment struct {
 // Result contains document and section payloads plus ready-to-persist envelopes
 // for one media transcript extraction attempt.
 type Result struct {
-	Preflight mediapreflight.Result
+	Preflight media.Result
 	Document  facts.DocumentationDocumentPayload
 	Sections  []facts.DocumentationSectionPayload
 	Envelopes []facts.Envelope

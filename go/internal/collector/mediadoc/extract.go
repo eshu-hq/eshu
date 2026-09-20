@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/mediapreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/media"
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -30,7 +30,7 @@ func Extract(ctx context.Context, req Request) (Result, error) {
 		ctx = context.Background()
 	}
 	sourceName := firstNonEmpty(req.SourceName, req.SourceURI, req.ExternalID)
-	preflight, err := mediapreflight.Preflight(
+	preflight, err := media.Preflight(
 		ctx,
 		sourceName,
 		bytes.NewReader(req.Body),
@@ -97,7 +97,7 @@ type transcriptSection struct {
 	redacted     bool
 }
 
-func buildDocument(req Request, preflight mediapreflight.Result, sourceHash string) facts.DocumentationDocumentPayload {
+func buildDocument(req Request, preflight media.Result, sourceHash string) facts.DocumentationDocumentPayload {
 	metadata := map[string]string{
 		"format_family":               formatMediaTranscript,
 		"incident_media_source_class": incidentSourceTranscript,
@@ -190,7 +190,7 @@ func buildSections(
 		}
 		if redacted {
 			metadata["redacted"] = "true"
-			metadata["redaction_class"] = string(mediapreflight.WarningSensitiveValueRedacted)
+			metadata["redaction_class"] = string(media.WarningSensitiveValueRedacted)
 		}
 		if segment.Confidence > 0 && segment.Confidence < 0.50 {
 			warnings = append(warnings, "transcript_low_confidence")
@@ -291,13 +291,13 @@ func hasMentionHints(sections []transcriptSection) bool {
 	return false
 }
 
-func skipPreflight(preflight mediapreflight.Result) bool {
+func skipPreflight(preflight media.Result) bool {
 	return len(preflight.Warnings) > 0
 }
 
-func skippedStatus(preflight mediapreflight.Result) string {
+func skippedStatus(preflight media.Result) string {
 	for _, warning := range preflight.Warnings {
-		if warning.Class == mediapreflight.WarningTranscriptNoSpeech {
+		if warning.Class == media.WarningTranscriptNoSpeech {
 			return "no_speech"
 		}
 	}
@@ -307,7 +307,7 @@ func skippedStatus(preflight mediapreflight.Result) string {
 func persistedContent(text string, maxChars int) (string, []string, bool) {
 	warnings := []string{}
 	if containsSensitiveMarker(text) {
-		return "[redacted]", []string{string(mediapreflight.WarningSensitiveValueRedacted)}, true
+		return "[redacted]", []string{string(media.WarningSensitiveValueRedacted)}, true
 	}
 	if maxChars <= 0 {
 		maxChars = defaultMaxSectionChars
@@ -379,7 +379,7 @@ func schemaVersion(kind string) string {
 	return facts.DocumentationFactSchemaVersion
 }
 
-func warningClasses(warnings []mediapreflight.Warning) []string {
+func warningClasses(warnings []media.Warning) []string {
 	out := make([]string, 0, len(warnings))
 	for _, warning := range warnings {
 		if warning.Count > 0 {
