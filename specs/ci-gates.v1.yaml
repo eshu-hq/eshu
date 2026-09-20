@@ -2371,6 +2371,10 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      # The Neo4j matrix leg boots from this file (compose_file), which pins
+      # the Neo4j image digest; a digest-only bump must re-run the gate too
+      # (#6782 round-4 review P3-4).
+      - "docker-compose.neo4j.yml"
       - ".github/workflows/golden-corpus-gate.yml"
     local:
       command: "bash scripts/verify-golden-corpus-gate.sh"
@@ -2541,6 +2545,10 @@ gates:
       - "scripts/lib/live-gate-lock.sh"
       - "scripts/ci/install-apt-packages.sh"
       - "scripts/ci/go-mod-download-retry.sh"
+      # The Neo4j matrix leg boots from this file (compose_file), which pins
+      # the Neo4j image digest; a digest-only bump must re-run the gate too
+      # (#6782 round-4 review P3-4).
+      - "docker-compose.neo4j.yml"
       - ".github/workflows/golden-corpus-gate.yml"
     local:
       command: "ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh"

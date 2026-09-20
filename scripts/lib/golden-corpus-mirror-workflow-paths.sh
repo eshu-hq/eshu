@@ -344,3 +344,10 @@ require_workflow_path "terraform-state warning classification (#5877 correction)
 # hypothetical. Widen or narrow what CarriesUserinfo treats as credential-bearing
 # and the service-catalog facts this gate projects move with it.
 require_workflow_path "URL credential redaction (#6119)" "go/internal/urlredact/**"
+
+# --- #6782 round-4 review P3-4 ------------------------------------------------
+# docker-compose.neo4j.yml pins the Neo4j image digest the Neo4j matrix leg
+# boots from (compose_file in golden-corpus-gate.yml); a digest-only bump
+# changes what the gate tests without touching any covered Go package, so the
+# file must trigger the gate too.
+require_workflow_path "Neo4j compose image digest (#6782 P3-4)" "docker-compose.neo4j.yml"

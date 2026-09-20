@@ -43,3 +43,11 @@ pg() {
 		psql "${ESHU_POSTGRES_DSN}" -v ON_ERROR_STOP=1 -tA -c "${sql}"
 	fi
 }
+
+# Round-4 review P3-2 (#6782): bind the log to the tested commit so a gate
+# log is self-identifying without relying on timestamps plus the author's run
+# record. Lives in this sourced lib, not the orchestrator, to keep that file
+# under the 500-line cap; log() is defined before the orchestrator sources
+# this file, and the script already cd'd to the repo root, so HEAD is the
+# tested commit in both compose and --no-compose modes.
+log "tested commit: $(git rev-parse HEAD)"
