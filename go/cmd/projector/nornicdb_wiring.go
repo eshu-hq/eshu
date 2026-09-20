@@ -17,37 +17,29 @@ import (
 )
 
 // projectorGatedDrainReader wraps a storagenornicdb.DrainReader so each
-// full-refresh DETACH DELETE drain write, and the bounded existence probe
-// that precedes a bare-label drain (#6822), draws a permit from the shared
-// canonical graph-write gate. The probe and the drain acquire under distinct
-// labels (`canonical_probe` vs `canonical_retract_drain`) so backpressure
-// telemetry attributes each correctly instead of folding the probe into the
-// drain's label.
+// full-refresh DETACH DELETE drain write draws a permit from the shared
+// canonical graph-write gate. The bounded existence probe that precedes a
+// bare-label drain (#6822) is NOT gated by this wrapper: it dispatches through
+// the gated inner GroupExecutor layer via PhaseGroupExecutor.Inner as a
+// sourcecypher.ProbeExecutor (#6852) carrying its own `canonical_probe`
+// operation label, so backpressure telemetry still attributes it separately
+// from `canonical_retract_drain`.
 type projectorGatedDrainReader struct {
 	inner storagenornicdb.DrainReader
 	gate  *sourcecypher.BackpressureGate
 }
 
 // projectorTimeoutDrainReader gives each full-refresh DETACH DELETE drain
-// iteration, and the bounded existence probe that precedes a bare-label drain
-// (#6822), its own client deadline. The probe and the drain report distinct
-// GraphWriteTimeoutError.Operation strings ("nornicdb probe timed out" vs
-// "nornicdb drain timed out") so an operator can tell which one stalled.
+// iteration its own client deadline. The bounded existence probe that
+// precedes a bare-label drain (#6822) is NOT bounded by this wrapper: it
+// dispatches through the grouped TimeoutExecutor via PhaseGroupExecutor.Inner
+// as a sourcecypher.ProbeExecutor (#6852), which gives it the same canonical
+// write timeout budget under a distinct "neo4j execute probe timed out"
+// operation label.
 type projectorTimeoutDrainReader struct {
 	inner       storagenornicdb.DrainReader
 	timeout     time.Duration
 	timeoutHint string
-}
-
-// RunProbe bounds one bounded existence probe with a fresh child context,
-// reporting a stalled probe as "nornicdb probe timed out" rather than the
-// drain's "nornicdb drain timed out" label.
-func (r projectorTimeoutDrainReader) RunProbe(
-	ctx context.Context,
-	cypher string,
-	parameters map[string]any,
-) (storagenornicdb.DrainWriteResult, error) {
-	return r.runBounded(ctx, cypher, parameters, r.inner.RunProbe, "nornicdb probe timed out", "run nornicdb probe")
 }
 
 // RunWrite bounds one drain iteration with a fresh child context.
@@ -59,10 +51,9 @@ func (r projectorTimeoutDrainReader) RunWrite(
 	return r.runBounded(ctx, cypher, parameters, r.inner.RunWrite, "nornicdb drain timed out", "run nornicdb drain")
 }
 
-// runBounded is the shared per-call deadline logic behind RunProbe and
-// RunWrite: it differs only in which inner method it calls and which
-// timeout-operation/error-prefix labels the resulting error carries, so the
-// probe and the drain can never be confused with each other downstream.
+// runBounded is the shared per-call deadline logic behind RunWrite: it
+// differs only in which inner method it calls and which
+// timeout-operation/error-prefix labels the resulting error carries.
 func (r projectorTimeoutDrainReader) runBounded(
 	ctx context.Context,
 	cypher string,
@@ -86,21 +77,6 @@ func (r projectorTimeoutDrainReader) runBounded(
 		}
 	}
 	return storagenornicdb.DrainWriteResult{}, fmt.Errorf("%s: %w", wrapPrefix, err)
-}
-
-// RunProbe acquires a canonical-gate permit under the `canonical_probe` label
-// for the bounded existence probe, then delegates to the wrapped reader.
-func (r projectorGatedDrainReader) RunProbe(
-	ctx context.Context,
-	cypher string,
-	parameters map[string]any,
-) (storagenornicdb.DrainWriteResult, error) {
-	release, err := r.gate.Acquire(ctx, string(sourcecypher.OperationCanonicalProbe))
-	if err != nil {
-		return storagenornicdb.DrainWriteResult{}, err
-	}
-	defer release()
-	return r.inner.RunProbe(ctx, cypher, parameters)
 }
 
 // RunWrite acquires a canonical-gate permit for the drain write, then

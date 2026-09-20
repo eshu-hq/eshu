@@ -27,6 +27,16 @@ import (
 // clause atomically, so a node another attempt refreshed to the current
 // generation is never deleted.
 //
+// The probe dispatches through e.Inner as a sourcecypher.ProbeExecutor
+// carrying sourcecypher.OperationCanonicalProbe (#6852), not through
+// DrainReader: e.Inner is the same instrumented/backpressure/timeout chain
+// every other canonical write goes through, so the probe gets a real
+// `neo4j.execute_probe` span and `Neo4jQueryDuration{operation=probe}` point
+// instead of the bespoke telemetry the former DrainReader.RunProbe seam had.
+// Fail-safe direction is unchanged: no ProbeExecutor on Inner, or any probe
+// error, runs the drain unconditionally (mode probe_unsupported /
+// probe_failed). Only a definitive found=false skips it (mode probe_skipped).
+//
 // Concurrency safety: the retract conflict_domain is scope (one projector
 // worker per scope while its lease is live), but a stale attempt can overlap a
 // replacement after its lease expires. Safety rests on the drain statement
@@ -72,29 +82,45 @@ func (e PhaseGroupExecutor) executeDrainLoop(
 	var probeDuration time.Duration
 	if probed {
 		mode = "probed"
-		probe, err := e.DrainReader.RunProbe(ctx, probeCypher, params)
-		probeDuration = time.Since(phaseStart)
-		switch {
-		case err != nil:
-			// A failed probe means "unknown", never "zero rows" (the
-			// sourcecypher.ProbeExecutor contract): run the drain
-			// unconditionally so a probe-only failure cannot fail a
-			// projection whose delete would succeed.
-			mode = "probe_failed"
+		pe, canProbe := e.Inner.(sourcecypher.ProbeExecutor)
+		if !canProbe {
+			// No ProbeExecutor on Inner means "unknown", never "zero rows":
+			// run the drain unconditionally, same fail-safe direction as a
+			// probe error below.
+			mode = "probe_unsupported"
+			probeDuration = time.Since(phaseStart)
 			slog.Warn(
-				"nornicdb retract probe failed; draining unconditionally",
+				"nornicdb retract probe unsupported; draining unconditionally",
 				"statement_index", stmtIdx,
 				"statement_count", stmtTotal,
-				"probe_duration_s", probeDuration.Seconds(),
 				"first_statement", statementSummary,
-				"error", err,
 			)
-		case len(probe.Rows) == 0:
-			// Skip only when the probe returned no row. Any row means a node
-			// matched, even one whose __id is missing or malformed, so the
-			// drain runs rather than reporting a silent probe_skipped success.
-			mode = "probe_skipped"
-			skipDrain = true
+		} else {
+			found, err := pe.ExecuteProbe(ctx, sourcecypher.Statement{
+				Operation:  sourcecypher.OperationCanonicalProbe,
+				Cypher:     probeCypher,
+				Parameters: params,
+			})
+			probeDuration = time.Since(phaseStart)
+			switch {
+			case err != nil:
+				// A failed probe means "unknown", never "zero rows" (the
+				// sourcecypher.ProbeExecutor contract): run the drain
+				// unconditionally so a probe-only failure cannot fail a
+				// projection whose delete would succeed.
+				mode = "probe_failed"
+				slog.Warn(
+					"nornicdb retract probe failed; draining unconditionally",
+					"statement_index", stmtIdx,
+					"statement_count", stmtTotal,
+					"probe_duration_s", probeDuration.Seconds(),
+					"first_statement", statementSummary,
+					"error", err,
+				)
+			case !found:
+				mode = "probe_skipped"
+				skipDrain = true
+			}
 		}
 	}
 

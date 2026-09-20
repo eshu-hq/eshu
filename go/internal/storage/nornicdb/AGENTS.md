@@ -20,13 +20,18 @@
   (a stale attempt could delete nodes a replacement attempt just refreshed).
   Keep `WITH ... LIMIT` before `RETURN` in the probe, and keep `ORDER BY
   elementId()` in the bare-label drain (without it NornicDB deletes 0 rows).
-- `DrainReader.RunProbe` and `RunWrite` are separate interface methods
-  (#6822), not one method overloaded by cypher shape: `executeDrainLoop` calls
-  `RunProbe` for the bounded existence probe and `RunWrite` for the drain.
-  Never route the probe through `RunWrite` — a command-owned gate/timeout
-  wrapper labels each method independently (`canonical_probe` vs
-  `canonical_retract_drain`; distinct `GraphWriteTimeoutError.Operation`
-  strings), so folding the probe into `RunWrite` mislabels it as a drain.
+- The bounded existence probe and the bounded drain write dispatch through two
+  different seams (#6852), not one method overloaded by cypher shape:
+  `executeDrainLoop` type-asserts `PhaseGroupExecutor.Inner` as
+  `sourcecypher.ProbeExecutor` and calls `ExecuteProbe` with a
+  `sourcecypher.Statement{Operation: sourcecypher.OperationCanonicalProbe}`
+  for the probe, and calls `DrainReader.RunWrite` for the drain. `DrainReader`
+  no longer has a `RunProbe` method. Routing the probe through `Inner` (the
+  same instrumented/backpressure/timeout chain every other canonical write
+  uses) is what gives it a `neo4j.execute_probe` span and a
+  `Neo4jQueryDuration{operation=probe}` point; never route it back through
+  `DrainReader.RunWrite` or invent a new `DrainReader` method for it — that
+  bypasses the instrumented chain again (#6822's original defect).
 - Fail closed when the inner executor is absent.
 - Keep drivers, env parsing, timeouts, retries, and process gates in commands.
 - Preserve exact graph output and idempotent partial-phase replay.

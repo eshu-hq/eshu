@@ -36,55 +36,45 @@ func (o *recordingBackpressureObserver) last() string {
 	return o.ops[len(o.ops)-1]
 }
 
-// TestGatedDrainReaderLabelsProbeAndDrainDistinctly is the #6822 regression:
-// gatedDrainReader must label the bounded existence probe separately from the
-// DETACH DELETE drain write it precedes, so backpressure telemetry and the
-// in-flight ceiling attribute the probe correctly instead of folding it into
-// the drain write's "canonical_retract_drain" label.
-func TestGatedDrainReaderLabelsProbeAndDrainDistinctly(t *testing.T) {
+// TestGatedDrainReaderLabelsDrainWrite is the #6822 regression, narrowed by
+// #6852: the bounded existence probe that used to share this wrapper now
+// dispatches through PhaseGroupExecutor.Inner as a sourcecypher.ProbeExecutor
+// instead (see TestExecuteDrainLoopRoutesProbeThroughInnerWithCanonicalProbeOperation
+// in internal/storage/nornicdb), so gatedDrainReader only needs to label its
+// remaining DETACH DELETE drain write.
+func TestGatedDrainReaderLabelsDrainWrite(t *testing.T) {
 	t.Parallel()
 
 	observer := &recordingBackpressureObserver{}
 	gate := sourcecypher.NewBackpressureGate(1, observer)
 	reader := gatedDrainReader{inner: drainCapableExecutor{}, gate: gate}
 
-	assertAcquireLabel := func(t *testing.T, call func() error, want string) {
-		t.Helper()
-
-		// Occupy the sole permit ourselves so the wrapper's own Acquire call
-		// must contend (and therefore reports its label to the observer).
-		release, err := gate.Acquire(context.Background(), "hold")
-		if err != nil {
-			t.Fatalf("Acquire() error = %v, want nil", err)
-		}
-		done := make(chan error, 1)
-		go func() { done <- call() }()
-		// Give the contending goroutine time to reach its own Acquire call
-		// while the permit is still held (mirrors the sleep-then-release
-		// pattern already used for gate contention in
-		// cmd/projector/runtime_wiring_concurrency_test.go).
-		time.Sleep(50 * time.Millisecond)
-		release()
-		select {
-		case err := <-done:
-			if err != nil {
-				t.Fatalf("call() error = %v, want nil", err)
-			}
-		case <-time.After(2 * time.Second):
-			t.Fatal("call did not finish after releasing the held permit")
-		}
-		if got := observer.last(); got != want {
-			t.Fatalf("acquire label = %q, want %q", got, want)
-		}
+	// Occupy the sole permit ourselves so the wrapper's own Acquire call must
+	// contend (and therefore reports its label to the observer).
+	release, err := gate.Acquire(context.Background(), "hold")
+	if err != nil {
+		t.Fatalf("Acquire() error = %v, want nil", err)
 	}
-
-	assertAcquireLabel(t, func() error {
-		_, err := reader.RunProbe(context.Background(), "RETURN elementId(n)", nil)
-		return err
-	}, "canonical_probe")
-
-	assertAcquireLabel(t, func() error {
+	done := make(chan error, 1)
+	go func() {
 		_, err := reader.RunWrite(context.Background(), "DETACH DELETE n", nil)
-		return err
-	}, "canonical_retract_drain")
+		done <- err
+	}()
+	// Give the contending goroutine time to reach its own Acquire call while
+	// the permit is still held (mirrors the sleep-then-release pattern
+	// already used for gate contention in
+	// cmd/projector/runtime_wiring_concurrency_test.go).
+	time.Sleep(50 * time.Millisecond)
+	release()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("RunWrite() error = %v, want nil", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("RunWrite did not finish after releasing the held permit")
+	}
+	if got, want := observer.last(), "canonical_retract_drain"; got != want {
+		t.Fatalf("acquire label = %q, want %q", got, want)
+	}
 }

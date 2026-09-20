@@ -29,10 +29,6 @@ func (drainCapableExecutor) RunWrite(context.Context, string, map[string]any) (D
 	return DrainWriteResult{}, nil
 }
 
-func (drainCapableExecutor) RunProbe(context.Context, string, map[string]any) (DrainWriteResult, error) {
-	return DrainWriteResult{}, nil
-}
-
 func newTestNornicDBCanonicalExecutorWithRaw(raw sourcecypher.Executor, gate *sourcecypher.BackpressureGate) sourcecypher.Executor {
 	return canonicalExecutorForGraphBackend(
 		raw,
