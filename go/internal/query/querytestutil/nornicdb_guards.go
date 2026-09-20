@@ -220,12 +220,12 @@ func blankLiteralsAndComments(cypher string) string {
 		case quote == 0 && c == '/' && i+1 < len(out) && out[i+1] == '*':
 			out[i], out[i+1] = ' ', ' '
 			i += 2
-			for ; i+1 < len(out) && (out[i] != '*' || out[i+1] != '/'); i++ {
+			for ; i < len(out); i++ {
+				if i+1 < len(out) && out[i] == '*' && out[i+1] == '/' {
+					out[i], out[i+1] = ' ', ' '
+					break
+				}
 				out[i] = ' '
-			}
-			if i+1 < len(out) {
-				out[i], out[i+1] = ' ', ' '
-				i++
 			}
 		case quote == 0 && (c == '\'' || c == '"'):
 			quote = c

@@ -60,6 +60,7 @@ func TestAssertCypherHasNoIgnoredLabelPredicateSeededViolations(t *testing.T) {
 		"any over a property list":            "MATCH (s)-[:DEPENDS_ON]->(t) WHERE any(tag IN t.tags WHERE tag IN $tags) RETURN t.id",
 		"label test inside a line comment":    "MATCH (s)-[:DEPENDS_ON]->(t) WHERE t.id = $id // was t:Repository\nRETURN t.id",
 		"slashes inside a string literal":     "MATCH (n:Repository) WHERE n.url = 'https://example.invalid/x' RETURN n.id",
+		"unterminated block comment":          "MATCH (s)-[:DEPENDS_ON]->(t) WHERE t.id = $id RETURN t.id /* was t:Repository WHERE",
 	}
 	for name, cypher := range greenCases {
 		t.Run("green/"+name, func(t *testing.T) {

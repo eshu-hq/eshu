@@ -230,13 +230,13 @@ Log lines from the rerun on this branch (fresh containers per package and
 backend, pins above). "Before fix" checks out the three pre-fix production
 files from `0a56ff08eb35925beee25680d49ed5a9ff0a4311` (the #6857 merge on
 `origin/main`, an ancestor of this branch that no rebase can orphan) over the
-same test files and runs the same tests (the legacy.go change in the fix
-commit is comment-only):
+same test files and runs the same tests (the traversal.go change in the fix
+commit is comment-only; the unscoped RED lives in legacy.go:127):
 
 ```bash
 git checkout 0a56ff08eb35925beee25680d49ed5a9ff0a4311 -- \
   go/internal/query/repository/infrastructure.go \
-  go/internal/query/impact/change_surface_traversal.go \
+  go/internal/query/impact/change_surface_legacy.go \
   go/internal/query/codequery/relationships/story/class.go
 ```
 
