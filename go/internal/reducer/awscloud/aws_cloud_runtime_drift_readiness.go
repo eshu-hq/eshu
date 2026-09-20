@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -337,7 +338,7 @@ func (h AWSCloudRuntimeDriftHandler) logStatePendingDefer(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	admitted []model.Candidate,
-	now time.Time,
+	elapsed time.Duration,
 ) {
 	if h.Logger == nil {
 		return
@@ -348,9 +349,8 @@ func (h AWSCloudRuntimeDriftHandler) logStatePendingDefer(
 		log.GenerationID(intent.GenerationID),
 		slog.Int("admitted_candidates", len(admitted)),
 		slog.Duration("max_wait", awsCloudRuntimeDriftStatePendingMaxWait),
-	}
-	if anchor := awsCloudRuntimeDriftCycleAnchor(intent); !anchor.IsZero() {
-		attrs = append(attrs, slog.Duration("elapsed_since_cycle_start", now.Sub(anchor)))
+		slog.Duration("elapsed_since_cycle_start", elapsed),
+		slog.String("outcome", crossscope.ReadinessWaitDeferred),
 	}
 	h.Logger.LogAttrs(ctx, slog.LevelInfo, "aws cloud runtime drift deferred for pending terraform state", attrs...)
 }

@@ -10,9 +10,10 @@
 // Every symbol here qualifies by the same criterion the package restructure
 // uses everywhere: it is meaningful with any one family deleted, because it
 // is read by MORE than one family. ci_cd_run_correlation and
-// supply_chain_impact both call CheckProducerReadinessBeforeLoad,
-// UnreadyProducers, and LogProducerNotReadyDefer, and both are declared as
-// consumers in the dependency catalog this package also owns. That is what
+// supply_chain_impact both call CheckProducerReadinessBeforeLoadWithLedger
+// and ApplyProducerReadinessPostLoad (the ledger-anchored #6814 pair built on
+// UnreadyProducers and DecideWait), and both are declared as consumers in the
+// dependency catalog this package also owns. That is what
 // makes it a genuine shared tier rather than a one-family helper: it moved
 // here, rather than into either family's subpackage, precisely because
 // neither family owns it alone.

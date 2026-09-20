@@ -59,6 +59,7 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 			// either is dropped, because a nil seam means "no floor" and would
 			// otherwise ship inert with every logic test still green.
 			ProducerReadiness: handlers.CrossScopeProducerReadiness,
+			ReadinessWaits:    handlers.ReadinessWaits,
 			Logger:            handlers.CrossScopeReadinessLogger,
 		}
 		definitions = append(definitions, impact)
