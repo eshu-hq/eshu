@@ -1,0 +1,23 @@
+docs/internal/evidence/6782-unwind-missing-row-key-audit.md
+  s_f5417eb4bac87d::t_df0a2c831d8493 49
+go/internal/storage/cypher/canonical_code_call_params_test.go
+  s_f5417eb4bac87d::t_6d6b01ecf09c3e 1-53
+go/internal/storage/cypher/canonical_retract.go
+  s_f5417eb4bac87d::t_9100cb9fe666e8 41-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d8a34080bf51f29e0a8d0126cbb589df831bd674",
+  "prompts": {},
+  "sessions": {
+    "s_f5417eb4bac87d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "92c64115-d591-4a9b-ac18-3c30f730d10b",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+go/cmd/golden-corpus-gate/snapshot_source_backed_remaining_test.go
+  h_78a442cba0b3e6 121-122
+go/internal/query/codemodel/code_relationships_graph_response.go
+  h_78a442cba0b3e6 110-116,132,134-136,139-140,150-151,154-155,164,166-168,171-172,179-180,183-184
+go/internal/query/codemodel/code_relationships_graph_response_test.go
+  h_78a442cba0b3e6 7,10-11,31-80
+go/internal/query/codequery/transitive_parity_live_test.go
+  h_78a442cba0b3e6 1-233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d276d032bbcc397a03c8c114500531ca0e58085f",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

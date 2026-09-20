@@ -1,0 +1,16 @@
+docs/public/reference/backend-conformance.md
+  h_78a442cba0b3e6 114-118
+docs/public/reference/nornicdb-write-shape-pitfalls.md
+  h_78a442cba0b3e6 410-412
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "55c01b7de03a99781f0a0280f3a641a08b4fa14a",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

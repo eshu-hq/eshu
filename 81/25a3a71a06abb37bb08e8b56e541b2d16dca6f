@@ -1,0 +1,27 @@
+docs/internal/evidence/6782-unwind-missing-row-key-audit.md
+  s_45cfbb28f19666::t_4a7432e5cf240d 1-152
+  s_45cfbb28f19666::t_220ca033c42cc3 153-157
+go/internal/storage/cypher/unwind_row_keys_live_test.go
+  s_45cfbb28f19666::t_3a737fa449cbcc 1-133
+  s_45cfbb28f19666::t_186a5fac63a2d4 134-158
+docs/internal/evidence/6782-b7-neo4j-divergences.md
+  s_45cfbb28f19666::t_f2ace1ee7352b3 142-144
+docs/public/reference/nornicdb-write-shape-pitfalls.md
+  s_45cfbb28f19666::t_7d67c161cb8aaf 378-392,396-409,411-414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8125a3a71a06abb37bb08e8b56e541b2d16dca6f",
+  "prompts": {},
+  "sessions": {
+    "s_45cfbb28f19666": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f03d1c1d-a426-4ce9-830d-f28d93c1483d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
