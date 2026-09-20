@@ -469,7 +469,7 @@ func TestContentWriterBatchesLargeEntitySet(t *testing.T) {
 	// batches join, so the index is deterministic.
 	reapQuery := db.execs[6].query
 	if !strings.Contains(reapQuery, "DELETE FROM content_entities") || !strings.Contains(reapQuery, "entity_id <> ALL") {
-		t.Fatalf("fifth query should be the stale-entity reap: %s", reapQuery)
+		t.Fatalf("seventh query should be the stale-entity reap: %s", reapQuery)
 	}
 }
 
