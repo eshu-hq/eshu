@@ -105,8 +105,42 @@ func (c *DeepSeekClient) Classify(ctx context.Context, candidates []Candidate) (
 	if err := json.Unmarshal([]byte(parsed.Choices[0].Message.Content), &report); err != nil {
 		return Report{}, fmt.Errorf("naming-glue-gate: model content was not the expected {\"findings\":[...]} JSON: %w (content: %s)", err, parsed.Choices[0].Message.Content)
 	}
+	if err := reconcile(report, candidates); err != nil {
+		return Report{}, err
+	}
 	for i := range report.Findings {
 		report.Findings[i].Kind = "directory"
 	}
 	return report, nil
+}
+
+// reconcile validates that report answers exactly the question asked: one
+// finding per candidate, naming only paths that were actually sent, with a
+// verdict this gate understands. The system prompt demands this shape
+// ("exactly one finding per candidate"), but a model response is untrusted
+// output, not a guarantee -- without this check, a short response silently
+// under-covers (run's "PASS (N candidate(s) reviewed)" becomes a false
+// claim), a finding naming an unsent path can fail a commit on a phantom
+// directory under -blocking=true, and an off-spec verdict string silently
+// falls through both Violations() and applyDisposition() as neither
+// glued_compound nor a counted acceptable. Any of these is treated as a
+// classify error, so run's existing fail-open path handles it the same way
+// as a network failure.
+func reconcile(report Report, candidates []Candidate) error {
+	if len(report.Findings) != len(candidates) {
+		return fmt.Errorf("naming-glue-gate: model returned %d finding(s) for %d candidate(s)", len(report.Findings), len(candidates))
+	}
+	known := make(map[string]bool, len(candidates))
+	for _, c := range candidates {
+		known[c.Path] = true
+	}
+	for _, f := range report.Findings {
+		if !known[f.Path] {
+			return fmt.Errorf("naming-glue-gate: model returned a finding for %q, which was not one of the candidates sent", f.Path)
+		}
+		if f.Verdict != VerdictGluedCompound && f.Verdict != VerdictAcceptable {
+			return fmt.Errorf("naming-glue-gate: model returned unrecognized verdict %q for %q", f.Verdict, f.Path)
+		}
+	}
+	return nil
 }

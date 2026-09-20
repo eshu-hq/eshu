@@ -32,8 +32,10 @@
 // # Scope
 //
 // This gate classifies newly introduced directory basenames only (Added,
-// not pre-existing at -base-ref), matching the same "new names only, never
-// re-litigate legacy debt" design as verify-filename-stutter.sh. It does not
+// not pre-existing at -base-ref) under -dirs (default and pre-commit wiring:
+// go/internal, go/cmd, go/pkg -- every root that holds real Go packages),
+// matching the same "new names only, never re-litigate legacy debt" design
+// as verify-filename-stutter.sh. It does not
 // classify file names: Go files in this repository already use underscores
 // to separate words (workload_selection.go), so the no-separator glue shape
 // rule 3 targets is specific to directories, which Go idiom keeps

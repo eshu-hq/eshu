@@ -118,6 +118,49 @@ func TestClassifyReturnsErrorOnNoChoices(t *testing.T) {
 	}
 }
 
+// contentServer returns an httptest.Server whose chat-completions response
+// carries exactly the given raw model content string, for the reconciliation
+// tests below.
+func contentServer(t *testing.T, content string) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := map[string]any{"choices": []map[string]any{{"message": map[string]any{"content": content}}}}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestClassifyReturnsErrorOnFindingCountMismatch(t *testing.T) {
+	server := contentServer(t, `{"findings":[{"path":"a","name":"a","verdict":"acceptable"}]}`)
+	client := &DeepSeekClient{HTTPClient: server.Client(), BaseURL: server.URL, APIKey: "k", Model: "deepseek-flash"}
+
+	_, err := client.Classify(context.Background(), []Candidate{{Path: "a", Name: "a"}, {Path: "b", Name: "b"}})
+	if err == nil {
+		t.Fatal("Classify() error = nil, want non-nil when the model returns fewer findings than candidates")
+	}
+}
+
+func TestClassifyReturnsErrorOnUnknownPath(t *testing.T) {
+	server := contentServer(t, `{"findings":[{"path":"never-asked-about","name":"x","verdict":"glued_compound"}]}`)
+	client := &DeepSeekClient{HTTPClient: server.Client(), BaseURL: server.URL, APIKey: "k", Model: "deepseek-flash"}
+
+	_, err := client.Classify(context.Background(), []Candidate{{Path: "a", Name: "a"}})
+	if err == nil {
+		t.Fatal("Classify() error = nil, want non-nil when a finding names a path that was never sent")
+	}
+}
+
+func TestClassifyReturnsErrorOnUnknownVerdict(t *testing.T) {
+	server := contentServer(t, `{"findings":[{"path":"a","name":"a","verdict":"glued-compound"}]}`)
+	client := &DeepSeekClient{HTTPClient: server.Client(), BaseURL: server.URL, APIKey: "k", Model: "deepseek-flash"}
+
+	_, err := client.Classify(context.Background(), []Candidate{{Path: "a", Name: "a"}})
+	if err == nil {
+		t.Fatal("Classify() error = nil, want non-nil on an off-spec verdict string (hyphen instead of underscore) that would silently fall through Violations()")
+	}
+}
+
 func TestClassifyWithNoCandidatesDoesNotCallServer(t *testing.T) {
 	called := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

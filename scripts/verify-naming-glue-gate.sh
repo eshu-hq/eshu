@@ -47,5 +47,5 @@ trap 'rm -rf "$build_dir"' EXIT
   -repo-root "$repo_root" \
   -base-ref "$base_ref" \
   -head-ref "$head_ref" \
-  -dirs go/internal,go/cmd \
+  -dirs go/internal,go/cmd,go/pkg \
   -blocking="$blocking"

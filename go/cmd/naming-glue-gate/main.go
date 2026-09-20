@@ -25,12 +25,15 @@ const defaultBaseURL = "https://api.deepseek.com"
 
 const defaultModel = "deepseek-flash"
 
-// defaultTimeoutSeconds bounds a single classification call by default.
-// Overridable via -timeout-seconds: a PR that introduces many new
-// directories in one push sends a proportionally larger batch, and this
-// gate must never time out on a legitimately larger request while still
-// never being the reason a commit or CI job hangs indefinitely.
-const defaultTimeoutSeconds = 45
+// defaultTimeoutSeconds bounds a single classification call by default. The
+// only wired caller is pre-commit with -blocking=true (see
+// scripts/verify-naming-glue-gate.sh), where a typical commit introduces a
+// handful of new directories at most: a slow or blackholed network stalling
+// an interactive `git commit` for tens of seconds before failing open
+// anyway buys nothing, so this stays short. -timeout-seconds overrides it
+// for a manual run against a much larger batch (e.g. auditing a long
+// history range by hand).
+const defaultTimeoutSeconds = 15
 
 // Classifier is the subset of DeepSeekClient's contract run() depends on,
 // so tests inject a fake instead of making a real API call.
@@ -51,7 +54,7 @@ func run(args []string, stdout, stderr io.Writer, classifier Classifier, runner 
 	repoRoot := fs.String("repo-root", ".", "repository root to run git against")
 	baseRef := fs.String("base-ref", "origin/main", "git ref to diff from")
 	headRef := fs.String("head-ref", "HEAD", "git ref to diff to")
-	dirsFlag := fs.String("dirs", "go/internal,go/cmd", "comma-separated repo-relative directories to scan for new subdirectories")
+	dirsFlag := fs.String("dirs", "go/internal,go/cmd,go/pkg", "comma-separated repo-relative directories to scan for new subdirectories")
 	blocking := fs.Bool("blocking", false, "exit 1 when a glued-compound directory is found (pre-commit); when false, findings are reported but the process always exits 0 (CI advisory mode)")
 	apiKeyEnv := fs.String("api-key-env", defaultAPIKeyEnv, "environment variable holding the DeepSeek API key")
 	model := fs.String("model", defaultModel, "DeepSeek model name")
