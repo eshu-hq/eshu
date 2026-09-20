@@ -5,6 +5,7 @@ package fingerprint
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
@@ -186,10 +187,12 @@ func splitmix64(x uint64) uint64 {
 	return x ^ (x >> 31)
 }
 
-func shingleHash(sh string, reg int) uint64 {
+func shingleHash(sh string, reg uint64) uint64 {
 	h := fnv.New64a()
-	h.Write([]byte(sh))
-	return splitmix64(h.Sum64() + uint64(reg)*0x9e3779b97f4a7c15)
+	// hash.Hash.Write never returns an error; the blank assignment records
+	// the intentional ignore for the gosec unhandled-error rule.
+	_, _ = h.Write([]byte(sh))
+	return splitmix64(h.Sum64() + reg*0x9e3779b97f4a7c15)
 }
 
 // minHash computes SketchRegs registers over ShingleK shingles with
@@ -204,7 +207,7 @@ func minHash(toks []string) []uint64 {
 		}
 	}
 	sketch := make([]uint64, SketchRegs)
-	for r := 0; r < SketchRegs; r++ {
+	for r := uint64(0); r < SketchRegs; r++ {
 		best := ^uint64(0)
 		for _, s := range shingles {
 			if v := shingleHash(s, r); v < best {
@@ -223,11 +226,8 @@ func bands(sketch []uint64) []string {
 		h := fnv.New64a()
 		for r := 0; r < LSHRows; r++ {
 			var buf [8]byte
-			v := sketch[b*LSHRows+r]
-			for i := 0; i < 8; i++ {
-				buf[i] = byte(v >> (8 * i))
-			}
-			h.Write(buf[:])
+			binary.LittleEndian.PutUint64(buf[:], sketch[b*LSHRows+r])
+			_, _ = h.Write(buf[:])
 		}
 		out = append(out, fmt.Sprintf("%016x", h.Sum64()))
 	}

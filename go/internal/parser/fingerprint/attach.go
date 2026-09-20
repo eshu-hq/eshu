@@ -4,6 +4,7 @@
 package fingerprint
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"time"
@@ -167,10 +168,10 @@ func Attach(lang string, hasError bool, body *tree_sitter.Node, src []byte, item
 // little-endian register) for the KeySketch metadata string.
 func EncodeSketch(sketch []uint64) string {
 	raw := make([]byte, 0, len(sketch)*8)
+	var buf [8]byte
 	for _, v := range sketch {
-		for i := 0; i < 8; i++ {
-			raw = append(raw, byte(v>>(8*i)))
-		}
+		binary.LittleEndian.PutUint64(buf[:], v)
+		raw = append(raw, buf[:]...)
 	}
 	return hex.EncodeToString(raw)
 }
