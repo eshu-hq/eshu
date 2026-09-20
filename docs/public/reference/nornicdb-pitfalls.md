@@ -6,9 +6,9 @@ constraint, and transaction behaviors that have affected Eshu integration and
 proof work.
 
 Cypher **query-shape** pitfalls — label disjunctions, bare top-level unions
-that drop their second branch, outer aggregation over `CALL {}`, and
-multi-clause reads — live in the companion
-[NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md).
+that drop their second branch, label predicates whose clause position decides
+if they run, outer aggregation over `CALL {}`, and multi-clause reads — live in
+the companion [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md).
 
 Use it to avoid rediscovering the same failure shape. Still check the current
 NornicDB source before patching.

@@ -52,7 +52,7 @@ func TestGetWorkloadContextReturnsEnrichedResponse(t *testing.T) {
 					},
 				},
 				// Infrastructure query
-				"K8sResource OR": {
+				"WHERE infra:K8sResource": {
 					{
 						"type":      "K8sResource",
 						"name":      "order-deployment",
@@ -162,7 +162,7 @@ func TestFetchWorkloadContextLogsStageTimings(t *testing.T) {
 				},
 				"INSTANCE_OF":                         {},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 			},
 		},
 	}
@@ -289,7 +289,7 @@ func TestGetServiceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 			},
 			RunByMatch: map[string][]map[string]any{
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 			},
 		},
@@ -352,7 +352,7 @@ func TestGetServiceStoryAcceptsPlainServiceName(t *testing.T) {
 					},
 				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 			},
 		},
@@ -415,7 +415,7 @@ func TestGetServiceStoryAcceptsQualifiedWorkloadIDAndNormalizesServiceName(t *te
 					},
 				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 			},
 		},

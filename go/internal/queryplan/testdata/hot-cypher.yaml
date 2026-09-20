@@ -541,7 +541,7 @@ entries:
         - AllNodesScan
         - CartesianProduct
         - UnboundedExpand
-    cypher_sha256: "5e78165ee7bbde33ec370dac7baced49f8a62b9b07ce6e6230685f523a4acea0"
+    cypher_sha256: "f1e6c69d7adb7491d85781bf5ad112c9ecbb2df485b82330730f19109584044f"
   - id: QP-IMPACT-CHANGE-SURFACE-SCOPED
     domain: impact
     backend: nornicdb

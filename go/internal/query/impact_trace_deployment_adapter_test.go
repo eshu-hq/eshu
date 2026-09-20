@@ -114,7 +114,7 @@ func TestFetchServiceTraceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 			},
 			RunByMatch: map[string][]map[string]any{
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 			},
 		},
@@ -224,7 +224,7 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 					{"repo_id": "repo-service", "repo_name": "checkout-service"},
 				},
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
-				"K8sResource OR":                      {},
+				"WHERE infra:K8sResource":             {},
 				"fn.name IN":                          {},
 				"EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository": {
 					{

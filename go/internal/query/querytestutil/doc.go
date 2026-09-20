@@ -47,4 +47,11 @@
 // today and turns into a cycle the moment it adopts a fake from here. Do not
 // read a green build as permission. AGENTS.md carries the measured three-row
 // table behind this.
+//
+// nornicdb_guards.go holds the two NornicDB v1.3.3 Cypher-shape guards (#6786):
+// AssertCypherHasNoBrokenAndOr (X4, an AND/OR led by a newline or tab) and
+// AssertCypherHasNoIgnoredLabelPredicate (X11, a label predicate in a clause
+// position the backend ignores). Call them on the exact Cypher a test's graph
+// double captured. TestProductionCypherHasNoIgnoredLabelPredicate also scans
+// every production Cypher literal under go/internal and go/cmd for X11.
 package querytestutil //nolint:dirgate // #6642 Part A pushed this package's non-test file count to 41 by hoisting the visualization-packet fixtures four tests across two packages share (visualizationfixtures.go); each helper here still has exactly one owning file, so splitting further would fragment cohesive fixture groups rather than reduce sprawl.

@@ -119,7 +119,7 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 					}, nil
 				case strings.Contains(cypher, "DEPENDS_ON|USES_MODULE|DEPLOYS_FROM"):
 					return nil, nil
-				case strings.Contains(cypher, "K8sResource OR"):
+				case strings.Contains(cypher, "WHERE infra:K8sResource"):
 					return nil, nil
 				case strings.Contains(cypher, "fn.name IN"):
 					return nil, nil
@@ -299,7 +299,7 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 					}, nil
 				case strings.Contains(cypher, "DEPENDS_ON|USES_MODULE|DEPLOYS_FROM"):
 					return nil, nil
-				case strings.Contains(cypher, "K8sResource OR"):
+				case strings.Contains(cypher, "WHERE infra:K8sResource"):
 					return nil, nil
 				default:
 					return nil, nil

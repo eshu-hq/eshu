@@ -5,7 +5,9 @@ package impact
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -90,50 +92,32 @@ func TestChangeSurfaceKeepsEveryWhitelistedLabel(t *testing.T) {
 }
 
 // TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher keeps the Go whitelist and
-// the legacy server-side whitelist from drifting apart. The legacy query filters
-// in a MATCH-attached WHERE, the clause position the pinned backend evaluates
-// correctly, so its list is the contract both paths owe callers.
+// the legacy server-side whitelist from drifting apart, and pins the legacy
+// whitelist to the `'Label' IN labels(impacted)` shape NornicDB v1.3.3
+// evaluates in the WHERE of a relationship MATCH (#6786 X11). The earlier
+// any(label IN labels(impacted) ...) form was ignored there, so LIMIT ran over
+// every reachable node.
 func TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher(t *testing.T) {
 	t.Parallel()
 
-	// One whitelist, and the quantifier anchored to the same occurrence as the list.
-	//
-	// Two earlier revisions failed here in the same way. Checking the quantifier with
-	// a whole-constant Contains let a decoy `any(...)` satisfy it while the real
-	// filter used all(); and parsing only the first `label IN [` let a second
-	// disjunct -- `... OR any(label IN labels(impacted) WHERE label IN ['File'])`,
-	// which is how someone naturally widens this list -- admit a label the Go map
-	// does not. Requiring exactly one occurrence of the full literal closes both.
-	quantified := "any(label IN labels(impacted) WHERE label IN ["
-	if n := strings.Count(changeSurfaceLegacyCypher, quantified); n != 1 {
-		t.Fatalf("legacy cypher carries %d `%s` clauses, want exactly 1; "+
-			"all() would drop every node with a label outside the whitelist, and a second "+
-			"disjunct would admit labels this guard never sees", n, quantified)
-	}
-	if n := strings.Count(changeSurfaceLegacyCypher, "label IN ["); n != 1 {
-		t.Fatalf("legacy cypher carries %d `label IN [` lists, want exactly 1; "+
-			"this guard parses one and would not see the others", n)
-	}
+	rendered := fmt.Sprintf(changeSurfaceLegacyCypher, "(start:Repository {id: $target_id})", 4, changeSurfaceEnvironmentClause("prod"))
+	querytestutil.AssertCypherHasNoIgnoredLabelPredicate(t, rendered)
+	querytestutil.AssertCypherHasNoBrokenAndOr(t, rendered)
 
-	// No index check here, deliberately: the Count assertion above already
-	// guarantees exactly one occurrence, so Index cannot return -1. An earlier
-	// revision carried a `start < 0` check that was both unreachable and unable
-	// to fire -- the arithmetic runs before the comparison, so a -1 index would
-	// have produced start = +35, an in-bounds offset into arbitrary text. A
-	// safety net that cannot catch anything is worse than none, because it reads
-	// as protection.
-	clause := changeSurfaceLegacyCypher
-	start := strings.Index(clause, quantified) + len(quantified) - len("label IN [")
-	end := strings.Index(clause[start:], "]")
-
-	// Both directions run over the PARSED bracket contents. An earlier revision
-	// checked the Go-to-Cypher direction with strings.Contains over the whole
-	// constant, so dropping a label from the whitelist while leaving it quoted
-	// anywhere else -- an unrelated `<> 'DataAsset'` predicate, say -- satisfied
-	// the mirror with an incidental occurrence.
+	// Every label read in the WHERE must be one whitelist term. A stray
+	// `impacted:File` or a second any() would be a filter this guard cannot
+	// compare, so count every labels(impacted) read and require all but the
+	// RETURN projection to be `'Label' IN labels(impacted)` terms.
+	terms := regexp.MustCompile(`'(\w+)' IN labels\(impacted\)`).FindAllStringSubmatch(changeSurfaceLegacyCypher, -1)
+	if n := strings.Count(changeSurfaceLegacyCypher, "labels(impacted)"); n != len(terms)+1 {
+		t.Fatalf("legacy cypher reads labels(impacted) %d times, want the %d whitelist terms plus the RETURN projection", n, len(terms))
+	}
+	if regexp.MustCompile(`impacted:\w+`).MatchString(changeSurfaceLegacyCypher) {
+		t.Fatal("legacy cypher carries an impacted:Label test, which NornicDB v1.3.3 ignores in this clause position")
+	}
 	cypherLabels := map[string]struct{}{}
-	for _, quoted := range strings.Split(clause[start+len("label IN ["):start+end], ",") {
-		cypherLabels[strings.Trim(strings.TrimSpace(quoted), "'")] = struct{}{}
+	for _, term := range terms {
+		cypherLabels[term[1]] = struct{}{}
 	}
 	for label := range changeSurfaceImpactedLabels {
 		if _, ok := cypherLabels[label]; !ok {

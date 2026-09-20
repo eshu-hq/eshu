@@ -621,7 +621,7 @@ source_coverage:
       - {symbol: "queryRepoDeploymentEvidenceDirection", count: 1, non_hot: {class: keyed_support, source_sha256: a3723e428abd166e2478e65451bcba67f5364b03b57424b836dd028fd317c116, key_bound: single_key, max_results: 51}}
   - file: repository/infrastructure.go
     calls:
-      - {symbol: "QueryRepoInfrastructureFromGraph", count: 1, non_hot: {class: keyed_support, source_sha256: d09e7f1eb124f415ad6abd42905a3e7e48abb2c57702c1012aaf7385377e09c6, key_bound: single_key, max_results: 5001}}
+      - {symbol: "QueryRepoInfrastructureFromGraph", count: 1, non_hot: {class: keyed_support, source_sha256: 96fe44b9ad993e061b2f8a4b73d16b8a0bd9e30f4a4e488261a85f10e8d6bde1, key_bound: single_key, max_results: 5001}}
   - file: repository/readmodel/name_lookup.go
     calls:
       - {symbol: "QueryRepositoryNamesByID", count: 1, non_hot: {class: keyed_support, source_sha256: 96b1fc38b8307772a7b6b848451158dcef14131d5f3838472fb4a845e002686c, key_bound: bounded_key_batch, max_keys: 100, max_results: 100}}

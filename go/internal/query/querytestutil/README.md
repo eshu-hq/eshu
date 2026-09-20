@@ -116,6 +116,8 @@ to avoid.
 - `MockLanguageQueryGraphReader` — minimal `querycontract.GraphQuery` double
   answering `Run`/`RunSingle` from `Rows`; package query forwards it as
   `mockLanguageQueryGraphReader`.
+- `AssertCypherHasNoBrokenAndOr` (X4) and `AssertCypherHasNoIgnoredLabelPredicate`
+  (X11) — the #6786 NornicDB v1.3.3 Cypher-shape guards; see `doc.go`.
 
 ### The content-reader driver's two-tier answer
 

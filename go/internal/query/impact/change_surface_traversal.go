@@ -152,18 +152,19 @@ func (h *Handler) RunChangeSurfaceRepositoryConsumers(
 }
 
 // changeSurfaceImpactedLabels is the set of node labels a change-surface
-// traversal may return. It mirrors the whitelist in changeSurfaceLegacyCypher,
-// which the pinned graph backend evaluates correctly because that clause is
-// attached to the MATCH.
+// traversal may return. It mirrors the whitelist in changeSurfaceLegacyCypher
+// (TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher) and in the scoped
+// traversal's WITH-attached WHERE.
 //
-// The scoped traversal cannot rely on its own copy of this whitelist. It carries
-// the same list in a WHERE attached to a WITH, and the pinned NornicDB build does
-// not evaluate that clause position as a filter -- label tests there are silently
-// dropped and every reachable node comes back. The WITH split is not gratuitous:
-// combining the repo_id predicate and the label predicate in one WHERE empties
-// the traversal on the same build, so there is no clause arrangement that filters
-// correctly server-side today. Until that is fixed upstream, this set is where
-// the whitelist is actually enforced.
+// Where a label test is evaluated depends on the NornicDB build. Older builds
+// ignored a label test in a WHERE attached to a WITH; on v1.3.3 that position
+// is evaluated, while a label test or any() over labels() in the WHERE of a
+// relationship MATCH is ignored and only `'Label' IN labels(x)` is honoured
+// there (#6786 X11). Combining the repo_id predicate and a label test in one
+// MATCH-attached WHERE also empties the traversal. Because no single clause
+// arrangement is trustworthy across builds, this set is where the whitelist is
+// enforced for every caller; the Cypher copies exist so the server-side LIMIT
+// runs over whitelisted rows on the builds that evaluate them.
 var changeSurfaceImpactedLabels = map[string]struct{}{
 	"Repository":       {},
 	"Workload":         {},
@@ -193,12 +194,12 @@ func changeSurfaceRowLabelAdmitted(row map[string]any) bool {
 //
 // This filter is shared by the scoped/governed path and the unscoped
 // legacy/investigate path (changeSurfaceImpactRows, findChangeSurfaceImpactRows
-// both route through changeSurfaceTraversalRows), so the label check now runs
-// on the unscoped path too. That is a no-op there today: the unscoped Cypher's
-// whitelist sits in a MATCH-attached WHERE, the clause position the pinned
-// backend evaluates correctly, and TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher
-// keeps that list and changeSurfaceImpactedLabels equal. It stays a no-op only
-// as long as querycontract.StringSliceVal(row, "labels") parses the "labels" value both
+// both route through changeSurfaceTraversalRows), so the label check runs on
+// the unscoped path too. It is a no-op there on a backend that evaluates the
+// unscoped Cypher's `'Label' IN labels(impacted)` whitelist, and
+// TestChangeSurfaceImpactedLabelsMatchTheLegacyCypher keeps that list and
+// changeSurfaceImpactedLabels equal. It stays a no-op only as long as
+// querycontract.StringSliceVal(row, "labels") parses the "labels" value both
 // backends hand back; if it ever returned nil for a legitimately-labelled row,
 // the fail-closed changeSurfaceRowLabelAdmitted would silently drop every
 // unscoped row, not just ones outside the whitelist.
@@ -209,8 +210,8 @@ func changeSurfaceRowLabelAdmitted(row map[string]any) bool {
 // no-op for that query only because Repository is in the map.
 //
 // The label check cannot recover rows the server-side LIMIT already discarded.
-// The pinned backend applies LIMIT to the unfiltered set, so a scoped read whose
-// first page is dominated by non-whitelisted nodes can return fewer impacts than
+// A backend that ignores the Cypher whitelist applies LIMIT to the unfiltered
+// set, so a read whose first page is dominated by non-whitelisted nodes can return fewer impacts than
 // the limit allows. That under-reporting is bounded and reported: the caller's
 // truncation flag is computed from the raw row count before this filter runs, so
 // a short page is flagged truncated rather than presented as complete.

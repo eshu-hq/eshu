@@ -279,6 +279,16 @@ Adding a helper: confirm it is used by at least two packages' tests, OR that it
 is blocking a specific family move the way `MustMapField` was. A helper that is
 neither belongs in its consumer's own `_test.go`.
 
+### Changing a NornicDB shape guard
+
+`nornicdb_guards.go` holds the #6786 X4 and X11 guards. Every RED case in
+their seeded tests is a shape measured live on the pinned NornicDB build, and
+every GREEN case is measured correct on it and on Neo4j; cite the evidence doc
+for a new case rather than reasoning about the parser. The X11 guard's known
+blind spots are listed on `IgnoredLabelPredicate` and pinned by
+`TestIgnoredLabelPredicateDocumentedBlindSpots`: when a change closes one, move
+that case into the RED set and update the doc comment in the same commit.
+
 ### Re-measuring the mutation proof
 
 The README's delegation evidence cites failure counts with two different units
