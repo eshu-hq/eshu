@@ -309,3 +309,140 @@ VALUES ($1, now())`, inventory.BackfillMarker); err != nil {
 		}
 	}
 }
+
+// TestPostgresIaCInventoryFailedGenerationServesLastProjected pins the
+// intended currency divergence the owner called out on #6858: a repository
+// whose newest generation failed or is pending has content and graph rows
+// but no active row in scope_generations. The active-inventory CTE drops
+// such repositories; the table keeps their last-projected content (the
+// documented infra-inventory semantic the aggregate reads already ship).
+// The table answer is the intended one on this path because it agrees with
+// the authoritative graph the route hydrates from, where the CTE view would
+// serve partial content or disagree and fail.
+func TestPostgresIaCInventoryFailedGenerationServesLastProjected(t *testing.T) {
+	if os.Getenv("ESHU_IAC_INVENTORY_LIVE") != "1" {
+		t.Skip("set ESHU_IAC_INVENTORY_LIVE=1 and ESHU_POSTGRES_DSN to run")
+	}
+	dsn := os.Getenv("ESHU_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("ESHU_POSTGRES_DSN not set")
+	}
+
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatalf("open Postgres: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close Postgres: %v", err)
+		}
+	})
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		t.Fatalf("open dedicated connection: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close dedicated connection: %v", err)
+		}
+	})
+
+	schema := fmt.Sprintf("iac_failed_gen_proof_%d", time.Now().UnixNano())
+	if _, err := conn.ExecContext(ctx, "CREATE SCHEMA "+schema); err != nil {
+		t.Fatalf("create proof schema: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		if _, err := conn.ExecContext(cleanupCtx, "DROP SCHEMA "+schema+" CASCADE"); err != nil {
+			t.Errorf("drop proof schema: %v", err)
+		}
+	})
+	if _, err := conn.ExecContext(ctx, "SET search_path TO "+schema); err != nil {
+		t.Fatalf("set proof search path: %v", err)
+	}
+	for _, ddl := range []string{
+		`CREATE TABLE scope_generations (scope_id text NOT NULL, generation_id text NOT NULL, status text NOT NULL, ingested_at timestamptz NOT NULL, PRIMARY KEY (scope_id, generation_id))`,
+		`CREATE TABLE fact_records (fact_id text PRIMARY KEY, scope_id text NOT NULL, generation_id text NOT NULL, fact_kind text NOT NULL, is_tombstone boolean NOT NULL DEFAULT false, payload jsonb NOT NULL)`,
+		`CREATE TABLE infra_resource_entities (entity_id text PRIMARY KEY, repo_id text NOT NULL, scope_id text NOT NULL DEFAULT '', generation_id text NOT NULL DEFAULT '', relative_path text NOT NULL, label text NOT NULL, entity_name text NOT NULL, kind text NOT NULL DEFAULT '', resource_type text NOT NULL DEFAULT '', data_type text NOT NULL DEFAULT '', provider text NOT NULL DEFAULT '', environment text NOT NULL DEFAULT '', resource_service text NOT NULL DEFAULT '', resource_category text NOT NULL DEFAULT '', service_kind text NOT NULL DEFAULT '', updated_at timestamptz NOT NULL)`,
+		`CREATE TABLE infra_resource_entity_backfill_markers (marker_name text PRIMARY KEY, completed_at timestamptz NOT NULL)`,
+		`CREATE TABLE infra_resource_entity_dirty_repos (repo_id text PRIMARY KEY, marked_at timestamptz NOT NULL)`,
+	} {
+		if _, err := conn.ExecContext(ctx, ddl); err != nil {
+			t.Fatalf("create proof table: %v", err)
+		}
+	}
+	// Scope s9 has only a failed generation: no active row, so the CTE
+	// drops the repository while content (and the graph) still holds it.
+	if _, err := conn.ExecContext(ctx, `
+INSERT INTO scope_generations (scope_id, generation_id, status, ingested_at)
+VALUES ('scope:s9', 'generation:failed', 'failed', now())`); err != nil {
+		t.Fatalf("seed failed generation: %v", err)
+	}
+	if _, err := conn.ExecContext(ctx, `
+INSERT INTO fact_records (fact_id, scope_id, generation_id, fact_kind, payload)
+VALUES ('fact:orphan', 'scope:s9', 'generation:failed', 'content_entity',
+  '{"entity_id": "content-entity:orphaned-cache", "entity_name": "zzz_orphaned_cache", "entity_type": "TerraformResource", "relative_path": "orphan.tf", "repo_id": "repository:r9", "entity_metadata": {"resource_type": "orphaned_widget"}}')`); err != nil {
+		t.Fatalf("seed failed fact: %v", err)
+	}
+	// The table keeps the last-projected content with backfill provenance.
+	if _, err := conn.ExecContext(ctx, `
+INSERT INTO infra_resource_entities (entity_id, repo_id, relative_path, label, entity_name, resource_type, updated_at)
+VALUES ('content-entity:orphaned-cache', 'repository:r9', 'orphan.tf', 'TerraformResource', 'zzz_orphaned_cache', 'orphaned_widget', now())`); err != nil {
+		t.Fatalf("seed table row: %v", err)
+	}
+
+	unscoped := querycontract.RepositoryAccessFilter{AllScopes: true}
+	store := NewPostgresIaCInventoryStore(conn)
+	orphan := InventorySearch{Kind: resourceKindResource, Query: "orphan", Limit: 10}
+
+	cteCandidates, err := store.SearchActive(ctx, orphan, unscoped)
+	if err != nil {
+		t.Fatalf("CTE search: %v", err)
+	}
+	if len(cteCandidates) != 0 {
+		t.Fatalf("CTE search = %#v, want empty: the failed generation has no active row", cteCandidates)
+	}
+	cteSummary, err := store.Summary(ctx, unscoped, 200)
+	if err != nil {
+		t.Fatalf("CTE summary: %v", err)
+	}
+	if cteSummary.Total != 0 {
+		t.Fatalf("CTE summary total = %d, want 0", cteSummary.Total)
+	}
+
+	if _, err := conn.ExecContext(ctx, `
+INSERT INTO infra_resource_entity_backfill_markers (marker_name, completed_at)
+VALUES ($1, now())`, inventory.BackfillMarker); err != nil {
+		t.Fatalf("record backfill marker: %v", err)
+	}
+	tableCandidates, err := store.SearchActive(ctx, orphan, unscoped)
+	if err != nil {
+		t.Fatalf("table search: %v", err)
+	}
+	if len(tableCandidates) != 1 || tableCandidates[0].ID != "content-entity:orphaned-cache" ||
+		tableCandidates[0].Name != "zzz_orphaned_cache" {
+		t.Fatalf("table search = %#v, want the retained last-projected row", tableCandidates)
+	}
+	tableSummary, err := store.Summary(ctx, unscoped, 200)
+	if err != nil {
+		t.Fatalf("table summary: %v", err)
+	}
+	if tableSummary.Total != 1 {
+		t.Fatalf("table summary total = %d, want 1", tableSummary.Total)
+	}
+	foundRepo := false
+	for _, facet := range tableSummary.Repositories {
+		if facet.Value == "repository:r9" && facet.Count == 1 {
+			foundRepo = true
+		}
+	}
+	if !foundRepo {
+		t.Fatalf("table repositories = %#v, want repository:r9 with count 1", tableSummary.Repositories)
+	}
+}

@@ -33,6 +33,17 @@
 // binding it into the query, and reports a bounded, deterministically
 // ordered, truncation-aware result.
 //
+// Currency for the resource browse: scoped and pre-ready reads resolve the
+// active generation's facts through the current-inventory CTE, while
+// unscoped reads served from infra_resource_entities serve last-projected
+// content. The table mirrors content_entities rather than active facts, so
+// it keeps repositories whose newest generation failed or is pending -- the
+// same semantic the infra aggregate reads already ship -- and that is the
+// intended answer on this path: it agrees with the authoritative graph the
+// route hydrates from, where the CTE view would serve partial content or
+// disagree and fail. The live parity suite pins both the healthy-corpus
+// agreement and the failed-generation divergence.
+//
 // This package imports querycontract (profiles, envelopes, capability
 // registration, HTTP helpers, RepositoryAccessFilterFromContext,
 // DriftedAttributeView), queryselector (repository selector resolution),
