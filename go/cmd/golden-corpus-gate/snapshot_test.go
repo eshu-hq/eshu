@@ -484,3 +484,31 @@ func TestLoadSnapshotMissingFile(t *testing.T) {
 		t.Fatal("expected error for missing snapshot file")
 	}
 }
+
+// TestGoldenSnapshotCloudSinkSelfLoop pins the eshu-hq/eshu#6785 value-flow
+// cloud-sink assertion: exactly one Function{name:StoreUploadReceipt}
+// TAINT_FLOWS_TO self-loop edge. The bound is closed on both sides: below 1
+// means the cloud-sink finding regressed to the empty output #6690 shipped;
+// above 1 means the fixpoint over-admits cloud sinks.
+func TestGoldenSnapshotCloudSinkSelfLoop(t *testing.T) {
+	t.Parallel()
+
+	snap, err := LoadSnapshot(goldenSnapshotPath())
+	if err != nil {
+		t.Fatalf("LoadSnapshot() error = %v", err)
+	}
+	for _, sl := range snap.Graph.RequiredSelfLoops {
+		if sl.ID != "sl-value-flow-cloud-sink" {
+			continue
+		}
+		if sl.Label != "Function" || sl.Relationship != "TAINT_FLOWS_TO" ||
+			sl.NodeProperty != "name" || sl.NodePropertyValue != "StoreUploadReceipt" {
+			t.Errorf("sl-value-flow-cloud-sink = %+v, want Function/TAINT_FLOWS_TO/name=StoreUploadReceipt", sl)
+		}
+		if sl.MinimumCount != 1 || sl.MaximumCount != 1 {
+			t.Errorf("sl-value-flow-cloud-sink = [%d,%d], want [1,1]", sl.MinimumCount, sl.MaximumCount)
+		}
+		return
+	}
+	t.Fatal("required_self_loops missing sl-value-flow-cloud-sink")
+}

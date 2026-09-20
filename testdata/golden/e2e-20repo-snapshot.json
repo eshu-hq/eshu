@@ -2162,6 +2162,16 @@
         "node_property_value": "dart",
         "minimum_count": 2,
         "maximum_count": 2
+      },
+      {
+        "id": "sl-value-flow-cloud-sink",
+        "description": "Exactly 1 Function{name=StoreUploadReceipt} TAINT_FLOWS_TO self-loop edge (caller==callee): the net/http upload handler in tests/fixtures/ecosystems/deployable-source/src/uploads.go takes *http.Request and calls the AWS SDK v2 S3 PutObject within one function, and the reducer's value-flow fixpoint (go/internal/reducer/code/value/fixpoint_evidence_loader.go) traces the request source to the s3:putobject sink only once the RUNS_IN, USES and CAN_PERFORM chain lands (issue #6785). The bound is closed on BOTH sides, not a floor: below 1 means the cloud-sink finding regressed to the empty output #6690 shipped without failing anything; above 1 means the fixpoint over-admits cloud sinks. The value-flow refresh (completion of workload_materialization, workload_cloud_relationship_materialization and iam_can_perform_materialization re-running the fixpoint for the affected repos) is what keeps this at 1 when the chain lands after the first summary run.",
+        "label": "Function",
+        "relationship": "TAINT_FLOWS_TO",
+        "node_property": "name",
+        "node_property_value": "StoreUploadReceipt",
+        "minimum_count": 1,
+        "maximum_count": 1
       }
     ]
   },

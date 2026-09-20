@@ -65,8 +65,15 @@ func (f fakeCounter) CountSelfLoopEdges(_ context.Context, label, relationship, 
 // assertion. The pinned count of 2 mirrors tests/fixtures/ecosystems/
 // dart_comprehensive/calls.dart's recursionFib + recursionFact self-calls (see
 // testdata/golden/e2e-20repo-snapshot.json).
-func dartSelfLoopFloor() map[string]int64 {
-	return map[string]int64{"Function|CALLS|language|dart": 2}
+// pinnedSelfLoopCounts seeds every unconditionally-asserted required_self_loops
+// row (sl-dart-calls-recursion, sl-value-flow-cloud-sink #6785) for fakes whose
+// intent is a different assertion family (required-only existence, advisory
+// correlations) so a new required row does not re-target those tests.
+func pinnedSelfLoopCounts() map[string]int64 {
+	return map[string]int64{
+		"Function|CALLS|language|dart":                    2,
+		"Function|TAINT_FLOWS_TO|name|StoreUploadReceipt": 1,
+	}
 }
 
 // fileLanguageFloor seeds every unconditionally-asserted required_nodes floor
@@ -187,7 +194,7 @@ func TestCheckGraphRequiredOnlyPassesOnExistence(t *testing.T) {
 		},
 		nodes:    nodes,
 		nodeProp: nodeProp,
-		selfLoop: dartSelfLoopFloor(),
+		selfLoop: pinnedSelfLoopCounts(),
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, nil, &r); err != nil {
@@ -212,7 +219,7 @@ func TestCheckGraphAdvisoryCorrelationDoesNotBlock(t *testing.T) {
 		},
 		nodes:    nodes,
 		nodeProp: nodeProp,
-		selfLoop: dartSelfLoopFloor(),
+		selfLoop: pinnedSelfLoopCounts(),
 	}
 	var r Report
 	if err := checkGraph(context.Background(), c, snap, true, map[string]bool{"rc-1": true, "rc-3": true}, nil, &r); err != nil {

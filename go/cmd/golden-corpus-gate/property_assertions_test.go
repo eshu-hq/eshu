@@ -215,6 +215,65 @@ func TestCheckGraphSelfLoopDroppedRecursionFails(t *testing.T) {
 	}
 }
 
+// cloudSinkSelfLoopSnapshot models "exactly 1 Function{name:StoreUploadReceipt}
+// TAINT_FLOWS_TO self-loop" — the eshu-hq/eshu#6785 durable corpus gate for the
+// value-flow cloud-sink finding the fixpoint projects once the RUNS_IN, USES
+// and CAN_PERFORM chain lands.
+func cloudSinkSelfLoopSnapshot() Snapshot {
+	return Snapshot{
+		SchemaVersion: "1",
+		Graph: GraphSnapshot{
+			RequiredSelfLoops: []RequiredSelfLoop{{
+				ID: "sl-value-flow-cloud-sink", Label: "Function", Relationship: "TAINT_FLOWS_TO",
+				NodeProperty: "name", NodePropertyValue: "StoreUploadReceipt",
+				MinimumCount: 1, MaximumCount: 1,
+			}},
+		},
+	}
+}
+
+// TestCheckGraphCloudSinkSelfLoopPasses confirms the pinned cloud-sink
+// self-loop passes once the fixpoint projects it.
+func TestCheckGraphCloudSinkSelfLoopPasses(t *testing.T) {
+	c := fakeCounter{selfLoop: map[string]int64{"Function|TAINT_FLOWS_TO|name|StoreUploadReceipt": 1}}
+	var r Report
+	if err := checkGraph(context.Background(), c, cloudSinkSelfLoopSnapshot(), true, nil, nil, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if r.Failed() {
+		t.Fatalf("expected pass at the pinned cloud-sink self-loop count; findings: %+v", r.Findings)
+	}
+}
+
+// TestCheckGraphCloudSinkSelfLoopEmptyFails is the keystone acceptance for
+// eshu-hq/eshu#6785: the value-flow cloud-sink output regresses to the empty
+// output #6690 shipped — exactly the "allowed to be empty" gap this issue
+// closes — and the gate MUST fail. Without this row the empty output passes
+// green (the bug the issue exists to prevent).
+func TestCheckGraphCloudSinkSelfLoopEmptyFails(t *testing.T) {
+	c := fakeCounter{selfLoop: map[string]int64{"Function|TAINT_FLOWS_TO|name|StoreUploadReceipt": 0}}
+	var r Report
+	if err := checkGraph(context.Background(), c, cloudSinkSelfLoopSnapshot(), true, nil, nil, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if !r.Failed() {
+		t.Fatal("zero cloud-sink self-loops when one is pinned must fail the gate")
+	}
+}
+
+// TestCheckGraphCloudSinkSelfLoopOverAdmitsFails confirms the ceiling side of
+// the bound also blocks: a fixpoint that over-admits cloud sinks must not pass.
+func TestCheckGraphCloudSinkSelfLoopOverAdmitsFails(t *testing.T) {
+	c := fakeCounter{selfLoop: map[string]int64{"Function|TAINT_FLOWS_TO|name|StoreUploadReceipt": 2}}
+	var r Report
+	if err := checkGraph(context.Background(), c, cloudSinkSelfLoopSnapshot(), true, nil, nil, &r); err != nil {
+		t.Fatalf("checkGraph err = %v", err)
+	}
+	if !r.Failed() {
+		t.Fatal("a cloud-sink self-loop count above the pinned ceiling must fail the gate")
+	}
+}
+
 // PackageArtifact hashes property assertions (packageArtifactHashesSnapshot,
 // its non-vacuity proofs, and the cassette-derived pin check) live in
 // property_assertions_package_artifact_hashes_test.go — split out to keep
