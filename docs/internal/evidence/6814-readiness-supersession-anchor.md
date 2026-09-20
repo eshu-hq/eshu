@@ -35,7 +35,7 @@ exact pre-ledger per-row bound. No new SQL, schema, or queue semantics: the
 ledger statements and the supersede CTE are live-proven by the #6785 suite
 (`TestReadinessWaitSurvivesSupersessionLive`, store fence/clear live tests).
 
-## No-Regression Evidence
+## No-Regression Evidence (#6814):
 
 - Baseline (pre-fix behavior, reproduced): generation N (anchor T0) defers;
   generation N+1 (fresh anchor T0+25m) evaluated at T0+35m with the
@@ -66,7 +66,7 @@ ledger statements and the supersede CTE are live-proven by the #6785 suite
   path) so a sick store surfaces instead of starving; nil-ledger parity
   pinned by pre-existing tests.
 
-## Observability Evidence
+## Observability Evidence (#6814):
 
 - Defer lines keep their message and `elapsed_since_cycle_start`/`max_wait`
   (value now ledger-anchored when wired) plus `outcome=deferred`; gate 1
