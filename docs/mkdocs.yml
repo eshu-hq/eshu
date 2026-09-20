@@ -230,6 +230,7 @@ nav:
         - Remote Representative Acceptance: reference/local-testing/remote-representative-acceptance.md
         - Representative Corpus Suite: reference/local-testing/representative-corpus-suite.md
         - Golden Corpus Gate (B-7): reference/local-testing/golden-corpus-gate.md
+        - Read API Latency Gate: reference/local-testing/read-api-latency-gate.md
         - Pre-commit Hooks: reference/local-testing/pre-commit-hooks.md
         - Pre-PR Documentation Fast Path: reference/local-testing/pre-pr-docs-fastpath.md
         - Scale Benchmark Artifact: reference/local-testing/scale-benchmark-artifact.md

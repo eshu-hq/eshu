@@ -1,0 +1,47 @@
+# Compose override for the read-api latency gate (issue #6797): loads
+# pg_stat_statements into the gate's Postgres so the gate can budget the
+# Postgres work (statements, rows, buffers) each route costs per request.
+#
+# Compose REPLACES a service's `command` list instead of appending to it, so this
+# file repeats the whole base postgres command and adds only the four meter
+# flags at the end. TestComposeOverrideIsBasePostgresCommandPlusMeterFlags
+# (go/cmd/read-api-latency-gate) fails when the base command changes and this
+# copy does not, for both docker-compose.yaml and docker-compose.neo4j.yml.
+#
+# scripts/verify-read-api-latency-gate.sh passes this file with -f on EVERY
+# docker compose call (up, logs, down): a call that omits it recomputes a
+# different config for the running postgres and recreates it mid-run.
+services:
+  postgres:
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=${ESHU_PG_SHARED_BUFFERS:-4GB}"
+      - "-c"
+      - "work_mem=${ESHU_PG_WORK_MEM:-16MB}"
+      - "-c"
+      - "maintenance_work_mem=${ESHU_PG_MAINTENANCE_WORK_MEM:-512MB}"
+      - "-c"
+      - "max_wal_size=${ESHU_PG_MAX_WAL_SIZE:-8GB}"
+      - "-c"
+      - "wal_buffers=${ESHU_PG_WAL_BUFFERS:-64MB}"
+      - "-c"
+      - "effective_cache_size=${ESHU_PG_EFFECTIVE_CACHE_SIZE:-32GB}"
+      - "-c"
+      - "synchronous_commit=${ESHU_PG_SYNCHRONOUS_COMMIT:-off}"
+      - "-c"
+      - "default_toast_compression=${ESHU_PG_TOAST_COMPRESSION:-lz4}"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "max_connections=${ESHU_PG_MAX_CONNECTIONS:-640}"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "pg_stat_statements.track=all"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "compute_query_id=on"

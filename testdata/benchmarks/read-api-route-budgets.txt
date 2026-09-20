@@ -1,0 +1,143 @@
+# read-api-route-budgets.txt — issue #6797: per-route p95 latency budgets for
+# the backend-backed read-API latency gate.
+#
+# go/cmd/read-api-latency-gate seeds a synthetic corpus (ingestion scopes,
+# generations, and fact_work_items across every collector kind, plus
+# infra-labeled graph nodes and IaC content_entity facts) into a live
+# Postgres+NornicDB pair, sweeps every no-arg GET route the generated surface
+# inventory reports, and fails when a route's p95 exceeds its budget here.
+#
+# Format: route<TAB>budget_ms<TAB>reason. "default" (required, no reason
+# column) is the budget for any route this table does not name explicitly, so
+# a newly added no-arg GET route is budgeted automatically instead of going
+# unchecked. Every other row requires a reason: why this route needs its own
+# number instead of the default. A route named more than once is a hard
+# error — a later row must never silently override an earlier one.
+#
+# budget.go additionally consults the capability catalog
+# (go/internal/capabilitycatalog): for a route RouteCapability maps to a
+# capability with a declared production p95_latency_ms, the effective budget
+# is min(catalog_p95 * 1.5, this table's value) — the catalog value only ever
+# TIGHTENS the row below, never loosens it silently. See budget.go's
+# catalogCIMultiplier doc comment for why 1.5x.
+#
+# ROLE OF THESE CEILINGS: they are the SLO contract, not the mechanism that
+# fails a plan-shape regression. On a shared runner, run-to-run p95 on
+# DB-bound routes varies 1.5-2x, and the #6794 fix separates RED from GREEN
+# by only 1.3x-7.6x in latency at this seed scale (measured locally, RED
+# 59c605e48 vs GREEN 925e8016f: /collectors 774ms vs 503ms against a 1s
+# ceiling; most of the status family sat under 1s BEFORE the fix). No absolute
+# latency number can sit between those and stay stable, so these ceilings catch
+# catastrophic regressions only: timeouts, hung graph reads, the #6793 shape.
+# The regression-sensitive check is the per-request Postgres work budget in
+# testdata/benchmarks/read-api-route-work-budgets.txt (buffers differ 10.7x-12.7x
+# between the same RED and GREEN; see
+# docs/internal/evidence/6797-read-api-work-metric-shim.md).
+#
+# Which routes are RED-provable: the work budget is proven against the 14 routes
+# the RED/GREEN pair (59c605e48 vs 925e8016f) actually changed. The rule applied
+# is "every route the pair actually changed": an identical RED cannot exceed a
+# GREEN-derived budget by construction. The five routes #6808 did not change
+# (collector-readiness, status/collector-readiness, repositories,
+# repositories/language-inventory, iac/resources) get GREEN-derived work budgets as
+# forward regression guards, documented as not RED-provable with this pair. The
+# remaining named rows (the four borderline-family routes, /infra/resources/count,
+# /infra/resources/inventory and /capabilities) are GREEN-derived guards for the
+# same reason: the pair did not change them.
+#
+# Provenance of the row values below: #6793/#6794 family rows carry the
+# targets from issue #6797's acceptance criteria (#6793 infra resource
+# aggregate / IaC inventory: 2000ms; #6794 status/readiness routes: 1000ms).
+# They are local-machine-independent SLO targets, NOT values calibrated on the
+# CI runner class. A ceiling is never tightened below 2x the runner-measured
+# GREEN p95, and none is derived from local numbers.
+#
+# WORK BUDGET FLOOR: no named row in the work table is below its default row (13
+# calls, 21 buffers, 14 rows). A route that reads almost nothing would otherwise
+# render a budget of 0 rows and 3 buffers, and the meter window sums the whole
+# database, so one stray statement would be a blocking breach. Source figure: 47
+# routes read at most 8 buffers, and across the three GREEN artifacts and the RED
+# artifact their maximum is 6 calls, 7 buffers, 7 rows, identical in every report;
+# the default row is the work formulas over that maximum, so the floor is the
+# measured noise scale with the same margins, not a chosen number. It changes no
+# route that reads real work: the RED build still fails the 14 changed status
+# routes at 3.37x to 3.94x their buffer budget across the RED runs.
+#
+# NOT COVERED: (1) the graph side of the #6793 infra aggregate has no work
+# counter (NornicDB exposes none this gate can read), so infra/resources/* are
+# guarded by their latency ceiling only. (2) domainBacklogQuery (a #6794
+# sub-mechanism) scans shared_projection_intents, which this seed does not
+# populate, so no budget here can see it; that gap is tracked in #6820. (4) The
+# graph-only labels (CloudResource, TerraformStateResource) are still a whole-label
+# graph scan for /infra/resources/count even when the read model serves the rest:
+# 8.28s on a cold first hit at 150k nodes per label, tracked in #6843; the sweep's
+# discarded warmup requests keep that cold hit out of the measured p95.
+#
+# EXEMPT (not loosened): /api/v0/iac/resources measured 1.23s to 2.07s against
+# its 2s ceiling in three local GREEN runs with the real graph, 1.53s in a
+# fourth, 3.20s in one RED run, and 3.01s then 3.12s in two CI-runner-class runs
+# against merged main (work counters identical every time: 2 calls, 108,152
+# buffers, 51 rows). A blocking gate cannot ship
+# red against merged main's own behavior -- every unrelated PR would inherit
+# that failure -- so this route's latency ceiling is advisory via
+# LatencyExemptions (go/cmd/read-api-latency-gate/latency_exemption.go),
+# tracked against #6858 and removed when that issue lands. The ceiling itself
+# is not loosened; the route's work budget still blocks it, and
+# EvaluateBudgets/printReport mark an exempt breach as BREACH-EXEMPT(#6858),
+# never OK. (3) A retracted claim: earlier revisions of this header said the
+# infra graph was seeded with 150k nodes per label and measured well under
+# 100ms. The bulk seed in fact created ONE node per label (NornicDB evaluates
+# range(0, $count - 1) with a parameter bound as a single element; see
+# docs/public/reference/nornicdb-write-shape-pitfalls.md), so those figures said
+# nothing about graph scale. The seed now batches by precomputed bounds and
+# VerifyGraphNodeCounts fails the run if any label is short.
+
+default	1500
+
+# Borderline family: single-domain reducer-fact aggregates that sit close to
+# a 1s read budget at this gate's seeded scale.
+GET /api/v0/freshness/generations	2000	borderline family: near the default budget at seeded scale
+GET /api/v0/supply-chain/container-images/identities/count	2000	borderline family: near the default budget at seeded scale
+GET /api/v0/supply-chain/impact/findings/count	2000	borderline family: near the default budget at seeded scale
+GET /api/v0/graph/entities	2000	borderline family: near the default budget at seeded scale
+
+# #6793 family: infra resource aggregate / IaC inventory. Post-fix target
+# 2000ms (issue #6797 acceptance). infra/resources/{count,inventory} map to
+# platform_impact.infra_resource_aggregate (catalog production p95=2500ms,
+# looser than this target, so this row wins per budget.go's tighter-wins
+# rule); iac/resources maps to iac_inventory.resources.list (catalog
+# production p95=3000ms, likewise looser).
+GET /api/v0/infra/resources/count	2000	#6793 post-fix target; catalog p95 2500ms is looser; graph side not work-metered, see NOT COVERED in the header
+GET /api/v0/infra/resources/inventory	2000	#6793 post-fix target; catalog p95 2500ms is looser; graph side not work-metered, see NOT COVERED in the header
+GET /api/v0/iac/resources	2000	#6793 post-fix target; catalog p95 3000ms is looser; reproduces at seeded IaC fact scale
+
+# #6794 family: status/readiness/multi-scope routes paying activeFactWorkItemsCTE
+# and large intent-table scan cost. Post-fix target 1000ms (issue #6797
+# acceptance). status/operations maps to operations.status (catalog
+# production p95=2000ms, looser than this target, so this row wins); the
+# rest have no mapped capability in RouteCapability (see budget.go's doc
+# comment on why an exhaustive mapping isn't derivable).
+GET /api/v0/collectors	1000	#6794 post-fix target
+GET /api/v0/collector-readiness	1000	#6794 post-fix target
+GET /api/v0/status/collector-readiness	1000	#6794 post-fix target
+GET /api/v0/status/collectors	1000	#6794 post-fix target
+GET /api/v0/status/freshness-causality	1000	#6794 post-fix target
+GET /api/v0/status/governance	1000	#6794 post-fix target
+GET /api/v0/status/hosted-readiness	1000	#6794 post-fix target
+GET /api/v0/status/index	1000	#6794 post-fix target
+GET /api/v0/status/ingesters	1000	#6794 post-fix target
+GET /api/v0/status/operations	1000	#6794 post-fix target; catalog p95 2000ms is looser
+GET /api/v0/status/operator-control-plane	1000	#6794 post-fix target
+GET /api/v0/status/pipeline	1000	#6794 post-fix target
+GET /api/v0/status/semantic-extraction	1000	#6794 post-fix target
+GET /api/v0/index-status	1000	#6794 post-fix target
+GET /api/v0/ingesters	1000	#6794 post-fix target
+GET /api/v0/evidence/bundle	1000	#6794 post-fix target; same activeFactWorkItemsCTE-adjacent shape
+GET /api/v0/repositories	1000	#6794 post-fix target
+GET /api/v0/repositories/language-inventory	1000	#6794 post-fix target
+
+# GET /api/v0/capabilities is not part of either regression family; its row
+# exists to exercise (and test-prove, see budget_test.go
+# TestCatalogBudgetWinsWhenTighter) the catalog-tighter-wins path: catalog
+# production p95=400ms * 1.5 = 600ms, tighter than the 1500ms default.
+GET /api/v0/capabilities	1500	catalog p95 400ms*1.5=600ms is tighter and wins at runtime; row exists so this route is not silently unbudgeted if the catalog entry is ever removed

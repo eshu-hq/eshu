@@ -2,7 +2,8 @@
 
 Cypher **write-statement-shape** pitfalls — how clause ordering inside a single
 write statement (MERGE, CREATE, SET, DELETE) decides whether NornicDB executes
-every clause. Split out as its own page rather than added to
+every clause, and how bulk `UNWIND ... CREATE` bounds and batch sizes decide
+how many nodes actually get written. Split out as its own page rather than added to
 [NornicDB Behavior and Pitfalls Reference](nornicdb-pitfalls.md) because that
 page is at its grandfathered 500-line-cap ceiling and must not grow; see that
 page for storage, schema, constraint, and general transaction behaviors, and
@@ -256,3 +257,88 @@ anchor (median 0.01 s on ops-qa) and are not probed.
 When you probe this, give each run a unique parameter value. NornicDB serves a
 repeated identical read from its result cache, so a second run can look fast
 without the plan being fast.
+
+## Pitfall: `UNWIND range(0, $count - 1)` Creates One Node, And One Statement Cannot Create 50,000
+
+### Observed shape
+
+A parameter expression as the upper bound of `range()` inside `UNWIND` yields a
+single element, so a bulk `CREATE` writes exactly one node and reports success:
+
+```cypher
+-- BROKEN: 1 node, no error. $count = 10.
+UNWIND range(0, $count - 1) AS i CREATE (n:Probe {id: 'p' + toString(i)})
+```
+
+Measured on `nornicdb-cpu-bge:v1.3.3` (`sha256:81cedbf4…`) through the HTTP
+transaction endpoint, one throwaway label per shape, 10 requested nodes unless
+noted:
+
+| Shape | Nodes created |
+| --- | ---: |
+| `range(0, 9)` (literal bound) | 10 |
+| `range(0, $count - 1)`, `$count = 10` | **1** |
+| `range(0, $count - 1)` plus `$label` in the properties | **1** |
+| `range(0, $last)`, `$last = 9` (bound computed by the caller) | 10 |
+| `UNWIND $rows AS row CREATE (...)`, 3 parameter rows | 3 |
+
+The read-API latency gate (`go/cmd/read-api-latency-gate`, #6797) seeded its
+infra graph with the broken shape through the Bolt driver and counted 1
+`K8sResource` node instead of 150,000, so every `infra/resources` latency it
+had printed was read against an almost empty graph. This was not measured on
+Neo4j or on other NornicDB builds.
+
+A second limit shows up as soon as the bound is fixed. A single statement that
+creates too many nodes fails at commit, again with a misleading error class:
+
+| Nodes in one `UNWIND range($first, $last) ... CREATE` | Result |
+| ---: | --- |
+| 5,000 | 0.85 s |
+| 20,000 | 3.3 s |
+| 50,000 | `Neo.ClientError.Statement.SyntaxError: ... Txn is too big to fit into one request` |
+| 150,000 | same error |
+
+A related cost shows on labels that carry a `uid` `UNIQUE` constraint: writing
+50,000 parameter-row nodes over 150,000 unconstrained nodes took 6.6 s in
+batches of 250, 14.3 s in batches of 1,000 and 91.7 s in batches of 5,000
+(fresh container per size), and one 50,000-row statement had not finished after
+15 minutes. Per-row cost grows with batch size, so bound the batch.
+
+### Eshu implications
+
+Compute the `range()` bound in the caller and pass it as its own parameter
+(`range($first, $last)`), never as an expression on a parameter. Batch bulk
+`CREATE` statements (10,000 unconstrained nodes, 250 constrained rows in the
+gate), and read the per-label counts back after any bulk seed: a seed that
+silently produces one node is indistinguishable from success without a count.
+The gate does this in `VerifyGraphNodeCounts`.
+
+## Pitfall: A `CASE` Expression Inside A `CREATE` Property Map Is Stored As Literal Text
+
+### Observed shape
+
+A Cypher expression used as a property value inside `CREATE (n:Label {...})`
+is not evaluated. NornicDB substitutes the loop variable into the expression
+text and stores the result as a STRING:
+
+```cypher
+UNWIND range(0, 2) AS i
+CREATE (n:Probe {provider: CASE i % 3 WHEN 0 THEN 'aws' WHEN 1 THEN 'gcp' ELSE 'azure' END})
+-- n.provider = "CASE 0 % 3 WHEN 0 THEN 'aws' WHEN 1 THEN 'gcp' ELSE 'azure' END"
+-- (and "CASE 1 % 3 ...", "CASE 2 % 3 ...": one distinct string per node)
+```
+
+Seen on `nornicdb-cpu-bge:v1.3.3` (`sha256:81cedbf4…`) through the Bolt driver:
+the read-API latency gate (`go/cmd/read-api-latency-gate`, #6797) seeded 150,000
+nodes per label this way and `count(DISTINCT n.provider)` returned 150,000, so
+`/api/v0/infra/resources/count` grouped 150,000 provider buckets instead of 3 and
+returned a response body with a key per node. No error is raised, and a count of
+the nodes looks right. This was not measured on Neo4j.
+
+### Eshu implications
+
+Compute property values in the caller and send them as parameters
+(`UNWIND $rows AS row CREATE (n:Label {provider: row.provider})`). On
+unconstrained labels that shape took 0.14s for 2,000 rows, 0.51s for 10,000 and
+0.98s for 20,000, with the expected 3 distinct providers. After a bulk seed, read
+back a property's distinct count, not only the node count.
