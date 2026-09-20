@@ -184,7 +184,7 @@ jobs:
               - 'scripts/lib/ifa_family_registry.sh'
               - 'scripts/lib/ifa_family_registry/**'
               # #5351 materialized-edge exhaustiveness gate: the SQL relationship
-              # family's write path (edge_writer_sql.go, sql_relationship_*.go)
+              # family's write path edge/writer/sql.go, sql_relationship_*.go)
               # and its fixtures/manifest. A write-path-only regression here is
               # exactly the silent-no-op class the gate exists for and the pure
               # seam cannot catch, so it MUST retrigger the Ifa contract-layer
@@ -216,7 +216,7 @@ jobs:
               # verdict; the four per-file entries below reached 6 of 131 and
               # left every other direct writer unable to schedule this job.
               - 'go/internal/storage/cypher/**'
-              - 'go/internal/storage/cypher/edge_writer_sql.go'
+              - 'go/internal/storage/cypher/edge/writer/sql.go'
               - 'go/internal/storage/cypher/materialized_edge_*.go'
               - 'go/internal/storage/cypher/canonical_code_call_edges.go'
               - 'go/internal/storage/cypher/canonical_inheritance_edges.go'
