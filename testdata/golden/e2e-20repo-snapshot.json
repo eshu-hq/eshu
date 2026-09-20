@@ -1978,7 +1978,7 @@
       },
       {
         "id": "rn-registry-event-fields",
-        "description": "rn-package-artifact-hashes's critique applies equally to rc-169: a node+edge count assertion is satisfied by a live projection that creates the RegistryEvent node and HAS_REGISTRY_EVENT edge but drops or corrupts the event's own payload fields, and this feature exists specifically to project a publish/yank/unyank/deprecate TIMELINE, not a bare marker node. This asserts the EXACT `event_type` VALUE, not just presence. The package_registry supply-chain-demo cassette's github.com/acme/lib-common@1.0.0 registry_event fact carries event_type=yank (event_key serial:9988), which canonicalPackageRegistryEventUpsertCypher (go/internal/storage/cypher/package_registry_event_writer.go) writes as an unconditional e.event_type SET. `occurred_at` is deliberately NOT asserted here: packageRegistryTimeValue (go/internal/storage/cypher/package_registry_canonical_writer.go) stores it as a native Bolt DateTime, not a string or list, and boltPropertyString (go/cmd/golden-corpus-gate/graph.go) has no DateTime case -- it would decode to \"\" on every live run regardless of writer correctness, making a pinned assertion on it unconditionally red, the same landmine the #5820 P2 fix closed for LIST-typed properties. A writer that omits event_type or corrupts it fails this assertion even though rc-169's node/edge existence check would still pass.",
+        "description": "rn-package-artifact-hashes's critique applies equally to rc-169: a node+edge count assertion is satisfied by a live projection that creates the RegistryEvent node and HAS_REGISTRY_EVENT edge but drops or corrupts the event's own payload fields, and this feature exists specifically to project a publish/yank/unyank/deprecate TIMELINE, not a bare marker node. This asserts the EXACT `event_type` VALUE, not just presence. The package_registry supply-chain-demo cassette's github.com/acme/lib-common@1.0.0 registry_event fact carries event_type=yank (event_key serial:9988), which canonicalPackageRegistryEventUpsertCypher (go/internal/storage/cypher/package_registry_event_writer.go) writes as an unconditional e.event_type SET. `occurred_at` is deliberately NOT asserted here: packageRegistryTimeValue (go/internal/storage/cypher/package_registry_canonical_writer.go) stores it as a native Bolt DateTime, not a string or list, and boltPropertyString (go/cmd/golden-corpus-gate/graph_bolt.go) has no DateTime case -- it would decode to \"\" on every live run regardless of writer correctness, making a pinned assertion on it unconditionally red, the same landmine the #5820 P2 fix closed for LIST-typed properties. A writer that omits event_type or corrupts it fails this assertion even though rc-169's node/edge existence check would still pass.",
         "label": "RegistryEvent",
         "minimum_count": 1,
         "required_node_properties": [
@@ -3848,7 +3848,7 @@
         }
       },
       "get_repo_context": {
-        "description": "MCP tool coverage shape for get_repo_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
+        "description": "MCP tool coverage shape for get_repo_context; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). orders-api's only verb-typed outgoing edge is the package-consumption DEPENDS_ON to lib-common, which carries no source_tool, so source_tool_breakdown is correctly omitted here (context-and-stories.md: omitted when no edges carry source_tool). It is asserted on truth by get_repo_context?assert=source_tool_breakdown (#6782).",
         "required_response_fields": [
           "consumers",
           "dependency_count",
@@ -3862,7 +3862,6 @@
           "relationship_overview",
           "relationships",
           "repository",
-          "source_tool_breakdown",
           "workload_count"
         ],
         "minimum_results": 1,
@@ -3874,6 +3873,34 @@
         },
         "arguments": {
           "repo_id": "orders-api"
+        }
+      },
+      "get_repo_context?assert=source_tool_breakdown": {
+        "description": "Second get_repo_context shape (#6782): source_tool_breakdown asserted on a repository whose outgoing edge really carries source_tool. helm-umbrella-chart's Chart.yaml declares one subchart dependency sourced from github.com/acme/deployable-source, which resolves to the HELM_CHART_REFERENCE DEPLOYS_FROM edge rc-34 pins with source_tool=helm. That is the repository's only outgoing dependency, so the breakdown is exactly {helm: 1} on every graph backend. The orders-api shape used to require this field only because the NornicDB v1.3.3 missing-row-key defect stamped its unstamped DEPENDS_ON edge with the literal token row.source_tool.",
+        "required_response_fields": [
+          "consumers",
+          "dependency_count",
+          "entry_points",
+          "file_count",
+          "infrastructure",
+          "languages",
+          "partial_reasons",
+          "platform_count",
+          "relationship_overview",
+          "relationships",
+          "repository",
+          "source_tool_breakdown",
+          "workload_count"
+        ],
+        "minimum_results": 1,
+        "maximum_results": 50,
+        "results_field": "relationships",
+        "required_json_values": {
+          "repository.name": "helm-umbrella-chart",
+          "source_tool_breakdown.helm": 1
+        },
+        "arguments": {
+          "repo_id": "helm-umbrella-chart"
         }
       },
       "get_relationship_evidence": {
@@ -7193,7 +7220,7 @@
           "incoming"
         ],
         "minimum_results": 1,
-        "maximum_results": 4,
+        "maximum_results": 1,
         "results_field": "incoming",
         "request_body": {
           "name": "mutualPing",
@@ -7220,7 +7247,7 @@
           "outgoing"
         ],
         "minimum_results": 1,
-        "maximum_results": 4,
+        "maximum_results": 1,
         "results_field": "outgoing",
         "request_body": {
           "name": "mutualPing",

@@ -32,6 +32,8 @@ tests are unchanged.
 | `snapshot.go` | `Snapshot` and its nested contract types (`GraphSnapshot`, `CountRange`, `RequiredCorrelation`, `RequiredNode`, `RequiredSelfLoop`, `DrainAssertions`, `DrainBound`, `QueryShapes`, `QueryShape`, `AbsentWhenPresent`) plus `LoadSnapshot`. |
 | `report.go` | `Finding` and `Report` — the pass/fail accumulator with the required/advisory split. |
 | `evaluate.go` | `DrainCounts` and every `Evaluate*` function (drains, required correlations, edge/node properties, required/present nodes, required self-loops, node/edge counts, query shape, API/MCP/CLI parity, timing). |
+| `row_tokens.go` | `GraphElementProperties` and `EvaluateUnresolvedRowTokens`, the always-required check that no node or edge property holds an unresolved `row.<key>` token (#6782). |
+| `row_keys.go` | `writePathRowKeys`, the plain (non-snake_case) `row.<key>` reads in the Go write path. `row_keys_test.go` derives it from source and fails on drift. |
 | `query_shape_paths.go` | Bounded deep JSON path/value assertions for query shapes, including array traversal with `[]`. |
 
 ## Assertion semantics worth knowing
@@ -56,6 +58,18 @@ tests are unchanged.
   the regression. `NodeProperty`/`NodePropertyValue` scope the match to one
   language/family sharing a node label so it is not conflated with another's
   self-loop count.
+- **Row tokens are matched against the keys a writer can read.**
+  `EvaluateUnresolvedRowTokens` flags `row.<key>` when the key is in
+  `writePathRowKeys`, is snake_case, or is the property's own name. So it
+  catches `s3_internet_exposure_state = "row.state"` under any property name,
+  while a File named `row.go` passes. `TestWritePathRowKeysMatchSource`
+  derives `writePathRowKeys` from every non-test Go string literal under
+  `go/internal`, `go/cmd`, and `go/pkg`, and fails on a missing or stale key.
+  `TestOnlyRowBindingWritesMapValues` fails when any other `UNWIND` binding is
+  dereferenced as a map, unless it is a reviewed read-only entry in
+  `readOnlyMapBindings`. The coverage limit: Cypher that is not a Go string
+  literal in those trees, or a statement assembled across files, is outside
+  the derivation.
 - **Query path assertions are explicit.** `RequiredJSONPaths` and
   `RequiredJSONValues` walk only the dot paths named by the snapshot. A `[]`
   suffix traverses a non-empty array, which lets the dead-code replay library

@@ -37,6 +37,10 @@ SET rel.sink_kind = row.sink_kind,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
 
+// codeInterprocEvidenceOptionalRowKeys are the keys
+// codeInterprocEvidenceUpsertCypher reads that a finding may legitimately lack.
+var codeInterprocEvidenceOptionalRowKeys = []string{"why_trail_json", "why_trail_truncated"}
+
 const retractCodeInterprocEvidenceCypher = `MATCH (:Function)-[rel:TAINT_FLOWS_TO]->(:Function)
 WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
@@ -112,11 +116,21 @@ func (w *CodeInterprocEvidenceWriter) WriteCodeInterprocEvidence(
 
 	stamped := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		stamped = append(stamped, cloneRowWith(row, map[string]any{
+		cloned := cloneRowWith(row, map[string]any{
 			"scope_id":        scopeID,
 			"generation_id":   generationID,
 			"evidence_source": evidenceSource,
-		}))
+		})
+		// The row builder adds the why-trail keys only for findings that have
+		// a trail, but the upsert reads both. Send them as nil when absent:
+		// the pinned NornicDB v1.3.3 stores the literal text
+		// "row.why_trail_json" for a missing UNWIND row key (#6782).
+		for _, key := range codeInterprocEvidenceOptionalRowKeys {
+			if _, present := cloned[key]; !present {
+				cloned[key] = nil
+			}
+		}
+		stamped = append(stamped, cloned)
 	}
 
 	batches := BuildBatchedStatements(codeInterprocEvidenceUpsertCypher, stamped, w.batchSize)

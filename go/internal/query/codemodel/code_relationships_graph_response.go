@@ -107,7 +107,13 @@ func RelationshipGraphRowCypherAnchored(matchClause, predicate string) string {
 	`
 }
 
-// BuildTransitiveRelationshipRowsCypher returns the bounded transitive CALLS traversal Cypher.
+// BuildTransitiveRelationshipRowsCypher returns the bounded transitive CALLS
+// traversal Cypher under the BFS contract (issue #6849): each reachable node
+// once, at its shortest depth, with the start node excluded. The walk
+// aggregates to the minimum path length per node and filters the anchor,
+// so the Neo4j-compat route returns the same node set as the NornicDB
+// breadth-first walk. Both directions stay directed every hop, matching the
+// BFS one-hop read.
 func BuildTransitiveRelationshipRowsCypher(
 	entityID string,
 	direction string,
@@ -123,12 +129,15 @@ func BuildTransitiveRelationshipRowsCypher(
 			cypher.WriteString("\n\t\tMATCH (e)\n")
 			cypher.WriteString("\t\tWHERE ")
 			cypher.WriteString(GraphEntityIDPredicate("e", "$entity_id"))
-			cypher.WriteString("\n\t\tMATCH path = (e)<-[:CALLS*1..")
+			cypher.WriteString("\n\t\tMATCH path = (source)-[:CALLS*1..")
 			fmt.Fprint(&cypher, maxDepth)
-			cypher.WriteString("]-(source)\n")
+			cypher.WriteString("]->(e)\n")
+			cypher.WriteString("\t\tWHERE source <> e\n")
+			cypher.WriteString("\t\tWITH source, min(length(path)) AS depth\n")
 			cypher.WriteString("\t\tRETURN source.name as source_name,\n")
 			cypher.WriteString("\t\t       coalesce(source.id, source.uid) as source_id,\n")
-			cypher.WriteString("\t\t       length(path) as depth\n\t")
+			cypher.WriteString("\t\t       depth\n")
+			cypher.WriteString("\t\tORDER BY depth, source_id\n\t")
 			return cypher.String(), params
 		}
 
@@ -138,9 +147,12 @@ func BuildTransitiveRelationshipRowsCypher(
 		cypher.WriteString("\n\t\tMATCH path = (e)-[:CALLS*1..")
 		fmt.Fprint(&cypher, maxDepth)
 		cypher.WriteString("]->(target)\n")
+		cypher.WriteString("\t\tWHERE target <> e\n")
+		cypher.WriteString("\t\tWITH target, min(length(path)) AS depth\n")
 		cypher.WriteString("\t\tRETURN target.name as target_name,\n")
 		cypher.WriteString("\t\t       coalesce(target.id, target.uid) as target_id,\n")
-		cypher.WriteString("\t\t       length(path) as depth\n\t")
+		cypher.WriteString("\t\t       depth\n")
+		cypher.WriteString("\t\tORDER BY depth, target_id\n\t")
 		return cypher.String(), params
 	}
 
@@ -149,21 +161,27 @@ func BuildTransitiveRelationshipRowsCypher(
 	cypher.WriteString(GraphEntityIDPredicate("e", "$entity_id"))
 	cypher.WriteString("\n")
 	if direction == "incoming" {
-		cypher.WriteString("\t\tMATCH path = (e)<-[:CALLS*1..")
+		cypher.WriteString("\t\tMATCH path = (source)-[:CALLS*1..")
 		fmt.Fprint(&cypher, maxDepth)
-		cypher.WriteString("]-(source)\n")
+		cypher.WriteString("]->(e)\n")
+		cypher.WriteString("\t\tWHERE source <> e\n")
+		cypher.WriteString("\t\tWITH source, min(length(path)) AS depth\n")
 		cypher.WriteString("\t\tRETURN source.name as source_name,\n")
 		cypher.WriteString("\t\t       coalesce(source.id, source.uid) as source_id,\n")
-		cypher.WriteString("\t\t       length(path) as depth\n\t")
+		cypher.WriteString("\t\t       depth\n")
+		cypher.WriteString("\t\tORDER BY depth, source_id\n\t")
 		return cypher.String(), params
 	}
 
 	cypher.WriteString("\t\tMATCH path = (e)-[:CALLS*1..")
 	fmt.Fprint(&cypher, maxDepth)
 	cypher.WriteString("]->(target)\n")
+	cypher.WriteString("\t\tWHERE target <> e\n")
+	cypher.WriteString("\t\tWITH target, min(length(path)) AS depth\n")
 	cypher.WriteString("\t\tRETURN target.name as target_name,\n")
 	cypher.WriteString("\t\t       coalesce(target.id, target.uid) as target_id,\n")
-	cypher.WriteString("\t\t       length(path) as depth\n\t")
+	cypher.WriteString("\t\t       depth\n")
+	cypher.WriteString("\t\tORDER BY depth, target_id\n\t")
 	return cypher.String(), params
 }
 

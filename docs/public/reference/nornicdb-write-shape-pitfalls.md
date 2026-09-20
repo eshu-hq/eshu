@@ -342,3 +342,74 @@ Compute property values in the caller and send them as parameters
 unconstrained labels that shape took 0.14s for 2,000 rows, 0.51s for 10,000 and
 0.98s for 20,000, with the expected 3 distinct providers. After a bulk seed, read
 back a property's distinct count, not only the node count.
+## Pitfall: A Missing `UNWIND` Row Key Is Stored As Its Expression Text
+
+### Observed shape
+
+On the pinned `v1.3.3` build, a property read from an `UNWIND` row map whose
+key is absent does not evaluate to `null`. The statement stores the literal
+expression text instead:
+
+```cypher
+-- rows = [{a: 'x', b: 'y'}]   (no source_tool key)
+UNWIND $rows AS row
+MATCH (a {id: row.a}) MATCH (b {id: row.b})
+MERGE (a)-[rel:DEPENDS_ON]->(b)
+SET rel.source_tool = row.source_tool
+-- NornicDB: rel.source_tool = "row.source_tool", IS NOT NULL = true
+-- Neo4j:    no source_tool property,               IS NOT NULL = false
+```
+
+The same statement with the key present and an explicit `nil` value behaves
+like Neo4j for readers: NornicDB keeps a null-valued key, and
+`rel.source_tool IS NOT NULL` is false on both backends. A missing top-level
+`$param` evaluates to null as expected. Only the row-map key form is affected.
+Measured on 2026-09-18 against
+`timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81cedbf4...` beside
+`neo4j:2026-community` (#6782).
+
+### Eshu implications
+
+A writer that builds its row maps conditionally ("add the key only when the
+payload has a value") writes junk on NornicDB for every row without that key.
+The B-7 golden corpus on Neo4j found this: package-consumption `DEPENDS_ON`
+edges carried `source_tool = "row.source_tool"` on NornicDB, which
+`get_repo_context` reported as a `source_tool_breakdown` entry, while the edge
+was correctly unstamped on Neo4j. An audit of every production `UNWIND` writer
+found four more with the same shape: EvidenceArtifact `ref_value`,
+`ref_pinned`, `commit_sha`, `start_line` and `end_line` (the deployment-evidence
+read reported `"row.ref_value"` as an unpinned ref); code-call `call_kind`;
+PINS_SUBMODULE `pinned_sha`; and TAINT_FLOWS_TO `why_trail_json` and
+`why_trail_truncated`. Each writer now sends every key its statement reads,
+`nil` when absent (`setOptionalRowString` in
+`go/internal/storage/cypher/edge_writer_payload.go`, or an explicit `nil`).
+
+Apply the same rule to any `UNWIND` writer: a row map must carry every
+`<var>.<key>` its statement references, with `nil` rather than `""` for "no
+value", because readers treat an empty string as a value. A `SET n += row.props`
+merge is not affected: a key missing from the merged map writes nothing.
+Re-projecting an element with the fixed writer replaces a stored junk token
+with null.
+
+### Validation
+
+`assertUnwindRowsCarryReferencedKeys` in
+`go/internal/storage/cypher/unwind_row_keys_helper_test.go` is the reusable
+guard: give it a writer test's recorded statements and it fails when any row
+of an `UNWIND $<param> AS <var>` map list lacks a `<var>.<key>` the statement
+reads. `TestUnwindRowKeyViolationsSeeded` is its seeded-violation pair, and
+`TestEdgeWriterSparseRowsCarryEveryReferencedKey` runs it over every
+`EdgeWriter` domain with sparse payloads:
+
+```bash
+cd go && go test ./internal/storage/cypher -run 'RowKey|RowsCarry|Sparse' -count=1
+```
+
+The live proofs are `TestLiveRepoDependencyWithoutSourceToolStaysUnstamped`
+and `TestLiveSparseWriterRowsLeaveOptionalPropertiesNull` (build tag
+`live_nornicdb_answer_truth`; each selects its backend in its preamble —
+NornicDB unless the preamble's test-only backend knob names Neo4j, with
+`ESHU_NEO4J_URI` for that leg's container). Both are RED on NornicDB with the old
+conditional row maps and GREEN on both backends with the fix. The audit table
+covering every writer is in the repository at
+`docs/internal/evidence/6782-unwind-missing-row-key-audit.md`.

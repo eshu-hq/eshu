@@ -108,6 +108,35 @@ self-loop count is never conflated with another's. See
 against `tests/fixtures/ecosystems/dart_comprehensive/calls.dart`'s
 arrow-form and block-form recursive self-calls.
 
+## Unresolved row-token check (#6782)
+
+`graph_row_tokens.go` reads every node and relationship with its property map
+and fails the gate, in both modes, when any property or list element holds an
+unresolved `row.<key>` token. NornicDB v1.3.3 stores that literal text when an
+`UNWIND $rows AS row` writer omits a key its statement reads; Neo4j leaves the
+property absent. The check catches that writer defect even when no required
+correlation or query shape reads the property. A token counts when its key is
+one the Go write path reads (`goldengate.writePathRowKeys`, derived from
+source by a drift test), a snake_case key, or the property's own name. That
+covers every key an `UNWIND ... AS row` statement under `go/internal`,
+`go/cmd`, or `go/pkg` reads, under any property name, and a File named
+`row.go` still passes. `row` is pinned as the only UNWIND binding whose fields a
+write stores; see `go/internal/goldengate/README.md` for the coverage limit. The filtering runs in Go (`goldengate.EvaluateUnresolvedRowTokens`)
+because NornicDB does not reliably evaluate `WHERE` on these shapes.
+
+- Live proof: `TestLiveUnresolvedRowTokenCheck` (build tag
+  `live_nornicdb_answer_truth`) passes on NornicDB v1.3.3 (flags both the
+  omitted-key edge and a literal token) and on `neo4j:2026-community` (flags
+  only the literal token).
+- No-Regression Evidence: the check adds two whole-graph reads per gate run.
+  On NornicDB v1.3.3 over Bolt, 10,000 elements (5,000 File nodes and 5,000
+  CALLS edges) read back in 1.35 s, 1.49 s and 1.47 s over three runs. The
+  golden corpus is far smaller, so the cost is well under the B-7 budget. It is
+  never on a production request path.
+- No-Observability-Change: the finding line (`unresolved_row_tokens`, with the
+  offending `kind Name.prop=token (count)` groups) is the observability. No
+  production telemetry changes.
+
 ## Query shapes
 
 `query_shapes.http` supports bounded `GET` reads and read-style `POST` queries
@@ -136,8 +165,10 @@ scans an entire response.
 - `snapshot.go` — typed view + loader for the B-12 snapshot.
 - `evaluate.go` — pure assertion logic for every phase (unit-tested).
 - `drains.go` — Postgres drain queries + the drain poll loop.
-- `graph.go` — Bolt graph counts (nodes, edges, required correlations) and
-  edge/node property listing for the provenance property assertions.
+- `graph.go` — the `graphCounter` seam and the graph-phase checks (required
+  nodes, correlations, count tolerances, property assertions).
+- `graph_bolt.go` — the Bolt `graphCounter`: node, edge, and correlation
+  counts, edge/node property listing, and self-loop counting.
 - `query.go` — authenticated HTTP query-shape checks.
 - `mcp.go` — live MCP tool query-shape checks over `POST /mcp/message`.
 - `demoanswers.go` — the demo-answers phase: load `specs/demo-first-answers.v1.yaml`
@@ -164,7 +195,7 @@ advisory warnings.
 
 ## Self-loop counting — performance & observability evidence (#5349)
 
-`graph.go`'s `CountSelfLoopEdges` backs the `required_self_loops` B-12
+`graph_bolt.go`'s `CountSelfLoopEdges` backs the `required_self_loops` B-12
 assertion. It counts genuine self-referential edges (e.g. the Dart
 `recursionFib`/`recursionFact` functions calling themselves) for a
 `(label {property: value})` scope, so a regression that inflates every

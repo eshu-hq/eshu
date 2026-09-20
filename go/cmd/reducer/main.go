@@ -175,6 +175,7 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
+
 	// Semantic path: permit gate OUTSIDE the write timeout (#3652 P1); see
 	// boundSemanticEntityExecutor.
 	semanticEntityExecutor := graphWriteGate.boundSemanticEntityExecutor(

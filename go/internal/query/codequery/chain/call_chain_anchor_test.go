@@ -46,8 +46,8 @@ func TestBuildCallChainCypherNeo4jAnchorsCodeCallLabels(t *testing.T) {
 	if !strings.Contains(cypher, codemodel.GraphEntityIDPredicate("end", "$end_entity_id")) {
 		t.Fatalf("end entity-id predicate must be preserved: %s", cypher)
 	}
-	if !strings.Contains(cypher, "shortestPath(") || !strings.Contains(cypher, "(start)-[:CALLS*1..5]->(end)") {
-		t.Fatalf("CALLS shortestPath traversal must be preserved: %s", cypher)
+	if !strings.Contains(cypher, "SHORTEST 1 (start)(()-[:CALLS]->(node)){1,5}(end)") {
+		t.Fatalf("CALLS shortest-path traversal must be preserved: %s", cypher)
 	}
 	if got := params["start_entity_id"]; got != "fn-1" {
 		t.Fatalf("params[start_entity_id] = %#v, want fn-1", got)

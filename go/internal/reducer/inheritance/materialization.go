@@ -440,8 +440,14 @@ func buildInheritanceEntityIndex(envelopes []facts.Envelope) map[inheritanceInde
 			continue
 		}
 		key := inheritanceIndexKey{repoID: repoID, name: entityName}
-		// First-seen wins; duplicates are ignored for matching purposes.
-		if _, exists := index[key]; !exists {
+		// Duplicate (repo_id, entity_name) pairs resolve to the smallest
+		// entity_id, independent of envelope order. Fact loading orders by
+		// wall-clock observed_at, so first-seen-wins resolved "< Base" to
+		// a different in-repo class run to run and rc-12 flipped (#6850).
+		// Same-named same-repo entities stay ambiguous (namespace-qualified
+		// resolution is future work); the tiebreak only makes the choice
+		// stable.
+		if current, exists := index[key]; !exists || entityID < current.id {
 			index[key] = inheritanceEntityRef{
 				id:         entityID,
 				entityType: entityType,
@@ -473,7 +479,10 @@ func buildInheritanceMethodIndex(envelopes []facts.Envelope) map[inheritanceMeth
 			classContext: classContext,
 			name:         entityName,
 		}
-		if _, exists := index[key]; !exists {
+		// Same order-independent tiebreak as the entity index: fact order
+		// follows wall-clock observed_at, so first-seen-wins would resolve
+		// duplicate method names to different functions run to run (#6850).
+		if current, exists := index[key]; !exists || entityID < current.id {
 			index[key] = inheritanceEntityRef{
 				id:         entityID,
 				entityType: "Function",

@@ -44,7 +44,7 @@ const (
 // provenanceEdgeKindForSource maps a writer evidence_source to the single
 // evidence_kinds token stamped on its edges. The golden-corpus gate's
 // shared-verb isolation (RequiredCorrelation.EvidenceKinds,
-// CountCorrelationWithEvidence in cmd/golden-corpus-gate/graph.go) narrows a
+// CountCorrelationWithEvidence in cmd/golden-corpus-gate/graph_bolt.go) narrows a
 // relationship count to edges whose evidence_kinds list contains a given
 // token -- evaluated in Go, not Cypher, because a NornicDB WHERE clause over
 // an arbitrary relationship property does not filter (see that function's

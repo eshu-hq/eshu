@@ -1,6 +1,6 @@
 services:
   neo4j:
-    image: neo4j:2026-community
+    image: ${NEO4J_IMAGE:-neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0eacc4e7a729d44b2e863f}
     ports:
       - "${NEO4J_HTTP_PORT:-7474}:7474"
       - "${NEO4J_BOLT_PORT:-7687}:7687"

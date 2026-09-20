@@ -3,7 +3,8 @@
 
 // Package chain implements call-chain traversal for the code-family
 // queries: request validation and repository resolution, the
-// Neo4j-compat and NornicDB shortestPath builders, and node shaping.
+// Neo4j-compat SHORTEST builder and the NornicDB shortestPath builder, and
+// node shaping.
 // It split out of package codequery (#6060 naming follow-up) so the
 // traversal can be read, tested, and changed without pulling in the
 // rest of the code surface, and so it can one day move into its own

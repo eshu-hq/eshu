@@ -69,11 +69,12 @@ func TestBuildSubmodulePinRowMap(t *testing.T) {
 	}
 }
 
-// TestBuildSubmodulePinRowMapOmitsUnknownPinnedSHA proves a fact with no
-// gitlink (PinnedSHA unknown) omits the pinned_sha key entirely rather than
-// setting it to an empty string, so the Cypher SET clears any stale property
-// via a null rather than writing a misleading empty string.
-func TestBuildSubmodulePinRowMapOmitsUnknownPinnedSHA(t *testing.T) {
+// TestBuildSubmodulePinRowMapSendsNilForUnknownPinnedSHA proves a fact with no
+// gitlink (PinnedSHA unknown) sends pinned_sha as an explicit nil, never an
+// empty string, so the Cypher SET writes a null rather than a misleading empty
+// string. The key must be present: the pinned NornicDB v1.3.3 stores the
+// literal text "row.pinned_sha" for a missing UNWIND row key (#6782).
+func TestBuildSubmodulePinRowMapSendsNilForUnknownPinnedSHA(t *testing.T) {
 	t.Parallel()
 
 	payload := map[string]any{
@@ -86,8 +87,8 @@ func TestBuildSubmodulePinRowMapOmitsUnknownPinnedSHA(t *testing.T) {
 	if !ok {
 		t.Fatal("BuildSubmodulePinRowMap ok = false, want true")
 	}
-	if _, present := rowMap["pinned_sha"]; present {
-		t.Errorf("rowMap[pinned_sha] = %#v, want absent", rowMap["pinned_sha"])
+	if value, present := rowMap["pinned_sha"]; !present || value != nil {
+		t.Errorf("rowMap[pinned_sha] = %#v (present=%v), want an explicit nil", value, present)
 	}
 }
 

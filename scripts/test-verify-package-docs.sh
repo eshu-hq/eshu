@@ -235,4 +235,34 @@ git -C "${nested_rename_noparentdocs_repo}" mv go/internal/collector/oldpkg go/i
 git -C "${nested_rename_noparentdocs_repo}" rm -qf go/internal/collector/parent/newpkg/doc.go
 expect_fail "${nested_rename_noparentdocs_repo}"
 
+# Regression (staged package deletion): a commit that deletes a whole
+# package stages the deletions while the committed base...HEAD diff still
+# names the added files. The worktree dir holds no Go sources anymore, so
+# there is no package left to document and the verifier must pass.
+staged_delete_repo="$(init_repo staged-delete)"
+mkdir -p "${staged_delete_repo}/go/internal/collector/oldpkg"
+printf 'package oldpkg\n' >"${staged_delete_repo}/go/internal/collector/oldpkg/source.go"
+printf 'package oldpkg\n' >"${staged_delete_repo}/go/internal/collector/oldpkg/doc.go"
+printf '# Old Pkg\n' >"${staged_delete_repo}/go/internal/collector/oldpkg/README.md"
+printf '# Old Pkg Agent Rules\n' >"${staged_delete_repo}/go/internal/collector/oldpkg/AGENTS.md"
+git -C "${staged_delete_repo}" add .
+git -C "${staged_delete_repo}" commit -q -m 'add oldpkg with docs'
+git -C "${staged_delete_repo}" rm -q -r go/internal/collector/oldpkg
+expect_pass "${staged_delete_repo}"
+
+# Control (staged doc.go deletion only): removing just the doc trio member
+# from a package that keeps its sources must still fail -- the deletion
+# exemption covers whole-package removal, never a surviving package that
+# lost its docs.
+staged_docdelete_repo="$(init_repo staged-docdelete)"
+mkdir -p "${staged_docdelete_repo}/go/internal/collector/oldpkg"
+printf 'package oldpkg\n' >"${staged_docdelete_repo}/go/internal/collector/oldpkg/source.go"
+printf 'package oldpkg\n' >"${staged_docdelete_repo}/go/internal/collector/oldpkg/doc.go"
+printf '# Old Pkg\n' >"${staged_docdelete_repo}/go/internal/collector/oldpkg/README.md"
+printf '# Old Pkg Agent Rules\n' >"${staged_docdelete_repo}/go/internal/collector/oldpkg/AGENTS.md"
+git -C "${staged_docdelete_repo}" add .
+git -C "${staged_docdelete_repo}" commit -q -m 'add oldpkg with docs'
+git -C "${staged_docdelete_repo}" rm -q go/internal/collector/oldpkg/doc.go
+expect_fail "${staged_docdelete_repo}"
+
 printf 'verify-package-docs tests passed\n'

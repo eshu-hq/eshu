@@ -89,6 +89,41 @@ expectation inverted while the old single-statement query returned zero rows on
 NornicDB. After #6690 they pass on both backends, so that workflow is retired
 and the end-to-end matrix is their gate.
 
+## B-7 Golden Corpus On Both Backends
+
+The B-7 golden corpus gate (`scripts/verify-golden-corpus-gate.sh`) runs the
+real pipeline end to end and diffs the graph and every HTTP/MCP query shape
+against one snapshot, `testdata/golden/e2e-20repo-snapshot.json`. It runs once
+per backend: `corpus-gate (nornicdb)` and `corpus-gate (neo4j)` in
+`golden-corpus-gate.yml`. Locally, `ESHU_GRAPH_BACKEND=neo4j` selects Neo4j; see
+[Golden Corpus Gate](local-testing/golden-corpus-gate.md#running-it-on-neo4j).
+
+The snapshot was calibrated on NornicDB, so the first Neo4j run is a
+differential oracle, not a formality. A shape that passes on one backend and
+fails on the other means one backend's behavior disagrees with the documented
+contract. Decide which one from the contract and fix Eshu there; never loosen
+the snapshot to make the pair agree. The first run (#6782) found one defect on
+each side:
+
+| Shape | Backend at fault | Cause | Fix |
+| --- | --- | --- | --- |
+| `find_function_call_chain` from `recursionFib` to itself | Neo4j route | Legacy `shortestPath()` raises `Neo.DatabaseError.Statement.ExecutionFailed` when start = end, so a self-recursive request returned HTTP 500. | The compat builder runs a GQL `SHORTEST 1` search in a scoped `CALL` subquery, with each hop bound inside the quantified pattern. It needs Neo4j 5.23 or later. |
+| `get_repo_context` `source_tool_breakdown` for `orders-api` | NornicDB write path | The batched repo-dependency writer omitted `source_tool` from UNWIND rows that had none. NornicDB v1.3.3 stored the literal text `row.source_tool`, while Neo4j left the edge unstamped as the [provenance contract](edge-source-tool-provenance.md) requires. | The writer always sends the key, `nil` when absent. |
+
+Both fixes carry live tests (build tag `live_nornicdb_answer_truth`) that select
+their backend in each test's preamble: NornicDB unless the preamble's test-only
+backend knob names Neo4j, with `ESHU_NEO4J_URI` pointing at that leg's container
+(see the preamble in `go/internal/query/codequery/chain/self_recursion_live_test.go`
+for the exact knob). Setting the URI without the knob silently runs the NornicDB
+path, so run each test on both backends before changing either path.
+
+Two known differences still pass on both backends, and neither is settled yet.
+Transitive `CALLS` on `POST /api/v0/code/relationships` returns the start node
+and repeat depths on the Neo4j route, but each node once on the NornicDB
+breadth-first route (#6849). And the Class `INHERITS` count varies run to run
+on both backends, 22 or 23 on each, so it is not a backend divergence (#6850).
+Both are recorded in `docs/internal/evidence/6782-b7-neo4j-divergences.md`.
+
 ## Profile Matrix
 
 The backend matrix carries a `profile_matrix` gate for every authoritative graph

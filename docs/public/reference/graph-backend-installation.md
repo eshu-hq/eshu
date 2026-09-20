@@ -16,7 +16,7 @@ For start, stop, status, logs, and upgrades, use
 | Docker Compose | No | Compose provides the graph service and pins the NornicDB image. |
 | Kubernetes or Helm | No | The deployment provides the Bolt-compatible graph endpoint. |
 | Specific NornicDB build testing | Yes | Select process mode and point at the binary. |
-| Neo4j compatibility | No | Run Neo4j separately and set graph connection variables. |
+| Neo4j compatibility | No | Run Neo4j separately and set graph connection variables. Requires Neo4j 5.23 or later: the call-chain query uses GQL `SHORTEST` and scoped `CALL` subqueries (#6782). |
 
 `ESHU_GRAPH_BACKEND` selects the backend. `nornicdb` is the default; `neo4j` is
 the explicit compatibility backend. Invalid values fail startup.

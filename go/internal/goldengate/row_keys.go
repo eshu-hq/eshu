@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package goldengate
+
+// writePathRowKeys is every `row.<key>` the graph write path reads whose key
+// has no underscore. Snake_case keys need no entry: isUnresolvedRowToken
+// already flags them, including the dynamic `row.<alias>_<field>` keys that
+// internal/graph/batch.go builds at run time. The list lets the check flag a
+// plain key stored under a different property name, such as
+// `s3_internet_exposure_state = row.state` or `name = row.version` (#6782 F-6).
+//
+// TestWritePathRowKeysMatchSource derives this set from every non-test Go
+// string literal under go/internal, go/cmd, and go/pkg and fails on a missing
+// or stale key, so edit it only to match what that test prints.
+var writePathRowKeys = map[string]struct{}{
+	"action":         {},
+	"actions":        {},
+	"actor":          {},
+	"address":        {},
+	"alias":          {},
+	"ambiguous":      {},
+	"api":            {},
+	"arn":            {},
+	"async":          {},
+	"attrs":          {},
+	"binding":        {},
+	"capabilities":   {},
+	"cidr":           {},
+	"classification": {},
+	"classifier":     {},
+	"cloud":          {},
+	"confidence":     {},
+	"context":        {},
+	"decorators":     {},
+	"depth":          {},
+	"digest":         {},
+	"direction":      {},
+	"docstring":      {},
+	"ecosystem":      {},
+	"environment":    {},
+	"evidence":       {},
+	"excluded":       {},
+	"extractor":      {},
+	"family":         {},
+	"finding":        {},
+	"framework":      {},
+	"hashes":         {},
+	"id":             {},
+	"kind":           {},
+	"labels":         {},
+	"language":       {},
+	"limitations":    {},
+	"lineage":        {},
+	"marker":         {},
+	"message":        {},
+	"methods":        {},
+	"mode":           {},
+	"mutated":        {},
+	"name":           {},
+	"namespace":      {},
+	"optional":       {},
+	"path":           {},
+	"pattern":        {},
+	"payload":        {},
+	"primitives":     {},
+	"properties":     {},
+	"props":          {},
+	"protocol":       {},
+	"provider":       {},
+	"purl":           {},
+	"rationale":      {},
+	"reachability":   {},
+	"reason":         {},
+	"region":         {},
+	"registry":       {},
+	"repository":     {},
+	"selector":       {},
+	"sensitive":      {},
+	"serial":         {},
+	"slot":           {},
+	"state":          {},
+	"tag":            {},
+	"target":         {},
+	"tenancy":        {},
+	"trait":          {},
+	"type":           {},
+	"uid":            {},
+	"value":          {},
+	"version":        {},
+	"visibility":     {},
+}

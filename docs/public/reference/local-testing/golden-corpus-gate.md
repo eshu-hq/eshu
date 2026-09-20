@@ -17,7 +17,7 @@ The gate asserts the four B-7 acceptance buckets:
 | Bucket | Assertion |
 | --- | --- |
 | (a) drains | `fact_work_items` residual rows and `shared_projection_intents` nonterminal rows both reach their snapshot bound. The `shared_projection_intents` check is the decisive one — a zero `fact_work_items` queue alone misses held projection intents (see #3859). To avoid passing on an *unreduced* pipeline, the drain is **populated-then-drained**: it is accepted only after the reducer has been observed to emit the `repo_dependency` domain (`-require-populated-domains`), so a poll that fires before the reducer starts cannot read an empty `0/0` and pass. The `repo_dependency` subset is reported because it is the primary drain signal. |
-| (b) graph truth | Required correlations exist (`rc-1` deployable-unit, `rc-3` cross-repo `DEPENDS_ON`, ...). Per-label node and per-relationship edge counts are reported against the snapshot tolerances. |
+| (b) graph truth | Required correlations exist (`rc-1` deployable-unit, `rc-3` cross-repo `DEPENDS_ON`, ...). Per-label node and per-relationship edge counts are reported against the snapshot tolerances. No node or edge property may hold an unresolved `row.<key>` token, the text NornicDB stores when a writer omits an `UNWIND` row key it reads (#6782). |
 | (c) query truth | Canonical HTTP responses (`GET /api/v0/repositories`, `GET /api/v0/status/operator-control-plane`) carry their required shape. |
 | (d) timing | The total pipeline wall time stays within a budget multiple, and — when the orchestrator supplies per-phase timings (B-11, #3804) — each gated phase stays within its `e2e-baseline.json` baseline. See [Macro per-phase regression (B-11)](#macro-per-phase-regression-b-11). |
 
@@ -124,6 +124,27 @@ bash scripts/verify-golden-corpus-gate.sh
 #               (also retains the cross-run lock - see below)
 ```
 
+### Running it on Neo4j
+
+The same gate runs against the Neo4j compatibility backend. Set
+`ESHU_GRAPH_BACKEND=neo4j` and the orchestrator switches to
+`docker-compose.neo4j.yml`, the `neo4j` service, and the `neo4j` database; every
+other step, and every snapshot assertion, is unchanged:
+
+```bash
+ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh
+```
+
+The snapshot is one contract for both backends. A Neo4j-only failure is a
+backend divergence to diagnose, not a reason to loosen the snapshot: find which
+backend matches the documented contract, and fix Eshu (or file the backend
+defect) accordingly. The first Neo4j run (#6782) found two such divergences: a
+Neo4j-only `shortestPath()` error on a self-recursive call chain, and a
+NornicDB-only bogus `source_tool` written from a missing UNWIND row key. See
+[Backend Conformance](../backend-conformance.md#b-7-golden-corpus-on-both-backends).
+The cross-run lock below applies to both backends, so run them one after the
+other on one host.
+
 ### The cross-run lock
 
 The gate binds **fixed host ports** (Postgres, api, mcp) and a compose project
@@ -218,4 +239,8 @@ behavior is unchanged.
 
 In CI the gate runs as the **Golden Corpus Gate** workflow, required on any PR
 that touches a pipeline phase (collector, parser, projector, reducer, query,
-storage, the pipeline command binaries, the cassettes, or the snapshot).
+storage, the pipeline command binaries, the cassettes, or the snapshot). Its
+`corpus-gate` job is a matrix with one cell per graph backend:
+`corpus-gate (nornicdb)` is blocking (`golden-corpus-gate` in
+`specs/ci-gates.v1.yaml`), and `corpus-gate (neo4j)` is registered as the
+non-blocking `golden-corpus-gate-neo4j` until main is green on it.

@@ -5,6 +5,7 @@ package inheritance
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -424,6 +425,68 @@ func TestInheritanceMaterializationHandlerNoEntitiesSucceeds(t *testing.T) {
 	}
 	if len(writer.rows) != 0 {
 		t.Fatalf("emitted %d intents, want 0", len(writer.rows))
+	}
+}
+
+// TestExtractInheritanceRowsDuplicateParentNameIsOrderIndependent proves
+// parent resolution does not depend on envelope order (issue #6850). The
+// ruby_rails_app corpus carries three in-repo classes named "Base", and the
+// fact loader orders envelopes by wall-clock observed_at, so first-seen-wins
+// resolved "< Base" to a different parent run to run and rc-12 flipped
+// between 22 and 23. Duplicate names always resolve to the smallest
+// entity_id, so every envelope order emits the same edge.
+func TestExtractInheritanceRowsDuplicateParentNameIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+
+	parent := func(id string) facts.Envelope {
+		return facts.Envelope{
+			FactKind: "content_entity",
+			ScopeID:  "scope-1",
+			Payload: map[string]any{
+				"repo_id":       "repo-1",
+				"entity_id":     id,
+				"entity_type":   "Class",
+				"entity_name":   "Base",
+				"relative_path": "/repo/" + id + ".rb",
+			},
+		}
+	}
+	child := facts.Envelope{
+		FactKind: "content_entity",
+		ScopeID:  "scope-1",
+		Payload: map[string]any{
+			"repo_id":       "repo-1",
+			"entity_id":     "content-entity:e_kid",
+			"entity_type":   "Class",
+			"entity_name":   "Kid",
+			"relative_path": "/repo/kid.rb",
+			"entity_metadata": map[string]any{
+				"bases": []any{"Base"},
+			},
+		},
+	}
+
+	orders := [][]facts.Envelope{
+		{parent("content-entity:e_base_1"), parent("content-entity:e_base_2"), parent("content-entity:e_base_3"), child},
+		{parent("content-entity:e_base_3"), parent("content-entity:e_base_2"), parent("content-entity:e_base_1"), child},
+		{child, parent("content-entity:e_base_2"), parent("content-entity:e_base_3"), parent("content-entity:e_base_1")},
+	}
+	var first []map[string]any
+	for i, envelopes := range orders {
+		_, rows := ExtractRows(envelopes)
+		if len(rows) != 1 {
+			t.Fatalf("order %d: len(rows) = %d, want 1", i, len(rows))
+		}
+		if got := rows[0]["parent_entity_id"]; got != "content-entity:e_base_1" {
+			t.Fatalf("order %d: parent_entity_id = %#v, want the smallest entity_id", i, got)
+		}
+		if i == 0 {
+			first = rows
+			continue
+		}
+		if !reflect.DeepEqual(rows, first) {
+			t.Fatalf("order %d: rows = %#v, want %#v (order-independent)", i, rows, first)
+		}
 	}
 }
 

@@ -25,7 +25,7 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   aliases, so the gate's call sites read unchanged. Edit the assertion rules in
   `internal/goldengate`, and keep them I/O-free there (no Postgres / Bolt / net).
   This command package keeps only the I/O-and-orchestration layer
-  (`graph.go`, `drains.go`, `query.go`, `mcp.go`, `demoanswers.go`, `runner.go`,
+  (`graph.go`, `graph_bolt.go`, `drains.go`, `query.go`, `mcp.go`, `demoanswers.go`, `runner.go`,
   `timing.go`, `main.go`). The demo-answers phase (`demoanswers.go`, #4776)
   reuses the pure `EvaluateQueryShape` core — it adds no new evaluator, only the
   I/O to execute each `specs/demo-first-answers.v1.yaml` question live (its
@@ -102,14 +102,15 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   is advertised; fix the route (mirror `cmd/api/wiring.go`), do not drop the
   assertion. Tools needing a selector pass it in `arguments` (`get_repo_summary`
   → `repo_name`; `list_kubernetes_correlations` → `cluster_id`).
-- **`graph.go` is content-flagged by the perf-evidence gate** (it holds the
-  scalar-count Cypher). Any edit to it — even a comment — needs a tracked
+- **`graph_bolt.go` and `graph.go` are content-flagged by the perf-evidence
+  gate** (`graph_bolt.go` holds the scalar-count Cypher). Any edit to either file — even a comment — needs a tracked
   `evidence-*.md` (No-Regression + No-Observability-Change is fine when no
   Cypher/perf/telemetry changed). The verifier diffs `HEAD~1` locally but
   `origin/main` in CI, so reproduce a CI failure with
   `ESHU_PERFORMANCE_EVIDENCE_BASE=origin/main scripts/verify-performance-evidence.sh`.
 - **Labels and relationship types are interpolated into Cypher** (they cannot be
-  parameterized). `graph.go` validates them against `identRE` first. Keep that
+  parameterized). `graph_bolt.go` validates them against `identRE` (defined in
+  `graph.go`) first. Keep that
   guard on any new graph query.
 - **An empty report is a failure.** `Report.Failed()` returns true when nothing
   ran — a gate that asserted nothing has proven nothing. Preserve this.

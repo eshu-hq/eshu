@@ -127,8 +127,7 @@ func TestBuildCallChainCypherCrossRepoUsesEndpointRepositorySelectors(t *testing
 	for _, fragment := range []string{
 		"start.repo_id = $start_repo_id",
 		"end.repo_id = $end_repo_id",
-		"all(node IN nodes(path) WHERE coalesce(node.repo_id, '') IN $traversal_repo_ids)",
-		"[:CALLS*1..4]",
+		"(()-[:CALLS]->(node) WHERE coalesce(node.repo_id, '') IN $traversal_repo_ids){1,4}",
 		"LIMIT 5",
 	} {
 		if !strings.Contains(cypher, fragment) {
@@ -193,7 +192,7 @@ func TestBuildCallChainCypherRepoScopedFiltersEveryPathNode(t *testing.T) {
 	for _, fragment := range []string{
 		"start.repo_id = $repo_id",
 		"end.repo_id = $repo_id",
-		"all(node IN nodes(path) WHERE coalesce(node.repo_id, '') = $repo_id)",
+		"(()-[:CALLS]->(node) WHERE coalesce(node.repo_id, '') = $repo_id){1,4}",
 	} {
 		if !strings.Contains(cypher, fragment) {
 			t.Fatalf("repo-scoped call-chain cypher missing %q:\n%s", fragment, cypher)
