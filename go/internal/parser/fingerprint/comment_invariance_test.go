@@ -185,9 +185,12 @@ func TestExactOnlyTiersIgnoreComments(t *testing.T) {
 			findSelf("bind", "function"),
 		},
 		{
+			// tree-sitter-kotlin v1.1.0 emits /* */ as block_comment (verified
+			// by parse probe, not multiline_comment), so both comment kinds
+			// are exercised here to lock the invariance contract.
 			"kotlin", tree_sitter_kotlin.Language,
-			"fun f(): Int {\nreturn 1\n// interior\n}\n",
-			"fun f(): Int {\nreturn 1\n// rewritten interior\n}\n",
+			"fun f(): Int {\n// leading\nreturn 1 /* leading block */\n}\n",
+			"fun f(): Int {\n// rewritten\nreturn 1 /* rewritten block */\n}\n",
 			findSelf("function_body"),
 		},
 		{

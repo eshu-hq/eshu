@@ -403,6 +403,141 @@ func TestFingerprintSketchLossInvalidatesBands(t *testing.T) {
 	}
 }
 
+// TestDeleteWithdrawnFingerprintsChunksAtFileBatchSize proves the repo-scale
+// bound on the withdrawn path: withdrawn holds every non-fingerprinted
+// entity in the Write (classes, variables, below-floor functions — not just
+// lost fingerprints), so one unbounded text[] per repo would ship
+// multi-megabyte parameters and hundreds of thousands of no-op index probes
+// on every full-sync Write. Scoped deletes chunk at contentFileBatchSize,
+// matching the sibling delete convention in Write().
+func TestDeleteWithdrawnFingerprintsChunksAtFileBatchSize(t *testing.T) {
+	t.Parallel()
+
+	const perRepo = contentFileBatchSize + 150 // forces two chunks per repo
+	rows := make([]preparedFingerprintRow, 0, 2*perRepo)
+	want := map[string]bool{}
+	for r := 0; r < 2; r++ {
+		repoID := "repo-chunk-wd-a"
+		if r == 1 {
+			repoID = "repo-chunk-wd-b"
+		}
+		for i := 0; i < perRepo; i++ {
+			id := repoID + "|a.go|Class|C" + itoa(i)
+			want[id] = true
+			rows = append(rows, preparedFingerprintRow{entityID: id, repoID: repoID})
+		}
+	}
+
+	fake := &fakeExecQueryer{}
+	writer := NewContentWriter(withTransactions(fake))
+	if err := writer.deleteWithdrawnFingerprints(context.Background(), rows); err != nil {
+		t.Fatalf("deleteWithdrawnFingerprints: %v", err)
+	}
+
+	var fpDeletes, bandDeletes int
+	covered := map[string]bool{}
+	for _, exec := range fake.execs {
+		q := strings.TrimSpace(exec.query)
+		if !strings.HasPrefix(q, "DELETE") || !strings.Contains(exec.query, "ANY(") {
+			continue
+		}
+		var isFP, isBand bool
+		switch {
+		case strings.Contains(exec.query, "code_function_fingerprint"):
+			isFP = true
+			fpDeletes++
+		case strings.Contains(exec.query, "code_fingerprint_band"):
+			isBand = true
+			bandDeletes++
+		}
+		if !isFP && !isBand {
+			continue
+		}
+		ids := deleteArgIDs(t, exec.args)
+		if len(ids) > contentFileBatchSize {
+			t.Fatalf("scoped delete carries %d IDs, want at most %d", len(ids), contentFileBatchSize)
+		}
+		for _, id := range ids {
+			if !want[id] {
+				t.Fatalf("scoped delete targets unexpected entity %q", id)
+			}
+			covered[id] = true
+		}
+	}
+	// Two repos × two chunks × two tables.
+	if fpDeletes != 4 || bandDeletes != 4 {
+		t.Fatalf("scoped deletes fp=%d band=%d, want 4 and 4", fpDeletes, bandDeletes)
+	}
+	if len(covered) != len(want) {
+		t.Fatalf("covered %d of %d withdrawn entities", len(covered), len(want))
+	}
+}
+
+// TestDeleteFingerprintBandsForEntitiesChunksAtFileBatchSize proves the same
+// bound for the rewrite invalidation: a repo-scale Write can rewrite more
+// than contentFileBatchSize fingerprinted entities, so the pre-insert shed
+// chunks instead of one unbounded text[].
+func TestDeleteFingerprintBandsForEntitiesChunksAtFileBatchSize(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]preparedFingerprintRow, 0, contentFileBatchSize+50)
+	want := map[string]bool{}
+	for i := 0; i < contentFileBatchSize+50; i++ {
+		id := "repo-chunk-bi|a.go|Function|big" + itoa(i)
+		want[id] = true
+		rows = append(rows, preparedFingerprintRow{
+			entityID:       id,
+			repoID:         "repo-chunk-bi",
+			fpExact:        "exact-" + itoa(i),
+			tokenCount:     64,
+			hasFingerprint: true,
+		})
+	}
+
+	fake := &fakeExecQueryer{}
+	writer := NewContentWriter(withTransactions(fake))
+	if err := writer.deleteFingerprintBandsForEntities(context.Background(), rows); err != nil {
+		t.Fatalf("deleteFingerprintBandsForEntities: %v", err)
+	}
+
+	var deletes int
+	covered := map[string]bool{}
+	for _, exec := range fake.execs {
+		if !strings.HasPrefix(strings.TrimSpace(exec.query), "DELETE") ||
+			!strings.Contains(exec.query, "code_fingerprint_band") ||
+			!strings.Contains(exec.query, "ANY(") {
+			continue
+		}
+		deletes++
+		ids := deleteArgIDs(t, exec.args)
+		if len(ids) > contentFileBatchSize {
+			t.Fatalf("scoped delete carries %d IDs, want at most %d", len(ids), contentFileBatchSize)
+		}
+		for _, id := range ids {
+			covered[id] = true
+		}
+	}
+	if deletes != 2 {
+		t.Fatalf("scoped band deletes = %d, want 2", deletes)
+	}
+	if len(covered) != len(want) {
+		t.Fatalf("covered %d of %d rewritten entities", len(covered), len(want))
+	}
+}
+
+// deleteArgIDs extracts the entity text[] argument of a scoped
+// (repo_id, entities) delete for bound and coverage assertions.
+func deleteArgIDs(t *testing.T, args []any) []string {
+	t.Helper()
+	for _, arg := range args[1:] {
+		if ids, ok := arg.(pgarray.StringArray); ok {
+			return []string(ids)
+		}
+	}
+	t.Fatalf("scoped delete carries no entity text[] arg: %v", args)
+	return nil
+}
+
 // assertExecTargetsEntity proves a scoped (repo, entity-set) delete carries
 // the withdrawn entity: args are (repo_id, entity text[]) per the shared
 // scoped-delete shape.

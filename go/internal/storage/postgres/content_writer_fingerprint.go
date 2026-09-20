@@ -164,26 +164,50 @@ func (w ContentWriter) upsertFingerprintBatches(ctx context.Context, rows []prep
 // for the given freshly upserted fingerprint rows, grouped by repo. Band
 // rows are a pure function of the persisted sketch: without this invalidation
 // a re-fingerprinted entity keeps its prior bands alongside the new ones.
+// Entity sets chunk at contentFileBatchSize, matching the sibling delete
+// convention in Write(): a repo-scale Write rewrites thousands of entities,
+// and one unbounded text[] per repo would ship multi-megabyte parameters.
 func (w ContentWriter) deleteFingerprintBandsForEntities(ctx context.Context, rows []preparedFingerprintRow) error {
 	byRepo := map[string][]string{}
 	for _, row := range rows {
 		byRepo[row.repoID] = append(byRepo[row.repoID], row.entityID)
 	}
 	for repoID, entityIDs := range byRepo {
-		if _, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(entityIDs)); err != nil {
-			return fmt.Errorf("delete code_fingerprint_band rows for %d rewritten entities: %w", len(entityIDs), err)
+		for _, chunk := range chunkEntityIDs(entityIDs, contentFileBatchSize) {
+			if _, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(chunk)); err != nil {
+				return fmt.Errorf("delete code_fingerprint_band rows for %d rewritten entities: %w", len(chunk), err)
+			}
 		}
 	}
 	return nil
+}
+
+// chunkEntityIDs splits an entity ID set into contentFileBatchSize chunks so
+// scoped (repo_id, entity text[]) deletes stay bounded on repo-scale Writes.
+// A non-positive size degrades to a single chunk rather than looping forever.
+func chunkEntityIDs(ids []string, size int) [][]string {
+	if size <= 0 || len(ids) <= size {
+		return [][]string{ids}
+	}
+	chunks := make([][]string, 0, len(ids)/size+1)
+	for i := 0; i < len(ids); i += size {
+		end := i + size
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunks = append(chunks, ids[i:end])
+	}
+	return chunks
 }
 
 // deleteWithdrawnFingerprints removes code_function_fingerprint and
 // code_fingerprint_band rows for entities rewritten without fingerprint
 // keys. Deleting for never-fingerprinted entities is a harmless no-op: the
 // writer cannot distinguish "never had" from "just lost" without a read,
-// and the delete is idempotent either way. Rows group by repo into one
-// statement per table, matching the scoped-delete shape the band
-// invalidation already uses.
+// and the delete is idempotent either way. Rows group by repo and chunk at
+// contentFileBatchSize per table, matching the scoped-delete shape the band
+// invalidation already uses: withdrawn holds every non-fingerprinted entity
+// in the Write, so an unchunked array would grow with the repo.
 func (w ContentWriter) deleteWithdrawnFingerprints(ctx context.Context, rows []preparedFingerprintRow) error {
 	if len(rows) == 0 {
 		return nil
@@ -193,11 +217,13 @@ func (w ContentWriter) deleteWithdrawnFingerprints(ctx context.Context, rows []p
 		byRepo[row.repoID] = append(byRepo[row.repoID], row.entityID)
 	}
 	for repoID, entityIDs := range byRepo {
-		if _, err := w.database.ExecContext(ctx, deleteWithdrawnFingerprintSQL, repoID, pgarray.StringArray(entityIDs)); err != nil {
-			return fmt.Errorf("delete withdrawn code_function_fingerprint rows for %d entities: %w", len(entityIDs), err)
-		}
-		if _, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(entityIDs)); err != nil {
-			return fmt.Errorf("delete withdrawn code_fingerprint_band rows for %d entities: %w", len(entityIDs), err)
+		for _, chunk := range chunkEntityIDs(entityIDs, contentFileBatchSize) {
+			if _, err := w.database.ExecContext(ctx, deleteWithdrawnFingerprintSQL, repoID, pgarray.StringArray(chunk)); err != nil {
+				return fmt.Errorf("delete withdrawn code_function_fingerprint rows for %d entities: %w", len(chunk), err)
+			}
+			if _, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(chunk)); err != nil {
+				return fmt.Errorf("delete withdrawn code_fingerprint_band rows for %d entities: %w", len(chunk), err)
+			}
 		}
 	}
 	return nil
