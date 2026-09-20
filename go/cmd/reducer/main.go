@@ -22,7 +22,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
-	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -366,20 +365,11 @@ func buildReducerService(
 		return reducer.Service{}, err
 	}
 
-	edgeWriter := edgewriter.NewEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	// Shell-exec orphan ShellCommand cleanup runs a Go-side anti-join (S1
-	// candidate keys, S2 connected keys) rather than a relationship-existence
-	// predicate, which is mis-evaluated on the pinned NornicDB backends
-	// (#5310; see docs/public/reference/nornicdb-pitfalls.md). graphReader
-	// already satisfies OrphanSweepReader (query.GraphQuery.Run has the same
-	// shape) and is the same read port graphOrphanSweepRunnerFor uses.
-	edgeWriter.Reader = graphReader
-	edgeWriter.Instruments = instruments
-	edgeWriter.Logger = logger
-	edgeWriter.CodeCallBatchSize = codeCallEdgeBatchSize
-	edgeWriter.CodeCallGroupBatchSize = codeCallEdgeGroupBatchSize
-	edgeWriter.InheritanceGroupBatchSize = inheritanceEdgeGroupBatchSize
-	edgeWriter.SQLRelationshipGroupBatchSize = sqlRelationshipEdgeGroupBatchSize
+	// graphReader already satisfies OrphanSweepReader (query.GraphQuery.Run has
+	// the same shape) and is the same read port graphOrphanSweepRunnerFor uses.
+	edgeWriter := newSharedProjectionEdgeWriter(neo4jExec, neo4jBatchSize(getenv),
+		instruments, logger, graphReader, codeCallEdgeBatchSize, codeCallEdgeGroupBatchSize,
+		inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
 	edgeWriter.SQLRelationshipSequentialWrites = graphBackend == runtimecfg.GraphBackendNornicDB
 	edgeWriter.RepoDependencyRetractStatementTiming = repoDependencyRetractStatementTiming
 
