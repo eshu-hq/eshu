@@ -61,4 +61,4 @@
 - Adding a new CODEOWNERS location to the precedence list is a product
   decision that changes `README.md`'s grammar section, `CandidatePaths`,
   `IsCandidatePath`, and `ResolveWinner` together, plus the Git collector's
-  discovery admission in `facts.go` / `git_snapshot_native.go`.
+  discovery admission in `facts.go` / `snapshot_native.go`.

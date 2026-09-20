@@ -114,10 +114,10 @@ var intentionalRequiredCollections = map[requiredCollectionKey]struct{}{
 	// fingerprinted tag values before the envelope is built.
 	{FactKindAzureTagObservation, "tag_value_fingerprints"}: {},
 	// file.parsed_file_data: fileFactEnvelope
-	// (go/internal/collector/repo/git/fact_builder.go:433-439) unconditionally sets
-	// parsed_file_data to the parser's per-file map on every "file" fact it
-	// builds — there is no conditional-emission path that could omit it for a
-	// valid fact. An absent parsed_file_data must dead-letter, not decode to a
+	// ParserFileFactEnvelope (go/internal/collector/repo/git/parser_fact_export.go)
+	// unconditionally embeds the parser payload under parsed_file_data on every
+	// "file" fact it builds — there is no conditional-emission path that could
+	// omit it for a valid fact. An absent parsed_file_data must dead-letter, not decode to a
 	// File with a nil parser payload the code-graph-core reducer handlers
 	// would then silently skip.
 	{FactKindCodegraphFile, "parsed_file_data"}: {},

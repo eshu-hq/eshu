@@ -8,7 +8,7 @@
 //
 // The family has six fact kinds, all emitted only when the value-flow gate
 // (ESHU_EMIT_DATAFLOW) is on (go/internal/collector/repo/git/snapshot_*.go,
-// git_followup_facts.go dataflowScannedFactEnvelope):
+// followup_facts.go dataflowScannedFactEnvelope):
 //
 //   - DataflowScanned ("code_dataflow_scanned"): a per-generation
 //     reconciliation marker carrying no findings, emitted once per repository
