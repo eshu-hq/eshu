@@ -189,9 +189,11 @@ func boltCount(ctx context.Context, runner *boltRetractTestRunner, cypher string
 	return 0, fmt.Errorf("unexpected count type %T", rows[0]["count"])
 }
 
-// TestBoltRetractCodeInterprocEvidenceByUIDs_Red reproduces the bug where
-// RetractCodeInterprocEvidenceByUIDs passes []string parameters to the bolt
-// driver and the edges survive even though the handler reports success.
+// The []string-parameter live case this harness serves is
+// TestBoltRetractCodeInterprocEvidenceByUIDs_Red in package cypher
+// (code_evidence_bolt_retract_test.go): RetractCodeInterprocEvidenceByUIDs
+// passes []string parameters to the bolt driver and the edges survive even
+// though the handler reports success.
 //
 // Gate: ESHU_CYPHER_BOLT_DSN must be set (e.g. neo4j://127.0.0.1:17688).
 // When unset the test skips.

@@ -76,7 +76,7 @@ type materializedEdgeFamily struct {
 // for those the retract is the load-bearing confirmation.
 var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	"shell_exec": {
-		EdgeTypes:      map[string]string{"EXECUTES_SHELL": "shell invocation edge (edgeBatchCanonicalShellExecUpsertCypher)"},
+		EdgeTypes:      map[string]string{"EXECUTES_SHELL": "shell invocation edge (BatchCanonicalShellExecUpsertCypher)"},
 		RetractCypher:  edgewriter.RetractShellExecEdgesCypher,
 		IdentityCypher: edgewriter.BatchCanonicalShellExecUpsertCypher,
 	},

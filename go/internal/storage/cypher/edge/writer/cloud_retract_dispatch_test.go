@@ -12,8 +12,8 @@ package writer
 // Each writer's Retract* method must therefore route through its
 // dispatchRetract helper (sequential Execute, never ExecuteGroup).
 //
-// These guards use sqlSequentialRecordingExecutor (edge_writer_sql_retract_
-// test.go), which implements GroupExecutor and records group calls, so a
+// These guards use sqlSequentialRecordingExecutor (sql_retract_test.go),
+// which implements GroupExecutor and records group calls, so a
 // revert to the grouped dispatch() fails here. The writers' other retract
 // unit tests use the plain recordingExecutor, which does NOT implement
 // GroupExecutor — under it the grouped dispatch takes its sequential fallback

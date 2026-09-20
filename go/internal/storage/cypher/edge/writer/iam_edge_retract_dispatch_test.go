@@ -16,8 +16,8 @@ package writer
 // NornicDB. Each writer now routes its Retract* method through a
 // dispatchRetract helper (sequential Execute, never ExecuteGroup).
 //
-// These guards use sqlSequentialRecordingExecutor (edge_writer_sql_retract_
-// test.go), which implements GroupExecutor and records group calls, so a
+// These guards use sqlSequentialRecordingExecutor (sql_retract_test.go),
+// which implements GroupExecutor and records group calls, so a
 // revert to the grouped dispatch() fails here. They mirror
 // TestKubernetesCorrelationEdgeWriterRetractNeverGroups et al.
 // (cloud_retract_dispatch_test.go).
