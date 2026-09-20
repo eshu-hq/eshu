@@ -1,0 +1,16 @@
+go/internal/reducer/crossscope/dependencies.go
+  h_78a442cba0b3e6 42-55
+go/internal/reducer/crossscope/dependencies_test.go
+  h_78a442cba0b3e6 47-73,94,98-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d1de0c1787acf8ff967e59ade738d85f525c3885",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
