@@ -5,6 +5,7 @@ package awscloud
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +14,10 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 )
+
+// errTestDriftProbe is the sick-backend sentinel for the nil-ledger terminal
+// fallback test: past the bound, the gate must commit without consulting it.
+var errTestDriftProbe = errors.New("state snapshot probe backend is down")
 
 // statePendingMemoryLedger is an in-memory crossscope.ReadinessWaitLedger
 // with the store's earliest-anchor rule and epoch fence, mirroring
@@ -187,6 +192,31 @@ func TestAWSCloudRuntimeDriftLedgerSettlesWithinBoundOfFirstWait(t *testing.T) {
 	}
 	if !found || !row.Settled() {
 		t.Fatalf("want a settled ledger row after the bound, got found=%v row=%+v", found, row)
+	}
+}
+
+// TestAWSCloudRuntimeDriftLedgerNilSkipsProbePastBound pins the terminal
+// fallback: with no ledger wired and the row already past the bound, the
+// gate commits WITHOUT probing the backend, so a sick probe cannot fail a
+// row the pre-ledger code committed. The unanchored evaluation must only ever
+// run with a wired ledger behind it.
+func TestAWSCloudRuntimeDriftLedgerNilSkipsProbePastBound(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.July, 29, 15, 0, 0, 0, time.UTC)
+	handler, writer := driftSupersessionHandler(nil, &now)
+	handler.ReadinessWaits = nil
+	handler.ReadinessChecker = &stubAWSCloudRuntimeDriftReadinessChecker{pending: true, err: errTestDriftProbe}
+
+	aged := driftSupersessionIntent("gen-1", now.Add(-2*awsCloudRuntimeDriftStatePendingMaxWait))
+	if _, err := handler.Handle(context.Background(), aged); err != nil {
+		t.Fatalf("aged row: err = %v, want nil (terminal fallback must not probe)", err)
+	}
+	if writer.calls != 1 {
+		t.Fatalf("writer.calls = %d, want 1 (past the bound, must write)", writer.calls)
+	}
+	if got := handler.ReadinessChecker.(*stubAWSCloudRuntimeDriftReadinessChecker).calls; got != 0 {
+		t.Fatalf("probe calls = %d, want 0 (the backend must not be consulted past the bound)", got)
 	}
 }
 

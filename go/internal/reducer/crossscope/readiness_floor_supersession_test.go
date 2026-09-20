@@ -5,6 +5,8 @@ package crossscope
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -93,6 +95,20 @@ func runLedgerFloor(
 	resolved int,
 ) error {
 	t.Helper()
+	return runLedgerFloorWithLogger(t, nil, ledger, readiness, intent, now, lookupPlanned, resolved)
+}
+
+func runLedgerFloorWithLogger(
+	t *testing.T,
+	logger *slog.Logger,
+	ledger ReadinessWaitLedger,
+	readiness ProducerReadiness,
+	intent reducercontract.Intent,
+	now time.Time,
+	lookupPlanned bool,
+	resolved int,
+) error {
+	t.Helper()
 
 	signal, err := CheckProducerReadinessBeforeLoadWithLedger(
 		context.Background(), ledger, readiness, intent, now, lookupPlanned,
@@ -101,10 +117,42 @@ func runLedgerFloor(
 		return err
 	}
 	return ApplyProducerReadinessPostLoad(
-		context.Background(), nil, ledger, signal,
+		context.Background(), logger, ledger, signal,
 		SingleProducerResolvedCounts(signal.ProducerDomains, resolved),
 		intent, now,
 	)
+}
+
+// logCaptureHandler records every log record's message so tests can prove a
+// line fired exactly once across generations.
+type logCaptureHandler struct {
+	mu       sync.Mutex
+	messages []string
+}
+
+func (h *logCaptureHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *logCaptureHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.messages = append(h.messages, r.Message)
+	return nil
+}
+
+func (h *logCaptureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h *logCaptureHandler) WithGroup(string) slog.Handler { return h }
+
+func (h *logCaptureHandler) count(message string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	n := 0
+	for _, m := range h.messages {
+		if m == message {
+			n++
+		}
+	}
+	return n
 }
 
 func ledgerIntent(domain reducercontract.Domain, scope, generation string, anchor time.Time) reducercontract.Intent {
@@ -233,5 +281,65 @@ func TestProducerReadinessLedgerNilMatchesRowBound(t *testing.T) {
 	aged := ledgerIntent(consumer, "scope:nil-aged", "gen-1", testCrossScopeNow.Add(-2*ProducerReadinessMaxWait))
 	if err := runLedgerFloor(t, nil, &fixedProducerReadiness{ready: false}, aged, testCrossScopeNow, true, 0); err != nil {
 		t.Fatalf("aged row: err = %v, want nil (row past the bound must proceed, as before)", err)
+	}
+}
+
+// TestProducerReadinessLedgerNilSkipsProbePastBound pins the terminal
+// fallback: with no ledger wired and the row already past the bound, the
+// floor proceeds WITHOUT probing the backend, so a sick probe cannot fail a
+// row the pre-ledger code committed. The unanchored evaluation must only ever
+// run with a wired ledger behind it.
+func TestProducerReadinessLedgerNilSkipsProbePastBound(t *testing.T) {
+	t.Parallel()
+
+	consumer := reducercontract.DomainCICDRunCorrelation
+	probe := &fixedProducerReadiness{ready: false, err: errors.New("probe backend is down")}
+
+	aged := ledgerIntent(consumer, "scope:nil-skip-probe", "gen-1", testCrossScopeNow.Add(-2*ProducerReadinessMaxWait))
+	if err := runLedgerFloor(t, nil, probe, aged, testCrossScopeNow, true, 0); err != nil {
+		t.Fatalf("aged row: err = %v, want nil (terminal fallback must not probe)", err)
+	}
+	if probe.calls != 0 {
+		t.Fatalf("probe calls = %d, want 0 (the backend must not be consulted past the bound)", probe.calls)
+	}
+}
+
+// TestProducerReadinessSettleLogsAbandonedOnce pins the settle log contract:
+// abandonment fires once per (scope, consumer, missing set). The generation
+// that crosses the bound logs outcome=abandoned; a later generation with the
+// same settled set proceeds silently instead of emitting another apparent
+// abandonment.
+func TestProducerReadinessSettleLogsAbandonedOnce(t *testing.T) {
+	t.Parallel()
+
+	const scope = "scope:ledger-settle-once"
+	ledger := newSupersessionLedger()
+	readiness := &fixedProducerReadiness{ready: false}
+	consumer := reducercontract.DomainCICDRunCorrelation
+	capture := &logCaptureHandler{}
+	logger := slog.New(capture)
+
+	const deferredLine = "cross-scope consumer deferred: producer scopes have not activated"
+	const settledLine = "cross-scope consumer settled: producer wait bound reached, committing best-available answer"
+
+	firstWait := testCrossScopeNow
+	genN := ledgerIntent(consumer, scope, "gen-n", firstWait)
+	if err := runLedgerFloorWithLogger(t, logger, ledger, readiness, genN, firstWait, true, 0); err == nil {
+		t.Fatal("gen N: want a readiness error on the first wait, got nil")
+	}
+	genNPlus1 := ledgerIntent(consumer, scope, "gen-n-plus-1", firstWait.Add(25*time.Minute))
+	if err := runLedgerFloorWithLogger(t, logger, ledger, readiness, genNPlus1, firstWait.Add(35*time.Minute), true, 0); err != nil {
+		t.Fatalf("gen N+1: err = %v, want nil (settle 35m after the first wait)", err)
+	}
+	genNPlus2 := ledgerIntent(consumer, scope, "gen-n-plus-2", firstWait.Add(30*time.Minute))
+	if err := runLedgerFloorWithLogger(t, logger, ledger, readiness, genNPlus2, firstWait.Add(45*time.Minute), true, 0); err != nil {
+		t.Fatalf("gen N+2: err = %v, want nil (same settled set proceeds at once)", err)
+	}
+
+	if got := capture.count(deferredLine); got != 1 {
+		t.Fatalf("deferred lines = %d, want 1 (only the first wait defers)", got)
+	}
+	if got := capture.count(settledLine); got != 1 {
+		t.Fatalf("settled lines = %d, want 1 (abandonment fires once per missing set)", got)
 	}
 }

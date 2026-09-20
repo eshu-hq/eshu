@@ -1,4 +1,4 @@
-# #6814 readiness-supersession anchor — validation record
+#6814 readiness-supersession anchor — validation record
 
 Both reducer readiness gates bounded their wait on the claimed row's own
 repair-cycle anchor (`ReadinessCycleAnchor` /

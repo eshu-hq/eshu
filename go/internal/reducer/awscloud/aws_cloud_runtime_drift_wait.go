@@ -20,18 +20,23 @@ import (
 // so the wait cannot name a narrower key.
 const awsCloudRuntimeDriftStatePendingMissingKey = "state_snapshot_pending"
 
-// checkAWSCloudRuntimeDriftReadinessBeforeLoadWithLedger captures the same
-// pre-load pending signal as checkAWSCloudRuntimeDriftReadinessBeforeLoad,
-// except the elapsed-time bound is NOT enforced here: it is enforced post-load
-// against the (scope, domain) readiness-wait ledger, whose first-defer anchor
-// survives supersession (#6814). The row-anchored early-out is bypassed by
-// evaluating an unanchored copy of the intent; a nil ledger re-anchors at the
-// row post-load, preserving the unwired bound exactly.
+// checkAWSCloudRuntimeDriftReadinessBeforeLoadWithLedger captures the pre-load
+// pending signal for the ledger-anchored gate. With a nil ledger it delegates
+// to checkAWSCloudRuntimeDriftReadinessBeforeLoad on the real intent,
+// preserving the unwired row-anchored bound by construction — including the
+// terminal fallback, which commits without probing the backend at all. With a
+// wired ledger the elapsed-time bound is NOT enforced here: it is enforced
+// post-load against the (scope, domain) readiness-wait ledger, whose
+// first-defer anchor survives supersession (#6814), so the row-anchored
+// early-out is bypassed by evaluating an unanchored copy of the intent.
 func (h AWSCloudRuntimeDriftHandler) checkAWSCloudRuntimeDriftReadinessBeforeLoadWithLedger(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	now time.Time,
 ) (awsCloudRuntimeDriftReadinessSignal, error) {
+	if h.ReadinessWaits == nil {
+		return h.checkAWSCloudRuntimeDriftReadinessBeforeLoad(ctx, intent, now)
+	}
 	unanchored := intent
 	unanchored.CycleStartedAt = time.Time{}
 	unanchored.EnqueuedAt = time.Time{}
@@ -73,14 +78,15 @@ func (h AWSCloudRuntimeDriftHandler) applyStatePendingWaitPostLoad(
 		GenerationID: intent.GenerationID, CycleStartedAt: intent.CycleStartedAt,
 		Missing: missing, Now: now, MaxWait: awsCloudRuntimeDriftStatePendingMaxWait,
 	})
+	// Every ledger mutation below is classified like the read path:
+	// ClassifyFactLoadError is nil-safe, so success still returns nil, while
+	// a transient upsert/clear failure retries counting instead of dying
+	// silently or terminally failing the row on an unrecorded wait.
 	if len(missing) == 0 {
-		return decision, crossscope.ApplyWaitDecision(ctx, h.ReadinessWaits, decision, intent.ScopeID, intent.Domain)
+		return decision, factload.ClassifyFactLoadError(crossscope.ApplyWaitDecision(ctx, h.ReadinessWaits, decision, intent.ScopeID, intent.Domain))
 	}
 	if err := crossscope.ApplyWaitDecision(ctx, h.ReadinessWaits, decision, intent.ScopeID, intent.Domain); err != nil {
-		return decision, err
-	}
-	if decision.Defer {
-		return decision, newAWSCloudRuntimeDriftStatePendingError(intent.ScopeID, intent.GenerationID)
+		return decision, factload.ClassifyFactLoadError(err)
 	}
 	return decision, nil
 }

@@ -14,13 +14,15 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// CheckProducerReadinessBeforeLoadWithLedger captures the same pre-load
-// readiness signal as CheckProducerReadinessBeforeLoad, except the
+// CheckProducerReadinessBeforeLoadWithLedger captures the pre-load readiness
+// signal for the ledger-anchored floor. With a nil ledger it delegates to
+// CheckProducerReadinessBeforeLoad on the real intent, preserving the unwired
+// row-anchored bound by construction — including the terminal fallback, which
+// proceeds without probing the backend at all. With a wired ledger the
 // elapsed-time bound is NOT enforced here: it is enforced post-load against
 // the (scope, domain) readiness-wait ledger, whose first-defer anchor
-// survives supersession (#6814). The row-anchored early-out is bypassed by
-// evaluating an unanchored copy of the intent; a nil ledger re-anchors at the
-// row post-load via ReadWait synthesis, preserving the unwired bound exactly.
+// survives supersession (#6814), so the row-anchored early-out is bypassed by
+// evaluating an unanchored copy of the intent.
 func CheckProducerReadinessBeforeLoadWithLedger(
 	ctx context.Context,
 	ledger ReadinessWaitLedger,
@@ -29,6 +31,9 @@ func CheckProducerReadinessBeforeLoadWithLedger(
 	now time.Time,
 	crossScopeLookupPlanned bool,
 ) (ProducerReadinessSignal, error) {
+	if ledger == nil {
+		return CheckProducerReadinessBeforeLoad(ctx, readiness, intent, now, crossScopeLookupPlanned)
+	}
 	unanchored := intent
 	unanchored.CycleStartedAt = time.Time{}
 	unanchored.EnqueuedAt = time.Time{}
@@ -69,19 +74,30 @@ func ApplyProducerReadinessPostLoad(
 		GenerationID: intent.GenerationID, CycleStartedAt: intent.CycleStartedAt,
 		Missing: producerDomainNames(unready), Now: now,
 	})
+	// Every ledger mutation below is classified like the read path:
+	// ClassifyFactLoadError is nil-safe, so success still returns nil, while
+	// a transient upsert/clear failure retries counting instead of dying
+	// silently or, worse, terminally failing the row on an unrecorded wait.
 	if len(unready) == 0 {
-		return ApplyWaitDecision(ctx, ledger, decision, intent.ScopeID, intent.Domain)
+		return factload.ClassifyFactLoadError(ApplyWaitDecision(ctx, ledger, decision, intent.ScopeID, intent.Domain))
 	}
 	if decision.Defer {
-		logProducerReadinessDefer(ctx, logger, intent, unready, decision.Elapsed)
+		// Log only after the durable write: a failed upsert must not leave a
+		// "deferred" line for a row that actually died.
 		if err := ApplyWaitDecision(ctx, ledger, decision, intent.ScopeID, intent.Domain); err != nil {
-			return err
+			return factload.ClassifyFactLoadError(err)
 		}
+		logProducerReadinessDefer(ctx, logger, intent, unready, decision.Elapsed)
 		return NewProducerNotReadyError(intent.Domain, intent.ScopeID, intent.GenerationID, unready)
 	}
-	logProducerReadinessSettled(ctx, logger, intent, unready, decision.Elapsed)
 	if err := ApplyWaitDecision(ctx, ledger, decision, intent.ScopeID, intent.Domain); err != nil {
-		return err
+		return factload.ClassifyFactLoadError(err)
+	}
+	// Abandonment fires once per (scope, consumer, missing set): a later
+	// generation with the same settled set returns settled_missing, which
+	// proceeds silently instead of emitting another apparent abandonment.
+	if decision.Outcome == ReadinessWaitAbandoned {
+		logProducerReadinessSettled(ctx, logger, intent, unready, decision.Elapsed)
 	}
 	return nil
 }

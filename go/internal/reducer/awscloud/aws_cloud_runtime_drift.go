@@ -195,8 +195,14 @@ func (h AWSCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducerc
 
 	decision, err := h.applyStatePendingWaitPostLoad(ctx, readinessSignal, admitted, intent, evidenceAsOf)
 	if err != nil {
-		h.logStatePendingDefer(ctx, intent, admitted, decision.Elapsed)
 		return reducercontract.Result{}, err
+	}
+	// Log the deferral only for a recorded wait: a ReadWait failure carries a
+	// zero decision, a clear failure means the condition resolved, and a
+	// settle-record failure decided abandoned — none of them deferred.
+	if decision.Defer {
+		h.logStatePendingDefer(ctx, intent, admitted, decision.Elapsed)
+		return reducercontract.Result{}, newAWSCloudRuntimeDriftStatePendingError(intent.ScopeID, intent.GenerationID)
 	}
 
 	writeResult, err := h.Writer.WriteAWSCloudRuntimeDriftFindings(ctx, AWSCloudRuntimeDriftWrite{
