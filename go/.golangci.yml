@@ -1066,9 +1066,6 @@ linters:
       - path: 'internal/collector/grafana/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/documentationexport/'
-        linters:
-          - wrapcheck
       - path: 'internal/collector/extensionhost/'
         linters:
           - wrapcheck

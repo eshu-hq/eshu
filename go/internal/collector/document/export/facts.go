@@ -221,13 +221,29 @@ func envelope(scopeID string, generationID string, observedAt time.Time, kind st
 func documentationPayloadMap(payload any) (map[string]any, error) {
 	switch value := payload.(type) {
 	case facts.DocumentationSourcePayload:
-		return facts.EncodeDocumentationSource(value)
+		m, err := facts.EncodeDocumentationSource(value)
+		if err != nil {
+			return nil, fmt.Errorf("encode documentation source payload: %w", err)
+		}
+		return m, nil
 	case facts.DocumentationDocumentPayload:
-		return facts.EncodeDocumentationDocument(value)
+		m, err := facts.EncodeDocumentationDocument(value)
+		if err != nil {
+			return nil, fmt.Errorf("encode documentation document payload: %w", err)
+		}
+		return m, nil
 	case facts.DocumentationSectionPayload:
-		return facts.EncodeDocumentationSection(value)
+		m, err := facts.EncodeDocumentationSection(value)
+		if err != nil {
+			return nil, fmt.Errorf("encode documentation section payload: %w", err)
+		}
+		return m, nil
 	case facts.DocumentationLinkPayload:
-		return facts.EncodeDocumentationLink(value)
+		m, err := facts.EncodeDocumentationLink(value)
+		if err != nil {
+			return nil, fmt.Errorf("encode documentation link payload: %w", err)
+		}
+		return m, nil
 	default:
 		return nil, fmt.Errorf("unsupported documentation export payload type %T", payload)
 	}

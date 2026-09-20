@@ -26,7 +26,7 @@ func Collect(ctx context.Context, req Request) (Result, error) {
 	preflight, err := manifest.Preflight(ctx, req.ManifestName, bytes.NewReader(req.Manifest), manifest.Options{})
 	result := Result{Preflight: preflight}
 	if err != nil {
-		return result, err
+		return result, fmt.Errorf("export manifest preflight: %w", err)
 	}
 	if !preflight.Safe {
 		return result, nil
@@ -61,7 +61,7 @@ func Collect(ctx context.Context, req Request) (Result, error) {
 
 	for _, file := range decoded.Files {
 		if err := ctx.Err(); err != nil {
-			return result, err
+			return result, fmt.Errorf("export collection cancelled: %w", err)
 		}
 		envelopes, err := collectFile(decoded, file, req.Files[file.Path], scopeID, generationID, observedAt)
 		if err != nil {
