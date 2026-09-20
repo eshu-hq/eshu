@@ -149,10 +149,7 @@ func TestAttachNilStatsIsSafe(t *testing.T) {
 
 func TestSketchRoundTripAndBands(t *testing.T) {
 	_, body, src := parseGoBody(t, bigGoFunc)
-	res, err := FingerprintBody("go", body, src)
-	if err != nil {
-		t.Fatal(err)
-	}
+	res := FingerprintBody("go", body, src)
 	enc := EncodeSketch(res.Sketch)
 	dec, err := DecodeSketch(enc)
 	if err != nil {

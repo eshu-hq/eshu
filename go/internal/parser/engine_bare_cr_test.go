@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
@@ -59,6 +60,18 @@ func comparablePayload(t *testing.T, payload map[string]any, repoRoot string) st
 			continue
 		}
 		clone[key] = value
+	}
+	// Fingerprint wall-clock is telemetry, not parsed truth: two parses of
+	// the same logical file legitimately differ in micros_total, so pin it
+	// before comparing (same collapse the fixture recorder applies to
+	// durable payloads).
+	if stats, ok := clone[fingerprint.StatsKey].(map[string]any); ok {
+		statsCopy := make(map[string]any, len(stats))
+		for k, v := range stats {
+			statsCopy[k] = v
+		}
+		statsCopy["micros_total"] = int64(0)
+		clone[fingerprint.StatsKey] = statsCopy
 	}
 	encoded, err := json.Marshal(clone)
 	if err != nil {

@@ -61,6 +61,11 @@ func TestGoDataflowOffIsByteIdentical(t *testing.T) {
 	delete(on, "interproc_findings")
 	delete(on, "dataflow_summaries")
 	delete(on, "dataflow_sources")
+	// Fingerprint wall-clock is telemetry, not parser truth: the two parses
+	// legitimately differ in micros_total, so pin it before comparing (same
+	// collapse the fixture recorder applies to durable payloads).
+	pinFingerprintWallClock(off)
+	pinFingerprintWallClock(on)
 	if !reflect.DeepEqual(off, on) {
 		t.Fatalf("enabling dataflow changed more than the opt-in buckets")
 	}
@@ -206,4 +211,17 @@ func defUseLineSet(t *testing.T, row map[string]any) map[string]bool {
 
 func keyDefUse(binding string, defLine, useLine int) string {
 	return binding + ":" + strconv.Itoa(defLine) + "->" + strconv.Itoa(useLine)
+}
+
+// pinFingerprintWallClock zeroes the fingerprint wall-clock observation in a
+// live parser payload so exact comparisons cover parsed truth only. See the
+// collapse rationale in parserfixture.DurablePayload.
+func pinFingerprintWallClock(payload map[string]any) {
+	// Engine payloads carry the stats map top-level (the collector nests a
+	// copy under parsed_file_data at fact emission).
+	stats, ok := payload["fingerprint_stats"].(map[string]any)
+	if !ok {
+		return
+	}
+	stats["micros_total"] = int64(0)
 }

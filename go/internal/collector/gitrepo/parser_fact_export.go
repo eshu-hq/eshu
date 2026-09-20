@@ -21,8 +21,10 @@ import (
 // parsedFile is the map[string]any returned by parser.Engine.ParsePath; it must
 // carry the "path" key the parser sets to the file's absolute path. repoPath is
 // the repository root the relative path is computed against. The envelope's
-// Payload embeds the parser payload verbatim under "parsed_file_data", so a
-// recorder marking that subtree opaque preserves the parser output byte for byte.
+// Payload embeds the parser payload under "parsed_file_data" verbatim except
+// for the fingerprint wall-clock observation, which fileFactEnvelope collapses
+// to zero so durable facts stay byte-deterministic (a recorder marking that
+// subtree opaque still preserves the parser output byte for byte).
 func ParserFileFactEnvelope(
 	repoPath string,
 	repoID string,

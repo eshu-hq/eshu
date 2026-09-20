@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 // TestFingerprintRowFromMetadata proves the writer extracts the four
@@ -110,7 +111,7 @@ func TestContentWriterPersistsFingerprintSideTables(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	var fpUpserts, bandUpserts, fpReaps, bandReaps, scopedBandDeletes int
+	var fpUpserts, bandUpserts, fpReaps, fpWithdrawnDeletes, bandReaps, scopedBandDeletes int
 	var fpArgs []any
 	for _, exec := range fake.execs {
 		switch {
@@ -127,7 +128,11 @@ func TestContentWriterPersistsFingerprintSideTables(t *testing.T) {
 				t.Fatalf("band upsert must never touch source_cache: %.200s", exec.query)
 			}
 		case strings.Contains(exec.query, "DELETE FROM code_function_fingerprint"):
-			fpReaps++
+			if strings.Contains(exec.query, "ANY(") {
+				fpWithdrawnDeletes++
+			} else {
+				fpReaps++
+			}
 		case strings.Contains(exec.query, "DELETE FROM code_fingerprint_band"):
 			bandReaps++
 			if strings.Contains(exec.query, "ANY(") {
@@ -144,10 +149,16 @@ func TestContentWriterPersistsFingerprintSideTables(t *testing.T) {
 	if fpReaps != 1 {
 		t.Fatalf("fp reaps = %d, want 1", fpReaps)
 	}
-	// Two band deletes: the scoped rewrite invalidation (entity_id set) plus
-	// the repo-wide stale-entity reap.
-	if bandReaps != 2 || scopedBandDeletes != 1 {
-		t.Fatalf("band deletes = %d (scoped %d), want 2 total with 1 scoped", bandReaps, scopedBandDeletes)
+	// The never-fingerprinted `small` entity flows through the withdrawn
+	// path: one scoped fp delete and one scoped band delete, both no-ops
+	// against empty side tables.
+	if fpWithdrawnDeletes != 1 {
+		t.Fatalf("fp withdrawn deletes = %d, want 1", fpWithdrawnDeletes)
+	}
+	// Three band deletes: the scoped rewrite invalidation (entity_id set),
+	// the scoped withdrawn delete, plus the repo-wide stale-entity reap.
+	if bandReaps != 3 || scopedBandDeletes != 2 {
+		t.Fatalf("band deletes = %d (scoped %d), want 3 total with 2 scoped", bandReaps, scopedBandDeletes)
 	}
 	assertFingerprintArgs(t, fpArgs, "repo-fp|a.go|Function|big|10", "exact-1", "renamed-1", sketchHex, 64)
 }
@@ -246,5 +257,106 @@ func assertFingerprintArgs(t *testing.T, args []any, entityID, exact, renamed, s
 	}
 	if args[3] != renamed || args[4] != sketch {
 		t.Fatalf("fp optional args mismatch: %v", args)
+	}
+}
+
+// TestFingerprintWithdrawalDeletesSideRows proves the P1 withdrawal case: a
+// surviving entity re-emitted without fingerprint keys (body edited below
+// the floor, file gains a parse error) must shed its stale
+// code_function_fingerprint row and code_fingerprint_band rows in the same
+// Write. The entity still exists in content_entities, so the stale-entity
+// reap cannot converge it; without an explicit withdrawn delete the #6836
+// grouping path would keep reading the old exact hash, sketch, and bands
+// as current truth.
+func TestFingerprintWithdrawalDeletesSideRows(t *testing.T) {
+	t.Parallel()
+
+	sketch := make([]uint64, fingerprint.SketchRegs)
+	for i := range sketch {
+		sketch[i] = uint64(i + 1)
+	}
+	fingerprinted := map[string]any{
+		fingerprint.KeyExact:      "exact-wd",
+		fingerprint.KeyRenamed:    "renamed-wd",
+		fingerprint.KeySketch:     fingerprint.EncodeSketch(sketch),
+		fingerprint.KeyTokenCount: 64,
+	}
+	entity := func(metadata map[string]any) content.EntityRecord {
+		return content.EntityRecord{
+			EntityID:   "repo-wd|a.go|Function|big|10",
+			Path:       "a.go",
+			EntityType: "Function",
+			EntityName: "big",
+			StartLine:  10,
+			EndLine:    40,
+			Metadata:   metadata,
+		}
+	}
+	materialization := func(metadata map[string]any) content.Materialization {
+		return content.Materialization{
+			RepoID:  "repo-wd",
+			Records: []content.Record{{Path: "a.go", Body: "package p\n", Digest: "d1"}},
+			Entities: []content.EntityRecord{
+				entity(metadata),
+			},
+		}
+	}
+
+	fake := &fakeExecQueryer{}
+	writer := NewContentWriter(withTransactions(fake))
+	ctx := context.Background()
+	if _, err := writer.Write(ctx, materialization(fingerprinted)); err != nil {
+		t.Fatalf("first Write: %v", err)
+	}
+	if _, err := writer.Write(ctx, materialization(nil)); err != nil {
+		t.Fatalf("second Write without fingerprint keys: %v", err)
+	}
+
+	var fpWithdrawnDeletes, bandWithdrawnDeletes int
+	for _, exec := range fake.execs {
+		if !strings.Contains(exec.query, "ANY(") {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(strings.TrimSpace(exec.query), "DELETE") &&
+			strings.Contains(exec.query, "code_function_fingerprint"):
+			fpWithdrawnDeletes++
+			assertExecTargetsEntity(t, exec.args, "repo-wd|a.go|Function|big|10")
+		case strings.HasPrefix(strings.TrimSpace(exec.query), "DELETE") &&
+			strings.Contains(exec.query, "code_fingerprint_band"):
+			bandWithdrawnDeletes++
+			assertExecTargetsEntity(t, exec.args, "repo-wd|a.go|Function|big|10")
+		}
+	}
+	if fpWithdrawnDeletes < 1 {
+		t.Fatal("re-emitting an entity without fingerprint keys must delete its stale code_function_fingerprint row")
+	}
+	if bandWithdrawnDeletes < 1 {
+		t.Fatal("re-emitting an entity without fingerprint keys must delete its stale code_fingerprint_band rows")
+	}
+}
+
+// assertExecTargetsEntity proves a scoped (repo, entity-set) delete carries
+// the withdrawn entity: args are (repo_id, entity text[]) per the shared
+// scoped-delete shape.
+func assertExecTargetsEntity(t *testing.T, args []any, entityID string) {
+	t.Helper()
+	if len(args) < 2 {
+		t.Fatalf("scoped delete args = %v, want (repo_id, entities)", args)
+	}
+	found := false
+	for _, arg := range args[1:] {
+		ids, ok := arg.(pgarray.StringArray)
+		if !ok {
+			continue
+		}
+		for _, id := range ids {
+			if id == entityID {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("scoped delete must target %q, got args %v", entityID, args)
 	}
 }

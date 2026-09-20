@@ -110,15 +110,26 @@ func fingerprintBandRows(rows []preparedFingerprintRow) []preparedFingerprintBan
 
 // upsertFingerprintBatches persists fingerprint side-table rows for this
 // Write() call: one code_function_fingerprint row per fingerprinted entity
-// plus one code_fingerprint_band row per sketch band. Batches fan out on the
-// same bounded worker pool as entity upserts; band rows for one entity never
-// share a primary key, so concurrent batches do not contend on the same row.
+// plus one code_fingerprint_band row per sketch band. Entities rewritten
+// without fingerprint keys (withdrawn) shed their stale fp and band rows in
+// the same call: they survive in content_entities, so the stale-entity reap
+// cannot converge them. Batches fan out on the same bounded worker pool as
+// entity upserts; band rows for one entity never share a primary key, so
+// concurrent batches do not contend on the same row. Withdrawn deletes run
+// serially first on entity sets disjoint from the upserts, so no batch can
+// delete a row another batch just inserted.
 func (w ContentWriter) upsertFingerprintBatches(ctx context.Context, rows []preparedFingerprintRow, indexedAt time.Time) error {
 	fpRows := make([]preparedFingerprintRow, 0, len(rows))
+	withdrawn := make([]preparedFingerprintRow, 0)
 	for _, row := range rows {
 		if row.hasFingerprint {
 			fpRows = append(fpRows, row)
+		} else {
+			withdrawn = append(withdrawn, row)
 		}
+	}
+	if err := w.deleteWithdrawnFingerprints(ctx, withdrawn); err != nil {
+		return err
 	}
 	if len(fpRows) == 0 {
 		return nil
@@ -157,6 +168,32 @@ func (w ContentWriter) deleteFingerprintBandsForEntities(ctx context.Context, ro
 	for repoID, entityIDs := range byRepo {
 		if _, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(entityIDs)); err != nil {
 			return fmt.Errorf("delete code_fingerprint_band rows for %d rewritten entities: %w", len(entityIDs), err)
+		}
+	}
+	return nil
+}
+
+// deleteWithdrawnFingerprints removes code_function_fingerprint and
+// code_fingerprint_band rows for entities rewritten without fingerprint
+// keys. Deleting for never-fingerprinted entities is a harmless no-op: the
+// writer cannot distinguish "never had" from "just lost" without a read,
+// and the delete is idempotent either way. Rows group by repo into one
+// statement per table, matching the scoped-delete shape the band
+// invalidation already uses.
+func (w ContentWriter) deleteWithdrawnFingerprints(ctx context.Context, rows []preparedFingerprintRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	byRepo := map[string][]string{}
+	for _, row := range rows {
+		byRepo[row.repoID] = append(byRepo[row.repoID], row.entityID)
+	}
+	for repoID, entityIDs := range byRepo {
+		if _, err := w.database.ExecContext(ctx, deleteWithdrawnFingerprintSQL, repoID, pgarray.StringArray(entityIDs)); err != nil {
+			return fmt.Errorf("delete withdrawn code_function_fingerprint rows for %d entities: %w", len(entityIDs), err)
+		}
+		if _, err := w.database.ExecContext(ctx, deleteFingerprintBandsForEntitiesSQL, repoID, pgarray.StringArray(entityIDs)); err != nil {
+			return fmt.Errorf("delete withdrawn code_fingerprint_band rows for %d entities: %w", len(entityIDs), err)
 		}
 	}
 	return nil

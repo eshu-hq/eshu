@@ -95,6 +95,15 @@ var tables = map[string]table{
 	},
 }
 
+// productionLangAliases maps parser-emitted language keys that differ from
+// the grammar shorthand to the registry key. C# parsing emits "c_sharp"
+// while the grammar (and both tables below) register "csharp"; without the
+// alias production C# falls through to unknown exact-only with no comment
+// exclusion, so a comment-only edit would change fp_exact.
+var productionLangAliases = map[string]string{
+	"c_sharp": "csharp",
+}
+
 // exactOnlyComments maps every wired exact-only language to its grammar's
 // comment node kinds. Comment sets were determined empirically per grammar
 // (parse a comment-bearing function, collect kinds containing "comment") and
@@ -239,8 +248,18 @@ func bands(sketch []uint64) []string {
 // Comments are excluded from the exact stream on every known tier, full or
 // exact-only. Unknown languages are exact-only with no comment exclusion:
 // their comment kinds are not known, so their leaves stay in the stream.
-func FingerprintBody(lang string, body *tree_sitter.Node, src []byte) (*Result, error) {
+//
+// The exact hash and token count are always computed: they are cheap and
+// Attach needs the count for the emission floor. Renamed hashing, MinHash,
+// and band derivation run only for full-tier bodies at or above
+// MinTokenCount — Attach discards sub-floor results, so generating them
+// would be pure waste at corpus scale. FingerprintBody never fails, so it
+// returns just the result.
+func FingerprintBody(lang string, body *tree_sitter.Node, src []byte) *Result {
 	normalized := strings.ToLower(strings.TrimSpace(lang))
+	if alias, ok := productionLangAliases[normalized]; ok {
+		normalized = alias
+	}
 	tab, full := tables[normalized]
 	comments := exactOnlyComments[normalized]
 	if full {
@@ -256,12 +275,12 @@ func FingerprintBody(lang string, body *tree_sitter.Node, src []byte) (*Result, 
 		Exact:      hashTokens(exact),
 		TokenCount: len(leaves),
 	}
-	if !full {
-		return res, nil
+	if !full || len(leaves) < MinTokenCount {
+		return res
 	}
 	res.RenamedSupported = true
 	res.Renamed = hashTokens(renamed)
 	res.Sketch = minHash(renamed)
 	res.Bands = bands(res.Sketch)
-	return res, nil
+	return res
 }

@@ -152,7 +152,10 @@ func TestExactOnlyTiersIgnoreComments(t *testing.T) {
 			findBodyField("function_definition"),
 		},
 		{
-			"csharp", tree_sitter_c_sharp.Language,
+			// Production C# parsing passes "c_sharp" (see csharp/language.go),
+			// so the invariance pin uses the production key, not the
+			// grammar shorthand.
+			"c_sharp", tree_sitter_c_sharp.Language,
 			"class A {\nint F() {\n// leading\nreturn 1;\n}\n}\n",
 			"class A {\nint F() {\n// rewritten comment\nreturn 1; /* trailing */\n}\n}\n",
 			findBodyField("method_declaration"),
@@ -230,10 +233,7 @@ func TestExactOnlyTiersIgnoreComments(t *testing.T) {
 				root, bs := parseOne(t, tc.loader, src)
 				node := tc.find(t, root, bs)
 				requireCommentLeaf(t, tc.lang, node)
-				got, err := FingerprintBody(tc.lang, node, bs)
-				if err != nil {
-					t.Fatalf("FingerprintBody(%s): %v", tc.lang, err)
-				}
+				got := FingerprintBody(tc.lang, node, bs)
 				return *got
 			}
 			a, b := fp(tc.srcA), fp(tc.srcB)
@@ -255,10 +255,7 @@ func TestExactOnlyTiersIgnoreComments(t *testing.T) {
 func TestExactStillDistinguishesCodeChange(t *testing.T) {
 	fp := func(body string) string {
 		root, src := parseOne(t, tree_sitter_c.Language, "int f() {\n"+body+"\n}\n")
-		got, err := FingerprintBody("c", firstFuncBody(t, root, "function_definition"), src)
-		if err != nil {
-			t.Fatalf("FingerprintBody(c): %v", err)
-		}
+		got := FingerprintBody("c", firstFuncBody(t, root, "function_definition"), src)
 		return got.Exact
 	}
 	if fp("return 1;") == fp("return 2;") {

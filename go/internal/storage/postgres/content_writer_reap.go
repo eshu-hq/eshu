@@ -36,11 +36,12 @@ func (w ContentWriter) upsertAndReapEntities(
 		"batch_concurrency", w.effectiveBatchConcurrency(),
 	)
 
-	fingerprintRows := make([]preparedFingerprintRow, 0)
+	// All rows flow to the fingerprint writer, fingerprinted or not: it
+	// upserts the former and deletes stale side rows for the latter
+	// (withdrawn) in the same call.
+	fingerprintRows := make([]preparedFingerprintRow, 0, len(entityUpserts))
 	for _, row := range entityUpserts {
-		if row.fingerprint.hasFingerprint {
-			fingerprintRows = append(fingerprintRows, row.fingerprint)
-		}
+		fingerprintRows = append(fingerprintRows, row.fingerprint)
 	}
 	fingerprintUpsertStart := time.Now()
 	if err := w.upsertFingerprintBatches(ctx, fingerprintRows, indexedAt); err != nil {

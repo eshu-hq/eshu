@@ -188,6 +188,19 @@ WHERE repo_id = $1
   AND entity_id = ANY($2::text[])
 `
 
+// deleteWithdrawnFingerprintSQL deletes code_function_fingerprint rows for
+// entities rewritten in this Write call without fingerprint keys: the entity
+// survives in content_entities (body edited below the token floor, file
+// gained a parse error, tier change), so the stale-entity reap below cannot
+// converge them. Without this delete the #6836 grouping path would keep
+// reading the withdrawn exact hash as current truth. Band rows for the same
+// entities go through deleteFingerprintBandsForEntitiesSQL.
+const deleteWithdrawnFingerprintSQL = `
+DELETE FROM code_function_fingerprint
+WHERE repo_id = $1
+  AND entity_id = ANY($2::text[])
+`
+
 // reapStaleFingerprintSQL deletes code_function_fingerprint rows whose
 // entity no longer exists in content_entities for the repo. It runs after
 // the entity upsert+reap in the same Write call, so tombstoned, churned,

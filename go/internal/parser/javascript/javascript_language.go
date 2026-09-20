@@ -422,6 +422,16 @@ func appendFunctionDeclaration(
 			declarationNode = valueNode
 		}
 	}
+	// CommonJS export assignments (`module.exports = function ...`,
+	// `exports.foo = (...) => ...`) carry the function under `right`, not
+	// `body`: without this unwrap the call below fingerprints the
+	// assignment node itself and records no_body for every exported
+	// function.
+	if node != nil && node.Kind() == "assignment_expression" {
+		if valueNode := node.ChildByFieldName("right"); isJavaScriptFunctionValue(valueNode) {
+			declarationNode = valueNode
+		}
+	}
 
 	item := map[string]any{
 		"name":            name,

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gitrepo/gitmodel"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
@@ -184,6 +185,34 @@ func repositoryFactEnvelope(
 // repo+relative-path so re-emission of a generation is idempotent. Extracted
 // from git_fact_builder.go to keep that file within the repo file-size
 // budget.
+// collapseFingerprintWallClock returns a copy of a parsed file map with the
+// fingerprint wall-clock observation collapsed to zero. MicrosTotal is
+// wall-clock timing: persisting it verbatim would bake machine-specific
+// noise into every durable file fact and break byte-deterministic
+// parser/replay output. Collector telemetry already recorded the real
+// timing at prescan from the uncollapsed map, and outcome counts are
+// durable evidence, so only the timing field is collapsed.
+func collapseFingerprintWallClock(fileData map[string]any) map[string]any {
+	stats, ok := fileData[fingerprint.StatsKey].(map[string]any)
+	if !ok {
+		return fileData
+	}
+	if _, ok := stats["micros_total"]; !ok {
+		return fileData
+	}
+	out := make(map[string]any, len(fileData))
+	for k, v := range fileData {
+		out[k] = v
+	}
+	statsCopy := make(map[string]any, len(stats))
+	for k, v := range stats {
+		statsCopy[k] = v
+	}
+	statsCopy["micros_total"] = int64(0)
+	out[fingerprint.StatsKey] = statsCopy
+	return out
+}
+
 func fileFactEnvelope(
 	repoPath string,
 	repoID string,
@@ -193,6 +222,7 @@ func fileFactEnvelope(
 	fileData map[string]any,
 	isDependency bool,
 ) facts.Envelope {
+	fileData = collapseFingerprintWallClock(fileData)
 	filePath := gitmodel.PayloadPath(fileData, "path")
 	relativePath := gitmodel.RepositoryRelativePath(repoPath, filePath)
 	payload := map[string]any{

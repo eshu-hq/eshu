@@ -50,7 +50,10 @@ type Stats struct {
 	MicrosTotal     int64
 }
 
-// Record logs one outcome with its fingerprinting latency.
+// Record logs one outcome with its fingerprinting latency. Fingerprinted
+// and below-floor outcomes accumulate their latency: below-floor bodies
+// still pay the leaf walk that produced their token count, and the
+// per-file duration histogram must reflect that cost.
 func (s *Stats) Record(reason string, elapsed time.Duration) {
 	if s == nil {
 		return
@@ -62,6 +65,7 @@ func (s *Stats) Record(reason string, elapsed time.Duration) {
 		s.MicrosTotal += micros
 	case ReasonBelowFloor:
 		s.BelowFloor++
+		s.MicrosTotal += micros
 	case ReasonHasError:
 		s.HasErrorSkipped++
 	case ReasonNoBody:
@@ -145,11 +149,7 @@ func Attach(lang string, hasError bool, body *tree_sitter.Node, src []byte, item
 		stats.Record(ReasonHasError, 0)
 		return ReasonHasError
 	}
-	res, err := FingerprintBody(lang, body, src)
-	if err != nil {
-		stats.Record(ReasonNoBody, 0)
-		return ReasonNoBody
-	}
+	res := FingerprintBody(lang, body, src)
 	if res.TokenCount < MinTokenCount {
 		stats.Record(ReasonBelowFloor, time.Since(start))
 		return ReasonBelowFloor
