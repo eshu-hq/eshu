@@ -18,7 +18,7 @@ canonical incident, deployment, ownership, or work-item state.
 map, then receive preflight evidence plus documentation fact envelopes.
 
 ## Dependencies
-The package depends on `go/internal/collector/exportmanifestpreflight` for
+The package depends on `go/internal/collector/preflight/manifest` for
 allowlist, ACL, path, attachment, private-channel, and sensitive-value guards.
 It emits payloads from `go/internal/facts` and marks envelopes with
 `scope.CollectorDocumentation`.
@@ -65,4 +65,4 @@ guess; that disclosure decision is reserved for security review).
 
 ## Related docs
 - `docs/internal/design/1741-1748-google-workspace-and-external-export-ingestion.md`
-- `go/internal/collector/exportmanifestpreflight`
+- `go/internal/collector/preflight/manifest`

@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/exportmanifestpreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/manifest"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 const sourceFormat = "documentation_export"
 
-func sourcePayload(decoded manifest, scopeID string, fileCount int) facts.DocumentationSourcePayload {
+func sourcePayload(decoded exportManifest, scopeID string, fileCount int) facts.DocumentationSourcePayload {
 	scopeHash := safeFingerprint(decoded.SourceSystem + ":" + decoded.SourceScopeID)
 	metadata := map[string]string{
 		"source_system":     decoded.SourceSystem,
@@ -59,7 +59,7 @@ func addScopeKindMetadata(metadata map[string]string, scopeKind string) {
 	}
 }
 
-func documentPayload(scopeID string, decoded manifest, file manifestFile, record exportRecord, warning string, rawRecord string) facts.DocumentationDocumentPayload {
+func documentPayload(scopeID string, decoded exportManifest, file manifestFile, record exportRecord, warning string, rawRecord string) facts.DocumentationDocumentPayload {
 	itemID := firstNonEmpty(file.SourceItemID, record.ID, file.Path)
 	itemHash := safeFingerprint(decoded.SourceSystem + ":" + decoded.SourceScopeID + ":" + itemID)
 	metadata := map[string]string{
@@ -165,13 +165,13 @@ func linkSectionID(sectionID string) string {
 func aclSummary(policy string) *facts.DocumentationACLSummary {
 	summary := &facts.DocumentationACLSummary{Visibility: "unknown"}
 	switch policy {
-	case exportmanifestpreflight.ACLPolicyEvaluated:
+	case manifest.ACLPolicyEvaluated:
 		// The source ACL was evaluated before import: assert allowed. This is
 		// the only documentation producer that observes a complete ACL
 		// evaluation, so it is the only one that may report allowed.
 		summary.PartialReason = ""
 		summary.SourceACLState = facts.SourceACLStateAllowed
-	case exportmanifestpreflight.ACLPolicyPartial:
+	case manifest.ACLPolicyPartial:
 		summary.IsPartial = true
 		summary.SourceACLState = facts.SourceACLStatePartial
 		summary.PartialReason = "acl_partial"
@@ -240,7 +240,7 @@ func schemaVersion(kind string) string {
 	return facts.DocumentationFactSchemaVersion
 }
 
-func revisionID(decoded manifest, fallback string) string {
+func revisionID(decoded exportManifest, fallback string) string {
 	return firstNonEmpty(
 		safeFingerprintIfPresent(decoded.SourceRevision),
 		safeFingerprintIfPresent(decoded.SourceCursor),

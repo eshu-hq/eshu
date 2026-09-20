@@ -6,7 +6,7 @@ package documentationexport
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/exportmanifestpreflight"
+	"github.com/eshu-hq/eshu/go/internal/collector/preflight/manifest"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -24,9 +24,9 @@ func TestACLSummaryMapsSourceACLState(t *testing.T) {
 		policy string
 		want   string
 	}{
-		{name: "evaluated asserts allowed", policy: exportmanifestpreflight.ACLPolicyEvaluated, want: facts.SourceACLStateAllowed},
-		{name: "partial stays partial", policy: exportmanifestpreflight.ACLPolicyPartial, want: facts.SourceACLStatePartial},
-		{name: "unavailable omits state", policy: exportmanifestpreflight.ACLPolicyUnavailable, want: ""},
+		{name: "evaluated asserts allowed", policy: manifest.ACLPolicyEvaluated, want: facts.SourceACLStateAllowed},
+		{name: "partial stays partial", policy: manifest.ACLPolicyPartial, want: facts.SourceACLStatePartial},
+		{name: "unavailable omits state", policy: manifest.ACLPolicyUnavailable, want: ""},
 		{name: "empty policy omits state", policy: "", want: ""},
 		{name: "unknown policy omits state", policy: "something_else", want: ""},
 	}

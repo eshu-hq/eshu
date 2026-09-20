@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`collector/exportmanifestpreflight` classifies offline documentation export
+`collector/preflight/manifest` classifies offline documentation export
 manifests before any issue, ticket, chat, or workspace export parser reads
 export content. It gives future importers a metadata-only guard for explicit
 source scope, ACL posture, bounded file lists, unsafe paths, nested archives,
@@ -51,7 +51,7 @@ item counts, redaction counts, ACL partial/unavailable counts, and
 resource-limit outcomes through
 collector telemetry before enabling offline export ingestion.
 
-Collector Performance Evidence: `go test ./internal/collector/exportmanifestpreflight
+Collector Performance Evidence: `go test ./internal/collector/preflight/manifest
 -count=1` proves manifest preflight is bounded by source bytes and file count.
 
 Collector Observability Evidence: this package emits no facts, metrics, spans,
