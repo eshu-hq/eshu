@@ -1,0 +1,22 @@
+.github/workflows/golden-corpus-gate.yml
+  h_78a442cba0b3e6 159-162
+docs/public/reference/ci-gates.md
+  h_78a442cba0b3e6 104,107
+scripts/lib/golden-corpus-host-helpers.sh
+  h_78a442cba0b3e6 46-53
+scripts/lib/golden-corpus-mirror-workflow-paths.sh
+  h_78a442cba0b3e6 347-353
+specs/ci-gates.v1.yaml
+  h_78a442cba0b3e6 2374-2377,2548-2551
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2898c582bdba48fd5f7cc94e9a53ce106ef7767b",
+  "prompts": {},
+  "humans": {
+    "h_78a442cba0b3e6": {
+      "author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
