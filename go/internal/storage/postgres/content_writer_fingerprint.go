@@ -19,14 +19,16 @@ import (
 // behavior is unchanged.
 
 // preparedFingerprintRow is the narrow code_function_fingerprint side-table
-// row decoded from one entity's fingerprint metadata keys. fpRenamed and
-// fpSketch are nil for exact-only tiers.
+// row decoded from one entity's fingerprint metadata keys. fpRenamed,
+// fpSketch, and fpShingles are nil for exact-only tiers; fpShingles is also
+// nil for pre-#6837 payloads that carry no shingle set.
 type preparedFingerprintRow struct {
 	entityID       string
 	repoID         string
 	fpExact        string
 	fpRenamed      any
 	fpSketch       any
+	fpShingles     any
 	tokenCount     int
 	hasFingerprint bool
 }
@@ -54,6 +56,9 @@ func fingerprintRowFromMetadata(entityID, repoID string, metadata map[string]any
 	}
 	if sketch, _ := metadata[fingerprint.KeySketch].(string); strings.TrimSpace(sketch) != "" {
 		row.fpSketch = sketch
+	}
+	if shingles, _ := metadata[fingerprint.KeyShingles].(string); strings.TrimSpace(shingles) != "" {
+		row.fpShingles = shingles
 	}
 	return row
 }
@@ -235,19 +240,19 @@ func (w ContentWriter) upsertFingerprintBatch(ctx context.Context, batch []prepa
 		return nil
 	}
 
-	args := make([]any, 0, len(batch)*7)
+	args := make([]any, 0, len(batch)*8)
 	var values strings.Builder
 
 	for i, row := range batch {
 		if i > 0 {
 			values.WriteString(", ")
 		}
-		offset := i * 7
+		offset := i * 8
 		fmt.Fprintf(
 			&values,
-			"($%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			"($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
 			offset+1, offset+2, offset+3, offset+4, offset+5,
-			offset+6, offset+7,
+			offset+6, offset+7, offset+8,
 		)
 
 		args = append(
@@ -257,6 +262,7 @@ func (w ContentWriter) upsertFingerprintBatch(ctx context.Context, batch []prepa
 			row.fpExact,
 			row.fpRenamed,
 			row.fpSketch,
+			row.fpShingles,
 			row.tokenCount,
 			indexedAt,
 		)

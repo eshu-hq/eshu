@@ -61,6 +61,54 @@ func TestFingerprintRowFromMetadata(t *testing.T) {
 	}
 }
 
+// TestFingerprintRowCarriesShingles proves the #6837 persistence contract:
+// the writer extracts the KeyShingles shingle-set hex into the narrow
+// side-table row so the reducer can verify exact Jaccard from the row
+// without reading source_cache. Pre-#6837 payloads without the key and
+// exact-only tiers leave shingles nil; the fp row itself is unaffected.
+func TestFingerprintRowCarriesShingles(t *testing.T) {
+	t.Parallel()
+
+	shingles := fingerprint.EncodeShingles([]uint64{7, 42, 99})
+	full := fingerprintRowFromMetadata("e1", "r1", map[string]any{
+		fingerprint.KeyExact:      "abc",
+		fingerprint.KeyRenamed:    "def",
+		fingerprint.KeySketch:     "00ff",
+		fingerprint.KeyShingles:   shingles,
+		fingerprint.KeyTokenCount: 77,
+	})
+	if !full.hasFingerprint {
+		t.Fatal("full fingerprint metadata must yield a row")
+	}
+	if full.fpShingles != shingles {
+		t.Fatalf("fpShingles = %v, want %q", full.fpShingles, shingles)
+	}
+
+	legacy := fingerprintRowFromMetadata("e2", "r1", map[string]any{
+		fingerprint.KeyExact:      "abc",
+		fingerprint.KeyRenamed:    "def",
+		fingerprint.KeySketch:     "00ff",
+		fingerprint.KeyTokenCount: 77,
+	})
+	if !legacy.hasFingerprint {
+		t.Fatal("pre-#6837 metadata without shingles must still yield a row")
+	}
+	if legacy.fpShingles != nil {
+		t.Fatalf("pre-#6837 row must leave shingles nil, got %v", legacy.fpShingles)
+	}
+
+	exactOnly := fingerprintRowFromMetadata("e3", "r1", map[string]any{
+		fingerprint.KeyExact:      "abc",
+		fingerprint.KeyTokenCount: 60,
+	})
+	if !exactOnly.hasFingerprint {
+		t.Fatal("exact-only metadata must yield a row")
+	}
+	if exactOnly.fpShingles != nil {
+		t.Fatalf("exact-only row must leave shingles nil, got %v", exactOnly.fpShingles)
+	}
+}
+
 // TestContentWriterPersistsFingerprintSideTables proves a Write carrying
 // fingerprinted function entities upserts the narrow fp row plus one band
 // row per sketch band, and reaps side rows whose entity vanished — without
@@ -73,10 +121,12 @@ func TestContentWriterPersistsFingerprintSideTables(t *testing.T) {
 		sketch[i] = uint64(i + 1)
 	}
 	sketchHex := fingerprint.EncodeSketch(sketch)
+	shinglesHex := fingerprint.EncodeShingles([]uint64{7, 42, 99})
 	metadata := map[string]any{
 		fingerprint.KeyExact:      "exact-1",
 		fingerprint.KeyRenamed:    "renamed-1",
 		fingerprint.KeySketch:     sketchHex,
+		fingerprint.KeyShingles:   shinglesHex,
 		fingerprint.KeyTokenCount: 64,
 	}
 
@@ -160,7 +210,7 @@ func TestContentWriterPersistsFingerprintSideTables(t *testing.T) {
 	if bandReaps != 3 || scopedBandDeletes != 2 {
 		t.Fatalf("band deletes = %d (scoped %d), want 3 total with 2 scoped", bandReaps, scopedBandDeletes)
 	}
-	assertFingerprintArgs(t, fpArgs, "repo-fp|a.go|Function|big|10", "exact-1", "renamed-1", sketchHex, 64)
+	assertFingerprintArgs(t, fpArgs, "repo-fp|a.go|Function|big|10", "exact-1", "renamed-1", sketchHex, shinglesHex, 64)
 }
 
 // TestFingerprintRewriteInvalidatesBands proves re-fingerprinting an entity
@@ -247,15 +297,15 @@ func assertBandBatch(t *testing.T, args []any) {
 	}
 }
 
-func assertFingerprintArgs(t *testing.T, args []any, entityID, exact, renamed, sketch string, tokens int) {
+func assertFingerprintArgs(t *testing.T, args []any, entityID, exact, renamed, sketch, shingles string, tokens int) {
 	t.Helper()
-	if len(args) != 7 {
-		t.Fatalf("fp upsert args = %d, want 7", len(args))
+	if len(args) != 8 {
+		t.Fatalf("fp upsert args = %d, want 8", len(args))
 	}
-	if args[0] != entityID || args[2] != exact || args[5] != tokens {
+	if args[0] != entityID || args[2] != exact || args[6] != tokens {
 		t.Fatalf("fp upsert args mismatch: %v", args)
 	}
-	if args[3] != renamed || args[4] != sketch {
+	if args[3] != renamed || args[4] != sketch || args[5] != shingles {
 		t.Fatalf("fp optional args mismatch: %v", args)
 	}
 }

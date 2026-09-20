@@ -25,6 +25,10 @@ const (
 	KeyRenamed    = "body_fp_renamed"
 	KeySketch     = "body_sketch"
 	KeyTokenCount = "body_token_count"
+	// KeyShingles carries the sorted unique FNV-64a identities of the
+	// renamed 5-shingles (EncodeShingles hex) so the #6837 reducer can
+	// verify exact Jaccard without reading source_cache.
+	KeyShingles = "body_shingles"
 	// StatsKey is the top-level parser payload key carrying the per-file
 	// aggregate Stats for collector-side telemetry. It is not an entity
 	// key and never enters entity metadata.
@@ -159,6 +163,7 @@ func Attach(lang string, hasError bool, body *tree_sitter.Node, src []byte, item
 	if res.RenamedSupported {
 		item[KeyRenamed] = res.Renamed
 		item[KeySketch] = EncodeSketch(res.Sketch)
+		item[KeyShingles] = EncodeShingles(res.Shingles)
 	}
 	stats.Record("", time.Since(start))
 	return ""
@@ -194,6 +199,39 @@ func DecodeSketch(enc string) ([]uint64, error) {
 		sketch = append(sketch, v)
 	}
 	return sketch, nil
+}
+
+// EncodeShingles renders sorted unique shingle identities as lowercase
+// hex (16 chars per little-endian id) for the KeyShingles metadata
+// string. Sorted order lets the reducer intersect by merge-join.
+func EncodeShingles(ids []uint64) string {
+	raw := make([]byte, 0, len(ids)*8)
+	var buf [8]byte
+	for _, v := range ids {
+		binary.LittleEndian.PutUint64(buf[:], v)
+		raw = append(raw, buf[:]...)
+	}
+	return hex.EncodeToString(raw)
+}
+
+// DecodeShingles parses an EncodeShingles string back into identities.
+func DecodeShingles(enc string) ([]uint64, error) {
+	raw, err := hex.DecodeString(enc)
+	if err != nil {
+		return nil, fmt.Errorf("decode fingerprint shingles: %w", err)
+	}
+	if len(raw) == 0 || len(raw)%8 != 0 {
+		return nil, fmt.Errorf("decode fingerprint shingles: %d bytes is not an id multiple", len(raw))
+	}
+	ids := make([]uint64, 0, len(raw)/8)
+	for off := 0; off < len(raw); off += 8 {
+		var v uint64
+		for i := 0; i < 8; i++ {
+			v |= uint64(raw[off+i]) << (8 * i)
+		}
+		ids = append(ids, v)
+	}
+	return ids, nil
 }
 
 // BandHashes derives the LSHBands band keys for one sketch. The #6837

@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash/fnv"
+	"sort"
 	"strings"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -41,6 +42,9 @@ type Result struct {
 	Sketch []uint64
 	// Bands holds LSHBands hex band hashes. Empty for exact-only tiers.
 	Bands []string
+	// Shingles holds the sorted unique FNV-64a shingle identities the
+	// #6837 reducer verifies exact Jaccard over. Nil for exact-only tiers.
+	Shingles []uint64
 }
 
 // table holds the per-language leaf classification sets.
@@ -204,17 +208,42 @@ func shingleHash(sh string, reg uint64) uint64 {
 	return splitmix64(h.Sum64() + reg*0x9e3779b97f4a7c15)
 }
 
-// minHash computes SketchRegs registers over ShingleK shingles with
-// stdlib-only mixing. Deterministic for identical input.
-func minHash(toks []string) []uint64 {
+// renamedShingles renders the ShingleK token shingles minHash sketches.
+// Short bodies yield one shingle from the available tokens.
+func renamedShingles(toks []string) []string {
 	shingles := []string{}
 	if len(toks) < ShingleK {
 		shingles = append(shingles, strings.Join(toks, "\x02"))
-	} else {
-		for i := 0; i+ShingleK <= len(toks); i++ {
-			shingles = append(shingles, strings.Join(toks[i:i+ShingleK], "\x02"))
+		return shingles
+	}
+	for i := 0; i+ShingleK <= len(toks); i++ {
+		shingles = append(shingles, strings.Join(toks[i:i+ShingleK], "\x02"))
+	}
+	return shingles
+}
+
+// shingleIDs renders the sorted unique FNV-64a identities of the renamed
+// shingles: the exact set the #6837 reducer verifies Jaccard over.
+// Sorted for merge-join intersection without re-sorting per pair.
+func shingleIDs(toks []string) []uint64 {
+	seen := map[uint64]bool{}
+	ids := []uint64{}
+	for _, s := range renamedShingles(toks) {
+		h := fnv.New64a()
+		_, _ = h.Write([]byte(s))
+		if id := h.Sum64(); !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
 		}
 	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
+// minHash computes SketchRegs registers over ShingleK shingles with
+// stdlib-only mixing. Deterministic for identical input.
+func minHash(toks []string) []uint64 {
+	shingles := renamedShingles(toks)
 	sketch := make([]uint64, SketchRegs)
 	for r := uint64(0); r < SketchRegs; r++ {
 		best := ^uint64(0)
@@ -282,5 +311,6 @@ func FingerprintBody(lang string, body *tree_sitter.Node, src []byte) *Result {
 	res.Renamed = hashTokens(renamed)
 	res.Sketch = minHash(renamed)
 	res.Bands = bands(res.Sketch)
+	res.Shingles = shingleIDs(renamed)
 	return res
 }
