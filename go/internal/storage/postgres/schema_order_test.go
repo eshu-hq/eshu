@@ -247,4 +247,9 @@ var orderedBootstrapDefinitionNames = []string{
 	// scope eshu:global with one perpetually-active generation plus the
 	// code_value_flow_refresh item, all ON CONFLICT DO NOTHING.
 	"value_flow_refresh_global_seed",
+	// migration 116 (#6785) publishes the vacuous canonical-nodes phase for
+	// the eshu:global anchor: without it the global scope (no git facts,
+	// never any) holds the canonical-code quiescence lane forever and the
+	// golden drain never reaches terminal.
+	"value_flow_refresh_global_canonical_phase",
 }

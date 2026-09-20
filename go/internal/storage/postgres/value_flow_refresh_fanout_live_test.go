@@ -169,3 +169,24 @@ func TestValueFlowRefreshFanoutReopensSingletonLive(t *testing.T) {
 		t.Fatalf("producer events remaining = %d, want 0 consumed", events)
 	}
 }
+
+// TestValueFlowRefreshGlobalScopeDoesNotHoldCanonicalLaneLive pins the B-7
+// drain contract for the eshu:global anchor: the global scope publishes no
+// git repository facts and never will, so without its vacuous
+// canonical_nodes_committed phase row the canonical-code quiescence lane
+// holds forever, deployable_unit_correlation defers every wave, and the
+// golden drain never reaches terminal.
+func TestValueFlowRefreshGlobalScopeDoesNotHoldCanonicalLaneLive(t *testing.T) {
+	db := openContainerImageIdentityAckCapabilityProofDB(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+
+	check := NewReducerGraphDrain(SQLDB{DB: db})
+	uncommitted, err := check.HasUncommittedCanonicalCodeScopes(ctx)
+	if err != nil {
+		t.Fatalf("check canonical lane: %v", err)
+	}
+	if uncommitted {
+		t.Fatal("eshu:global anchor holds the canonical-code quiescence lane; deployable_unit_correlation can never drain")
+	}
+}
