@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/parity guidance
+# AGENTS.md - internal/collector/conformance/parity guidance
 
 ## Read first
 
