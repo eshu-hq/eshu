@@ -8,7 +8,7 @@ of truth mapping a changed path to the local and CI checks it requires. See
 and `make prove` select from this table, and
 [Local Testing](local-testing.md) for the full verification map.
 
-The registry currently defines 111 gates. Local execution runs the primary
+The registry currently defines 112 gates. Local execution runs the primary
 command first, then a distinct self-test when one is registered; byte-identical
 pairs run once. A row with no primary local command is
 CI-only (it needs a credential, a service container, or hosted infrastructure
@@ -139,3 +139,4 @@ Advisory rows remain visible but do not block merge.
 | `docs-build-staged` | *(alias — staged-file variant of docs-build-changed (same mkdocs check, pre-commit stage))* | — | — | — | — | — | — |
 | `docs-build-verifier-tests` | *(alias — self-test of the docs-build verifier + hook wiring)* | — | — | — | — | — | — |
 | `console-e2e-verifier-tests` | *(alias — self-test of the console-e2e pre-push helper routing)* | — | — | — | — | — | — |
+| `naming-glue-gate` | *(alias — model-judged glued-compound directory name check (naming.md rule 3); pre-commit-only by design -- see go/cmd/naming-glue-gate/AGENTS.md for why it does not also run (and re-bill) in CI on every push of an already-locally-checked branch)* | — | — | — | — | — | — |
