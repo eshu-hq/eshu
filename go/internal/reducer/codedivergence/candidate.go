@@ -19,6 +19,25 @@ import (
 // pairs): a rejected pair is counted, never silently dropped.
 const ReasonSimilarityBelowThreshold = "similarity_below_threshold"
 
+// ReasonBudgetExhausted counts entities with more nominated partners than
+// MaxCandidatesPerEntity: only their top-K pairs verified, the rest dropped
+// by budget rather than by evidence.
+const ReasonBudgetExhausted = "candidate_budget_exhausted"
+
+// RuleAdmitDrifted is the rule-dimension value for admitted pairs on the
+// shared correlation counters: the pair survived verification and every
+// suppression rule.
+const RuleAdmitDrifted = "admit_drifted"
+
+// DriftedPack is the pack-dimension value identifying code_drifted
+// emissions on the shared correlation counters.
+const DriftedPack = "code_drifted"
+
+// DriftedKind is the drift-kind-dimension value for admitted drifted pairs.
+// The domain has a single finding flavor; the dimension stays for
+// counter-shape stability with the sibling drift packs.
+const DriftedKind = "drifted"
+
 // Drift evidence types carried on admitted pairs. similarity bears the
 // measured Jaccard value (the drift-specific similarity=0.87 reason);
 // differs_in_ranges bears the member body ranges the pair differs within

@@ -9,6 +9,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+
 	querycodedivergence "github.com/eshu-hq/eshu/go/internal/query/codedivergence"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -130,6 +133,8 @@ func (h CodeDriftedHandler) Handle(
 		write.Pairs = append(write.Pairs, admitted)
 	}
 	write.BudgetExhausted = page.Stats.BudgetExhausted
+	h.emitTelemetry(ctx, write)
+	h.logEvaluated(ctx, intent, repoID, len(page.Pairs), write)
 	if h.Writer == nil {
 		h.log(ctx, intent, "writer_unavailable", fmt.Sprintf(
 			"evaluated %d pairs, %d admitted, durable write skipped", len(page.Pairs), len(write.Pairs)))
@@ -139,6 +144,51 @@ func (h CodeDriftedHandler) Handle(
 		return reducercontract.Result{}, fmt.Errorf("write drifted findings for repo %q: %w", repoID, err)
 	}
 	return succeeded(intent), nil
+}
+
+// emitTelemetry records the shared correlation counters for one evaluated
+// write: one rule_matches increment per evaluated pair keyed by its outcome
+// reason (admit or the suppressing rule), one drift_detected increment per
+// admitted pair, and one rule_matches increment per budget-exhausted
+// entity. No entity identity, path, or similarity value enters the label
+// space; handler duration is covered by the reducer runtime's own
+// eshu_dp_reducer_run_duration_seconds. Nil instruments skip silently.
+func (h CodeDriftedHandler) emitTelemetry(ctx context.Context, write DriftedWrite) {
+	if h.Instruments == nil {
+		return
+	}
+	for range write.Pairs {
+		if h.Instruments.CorrelationRuleMatches != nil {
+			h.Instruments.CorrelationRuleMatches.Add(ctx, 1, metric.WithAttributes(
+				attribute.String(telemetry.MetricDimensionPack, DriftedPack),
+				attribute.String(telemetry.MetricDimensionRule, RuleAdmitDrifted),
+			))
+		}
+		if h.Instruments.CorrelationDriftDetected != nil {
+			h.Instruments.CorrelationDriftDetected.Add(ctx, 1, metric.WithAttributes(
+				attribute.String(telemetry.MetricDimensionPack, DriftedPack),
+				attribute.String(telemetry.MetricDimensionRule, RuleAdmitDrifted),
+				attribute.String(telemetry.MetricDimensionDriftKind, DriftedKind),
+			))
+		}
+	}
+	for reason, count := range write.Suppressions {
+		if count <= 0 || h.Instruments.CorrelationRuleMatches == nil {
+			continue
+		}
+		h.Instruments.CorrelationRuleMatches.Add(ctx, int64(count), metric.WithAttributes(
+			attribute.String(telemetry.MetricDimensionPack, DriftedPack),
+			attribute.String(telemetry.MetricDimensionRule, reason),
+		))
+	}
+	if h.Instruments.CorrelationRuleMatches != nil {
+		for range write.BudgetExhausted {
+			h.Instruments.CorrelationRuleMatches.Add(ctx, 1, metric.WithAttributes(
+				attribute.String(telemetry.MetricDimensionPack, DriftedPack),
+				attribute.String(telemetry.MetricDimensionRule, ReasonBudgetExhausted),
+			))
+		}
+	}
 }
 
 // driftedRepoID resolves the repo a drift intent targets: the repo_id
@@ -161,6 +211,36 @@ func succeeded(intent reducercontract.Intent) reducercontract.Result {
 		Domain:   intent.Domain,
 		Status:   reducercontract.ResultStatusSucceeded,
 	}
+}
+
+// logEvaluated emits the per-intent operator summary: candidates evaluated,
+// pairs admitted, suppression totals, and budget exhaustions. It is the 3AM
+// signal for this domain: a generation that evaluates pairs but admits none
+// is visible here with its reason breakdown, not as a silent empty write.
+func (h CodeDriftedHandler) logEvaluated(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	repoID string,
+	candidates int,
+	write DriftedWrite,
+) {
+	if h.Logger == nil {
+		return
+	}
+	suppressed := 0
+	for _, count := range write.Suppressions {
+		suppressed += count
+	}
+	h.Logger.InfoContext(ctx, "code drifted generation evaluated",
+		"intent_id", intent.IntentID,
+		"scope_id", intent.ScopeID,
+		"generation_id", intent.GenerationID,
+		"repo_id", repoID,
+		"candidates", candidates,
+		"admitted", len(write.Pairs),
+		"suppressed", suppressed,
+		"budget_exhausted", len(write.BudgetExhausted),
+	)
 }
 
 func (h CodeDriftedHandler) log(ctx context.Context, intent reducercontract.Intent, failureClass, reason string) {

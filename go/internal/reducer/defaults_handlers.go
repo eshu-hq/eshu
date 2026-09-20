@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
@@ -46,6 +47,15 @@ type DriftHandlers struct {
 	DriftEvidenceLoader      tfconfigstate.DriftEvidenceLoader
 	DriftWriter              tfconfigstate.TerraformConfigStateDriftFindingWriter
 	DriftLogger              *slog.Logger
+
+	// Code drifted-pair adapters (issue #6837). DriftedCandidateLoader and
+	// DriftedFindingWriter must both be non-nil for the registry to register
+	// DomainCodeDrifted: a missing loader would leave the handler with no
+	// observable input, and a missing writer would admit pairs with no
+	// durable truth surface. DriftedLogger is optional (nil drops logs).
+	DriftedCandidateLoader codedivergence.CandidateLoader
+	DriftedFindingWriter   codedivergence.FindingWriter
+	DriftedLogger          *slog.Logger
 
 	// AWS cloud-runtime drift adapters (issue #39). Both must be non-nil for
 	// the registry to register DomainAWSCloudRuntimeDrift; missing either one
