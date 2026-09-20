@@ -19,7 +19,7 @@ import (
 func TestContainerCILineageFixtureEmitsWorkflowImageEvidence(t *testing.T) {
 	t.Parallel()
 
-	repoPath, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "tests", "fixtures", "ecosystems", "container-ci-lineage"))
+	repoPath, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "..", "tests", "fixtures", "ecosystems", "container-ci-lineage"))
 	if err != nil {
 		t.Fatalf("resolve container-ci-lineage fixture path: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestContainerCILineageFixtureEmitsWorkflowImageEvidence(t *testing.T) {
 func TestGitHubActionsFixtureEmitsInputOnlyWorkflowImageEvidence(t *testing.T) {
 	t.Parallel()
 
-	repoPath, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "tests", "fixtures", "ecosystems", "github_actions_workflows"))
+	repoPath, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "..", "tests", "fixtures", "ecosystems", "github_actions_workflows"))
 	if err != nil {
 		t.Fatalf("resolve github_actions_workflows fixture path: %v", err)
 	}

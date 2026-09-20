@@ -22,7 +22,7 @@ import (
 
 // submoduleBenchFileCount mirrors codeownersBenchFileCount
 // (git_codeowners_facts_bench_test.go) and deltaSnapshotBenchmarkFileCount
-// (git_snapshot_delta_bench_test.go): a mid-size repository's content-stream
+// (snapshot_delta_bench_test.go): a mid-size repository's content-stream
 // file count, large enough to amortize loop overhead in the no-regression
 // benchmark below (issue #5420 Phase 6 perf evidence).
 const submoduleBenchFileCount = 400
@@ -72,7 +72,7 @@ func submoduleBenchRelativePaths(withSubmodule bool) []string {
 }
 
 // benchRunGit runs one git command against repoPath, failing the benchmark
-// on error. It mirrors runGit (git_snapshot_source_commit_sha_test.go) but
+// on error. It mirrors runGit (snapshot_source_commit_sha_test.go) but
 // takes *testing.B instead of *testing.T since benchmark helpers cannot
 // share *testing.T-typed test helpers.
 func benchRunGit(b *testing.B, repoPath string, args ...string) {

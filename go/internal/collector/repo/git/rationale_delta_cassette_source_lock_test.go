@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
-const rationaleDeltaCassettePath = "../../../../testdata/cassettes/rationale/ifa-rationale-family-delta.json"
+const rationaleDeltaCassettePath = "../../../../../testdata/cassettes/rationale/ifa-rationale-family-delta.json"
 
 func TestRationaleDeltaCassetteMatchesNativePythonCollection(t *testing.T) {
 	engine, err := parser.DefaultEngine()

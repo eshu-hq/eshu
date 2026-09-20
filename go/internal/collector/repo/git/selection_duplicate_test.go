@@ -252,7 +252,7 @@ func TestNativeRepositorySelectorFilesystem_BasenameCollisionWarning(t *testing.
 // makeCollidingRepo creates a .git-backed repo with one file under root/rel.
 //
 // Shared by the duplicate/collision tests in this file and the direct-mode
-// collision tests in git_selection_direct_collision_test.go.
+// collision tests in selection_direct_collision_test.go.
 func makeCollidingRepo(t *testing.T, root, rel string) {
 	t.Helper()
 	dir := filepath.Join(root, filepath.FromSlash(rel))

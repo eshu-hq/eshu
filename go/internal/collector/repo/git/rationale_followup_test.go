@@ -40,15 +40,15 @@ func TestBuildStreamingGenerationEmitsRationaleFollowupForFullAndDelta(t *testin
 
 func TestRationaleFollowupHelperLivesInFollowupModule(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile("git_followup_facts.go")
+	raw, err := os.ReadFile("followup_facts.go")
 	if err != nil {
-		t.Fatalf("read git_followup_facts.go: %v", err)
+		t.Fatalf("read followup_facts.go: %v", err)
 	}
 	if !strings.Contains(string(raw), "func rationaleMaterializationFactEnvelope(") {
-		t.Fatal("git_followup_facts.go does not own rationaleMaterializationFactEnvelope")
+		t.Fatal("followup_facts.go does not own rationaleMaterializationFactEnvelope")
 	}
-	if _, err := os.Stat("git_rationale_followup.go"); !os.IsNotExist(err) {
-		t.Fatalf("standalone git_rationale_followup.go still exists: err=%v", err)
+	if _, err := os.Stat("rationale_followup.go"); !os.IsNotExist(err) {
+		t.Fatalf("standalone rationale_followup.go still exists: err=%v", err)
 	}
 }
 
@@ -95,7 +95,7 @@ func TestBuildStreamingGenerationDeltaEstimateAccountsForRationaleMarker(t *test
 
 func TestRationaleProductionMarkerMatchesReplayCatalog(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile("../../../../testdata/cassettes/rationale/ifa-rationale-family.json")
+	raw, err := os.ReadFile("../../../../../testdata/cassettes/rationale/ifa-rationale-family.json")
 	if err != nil {
 		t.Fatalf("read rationale cassette: %v", err)
 	}

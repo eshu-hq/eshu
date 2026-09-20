@@ -16,7 +16,7 @@ import (
 )
 
 // codeownersBenchFileCount mirrors deltaSnapshotBenchmarkFileCount
-// (git_snapshot_delta_bench_test.go): a mid-size repository's content-stream
+// (snapshot_delta_bench_test.go): a mid-size repository's content-stream
 // file count, large enough to amortize loop overhead in the no-regression
 // benchmark below (issue #5419 Phase 6 perf evidence).
 const codeownersBenchFileCount = 400

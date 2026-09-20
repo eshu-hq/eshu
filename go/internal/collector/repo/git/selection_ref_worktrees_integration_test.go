@@ -413,7 +413,7 @@ func TestCreateRefWorktreesSlashRefSurvivesReconcile(t *testing.T) {
 //
 // This drives the real sync loop (syncGitRepositoriesWithLogger) rather than
 // calling reconcileRefWorktrees directly: reconcileRefWorktrees already prunes
-// correctly in isolation (git_selection_ref_worktrees.go), so the bug is only
+// correctly in isolation (selection_ref_worktrees.go), so the bug is only
 // observable by proving the loop's else-branch actually invokes it for a repo
 // with zero current pins.
 func TestSyncGitRepositoriesPrunesRefWorktreesAfterLastPinRemoved(t *testing.T) {

@@ -4,7 +4,7 @@
 package git
 
 // The webpack bundler-prefix sniffer's own fixtures and tests. Split out of
-// git_snapshot_native_discovery_test.go when #4782's cases took that file over
+// snapshot_native_discovery_test.go when #4782's cases took that file over
 // the 500-line cap; the sniffer is a coherent enough subject to own a file.
 
 import (
