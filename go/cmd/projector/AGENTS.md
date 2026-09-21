@@ -46,7 +46,7 @@
   `internal/projector` code.
 
 - **Add a new port to `projector.Runtime`** → add the interface to
-  `internal/projector/runtime.go`, wire the Postgres implementation in
+  `internal/projector/runtime/projection.go`, wire the Postgres implementation in
   `buildProjectorRuntime`, add a test in `runtime_wiring_test.go`. Why:
   `Runtime` fields are all optional interfaces; missing wiring silently leaves
   the port nil and the feature inactive.

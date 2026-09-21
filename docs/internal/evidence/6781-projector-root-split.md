@@ -114,3 +114,53 @@ queue boundary. `PackageRegistryIdentityLocker` still brackets the
 package-registry identity writes, and `package_registry_lock_test.go` still
 pins both the locked path and the no-rows-so-no-lock path; both moved into
 `runtime/` alongside the code they exercise.
+
+## Follow-up: bare-style citation repoint (`fix/6781-stale-bare-path-citations`)
+
+### No-Regression Evidence:
+
+This follow-up changes no executable statement. It touches four paths under
+`go/internal/storage/postgres/`, and every one is a single-line repoint of a
+stale cross-reference inside a comment or a Markdown bullet:
+
+| path | changed line |
+| --- | --- |
+| `AGENTS.md` | prose bullet naming the consumer-side interface |
+| `cross_scope_producer_readiness.go` | comment |
+| `facts_active_crossplane_xrd.go` | comment |
+| `reducer_queue.go` | comment above the `Enqueue` batching loop |
+
+`git diff --numstat` reports `1 1` for each of the four, and every `+`/`-` pair
+is a comment or prose line. The `Enqueue` batching loop,
+`reducerEnqueueBatchSize`, and the `ON CONFLICT (work_item_id) DO NOTHING`
+accounting that returns `IntentResult.Count` are unchanged. No SQL, no query
+plan, no batch size, no lease or claim path, and no concurrency knob is
+touched, so there is no before/after measurement to take: the compiled
+behaviour of the touched package is unchanged by construction.
+
+Baseline and after are the same binary behaviour, so backend, input shape, and
+terminal queue and row counts are unchanged and not re-measured. To reproduce
+after merge, diff this commit against its first parent rather than against a
+branch SHA -- `git diff <merge-commit>^ <merge-commit> -- go/internal/storage/postgres/`
+-- since branch-local SHAs from before the rebase do not resolve upstream. The
+perf-evidence gate selected these paths because they are path- and
+content-matched as hot files, not because the diff carries a performance
+claim.
+
+### No-Observability-Change:
+
+No span, metric, structured-log field, status
+surface, or dashboard input is added, removed, or renamed. Four doc comments in
+`runtime/projection.go` change and all are godoc only: `Runtime`,
+`ReducerIntentWriter` and `Result` gain one, and the pre-existing `IntentResult`
+comment is corrected where it named `postgres.ReducerQueue` as the only
+production `ReducerIntentWriter`. `TraceSpanName` and `TraceSpanNames` are
+untouched, so the projector's emitted span set is identical.
+
+The only executable changes in this branch are
+`scripts/verify-moved-file-refs.sh` and its fixture suite
+`scripts/test-verify-moved-file-refs.sh`, a pre-push/CI gate and its own test.
+Neither runs product code. Its behaviour change is proven by a seeded RED/GREEN pair rather than a
+benchmark: a bare-style citation to a moved file exits 0 ("no dangling
+references") on the previous gate and exits 1 naming the site on the new one,
+committed as a case in `scripts/test-verify-moved-file-refs.sh`.

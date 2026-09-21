@@ -96,6 +96,26 @@ set -e
 check "passes when the branch repoints its own reference" 0 "$rc"
 rm -rf "$repo"
 
+# 2b. CITATION STYLE: the reference drops the leading "go/" and is written in
+#     Go-import style. This is the dominant citation style in this repo's docs,
+#     AGENTS.md files and Go comments, and greping only the repo-root-relative
+#     form git diff reports made it invisible -- #6781 Part B shipped ~20
+#     dangling bare-style citations past a clean gate run.
+repo="$(new_repo)"
+printf 'See internal/reducer/widget.go for the widget family.\n' >"$repo/docs/design.md"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "cite the widget family without the go/ prefix"
+mkdir -p "$repo/go/internal/reducer/widgetfam"
+git -C "$repo" mv go/internal/reducer/widget.go go/internal/reducer/widgetfam/widget.go
+git -C "$repo" commit -qm "move widget family"
+set +e
+out="$(run_gate "$repo")"
+rc=$?
+set -e
+check "fails on a bare Go-import-style citation with no go/ prefix" 1 "$rc"
+check_output "names the bare-style referencing site" "docs/design.md" "$out"
+rm -rf "$repo"
+
 # 3. ATTRIBUTION: a path deleted BEFORE the base is inherited debt. The branch
 #    did not break that reference, so the gate must stay silent about it --
 #    the header's "inherited debt did not change, so it cannot either", and

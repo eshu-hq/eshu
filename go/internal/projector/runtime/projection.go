@@ -34,6 +34,10 @@ type CanonicalWriter interface {
 	Write(context.Context, canonical.CanonicalMaterialization) error
 }
 
+// Runtime is one projector's unit of work: the injected writers, the identity
+// locker and the optional observability collaborators that Project needs to
+// turn a generation's facts into canonical graph and content truth. It carries
+// no per-run state, so one value is reusable across generations.
 type Runtime struct {
 	CanonicalWriter CanonicalWriter // replaces GraphWriter — canonical graph projection
 	ContentWriter   content.Writer
@@ -58,9 +62,9 @@ type Runtime struct {
 type ReducerIntent = projectorintent.ReducerIntent
 
 // IntentResult reports the outcome of one Enqueue call. Count is the number
-// of reducer intents actually admitted -- for postgres.ReducerQueue's
-// implementation (the only production ReducerIntentWriter), that is the
-// underlying INSERT's RowsAffected, NOT len(intents) (issue #5593): the
+// of reducer intents actually admitted -- for postgres.ReducerQueue, the
+// durable production ReducerIntentWriter, that is the underlying INSERT's
+// RowsAffected, NOT len(intents) (issue #5593): the
 // enqueue SQL's `ON CONFLICT (work_item_id) DO NOTHING` silently skips any
 // intent whose work_item_id another producer already wrote, so an "attempted"
 // count would over-report for every domain more than one producer can enqueue
@@ -70,6 +74,14 @@ type IntentResult struct {
 	Count int
 }
 
+// ReducerIntentWriter is the injected collaborator that admits reducer intents
+// into the queue. It is an interface so the projector can be driven against a
+// fake in tests, and production wires more than one implementation:
+// postgres.ReducerQueue is the durable one, cmd/ingester decorates it with an
+// admission-aware writer, and the local_lightweight profile substitutes a
+// writer that returns len(intents). IntentResult.Count therefore means
+// "admitted" only for implementations that report what the write accepted --
+// see IntentResult.
 type ReducerIntentWriter interface {
 	// Enqueue admits intents into the reducer queue and reports how many rows
 	// were actually inserted in the returned IntentResult.Count -- see
@@ -77,6 +89,12 @@ type ReducerIntentWriter interface {
 	Enqueue(context.Context, []ReducerIntent) (IntentResult, error)
 }
 
+// Result is what one projection reports back to the service loop: the scope and
+// generation it covered, the content-index outcome, and the IntentResult its
+// IntentWriter reported. Intents.Count carries whatever that writer reports --
+// the admitted count for writers that report what the write accepted, or
+// len(intents) under local_lightweight -- so read it with the writer in mind.
+// See IntentResult and ReducerIntentWriter.
 type Result struct {
 	ScopeID      string
 	GenerationID string

@@ -128,7 +128,7 @@ The README cross-references this section from its tree-sitter support table.
   3. Update `shape.Materialize` in `internal/content/shape`.
   4. Add a fixture test that asserts the new key appears in output for a known
      input.
-  5. Update `entityTypeLabelMap` in `internal/projector/canonical.go` if the new
+  5. Update `entityTypeLabelMap` in `internal/projector/canonical/materialization.go` if the new
      entity type needs a graph node label.
 
 - **Add SCIP support for a new language** →

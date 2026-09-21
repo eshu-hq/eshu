@@ -34,7 +34,7 @@ const crossplaneSatisfiedByResolutionModeGroupClaimKind = "group_claim_kind"
 // and an XRD candidate respectively. They are the canonical Neo4j label
 // strings (PascalCase) internal/content/shape/materialize.go's
 // materializeEntities stamps onto every content entity's entity_type field —
-// not the lowercase keys of internal/projector/canonical.go's
+// not the lowercase keys of internal/projector/canonical/materialization.go's
 // entityTypeLabelMap, which map the OTHER direction (content-store string ->
 // label) and are never themselves the stored value for a git-sourced content
 // entity. A Claim is never parser-labeled (issue #5347): it is a generic
@@ -231,7 +231,7 @@ func crossplaneContentEntityType(payload map[string]any) string {
 // internal/collector/git/content/envelopes.go's gitcontent.ContentEntityFactEnvelope
 // nests every extra parser field (api_version, kind, group, claim_kind, ...)
 // under, since none of them are in the reserved top-level key set
-// (internal/projector/entity_metadata.go entityPayloadReservedKeys).
+// (internal/projector/canonical/entity_metadata.go entityPayloadReservedKeys).
 func crossplaneEntityMetadataString(payload map[string]any, key string) string {
 	metadata, ok := payload["entity_metadata"].(map[string]any)
 	if !ok {
@@ -242,7 +242,7 @@ func crossplaneEntityMetadataString(payload map[string]any, key string) string {
 
 // crossplaneClaimCandidateFromPayload builds a Claim candidate from a
 // K8sResource content_entity row. The node uid is the row's own entity_id
-// (the same value internal/projector/canonical_entity_identity.go's
+// (the same value internal/projector/canonical/entity_identity.go's
 // canonicalGraphEntityID resolves to for the K8sResource label, since
 // K8sResource is not in canonicalNamePathLineEntityLabels and therefore uses
 // the incoming id directly). group is derived from api_version's segment

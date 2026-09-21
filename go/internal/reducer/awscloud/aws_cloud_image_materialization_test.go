@@ -305,7 +305,7 @@ func TestAWSCloudImageMaterializationIdempotentOnReprojection(t *testing.T) {
 // TestAWSCloudImageMaterializationRetractsPriorEdgeWhenRelationshipDisappears
 // is the handler-side half of the #5450 retraction-safety proof (the
 // enqueue-side half lives in
-// internal/projector/aws_cloud_image_materialization_intents_test.go's
+// internal/projector/runtime/aws_cloud_image_materialization_intents_test.go's
 // TestBuildProjectionQueuesAWSCloudImageMaterializationWithoutLambdaRelationship).
 // It simulates the Zip-switch scenario directly against Handle: a later
 // generation for the SAME scope carries an aws_resource fact for the Lambda

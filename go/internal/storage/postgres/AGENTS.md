@@ -487,7 +487,7 @@ shared-intent backlog/status queries and reducer code-call cycle logs.
   error so wrapped failures self-locate to enqueue vs claim. Do not
   invent a parallel ReducerQueueEnqueuer port —
   `projector.ReducerIntentWriter` already provides the narrower
-  consumer-side interface (`internal/projector/runtime.go`).
+  consumer-side interface (`internal/projector/runtime/projection.go`).
 
 - **Add a new fact kind or column** → update `upsertFactBatch` column list and
   `columnsPerFactRow`; update `scanFactEnvelope`; update the schema DDL; add a

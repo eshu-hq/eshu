@@ -158,8 +158,16 @@ while IFS="${tab}" read -r old new; do
   # git grep exits 0 with matches, 1 with none, and >1 when the search itself
   # could not run. Only 1 means clean -- treating every non-zero status as
   # "clean" would turn an operational failure into a silent pass.
+  # Search the path WITHOUT its leading "go/". Citations in this repo are
+  # commonly written in Go-import style ("internal/projector/canonical.go"),
+  # and the repo-root-relative form git diff reports ("go/internal/...") does
+  # not match those, so grepping the prefixed form alone silently passed a
+  # branch that left ~20 dangling bare-style citations (#6781 Part B). The
+  # unprefixed needle is a substring of the prefixed one, so it still catches
+  # every "go/"-prefixed citation. The violation key below keeps using ${old},
+  # so existing allowlist entries are unaffected.
   set +e
-  hits="$(git grep -n -F -- "${old}" -- . "${exclusions[@]}" 2>"${tmp_dir}/grep-err.txt")"
+  hits="$(git grep -n -F -- "${old#go/}" -- . "${exclusions[@]}" 2>"${tmp_dir}/grep-err.txt")"
   grep_status=$?
   set -e
   case "${grep_status}" in

@@ -49,7 +49,7 @@ import (
 // edge never projects before the source Lambda function CloudResource node
 // commits. There is no analogous readiness phase for the target
 // :ContainerImage node: OCI registry canonical nodes materialize through the
-// source-local projector path (internal/projector/oci_registry_canonical.go),
+// source-local projector path (internal/projector/canonical/oci_registry.go),
 // independent of this reducer's scope-generation phases, so an unscanned
 // image is a graceful two-MATCH-MERGE no-op inside the handler rather than a
 // second readiness gate here (matching every other AWS edge domain's
