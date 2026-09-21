@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
-	"github.com/eshu-hq/eshu/go/internal/collector/prometheusmimir"
+	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -65,7 +65,7 @@ func buildClaimedService(
 	}
 	config.Source.Tracer = tracer
 	config.Source.Instruments = instruments
-	source, err := prometheusmimir.NewClaimedSource(config.Source)
+	source, err := prometheus.NewClaimedSource(config.Source)
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
@@ -76,7 +76,7 @@ func buildClaimedService(
 		ControlStore:        postgres.NewWorkflowControlStore(database),
 		Source:              source,
 		Committer:           committer,
-		CollectorKind:       scope.CollectorKind(prometheusmimir.CollectorKind),
+		CollectorKind:       scope.CollectorKind(prometheus.CollectorKind),
 		CollectorInstanceID: config.Instance.InstanceID,
 		OwnerID:             config.OwnerID,
 		ClaimIDFunc:         newClaimID,

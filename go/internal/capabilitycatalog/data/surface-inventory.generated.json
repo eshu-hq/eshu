@@ -1864,7 +1864,7 @@
       "category": "collector",
       "name": "prometheus_mimir",
       "readiness": "implemented",
-      "owner": "internal/collector/prometheusmimir",
+      "owner": "internal/collector/observability/prometheus",
       "proof": "reference/collector-reducer-readiness.md#promotion-proof",
       "docs": [
         "reference/collector-reducer-readiness.md"
@@ -1898,11 +1898,11 @@
           "list_observability_coverage"
         ],
         "proof_gates": [
-          "cd go \u0026\u0026 go test ./cmd/collector-prometheus-mimir ./internal/collector/prometheusmimir ./internal/reducer ./internal/query ./internal/mcp -count=1"
+          "cd go \u0026\u0026 go test ./cmd/collector-prometheus-mimir ./internal/collector/observability/prometheus ./internal/reducer ./internal/query ./internal/mcp -count=1"
         ],
         "fixture_refs": [
           "docs/public/reference/observability-evidence.md",
-          "go/internal/collector/prometheusmimir/testdata"
+          "go/internal/collector/observability/prometheus/testdata"
         ],
         "truth_profile": "provider_gated"
       }

@@ -158,7 +158,7 @@ client, _ := loki.NewHTTPClient(loki.HTTPClientConfig{
 
 Collector seams that accept the tripper:
 
-- `loki`, `grafana`, `prometheusmimir`, `tempo` — `HTTPClientConfig.Client`
+- `loki`, `grafana`, `prometheus`, `tempo` — `HTTPClientConfig.Client`
   (an `sdk.HTTPDoer`; `*http.Client` satisfies it).
 - `pagerduty`, `jira`, `confluence` — a `*http.Client` field.
 - SDK collectors (`awscloud`, `gcpcloud`, `azurecloud`) — the SDK accepts a

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/loki"
-	"github.com/eshu-hq/eshu/go/internal/collector/prometheusmimir"
+	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/replay/inputtape"
 )
 
@@ -155,17 +155,17 @@ func TestPrometheusMimirRecordReplayProducesIdenticalFacts(t *testing.T) {
 	}
 	server := httptest.NewServer(http.HandlerFunc(handler))
 
-	target := prometheusmimir.TargetConfig{
+	target := prometheus.TargetConfig{
 		ScopeID:       "prom:cluster:prod",
 		InstanceID:    "prom-prod",
-		Provider:      prometheusmimir.ProviderPrometheus,
+		Provider:      prometheus.ProviderPrometheus,
 		BaseURL:       server.URL,
 		Token:         "live-prom-token-DO-NOT-LEAK",
 		ResourceLimit: 50,
 	}
 
 	recorder := inputtape.New(inputtape.Config{})
-	recClient, err := prometheusmimir.NewHTTPClient(prometheusmimir.HTTPClientConfig{
+	recClient, err := prometheus.NewHTTPClient(prometheus.HTTPClientConfig{
 		BaseURL: server.URL,
 		Client:  &http.Client{Transport: recorder},
 	})
@@ -190,7 +190,7 @@ func TestPrometheusMimirRecordReplayProducesIdenticalFacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new replayer: %v", err)
 	}
-	replayClient, err := prometheusmimir.NewHTTPClient(prometheusmimir.HTTPClientConfig{
+	replayClient, err := prometheus.NewHTTPClient(prometheus.HTTPClientConfig{
 		BaseURL: server.URL,
 		Client:  &http.Client{Transport: replayer},
 	})

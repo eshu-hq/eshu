@@ -71,7 +71,7 @@
 //
 // The RoundTripper satisfies http.RoundTripper, so it installs as the Transport
 // of an *http.Client. Collectors that accept an HTTP client through a config
-// seam (loki, prometheusmimir, tempo, grafana via HTTPClientConfig.Client;
+// seam (loki, prometheus, tempo, grafana via HTTPClientConfig.Client;
 // pagerduty/jira/confluence via *http.Client) wire it directly. SDK-based
 // collectors (AWS/GCP/Azure) accept a custom *http.Client on their SDK config
 // (for AWS, aws.Config.HTTPClient), so the same RoundTripper records and replays

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package prometheusmimir collects bounded live Prometheus and Mimir metadata
+// Package prometheus collects bounded live Prometheus and Mimir metadata
 // as observability source facts.
 //
 // The package reads configured Prometheus-compatible API targets and emits
@@ -13,4 +13,4 @@
 // provider response bodies and credential-bearing request details. Reducers and
 // query surfaces own declared/applied/observed comparison and user-facing
 // observability truth.
-package prometheusmimir
+package prometheus
