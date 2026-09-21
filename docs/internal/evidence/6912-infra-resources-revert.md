@@ -59,8 +59,19 @@ put exactly those stale values back into bucket reads.
 
 The #6843 parity battery itself is removed: it proves the Postgres fact
 path buckets identically to the graph scan, and its Postgres side no
-longer exists. The TSR stale-scalar behavior it deferred to keeps its own
-coverage in `tfstate_canonical_writer_stale_attrs_test.go`.
+longer exists. Only that cross-store comparison goes; graph bucket truth
+for both labels keeps three independent proofs:
+
+- `TestLiveInfraProviderInventoryBucketsNonNull` (#5283), a live
+  backend-required test that runs the shipped
+  `GraphInfraResourceAggregateStore.InfraResourceInventory` by-provider
+  read over `CloudResource` and asserts no null bucket, the
+  `source_system` fallback, and no collapse of a real provider.
+- The B-7 golden corpus snapshot
+  (`testdata/golden/e2e-20repo-snapshot.json`), which holds node-count
+  floors for both `CloudResource` and `TerraformStateResource`.
+- `tfstate_canonical_writer_stale_attrs_test.go`, which the battery
+  itself named as the owner of the TSR stale-scalar behavior.
 
 ## The revert is exact, by the repo's own digests
 
@@ -111,7 +122,46 @@ backend image; only the tree differs.
   IaC facts, plus the cloud/state fact corpus at `nodesPerLabel`.
 - Sweep: 113 no-arg GET routes, 20 counted iterations each, 65 exercised.
 
-PLACEHOLDER_TABLE
+Two runs on the shipped tree. Run A is commit `95c217ef4`, run B is
+`c32a48ccf`; the only difference between them is one `_test.go` comment
+and this file, so both built an identical gate binary.
+
+| route | before (main, #6843) | run A | run B | budget |
+| --- | --- | --- | --- | --- |
+| `/infra/resources/count` p95 | 1.25s | 108ms | 106ms | 2000ms |
+| `/infra/resources/inventory` p95 | 1.22s | 90ms | 76ms | 2000ms |
+| `/infra/resources/count` blks | 221,025 | **24,913** | **24,913** | 74,739 |
+| `/infra/resources/inventory` blks | 221,025 | **24,913** | **24,913** | 74,739 |
+| `/cloud/inventory` blks | 48,617 | 48,622 | 48,622 | 145,866 |
+| `/iac/resources` blks | 24,976 | 24,977 | 24,977 | 74,931 |
+
+24,913 is the pre-#6843 figure exactly, not an approximation of it. The
+issue predicted it: `infra_resource_entities` is 24,893 heap pages and the
+restored query is one clean scan of it.
+
+Both runs agree on every work counter to the block, across the two routes
+plus the two neighbours that read the same corpus. That reproducibility is
+what makes the block count usable as the load-bearing number: it does not
+move between runs, so it does not move between runners either -- which is
+the same property that refutes the #6909 variance diagnosis below.
+
+`/cloud/inventory` and `/iac/resources` are listed because they read the
+same corpus and must not move. They did not.
+
+Work budgets were regenerated from both runs' reports with
+`scripts/refresh-read-api-work-budgets.sh`, never edited by hand:
+
+```
+GET /api/v0/infra/resources/count       13  663066  88   ->  13  74739  80
+GET /api/v0/infra/resources/inventory   13  663066  16   ->  13  74739  14
+```
+
+74,739 is `ceil(24,913 * 3.0)`, the renderer's own formula. Every other
+named row moved by less than 0.2% except `/cloud/inventory`, which held at
+145,866 rather than collapsing to 21 -- see the corpus section above. An
+independent check confirms the rendered table admits every measured route:
+65 routes checked across both reports, zero breaches, and the checker
+fails as expected on a seeded violation.
 
 ## No-Regression Evidence: every other exercised route
 

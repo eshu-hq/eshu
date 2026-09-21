@@ -85,14 +85,22 @@
 # infra_resource_entities and removed the grant, so the 2s ceiling blocks
 # again; the route's work budget still blocks it as before.
 #
-# CURRENTLY EXEMPT: /api/v0/infra/resources/count and
-# /api/v0/infra/resources/inventory measure 2.07s to 2.34s p95 against their
-# 2s ceilings on CI runners (runs 35561409959, 35574822547, 35566424509,
+# /api/v0/infra/resources/count and /api/v0/infra/resources/inventory were
+# exempt under #6909: they measured 2.07s to 2.34s p95 against their 2s
+# ceilings on CI runners (runs 35561409959, 35574822547, 35566424509,
 # 35590760445, main and PR alike) with identical work every time (3 calls,
-# 221025 buffers; 44 and 8 rows), inside their work budgets. Their latency
-# ceilings are advisory via LatencyExemptions
-# (go/cmd/read-api-latency-gate/latency_exemption.go), tracked against #6909;
-# the work budgets still block, and production SLO (2500ms) holds.
+# 221025 buffers; 44 and 8 rows), inside their work budgets, which read as
+# runner-speed variance over deterministic work.
+#
+# The constancy was the refutation rather than the alibi. Those routes read
+# 24,913 buffers before #6843, and run 35593350187 on a fifth unrelated PR
+# reads 221,026. Runner speed varies p95; it cannot hold buffer hits constant
+# to within two blocks across five runners, so the 8.9x was a deterministic
+# regression, not variance. #6912 removed the #6843 read-model workaround
+# that caused it -- the routes read the graph again, on a NornicDB carrying
+# the conjunct index-seek fix -- and both grants are removed, so the 2s
+# ceilings block again. Measured after the revert: 106-108ms and 76-90ms p95
+# at 24,913 buffers over two runs. Their work budgets block as before.
 # (3) A retracted claim: earlier revisions of this header said the
 # infra graph was seeded with 150k nodes per label and measured well under
 # 100ms. The bulk seed in fact created ONE node per label (NornicDB evaluates
