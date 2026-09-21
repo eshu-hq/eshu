@@ -2,7 +2,7 @@
 #
 # Each collector declares the fact kinds it may emit and the required payload
 # keys for each. CI contracts (to be wired separately) assert every emit site
-# matches. This is the source-of-truth spec; the Go contracttest package
+# matches. This is the source-of-truth spec; the Go contract package
 # consumes a programmatic equivalent.
 #
 # Version: 1.0.0

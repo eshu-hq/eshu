@@ -8,14 +8,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/contracttest"
+	"github.com/eshu-hq/eshu/go/internal/collector/conformance/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func s3Contract() contracttest.Contract {
-	return contracttest.Contract{
+func s3Contract() contract.CollectorContract {
+	return contract.CollectorContract{
 		CollectorKind: awscloud.CollectorKind,
-		FactKinds: []contracttest.FactKindShape{
+		FactKinds: []contract.FactKindShape{
 			{
 				Kind: facts.AWSResourceFactKind,
 				RequiredPayloadKeys: []string{
@@ -60,7 +60,7 @@ func s3Contract() contracttest.Contract {
 // TestContractShape verifies that the S3 scanner output satisfies the
 // per-collector fact-shape contract declared in
 // specs/collector_fact_contract.v1.yaml. It exercises the reusable
-// contracttest helpers on real scanner output.
+// contract helpers on real scanner output.
 func TestContractShape(t *testing.T) {
 	client := fakeClient{buckets: []Bucket{{
 		Name:   "orders-artifacts",
@@ -94,17 +94,17 @@ func TestContractShape(t *testing.T) {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
 
-	contracttest.AssertFactShape(t, s3Contract(), envelopes)
-	contracttest.ValidateCollectorKind(t, s3Contract(), envelopes)
+	contract.AssertFactShape(t, s3Contract(), envelopes)
+	contract.ValidateCollectorKind(t, s3Contract(), envelopes)
 
 	t.Logf("contract shape verified: %d envelopes, fact kinds: %v",
-		len(envelopes), contracttest.EnvelopeCounts(envelopes))
+		len(envelopes), contract.EnvelopeCounts(envelopes))
 }
 
 // TestContractRejectsMismatchedServiceKind exercises the shared
 // service-kind rejection helper on the S3 scanner zero value.
 func TestContractRejectsMismatchedServiceKind(t *testing.T) {
-	contracttest.AssertRejectsMismatchedServiceKind(
+	contract.AssertRejectsMismatchedServiceKind(
 		t,
 		func(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
 			return (Scanner{Client: fakeClient{}}).Scan(ctx, boundary)
@@ -117,7 +117,7 @@ func TestContractRejectsMismatchedServiceKind(t *testing.T) {
 // TestContractRequiresClient exercises the shared client-required helper on
 // the S3 scanner without a client set.
 func TestContractRequiresClient(t *testing.T) {
-	contracttest.AssertRequiresClient(
+	contract.AssertRequiresClient(
 		t,
 		func(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
 			return (Scanner{}).Scan(ctx, boundary)

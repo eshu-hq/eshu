@@ -131,7 +131,7 @@ are outside it, and of those only **five are non-test** —
 `go/internal/coordinator/planner/aws/scheduled/planner.go`,
 `go/cmd/collector-aws-cloud/config.go`,
 `go/cmd/collector-aws-cloud/status_committer.go`,
-`go/internal/collector/contracttest/contracttest.go`, and
+`go/internal/collector/conformance/contract/assert.go`, and
 `go/internal/storage/postgres/aws_scan_status.go`.
 
 Three properties of that import surface matter for planning a move:

@@ -1,4 +1,4 @@
-# contracttest
+# contract
 
 ## Purpose
 Reusable fact-shape contract test helpers that any collector package can import
@@ -12,7 +12,7 @@ This package owns the shared `AssertFactShape`, `AssertFactKinds`,
 and service-specific payload assertions.
 
 ## Exported surface
-- `Contract`, `FactKindShape` — contract model. See `doc.go`.
+- `CollectorContract`, `FactKindShape` — contract model. See `doc.go`.
 - `AssertFactShape` — primary entry point: runs fact-kind and payload-key checks.
 - `AssertFactKinds` — subset check: every emitted kind must be declared.
 - `AssertRequiredPayloadKeys` — key-presence check per declared kind.

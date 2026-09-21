@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package contracttest
+package contract
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 )
 
 func TestAssertFactKinds(t *testing.T) {
-	contract := Contract{
+	contract := CollectorContract{
 		CollectorKind: "aws",
 		FactKinds: []FactKindShape{
 			{Kind: facts.AWSResourceFactKind},
@@ -28,7 +28,7 @@ func TestAssertFactKinds(t *testing.T) {
 }
 
 func TestAssertRequiredPayloadKeys(t *testing.T) {
-	contract := Contract{
+	contract := CollectorContract{
 		CollectorKind: "aws",
 		FactKinds: []FactKindShape{
 			{Kind: facts.AWSResourceFactKind, RequiredPayloadKeys: []string{"arn", "resource_type"}},
@@ -41,7 +41,7 @@ func TestAssertRequiredPayloadKeys(t *testing.T) {
 }
 
 func TestValidateCollectorKind(t *testing.T) {
-	contract := Contract{
+	contract := CollectorContract{
 		CollectorKind: "aws",
 		FactKinds: []FactKindShape{
 			{Kind: facts.AWSResourceFactKind},

@@ -1,4 +1,4 @@
-# AGENTS.md - internal/collector/contracttest/gen guidance
+# AGENTS.md - internal/collector/conformance/contract/gen guidance
 
 ## Read First
 1. `README.md` — command purpose and usage.
