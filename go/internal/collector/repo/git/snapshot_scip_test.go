@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -143,7 +144,7 @@ func TestSCIPSnapshotExplicitEnableUsesSCIPWhenBinaryAvailable(t *testing.T) {
 	})
 	config.Indexer = indexer
 	config.Parser = fakeSCIPParser{
-		result: parser.SCIPParseResult{
+		result: scip.ParseResult{
 			Files: map[string]map[string]any{
 				appPath: {
 					"path":                appPath,
@@ -191,7 +192,7 @@ func TestSCIPSnapshotExplicitDisableFallsBackToNative(t *testing.T) {
 	})
 	config.Indexer = indexer
 	config.Parser = fakeSCIPParser{
-		result: parser.SCIPParseResult{
+		result: scip.ParseResult{
 			Files: map[string]map[string]any{
 				appPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "unused"}}},
 			},
@@ -230,7 +231,7 @@ func TestSCIPSnapshotUnavailableBinaryFallsBackToNative(t *testing.T) {
 	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Indexer = indexer
 	config.Parser = fakeSCIPParser{
-		result: parser.SCIPParseResult{
+		result: scip.ParseResult{
 			Files: map[string]map[string]any{
 				appPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "unused"}}},
 			},
@@ -274,7 +275,7 @@ func TestSCIPSnapshotLanguagesNarrowDominantSelection(t *testing.T) {
 	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(map[string]string{"SCIP_LANGUAGES": "go"}))
 	config.Indexer = indexer
 	config.Parser = fakeSCIPParser{
-		result: parser.SCIPParseResult{
+		result: scip.ParseResult{
 			Files: map[string]map[string]any{
 				goPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-go gomod main/main()."}}},
 			},
@@ -333,7 +334,7 @@ func TestSCIPSnapshotKeepsSelectedFilesMissingFromIndex(t *testing.T) {
 	config := LoadSnapshotSCIPConfig(scipEnabledTestGetenv(nil))
 	config.Indexer = &recordingSCIPIndexer{available: true}
 	config.Parser = fakeSCIPParser{
-		result: parser.SCIPParseResult{
+		result: scip.ParseResult{
 			Files: map[string]map[string]any{
 				appPath: {
 					"path":                appPath,
@@ -446,13 +447,13 @@ func (i *recordingSCIPIndexer) Run(_ context.Context, _ string, language string,
 }
 
 type fakeSCIPParser struct {
-	result parser.SCIPParseResult
+	result scip.ParseResult
 	err    error
 }
 
-func (p fakeSCIPParser) Parse(string, string) (parser.SCIPParseResult, error) {
+func (p fakeSCIPParser) Parse(string, string) (scip.ParseResult, error) {
 	if p.err != nil {
-		return parser.SCIPParseResult{}, p.err
+		return scip.ParseResult{}, p.err
 	}
 	return p.result, nil
 }

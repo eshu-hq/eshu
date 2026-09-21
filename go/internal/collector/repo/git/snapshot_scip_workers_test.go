@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -79,7 +79,7 @@ func TestSCIPLanguageSubtreesRunWithBoundedWorkers(t *testing.T) {
 		barrier:   make(chan struct{}),
 		waitFor:   2,
 	}
-	resultParser := rootSCIPParser{resultsByRoot: map[string]parser.SCIPParseResult{
+	resultParser := rootSCIPParser{resultsByRoot: map[string]scip.ParseResult{
 		apiRoot: {
 			Files: map[string]map[string]any{
 				apiPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python api/main()."}}},
@@ -92,7 +92,7 @@ func TestSCIPLanguageSubtreesRunWithBoundedWorkers(t *testing.T) {
 		},
 	}}
 	snapshotter := NativeRepositorySnapshotter{SCIP: SnapshotSCIPConfig{Workers: 2}}
-	groups := parser.DetectSCIPProjectLanguageGroups([]string{apiPath, jobsPath}, []string{"python"})
+	groups := scip.DetectProjectLanguageGroups([]string{apiPath, jobsPath}, []string{"python"})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -143,7 +143,7 @@ func TestSCIPWorkersCapConcurrentSnapshots(t *testing.T) {
 			scipFiles, usedAny, err := snapshotter.collectSCIPLanguageGroupFiles(
 				context.Background(),
 				repo.root,
-				parser.DetectSCIPProjectLanguageGroups(repo.files, []string{"python"}),
+				scip.DetectProjectLanguageGroups(repo.files, []string{"python"}),
 				indexer,
 				resultParser,
 			)
@@ -202,7 +202,7 @@ func TestSCIPWorkersRecordLimiterWaitDuration(t *testing.T) {
 			scipFiles, usedAny, err := snapshotter.collectSCIPLanguageGroupFiles(
 				context.Background(),
 				repo.root,
-				parser.DetectSCIPProjectLanguageGroups(repo.files, []string{"python"}),
+				scip.DetectProjectLanguageGroups(repo.files, []string{"python"}),
 				indexer,
 				resultParser,
 			)
@@ -252,7 +252,7 @@ func TestSCIPLanguageGroupFilesConcurrentPreservesSubtreeMergeOrder(t *testing.T
 			childRoot: time.Millisecond,
 		},
 	}
-	resultParser := rootSCIPParser{resultsByRoot: map[string]parser.SCIPParseResult{
+	resultParser := rootSCIPParser{resultsByRoot: map[string]scip.ParseResult{
 		repoRoot: {
 			Files: map[string]map[string]any{
 				filePath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python parent/main()."}}},
@@ -294,7 +294,7 @@ func TestSCIPLanguageGroupFilesConcurrentPreservesSubtreeMergeOrder(t *testing.T
 type scipWorkerRepo struct {
 	root    string
 	files   []string
-	results map[string]parser.SCIPParseResult
+	results map[string]scip.ParseResult
 }
 
 func scipWorkerTestRepo(t *testing.T, name string) scipWorkerRepo {
@@ -313,7 +313,7 @@ func scipWorkerTestRepo(t *testing.T, name string) scipWorkerRepo {
 	return scipWorkerRepo{
 		root:  repoRoot,
 		files: []string{apiPath, jobsPath},
-		results: map[string]parser.SCIPParseResult{
+		results: map[string]scip.ParseResult{
 			apiRoot: {
 				Files: map[string]map[string]any{
 					apiPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python api/main()."}}},
@@ -328,8 +328,8 @@ func scipWorkerTestRepo(t *testing.T, name string) scipWorkerRepo {
 	}
 }
 
-func mergeSCIPWorkerResults(resultSets ...map[string]parser.SCIPParseResult) map[string]parser.SCIPParseResult {
-	merged := make(map[string]parser.SCIPParseResult)
+func mergeSCIPWorkerResults(resultSets ...map[string]scip.ParseResult) map[string]scip.ParseResult {
+	merged := make(map[string]scip.ParseResult)
 	for _, results := range resultSets {
 		for root, result := range results {
 			merged[root] = result
@@ -374,20 +374,20 @@ func BenchmarkSCIPLanguageSubtreeWorkers(b *testing.B) {
 		b.Run(fmt.Sprintf("workers_%d", workers), func(b *testing.B) {
 			repoRoot := b.TempDir()
 			var files []string
-			results := make(map[string]parser.SCIPParseResult)
+			results := make(map[string]scip.ParseResult)
 			for service := 0; service < 4; service++ {
 				root := filepath.Join(repoRoot, "services", fmt.Sprintf("svc-%02d", service))
 				path := filepath.Join(root, "app.py")
 				writeSCIPWorkerBenchmarkFile(b, filepath.Join(root, "pyproject.toml"), "[project]\nname = \"svc\"\n")
 				writeSCIPWorkerBenchmarkFile(b, path, "def main():\n    return 1\n")
 				files = append(files, path)
-				results[root] = parser.SCIPParseResult{
+				results[root] = scip.ParseResult{
 					Files: map[string]map[string]any{
 						path: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python main()."}}},
 					},
 				}
 			}
-			groups := parser.DetectSCIPProjectLanguageGroups(files, []string{"python"})
+			groups := scip.DetectProjectLanguageGroups(files, []string{"python"})
 			snapshotter := NativeRepositorySnapshotter{SCIP: SnapshotSCIPConfig{Workers: workers}}
 			indexer := &concurrentSCIPIndexer{
 				available: map[string]bool{"python": true},
@@ -438,10 +438,10 @@ func (i delayedSCIPIndexer) Run(ctx context.Context, projectPath string, languag
 }
 
 type rootSCIPParser struct {
-	resultsByRoot map[string]parser.SCIPParseResult
+	resultsByRoot map[string]scip.ParseResult
 }
 
-func (p rootSCIPParser) Parse(_ string, projectRoot string) (parser.SCIPParseResult, error) {
+func (p rootSCIPParser) Parse(_ string, projectRoot string) (scip.ParseResult, error) {
 	return p.resultsByRoot[projectRoot], nil
 }
 

@@ -25,7 +25,7 @@ flowchart LR
   B --> C["map[string]any\nparsed file payload"]
   C --> D["internal/content/shape\nshape.Materialize"]
   D --> E["ContentFileMeta + ContentEntitySnapshot\n(collector fact streaming)"]
-  B2["SCIPIndexer\nexternal scip-* CLI"] --> F["SCIPIndexParser\nSCIPParseResult"]
+  B2["scip.Indexer\nexternal scip-* CLI"] --> F["scip.IndexParser\nscip.ParseResult"]
   F --> G["parser-supplemented facts\n(collector SCIP path)"]
 ```
 
@@ -46,7 +46,7 @@ flowchart TB
   I --> J["preScanOnePath\nDispatch to language-specific pre-scanner"]
   J --> K["merged import map\nsorted by input order"]
 
-  L["SCIPIndexer.Run\ndetect language + run scip-* binary"] --> M["SCIPIndexParser.Parse\nprotobuf index → SCIPParseResult"]
+  L["scip.Indexer.Run\ndetect language + run scip-* binary"] --> M["scip.IndexParser.Parse\nprotobuf index → scip.ParseResult"]
 ```
 
 ## Lifecycle / workflow
@@ -238,8 +238,8 @@ path as `.rb` source files.
 snapshotter groups selected files from the configured SCIP-capable list by
 language and
 package/workspace root, verifies the matching `scip-*` binary is on `PATH`,
-runs it via `SCIPIndexer.Run`, and parses the resulting protobuf index via
-`SCIPIndexParser.Parse`. The SCIP result supplements the native tree-sitter
+runs it via `scip.Indexer.Run`, and parses the resulting protobuf index via
+`scip.IndexParser.Parse`. The SCIP result supplements the native tree-sitter
 parse for supported languages (Go, Python, TypeScript, JavaScript, Rust, Java,
 C, C++), and files omitted from an index still complete through the native
 parser path.
@@ -278,12 +278,12 @@ parser path.
   cached `*tree_sitter.Language`
 - `NewRuntime()` — constructs a fresh tree-sitter runtime
 - `Options` — `IndexSource bool`, `VariableScope string`
-- `SCIPIndexer` — runs an external `scip-*` CLI; fields: `LookPath`,
-  `RunCommand`, `Timeout`
-- `SCIPIndexParser` — parses a SCIP protobuf index into `SCIPParseResult`
-- `SCIPParseResult` — parsed SCIP output for downstream fact emission
-- `DetectSCIPProjectLanguage(paths, allowed)` — dominant SCIP-capable language
-  by file extension count, filtered to the allowed set
+- `internal/parser/scip` — SCIP protobuf index ingestion subpackage (moved out
+  of this package's own exported surface): `scip.Indexer` runs an external
+  `scip-*` CLI (fields: `LookPath`, `RunCommand`, `Timeout`);
+  `scip.IndexParser` parses a SCIP protobuf index into `scip.ParseResult`;
+  `scip.DetectProjectLanguage(paths, allowed)` picks the dominant SCIP-capable
+  language by file extension count, filtered to the allowed set
 - `ExtractDockerfileRuntimeMetadata(sourceText)` — exported utility for
   Dockerfile runtime metadata extraction
 - `ExtractGroovyPipelineMetadata(sourceText)` — exported utility for Groovy
@@ -378,13 +378,13 @@ SCIP provides higher-fidelity cross-file symbol resolution for languages where
 tree-sitter alone cannot reliably produce type-qualified call graphs. The SCIP
 path in Eshu:
 
-1. `DetectSCIPProjectLanguage` scans file extensions to find the dominant
+1. `scip.DetectProjectLanguage` scans file extensions to find the dominant
    SCIP-capable language (priority: Python, TypeScript, JavaScript, Go, Rust,
    Java, C++, C).
-2. `SCIPIndexer.Run` invokes the external binary (`scip-go`, `scip-python`,
+2. `scip.Indexer.Run` invokes the external binary (`scip-go`, `scip-python`,
    `scip-typescript`, `scip-rust`, `scip-java`, `scip-clang`) and returns the
    generated index path.
-3. `SCIPIndexParser.Parse` reads the protobuf index and returns `SCIPParseResult`
+3. `scip.IndexParser.Parse` reads the protobuf index and returns `scip.ParseResult`
    for downstream fact emission.
 4. SCIP definition payloads preserve the source `scip_symbol` on emitted
    functions, classes, and variables so reducers can build generation-stable
@@ -803,7 +803,7 @@ pure-function internal refactor with the same inputs/outputs as before.
   the cached handle. Do not call `NewRuntime()` per file — share one runtime
   across all parse calls.
 - The SCIP binaries (`scip-go`, `scip-python`, etc.) must be on PATH for SCIP
-  supplementation to run. `SCIPIndexer.IsAvailable` checks the selected
+  supplementation to run. `scip.Indexer.IsAvailable` checks the selected
   language binary first; if the binary is absent or the indexer/parser fails,
   the collector keeps the native parser output as the complete payload.
 
@@ -811,7 +811,7 @@ pure-function internal refactor with the same inputs/outputs as before.
 
 - `NewRegistry(definitions)` — build a custom registry for test suites or
   plugin-supplied language definitions; pass it to `NewEngine`
-- `SCIPIndexer.LookPath` and `SCIPIndexer.RunCommand` — injectable seams for
+- `scip.Indexer.LookPath` and `scip.Indexer.RunCommand` — injectable seams for
   testing the SCIP path without external binaries
 - `Registry.LookupByPath` — the discovery package's file matcher predicate
   is built from this lookup, so a custom registry produces a custom file

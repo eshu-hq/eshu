@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/discovery"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -29,7 +30,7 @@ func TestSCIPSnapshotRunsEachSupportedLanguageSubtree(t *testing.T) {
 	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
-		results: map[string]parser.SCIPParseResult{
+		results: map[string]scip.ParseResult{
 			"python": {
 				Files: map[string]map[string]any{
 					pythonPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python app/main()."}}},
@@ -91,7 +92,7 @@ func TestSCIPSnapshotRunsSameLanguagePackageSubtrees(t *testing.T) {
 	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
-		resultsByRoot: map[string]parser.SCIPParseResult{
+		resultsByRoot: map[string]scip.ParseResult{
 			apiRoot: {
 				Files: map[string]map[string]any{
 					apiPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python api/main()."}}},
@@ -153,7 +154,7 @@ func TestSCIPSnapshotSameLanguageSubtreeFailurePreservesOtherRoots(t *testing.T)
 	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
-		resultsByRoot: map[string]parser.SCIPParseResult{
+		resultsByRoot: map[string]scip.ParseResult{
 			jobsRoot: {
 				Files: map[string]map[string]any{
 					jobsPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python jobs/run()."}}},
@@ -206,7 +207,7 @@ func TestSCIPSnapshotLanguageSubtreeFallbackPreservesOtherLanguages(t *testing.T
 	config.Workers = 1
 	config.Indexer = indexer
 	config.Parser = languagePathSCIPParser{
-		results: map[string]parser.SCIPParseResult{
+		results: map[string]scip.ParseResult{
 			"python": {
 				Files: map[string]map[string]any{
 					pythonPath: {"function_calls_scip": []map[string]any{{"callee_symbol": "scip-python python app/main()."}}},
@@ -287,11 +288,11 @@ func (i *languagePathSCIPIndexer) Run(_ context.Context, projectPath string, lan
 }
 
 type languagePathSCIPParser struct {
-	results       map[string]parser.SCIPParseResult
-	resultsByRoot map[string]parser.SCIPParseResult
+	results       map[string]scip.ParseResult
+	resultsByRoot map[string]scip.ParseResult
 }
 
-func (p languagePathSCIPParser) Parse(indexPath string, projectRoot string) (parser.SCIPParseResult, error) {
+func (p languagePathSCIPParser) Parse(indexPath string, projectRoot string) (scip.ParseResult, error) {
 	if result, ok := p.resultsByRoot[projectRoot]; ok {
 		return result, nil
 	}

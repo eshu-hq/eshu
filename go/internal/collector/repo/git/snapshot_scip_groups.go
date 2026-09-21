@@ -10,13 +10,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/parser/scip"
 )
 
 func (s NativeRepositorySnapshotter) collectSCIPLanguageGroupFiles(
 	ctx context.Context,
 	repoPath string,
-	groups []parser.SCIPLanguageFileGroup,
+	groups []scip.LanguageFileGroup,
 	indexer scipProjectIndexer,
 	resultParser scipResultParser,
 ) (map[string]map[string]any, bool, error) {
@@ -179,7 +179,7 @@ type scipLanguageSubtree struct {
 	Root     string
 }
 
-func scipLanguageSubtrees(repoPath string, groups []parser.SCIPLanguageFileGroup) []scipLanguageSubtree {
+func scipLanguageSubtrees(repoPath string, groups []scip.LanguageFileGroup) []scipLanguageSubtree {
 	subtrees := make([]scipLanguageSubtree, 0, len(groups))
 	for _, group := range groups {
 		groupRoot := scipProjectRoot(repoPath, group.Files)

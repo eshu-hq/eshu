@@ -20,11 +20,12 @@ not a default parser mode.
 
 Eshu already has a SCIP ingestion path:
 
-- `go/internal/parser/scip_support.go` maps selected extensions to external
-  indexers: `scip-python`, `scip-typescript`, `scip-go`, `scip-rust`,
-  `scip-java`, and `scip-clang`.
-- `go/internal/parser/scip_parser.go` decodes `index.scip` protobuf files and
-  emits supplemental definitions plus `function_calls_scip` rows.
+- `go/internal/parser/scip_support.go` (now `go/internal/parser/scip/indexer.go`)
+  maps selected extensions to external indexers: `scip-python`,
+  `scip-typescript`, `scip-go`, `scip-rust`, `scip-java`, and `scip-clang`.
+- `go/internal/parser/scip_parser.go` (now `go/internal/parser/scip/parser.go`)
+  decodes `index.scip` protobuf files and emits supplemental definitions plus
+  `function_calls_scip` rows.
 - `go/internal/collector/git_snapshot_scip.go` groups selected files by
   language and package/workspace root, runs bounded indexer workers, parses
   SCIP output, and merges only SCIP call facts into native parser payloads.

@@ -80,8 +80,8 @@ type GomodState struct {
 
 // SCIPFunctionCall is the typed view of one edge in a parsed_file_data
 // "function_calls_scip" inner slice, the cross-file caller/callee reference the
-// SCIP index importer emits (go/internal/parser/scip_parser.go
-// appendSCIPReference). The SCIP importer is the single producer of this key
+// SCIP index importer emits (go/internal/parser/scip/parser.go
+// appendReference). The SCIP importer is the single producer of this key
 // and writes a closed, stable edge shape, so every field the SCIP code-call
 // extractor reads (go/internal/reducer/code/call/rows.go
 // extractSCIPCodeCallRows) is named here with no open pass-through: unlike the

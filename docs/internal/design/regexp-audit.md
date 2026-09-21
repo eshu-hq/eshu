@@ -284,7 +284,7 @@ The C package already migrated its `cTypedefAliasPattern` from `parser.go` to AS
 | 18 | `groovyUseConfigdPattern` | Detect `use_configd: true/false` named argument | **keep** | Same rationale. |
 | 19 | `groovyPreDeployPattern` | Detect presence of `pre_deploy:` key | **keep** | Boolean presence flag detection. No grammar node type exists. |
 
-### 32. go/internal/parser/scip_parser.go (3 sites)
+### 32. go/internal/parser/scip_parser.go (3 sites) (now `go/internal/parser/scip/parser.go`)
 
 | Line | Pattern | Purpose | Classification | Rationale |
 |------|---------|---------|----------------|-----------|
@@ -371,7 +371,7 @@ These files contain regexes that are canonical for their domain. Tree-sitter mig
 | `groovy/metadata.go` | Jenkins DSL | No migration. All 8 sites are delivery evidence, not symbol extraction. |
 | `sql/migrations.go` | Path detection | No migration. File-path-based migration tool classification. |
 | `templated_detection.go` | Content classification | No migration. Templated-text detection for possibly-invalid-grammar files. |
-| `scip_parser.go` | SCIP index | No migration. SCIP protobuf symbol manipulation, not source parsing. |
+| `scip_parser.go` (now `parser/scip/parser.go`) | SCIP index | No migration. SCIP protobuf symbol manipulation, not source parsing. |
 
 ### Language Adapters — Documented Permanent Exceptions
 
