@@ -126,10 +126,16 @@
 ## Where a family lives after #6781
 
 The root was 49 non-test files against the 40-file dirgate cap. Part A moved
-out every family that owns its own types. What remains in the root is the
-`Service` type and its methods, because Go pins a method to its type's
-package — the `*_service.go` halves cannot leave without redesigning `Service`
-into composed sub-types, which #6781 does not do.
+out every planner half that had no subpackage home yet. What remains in the
+root is the `Service` type and its methods, because Go pins a method to its
+type's package — the `*_service.go` halves cannot leave without redesigning
+`Service` into composed sub-types, which #6781 does not do.
+
+Movability alone is not the test. The three `service_*_freshness.go` files
+keep trigger-resolution types and free functions that Go would let them move;
+they stayed because their `Service` methods pin the file in place anyway, so a
+move removes nothing from the root. Apply that test before proposing a new
+subpackage here: if the root file survives, the split buys nothing.
 
 | Directory | Holds |
 | --- | --- |
