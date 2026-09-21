@@ -144,7 +144,8 @@ func (h GCPRelationshipMaterializationHandler) Handle(
 	resourceEnvelopes, relationshipEnvelopes := splitGCPFactEnvelopes(envelopes)
 
 	extractStart := time.Now()
-	rows, tally, quarantined, err := ExtractGCPRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	rows, tally, quarantined, err := ExtractGCPRelationshipEdgeRows(
+		resourceEnvelopes, relationshipEnvelopes, intent.ScopeID)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
@@ -397,6 +398,22 @@ func logGCPRelationshipMaterializationCompleted(
 	ctx context.Context,
 	timing gcpRelationshipMaterializationTiming,
 ) {
+	// A cross-scope endpoint is an invariant violation, not graceful
+	// degradation: the fact loader is scoped by (scope_id, generation_id), so a
+	// non-zero count means facts from another scope reached this join and would
+	// have been written under this intent's scope_id (#6162). It gets its own
+	// WARN because the completion line below is INFO, and #6162 went undiagnosed
+	// for weeks precisely because its only evidence sat in an INFO burst.
+	if count := timing.tally.crossScopeCount(); count > 0 {
+		slog.WarnContext(
+			ctx, "gcp relationship materialization refused cross-scope endpoints",
+			log.ScopeID(timing.intent.ScopeID),
+			log.GenerationID(timing.intent.GenerationID),
+			log.Domain(string(timing.intent.Domain)),
+			slog.Int("cross_scope_endpoint_count", count),
+			slog.String("cross_scope_endpoint_by_type", formatTally(timing.tally.crossScopeEndpoint)),
+		)
+	}
 	slog.InfoContext(
 		ctx, "gcp relationship materialization completed",
 		log.ScopeID(timing.intent.ScopeID),
@@ -410,6 +427,7 @@ func logGCPRelationshipMaterializationCompleted(
 		slog.String("by_mode", formatTally(timing.tally.byMode)),
 		slog.String("unresolved_target_by_type", formatTally(timing.tally.unresolved)),
 		slog.String("unresolved_source_by_type", formatTally(timing.tally.unresolvedSource)),
+		slog.Int("cross_scope_endpoint_count", timing.tally.crossScopeCount()),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),

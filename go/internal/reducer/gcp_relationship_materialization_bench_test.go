@@ -48,7 +48,7 @@ func BenchmarkExtractGCPRelationshipEdgeRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows, _, _, err := ExtractGCPRelationshipEdgeRows(resources, rels)
+		rows, _, _, err := ExtractGCPRelationshipEdgeRows(resources, rels, "scope-gcp-bench")
 		if err != nil {
 			b.Fatalf("ExtractGCPRelationshipEdgeRows() error = %v, want nil", err)
 		}
