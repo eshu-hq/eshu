@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func secretsIAMContext(boundary awscloud.Boundary) secretsiam.EnvelopeContext {
-	return secretsiam.EnvelopeContext{
+func secretsIAMContext(boundary awscloud.Boundary) posture.EnvelopeContext {
+	return posture.EnvelopeContext{
 		AccountID:           boundary.AccountID,
 		Region:              boundary.Region,
 		ScopeID:             boundary.ScopeID,
@@ -24,12 +24,12 @@ func secretsIAMContext(boundary awscloud.Boundary) secretsiam.EnvelopeContext {
 	}
 }
 
-func rolePrincipalObservation(ctx secretsiam.EnvelopeContext, role Role) secretsiam.PrincipalObservation {
+func rolePrincipalObservation(ctx posture.EnvelopeContext, role Role) posture.PrincipalObservation {
 	roleARN := strings.TrimSpace(role.ARN)
-	return secretsiam.PrincipalObservation{
+	return posture.PrincipalObservation{
 		Context:          ctx,
 		PrincipalARN:     roleARN,
-		PrincipalType:    secretsiam.PrincipalTypeAWSRole,
+		PrincipalType:    posture.PrincipalTypeAWSRole,
 		Name:             strings.TrimSpace(role.Name),
 		Path:             strings.TrimSpace(role.Path),
 		SourceRecordID:   roleARN,
@@ -37,12 +37,12 @@ func rolePrincipalObservation(ctx secretsiam.EnvelopeContext, role Role) secrets
 	}
 }
 
-func userPrincipalObservation(ctx secretsiam.EnvelopeContext, user User) secretsiam.PrincipalObservation {
+func userPrincipalObservation(ctx posture.EnvelopeContext, user User) posture.PrincipalObservation {
 	userARN := strings.TrimSpace(user.ARN)
-	return secretsiam.PrincipalObservation{
+	return posture.PrincipalObservation{
 		Context:          ctx,
 		PrincipalARN:     userARN,
-		PrincipalType:    secretsiam.PrincipalTypeAWSUser,
+		PrincipalType:    posture.PrincipalTypeAWSUser,
 		Name:             strings.TrimSpace(user.Name),
 		Path:             strings.TrimSpace(user.Path),
 		SourceRecordID:   userARN,
@@ -50,12 +50,12 @@ func userPrincipalObservation(ctx secretsiam.EnvelopeContext, user User) secrets
 	}
 }
 
-func oidcProviderPrincipalObservation(ctx secretsiam.EnvelopeContext, provider OIDCProvider) secretsiam.PrincipalObservation {
+func oidcProviderPrincipalObservation(ctx posture.EnvelopeContext, provider OIDCProvider) posture.PrincipalObservation {
 	providerARN := strings.TrimSpace(provider.ARN)
-	return secretsiam.PrincipalObservation{
+	return posture.PrincipalObservation{
 		Context:          ctx,
 		PrincipalARN:     providerARN,
-		PrincipalType:    secretsiam.PrincipalTypeAWSOIDCProvider,
+		PrincipalType:    posture.PrincipalTypeAWSOIDCProvider,
 		URLFingerprint:   strings.TrimSpace(provider.URLFingerprint),
 		ClientIDCount:    provider.ClientIDCount,
 		ThumbprintCount:  provider.ThumbprintCount,
@@ -65,12 +65,12 @@ func oidcProviderPrincipalObservation(ctx secretsiam.EnvelopeContext, provider O
 }
 
 func permissionBoundaryObservation(
-	ctx secretsiam.EnvelopeContext,
+	ctx posture.EnvelopeContext,
 	principalARN string,
 	principalType string,
 	boundary PermissionBoundary,
-) secretsiam.PermissionBoundaryObservation {
-	return secretsiam.PermissionBoundaryObservation{
+) posture.PermissionBoundaryObservation {
+	return posture.PermissionBoundaryObservation{
 		Context:           ctx,
 		PrincipalARN:      strings.TrimSpace(principalARN),
 		PrincipalType:     principalType,
@@ -80,23 +80,23 @@ func permissionBoundaryObservation(
 }
 
 func policyAttachmentObservation(
-	ctx secretsiam.EnvelopeContext,
+	ctx posture.EnvelopeContext,
 	principalARN string,
 	principalType string,
 	policyARN string,
-) secretsiam.PolicyAttachmentObservation {
-	return secretsiam.PolicyAttachmentObservation{
+) posture.PolicyAttachmentObservation {
+	return posture.PolicyAttachmentObservation{
 		Context:       ctx,
 		PrincipalARN:  strings.TrimSpace(principalARN),
 		PrincipalType: principalType,
 		PolicyARN:     strings.TrimSpace(policyARN),
-		PolicySource:  secretsiam.PolicySourceAttachedManaged,
+		PolicySource:  posture.PolicySourceAttachedManaged,
 	}
 }
 
-func instanceProfileSecretsObservation(ctx secretsiam.EnvelopeContext, profile InstanceProfile) secretsiam.InstanceProfileObservation {
+func instanceProfileSecretsObservation(ctx posture.EnvelopeContext, profile InstanceProfile) posture.InstanceProfileObservation {
 	profileARN := strings.TrimSpace(profile.ARN)
-	return secretsiam.InstanceProfileObservation{
+	return posture.InstanceProfileObservation{
 		Context:        ctx,
 		ProfileARN:     profileARN,
 		Name:           strings.TrimSpace(profile.Name),
@@ -106,8 +106,8 @@ func instanceProfileSecretsObservation(ctx secretsiam.EnvelopeContext, profile I
 	}
 }
 
-func coverageWarningObservation(ctx secretsiam.EnvelopeContext, warning CoverageWarning) secretsiam.CoverageWarningObservation {
-	return secretsiam.CoverageWarningObservation{
+func coverageWarningObservation(ctx posture.EnvelopeContext, warning CoverageWarning) posture.CoverageWarningObservation {
+	return posture.CoverageWarningObservation{
 		Context:     ctx,
 		WarningKind: strings.TrimSpace(warning.WarningKind),
 		SourceState: strings.TrimSpace(warning.SourceState),
@@ -118,7 +118,7 @@ func coverageWarningObservation(ctx secretsiam.EnvelopeContext, warning Coverage
 }
 
 func secretsIAMPolicyEnvelopes(
-	ctx secretsiam.EnvelopeContext,
+	ctx posture.EnvelopeContext,
 	principalARN string,
 	principalType string,
 	statements []PolicyStatement,
@@ -129,7 +129,7 @@ func secretsIAMPolicyEnvelopes(
 	envelopes := make([]facts.Envelope, 0, len(statements))
 	for _, statement := range statements {
 		if strings.TrimSpace(statement.Source) == PolicySourceTrust {
-			envelope, err := secretsiam.NewTrustPolicyEnvelope(secretsiam.TrustPolicyObservation{
+			envelope, err := posture.NewTrustPolicyEnvelope(posture.TrustPolicyObservation{
 				Context:                        ctx,
 				RoleARN:                        strings.TrimSpace(principalARN),
 				StatementSID:                   strings.TrimSpace(statement.StatementSID),
@@ -147,7 +147,7 @@ func secretsIAMPolicyEnvelopes(
 			envelopes = append(envelopes, envelope)
 			continue
 		}
-		envelope, err := secretsiam.NewPermissionPolicyEnvelope(secretsiam.PermissionPolicyObservation{
+		envelope, err := posture.NewPermissionPolicyEnvelope(posture.PermissionPolicyObservation{
 			Context:            ctx,
 			PrincipalARN:       strings.TrimSpace(principalARN),
 			PrincipalType:      principalType,

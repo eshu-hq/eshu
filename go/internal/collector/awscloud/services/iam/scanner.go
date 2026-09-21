@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -76,16 +76,16 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		principal, err := secretsiam.NewPrincipalEnvelope(rolePrincipalObservation(secretsCtx, role))
+		principal, err := posture.NewPrincipalEnvelope(rolePrincipalObservation(secretsCtx, role))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, principal)
 		if strings.TrimSpace(role.PermissionBoundary.PolicyARN) != "" {
-			boundaryFact, err := secretsiam.NewPermissionBoundaryEnvelope(permissionBoundaryObservation(
+			boundaryFact, err := posture.NewPermissionBoundaryEnvelope(permissionBoundaryObservation(
 				secretsCtx,
 				role.ARN,
-				secretsiam.PrincipalTypeAWSRole,
+				posture.PrincipalTypeAWSRole,
 				role.PermissionBoundary,
 			))
 			if err != nil {
@@ -106,10 +106,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 				return nil, err
 			}
 			envelopes = append(envelopes, relationship)
-			attachment, err := secretsiam.NewPolicyAttachmentEnvelope(policyAttachmentObservation(
+			attachment, err := posture.NewPolicyAttachmentEnvelope(policyAttachmentObservation(
 				secretsCtx,
 				role.ARN,
-				secretsiam.PrincipalTypeAWSRole,
+				posture.PrincipalTypeAWSRole,
 				policyARN,
 			))
 			if err != nil {
@@ -122,7 +122,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, permissions...)
-		secretsPolicies, err := secretsIAMPolicyEnvelopes(secretsCtx, role.ARN, secretsiam.PrincipalTypeAWSRole, role.PermissionStatements)
+		secretsPolicies, err := secretsIAMPolicyEnvelopes(secretsCtx, role.ARN, posture.PrincipalTypeAWSRole, role.PermissionStatements)
 		if err != nil {
 			return nil, err
 		}
@@ -134,16 +134,16 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		principal, err := secretsiam.NewPrincipalEnvelope(userPrincipalObservation(secretsCtx, user))
+		principal, err := posture.NewPrincipalEnvelope(userPrincipalObservation(secretsCtx, user))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, principal)
 		if strings.TrimSpace(user.PermissionBoundary.PolicyARN) != "" {
-			boundaryFact, err := secretsiam.NewPermissionBoundaryEnvelope(permissionBoundaryObservation(
+			boundaryFact, err := posture.NewPermissionBoundaryEnvelope(permissionBoundaryObservation(
 				secretsCtx,
 				user.ARN,
-				secretsiam.PrincipalTypeAWSUser,
+				posture.PrincipalTypeAWSUser,
 				user.PermissionBoundary,
 			))
 			if err != nil {
@@ -152,10 +152,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			envelopes = append(envelopes, boundaryFact)
 		}
 		for _, policyARN := range user.AttachedPolicyARNs {
-			attachment, err := secretsiam.NewPolicyAttachmentEnvelope(policyAttachmentObservation(
+			attachment, err := posture.NewPolicyAttachmentEnvelope(policyAttachmentObservation(
 				secretsCtx,
 				user.ARN,
-				secretsiam.PrincipalTypeAWSUser,
+				posture.PrincipalTypeAWSUser,
 				policyARN,
 			))
 			if err != nil {
@@ -168,7 +168,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, permissions...)
-		secretsPolicies, err := secretsIAMPolicyEnvelopes(secretsCtx, user.ARN, secretsiam.PrincipalTypeAWSUser, user.PermissionStatements)
+		secretsPolicies, err := secretsIAMPolicyEnvelopes(secretsCtx, user.ARN, posture.PrincipalTypeAWSUser, user.PermissionStatements)
 		if err != nil {
 			return nil, err
 		}
@@ -194,21 +194,21 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			}
 			envelopes = append(envelopes, relationship)
 		}
-		profileFact, err := secretsiam.NewInstanceProfileEnvelope(instanceProfileSecretsObservation(secretsCtx, profile))
+		profileFact, err := posture.NewInstanceProfileEnvelope(instanceProfileSecretsObservation(secretsCtx, profile))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, profileFact)
 	}
 	for _, provider := range oidcProviders {
-		principal, err := secretsiam.NewPrincipalEnvelope(oidcProviderPrincipalObservation(secretsCtx, provider))
+		principal, err := posture.NewPrincipalEnvelope(oidcProviderPrincipalObservation(secretsCtx, provider))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, principal)
 	}
 	for _, warning := range warnings {
-		envelope, err := secretsiam.NewCoverageWarningEnvelope(coverageWarningObservation(secretsCtx, warning))
+		envelope, err := posture.NewCoverageWarningEnvelope(coverageWarningObservation(secretsCtx, warning))
 		if err != nil {
 			return nil, err
 		}

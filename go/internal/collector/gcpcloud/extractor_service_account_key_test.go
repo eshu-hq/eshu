@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const (
@@ -48,7 +48,7 @@ func TestExtractServiceAccountKeyFullResource(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	emailDigest := secretsiam.GCPServiceAccountEmailDigest(serviceAccountKeyEmail)
+	emailDigest := posture.GCPServiceAccountEmailDigest(serviceAccountKeyEmail)
 	wantAttrs := map[string]any{
 		"key_type":          "USER_MANAGED",
 		"key_algorithm":     "KEY_ALG_RSA_2048",

@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -69,7 +69,7 @@ func extractDataformRepository(ctx ExtractContext) (AttributeExtraction, error) 
 	if hostFP != "" {
 		anchors = append(anchors, hostFP)
 	}
-	if saFP := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccount); saFP != "" {
+	if saFP := posture.GCPServiceAccountEmailDigest(data.ServiceAccount); saFP != "" {
 		anchors = append(anchors, saFP)
 	}
 	if kms := dataformKMSKeyFullName(data.KMSKeyName); kms != "" {
@@ -98,7 +98,7 @@ func dataformRepositoryAttributes(data dataformRepositoryData, gitHostFingerprin
 	if gitHostFingerprint != "" {
 		attrs["git_remote_host_fingerprint"] = gitHostFingerprint
 	}
-	if fp := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccount); fp != "" {
+	if fp := posture.GCPServiceAccountEmailDigest(data.ServiceAccount); fp != "" {
 		attrs["service_account_fingerprint"] = fp
 	}
 	if w := data.WorkspaceCompilationOverrides; w != nil {

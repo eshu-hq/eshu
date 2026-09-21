@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const composerEnvironmentFullName = "//composer.googleapis.com/projects/demo-project/locations/us-central1/environments/prod"
@@ -62,7 +62,7 @@ func TestExtractComposerEnvironmentFullConfig(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	wantSAFingerprint := secretsiam.GCPServiceAccountEmailDigest("composer-runtime@demo-project.iam.gserviceaccount.com")
+	wantSAFingerprint := posture.GCPServiceAccountEmailDigest("composer-runtime@demo-project.iam.gserviceaccount.com")
 
 	wantAttrs := map[string]any{
 		"state":                       "RUNNING",

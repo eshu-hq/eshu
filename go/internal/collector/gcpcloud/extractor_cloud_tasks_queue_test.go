@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const cloudTasksQueueFullName = "//cloudtasks.googleapis.com/projects/demo-project/locations/us-central1/queues/tasks-q"
@@ -78,7 +78,7 @@ func TestExtractCloudTasksQueueHTTPTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	saDigest := secretsiam.GCPServiceAccountEmailDigest("tasks-sa@demo-project.iam.gserviceaccount.com")
+	saDigest := posture.GCPServiceAccountEmailDigest("tasks-sa@demo-project.iam.gserviceaccount.com")
 	if got.Attributes["service_account_fingerprint"] != saDigest {
 		t.Errorf("service_account_fingerprint = %v, want SA digest", got.Attributes["service_account_fingerprint"])
 	}

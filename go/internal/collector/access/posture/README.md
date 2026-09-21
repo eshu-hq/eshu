@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`internal/collector/secretsiam` builds source-fact envelopes for the
+`internal/collector/access/posture` builds source-fact envelopes for the
 `secrets_iam_posture` collector family. It records provider-native IAM identity,
 policy, attachment, boundary, instance-profile, optional Access Analyzer, and
 Kubernetes ServiceAccount/RBAC/workload-identity plus Vault metadata and
@@ -77,7 +77,7 @@ This package emits no metrics, spans, or logs. Runtime adapters and hosted
 collector sources own API-call metrics, throttling counters, scan duration,
 warnings, and status reporting.
 
-Collector Performance Evidence: `go test ./internal/collector/secretsiam ./internal/facts -count=1`
+Collector Performance Evidence: `go test ./internal/collector/access/posture ./internal/facts -count=1`
 covers deterministic envelope construction, redaction, stable-key generation,
 and bounded list normalization without provider calls, graph writes, queue
 claims, or network I/O.

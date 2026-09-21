@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -30,9 +30,9 @@ var gcpBroadRoles = map[string]struct{}{
 }
 
 var gcpServiceAccountImpersonationRoles = map[string]string{
-	"roles/iam.serviceAccountTokenCreator": secretsiam.GCPImpersonationModeTokenCreator,
-	"roles/iam.serviceAccountUser":         secretsiam.GCPImpersonationModeServiceAccountUser,
-	"roles/iam.workloadIdentityUser":       secretsiam.GCPImpersonationModeWorkloadIdentity,
+	"roles/iam.serviceAccountTokenCreator": posture.GCPImpersonationModeTokenCreator,
+	"roles/iam.serviceAccountUser":         posture.GCPImpersonationModeServiceAccountUser,
+	"roles/iam.workloadIdentityUser":       posture.GCPImpersonationModeWorkloadIdentity,
 }
 
 // secretsIAMEnvelopes projects the generation's Cloud Asset Inventory IAM
@@ -85,22 +85,22 @@ func (g *Generation) secretsIAMEnvelopes() ([]facts.Envelope, error) {
 			}
 			_, broadRole := gcpBroadRoles[role]
 			for _, member := range binding.Members {
-				if MemberClass(member) != secretsiam.GCPMemberClassServiceAccount {
+				if MemberClass(member) != posture.GCPMemberClassServiceAccount {
 					continue
 				}
 				fingerprint := FingerprintMember(member, g.key)
 				if _, seen := principals[fingerprint]; !seen {
-					principalEnv, err := secretsiam.NewGCPPrincipalEnvelope(secretsiam.GCPPrincipalObservation{
+					principalEnv, err := posture.NewGCPPrincipalEnvelope(posture.GCPPrincipalObservation{
 						Context:              ctx,
 						PrincipalFingerprint: fingerprint,
-						MemberClass:          secretsiam.GCPMemberClassServiceAccount,
+						MemberClass:          posture.GCPMemberClassServiceAccount,
 					})
 					if err != nil {
 						return nil, err
 					}
 					principals[fingerprint] = principalEnv
 				}
-				permissionEnv, err := secretsiam.NewGCPPermissionPolicyEnvelope(secretsiam.GCPPermissionPolicyObservation{
+				permissionEnv, err := posture.NewGCPPermissionPolicyEnvelope(posture.GCPPermissionPolicyObservation{
 					Context:              ctx,
 					PrincipalFingerprint: fingerprint,
 					Role:                 role,
@@ -146,7 +146,7 @@ func (g *Generation) secretsIAMEnvelopes() ([]facts.Envelope, error) {
 func (g *Generation) gcpTrustPolicyEnvelopes(
 	obs ResourceObservation,
 	binding IAMPolicyBindingObservation,
-	ctx secretsiam.GCPEnvelopeContext,
+	ctx posture.GCPEnvelopeContext,
 	conditionFingerprint string,
 ) ([]facts.Envelope, error) {
 	targetEmail := gcpServiceAccountEmailForResource(obs)
@@ -159,7 +159,7 @@ func (g *Generation) gcpTrustPolicyEnvelopes(
 		return nil, nil
 	}
 	targetFingerprint := FingerprintMember("serviceAccount:"+targetEmail, g.key)
-	emailDigest := secretsiam.GCPServiceAccountEmailDigest(targetEmail)
+	emailDigest := posture.GCPServiceAccountEmailDigest(targetEmail)
 	cloudResourceUID := gcpCloudResourceUID(
 		strings.TrimSpace(ProjectIDFromFullName(obs.Name)),
 		strings.TrimSpace(obs.Location),
@@ -178,10 +178,10 @@ func (g *Generation) gcpTrustPolicyEnvelopes(
 		workloadSubject := ""
 		workloadClass := ""
 		if workloadIdentityMember {
-			workloadSubject = secretsiam.GCPWorkloadIdentitySubjectFingerprint(pool, namespace, name)
-			workloadClass = secretsiam.GCPWorkloadIdentityMemberClassServiceAccount
+			workloadSubject = posture.GCPWorkloadIdentitySubjectFingerprint(pool, namespace, name)
+			workloadClass = posture.GCPWorkloadIdentityMemberClassServiceAccount
 		}
-		env, err := secretsiam.NewGCPTrustPolicyEnvelope(secretsiam.GCPTrustPolicyObservation{
+		env, err := posture.NewGCPTrustPolicyEnvelope(posture.GCPTrustPolicyObservation{
 			Context:                               ctx,
 			TargetPrincipalFingerprint:            targetFingerprint,
 			TargetServiceAccountEmailDigest:       emailDigest,
@@ -277,8 +277,8 @@ func gcpCloudResourceUID(projectID, location, assetType, fullResourceName string
 
 // gcpSecretsIAMContext builds the GCP secrets/IAM envelope context for one
 // observation project from the generation boundary.
-func (g *Generation) gcpSecretsIAMContext(projectID, sourceURI string) secretsiam.GCPEnvelopeContext {
-	return secretsiam.GCPEnvelopeContext{
+func (g *Generation) gcpSecretsIAMContext(projectID, sourceURI string) posture.GCPEnvelopeContext {
+	return posture.GCPEnvelopeContext{
 		ProjectID:           projectID,
 		LocationBucket:      g.boundary.LocationBucket,
 		ScopeID:             g.boundary.ScopeID,

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const dataprocClusterFullName = "//dataproc.googleapis.com/projects/demo-project/regions/us-central1/clusters/analytics"
@@ -65,7 +65,7 @@ func TestExtractDataprocClusterFullResource(t *testing.T) {
 		"image_version":               "2.1-debian11",
 		"customer_managed_encryption": true,
 		"autoscaling_enabled":         true,
-		"service_account_fingerprint": secretsiam.GCPServiceAccountEmailDigest("dataproc-runner@demo-project.iam.gserviceaccount.com"),
+		"service_account_fingerprint": posture.GCPServiceAccountEmailDigest("dataproc-runner@demo-project.iam.gserviceaccount.com"),
 	}
 	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)

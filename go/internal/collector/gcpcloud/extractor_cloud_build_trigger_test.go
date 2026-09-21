@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const cloudBuildTriggerFullNameConst = "//cloudbuild.googleapis.com/projects/demo-project/locations/us-central1/triggers/trigger-123"
@@ -51,7 +51,7 @@ func TestExtractCloudBuildTriggerRepoSource(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest("trigger-sa@demo-project.iam.gserviceaccount.com")
+	saDigest := posture.GCPServiceAccountEmailDigest("trigger-sa@demo-project.iam.gserviceaccount.com")
 	if saDigest == "" {
 		t.Fatalf("service account digest must be non-empty")
 	}

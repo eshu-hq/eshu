@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 	conformance "github.com/eshu-hq/eshu/sdk/go/collector/conformance"
@@ -69,7 +69,7 @@ func emitterConformanceCases() []emitterConformanceCase {
 		{
 			name: facts.AWSIAMPrincipalFactKind,
 			build: func() (facts.Envelope, error) {
-				return secretsiam.NewPrincipalEnvelope(principalObservation())
+				return posture.NewPrincipalEnvelope(principalObservation())
 			},
 		},
 	}
@@ -303,8 +303,8 @@ func s3BucketPostureObservation() awscloud.S3BucketPostureObservation {
 	}
 }
 
-func secretsIAMContext() secretsiam.EnvelopeContext {
-	return secretsiam.EnvelopeContext{
+func secretsIAMContext() posture.EnvelopeContext {
+	return posture.EnvelopeContext{
 		AccountID:           "123456789012",
 		Region:              "aws-global",
 		ScopeID:             "aws:123456789012:aws-global",
@@ -315,11 +315,11 @@ func secretsIAMContext() secretsiam.EnvelopeContext {
 	}
 }
 
-func principalObservation() secretsiam.PrincipalObservation {
-	return secretsiam.PrincipalObservation{
+func principalObservation() posture.PrincipalObservation {
+	return posture.PrincipalObservation{
 		Context:       secretsIAMContext(),
 		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
-		PrincipalType: secretsiam.PrincipalTypeAWSRole,
+		PrincipalType: posture.PrincipalTypeAWSRole,
 		Name:          "eshu-runtime",
 	}
 }

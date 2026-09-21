@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // Bounded provider relationship type for Cloud Build Trigger edges. The
@@ -117,7 +117,7 @@ func extractCloudBuildTrigger(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode cloud build trigger data: %w", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(cloudBuildServiceAccountEmail(data.ServiceAccount))
+	saDigest := posture.GCPServiceAccountEmailDigest(cloudBuildServiceAccountEmail(data.ServiceAccount))
 	attrs := cloudBuildTriggerAttributes(data, saDigest)
 
 	var anchors []string

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const gkeClusterFullName = "//container.googleapis.com/projects/demo-project/locations/us-central1/clusters/prod"
@@ -114,7 +114,7 @@ func TestExtractGKEClusterFullConfig(t *testing.T) {
 	if defaultPool["machine_type"] != "e2-standard-4" {
 		t.Errorf("node_pools[0].machine_type = %v, want e2-standard-4", defaultPool["machine_type"])
 	}
-	wantFP := secretsiam.GCPServiceAccountEmailDigest("gke-nodes@demo-project.iam.gserviceaccount.com")
+	wantFP := posture.GCPServiceAccountEmailDigest("gke-nodes@demo-project.iam.gserviceaccount.com")
 	if defaultPool["service_account_fingerprint"] != wantFP {
 		t.Errorf("node_pools[0].service_account_fingerprint = %v, want %v", defaultPool["service_account_fingerprint"], wantFP)
 	}

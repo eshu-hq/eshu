@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -88,7 +88,7 @@ func TestFirewallOfflineFixtureEndToEnd(t *testing.T) {
 			t.Fatalf("envelope set leaked forbidden value %q", forbidden)
 		}
 	}
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(targetSAEmail)
+	saDigest := posture.GCPServiceAccountEmailDigest(targetSAEmail)
 	if saDigest == "" || !containsString(string(blob), saDigest) {
 		t.Fatalf("expected the fingerprinted target service-account digest %q to be persisted as an anchor", saDigest)
 	}

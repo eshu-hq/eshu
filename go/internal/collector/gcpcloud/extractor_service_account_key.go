@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // serviceAccountKeyAssetType is the Cloud Asset Inventory asset type for a GCP
@@ -83,7 +83,7 @@ func extractServiceAccountKey(ctx ExtractContext) (AttributeExtraction, error) {
 	var anchors []string
 	var rels []RelationshipObservation
 	if parent := parentServiceAccountFullName(ctx.FullResourceName); parent != "" {
-		if digest := secretsiam.GCPServiceAccountEmailDigest(serviceAccountEmailFromFullName(parent)); digest != "" {
+		if digest := posture.GCPServiceAccountEmailDigest(serviceAccountEmailFromFullName(parent)); digest != "" {
 			attrs["parent_service_account_email_fingerprint"] = digest
 			anchors = append(anchors, digest)
 		}

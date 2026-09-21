@@ -7,7 +7,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 func (b *generationBuilder) collectServiceAccounts(ctx context.Context, client Client) error {
@@ -75,7 +75,7 @@ func (b *generationBuilder) collectRBAC(ctx context.Context, client Client) erro
 
 func (b *generationBuilder) addServiceAccountFacts(ctx context.Context, account ServiceAccountObject) error {
 	automount := boolState(account.AutomountToken)
-	envelope, err := secretsiam.NewKubernetesServiceAccountEnvelope(secretsiam.KubernetesServiceAccountObservation{
+	envelope, err := posture.NewKubernetesServiceAccountEnvelope(posture.KubernetesServiceAccountObservation{
 		Context:                 b.secretsIAMContext(),
 		Namespace:               account.Meta.Namespace,
 		Name:                    account.Meta.Name,
@@ -91,8 +91,8 @@ func (b *generationBuilder) addServiceAccountFacts(ctx context.Context, account 
 		return err
 	}
 	b.append(ctx, envelope)
-	token, err := secretsiam.NewKubernetesServiceAccountTokenPostureEnvelope(
-		secretsiam.KubernetesServiceAccountTokenPostureObservation{
+	token, err := posture.NewKubernetesServiceAccountTokenPostureEnvelope(
+		posture.KubernetesServiceAccountTokenPostureObservation{
 			Context:                 b.secretsIAMContext(),
 			Namespace:               account.Meta.Namespace,
 			ServiceAccountName:      account.Meta.Name,
@@ -110,7 +110,7 @@ func (b *generationBuilder) addServiceAccountFacts(ctx context.Context, account 
 	if strings.TrimSpace(account.IRSAAnnotation) == "" {
 		return b.addGCPWorkloadIdentityBinding(ctx, account)
 	}
-	irsa, err := secretsiam.NewEKSIRSAAnnotationEnvelope(secretsiam.EKSIRSAAnnotationObservation{
+	irsa, err := posture.NewEKSIRSAAnnotationEnvelope(posture.EKSIRSAAnnotationObservation{
 		Context:            b.secretsIAMContext(),
 		Namespace:          account.Meta.Namespace,
 		ServiceAccountName: account.Meta.Name,
@@ -130,8 +130,8 @@ func (b *generationBuilder) addGCPWorkloadIdentityBinding(ctx context.Context, a
 	if strings.TrimSpace(account.GCPServiceAccountAnnotation) == "" || strings.TrimSpace(b.target.GCPWorkloadPool) == "" {
 		return nil
 	}
-	binding, err := secretsiam.NewKubernetesGCPWorkloadIdentityBindingEnvelope(
-		secretsiam.KubernetesGCPWorkloadIdentityBindingObservation{
+	binding, err := posture.NewKubernetesGCPWorkloadIdentityBindingEnvelope(
+		posture.KubernetesGCPWorkloadIdentityBindingObservation{
 			Context:                b.secretsIAMContext(),
 			Namespace:              account.Meta.Namespace,
 			ServiceAccountName:     account.Meta.Name,
@@ -150,7 +150,7 @@ func (b *generationBuilder) addGCPWorkloadIdentityBinding(ctx context.Context, a
 }
 
 func (b *generationBuilder) addRBACRoleFact(ctx context.Context, role RBACRoleObject) error {
-	envelope, err := secretsiam.NewKubernetesRBACRoleEnvelope(secretsiam.KubernetesRBACRoleObservation{
+	envelope, err := posture.NewKubernetesRBACRoleEnvelope(posture.KubernetesRBACRoleObservation{
 		Context:         b.secretsIAMContext(),
 		RoleKind:        role.Kind,
 		Namespace:       role.Meta.Namespace,
@@ -168,7 +168,7 @@ func (b *generationBuilder) addRBACRoleFact(ctx context.Context, role RBACRoleOb
 }
 
 func (b *generationBuilder) addRBACBindingFact(ctx context.Context, binding RBACBindingObject) error {
-	envelope, err := secretsiam.NewKubernetesRBACBindingEnvelope(secretsiam.KubernetesRBACBindingObservation{
+	envelope, err := posture.NewKubernetesRBACBindingEnvelope(posture.KubernetesRBACBindingObservation{
 		Context:         b.secretsIAMContext(),
 		BindingKind:     binding.Kind,
 		Namespace:       binding.Meta.Namespace,
@@ -199,8 +199,8 @@ func (b *generationBuilder) addWorkloadIdentityUse(
 		return nil
 	}
 	account := b.serviceAccountIndex[namespacedName(identity.Namespace, serviceAccountName)]
-	envelope, err := secretsiam.NewKubernetesWorkloadIdentityUseEnvelope(
-		secretsiam.KubernetesWorkloadIdentityUseObservation{
+	envelope, err := posture.NewKubernetesWorkloadIdentityUseEnvelope(
+		posture.KubernetesWorkloadIdentityUseObservation{
 			Context:                      b.secretsIAMContext(),
 			WorkloadObjectID:             identity.ObjectID(),
 			WorkloadKind:                 strings.TrimSpace(identity.Resource),
@@ -219,11 +219,11 @@ func (b *generationBuilder) addWorkloadIdentityUse(
 }
 
 func (b *generationBuilder) emitSecretsCoverageWarning(ctx context.Context, reason, resourceScope string) error {
-	state := secretsiam.SourceStatePartial
+	state := posture.SourceStatePartial
 	if strings.TrimSpace(reason) == WarningForbiddenResource {
-		state = secretsiam.SourceStatePermissionHidden
+		state = posture.SourceStatePermissionHidden
 	}
-	envelope, err := secretsiam.NewKubernetesCoverageWarningEnvelope(secretsiam.KubernetesCoverageWarningObservation{
+	envelope, err := posture.NewKubernetesCoverageWarningEnvelope(posture.KubernetesCoverageWarningObservation{
 		Context:       b.secretsIAMContext(),
 		WarningKind:   strings.TrimSpace(reason),
 		SourceState:   state,
@@ -238,9 +238,9 @@ func (b *generationBuilder) emitSecretsCoverageWarning(ctx context.Context, reas
 	return nil
 }
 
-func (b *generationBuilder) secretsIAMContext() secretsiam.KubernetesContext {
+func (b *generationBuilder) secretsIAMContext() posture.KubernetesContext {
 	scopeID, _ := ClusterScopeID(b.target.ClusterID)
-	return secretsiam.KubernetesContext{
+	return posture.KubernetesContext{
 		ClusterID:           b.target.ClusterID,
 		ScopeID:             scopeID,
 		GenerationID:        b.generationID(),
@@ -251,13 +251,13 @@ func (b *generationBuilder) secretsIAMContext() secretsiam.KubernetesContext {
 	}
 }
 
-func secretsRBACRules(rules []RBACRuleSummary) []secretsiam.KubernetesRBACRuleSummary {
+func secretsRBACRules(rules []RBACRuleSummary) []posture.KubernetesRBACRuleSummary {
 	if len(rules) == 0 {
 		return nil
 	}
-	output := make([]secretsiam.KubernetesRBACRuleSummary, 0, len(rules))
+	output := make([]posture.KubernetesRBACRuleSummary, 0, len(rules))
 	for _, rule := range rules {
-		output = append(output, secretsiam.KubernetesRBACRuleSummary{
+		output = append(output, posture.KubernetesRBACRuleSummary{
 			Verbs:                  rule.Verbs,
 			APIGroups:              rule.APIGroups,
 			Resources:              rule.Resources,
@@ -270,13 +270,13 @@ func secretsRBACRules(rules []RBACRuleSummary) []secretsiam.KubernetesRBACRuleSu
 	return output
 }
 
-func secretsRBACSubjects(subjects []RBACSubject) []secretsiam.KubernetesRBACSubject {
+func secretsRBACSubjects(subjects []RBACSubject) []posture.KubernetesRBACSubject {
 	if len(subjects) == 0 {
 		return nil
 	}
-	output := make([]secretsiam.KubernetesRBACSubject, 0, len(subjects))
+	output := make([]posture.KubernetesRBACSubject, 0, len(subjects))
 	for _, subject := range subjects {
-		output = append(output, secretsiam.KubernetesRBACSubject{
+		output = append(output, posture.KubernetesRBACSubject{
 			Kind:      subject.Kind,
 			APIGroup:  subject.APIGroup,
 			Namespace: subject.Namespace,
@@ -288,10 +288,10 @@ func secretsRBACSubjects(subjects []RBACSubject) []secretsiam.KubernetesRBACSubj
 
 func boolState(value *bool) string {
 	if value == nil {
-		return secretsiam.BoolStateUnknown
+		return posture.BoolStateUnknown
 	}
 	if *value {
-		return secretsiam.BoolStateTrue
+		return posture.BoolStateTrue
 	}
-	return secretsiam.BoolStateFalse
+	return posture.BoolStateFalse
 }

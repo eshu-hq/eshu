@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const dataformRepositoryFullName = "//dataform.googleapis.com/projects/demo-project/locations/us-central1/repositories/analytics"
@@ -47,7 +47,7 @@ func TestExtractDataformRepositoryFullResource(t *testing.T) {
 	wantAttrs := map[string]any{
 		"git_default_branch":          "main",
 		"git_remote_host_fingerprint": dataformGitHostFingerprint("https://github.com/acme/dataform-analytics.git"),
-		"service_account_fingerprint": secretsiam.GCPServiceAccountEmailDigest("dataform-runner@demo-project.iam.gserviceaccount.com"),
+		"service_account_fingerprint": posture.GCPServiceAccountEmailDigest("dataform-runner@demo-project.iam.gserviceaccount.com"),
 		"workspace_default_database":  "demo-warehouse",
 		"customer_managed_encryption": true,
 		"creation_time":               "2024-05-01T00:00:00Z",

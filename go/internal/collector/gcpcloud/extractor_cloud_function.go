@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeCloudFunction is the CAI asset type for a Cloud Functions function
@@ -107,7 +107,7 @@ func extractCloudFunction(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode cloud function data: %w", err)
 	}
 
-	runtimeSADigest := secretsiam.GCPServiceAccountEmailDigest(cloudFunctionServiceAccountEmail(data))
+	runtimeSADigest := posture.GCPServiceAccountEmailDigest(cloudFunctionServiceAccountEmail(data))
 	attrs := cloudFunctionAttributes(ctx.ProjectID, data, runtimeSADigest)
 
 	var anchors []string
@@ -116,7 +116,7 @@ func extractCloudFunction(ctx ExtractContext) (AttributeExtraction, error) {
 		anchors = append(anchors, runtimeSADigest)
 	}
 	if data.EventTrigger != nil {
-		if d := secretsiam.GCPServiceAccountEmailDigest(data.EventTrigger.ServiceAccountEmail); d != "" {
+		if d := posture.GCPServiceAccountEmailDigest(data.EventTrigger.ServiceAccountEmail); d != "" {
 			anchors = append(anchors, d)
 		}
 	}

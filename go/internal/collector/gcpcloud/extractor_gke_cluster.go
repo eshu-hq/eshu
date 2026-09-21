@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeGKECluster is the Cloud Asset Inventory asset type for a GKE
@@ -229,7 +229,7 @@ func gkeNodePoolsAttribute(pools []gkeNodePoolData) ([]map[string]any, []string)
 				summary["machine_type"] = v
 			}
 			if sa := strings.TrimSpace(pool.Config.ServiceAccount); sa != "" && !strings.EqualFold(sa, defaultServiceAccountSentinel) {
-				if fp := secretsiam.GCPServiceAccountEmailDigest(sa); fp != "" {
+				if fp := posture.GCPServiceAccountEmailDigest(sa); fp != "" {
 					summary["service_account_fingerprint"] = fp
 					anchors = append(anchors, fp)
 				}

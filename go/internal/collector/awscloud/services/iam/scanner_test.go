@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -243,7 +243,7 @@ func TestScannerEmitsSecretsIAMPostureSourceFacts(t *testing.T) {
 		}},
 		warnings: []CoverageWarning{{
 			WarningKind: "access_analyzer_not_enabled",
-			SourceState: secretsiam.SourceStateUnsupported,
+			SourceState: posture.SourceStateUnsupported,
 			ErrorClass:  "unsupported_source",
 			Message:     "Access Analyzer source facts are not enabled for this fixture",
 		}},
@@ -272,8 +272,8 @@ func TestScannerEmitsSecretsIAMPostureSourceFacts(t *testing.T) {
 	for _, envelope := range envelopes {
 		if envelope.FactKind == facts.AWSIAMPermissionPolicyFactKind ||
 			envelope.FactKind == facts.AWSIAMTrustPolicyFactKind {
-			if envelope.CollectorKind != secretsiam.CollectorKind {
-				t.Fatalf("%s CollectorKind = %q, want %q", envelope.FactKind, envelope.CollectorKind, secretsiam.CollectorKind)
+			if envelope.CollectorKind != posture.CollectorKind {
+				t.Fatalf("%s CollectorKind = %q, want %q", envelope.FactKind, envelope.CollectorKind, posture.CollectorKind)
 			}
 		}
 		assertNoRawPolicyJSON(t, []facts.Envelope{envelope})

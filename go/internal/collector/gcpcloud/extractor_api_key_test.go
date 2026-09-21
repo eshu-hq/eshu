@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const apiKeyFullName = "//apikeys.googleapis.com/projects/123456789/locations/global/keys/demo-key"
@@ -69,7 +69,7 @@ func TestExtractAPIKeyAuthorizationKeyServiceAccount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	wantDigest := secretsiam.GCPServiceAccountEmailDigest(email)
+	wantDigest := posture.GCPServiceAccountEmailDigest(email)
 	if got.Attributes["authorized_service_account_email_fingerprint"] != wantDigest {
 		t.Errorf("fingerprint = %v, want %v", got.Attributes["authorized_service_account_email_fingerprint"], wantDigest)
 	}

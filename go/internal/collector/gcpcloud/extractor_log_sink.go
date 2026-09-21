@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // logSinkAssetType is the Cloud Asset Inventory asset type for a GCP Logging Log
@@ -141,5 +141,5 @@ func logSinkWriterIdentityDigest(writerIdentity string) string {
 		return ""
 	}
 	email := strings.TrimPrefix(trimmed, logSinkWriterIdentityPrefix)
-	return secretsiam.GCPServiceAccountEmailDigest(email)
+	return posture.GCPServiceAccountEmailDigest(email)
 }

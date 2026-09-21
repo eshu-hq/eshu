@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const serviceAccountFullName = "//iam.googleapis.com/projects/demo-project/serviceAccounts/pipeline-runner@demo-project.iam.gserviceaccount.com"
@@ -47,7 +47,7 @@ func TestExtractServiceAccountFullDepth(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	emailDigest := secretsiam.GCPServiceAccountEmailDigest(serviceAccountSampleEmail)
+	emailDigest := posture.GCPServiceAccountEmailDigest(serviceAccountSampleEmail)
 	wantAttrs := map[string]any{
 		"unique_id":         "104567890123456789012",
 		"email_fingerprint": emailDigest,
@@ -139,7 +139,7 @@ func TestExtractServiceAccountEmailFallsBackToFullName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	wantDigest := secretsiam.GCPServiceAccountEmailDigest(serviceAccountSampleEmail)
+	wantDigest := posture.GCPServiceAccountEmailDigest(serviceAccountSampleEmail)
 	if wantDigest == "" {
 		t.Fatal("expected a non-empty digest for the sample email")
 	}

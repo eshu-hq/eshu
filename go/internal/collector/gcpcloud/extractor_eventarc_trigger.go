@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // Asset types and full-resource-name prefixes for the Eventarc Trigger endpoints.
@@ -84,7 +84,7 @@ func extractEventarcTrigger(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode eventarc trigger data: %w", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(data.ServiceAccount)
+	saDigest := posture.GCPServiceAccountEmailDigest(data.ServiceAccount)
 	attrs := eventarcTriggerAttributes(data, saDigest)
 
 	var anchors []string

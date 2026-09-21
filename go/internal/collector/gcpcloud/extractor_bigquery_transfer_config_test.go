@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const bigQueryTransferConfigFullName = "//bigquerydatatransfer.googleapis.com/projects/demo-project/locations/us/transferConfigs/abc123"
@@ -54,7 +54,7 @@ func TestExtractBigQueryTransferConfigFullResource(t *testing.T) {
 		"state":                       "SUCCEEDED",
 		"disabled":                    false,
 		"customer_managed_encryption": true,
-		"owner_email_fingerprint":     secretsiam.GCPServiceAccountEmailDigest("transfer-runner@demo-project.iam.gserviceaccount.com"),
+		"owner_email_fingerprint":     posture.GCPServiceAccountEmailDigest("transfer-runner@demo-project.iam.gserviceaccount.com"),
 	}
 	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)

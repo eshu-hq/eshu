@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const dataflowJobFullName = "//dataflow.googleapis.com/projects/demo-project/locations/us-central1/jobs/analytics-job"
@@ -64,7 +64,7 @@ func TestExtractDataflowJobFullResource(t *testing.T) {
 		"sdk_version":                 "2.58.1",
 		"sdk_support_status":          "SUPPORTED",
 		"service_kms_key_name":        "projects/demo-project/locations/us-central1/keyRings/df/cryptoKeys/state",
-		"service_account_fingerprint": secretsiam.GCPServiceAccountEmailDigest("dataflow-runner@demo-project.iam.gserviceaccount.com"),
+		"service_account_fingerprint": posture.GCPServiceAccountEmailDigest("dataflow-runner@demo-project.iam.gserviceaccount.com"),
 	}
 	if !reflect.DeepEqual(got.Attributes, wantAttrs) {
 		t.Fatalf("attributes mismatch:\n got %#v\nwant %#v", got.Attributes, wantAttrs)
@@ -83,7 +83,7 @@ func TestExtractDataflowJobFullResource(t *testing.T) {
 	}
 
 	wantAnchors := []string{
-		secretsiam.GCPServiceAccountEmailDigest("dataflow-runner@demo-project.iam.gserviceaccount.com"),
+		posture.GCPServiceAccountEmailDigest("dataflow-runner@demo-project.iam.gserviceaccount.com"),
 		"//cloudkms.googleapis.com/projects/demo-project/locations/us-central1/keyRings/df/cryptoKeys/state",
 		"//compute.googleapis.com/projects/demo-project/global/networks/analytics-vpc",
 		"//compute.googleapis.com/projects/demo-project/regions/us-central1/subnetworks/analytics-subnet",

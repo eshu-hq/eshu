@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
@@ -149,13 +149,13 @@ func TestGenerationBuildEmitsGCPTrustPolicyForServiceAccountImpersonation(t *tes
 	if got := trust.Payload["target_principal_fingerprint"]; got != targetFingerprint {
 		t.Fatalf("target_principal_fingerprint = %v, want %q", got, targetFingerprint)
 	}
-	if got := trust.Payload["target_service_account_email_digest"]; got != secretsiam.GCPServiceAccountEmailDigest("app@demo-proj.iam.gserviceaccount.com") {
+	if got := trust.Payload["target_service_account_email_digest"]; got != posture.GCPServiceAccountEmailDigest("app@demo-proj.iam.gserviceaccount.com") {
 		t.Fatalf("target_service_account_email_digest = %v", got)
 	}
-	if got := trust.Payload["gcp_workload_identity_subject_fingerprint"]; got != secretsiam.GCPWorkloadIdentitySubjectFingerprint("demo-proj.svc.id.goog", "payments", "checkout-sa") {
+	if got := trust.Payload["gcp_workload_identity_subject_fingerprint"]; got != posture.GCPWorkloadIdentitySubjectFingerprint("demo-proj.svc.id.goog", "payments", "checkout-sa") {
 		t.Fatalf("gcp_workload_identity_subject_fingerprint = %v", got)
 	}
-	if got := trust.Payload["impersonation_mode"]; got != secretsiam.GCPImpersonationModeWorkloadIdentity {
+	if got := trust.Payload["impersonation_mode"]; got != posture.GCPImpersonationModeWorkloadIdentity {
 		t.Fatalf("impersonation_mode = %v", got)
 	}
 	for _, forbidden := range []string{

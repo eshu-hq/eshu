@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // Asset type and full-resource-name prefix for the Serverless VPC Access
@@ -97,7 +97,7 @@ func extractRunService(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode run service data: %w", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(data.Template.ServiceAccount)
+	saDigest := posture.GCPServiceAccountEmailDigest(data.Template.ServiceAccount)
 	attrs := runServiceAttributes(data, saDigest)
 
 	var anchors []string

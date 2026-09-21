@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 func init() {
@@ -60,7 +60,7 @@ func extractServiceAccount(ctx ExtractContext) (AttributeExtraction, error) {
 	if strings.TrimSpace(email) == "" {
 		email = serviceAccountEmailFromFullName(ctx.FullResourceName)
 	}
-	emailDigest := secretsiam.GCPServiceAccountEmailDigest(email)
+	emailDigest := posture.GCPServiceAccountEmailDigest(email)
 	if emailDigest != "" {
 		attrs["email_fingerprint"] = emailDigest
 	}

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 const logSinkFullName = "//logging.googleapis.com/projects/demo-project/sinks/audit-export"
@@ -43,7 +43,7 @@ func TestExtractLogSinkBigQueryDestination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	digest := secretsiam.GCPServiceAccountEmailDigest(email)
+	digest := posture.GCPServiceAccountEmailDigest(email)
 	wantAttrs := map[string]any{
 		"destination_type":                  "bigquery",
 		"filter_present":                    true,

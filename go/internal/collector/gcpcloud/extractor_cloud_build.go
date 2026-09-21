@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // Asset types and full-resource-name prefixes for the Cloud Build Build endpoints.
@@ -79,7 +79,7 @@ func extractCloudBuild(ctx ExtractContext) (AttributeExtraction, error) {
 		return AttributeExtraction{}, fmt.Errorf("decode cloud build data: %w", err)
 	}
 
-	saDigest := secretsiam.GCPServiceAccountEmailDigest(cloudBuildServiceAccountEmail(data.ServiceAccount))
+	saDigest := posture.GCPServiceAccountEmailDigest(cloudBuildServiceAccountEmail(data.ServiceAccount))
 	digests := cloudBuildImageDigests(data)
 	attrs := cloudBuildAttributes(data, saDigest, digests)
 

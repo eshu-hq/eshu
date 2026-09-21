@@ -407,7 +407,7 @@ fields, so the signal stays bounded and redaction-safe.
 
 No-Regression Evidence: `go test ./internal/collector/awscloud/services/iam/awssdk
 -run 'ConditionOperators|ExtractsStatements' -count=1`,
-`go test ./internal/collector/awscloud ./internal/collector/secretsiam -run
+`go test ./internal/collector/awscloud ./internal/collector/access/posture -run
 'IAMPermissionEnvelope|ResourcePolicyPermissionEnvelopeCondition|PermissionPolicyEnvelope'
 -count=1`, `go test ./internal/collector/awscloud/services/s3/awssdk
 ./internal/collector/awscloud/services/kms/awssdk -run

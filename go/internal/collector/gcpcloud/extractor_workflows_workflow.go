@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/collector/access/posture"
 )
 
 // assetTypeWorkflowsWorkflow is the Cloud Asset Inventory asset type for a
@@ -84,7 +84,7 @@ func extractWorkflowsWorkflow(ctx ExtractContext) (AttributeExtraction, error) {
 	var anchors []string
 	var rels []RelationshipObservation
 
-	if fp := secretsiam.GCPServiceAccountEmailDigest(workflowsWorkflowServiceAccountEmail(data.ServiceAccount)); fp != "" {
+	if fp := posture.GCPServiceAccountEmailDigest(workflowsWorkflowServiceAccountEmail(data.ServiceAccount)); fp != "" {
 		attrs["service_account_fingerprint"] = fp
 		anchors = append(anchors, fp)
 	}
