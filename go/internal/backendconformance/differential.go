@@ -99,16 +99,16 @@ func HasOrderBy(cypher string) bool {
 		c := cypher[i]
 		switch {
 		case c == '/' && i+1 < len(cypher) && cypher[i+1] == '/':
+			flush()
 			next := strings.IndexByte(cypher[i:], '\n')
 			if next < 0 {
-				flush()
 				return hasOrderByWords(words)
 			}
 			i += next
 		case c == '/' && i+1 < len(cypher) && cypher[i+1] == '*':
+			flush()
 			end := strings.Index(cypher[i+2:], "*/")
 			if end < 0 {
-				flush()
 				return hasOrderByWords(words)
 			}
 			i += end + 4

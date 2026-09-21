@@ -116,6 +116,7 @@ func TestHasOrderByDetection(t *testing.T) {
 		{`MATCH (n) WHERE n.a = 'it\'s ORDER BY x' RETURN n`, false},
 		{"MATCH (`order by`) RETURN `order by`", false},
 		{"// comment\nMATCH (n) RETURN n ORDER BY n.x", true},
+		{"MATCH (n) RETURN n ORDER/*split*/BY n.x", true},
 		{"MATCH (n) WHERE n.a = 'x' RETURN n ORDER BY n.a", true},
 	} {
 		if got := HasOrderBy(tc.cypher); got != tc.want {
