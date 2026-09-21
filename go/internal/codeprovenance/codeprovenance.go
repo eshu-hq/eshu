@@ -122,3 +122,21 @@ func Classified(method Method) bool {
 	_, ok := confidenceByMethod[method]
 	return ok
 }
+
+// inferredMethods is the set of resolution methods weaker than an explicit
+// import binding: findings built on them are admitted but labelled inferred,
+// never silent. MethodUnspecified is not inferred, only unclassified.
+var inferredMethods = map[Method]bool{
+	MethodTypeInferred:           true,
+	MethodScopeUniqueName:        true,
+	MethodCrossRepoExportPackage: true,
+	MethodRepoUniqueName:         true,
+}
+
+// IsInferred reports whether method is an inferred-resolution method: weaker
+// than an explicit import binding, so a finding resting on it must be
+// labelled accordingly. Unspecified legacy methods are not inferred, only
+// unclassified.
+func IsInferred(method Method) bool {
+	return inferredMethods[method]
+}

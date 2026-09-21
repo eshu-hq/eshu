@@ -21,8 +21,9 @@
 // omitted limit. A negative offset rejects with HTTP 400, as does anything
 // above 10000. kind travels
 // blank for the all-families read; investigate_code_divergence requires an
-// explicit exact or renamed kind because a fingerprint is only unique
-// within its equality family.
+// explicit kind (exact, renamed, drifted, wrapper_bypass, or
+// convention_outlier, short or qualified) because a fingerprint is only
+// unique within its family.
 //
 // Numeric coercion follows routecontract.Arguments: int, int64, and float64
 // are honoured, a float64 truncates toward zero, and every other type falls

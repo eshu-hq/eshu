@@ -81,13 +81,14 @@ type WrapperBypassVerdict struct {
 // InferredResolutionMethods is the set of ADR #2222 resolution methods that
 // count as inferred evidence for wrapper-bypass findings: everything weaker
 // than an explicit import binding. Unspecified legacy edges are not
-// inferred, only unclassified.
+// inferred, only unclassified. It delegates to codeprovenance.IsInferred,
+// the single source of truth both graph-finding families share.
 func InferredResolutionMethods() map[string]bool {
 	return map[string]bool{
-		string(codeprovenance.MethodTypeInferred):           true,
-		string(codeprovenance.MethodScopeUniqueName):        true,
-		string(codeprovenance.MethodCrossRepoExportPackage): true,
-		string(codeprovenance.MethodRepoUniqueName):         true,
+		string(codeprovenance.MethodTypeInferred):           codeprovenance.IsInferred(codeprovenance.MethodTypeInferred),
+		string(codeprovenance.MethodScopeUniqueName):        codeprovenance.IsInferred(codeprovenance.MethodScopeUniqueName),
+		string(codeprovenance.MethodCrossRepoExportPackage): codeprovenance.IsInferred(codeprovenance.MethodCrossRepoExportPackage),
+		string(codeprovenance.MethodRepoUniqueName):         codeprovenance.IsInferred(codeprovenance.MethodRepoUniqueName),
 	}
 }
 

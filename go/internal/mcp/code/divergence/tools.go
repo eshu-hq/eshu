@@ -10,8 +10,8 @@ import (
 // Tools returns the two MCP code-divergence tool definitions: the
 // repo-scoped parallel-implementation findings report and the single-finding
 // investigation with bounded follow-up calls. Both accept the drifted family
-// alongside exact and renamed, plus the graph-qualified wrapper_bypass
-// family.
+// alongside exact and renamed, plus the graph-qualified wrapper_bypass and
+// convention_outlier families.
 func Tools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		findCodeDivergenceTool(),
@@ -22,7 +22,7 @@ func Tools() []toolcontract.ToolDefinition {
 func findCodeDivergenceTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "find_code_divergence",
-		Description: "Find parallel implementations in one repository: functions with identical token streams (exact), identical streams up to renaming (renamed), reducer-verified near-duplicate pairs (drifted), or targets fronted by a canonical wrapper with cross-package direct callers (wrapper_bypass), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		Description: "Find parallel implementations in one repository: functions with identical token streams (exact), identical streams up to renaming (renamed), reducer-verified near-duplicate pairs (drifted), targets fronted by a canonical wrapper with cross-package direct callers (wrapper_bypass), or cohort members missing a call the cohort majority makes (convention_outlier), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -32,8 +32,8 @@ func findCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"kind": map[string]any{
 					"type":        "string",
-					"description": "Family: exact, renamed, drifted, wrapper_bypass, or blank for all four",
-					"enum":        []string{"", "exact", "renamed", "drifted", "wrapper_bypass"},
+					"description": "Family: exact, renamed, drifted, wrapper_bypass, convention_outlier, or blank for all five",
+					"enum":        []string{"", "exact", "renamed", "drifted", "wrapper_bypass", "convention_outlier"},
 				},
 				"limit": map[string]any{
 					"type":        "integer",
@@ -51,7 +51,7 @@ func findCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"include_tests": map[string]any{
 					"type":        "boolean",
-					"description": "Opt test-file copies back into the member set for the exact and renamed families; test files suppress by default. Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings",
+					"description": "Opt test-file copies back into the member set for the exact, renamed, and convention_outlier families; test files suppress by default. Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings",
 					"default":     false,
 				},
 			},
@@ -73,8 +73,8 @@ func investigateCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"kind": map[string]any{
 					"type":        "string",
-					"description": "Family the fingerprint belongs to; accepts the short (exact, renamed, drifted, wrapper_bypass) and qualified (parallel_implementation.*) spellings; wrapper_bypass fingerprints carry the target entity id",
-					"enum":        []string{"exact", "renamed", "drifted", "wrapper_bypass", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted", "parallel_implementation.wrapper_bypass"},
+					"description": "Family the fingerprint belongs to; accepts the short (exact, renamed, drifted, wrapper_bypass, convention_outlier) and qualified (parallel_implementation.*) spellings; wrapper_bypass fingerprints carry the target entity id, convention_outlier fingerprints carry the cohort address plus the majority callee",
+					"enum":        []string{"exact", "renamed", "drifted", "wrapper_bypass", "convention_outlier", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted", "parallel_implementation.wrapper_bypass", "parallel_implementation.convention_outlier"},
 				},
 				"fingerprint": map[string]any{
 					"type":        "string",
@@ -82,7 +82,7 @@ func investigateCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"include_tests": map[string]any{
 					"type":        "boolean",
-					"description": "Opt test-file copies back into the member set for the exact and renamed families; test files suppress by default. Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings",
+					"description": "Opt test-file copies back into the member set for the exact, renamed, and convention_outlier families; test files suppress by default. Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings",
 					"default":     false,
 				},
 			},

@@ -2,8 +2,8 @@
   "schema_version": "replay-coverage-report.v4",
   "blocking": true,
   "totals": {
-    "total": 439,
-    "covered": 428,
+    "total": 440,
+    "covered": 429,
     "uncovered": 0,
     "unresolved": 0,
     "exempt": 11,
@@ -21,8 +21,8 @@
     },
     {
       "registry": "capability_matrix",
-      "total": 139,
-      "covered": 139,
+      "total": 140,
+      "covered": 140,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 0,
@@ -113,8 +113,8 @@
   "scenario_type_summaries": [
     {
       "scenario_type": "baseline",
-      "total": 224,
-      "covered": 219,
+      "total": 225,
+      "covered": 220,
       "uncovered": 0,
       "unresolved": 0,
       "exempt": 5,
@@ -456,6 +456,16 @@
       "ref": "rc-11",
       "proof_gate": "golden-corpus-gate",
       "detail": "snapshot required correlation \"rc-11\""
+    },
+    {
+      "registry": "capability_matrix",
+      "key": "capability:call_graph.compare_code_paths",
+      "scenario_type": "baseline",
+      "status": "covered",
+      "scenario": "api_mcp_golden",
+      "ref": "compare_code_paths",
+      "proof_gate": "golden-corpus-gate",
+      "detail": "snapshot MCP query shape \"compare_code_paths\""
     },
     {
       "registry": "capability_matrix",

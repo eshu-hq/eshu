@@ -18,6 +18,11 @@
   belongs to the #6837 reducer.
 - Never read `source_cache`; suppression reads path, name, language, and
   token count only.
+- Convention-outlier findings name their cohort source (interface, router,
+  package) and carry the cohort evidence on Finding.Outlier; confidence
+  inherits the weakest majority CALLS edge and inferred majorities are
+  labelled. Cohort tests live in cohort_test.go, selection and assembly in
+  outlier_test.go.
 
 ## Verification
 

@@ -311,3 +311,60 @@ call-chain parity); the traversal budget rides `visited`, the truth
 envelope rides every response, and member hydration adds one traced
 `postgres.query` (`divergence_members_by_entity`). Matrix row
 `call_graph.compare_code_paths` claims local profiles only.
+
+## 13. #6839 ship proof (convention_outlier, cohort sweep)
+
+No-Regression Evidence (#6839): baseline is origin/main at 3c532d219,
+where the convention_outlier kind does not exist. After adds a read-only
+kind plus one codequery file with no shared-code change to existing reads:
+the full `./internal/query/...`, `./internal/mcp/...`,
+`./internal/queryplan/`, `./internal/capabilitycatalog/`, and
+`./internal/ask/...` suites pass, `capability-inventory verify` is clean,
+and no generated artifact changes (descriptions and kind enums ride no
+generated file: the catalog tracks route/tool names only, unchanged here).
+
+Benchmark Evidence (#6839): backend NornicDB
+`timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74`
+(seeded fixture: 5-handler router cohort, 3-member interface cohort,
+2 package cohorts, 9-member callee fan-out; same-container live gate
+`-tags live_nornicdb_convention_outlier`):
+`TestLiveNornicDBConventionOutlier` 0.57s with per-read client medians
+(n=3) cohorts-interface 264us, cohorts-router 247us, cohorts-package
+235us, callee-edges 232us. Input shapes are the three repo-wide
+one-hop enumeration reads (Function anchor, repo/grant in the anchoring
+WHERE) plus the 50-key-chunked UNWIND callee-edges read through the
+already-pinned `runWrapperGraphRows` runner, so the queryplan bound
+(50 keys x corpus CALLS degree 8, audit max_results 400) covers the new
+reads with no new row. Same-engine dialect parity holds: the
+Neo4j-rendered callee-edges read returns exactly the NornicDB-rendered
+row set on the NornicDB container. Cross-backend parity holds: identical
+four canonical findings on NornicDB and on Neo4j community 2026.05.0
+(`ESHU_LIVE_GRAPH_BACKEND=nornicdb|neo4j`, same assertions both runs).
+Full-corpus PROFILE stays remote-gated under #6840 like §11.
+
+Dogfood precision (#6839): stdlib-AST extraction of name-based call sets
+(builtins dropped as the graph emits no builtin CALLS edges, test files
+excluded) over Eshu's own tree, package cohorts, shipped defaults
+(min 3, share 0.6, cap 50). Headline cohort (28 `handle*` methods in
+`go/internal/query/codequery`): 7 verdicts, including WriteSuccess at
+19/28 with 9 outliers — all 9 verified by source read as true
+non-direct-callers (factual precision 9/9, zero false call-set claims),
+and all 9 reach WriteSuccess within two hops through response writers or
+delegates (4 carry the one-hop mediated shape on resolved edges:
+writeCallChainResponse plus the deadcode analyzer's Handle methods; the
+code-flow family needs two hops, which mediation does not flag — a
+documented depth limit). Broad sweep (400 dirs): 106 verdicts,
+TrimSpace-dominated whole-package majorities; spot-checked secretcrypto
+Errorf 6/9 (outliers EnvelopeKeyID/Open/fingerprint verified true
+non-callers). Caveats: name-based identity collides (`common` x5,
+`Validate` x2 noted), package scope only (no interface/router cohorts in
+dogfood: Go structural implements is out of scope and HANDLES_ROUTE needs
+an indexed graph), so this measures selection precision on real call
+sets, not end-to-end recall.
+
+Observability Evidence (#6839): no new handler span (sibling graph-track
+parity); the cohort source, share, outliers, and mediation ride the
+finding body, the truth envelope rides every response, and member
+hydration reuses the traced `divergence_members_by_entity` read. No new
+capability row: `code_divergence.findings` covers the fifth family on the
+existing local profiles.
