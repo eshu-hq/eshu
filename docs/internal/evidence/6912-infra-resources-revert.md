@@ -174,9 +174,26 @@ GET /api/v0/infra/resources/count       13  663066  88   ->  13  74739  80
 GET /api/v0/infra/resources/inventory   13  663066  16   ->  13  74739  14
 ```
 
-74,739 is `ceil(24,913 * 3.0)`, the renderer's own formula. Every other
-named row moved by less than 0.2% except `/cloud/inventory`, which held at
-145,866 rather than collapsing to 21 -- see the corpus section above. An
+74,739 is `ceil(24,913 * 3.0)`, the renderer's own formula.
+
+The rest of the table moved as follows, stated per column because the
+columns behave differently and an unscoped claim here would be wrong:
+
+- `blks`: every other named row moved by less than 0.2%, except
+  `GET /api/v0/freshness/generations` at 92,919 -> 91,860 (-1.14%).
+  `/cloud/inventory` held at 145,866 rather than collapsing to 21 -- see
+  the corpus section above.
+- `rows`: `GET /api/v0/status/governance` moved 68 -> 66 (-2.94%), and
+  about ten routes moved 16 -> 14. That second group is not per-route
+  drift: each of those rows is identical to the `default` row in both
+  snapshots, so they are floor-riders under the renderer's "no named row
+  below the default row" rule and are tracking the default row's own
+  cross-run noise (16 -> 14) rather than any change in their own traffic.
+
+Every delta above tightens a guard; none loosens one, so none of it can
+hide a regression. The residual risk runs the other way: a future run
+landing between an old and new budget would now breach. That is inherent
+to regenerating from measured maxima, not specific to this change. An
 independent check confirms the rendered table admits every measured route:
 65 routes checked across both reports, zero breaches, and the checker
 fails as expected on a seeded violation.
