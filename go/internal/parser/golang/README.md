@@ -32,6 +32,15 @@ Pre-scan stays cheap and file-local. The parent engine combines package-level
 evidence before full parsing so Go dead-code roots remain bounded and
 deterministic.
 
+Within this package, `prescan/` owns the file-local pre-scan and the
+package-level interface/method/generic evidence step; `symbols/` resolves the
+identifiers, scopes, receivers, and variable types every other leaf consumes;
+`dataflow/` builds the opt-in control-flow graphs and taint/interproc
+findings; `deadcode/` (with `deadcode/semantic/`) assembles dead-code root
+evidence; and the root package (`language.go`, `call_chain_metadata.go`, and
+the other root files) composes all four leaves' output into the `Parse`
+payload.
+
 ## Ownership boundary
 
 This package is responsible for Go tree-sitter parsing, Go payload assembly,
@@ -46,6 +55,25 @@ methods on `Engine`. Shared payload and tree helpers come from
 `internal/parser/shared`; production files and same-package tests here must not
 import the parent parser package. External `golang_test` files may import the
 parent only to exercise the public engine contract.
+
+### Internal layering
+
+This package is itself split into a root and four leaves, and the leaves are
+layered one-way:
+
+- `symbols/` is the bottom layer. It imports only `internal/parser/shared` and
+  the tree-sitter bindings -- never this root package and never a sibling leaf.
+- `dataflow/`, `deadcode/` (and `deadcode/semantic/`), and `prescan/` may each
+  import `symbols/`, but none of them imports another leaf or the root.
+- The root imports all four leaves and composes their output into the parse
+  payload. No leaf imports the root.
+
+This exists because the four leaves originally formed an import cycle through
+the root: each needed identifier, scope, receiver, and variable-type helpers
+that the others also needed, and those helpers lived in root files. The fix
+was relocating that shared surface down into `symbols/` (issue #6774's
+43-symbol relocation), not a redesign of any type. A change that needs a
+leaf-to-leaf import is a sign the shared piece belongs in `symbols/` instead.
 
 ## Exported surface
 
@@ -65,10 +93,11 @@ The godoc contract is in `doc.go`.
 - `ImportedDirectMethodCallRootsWithInterfaceReturns` extracts the same roots
   when package-level interface return metadata is needed to resolve a chained
   receiver call in another file.
-- `LocalInterfaceImportedMethodReturns`, `LocalInterfaceMethods`,
-  `GenericConstraintInterfaceNames`, and `MethodDeclarationKeys` expose the
-  file-local rows that the parent package pre-scan combines into package-level
-  Go semantic roots.
+- `LocalInterfaceImportedMethodReturns`, `LocalInterfaceMethods`, and
+  `GenericConstraintInterfaceNames` expose the file-local rows that the parent
+  package pre-scan combines into package-level Go semantic roots.
+  `MethodDeclarationKeys` moved to `prescan/` with the rest of the package
+  interface pre-scan; see `prescan/README.md` for its exported surface.
 - `EmbeddedSQLQueries` returns typed SQL table evidence from recognized Go
   database call sites.
 - `EmbeddedShellCommands` returns structural `os/exec.Command` and
@@ -76,8 +105,9 @@ The godoc contract is in `doc.go`.
   arguments, or environment values.
 - The `dataflow_functions` bucket (opt-in via `Options.EmitDataflow`) carries
   per-function control-flow graphs and reaching-definition def->use edges, built
-  by `cfg_lower.go`/`cfg_bindings.go`/`cfg_access_paths.go`/`cfg_emit.go` over the
-  `internal/parser/cfg` engine. Selector reads and writes keep field-sensitive
+  by `dataflow/lower.go`/`dataflow/bindings.go`/`dataflow/access_paths.go`/
+  `dataflow/emit.go` over the `internal/parser/cfg` engine. Selector reads and
+  writes keep field-sensitive
   access paths such as `payload.SQL`, and straight-line pointer aliases to local
   structs are normalized before edges are emitted. Deep access paths are capped
   by `cfg.DefaultLimits().MaxAccessPathParts` and counted in the row `overflow`
@@ -86,11 +116,11 @@ The godoc contract is in `doc.go`.
   captured-variable uses. Off by default and byte-identical when off.
 - The `taint_findings` bucket (same opt-in gate) carries intraprocedural
   source-to-sink taint findings with confidence and provenance, built by
-  `cfg_taint_facts.go` (the Go source/sink/sanitizer catalog) over the
+  `dataflow/taint_facts.go` (the Go source/sink/sanitizer catalog) over the
   `internal/parser/taint` engine.
 - The `interproc_findings` bucket (same opt-in gate) carries cross-function
-  taint findings within the file: `cfg_effects.go` derives each function's
-  value-flow summary (`internal/parser/valueflow`) and `cfg_interproc.go`
+  taint findings within the file: `dataflow/effects.go` derives each function's
+  value-flow summary (`internal/parser/valueflow`) and `dataflow/interproc.go`
   composes them into an interprocedural port graph solved by
   `internal/parser/interproc`. Call resolution is intra-file; cross-file and
   cross-repo composition is the reducer's job.
@@ -109,6 +139,11 @@ The godoc contract is in `doc.go`.
 This package imports `go/internal/parser/shared` for payload helpers,
 tree-sitter node helpers, source reads, and parser options. It imports
 `github.com/tree-sitter/go-tree-sitter` for the parser and node contracts.
+
+Internally, the root also imports its four leaf packages -- `symbols/`,
+`dataflow/`, `deadcode/` (and `deadcode/semantic/`), and `prescan/` -- to
+compose the parse payload; see Ownership boundary above for the one-way
+layering those imports must respect.
 
 It must not import collector, query, projector, reducer, storage, telemetry, or
 the parent parser package in production. The external command-execution payload
@@ -206,19 +241,20 @@ Per-file amortization is required for variable-type lookups. The helpers that
 collect dead-code roots and imported-method-call roots query variable types
 once per call_expression, var_spec, composite_literal, and return_statement —
 so a naive implementation that re-walks the full tree per query becomes
-O(call_sites × tree_size) per file. `goParentLookup` builds the child-to-parent
-map once per parse; `goVariableTypeIndex` and `goImportedVariableTypeIndex`
-scan package-scope imported variable declarations without descending into
-function bodies, build per-scope binding lists lazily on first use, and answer
-position-filtered queries in pure Go map and slice work. The scope walkers stop
-at nested
+O(call_sites × tree_size) per file. `symbols.BuildParentLookup`
+(`symbols/parent_lookup.go`) builds the child-to-parent map once per parse; the
+variable-type index and imported-variable index in `symbols/variable_index.go`
+and `symbols/imported_variable_index.go` scan package-scope imported variable
+declarations without descending into function bodies, build per-scope binding
+lists lazily on first use, and answer position-filtered queries in pure Go map
+and slice work. The scope walkers stop at nested
 function_declaration / method_declaration / func_literal subtrees so a
 binding declared inside an inner closure does not leak into the outer
-function's binding table. Imported direct-method pre-scans skip
-`goImportedVariableTypeIndex.ForCall` for bare function calls because only
+function's binding table. Imported direct-method pre-scans skip the
+imported-variable index's per-call lookup for bare function calls because only
 selector calls can produce imported receiver roots or fmt Stringer roots. Do
-not re-introduce per-call full-tree walks in `dead_code_semantic_roots.go` or
-`package_interface_prescan.go`.
+not re-introduce per-call full-tree walks in `deadcode/semantic/roots.go` or
+`prescan/package_interface.go`.
 
 Before the amortization landed (#161), `engine.PreScanGoPackageSemanticRoots`
 saturated CPU for 80+ minutes on Terraform's 1927-file checkout without
@@ -258,37 +294,66 @@ Embedded SQL evidence only records recognized database/sql and sqlx call sites
 where a string literal contains an obvious table reference. Line numbers refer
 to the original Go source.
 
-The `go_*_test.go` files and `engine_go_rich_semantics_test.go` (25 files,
-external package `golang_test`; 23 of them relocated from the parent by #6062)
-pin the payload contract through `parser.DefaultEngine().ParsePath` the way a
-caller would. Each figure has its own command, because one does not produce
-both: 93 test functions across the `go_*` family, from
-`rg -o '^func Test' go_*_test.go engine_go_rich_semantics_test.go | wc -l`,
-and 2 benchmarks, from `rg -o '^func Benchmark' *_test.go | wc -l`. Counting
-every test file in the package rather than the `go_*` glob gives 136
-functions — `rg --no-filename -o '^func Test' *_test.go | wc -l` — because
-`engine_data_carriage_return_test.go` (the 26th external `golang_test` file,
-relocated from the parent by #6062) matches neither name pattern; it pins the
-Go raw-string carriage-return case (issue #6306) and needs no package-local
-helper, since it reaches only the root package's exported
-`DefaultEngine`/`Options`/`Engine.ParsePath` surface through `parsertest`.
-They may import `internal/parser` because Go compiles them only for tests;
-keep that exception limited to black-box tests of the public parent engine
-(`parser.DefaultEngine`, `parser.Options`, `parser.Engine`) and never reach
-parent internals. Shared assertions come from `go/internal/parser/parsertest`
-(`WriteFile`, `AssertBucketItemByName`, `AssertBucketItemByFieldValue`,
-`AssertStringFieldValue`, `AssertIntFieldValue`, `AssertStringSliceContains`,
+Test files split by visibility, not by leaf package. Every `package
+golang_test` (black-box) file stays at this package root and pins the payload
+contract only through `parser.DefaultEngine().ParsePath`, the way a caller
+would: the `go_*_test.go` family, `engine_go_rich_semantics_test.go`, and
+`engine_data_carriage_return_test.go` (which pins the Go raw-string
+carriage-return case, issue #6306, and needs no package-local helper since it
+reaches only the root's exported `DefaultEngine`/`Options`/`Engine.ParsePath`
+surface through `parsertest`). They may import `internal/parser` because Go
+compiles them only for tests; keep that exception limited to black-box tests
+of the public parent engine (`parser.DefaultEngine`, `parser.Options`,
+`parser.Engine`) and never reach parent internals. File and test-function
+counts for this family are 26 files / 96 test functions
+as of the leaf split (issue #6774) -- do not carry forward the pre-split
+figures (25 files, 93 `go_*`-family test functions, 136 functions across every
+root test file) as still current; the split changed what "every test file in
+the package" means, since white-box tests below no longer share this
+directory with all of them. `go_package_interface_prescan_test.go` is not one
+of these files: it lives in the parent directory (`go/internal/parser/`),
+tests parent-owned worker sizing through unexported functions, and cannot
+compile as `golang_test`; it is unaffected by this split.
+
+`package golang` (white-box) tests moved with the production file that owns
+their subject, so each now lives beside its leaf instead of sharing one glob
+at the root:
+
+- `symbols/`: `receiver_test.go` (from `local_receiver_types_test.go`),
+  `variable_types_test.go` (from `local_variable_types_test.go`), and
+  `variable_index_test.go` (from `variable_type_index_test.go`).
+- `dataflow/`: `guard_text_test.go` (from `cfg_guard_text_test.go`) and
+  `lower_test.go` (from `cfg_lower_test.go`).
+`dead_code_gather_resolve_test.go` and
+`dead_code_gather_resolve_cross_kind_test.go` stay at the root despite their
+names: both drive `Parse` and assert on the emitted payload, so they are
+black-box tests of this package's output rather than white-box tests of
+`deadcode/` internals.
+
+`walk_count_test.go` also stays at the root: it asserts the per-parse
+full-tree walk count across `framework_routes.go`, the dead-code family and
+`symbols/`, so no single leaf owns its subject.
+
+Each moved file stays white-box in its new package and must not import the
+parent. The two leaves that now hold white-box tests carry 22 test functions
+between them (`symbols/` 4, `dataflow/` 18); the 8 `package golang` files
+still at the root carry 20. The pre-split figure of "13 `package golang`
+`*_test.go` files (42 test functions)" described one directory that no longer
+exists as a single unit.
+
+Shared assertions for the root's black-box tests come from
+`go/internal/parser/parsertest` (`WriteFile`, `AssertBucketItemByName`,
+`AssertBucketItemByFieldValue`, `AssertStringFieldValue`,
+`AssertIntFieldValue`, `AssertStringSliceContains`,
 `AssertStringSliceNotContains`, `AssertStringSliceEquals`,
 `AssertFunctionByNameAndClass`, `AssertFrameworksEqual`,
 `AssertNestedStringSliceEqual`, `AssertNestedRouteEntriesEqual`).
 `go_test_helpers_test.go` holds only `writeGoFixture`, which creates parent
 directories before delegating to `parsertest.WriteFile` for the tests that lay
 out multi-package module trees; `go_parent_lookup_bench_test.go` keeps its own
-`*testing.B` writer because parsertest has none. The 13 `package golang`
-`*_test.go` files (42 test functions) stay white-box and must not import the
-parent. `go_package_interface_prescan_test.go` remains in the parent: it tests
-parent-owned worker sizing through unexported functions, so it cannot compile
-as `golang_test`.
+`*testing.B` writer because parsertest has none -- it stays at the root as a
+`golang_test` file, benchmarking `symbols.BuildParentLookup` through the
+package's exported surface rather than an internal helper.
 
 Run the engine tests from the `go/` module root with
 `go test ./internal/parser/golang -count=1`; pin a subset with

@@ -70,10 +70,11 @@ func constraintFunc[T Printer](item T) {
 // traversals Parse performs on a single representative Go file. Before the
 // gather-then-resolve refactor (issue #4920, epic #4917),
 // goCollectSemanticDeadCodeRoots (now deadcode/semantic.CollectRoots, moved
-// by issue #6774) ran two independent full-tree resolution re-walks (walk-2
-// at deadcode/semantic/roots.go:104 and walk-3 via
-// goMarkGenericConstraintInterfaceRoots at deadcode/semantic/roots.go:256)
-// in addition to the declaration-collection walk (walk-1). After the
+// by issue #6774) ran two independent full-tree resolution re-walks (the
+// resolution walk now replaced by the "Walk-2 replacement" in-memory loops in
+// deadcode/semantic/roots.go, and the type-parameter walk now replaced by the
+// goMarkGenericConstraintInterfaceRoots call in that same file) in addition
+// to the declaration-collection walk (walk-1). After the
 // refactor, resolution candidate nodes are gathered during walk-1 and
 // resolved via in-memory loops, removing exactly two WalkNamed calls
 // (60 -> 58).

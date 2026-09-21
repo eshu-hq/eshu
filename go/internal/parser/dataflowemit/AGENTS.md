@@ -5,8 +5,8 @@
 1. `README.md` - package boundary and the bucket schema
 2. `doc.go` - godoc contract: the value-flow buckets and the lang label
 3. `emit.go` - the row renderers and deterministic sorting
-4. The Go original this generalizes: `../golang/cfg_emit.go`,
-   `../golang/cfg_interproc.go`
+4. The Go original this generalizes: `../golang/dataflow/emit.go`,
+   `../golang/dataflow/interproc.go`
 5. A caller: `../python/cfg_emit.go`
 
 ## Invariants this package enforces

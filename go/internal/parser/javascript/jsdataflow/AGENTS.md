@@ -10,9 +10,9 @@
    reference-alias map
 6. `lower_test.go` / `precision_test.go` - if/else-merge and back-edge proofs;
    field/container/alias/closure precision proofs
-7. The Go counterpart this mirrors: `../../golang/cfg_lower.go`,
-   `../../golang/cfg_bindings.go`, `../../golang/cfg_access_paths.go`, and the
-   shared engine `../../cfg`
+7. The Go counterpart this mirrors: `../../golang/dataflow/lower.go`,
+   `../../golang/dataflow/bindings.go`, `../../golang/dataflow/access_paths.go`,
+   and the shared engine `../../cfg`
 
 ## Invariants this package enforces
 
