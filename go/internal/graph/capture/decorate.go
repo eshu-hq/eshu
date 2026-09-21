@@ -48,7 +48,14 @@ func Open(getenv func(string) string, binary string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Session{recorder: backendconformance.NewDifferentialRecorder(), sink: sink, backend: string(backend)}, nil
+	recorder := backendconformance.NewDifferentialRecorder()
+	// Stream every record to disk as it executes: the replay binaries die
+	// by SIGTERM, so waiting for Close would lose the whole recording.
+	// Append errors stash inside the sink and surface from Close.
+	recorder.OnRecord = func(record backendconformance.DifferentialRecord) {
+		_ = sink.Append(record)
+	}
+	return &Session{recorder: recorder, sink: sink, backend: string(backend)}, nil
 }
 
 // Reader decorates the graph read seam with capture. On a nil session it
@@ -69,16 +76,13 @@ func (s *Session) Writer(inner sourcecypher.Executor) sourcecypher.Executor {
 	return backendconformance.WrapExecutor(inner, s.recorder, s.backend)
 }
 
-// Close flushes the session's records to the sink. A nil session closes
-// cleanly; a session that recorded nothing writes no file.
+// Close flushes the sink and reports the first streaming error, if any. A
+// nil session closes cleanly; a session that recorded nothing writes no
+// file. Records already streamed during execution, so Close never
+// re-appends them.
 func (s *Session) Close() error {
 	if s == nil {
 		return nil
-	}
-	for _, record := range s.recorder.Records() {
-		if err := s.sink.Append(record); err != nil {
-			return err
-		}
 	}
 	return s.sink.Close()
 }

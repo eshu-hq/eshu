@@ -65,6 +65,49 @@ func TestOpenFlagWithoutDirFailsClosed(t *testing.T) {
 	}
 }
 
+// TestSessionStreamsWithoutClose pins the SIGTERM contract: the replay
+// binaries die by kill, so records must reach the directory as statements
+// execute, not when the session closes. A kill mid-run loses at most the
+// in-flight statement.
+func TestSessionStreamsWithoutClose(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	dir := t.TempDir()
+	getenv := func(key string) string {
+		switch key {
+		case "ESHU_DIFFERENTIAL_CAPTURE_DIR":
+			return dir
+		case "ESHU_GRAPH_BACKEND":
+			return "neo4j"
+		}
+		return ""
+	}
+	session, err := Open(getenv, "drain-test")
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	ctx := context.Background()
+	if _, err := session.Reader(fakeReader{}).Run(ctx, "MATCH (n:Repository) RETURN n", nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	byBackend, err := LoadDir(dir)
+	if err != nil {
+		t.Fatalf("LoadDir() error = %v", err)
+	}
+	if len(byBackend["neo4j"]) != 1 {
+		t.Fatalf("LoadDir() neo4j records = %d, want 1 without Close", len(byBackend["neo4j"]))
+	}
+	if err := session.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	byBackend, err = LoadDir(dir)
+	if err != nil {
+		t.Fatalf("LoadDir() error = %v", err)
+	}
+	if len(byBackend["neo4j"]) != 1 {
+		t.Fatalf("LoadDir() neo4j records after Close = %d, want 1 (no duplicates)", len(byBackend["neo4j"]))
+	}
+}
+
 // TestSessionCapturesReadsAndWrites is the end-to-end decorator proof
 // without a backend: statements run through both decorated seams land in
 // the recordings directory labeled with the configured backend.

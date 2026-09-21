@@ -79,6 +79,29 @@ func TestSinkRoundTrip(t *testing.T) {
 	}
 }
 
+// TestSinkRecordDurableWithoutClose pins the kill-safety contract: B-7
+// SIGTERMs the replay binaries, so an appended record must reach the file
+// without waiting for Close. A kill mid-run loses at most the in-flight
+// statement, never the whole recording.
+func TestSinkRecordDurableWithoutClose(t *testing.T) {
+	dir := t.TempDir()
+	sink, err := OpenDir(dir, "nornicdb", "drain-test")
+	if err != nil {
+		t.Fatalf("OpenDir() error = %v", err)
+	}
+	seedSinkRecords(t, sink, "nornicdb")
+	byBackend, err := LoadDir(dir)
+	if err != nil {
+		t.Fatalf("LoadDir() error = %v", err)
+	}
+	if len(byBackend["nornicdb"]) != 2 {
+		t.Fatalf("LoadDir() nornicdb records = %d, want 2 without Close", len(byBackend["nornicdb"]))
+	}
+	if err := sink.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
 // TestSinkCloseWithoutAppendWritesNoFile pins the quiet-process contract: a
 // binary that executed no graph statements leaves no recording file, so the
 // loader never mistakes an empty run for a backend with zero statements.

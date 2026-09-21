@@ -36,8 +36,8 @@ type storedRecord struct {
 
 // Sink appends one process's differential records to a JSONL file. It is
 // safe for concurrent use. The file opens lazily on the first [Sink.Append]
-// as <binary>-<pid>.jsonl inside the directory, so a process that executes
-// no graph statements leaves no file behind.
+// as <binary>-<backend>-<pid>.jsonl inside the directory, so a process
+// that executes no graph statements leaves no file behind.
 type Sink struct {
 	mu      sync.Mutex
 	dir     string
@@ -46,6 +46,11 @@ type Sink struct {
 	phase   string
 	file    *os.File
 	writer  *bufio.Writer
+	// firstErr keeps the first streaming failure: per-record Append
+	// callers (the recorder stream) cannot act on the error mid-run, so
+	// Close surfaces it instead of reporting a clean shutdown over a
+	// truncated recording.
+	firstErr error
 }
 
 // OpenDir creates dir and returns a sink recording backend executions from
@@ -70,8 +75,11 @@ func (s *Sink) Append(record backendconformance.DifferentialRecord) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.firstErr != nil {
+		return s.firstErr
+	}
 	if s.writer == nil {
-		path := filepath.Join(s.dir, fmt.Sprintf("%s-%d.jsonl", s.binary, os.Getpid()))
+		path := filepath.Join(s.dir, fmt.Sprintf("%s-%s-%d.jsonl", s.binary, s.backend, os.Getpid()))
 		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 		if err != nil {
 			return fmt.Errorf("open differential capture file: %w", err)
@@ -81,19 +89,38 @@ func (s *Sink) Append(record backendconformance.DifferentialRecord) error {
 	}
 	raw, err := json.Marshal(storedRecord{Phase: s.phase, Record: record})
 	if err != nil {
-		return fmt.Errorf("encode differential record: %w", err)
+		return s.fail(fmt.Errorf("encode differential record: %w", err))
 	}
 	if _, err := s.writer.Write(append(raw, '\n')); err != nil {
-		return fmt.Errorf("write differential record: %w", err)
+		return s.fail(fmt.Errorf("write differential record: %w", err))
+	}
+	// Flush every record: the replay binaries die by SIGTERM, so a record
+	// must reach the file without waiting for Close. One flushed write per
+	// statement is negligible next to the Bolt round trip that produced it.
+	if err := s.writer.Flush(); err != nil {
+		return s.fail(fmt.Errorf("flush differential record: %w", err))
 	}
 	return nil
 }
 
-// Close flushes and closes the sink. A sink with no appends wrote no file
-// and closes cleanly.
+// fail stashes the first streaming error for Close to surface. Callers
+// hold s.mu.
+func (s *Sink) fail(err error) error {
+	if s.firstErr == nil {
+		s.firstErr = err
+	}
+	return s.firstErr
+}
+
+// Close flushes and closes the sink, surfacing the first streaming error
+// if any append failed mid-run. A sink with no appends wrote no file and
+// closes cleanly.
 func (s *Sink) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.firstErr != nil {
+		return s.firstErr
+	}
 	if s.writer == nil {
 		return nil
 	}

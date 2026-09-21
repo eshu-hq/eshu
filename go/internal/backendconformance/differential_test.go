@@ -594,3 +594,22 @@ func TestCaptureEnabledReadsEnv(t *testing.T) {
 		t.Fatal("CaptureEnabled with ESHU_DIFFERENTIAL_CAPTURE=0 is true")
 	}
 }
+
+func TestRecorderStreamsEveryAddedRecord(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	recorder := NewDifferentialRecorder()
+	var streamed []DifferentialRecord
+	recorder.OnRecord = func(record DifferentialRecord) {
+		streamed = append(streamed, record)
+	}
+	inner := stubDifferentialGraphQuery{rows: []map[string]any{{"n": 1}}}
+	if _, err := WrapGraphQuery(inner, recorder, "nornicdb").Run(context.Background(), "MATCH (n) RETURN n", nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(streamed) != 1 || len(recorder.Records()) != 1 {
+		t.Fatalf("streamed = %d, stored = %d, want 1 and 1", len(streamed), len(recorder.Records()))
+	}
+	if streamed[0] != recorder.Records()[0] {
+		t.Fatalf("streamed = %+v, stored = %+v, want identical", streamed[0], recorder.Records()[0])
+	}
+}

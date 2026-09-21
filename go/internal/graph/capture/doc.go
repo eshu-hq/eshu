@@ -9,11 +9,12 @@
 // The capture wrappers record into memory; the services under test run as
 // separate binaries (bootstrap-index, projector, reducer, api, mcp-server),
 // so a recording must survive its process to be compared. A [Session]
-// holds one process's recorder and appends it as JSONL to the directory
-// named by ESHU_DIFFERENTIAL_CAPTURE_DIR when the session closes. [LoadDir]
-// reads both backends' files back, and [Compare] diffs them with
-// [backendconformance.CompareRecordings], excusing divergences the
-// [Allowlist] names.
+// holds one process's recorder and streams it as JSONL to the directory
+// named by ESHU_DIFFERENTIAL_CAPTURE_DIR as statements execute — the
+// replay binaries die by SIGTERM, so waiting for close would lose the
+// whole recording. [LoadDir] reads both backends' files back, and
+// [Compare] diffs them with [backendconformance.CompareRecordings],
+// excusing divergences the [Allowlist] names.
 //
 // Capture stays out of the hot path: [Open] returns a nil session unless
 // [backendconformance.CaptureEnabled] opts in and a directory is set, and
