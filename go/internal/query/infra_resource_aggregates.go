@@ -120,7 +120,7 @@ type InfraResourceInventoryRow struct {
 // GraphInfraResourceAggregateStore reads aggregate counts via the
 // `GraphQuery` port, and from the Postgres infra read model for the
 // entity-derived labels once ReadModel is set and backfilled (#6793; see
-// inventory.GraphOnlyLabels and countFromReadModel).
+// infraGraphOnlyLabels and countFromReadModel).
 type GraphInfraResourceAggregateStore struct {
 	Graph       GraphQuery
 	ReadModel   InfraResourceReadModel

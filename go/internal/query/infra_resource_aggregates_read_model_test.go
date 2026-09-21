@@ -67,7 +67,7 @@ func TestInfraReadModelLabelSplitCoversTaxonomyExactly(t *testing.T) {
 	t.Parallel()
 
 	graphOnly := map[string]bool{}
-	for _, label := range inventory.GraphOnlyLabels {
+	for _, label := range infraGraphOnlyLabels {
 		graphOnly[label] = true
 	}
 	table := map[string]bool{}
@@ -86,7 +86,7 @@ func TestInfraReadModelLabelSplitCoversTaxonomyExactly(t *testing.T) {
 		}
 	}
 	want := []string{"CloudResource", "TerraformStateResource"}
-	got := append([]string(nil), inventory.GraphOnlyLabels...)
+	got := append([]string(nil), infraGraphOnlyLabels...)
 	sort.Strings(got)
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("graph-only labels = %v, want %v", got, want)
@@ -118,12 +118,12 @@ func TestInfraAggregateCountUsesReadModelAndOneGraphPassWhenBackfilled(t *testin
 		{Label: "TerraformResource", Provider: "aws", Environment: "prod", Count: 5},
 		{Label: "TerraformResource", Provider: "aws", Environment: "unknown", Count: 1},
 		{Label: "K8sResource", Provider: "unknown", Environment: "prod", Count: 2},
-		{Label: "CloudResource", Provider: "aws", Environment: "unknown", Count: 3},
 	}}
 	graph := &stubInfraGraphQuery{responses: map[string][]map[string]any{
-		"MATCH (n:TerraformModule)": {
+		"MATCH (n:CloudResource)": {
+			{"label": "CloudResource", "provider_bucket": "aws", "environment_bucket": "unknown", "bucket_count": int64(3)},
 			{"label": "TerraformModule", "provider_bucket": "unknown", "environment_bucket": "unknown", "bucket_count": int64(4)},
-			// An empty mixed-writer branch still yields one zero-count row.
+			// An empty graph-only label still yields one zero-count row.
 			{"label": nil, "provider_bucket": nil, "environment_bucket": nil, "bucket_count": int64(0)},
 		},
 	}}
@@ -145,12 +145,12 @@ func TestInfraAggregateCountUsesReadModelAndOneGraphPassWhenBackfilled(t *testin
 	}
 
 	if len(graph.calls) != 1 {
-		t.Fatalf("graph calls = %d, want one pass over the mixed-writer labels", len(graph.calls))
+		t.Fatalf("graph calls = %d, want one combined pass over the graph-only labels", len(graph.calls))
 	}
 	cypher := graph.calls[0].Cypher
-	for _, label := range inventory.GraphOnlyLabels {
-		if strings.Contains(cypher, "MATCH (n:"+label+")") {
-			t.Fatalf("graph pass must not read fact-served label %s whole:\n%s", label, cypher)
+	for _, label := range infraGraphOnlyLabels {
+		if !strings.Contains(cypher, "MATCH (n:"+label+")\n") && !strings.Contains(cypher, "MATCH (n:"+label+") RETURN") {
+			t.Fatalf("graph pass must read graph-only label %s whole:\n%s", label, cypher)
 		}
 	}
 	for label := range infraMixedWriterGraphSource {
@@ -174,8 +174,8 @@ func TestInfraAggregateCountUsesReadModelAndOneGraphPassWhenBackfilled(t *testin
 		t.Fatalf("read model count calls = %d, want 1", len(readModel.countFilters))
 	}
 	filter := readModel.countFilters[0]
-	if !filter.AllCategories || !reflect.DeepEqual(filter.Labels, allInfraLabels) {
-		t.Fatalf("read model filter = %+v, want all categories over every taxonomy label", filter)
+	if !filter.AllCategories || !reflect.DeepEqual(filter.Labels, inventory.Labels) {
+		t.Fatalf("read model filter = %+v, want all categories over every read-model label", filter)
 	}
 }
 
@@ -258,26 +258,21 @@ func TestInfraAggregateCategoryRoutesToOneSide(t *testing.T) {
 		t.Fatalf("k8s read model filter = %+v", got)
 	}
 
-	cloudModel := &fakeInfraReadModel{ready: true, count: []inventory.CountBucket{
-		{Label: "CloudResource", Provider: "aws", Environment: "unknown", Count: 4},
-	}}
+	cloudModel := &fakeInfraReadModel{ready: true}
 	cloudGraph := &stubInfraGraphQuery{}
 	cloudCount, err := NewGraphInfraResourceAggregateStore(cloudGraph).WithReadModel(cloudModel).
 		CountInfraResources(context.Background(), InfraResourceAggregateFilter{Category: "cloud"})
 	if err != nil {
 		t.Fatalf("cloud CountInfraResources() error = %v", err)
 	}
-	if cloudCount.Source != InfraResourceAggregateSourceReadModel {
-		t.Fatalf("cloud source = %q, want read_model (CloudResource served from facts)", cloudCount.Source)
+	if cloudCount.Source != InfraResourceAggregateSourceGraph {
+		t.Fatalf("cloud source = %q, want graph (graph-only labels)", cloudCount.Source)
 	}
-	if len(cloudModel.countFilters) != 1 {
-		t.Fatalf("cloud category read model calls = %d, want 1", len(cloudModel.countFilters))
+	if len(cloudModel.countFilters) != 0 {
+		t.Fatal("cloud category queried the read model; CloudResource is graph-only")
 	}
-	if got := cloudModel.countFilters[0]; got.AllCategories || !reflect.DeepEqual(got.Labels, []string{"CloudResource"}) {
-		t.Fatalf("cloud read model filter = %+v, want cloud category over CloudResource", got)
-	}
-	if len(cloudGraph.calls) != 0 {
-		t.Fatalf("cloud category read the graph %d times, want 0 (no whole-label scan)", len(cloudGraph.calls))
+	if len(cloudGraph.calls) != 1 || !strings.Contains(cloudGraph.calls[0].Cypher, "n.source_system") {
+		t.Fatalf("cloud category graph pass = %+v, want the cloud provider expression", cloudGraph.calls)
 	}
 }
 
@@ -286,7 +281,7 @@ func TestInfraAggregateInventoryMergesReadModelAndGraphBuckets(t *testing.T) {
 
 	readModel := &fakeInfraReadModel{ready: true, dimension: map[string]int64{"aws": 10, "unknown": 2}}
 	graph := &stubInfraGraphQuery{responses: map[string][]map[string]any{
-		"MATCH (n:TerraformModule)": {
+		"MATCH (n:CloudResource)": {
 			{"bucket": "aws", "bucket_count": int64(3)},
 			{"bucket": "google", "bucket_count": int64(2)},
 			{"bucket": nil, "bucket_count": int64(0)},
@@ -318,12 +313,7 @@ func TestInfraAggregateInventoryMergesReadModelAndGraphBuckets(t *testing.T) {
 		t.Fatalf("read model dimension = %q, want provider", readModel.dims[0])
 	}
 	if len(graph.calls) != 1 || graph.calls[0].Params["provider"] != "aws" {
-		t.Fatalf("graph calls = %+v, want one mixed-writer pass with the provider filter", graph.calls)
-	}
-	for _, label := range inventory.GraphOnlyLabels {
-		if strings.Contains(graph.calls[0].Cypher, "MATCH (n:"+label+")") {
-			t.Fatalf("graph pass must not read fact-served label %s whole:\n%s", label, graph.calls[0].Cypher)
-		}
+		t.Fatalf("graph calls = %+v, want one graph-only pass with the provider filter", graph.calls)
 	}
 }
 

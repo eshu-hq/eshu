@@ -251,15 +251,7 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("seed IaC facts: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d graph-only facts per label on scope %s (#6843: the fact truth the read model serves instead of the whole-label graph scan)\n", opts.nodesPerLabel, iacScope.ScopeID)
-	graphOnlyFacts := BuildGraphOnlyFacts(iacScope.ScopeID, iacScope.ActiveGenerationID, opts.nodesPerLabel)
-	if err := SeedGraphOnlyFacts(ctx, pool, graphOnlyFacts, time.Now().UTC()); err != nil {
-		return fmt.Errorf("seed graph-only facts: %w", err)
-	}
-
-	expectedCounts := expectedRelationalCounts(plan, iacFacts)
-	expectedCounts["fact_records"] += len(graphOnlyFacts)
-	if err := VerifyRelationalCounts(ctx, pool, expectedCounts); err != nil {
+	if err := VerifyRelationalCounts(ctx, pool, expectedRelationalCounts(plan, iacFacts)); err != nil {
 		return fmt.Errorf("verify seeded Postgres tables: %w", err)
 	}
 

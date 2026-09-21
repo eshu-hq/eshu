@@ -31,8 +31,8 @@ func TestInfraAggregateOpenAPIDocumentsCategoryTruthBases(t *testing.T) {
 	// content_index.
 	var tableOnly []string
 	for category, labels := range infraCategoryLabels {
-		table, graphMixed := splitInfraLabels(labels)
-		if len(table) > 0 && len(graphMixed) == 0 {
+		table, graphWhole, graphMixed := splitInfraLabels(labels)
+		if len(table) > 0 && len(graphWhole)+len(graphMixed) == 0 {
 			tableOnly = append(tableOnly, category)
 		}
 	}

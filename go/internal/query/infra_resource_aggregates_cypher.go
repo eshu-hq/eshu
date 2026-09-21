@@ -133,39 +133,26 @@ func paginateInfraResourceBuckets(
 	return out
 }
 
-// splitInfraLabels partitions the resolved label set: table is every label
-// the Reader serves (inventory.Labels from the entities table plus the
-// fact-served graph-only labels, inventory.GraphOnlyLabels, partitioned
-// inside the Reader), keeping input order, and graphMixed the read-model
-// labels whose other writer's nodes one graph pass still adds
-// (infraMixedWriterGraphSource). Since #6843 no label needs a whole-label
-// graph pass.
-func splitInfraLabels(labels []string) (table []string, graphMixed []string) {
-	table = append([]string(nil), labels...)
+// splitInfraLabels partitions the resolved label set, keeping input order:
+// table is every read-model label (inventory.Labels), graphWhole the
+// graph-only labels read whole, and graphMixed the read-model labels whose
+// other writer's nodes the graph adds (infraMixedWriterGraphSource).
+func splitInfraLabels(labels []string) (table []string, graphWhole []string, graphMixed []string) {
+	graphOnly := make(map[string]struct{}, len(infraGraphOnlyLabels))
+	for _, label := range infraGraphOnlyLabels {
+		graphOnly[label] = struct{}{}
+	}
 	for _, label := range labels {
+		if _, ok := graphOnly[label]; ok {
+			graphWhole = append(graphWhole, label)
+			continue
+		}
+		table = append(table, label)
 		if _, ok := infraMixedWriterGraphSource[label]; ok {
 			graphMixed = append(graphMixed, label)
 		}
 	}
-	return table, graphMixed
-}
-
-// factsOnlyLabels reports whether every label is fact-served
-// (inventory.GraphOnlyLabels). Fact truth needs no backfill marker: it is
-// current from normal pipeline operation, so facts-only reads serve without
-// checking readiness, preserving the pre-#6843 availability of the
-// graph-only routes before the entities backfill completes.
-func factsOnlyLabels(labels []string) bool {
-	facts := make(map[string]struct{}, len(inventory.GraphOnlyLabels))
-	for _, label := range inventory.GraphOnlyLabels {
-		facts[label] = struct{}{}
-	}
-	for _, label := range labels {
-		if _, ok := facts[label]; !ok {
-			return false
-		}
-	}
-	return true
+	return table, graphWhole, graphMixed
 }
 
 // NewInfraResourceAggregateStore wires the aggregate store the API and MCP
