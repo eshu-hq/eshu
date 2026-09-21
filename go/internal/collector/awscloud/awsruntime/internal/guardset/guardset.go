@@ -18,7 +18,7 @@ import (
 
 // importPathSuffix is the trailing module path under which every AWS service
 // scanner registers itself. A blank import that ends with
-// services/<service>/runtimebind contributes <service> to the bindings set.
+// service/<service>/runtimebind contributes <service> to the bindings set.
 const importPathSuffix = "/internal/collector/awscloud/service/"
 
 // runtimebindLeaf is the final path element every service registration import
@@ -27,7 +27,7 @@ const runtimebindLeaf = "runtimebind"
 
 // ServiceFromImportPath extracts the service token from a runtimebind blank
 // import path. It returns ("", false) for any import that is not exactly a
-// services/<service>/runtimebind package, so unrelated imports and deeper
+// service/<service>/runtimebind package, so unrelated imports and deeper
 // nested packages are ignored rather than misattributed.
 func ServiceFromImportPath(path string) (string, bool) {
 	idx := strings.Index(path, importPathSuffix)
@@ -49,19 +49,19 @@ func ServiceFromImportPath(path string) (string, bool) {
 }
 
 // RuntimebindServiceDirs returns the sorted set of service tokens that have a
-// services/<service>/runtimebind/ directory under servicesDir. This is the set
+// service/<service>/runtimebind/ directory under serviceDir. This is the set
 // of scanners the repository layout says SHOULD be registered.
-func RuntimebindServiceDirs(servicesDir string) ([]string, error) {
-	entries, err := os.ReadDir(servicesDir)
+func RuntimebindServiceDirs(serviceDir string) ([]string, error) {
+	entries, err := os.ReadDir(serviceDir)
 	if err != nil {
-		return nil, fmt.Errorf("read services dir %q: %w", servicesDir, err)
+		return nil, fmt.Errorf("read service dir %q: %w", serviceDir, err)
 	}
 	var services []string
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		bindDir := filepath.Join(servicesDir, entry.Name(), runtimebindLeaf)
+		bindDir := filepath.Join(serviceDir, entry.Name(), runtimebindLeaf)
 		info, statErr := os.Stat(bindDir)
 		if errors.Is(statErr, os.ErrNotExist) {
 			// Service directory without a runtimebind package; skip it.

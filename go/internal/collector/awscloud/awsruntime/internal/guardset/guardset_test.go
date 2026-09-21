@@ -136,8 +136,8 @@ func TestDiff(t *testing.T) {
 // service runtimebind directories from the live tree, independent of any
 // hardcoded list or the registry.
 func TestRuntimebindServiceDirs(t *testing.T) {
-	servicesDir := liveServicesDir(t)
-	dirs, err := guardset.RuntimebindServiceDirs(servicesDir)
+	serviceDir := liveServicesDir(t)
+	dirs, err := guardset.RuntimebindServiceDirs(serviceDir)
 	if err != nil {
 		t.Fatalf("RuntimebindServiceDirs() error = %v", err)
 	}
@@ -183,7 +183,7 @@ func liveServicesDir(t *testing.T) string {
 	}
 	// guardset_test.go -> guardset -> internal -> awsruntime -> awscloud
 	awscloudDir := filepath.Join(filepath.Dir(currentFile), "..", "..", "..")
-	return filepath.Join(awscloudDir, "services")
+	return filepath.Join(awscloudDir, "service")
 }
 
 // liveBindingsFile resolves the live bindings.go source from this test file's

@@ -29,6 +29,15 @@ anchors and their two burn-down rows drop from
 `1146-ec2-instance-node.md` (`scanner.go:13-17` range) and the
 postgres drift-completeness test (`client.go:89-94` range).
 
+The parent-dir rename defeats default rename detection, so the
+telemetry gate's added-file diff misread all 2,838 moved files as
+new stages and demanded coverage rows for files that only changed
+address. Root-cause fix in `scripts/verify-telemetry-coverage.sh`:
+pair renames explicitly (`-M`) with a raised rename limit
+(`diff.renameLimit=20000`); with pairing, all 2,838 files resolve
+as R-paired moves and the new-stage set is empty. No coverage rows
+added, so `telemetry-coverage.md` stays at its 1106-line pin.
+
 `servicekind_guard_test.go` reads the services directory at runtime
 via `filepath.Join(dir, "services")`; repointed to `"service"` with
 its helper renamed to `serviceSourceDir` and comments updated.
@@ -37,7 +46,7 @@ set is unchanged (no emitter logic touched).
 
 ## No-Regression Evidence (#6696):
 
-- Baseline: `origin/main` at `8cc225dec` (post-#6899 merge).
+- Baseline: `origin/main` at `b89e20ae6` (post-#6905 merge).
 - After: branch `feat/6696-service-singular` (this leaf).
 - Backend/version: no live backend exercised. Unit tests only (live
   AWS tests gate behind credentials and skip). Toolchain

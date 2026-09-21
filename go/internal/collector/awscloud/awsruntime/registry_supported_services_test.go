@@ -62,7 +62,7 @@ func TestSupportedServiceKindsBuildScanners(t *testing.T) {
 // This test imports the bindings aggregator (blank import above) so every
 // production registration runs before the assertion.
 func TestSupportedServiceKindsCoversEveryRuntimebind(t *testing.T) {
-	dirs, err := guardset.RuntimebindServiceDirs(servicesDir(t))
+	dirs, err := guardset.RuntimebindServiceDirs(serviceDir(t))
 	if err != nil {
 		t.Fatalf("RuntimebindServiceDirs() error = %v", err)
 	}
@@ -80,16 +80,16 @@ func TestSupportedServiceKindsCoversEveryRuntimebind(t *testing.T) {
 	}
 }
 
-// servicesDir resolves go/internal/collector/awscloud/services from this test
+// serviceDir resolves go/internal/collector/awscloud/service from this test
 // file's location so the directory walk does not depend on the go test working
 // directory.
-func servicesDir(t *testing.T) string {
+func serviceDir(t *testing.T) string {
 	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	// registry_supported_services_test.go lives in awsruntime/; services is a
+	// registry_supported_services_test.go lives in awsruntime/; service is a
 	// sibling of awsruntime under awscloud/.
-	return filepath.Join(filepath.Dir(currentFile), "..", "services")
+	return filepath.Join(filepath.Dir(currentFile), "..", "service")
 }
