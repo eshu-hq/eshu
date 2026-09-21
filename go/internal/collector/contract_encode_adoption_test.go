@@ -116,13 +116,13 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			calls: []string{"EncodeTerraformStateCandidate"},
 		},
 		{
-			path: "sbomdocument/cyclonedx_fixture.go",
+			path: "sbom/document/cyclonedx_fixture.go",
 			calls: []string{
 				"EncodeSBOMDocument",
 			},
 		},
 		{
-			path: "sbomdocument/envelope.go",
+			path: "sbom/document/envelope.go",
 			calls: []string{
 				"EncodeSBOMDependencyRelationship",
 				"EncodeSBOMExternalReference",
@@ -130,7 +130,7 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "sbomruntime/attestation.go",
+			path: "sbom/runtime/attestation.go",
 			calls: []string{
 				"EncodeAttestationSignatureVerification",
 				"EncodeAttestationStatement",
