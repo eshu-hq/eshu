@@ -99,7 +99,7 @@ shopt -u nullglob
 for case_name in tag-only wrong-digest missing-container; do
 	case "${case_name}" in
 		tag-only) configured_image='ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468' ;;
-		wrong-digest) configured_image='timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
+		wrong-digest) configured_image='ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' ;;
 		missing-container) configured_image='' ;;
 	esac
 	case_dir="${tmp_root}/${case_name}"

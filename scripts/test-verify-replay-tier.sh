@@ -248,7 +248,7 @@ has_provenance_tombstone_nonvacuity_guard "${script}" \
 has_graph_endpoint_pins "${script}" \
 	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
 has_nornicdb_image_pin "${script}" \
-	|| fail "gate must pin the exact validated NornicDB v1.3.3 multi-arch digest"
+	|| fail "gate must pin the exact validated NornicDB fix-490-a427a468 digest"
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \

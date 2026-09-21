@@ -34,7 +34,7 @@ test_ifa_fault_backend_digest_mismatch_retains_evidence() (
 	source "${diagnostics_lib}"
 	set +e
 	PATH="${fake_bin}:${PATH}" \
-		IFA_TEST_RUNTIME_REPO_DIGEST=timothyswt/nornicdb-cpu-bge@sha256:2222222222222222222222222222222222222222222222222222222222222222 \
+		IFA_TEST_RUNTIME_REPO_DIGEST=ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:2222222222222222222222222222222222222222222222222222222222222222 \
 		ifa_fault_capture_failure_diagnostics \
 		"${case_dir}" "${case_dir}/logs" test-project compose.yaml 1 test-dsn \
 		2>/dev/null
@@ -43,7 +43,7 @@ test_ifa_fault_backend_digest_mismatch_retains_evidence() (
 	[[ "${rc}" -ne 0 ]] || fail "backend digest mismatch did not fail closed"
 	jq -e '
 		.expected_index_digest == "sha256:eb69530fa2951d74d89ed9df947aeea10beb0c5e2f2ede4c0080e09fe78aa555"
-		and .runtime_repo_digests == ["timothyswt/nornicdb-cpu-bge@sha256:2222222222222222222222222222222222222222222222222222222222222222"]
+		and .runtime_repo_digests == ["ghcr.io/eshu-hq/nornicdb-amd64-cpu@sha256:2222222222222222222222222222222222222222222222222222222222222222"]
 		and .provenance_match == false
 	' "${case_dir}/backend-provenance.json" >/dev/null \
 		|| fail "digest mismatch did not retain both provenance sides"
