@@ -90,9 +90,10 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   `rows = ceil(max*2.0)`).
 - **The renderer ratchets.** It refuses a per-route counter (`calls`, `blks`,
   or `rows`) above 1.5x the committed row unless you pass
-  `--accept-regression 'ROUTE=#ISSUE'` — one flag covers all three counters
-  for the named route — and it prints what it accepted rather than hiding it. This exists because a
-  GREEN-derived budget regenerated from an already-regressed run is not a guard:
+  `--accept-regression 'ROUTE=#ISSUE'`, one flag covering all three counters
+  for the named route, and it prints what it accepted rather than hiding it.
+  This exists because a GREEN-derived budget regenerated from an
+  already-regressed run is not a guard:
   #6843 raised `/infra/resources/{count,inventory}` from 74739 to 663066 blks in
   the same PR that caused the 8.9x increase, so the work gate kept passing while
   the route went from 145ms to 2.1s and only the latency ceiling fired, looking
@@ -156,9 +157,14 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   refuses to start the gate if any entry lacks its issue reference or reason,
   so an exemption can never be silent or permanent by omission
   (`TestValidateLatencyExemptionsRejectsMissingIssue`). Do not add an entry to
-  loosen a ceiling that is merely inconvenient; this exists for one route
-  today (`/api/v0/iac/resources`, #6858) because a blocking gate cannot ship
-  red against merged main's own behavior.
+  loosen a ceiling that is merely inconvenient. The map is empty today, and
+  that is the healthy state: both entries it has ever held were removed once
+  the regression behind them was fixed rather than lived with.
+  `/api/v0/iac/resources` (#6858) went when `ecde40e52` served it from
+  `infra_resource_entities`; `/infra/resources/{count,inventory}` (#6909) went
+  when `7f0b3e0dd` reverted #6843's workaround and the route returned to
+  24,913 Postgres blocks. An exemption that outlives its fix is the failure
+  mode this map is watched for.
 - **`RequireNamedRoutesExercised` must run on every named budget row, not
   just the overall floor.** A route this table explicitly budgets losing its
   selector/auth scope must fail the gate loudly even while
