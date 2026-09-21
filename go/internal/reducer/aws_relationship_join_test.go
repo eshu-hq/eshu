@@ -55,6 +55,7 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByARN(t *testing.T) {
 	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
+		"scope-aws-join-test",
 	)
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
@@ -103,6 +104,7 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByBareID(t *testing.T) {
 	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
+		"scope-aws-join-test",
 	)
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
@@ -141,6 +143,7 @@ func TestExtractAWSRelationshipEdgeRowsResolvesByCorrelationAnchor(t *testing.T)
 	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
+		"scope-aws-join-test",
 	)
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
@@ -178,6 +181,7 @@ func TestExtractAWSRelationshipEdgeRowsUnresolvedTargetCountedNotWritten(t *test
 	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source},
 		[]facts.Envelope{rel},
+		"scope-aws-join-test",
 	)
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
@@ -218,6 +222,7 @@ func TestExtractAWSRelationshipEdgeRowsCrossAccountTargetStaysUnresolved(t *test
 	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, otherAccountKey},
 		[]facts.Envelope{rel},
+		"scope-aws-join-test",
 	)
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
@@ -250,6 +255,7 @@ func TestExtractAWSRelationshipEdgeRowsUnresolvedSourceStaysUnresolved(t *testin
 	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{target},
 		[]facts.Envelope{rel},
+		"scope-aws-join-test",
 	)
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
@@ -296,6 +302,7 @@ func TestExtractAWSRelationshipEdgeRowsResolvesEC2InstanceUsesAMITarget(t *testi
 	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel},
+		"scope-aws-join-test",
 	)
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
@@ -345,6 +352,7 @@ func TestExtractAWSRelationshipEdgeRowsDeduplicatesAndSortsDeterministically(t *
 	rows, _, _, err := ExtractAWSRelationshipEdgeRows(
 		[]facts.Envelope{source, target},
 		[]facts.Envelope{rel, rel},
+		"scope-aws-join-test",
 	)
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
@@ -357,7 +365,7 @@ func TestExtractAWSRelationshipEdgeRowsDeduplicatesAndSortsDeterministically(t *
 func TestExtractAWSRelationshipEdgeRowsEmptyInputsAreNil(t *testing.T) {
 	t.Parallel()
 
-	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(nil, nil)
+	rows, tally, _, err := ExtractAWSRelationshipEdgeRows(nil, nil, "scope-aws-join-test")
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
 	}
@@ -384,7 +392,7 @@ func TestExtractAWSRelationshipEdgeRowsSelfEdgeSkipped(t *testing.T) {
 		"target_type":        "aws_ec2_vpc",
 	})
 
-	rows, _, _, err := ExtractAWSRelationshipEdgeRows([]facts.Envelope{res}, []facts.Envelope{rel})
+	rows, _, _, err := ExtractAWSRelationshipEdgeRows([]facts.Envelope{res}, []facts.Envelope{rel}, "scope-aws-join-test")
 	if err != nil {
 		t.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
 	}

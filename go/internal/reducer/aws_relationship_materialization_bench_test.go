@@ -58,7 +58,7 @@ func BenchmarkExtractAWSRelationshipEdgeRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows, _, _, err := ExtractAWSRelationshipEdgeRows(resources, relationships)
+		rows, _, _, err := ExtractAWSRelationshipEdgeRows(resources, relationships, "scope-aws-bench")
 		if err != nil {
 			b.Fatalf("ExtractAWSRelationshipEdgeRows() error = %v, want nil", err)
 		}

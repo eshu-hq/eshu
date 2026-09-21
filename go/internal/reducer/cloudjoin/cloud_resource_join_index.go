@@ -26,6 +26,39 @@ type CloudResourceJoinIndex struct {
 	ByUID        map[string]string
 	ByResourceID map[string]string
 	ByAnchor     map[string]string
+	// scanScope is the ingestion scope every indexed resource was scanned in.
+	// The fact loader is scoped by (scope_id, generation_id), so in production
+	// this is the only scope present and the trust-boundary check below is a
+	// string compare with no per-uid bookkeeping.
+	scanScope string
+	// foreignScopeByUID holds the scope of resources that disagreed with
+	// scanScope, keyed by uid. It stays nil on every normal build; allocating a
+	// uid-keyed map unconditionally measured +3.2% on
+	// BenchmarkExtractAWSRelationshipEdgeRows for bookkeeping the scoped loader
+	// makes unnecessary.
+	foreignScopeByUID map[string]string
+}
+
+// ScopeInBounds reports whether uid was scanned in intentScopeID, and is the
+// enforcement point for the trust-boundary rule. An empty intentScopeID, or a
+// uid indexed from an envelope carrying no scope, returns true so a caller that
+// cannot supply a scope keeps the pre-#6162 behaviour instead of being handed a
+// guard that silently refuses everything.
+//
+// A caller that admits an out-of-bounds uid writes another scope's resource
+// under its own scope_id, because CloudResourceEdgeWriter stamps scope_id and
+// generation_id from the executing intent and never from the row.
+func (i CloudResourceJoinIndex) ScopeInBounds(uid, intentScopeID string) bool {
+	if intentScopeID == "" || uid == "" {
+		return true
+	}
+	scanned := i.scanScope
+	if len(i.foreignScopeByUID) > 0 {
+		if foreign, ok := i.foreignScopeByUID[uid]; ok {
+			scanned = foreign
+		}
+	}
+	return scanned == "" || scanned == intentScopeID
 }
 
 // BuildCloudResourceJoinIndex builds the bounded in-memory join index from the
@@ -52,6 +85,7 @@ func BuildCloudResourceJoinIndex(envelopes []facts.Envelope) (CloudResourceJoinI
 		ByAnchor:     make(map[string]string, len(envelopes)),
 	}
 	var quarantined []factdecode.QuarantinedFact
+	scopeSeen := false
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
@@ -84,6 +118,20 @@ func BuildCloudResourceJoinIndex(envelopes []facts.Envelope) (CloudResourceJoinI
 		}
 
 		uid := CloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
+		switch {
+		case !scopeSeen:
+			index.scanScope = env.ScopeID
+			scopeSeen = true
+		case env.ScopeID != index.scanScope:
+			// Only a disagreeing scope costs a map entry, so the normal
+			// single-scope build allocates nothing here.
+			if index.foreignScopeByUID == nil {
+				index.foreignScopeByUID = make(map[string]string)
+			}
+			if _, exists := index.foreignScopeByUID[uid]; !exists {
+				index.foreignScopeByUID[uid] = env.ScopeID
+			}
+		}
 		if arn != "" {
 			index.ByARN[arn] = uid
 			index.ByUID[uid] = arn

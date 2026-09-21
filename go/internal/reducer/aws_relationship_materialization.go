@@ -176,7 +176,8 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 	}
 
 	extractStart := time.Now()
-	rows, tally, quarantined, err := ExtractAWSRelationshipEdgeRows(resourceEnvelopes, relationshipEnvelopes)
+	rows, tally, quarantined, err := ExtractAWSRelationshipEdgeRows(
+		resourceEnvelopes, relationshipEnvelopes, intent.ScopeID)
 	if err != nil {
 		// A non-decode error (transient fact-load, unsupported major, or other
 		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
@@ -250,6 +251,7 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 		resolvedTally:      tally.resolved,
 		unresolvedTally:    tally.unresolved,
 		unresolvedSrcTally: tally.unresolvedSource,
+		crossScopeTally:    tally.crossScopeEndpoint,
 		skipRetract:        skipRetract,
 		loadDuration:       loadDuration,
 		extractDuration:    extractDuration,
@@ -400,6 +402,7 @@ type awsRelationshipMaterializationTiming struct {
 	resolvedTally      map[string]int
 	unresolvedTally    map[string]int
 	unresolvedSrcTally map[string]int
+	crossScopeTally    map[string]int
 	skipRetract        bool
 	loadDuration       time.Duration
 	extractDuration    time.Duration
@@ -408,10 +411,35 @@ type awsRelationshipMaterializationTiming struct {
 	totalDuration      time.Duration
 }
 
+// crossScopeTotal sums a by-target-type cross-scope refusal tally.
+func crossScopeTotal(byType map[string]int) int {
+	total := 0
+	for _, n := range byType {
+		total += n
+	}
+	return total
+}
+
 func logAWSRelationshipMaterializationCompleted(
 	ctx context.Context,
 	timing awsRelationshipMaterializationTiming,
 ) {
+	// A cross-scope endpoint is an invariant violation, not graceful
+	// degradation: the fact loader is scoped by (scope_id, generation_id), so a
+	// non-zero count means facts from another scope reached this join and would
+	// have been written under this intent's scope_id (#6162). It gets its own
+	// WARN because the completion line below is INFO, and #6162 went undiagnosed
+	// for weeks precisely because its only evidence sat in an INFO burst.
+	if count := crossScopeTotal(timing.crossScopeTally); count > 0 {
+		slog.WarnContext(
+			ctx, "aws relationship materialization refused cross-scope endpoints",
+			log.ScopeID(timing.intent.ScopeID),
+			log.GenerationID(timing.intent.GenerationID),
+			log.Domain(string(timing.intent.Domain)),
+			slog.Int("cross_scope_endpoint_count", count),
+			slog.String("cross_scope_endpoint_by_type", formatTally(timing.crossScopeTally)),
+		)
+	}
 	slog.InfoContext(
 		ctx, "aws relationship materialization completed",
 		log.ScopeID(timing.intent.ScopeID),
@@ -423,6 +451,7 @@ func logAWSRelationshipMaterializationCompleted(
 		slog.String("resolved_by_mode", formatTally(timing.resolvedTally)),
 		slog.String("unresolved_target_by_type", formatTally(timing.unresolvedTally)),
 		slog.String("unresolved_source_by_type", formatTally(timing.unresolvedSrcTally)),
+		slog.Int("cross_scope_endpoint_count", crossScopeTotal(timing.crossScopeTally)),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
