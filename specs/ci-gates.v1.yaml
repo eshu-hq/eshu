@@ -2592,7 +2592,7 @@ gates:
       - ".github/workflows/golden-corpus-gate.yml"
       - "specs/ci-gates.v1.yaml"
     local:
-      command: "ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/nornicdb ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh && (cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j -diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml)"
+      command: "rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/nornicdb ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh && rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh && (cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j -diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml)"
       test_command: "bash scripts/test-verify-golden-corpus-gate.sh && (cd go && go test ./cmd/golden-corpus-gate -run 'TestBackendDiff|TestRunBackendDiff' -count=1)"
     ci:
       workflow: golden-corpus-gate.yml

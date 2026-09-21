@@ -270,6 +270,9 @@ jobs:
       - name: Pre-warm Go modules
         run: scripts/ci/go-mod-download-retry.sh
 
+      # Both legs stage the corpus at the same fixed repos dir (wiped
+      # between legs): identical absolute local_path values pair across
+      # runs, while per-run mktemp dirs would never match (#6782).
       - name: Run B-7 with differential capture (nornicdb)
         env:
           ESHU_GRAPH_BACKEND: nornicdb
@@ -277,8 +280,12 @@ jobs:
           ESHU_POSTGRES_PASSWORD: change-me
           ESHU_DIFFERENTIAL_CAPTURE: 1
           ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/nornicdb
+          ESHU_REPOS_DIR: ${{ runner.temp }}/eshu-diff-corpus
           GATE_COMPOSE_PROJECT: eshu-differential-nornicdb
         run: bash scripts/verify-golden-corpus-gate.sh
+
+      - name: Wipe shared corpus dir between legs
+        run: rm -rf "${{ runner.temp }}/eshu-diff-corpus"
 
       - name: Run B-7 with differential capture (neo4j)
         env:
@@ -287,6 +294,7 @@ jobs:
           ESHU_POSTGRES_PASSWORD: change-me
           ESHU_DIFFERENTIAL_CAPTURE: 1
           ESHU_DIFFERENTIAL_CAPTURE_DIR: ${{ runner.temp }}/diff-capture/neo4j
+          ESHU_REPOS_DIR: ${{ runner.temp }}/eshu-diff-corpus
           GATE_COMPOSE_PROJECT: eshu-differential-neo4j
         run: bash scripts/verify-golden-corpus-gate.sh
 

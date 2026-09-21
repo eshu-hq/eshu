@@ -62,23 +62,9 @@ type DifferentialFingerprint struct {
 // sanitize layer records different params than one whose capture sits
 // above it, and the same logical statement never pairs (#6782).
 func FingerprintStatement(cypher string, params map[string]any) (DifferentialFingerprint, error) {
-	// Copy on first diagnostic key so the common no-metadata path pays no
-	// allocation and the caller's map is never mutated.
-	var fingerprinted map[string]any
-	for key := range params {
-		if !strings.HasPrefix(key, "_") {
-			continue
-		}
-		if fingerprinted == nil {
-			fingerprinted = make(map[string]any, len(params))
-			for k, v := range params {
-				fingerprinted[k] = v
-			}
-		}
-		delete(fingerprinted, key)
-	}
-	if fingerprinted == nil {
-		fingerprinted = params
+	fingerprinted, err := normalizeComparisonParams(params)
+	if err != nil {
+		return DifferentialFingerprint{}, err
 	}
 	encoded, err := json.Marshal(fingerprinted)
 	if err != nil {
@@ -176,7 +162,11 @@ func hasOrderByWords(words []string) bool {
 func DigestRows(rows []map[string]any, ordered bool) (string, error) {
 	encoded := make([]string, 0, len(rows))
 	for _, row := range rows {
-		raw, err := json.Marshal(row)
+		normalized, err := normalizeComparisonValue(row)
+		if err != nil {
+			return "", fmt.Errorf("encode differential row %v: %w", row, err)
+		}
+		raw, err := json.Marshal(normalized)
 		if err != nil {
 			return "", fmt.Errorf("encode differential row %v: %w", row, err)
 		}

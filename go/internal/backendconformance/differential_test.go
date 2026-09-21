@@ -77,6 +77,70 @@ func TestFingerprintStatementStripsDiagnosticMetadata(t *testing.T) {
 	}
 }
 
+// generation_id is per-run projection lineage: two runs over the same
+// corpus stamp different generations on identical content. It must not
+// split fingerprints or digests, or no cross-run comparison can pair
+// writes (#6782).
+func TestFingerprintStatementStripsGenerationID(t *testing.T) {
+	t.Parallel()
+	params := func(gen string) map[string]any {
+		return map[string]any{
+			"repo_id":       "repository:r_1",
+			"generation_id": gen,
+			"rows": []any{map[string]any{
+				"generation_id": gen,
+				"repo_id":       "repository:r_1",
+			}},
+		}
+	}
+	a, err := FingerprintStatement("MERGE (r:Repository {id: $repo_id}) SET r.generation_id = $generation_id",
+		params("09218de4de60eba43f3af6dde7e7fca9938daf3c3ef2ceb40a21d947ba9fc4a2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := FingerprintStatement("MERGE (r:Repository {id: $repo_id}) SET r.generation_id = $generation_id",
+		params("066c7b69aaa6315acf516bb5d872a0c461ebd3a2f8d4e039abe12f84b417591a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a != b {
+		t.Fatal("per-run generation_id splits the fingerprint")
+	}
+}
+
+func TestFingerprintStatementNilParams(t *testing.T) {
+	t.Parallel()
+	fp, err := FingerprintStatement("MATCH (n) RETURN n", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fp.Parameters == "" {
+		t.Fatal("nil params produce an empty fingerprint")
+	}
+}
+
+func TestDigestRowsIgnoresGenerationID(t *testing.T) {
+	t.Parallel()
+	a, err := DigestRows([]map[string]any{{"id": "repository:r_1", "generation_id": "aaa"}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := DigestRows([]map[string]any{{"generation_id": "bbb", "id": "repository:r_1"}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a != b {
+		t.Fatal("per-run generation_id splits the digest")
+	}
+	c, err := DigestRows([]map[string]any{{"id": "repository:r_2", "generation_id": "aaa"}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a == c {
+		t.Fatal("digest ignores content beyond generation_id")
+	}
+}
+
 func TestDigestRowsIgnoresOrderWithoutOrderBy(t *testing.T) {
 	t.Parallel()
 	rows := []map[string]any{{"n": int64(1), "tags": []any{"a"}}, {"n": int64(2)}}
