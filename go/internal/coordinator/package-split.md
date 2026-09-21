@@ -4,8 +4,8 @@
 
 `go/internal/coordinator` held 49 non-test files against the 40-file dirgate
 cap, and #6627 pins that count by design, so the `internal/coordinator` ledger
-row could not shrink under any other open issue. Part A moved every family that
-owns its own types into a subpackage, leaving the root at 35 non-test files and
+row could not shrink under any other open issue. Part A moved out every planner
+half that had no subpackage home yet, leaving the root at 35 non-test files and
 retiring the ledger row.
 
 `schedule` holds the shared scheduling substrate. `vulnerability` and
@@ -17,6 +17,26 @@ hold the two root-private helper sets that more than one of the above needed.
 What stayed is the `Service` type and its methods. Go pins a method to its
 type's package, so a `*_service.go` half cannot leave without first decomposing
 `Service` into composed sub-types, which this issue does not do.
+
+Some root files also keep types and free functions that Go would let them
+move. The three `service_*_freshness.go` files each carry trigger-resolution
+helpers — `service_gcp_freshness.go` has three types and five free functions at
+lines 181-363, `service_incident_freshness.go` and `service_aws_freshness.go`
+have the same shape — whose only callers are the `Service` methods in the same
+file. They stayed because moving them removes no file from the root: the
+methods pin each file in place regardless, so the count is 35 either way
+against a cap of 40.
+
+That is also why the approved tree's `integration/observability/`,
+`integration/incident/` and `cloud/` were not created. Each would take its
+family's planner half, and #6057 already moved those into `planner/grafana`,
+`planner/loki`, `planner/tempo`, `planner/prometheus`, `planner/jira`,
+`planner/pagerduty`, `planner/gcp` and `planner/aws/*`. A new `cloud/` would
+put provider code in a second namespace beside `planner/gcp/`, leave the
+`*_service.go` file in the root, and shrink the count by zero. If the GCP
+freshness helpers should leave the root on their own merits, the destination
+that matches existing structure is `planner/gcp/`, where the AWS family already
+keeps the equivalent logic (`planner/aws/freshness/planner.go`).
 
 A root file in that position needs a `//nolint:dirgate` marker only when its
 name matches a sibling subpackage, which is the case `go-dir-gate` flags.
