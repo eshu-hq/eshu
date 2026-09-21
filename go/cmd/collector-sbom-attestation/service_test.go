@@ -15,7 +15,7 @@ import (
 	awsecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
-	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 )
 
 // TestNewDocumentProviderWiresECRReferrerFactory proves the SBOM attestation
@@ -26,9 +26,9 @@ func TestNewDocumentProviderWiresECRReferrerFactory(t *testing.T) {
 	t.Parallel()
 
 	provider := newDocumentProvider(nil)
-	factory, ok := provider.ClientFactory.(sbomruntime.ECRReferrerClientFactory)
+	factory, ok := provider.ClientFactory.(runtime.ECRReferrerClientFactory)
 	if !ok {
-		t.Fatalf("ClientFactory type = %T, want sbomruntime.ECRReferrerClientFactory", provider.ClientFactory)
+		t.Fatalf("ClientFactory type = %T, want runtime.ECRReferrerClientFactory", provider.ClientFactory)
 	}
 	if factory.AuthorizationClient == nil {
 		t.Fatal("ECRReferrerClientFactory.AuthorizationClient = nil, want a wired AWS authorization client")
@@ -58,18 +58,18 @@ func TestNewDocumentProviderECRFactoryFetchesReferrer(t *testing.T) {
 	defer server.Close()
 
 	provider := newDocumentProvider(nil)
-	factory := provider.ClientFactory.(sbomruntime.ECRReferrerClientFactory)
+	factory := provider.ClientFactory.(runtime.ECRReferrerClientFactory)
 	factory.HTTPClient = server.Client()
-	factory.AuthorizationClient = func(context.Context, sbomruntime.TargetConfig) (ecr.AuthorizationTokenAPI, error) {
+	factory.AuthorizationClient = func(context.Context, runtime.TargetConfig) (ecr.AuthorizationTokenAPI, error) {
 		return stubECRTokenAPI{token: fakeToken, proxy: server.URL}, nil
 	}
 	provider.ClientFactory = factory
 
-	doc, err := provider.FetchDocument(context.Background(), sbomruntime.TargetConfig{
+	doc, err := provider.FetchDocument(context.Background(), runtime.TargetConfig{
 		ScopeID:        "sbom://oci/team/api",
-		SourceType:     sbomruntime.SourceTypeOCIReferrer,
-		ArtifactKind:   sbomruntime.ArtifactKindSBOM,
-		DocumentFormat: sbomruntime.DocumentFormatCycloneDX,
+		SourceType:     runtime.SourceTypeOCIReferrer,
+		ArtifactKind:   runtime.ArtifactKindSBOM,
+		DocumentFormat: runtime.DocumentFormatCycloneDX,
 		Provider:       "ecr",
 		Registry:       server.URL,
 		Repository:     "team/api",

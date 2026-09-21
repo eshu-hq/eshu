@@ -36,8 +36,8 @@ remain independent from Eshu internals.
 - **No struct here carries an Attributes pass-through.** Unlike
   `awsv1.Resource`/`gcpv1.Resource`, no sbom/attestation kind is a
   polymorphic multi-shape envelope — each kind has one fixed field set on
-  both collector paths (`go/internal/collector/sbomdocument`,
-  `go/internal/collector/sbomruntime`). Do not add one without discussing
+  both collector paths (`go/internal/collector/sbom/document`,
+  `go/internal/collector/sbom/runtime`). Do not add one without discussing
   scope first.
 - **`Warning` has ZERO required fields on purpose.** Two distinct collector
   paths emit `sbom.warning` with two distinct, mutually-exclusive identity
@@ -56,7 +56,7 @@ remain independent from Eshu internals.
     attestation statement.
 - **Every kind is wired.** `DependencyRelationship` and `ExternalReference`
   were wired to the reducer in #5370; `SLSAProvenance` in #5371 (SBOM runtime
-  collector emitter in `go/internal/collector/sbomruntime/attestation.go`,
+  collector emitter in `go/internal/collector/sbom/runtime/attestation.go`,
   reducer decode/join in `sbom_attestation_attachment_index.go`). Do not add
   speculative optional fields beyond what an emitter actually produces.
 - This package defines eight fact kinds. Adding a ninth kind or a `v2` major

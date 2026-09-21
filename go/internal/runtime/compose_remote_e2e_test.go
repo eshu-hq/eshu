@@ -369,6 +369,7 @@ func TestRemoteE2EComposeSBOMFixtureUsesPortableHTTPServer(t *testing.T) {
 	if strings.Contains(healthcheck, "wget") || strings.Contains(healthcheck, "httpd") {
 		t.Fatalf("sbom-attestation-fixture healthcheck depends on unavailable applets: %s", healthcheck)
 	}
+	assertComposeVolumeContains(t, service, "./go/internal/collector/sbom/document/testdata:/fixtures:ro")
 }
 
 func TestRemoteE2EComposeIncludesVulnerabilityIntelligenceCollector(t *testing.T) {

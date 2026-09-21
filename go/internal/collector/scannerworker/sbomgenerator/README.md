@@ -11,7 +11,7 @@ findings: every emitted fact is a source fact or warning that the existing
 `sbom_attestation_attachment` reducer is responsible for admitting.
 
 This package does not replace the hosted `sbom-attestation` collector
-(`internal/collector/sbomruntime`). That collector fetches and parses
+(`internal/collector/sbom/runtime`). That collector fetches and parses
 already-published CycloneDX, SPDX, and in-toto documents from configured URLs
 and OCI referrers. `sbomgenerator` builds new SBOM evidence when no such
 document exists, and it stays on the scanner-worker lane so repository
@@ -184,4 +184,4 @@ investigation of those budgets.
 - `docs/public/reference/collector-reducer-readiness.md`
 - `docs/public/reference/telemetry/metrics-ingestion-collectors.md`
 - `internal/collector/scannerworker/README.md`
-- `internal/collector/sbomruntime/README.md`
+- `internal/collector/sbom/runtime/README.md`

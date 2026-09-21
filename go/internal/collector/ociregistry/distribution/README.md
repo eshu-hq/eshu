@@ -82,7 +82,7 @@ client in the future claim-driven collector.
 
 ## Evidence
 
-No-Regression Evidence (#2381): `go test ./internal/collector/sdk ./internal/collector/ociregistry/distribution ./internal/collector/ociregistry/ociruntime ./internal/collector/sbomruntime ./cmd/collector-oci-registry ./cmd/collector-sbom-attestation -count=1` proves OCI Distribution keeps `/v2/` auth-challenge ping handling, repository path escaping, tag/manifest/blob/referrers request behavior, token request query shaping, 404/405 referrer warning behavior, blob body caps, and registry failure-class/details while status and transport failures now unwrap bounded SDK `HTTPError` causes.
+No-Regression Evidence (#2381): `go test ./internal/collector/sdk ./internal/collector/ociregistry/distribution ./internal/collector/ociregistry/ociruntime ./internal/collector/sbom/runtime ./cmd/collector-oci-registry ./cmd/collector-sbom-attestation -count=1` proves OCI Distribution keeps `/v2/` auth-challenge ping handling, repository path escaping, tag/manifest/blob/referrers request behavior, token request query shaping, 404/405 referrer warning behavior, blob body caps, and registry failure-class/details while status and transport failures now unwrap bounded SDK `HTTPError` causes.
 
 No-Observability-Change (#2381): Distribution remains telemetry-free. The OCI runtime continues to wrap calls with `oci_registry.scan` and `oci_registry.api_call` spans plus existing OCI registry metrics and warning facts; the SDK emits no telemetry directly, and no registry host, repository path, tag, digest, URL, token, or credential value was added to metric labels or status details.
 

@@ -26,13 +26,13 @@
 // Every struct here is FLAT — none carries an untyped Attributes
 // pass-through — because, unlike the AWS/GCP cloud-inventory families, no
 // sbom/attestation fact kind is a polymorphic multi-shape envelope: each kind
-// has one fixed field set across both collector paths (sbomdocument and
-// sbomruntime).
+// has one fixed field set across both collector paths (document and
+// runtime).
 //
 // Every kind in this package is now wired end to end: DependencyRelationship
 // and ExternalReference are decoded and joined by document_id in
 // buildSBOMAttachmentIndex (#5370), and SLSAProvenance is emitted by the SBOM
-// runtime collector (sbomruntime.attestationSLSAProvenanceEnvelopes) and
+// runtime collector (runtime.attestationSLSAProvenanceEnvelopes) and
 // decoded and joined by statement_id in the same index (#5371). All three
 // were typed before their consumer landed so their identity join key was
 // already established, matching how the terraform_state family staged

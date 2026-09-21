@@ -8,7 +8,7 @@ package v1
 // observed on an artifact.
 //
 // StatementID is the only required field: the attestation runtime collector
-// (sbomruntime.attestationStatementEnvelope) always sets it — even on a
+// (runtime.attestationStatementEnvelope) always sets it — even on a
 // parse-failure statement (attestationEnvelopes builds a malformed-status
 // Statement before the parse error is known) — and it is the reducer's join
 // key back to a statement's verification/warning evidence (index.documents,
@@ -79,7 +79,7 @@ type Statement struct {
 // verification result for an attestation statement or SBOM document.
 //
 // StatementID is the only required field: the attestation runtime collector
-// (sbomruntime.attestationVerificationEnvelope) always sets it, and it is the
+// (runtime.attestationVerificationEnvelope) always sets it, and it is the
 // reducer's join key back to the statement it verifies (index.verifications
 // keyed by firstNonBlank(statement_id, document_id)). DocumentID is optional
 // because a verification fact can also be reported for an SBOM document
@@ -124,7 +124,7 @@ type SignatureVerification struct {
 // extracted from an in-toto attestation statement.
 //
 // The SBOM runtime collector emits this kind
-// (sbomruntime.attestationSLSAProvenanceEnvelopes) for a statement whose
+// (runtime.attestationSLSAProvenanceEnvelopes) for a statement whose
 // predicateType is in the closed set of known SLSA provenance URIs
 // (https://slsa.dev/provenance/{v1,v0.2,v0.1}); PredicateType and BuilderID
 // are decoded from the predicate at the field path each version defines (v1:

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -53,7 +53,7 @@ type claimedRuntimeConfig struct {
 	PollInterval      time.Duration
 	ClaimLeaseTTL     time.Duration
 	HeartbeatInterval time.Duration
-	Source            sbomruntime.SourceConfig
+	Source            runtime.SourceConfig
 }
 
 type sbomAttestationRuntimeConfiguration struct {
@@ -148,32 +148,32 @@ func validateSBOMAttestationInstance(instance workflow.DesiredCollectorInstance)
 func parseSBOMAttestationRuntimeConfiguration(
 	instance workflow.DesiredCollectorInstance,
 	getenv func(string) string,
-) (sbomruntime.SourceConfig, error) {
+) (runtime.SourceConfig, error) {
 	var decoded sbomAttestationRuntimeConfiguration
 	if err := json.Unmarshal([]byte(instance.Configuration), &decoded); err != nil {
-		return sbomruntime.SourceConfig{}, fmt.Errorf("decode SBOM attestation collector configuration: %w", err)
+		return runtime.SourceConfig{}, fmt.Errorf("decode SBOM attestation collector configuration: %w", err)
 	}
-	targets := make([]sbomruntime.TargetConfig, 0, len(decoded.Targets))
+	targets := make([]runtime.TargetConfig, 0, len(decoded.Targets))
 	for i, target := range decoded.Targets {
 		mapped := mapTarget(target, getenv)
 		if strings.TrimSpace(mapped.ScopeID) == "" {
-			return sbomruntime.SourceConfig{}, fmt.Errorf("targets[%d]: scope_id is required", i)
+			return runtime.SourceConfig{}, fmt.Errorf("targets[%d]: scope_id is required", i)
 		}
 		targets = append(targets, mapped)
 	}
-	return sbomruntime.SourceConfig{
+	return runtime.SourceConfig{
 		CollectorInstanceID: instance.InstanceID,
 		Targets:             targets,
-		Provider:            sbomruntime.HTTPProvider{},
+		Provider:            runtime.HTTPProvider{},
 	}, nil
 }
 
-func mapTarget(target targetJSON, getenv func(string) string) sbomruntime.TargetConfig {
-	return sbomruntime.TargetConfig{
+func mapTarget(target targetJSON, getenv func(string) string) runtime.TargetConfig {
+	return runtime.TargetConfig{
 		ScopeID:            strings.TrimSpace(target.ScopeID),
-		SourceType:         sbomruntime.SourceType(strings.TrimSpace(target.SourceType)),
-		ArtifactKind:       sbomruntime.ArtifactKind(strings.TrimSpace(target.ArtifactKind)),
-		DocumentFormat:     sbomruntime.DocumentFormat(strings.TrimSpace(target.DocumentFormat)),
+		SourceType:         runtime.SourceType(strings.TrimSpace(target.SourceType)),
+		ArtifactKind:       runtime.ArtifactKind(strings.TrimSpace(target.ArtifactKind)),
+		DocumentFormat:     runtime.DocumentFormat(strings.TrimSpace(target.DocumentFormat)),
 		Provider:           strings.TrimSpace(target.Provider),
 		Registry:           strings.TrimRight(strings.TrimSpace(target.Registry), "/"),
 		RegistryHost:       strings.TrimRight(strings.TrimSpace(target.RegistryHost), "/"),

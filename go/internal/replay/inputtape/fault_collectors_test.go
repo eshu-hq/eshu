@@ -51,7 +51,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry/packageruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
-	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
 	"github.com/eshu-hq/eshu/go/internal/collector/vulnerabilityintelligence"
@@ -281,10 +281,10 @@ func collectorFaultCases() []collectorFaultCase {
 		{
 			surface: "collector:sbom_attestation",
 			collect: func() error {
-				provider := sbomruntime.HTTPProvider{HTTPClient: timeoutFaultClient()}
-				_, err := provider.FetchDocument(context.Background(), sbomruntime.TargetConfig{
+				provider := runtime.HTTPProvider{HTTPClient: timeoutFaultClient()}
+				_, err := provider.FetchDocument(context.Background(), runtime.TargetConfig{
 					ScopeID:     "sbom:instance:prod",
-					SourceType:  sbomruntime.SourceTypeConfigured,
+					SourceType:  runtime.SourceTypeConfigured,
 					DocumentURL: "https://attestations.invalid/sbom.json",
 				})
 				return err

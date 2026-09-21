@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -45,7 +45,7 @@ func TestLoadClaimedRuntimeConfigSelectsSBOMAttestationInstance(t *testing.T) {
 		t.Fatalf("CollectorKind = %q, want %q", got, want)
 	}
 	target := config.Source.Targets[0]
-	if got, want := target.SourceType, sbomruntime.SourceTypeOCIReferrer; got != want {
+	if got, want := target.SourceType, runtime.SourceTypeOCIReferrer; got != want {
 		t.Fatalf("SourceType = %q, want %q", got, want)
 	}
 	if got, want := target.BearerToken, "token-123"; got != want {
