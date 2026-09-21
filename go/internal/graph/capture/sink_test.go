@@ -138,3 +138,40 @@ func TestLoadDirRejectsUnknownBackend(t *testing.T) {
 		t.Fatal("LoadDir() error = nil, want unknown-backend rejection")
 	}
 }
+
+// TestSinkUsesRestrictedPermissions pins the gosec-driven tightening: the
+// capture directory allows owner and group only, and the recording file
+// allows owner only, so gate recordings are never world-readable.
+func TestSinkUsesRestrictedPermissions(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "capture")
+	sink, err := OpenDir(dir, "nornicdb", "query-test")
+	if err != nil {
+		t.Fatalf("OpenDir() error = %v", err)
+	}
+	seedSinkRecords(t, sink, "nornicdb")
+	if err := sink.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	dirInfo, err := os.Stat(dir)
+	if err != nil {
+		t.Fatalf("Stat(dir) error = %v", err)
+	}
+	if got := dirInfo.Mode().Perm(); got != 0o750 {
+		t.Fatalf("capture dir mode = %o, want 750", got)
+	}
+	matches, err := filepath.Glob(filepath.Join(dir, "*.jsonl"))
+	if err != nil {
+		t.Fatalf("Glob() error = %v", err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("Glob() files = %v, want one recording", matches)
+	}
+	fileInfo, err := os.Stat(matches[0])
+	if err != nil {
+		t.Fatalf("Stat(recording) error = %v", err)
+	}
+	if got := fileInfo.Mode().Perm(); got != 0o600 {
+		t.Fatalf("recording file mode = %o, want 600", got)
+	}
+}

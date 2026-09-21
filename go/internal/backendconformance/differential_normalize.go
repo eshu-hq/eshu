@@ -47,7 +47,7 @@ var lineageDigestPatterns = []*regexp.Regexp{
 }
 
 // lineageDigestToken is the digest-row stand-in for a run-scoped lineage digest.
-const lineageDigestToken = "run-scoped-lineage"
+const lineageDigestToken = "run-scoped-lineage" // #nosec G101 -- digest stand-in string, not a credential
 
 // artifactIDKey carries derivation-stamped artifact ids: sha1 over the run's
 // resolved id plus the derivation inputs. Two batches carrying the same

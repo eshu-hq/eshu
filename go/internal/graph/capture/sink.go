@@ -60,7 +60,7 @@ func OpenDir(dir, backend, binary string) (*Sink, error) {
 	if !knownBackends[backend] {
 		return nil, fmt.Errorf("unknown differential backend %q", backend)
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil { // #nosec G301 -- internal gate-capture directory, same-uid access
 		return nil, fmt.Errorf("create differential capture dir: %w", err)
 	}
 	return &Sink{dir: dir, backend: backend, binary: binary, phase: os.Getenv(capturePhaseEnvVar)}, nil
@@ -80,7 +80,7 @@ func (s *Sink) Append(record backendconformance.DifferentialRecord) error {
 	}
 	if s.writer == nil {
 		path := filepath.Join(s.dir, fmt.Sprintf("%s-%s-%d.jsonl", s.binary, s.backend, os.Getpid()))
-		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600) // #nosec G302 G304 -- 0o600 is intentional: same-process recording; path is filepath.Join of the operator capture dir and an internally formatted name, not external input
 		if err != nil {
 			return fmt.Errorf("open differential capture file: %w", err)
 		}
@@ -146,7 +146,7 @@ func LoadDir(dir string) (map[string][]backendconformance.DifferentialRecord, er
 	}
 	byBackend := make(map[string][]backendconformance.DifferentialRecord)
 	for _, path := range matches {
-		file, err := os.Open(path)
+		file, err := os.Open(path) // #nosec G304 -- path comes from a *.jsonl glob over the operator capture dir, not external input
 		if err != nil {
 			return nil, fmt.Errorf("open differential capture file %s: %w", path, err)
 		}
