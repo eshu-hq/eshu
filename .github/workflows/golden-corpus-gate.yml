@@ -160,6 +160,10 @@ on:
       # the Neo4j image digest; a digest-only bump must re-run the gate too
       # (#6782 round-4 review P3-4).
       - 'docker-compose.neo4j.yml'
+      # The NornicDB matrix leg boots from this file (compose_file), which
+      # pins the NornicDB image digest; a digest-only bump must re-run the
+      # gate too (#6918 round-1 review P1, second instance).
+      - 'docker-compose.yaml'
       # #6782: the differential job compares the two backends' recordings with
       # the committed allowlist, so an allowlist edit must re-run it too.
       - 'specs/backend-divergence-allowlist.v1.yaml'

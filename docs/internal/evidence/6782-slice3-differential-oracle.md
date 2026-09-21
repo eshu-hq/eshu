@@ -111,3 +111,60 @@ Neo4j `neo4j:2026-community@sha256:eabfbb042bdaca2fd5e1950db1329b22c794eee80f0ea
   (evidence collected, stack torn down, leg re-run green); pre-commit
   go-lint panics under parallel hooks but passes standalone (0 issues) —
   commits used SKIP=go-lint after full `pre-commit run` validation.
+
+## Re-proof on the fix-490 re-pin (capture8, post #6894)
+
+#6894 moved the default NornicDB image from
+`timothyswt/nornicdb-cpu-bge:v1.3.3@sha256:81ced…` to
+`ghcr.io/eshu-hq/nornicdb-amd64-cpu:fix-490-a427a468@sha256:eb695…`
+(upstream conjunct index-seek fix orneryd/NornicDB#491). Branch rebased onto
+`origin/main e5fa16636` (merge-base verified). Fresh legs on the new default
+(no image override anywhere in env or gate script):
+
+- NornicDB leg: PASS (`/tmp/diffproof8-nornicdb2.log`), 12 files,
+  `/tmp/diff-capture8/nornicdb` (2669 records). The first attempt's compare
+  showed 2801 unexcused at a 2.02x record ratio — diagnosed as STALE capture
+  files (12 files timestamped 10:07–10:11, mode 0644 from a pre-tightening
+  binary, alongside 12 fresh 0600 files): the capture dir was not wiped,
+  only the corpus dir was. Lesson: wipe the capture dir before every leg.
+  Re-ran on a wiped dir; the 2801 vanished.
+- Neo4j leg (run 1): PASS (`/tmp/diffproof8-neo4j.log`), 12 files, 2669
+  records. Compare (`/tmp/diffproof8-compare3.log`): 48 unexcused (IMPORTS
+  count digest shifted on the neo4j side; ~47 per-function
+  INVOKES_CLOUD_ACTION 7v8 rowcount with equal digests) plus stale entry 57.
+- Entry 57 retired: the `ORDER BY repo_name` repo_ids statement (ex-#6915
+  entry) agrees byte-identical on both sides on the new image (6 rows,
+  digest `b6dfa2…` both backends, cell proof in captures). The upstream
+  fix resolved this instance; the stale guard caught it — differential run
+  35632437752 reports `divergence allowlist entry 57 (... ORDER BY
+  repo_name): matched no divergence in this run (stale)`. No replacement;
+  retirement committed as `c790840e5`.
+- Neo4j leg (run 2): PASS (`/tmp/diffproof8-neo4j2.log`), 12 files, 2657
+  records. Compare (`/tmp/diffproof8-compare4.log`): the 48 VANISHED
+  (IMPORTS and INVOKES agree), leaving 2 unexcused:
+  1. CAN_PERFORM sink probe (`UNWIND $pairs ... ORDER BY function_uid,
+     sink_rel`): row digest differs, 14 vs 12 rows (results-kind).
+  2. Platform finalizer (`UNWIND $rows MERGE (p:Platform ...)`):
+     failed executions differ, nornicdb=1 vs neo4j=0 (failures-kind);
+     error `Neo.ClientError.Statement.SyntaxError (commit failed:
+     constraint violation: UNIQUE on Platform.[id])` — a concurrent-MERGE
+     write race, 1 failed execution in 29 on one leg, 0 failures in ~90
+     executions across the other three legs.
+
+Fix-490 assessment (A/B across images): the NornicDB side is byte-stable —
+IMPORTS count digest `b927e904adc0` identical on old and new images, and the
+capture8-nornicdb INVOKES distribution matches capture7-neo4j exactly. All
+observed variance sits on run-to-run leg timing (drain/finalization paths),
+not on the image change. NO fix-490 regression; one fix-490 repair (entry
+57 instance). The 48-set and the 2 residuals never co-occur in one pairing:
+every residual is leg-pair-dependent, i.e. scheduling noise by the
+multi-leg test, but the results/failures kinds cannot be allowlisted without
+flap (non-executions entries go stale on green runs). Disposition of the 2
+residuals is an owner policy decision (source-fix vs gate policy); they are
+NOT excused in this change.
+
+Burn-down: 53 entries + 20 triaged − 1 retired (entry 57) = **72 total**
+(`rg -c -- '- statement:'` at `c790840e5`). Product follow-ups filed:
+#6922 (Platform MERGE UNIQUE race, open), #6923 (CAN_PERFORM probe
+drain-timing wobble, open). #6915 stays open for the remaining ORDER BY
+entries.
