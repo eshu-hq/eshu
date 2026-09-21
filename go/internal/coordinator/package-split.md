@@ -21,9 +21,13 @@ type's package, so a `*_service.go` half cannot leave without first decomposing
 Some root files also keep types and free functions that Go would let them
 move. The three `service_*_freshness.go` files each carry trigger-resolution
 helpers — `service_gcp_freshness.go` has three types and five free functions at
-lines 181-363, `service_incident_freshness.go` and `service_aws_freshness.go`
-have the same shape — whose only callers are the `Service` methods in the same
-file. They stayed because moving them removes no file from the root: the
+lines 181-363, `service_incident_freshness.go` (9 methods, 6 movable unexported
+declarations) and `service_aws_freshness.go` (7 methods, 4 movable unexported
+declarations) have the same shape — whose only callers are the `Service`
+methods in the same file. Counts exclude the exported Service-wired
+interfaces (`IncidentFreshnessTriggerStore`, `AWSFreshnessTriggerStore`,
+`AWSFreshnessPlanner`), which stay regardless of any split; including them
+the free-declaration totals are 7 and 6. They stayed because moving them removes no file from the root: the
 methods pin each file in place regardless, so the count is 35 either way
 against a cap of 40.
 
