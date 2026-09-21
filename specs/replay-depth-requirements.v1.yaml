@@ -255,7 +255,7 @@ exemptions:
       retract statement on a delta cycle for this label. Genuine deletions are
       still caught by the periodic full reconciliation generation
       (mat.ReconciliationProjection forces DeltaProjection=false; see
-      internal/projector/canonical_builder.go), the same mechanism
+      internal/projector/canonical/builder.go), the same mechanism
       buildRepositoryCleanupStatements already relies on for repository-node
       cleanup, within the reconcile interval. A prior manifest row
       (specs/replay-coverage-manifest.v1.yaml) claimed cassette coverage of
@@ -284,7 +284,7 @@ exemptions:
       Genuine MATCHES_STATE edge changes missed by a delta cycle are still
       caught by the periodic full reconciliation generation
       (mat.ReconciliationProjection forces DeltaProjection=false; see
-      internal/projector/canonical_builder.go), the same mechanism the
+      internal/projector/canonical/builder.go), the same mechanism the
       TerraformStateResource node retraction and buildRepositoryCleanupStatements
       already rely on, within the reconcile interval. Registered directly as
       exempt rather than as a claimed delta_tombstone coverage row: no cassette

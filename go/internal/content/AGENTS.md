@@ -112,7 +112,7 @@
   discriminator case without proving the target manifest format's parser
   guarantees per-section uniqueness (directly, or through the new
   discriminator). Update both call sites (`internal/content/shape/
-  materialize.go` and `internal/projector/runtime.go`'s
+  materialize.go` and `internal/projector/runtime/projection.go`'s
   `buildContentEntityRecord`) together — in practice this requires no code
   change in either, since both already call `CanonicalEntityIDWithMetadata`
   generically, but add a lockstep test proving so (see

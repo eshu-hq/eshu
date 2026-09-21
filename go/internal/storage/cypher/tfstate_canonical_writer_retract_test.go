@@ -14,7 +14,7 @@ import (
 // build an unscoped, scope-wide DETACH DELETE when the materialization is a
 // file-scoped delta cycle. mat.TerraformStateResources is populated only
 // from terraform_state envelopes present in THIS materialization's input
-// (internal/projector/tfstate_canonical.go's extractTerraformStateRows), so
+// (internal/projector/canonical/terraform_state.go's extractTerraformStateRows), so
 // a delta cycle triggered by an unrelated file edit carries none. Every
 // sibling retraction in this package already guards DeltaProjection
 // (buildRetractStatements and buildEntityRetractStatements delegate to a

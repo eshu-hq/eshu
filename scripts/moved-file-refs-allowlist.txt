@@ -217,3 +217,16 @@ docs/internal/design/4786-contract-integration-matrix.md:go/internal/projector/t
 # doc's citation verbatim, so it necessarily carries the same historical path;
 # rewriting it here without rewriting the doc would desynchronise the two.
 scripts/docs-citations-baseline.txt:go/internal/projector/tfstate_canonical.go
+
+# #6781 Part B split the projector root into five packages. The entries below
+# are dated records, not current-truth references: repointing them would
+# falsify what they state was true at the time they were written.
+#
+# The 6627-* notes each pin an explicit `Base:` SHA and describe the tree as it
+# stood for that slice's move.
+docs/internal/evidence/6627-projector-incident-routing-intent-package-move.md:go/internal/projector/scope_generation_intents.go
+docs/internal/evidence/6627-projector-package-source-intent-package-move.md:go/internal/projector/scope_generation_intents.go
+docs/internal/evidence/6627-projector-workload-cloud-intent-package-move.md:go/internal/projector/scope_generation_intents.go
+# AGENTS-evidence-history.md states in its own header that every entry is
+# "preserved verbatim" from the prior single-file AGENTS.md.
+go/internal/storage/cypher/AGENTS-evidence-history.md:go/internal/projector/tfstate_ownership_outcome.go

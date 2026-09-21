@@ -242,7 +242,7 @@ func (q ReducerQueue) Enqueue(
 	// Enqueue in batches, summing each batch's actual RowsAffected -- not
 	// len(intents) -- so the returned Count reflects what the DB really
 	// admitted through ON CONFLICT (work_item_id) DO NOTHING (issue #5593;
-	// see IntentResult's doc comment in internal/projector/runtime.go).
+	// see IntentResult's doc comment in internal/projector/runtime/projection.go).
 	var inserted int64
 	for i := 0; i < len(intents); i += reducerEnqueueBatchSize {
 		end := i + reducerEnqueueBatchSize

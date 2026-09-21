@@ -28,7 +28,7 @@ import (
 //     is 'active'. The scopes carrying image manifests are the OCI registry
 //     collector's, planned with scope.CollectorOCIRegistry by
 //     internal/coordinator/oci/registry/planner.go and projected by
-//     internal/projector/oci_registry_canonical.go.
+//     internal/projector/canonical/oci_registry.go.
 //   - ci_cd_run_correlation -> ci_cd_run. Its intent is triggered by ci.run
 //     evidence (internal/projector/cicd/run/correlation/reducer_intent.go),
 //     emitted by the hosted CI collectors under scope.CollectorCICDRun

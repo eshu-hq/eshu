@@ -206,7 +206,7 @@ func (w *CanonicalNodeWriter) terraformStateResourceMigrationStatements(mat cano
 // here, not just the simpler one: genuine deletions (a resource destroyed or
 // removed from state) are still caught by the periodic full reconciliation
 // generation (mat.ReconciliationProjection forces DeltaProjection=false;
-// see internal/projector/canonical_builder.go), which is this repository's
+// see internal/projector/canonical/builder.go), which is this repository's
 // existing designed mechanism for catching what delta cycles intentionally
 // do not sweep -- exactly the same mechanism buildRepositoryCleanupStatements
 // already relies on for repository-node cleanup.

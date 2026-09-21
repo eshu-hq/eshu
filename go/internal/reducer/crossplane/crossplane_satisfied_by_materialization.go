@@ -107,7 +107,7 @@ type CrossplaneRedriveTargetLedgerWriter interface {
 // one that makes it near-impossible to violate even cross-scope.
 //
 //  1. Same-scope (the common case: Claim and XRD in the same repo). Both
-//     endpoints are projector-canonical nodes. internal/projector/runtime.go's
+//     endpoints are projector-canonical nodes. internal/projector/runtime/projection.go's
 //     Project writes the canonical projection (including any CrossplaneXRD and
 //     K8sResource nodes for this generation) at its writeCanonicalProjection
 //     call BEFORE it enqueues reducer intents at its IntentWriter.Enqueue call

@@ -7,7 +7,7 @@
 // Variable is the one retractable graph node label whose base node is created
 // ONLY by the reducer-owned semantic entity path (issue #5156): the canonical
 // content-entity projection deliberately skips it
-// (internal/projector/canonical_builder.go), so the content_entity retract
+// (internal/projector/canonical/builder.go), so the content_entity retract
 // cassette in delta_tier_entity_retract_live_test.go cannot cover it. This test
 // drives the production cypher.SemanticEntityWriter directly: it upserts a
 // Variable node (gen1), then delta-retracts it by file path (gen2, the file

@@ -84,7 +84,7 @@ type CloudResourceContainerImageEdgeWriter interface {
 // the source endpoint — so edges never resolve against a source that has not
 // committed. The target ContainerImage endpoint is NOT gated on a readiness
 // phase: OCI registry canonical nodes materialize through the source-local
-// projector path (internal/projector/oci_registry_canonical.go), independent
+// projector path (internal/projector/canonical/oci_registry.go), independent
 // of the reducer's scope-generation phases, so an unscanned image is simply a
 // no-op MATCH miss (graceful degradation), exactly like every other AWS edge
 // writer's forward-looking-target case.

@@ -15,7 +15,7 @@ import (
 // entity_type is CrossplaneXRD — the canonical Neo4j label string
 // internal/content/shape/materialize.go's materializeEntities stamps onto
 // every XRD content entity, not the lowercase key of
-// internal/projector/canonical.go's entityTypeLabelMap — across every scope's
+// internal/projector/canonical/materialization.go's entityTypeLabelMap — across every scope's
 // currently active generation. XRDs commonly live in a separate platform repo
 // from the Claims that reference them (issue #5347), so the Crossplane
 // SATISFIED_BY correlation reducer joins across scopes exactly like

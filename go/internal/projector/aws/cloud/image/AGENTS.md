@@ -72,7 +72,7 @@
   positive control against the registry's other projector citations).
 - **The root dispatcher test file name is pinned from the reducer side.**
   `go/internal/reducer/awscloud/aws_cloud_image_materialization_test.go` cites
-  `internal/projector/aws_cloud_image_materialization_intents_test.go` and
+  `internal/projector/runtime/aws_cloud_image_materialization_intents_test.go` and
   its retraction-safety test by name as the enqueue-side half of the #5450
   proof, which is why that root file kept its pre-extraction name when the
   builder moved here. Renaming that root test file or its tests dangles the
