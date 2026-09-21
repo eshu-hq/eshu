@@ -256,7 +256,9 @@ func (h *CodeHandler) listMostComplexFunctions(
 	// different order per backend. Re-sort by the query's documented keys
 	// before truncating so the API answer is top-N by contract, not by
 	// delivery luck. The entity_id tiebreak keeps the order total (ids are
-	// unique), so the answer is fully deterministic.
+	// unique), so the order of the returned window is fully deterministic.
+	// Residual (#6915 upstream): the backend LIMIT still applies to backend
+	// order, so rows outside the returned window can differ per backend.
 	sort.SliceStable(results, func(i, j int) bool {
 		ci, cj := IntVal(results[i], "complexity"), IntVal(results[j], "complexity")
 		if ci != cj {

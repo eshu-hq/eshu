@@ -54,7 +54,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 13c33c121c785f600a4610efbda24c63045d3581fee20fa978e1783643ddb1d8
+          source_sha256: 440e23b1ed943d788c193b30980b9c9180821d8beb2e5a8f9b8cd8f7cab346b0
           label: Function
           max_results: 101
       - symbol: "(*CodeHandler).lookupComplexityRowByName"
