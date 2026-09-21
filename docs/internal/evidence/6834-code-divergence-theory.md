@@ -280,3 +280,34 @@ grandfathered, so new code goes in new directories (grandfather rows:
 - Full-corpus NornicDB PROFILE on indexed data (replaces §7 fixture scale).
 - 20-repo golden-corpus fingerprint run (local run covered this repo plus
   fixtures: 88,795 functions across Go, Python, TypeScript, TSX, and Java).
+
+## 12. #6838 slice C ship proof (compare_code_paths, bounded BFS)
+
+No-Regression Evidence (#6838): baseline is base 3fbf13ea6, where the
+route, tool, and matrix row do not exist. After adds a read-only route
+plus tool with no shared-code change to existing reads: the full
+`./internal/query/...`, `./internal/mcp/...`, and
+`./internal/capabilitycatalog/` suites pass (91 packages ok, 0 FAIL),
+`capability-inventory verify` is clean, and the generated catalog is
+regenerated idempotent (141 entries / 627 surfaces).
+
+Benchmark Evidence (#6838): backend NornicDB
+`timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74`
+(fixture diamond, same-container live gate
+`-tags live_nornicdb_wrapper_bypass`):
+`TestLiveNornicDBCompareCodePaths` 0.05s — 4 distinct simple paths,
+depths 2..4 shortest-first, `truncated=false`, request caps K=5/N=4
+against the 500-expansion visit budget;
+`TestLiveNornicDBWrapperBypass` 0.02s. Input shape is the anchored
+one-hop CALLS read per BFS expansion (no variable-length path
+projection: live probes showed NornicDB returns empty path content,
+so enumeration rides Go BFS with depth cap 6, path cap 20, and the
+visit budget — the §10 bound condition met by construction rather
+than by LIMIT text). Terminal row counts: 4 emitted paths, bounded
+hop reads, `visited` rides the response as the operator budget signal.
+
+Observability Evidence (#6838): no new handler span (sibling
+call-chain parity); the traversal budget rides `visited`, the truth
+envelope rides every response, and member hydration adds one traced
+`postgres.query` (`divergence_members_by_entity`). Matrix row
+`call_graph.compare_code_paths` claims local profiles only.
