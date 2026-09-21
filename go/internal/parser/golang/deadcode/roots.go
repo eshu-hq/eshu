@@ -1,49 +1,61 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package deadcode
 
 import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/deadcode/semantic"
 	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-type goDeadCodeEvidenceSet struct {
-	functionRootKinds  map[string][]string
-	interfaceRootKinds map[string][]string
-	structRootKinds    map[string][]string
+// EvidenceSet is the dead-code root evidence gathered for one file: the
+// registration- and semantic-derived root kinds keyed by lower-cased
+// function/method, interface, and struct identity. The golang parser reads
+// its fields directly when rendering each declaration's "dead_code_root_kinds"
+// payload field.
+type EvidenceSet struct {
+	FunctionRootKinds  map[string][]string
+	InterfaceRootKinds map[string][]string
+	StructRootKinds    map[string][]string
 }
 
-func goDeadCodeEvidence(
+// Evidence gathers the dead-code root evidence for one parsed Go file:
+// explicit registrations (net/http handler and cobra command wiring),
+// same-package direct method call roots, and the semantic evidence collected
+// by the deadcode/semantic package (interface satisfaction, function-value
+// references, generic constraints, and dependency-injection callbacks).
+func Evidence(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
-	importedParamMethods GoImportedInterfaceParamMethods,
-	directMethodCallRoots GoDirectMethodCallRoots,
+	importedParamMethods shared.GoImportedInterfaceParamMethods,
+	directMethodCallRoots shared.GoDirectMethodCallRoots,
 	packageImportPath string,
 	localNameBindings []symbols.LocalNameBinding,
 	constructorReturns map[string]string,
 	lookup *symbols.ParentLookup,
-) goDeadCodeEvidenceSet {
-	evidence := goDeadCodeEvidenceSet{
-		functionRootKinds:  goRegisteredDeadCodeRootKinds(root, source, importAliases),
-		interfaceRootKinds: make(map[string][]string),
-		structRootKinds:    make(map[string][]string),
+) EvidenceSet {
+	evidence := EvidenceSet{
+		FunctionRootKinds:  goRegisteredDeadCodeRootKinds(root, source, importAliases),
+		InterfaceRootKinds: make(map[string][]string),
+		StructRootKinds:    make(map[string][]string),
 	}
-	goMergePackageDirectMethodRoots(root, source, directMethodCallRoots, packageImportPath, evidence.functionRootKinds)
-	goCollectSemanticDeadCodeRoots(
+	goMergePackageDirectMethodRoots(root, source, directMethodCallRoots, packageImportPath, evidence.FunctionRootKinds)
+	semantic.CollectRoots(
 		root,
 		source,
 		importAliases,
 		importedParamMethods,
 		localNameBindings,
 		constructorReturns,
-		evidence.functionRootKinds,
-		evidence.interfaceRootKinds,
-		evidence.structRootKinds,
+		evidence.FunctionRootKinds,
+		evidence.InterfaceRootKinds,
+		evidence.StructRootKinds,
 		lookup,
 	)
 	return evidence
@@ -52,7 +64,7 @@ func goDeadCodeEvidence(
 func goMergePackageDirectMethodRoots(
 	root *tree_sitter.Node,
 	source []byte,
-	directMethodCallRoots GoDirectMethodCallRoots,
+	directMethodCallRoots shared.GoDirectMethodCallRoots,
 	packageImportPath string,
 	functionRootKinds map[string][]string,
 ) {
@@ -60,12 +72,12 @@ func goMergePackageDirectMethodRoots(
 	if importPath == "" || len(directMethodCallRoots) == 0 {
 		return
 	}
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "method_declaration" {
 			return
 		}
 		receiver := strings.ToLower(symbols.ReceiverContext(node, source))
-		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+		name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 		if receiver == "" || name == "" {
 			return
 		}
@@ -77,7 +89,11 @@ func goMergePackageDirectMethodRoots(
 	})
 }
 
-func goDeadCodeRootKinds(
+// RootKinds returns the dead-code root kinds recognized for one function or
+// method declaration node: explicit registration matches from
+// registeredRootKinds, plus signature-shape matches (an HTTP handler, a cobra
+// RunE function, or a controller-runtime Reconcile method).
+func RootKinds(
 	node *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
@@ -85,7 +101,7 @@ func goDeadCodeRootKinds(
 ) []string {
 	params := goCompactSignature(node.ChildByFieldName("parameters"), source)
 	results := goCompactSignature(node.ChildByFieldName("result"), source)
-	name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+	name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
 
 	rootKinds := make([]string, 0, 5)
 	if node.Kind() == "function_declaration" {
@@ -115,7 +131,7 @@ func goCompactSignature(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
-	return strings.ToLower(strings.Join(strings.Fields(nodeText(node, source)), ""))
+	return strings.ToLower(strings.Join(strings.Fields(shared.NodeText(node, source)), ""))
 }
 
 func goSignatureMatchesHTTPHandler(params string, importAliases map[string][]string) bool {

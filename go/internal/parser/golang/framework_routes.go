@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -47,7 +48,7 @@ func goHTTPFrameworkSemantics(
 	if root == nil {
 		return nil, false
 	}
-	serveMuxVars := goHTTPServeMuxVars(root, source, importAliases)
+	serveMuxVars := deadcode.HTTPServeMuxVars(root, source, importAliases)
 	lookup := symbols.BuildParentLookup(root)
 	routeReceivers := goThirdPartyRouteReceiverBindings(root, source, importAliases, lookup)
 	frameworks := make([]string, 0)
@@ -135,7 +136,7 @@ func goHTTPRouteEntry(
 			handlerName = strings.TrimSpace(nodeText(&args[1], source))
 		}
 	case "handle":
-		handlerName = goHTTPHandlerWrapperTarget(&args[1], source, importAliases)
+		handlerName = deadcode.HTTPHandlerWrapperTarget(&args[1], source, importAliases)
 	}
 	if handlerName == "" {
 		return nil, false

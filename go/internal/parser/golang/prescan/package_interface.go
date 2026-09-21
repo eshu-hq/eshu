@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package prescan
 
 import (
 	"fmt"
@@ -53,15 +53,15 @@ func ExportedInterfaceParamMethods(
 	root := tree.RootNode()
 	interfaceMethods := make(map[string][]string)
 	exportedFunctions := make(map[string]struct{})
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration":
-			rawName := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+			rawName := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
 			if symbols.IdentifierIsExported(rawName) {
 				exportedFunctions[strings.ToLower(rawName)] = struct{}{}
 			}
 		case "type_spec":
-			name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+			name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 			typeNode := node.ChildByFieldName("type")
 			if name != "" && typeNode != nil && typeNode.Kind() == "interface_type" {
 				interfaceMethods[name] = symbols.InterfaceMethodNames(typeNode, source)
@@ -124,7 +124,7 @@ func ImportedDirectMethodCallRoots(
 	// file's tree — quadratic behavior that hung the Terraform ingest (#161).
 	variableTypeIndex := symbols.BuildImportedVariableTypeIndex(root, source, importAliases, lookup)
 	roots := make(shared.GoDirectMethodCallRoots)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
 			return
 		}
@@ -164,7 +164,7 @@ func ImportedDirectMethodCallRootsWithInterfaceReturns(
 	// the same call_expression hot path and therefore the same fix (#161).
 	variableTypeIndex := symbols.BuildImportedVariableTypeIndex(root, source, importAliases, lookup)
 	roots := make(shared.GoDirectMethodCallRoots)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
 			return
 		}
@@ -214,11 +214,11 @@ func LocalInterfaceMethods(
 	defer closeTree()
 
 	methods := make(map[string][]string)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "type_spec" {
 			return
 		}
-		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+		name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 		typeNode := node.ChildByFieldName("type")
 		if name != "" && typeNode != nil && typeNode.Kind() == "interface_type" {
 			methods[name] = symbols.InterfaceMethodNames(typeNode, source)
@@ -241,11 +241,11 @@ func GenericConstraintInterfaceNames(
 	defer closeTree()
 
 	names := make([]string, 0)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "type_parameter_declaration" {
 			return
 		}
-		for _, name := range symbols.TypeParameterConstraintCandidates(nodeText(node, source)) {
+		for _, name := range symbols.TypeParameterConstraintCandidates(shared.NodeText(node, source)) {
 			names = symbols.AppendUniqueImportAlias(names, name)
 		}
 	})
@@ -265,12 +265,12 @@ func MethodDeclarationKeys(
 	defer closeTree()
 
 	keys := make([]string, 0)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "method_declaration" {
 			return
 		}
 		receiver := strings.ToLower(symbols.ReceiverContext(node, source))
-		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+		name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 		if receiver != "" && name != "" {
 			keys = symbols.AppendUniqueImportAlias(keys, receiver+"."+name)
 		}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package prescan
 
 import (
 	"fmt"
@@ -33,7 +33,7 @@ func PreScan(parser *tree_sitter.Parser, path string) ([]string, error) {
 	shared.WalkNamed(tree.RootNode(), func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "method_declaration":
-			name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+			name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
 			if name != "" {
 				names = append(names, name)
 			}
@@ -44,7 +44,7 @@ func PreScan(parser *tree_sitter.Parser, path string) ([]string, error) {
 			}
 			switch typeNode.Kind() {
 			case "struct_type", "interface_type":
-				name := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+				name := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
 				if name != "" {
 					names = append(names, name)
 				}

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package semantic
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -39,9 +40,9 @@ func goCollectFunctionValuesFromExpression(
 		}
 		return
 	case "identifier":
-		rawName := strings.TrimSpace(nodeText(node, source))
+		rawName := strings.TrimSpace(shared.NodeText(node, source))
 		name := strings.ToLower(rawName)
-		if _, ok := functionNames[name]; ok && !symbols.NameIsLocallyBound(rawName, nodeLine(node), localNameBindings) {
+		if _, ok := functionNames[name]; ok && !symbols.NameIsLocallyBound(rawName, shared.NodeLine(node), localNameBindings) {
 			functionRootKinds[name] = symbols.AppendUniqueImportAlias(functionRootKinds[name], "go.function_value_reference")
 		}
 		return
@@ -104,7 +105,7 @@ func goSelectorConversionReceiverType(node *tree_sitter.Node, source []byte) str
 	}
 	switch functionNode.Kind() {
 	case "identifier", "type_identifier":
-		return strings.ToLower(symbols.NormalizeTypeName(nodeText(functionNode, source)))
+		return strings.ToLower(symbols.NormalizeTypeName(shared.NodeText(functionNode, source)))
 	default:
 		return ""
 	}
@@ -117,7 +118,7 @@ func goCollectFunctionLiteralReachableCalls(
 	localNameBindings []symbols.LocalNameBinding,
 	functionRootKinds map[string][]string,
 ) {
-	walkNamed(node, func(child *tree_sitter.Node) {
+	shared.WalkNamed(node, func(child *tree_sitter.Node) {
 		if child.Kind() != "call_expression" {
 			return
 		}
@@ -125,9 +126,9 @@ func goCollectFunctionLiteralReachableCalls(
 		if functionNode == nil || functionNode.Kind() != "identifier" {
 			return
 		}
-		rawName := strings.TrimSpace(nodeText(functionNode, source))
+		rawName := strings.TrimSpace(shared.NodeText(functionNode, source))
 		name := strings.ToLower(rawName)
-		if _, ok := functionNames[name]; !ok || symbols.NameIsLocallyBound(rawName, nodeLine(functionNode), localNameBindings) {
+		if _, ok := functionNames[name]; !ok || symbols.NameIsLocallyBound(rawName, shared.NodeLine(functionNode), localNameBindings) {
 			return
 		}
 		functionRootKinds[name] = symbols.AppendUniqueImportAlias(functionRootKinds[name], "go.function_literal_reachable_call")
@@ -143,7 +144,7 @@ func goConcreteTypesInExpression(
 	if node == nil {
 		return types
 	}
-	walkNamed(node, func(child *tree_sitter.Node) {
+	shared.WalkNamed(node, func(child *tree_sitter.Node) {
 		if child.Kind() != "composite_literal" {
 			return
 		}
@@ -160,16 +161,16 @@ func goStructFieldInterfaceTargets(
 	interfaceMethods map[string][]string,
 ) map[string]map[string]symbols.InterfaceTarget {
 	targets := make(map[string]map[string]symbols.InterfaceTarget)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "type_spec" {
 			return
 		}
-		typeName := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+		typeName := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 		typeNode := node.ChildByFieldName("type")
 		if typeName == "" || typeNode == nil || typeNode.Kind() != "struct_type" {
 			return
 		}
-		walkNamed(typeNode, func(child *tree_sitter.Node) {
+		shared.WalkNamed(typeNode, func(child *tree_sitter.Node) {
 			if child.Kind() != "field_declaration" {
 				return
 			}
@@ -190,7 +191,7 @@ func goStructFieldInterfaceTargets(
 
 func goMergeImportedInterfaceParamTargets(
 	targets map[string]map[int]symbols.InterfaceTarget,
-	importedMethods GoImportedInterfaceParamMethods,
+	importedMethods shared.GoImportedInterfaceParamMethods,
 ) {
 	for functionName, byIndex := range importedMethods {
 		if _, ok := targets[functionName]; !ok {
@@ -217,11 +218,11 @@ func goFunctionParamCallbackIndexes(
 	functionTypeNames map[string]struct{},
 ) map[string]map[int]struct{} {
 	targets := make(map[string]map[int]struct{})
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "function_declaration" {
 			return
 		}
-		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+		name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 		if name == "" {
 			return
 		}

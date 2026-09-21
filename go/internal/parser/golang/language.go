@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/golang/dataflow"
+	"github.com/eshu-hq/eshu/go/internal/parser/golang/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -45,7 +46,7 @@ func Parse(
 	importAliases, constructorReturns, localNameBindings := goCollectFileLevelIndexes(root, source, lookup)
 	localReceiverBindings := symbols.LocalReceiverBindings(root, source, constructorReturns, lookup)
 	awsSDKServiceBindings := goAWSSDKReceiverBindings(root, source, goAWSSDKServiceAliases(importAliases), lookup)
-	deadCodeEvidence := goDeadCodeEvidence(
+	deadCodeEvidence := deadcode.Evidence(
 		root,
 		source,
 		importAliases,
@@ -108,7 +109,7 @@ func Parse(
 			if returnType := symbols.TypeNameFromNode(node.ChildByFieldName("result"), source); returnType != "" {
 				item["return_type"] = returnType
 			}
-			if rootKinds := goDeadCodeRootKinds(node, source, importAliases, deadCodeEvidence.functionRootKinds); len(rootKinds) > 0 {
+			if rootKinds := deadcode.RootKinds(node, source, importAliases, deadCodeEvidence.FunctionRootKinds); len(rootKinds) > 0 {
 				item["dead_code_root_kinds"] = rootKinds
 			}
 			if options.IndexSource {
@@ -134,12 +135,12 @@ func Parse(
 			}
 			switch typeNode.Kind() {
 			case "struct_type":
-				if rootKinds := deadCodeEvidence.structRootKinds[strings.ToLower(name)]; len(rootKinds) > 0 {
+				if rootKinds := deadCodeEvidence.StructRootKinds[strings.ToLower(name)]; len(rootKinds) > 0 {
 					item["dead_code_root_kinds"] = rootKinds
 				}
 				shared.AppendBucket(payload, "structs", item)
 			case "interface_type":
-				if rootKinds := deadCodeEvidence.interfaceRootKinds[strings.ToLower(name)]; len(rootKinds) > 0 {
+				if rootKinds := deadCodeEvidence.InterfaceRootKinds[strings.ToLower(name)]; len(rootKinds) > 0 {
 					item["dead_code_root_kinds"] = rootKinds
 				}
 				shared.AppendBucket(payload, "interfaces", item)

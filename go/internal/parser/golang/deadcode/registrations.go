@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package deadcode
 
 import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -20,7 +21,7 @@ func goRegisteredDeadCodeRootKinds(
 		return registered
 	}
 
-	serveMuxVars := goHTTPServeMuxVars(root, source, importAliases)
+	serveMuxVars := HTTPServeMuxVars(root, source, importAliases)
 	cobraVars := goKnownVariableNames(root, source, func(expr string) bool {
 		cobraAliases := symbols.AliasesForImportPath(importAliases, "github.com/spf13/cobra")
 		for _, alias := range cobraAliases {
@@ -33,7 +34,7 @@ func goRegisteredDeadCodeRootKinds(
 		return false
 	})
 
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "call_expression":
 			goCollectHTTPRegistrationRoots(node, source, importAliases, serveMuxVars, registered)
@@ -47,7 +48,11 @@ func goRegisteredDeadCodeRootKinds(
 	return registered
 }
 
-func goHTTPServeMuxVars(
+// HTTPServeMuxVars returns the set of lower-cased variable names bound to a
+// net/http.NewServeMux() call or a &http.ServeMux{}/http.ServeMux{} literal,
+// so a later HandleFunc/Handle call on one of them is recognized as a route
+// registration even though its receiver is not the http package itself.
+func HTTPServeMuxVars(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
@@ -76,7 +81,7 @@ func goKnownVariableNames(
 		return known
 	}
 
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		var leftNode, rightNode *tree_sitter.Node
 		switch node.Kind() {
 		case "short_var_declaration", "assignment_statement":
@@ -147,9 +152,9 @@ func goCollectHTTPRegistrationRoots(
 	handlerName := ""
 	switch field {
 	case "handlefunc":
-		handlerName = strings.TrimSpace(nodeText(&args[1], source))
+		handlerName = strings.TrimSpace(shared.NodeText(&args[1], source))
 	case "handle":
-		handlerName = goHTTPHandlerWrapperTarget(&args[1], source, importAliases)
+		handlerName = HTTPHandlerWrapperTarget(&args[1], source, importAliases)
 	}
 	if handlerName == "" {
 		return
@@ -159,7 +164,11 @@ func goCollectHTTPRegistrationRoots(
 	registered[key] = symbols.AppendUniqueImportAlias(registered[key], "go.net_http_handler_registration")
 }
 
-func goHTTPHandlerWrapperTarget(
+// HTTPHandlerWrapperTarget returns the bare identifier passed to a
+// net/http.HandlerFunc(...) conversion call, or "" when node is not such a
+// call. It resolves the mux.Handle(pattern, http.HandlerFunc(target)) wrapper
+// shape so target is still recognized as the registered handler function.
+func HTTPHandlerWrapperTarget(
 	node *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
@@ -193,7 +202,7 @@ func goHTTPHandlerWrapperTarget(
 	if len(args) == 0 || args[0].Kind() != "identifier" {
 		return ""
 	}
-	return strings.TrimSpace(nodeText(&args[0], source))
+	return strings.TrimSpace(shared.NodeText(&args[0], source))
 }
 
 func goCollectCobraLiteralRoots(
@@ -241,7 +250,7 @@ func goCollectCobraAssignmentRoots(
 	}
 	switch strings.ToLower(field) {
 	case "run", "rune":
-		name := strings.TrimSpace(nodeText(rightNode, source))
+		name := strings.TrimSpace(shared.NodeText(rightNode, source))
 		if name != "" {
 			key := strings.ToLower(name)
 			registered[key] = symbols.AppendUniqueImportAlias(registered[key], "go.cobra_run_registration")
@@ -268,7 +277,7 @@ func goCompactSource(node *tree_sitter.Node, source []byte) string {
 	if node == nil {
 		return ""
 	}
-	return strings.ToLower(strings.Join(strings.Fields(nodeText(node, source)), ""))
+	return strings.ToLower(strings.Join(strings.Fields(shared.NodeText(node, source)), ""))
 }
 
 func goLeadingIdentifier(value string) string {

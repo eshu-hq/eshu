@@ -407,7 +407,7 @@ linters:
       - path: 'internal/parser/go_package_interface_prescan\.go'
         linters:
           - funlen
-      - path: 'internal/parser/golang/dead_code_semantic_roots\.go'
+      - path: 'internal/parser/golang/deadcode/semantic/roots\.go'
         linters:
           - funlen
       - path: 'internal/parser/golang/language\.go'

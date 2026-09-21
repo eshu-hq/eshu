@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package semantic
 
 import (
 	"strings"
@@ -11,11 +11,21 @@ import (
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func goCollectSemanticDeadCodeRoots(
+// CollectRoots walks a parsed Go file twice — once to gather every
+// declaration and resolution-candidate node, once more as in-memory loops
+// over the gathered nodes (issue #4920) instead of the repeated full-tree
+// walks that predated it — and marks functionRootKinds, interfaceRootKinds,
+// and structRootKinds with the semantic dead-code root evidence: interface
+// satisfaction (by return, composite-literal field, or call argument),
+// function/method value references, generic-constraint method roots, and
+// dependency-injection callback arguments. The three root-kind maps are
+// mutated in place so a caller composes this evidence with its own
+// registration-derived roots before rendering the parser payload.
+func CollectRoots(
 	root *tree_sitter.Node,
 	source []byte,
 	importAliases map[string][]string,
-	importedParamMethods GoImportedInterfaceParamMethods,
+	importedParamMethods shared.GoImportedInterfaceParamMethods,
 	localNameBindings []symbols.LocalNameBinding,
 	constructorReturns map[string]string,
 	functionRootKinds map[string][]string,
@@ -56,26 +66,26 @@ func goCollectSemanticDeadCodeRoots(
 	// Walk-1: collect declarations AND gather resolution-candidate nodes
 	// for post-walk in-memory iteration. Appending during pre-order gives
 	// pre-order slices, matching the original walk-2's visitation order.
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration":
-			name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+			name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 			if name != "" {
 				functionNames[name] = struct{}{}
 			}
 			gatheredFuncDecls = append(gatheredFuncDecls, shared.CloneNode(node))
 		case "method_declaration":
-			name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+			name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 			receiver := strings.ToLower(symbols.ReceiverContext(node, source))
 			if name != "" && receiver != "" {
 				methodKeys[receiver+"."+name] = struct{}{}
 				methodNamesByReceiver[receiver] = symbols.AppendUniqueImportAlias(methodNamesByReceiver[receiver], name)
-				if symbols.IdentifierIsExported(nodeText(node.ChildByFieldName("name"), source)) {
+				if symbols.IdentifierIsExported(shared.NodeText(node.ChildByFieldName("name"), source)) {
 					exportedMethodNamesByReceiver[receiver] = symbols.AppendUniqueImportAlias(exportedMethodNamesByReceiver[receiver], name)
 				}
 			}
 		case "type_spec":
-			name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+			name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 			typeNode := node.ChildByFieldName("type")
 			if name == "" || typeNode == nil {
 				return
@@ -277,7 +287,7 @@ func goMarkGenericConstraintInterfaceRoots(
 		return
 	}
 	for _, node := range gatheredTypeParams {
-		text := strings.ToLower(nodeText(node, source))
+		text := strings.ToLower(shared.NodeText(node, source))
 		for interfaceName, methodNames := range interfaceMethods {
 			if !goTypeParameterMentionsConstraint(text, interfaceName) {
 				continue
@@ -347,7 +357,7 @@ func goCollectFunctionCallbackArgument(
 	}
 	switch node.Kind() {
 	case "identifier":
-		name := strings.ToLower(strings.TrimSpace(nodeText(node, source)))
+		name := strings.ToLower(strings.TrimSpace(shared.NodeText(node, source)))
 		if _, ok := functionNames[name]; ok {
 			functionRootKinds[name] = symbols.AppendUniqueImportAlias(functionRootKinds[name], "go.dependency_injection_callback")
 		}

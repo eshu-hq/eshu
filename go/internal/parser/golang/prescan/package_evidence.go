@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package prescan
 
 import (
 	"fmt"
@@ -81,11 +81,11 @@ func PreScanFileEvidence(
 // behavior of LocalInterfaceMethods(parser, path).
 func extractLocalInterfaceMethods(root *tree_sitter.Node, source []byte) map[string][]string {
 	methods := make(map[string][]string)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "type_spec" {
 			return
 		}
-		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+		name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 		typeNode := node.ChildByFieldName("type")
 		if name != "" && typeNode != nil && typeNode.Kind() == "interface_type" {
 			methods[name] = symbols.InterfaceMethodNames(typeNode, source)
@@ -104,11 +104,11 @@ func extractExportedInterfaceParamMethods(
 	interfaceMethods map[string][]string,
 ) shared.GoImportedInterfaceParamMethods {
 	exportedFunctions := make(map[string]struct{})
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "function_declaration" {
 			return
 		}
-		rawName := strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source))
+		rawName := strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source))
 		if symbols.IdentifierIsExported(rawName) {
 			exportedFunctions[strings.ToLower(rawName)] = struct{}{}
 		}
@@ -144,7 +144,7 @@ func extractImportedDirectMethodCallRoots(
 	interfaceMethodReturns map[string]string,
 ) shared.GoDirectMethodCallRoots {
 	roots := make(shared.GoDirectMethodCallRoots)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "call_expression" {
 			return
 		}
@@ -168,11 +168,11 @@ func extractImportedDirectMethodCallRoots(
 // without re-reading or re-parsing the file.
 func extractGenericConstraintInterfaceNames(root *tree_sitter.Node, source []byte) []string {
 	names := make([]string, 0)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "type_parameter_declaration" {
 			return
 		}
-		for _, name := range symbols.TypeParameterConstraintCandidates(nodeText(node, source)) {
+		for _, name := range symbols.TypeParameterConstraintCandidates(shared.NodeText(node, source)) {
 			names = symbols.AppendUniqueImportAlias(names, name)
 		}
 	})
@@ -183,12 +183,12 @@ func extractGenericConstraintInterfaceNames(root *tree_sitter.Node, source []byt
 // re-reading or re-parsing the file. Returns lower-case receiver.method keys.
 func extractMethodDeclarationKeys(root *tree_sitter.Node, source []byte) []string {
 	keys := make([]string, 0)
-	walkNamed(root, func(node *tree_sitter.Node) {
+	shared.WalkNamed(root, func(node *tree_sitter.Node) {
 		if node.Kind() != "method_declaration" {
 			return
 		}
 		receiver := strings.ToLower(symbols.ReceiverContext(node, source))
-		name := strings.ToLower(strings.TrimSpace(nodeText(node.ChildByFieldName("name"), source)))
+		name := strings.ToLower(strings.TrimSpace(shared.NodeText(node.ChildByFieldName("name"), source)))
 		if receiver != "" && name != "" {
 			keys = symbols.AppendUniqueImportAlias(keys, receiver+"."+name)
 		}

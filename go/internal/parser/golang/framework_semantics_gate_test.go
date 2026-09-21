@@ -70,7 +70,7 @@ func goParseFixture(t *testing.T, source string) map[string]any {
 // #5219: goHTTPFrameworkSemantics must not run at all for a Go file that
 // imports none of net/http or a goRouteFrameworkConstructors framework
 // package, because it provably cannot produce output for such a file
-// (dead_code_registrations.go / framework_routes.go gate on those imports
+// (deadcode/registrations.go / framework_routes.go gate on those imports
 // before emitting any entry). Counting invocations directly, rather than only
 // asserting on payload shape, proves the walk itself is skipped -- an
 // output-only assertion would pass even if the gate were removed, since the

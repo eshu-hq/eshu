@@ -14,7 +14,7 @@ import (
 )
 
 // testGoFixture is a single-file Go fixture that exercises every resolution
-// node kind visited by walk-2 and walk-3 in goCollectSemanticDeadCodeRoots:
+// node kind visited by walk-2 and walk-3 in deadcode/semantic.CollectRoots:
 // var_spec, short_var_declaration, assignment_statement, composite_literal,
 // parameter_declaration, field_declaration, function_declaration,
 // return_statement, call_expression, and type_parameter_declaration
@@ -69,9 +69,10 @@ func constraintFunc[T Printer](item T) {
 // TestParseFullTreeWalkCount pins the number of shared.WalkNamed full-tree
 // traversals Parse performs on a single representative Go file. Before the
 // gather-then-resolve refactor (issue #4920, epic #4917),
-// goCollectSemanticDeadCodeRoots ran two independent full-tree resolution
-// re-walks (walk-2 at dead_code_semantic_roots.go:94 and walk-3 via
-// goMarkGenericConstraintInterfaceRoots at dead_code_semantic_roots.go:216)
+// goCollectSemanticDeadCodeRoots (now deadcode/semantic.CollectRoots, moved
+// by issue #6774) ran two independent full-tree resolution re-walks (walk-2
+// at deadcode/semantic/roots.go:104 and walk-3 via
+// goMarkGenericConstraintInterfaceRoots at deadcode/semantic/roots.go:256)
 // in addition to the declaration-collection walk (walk-1). After the
 // refactor, resolution candidate nodes are gathered during walk-1 and
 // resolved via in-memory loops, removing exactly two WalkNamed calls
@@ -82,7 +83,7 @@ func constraintFunc[T Printer](item T) {
 // import gate (issue #5219), Parse still called goHTTPFrameworkSemantics
 // unconditionally, and it walked the tree three times even though it could
 // only ever return (nil, false) for this fixture: once via
-// goHTTPServeMuxVars->goKnownVariableNames, once via
+// deadcode.HTTPServeMuxVars->goKnownVariableNames, once via
 // goThirdPartyRouteReceiverBindings, and once directly. The gate
 // (goFileImportsRouteFramework in language.go) skips the call entirely for a
 // file with no framework import, removing exactly those three WalkNamed

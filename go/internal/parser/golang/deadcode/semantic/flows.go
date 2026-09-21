@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package golang
+package semantic
 
 import (
 	"slices"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/golang/symbols"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -26,7 +27,7 @@ func goCollectInterfaceReturnConcreteTypes(
 	resultNode := node.ChildByFieldName("result")
 	for _, interfaceName := range symbols.ReferencedLocalInterfaces(resultNode, source, interfaceMethods) {
 		interfaceRootKinds[interfaceName] = symbols.AppendUniqueImportAlias(interfaceRootKinds[interfaceName], "go.interface_type_reference")
-		walkNamed(node, func(child *tree_sitter.Node) {
+		shared.WalkNamed(node, func(child *tree_sitter.Node) {
 			if child.Kind() != "return_statement" {
 				return
 			}
@@ -40,7 +41,7 @@ func goCollectInterfaceReturnConcreteTypes(
 	if !importedTarget.Imported {
 		return
 	}
-	walkNamed(node, func(child *tree_sitter.Node) {
+	shared.WalkNamed(node, func(child *tree_sitter.Node) {
 		if child.Kind() != "return_statement" {
 			return
 		}
@@ -74,7 +75,7 @@ func goMarkCompositeLiteralInterfaceFields(
 	if structType == "" || len(structFieldTargets[structType]) == 0 {
 		return
 	}
-	walkNamed(node, func(child *tree_sitter.Node) {
+	shared.WalkNamed(node, func(child *tree_sitter.Node) {
 		if child.Kind() != "keyed_element" {
 			return
 		}
@@ -128,7 +129,7 @@ func goMarkCallArgumentInterfaceMethods(
 		}
 		concreteType := symbols.ConcreteTypeFromExpression(arg, source, structTypes)
 		if concreteType == "" && arg.Kind() == "identifier" {
-			concreteType = variableTypes[strings.ToLower(strings.TrimSpace(nodeText(arg, source)))]
+			concreteType = variableTypes[strings.ToLower(strings.TrimSpace(shared.NodeText(arg, source)))]
 		}
 		goMarkConcreteTypeForInterfaceTarget(
 			concreteType,
@@ -289,7 +290,7 @@ func goKnownReceiverTypeFromExpression(
 	}
 	switch node.Kind() {
 	case "identifier":
-		return variableTypes[strings.ToLower(strings.TrimSpace(nodeText(node, source)))]
+		return variableTypes[strings.ToLower(strings.TrimSpace(shared.NodeText(node, source)))]
 	case "composite_literal":
 		return symbols.ConcreteTypeFromTypeNode(node.ChildByFieldName("type"), source, structTypes)
 	case "call_expression":
@@ -323,7 +324,7 @@ func goSelectorConversionReceiverTypeFromCall(node *tree_sitter.Node, source []b
 	}
 	switch functionNode.Kind() {
 	case "identifier", "type_identifier":
-		return strings.ToLower(symbols.NormalizeTypeName(nodeText(functionNode, source)))
+		return strings.ToLower(symbols.NormalizeTypeName(shared.NodeText(functionNode, source)))
 	default:
 		return ""
 	}
@@ -336,7 +337,7 @@ func goCallFunctionName(node *tree_sitter.Node, source []byte) string {
 	}
 	switch functionNode.Kind() {
 	case "identifier":
-		return strings.ToLower(strings.TrimSpace(nodeText(functionNode, source)))
+		return strings.ToLower(strings.TrimSpace(shared.NodeText(functionNode, source)))
 	case "selector_expression":
 		_, field, ok := symbols.SelectorBaseAndField(functionNode, source)
 		if ok {
@@ -350,7 +351,7 @@ func goKeyedElementFieldAndValue(node *tree_sitter.Node, source []byte) (string,
 	keyNode := node.ChildByFieldName("key")
 	valueNode := node.ChildByFieldName("value")
 	if keyNode != nil && valueNode != nil {
-		return strings.ToLower(strings.TrimSpace(nodeText(keyNode, source))), valueNode
+		return strings.ToLower(strings.TrimSpace(shared.NodeText(keyNode, source))), valueNode
 	}
 	children := make([]*tree_sitter.Node, 0, 2)
 	symbols.WalkDirectNamed(node, func(child *tree_sitter.Node) {
@@ -359,5 +360,5 @@ func goKeyedElementFieldAndValue(node *tree_sitter.Node, source []byte) (string,
 	if len(children) < 2 {
 		return "", nil
 	}
-	return strings.ToLower(strings.TrimSpace(nodeText(children[0], source))), children[1]
+	return strings.ToLower(strings.TrimSpace(shared.NodeText(children[0], source))), children[1]
 }
