@@ -3,6 +3,10 @@
 
 package contract
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+)
+
 // This file holds capability support entries that no longer fit in
 // contract_capability_matrix.go (that file sits at the repo's 500-line cap;
 // golang-engineering skill). init() appends these entries to the
@@ -11,6 +15,19 @@ package contract
 // contract_capability_matrix.go) before running any init() function, so this
 // merge is safe regardless of file compilation order.
 func init() {
+	register(codequery.CompareCodePathsCapability, capabilitySupport{
+		// POST /api/v0/code/call-chain/compare (#6838) enumerates distinct
+		// simple paths with a bounded Go BFS over anchored one-hop reads.
+		// The read is backend-identical across local profiles, so
+		// full-stack is supported like the sibling call-chain path; only
+		// production stays unsupported until remote validation lands in
+		// #6840.
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         nil,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	})
 	register("reachability.java.value_flow", capabilitySupport{
 		// Java value-flow reachability is operationally gated by
 		// ESHU_EMIT_DATAFLOW (off by default), so it is unsupported in every

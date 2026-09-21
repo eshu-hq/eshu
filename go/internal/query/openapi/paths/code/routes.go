@@ -346,6 +346,78 @@ const Routes = `
         }
       }
     },
+    "/api/v0/code/call-chain/compare": {
+      "post": {
+        "tags": ["code"],
+        "summary": "Compare distinct call paths",
+        "description": "Compares up to K distinct simple call paths between two functions in one repository, shortest first with weakest-edge confidence per path. Bounded breadth-first traversal over anchored one-hop graph reads (depth at most 6, default 4; paths at most 20, default 5). Single-repo v1: repo_id is required and cross_repo is refused. Scoped tokens receive only paths whose every hop is in a granted repository; an ungranted repository selector is rejected with 400.",
+        "operationId": "compareCodeCallPaths",
+        "x-scoped-token-support": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "start": {"type": "string", "description": "Exact caller function name when start_entity_id is omitted"},
+                  "end": {"type": "string", "description": "Exact callee function name when end_entity_id is omitted"},
+                  "start_entity_id": {"type": "string", "description": "Canonical caller entity id. Takes precedence over start when provided."},
+                  "end_entity_id": {"type": "string", "description": "Canonical callee entity id. Takes precedence over end when provided."},
+                  "repo_id": {"type": "string", "description": "Required repository selector scoping both entities to one repository."},
+                  "max_depth": {"type": "integer", "description": "Maximum path depth (default 4, max 6)", "default": 4},
+                  "max_paths": {"type": "integer", "description": "Maximum distinct simple paths (default 5, max 20)", "default": 5}
+                },
+                "required": ["repo_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "504": {"$ref": "#/components/responses/GatewayTimeout"},
+          "200": {
+            "description": "Compared call paths",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "start": {"type": "string"},
+                    "end": {"type": "string"},
+                    "start_entity_id": {"type": "string"},
+                    "end_entity_id": {"type": "string"},
+                    "repo_id": {"type": "string"},
+                    "paths": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "nodes": {
+                            "type": "array",
+                            "items": {"$ref": "#/components/schemas/EntityRef"}
+                          },
+                          "depth": {"type": "integer"},
+                          "confidence": {"type": "number"}
+                        }
+                      }
+                    },
+                    "truncated": {"type": "boolean"},
+                    "max_depth": {"type": "integer"},
+                    "max_paths": {"type": "integer"},
+                    "visited": {"type": "integer"},
+                    "source_backend": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/code/complexity": {
       "post": {
         "tags": ["code"],

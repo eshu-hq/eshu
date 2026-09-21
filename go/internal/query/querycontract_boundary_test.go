@@ -111,7 +111,7 @@ func TestCapabilityRegistrationOrderMatchesCanonicalYAMLOrder(t *testing.T) {
 	}
 	parsed := loadCapabilityMatrixYAML(t, filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", "..", "specs")))
 	registrations := querycontract.CapabilityRegistrations()
-	if got, want := len(registrations), 140; got != want {
+	if got, want := len(registrations), 141; got != want {
 		t.Fatalf("registered capabilities = %d, want %d", got, want)
 	}
 	if got, want := len(parsed.Capabilities), len(registrations); got != want {

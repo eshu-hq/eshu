@@ -75,6 +75,12 @@ func fakeDriftedRow() codedivergence.DriftedRow {
 	}
 }
 
+func (fakeDivergenceStore) DivergenceMembersByEntityID(
+	context.Context, string, []string,
+) (map[string]codedivergence.Member, error) {
+	return map[string]codedivergence.Member{}, nil
+}
+
 func (fakeDivergenceStore) DriftedFindingStats(
 	context.Context, string,
 ) ([]codedivergence.GroupStat, error) {
@@ -229,6 +235,12 @@ func (crossKindCollisionStore) DivergenceMembers(
 	return out, nil
 }
 
+func (crossKindCollisionStore) DivergenceMembersByEntityID(
+	context.Context, string, []string,
+) (map[string]codedivergence.Member, error) {
+	return map[string]codedivergence.Member{}, nil
+}
+
 // TestCodeHandlerDivergenceFindingsKeepsCrossKindCollision pins the P2 fix
 // end to end: a fingerprint present in both families assembles once per
 // kind instead of colliding on the fingerprint alone.
@@ -308,6 +320,12 @@ func (suppressionPagingStore) DriftedFindingRows(
 	context.Context, string, []string,
 ) (map[string]codedivergence.DriftedRow, error) {
 	return map[string]codedivergence.DriftedRow{}, nil
+}
+
+func (suppressionPagingStore) DivergenceMembersByEntityID(
+	context.Context, string, []string,
+) (map[string]codedivergence.Member, error) {
+	return map[string]codedivergence.Member{}, nil
 }
 
 func (suppressionPagingStore) DivergenceMembers(

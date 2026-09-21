@@ -324,6 +324,73 @@ func (cr *ContentReader) driftedFindingStore() postgres.PostgresCodeDriftedFindi
 	return postgres.PostgresCodeDriftedFindingStore{DB: storeDB}
 }
 
+// DivergenceMembersByEntityID resolves wrapper-bypass finding members from
+// the fingerprint table by entity id: the wrapper plus its bypassers are
+// graph-discovered caller entities, not a fingerprint group, so the finding
+// needs their content details (path, lines, language, token count) keyed by
+// id. Graph/content skew drops out at the call site: ids missing here simply
+// resolve to nothing. Repo-scoped like every other divergence read.
+func (cr *ContentReader) DivergenceMembersByEntityID(
+	ctx context.Context,
+	repoID string,
+	entityIDs []string,
+) (map[string]codedivergence.Member, error) {
+	if cr == nil || cr.db == nil {
+		return map[string]codedivergence.Member{}, nil
+	}
+	if len(entityIDs) == 0 {
+		return map[string]codedivergence.Member{}, nil
+	}
+	const membersByEntityQuery = `
+	SELECT e.entity_id, e.entity_name, e.entity_type,
+	       e.relative_path, coalesce(e.language, ''), f.token_count,
+	       e.start_line, e.end_line
+	FROM code_function_fingerprint f
+	JOIN content_entities e ON e.entity_id = f.entity_id AND e.repo_id = f.repo_id
+	WHERE f.repo_id = $1 AND f.entity_id = ANY($2)
+	ORDER BY e.entity_id
+`
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", "divergence_members_by_entity"),
+			attribute.String("db.sql.table", "code_function_fingerprint,content_entities"),
+		),
+	)
+	defer span.End()
+
+	rows, err := cr.db.QueryContext(ctx, membersByEntityQuery, repoID, pgarray.Array(entityIDs))
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("divergence members by entity: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	byID := make(map[string]codedivergence.Member, len(entityIDs))
+	for rows.Next() {
+		var member codedivergence.Member
+		if err := rows.Scan(
+			&member.EntityID,
+			&member.EntityName,
+			&member.EntityType,
+			&member.RelativePath,
+			&member.Language,
+			&member.TokenCount,
+			&member.StartLine,
+			&member.EndLine,
+		); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan divergence member by entity: %w", err)
+		}
+		byID[member.EntityID] = member
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	return byID, nil
+}
+
 // DriftedFindingStats returns one stat per active drifted finding in the
 // repo for the merged cross-kind page: the writer finding id as fingerprint
 // with the pair token max, ranked on the same members x tokens currency as

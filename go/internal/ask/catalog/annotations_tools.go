@@ -15,6 +15,7 @@ func askToolAnnotations() map[string]Annotation {
 		"build_evidence_citation_packet":                  {Backend: BackendPostgres, Cost: CostModerate},
 		"calculate_cyclomatic_complexity":                 {Backend: BackendNornicDB, Cost: CostHigh},
 		"check_documentation_evidence_packet_freshness":   {Backend: BackendPostgres, Cost: CostLow},
+		"compare_code_paths":                              {Backend: BackendNornicDB, Cost: CostHigh},
 		"compare_environments":                            {Backend: BackendBoth, Cost: CostHigh},
 		"compose_replatforming_plan":                      {Backend: BackendPostgres, Cost: CostModerate},
 		"count_ci_cd_run_correlations":                    {Backend: BackendPostgres, Cost: CostLow},

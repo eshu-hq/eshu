@@ -3,7 +3,10 @@
 
 // Package codedivergence assembles code-divergence findings from fingerprint
 // equality groups: parallel_implementation.exact (identical token streams)
-// and parallel_implementation.renamed (identical alpha-renamed streams).
+// and parallel_implementation.renamed (identical alpha-renamed streams),
+// plus parallel_implementation.wrapper_bypass (one thin wrapper fronting a
+// target with cross-package direct callers, qualified over one-hop graph
+// rows and carrying weakest-edge confidence).
 //
 // A finding's score is members × token count, decomposed without remainder
 // into reasons[]: one identical/renamed-stream reason plus one additional-copy

@@ -140,6 +140,9 @@ source_coverage:
   - file: codequery/transitive_walk.go
     calls:
       - {symbol: "(*CodeHandler).nornicDBTransitiveOneHopRows", count: 2, non_hot: {class: degree_bounded, source_sha256: 79be400046fa15ea5feb891b6bfa334e23f61b90e34d411a3e924d7f120c37c6, key_bound: single_key, max_degree: 8}}
+  - file: codequery/wrapper_bypass_read.go
+    calls:
+      - {symbol: "(*CodeHandler).runWrapperGraphRows", count: 1, non_hot: {class: keyed_support, source_sha256: 7bdc047dd853a207ad7da8283b15ff3c51cb038564ddd6c3b006e4eb52ff57dc, key_bound: bounded_key_batch, max_keys: 50, max_results: 400}} # 400 = 50 keys x corpus CALLS degree 8; audit bound, not a statement LIMIT (reads stay LIMIT-free by accuracy design)
   - file: codequery/relationships/nornicdb.go
     calls:
       - {symbol: "OneHopRelationships", count: 1, non_hot: {class: keyed_support, source_sha256: 3c12b7ba1b897dad19df62db8fb485dace01e38a35613e0110df8c58238749f8, key_bound: single_key, max_results: 501}}

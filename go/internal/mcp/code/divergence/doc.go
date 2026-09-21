@@ -20,7 +20,7 @@
 // down to 100, so the dispatcher's default is indistinguishable from an
 // omitted limit. A negative offset rejects with HTTP 400, as does anything
 // above 10000. kind travels
-// blank for the both-kinds read; investigate_code_divergence requires an
+// blank for the all-families read; investigate_code_divergence requires an
 // explicit exact or renamed kind because a fingerprint is only unique
 // within its equality family.
 //

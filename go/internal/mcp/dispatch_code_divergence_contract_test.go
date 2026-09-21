@@ -140,7 +140,7 @@ func TestCodeDivergenceDispatchKeepsEveryBodyKey(t *testing.T) {
 	// The defaults reach the handler unchanged when the caller sends
 	// nothing: limit 25 matches the handler's own substitute for a
 	// nonpositive limit, offset 0 is the first page, kind travels blank
-	// for the both-kinds read, and include_tests travels false so test
+	// for the all-families read, and include_tests travels false so test
 	// files suppress by default.
 	empty, err := resolveRoute("find_code_divergence", map[string]any{"repo_id": "repo-1"})
 	if err != nil {

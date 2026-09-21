@@ -200,6 +200,7 @@ coverage:
   # verbs stay pinned to evidence/source-tool narrowed rc-* rows in the snapshot
   # rather than a bare edge count.
   - {surface: "capability:call_graph.call_chain_path", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
+  - {surface: "capability:call_graph.compare_code_paths", scenario: api_mcp_golden, scenario_type: baseline, ref: "compare_code_paths", proof_gate: golden-corpus-gate}
   - {surface: "capability:call_graph.direct_callees", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
   - {surface: "capability:call_graph.direct_callers", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
   - {surface: "capability:call_graph.metrics", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}

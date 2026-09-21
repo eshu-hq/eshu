@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestToolsReturnsEightDefinitionsInRegistrationOrder(t *testing.T) {
+func TestToolsReturnsNineDefinitionsInRegistrationOrder(t *testing.T) {
 	t.Parallel()
 
 	tools := Tools()
@@ -21,6 +21,7 @@ func TestToolsReturnsEightDefinitionsInRegistrationOrder(t *testing.T) {
 		"investigate_code_topic",
 		"execute_language_query",
 		"find_function_call_chain",
+		"compare_code_paths",
 	}
 	if len(tools) != len(want) {
 		t.Fatalf("len(Tools()) = %d, want %d", len(tools), len(want))

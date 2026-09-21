@@ -10,7 +10,8 @@ import (
 // Tools returns the two MCP code-divergence tool definitions: the
 // repo-scoped parallel-implementation findings report and the single-finding
 // investigation with bounded follow-up calls. Both accept the drifted family
-// alongside exact and renamed.
+// alongside exact and renamed, plus the graph-qualified wrapper_bypass
+// family.
 func Tools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		findCodeDivergenceTool(),
@@ -21,7 +22,7 @@ func Tools() []toolcontract.ToolDefinition {
 func findCodeDivergenceTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "find_code_divergence",
-		Description: "Find parallel implementations in one repository: functions with identical token streams (exact), identical streams up to renaming (renamed), or reducer-verified near-duplicate pairs (drifted), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		Description: "Find parallel implementations in one repository: functions with identical token streams (exact), identical streams up to renaming (renamed), reducer-verified near-duplicate pairs (drifted), or targets fronted by a canonical wrapper with cross-package direct callers (wrapper_bypass), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -31,8 +32,8 @@ func findCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"kind": map[string]any{
 					"type":        "string",
-					"description": "Family: exact, renamed, drifted, or blank for all three",
-					"enum":        []string{"", "exact", "renamed", "drifted"},
+					"description": "Family: exact, renamed, drifted, wrapper_bypass, or blank for all four",
+					"enum":        []string{"", "exact", "renamed", "drifted", "wrapper_bypass"},
 				},
 				"limit": map[string]any{
 					"type":        "integer",
@@ -72,8 +73,8 @@ func investigateCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"kind": map[string]any{
 					"type":        "string",
-					"description": "Family the fingerprint belongs to; accepts the short (exact, renamed, drifted) and qualified (parallel_implementation.*) spellings",
-					"enum":        []string{"exact", "renamed", "drifted", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted"},
+					"description": "Family the fingerprint belongs to; accepts the short (exact, renamed, drifted, wrapper_bypass) and qualified (parallel_implementation.*) spellings; wrapper_bypass fingerprints carry the target entity id",
+					"enum":        []string{"exact", "renamed", "drifted", "wrapper_bypass", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted", "parallel_implementation.wrapper_bypass"},
 				},
 				"fingerprint": map[string]any{
 					"type":        "string",
