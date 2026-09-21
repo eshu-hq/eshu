@@ -85,6 +85,10 @@ test_ifa_reclaim_count_is_domain_agnostic() (
 		|| fail "re-claim count query is not scoped to the reducer stage: ${seen}"
 	[[ "${seen}" == *"attempt_count > 1"* ]] \
 		|| fail "re-claim count query does not count rows claimed more than once: ${seen}"
-	[[ "${seen}" != *"domain ="* ]] \
+	# Match the bare word, not "domain =". The spaced form let a no-space
+	# `domain='x'` filter through, which is the same silent-zero regression
+	# this case exists to catch. Safe to match bare: the query contains no
+	# "domain" substring at all.
+	[[ "${seen}" != *"domain"* ]] \
 		|| fail "re-claim count query filters on a single domain, but cell 3 expires the lease across every domain: ${seen}"
 )
