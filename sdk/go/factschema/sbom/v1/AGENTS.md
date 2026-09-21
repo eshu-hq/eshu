@@ -36,8 +36,8 @@ remain independent from Eshu internals.
 - **No struct here carries an Attributes pass-through.** Unlike
   `awsv1.Resource`/`gcpv1.Resource`, no sbom/attestation kind is a
   polymorphic multi-shape envelope — each kind has one fixed field set on
-  both collector paths (`go/internal/collector/sbomdocument`,
-  `go/internal/collector/sbomruntime`). Do not add one without discussing
+  both collector paths (`go/internal/collector/sbom/document`,
+  `go/internal/collector/sbom/runtime`). Do not add one without discussing
   scope first.
 - **`Warning` has ZERO required fields on purpose.** Two distinct collector
   paths emit `sbom.warning` with two distinct, mutually-exclusive identity

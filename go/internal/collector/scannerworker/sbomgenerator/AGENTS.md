@@ -1,7 +1,7 @@
 # sbomgenerator Agent Notes
 
 - This package is a scanner-worker analyzer, not a replacement for the
-  hosted `sbom-attestation` collector (`internal/collector/sbomruntime`).
+  hosted `sbom-attestation` collector (`internal/collector/sbom/runtime`).
   Do not let the two paths diverge: existing CycloneDX/SPDX/in-toto
   documents stay with the collector; generated SBOMs from a repository,
   image, or artifact target stay here.

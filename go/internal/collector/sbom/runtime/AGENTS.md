@@ -3,7 +3,7 @@
 ## Read First
 
 1. `README.md` for the collector/runtime boundary.
-2. `go/internal/collector/sbomdocument/README.md` for SBOM parser contracts.
+2. `go/internal/collector/sbom/document/README.md` for SBOM parser contracts.
 3. `go/internal/collector/ociregistry/README.md` before changing OCI referrer
    fetch behavior.
 4. `go/internal/reducer/sbomattest/sbom_attestation_attachment_index.go` before changing

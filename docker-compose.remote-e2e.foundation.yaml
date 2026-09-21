@@ -64,7 +64,7 @@ services:
     image: python:3.13-alpine
     restart: on-failure
     volumes:
-      - ./go/internal/collector/sbomdocument/testdata:/fixtures:ro
+      - ./go/internal/collector/sbom/document/testdata:/fixtures:ro
     command: ["python", "-m", "http.server", "8080", "--directory", "/fixtures"]
     healthcheck:
       test:

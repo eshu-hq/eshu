@@ -186,7 +186,7 @@ BenchmarkSCIPLanguageSubtreeWorkers/workers_4-12                 	      19	   63
 BenchmarkSCIPLanguageSubtreeWorkers/workers_4-12                 	      19	   6357978 ns/op	    8668 B/op	      92 allocs/op
 goos: darwin
 goarch: arm64
-pkg: github.com/eshu-hq/eshu/go/internal/collector/sbomdocument
+pkg: github.com/eshu-hq/eshu/go/internal/collector/sbom/document
 cpu: Apple M4 Pro
 BenchmarkCycloneDXFixtureEnvelopes-12    	    1484	     70525 ns/op	  109162 B/op	    1240 allocs/op
 BenchmarkCycloneDXFixtureEnvelopes-12    	    1680	     69583 ns/op	  108962 B/op	    1239 allocs/op

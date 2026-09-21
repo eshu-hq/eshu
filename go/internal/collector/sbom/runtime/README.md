@@ -10,7 +10,7 @@ typed `sbom.*` or `attestation.*` fact envelopes.
 - OCI registry collection discovers `oci_registry.image_referrer` descriptors.
 - This runtime fetches configured document URLs or the blob behind an OCI
   referrer artifact manifest.
-- `sbomdocument` parses CycloneDX and SPDX JSON SBOM bodies.
+- `sbom/document` parses CycloneDX and SPDX JSON SBOM bodies.
 - This runtime parses in-toto statement metadata and emits
   `attestation.statement` plus optional separate
   `attestation.signature_verification` facts.
@@ -34,7 +34,7 @@ flowchart LR
   A["workflow.WorkItem\nsbom_attestation"] --> B["ClaimedSource.NextClaimed"]
   B --> C["DocumentProvider.FetchDocument"]
   C --> D{"artifact_kind"}
-  D -- "sbom" --> E["sbomdocument parser"]
+  D -- "sbom" --> E["document parser"]
   D -- "attestation" --> F["in-toto statement envelope"]
   E --> G["collector.FactsFromSlice"]
   F --> G

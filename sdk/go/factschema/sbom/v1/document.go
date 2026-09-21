@@ -8,8 +8,8 @@ package v1
 // scanned artifact.
 //
 // DocumentID is the only required field: every collector document envelope
-// (sbomdocument.cycloneDXDocumentEnvelope, sbomdocument.spdxDocumentEnvelope,
-// sbomruntime's attestation-adjacent runtime path) always sets it, and it is
+// (document.cycloneDXDocumentEnvelope, document.spdxDocumentEnvelope,
+// runtime's attestation-adjacent runtime path) always sets it, and it is
 // the reducer's own join/index key (buildSBOMAttachmentIndex keys
 // index.documents by DocumentID). A collector regression that drops the key
 // now dead-letters as input_invalid instead of the document silently
@@ -104,7 +104,7 @@ type Document struct {
 // fact kind: one component (package/library) an SBOM document declares.
 //
 // DocumentID is the only required field: every collector component envelope
-// (sbomdocument.cycloneDXComponentEnvelope, sbomdocument.spdxComponentEnvelope)
+// (document.cycloneDXComponentEnvelope, document.spdxComponentEnvelope)
 // always sets it, and it is the reducer's join key back to the owning
 // Document (index.components keyed by DocumentID) AND the supply-chain
 // impact index's join key
@@ -239,7 +239,7 @@ type Component struct {
 // is required to keep the same join-key discipline as every other kind in
 // this family should a future consumer join dependency edges back to their
 // document; every other field mirrors the collector emitter
-// (sbomdocument.dependencyFact) verbatim.
+// (document.dependencyFact) verbatim.
 type DependencyRelationship struct {
 	// DocumentID is the owning SBOM document's identifier. Required.
 	DocumentID string `json:"document_id"`
@@ -266,7 +266,7 @@ type DependencyRelationship struct {
 // This kind is TYPED-BUT-NOT-YET-CONSUMED, mirroring DependencyRelationship:
 // no reducer or storage read path decodes it today. DocumentID is required
 // for the same join-key discipline; every other field mirrors the collector
-// emitter (sbomdocument.externalReferenceFact) verbatim.
+// emitter (document.externalReferenceFact) verbatim.
 type ExternalReference struct {
 	// DocumentID is the owning SBOM document's identifier. Required.
 	DocumentID string `json:"document_id"`
@@ -294,8 +294,8 @@ type ExternalReference struct {
 // Every field is OPTIONAL, including DocumentID and StatementID, because two
 // distinct collector paths emit this one fact kind with two distinct,
 // mutually-exclusive identity keys: the SBOM document collector
-// (sbomdocument.warningFact) always sets DocumentID and never StatementID,
-// while the attestation runtime collector (sbomruntime.attestationWarningEnvelope)
+// (document.warningFact) always sets DocumentID and never StatementID,
+// while the attestation runtime collector (runtime.attestationWarningEnvelope)
 // always sets StatementID and never DocumentID. Neither key is present on
 // every sbom.warning fact, so neither can be required without dead-lettering
 // half of this kind's real traffic. The reducer's own read side already
