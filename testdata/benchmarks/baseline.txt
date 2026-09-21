@@ -1,964 +1,578 @@
-goos: darwin
-goarch: arm64
-pkg: github.com/eshu-hq/eshu/go/cmd/eshu
-cpu: Apple M4 Pro
-BenchmarkAssistantHookPreflightEvaluate/advisory_repo_path-12         	  581310	       191.2 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/advisory_repo_path-12         	  656335	       188.7 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/advisory_repo_path-12         	  672927	       185.9 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/advisory_repo_path-12         	  683110	       184.6 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/advisory_repo_path-12         	  683727	       186.3 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/advisory_repo_path-12         	  677838	       186.9 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/stale_service-12              	  704758	       173.9 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/stale_service-12              	  713152	       173.2 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/stale_service-12              	  651510	       175.1 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/stale_service-12              	  730704	       173.4 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/stale_service-12              	  685060	       172.6 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/stale_service-12              	  729926	       173.9 ns/op	     416 B/op	       4 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/timeout_fail_open-12          	 2334211	        51.13 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/timeout_fail_open-12          	 2379495	        50.77 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/timeout_fail_open-12          	 2351815	        51.06 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/timeout_fail_open-12          	 2376142	        50.66 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/timeout_fail_open-12          	 2288877	        52.50 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/timeout_fail_open-12          	 2289352	        51.50 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/unsupported_host-12           	 2280658	        52.69 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/unsupported_host-12           	 2381601	        49.93 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/unsupported_host-12           	 2269789	        52.71 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/unsupported_host-12           	 2365712	        50.42 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/unsupported_host-12           	 2288085	        52.53 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/unsupported_host-12           	 2382562	        50.51 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/broad_scope-12                	 1743958	        68.30 ns/op	      32 B/op	       1 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/broad_scope-12                	 1718930	        70.69 ns/op	      32 B/op	       1 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/broad_scope-12                	 1700148	        68.97 ns/op	      32 B/op	       1 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/broad_scope-12                	 1760166	        67.86 ns/op	      32 B/op	       1 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/broad_scope-12                	 1758342	        67.90 ns/op	      32 B/op	       1 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/broad_scope-12                	 1765356	        67.62 ns/op	      32 B/op	       1 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/permission_denied-12          	 2495967	        48.02 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/permission_denied-12          	 2520465	        47.63 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/permission_denied-12          	 2536635	        49.44 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/permission_denied-12          	 2446498	        48.52 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/permission_denied-12          	 2485648	        48.28 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightEvaluate/permission_denied-12          	 2488555	        47.25 ns/op	       0 B/op	       0 allocs/op
-BenchmarkAssistantHookPreflightCommand/advisory_json-12               	   13059	      9007 ns/op	   13708 B/op	     127 allocs/op
-BenchmarkAssistantHookPreflightCommand/advisory_json-12               	   13200	      9117 ns/op	   13711 B/op	     127 allocs/op
-BenchmarkAssistantHookPreflightCommand/advisory_json-12               	   13198	      9097 ns/op	   13710 B/op	     127 allocs/op
-BenchmarkAssistantHookPreflightCommand/advisory_json-12               	   13231	      9261 ns/op	   13711 B/op	     127 allocs/op
-BenchmarkAssistantHookPreflightCommand/advisory_json-12               	   13183	      9067 ns/op	   13709 B/op	     127 allocs/op
-BenchmarkAssistantHookPreflightCommand/advisory_json-12               	   13258	      9063 ns/op	   13711 B/op	     127 allocs/op
-BenchmarkAssistantHookPreflightCommand/malformed_payload_fail_open-12 	   21784	      5449 ns/op	   10676 B/op	      95 allocs/op
-BenchmarkAssistantHookPreflightCommand/malformed_payload_fail_open-12 	   22280	      5450 ns/op	   10676 B/op	      95 allocs/op
-BenchmarkAssistantHookPreflightCommand/malformed_payload_fail_open-12 	   22000	      5396 ns/op	   10676 B/op	      95 allocs/op
-BenchmarkAssistantHookPreflightCommand/malformed_payload_fail_open-12 	   22431	      5464 ns/op	   10676 B/op	      95 allocs/op
-BenchmarkAssistantHookPreflightCommand/malformed_payload_fail_open-12 	   21649	      5450 ns/op	   10676 B/op	      95 allocs/op
-BenchmarkAssistantHookPreflightCommand/malformed_payload_fail_open-12 	   22158	      5372 ns/op	   10676 B/op	      95 allocs/op
-BenchmarkDocsVerifyTerraformAddressTruthLargeTree-12                  	      22	   4806093 ns/op	 3665323 B/op	   27845 allocs/op
-BenchmarkDocsVerifyTerraformAddressTruthLargeTree-12                  	      21	   5014401 ns/op	 3665300 B/op	   27845 allocs/op
-BenchmarkDocsVerifyTerraformAddressTruthLargeTree-12                  	      22	   4884794 ns/op	 3665298 B/op	   27845 allocs/op
-BenchmarkDocsVerifyTerraformAddressTruthLargeTree-12                  	      24	   4748720 ns/op	 3665289 B/op	   27845 allocs/op
-BenchmarkDocsVerifyTerraformAddressTruthLargeTree-12                  	      25	   4744878 ns/op	 3665308 B/op	   27845 allocs/op
-BenchmarkDocsVerifyTerraformAddressTruthLargeTree-12                  	      25	   4755123 ns/op	 3665258 B/op	   27845 allocs/op
-goos: darwin
-goarch: arm64
-pkg: github.com/eshu-hq/eshu/go/cmd/ingester
-cpu: Apple M4 Pro
-BenchmarkReducerAdmissionDisabled-12                 	38178284	         2.842 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDisabled-12                 	42972246	         2.832 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDisabled-12                 	41332988	         2.840 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDisabled-12                 	41884216	         2.837 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDisabled-12                 	42129283	         2.824 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDisabled-12                 	42124358	         2.837 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionBelowHighWater-12           	 3783961	        32.52 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionBelowHighWater-12           	 3832946	        31.35 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionBelowHighWater-12           	 3798694	        32.01 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionBelowHighWater-12           	 3825172	        31.89 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionBelowHighWater-12           	 3831865	        31.92 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionBelowHighWater-12           	 3840870	        31.60 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDefaultBelowHighWater-12    	 3546156	        31.28 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDefaultBelowHighWater-12    	 3841915	        31.21 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDefaultBelowHighWater-12    	 3774697	        31.48 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDefaultBelowHighWater-12    	 3795691	        31.50 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDefaultBelowHighWater-12    	 3867625	        31.13 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionDefaultBelowHighWater-12    	 3786896	        31.38 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionOneDeferral-12              	 1825557	        66.53 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionOneDeferral-12              	 1789759	        65.50 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionOneDeferral-12              	 1824967	        66.37 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionOneDeferral-12              	 1805378	        66.60 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionOneDeferral-12              	 1818732	        66.24 ns/op	       0 B/op	       0 allocs/op
-BenchmarkReducerAdmissionOneDeferral-12              	 1793089	        66.19 ns/op	       0 B/op	       0 allocs/op
-goos: darwin
-goarch: arm64
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/answerguardrail
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkUnsafeStringPasswordGateOpen-4           	   31863	      5319 ns/op	     338 B/op	       3 allocs/op
+BenchmarkUnsafeStringPasswordRunTogetherScale/4096B-4         	     522	    278764 ns/op	  14.69 MB/s	   41021 B/op	     518 allocs/op
+BenchmarkUnsafeStringPasswordRunTogetherScale/32768B-4        	      39	   4007341 ns/op	   8.18 MB/s	  355382 B/op	    4108 allocs/op
+BenchmarkUnsafeStringPasswordRunTogetherScale/131072B-4       	       7	  19277052 ns/op	   6.80 MB/s	 1502764 B/op	   16402 allocs/op
+BenchmarkUnsafeStringHonestCorpus-4                           	    6231	     21642 ns/op	     219 B/op	       4 allocs/op
+BenchmarkUnsafeStringRejection-4                              	   21692	      5330 ns/op	      80 B/op	       1 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/cli/docs
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkTerraformAddressTruthLargeTree-4   	       8	  13002824 ns/op	 3630041 B/op	   27844 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/cli/hookpreflight
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkAssistantHookPreflightEvaluate/advisory_repo_path-4         	  158395	       721.7 ns/op	     416 B/op	       4 allocs/op
+BenchmarkAssistantHookPreflightEvaluate/stale_service-4              	  200096	       931.2 ns/op	     416 B/op	       4 allocs/op
+BenchmarkAssistantHookPreflightEvaluate/timeout_fail_open-4          	  891439	       138.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAssistantHookPreflightEvaluate/unsupported_host-4           	  942664	       166.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkAssistantHookPreflightEvaluate/broad_scope-4                	  567982	       351.5 ns/op	      32 B/op	       1 allocs/op
+BenchmarkAssistantHookPreflightEvaluate/permission_denied-4          	  790970	       178.2 ns/op	       0 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/collector
-cpu: Apple M4 Pro
-BenchmarkCollectorGitignoreLiteralPatternMatch-12                	  125280	       908.8 ns/op	      96 B/op	       1 allocs/op
-BenchmarkCollectorGitignoreLiteralPatternMatch-12                	  146480	       808.1 ns/op	      96 B/op	       1 allocs/op
-BenchmarkCollectorGitignoreLiteralPatternMatch-12                	  164452	       751.0 ns/op	      96 B/op	       1 allocs/op
-BenchmarkCollectorGitignoreLiteralPatternMatch-12                	  168171	       757.9 ns/op	      96 B/op	       1 allocs/op
-BenchmarkCollectorGitignoreLiteralPatternMatch-12                	  146870	       764.2 ns/op	      96 B/op	       1 allocs/op
-BenchmarkCollectorGitignoreLiteralPatternMatch-12                	  168678	       777.7 ns/op	      96 B/op	       1 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_1-12    	    1510	     78546 ns/op	         0 repos_spread	  125448 B/op	    1752 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_1-12    	    1515	     79086 ns/op	         0 repos_spread	  125448 B/op	    1752 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_1-12    	    1512	     79017 ns/op	         0 repos_spread	  125446 B/op	    1752 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_1-12    	    1516	     79147 ns/op	         0 repos_spread	  125444 B/op	    1752 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_1-12    	    1552	     78788 ns/op	         0 repos_spread	  125446 B/op	    1752 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_1-12    	    1521	     79373 ns/op	         0 repos_spread	  125447 B/op	    1752 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_4-12    	     520	    227876 ns/op	         0 repos_spread	  125470 B/op	    1755 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_4-12    	     516	    227807 ns/op	         0 repos_spread	  125465 B/op	    1755 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_4-12    	     520	    245129 ns/op	         0 repos_spread	  125473 B/op	    1755 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_4-12    	     486	    259561 ns/op	         0 repos_spread	  125475 B/op	    1755 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_4-12    	     476	    236465 ns/op	         0 repos_spread	  125468 B/op	    1755 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_4-12    	     512	    237769 ns/op	         0 repos_spread	  125471 B/op	    1755 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_8-12    	     321	    362653 ns/op	         2.000 repos_spread	  125499 B/op	    1759 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_8-12    	     331	    369037 ns/op	         2.000 repos_spread	  125501 B/op	    1759 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_8-12    	     333	    361111 ns/op	         2.000 repos_spread	  125506 B/op	    1759 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_8-12    	     333	    359139 ns/op	         2.000 repos_spread	  125497 B/op	    1759 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_8-12    	     334	    369496 ns/op	         2.000 repos_spread	  125508 B/op	    1759 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_1000/shards_8-12    	     328	    366080 ns/op	         2.000 repos_spread	  125501 B/op	    1759 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_1-12   	     148	    796223 ns/op	         0 repos_spread	 1163474 B/op	   19781 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_1-12   	     150	    796966 ns/op	         0 repos_spread	 1163475 B/op	   19781 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_1-12   	     151	    795001 ns/op	         0 repos_spread	 1163481 B/op	   19781 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_1-12   	     151	    796524 ns/op	         0 repos_spread	 1163463 B/op	   19781 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_1-12   	     151	    785803 ns/op	         0 repos_spread	 1163481 B/op	   19781 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_1-12   	     152	    797053 ns/op	         0 repos_spread	 1163465 B/op	   19781 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_4-12   	      51	   2355632 ns/op	         0 repos_spread	 1163487 B/op	   19784 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_4-12   	      51	   2351355 ns/op	         0 repos_spread	 1163466 B/op	   19784 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_4-12   	      51	   2338250 ns/op	         0 repos_spread	 1163500 B/op	   19784 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_4-12   	      54	   2342940 ns/op	         0 repos_spread	 1163503 B/op	   19784 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_4-12   	      54	   2341431 ns/op	         0 repos_spread	 1163497 B/op	   19784 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_4-12   	      54	   2326231 ns/op	         0 repos_spread	 1163477 B/op	   19784 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_8-12   	      33	   3632727 ns/op	         2.000 repos_spread	 1163570 B/op	   19788 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_8-12   	      33	   3691442 ns/op	         2.000 repos_spread	 1163556 B/op	   19788 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_8-12   	      31	   3686086 ns/op	         2.000 repos_spread	 1163547 B/op	   19788 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_8-12   	      33	   3685372 ns/op	         2.000 repos_spread	 1163558 B/op	   19788 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_8-12   	      32	   3702630 ns/op	         2.000 repos_spread	 1163507 B/op	   19788 allocs/op
-BenchmarkRepositoryShardSelectionScale/repos_10000/shards_8-12   	      33	   3693628 ns/op	         2.000 repos_spread	 1163534 B/op	   19788 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_1-12   	       1	 370990500 ns/op	         0.3710 max_shard_seconds	      4000 parsed_files	      5391 repos_per_parallel_second	         0 repos_spread	119383072 B/op	 2592952 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_1-12   	       1	 400847083 ns/op	         0.4008 max_shard_seconds	      4000 parsed_files	      4990 repos_per_parallel_second	         0 repos_spread	119459480 B/op	 2592696 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_1-12   	       1	 366773292 ns/op	         0.3668 max_shard_seconds	      4000 parsed_files	      5453 repos_per_parallel_second	         0 repos_spread	120063200 B/op	 2592741 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_1-12   	       1	 370851541 ns/op	         0.3708 max_shard_seconds	      4000 parsed_files	      5393 repos_per_parallel_second	         0 repos_spread	119703728 B/op	 2592632 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_1-12   	       1	 365161208 ns/op	         0.3651 max_shard_seconds	      4000 parsed_files	      5477 repos_per_parallel_second	         0 repos_spread	119839472 B/op	 2592711 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_1-12   	       1	 368821000 ns/op	         0.3688 max_shard_seconds	      4000 parsed_files	      5423 repos_per_parallel_second	         0 repos_spread	119664712 B/op	 2592637 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_4-12   	       1	 372039792 ns/op	         0.09402 max_shard_seconds	      4000 parsed_files	     21272 repos_per_parallel_second	         0 repos_spread	118831848 B/op	 2592541 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_4-12   	       1	 522456084 ns/op	         0.2298 max_shard_seconds	      4000 parsed_files	      8702 repos_per_parallel_second	         0 repos_spread	119790088 B/op	 2592696 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_4-12   	       1	 366769625 ns/op	         0.09175 max_shard_seconds	      4000 parsed_files	     21797 repos_per_parallel_second	         0 repos_spread	119179136 B/op	 2592570 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_4-12   	       1	 370937625 ns/op	         0.09319 max_shard_seconds	      4000 parsed_files	     21461 repos_per_parallel_second	         0 repos_spread	119219416 B/op	 2592577 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_4-12   	       1	 367374667 ns/op	         0.09285 max_shard_seconds	      4000 parsed_files	     21540 repos_per_parallel_second	         0 repos_spread	119890864 B/op	 2592671 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_4-12   	       1	 371846375 ns/op	         0.09476 max_shard_seconds	      4000 parsed_files	     21107 repos_per_parallel_second	         0 repos_spread	119670576 B/op	 2592663 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_8-12   	       1	 366749083 ns/op	         0.04663 max_shard_seconds	      4000 parsed_files	     42890 repos_per_parallel_second	         2.000 repos_spread	118811288 B/op	 2592522 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_8-12   	       1	 416724291 ns/op	         0.05689 max_shard_seconds	      4000 parsed_files	     35154 repos_per_parallel_second	         2.000 repos_spread	120533632 B/op	 2592811 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_8-12   	       1	 368076291 ns/op	         0.04667 max_shard_seconds	      4000 parsed_files	     42854 repos_per_parallel_second	         2.000 repos_spread	118917424 B/op	 2592521 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_8-12   	       1	 380570292 ns/op	         0.04944 max_shard_seconds	      4000 parsed_files	     40455 repos_per_parallel_second	         2.000 repos_spread	120410544 B/op	 2592753 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_8-12   	       1	 403561375 ns/op	         0.05241 max_shard_seconds	      4000 parsed_files	     38162 repos_per_parallel_second	         2.000 repos_spread	120269672 B/op	 2592764 allocs/op
-BenchmarkRepositoryShardParseThroughput/repos_2000/shards_8-12   	       1	 374218375 ns/op	         0.04904 max_shard_seconds	      4000 parsed_files	     40783 repos_per_parallel_second	         2.000 repos_spread	119668752 B/op	 2592650 allocs/op
-BenchmarkNativeRepositorySnapshotterFullFixture-12               	       1	 106876250 ns/op	27276448 B/op	  594415 allocs/op
-BenchmarkNativeRepositorySnapshotterFullFixture-12               	       1	 106360792 ns/op	27083912 B/op	  594382 allocs/op
-BenchmarkNativeRepositorySnapshotterFullFixture-12               	       1	 106016583 ns/op	27082984 B/op	  594383 allocs/op
-BenchmarkNativeRepositorySnapshotterFullFixture-12               	       1	 106172417 ns/op	27153008 B/op	  594368 allocs/op
-BenchmarkNativeRepositorySnapshotterFullFixture-12               	       1	 106669250 ns/op	27229224 B/op	  594403 allocs/op
-BenchmarkNativeRepositorySnapshotterFullFixture-12               	       1	 106573333 ns/op	27188320 B/op	  594375 allocs/op
-BenchmarkNativeRepositorySnapshotterDeltaSingleFileFixture-12    	       4	  30303052 ns/op	 7285794 B/op	  175385 allocs/op
-BenchmarkNativeRepositorySnapshotterDeltaSingleFileFixture-12    	       4	  30271625 ns/op	 7275464 B/op	  175380 allocs/op
-BenchmarkNativeRepositorySnapshotterDeltaSingleFileFixture-12    	       4	  30162771 ns/op	 7292144 B/op	  175384 allocs/op
-BenchmarkNativeRepositorySnapshotterDeltaSingleFileFixture-12    	       4	  30142375 ns/op	 7276586 B/op	  175382 allocs/op
-BenchmarkNativeRepositorySnapshotterDeltaSingleFileFixture-12    	       4	  30267604 ns/op	 7293054 B/op	  175386 allocs/op
-BenchmarkNativeRepositorySnapshotterDeltaSingleFileFixture-12    	       4	  32886958 ns/op	 7283542 B/op	  175382 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_1-12              	       8	  12568818 ns/op	 2677742 B/op	   50608 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_1-12              	       9	  11733264 ns/op	 2660140 B/op	   50606 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_1-12              	       9	  11550056 ns/op	 2659947 B/op	   50606 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_1-12              	       9	  11555514 ns/op	 2668380 B/op	   50607 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_1-12              	       9	  11498208 ns/op	 2668410 B/op	   50607 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_1-12              	       9	  11650264 ns/op	 2664261 B/op	   50606 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_4-12              	      27	   5389503 ns/op	 2904666 B/op	   51106 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_4-12              	      22	   5339875 ns/op	 2929490 B/op	   51110 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_4-12              	      22	   5387634 ns/op	 2907545 B/op	   51107 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_4-12              	      20	   5340373 ns/op	 2909092 B/op	   51107 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_4-12              	      22	   5209742 ns/op	 2941194 B/op	   51111 allocs/op
-BenchmarkPartitionedParseLargeMonorepo/workers_4-12              	      22	   5276600 ns/op	 2921049 B/op	   51109 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_1-12                 	       5	  23542208 ns/op	    7190 B/op	      80 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_1-12                 	       5	  23983533 ns/op	    7187 B/op	      80 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_1-12                 	       5	  23925733 ns/op	    7193 B/op	      80 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_1-12                 	       5	  24185800 ns/op	    7180 B/op	      80 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_1-12                 	       5	  24259658 ns/op	    7190 B/op	      80 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_1-12                 	       4	  25000250 ns/op	    7208 B/op	      80 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_4-12                 	      19	   6389432 ns/op	    8671 B/op	      92 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_4-12                 	      19	   6353511 ns/op	    8667 B/op	      92 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_4-12                 	      19	   6465943 ns/op	    8669 B/op	      92 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_4-12                 	      18	   6427350 ns/op	    8663 B/op	      92 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_4-12                 	      19	   6365910 ns/op	    8670 B/op	      92 allocs/op
-BenchmarkSCIPLanguageSubtreeWorkers/workers_4-12                 	      19	   6357978 ns/op	    8668 B/op	      92 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkEmit/git-4         	   10000	     23932 ns/op	         3.000 facts	    7322 B/op	      80 allocs/op
+BenchmarkEmit/aws-4         	     924	    237054 ns/op	        22.00 facts	   53194 B/op	     573 allocs/op
+BenchmarkEmit/azure-4       	    7030	     15857 ns/op	         2.000 facts	    5099 B/op	      55 allocs/op
+BenchmarkEmit/gcp-4         	     100	   2523448 ns/op	       234.0 facts	  566637 B/op	    5857 allocs/op
+BenchmarkEmit/terraform_state-4         	     908	    122550 ns/op	        16.00 facts	   39016 B/op	     411 allocs/op
+BenchmarkEmit/documentation-4           	    8607	     23189 ns/op	         3.000 facts	    7403 B/op	      80 allocs/op
+BenchmarkEmit/oci_registry-4            	    2160	    125323 ns/op	        16.00 facts	   39537 B/op	     420 allocs/op
+BenchmarkEmit/package_registry-4        	    4056	     54764 ns/op	         7.000 facts	   17171 B/op	     183 allocs/op
+BenchmarkEmit/vulnerability_intelligence-4         	   10000	     26382 ns/op	         3.000 facts	    7386 B/op	      80 allocs/op
+BenchmarkEmit/sbom_attestation-4                   	    3507	     28799 ns/op	         3.000 facts	    7403 B/op	      80 allocs/op
+BenchmarkEmit/security_alert-4                     	   14067	      8147 ns/op	         1.000 facts	    2585 B/op	      30 allocs/op
+BenchmarkEmit/ci_cd_run-4                          	    4863	     21389 ns/op	         3.000 facts	    7371 B/op	      80 allocs/op
+BenchmarkEmit/pagerduty-4                          	    9702	     19198 ns/op	         2.000 facts	    4922 B/op	      55 allocs/op
+BenchmarkEmit/jira-4                               	   10000	     15866 ns/op	         2.000 facts	    4889 B/op	      55 allocs/op
+BenchmarkEmit/scanner_worker-4                     	   14948	      9621 ns/op	         1.000 facts	    2585 B/op	      30 allocs/op
+BenchmarkEmit/semantic_extraction-4                	   10000	     14218 ns/op	         2.000 facts	    4986 B/op	      55 allocs/op
+BenchmarkEmit/kubernetes_live-4                    	    1318	    102967 ns/op	        14.00 facts	   33713 B/op	     355 allocs/op
+BenchmarkEmit/vault_live-4                         	    8502	     39203 ns/op	         5.000 facts	   11901 B/op	     130 allocs/op
+BenchmarkEmit/prometheus_mimir-4                   	   10000	     14975 ns/op	         2.000 facts	    5067 B/op	      55 allocs/op
+BenchmarkEmit/tempo-4                              	   15508	      7257 ns/op	         2.000 facts	    4905 B/op	      55 allocs/op
+BenchmarkEmit/grafana-4                            	   15897	      7449 ns/op	         2.000 facts	    4905 B/op	      55 allocs/op
+BenchmarkEmit/loki-4                               	   20961	      7477 ns/op	         2.000 facts	    4906 B/op	      55 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkInstanceIdentityEnvelopesFleetScale-4   	       2	  81704524 ns/op	62025676 B/op	  845172 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/cicdrun
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkRepositoryID-4                     	   54812	      2079 ns/op	     536 B/op	      11 allocs/op
+BenchmarkGitHubActionsEnvelopesEndToEnd-4   	    1027	    101948 ns/op	   53428 B/op	     651 allocs/op
+BenchmarkGitLabCIEnvelopesEndToEnd-4        	    1732	     62270 ns/op	   39813 B/op	     491 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/cicdrun/ghactionsruntime
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkNextClaimedWithoutWatermarkStore-4        	     333	    405529 ns/op	  149429 B/op	    1888 allocs/op
+BenchmarkNextClaimedWithInMemoryWatermarkStore-4   	     440	    283860 ns/op	  149415 B/op	    1888 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/extensionhost
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkSourcePayloadSchemaValidation-4   	    1760	     74873 ns/op	   25696 B/op	     407 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/grafana
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkNewObservedRuleEnvelope-4   	   10000	     11699 ns/op	    7908 B/op	      99 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/kuberneteslive
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkCollectWorkloadsThreeKinds-4   	      61	   1914741 ns/op	 1717207 B/op	   22384 allocs/op
+BenchmarkCollectWorkloadsSevenKinds-4   	      25	   4504241 ns/op	 3870232 B/op	   52061 allocs/op
+BenchmarkMatchSelectorsSmallCluster-4   	       2	  91019830 ns/op	66393412 B/op	  960259 allocs/op
+BenchmarkMatchSelectorsLargeCluster-4   	       1	 866686692 ns/op	684508848 B/op	 9600425 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/ociregistry
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkNewManifestEnvelope-4   	   14930	      8018 ns/op	    7014 B/op	      95 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkClientListTagsSinglePage-4   	    1526	     73624 ns/op	    6395 B/op	      84 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/packageregistry
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkNewPackageVersionEnvelope-4   	   18734	      6369 ns/op	    6380 B/op	      90 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/collector/repo/git
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkNoteCodeownersCandidate-4                                          	  125859	       989.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCodeownersContentStreamHook/NoCodeowners-4                         	  129978	       968.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCodeownersContentStreamHook/WithCodeowners-4                       	    6787	     17613 ns/op	   10525 B/op	     186 allocs/op
+BenchmarkBuildStreamingGenerationRationaleFollowup/full-4                   	    1195	     89231 ns/op	  177075 B/op	     520 allocs/op
+BenchmarkBuildStreamingGenerationRationaleFollowup/delta-4                  	    2188	     51906 ns/op	  155316 B/op	     214 allocs/op
+BenchmarkRationaleMaterializationFactEnvelope-4                             	   44402	      2575 ns/op	    2313 B/op	      34 allocs/op
+BenchmarkManagedCopyDischargeSkippedDirectories/prior-map-scan-4            	       1	 737078632 ns/op	    100000 expected_paths	      1000 skipped_dirs	 8927760 B/op	  176417 allocs/op
+BenchmarkManagedCopyDischargeSkippedDirectories/sorted-prefix-4             	       5	  24356034 ns/op	    100000 expected_paths	      1000 skipped_dirs	 8926998 B/op	  176409 allocs/op
+BenchmarkCollectorGitignoreLiteralPatternMatch-4                            	  105292	      1174 ns/op	      96 B/op	       1 allocs/op
+BenchmarkRepositoryShardSelectionScale/repos_1000/shards_1-4                	     861	    177720 ns/op	         0 repos_spread	  125381 B/op	    1752 allocs/op
+BenchmarkRepositoryShardSelectionScale/repos_1000/shards_4-4                	     327	    406582 ns/op	         0 repos_spread	  125413 B/op	    1755 allocs/op
+BenchmarkRepositoryShardSelectionScale/repos_1000/shards_8-4                	     186	    647801 ns/op	         2.000 repos_spread	  125444 B/op	    1759 allocs/op
+BenchmarkRepositoryShardSelectionScale/repos_10000/shards_1-4               	      92	   1895834 ns/op	         0 repos_spread	 1162860 B/op	   19782 allocs/op
+BenchmarkRepositoryShardSelectionScale/repos_10000/shards_4-4               	      34	   4145616 ns/op	         0 repos_spread	 1162915 B/op	   19785 allocs/op
+BenchmarkRepositoryShardSelectionScale/repos_10000/shards_8-4               	      22	   6424403 ns/op	         2.000 repos_spread	 1162895 B/op	   19788 allocs/op
+BenchmarkRepositoryShardParseThroughput/repos_2000/shards_1-4               	       1	 574938203 ns/op	         0.5740 max_shard_seconds	      4000 parsed_files	      3484 repos_per_parallel_second	         0 repos_spread	87778296 B/op	 2000272 allocs/op
+BenchmarkRepositoryShardParseThroughput/repos_2000/shards_4-4               	       1	 496876557 ns/op	         0.1248 max_shard_seconds	      4000 parsed_files	     16020 repos_per_parallel_second	         0 repos_spread	87704944 B/op	 2000134 allocs/op
+BenchmarkRepositoryShardParseThroughput/repos_2000/shards_8-4               	       1	 487686929 ns/op	         0.06281 max_shard_seconds	      4000 parsed_files	     31843 repos_per_parallel_second	         2.000 repos_spread	87699928 B/op	 2000097 allocs/op
+BenchmarkFilesystemManagedCopyCommitAttribution/prior-full-managed-copy-4   	      81	   1523310 ns/op	   78571 B/op	     345 allocs/op
+BenchmarkFilesystemManagedCopyCommitAttribution/copy-bound-full-managed-copy-4         	      32	   7190984 ns/op	  205834 B/op	     503 allocs/op
+BenchmarkNativeRepositorySnapshotterFullFixture-4                                      	       1	 122507437 ns/op	24118936 B/op	  540405 allocs/op
+BenchmarkNativeRepositorySnapshotterDeltaSingleFileFixture-4                           	       3	  38604388 ns/op	 7268386 B/op	  177227 allocs/op
+BenchmarkNativeRepositorySnapshotterDeltaSingleFileWithWorkflowSnapshot/workflows_001-4         	       3	  38278360 ns/op	 7285840 B/op	  177295 allocs/op
+BenchmarkNativeRepositorySnapshotterDeltaSingleFileWithWorkflowSnapshot/workflows_005-4         	       3	  38805987 ns/op	 7304818 B/op	  177454 allocs/op
+BenchmarkNativeRepositorySnapshotterDeltaSingleFileWithWorkflowSnapshot/workflows_010-4         	       3	  38438859 ns/op	 7329864 B/op	  177644 allocs/op
+BenchmarkNativeRepositorySnapshotterDeltaSingleFileWithWorkflowSnapshot/workflows_100-4         	       3	  40836553 ns/op	 7745586 B/op	  180972 allocs/op
+BenchmarkNativeRepositoryDeltaGenerationWithWorkflowSnapshot/workflows_000-4                    	       3	  37170700 ns/op	 7409154 B/op	  178269 allocs/op
+BenchmarkNativeRepositoryDeltaGenerationWithWorkflowSnapshot/workflows_001-4                    	       3	  37166240 ns/op	 7440594 B/op	  178608 allocs/op
+BenchmarkNativeRepositoryDeltaGenerationWithWorkflowSnapshot/workflows_005-4                    	       3	  37722317 ns/op	 7540048 B/op	  179838 allocs/op
+BenchmarkNativeRepositoryDeltaGenerationWithWorkflowSnapshot/workflows_010-4                    	       3	  38518779 ns/op	 7687194 B/op	  181377 allocs/op
+BenchmarkNativeRepositoryDeltaGenerationWithWorkflowSnapshot/workflows_100-4                    	       3	  45582521 ns/op	10100338 B/op	  209034 allocs/op
+BenchmarkPartitionedParseLargeMonorepo/workers_1-4                                              	       9	  12573171 ns/op	 1978825 B/op	   40375 allocs/op
+BenchmarkPartitionedParseLargeMonorepo/workers_4-4                                              	      16	   6503352 ns/op	 2019641 B/op	   40658 allocs/op
+BenchmarkSCIPLanguageSubtreeWorkers/workers_1-4                                                 	       5	  20816901 ns/op	    4865 B/op	      76 allocs/op
+BenchmarkSCIPLanguageSubtreeWorkers/workers_4-4                                                 	      21	   5342764 ns/op	    6385 B/op	      88 allocs/op
+BenchmarkValueFlowLookupBuild/n=10-4                                                            	   47848	      2513 ns/op	    2256 B/op	      31 allocs/op
+BenchmarkValueFlowLookupBuild/n=100-4                                                           	    5048	     24299 ns/op	   20003 B/op	     218 allocs/op
+BenchmarkValueFlowLookupBuild/n=1000-4                                                          	     372	    299063 ns/op	  315743 B/op	    2931 allocs/op
+BenchmarkValueFlowLookupBuild/n=10000-4                                                         	      42	   2944436 ns/op	 2721751 B/op	   30018 allocs/op
+BenchmarkNoteSubmoduleCandidate-4                                                               	  490147	       246.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSubmoduleContentStreamHook/NoSubmodule-4                                               	  312910	       343.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSubmoduleContentStreamHook/WithSubmodule-4                                             	      80	   1356134 ns/op	   65299 B/op	     230 allocs/op
+BenchmarkGitSubmoduleGitlinkSHA-4                                                               	      87	   1308666 ns/op	   59096 B/op	     122 allocs/op
+BenchmarkGitTrackedFiles-4                                                                      	      98	   1168468 ns/op	   63280 B/op	     129 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/collector/sbomdocument
-cpu: Apple M4 Pro
-BenchmarkCycloneDXFixtureEnvelopes-12    	    1484	     70525 ns/op	  109162 B/op	    1240 allocs/op
-BenchmarkCycloneDXFixtureEnvelopes-12    	    1680	     69583 ns/op	  108962 B/op	    1239 allocs/op
-BenchmarkCycloneDXFixtureEnvelopes-12    	    1742	     69962 ns/op	  109091 B/op	    1239 allocs/op
-BenchmarkCycloneDXFixtureEnvelopes-12    	    1724	     69858 ns/op	  108952 B/op	    1239 allocs/op
-BenchmarkCycloneDXFixtureEnvelopes-12    	    1708	     70207 ns/op	  109078 B/op	    1239 allocs/op
-BenchmarkCycloneDXFixtureEnvelopes-12    	    1737	     72459 ns/op	  109211 B/op	    1240 allocs/op
-BenchmarkSPDXFixtureEnvelopes-12         	    1425	     83190 ns/op	  125855 B/op	    1445 allocs/op
-BenchmarkSPDXFixtureEnvelopes-12         	    1471	     83154 ns/op	  125860 B/op	    1445 allocs/op
-BenchmarkSPDXFixtureEnvelopes-12         	    1430	     83597 ns/op	  125838 B/op	    1445 allocs/op
-BenchmarkSPDXFixtureEnvelopes-12         	    1453	     84095 ns/op	  125973 B/op	    1445 allocs/op
-BenchmarkSPDXFixtureEnvelopes-12         	    1381	     83552 ns/op	  126006 B/op	    1445 allocs/op
-BenchmarkSPDXFixtureEnvelopes-12         	    1442	     84516 ns/op	  126219 B/op	    1445 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkCycloneDXFixtureEnvelopes-4   	     806	    143263 ns/op	  115908 B/op	    1356 allocs/op
+BenchmarkSPDXFixtureEnvelopes-4        	     686	    166140 ns/op	  131621 B/op	    1555 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator
-cpu: Apple M4 Pro
-BenchmarkAnalyzerAggregatedMissingIdentityWarnings-12    	     135	    869331 ns/op	 3188035 B/op	     295 allocs/op
-BenchmarkAnalyzerAggregatedMissingIdentityWarnings-12    	     139	    857165 ns/op	 3187974 B/op	     294 allocs/op
-BenchmarkAnalyzerAggregatedMissingIdentityWarnings-12    	     139	    861940 ns/op	 3188006 B/op	     294 allocs/op
-BenchmarkAnalyzerAggregatedMissingIdentityWarnings-12    	     139	    858342 ns/op	 3187990 B/op	     294 allocs/op
-BenchmarkAnalyzerAggregatedMissingIdentityWarnings-12    	     139	    859308 ns/op	 3188034 B/op	     295 allocs/op
-BenchmarkAnalyzerAggregatedMissingIdentityWarnings-12    	     139	    862150 ns/op	 3188010 B/op	     294 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkAnalyzerAggregatedMissingIdentityWarnings-4   	      84	   1469418 ns/op	 3191312 B/op	     378 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/collector/terraformstate
-cpu: Apple M4 Pro
-BenchmarkParseStream_LargeState/1000_instances-12         	       5	  22210600 ns/op	   4.01 MB/s	20824756 B/op	  400683 allocs/op
-BenchmarkParseStream_LargeState/1000_instances-12         	       5	  21809917 ns/op	   4.09 MB/s	20825993 B/op	  400697 allocs/op
-BenchmarkParseStream_LargeState/1000_instances-12         	       5	  26904808 ns/op	   3.31 MB/s	20830148 B/op	  400705 allocs/op
-BenchmarkParseStream_LargeState/1000_instances-12         	       5	  21776608 ns/op	   4.09 MB/s	20828320 B/op	  400702 allocs/op
-BenchmarkParseStream_LargeState/1000_instances-12         	       5	  21828283 ns/op	   4.08 MB/s	20825328 B/op	  400686 allocs/op
-BenchmarkParseStream_LargeState/1000_instances-12         	       5	  21793167 ns/op	   4.09 MB/s	20820476 B/op	  400674 allocs/op
-BenchmarkParseStream_LargeState/10000_instances-12        	       1	 215762208 ns/op	   4.13 MB/s	208187648 B/op	 4010683 allocs/op
-BenchmarkParseStream_LargeState/10000_instances-12        	       1	 215735459 ns/op	   4.13 MB/s	208242544 B/op	 4010965 allocs/op
-BenchmarkParseStream_LargeState/10000_instances-12        	       1	 219673750 ns/op	   4.05 MB/s	208257248 B/op	 4011021 allocs/op
-BenchmarkParseStream_LargeState/10000_instances-12        	       1	 224584083 ns/op	   3.96 MB/s	208210232 B/op	 4010850 allocs/op
-BenchmarkParseStream_LargeState/10000_instances-12        	       1	 219301167 ns/op	   4.06 MB/s	208209664 B/op	 4010810 allocs/op
-BenchmarkParseStream_LargeState/10000_instances-12        	       1	 217800250 ns/op	   4.09 MB/s	208225208 B/op	 4010877 allocs/op
-BenchmarkParseStream_LargeState/20000_instances-12        	       1	 438373541 ns/op	   4.06 MB/s	416913584 B/op	 8022204 allocs/op
-BenchmarkParseStream_LargeState/20000_instances-12        	       1	 466533209 ns/op	   3.82 MB/s	416901392 B/op	 8022058 allocs/op
-BenchmarkParseStream_LargeState/20000_instances-12        	       1	 437316375 ns/op	   4.07 MB/s	416908512 B/op	 8022066 allocs/op
-BenchmarkParseStream_LargeState/20000_instances-12        	       1	 456146958 ns/op	   3.90 MB/s	416939872 B/op	 8022216 allocs/op
-BenchmarkParseStream_LargeState/20000_instances-12        	       1	 440610458 ns/op	   4.04 MB/s	416921904 B/op	 8022172 allocs/op
-BenchmarkParseStream_LargeState/20000_instances-12        	       1	 449526834 ns/op	   3.96 MB/s	416943064 B/op	 8022188 allocs/op
-goos: darwin
-goarch: arm64
-pkg: github.com/eshu-hq/eshu/go/internal/coordinator
-cpu: Apple M4 Pro
-BenchmarkSemanticWorkerEgressGatedClaimLoop-12    	  126937	       935.6 ns/op	    2200 B/op	      14 allocs/op
-BenchmarkSemanticWorkerEgressGatedClaimLoop-12    	  123301	       938.5 ns/op	    2200 B/op	      14 allocs/op
-BenchmarkSemanticWorkerEgressGatedClaimLoop-12    	  121909	       934.1 ns/op	    2200 B/op	      14 allocs/op
-BenchmarkSemanticWorkerEgressGatedClaimLoop-12    	  123789	       940.7 ns/op	    2200 B/op	      14 allocs/op
-BenchmarkSemanticWorkerEgressGatedClaimLoop-12    	  122233	       943.0 ns/op	    2200 B/op	      14 allocs/op
-BenchmarkSemanticWorkerEgressGatedClaimLoop-12    	  121035	       939.1 ns/op	    2200 B/op	      14 allocs/op
-BenchmarkVulnerabilityDerivedQueryChunks-12       	     776	    150269 ns/op	  210991 B/op	    2262 allocs/op
-BenchmarkVulnerabilityDerivedQueryChunks-12       	     776	    148614 ns/op	  210988 B/op	    2262 allocs/op
-BenchmarkVulnerabilityDerivedQueryChunks-12       	     818	    148076 ns/op	  210991 B/op	    2262 allocs/op
-BenchmarkVulnerabilityDerivedQueryChunks-12       	     793	    150299 ns/op	  210988 B/op	    2262 allocs/op
-BenchmarkVulnerabilityDerivedQueryChunks-12       	     795	    148179 ns/op	  210987 B/op	    2262 allocs/op
-BenchmarkVulnerabilityDerivedQueryChunks-12       	     800	    148615 ns/op	  210989 B/op	    2262 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkParseStream_LargeState/1000_instances-4         	       3	  34521075 ns/op	   2.58 MB/s	19032552 B/op	  369685 allocs/op
+BenchmarkParseStream_LargeState/10000_instances-4        	       1	 343210204 ns/op	   2.59 MB/s	190137960 B/op	 3700899 allocs/op
+BenchmarkParseStream_LargeState/20000_instances-4        	       1	 685314413 ns/op	   2.60 MB/s	380714552 B/op	 7402096 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/component
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkAuthorizesEmission-4   	   44570	      2628 ns/op	    3504 B/op	       6 allocs/op
+BenchmarkProducerGrantsRead-4   	     853	    133097 ns/op	   42272 B/op	     322 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/coordinator/semantic
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkSemanticWorkerEgressGatedClaimLoop-4   	   76261	      1581 ns/op	    2200 B/op	      14 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/coordinator/vulnerability
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkVulnerabilityDerivedQueryChunks-4   	     530	    228443 ns/op	  211002 B/op	    2262 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkClassifyExistenceOnly-4           	430820418	         0.2733 ns/op	       0 B/op	       0 allocs/op
+BenchmarkClassifyWithValueDrift-4          	 1899798	        63.20 ns/op	      48 B/op	       1 allocs/op
+BenchmarkBuildCandidatesWithValueDrift-4   	   96856	      1287 ns/op	    2960 B/op	      19 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/facts
-cpu: Apple M4 Pro
-BenchmarkValidateSchemaVersion-12    	11692285	         9.121 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateSchemaVersion-12    	13465052	         9.059 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateSchemaVersion-12    	13451029	         8.934 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateSchemaVersion-12    	13374074	         8.974 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateSchemaVersion-12    	13335493	         8.946 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateSchemaVersion-12    	13366935	         8.934 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSchemaVersionLookup-12      	25453609	         4.742 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSchemaVersionLookup-12      	25410043	         4.764 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSchemaVersionLookup-12      	25481991	         4.833 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSchemaVersionLookup-12      	25444617	         4.714 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSchemaVersionLookup-12      	25501172	         4.781 ns/op	       0 B/op	       0 allocs/op
-BenchmarkSchemaVersionLookup-12      	25231069	         4.731 ns/op	       0 B/op	       0 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkDocumentationSectionEncodeNoRegression/legacy_json_roundtrip-4         	   14053	      8439 ns/op	    4843 B/op	      87 allocs/op
+BenchmarkDocumentationSectionEncodeNoRegression/factschema_direct_bridge-4      	   54301	      2123 ns/op	    3376 B/op	      37 allocs/op
+BenchmarkSemanticDocumentationObservationEncodeNoRegression/legacy_json_roundtrip-4         	    9466	     12586 ns/op	    6350 B/op	     128 allocs/op
+BenchmarkSemanticDocumentationObservationEncodeNoRegression/factschema_direct_bridge-4      	   28214	      4072 ns/op	    6032 B/op	      65 allocs/op
+BenchmarkValidateSchemaVersion-4                                                            	 7781830	        15.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSchemaVersionLookup-4                                                              	 7516605	        15.94 ns/op	       0 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/governanceaudit
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkAsyncEnqueueProve-4   	 8323909	        13.52 ns/op	         0.9441 drop_ratio	       0 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/governanceauditasync
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkAsyncAppenderEnqueueSerial-4       	 1240432	       116.3 ns/op	     312 B/op	       0 allocs/op
+BenchmarkAsyncAppenderEnqueueParallel64-4   	 3628498	        32.40 ns/op	       1 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/ifa
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkCanonicalizeRepoDependencyBackfillProofTwoCalls-4   	       1	4347234800 ns/op	    122014 facts/op	5504049608 B/op	12324471 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/ifa/materializededges
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkExpectedEdgeKey/nil_identity_(before)-4         	  966380	       122.5 ns/op	     120 B/op	       4 allocs/op
+BenchmarkExpectedEdgeKey/two-property_identity_(after)-4 	  461065	       247.3 ns/op	     176 B/op	       4 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/oidcbearer
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkResolveScopedToken_EmptySnapshot-4   	 1904149	        63.25 ns/op	       0 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/parser
-cpu: Apple M4 Pro
-BenchmarkPreScanGoPackageSemanticRoots/Small-12 	       2	  81273333 ns/op	56238628 B/op	 1705444 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/Small-12 	       2	  78033166 ns/op	56219200 B/op	 1705413 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/Small-12 	       2	  86462854 ns/op	56218900 B/op	 1705407 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/Small-12 	       2	  78221125 ns/op	56214328 B/op	 1705396 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/Small-12 	       2	  77629230 ns/op	56215144 B/op	 1705401 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/Small-12 	       2	  83164875 ns/op	56214952 B/op	 1705403 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/K8sShape-12         	       1	 288369167 ns/op	241859384 B/op	 7540828 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/K8sShape-12         	       1	 290644542 ns/op	241865512 B/op	 7540851 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/K8sShape-12         	       1	 268574708 ns/op	241857832 B/op	 7540838 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/K8sShape-12         	       1	 274650209 ns/op	241862864 B/op	 7540844 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/K8sShape-12         	       1	 284085208 ns/op	241859128 B/op	 7540852 allocs/op
-BenchmarkPreScanGoPackageSemanticRoots/K8sShape-12         	       1	 272617750 ns/op	241855832 B/op	 7540822 allocs/op
-BenchmarkParsePathGoIdentifierHeavy-12                     	       1	 301240500 ns/op	89068056 B/op	 2553668 allocs/op
-BenchmarkParsePathGoIdentifierHeavy-12                     	       1	 316825333 ns/op	89105064 B/op	 2553671 allocs/op
-BenchmarkParsePathGoIdentifierHeavy-12                     	       1	 295530750 ns/op	89105160 B/op	 2553671 allocs/op
-BenchmarkParsePathGoIdentifierHeavy-12                     	       1	 288651166 ns/op	89061904 B/op	 2553653 allocs/op
-BenchmarkParsePathGoIdentifierHeavy-12                     	       1	 292031667 ns/op	89105192 B/op	 2553671 allocs/op
-BenchmarkParsePathGoIdentifierHeavy-12                     	       1	 291421125 ns/op	89105112 B/op	 2553671 allocs/op
-BenchmarkParsePathTypeScriptExportHeavy-12                 	       1	 683778084 ns/op	879879856 B/op	 2475989 allocs/op
-BenchmarkParsePathTypeScriptExportHeavy-12                 	       1	 687346166 ns/op	879879520 B/op	 2475987 allocs/op
-BenchmarkParsePathTypeScriptExportHeavy-12                 	       1	 702096125 ns/op	879879632 B/op	 2475988 allocs/op
-BenchmarkParsePathTypeScriptExportHeavy-12                 	       1	 688625583 ns/op	879879600 B/op	 2475988 allocs/op
-BenchmarkParsePathTypeScriptExportHeavy-12                 	       1	 682468958 ns/op	879879648 B/op	 2475988 allocs/op
-BenchmarkParsePathTypeScriptExportHeavy-12                 	       1	 683613208 ns/op	879879600 B/op	 2475988 allocs/op
-BenchmarkJavaScriptIsExportedCgoParent-12                  	       7	  15070024 ns/op	 2252800 B/op	   89600 allocs/op
-BenchmarkJavaScriptIsExportedCgoParent-12                  	       7	  15062667 ns/op	 2252816 B/op	   89600 allocs/op
-BenchmarkJavaScriptIsExportedCgoParent-12                  	       7	  15097530 ns/op	 2252816 B/op	   89600 allocs/op
-BenchmarkJavaScriptIsExportedCgoParent-12                  	       7	  15116298 ns/op	 2252832 B/op	   89600 allocs/op
-BenchmarkJavaScriptIsExportedCgoParent-12                  	       7	  15044601 ns/op	 2252800 B/op	   89600 allocs/op
-BenchmarkJavaScriptIsExportedCgoParent-12                  	       7	  15072119 ns/op	 2252800 B/op	   89600 allocs/op
-BenchmarkJavaScriptIsExportedParentLookup-12               	       8	  12988807 ns/op	 6363568 B/op	  144300 allocs/op
-BenchmarkJavaScriptIsExportedParentLookup-12               	       8	  13144760 ns/op	 6363568 B/op	  144300 allocs/op
-BenchmarkJavaScriptIsExportedParentLookup-12               	       8	  13110948 ns/op	 6363582 B/op	  144300 allocs/op
-BenchmarkJavaScriptIsExportedParentLookup-12               	       8	  13144838 ns/op	 6363596 B/op	  144300 allocs/op
-BenchmarkJavaScriptIsExportedParentLookup-12               	       8	  13105438 ns/op	 6363582 B/op	  144300 allocs/op
-BenchmarkJavaScriptIsExportedParentLookup-12               	       8	  13090364 ns/op	 6363582 B/op	  144300 allocs/op
-BenchmarkRuntimeParserPoolReuse-12                         	 1276774	        93.81 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRuntimeParserPoolReuse-12                         	 1271332	        94.18 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRuntimeParserPoolReuse-12                         	 1275566	        94.22 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRuntimeParserPoolReuse-12                         	 1255322	        94.63 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRuntimeParserPoolReuse-12                         	 1269974	        94.34 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRuntimeParserPoolReuse-12                         	 1265330	        94.75 ns/op	       0 B/op	       0 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkInferContentMetadataUnconditional-4                  	      40	   2830348 ns/op	  119019 B/op	      26 allocs/op
+BenchmarkContentMetadataGated-4                               	     888	    132373 ns/op	   57748 B/op	       9 allocs/op
+BenchmarkParsePathLargeGatedPHP-4                             	       2	  82765377 ns/op	13747124 B/op	  404351 allocs/op
+BenchmarkContentMetadataGatedRawConfigCorrectlyNotSkipped-4   	      48	   2447479 ns/op	    1777 B/op	      18 allocs/op
+BenchmarkDataflowGateEmissionCost/java/gate=off-4             	      10	  10802916 ns/op	 1530248 B/op	   42007 allocs/op
+BenchmarkDataflowGateEmissionCost/java/gate=on-4              	       4	  27245600 ns/op	 4245136 B/op	  130724 allocs/op
+BenchmarkDataflowGateEmissionCost/csharp/gate=off-4           	      25	   4550747 ns/op	  588725 B/op	   17148 allocs/op
+BenchmarkDataflowGateEmissionCost/csharp/gate=on-4            	      10	  10454708 ns/op	 1671060 B/op	   48746 allocs/op
+BenchmarkDataflowGateEmissionCost/go/gate=off-4               	       3	  33631172 ns/op	 4549408 B/op	  147777 allocs/op
+BenchmarkDataflowGateEmissionCost/go/gate=on-4                	       2	  51846208 ns/op	 7874084 B/op	  239579 allocs/op
+BenchmarkDataflowGateEmissionCost/python/gate=off-4           	       1	 188338635 ns/op	 3279568 B/op	  101632 allocs/op
+BenchmarkDataflowGateEmissionCost/python/gate=on-4            	       3	  45677887 ns/op	 6037584 B/op	  178609 allocs/op
+BenchmarkDataflowGateEmissionCost/javascript/gate=off-4       	       8	  14778386 ns/op	 2020604 B/op	   55143 allocs/op
+BenchmarkDataflowGateEmissionCost/javascript/gate=on-4        	       5	  25586343 ns/op	 3831811 B/op	  107158 allocs/op
+BenchmarkDataflowGateEmissionCost/typescript/gate=off-4       	       4	  30632123 ns/op	 3946498 B/op	  119596 allocs/op
+BenchmarkDataflowGateEmissionCost/typescript/gate=on-4        	       3	  40654908 ns/op	 6861442 B/op	  205665 allocs/op
+BenchmarkParseConfig/dockerfile-4                             	       6	  18153004 ns/op	  11.23 MB/s	     10010 LOC	 8561412 B/op	   92596 allocs/op
+BenchmarkParseConfig/jenkinsfile-4                            	       2	  65334110 ns/op	   3.64 MB/s	     10005 LOC	 7124236 B/op	  168195 allocs/op
+BenchmarkParseConfig/gomod-4                                  	       6	  18160101 ns/op	  19.21 MB/s	     10001 LOC	13723826 B/op	  179804 allocs/op
+BenchmarkParseConfig/gradle-4                                 	       2	  70612715 ns/op	   8.91 MB/s	     10001 LOC	12704584 B/op	  119743 allocs/op
+BenchmarkParseConfig/hcl-4                                    	       3	  37573862 ns/op	   4.57 MB/s	     10000 LOC	31607973 B/op	  170157 allocs/op
+BenchmarkParseConfig/json-4                                   	      56	   2633747 ns/op	  63.13 MB/s	     10004 LOC	 1851904 B/op	   20074 allocs/op
+BenchmarkParseConfig/maven-4                                  	      10	  10961019 ns/op	  28.84 MB/s	     10004 LOC	 6341912 B/op	  105833 allocs/op
+BenchmarkParseConfig/node_lockfile-4                          	      21	   5452133 ns/op	  56.43 MB/s	     10003 LOC	 6043262 B/op	   47926 allocs/op
+BenchmarkParseConfig/nuget_project-4                          	       3	  36297394 ns/op	  19.56 MB/s	     10002 LOC	24689045 B/op	  289772 allocs/op
+BenchmarkParseConfig/python_requirements-4                    	      14	   7779445 ns/op	  39.72 MB/s	     10000 LOC	 6270083 B/op	  119799 allocs/op
+BenchmarkParseConfig/python_toml-4                            	      39	   3740443 ns/op	  57.70 MB/s	     10003 LOC	 4669410 B/op	   28057 allocs/op
+BenchmarkParseConfig/yaml-4                                   	       3	  41998193 ns/op	   5.06 MB/s	     10006 LOC	16113893 B/op	  242835 allocs/op
+BenchmarkParse/c-4                                            	       1	 253298888 ns/op	   0.87 MB/s	     10016 LOC	33756736 B/op	 1050300 allocs/op
+BenchmarkParse/cpp-4                                          	       1	 293070117 ns/op	   0.82 MB/s	     10010 LOC	41254432 B/op	 1224293 allocs/op
+BenchmarkParse/csharp-4                                       	       1	 337699345 ns/op	   0.72 MB/s	     10032 LOC	38639576 B/op	 1230288 allocs/op
+BenchmarkParse/dart-4                                         	       1	 294681265 ns/op	   0.77 MB/s	     10010 LOC	26892408 B/op	  919492 allocs/op
+BenchmarkParse/elixir-4                                       	       1	 271281124 ns/op	   0.87 MB/s	     10032 LOC	36978264 B/op	 1136184 allocs/op
+BenchmarkParse/go-4                                           	       1	1233203353 ns/op	   0.14 MB/s	     10035 LOC	594722576 B/op	 4365472 allocs/op
+BenchmarkParse/groovy-4                                       	       1	 252731720 ns/op	   0.97 MB/s	     10016 LOC	25293456 B/op	  724297 allocs/op
+BenchmarkParse/haskell-4                                      	       1	 392716139 ns/op	   0.87 MB/s	     10013 LOC	185967912 B/op	  404472 allocs/op
+BenchmarkParse/java-4                                         	       1	 527149695 ns/op	   0.50 MB/s	     10032 LOC	69916040 B/op	 1911856 allocs/op
+BenchmarkParse/javascript-4                                   	       1	1043664566 ns/op	   0.21 MB/s	     10000 LOC	810605352 B/op	 2688102 allocs/op
+BenchmarkParse/kotlin-4                                       	       1	 586353584 ns/op	   0.50 MB/s	     10005 LOC	67623264 B/op	 2160136 allocs/op
+BenchmarkParse/perl-4                                         	       1	3891045316 ns/op	   0.05 MB/s	     10016 LOC	5098858336 B/op	 1167452 allocs/op
+BenchmarkParse/php-4                                          	       1	 249193258 ns/op	   0.94 MB/s	     10027 LOC	35570560 B/op	  948033 allocs/op
+BenchmarkParse/python-4                                       	       1	16653989096 ns/op	   0.01 MB/s	     10019 LOC	1843877856 B/op	74419935 allocs/op
+BenchmarkParse/ruby-4                                         	       1	 225861675 ns/op	   0.79 MB/s	     10008 LOC	24923056 B/op	  772331 allocs/op
+BenchmarkParse/rust-4                                         	       1	 989404198 ns/op	   0.25 MB/s	     10044 LOC	1916102392 B/op	 1992834 allocs/op
+BenchmarkParse/scala-4                                        	       1	3791496891 ns/op	   0.07 MB/s	     10005 LOC	4851898920 B/op	 1134119 allocs/op
+BenchmarkParse/sql-4                                          	       1	 166625287 ns/op	   1.67 MB/s	     10020 LOC	22140544 B/op	  861179 allocs/op
+BenchmarkParse/swift-4                                        	       1	 391911145 ns/op	   0.64 MB/s	     10020 LOC	52928504 B/op	 1600013 allocs/op
+BenchmarkParse/tsx-4                                          	       1	 860692192 ns/op	   0.38 MB/s	     10311 LOC	352968200 B/op	 3315950 allocs/op
+BenchmarkParse/typescript-4                                   	       1	1104953699 ns/op	   0.24 MB/s	     10126 LOC	681302328 B/op	 3085614 allocs/op
+BenchmarkPreScanSelectedLanguages/javascript-4                	       2	  85842437 ns/op	   2.58 MB/s	     10000 LOC	 4778704 B/op	  156102 allocs/op
+BenchmarkPreScanSelectedLanguages/php-4                       	       2	  93059684 ns/op	   2.52 MB/s	     10027 LOC	 4062696 B/op	  134764 allocs/op
+BenchmarkPreScanSelectedLanguages/python-4                    	       2	  89750468 ns/op	   2.73 MB/s	     10019 LOC	 4682600 B/op	  157847 allocs/op
+BenchmarkPreScanSelectedLanguages/typescript-4                	       2	  84973299 ns/op	   3.14 MB/s	     10126 LOC	 4669128 B/op	  150131 allocs/op
+BenchmarkRuntimeParserPoolReuse-4                             	  814864	       144.5 ns/op	       0 B/op	       0 allocs/op
+BenchmarkScipNameFromSymbolRegexHoist/Old_CompilePerCall-4    	   53086	      2162 ns/op	    1430 B/op	      20 allocs/op
+BenchmarkScipNameFromSymbolRegexHoist/New_HoistedPackageVar-4 	   81284	      1409 ns/op	     645 B/op	      10 allocs/op
+BenchmarkInferContentMetadataTFTemplateBeforeHoist-4          	      64	   1791558 ns/op	  190644 B/op	    1637 allocs/op
+BenchmarkInferRootFamilyAloneTFTemplate-4                     	  192794	       577.2 ns/op	     348 B/op	       6 allocs/op
+BenchmarkInferContentMetadataPathOnlyTFNoMarkers-4            	      85	   1394462 ns/op	    1251 B/op	      15 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/parser/cfg
-cpu: Apple M4 Pro
-BenchmarkBuildReaching-12    	      86	   1371418 ns/op	 1851532 B/op	    6729 allocs/op
-BenchmarkBuildReaching-12    	      94	   1378072 ns/op	 1851588 B/op	    6729 allocs/op
-BenchmarkBuildReaching-12    	      91	   1376759 ns/op	 1851685 B/op	    6729 allocs/op
-BenchmarkBuildReaching-12    	      94	   1365550 ns/op	 1851590 B/op	    6729 allocs/op
-BenchmarkBuildReaching-12    	      92	   1374591 ns/op	 1851671 B/op	    6729 allocs/op
-BenchmarkBuildReaching-12    	      94	   1373319 ns/op	 1851921 B/op	    6729 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkBuildReaching-4   	      50	   2147754 ns/op	 1851621 B/op	    6729 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/parser/dart
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkParseDartCallSites-4   	       6	  19528130 ns/op	 2526202 B/op	   81359 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/parser/dbtsql
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkReplaceReferenceTokensRegexHoist/RepeatedTokens/Old_CompilePerCall-4         	    8962	     13059 ns/op	   11760 B/op	     126 allocs/op
+BenchmarkReplaceReferenceTokensRegexHoist/RepeatedTokens/New_CachedPattern-4          	   23484	      5039 ns/op	     766 B/op	      20 allocs/op
+BenchmarkReplaceReferenceTokensRegexHoist/UniqueTokensPerCall/Old_CompilePerCall-4    	   42062	      2835 ns/op	    2564 B/op	      33 allocs/op
+BenchmarkReplaceReferenceTokensRegexHoist/UniqueTokensPerCall/New_CachedPattern-4     	   35185	      2843 ns/op	    1930 B/op	      28 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/parser/golang
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkPreScanGoPackageSemanticRoots/Small-4         	       1	 191649126 ns/op	56216432 B/op	 1705604 allocs/op
+BenchmarkPreScanGoPackageSemanticRoots/K8sShape-4      	       1	 858596311 ns/op	241839208 B/op	 7540995 allocs/op
+BenchmarkParsePathGoIdentifierHeavy-4                  	       1	 527404109 ns/op	91239616 B/op	 2413505 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/parser/javascript
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkParsePathTypeScriptRepoSharedConfig-4   	       6	  19585674 ns/op	 2857130 B/op	   71634 allocs/op
+BenchmarkParseFastifyFixture-4                   	       1	 352620140 ns/op	129888696 B/op	 1282418 allocs/op
+BenchmarkParsePathTypeScriptExportHeavy-4        	       1	1029842786 ns/op	882553808 B/op	 2595634 allocs/op
+BenchmarkJavaScriptIsExportedCgoParent-4         	       3	  38085602 ns/op	 2252800 B/op	   89600 allocs/op
+BenchmarkJavaScriptIsExportedParentLookup-4      	       4	  26887526 ns/op	 6363652 B/op	  144300 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/parser/json
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkNewlineIndexBuild-4      	     316	    378798 ns/op	 730.33 MB/s	  259324 B/op	      18 allocs/op
+BenchmarkLockfileSectionLines-4   	      25	   4833535 ns/op	  57.23 MB/s	 1741585 B/op	    4377 allocs/op
+BenchmarkLineAtLookup-4           	13326520	         9.281 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStdlibUnmarshalMap-4     	      52	   2371332 ns/op	 116.66 MB/s	  964484 B/op	   18590 allocs/op
+BenchmarkOrderedWalk-4            	      54	   2153450 ns/op	 1327570 B/op	      84 allocs/op
+BenchmarkKeyOrderOnly-4           	      57	   2112708 ns/op	 1048253 B/op	      74 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/parser/php
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkParsePathPHPRouteHeavy-4   	       6	  19527519 ns/op	 2841200 B/op	   82758 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/parser/python
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkParseNotebookTempFileRoundTrip-4   	       9	  11906855 ns/op	 1724709 B/op	   57842 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/parser/shared
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkNormalizeLineEndings/lf_no_copy-4         	25657592	         4.653 ns/op	14089514.73 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNormalizeLineEndings/crlf_no_copy-4       	25655727	         4.658 ns/op	14076385.83 MB/s	       0 B/op	       0 allocs/op
+BenchmarkNormalizeLineEndings/bare_cr_copies-4     	    2544	     42783 ns/op	1532.24 MB/s	   73730 B/op	       1 allocs/op
+BenchmarkNormalizeLineEndings/no_terminator-4      	   87870	      1365 ns/op	48058.39 MB/s	       0 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/parser/sql
-cpu: Apple M4 Pro
-BenchmarkParseComprehensive-12    	     216	    524708 ns/op	  159130 B/op	    5494 allocs/op
-BenchmarkParseComprehensive-12    	     229	    527041 ns/op	  159407 B/op	    5494 allocs/op
-BenchmarkParseComprehensive-12    	     226	    528660 ns/op	  158926 B/op	    5494 allocs/op
-BenchmarkParseComprehensive-12    	     228	    528245 ns/op	  159084 B/op	    5494 allocs/op
-BenchmarkParseComprehensive-12    	     225	    525759 ns/op	  159427 B/op	    5494 allocs/op
-BenchmarkParseComprehensive-12    	     228	    527030 ns/op	  159248 B/op	    5494 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkParseComprehensive-4               	     117	    988052 ns/op	  149201 B/op	    5538 allocs/op
+BenchmarkParseLargeSQLSchemaLineNumbers-4   	       2	  70963737 ns/op	11868000 B/op	  311813 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/parser/yaml
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkParseAtlantisConfig-4                         	      81	   1449624 ns/op	  747827 B/op	   15981 allocs/op
+BenchmarkParseCloudFormationTemplateRepresentative-4   	      50	   2319320 ns/op	 1330251 B/op	   19378 allocs/op
+BenchmarkParseCloudFormationTemplateLarge-4            	      10	  10486819 ns/op	 5941984 B/op	   87455 allocs/op
+BenchmarkParseHelmValuesRepresentativeImages-4         	     249	    465635 ns/op	  266484 B/op	    3947 allocs/op
+BenchmarkParseKustomizationRepresentativeImages-4      	     986	    125516 ns/op	   80172 B/op	    1091 allocs/op
+BenchmarkParseHelmValuesLargeImages-4                  	      24	   4942736 ns/op	 2425987 B/op	   37175 allocs/op
+BenchmarkParseKustomizationLargeImages-4               	     100	   1152081 ns/op	  614311 B/op	    8601 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/query
-cpu: Apple M4 Pro
-BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier-12    	     145	    746437 ns/op	 1259364 B/op	   13531 allocs/op
-BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier-12    	     176	    675958 ns/op	 1259197 B/op	   13531 allocs/op
-BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier-12    	     175	    680428 ns/op	 1259181 B/op	   13531 allocs/op
-BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier-12    	     177	    672036 ns/op	 1259166 B/op	   13531 allocs/op
-BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier-12    	     176	    676813 ns/op	 1259147 B/op	   13531 allocs/op
-BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier-12    	     175	    679485 ns/op	 1259179 B/op	   13531 allocs/op
-goos: darwin
-goarch: arm64
-pkg: github.com/eshu-hq/eshu/go/internal/reducer
-cpu: Apple M4 Pro
-BenchmarkExtractAWSRelationshipEdgeRows-12                                  	       5	  23215417 ns/op	44895844 B/op	  521688 allocs/op
-BenchmarkExtractAWSRelationshipEdgeRows-12                                  	       5	  23068833 ns/op	44896286 B/op	  521689 allocs/op
-BenchmarkExtractAWSRelationshipEdgeRows-12                                  	       5	  23346850 ns/op	44895113 B/op	  521680 allocs/op
-BenchmarkExtractAWSRelationshipEdgeRows-12                                  	       5	  23182467 ns/op	44896092 B/op	  521683 allocs/op
-BenchmarkExtractAWSRelationshipEdgeRows-12                                  	       5	  23242275 ns/op	44896424 B/op	  521684 allocs/op
-BenchmarkExtractAWSRelationshipEdgeRows-12                                  	       5	  23257783 ns/op	44897084 B/op	  521691 allocs/op
-BenchmarkBuildCloudResourceJoinIndex-12                                     	       7	  14740756 ns/op	22755348 B/op	  330174 allocs/op
-BenchmarkBuildCloudResourceJoinIndex-12                                     	       7	  14627119 ns/op	22753904 B/op	  330166 allocs/op
-BenchmarkBuildCloudResourceJoinIndex-12                                     	       7	  14524030 ns/op	22753873 B/op	  330168 allocs/op
-BenchmarkBuildCloudResourceJoinIndex-12                                     	       7	  14644845 ns/op	22755290 B/op	  330174 allocs/op
-BenchmarkBuildCloudResourceJoinIndex-12                                     	       7	  14708119 ns/op	22754566 B/op	  330171 allocs/op
-BenchmarkBuildCloudResourceJoinIndex-12                                     	       7	  14399851 ns/op	22753804 B/op	  330167 allocs/op
-BenchmarkExtractCloudResourceNodeRows-12                                    	      10	  10424312 ns/op	16783010 B/op	  240066 allocs/op
-BenchmarkExtractCloudResourceNodeRows-12                                    	      10	  10275550 ns/op	16782767 B/op	  240065 allocs/op
-BenchmarkExtractCloudResourceNodeRows-12                                    	      10	  10484308 ns/op	16782964 B/op	  240068 allocs/op
-BenchmarkExtractCloudResourceNodeRows-12                                    	      10	  10351208 ns/op	16782659 B/op	  240064 allocs/op
-BenchmarkExtractCloudResourceNodeRows-12                                    	      10	  10370246 ns/op	16781142 B/op	  240054 allocs/op
-BenchmarkExtractCloudResourceNodeRows-12                                    	      10	  10438229 ns/op	16782972 B/op	  240068 allocs/op
-BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls-12                  	      18	   5830199 ns/op	 1648981 B/op	   30206 allocs/op
-BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls-12                  	      20	   5864265 ns/op	 1653524 B/op	   30208 allocs/op
-BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls-12                  	      19	   5866465 ns/op	 1656256 B/op	   30212 allocs/op
-BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls-12                  	      20	   5884738 ns/op	 1648032 B/op	   30208 allocs/op
-BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls-12                  	      19	   5838107 ns/op	 1648240 B/op	   30211 allocs/op
-BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls-12                  	      20	   6114892 ns/op	 1665849 B/op	   30216 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeAnonymousFunctionSource-12           	  115182	      1033 ns/op	     754 B/op	      27 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeAnonymousFunctionSource-12           	  115477	      1145 ns/op	     761 B/op	      27 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeAnonymousFunctionSource-12           	  118786	      1020 ns/op	     752 B/op	      27 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeAnonymousFunctionSource-12           	  117918	      1000 ns/op	     756 B/op	      27 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeAnonymousFunctionSource-12           	  120877	       990.2 ns/op	     751 B/op	      27 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeAnonymousFunctionSource-12           	  118101	      1002 ns/op	     754 B/op	      27 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeNoAliasFunctionSource-12             	  152374	       791.0 ns/op	     589 B/op	      25 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeNoAliasFunctionSource-12             	  150678	       789.0 ns/op	     589 B/op	      25 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeNoAliasFunctionSource-12             	  151147	       795.1 ns/op	     592 B/op	      25 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeNoAliasFunctionSource-12             	  154587	       790.6 ns/op	     589 B/op	      25 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeNoAliasFunctionSource-12             	  150397	       796.5 ns/op	     589 B/op	      25 allocs/op
-BenchmarkResolveDynamicJavaScriptCalleeNoAliasFunctionSource-12             	  152985	       793.9 ns/op	     588 B/op	      25 allocs/op
-BenchmarkBuildCodeReachabilityRows-12                                       	       3	  34869972 ns/op	89196120 B/op	  325384 allocs/op
-BenchmarkBuildCodeReachabilityRows-12                                       	       3	  34498708 ns/op	89196120 B/op	  325384 allocs/op
-BenchmarkBuildCodeReachabilityRows-12                                       	       3	  34409847 ns/op	89196120 B/op	  325384 allocs/op
-BenchmarkBuildCodeReachabilityRows-12                                       	       3	  33755042 ns/op	89196120 B/op	  325384 allocs/op
-BenchmarkBuildCodeReachabilityRows-12                                       	       3	  34324305 ns/op	89196120 B/op	  325384 allocs/op
-BenchmarkBuildCodeReachabilityRows-12                                       	       3	  34486639 ns/op	89196120 B/op	  325384 allocs/op
-BenchmarkProjectSearchDocuments-12                                          	     230	    514310 ns/op	  667804 B/op	   12007 allocs/op
-BenchmarkProjectSearchDocuments-12                                          	     231	    513629 ns/op	  667804 B/op	   12007 allocs/op
-BenchmarkProjectSearchDocuments-12                                          	     232	    514193 ns/op	  667804 B/op	   12007 allocs/op
-BenchmarkProjectSearchDocuments-12                                          	     231	    514019 ns/op	  667806 B/op	   12007 allocs/op
-BenchmarkProjectSearchDocuments-12                                          	     234	    512986 ns/op	  667806 B/op	   12007 allocs/op
-BenchmarkProjectSearchDocuments-12                                          	     232	    517955 ns/op	  667805 B/op	   12007 allocs/op
-BenchmarkExtractGCPRelationshipEdgeRows-12                                  	       4	  26401229 ns/op	59674062 B/op	  605116 allocs/op
-BenchmarkExtractGCPRelationshipEdgeRows-12                                  	       4	  26372969 ns/op	59672232 B/op	  605112 allocs/op
-BenchmarkExtractGCPRelationshipEdgeRows-12                                  	       4	  26391958 ns/op	59672942 B/op	  605110 allocs/op
-BenchmarkExtractGCPRelationshipEdgeRows-12                                  	       4	  26632208 ns/op	59672634 B/op	  605110 allocs/op
-BenchmarkExtractGCPRelationshipEdgeRows-12                                  	       4	  26450708 ns/op	59673648 B/op	  605117 allocs/op
-BenchmarkExtractGCPRelationshipEdgeRows-12                                  	       4	  26512031 ns/op	59672958 B/op	  605115 allocs/op
-BenchmarkExtractGCPCloudResourceNodeRows-12                                 	      10	  10127362 ns/op	17495507 B/op	  235054 allocs/op
-BenchmarkExtractGCPCloudResourceNodeRows-12                                 	      10	  10071871 ns/op	17496504 B/op	  235061 allocs/op
-BenchmarkExtractGCPCloudResourceNodeRows-12                                 	      10	  10103850 ns/op	17496536 B/op	  235061 allocs/op
-BenchmarkExtractGCPCloudResourceNodeRows-12                                 	      12	  10083493 ns/op	17496118 B/op	  235061 allocs/op
-BenchmarkExtractGCPCloudResourceNodeRows-12                                 	      12	  10128059 ns/op	17495334 B/op	  235055 allocs/op
-BenchmarkExtractGCPCloudResourceNodeRows-12                                 	      10	  10156462 ns/op	17495397 B/op	  235053 allocs/op
-BenchmarkBuildIncidentRepositoryCorrelations-12                             	     723	    165499 ns/op	  279314 B/op	    2583 allocs/op
-BenchmarkBuildIncidentRepositoryCorrelations-12                             	     745	    167268 ns/op	  279315 B/op	    2583 allocs/op
-BenchmarkBuildIncidentRepositoryCorrelations-12                             	     727	    163297 ns/op	  279316 B/op	    2583 allocs/op
-BenchmarkBuildIncidentRepositoryCorrelations-12                             	     728	    163221 ns/op	  279315 B/op	    2583 allocs/op
-BenchmarkBuildIncidentRepositoryCorrelations-12                             	     729	    163913 ns/op	  279314 B/op	    2583 allocs/op
-BenchmarkBuildIncidentRepositoryCorrelations-12                             	     738	    163231 ns/op	  279313 B/op	    2583 allocs/op
-BenchmarkExtractKubernetesCorrelationEdgeRows-12                            	      13	   8582894 ns/op	22377467 B/op	  135219 allocs/op
-BenchmarkExtractKubernetesCorrelationEdgeRows-12                            	      13	   8527087 ns/op	22377686 B/op	  135219 allocs/op
-BenchmarkExtractKubernetesCorrelationEdgeRows-12                            	      13	   8563308 ns/op	22377482 B/op	  135219 allocs/op
-BenchmarkExtractKubernetesCorrelationEdgeRows-12                            	      13	   8755647 ns/op	22377588 B/op	  135219 allocs/op
-BenchmarkExtractKubernetesCorrelationEdgeRows-12                            	      12	   8685920 ns/op	22377484 B/op	  135219 allocs/op
-BenchmarkExtractKubernetesCorrelationEdgeRows-12                            	      13	   8695343 ns/op	22377456 B/op	  135219 allocs/op
-BenchmarkExtractKubernetesWorkloadNodeRows-12                               	      20	   5392385 ns/op	 9342974 B/op	  150025 allocs/op
-BenchmarkExtractKubernetesWorkloadNodeRows-12                               	      20	   5357346 ns/op	 9342846 B/op	  150024 allocs/op
-BenchmarkExtractKubernetesWorkloadNodeRows-12                               	      19	   5334428 ns/op	 9342962 B/op	  150025 allocs/op
-BenchmarkExtractKubernetesWorkloadNodeRows-12                               	      19	   5362208 ns/op	 9342728 B/op	  150024 allocs/op
-BenchmarkExtractKubernetesWorkloadNodeRows-12                               	      19	   5327914 ns/op	 9342781 B/op	  150024 allocs/op
-BenchmarkExtractKubernetesWorkloadNodeRows-12                               	      20	   5358373 ns/op	 9342681 B/op	  150023 allocs/op
-BenchmarkBuildSourceImageDigestJoinIndex-12                                 	     122	    970934 ns/op	 1936101 B/op	   10065 allocs/op
-BenchmarkBuildSourceImageDigestJoinIndex-12                                 	     122	    971722 ns/op	 1936112 B/op	   10065 allocs/op
-BenchmarkBuildSourceImageDigestJoinIndex-12                                 	     122	    996940 ns/op	 1936116 B/op	   10065 allocs/op
-BenchmarkBuildSourceImageDigestJoinIndex-12                                 	     120	    982359 ns/op	 1936112 B/op	   10065 allocs/op
-BenchmarkBuildSourceImageDigestJoinIndex-12                                 	     120	    991716 ns/op	 1936134 B/op	   10065 allocs/op
-BenchmarkBuildSourceImageDigestJoinIndex-12                                 	     121	    992542 ns/op	 1936111 B/op	   10065 allocs/op
-BenchmarkSecretsIAMGCPGrantObservations-12                                  	      20	   5346842 ns/op	10132585 B/op	  116040 allocs/op
-BenchmarkSecretsIAMGCPGrantObservations-12                                  	      21	   5343065 ns/op	10132607 B/op	  116040 allocs/op
-BenchmarkSecretsIAMGCPGrantObservations-12                                  	      22	   5332441 ns/op	10132654 B/op	  116038 allocs/op
-BenchmarkSecretsIAMGCPGrantObservations-12                                  	      21	   5334865 ns/op	10133051 B/op	  116042 allocs/op
-BenchmarkSecretsIAMGCPGrantObservations-12                                  	      22	   5295722 ns/op	10132982 B/op	  116043 allocs/op
-BenchmarkSecretsIAMGCPGrantObservations-12                                  	      21	   5350548 ns/op	10132961 B/op	  116042 allocs/op
-BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout-12    	      19	   6106456 ns/op	13220587 B/op	   45228 allocs/op
-BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout-12    	      19	   6063807 ns/op	13220593 B/op	   45227 allocs/op
-BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout-12    	      19	   6097046 ns/op	13220711 B/op	   45227 allocs/op
-BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout-12    	      19	   6061265 ns/op	13220487 B/op	   45226 allocs/op
-BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout-12    	      18	   6100903 ns/op	13220706 B/op	   45227 allocs/op
-BenchmarkBuildServiceCatalogCorrelationDecisionsHighCardinalityFanout-12    	      18	   6066120 ns/op	13220625 B/op	   45227 allocs/op
-BenchmarkAddManifestDependencySupplyChainConsumption-12                     	     124	    953314 ns/op	  878793 B/op	    7726 allocs/op
-BenchmarkAddManifestDependencySupplyChainConsumption-12                     	     124	    954132 ns/op	  878800 B/op	    7726 allocs/op
-BenchmarkAddManifestDependencySupplyChainConsumption-12                     	     126	    944116 ns/op	  878787 B/op	    7726 allocs/op
-BenchmarkAddManifestDependencySupplyChainConsumption-12                     	     126	    953021 ns/op	  878821 B/op	    7727 allocs/op
-BenchmarkAddManifestDependencySupplyChainConsumption-12                     	     126	    949198 ns/op	  878806 B/op	    7726 allocs/op
-BenchmarkAddManifestDependencySupplyChainConsumption-12                     	     124	    963576 ns/op	  878817 B/op	    7726 allocs/op
-BenchmarkValueFlowFixpointFull-12                                           	       6	  18946778 ns/op	88293597 B/op	   95613 allocs/op
-BenchmarkValueFlowFixpointFull-12                                           	       6	  18785708 ns/op	88292480 B/op	   95614 allocs/op
-BenchmarkValueFlowFixpointFull-12                                           	       6	  18765618 ns/op	88291058 B/op	   95606 allocs/op
-BenchmarkValueFlowFixpointFull-12                                           	       6	  18848306 ns/op	88292773 B/op	   95610 allocs/op
-BenchmarkValueFlowFixpointFull-12                                           	       6	  18940250 ns/op	88291696 B/op	   95607 allocs/op
-BenchmarkValueFlowFixpointFull-12                                           	       6	  18851604 ns/op	88289773 B/op	   95602 allocs/op
-BenchmarkValueFlowFixpointIncrementalCached-12                              	       9	  11679796 ns/op	26692913 B/op	   19830 allocs/op
-BenchmarkValueFlowFixpointIncrementalCached-12                              	       9	  11741148 ns/op	26692499 B/op	   19830 allocs/op
-BenchmarkValueFlowFixpointIncrementalCached-12                              	       9	  11770069 ns/op	26692339 B/op	   19829 allocs/op
-BenchmarkValueFlowFixpointIncrementalCached-12                              	       9	  11682602 ns/op	26691137 B/op	   19827 allocs/op
-BenchmarkValueFlowFixpointIncrementalCached-12                              	       9	  11814727 ns/op	26691121 B/op	   19827 allocs/op
-BenchmarkValueFlowFixpointIncrementalCached-12                              	       9	  11807046 ns/op	26691024 B/op	   19826 allocs/op
-BenchmarkValueFlowSnapshotFullAssemblySolve-12                              	       5	  20761633 ns/op	93163768 B/op	  104579 allocs/op
-BenchmarkValueFlowSnapshotFullAssemblySolve-12                              	       5	  20484708 ns/op	93163851 B/op	  104580 allocs/op
-BenchmarkValueFlowSnapshotFullAssemblySolve-12                              	       5	  20152875 ns/op	93163857 B/op	  104580 allocs/op
-BenchmarkValueFlowSnapshotFullAssemblySolve-12                              	       5	  21736383 ns/op	93164328 B/op	  104584 allocs/op
-BenchmarkValueFlowSnapshotFullAssemblySolve-12                              	       5	  20308600 ns/op	93163768 B/op	  104579 allocs/op
-BenchmarkValueFlowSnapshotFullAssemblySolve-12                              	       6	  20108361 ns/op	93039113 B/op	  102256 allocs/op
-BenchmarkValueFlowSnapshotDurableRestartCached-12                           	       6	  16733430 ns/op	34377401 B/op	   33559 allocs/op
-BenchmarkValueFlowSnapshotDurableRestartCached-12                           	       7	  15876815 ns/op	31912257 B/op	   29615 allocs/op
-BenchmarkValueFlowSnapshotDurableRestartCached-12                           	       6	  16752111 ns/op	34377441 B/op	   33560 allocs/op
-BenchmarkValueFlowSnapshotDurableRestartCached-12                           	       6	  16903486 ns/op	34377457 B/op	   33560 allocs/op
-BenchmarkValueFlowSnapshotDurableRestartCached-12                           	       7	  15822143 ns/op	31912257 B/op	   29615 allocs/op
-BenchmarkValueFlowSnapshotDurableRestartCached-12                           	       7	  16065357 ns/op	31912321 B/op	   29615 allocs/op
-BenchmarkWorkloadMaterializationSubDurations-12                             	  996884	       118.8 ns/op	     256 B/op	       2 allocs/op
-BenchmarkWorkloadMaterializationSubDurations-12                             	  991495	       118.5 ns/op	     256 B/op	       2 allocs/op
-BenchmarkWorkloadMaterializationSubDurations-12                             	 1000000	       117.8 ns/op	     256 B/op	       2 allocs/op
-BenchmarkWorkloadMaterializationSubDurations-12                             	 1000000	       116.7 ns/op	     256 B/op	       2 allocs/op
-BenchmarkWorkloadMaterializationSubDurations-12                             	 1000000	       117.8 ns/op	     256 B/op	       2 allocs/op
-BenchmarkWorkloadMaterializationSubDurations-12                             	  999133	       118.4 ns/op	     256 B/op	       2 allocs/op
-BenchmarkRecordReducerResultWithSubDurations-12                             	   50847	      2377 ns/op	    2246 B/op	      28 allocs/op
-BenchmarkRecordReducerResultWithSubDurations-12                             	   50611	      2348 ns/op	    2245 B/op	      28 allocs/op
-BenchmarkRecordReducerResultWithSubDurations-12                             	   51727	      2334 ns/op	    2245 B/op	      28 allocs/op
-BenchmarkRecordReducerResultWithSubDurations-12                             	   51255	      2333 ns/op	    2245 B/op	      28 allocs/op
-BenchmarkRecordReducerResultWithSubDurations-12                             	   51483	      2332 ns/op	    2245 B/op	      28 allocs/op
-BenchmarkRecordReducerResultWithSubDurations-12                             	   51444	      2334 ns/op	    2245 B/op	      28 allocs/op
-BenchmarkRecordReducerResultNoSubDurations-12                               	   92295	      1260 ns/op	     978 B/op	      13 allocs/op
-BenchmarkRecordReducerResultNoSubDurations-12                               	   95545	      1255 ns/op	     978 B/op	      13 allocs/op
-BenchmarkRecordReducerResultNoSubDurations-12                               	   94268	      1258 ns/op	     978 B/op	      13 allocs/op
-BenchmarkRecordReducerResultNoSubDurations-12                               	   95908	      1258 ns/op	     978 B/op	      13 allocs/op
-BenchmarkRecordReducerResultNoSubDurations-12                               	   94639	      1256 ns/op	     978 B/op	      13 allocs/op
-BenchmarkRecordReducerResultNoSubDurations-12                               	   95192	      1265 ns/op	     978 B/op	      13 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkAuthMiddlewareScopedAllowed/AuditOff-4               	  197678	       573.2 ns/op	     640 B/op	       5 allocs/op
+BenchmarkAuthMiddlewareScopedAllowed/AuditOnAsync-4           	   88952	      1348 ns/op	    1527 B/op	       7 allocs/op
+BenchmarkK8sWorkloadMatchTargetDirectedScan-4                 	      49	   2446636 ns/op	 2161560 B/op	   15005 allocs/op
+BenchmarkGrantInlineCapExceeded/all_scopes-4                  	12239197	         9.782 ns/op	       0 B/op	       0 allocs/op
+BenchmarkGrantInlineCapExceeded/typical_8_grants-4            	  437684	       245.7 ns/op	     128 B/op	       1 allocs/op
+BenchmarkGrantInlineCapExceeded/at_cap_128_grants-4           	   24249	      4904 ns/op	    8872 B/op	       4 allocs/op
+BenchmarkGrantInlineCapExceeded/over_cap_512_grants-4         	    5287	     19112 ns/op	   36776 B/op	       4 allocs/op
+BenchmarkBuildKubernetesRuntimeWorkloadQuery200Candidates-4   	   18721	      6531 ns/op	   16683 B/op	      21 allocs/op
+BenchmarkNeo4jReaderHealthyPolicyOverhead/unbounded_reader-4  	   93903	      1131 ns/op	    1248 B/op	      19 allocs/op
+BenchmarkNeo4jReaderHealthyPolicyOverhead/bounded_reader-4    	   70995	      1603 ns/op	    1544 B/op	      25 allocs/op
+BenchmarkFilterRowsByRepoIDForAccess-4                        	   43444	      2645 ns/op	     416 B/op	       1 allocs/op
+BenchmarkFilterProvisioningRepositoryCandidatesForAccess-4    	   37302	      3204 ns/op	    4096 B/op	       1 allocs/op
+BenchmarkFilterRepoRelationshipOverviewRowsForAccess-4        	   33960	      3415 ns/op	     416 B/op	       1 allocs/op
+BenchmarkImpactRepoIDAllowed-4                                	 5681022	        20.23 ns/op	       0 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/query/codequery/imports
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkImportDependencyScopeLookup/linear-baseline-4         	       1	 249784929 ns/op	       0 B/op	       0 allocs/op
+BenchmarkImportDependencyScopeLookup/indexed-production-4      	     206	    569096 ns/op	  434544 B/op	      19 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/query/entity
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkSortWorkloadPlatformRowsWorstCase-4   	      74	   1426033 ns/op	      57 B/op	       2 allocs/op
+BenchmarkAppendUniqueTopologyEdgeBounded/legacy-4         	    1050	    107237 ns/op	   69920 B/op	    1370 allocs/op
+BenchmarkAppendUniqueTopologyEdgeBounded/fail_closed-4    	     656	    167742 ns/op	   97162 B/op	    2070 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/query/service
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier-4   	     103	   1150294 ns/op	 1258711 B/op	   13531 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/query/supply/chain
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkApplySupplyChainKubernetesRuntimeEvidence200Digests-4   	     103	   1182356 ns/op	  721410 B/op	    2498 allocs/op
+BenchmarkFoldSupplyChainRuntimeContext200Repositories-4          	     931	    120608 ns/op	   48168 B/op	    1003 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkBuildSupplyChainImpactFindingResult-4   	  699388	       180.0 ns/op	     128 B/op	       1 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/query/visualization
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkBuildServiceStoryVisualizationPacketRetainedShape-4   	     841	    131709 ns/op	  117657 B/op	    1767 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/relationships
-cpu: Apple M4 Pro
-BenchmarkDeferredBackfillDiscoveryFullFleet1k-12      	       1	 301701375 ns/op	213130712 B/op	 1794008 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet1k-12      	       4	  27375906 ns/op	43753690 B/op	  398967 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet1k-12      	       4	  27440865 ns/op	43791070 B/op	  398976 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet1k-12      	       4	  27588740 ns/op	43856680 B/op	  398987 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet1k-12      	       4	  27078417 ns/op	43782530 B/op	  398973 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet1k-12      	       4	  27533188 ns/op	43810640 B/op	  398980 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet1k-12    	       4	  27419156 ns/op	43565170 B/op	  395575 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet1k-12    	       4	  28033667 ns/op	43602586 B/op	  395584 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet1k-12    	       4	  27455010 ns/op	43444160 B/op	  395554 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet1k-12    	       4	  27592031 ns/op	43555202 B/op	  395571 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet1k-12    	       4	  27062750 ns/op	43396356 B/op	  395540 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet1k-12    	       4	  27792948 ns/op	43648390 B/op	  395589 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet5k-12      	       1	 135693417 ns/op	218250256 B/op	 1995105 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet5k-12      	       1	 136662209 ns/op	218138432 B/op	 1995084 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet5k-12      	       1	 136746750 ns/op	218399440 B/op	 1995135 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet5k-12      	       1	 137345250 ns/op	218361984 B/op	 1995126 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet5k-12      	       1	 136121750 ns/op	218250256 B/op	 1995105 allocs/op
-BenchmarkDeferredBackfillDiscoveryFullFleet5k-12      	       1	 136306792 ns/op	218287488 B/op	 1995112 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet5k-12    	       1	 134866666 ns/op	218089584 B/op	 1991718 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet5k-12    	       1	 135160708 ns/op	217903152 B/op	 1991682 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet5k-12    	       1	 136026375 ns/op	218014960 B/op	 1991703 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet5k-12    	       1	 139076167 ns/op	218089536 B/op	 1991717 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet5k-12    	       1	 134471792 ns/op	217903280 B/op	 1991683 allocs/op
-BenchmarkDeferredBackfillDiscoveryScopedFleet5k-12    	       1	 134149375 ns/op	218014944 B/op	 1991703 allocs/op
-BenchmarkBackfillDiscoveryFullFleet1k-12              	      26	   4460122 ns/op	 1401776 B/op	   16988 allocs/op
-BenchmarkBackfillDiscoveryFullFleet1k-12              	      25	   4445750 ns/op	 1397910 B/op	   16987 allocs/op
-BenchmarkBackfillDiscoveryFullFleet1k-12              	      26	   4475040 ns/op	 1393096 B/op	   16985 allocs/op
-BenchmarkBackfillDiscoveryFullFleet1k-12              	      26	   4482433 ns/op	 1398864 B/op	   16987 allocs/op
-BenchmarkBackfillDiscoveryFullFleet1k-12              	      26	   4465337 ns/op	 1392941 B/op	   16985 allocs/op
-BenchmarkBackfillDiscoveryFullFleet1k-12              	      26	   4470832 ns/op	 1397428 B/op	   16987 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet1k-12            	   16384	      7394 ns/op	    4631 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet1k-12            	   16324	      7412 ns/op	    4618 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet1k-12            	   15974	      7434 ns/op	    4644 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet1k-12            	   16104	      7374 ns/op	    4629 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet1k-12            	   16098	      7427 ns/op	    4619 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet1k-12            	   16040	      7468 ns/op	    4617 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryFullFleet5k-12              	       5	  22956400 ns/op	 6784286 B/op	   85023 allocs/op
-BenchmarkBackfillDiscoveryFullFleet5k-12              	       5	  23008725 ns/op	 6776689 B/op	   85020 allocs/op
-BenchmarkBackfillDiscoveryFullFleet5k-12              	       5	  22952075 ns/op	 6761956 B/op	   85019 allocs/op
-BenchmarkBackfillDiscoveryFullFleet5k-12              	       5	  23006142 ns/op	 6784273 B/op	   85023 allocs/op
-BenchmarkBackfillDiscoveryFullFleet5k-12              	       5	  22930475 ns/op	 6776939 B/op	   85022 allocs/op
-BenchmarkBackfillDiscoveryFullFleet5k-12              	       5	  22856017 ns/op	 6769496 B/op	   85021 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet5k-12            	   16250	      7341 ns/op	    4627 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet5k-12            	   16106	      7425 ns/op	    4626 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet5k-12            	   16048	      7357 ns/op	    4621 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet5k-12            	   15973	      7424 ns/op	    4629 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet5k-12            	   15937	      7507 ns/op	    4667 B/op	      60 allocs/op
-BenchmarkBackfillDiscoveryScopedFleet5k-12            	   16155	      7358 ns/op	    4625 B/op	      60 allocs/op
-BenchmarkMatchCatalogLargeCatalog-12                  	    1071	    112500 ns/op	    4400 B/op	     101 allocs/op
-BenchmarkMatchCatalogLargeCatalog-12                  	    1045	    113537 ns/op	    4400 B/op	     101 allocs/op
-BenchmarkMatchCatalogLargeCatalog-12                  	    1063	    112797 ns/op	    4400 B/op	     101 allocs/op
-BenchmarkMatchCatalogLargeCatalog-12                  	    1060	    113075 ns/op	    4400 B/op	     101 allocs/op
-BenchmarkMatchCatalogLargeCatalog-12                  	    1060	    112817 ns/op	    4400 B/op	     101 allocs/op
-BenchmarkMatchCatalogLargeCatalog-12                  	    1050	    113123 ns/op	    4400 B/op	     101 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkDeferredBackfillDiscoveryFullFleet1k-4            	       1	 760000652 ns/op	213132608 B/op	 1793991 allocs/op
+BenchmarkDeferredBackfillDiscoveryScopedFleet1k-4          	       2	  53857866 ns/op	43272588 B/op	  395517 allocs/op
+BenchmarkDeferredBackfillDiscoveryFullFleet5k-4            	       1	 297779769 ns/op	218322208 B/op	 1995118 allocs/op
+BenchmarkDeferredBackfillDiscoveryScopedFleet5k-4          	       1	 279865051 ns/op	217857536 B/op	 1991663 allocs/op
+BenchmarkBackfillDiscoveryFullFleet1k-4                    	      13	   7929261 ns/op	 1393257 B/op	   16986 allocs/op
+BenchmarkBackfillDiscoveryScopedFleet1k-4                  	    8739	     13123 ns/op	    4553 B/op	      60 allocs/op
+BenchmarkBackfillDiscoveryFullFleet5k-4                    	       3	  39930758 ns/op	 6793853 B/op	   85026 allocs/op
+BenchmarkBackfillDiscoveryScopedFleet5k-4                  	    8973	     13208 ns/op	    4565 B/op	      60 allocs/op
+BenchmarkMatchCatalogLargeCatalog-4                        	     507	    237688 ns/op	    4480 B/op	     101 allocs/op
+BenchmarkDiscoverGCPCloudRelationshipEvidence/RealisticAttributes-4         	      80	   1540384 ns/op	  850004 B/op	   14438 allocs/op
+BenchmarkDiscoverGCPCloudRelationshipEvidence/WorstCaseWideAttributes-4     	      78	   1521192 ns/op	  850002 B/op	   14438 allocs/op
+BenchmarkResolveCandidateAggregation-4                                      	       9	  11971349 ns/op	14599344 B/op	   96078 allocs/op
+BenchmarkStreamingEvidenceDiscovery_RepresentativeRepo-4                    	     579	    202412 ns/op	  144309 B/op	    1480 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/replay
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkCanonicalizeUniqueFactKeys/facts-1000-4         	       6	  17402738 ns/op	21724173 B/op	    7066 allocs/op
+BenchmarkCanonicalizeUniqueFactKeys/facts-5000-4         	       2	  84785139 ns/op	129861456 B/op	   35087 allocs/op
+BenchmarkCanonicalizeUniqueFactKeys/facts-10000-4        	       1	 176954299 ns/op	315217480 B/op	   70111 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/repositoryidentity
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkNormalizedRemoteKey-4   	   16482	      7307 ns/op	    4352 B/op	      82 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/samlauth
-cpu: Apple M4 Pro
-BenchmarkConstantTimeHashEqualSameLength-12    	 4031367	        28.25 ns/op	      80 B/op	       1 allocs/op
-BenchmarkConstantTimeHashEqualSameLength-12    	 4261204	        28.08 ns/op	      80 B/op	       1 allocs/op
-BenchmarkConstantTimeHashEqualSameLength-12    	 4286294	        28.02 ns/op	      80 B/op	       1 allocs/op
-BenchmarkConstantTimeHashEqualSameLength-12    	 4225023	        28.10 ns/op	      80 B/op	       1 allocs/op
-BenchmarkConstantTimeHashEqualSameLength-12    	 4284126	        27.98 ns/op	      80 B/op	       1 allocs/op
-BenchmarkConstantTimeHashEqualSameLength-12    	 4281374	        28.01 ns/op	      80 B/op	       1 allocs/op
-BenchmarkConstantTimeHashEqualSame-12          	 7107688	        17.08 ns/op	       0 B/op	       0 allocs/op
-BenchmarkConstantTimeHashEqualSame-12          	 7031866	        17.22 ns/op	       0 B/op	       0 allocs/op
-BenchmarkConstantTimeHashEqualSame-12          	 7106775	        17.08 ns/op	       0 B/op	       0 allocs/op
-BenchmarkConstantTimeHashEqualSame-12          	 7090539	        17.05 ns/op	       0 B/op	       0 allocs/op
-BenchmarkConstantTimeHashEqualSame-12          	 7028332	        17.13 ns/op	       0 B/op	       0 allocs/op
-BenchmarkConstantTimeHashEqualSame-12          	 7013732	        17.35 ns/op	       0 B/op	       0 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkConstantTimeHashEqualSameLength-4   	 2824234	        41.52 ns/op	      80 B/op	       1 allocs/op
+BenchmarkConstantTimeHashEqualSame-4         	 2968279	        40.28 ns/op	       0 B/op	       0 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/searchbench
-cpu: Apple M4 Pro
-BenchmarkScoreQueryResults-12    	   38451	      3020 ns/op	    2408 B/op	     101 allocs/op
-BenchmarkScoreQueryResults-12    	   39697	      3021 ns/op	    2408 B/op	     101 allocs/op
-BenchmarkScoreQueryResults-12    	   39700	      3021 ns/op	    2408 B/op	     101 allocs/op
-BenchmarkScoreQueryResults-12    	   39741	      3026 ns/op	    2408 B/op	     101 allocs/op
-BenchmarkScoreQueryResults-12    	   39586	      3015 ns/op	    2408 B/op	     101 allocs/op
-BenchmarkScoreQueryResults-12    	   39892	      3027 ns/op	    2408 B/op	     101 allocs/op
-BenchmarkScoreQuerySuite-12      	   23571	      5057 ns/op	    5299 B/op	     125 allocs/op
-BenchmarkScoreQuerySuite-12      	   23634	      5056 ns/op	    5298 B/op	     125 allocs/op
-BenchmarkScoreQuerySuite-12      	   23875	      5049 ns/op	    5298 B/op	     125 allocs/op
-BenchmarkScoreQuerySuite-12      	   23758	      5036 ns/op	    5298 B/op	     125 allocs/op
-BenchmarkScoreQuerySuite-12      	   23828	      5057 ns/op	    5298 B/op	     125 allocs/op
-BenchmarkScoreQuerySuite-12      	   23888	      5052 ns/op	    5298 B/op	     125 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkScoreQueryResults-4   	   22581	      5269 ns/op	    2408 B/op	     101 allocs/op
+BenchmarkScoreQuerySuite-4     	   13339	      8791 ns/op	    5297 B/op	     125 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/searchhybrid
-cpu: Apple M4 Pro
-BenchmarkBackendSearchHybrid-12       	      80	   1406892 ns/op	  393063 B/op	     165 allocs/op
-BenchmarkBackendSearchHybrid-12       	      84	   1405480 ns/op	  392928 B/op	     165 allocs/op
-BenchmarkBackendSearchHybrid-12       	      84	   1396602 ns/op	  392928 B/op	     165 allocs/op
-BenchmarkBackendSearchHybrid-12       	      84	   1398898 ns/op	  392928 B/op	     165 allocs/op
-BenchmarkBackendSearchHybrid-12       	      84	   1396398 ns/op	  392928 B/op	     165 allocs/op
-BenchmarkBackendSearchHybrid-12       	      84	   1405102 ns/op	  392928 B/op	     165 allocs/op
-BenchmarkBackendVectorRetrieval/exact-12         	      12	   9278715 ns/op	 2036176 B/op	     282 allocs/op
-BenchmarkBackendVectorRetrieval/exact-12         	      12	   9230274 ns/op	 2036176 B/op	     282 allocs/op
-BenchmarkBackendVectorRetrieval/exact-12         	      12	   9288812 ns/op	 2036176 B/op	     282 allocs/op
-BenchmarkBackendVectorRetrieval/exact-12         	      12	   9255358 ns/op	 2036176 B/op	     282 allocs/op
-BenchmarkBackendVectorRetrieval/exact-12         	      12	   9251635 ns/op	 2036185 B/op	     282 allocs/op
-BenchmarkBackendVectorRetrieval/exact-12         	      12	   9218694 ns/op	 2036176 B/op	     282 allocs/op
-BenchmarkBackendVectorRetrieval/approximate-12   	      26	   4564814 ns/op	 1092304 B/op	     197 allocs/op
-BenchmarkBackendVectorRetrieval/approximate-12   	      26	   4515960 ns/op	 1092304 B/op	     197 allocs/op
-BenchmarkBackendVectorRetrieval/approximate-12   	      26	   4537261 ns/op	 1092304 B/op	     197 allocs/op
-BenchmarkBackendVectorRetrieval/approximate-12   	      25	   4508453 ns/op	 1092304 B/op	     197 allocs/op
-BenchmarkBackendVectorRetrieval/approximate-12   	      26	   4555540 ns/op	 1092304 B/op	     197 allocs/op
-BenchmarkBackendVectorRetrieval/approximate-12   	      26	   4507707 ns/op	 1092304 B/op	     197 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkBackendSearchHybrid-4      	      66	   1805746 ns/op	  393008 B/op	     165 allocs/op
+BenchmarkBackendVectorRetrieval/exact-4         	       9	  12334972 ns/op	 2036177 B/op	     282 allocs/op
+BenchmarkBackendVectorRetrieval/approximate-4   	      22	   5270312 ns/op	 1092304 B/op	     197 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/searchnornicdb
-cpu: Apple M4 Pro
-BenchmarkBackendSearch/1-12            	  130538	       812.1 ns/op	    1840 B/op	      24 allocs/op
-BenchmarkBackendSearch/1-12            	  147142	       816.0 ns/op	    1840 B/op	      24 allocs/op
-BenchmarkBackendSearch/1-12            	  146886	       811.6 ns/op	    1840 B/op	      24 allocs/op
-BenchmarkBackendSearch/1-12            	  146014	       807.0 ns/op	    1840 B/op	      24 allocs/op
-BenchmarkBackendSearch/1-12            	  146563	       821.5 ns/op	    1840 B/op	      24 allocs/op
-BenchmarkBackendSearch/1-12            	  146264	       817.3 ns/op	    1840 B/op	      24 allocs/op
-BenchmarkBackendSearch/10-12           	   15219	      7883 ns/op	   17184 B/op	     213 allocs/op
-BenchmarkBackendSearch/10-12           	   15291	      7876 ns/op	   17184 B/op	     213 allocs/op
-BenchmarkBackendSearch/10-12           	   15176	      7908 ns/op	   17184 B/op	     213 allocs/op
-BenchmarkBackendSearch/10-12           	   15103	      7892 ns/op	   17184 B/op	     213 allocs/op
-BenchmarkBackendSearch/10-12           	   15028	      7905 ns/op	   17184 B/op	     213 allocs/op
-BenchmarkBackendSearch/10-12           	   15201	      7934 ns/op	   17184 B/op	     213 allocs/op
-BenchmarkBackendSearch/100-12          	    1438	     83713 ns/op	  177098 B/op	    2106 allocs/op
-BenchmarkBackendSearch/100-12          	    1436	     83379 ns/op	  177098 B/op	    2106 allocs/op
-BenchmarkBackendSearch/100-12          	    1408	     83520 ns/op	  177098 B/op	    2106 allocs/op
-BenchmarkBackendSearch/100-12          	    1462	     83194 ns/op	  177098 B/op	    2106 allocs/op
-BenchmarkBackendSearch/100-12          	    1430	     82833 ns/op	  177098 B/op	    2106 allocs/op
-BenchmarkBackendSearch/100-12          	    1460	     83170 ns/op	  177098 B/op	    2106 allocs/op
-BenchmarkBackendSearchNoHits-12        	 2522498	        46.81 ns/op	     128 B/op	       2 allocs/op
-BenchmarkBackendSearchNoHits-12        	 2566587	        47.08 ns/op	     128 B/op	       2 allocs/op
-BenchmarkBackendSearchNoHits-12        	 2574446	        46.59 ns/op	     128 B/op	       2 allocs/op
-BenchmarkBackendSearchNoHits-12        	 2589238	        48.20 ns/op	     128 B/op	       2 allocs/op
-BenchmarkBackendSearchNoHits-12        	 2500780	        47.95 ns/op	     128 B/op	       2 allocs/op
-BenchmarkBackendSearchNoHits-12        	 2540101	        47.19 ns/op	     128 B/op	       2 allocs/op
-BenchmarkBackendCandidateMapping-12    	    1423	     83261 ns/op	  176970 B/op	    2104 allocs/op
-BenchmarkBackendCandidateMapping-12    	    1435	     83205 ns/op	  176970 B/op	    2104 allocs/op
-BenchmarkBackendCandidateMapping-12    	    1438	     83300 ns/op	  176970 B/op	    2104 allocs/op
-BenchmarkBackendCandidateMapping-12    	    1449	     83578 ns/op	  176970 B/op	    2104 allocs/op
-BenchmarkBackendCandidateMapping-12    	    1440	     83796 ns/op	  176970 B/op	    2104 allocs/op
-BenchmarkBackendCandidateMapping-12    	    1449	     83249 ns/op	  176970 B/op	    2104 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkBackendSearch/1-4           	   83230	      1444 ns/op	    1840 B/op	      24 allocs/op
+BenchmarkBackendSearch/10-4          	    8594	     13603 ns/op	   17184 B/op	     213 allocs/op
+BenchmarkBackendSearch/100-4         	     835	    145349 ns/op	  177098 B/op	    2106 allocs/op
+BenchmarkBackendSearchNoHits-4       	 1493203	        81.17 ns/op	     128 B/op	       2 allocs/op
+BenchmarkBackendCandidateMapping-4   	     765	    145158 ns/op	  176970 B/op	    2104 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/searchrerank
-cpu: Apple M4 Pro
-BenchmarkRerank/10-12             	   47341	      2390 ns/op	   11766 B/op	      37 allocs/op
-BenchmarkRerank/10-12             	   50475	      2389 ns/op	   11766 B/op	      37 allocs/op
-BenchmarkRerank/10-12             	   49819	      2389 ns/op	   11766 B/op	      37 allocs/op
-BenchmarkRerank/10-12             	   48784	      2394 ns/op	   11766 B/op	      37 allocs/op
-BenchmarkRerank/10-12             	   50312	      2402 ns/op	   11766 B/op	      37 allocs/op
-BenchmarkRerank/10-12             	   50018	      2439 ns/op	   11766 B/op	      37 allocs/op
-BenchmarkRerank/100-12            	    5011	     22374 ns/op	  112660 B/op	     237 allocs/op
-BenchmarkRerank/100-12            	    5252	     22366 ns/op	  112660 B/op	     237 allocs/op
-BenchmarkRerank/100-12            	    5410	     22517 ns/op	  112661 B/op	     237 allocs/op
-BenchmarkRerank/100-12            	    5391	     22271 ns/op	  112660 B/op	     237 allocs/op
-BenchmarkRerank/100-12            	    5198	     22377 ns/op	  112660 B/op	     237 allocs/op
-BenchmarkRerank/100-12            	    5232	     22498 ns/op	  112661 B/op	     237 allocs/op
-BenchmarkRerank/1000-12           	     441	    268801 ns/op	 1031151 B/op	    2218 allocs/op
-BenchmarkRerank/1000-12           	     444	    270330 ns/op	 1031147 B/op	    2218 allocs/op
-BenchmarkRerank/1000-12           	     441	    268684 ns/op	 1031146 B/op	    2218 allocs/op
-BenchmarkRerank/1000-12           	     438	    267728 ns/op	 1031137 B/op	    2218 allocs/op
-BenchmarkRerank/1000-12           	     439	    268419 ns/op	 1031143 B/op	    2218 allocs/op
-BenchmarkRerank/1000-12           	     450	    269248 ns/op	 1031148 B/op	    2218 allocs/op
-BenchmarkRerankDenseSignals/10-12 	   34616	      3513 ns/op	   12535 B/op	      63 allocs/op
-BenchmarkRerankDenseSignals/10-12 	   34286	      3533 ns/op	   12535 B/op	      63 allocs/op
-BenchmarkRerankDenseSignals/10-12 	   33860	      3538 ns/op	   12535 B/op	      63 allocs/op
-BenchmarkRerankDenseSignals/10-12 	   34402	      3545 ns/op	   12535 B/op	      63 allocs/op
-BenchmarkRerankDenseSignals/10-12 	   33860	      3540 ns/op	   12535 B/op	      63 allocs/op
-BenchmarkRerankDenseSignals/10-12 	   31545	      3745 ns/op	   12535 B/op	      63 allocs/op
-BenchmarkRerankDenseSignals/100-12         	    2940	     43951 ns/op	  119736 B/op	     477 allocs/op
-BenchmarkRerankDenseSignals/100-12         	    2868	     40202 ns/op	  119736 B/op	     477 allocs/op
-BenchmarkRerankDenseSignals/100-12         	    3073	     39205 ns/op	  119738 B/op	     477 allocs/op
-BenchmarkRerankDenseSignals/100-12         	    3037	     38590 ns/op	  119737 B/op	     477 allocs/op
-BenchmarkRerankDenseSignals/100-12         	    3099	     38392 ns/op	  119736 B/op	     477 allocs/op
-BenchmarkRerankDenseSignals/100-12         	    3102	     38416 ns/op	  119737 B/op	     477 allocs/op
-BenchmarkRerankDenseSignals/1000-12        	     249	    476710 ns/op	 1117793 B/op	    4620 allocs/op
-BenchmarkRerankDenseSignals/1000-12        	     248	    484404 ns/op	 1117802 B/op	    4620 allocs/op
-BenchmarkRerankDenseSignals/1000-12        	     248	    478642 ns/op	 1117754 B/op	    4619 allocs/op
-BenchmarkRerankDenseSignals/1000-12        	     246	    480645 ns/op	 1117768 B/op	    4619 allocs/op
-BenchmarkRerankDenseSignals/1000-12        	     249	    482865 ns/op	 1117786 B/op	    4619 allocs/op
-BenchmarkRerankDenseSignals/1000-12        	     247	    485261 ns/op	 1117799 B/op	    4620 allocs/op
-BenchmarkRerankNoSignals/10-12             	   73820	      1637 ns/op	   10808 B/op	      16 allocs/op
-BenchmarkRerankNoSignals/10-12             	   74673	      1639 ns/op	   10808 B/op	      16 allocs/op
-BenchmarkRerankNoSignals/10-12             	   73497	      1610 ns/op	   10808 B/op	      16 allocs/op
-BenchmarkRerankNoSignals/10-12             	   74413	      1599 ns/op	   10808 B/op	      16 allocs/op
-BenchmarkRerankNoSignals/10-12             	   73544	      1611 ns/op	   10808 B/op	      16 allocs/op
-BenchmarkRerankNoSignals/10-12             	   74857	      1616 ns/op	   10808 B/op	      16 allocs/op
-BenchmarkRerankNoSignals/100-12            	    9338	     14112 ns/op	  104680 B/op	     106 allocs/op
-BenchmarkRerankNoSignals/100-12            	    8650	     14174 ns/op	  104680 B/op	     106 allocs/op
-BenchmarkRerankNoSignals/100-12            	    8887	     14140 ns/op	  104680 B/op	     106 allocs/op
-BenchmarkRerankNoSignals/100-12            	    8904	     14131 ns/op	  104680 B/op	     106 allocs/op
-BenchmarkRerankNoSignals/100-12            	    8568	     14145 ns/op	  104680 B/op	     106 allocs/op
-BenchmarkRerankNoSignals/100-12            	    9314	     14233 ns/op	  104680 B/op	     106 allocs/op
-BenchmarkRerankNoSignals/1000-12           	     728	    167951 ns/op	  958412 B/op	    1006 allocs/op
-BenchmarkRerankNoSignals/1000-12           	     734	    164337 ns/op	  958411 B/op	    1006 allocs/op
-BenchmarkRerankNoSignals/1000-12           	     742	    167738 ns/op	  958411 B/op	    1006 allocs/op
-BenchmarkRerankNoSignals/1000-12           	     686	    176954 ns/op	  958412 B/op	    1006 allocs/op
-BenchmarkRerankNoSignals/1000-12           	     670	    175193 ns/op	  958412 B/op	    1006 allocs/op
-BenchmarkRerankNoSignals/1000-12           	     735	    169569 ns/op	  958411 B/op	    1006 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkRerank/10-4            	   28462	      4268 ns/op	   11762 B/op	      37 allocs/op
+BenchmarkRerank/100-4           	    3093	     38699 ns/op	  112622 B/op	     237 allocs/op
+BenchmarkRerank/1000-4          	     214	    541726 ns/op	 1030793 B/op	    2219 allocs/op
+BenchmarkRerankDenseSignals/10-4         	   19446	      5946 ns/op	   12530 B/op	      63 allocs/op
+BenchmarkRerankDenseSignals/100-4        	    1552	     64712 ns/op	  119695 B/op	     477 allocs/op
+BenchmarkRerankDenseSignals/1000-4       	     127	    913497 ns/op	 1117425 B/op	    4620 allocs/op
+BenchmarkRerankNoSignals/10-4            	   39883	      2939 ns/op	   10808 B/op	      16 allocs/op
+BenchmarkRerankNoSignals/100-4           	    5330	     22938 ns/op	  104680 B/op	     106 allocs/op
+BenchmarkRerankNoSignals/1000-4          	     415	    268109 ns/op	  958414 B/op	    1006 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/searchretrieval
-cpu: Apple M4 Pro
-BenchmarkBuildResponse-12                 	   22104	      5338 ns/op	   53416 B/op	      45 allocs/op
-BenchmarkBuildResponse-12                 	   22236	      5410 ns/op	   53416 B/op	      45 allocs/op
-BenchmarkBuildResponse-12                 	   22064	      5361 ns/op	   53416 B/op	      45 allocs/op
-BenchmarkBuildResponse-12                 	   22672	      5391 ns/op	   53416 B/op	      45 allocs/op
-BenchmarkBuildResponse-12                 	   22442	      5401 ns/op	   53416 B/op	      45 allocs/op
-BenchmarkBuildResponse-12                 	   22262	      5404 ns/op	   53416 B/op	      45 allocs/op
-BenchmarkBuildResponseLarge-12            	    2029	     63300 ns/op	  372648 B/op	     105 allocs/op
-BenchmarkBuildResponseLarge-12            	    2026	     61606 ns/op	  372648 B/op	     105 allocs/op
-BenchmarkBuildResponseLarge-12            	    2007	     62133 ns/op	  372648 B/op	     105 allocs/op
-BenchmarkBuildResponseLarge-12            	    1956	     62802 ns/op	  372648 B/op	     105 allocs/op
-BenchmarkBuildResponseLarge-12            	    2067	     62058 ns/op	  372648 B/op	     105 allocs/op
-BenchmarkBuildResponseLarge-12            	    2032	     61204 ns/op	  372648 B/op	     105 allocs/op
-BenchmarkValidateRequest-12               	10918064	         9.700 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateRequest-12               	10918644	         9.600 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateRequest-12               	10935228	        10.01 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateRequest-12               	10916988	        10.13 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateRequest-12               	10911487	        10.16 ns/op	       0 B/op	       0 allocs/op
-BenchmarkValidateRequest-12               	10938632	        10.40 ns/op	       0 B/op	       0 allocs/op
-BenchmarkRunnerRetrieve-12                	   10000	     10329 ns/op	   94920 B/op	      53 allocs/op
-BenchmarkRunnerRetrieve-12                	   10000	     10636 ns/op	   94920 B/op	      53 allocs/op
-BenchmarkRunnerRetrieve-12                	   10000	     10413 ns/op	   94920 B/op	      53 allocs/op
-BenchmarkRunnerRetrieve-12                	   10000	     10567 ns/op	   94920 B/op	      53 allocs/op
-BenchmarkRunnerRetrieve-12                	   10000	     10501 ns/op	   94920 B/op	      53 allocs/op
-BenchmarkRunnerRetrieve-12                	   10000	     10424 ns/op	   94920 B/op	      53 allocs/op
-BenchmarkRunnerRetrieveWithObserver-12    	   10000	     13974 ns/op	   95858 B/op	      57 allocs/op
-BenchmarkRunnerRetrieveWithObserver-12    	   10000	     14055 ns/op	   95857 B/op	      57 allocs/op
-BenchmarkRunnerRetrieveWithObserver-12    	   10000	     13977 ns/op	   95856 B/op	      57 allocs/op
-BenchmarkRunnerRetrieveWithObserver-12    	   10000	     14148 ns/op	   95857 B/op	      57 allocs/op
-BenchmarkRunnerRetrieveWithObserver-12    	   10000	     14100 ns/op	   95856 B/op	      57 allocs/op
-BenchmarkRunnerRetrieveWithObserver-12    	   10000	     14014 ns/op	   95856 B/op	      57 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkBuildResponse-4                	   10000	     10484 ns/op	   53416 B/op	      45 allocs/op
+BenchmarkBuildResponseLarge-4           	     930	    113363 ns/op	  372651 B/op	     105 allocs/op
+BenchmarkValidateRequest-4              	 6813518	        17.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkRunnerRetrieve-4               	    7004	     17444 ns/op	   94920 B/op	      53 allocs/op
+BenchmarkRunnerRetrieveWithObserver-4   	    6018	     27978 ns/op	   95811 B/op	      57 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/storage/cypher
-cpu: Apple M4 Pro
-BenchmarkCloudResourceEdgeWriter-12                                	      60	   1754143 ns/op	 3885902 B/op	   40100 allocs/op
-BenchmarkCloudResourceEdgeWriter-12                                	      69	   1736176 ns/op	 3885926 B/op	   40100 allocs/op
-BenchmarkCloudResourceEdgeWriter-12                                	      68	   1767196 ns/op	 3885840 B/op	   40100 allocs/op
-BenchmarkCloudResourceEdgeWriter-12                                	      67	   1756932 ns/op	 3885886 B/op	   40100 allocs/op
-BenchmarkCloudResourceEdgeWriter-12                                	      64	   1774961 ns/op	 3885760 B/op	   40099 allocs/op
-BenchmarkCloudResourceEdgeWriter-12                                	      67	   1742383 ns/op	 3885856 B/op	   40099 allocs/op
-BenchmarkCloudResourceNodeWriter-12                                	      42	   2778550 ns/op	 6327717 B/op	   25068 allocs/op
-BenchmarkCloudResourceNodeWriter-12                                	      40	   2773377 ns/op	 6327672 B/op	   25068 allocs/op
-BenchmarkCloudResourceNodeWriter-12                                	      42	   2780767 ns/op	 6327702 B/op	   25068 allocs/op
-BenchmarkCloudResourceNodeWriter-12                                	      43	   2790814 ns/op	 6327715 B/op	   25068 allocs/op
-BenchmarkCloudResourceNodeWriter-12                                	      43	   2783075 ns/op	 6327612 B/op	   25068 allocs/op
-BenchmarkCloudResourceNodeWriter-12                                	      38	   2815737 ns/op	 6327694 B/op	   25068 allocs/op
-BenchmarkEC2BlockDeviceKMSPostureNodeWriter-12                     	      48	   2461951 ns/op	 3607917 B/op	   35068 allocs/op
-BenchmarkEC2BlockDeviceKMSPostureNodeWriter-12                     	      48	   2454946 ns/op	 3607918 B/op	   35068 allocs/op
-BenchmarkEC2BlockDeviceKMSPostureNodeWriter-12                     	      48	   2452118 ns/op	 3607913 B/op	   35068 allocs/op
-BenchmarkEC2BlockDeviceKMSPostureNodeWriter-12                     	      42	   2440107 ns/op	 3607884 B/op	   35068 allocs/op
-BenchmarkEC2BlockDeviceKMSPostureNodeWriter-12                     	      48	   2461040 ns/op	 3607937 B/op	   35068 allocs/op
-BenchmarkEC2BlockDeviceKMSPostureNodeWriter-12                     	      49	   2450618 ns/op	 3607923 B/op	   35068 allocs/op
-BenchmarkEC2InstanceNodeWriter-12                                  	      30	   3671796 ns/op	 6327926 B/op	   25068 allocs/op
-BenchmarkEC2InstanceNodeWriter-12                                  	      34	   3717888 ns/op	 6327924 B/op	   25068 allocs/op
-BenchmarkEC2InstanceNodeWriter-12                                  	      32	   3743154 ns/op	 6328113 B/op	   25068 allocs/op
-BenchmarkEC2InstanceNodeWriter-12                                  	      31	   3705212 ns/op	 6328013 B/op	   25068 allocs/op
-BenchmarkEC2InstanceNodeWriter-12                                  	      32	   3689556 ns/op	 6327967 B/op	   25068 allocs/op
-BenchmarkEC2InstanceNodeWriter-12                                  	      31	   3680418 ns/op	 6328011 B/op	   25068 allocs/op
-BenchmarkEC2InternetExposureNodeWriter-12                          	      91	   1282738 ns/op	 1967701 B/op	   25068 allocs/op
-BenchmarkEC2InternetExposureNodeWriter-12                          	      80	   1280441 ns/op	 1967736 B/op	   25068 allocs/op
-BenchmarkEC2InternetExposureNodeWriter-12                          	      92	   1288204 ns/op	 1967770 B/op	   25068 allocs/op
-BenchmarkEC2InternetExposureNodeWriter-12                          	      79	   1301698 ns/op	 1967783 B/op	   25068 allocs/op
-BenchmarkEC2InternetExposureNodeWriter-12                          	      78	   1297505 ns/op	 1967732 B/op	   25068 allocs/op
-BenchmarkEC2InternetExposureNodeWriter-12                          	      92	   1290531 ns/op	 1967714 B/op	   25068 allocs/op
-BenchmarkEC2UsesProfileEdgeWriter-12                               	      75	   1349713 ns/op	 1968178 B/op	   25070 allocs/op
-BenchmarkEC2UsesProfileEdgeWriter-12                               	      76	   1345649 ns/op	 1968127 B/op	   25070 allocs/op
-BenchmarkEC2UsesProfileEdgeWriter-12                               	      75	   1349556 ns/op	 1968135 B/op	   25070 allocs/op
-BenchmarkEC2UsesProfileEdgeWriter-12                               	      75	   1350612 ns/op	 1968219 B/op	   25070 allocs/op
-BenchmarkEC2UsesProfileEdgeWriter-12                               	      76	   1344554 ns/op	 1968182 B/op	   25070 allocs/op
-BenchmarkEC2UsesProfileEdgeWriter-12                               	      76	   1342508 ns/op	 1968151 B/op	   25070 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/repo_wide_full_refresh_5000_call_rows-12         	      36	   2830975 ns/op	         0 delta_file_paths/op	      5000 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4741952 B/op	   65138 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/repo_wide_full_refresh_5000_call_rows-12         	      48	   2778339 ns/op	         0 delta_file_paths/op	      5000 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4741852 B/op	   65137 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/repo_wide_full_refresh_5000_call_rows-12         	      46	   2815053 ns/op	         0 delta_file_paths/op	      5000 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4742033 B/op	   65139 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/repo_wide_full_refresh_5000_call_rows-12         	      46	   2820864 ns/op	         0 delta_file_paths/op	      5000 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4742094 B/op	   65139 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/repo_wide_full_refresh_5000_call_rows-12         	      49	   2782981 ns/op	         0 delta_file_paths/op	      5000 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4741929 B/op	   65138 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/repo_wide_full_refresh_5000_call_rows-12         	      45	   2832356 ns/op	         0 delta_file_paths/op	      5000 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4742057 B/op	   65139 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_50_files_5000_call_rows-12                 	      48	   2739513 ns/op	        50.00 delta_file_paths/op	      5001 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4528703 B/op	   65133 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_50_files_5000_call_rows-12                 	      49	   2749448 ns/op	        50.00 delta_file_paths/op	      5001 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4528842 B/op	   65134 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_50_files_5000_call_rows-12                 	      48	   2736477 ns/op	        50.00 delta_file_paths/op	      5001 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4528698 B/op	   65133 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_50_files_5000_call_rows-12                 	      48	   2732150 ns/op	        50.00 delta_file_paths/op	      5001 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4528762 B/op	   65134 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_50_files_5000_call_rows-12                 	      49	   2764099 ns/op	        50.00 delta_file_paths/op	      5001 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4528841 B/op	   65134 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_50_files_5000_call_rows-12                 	      46	   2739990 ns/op	        50.00 delta_file_paths/op	      5001 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 4528683 B/op	   65133 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_deleted_only_50_files_0_call_rows-12       	   47766	      2424 ns/op	        50.00 delta_file_paths/op	         1.000 input_rows/op	         1.000 retract_statements/op	         0 write_rows/op	    5744 B/op	      18 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_deleted_only_50_files_0_call_rows-12       	   48391	      2446 ns/op	        50.00 delta_file_paths/op	         1.000 input_rows/op	         1.000 retract_statements/op	         0 write_rows/op	    5744 B/op	      18 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_deleted_only_50_files_0_call_rows-12       	   47647	      2414 ns/op	        50.00 delta_file_paths/op	         1.000 input_rows/op	         1.000 retract_statements/op	         0 write_rows/op	    5744 B/op	      18 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_deleted_only_50_files_0_call_rows-12       	   48044	      2405 ns/op	        50.00 delta_file_paths/op	         1.000 input_rows/op	         1.000 retract_statements/op	         0 write_rows/op	    5744 B/op	      18 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_deleted_only_50_files_0_call_rows-12       	   49065	      2440 ns/op	        50.00 delta_file_paths/op	         1.000 input_rows/op	         1.000 retract_statements/op	         0 write_rows/op	    5744 B/op	      18 allocs/op
-BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_deleted_only_50_files_0_call_rows-12       	   49136	      2419 ns/op	        50.00 delta_file_paths/op	         1.000 input_rows/op	         1.000 retract_statements/op	         0 write_rows/op	    5744 B/op	      18 allocs/op
-BenchmarkDeployableUnitCorrelationEdgeWriter-12                                             	      42	   2851292 ns/op	 7320121 B/op	   80052 allocs/op
-BenchmarkDeployableUnitCorrelationEdgeWriter-12                                             	      42	   2817336 ns/op	 7320100 B/op	   80052 allocs/op
-BenchmarkDeployableUnitCorrelationEdgeWriter-12                                             	      36	   2858179 ns/op	 7320117 B/op	   80052 allocs/op
-BenchmarkDeployableUnitCorrelationEdgeWriter-12                                             	      42	   2842862 ns/op	 7320115 B/op	   80052 allocs/op
-BenchmarkDeployableUnitCorrelationEdgeWriter-12                                             	      36	   2877378 ns/op	 7320128 B/op	   80052 allocs/op
-BenchmarkDeployableUnitCorrelationEdgeWriter-12                                             	      40	   2862022 ns/op	 7320113 B/op	   80052 allocs/op
-BenchmarkIAMCanPerformEdgeWriter-12                                                         	      81	   1292100 ns/op	 1967398 B/op	   25068 allocs/op
-BenchmarkIAMCanPerformEdgeWriter-12                                                         	      82	   1287703 ns/op	 1967392 B/op	   25068 allocs/op
-BenchmarkIAMCanPerformEdgeWriter-12                                                         	      82	   1284111 ns/op	 1967363 B/op	   25068 allocs/op
-BenchmarkIAMCanPerformEdgeWriter-12                                                         	      82	   1284441 ns/op	 1967323 B/op	   25068 allocs/op
-BenchmarkIAMCanPerformEdgeWriter-12                                                         	      92	   1289268 ns/op	 1967352 B/op	   25068 allocs/op
-BenchmarkIAMCanPerformEdgeWriter-12                                                         	      92	   1279144 ns/op	 1967353 B/op	   25068 allocs/op
-BenchmarkIAMEscalationEdgeWriter-12                                                         	      84	   1242730 ns/op	 1967387 B/op	   25068 allocs/op
-BenchmarkIAMEscalationEdgeWriter-12                                                         	      82	   1249033 ns/op	 1967413 B/op	   25068 allocs/op
-BenchmarkIAMEscalationEdgeWriter-12                                                         	      96	   1244404 ns/op	 1967358 B/op	   25068 allocs/op
-BenchmarkIAMEscalationEdgeWriter-12                                                         	      81	   1256753 ns/op	 1967425 B/op	   25068 allocs/op
-BenchmarkIAMEscalationEdgeWriter-12                                                         	      81	   1256824 ns/op	 1967367 B/op	   25068 allocs/op
-BenchmarkIAMEscalationEdgeWriter-12                                                         	      82	   1249328 ns/op	 1967363 B/op	   25068 allocs/op
-BenchmarkIAMInstanceProfileRoleEdgeWriter-12                                                	      76	   1343253 ns/op	 1968360 B/op	   25070 allocs/op
-BenchmarkIAMInstanceProfileRoleEdgeWriter-12                                                	      78	   1336993 ns/op	 1968360 B/op	   25070 allocs/op
-BenchmarkIAMInstanceProfileRoleEdgeWriter-12                                                	      78	   1345877 ns/op	 1968425 B/op	   25070 allocs/op
-BenchmarkIAMInstanceProfileRoleEdgeWriter-12                                                	      88	   1355324 ns/op	 1968430 B/op	   25070 allocs/op
-BenchmarkIAMInstanceProfileRoleEdgeWriter-12                                                	      76	   1341538 ns/op	 1968345 B/op	   25070 allocs/op
-BenchmarkIAMInstanceProfileRoleEdgeWriter-12                                                	      75	   1350120 ns/op	 1968440 B/op	   25070 allocs/op
-BenchmarkKubernetesCorrelationEdgeWriter-12                                                 	      91	   1133645 ns/op	 2164567 B/op	   25097 allocs/op
-BenchmarkKubernetesCorrelationEdgeWriter-12                                                 	      92	   1130855 ns/op	 2164595 B/op	   25097 allocs/op
-BenchmarkKubernetesCorrelationEdgeWriter-12                                                 	      94	   1138562 ns/op	 2164575 B/op	   25097 allocs/op
-BenchmarkKubernetesCorrelationEdgeWriter-12                                                 	      96	   1135293 ns/op	 2164562 B/op	   25097 allocs/op
-BenchmarkKubernetesCorrelationEdgeWriter-12                                                 	      90	   1136375 ns/op	 2164603 B/op	   25097 allocs/op
-BenchmarkKubernetesCorrelationEdgeWriter-12                                                 	      93	   1121712 ns/op	 2164630 B/op	   25097 allocs/op
-BenchmarkKubernetesWorkloadNodeWriter-12                                                    	      38	   2777755 ns/op	 6327833 B/op	   25069 allocs/op
-BenchmarkKubernetesWorkloadNodeWriter-12                                                    	      42	   2761238 ns/op	 6327746 B/op	   25068 allocs/op
-BenchmarkKubernetesWorkloadNodeWriter-12                                                    	      42	   2790771 ns/op	 6327729 B/op	   25068 allocs/op
-BenchmarkKubernetesWorkloadNodeWriter-12                                                    	      39	   2796163 ns/op	 6327790 B/op	   25068 allocs/op
-BenchmarkKubernetesWorkloadNodeWriter-12                                                    	      42	   2761089 ns/op	 6327747 B/op	   25068 allocs/op
-BenchmarkKubernetesWorkloadNodeWriter-12                                                    	      42	   2795000 ns/op	 6327757 B/op	   25068 allocs/op
-BenchmarkObservabilityCoverageEdgeWriter-12                                                 	      70	   1730205 ns/op	 3885611 B/op	   40099 allocs/op
-BenchmarkObservabilityCoverageEdgeWriter-12                                                 	      73	   1720547 ns/op	 3885744 B/op	   40100 allocs/op
-BenchmarkObservabilityCoverageEdgeWriter-12                                                 	      68	   1721077 ns/op	 3885750 B/op	   40100 allocs/op
-BenchmarkObservabilityCoverageEdgeWriter-12                                                 	      70	   1727617 ns/op	 3885579 B/op	   40099 allocs/op
-BenchmarkObservabilityCoverageEdgeWriter-12                                                 	      69	   1706013 ns/op	 3885550 B/op	   40099 allocs/op
-BenchmarkObservabilityCoverageEdgeWriter-12                                                 	      73	   1706680 ns/op	 3885659 B/op	   40100 allocs/op
-BenchmarkS3ExternalPrincipalGrantWriter-12                                                  	      36	   3085207 ns/op	 6491171 B/op	   35071 allocs/op
-BenchmarkS3ExternalPrincipalGrantWriter-12                                                  	      37	   3078182 ns/op	 6491258 B/op	   35071 allocs/op
-BenchmarkS3ExternalPrincipalGrantWriter-12                                                  	      37	   3061825 ns/op	 6491346 B/op	   35071 allocs/op
-BenchmarkS3ExternalPrincipalGrantWriter-12                                                  	      38	   3065785 ns/op	 6491467 B/op	   35072 allocs/op
-BenchmarkS3ExternalPrincipalGrantWriter-12                                                  	      37	   3075077 ns/op	 6491221 B/op	   35071 allocs/op
-BenchmarkS3ExternalPrincipalGrantWriter-12                                                  	      38	   3042224 ns/op	 6491372 B/op	   35072 allocs/op
-BenchmarkS3InternetExposureNodeWriter-12                                                    	      80	   1299179 ns/op	 1967811 B/op	   25068 allocs/op
-BenchmarkS3InternetExposureNodeWriter-12                                                    	      80	   1289180 ns/op	 1967784 B/op	   25068 allocs/op
-BenchmarkS3InternetExposureNodeWriter-12                                                    	      91	   1284845 ns/op	 1967742 B/op	   25068 allocs/op
-BenchmarkS3InternetExposureNodeWriter-12                                                    	      80	   1292308 ns/op	 1967831 B/op	   25068 allocs/op
-BenchmarkS3InternetExposureNodeWriter-12                                                    	      82	   1287072 ns/op	 1967788 B/op	   25068 allocs/op
-BenchmarkS3InternetExposureNodeWriter-12                                                    	      78	   1297315 ns/op	 1967809 B/op	   25068 allocs/op
-BenchmarkS3LogsToEdgeWriter-12                                                              	      75	   1334214 ns/op	 1968070 B/op	   25070 allocs/op
-BenchmarkS3LogsToEdgeWriter-12                                                              	      75	   1354581 ns/op	 1968143 B/op	   25070 allocs/op
-BenchmarkS3LogsToEdgeWriter-12                                                              	      78	   1351067 ns/op	 1968178 B/op	   25070 allocs/op
-BenchmarkS3LogsToEdgeWriter-12                                                              	      88	   1343440 ns/op	 1968150 B/op	   25070 allocs/op
-BenchmarkS3LogsToEdgeWriter-12                                                              	      78	   1337921 ns/op	 1968146 B/op	   25070 allocs/op
-BenchmarkS3LogsToEdgeWriter-12                                                              	      79	   1351491 ns/op	 1968191 B/op	   25070 allocs/op
-BenchmarkSecretsIAMGraphWriter-12                                                           	    5731	     19979 ns/op	   53734 B/op	     765 allocs/op
-BenchmarkSecretsIAMGraphWriter-12                                                           	    5607	     20217 ns/op	   53734 B/op	     765 allocs/op
-BenchmarkSecretsIAMGraphWriter-12                                                           	    5832	     20019 ns/op	   53733 B/op	     765 allocs/op
-BenchmarkSecretsIAMGraphWriter-12                                                           	    6038	     19970 ns/op	   53733 B/op	     765 allocs/op
-BenchmarkSecretsIAMGraphWriter-12                                                           	    5731	     19985 ns/op	   53733 B/op	     765 allocs/op
-BenchmarkSecretsIAMGraphWriter-12                                                           	    4905	     20498 ns/op	   53734 B/op	     765 allocs/op
-BenchmarkCidrBlockNodeWriter-12                                                             	      76	   1749950 ns/op	 3448076 B/op	   25099 allocs/op
-BenchmarkCidrBlockNodeWriter-12                                                             	      75	   1770470 ns/op	 3448136 B/op	   25099 allocs/op
-BenchmarkCidrBlockNodeWriter-12                                                             	      66	   1782091 ns/op	 3448090 B/op	   25100 allocs/op
-BenchmarkCidrBlockNodeWriter-12                                                             	      60	   1740278 ns/op	 3448020 B/op	   25099 allocs/op
-BenchmarkCidrBlockNodeWriter-12                                                             	      73	   1773299 ns/op	 3448067 B/op	   25100 allocs/op
-BenchmarkCidrBlockNodeWriter-12                                                             	      67	   1744060 ns/op	 3448048 B/op	   25099 allocs/op
-BenchmarkPrefixListNodeWriter-12                                                            	      60	   1781367 ns/op	 3448120 B/op	   25099 allocs/op
-BenchmarkPrefixListNodeWriter-12                                                            	      67	   1773111 ns/op	 3448132 B/op	   25099 allocs/op
-BenchmarkPrefixListNodeWriter-12                                                            	      67	   1776903 ns/op	 3448153 B/op	   25099 allocs/op
-BenchmarkPrefixListNodeWriter-12                                                            	      66	   1772220 ns/op	 3448195 B/op	   25100 allocs/op
-BenchmarkPrefixListNodeWriter-12                                                            	      68	   1758564 ns/op	 3448093 B/op	   25100 allocs/op
-BenchmarkPrefixListNodeWriter-12                                                            	      63	   1780321 ns/op	 3448155 B/op	   25099 allocs/op
-BenchmarkSecurityGroupReachabilityWriter-12                                                 	      28	   4139585 ns/op	 7759524 B/op	   75367 allocs/op
-BenchmarkSecurityGroupReachabilityWriter-12                                                 	      25	   4102500 ns/op	 7759473 B/op	   75368 allocs/op
-BenchmarkSecurityGroupReachabilityWriter-12                                                 	      27	   4150571 ns/op	 7759620 B/op	   75368 allocs/op
-BenchmarkSecurityGroupReachabilityWriter-12                                                 	      25	   4140110 ns/op	 7759480 B/op	   75368 allocs/op
-BenchmarkSecurityGroupReachabilityWriter-12                                                 	      25	   4164537 ns/op	 7759502 B/op	   75367 allocs/op
-BenchmarkSecurityGroupReachabilityWriter-12                                                 	      26	   4124922 ns/op	 7759441 B/op	   75367 allocs/op
-BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos-12                             	    9969	     14429 ns/op	        13.00 statements/op	   32125 B/op	     229 allocs/op
-BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos-12                             	    9793	     14235 ns/op	        13.00 statements/op	   32128 B/op	     229 allocs/op
-BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos-12                             	   10000	     14155 ns/op	        13.00 statements/op	   32128 B/op	     229 allocs/op
-BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos-12                             	   10000	     14572 ns/op	        13.00 statements/op	   32126 B/op	     229 allocs/op
-BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos-12                             	    9307	     14466 ns/op	        13.00 statements/op	   32122 B/op	     229 allocs/op
-BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos-12                             	   10000	     13747 ns/op	        13.00 statements/op	   32116 B/op	     229 allocs/op
-BenchmarkWorkloadCloudRelationshipWriter-12                                                 	      38	   3018922 ns/op	 6490673 B/op	   35072 allocs/op
-BenchmarkWorkloadCloudRelationshipWriter-12                                                 	      36	   3045903 ns/op	 6490812 B/op	   35073 allocs/op
-BenchmarkWorkloadCloudRelationshipWriter-12                                                 	      36	   3019245 ns/op	 6490741 B/op	   35072 allocs/op
-BenchmarkWorkloadCloudRelationshipWriter-12                                                 	      34	   3040458 ns/op	 6490412 B/op	   35072 allocs/op
-BenchmarkWorkloadCloudRelationshipWriter-12                                                 	      36	   3062678 ns/op	 6490875 B/op	   35073 allocs/op
-BenchmarkWorkloadCloudRelationshipWriter-12                                                 	      37	   3086412 ns/op	 6490418 B/op	   35072 allocs/op
-goos: darwin
-goarch: arm64
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkCloudResourceContainerImageEdgeWriter-4                 	      34	   3458563 ns/op	 3608894 B/op	   35070 allocs/op
+BenchmarkCloudResourceEdgeWriter-4                               	      38	   3577391 ns/op	 3886029 B/op	   40100 allocs/op
+BenchmarkCloudResourceNodeWriter-4                               	      16	   6987600 ns/op	 6327709 B/op	   25068 allocs/op
+BenchmarkEC2BlockDeviceKMSPostureNodeWriter-4                    	      19	   5631580 ns/op	 5830678 B/op	   55092 allocs/op
+BenchmarkEC2InstanceNodeWriter-4                                 	      18	   6475796 ns/op	 6328045 B/op	   25068 allocs/op
+BenchmarkEC2InternetExposureNodeWriter-4                         	      31	   3764650 ns/op	 4190695 B/op	   45092 allocs/op
+BenchmarkEC2UsesProfileEdgeWriter-4                              	      51	   2295007 ns/op	 1968473 B/op	   25071 allocs/op
+BenchmarkIAMCanPerformEdgeWriter-4                               	      51	   2298161 ns/op	 1967604 B/op	   25068 allocs/op
+BenchmarkIAMEscalationEdgeWriter-4                               	      52	   2213346 ns/op	 1967634 B/op	   25068 allocs/op
+BenchmarkIAMInstanceProfileRoleEdgeWriter-4                      	      49	   2367442 ns/op	 1968540 B/op	   25070 allocs/op
+BenchmarkKubernetesCorrelationEdgeWriter-4                       	      58	   2034700 ns/op	 2165020 B/op	   25097 allocs/op
+BenchmarkKubernetesWorkloadNodeWriter-4                          	      21	   5423745 ns/op	 6327863 B/op	   25068 allocs/op
+BenchmarkObservabilityCoverageEdgeWriter-4                       	      36	   3371321 ns/op	 3885694 B/op	   40099 allocs/op
+BenchmarkRetryingExecutorExecuteGroupSuccess5767-4               	 2965582	        39.70 ns/op	      64 B/op	       1 allocs/op
+BenchmarkS3ExternalPrincipalGrantWriter-4                        	      19	   5936616 ns/op	 6490845 B/op	   35071 allocs/op
+BenchmarkS3InternetExposureNodeWriter-4                          	      28	   3861765 ns/op	 4190701 B/op	   45092 allocs/op
+BenchmarkS3LogsToEdgeWriter-4                                    	      43	   2390221 ns/op	 1968479 B/op	   25071 allocs/op
+BenchmarkSecretsIAMGraphWriter-4                                 	    2760	     42819 ns/op	   60930 B/op	     765 allocs/op
+BenchmarkCidrBlockNodeWriter-4                                   	      36	   3157265 ns/op	 3448086 B/op	   25099 allocs/op
+BenchmarkPrefixListNodeWriter-4                                  	      38	   3039403 ns/op	 3448149 B/op	   25099 allocs/op
+BenchmarkSecurityGroupReachabilityWriter-4                       	      14	   7377083 ns/op	 7761427 B/op	   75367 allocs/op
+BenchmarkSemanticEntityWriterNornicDBConcurrentDistinctRepos-4   	    6555	     18089 ns/op	        13.00 statements/op	   33024 B/op	     222 allocs/op
+BenchmarkPromoteTerraformResourceAttributes/aws_instance_2attr_preexisting_shape-4         	  285339	       351.2 ns/op	     440 B/op	       8 allocs/op
+BenchmarkPromoteTerraformResourceAttributes/aws_lambda_function_6attr_post_5446_shape-4    	  145148	       746.6 ns/op	     624 B/op	      20 allocs/op
+BenchmarkPromoteTerraformResourceAttributes/unrecognized_type_map_lookup_miss-4            	14860476	         8.078 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBuildTerraformStateStatementsSyntheticCorpus-4                                    	       6	  18111639 ns/op	        82.00 statements/op	         0.008200 statements_per_resource	20587701 B/op	  270652 allocs/op
+BenchmarkWorkloadCloudRelationshipWriter-4                                                 	      20	   5870363 ns/op	 6490397 B/op	   35072 allocs/op
+goos: linux
+goarch: amd64
+pkg: github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkEdgeWriterCodeCallRetractAndWrite/repo_wide_full_refresh_5000_call_rows-4         	      15	   8164597 ns/op	         0 delta_file_paths/op	      5000 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 7827311 B/op	   80192 allocs/op
+BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_50_files_5000_call_rows-4                 	      15	   8583529 ns/op	        50.00 delta_file_paths/op	      5001 input_rows/op	         1.000 retract_statements/op	      5000 write_rows/op	 7613782 B/op	   80188 allocs/op
+BenchmarkEdgeWriterCodeCallRetractAndWrite/delta_deleted_only_50_files_0_call_rows-4       	   13852	      8302 ns/op	        50.00 delta_file_paths/op	         1.000 input_rows/op	         1.000 retract_statements/op	         0 write_rows/op	    9369 B/op	      70 allocs/op
+BenchmarkDeployableUnitCorrelationEdgeWriter-4                                             	      18	   6269124 ns/op	 7322003 B/op	   80054 allocs/op
+BenchmarkCollectRepoIDsRationaleNonDeltaBatch-4                                            	   27477	      4308 ns/op	    7912 B/op	       9 allocs/op
+BenchmarkCollectWholeScopeRefreshRepoIDsRationaleNonDeltaBatch-4                           	   20440	      5950 ns/op	    7912 B/op	       9 allocs/op
+BenchmarkEdgeWriterRepoDependencyWrite-4                                                   	      18	   6681408 ns/op	      5000 input_rows/op	 7335096 B/op	   85106 allocs/op
+BenchmarkEdgeWriterUnroutableRowLoop/all_routable-4                                        	      36	   3940399 ns/op	      5000 input_rows/op	 3761996 B/op	   40054 allocs/op
+BenchmarkEdgeWriterUnroutableRowLoop/all_unroutable_edge_rows-4                            	     100	   1446327 ns/op	      5000 input_rows/op	 3631200 B/op	      17 allocs/op
+BenchmarkEdgeWriterUnroutableRowLoop/all_control_rows-4                                    	     238	    512826 ns/op	      5000 input_rows/op	   80008 B/op	    5000 allocs/op
+goos: linux
+goarch: amd64
 pkg: github.com/eshu-hq/eshu/go/internal/storage/postgres
-cpu: Apple M4 Pro
-BenchmarkGenerationRetentionStoreLargeFixture-12         	     367	    296858 ns/op	  454454 B/op	    8290 allocs/op
-BenchmarkGenerationRetentionStoreLargeFixture-12         	     402	    294251 ns/op	  454444 B/op	    8289 allocs/op
-BenchmarkGenerationRetentionStoreLargeFixture-12         	     408	    294019 ns/op	  454419 B/op	    8289 allocs/op
-BenchmarkGenerationRetentionStoreLargeFixture-12         	     406	    294195 ns/op	  454408 B/op	    8289 allocs/op
-BenchmarkGenerationRetentionStoreLargeFixture-12         	     409	    294391 ns/op	  454427 B/op	    8289 allocs/op
-BenchmarkGenerationRetentionStoreLargeFixture-12         	     398	    295904 ns/op	  454444 B/op	    8290 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=1000-12        	      50	   2217732 ns/op	 6103719 B/op	   44052 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=1000-12        	      60	   2192469 ns/op	 6103735 B/op	   44052 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=1000-12        	      57	   2201598 ns/op	 6103690 B/op	   44052 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=1000-12        	      61	   2200082 ns/op	 6103740 B/op	   44052 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=1000-12        	      61	   2214790 ns/op	 6103766 B/op	   44052 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=1000-12        	      62	   2203305 ns/op	 6103768 B/op	   44052 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=5000-12        	      10	  10832146 ns/op	30864171 B/op	  220135 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=5000-12        	      10	  10980638 ns/op	30863865 B/op	  220131 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=5000-12        	      10	  11111971 ns/op	30864267 B/op	  220136 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=5000-12        	      10	  11125875 ns/op	30864640 B/op	  220140 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=5000-12        	      10	  11094217 ns/op	30864550 B/op	  220139 allocs/op
-BenchmarkBackfillScopedCatalogNoGCP/fleet=5000-12        	      10	  10976933 ns/op	30864326 B/op	  220137 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=1000-12      	      50	   2605358 ns/op	 6734990 B/op	   52126 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=1000-12      	      50	   2617332 ns/op	 6735083 B/op	   52127 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=1000-12      	      50	   2578132 ns/op	 6734915 B/op	   52125 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=1000-12      	      54	   2575981 ns/op	 6734922 B/op	   52125 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=1000-12      	      52	   2597786 ns/op	 6735147 B/op	   52127 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=1000-12      	      51	   2584125 ns/op	 6735021 B/op	   52126 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=5000-12      	       8	  12868245 ns/op	34363150 B/op	  260244 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=5000-12      	       8	  12860365 ns/op	34362850 B/op	  260241 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=5000-12      	       8	  12887964 ns/op	34362698 B/op	  260239 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=5000-12      	       8	  12818839 ns/op	34362659 B/op	  260241 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=5000-12      	       8	  12712828 ns/op	34362323 B/op	  260238 allocs/op
-BenchmarkBackfillScopedCatalogWithGCP/fleet=5000-12      	       8	  12951516 ns/op	34362686 B/op	  260239 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=1000-12      	       1	 269009834 ns/op	170412424 B/op	 1408090 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=1000-12      	      27	   4303525 ns/op	  967585 B/op	   13058 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=1000-12      	      27	   4308437 ns/op	  971724 B/op	   13059 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=1000-12      	      27	   4320985 ns/op	  967583 B/op	   13058 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=1000-12      	      27	   4332449 ns/op	  967585 B/op	   13058 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=1000-12      	      27	   4293614 ns/op	  966202 B/op	   13058 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=5000-12      	       5	  21644858 ns/op	 5006016 B/op	   65117 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=5000-12      	       5	  21469467 ns/op	 5013459 B/op	   65118 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=5000-12      	       5	  21390233 ns/op	 5006035 B/op	   65117 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=5000-12      	       5	  21225058 ns/op	 5006012 B/op	   65117 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=5000-12      	       5	  21134650 ns/op	 5006035 B/op	   65117 allocs/op
-BenchmarkBackfillDiscoveryFullCatalog/fleet=5000-12      	       5	  21134958 ns/op	 4998560 B/op	   65115 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=1000-12           	      28	   3900805 ns/op	  337979 B/op	    5045 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=1000-12           	      30	   3917631 ns/op	  336644 B/op	    5045 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=1000-12           	      30	   3913369 ns/op	  337886 B/op	    5045 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=1000-12           	      30	   3869461 ns/op	  337886 B/op	    5045 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=1000-12           	      30	   3886296 ns/op	  337886 B/op	    5045 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=1000-12           	      30	   3832426 ns/op	  337886 B/op	    5045 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=5000-12           	       6	  19538882 ns/op	 1503188 B/op	   25071 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=5000-12           	       6	  19698785 ns/op	 1509398 B/op	   25072 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=5000-12           	       6	  19602139 ns/op	 1509398 B/op	   25072 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=5000-12           	       6	  19496188 ns/op	 1509398 B/op	   25072 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=5000-12           	       6	  19697764 ns/op	 1509398 B/op	   25072 allocs/op
-BenchmarkBackfillDiscoveryScoped/fleet=5000-12           	       6	  19756070 ns/op	 1509398 B/op	   25072 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/cached-12   	       3	  44623667 ns/op	         0.005000 catalog_loads/commit	109400469 B/op	  637672 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/cached-12   	       3	  43492375 ns/op	         0.005000 catalog_loads/commit	109404653 B/op	  637701 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/cached-12   	       3	  42924694 ns/op	         0.005000 catalog_loads/commit	109400362 B/op	  637672 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/cached-12   	       3	  42452417 ns/op	         0.005000 catalog_loads/commit	109400661 B/op	  637676 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/cached-12   	       3	  42511625 ns/op	         0.005000 catalog_loads/commit	109399488 B/op	  637659 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/cached-12   	       3	  42402208 ns/op	         0.005000 catalog_loads/commit	109399133 B/op	  637686 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/per_commit_baseline-12         	       1	 152677458 ns/op	         1.000 catalog_loads/commit	290733240 B/op	 3629567 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/per_commit_baseline-12         	       1	 152694791 ns/op	         1.000 catalog_loads/commit	290734064 B/op	 3629579 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/per_commit_baseline-12         	       1	 151541334 ns/op	         1.000 catalog_loads/commit	290732704 B/op	 3629562 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/per_commit_baseline-12         	       1	 151830042 ns/op	         1.000 catalog_loads/commit	290731592 B/op	 3629541 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/per_commit_baseline-12         	       1	 152135125 ns/op	         1.000 catalog_loads/commit	290730888 B/op	 3629534 allocs/op
-BenchmarkIngestionStoreCatalogLoadsPerCommit/per_commit_baseline-12         	       1	 150981250 ns/op	         1.000 catalog_loads/commit	290742296 B/op	 3629596 allocs/op
-BenchmarkReducerPlatformGraphConflictKey-12                                 	  818181	       152.0 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKey-12                                 	  826849	       152.7 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKey-12                                 	  830880	       153.1 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKey-12                                 	  824766	       150.7 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKey-12                                 	  847183	       149.9 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKey-12                                 	  812227	       150.7 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKeyAllDomains-12                       	  737439	       167.0 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKeyAllDomains-12                       	  719136	       165.3 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKeyAllDomains-12                       	  740778	       165.0 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKeyAllDomains-12                       	  741693	       164.9 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKeyAllDomains-12                       	  743570	       162.9 ns/op	     352 B/op	       5 allocs/op
-BenchmarkReducerPlatformGraphConflictKeyAllDomains-12                       	  746055	       163.5 ns/op	     352 B/op	       5 allocs/op
+cpu: AMD EPYC 9V74 80-Core Processor                
+BenchmarkStateDeclaredValueAttributes-4                             	  791712	       149.6 ns/op	     336 B/op	       2 allocs/op
+BenchmarkLambdaDeclaredValueAttributes-4                            	  770140	       210.4 ns/op	     336 B/op	       2 allocs/op
+BenchmarkCloudInventoryRecordFromRowAWSAllowlist-4                  	   12046	      9757 ns/op	    4192 B/op	      95 allocs/op
+BenchmarkCloudInventoryRecordFromRowGCPPassthrough-4                	   30034	      3677 ns/op	    1968 B/op	      46 allocs/op
+BenchmarkCloudTagEvidenceRecordFromRow-4                            	   14965	      7916 ns/op	    4224 B/op	      72 allocs/op
+BenchmarkMarshalPayloadSourceText/clean-4                           	    3763	     31955 ns/op	    6624 B/op	       4 allocs/op
+BenchmarkMarshalPayloadSourceText/literal_null-4                    	    1568	    163081 ns/op	   16533 B/op	       5 allocs/op
+BenchmarkGenerationRetentionStoreLargeFixture-4                     	     213	    556736 ns/op	  455632 B/op	    8304 allocs/op
+BenchmarkDeferredBackfillSerial-4                                   	       1	1413631440 ns/op	 4395104 B/op	   34178 allocs/op
+BenchmarkDeferredBackfillConcurrent4-4                              	       1	 328280437 ns/op	 4401168 B/op	   34207 allocs/op
+BenchmarkDeferredBackfillConcurrent8-4                              	       1	 163714974 ns/op	 4404704 B/op	   34173 allocs/op
+BenchmarkBackfillScopedCatalogNoGCP/fleet=1000-4                    	      22	   4945924 ns/op	 6102623 B/op	   44049 allocs/op
+BenchmarkBackfillScopedCatalogNoGCP/fleet=5000-4                    	       5	  24681522 ns/op	30860316 B/op	  220123 allocs/op
+BenchmarkBackfillScopedCatalogWithGCP/fleet=1000-4                  	      21	   5306728 ns/op	 6734083 B/op	   52134 allocs/op
+BenchmarkBackfillScopedCatalogWithGCP/fleet=5000-4                  	       4	  28991693 ns/op	34358932 B/op	  260241 allocs/op
+BenchmarkMergeDeferredScopedTaskFactsManyTasks-4                    	      58	   1823068 ns/op	 5500689 B/op	    2276 allocs/op
+BenchmarkBackfillDiscoveryFullCatalog/fleet=1000-4                  	       1	 428755899 ns/op	170414552 B/op	 1408097 allocs/op
+BenchmarkBackfillDiscoveryFullCatalog/fleet=5000-4                  	       3	  35291422 ns/op	 5023034 B/op	   65121 allocs/op
+BenchmarkBackfillDiscoveryScoped/fleet=1000-4                       	      18	   5969828 ns/op	  338683 B/op	    5045 allocs/op
+BenchmarkBackfillDiscoveryScoped/fleet=5000-4                       	       4	  29612508 ns/op	 1503018 B/op	   25071 allocs/op
+BenchmarkIngestionStoreCatalogLoadsPerCommit/cached-4               	       2	  82611186 ns/op	         0.005000 catalog_loads/commit	109807588 B/op	  641981 allocs/op
+BenchmarkIngestionStoreCatalogLoadsPerCommit/onboarding-4           	       6	  17194774 ns/op	         0.005000 catalog_loads/commit	39462645 B/op	  102448 allocs/op
+BenchmarkIngestionStoreCatalogLoadsPerCommit/per_commit_baseline-4  	       1	 319701136 ns/op	         1.000 catalog_loads/commit	351505344 B/op	 4036289 allocs/op
+BenchmarkReducerPlatformGraphConflictKey-4                          	  415216	       285.9 ns/op	     352 B/op	       5 allocs/op
+BenchmarkReducerPlatformGraphConflictKeyAllDomains-4                	  445536	       323.4 ns/op	     352 B/op	       5 allocs/op
+BenchmarkUpsertEvidenceFactsStreamingDelta_RepresentativeCommit/Before_ZeroEvidenceRows-4         	67019112	         1.778 ns/op	         0 execs/commit	       0 B/op	       0 allocs/op
+BenchmarkUpsertEvidenceFactsStreamingDelta_RepresentativeCommit/After_RepresentativeEvidenceRows-4         	      99	   1144617 ns/op	         1.000 execs/commit	   51492 B/op	    1108 allocs/op
+BenchmarkFlattenStateAttributes-4                                                                          	   19213	      6127 ns/op	    6240 B/op	      55 allocs/op
