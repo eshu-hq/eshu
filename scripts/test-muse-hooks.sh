@@ -176,10 +176,14 @@ out="$(printf '%s' "$(muse_prompt 'continue')" | bash "${MH}/goal-refresh.sh" 2>
 unset CLAUDE_GOAL_FILE
 
 # ── D. PreToolUse edit wrapper: path key translated ──────────────────────────
+#
+# Quoting rule: build inline JSON with single quotes plus '"${var}"'
+# interpolation. A \"-escaped {"a","b"} inside a piped "$()" is brace-split
+# by bash 3.2 into two invocations, silently corrupting the payload.
 
 export CLAUDE_GOAL_FILE="${work}/goal-unused"
 governed="${repo_root}/go/hook-probe-$$.go"
-if [[ "$(printf '%s' "$(muse_pretool write_file "{\"path\":\"${governed}\",\"content\":\"x\"}")" | bash "${MH}/skill-nudge.sh" >/dev/null 2>&1; printf '%s' "$?")" == "2" ]]; then
+if [[ "$(printf '%s' "$(muse_pretool write_file '{"path":"'"${governed}"'","content":"x"}')" | bash "${MH}/skill-nudge.sh" >/dev/null 2>&1; printf '%s' "$?")" == "2" ]]; then
   ok "write_file on a governed surface is refused without the skill"
 else
   no "write_file on a governed surface is refused without the skill"
@@ -194,13 +198,13 @@ else
   no "relative write_file path resolves against payload cwd and is refused"
 fi
 touch "/tmp/claude-skill-loaded-${sid12}-golang-engineering"
-if printf '%s' "$(muse_pretool edit_file "{\"path\":\"${governed}\",\"find\":\"a\",\"replace\":\"b\"}")" | bash "${MH}/skill-nudge.sh" >/dev/null 2>&1; then
+if printf '%s' "$(muse_pretool edit_file '{"path":"'"${governed}"'","find":"a","replace":"b"}')" | bash "${MH}/skill-nudge.sh" >/dev/null 2>&1; then
   ok "edit_file passes once the skill is loaded"
 else
   no "edit_file passes once the skill is loaded"
 fi
 rm -f "/tmp/claude-skill-loaded-${sid12}-golang-engineering"
-if printf '%s' "$(muse_pretool write_file "{\"path\":\"${work}/notes.txt\",\"content\":\"x\"}")" | bash "${MH}/skill-nudge.sh" >/dev/null 2>&1; then
+if printf '%s' "$(muse_pretool write_file '{"path":"'"${work}"'/notes.txt","content":"x"}')" | bash "${MH}/skill-nudge.sh" >/dev/null 2>&1; then
   ok "edits outside an Eshu checkout pass untouched"
 else
   no "edits outside an Eshu checkout pass untouched"
@@ -247,7 +251,7 @@ printf '%s' "$(muse_precompact "${repo_root}")" | bash "${MH}/on-compact.sh" >/d
 # ── H. doc-staleness wrapper: exit 0, no tracked mutation ────────────────────
 
 before="$(cd "${repo_root}" && git status --short | head -n 20)"
-printf '%s' "$(muse_posttool write_file "{\"path\":\"${governed}\",\"content\":\"x\"}")" | bash "${MH}/eshu-doc-staleness.sh" >/dev/null 2>&1
+printf '%s' "$(muse_posttool write_file '{"path":"'"${governed}"'","content":"x"}')" | bash "${MH}/eshu-doc-staleness.sh" >/dev/null 2>&1
 [[ "$?" -eq 0 ]] && ok "staleness wrapper exits 0" || no "staleness wrapper exits 0"
 after="$(cd "${repo_root}" && git status --short | head -n 20)"
 [[ "${before}" == "${after}" ]] && ok "staleness run mutates no tracked file" || no "staleness run mutates no tracked file"
