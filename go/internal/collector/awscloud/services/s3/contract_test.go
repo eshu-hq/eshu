@@ -60,7 +60,7 @@ func s3Contract() contract.CollectorContract {
 // TestContractShape verifies that the S3 scanner output satisfies the
 // per-collector fact-shape contract declared in
 // specs/collector_fact_contract.v1.yaml. It exercises the reusable
-// contracttest helpers on real scanner output.
+// contract helpers on real scanner output.
 func TestContractShape(t *testing.T) {
 	client := fakeClient{buckets: []Bucket{{
 		Name:   "orders-artifacts",
