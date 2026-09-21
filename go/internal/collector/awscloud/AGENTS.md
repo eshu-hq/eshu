@@ -98,7 +98,7 @@ trust:
 - **Row 5 and the composition** move whenever a new **file** imports this
   package — not a new package. The 1,312 files sit in 413 directories, so most
   of them are second-or-later files in a package that already imports; one more
-  file under `service/ec2/` moves row 5 with nothing new importing anything.
+  file under `services/ec2/` moves row 5 with nothing new importing anything.
   **Nothing catches this**: `dirgate` watches this directory's file set, and a
   new importer lives somewhere else entirely.
 
