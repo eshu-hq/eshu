@@ -46,10 +46,10 @@ func BuildWrapperCallersCypher(
 	cypher.WriteString("\t\tMATCH (caller)-[rel:CALLS]->(target)\n")
 	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "$target_entity_id"))
 	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\tAND coalesce(target.repo_id, '') = $repo_id")
+		cypher.WriteString("\n\t\t  AND coalesce(target.repo_id, '') = $repo_id")
 	}
 	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\tAND " + predicate)
+		cypher.WriteString("\n\t\t  AND " + predicate)
 	}
 	cypher.WriteString("\n" + wrapperCallerReturns("caller", "rel"))
 	return cypher.String(), params
@@ -112,10 +112,10 @@ func BuildWrapperFanInCypher(
 	cypher.WriteString("\t\tMATCH (caller)-[:CALLS]->(target)\n")
 	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "$entity_id"))
 	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\tAND coalesce(target.repo_id, '') = $repo_id")
+		cypher.WriteString("\n\t\t  AND coalesce(target.repo_id, '') = $repo_id")
 	}
 	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\tAND " + predicate)
+		cypher.WriteString("\n\t\t  AND " + predicate)
 	}
 	cypher.WriteString("\n\t\tRETURN count(caller) as fan_in\n")
 	return cypher.String(), params
@@ -154,10 +154,10 @@ func BuildWrapperCalleesCypher(
 	cypher.WriteString("\t\tMATCH (source)-[:CALLS]->(callee)\n")
 	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("source", "$entity_id"))
 	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\tAND coalesce(source.repo_id, '') = $repo_id")
+		cypher.WriteString("\n\t\t  AND coalesce(source.repo_id, '') = $repo_id")
 	}
 	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\tAND " + predicate)
+		cypher.WriteString("\n\t\t  AND " + predicate)
 	}
 	cypher.WriteString("\n\t\tRETURN coalesce(callee.id, callee.uid) as id\n")
 	return cypher.String(), params
@@ -211,10 +211,10 @@ func BuildWrapperFamilyCallersCypher(
 	cypher.WriteString("\t\tMATCH (caller)-[rel:CALLS]->(target)\n")
 	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "tid"))
 	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\tAND coalesce(target.repo_id, '') = $repo_id")
+		cypher.WriteString("\n\t\t  AND coalesce(target.repo_id, '') = $repo_id")
 	}
 	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\tAND " + predicate)
+		cypher.WriteString("\n\t\t  AND " + predicate)
 	}
 	cypher.WriteString(returns)
 	return cypher.String(), params
@@ -257,10 +257,10 @@ func BuildWrapperFamilyFanInCypher(
 	cypher.WriteString("\t\tMATCH (caller)-[:CALLS]->(target)\n")
 	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("target", "eid"))
 	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\tAND coalesce(target.repo_id, '') = $repo_id")
+		cypher.WriteString("\n\t\t  AND coalesce(target.repo_id, '') = $repo_id")
 	}
 	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\tAND " + predicate)
+		cypher.WriteString("\n\t\t  AND " + predicate)
 	}
 	cypher.WriteString(returns)
 	return cypher.String(), params
@@ -324,10 +324,10 @@ func BuildWrapperFamilyCalleesCypher(
 	cypher.WriteString("\t\tMATCH (source)-[:CALLS]->(callee)\n")
 	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("source", "sid"))
 	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\tAND coalesce(source.repo_id, '') = $repo_id")
+		cypher.WriteString("\n\t\t  AND coalesce(source.repo_id, '') = $repo_id")
 	}
 	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\tAND " + predicate)
+		cypher.WriteString("\n\t\t  AND " + predicate)
 	}
 	cypher.WriteString(returns)
 	return cypher.String(), params

@@ -19,8 +19,10 @@ var errWrapperFindingNotFound = errors.New("wrapper-bypass finding not found")
 
 // wrapperGraphEvidence is one family's batched graph read: (wrapper,
 // target) delegation pairs, caller rows per target, fan-in per candidate,
-// and outgoing callee ids per wrapper. Three round trips bound the family
-// no matter how many wrappers it holds.
+// and outgoing callee ids per wrapper. Each of the three reads is chunked
+// to wrapperEvidenceKeyBatchSize keys per statement, so small families
+// still cost three round trips while pathological ones degrade in
+// statements, never in planner key-list size.
 type wrapperGraphEvidence struct {
 	pairs    []wrapperDelegationPair
 	byTarget map[string][]WrapperCallerRow
@@ -34,10 +36,54 @@ type wrapperDelegationPair struct {
 	target  string
 }
 
+// wrapperEvidenceKeyBatchSize caps one UNWIND key list per graph statement.
+// The three family reads stay anchored one-hop reads; chunking keeps a
+// pathological family from handing the planner an unbounded key list while
+// the row union across chunks is exactly the unchunked answer (every sink
+// below is order-insensitive: sorted ids, maps, or Go-sorted hops).
+const wrapperEvidenceKeyBatchSize = 50
+
+// chunkWrapperEvidenceKeys splits ids into order-preserving chunks of at
+// most wrapperEvidenceKeyBatchSize keys. Empty input yields no chunks, so
+// callers skip the round trip instead of sending an empty UNWIND.
+func chunkWrapperEvidenceKeys(ids []string) [][]string {
+	chunks := [][]string{}
+	for start := 0; start < len(ids); start += wrapperEvidenceKeyBatchSize {
+		end := start + wrapperEvidenceKeyBatchSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunks = append(chunks, ids[start:end])
+	}
+	return chunks
+}
+
+// runWrapperKeyChunks runs one UNWIND-batched read per key chunk and unions
+// the rows. One statement never carries more than wrapperEvidenceKeyBatchSize
+// anchored keys; the union is exact because every caller sink is
+// order-insensitive.
+func (h *CodeHandler) runWrapperKeyChunks(
+	ctx context.Context,
+	ids []string,
+	build func(chunk []string) (string, map[string]any),
+) ([]map[string]any, error) {
+	rows := []map[string]any{}
+	for _, chunk := range chunkWrapperEvidenceKeys(ids) {
+		cypher, params := build(chunk)
+		chunkRows, err := h.runWrapperGraphRows(ctx, cypher, params)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, chunkRows...)
+	}
+	return rows, nil
+}
+
 // collectWrapperGraphEvidence runs the three batched one-hop reads for one
 // nominated family: outgoing callees per wrapper (the delegation pairs),
-// callers per distinct target, and fan-in per candidate caller. All three
-// stay anchored on indexed entity ids with repo/grant in the anchoring
+// callers per distinct target, and fan-in per candidate caller. Each read is
+// chunked to wrapperEvidenceKeyBatchSize anchored keys per statement. All
+// three stay anchored on indexed entity ids with repo/grant in the anchoring
 // WHERE on both backends.
 func (h *CodeHandler) collectWrapperGraphEvidence(
 	ctx context.Context,
@@ -52,8 +98,9 @@ func (h *CodeHandler) collectWrapperGraphEvidence(
 		fanIn:    map[string]int{},
 		callees:  map[string][]string{},
 	}
-	calleesCypher, calleesParams := BuildWrapperFamilyCalleesCypher(wrapperIDs, repoID, backend, access)
-	calleeRows, err := h.runWrapperGraphRows(ctx, calleesCypher, calleesParams)
+	calleeRows, err := h.runWrapperKeyChunks(ctx, wrapperIDs, func(chunk []string) (string, map[string]any) {
+		return BuildWrapperFamilyCalleesCypher(chunk, repoID, backend, access)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -75,8 +122,9 @@ func (h *CodeHandler) collectWrapperGraphEvidence(
 	if len(targetIDs) == 0 {
 		return evidence, nil
 	}
-	callersCypher, callersParams := BuildWrapperFamilyCallersCypher(targetIDs, repoID, backend, access)
-	callerRows, err := h.runWrapperGraphRows(ctx, callersCypher, callersParams)
+	callerRows, err := h.runWrapperKeyChunks(ctx, targetIDs, func(chunk []string) (string, map[string]any) {
+		return BuildWrapperFamilyCallersCypher(chunk, repoID, backend, access)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +149,9 @@ func (h *CodeHandler) collectWrapperGraphEvidence(
 		candidateIDs = append(candidateIDs, id)
 	}
 	sort.Strings(candidateIDs)
-	fanInCypher, fanInParams := BuildWrapperFamilyFanInCypher(candidateIDs, repoID, backend, access)
-	fanInRows, err := h.runWrapperGraphRows(ctx, fanInCypher, fanInParams)
+	fanInRows, err := h.runWrapperKeyChunks(ctx, candidateIDs, func(chunk []string) (string, map[string]any) {
+		return BuildWrapperFamilyFanInCypher(chunk, repoID, backend, access)
+	})
 	if err != nil {
 		return nil, err
 	}

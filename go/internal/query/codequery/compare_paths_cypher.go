@@ -92,10 +92,10 @@ func BuildComparePathsHopCypher(
 	cypher.WriteString("\t\tMATCH (source)-[rel:CALLS]->(callee)\n")
 	cypher.WriteString("\t\tWHERE " + codemodel.GraphEntityIDPredicate("source", "$source_entity_id"))
 	if strings.TrimSpace(repoID) != "" {
-		cypher.WriteString("\n\t\tAND coalesce(source.repo_id, '') = $repo_id")
+		cypher.WriteString("\n\t\t  AND coalesce(source.repo_id, '') = $repo_id")
 	}
 	for _, predicate := range predicates {
-		cypher.WriteString("\n\t\tAND " + predicate)
+		cypher.WriteString("\n\t\t  AND " + predicate)
 	}
 	cypher.WriteString(returns)
 	return cypher.String(), params

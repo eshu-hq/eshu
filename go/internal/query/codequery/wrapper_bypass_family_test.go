@@ -110,3 +110,33 @@ func TestBuildWrapperFamilyCalleesCypherParity(t *testing.T) {
 		t.Errorf("nornic family callees anchor missing uid pattern:\n%s", nornic)
 	}
 }
+
+// TestChunkWrapperEvidenceKeys pins the UNWIND batch bound: chunks hold at
+// most wrapperEvidenceKeyBatchSize keys, order is preserved, and empty
+// input yields no chunks so the caller skips the round trip.
+func TestChunkWrapperEvidenceKeys(t *testing.T) {
+	if got := chunkWrapperEvidenceKeys(nil); len(got) != 0 {
+		t.Fatalf("chunks(nil) = %d, want 0", len(got))
+	}
+	ids := make([]string, 0, 2*wrapperEvidenceKeyBatchSize+1)
+	for i := 0; i < 2*wrapperEvidenceKeyBatchSize+1; i++ {
+		ids = append(ids, string(rune('a'+i%26))+string(rune('0'+i/26)))
+	}
+	chunks := chunkWrapperEvidenceKeys(ids)
+	if len(chunks) != 3 {
+		t.Fatalf("chunks(%d ids) = %d chunks, want 3", len(ids), len(chunks))
+	}
+	if len(chunks[0]) != wrapperEvidenceKeyBatchSize || len(chunks[1]) != wrapperEvidenceKeyBatchSize || len(chunks[2]) != 1 {
+		t.Fatalf("chunk sizes = %d/%d/%d, want %d/%d/1",
+			len(chunks[0]), len(chunks[1]), len(chunks[2]), wrapperEvidenceKeyBatchSize, wrapperEvidenceKeyBatchSize)
+	}
+	flat := []string{}
+	for _, chunk := range chunks {
+		flat = append(flat, chunk...)
+	}
+	for i := range ids {
+		if flat[i] != ids[i] {
+			t.Fatalf("round trip order breaks at %d: %q != %q", i, flat[i], ids[i])
+		}
+	}
+}
