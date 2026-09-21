@@ -33,6 +33,10 @@ import (
 // be the retracter's begin failure wrapped by the generation-diff helper. An
 // omitted seam skips the retract silently and the intent fails later with a
 // different error (or succeeds), failing this assertion.
+//
+// Coverage boundary: the probe trips at Begin, so this test proves the three
+// DefaultHandlers seams reach the gate — it does not prove the gate's inner
+// store wiring, which retract_test.go covers with fakes.
 func TestBuildReducerServiceWiresCloudRetractSeams(t *testing.T) {
 	t.Parallel()
 
