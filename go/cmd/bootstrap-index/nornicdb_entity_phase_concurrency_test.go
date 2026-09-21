@@ -46,6 +46,7 @@ func TestBootstrapCanonicalExecutorUsesConfiguredEntityPhaseConcurrency(t *testi
 		nil,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	if err != nil {
 		t.Fatalf("bootstrapCanonicalExecutorForGraphBackend() error = %v, want nil", err)
@@ -74,6 +75,7 @@ func TestBootstrapNornicDBEntityPhaseConcurrencyRejectsInvalidEnv(t *testing.T) 
 		nil,
 		nil,
 		nil,
+		nil, // no capture session: passthrough
 	)
 	if err == nil {
 		t.Fatal("bootstrapCanonicalExecutorForGraphBackend() error = nil, want invalid env error")

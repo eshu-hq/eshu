@@ -2572,6 +2572,52 @@ gates:
       - docker
     ci_only_reason: ""
 
+  - id: golden-corpus-differential
+    name: Differential NornicDB vs Neo4j oracle (Docker)
+    category: exactness
+    tier: ci-heavy
+    blocking: true
+    triggers:
+      - "go/internal/graph/**"
+      - "go/internal/backendconformance/**"
+      - "go/cmd/golden-corpus-gate/**"
+      - "go/cmd/projector/**"
+      - "go/cmd/reducer/**"
+      - "go/cmd/bootstrap-index/**"
+      - "go/cmd/api/**"
+      - "go/cmd/mcp-server/**"
+      - "docker-compose.yaml"
+      - "specs/backend-divergence-allowlist.v1.yaml"
+      - "scripts/verify-golden-corpus-gate.sh"
+      - "scripts/test-verify-golden-corpus-gate.sh"
+      - "scripts/lib/golden-corpus-*.sh"
+      - "scripts/lib/test-golden-corpus-*.sh"
+      - "scripts/lib/live-gate-lock.sh"
+      - "scripts/ci/install-apt-packages.sh"
+      - "scripts/ci/go-mod-download-retry.sh"
+      - ".github/workflows/golden-corpus-gate.yml"
+      - "specs/ci-gates.v1.yaml"
+    local:
+      command: "rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/nornicdb ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=nornicdb bash scripts/verify-golden-corpus-gate.sh && rm -rf /tmp/eshu-diff-corpus && ESHU_DIFFERENTIAL_CAPTURE=1 ESHU_DIFFERENTIAL_CAPTURE_DIR=/tmp/diff-capture/neo4j ESHU_REPOS_DIR=/tmp/eshu-diff-corpus ESHU_GRAPH_BACKEND=neo4j bash scripts/verify-golden-corpus-gate.sh && (cd go && go run ./cmd/golden-corpus-gate -phase=backend-diff -diff-left=/tmp/diff-capture/nornicdb -diff-right=/tmp/diff-capture/neo4j -diff-allowlist=../specs/backend-divergence-allowlist.v1.yaml)"
+      test_command: "bash scripts/test-verify-golden-corpus-gate.sh && (cd go && go test ./cmd/golden-corpus-gate -run 'TestBackendDiff|TestRunBackendDiff' -count=1)"
+    ci:
+      workflow: golden-corpus-gate.yml
+      job: "differential nornicdb vs neo4j"
+      check_names:
+        - "differential nornicdb vs neo4j"
+    requirements:
+      - go
+      - docker
+    ci_only_reason: "needs two live graph backends (NornicDB and Neo4j) side by side; the static mirror plus the gate's seeded RED/GREEN unit pair are the local proof"
+    # #6782 slices 2-4: the flip to blocking. The oracle replays the same B-7
+    # corpus on both backends with differential capture on and fails on any
+    # divergence the committed allowlist does not excuse. A silently dropped
+    # capture cannot false-green: empty recording dirs fail closed in Compare
+    # (both backends required), and the failure upload carries the recordings.
+    # Multi-leg quorum (slice 3, owner direction 2026-09-21): CI runs two
+    # pairings (-diff-left2/-diff-right2) and fails only on divergences
+    # reproducing across both; pairing-local scheduling noise is advisory.
+
   # #5538 task 4 root-cause fix: three review rounds each found more packages
   # missing from golden-corpus-gate's own path filter because completeness was
   # maintained by hand. This gate makes it converge -- it derives the real

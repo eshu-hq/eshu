@@ -49,19 +49,31 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		_, err = stdout.Write(raw)
 		return err
 	}
-	snap, err := LoadSnapshot(o.snapshotPath)
-	if err != nil {
-		return err
-	}
-	// Issue #5594: substitute the run-time computed local-backend scope_id
-	// into the snapshot's $LOCAL_BACKEND_SCOPE_ID$ sentinel before any phase
-	// reads it. A no-op when the flag is unset, so every existing invocation
-	// (and every focused local test that does not pass this flag) is
-	// unaffected.
-	substituteLocalBackendScopeID(&snap, strings.TrimSpace(o.localBackendScopeID))
-
 	phases := phaseSet(o.phase)
 	var r Report
+
+	// The backend-diff phase (#6782) compares differential capture
+	// recordings, not the golden snapshot, so it runs before the snapshot
+	// load: a pure -phase=backend-diff invocation needs no snapshot file.
+	if phases["backend-diff"] {
+		if err := runBackendDiff(o, stdout, &r); err != nil {
+			return fmt.Errorf("backend-diff phase: %w", err)
+		}
+	}
+	var snap Snapshot
+	if needsSnapshot(phases) {
+		var err error
+		snap, err = LoadSnapshot(o.snapshotPath)
+		if err != nil {
+			return err
+		}
+		// Issue #5594: substitute the run-time computed local-backend
+		// scope_id into the snapshot's $LOCAL_BACKEND_SCOPE_ID$ sentinel
+		// before any phase reads it. A no-op when the flag is unset, so
+		// every existing invocation (and every focused local test that
+		// does not pass this flag) is unaffected.
+		substituteLocalBackendScopeID(&snap, strings.TrimSpace(o.localBackendScopeID))
+	}
 
 	if phases["drains"] {
 		if err := runDrains(ctx, o, getenv, snap, &r, stderr); err != nil {
@@ -278,19 +290,38 @@ func runDemoAnswers(ctx context.Context, o options, getenv func(string) string, 
 }
 
 // phaseSet expands the comma-separated phase flag, treating "all" as every phase.
+// backend-diff is opt-in and excluded from "all": it needs two backends'
+// capture directories, which a normal single-backend B-7 run never has.
 func phaseSet(raw string) map[string]bool {
 	all := map[string]bool{"drains": true, "graph": true, "query": true, "timing": true, "demo-answers": true}
 	out := map[string]bool{}
 	for _, p := range strings.Split(raw, ",") {
 		p = strings.TrimSpace(p)
 		if p == "all" {
-			return all
+			// Expand in place and keep consuming tokens: an explicit
+			// "all,backend-diff" must not silently drop backend-diff.
+			for k := range all {
+				out[k] = true
+			}
+			continue
 		}
-		if all[p] {
+		if all[p] || p == "backend-diff" {
 			out[p] = true
 		}
 	}
 	return out
+}
+
+// needsSnapshot reports whether any requested phase reads the golden
+// snapshot. backend-diff compares capture recordings, so a pure
+// -phase=backend-diff invocation skips the snapshot load.
+func needsSnapshot(phases map[string]bool) bool {
+	for p := range phases {
+		if p != "backend-diff" {
+			return true
+		}
+	}
+	return false
 }
 
 func requiredFailures(r Report) int {

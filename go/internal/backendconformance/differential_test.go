@@ -55,6 +55,92 @@ func TestFingerprintStatementParamsDistinguishValues(t *testing.T) {
 	}
 }
 
+// Diagnostic `_eshu_*` metadata keys never reach either backend's driver
+// (SanitizeStatementParameters strips them on every executor path), so they
+// carry no execution truth and must not split the fingerprint. A NornicDB
+// run records sanitized params while a Neo4j run records the same statement
+// pre-sanitize; without this the same logical write never pairs (#6782).
+func TestFingerprintStatementStripsDiagnosticMetadata(t *testing.T) {
+	t.Parallel()
+	plain, err := FingerprintStatement("MERGE (r:Repository {id: $repo_id}) SET r.name = $name",
+		map[string]any{"repo_id": "repository:r_1", "name": "acme/web"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tagged, err := FingerprintStatement("MERGE (r:Repository {id: $repo_id}) SET r.name = $name",
+		map[string]any{"repo_id": "repository:r_1", "name": "acme/web", "_eshu_phase": "repository"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain != tagged {
+		t.Fatal("diagnostic metadata splits the fingerprint")
+	}
+}
+
+// generation_id is per-run projection lineage: two runs over the same
+// corpus stamp different generations on identical content. It must not
+// split fingerprints or digests, or no cross-run comparison can pair
+// writes (#6782).
+func TestFingerprintStatementStripsGenerationID(t *testing.T) {
+	t.Parallel()
+	params := func(gen string) map[string]any {
+		return map[string]any{
+			"repo_id":       "repository:r_1",
+			"generation_id": gen,
+			"rows": []any{map[string]any{
+				"generation_id": gen,
+				"repo_id":       "repository:r_1",
+			}},
+		}
+	}
+	a, err := FingerprintStatement("MERGE (r:Repository {id: $repo_id}) SET r.generation_id = $generation_id",
+		params("09218de4de60eba43f3af6dde7e7fca9938daf3c3ef2ceb40a21d947ba9fc4a2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := FingerprintStatement("MERGE (r:Repository {id: $repo_id}) SET r.generation_id = $generation_id",
+		params("066c7b69aaa6315acf516bb5d872a0c461ebd3a2f8d4e039abe12f84b417591a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a != b {
+		t.Fatal("per-run generation_id splits the fingerprint")
+	}
+}
+
+func TestFingerprintStatementNilParams(t *testing.T) {
+	t.Parallel()
+	fp, err := FingerprintStatement("MATCH (n) RETURN n", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fp.Parameters == "" {
+		t.Fatal("nil params produce an empty fingerprint")
+	}
+}
+
+func TestDigestRowsIgnoresGenerationID(t *testing.T) {
+	t.Parallel()
+	a, err := DigestRows([]map[string]any{{"id": "repository:r_1", "generation_id": "aaa"}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := DigestRows([]map[string]any{{"generation_id": "bbb", "id": "repository:r_1"}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a != b {
+		t.Fatal("per-run generation_id splits the digest")
+	}
+	c, err := DigestRows([]map[string]any{{"id": "repository:r_2", "generation_id": "aaa"}}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a == c {
+		t.Fatal("digest ignores content beyond generation_id")
+	}
+}
+
 func TestDigestRowsIgnoresOrderWithoutOrderBy(t *testing.T) {
 	t.Parallel()
 	rows := []map[string]any{{"n": int64(1), "tags": []any{"a"}}, {"n": int64(2)}}
@@ -592,5 +678,24 @@ func TestCaptureEnabledReadsEnv(t *testing.T) {
 	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "0")
 	if CaptureEnabled() {
 		t.Fatal("CaptureEnabled with ESHU_DIFFERENTIAL_CAPTURE=0 is true")
+	}
+}
+
+func TestRecorderStreamsEveryAddedRecord(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	recorder := NewDifferentialRecorder()
+	var streamed []DifferentialRecord
+	recorder.OnRecord = func(record DifferentialRecord) {
+		streamed = append(streamed, record)
+	}
+	inner := stubDifferentialGraphQuery{rows: []map[string]any{{"n": 1}}}
+	if _, err := WrapGraphQuery(inner, recorder, "nornicdb").Run(context.Background(), "MATCH (n) RETURN n", nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(streamed) != 1 || len(recorder.Records()) != 1 {
+		t.Fatalf("streamed = %d, stored = %d, want 1 and 1", len(streamed), len(recorder.Records()))
+	}
+	if streamed[0] != recorder.Records()[0] {
+		t.Fatalf("streamed = %+v, stored = %+v, want identical", streamed[0], recorder.Records()[0])
 	}
 }

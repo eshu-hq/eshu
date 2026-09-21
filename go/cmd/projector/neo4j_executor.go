@@ -10,11 +10,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	storagenornicdb "github.com/eshu-hq/eshu/go/internal/storage/nornicdb"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -162,10 +164,18 @@ func statementRetractionCounts(
 
 type projectorNeo4jDriverCloser struct {
 	Driver neo4jdriver.DriverWithContext
+	// captureSession surfaces a stashed streaming failure at shutdown. It
+	// is nil unless differential capture opened a session; records already
+	// stream to disk as statements execute, so Close never replays them.
+	captureSession *capture.Session
 }
 
 func (c projectorNeo4jDriverCloser) Close() error {
-	return closeProjectorNeo4jDriver(c.Driver)
+	var sessionErr error
+	if c.captureSession != nil {
+		sessionErr = c.captureSession.Close()
+	}
+	return errors.Join(sessionErr, closeProjectorNeo4jDriver(c.Driver))
 }
 
 func closeProjectorNeo4jDriver(driver neo4jdriver.DriverWithContext) error {

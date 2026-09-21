@@ -34,8 +34,9 @@ import (
 // mirror the InstrumentedExecutor loud-fail precedent.
 
 // captureEnvVar is the opt-in for differential recording. It is gate
-// tooling, not operator config, so it stays out of the env registry like
-// the other test-gating ESHU_* variables.
+// tooling, not operator config, but it is carried in the env registry under
+// the backend-conformance subsystem because docs/public cites it and the
+// docs-cli-env-refs ratchet requires code ownership for every citation.
 const captureEnvVar = "ESHU_DIFFERENTIAL_CAPTURE"
 
 // CaptureEnabled reports whether differential statement recording is on.
@@ -54,8 +55,19 @@ type DifferentialFingerprint struct {
 // collapse to one blank) and encodes its parameters. The same production
 // statement produces the same fingerprint on either backend; formatting
 // drift does not.
+//
+// Diagnostic metadata keys (any key prefixed with "_", such as the
+// `_eshu_*` phase tags) are excluded, mirroring SanitizeStatementParameters:
+// they never reach either backend's driver, so they carry no execution
+// truth. Without this, a backend whose capture layer sits below its
+// sanitize layer records different params than one whose capture sits
+// above it, and the same logical statement never pairs (#6782).
 func FingerprintStatement(cypher string, params map[string]any) (DifferentialFingerprint, error) {
-	encoded, err := json.Marshal(params)
+	fingerprinted, err := normalizeComparisonParams(params)
+	if err != nil {
+		return DifferentialFingerprint{}, err
+	}
+	encoded, err := json.Marshal(fingerprinted)
 	if err != nil {
 		return DifferentialFingerprint{}, fmt.Errorf("encode differential parameters: %w", err)
 	}
@@ -144,14 +156,22 @@ func hasOrderByWords(words []string) bool {
 // DigestRows digests result rows for differential comparison. Each row is
 // normalized to its JSON encoding (which sorts map keys and erases driver
 // value-type differences such as int64 versus int), matching
-// [compareReadRows]. Rows sort before digesting unless ordered is true: a
-// backend is free to return an unordered result in any order, but an
+// [compareReadRows]. Backend-typed graph values canonicalize first
+// ([canonicalizeGraphValue]), then lineage and clock cells blind
+// ([canonicalizeDigestValue]): backend-assigned node/relationship identity,
+// run-scoped lineage digests, and wall-clock observations are serialization
+// or lineage, not graph truth. Rows sort before digesting unless ordered is
+// true: a backend is free to return an unordered result in any order, but an
 // ORDER BY statement's row order is significant and an order regression
 // must change the digest.
 func DigestRows(rows []map[string]any, ordered bool) (string, error) {
 	encoded := make([]string, 0, len(rows))
 	for _, row := range rows {
-		raw, err := json.Marshal(row)
+		normalized, err := normalizeComparisonValue(canonicalizeGraphValue(row))
+		if err != nil {
+			return "", fmt.Errorf("encode differential row %v: %w", row, err)
+		}
+		raw, err := json.Marshal(canonicalizeDigestValue(normalized))
 		if err != nil {
 			return "", fmt.Errorf("encode differential row %v: %w", row, err)
 		}
@@ -164,20 +184,29 @@ func DigestRows(rows []map[string]any, ordered bool) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// DifferentialRecord is one captured statement execution.
+// DifferentialRecord is one captured statement execution. Error carries the
+// run, fingerprint, or digest error text when Failed is true, so a
+// failures-kind divergence names the failure instead of only counting it.
 type DifferentialRecord struct {
 	Fingerprint DifferentialFingerprint
 	Backend     string
 	RowCount    int
 	Digest      string
 	Failed      bool
+	Error       string
 }
 
 // DifferentialRecorder collects records in execution order. It is safe for
 // concurrent use.
+//
+// OnRecord, when non-nil, receives every record as it is added, after the
+// record is stored. The graph/capture sessions use it to stream records to
+// disk as statements execute, so a SIGTERM-killed replay binary loses at
+// most the in-flight statement. It must not call back into the recorder.
 type DifferentialRecorder struct {
-	mu      sync.Mutex
-	records []DifferentialRecord
+	mu       sync.Mutex
+	records  []DifferentialRecord
+	OnRecord func(DifferentialRecord)
 }
 
 // NewDifferentialRecorder returns an empty recorder.
@@ -191,8 +220,14 @@ func (r *DifferentialRecorder) Add(record DifferentialRecord) {
 		return
 	}
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.records = append(r.records, record)
+	stream := r.OnRecord
+	r.mu.Unlock()
+	// Stream outside the lock: the sink blocks on disk, and holding the
+	// recorder lock through that would serialize every capturing statement.
+	if stream != nil {
+		stream(record)
+	}
 }
 
 // Records returns a copy of the records in execution order.
@@ -203,169 +238,6 @@ func (r *DifferentialRecorder) Records() []DifferentialRecord {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return slices.Clone(r.records)
-}
-
-// DifferentialDifference is one divergence between two recordings.
-type DifferentialDifference struct {
-	Fingerprint DifferentialFingerprint
-	Detail      string
-}
-
-// CompareRecordings diffs two recordings statement by statement, keyed by
-// fingerprint. Executions group per fingerprint as a multiset of digests:
-// a fingerprint present on only one side, a digest-multiset mismatch, a
-// failed-execution count mismatch, or a row-count mismatch each yields one
-// difference naming the statement. Grouping (rather than last-write-wins)
-// keeps a statement that answers differently across repeated executions
-// from masking itself.
-func CompareRecordings(a, b []DifferentialRecord) []DifferentialDifference {
-	byFingerprint := func(records []DifferentialRecord) map[DifferentialFingerprint][]DifferentialRecord {
-		out := make(map[DifferentialFingerprint][]DifferentialRecord)
-		for _, rec := range records {
-			out[rec.Fingerprint] = append(out[rec.Fingerprint], rec)
-		}
-		return out
-	}
-	left, right := byFingerprint(a), byFingerprint(b)
-	digests := func(recs []DifferentialRecord) []string {
-		out := make([]string, 0, len(recs))
-		for _, rec := range recs {
-			out = append(out, rec.Digest)
-		}
-		slices.Sort(out)
-		return out
-	}
-	counts := func(recs []DifferentialRecord) int {
-		total := 0
-		for _, rec := range recs {
-			total += rec.RowCount
-		}
-		return total
-	}
-	failures := func(recs []DifferentialRecord) int {
-		total := 0
-		for _, rec := range recs {
-			if rec.Failed {
-				total++
-			}
-		}
-		return total
-	}
-	backend := func(recs []DifferentialRecord) string {
-		if len(recs) == 0 {
-			return ""
-		}
-		return recs[0].Backend
-	}
-	var diffs []DifferentialDifference
-	for fp, lrecs := range left {
-		rrecs, ok := right[fp]
-		if !ok {
-			diffs = append(diffs, DifferentialDifference{Fingerprint: fp, Detail: "recorded on the first backend only"})
-			continue
-		}
-		if !slices.Equal(digests(lrecs), digests(rrecs)) {
-			diffs = append(diffs, DifferentialDifference{
-				Fingerprint: fp,
-				Detail:      fmt.Sprintf("row digest differs (%s=%d rows, %s=%d rows)", backend(lrecs), counts(lrecs), backend(rrecs), counts(rrecs)),
-			})
-			continue
-		}
-		// Writes carry no rows, so a one-sided write failure shares the
-		// empty digest on both sides: the failed-execution count is part
-		// of the comparison, or the slice-3 gate would miss exactly the
-		// divergence it exists to catch.
-		if failures(lrecs) != failures(rrecs) {
-			diffs = append(diffs, DifferentialDifference{
-				Fingerprint: fp,
-				Detail:      fmt.Sprintf("failed executions differ (%s=%d, %s=%d)", backend(lrecs), failures(lrecs), backend(rrecs), failures(rrecs)),
-			})
-			continue
-		}
-		if counts(lrecs) != counts(rrecs) {
-			diffs = append(diffs, DifferentialDifference{
-				Fingerprint: fp,
-				Detail:      fmt.Sprintf("row count differs (%s=%d, %s=%d) with equal digests", backend(lrecs), counts(lrecs), backend(rrecs), counts(rrecs)),
-			})
-		}
-	}
-	for fp := range right {
-		if _, ok := left[fp]; !ok {
-			diffs = append(diffs, DifferentialDifference{Fingerprint: fp, Detail: "recorded on the second backend only"})
-		}
-	}
-	slices.SortFunc(diffs, func(x, y DifferentialDifference) int {
-		if x.Fingerprint.Statement != y.Fingerprint.Statement {
-			return strings.Compare(x.Fingerprint.Statement, y.Fingerprint.Statement)
-		}
-		return strings.Compare(x.Fingerprint.Parameters, y.Fingerprint.Parameters)
-	})
-	return diffs
-}
-
-// differentialQueryRecorder decorates a GraphQuery with differential capture.
-type differentialQueryRecorder struct {
-	inner    GraphQuery
-	recorder *DifferentialRecorder
-	backend  string
-}
-
-// WrapGraphQuery returns inner unchanged when capture is disabled or the
-// recorder is nil; otherwise it records every Run and RunSingle with its
-// row digest. Errors propagate and record a failed entry.
-func WrapGraphQuery(inner GraphQuery, recorder *DifferentialRecorder, backend string) GraphQuery {
-	if inner == nil || recorder == nil || !CaptureEnabled() {
-		return inner
-	}
-	return differentialQueryRecorder{inner: inner, recorder: recorder, backend: backend}
-}
-
-func (q differentialQueryRecorder) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	return q.recorded(cypher, params, func() ([]map[string]any, error) {
-		return q.inner.Run(ctx, cypher, params)
-	})
-}
-
-func (q differentialQueryRecorder) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	return q.recordedSingle(cypher, params, func() (map[string]any, error) {
-		return q.inner.RunSingle(ctx, cypher, params)
-	})
-}
-
-// recorded captures one read execution and passes the inner result through
-// untouched. The interface methods return this helper's call result
-// directly (rather than a held err variable) to keep the decorator
-// transparent and satisfy the repo's wrapcheck rule the same way the
-// backpressure wrapper's direct returns do.
-func (q differentialQueryRecorder) recorded(cypher string, params map[string]any, run func() ([]map[string]any, error)) ([]map[string]any, error) {
-	rows, err := run()
-	q.recorder.Add(captureRead(cypher, params, rows, err, q.backend))
-	return rows, err
-}
-
-func (q differentialQueryRecorder) recordedSingle(cypher string, params map[string]any, run func() (map[string]any, error)) (map[string]any, error) {
-	row, err := run()
-	var rows []map[string]any
-	if err == nil && row != nil {
-		rows = []map[string]any{row}
-	}
-	q.recorder.Add(captureRead(cypher, params, rows, err, q.backend))
-	return row, err
-}
-
-func captureRead(cypher string, params map[string]any, rows []map[string]any, runErr error, backend string) DifferentialRecord {
-	fp, fpErr := FingerprintStatement(cypher, params)
-	if fpErr != nil {
-		return DifferentialRecord{Backend: backend, RowCount: len(rows), Failed: true}
-	}
-	if runErr != nil {
-		return DifferentialRecord{Fingerprint: fp, Backend: backend, RowCount: len(rows), Failed: true}
-	}
-	digest, digestErr := DigestRows(rows, HasOrderBy(cypher))
-	if digestErr != nil {
-		return DifferentialRecord{Fingerprint: fp, Backend: backend, RowCount: len(rows), Failed: true}
-	}
-	return DifferentialRecord{Fingerprint: fp, Backend: backend, RowCount: len(rows), Digest: digest}
 }
 
 // differentialExecutorRecorder decorates a sourcecypher.Executor with
@@ -491,7 +363,10 @@ func (e differentialGroupRecorder) recordedAll(stmts []sourcecypher.Statement, r
 func captureWrite(stmt sourcecypher.Statement, execErr error, backend string) DifferentialRecord {
 	fp, fpErr := FingerprintStatement(stmt.Cypher, stmt.Parameters)
 	if fpErr != nil {
-		return DifferentialRecord{Backend: backend, Failed: true}
+		return DifferentialRecord{Backend: backend, Failed: true, Error: fpErr.Error()}
 	}
-	return DifferentialRecord{Fingerprint: fp, Backend: backend, Failed: execErr != nil}
+	if execErr != nil {
+		return DifferentialRecord{Fingerprint: fp, Backend: backend, Failed: true, Error: execErr.Error()}
+	}
+	return DifferentialRecord{Fingerprint: fp, Backend: backend}
 }

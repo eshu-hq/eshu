@@ -82,3 +82,29 @@ passes, 49 tests in 0.015s, backend-free; the strip is pinned by a test
 asserting all three optional surfaces are absent on a non-grouping inner.
 
 No-Observability-Change: unchanged from above — no new signals.
+
+## Differential oracle (issue #6782, slice 3)
+
+`CompareRecordings` diffs recordings group by group with a named kind per
+divergence (`missing`, `results`, `executions`, `failures`, `rowcount`), so
+the allowlist excuses scheduling noise without ever excusing a result
+disagreement. UNWIND batches and single-use IN-list filters explode into
+per-element groups (batch regrouping across runs pairs element-wise);
+fingerprints normalize the run generation stamp wherever it propagates
+(`generation_id` keys, `resolved_id` middles, `artifact_id` cells); digest
+rows canonicalize backend serialization (graph-object identity, list order,
+wall-clock columns, run-scoped lineage cells) while parameters stay strict.
+See `differential.go`, `differential_unwind.go`, and
+`differential_normalize.go`.
+
+No-Regression Evidence: `go test ./internal/backendconformance/
+./internal/graph/capture/ ./cmd/golden-corpus-gate/ -count=1` passes with no
+live backend. No production Cypher text, schema, index, queue, lease, or
+batching changed — the touched code runs only inside gate comparison and
+opt-in capture; production replays run unwrapped. Capture-mode overhead is
+one fingerprint plus one digest per statement as before, plus small map
+walks; no hot-path shape exists to bench before/after.
+
+No-Observability-Change: no new metrics, spans, or log keys; comparison
+output keeps the existing `Detail` strings with a machine-readable `Kind`
+alongside.

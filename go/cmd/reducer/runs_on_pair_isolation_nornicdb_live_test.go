@@ -55,7 +55,7 @@ func TestRunsOnPairIsolationLive(t *testing.T) {
 			seedRunsOnPairFixture(t, ctx, runner, fixture)
 			assertRunsOnPairFixture(t, ctx, runner, fixture, "seeded")
 
-			materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil))
+			materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(runner, nil, nil))
 			edgeWriter := edgewriter.NewEdgeWriter(newReducerNeo4jExecutor(runner, nil), 2)
 			writeWorkloads := func() {
 				t.Helper()
@@ -131,7 +131,7 @@ func TestRunsOnPairIsolationLive(t *testing.T) {
 						RepoID:       fixture.repos[index],
 					})
 				}
-				materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(probe, nil))
+				materializer := reducer.NewWorkloadMaterializer(newReducerCypherExecutor(probe, nil, nil))
 				if _, err := materializer.Materialize(ctx, &reducer.ProjectionResult{RuntimePlatformRows: rows}); err != nil {
 					t.Fatalf("workload Materialize() after synthetic conflict: %v", err)
 				}

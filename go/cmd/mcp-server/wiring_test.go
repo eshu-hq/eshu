@@ -336,3 +336,16 @@ func TestLoadGraphBackendDefaultsToNornicDB(t *testing.T) {
 		t.Fatalf("loadGraphBackend() = %q, want %q", got, query.GraphBackendNornicDB)
 	}
 }
+
+func TestWireAPIFailsClosedOnCaptureFlagWithoutDir(t *testing.T) {
+	t.Setenv("ESHU_DIFFERENTIAL_CAPTURE", "1")
+	_, _, _, _, err := wireAPI(context.Background(), func(string) string {
+		return ""
+	}, nil, nil)
+	if err == nil {
+		t.Fatal("wireAPI() error = nil, want fail-closed capture error")
+	}
+	if !strings.Contains(err.Error(), "differential capture") {
+		t.Fatalf("wireAPI() error = %q, want differential capture context", err)
+	}
+}

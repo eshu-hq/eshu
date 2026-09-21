@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"strconv"
@@ -15,7 +16,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/content"
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
-	"github.com/eshu-hq/eshu/go/internal/graphbackpressure"
+	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/graphschemacompat"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/projector/failure"
@@ -182,6 +183,13 @@ func openProjectorCanonicalWriter(
 	if err != nil {
 		return nil, nil, err
 	}
+	// Differential capture (#6782 slice 3) opens before any datastore so a
+	// half-configured capture fails closed with nothing to leak: the flag
+	// without a directory errors here instead of running uncaptured.
+	captureSession, err := capture.Open(getenv, "projector")
+	if err != nil {
+		return nil, nil, fmt.Errorf("open differential capture: %w", err)
+	}
 	nornicDBConfig := projectorNornicDBConfig{}
 	if graphBackend == runtimecfg.GraphBackendNornicDB {
 		nornicDBConfig, err = loadProjectorNornicDBConfig(getenv)
@@ -219,6 +227,7 @@ func openProjectorCanonicalWriter(
 		getenv,
 		tracer,
 		instruments,
+		captureSession,
 	)
 	writer := sourcecypher.NewCanonicalNodeWriter(
 		executor,
@@ -234,76 +243,8 @@ func openProjectorCanonicalWriter(
 	writer = configureProjectorCanonicalWriter(writer, graphBackend, nornicDBConfig)
 
 	return writer,
-		projectorNeo4jDriverCloser{Driver: driver},
+		projectorNeo4jDriverCloser{Driver: driver, captureSession: captureSession},
 		nil
-}
-
-func projectorCanonicalExecutorForGraphBackend(
-	rawExecutor sourcecypher.Executor,
-	graphBackend runtimecfg.GraphBackend,
-	nornicDBConfig projectorNornicDBConfig,
-	getenv func(string) string,
-	tracer trace.Tracer,
-	instruments *telemetry.Instruments,
-) sourcecypher.Executor {
-	instrumentedExecutor := &sourcecypher.InstrumentedExecutor{
-		Inner: &sourcecypher.RetryingExecutor{
-			Inner:       rawExecutor,
-			MaxRetries:  3,
-			Instruments: instruments,
-		},
-		Tracer:      tracer,
-		Instruments: instruments,
-	}
-	var outer sourcecypher.Executor = instrumentedExecutor
-	if graphBackend == runtimecfg.GraphBackendNornicDB {
-		canonicalTimeout := projectorNornicDBCanonicalWriteTimeout(getenv)
-		bounded := sourcecypher.TimeoutExecutor{
-			Inner:       instrumentedExecutor,
-			Timeout:     canonicalTimeout,
-			TimeoutHint: canonicalWriteTimeoutEnv,
-		}
-		gate := graphbackpressure.NewGate(
-			graphbackpressure.ClassMaxInFlight(getenv, graphbackpressure.CanonicalMaxInFlightEnv),
-			instruments,
-			graphbackpressure.CanonicalGateName,
-		)
-		inner := graphbackpressure.WrapExecutorWithGate(bounded, gate)
-		var drainReader storagenornicdb.DrainReader
-		if reader, ok := rawExecutor.(storagenornicdb.DrainReader); ok {
-			drainReader = projectorTimeoutDrainReader{
-				inner:       reader,
-				timeout:     canonicalTimeout,
-				timeoutHint: canonicalWriteTimeoutEnv,
-			}
-			if gate != nil {
-				drainReader = projectorGatedDrainReader{inner: drainReader, gate: gate}
-			}
-		}
-		return storagenornicdb.PhaseGroupExecutor{
-			Inner:                       inner,
-			MaxStatements:               nornicDBConfig.PhaseGroupStatements,
-			DirectoryMaxStatements:      storagenornicdb.DefaultDirectoryPhaseStatements,
-			FileMaxStatements:           nornicDBConfig.FilePhaseGroupStatements,
-			StructuralEdgeMaxStatements: nornicDBConfig.StructuralEdgePhaseGroupStatements,
-			EntityMaxStatements:         nornicDBConfig.EntityPhaseGroupStatements,
-			EntityLabelMaxStatements:    nornicDBConfig.EntityLabelPhaseStatements,
-			EntityPhaseConcurrency:      nornicDBConfig.EntityPhaseConcurrency,
-			DrainReader:                 drainReader,
-			RetractBatchSize:            nornicDBConfig.CanonicalRetractBatchSize,
-			Instruments:                 instruments,
-		}
-	}
-	// Bound concurrent canonical writes so a slow graph backend slows intake
-	// instead of dead-lettering recoverable projector work (issue #3560). The
-	// wrapper sits outside retry/timeout so one permit covers a whole write
-	// attempt; a non-positive ESHU_GRAPH_WRITE_MAX_IN_FLIGHT leaves it a
-	// passthrough.
-	return graphbackpressure.Wrap(
-		outer,
-		graphbackpressure.MaxInFlight(getenv),
-		instruments,
-	)
 }
 
 func projectorNornicDBCanonicalWriteTimeout(getenv func(string) string) time.Duration {

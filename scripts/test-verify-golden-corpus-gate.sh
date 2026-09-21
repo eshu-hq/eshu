@@ -307,6 +307,7 @@ require "unique Compose project default" 'GATE_COMPOSE_PROJECT:=eshu-golden-corp
 require "shared Compose args" 'compose_args=(-p "${GATE_COMPOSE_PROJECT}" -f "${compose_file}")'
 require "overridable query profile default" 'ESHU_QUERY_PROFILE:=local_full_stack'
 require "query profile export" 'export ESHU_QUERY_PROFILE'
+require "repos dir override" 'ESHU_REPOS_DIR:-${work_dir}/repos'
 require "query profile run log" 'log "query profile: ${ESHU_QUERY_PROFILE}"'
 if rg -q '^export ESHU_QUERY_PROFILE="local_full_stack"$' "${script}"; then
 	fail "query profile must honor an explicit caller override"

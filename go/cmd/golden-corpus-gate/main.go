@@ -62,13 +62,18 @@ type options struct {
 	printLocalBackendRepoPath   string
 	localBackendScopeID         string
 	printPersistedAggregates    bool
+	diffLeft                    string
+	diffRight                   string
+	diffAllowlist               string
+	diffLeft2                   string
+	diffRight2                  string
 }
 
 func parseFlags(args []string) (options, error) {
 	fs := flag.NewFlagSet("golden-corpus-gate", flag.ContinueOnError)
 	var o options
 	fs.StringVar(&o.snapshotPath, "snapshot", "testdata/golden/e2e-20repo-snapshot.json", "path to the B-12 golden snapshot")
-	fs.StringVar(&o.phase, "phase", "all", "comma-separated phases to run: drains,graph,query,timing,demo-answers,all")
+	fs.StringVar(&o.phase, "phase", "all", "comma-separated phases to run: drains,graph,query,timing,demo-answers,backend-diff,all (backend-diff is opt-in and excluded from all: it needs two backends' capture directories, #6782)")
 	fs.StringVar(&o.demoManifestPath, "demo-manifest", "specs/demo-first-answers.v1.yaml", "path to the demo-first-answers manifest asserted live by the demo-answers phase (#4776)")
 	fs.StringVar(&o.apiBaseURL, "api-base-url", "http://localhost:8080", "base URL of a running eshu-api for query truth")
 	fs.StringVar(&o.mcpBaseURL, "mcp-base-url", "", "base URL of a running eshu-mcp-server (http transport); when set, the query phase also asserts the snapshot's MCP tool query shapes live (#3866)")
@@ -90,6 +95,11 @@ func parseFlags(args []string) (options, error) {
 	fs.StringVar(&o.printLocalBackendRepoPath, "print-local-backend-scope-id", "", "compute-and-print mode (issue #5594): given the terraform_local_backend_demo fixture repo's real, run-time git-checkout absolute path (the repository fact's local_path), print the state_snapshot:local:<hash> scope_id a bare backend \"local\" {} block at repo root would resolve to, then exit 0 without running any phase. A BackendLocal locator is an absolute path derived from that run-time checkout root, unlike every other backend kind, so the snapshot cannot pin it as a literal string; the orchestrator resolves it after bootstrap-index and feeds it back via -local-backend-scope-id.")
 	fs.StringVar(&o.localBackendScopeID, "local-backend-scope-id", "", "the real, run-time computed scope_id for the terraform_local_backend_demo fixture (from -print-local-backend-scope-id), substituted into the snapshot's $LOCAL_BACKEND_SCOPE_ID$ sentinel before the query phase runs. Empty (default) leaves the snapshot unchanged.")
 	fs.BoolVar(&o.printPersistedAggregates, "print-persisted-aggregate-counts", false, "read and print strict JSON aggregate counts directly from persisted graph nodes, then exit without calling API or MCP surfaces")
+	fs.StringVar(&o.diffLeft, "diff-left", "", "directory of differential capture recordings for the left backend run (nornicdb side of the #6782 comparison)")
+	fs.StringVar(&o.diffRight, "diff-right", "", "directory of differential capture recordings for the right backend run (neo4j side of the #6782 comparison)")
+	fs.StringVar(&o.diffAllowlist, "diff-allowlist", "specs/backend-divergence-allowlist.v1.yaml", "path to the backend-divergence allowlist excusing known NornicDB-vs-Neo4j divergences (#6782)")
+	fs.StringVar(&o.diffLeft2, "diff-left2", "", "second-pairing nornicdb capture directory for multi-leg quorum mode (#6782): with -diff-right2, the gate fails only on divergences reproducing across both pairings")
+	fs.StringVar(&o.diffRight2, "diff-right2", "", "second-pairing neo4j capture directory for multi-leg quorum mode (#6782): with -diff-left2, the gate fails only on divergences reproducing across both pairings")
 	if err := fs.Parse(args); err != nil {
 		return options{}, err
 	}

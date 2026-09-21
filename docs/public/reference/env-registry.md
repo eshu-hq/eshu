@@ -53,6 +53,14 @@ This reference is generated from the code-owned registry in `go/internal/envregi
 | `ESHU_AUTH_SECRET_ENC_KEY_FILE` | string | — | Path to a file holding the base64-encoded 32-byte primary DEK; takes precedence over ESHU_AUTH_SECRET_ENC_KEY when both are set (epic #4962). |
 | `ESHU_AUTH_SECRET_ENC_KEY_ID` | string | — | Optional label for the primary DEK's key id, embedded in every envelope it seals for rotation bookkeeping. Defaults to the first 8 hex characters of SHA-256(key) when unset (epic #4962). |
 
+## backend-conformance
+
+| Variable | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ESHU_DIFFERENTIAL_CAPTURE` | string | — | Set to 1 to record differential statement fingerprints during a gate run; recording additionally requires ESHU_DIFFERENTIAL_CAPTURE_DIR, and a stray flag alone never records outside a gate run. |
+| `ESHU_DIFFERENTIAL_CAPTURE_DIR` | string | — | Directory differential recording files land in; the run fails closed when ESHU_DIFFERENTIAL_CAPTURE is set without it. |
+| `ESHU_REPOS_DIR` | string | — | Repository checkout directory override shared by collectors, CLI supervision, and gate scripts; each reader falls back to its own default when unset. |
+
 ## collector-aws-cloud
 
 | Variable | Type | Default | Notes |

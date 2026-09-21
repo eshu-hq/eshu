@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/repo/git"
 	"github.com/eshu-hq/eshu/go/internal/content"
+	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/projector/runtime"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
@@ -201,6 +203,13 @@ func openBootstrapCanonicalWriter(
 	if err != nil {
 		return nil, nil, err
 	}
+	// Differential capture (#6782 slice 3) opens before any datastore so a
+	// half-configured capture fails closed with nothing to leak: the flag
+	// without a directory errors here instead of running uncaptured.
+	captureSession, err := capture.Open(getenv, "bootstrap-index")
+	if err != nil {
+		return nil, nil, fmt.Errorf("open differential capture: %w", err)
+	}
 	driver, cfg, err := runtimecfg.OpenNeo4jDriver(parent, getenv)
 	if err != nil {
 		return nil, nil, err
@@ -240,6 +249,7 @@ func openBootstrapCanonicalWriter(
 		tracer,
 		instruments,
 		canonicalGate,
+		captureSession,
 	)
 	if err != nil {
 		_ = closeBootstrapNeo4jDriver(driver)
@@ -294,7 +304,7 @@ func openBootstrapCanonicalWriter(
 		OrderedEntityLabelBatchSizeLabels: orderedLabels,
 	})
 
-	return writer, bootstrapNeo4jDriverCloser{Driver: driver}, nil
+	return writer, bootstrapNeo4jDriverCloser{Driver: driver, captureSession: captureSession}, nil
 }
 
 type bootstrapNeo4jExecutor struct {
@@ -419,10 +429,18 @@ func bootstrapNeo4jProfileGroupStatements(getenv func(string) string) (bool, err
 
 type bootstrapNeo4jDriverCloser struct {
 	Driver neo4jdriver.DriverWithContext
+	// captureSession surfaces a stashed streaming failure at shutdown. It
+	// is nil unless differential capture opened a session; records already
+	// stream to disk as statements execute, so Close never replays them.
+	captureSession *capture.Session
 }
 
 func (c bootstrapNeo4jDriverCloser) Close() error {
-	return closeBootstrapNeo4jDriver(c.Driver)
+	var sessionErr error
+	if c.captureSession != nil {
+		sessionErr = c.captureSession.Close()
+	}
+	return errors.Join(sessionErr, closeBootstrapNeo4jDriver(c.Driver))
 }
 
 func closeBootstrapNeo4jDriver(driver neo4jdriver.DriverWithContext) error {

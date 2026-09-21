@@ -18,5 +18,11 @@
 // Differential recording ([DifferentialRecorder] with the WrapGraphQuery and
 // WrapExecutor decorators) captures statement fingerprints and result digests
 // per execution for the NornicDB-vs-Neo4j comparison; it stays out of the hot
-// path unless ESHU_DIFFERENTIAL_CAPTURE=1.
+// path unless ESHU_DIFFERENTIAL_CAPTURE=1. Comparison groups UNWIND and
+// single-use IN-list batches element-wise, names one divergence kind per
+// difference (missing, results, executions, failures, rowcount), and
+// normalizes run-scoped lineage (generation stamps, derivation-stamped ids)
+// plus backend serialization (graph-object identity, list order, wall-clock
+// columns) so scheduling and lineage noise never masquerades as a result
+// divergence.
 package backendconformance

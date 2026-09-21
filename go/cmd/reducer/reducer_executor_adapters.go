@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/graph/capture"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -102,11 +103,14 @@ type reducerCypherExecutor struct {
 }
 
 // newReducerCypherExecutor builds a reducerCypherExecutor around session
-// with its own persistent RetryingExecutor. instruments may be nil.
-func newReducerCypherExecutor(session cypherRunner, instruments *telemetry.Instruments) reducerCypherExecutor {
+// with its own persistent RetryingExecutor. instruments may be nil. A nil
+// capture session leaves the chain unchanged; otherwise the runner adapter
+// records below the retry seam, so a retried attempt re-records — the A/A
+// control run quantifies that noise before the gate goes blocking.
+func newReducerCypherExecutor(session cypherRunner, instruments *telemetry.Instruments, captureSession *capture.Session) reducerCypherExecutor {
 	return reducerCypherExecutor{
 		retry: &sourcecypher.RetryingExecutor{
-			Inner:       cypherRunnerStatementExecutor{runner: session},
+			Inner:       captureSession.Writer(cypherRunnerStatementExecutor{runner: session}),
 			Instruments: instruments,
 		},
 	}
