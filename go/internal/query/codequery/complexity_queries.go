@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
@@ -250,6 +251,23 @@ func (h *CodeHandler) listMostComplexFunctions(
 		}
 		results = append(results, result)
 	}
+	// Backend delivery order is not trusted: NornicDB mis-sorts multi-key
+	// ORDER BY on distinct keys (#6915), so the same rows can arrive in a
+	// different order per backend. Re-sort by the query's documented keys
+	// before truncating so the API answer is top-N by contract, not by
+	// delivery luck. The entity_id tiebreak keeps the order total (ids are
+	// unique), so the answer is fully deterministic.
+	sort.SliceStable(results, func(i, j int) bool {
+		ci, cj := IntVal(results[i], "complexity"), IntVal(results[j], "complexity")
+		if ci != cj {
+			return ci > cj
+		}
+		ni, nj := StringVal(results[i], "name"), StringVal(results[j], "name")
+		if ni != nj {
+			return ni < nj
+		}
+		return StringVal(results[i], "entity_id") < StringVal(results[j], "entity_id")
+	})
 	results, truncated := trimComplexityResults(results, limit)
 	return results, limit, truncated, nil
 }
