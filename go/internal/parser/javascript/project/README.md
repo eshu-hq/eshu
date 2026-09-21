@@ -60,6 +60,44 @@ See `doc.go` for the full godoc contract.
 None. Resolution runs inline on the parser's hot path; a caller's own span
 covers the file parse this resolution is part of.
 
+## Performance Evidence
+
+This package was created by moving four files out of
+`internal/parser/javascript` (issue #6771). The move changed no algorithm,
+cache policy, key shape or allocation site, so there is no before/after timing
+to report. The one measured contract these files carry is the #4515 P2a
+config-scope cache, and it is unchanged rather than re-tuned.
+
+No-Regression Evidence: the cache's `(path, stat)` single-flight key, its
+`(mtime, size)` invalidation fingerprint and its 4096-entry LRU capacity are
+byte-identical to `origin/main` 965631995 apart from identifier renames --
+verified by stripping comments and imports, replacing every identifier with a
+placeholder and collapsing package qualification, which leaves an identical
+control-flow skeleton. The behavioural gates that pin it
+(`TestEngineParsePathComputesRepoConfigMetadataOnceForSharedManifests`,
+`TestEngineParsePathConcurrentJavaScriptFilesShareConfigComputationOnce`,
+`TestEngineParsePathComputesPackageSurfaceClosureOnceForSharedBarrel`,
+`TestEngineParsePathConcurrentPackageSurfaceCacheIsRaceSafe`) assert
+compute-call counts and race safety, not wall-clock, and pass at this head:
+
+```
+go test ./internal/parser/javascript/... -count=1            exit 0
+go test -list '.*' ./internal/parser/javascript/...
+  241 registered names, byte-identical to the pre-move inventory
+```
+
+The one collapse in this package -- `tsconfig.go`'s `cleanPath` and
+`paths.go`'s `cleanJavaScriptPath` becoming a single `CleanPath` -- removes a
+duplicate function, not a call: both bodies were `TrimSpace` -> `filepath.Abs`
+-> `filepath.Clean`, diffed against the base commit and identical apart from
+the signature line. Callers do the same work they did before.
+
+No-Observability-Change: this package emits no metric, span, structured log,
+status field or pprof label, and the move added and removed none. Cache hits
+and misses were unobservable before this change and remain so; making them
+observable is a separate decision, noted here so the absence is recorded rather
+than assumed.
+
 ## Gotchas / invariants
 
 - **The scope cache is keyed by resolved config path, not repo root.** A

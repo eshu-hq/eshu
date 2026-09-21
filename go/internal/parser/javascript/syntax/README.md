@@ -65,6 +65,51 @@ no goroutines, no metrics, spans or logs. Operator-facing signals for the
 JavaScript parse path live in the parent `javascript` package, which owns the
 parse lifecycle (`js_parse_bounded`) and the payload it emits.
 
+## Performance Evidence
+
+This package was created by moving eight files out of `internal/parser/javascript`
+(issue #6771). No algorithm, data structure, cache, allocation site or
+concurrency property changed in the move, so there is no before/after
+measurement to report -- there is nothing whose cost could have moved. What the
+move could plausibly have broken is the one measured performance contract these
+files carry, so that contract is re-proven at the new location rather than
+assumed.
+
+No-Regression Evidence: the #3586 contract is that ancestor walks consult a Go
+map instead of re-entering cgo via `ts_node_parent`, which took
+`runtime.cgocall` from roughly 48% of parse CPU down off the profile. Its
+mechanism gate `TestJavaScriptParentLookupEliminatesCgoCrossings` asserts zero
+cgo `Parent()` crossings and identical is-exported results for every
+declaration node. It lives in the parent package, now calls
+`syntax.BuildParentLookup` across the package boundary, and passes at this
+head:
+
+```
+go test ./internal/parser/javascript/ \
+  -run 'TestJavaScriptParentLookupEliminatesCgoCrossings|TestWalkCount' \
+  -count=1 -v                                              exit 0
+  --- PASS: TestJavaScriptParentLookupEliminatesCgoCrossings (0.02s)
+  --- PASS: TestWalkCount_FrameworkRouteEntries             (0.00s)
+  --- PASS: TestWalkCount_DuringParse_FrameworkFile         (0.00s)
+  --- PASS: TestWalkCount_AssertReduction                   (0.00s)
+```
+
+Baseline and after are the same corpus and the same gates, at `origin/main`
+965631995 and at this branch head; the gates are exact assertions (zero
+crossings, a fixed walk count), not timings, so they are not subject to the
+contention that makes wall-clock comparisons on a shared machine meaningless.
+
+Two second-order effects were considered and neither can regress:
+`ParentLookup.Parent` is exported and tiny, so it stays inlinable across the
+package boundary through export data; and the moved files now call
+`shared.NodeText` directly instead of through the parent package's
+`nodeText = shared.NodeText` function-value alias, which replaces an indirect
+call with a direct one.
+
+No-Observability-Change: this package emits no metric, span, structured log,
+status field or pprof label, and the move added and removed none. Every
+function here is a pure read over an already-parsed tree.
+
 ## Gotchas / invariants
 
 - `ParentLookup` exists because tree-sitter's `Node.Parent()` re-walks from
