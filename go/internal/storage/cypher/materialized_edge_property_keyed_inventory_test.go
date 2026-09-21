@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -136,10 +137,7 @@ func scanPropertyKeyedRelationshipMergeDir(t *testing.T, fset *token.FileSet, co
 			continue
 		}
 
-		path := name
-		if dir != "." {
-			path = dir + "/" + name
-		}
+		path := filepath.Join(dir, name)
 		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			t.Fatalf("parse %s: %v", path, err)
