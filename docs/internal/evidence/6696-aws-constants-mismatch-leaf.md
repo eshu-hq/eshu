@@ -2,11 +2,11 @@
 
 ## Moved (rename-only `git mv`, zero code changes, same package)
 
-- `go/internal/collector/awscloud/acm_types.go` → `constants_acm.go`
-- `go/internal/collector/awscloud/cloudtrail_types.go` →
-  `constants_cloudtrail.go`
-- `go/internal/collector/awscloud/guardduty_types.go` →
-  `constants_guardduty.go`
+The acm, cloudtrail, and guardduty services now keep their shared
+consts in `go/internal/collector/awscloud/constants_acm.go`,
+`constants_cloudtrail.go`, and `constants_guardduty.go` respectively
+(renamed from the `*_types.go` names, which broke the
+`constants_<service>.go` convention).
 
 All three files verified const-only before the rename (every top-level
 declaration is a `const (` block; zero type/func/var declarations), so
