@@ -179,22 +179,39 @@ GET /api/v0/infra/resources/inventory   13  663066  16   ->  13  74739  14
 The rest of the table moved as follows, stated per column because the
 columns behave differently and an unscoped claim here would be wrong:
 
-- `blks`: every other named row moved by less than 0.2%, except
+- `blks`: 16 named rows rose and three fell. Every rise is under 0.2%,
+  the largest being `GET /api/v0/status/operations` at 72,831 -> 72,960
+  (+0.18%, 129 blocks). The three falls are the two infra routes and
   `GET /api/v0/freshness/generations` at 92,919 -> 91,860 (-1.14%).
-  `/cloud/inventory` held at 145,866 rather than collapsing to 21 -- see
-  the corpus section above.
-- `rows`: `GET /api/v0/status/governance` moved 68 -> 66 (-2.94%), and
-  about ten routes moved 16 -> 14. That second group is not per-route
-  drift: each of those rows is identical to the `default` row in both
-  snapshots, so they are floor-riders under the renderer's "no named row
-  below the default row" rule and are tracking the default row's own
-  cross-run noise (16 -> 14) rather than any change in their own traffic.
+  `/cloud/inventory` is one of the 16, at 145,851 -> 145,866: it held
+  rather than collapsing to 21 -- see the corpus section above.
+- `rows`: nothing rose. `GET /api/v0/status/governance` moved 68 -> 66
+  (-2.94%), `GET /api/v0/infra/resources/count` 88 -> 80 (-9.09%), and
+  exactly ten named routes moved 16 -> 14. Eight of those ten are
+  floor-riders: the whole row is identical to the `default` row in both
+  snapshots, so under the renderer's "no named row below the default
+  row" rule they track the default row's own cross-run noise (16 -> 14)
+  rather than any change in their own traffic. The other two,
+  `/cloud/inventory` and `/infra/resources/inventory`, are not identical
+  to the default row -- they carry their own `blks` and are accounted for
+  separately above. Only their `rows` column tracks the default row's
+  16 -> 14 move.
 
-Every delta above tightens a guard; none loosens one, so none of it can
-hide a regression. The residual risk runs the other way: a future run
-landing between an old and new budget would now breach. That is inherent
-to regenerating from measured maxima, not specific to this change. An
-independent check confirms the rendered table admits every measured route:
+Every `rows` delta tightens a guard. The `blks` column moved both ways:
+16 named budgets rose, none by more than 0.18%, and three fell. Those
+shifts are between the reports main's committed table was rendered from
+and this drive's two reports: the renderer takes the max over whatever
+reports it is given, so a budget moves when its inputs do. That holds
+whether or not the two runs agreed. This drive's runs did agree to the
+block on the four routes compared above; no such comparison was made for
+the other changed routes, and this claim does not rest on one.
+
+A budget that rises is a looser guard, so the residual risk here runs in
+both directions at noise scale: a raised budget hides that much more, and
+a lowered one breaches if a future run lands between the old and the new
+value. Both are inherent to regenerating from measured maxima, not
+specific to this change. An independent check confirms the rendered table
+admits every measured route:
 65 routes checked across both reports, zero breaches, and the checker
 fails as expected on a seeded violation.
 
@@ -255,7 +272,9 @@ evidence block in `read-api-route-budgets.txt` records four CI runs with
 within two blocks across five runners.
 
 No ceiling value changed. Both routes keep their 2000ms budget and block
-on it again.
+on it again. The map held only these two entries, so emptying it took
+cover from nothing else: a latency breach on any other route after this
+change is not a side effect of it.
 
 ## Reproducing, and the limits of this evidence
 
