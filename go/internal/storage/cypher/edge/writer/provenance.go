@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cypher
+package writer
 
 import (
 	"context"
 	"fmt"
+
+	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
 // Graph provenance edges project three reducer correlation domains into the
@@ -171,15 +173,15 @@ DELETE rel`
 // whose source or target node is absent is a no-op, counted skipped by the
 // caller.
 type ProvenanceEdgeWriter struct {
-	executor  Executor
+	executor  sourcecypher.Executor
 	batchSize int
 }
 
 // NewProvenanceEdgeWriter returns a ProvenanceEdgeWriter backed by the given
 // Executor. A batchSize of 0 or less uses DefaultBatchSize (500).
-func NewProvenanceEdgeWriter(executor Executor, batchSize int) *ProvenanceEdgeWriter {
+func NewProvenanceEdgeWriter(executor sourcecypher.Executor, batchSize int) *ProvenanceEdgeWriter {
 	if batchSize <= 0 {
-		batchSize = DefaultBatchSize
+		batchSize = sourcecypher.DefaultBatchSize
 	}
 	return &ProvenanceEdgeWriter{executor: executor, batchSize: batchSize}
 }
@@ -215,13 +217,13 @@ func (w *ProvenanceEdgeWriter) WritePublishesEdges(
 		packageRows = append(packageRows, cloned)
 	}
 
-	var stmts []Statement
+	var stmts []sourcecypher.Statement
 	stmts = append(stmts, tagProvenanceStatements(
-		BuildBatchedStatements(canonicalProvenancePublishesPackageCypher, packageRows, w.batchSize),
+		sourcecypher.BuildBatchedStatements(canonicalProvenancePublishesPackageCypher, packageRows, w.batchSize),
 		canonicalPhaseProvenancePublishesEdges, provenancePublishesEdgeLabel, "target=Package",
 	)...)
 	stmts = append(stmts, tagProvenanceStatements(
-		BuildBatchedStatements(canonicalProvenancePublishesPackageVersionCypher, versionRows, w.batchSize),
+		sourcecypher.BuildBatchedStatements(canonicalProvenancePublishesPackageVersionCypher, versionRows, w.batchSize),
 		canonicalPhaseProvenancePublishesEdges, provenancePublishesEdgeLabel, "target=PackageVersion",
 	)...)
 
@@ -251,7 +253,7 @@ func (w *ProvenanceEdgeWriter) WriteBuiltFromEdges(
 	}
 
 	stmts := tagProvenanceStatements(
-		BuildBatchedStatements(canonicalProvenanceBuiltFromCypher, cloned, w.batchSize),
+		sourcecypher.BuildBatchedStatements(canonicalProvenanceBuiltFromCypher, cloned, w.batchSize),
 		canonicalPhaseProvenanceBuiltFromEdges, provenanceBuiltFromEdgeLabel, "target=Repository",
 	)
 	return w.dispatch(ctx, stmts)
@@ -308,21 +310,21 @@ func (w *ProvenanceEdgeWriter) retract(
 	if w.executor == nil {
 		return fmt.Errorf("provenance edge writer executor is required")
 	}
-	stmt := Statement{
-		Operation: OperationCanonicalRetract,
+	stmt := sourcecypher.Statement{
+		Operation: sourcecypher.OperationCanonicalRetract,
 		Cypher:    cypher,
 		Parameters: map[string]any{
-			"scope_id":                      scopeID,
-			"evidence_source":               evidenceSource,
-			StatementMetadataPhaseKey:       phase,
-			StatementMetadataEntityLabelKey: label,
-			StatementMetadataSummaryKey: fmt.Sprintf(
+			"scope_id":                                   scopeID,
+			"evidence_source":                            evidenceSource,
+			sourcecypher.StatementMetadataPhaseKey:       phase,
+			sourcecypher.StatementMetadataEntityLabelKey: label,
+			sourcecypher.StatementMetadataSummaryKey: fmt.Sprintf(
 				"edge=%s retract scope=%s generation=%s evidence_source=%s",
 				label, scopeID, generationID, evidenceSource,
 			),
 		},
 	}
-	return w.dispatchRetract(ctx, []Statement{stmt})
+	return w.dispatchRetract(ctx, []sourcecypher.Statement{stmt})
 }
 
 // cloneProvenanceRow copies row and stamps the reducer-scoped provenance
@@ -344,12 +346,12 @@ func cloneProvenanceRow(row map[string]any, scopeID, generationID, evidenceSourc
 	return cloned
 }
 
-func tagProvenanceStatements(stmts []Statement, phase, label, summarySuffix string) []Statement {
+func tagProvenanceStatements(stmts []sourcecypher.Statement, phase, label, summarySuffix string) []sourcecypher.Statement {
 	for i := range stmts {
 		rows, _ := stmts[i].Parameters["rows"].([]map[string]any)
-		stmts[i].Parameters[StatementMetadataPhaseKey] = phase
-		stmts[i].Parameters[StatementMetadataEntityLabelKey] = label
-		stmts[i].Parameters[StatementMetadataSummaryKey] = fmt.Sprintf(
+		stmts[i].Parameters[sourcecypher.StatementMetadataPhaseKey] = phase
+		stmts[i].Parameters[sourcecypher.StatementMetadataEntityLabelKey] = label
+		stmts[i].Parameters[sourcecypher.StatementMetadataSummaryKey] = fmt.Sprintf(
 			"edge=%s %s rows=%d", label, summarySuffix, len(rows),
 		)
 	}
@@ -358,19 +360,19 @@ func tagProvenanceStatements(stmts []Statement, phase, label, summarySuffix stri
 
 // dispatch runs the prepared upsert statements as one atomic group when the
 // executor supports grouping, otherwise sequentially.
-func (w *ProvenanceEdgeWriter) dispatch(ctx context.Context, stmts []Statement) error {
+func (w *ProvenanceEdgeWriter) dispatch(ctx context.Context, stmts []sourcecypher.Statement) error {
 	if len(stmts) == 0 {
 		return nil
 	}
-	if ge, ok := w.executor.(GroupExecutor); ok {
+	if ge, ok := w.executor.(sourcecypher.GroupExecutor); ok {
 		if err := ge.ExecuteGroup(ctx, stmts); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 		return nil
 	}
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil
@@ -383,7 +385,7 @@ func (w *ProvenanceEdgeWriter) dispatch(ctx context.Context, stmts []Statement) 
 // transaction (Execute) deletes correctly. See
 // docs/public/reference/nornicdb-pitfalls.md and
 // KubernetesCorrelationEdgeWriter.dispatchRetract for the same rationale.
-func (w *ProvenanceEdgeWriter) dispatchRetract(ctx context.Context, stmts []Statement) error {
+func (w *ProvenanceEdgeWriter) dispatchRetract(ctx context.Context, stmts []sourcecypher.Statement) error {
 	return w.dispatchSequential(ctx, stmts)
 }
 
@@ -399,10 +401,10 @@ func (w *ProvenanceEdgeWriter) dispatchRetract(ctx context.Context, stmts []Stat
 // re-projects the edge on a later generation once both nodes exist. BUILT_FROM
 // and PUBLISHES writes may group: their two endpoints are different labels and
 // do not select that fast path.
-func (w *ProvenanceEdgeWriter) dispatchSequential(ctx context.Context, stmts []Statement) error {
+func (w *ProvenanceEdgeWriter) dispatchSequential(ctx context.Context, stmts []sourcecypher.Statement) error {
 	for _, stmt := range stmts {
 		if err := w.executor.Execute(ctx, stmt); err != nil {
-			return WrapRetryableNeo4jError(err)
+			return sourcecypher.WrapRetryableNeo4jError(err)
 		}
 	}
 	return nil

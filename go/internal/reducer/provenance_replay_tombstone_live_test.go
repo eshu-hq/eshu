@@ -21,6 +21,7 @@ import (
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
+	edgewriter "github.com/eshu-hq/eshu/go/internal/storage/cypher/edge/writer"
 )
 
 const (
@@ -151,7 +152,7 @@ func TestReducerProvenanceReplayTombstoneGraphTruth(t *testing.T) {
 	})
 	gen1, gen2 := loadProvenanceReplayGenerations(t)
 	projectorRuntime := newProvenanceReplayProjectorRuntime(executor)
-	writer := cypher.NewProvenanceEdgeWriter(executor, 10)
+	writer := edgewriter.NewProvenanceEdgeWriter(executor, 10)
 	projectProvenanceReplayCanonicalGeneration(ctx, t, projectorRuntime, gen1)
 	seedProvenanceReplayLegacyEndpoints(ctx, t, executor)
 	seedProvenanceReplaySurvivorEndpoints(ctx, t, executor)
@@ -267,7 +268,7 @@ func seedProvenanceReplaySurvivorEndpoints(
 func writeProvenanceReplaySurvivors(
 	ctx context.Context,
 	t *testing.T,
-	writer *cypher.ProvenanceEdgeWriter,
+	writer *edgewriter.ProvenanceEdgeWriter,
 ) {
 	t.Helper()
 	if err := writer.WritePublishesEdges(ctx, []map[string]any{{
@@ -294,7 +295,7 @@ func writeProvenanceReplaySurvivors(
 func projectProvenanceReplayGeneration(
 	ctx context.Context,
 	t *testing.T,
-	writer *cypher.ProvenanceEdgeWriter,
+	writer *edgewriter.ProvenanceEdgeWriter,
 	generation provenanceReplayGeneration,
 ) {
 	t.Helper()

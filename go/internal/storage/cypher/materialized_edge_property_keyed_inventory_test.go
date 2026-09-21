@@ -56,7 +56,8 @@ var propertyKeyedMergeTypePattern = regexp.MustCompile(`-\[\s*(?:[A-Za-z_][A-Za-
 // the exact silent-collapse bug this precursor exists to prevent — because
 // those types are never checked against source at all.
 //
-// This test scans every non-test .go file directly in this package for a
+// This test scans every non-test .go file directly in this package directory
+// plus the edge/writer leaf directory for a
 // relationship-MERGE property map (`-[var:TYPE {...}]`) and asserts the
 // total inventory, by relationship type, equals a fixed nine-occurrence
 // allow-list: the two gated identities (DECLARES_CODEOWNER, PINS_SUBMODULE,
@@ -88,9 +89,9 @@ func TestPropertyKeyedRelationshipMergesMatchKnownAllowList(t *testing.T) {
 		"DECLARES_CODEOWNER": 1, // canonical_codeowners_edges.go -- gated, covered above.
 		"PINS_SUBMODULE":     1, // canonical_submodule_edges.go -- gated, covered above.
 		"TAINT_FLOWS_TO":     1, // code_interproc_evidence_writer.go -- outside the 14-family scope.
-		"DERIVED_FROM":       1, // derived_from_edge_writer.go -- outside the 14-family scope.
-		"PUBLISHES":          2, // provenance_edge_writer.go -- Package + PackageVersion targets.
-		"BUILT_FROM":         1, // provenance_edge_writer.go -- outside the 14-family scope.
+		"DERIVED_FROM":       1, // edge/writer/derived_from.go -- outside the 14-family scope.
+		"PUBLISHES":          2, // edge/writer/provenance.go -- Package + PackageVersion targets.
+		"BUILT_FROM":         1, // edge/writer/provenance.go -- outside the 14-family scope.
 		"RUNS_ON":            2, // canonical.go + canonical_relationships.go -- shared deterministic identity.
 		"DEPENDS_ON":         2, // canonical.go -- workload dependency single-row and batched templates.
 	}
@@ -103,28 +104,45 @@ func TestPropertyKeyedRelationshipMergesMatchKnownAllowList(t *testing.T) {
 }
 
 // scanPropertyKeyedRelationshipMergeTypes parses every non-test .go file
-// directly in this package directory and counts each relationship type's
-// property-keyed MERGE occurrences across every string literal in the file,
-// regardless of the expression context it appears in.
+// directly in this package directory and in the edge/writer leaf directory,
+// counting each relationship type's property-keyed MERGE occurrences across
+// every string literal in the file, regardless of the expression context it
+// appears in.
 func scanPropertyKeyedRelationshipMergeTypes(t *testing.T) map[string]int {
 	t.Helper()
 
-	entries, err := os.ReadDir(".")
+	fset := token.NewFileSet()
+	counts := map[string]int{}
+	// The provenance family (DERIVED_FROM, PUBLISHES x2, BUILT_FROM) moved to
+	// the edge/writer leaf (#6694); its templates stay in this inventory so a
+	// property folded into one of those types still fails the allow-list.
+	for _, dir := range []string{".", "edge/writer"} {
+		scanPropertyKeyedRelationshipMergeDir(t, fset, counts, dir)
+	}
+	return counts
+}
+
+func scanPropertyKeyedRelationshipMergeDir(t *testing.T, fset *token.FileSet, counts map[string]int, dir string) {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("read package directory: %v", err)
 	}
 
-	fset := token.NewFileSet()
-	counts := map[string]int{}
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
 
-		file, err := parser.ParseFile(fset, name, nil, 0)
+		path := name
+		if dir != "." {
+			path = dir + "/" + name
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
+			t.Fatalf("parse %s: %v", path, err)
 		}
 
 		ast.Inspect(file, func(n ast.Node) bool {
@@ -142,5 +160,4 @@ func scanPropertyKeyedRelationshipMergeTypes(t *testing.T) map[string]int {
 			return true
 		})
 	}
-	return counts
 }
