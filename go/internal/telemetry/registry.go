@@ -92,6 +92,7 @@ var spanNames = []string{
 	SpanReducerEshuSearchIndexWrite,
 	SpanReducerDriftEvidenceLoad,
 	SpanReducerAWSRuntimeDriftEvidenceLoad,
+	SpanReducerCodeDriftedEvidenceLoad,
 	SpanReducerMultiCloudRuntimeDriftEvidenceLoad,
 	SpanReducerAWSRelationshipMaterialization,
 	SpanReducerAWSCloudImageMaterialization,

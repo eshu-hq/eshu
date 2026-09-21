@@ -151,7 +151,7 @@ WHERE repo_id = $1
 // entity_id before invoking the batched path (entityUpserts already are, via
 // deduplicateEntityRows, and fingerprint rows inherit that dedup).
 const upsertFingerprintBatchPrefix = `INSERT INTO code_function_fingerprint (
-    entity_id, repo_id, fp_exact, fp_renamed, sketch, token_count, indexed_at
+    entity_id, repo_id, fp_exact, fp_renamed, sketch, shingles, token_count, indexed_at
 ) VALUES `
 
 const upsertFingerprintBatchSuffix = `
@@ -160,6 +160,7 @@ SET repo_id = EXCLUDED.repo_id,
     fp_exact = EXCLUDED.fp_exact,
     fp_renamed = EXCLUDED.fp_renamed,
     sketch = EXCLUDED.sketch,
+    shingles = EXCLUDED.shingles,
     token_count = EXCLUDED.token_count,
     indexed_at = EXCLUDED.indexed_at
 `

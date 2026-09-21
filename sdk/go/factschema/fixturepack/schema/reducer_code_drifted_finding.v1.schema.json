@@ -1,0 +1,161 @@
+{
+  "$id": "https://eshu.dev/schemas/factschema/reducerderived/v1/code_drifted_finding.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "cause": {
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "finding_id": {
+      "type": "string"
+    },
+    "generation_id": {
+      "type": "string"
+    },
+    "intent_id": {
+      "type": "string"
+    },
+    "member_a": {
+      "additionalProperties": true,
+      "properties": {
+        "end_line": {
+          "type": "integer"
+        },
+        "entity_id": {
+          "type": "string"
+        },
+        "entity_name": {
+          "type": "string"
+        },
+        "entity_type": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "start_line": {
+          "type": "integer"
+        },
+        "token_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entity_id",
+        "entity_name",
+        "entity_type",
+        "relative_path",
+        "language",
+        "start_line",
+        "end_line",
+        "token_count"
+      ],
+      "type": "object"
+    },
+    "member_b": {
+      "additionalProperties": true,
+      "properties": {
+        "end_line": {
+          "type": "integer"
+        },
+        "entity_id": {
+          "type": "string"
+        },
+        "entity_name": {
+          "type": "string"
+        },
+        "entity_type": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "start_line": {
+          "type": "integer"
+        },
+        "token_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entity_id",
+        "entity_name",
+        "entity_type",
+        "relative_path",
+        "language",
+        "start_line",
+        "end_line",
+        "token_count"
+      ],
+      "type": "object"
+    },
+    "reducer_domain": {
+      "type": "string"
+    },
+    "repo_id": {
+      "type": "string"
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "shared_bands": {
+      "type": "integer"
+    },
+    "similarity": {
+      "type": "number"
+    },
+    "source_layers": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "source_system": {
+      "type": "string"
+    },
+    "suppressions": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "threshold": {
+      "type": "number"
+    },
+    "truth_level": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "reducer_domain",
+    "intent_id",
+    "scope_id",
+    "generation_id",
+    "source_system",
+    "cause",
+    "finding_id",
+    "repo_id",
+    "similarity",
+    "threshold",
+    "shared_bands",
+    "member_a",
+    "member_b",
+    "truth_level",
+    "evidence",
+    "source_layers"
+  ],
+  "title": "Eshu reducer_code_drifted_finding Payload (schema version 1)",
+  "type": "object"
+}

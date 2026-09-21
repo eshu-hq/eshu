@@ -28,9 +28,10 @@ const WrapperFamilyMinMembers = 5
 // judges them differently from small utilities.
 const LargeBodyTokens = 200
 
-// Kind is a finding kind: exact token-stream equality or alpha-renamed
-// equality. Drifted (Jaccard) findings belong to the #6837 reducer, never
-// this read surface.
+// Kind is a finding kind: exact token-stream equality, alpha-renamed
+// equality, or reducer-verified Jaccard drift. Drifted findings assemble in
+// drifted.go from reducer_code_drifted_finding facts, never from fingerprint
+// groups.
 type Kind string
 
 const (
@@ -114,12 +115,12 @@ func PackageOf(relativePath string) string {
 	return "."
 }
 
-// AssembleFinding builds the finding for one fingerprint group, applying
-// member-level suppression first. It reports false when fewer than two
-// members survive: a single surviving copy is not a parallel
-// implementation. Suppressions counts every rule application, including the
-// token floor.
-func AssembleFinding(repoID string, kind Kind, fingerprint string, members []Member, includeTests bool) (Finding, bool) {
+// suppressMembers applies the member-level suppression catalogue shared by
+// every finding kind: token floor, generated, vendored, test files (unless
+// opted back in), and trivial accessors. It returns the survivors with the
+// per-rule counts, so a quiet result stays distinguishable from a filtered
+// one at every call site.
+func suppressMembers(members []Member, includeTests bool) ([]Member, map[string]int) {
 	suppressions := map[string]int{}
 	survivors := make([]Member, 0, len(members))
 	for _, member := range members {
@@ -145,6 +146,16 @@ func AssembleFinding(repoID string, kind Kind, fingerprint string, members []Mem
 		}
 		survivors = append(survivors, member)
 	}
+	return survivors, suppressions
+}
+
+// AssembleFinding builds the finding for one fingerprint group, applying
+// member-level suppression first. It reports false when fewer than two
+// members survive: a single surviving copy is not a parallel
+// implementation. Suppressions counts every rule application, including the
+// token floor.
+func AssembleFinding(repoID string, kind Kind, fingerprint string, members []Member, includeTests bool) (Finding, bool) {
+	survivors, suppressions := suppressMembers(members, includeTests)
 	if SuppressWrapperFamily(survivors) {
 		suppressions[RuleWrapperFamily] += len(survivors)
 		survivors = nil

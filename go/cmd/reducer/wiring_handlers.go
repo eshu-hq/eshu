@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
@@ -74,6 +75,14 @@ func buildReducerDriftHandlers(
 		// of only incrementing counters.
 		DriftWriter: tfconfigstate.PostgresTerraformConfigStateDriftWriter{DB: database},
 		DriftLogger: logger,
+		// Code drifted-pair adapters (issue #6837): the band-nominated
+		// candidate loader plus the durable finding writer. Both non-nil
+		// registers DomainCodeDrifted; the logger is optional.
+		DriftedCandidateLoader: postgres.PostgresCodeDriftedEvidenceLoader{
+			DB: database, Tracer: tracer, Logger: logger,
+		},
+		DriftedFindingWriter: codedivergence.PostgresCodeDriftedWriter{DB: database},
+		DriftedLogger:        logger,
 		// AWS runtime drift joins current AWS resource facts to active
 		// Terraform-state resources by ARN, then resolves the state backend to
 		// the owning config snapshot before classifying unmanaged resources.

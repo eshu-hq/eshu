@@ -59,6 +59,42 @@ func (fakeDivergenceStore) DivergenceMembers(
 	return out, nil
 }
 
+// fakeDriftedRow is the admitted pair the drifted read serves: the same
+// 210-token bodies as the exact fixture at Jaccard 0.87, so the merged page
+// ranks all three kinds on one currency.
+func fakeDriftedRow() codedivergence.DriftedRow {
+	return codedivergence.DriftedRow{
+		FindingID:   "drift-fixture",
+		Similarity:  0.87,
+		Threshold:   0.7,
+		SharedBands: 9,
+		Members: []codedivergence.Member{
+			{EntityID: "d1", EntityName: "renderTable", EntityType: "Function", RelativePath: "a/table.go", Language: "go", StartLine: 10, EndLine: 60, TokenCount: 210},
+			{EntityID: "d2", EntityName: "renderTable", EntityType: "Function", RelativePath: "b/table.go", Language: "go", StartLine: 12, EndLine: 62, TokenCount: 210},
+		},
+	}
+}
+
+func (fakeDivergenceStore) DriftedFindingStats(
+	context.Context, string,
+) ([]codedivergence.GroupStat, error) {
+	return []codedivergence.GroupStat{
+		{Kind: codedivergence.KindDrifted, Fingerprint: "drift-fixture", Members: 2, Tokens: 210},
+	}, nil
+}
+
+func (fakeDivergenceStore) DriftedFindingRows(
+	_ context.Context, _ string, findingIDs []string,
+) (map[string]codedivergence.DriftedRow, error) {
+	out := map[string]codedivergence.DriftedRow{}
+	for _, id := range findingIDs {
+		if id == "drift-fixture" {
+			out[id] = fakeDriftedRow()
+		}
+	}
+	return out, nil
+}
+
 // TestCodeHandlerDivergenceFindingsAgreesWithFixture pins the API/MCP
 // agreement leg of the fixture: stored rows (the fake) assemble into the
 // exact HTTP answer — two reported members, score 420, reasons summing to
@@ -161,6 +197,18 @@ func (crossKindCollisionStore) DivergenceGroupStats(
 	}, nil
 }
 
+func (crossKindCollisionStore) DriftedFindingStats(
+	context.Context, string,
+) ([]codedivergence.GroupStat, error) {
+	return nil, nil
+}
+
+func (crossKindCollisionStore) DriftedFindingRows(
+	context.Context, string, []string,
+) (map[string]codedivergence.DriftedRow, error) {
+	return map[string]codedivergence.DriftedRow{}, nil
+}
+
 func (crossKindCollisionStore) DivergenceMembers(
 	_ context.Context, _ string, kind codedivergence.Kind, fingerprints []string,
 ) (map[string][]codedivergence.Member, error) {
@@ -248,6 +296,18 @@ func (suppressionPagingStore) DivergenceGroupStats(
 		{Kind: kind, Fingerprint: "fp-big", Members: 3, Tokens: 100},
 		{Kind: kind, Fingerprint: "fp-small", Members: 2, Tokens: 120},
 	}, nil
+}
+
+func (suppressionPagingStore) DriftedFindingStats(
+	context.Context, string,
+) ([]codedivergence.GroupStat, error) {
+	return nil, nil
+}
+
+func (suppressionPagingStore) DriftedFindingRows(
+	context.Context, string, []string,
+) (map[string]codedivergence.DriftedRow, error) {
+	return map[string]codedivergence.DriftedRow{}, nil
 }
 
 func (suppressionPagingStore) DivergenceMembers(
@@ -379,13 +439,92 @@ func TestDivergenceFindingsValidationBounds(t *testing.T) {
 		want string
 	}{
 		{"missing repo", DivergenceFindingsRequest{Kind: "exact"}, "repo_id is required"},
-		{"bad kind", DivergenceFindingsRequest{RepoID: "r", Kind: "drifted"}, "kind must be one of"},
+		{"bad kind", DivergenceFindingsRequest{RepoID: "r", Kind: "fuzzy"}, "kind must be one of"},
 		{"over limit", DivergenceFindingsRequest{RepoID: "r", Limit: 101}, "limit must be <="},
 		{"negative offset", DivergenceFindingsRequest{RepoID: "r", Offset: -1}, "offset must be >="},
 		{"over offset", DivergenceFindingsRequest{RepoID: "r", Offset: 10001}, "offset must be <="},
 	} {
 		if err := tc.req.validate(); err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Fatalf("%s: validate() = %v, want error containing %q", tc.name, err, tc.want)
+		}
+	}
+}
+
+// TestCodeHandlerDivergenceFindingsServesDriftedKind pins the #6837 read
+// leg: kind=drifted serves the reducer-admitted pair on the same
+// members x tokens currency with reasons summing to the score, the writer
+// finding id as fingerprint, and truth derived.
+func TestCodeHandlerDivergenceFindingsServesDriftedKind(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []string{"drifted", "parallel_implementation.drifted"} {
+		handler := &CodeHandler{Content: fakeDivergenceStore{}, Profile: ProfileLocalAuthoritative}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/v0/code/divergence/findings",
+			bytes.NewBufferString(`{"repo_id":"repo-x","kind":"`+kind+`"}`),
+		)
+		req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if got, want := w.Code, http.StatusOK; got != want {
+			t.Fatalf("kind %q status = %d, want %d body=%s", kind, got, want, w.Body.String())
+		}
+		var envelope struct {
+			Data struct {
+				Findings []struct {
+					FindingID   string `json:"finding_id"`
+					Kind        string `json:"kind"`
+					Fingerprint string `json:"fingerprint"`
+					Score       int    `json:"score"`
+					Reasons     []struct {
+						Value    int    `json:"value"`
+						Sentence string `json:"sentence"`
+					} `json:"reasons"`
+					Members []struct {
+						EntityID string `json:"entity_id"`
+					} `json:"members"`
+				} `json:"findings"`
+			} `json:"data"`
+			Truth struct {
+				Level string `json:"level"`
+			} `json:"truth"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+			t.Fatalf("kind %q decode envelope: %v body=%s", kind, err, w.Body.String())
+		}
+		if got, want := len(envelope.Data.Findings), 1; got != want {
+			t.Fatalf("kind %q findings = %d, want %d body=%s", kind, got, want, w.Body.String())
+		}
+		finding := envelope.Data.Findings[0]
+		if finding.Kind != "parallel_implementation.drifted" {
+			t.Errorf("kind %q finding kind = %q, want drifted", kind, finding.Kind)
+		}
+		if finding.Fingerprint != "drift-fixture" {
+			t.Errorf("kind %q fingerprint = %q, want the writer finding id", kind, finding.Fingerprint)
+		}
+		if want := 2 * 210; finding.Score != want {
+			t.Errorf("kind %q score = %d, want %d", kind, finding.Score, want)
+		}
+		sum := 0
+		joined := ""
+		for _, reason := range finding.Reasons {
+			sum += reason.Value
+			joined += reason.Sentence + "\n"
+		}
+		if sum != finding.Score {
+			t.Errorf("kind %q reasons sum = %d, want score = %d", kind, sum, finding.Score)
+		}
+		if !strings.Contains(joined, "0.87") {
+			t.Errorf("kind %q reasons must carry the measured similarity, got:\n%s", kind, joined)
+		}
+		if got, want := len(finding.Members), 2; got != want {
+			t.Errorf("kind %q members = %d, want %d", kind, got, want)
+		}
+		if envelope.Truth.Level != "derived" {
+			t.Errorf("kind %q truth.level = %q, want derived", kind, envelope.Truth.Level)
 		}
 	}
 }

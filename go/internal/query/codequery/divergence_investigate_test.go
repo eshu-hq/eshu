@@ -173,7 +173,7 @@ func TestCodeHandlerDivergenceInvestigateAcceptsQualifiedKind(t *testing.T) {
 			t.Fatalf("kind %q status = %d, want %d body=%s", kind, got, want, w.Body.String())
 		}
 	}
-	if err := (DivergenceInvestigateRequest{RepoID: "r", Kind: "drifted"}).validate(); err == nil {
+	if err := (DivergenceInvestigateRequest{RepoID: "r", Kind: "fuzzy"}).validate(); err == nil {
 		t.Fatal("validate() must still reject unknown kinds")
 	}
 }
@@ -198,5 +198,64 @@ func TestCodeHandlerDivergenceInvestigateUnknownFingerprint404s(t *testing.T) {
 
 	if got, want := w.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+}
+
+// TestCodeHandlerDivergenceInvestigateServesDriftedKind pins the drifted
+// investigate leg: a drifted finding addressed by its writer finding id
+// returns the same member shape with bounded follow-ups, and an unknown
+// drifted id 404s instead of returning an empty finding.
+func TestCodeHandlerDivergenceInvestigateServesDriftedKind(t *testing.T) {
+	t.Parallel()
+
+	post := func(t *testing.T, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		handler := &CodeHandler{Content: fakeDivergenceStore{}, Profile: ProfileLocalAuthoritative}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+		req := httptest.NewRequest(http.MethodPost, "/api/v0/code/divergence/investigate", bytes.NewBufferString(body))
+		req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	hit := post(t, `{"repo_id":"repo-x","kind":"drifted","fingerprint":"drift-fixture"}`)
+	if got, want := hit.Code, http.StatusOK; got != want {
+		t.Fatalf("drifted status = %d, want %d body=%s", got, want, hit.Body.String())
+	}
+	var envelope struct {
+		Data struct {
+			Finding struct {
+				Kind    string `json:"kind"`
+				Score   int    `json:"score"`
+				Members []struct {
+					EntityID string `json:"entity_id"`
+				} `json:"members"`
+			} `json:"finding"`
+			NextSteps []struct {
+				Tool string `json:"tool"`
+			} `json:"next_steps"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(hit.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode envelope: %v body=%s", err, hit.Body.String())
+	}
+	if envelope.Data.Finding.Kind != "parallel_implementation.drifted" {
+		t.Errorf("finding kind = %q, want drifted", envelope.Data.Finding.Kind)
+	}
+	if want := 2 * 210; envelope.Data.Finding.Score != want {
+		t.Errorf("score = %d, want %d", envelope.Data.Finding.Score, want)
+	}
+	if got, want := len(envelope.Data.Finding.Members), 2; got != want {
+		t.Errorf("members = %d, want %d", got, want)
+	}
+	if len(envelope.Data.NextSteps) == 0 {
+		t.Error("next_steps must carry bounded follow-ups for a drifted finding")
+	}
+
+	miss := post(t, `{"repo_id":"repo-x","kind":"drifted","fingerprint":"drift-missing"}`)
+	if got, want := miss.Code, http.StatusNotFound; got != want {
+		t.Fatalf("unknown drifted status = %d, want %d body=%s", got, want, miss.Body.String())
 	}
 }

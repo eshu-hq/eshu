@@ -252,4 +252,10 @@ var orderedBootstrapDefinitionNames = []string{
 	// never any) holds the canonical-code quiescence lane forever and the
 	// golden drain never reaches terminal.
 	"value_flow_refresh_global_canonical_phase",
+	// migration 117 (#6837) adds the shingle-set column the reducer verifies
+	// exact Jaccard over: sorted unique FNV-64a identities, NULL for
+	// exact-only tiers and pre-#6837 rows. No index: reads go by entity_id.
+	// Numbered 117 because main merged the #6785 value-flow refresh
+	// migrations as 112-116 first.
+	"code_function_fingerprint_shingles",
 }

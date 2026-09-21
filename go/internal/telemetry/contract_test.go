@@ -122,6 +122,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.eshu_search_index_write",
 		"reducer.drift_evidence_load",
 		"reducer.aws_runtime_drift_evidence_load",
+		"reducer.code_drifted_evidence_load",
 		"reducer.multi_cloud_runtime_drift_evidence_load",
 		"reducer.aws_relationship_materialization",
 		"reducer.aws_cloud_image_materialization",

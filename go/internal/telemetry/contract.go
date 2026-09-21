@@ -326,6 +326,11 @@ const (
 	// drift loader. Child Postgres query spans expose the AWS-resource scan,
 	// bounded active-state ARN join, and config-owner lookup per state scope.
 	SpanReducerAWSRuntimeDriftEvidenceLoad = "reducer.aws_runtime_drift_evidence_load"
+	// SpanReducerCodeDriftedEvidenceLoad wraps the Postgres code-drifted
+	// loader. Child Postgres query spans expose the band self-join
+	// nomination, the member row lookup, and the exclusion counters per
+	// repo scope.
+	SpanReducerCodeDriftedEvidenceLoad = "reducer.code_drifted_evidence_load"
 	// SpanReducerMultiCloudRuntimeDriftEvidenceLoad wraps the Postgres
 	// multi-cloud runtime drift loader (issues #1997, #1998). Child Postgres
 	// query spans expose the observed provider-inventory scan, the bounded

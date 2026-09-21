@@ -9,7 +9,8 @@ import (
 
 // Tools returns the two MCP code-divergence tool definitions: the
 // repo-scoped parallel-implementation findings report and the single-finding
-// investigation with bounded follow-up calls.
+// investigation with bounded follow-up calls. Both accept the drifted family
+// alongside exact and renamed.
 func Tools() []toolcontract.ToolDefinition {
 	return []toolcontract.ToolDefinition{
 		findCodeDivergenceTool(),
@@ -20,7 +21,7 @@ func Tools() []toolcontract.ToolDefinition {
 func findCodeDivergenceTool() toolcontract.ToolDefinition {
 	return toolcontract.ToolDefinition{
 		Name:        "find_code_divergence",
-		Description: "Find parallel implementations in one repository: functions with identical token streams (exact) or identical streams up to renaming (renamed), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
+		Description: "Find parallel implementations in one repository: functions with identical token streams (exact), identical streams up to renaming (renamed), or reducer-verified near-duplicate pairs (drifted), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -30,8 +31,8 @@ func findCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"kind": map[string]any{
 					"type":        "string",
-					"description": "Equality family: exact, renamed, or blank for both",
-					"enum":        []string{"", "exact", "renamed"},
+					"description": "Family: exact, renamed, drifted, or blank for all three",
+					"enum":        []string{"", "exact", "renamed", "drifted"},
 				},
 				"limit": map[string]any{
 					"type":        "integer",
@@ -49,7 +50,7 @@ func findCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"include_tests": map[string]any{
 					"type":        "boolean",
-					"description": "Opt test-file copies back into the member set; test files suppress by default",
+					"description": "Opt test-file copies back into the member set for the exact and renamed families; test files suppress by default. Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings",
 					"default":     false,
 				},
 			},
@@ -71,8 +72,8 @@ func investigateCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"kind": map[string]any{
 					"type":        "string",
-					"description": "Equality family the fingerprint belongs to; accepts the short (exact, renamed) and qualified (parallel_implementation.exact, parallel_implementation.renamed) spellings",
-					"enum":        []string{"exact", "renamed", "parallel_implementation.exact", "parallel_implementation.renamed"},
+					"description": "Family the fingerprint belongs to; accepts the short (exact, renamed, drifted) and qualified (parallel_implementation.*) spellings",
+					"enum":        []string{"exact", "renamed", "drifted", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted"},
 				},
 				"fingerprint": map[string]any{
 					"type":        "string",
@@ -80,7 +81,7 @@ func investigateCodeDivergenceTool() toolcontract.ToolDefinition {
 				},
 				"include_tests": map[string]any{
 					"type":        "boolean",
-					"description": "Opt test-file copies back into the member set; test files suppress by default",
+					"description": "Opt test-file copies back into the member set for the exact and renamed families; test files suppress by default. Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings",
 					"default":     false,
 				},
 			},

@@ -1,0 +1,35 @@
+{
+  "cause": "drift intent",
+  "evidence": [],
+  "finding_id": "drifted:repo-1:generation-1:a1:b1",
+  "generation_id": "generation-1",
+  "intent_id": "intent-1",
+  "member_a": {
+    "end_line": 40,
+    "entity_id": "repo-1|a.go|Function|big|10",
+    "entity_name": "big",
+    "entity_type": "Function",
+    "language": "go",
+    "relative_path": "a.go",
+    "start_line": 10,
+    "token_count": 64
+  },
+  "member_b": {
+    "end_line": 80,
+    "entity_id": "repo-1|b.go|Function|bigCopy|50",
+    "entity_name": "bigCopy",
+    "entity_type": "Function",
+    "language": "go",
+    "relative_path": "b.go",
+    "start_line": 50,
+    "token_count": 66
+  },
+  "reducer_domain": "code_drifted",
+  "repo_id": "repo-1",
+  "shared_bands": 9,
+  "similarity": 0.87,
+  "source_layers": ["source_declaration"],
+  "source_system": "reducer/code_drifted",
+  "threshold": 0.7,
+  "truth_level": "derived"
+}

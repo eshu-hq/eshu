@@ -3600,6 +3600,11 @@
     },
     {
       "category": "reducer_domain",
+      "name": "code_drifted",
+      "readiness": "implemented"
+    },
+    {
+      "category": "reducer_domain",
       "name": "code_function_summary",
       "readiness": "implemented"
     },

@@ -137,6 +137,14 @@ type Result struct {
 	EntityCount        int
 	RepositoryRefCount int
 	DeletedCount       int
+	// FingerprintsChanged reports whether this Write (re)published
+	// fingerprint side-table truth: fingerprinted rows upserted, or
+	// withdrawn/stale side rows actually deleted. The projector uses it to
+	// enqueue exactly one drifted-pair intent per fingerprint-bearing
+	// generation; an identical re-publish of the same generation dedupes on
+	// the queue, so the signal means "(re)published", not "logically
+	// different".
+	FingerprintsChanged bool
 }
 
 // Writer is the narrow source-local content write contract.

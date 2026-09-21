@@ -63,6 +63,48 @@ func configStateDriftDomainDefinition() DomainDefinition {
 	}
 }
 
+// codeDriftedDomainDefinition returns the additive DomainDefinition for
+// code_drifted (epic #6833, child #6837). The drifted domain is
+// intentionally NOT part of DefaultDomainDefinitions because its handler
+// requires two adapters (DriftedCandidateLoader, DriftedFindingWriter) that
+// the production reducer binary wires explicitly. Registering the domain
+// without those adapters silently drops every intent — the additive pattern
+// keeps the catalog honest about what the runtime can actually serve. See
+// defaults.go (implementedDefaultDomainDefinitions) for the wiring gate.
+func codeDriftedDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainCodeDrifted,
+		Summary: "materialize drifted parallel-implementation pairs: LSH-nominated candidates verified by exact Jaccard over persisted shingle sets",
+		// Durable truth surface (issue #6837): every admitted pair is
+		// written as a reducer_code_drifted_finding Postgres fact (see
+		// codedivergence/writer.go), read back through the drifted kind on
+		// POST /api/v0/code/divergence/findings and the drifted MCP tool
+		// kind. Graph projection stays deferred: this mirrors the AWS and
+		// multi-cloud runtime drift domains, which are Postgres-only with
+		// graph projection explicitly gated behind a separate Cypher-shape
+		// and performance proof (see docs/public/reference/cypher-performance.md)
+		// rather than assumed free. CanonicalWrite stays false because that
+		// field means a canonical GRAPH write; it is not the durability flag
+		// (its only production consumer is a Validate() OR-check already
+		// satisfied by CounterEmit:true). CounterEmit declares the v1 truth
+		// surface: bounded metric counters + structured logs remain a
+		// parallel signal alongside the durable write, not a replacement
+		// for it.
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: false,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "code_drifted",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+			},
+		},
+	}
+}
+
 // eshuSearchDocumentDomainDefinition returns the additive definition for the
 // curated search-document projection (design 430). It is a Postgres read-model
 // projection: it emits derived fact records, performs no canonical graph write,

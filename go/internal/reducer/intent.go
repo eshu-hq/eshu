@@ -38,6 +38,11 @@ const (
 	// DomainCodeValueFlowRefresh re-runs the global value-flow fixpoint after
 	// late producers land, without re-persisting summaries (issue #6785).
 	DomainCodeValueFlowRefresh = reducercontract.DomainCodeValueFlowRefresh
+	// DomainCodeDrifted materializes drifted parallel-implementation findings
+	// (epic #6833, child #6837): LSH-nominated candidate pairs verified by
+	// exact Jaccard over persisted shingle sets, one intent per repo
+	// generation.
+	DomainCodeDrifted = reducercontract.DomainCodeDrifted
 	// DomainOwnership resolves ownership and responsibility records.
 	DomainOwnership = reducercontract.DomainOwnership
 	// DomainGovernance resolves governance and policy attribution.

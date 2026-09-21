@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
@@ -32,6 +33,16 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 			Writer:         handlers.DriftWriter,
 		}
 		definitions = append(definitions, drift)
+	}
+	if handlers.DriftedCandidateLoader != nil && handlers.DriftedFindingWriter != nil {
+		drifted := codeDriftedDomainDefinition()
+		drifted.Handler = codedivergence.CodeDriftedHandler{
+			Loader:      handlers.DriftedCandidateLoader,
+			Writer:      handlers.DriftedFindingWriter,
+			Instruments: handlers.Instruments,
+			Logger:      handlers.DriftedLogger,
+		}
+		definitions = append(definitions, drifted)
 	}
 	if handlers.EshuSearchDocumentSourceLoader != nil && handlers.EshuSearchDocumentWriter != nil {
 		searchDocument := eshuSearchDocumentDomainDefinition()
