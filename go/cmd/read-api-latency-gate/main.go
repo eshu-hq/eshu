@@ -251,7 +251,15 @@ func seed(ctx context.Context, opts runOptions) error {
 		return fmt.Errorf("seed IaC facts: %w", err)
 	}
 
-	if err := VerifyRelationalCounts(ctx, pool, expectedRelationalCounts(plan, iacFacts)); err != nil {
+	fmt.Fprintf(os.Stderr, "read-api-latency-gate: seeding %d cloud/state facts per label on scope %s (the fact corpus /cloud/inventory reads)\n", opts.nodesPerLabel, iacScope.ScopeID)
+	cloudStateFacts := BuildCloudStateFacts(iacScope.ScopeID, iacScope.ActiveGenerationID, opts.nodesPerLabel)
+	if err := SeedCloudStateFacts(ctx, pool, cloudStateFacts, time.Now().UTC()); err != nil {
+		return fmt.Errorf("seed cloud/state facts: %w", err)
+	}
+
+	expectedCounts := expectedRelationalCounts(plan, iacFacts)
+	expectedCounts["fact_records"] += len(cloudStateFacts)
+	if err := VerifyRelationalCounts(ctx, pool, expectedCounts); err != nil {
 		return fmt.Errorf("verify seeded Postgres tables: %w", err)
 	}
 
