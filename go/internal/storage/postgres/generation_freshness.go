@@ -29,11 +29,23 @@ SELECT EXISTS (
 )
 `
 
+// priorGenerationIDSQL resolves the strictly-older generation: the newest
+// generation whose (observed_at, generation_id) sorts before the intent's
+// own row. A newest-other lookup would return a NEWER generation whenever a
+// non-newest intent executes (retry crossing a scan boundary, backfill,
+// queue lag), and the diff would then yield newly-created uids as retract
+// candidates. A missing intent row (or no older generation) yields no rows,
+// which NewPriorGenerationID reports as found=false: the handler skips the
+// retract, which is the safe direction.
 const priorGenerationIDSQL = `
 SELECT generation_id
 FROM scope_generations
 WHERE scope_id = $1
-  AND generation_id <> $2
+  AND (observed_at, generation_id) < (
+    SELECT observed_at, generation_id
+    FROM scope_generations
+    WHERE scope_id = $1 AND generation_id = $2
+  )
 ORDER BY observed_at DESC, generation_id DESC
 LIMIT 1
 `
