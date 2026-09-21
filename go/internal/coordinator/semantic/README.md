@@ -96,3 +96,54 @@ under the coordinator package before the split.
 - `go/internal/semanticqueue/README.md`
 - `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`
+
+## Runtime contract and evidence (moved from the coordinator root, #6781)
+
+`semantic.ProviderWorker` is the egress-gated semantic-provider execution
+worker (`semantic/provider_worker.go`), held by the optional
+`Service.SemanticProviderWorker` field. It claims semantic extraction jobs,
+re-checks
+semantic egress with `semanticpolicy.EvaluateEgress` before consulting a
+provider client, and runs from `runActiveMaintenance` only when active-mode
+claims and the worker are enabled.
+
+The worker ships no provider traffic by default. `ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED`
+turns the claim loop on; `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED` and a
+concrete enabled provider client are also required before dispatch. The default
+`semantic.DisabledProviderClient` performs no network I/O and terminates allowed
+claims as `provider_execution_not_enabled`. Denied or missing egress policy
+skips the claim behind the lease fence and records a redacted governance audit
+event with low-cardinality reason data only.
+
+Performance Evidence: `BenchmarkSemanticWorkerEgressGatedClaimLoop` measures the
+full gated claim cycle with the default no-network client. Baseline on Apple
+M4 Pro, Go test harness, single pending documentation job per iteration:
+~953 ns/op, 2200 B/op, 14 allocs/op. After is identical to baseline because the
+default client performs no network or queue I/O beyond the in-memory egress gate
+and a single lifecycle write; terminal queue disposition is exactly one row per
+claim (skipped_policy on deny, dead_letter/provider-disabled on allow). The
+claim loop is lease-fenced and bounded by `MaxClaimsPerPass` per scope, so a
+single scope cannot starve the loop. No serialization workaround was introduced:
+the postgres `ClaimNext` query uses `FOR UPDATE SKIP LOCKED` so concurrent
+workers claim disjoint rows.
+
+No-Regression Evidence: `go test ./internal/coordinator/semantic -run 'TestSemanticWorker|TestLoadSemanticProviderWorkerConfig' -race -count=1`
+proves denied-egress fail-closed skip, missing-egress-policy fail-closed skip,
+allowed-egress + default-disabled-client no-network termination, the disabled
+client never dispatching even when the execution flag is on, allowed-egress +
+enabled test client dispatching only after the gate, default-OFF worker no-op,
+config defaults-off parsing, and a race-tested concurrent claim loop that
+processes each job exactly once. Storage proof:
+`go test ./internal/storage/postgres -run 'TestSemanticExtractionQueueStore(Claim|SkipByPolicy)' -count=1`
+proves the lease-fenced claim returns provider profile/source class for the
+egress re-check and the policy-skip transition is terminal behind the fence.
+
+Observability Evidence: the worker emits the
+`eshu_dp_workflow_coordinator_semantic_provider_claim_total` counter dimensioned
+by bounded `outcome` (`egress_denied`, `egress_policy_missing`,
+`provider_disabled`, `dispatched`, `provider_unavailable`), `provider_kind`,
+`provider_profile_class`, and `source_class`; redacted structured logs
+distinguishing the egress-skip and provider-disabled outcomes; and the redacted
+`EventTypeSemanticPolicyDecision` governance audit event for every egress
+decision. No provider host, endpoint, URL, credential, raw prompt, or raw
+response appears in any metric label, log field, or audit field.

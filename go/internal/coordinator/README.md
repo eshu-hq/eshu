@@ -376,54 +376,9 @@ the GCP collector runtime and the explicit live Cloud Asset Inventory transport.
 
 ## Semantic-provider execution worker
 
-`semantic.ProviderWorker` is the egress-gated semantic-provider execution
-worker (`semantic/provider_worker.go`), held by the optional
-`Service.SemanticProviderWorker` field. It claims semantic extraction jobs,
-re-checks
-semantic egress with `semanticpolicy.EvaluateEgress` before consulting a
-provider client, and runs from `runActiveMaintenance` only when active-mode
-claims and the worker are enabled.
-
-The worker ships no provider traffic by default. `ESHU_SEMANTIC_PROVIDER_WORKER_ENABLED`
-turns the claim loop on; `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED` and a
-concrete enabled provider client are also required before dispatch. The default
-`semantic.DisabledProviderClient` performs no network I/O and terminates allowed
-claims as `provider_execution_not_enabled`. Denied or missing egress policy
-skips the claim behind the lease fence and records a redacted governance audit
-event with low-cardinality reason data only.
-
-Performance Evidence: `BenchmarkSemanticWorkerEgressGatedClaimLoop` measures the
-full gated claim cycle with the default no-network client. Baseline on Apple
-M4 Pro, Go test harness, single pending documentation job per iteration:
-~953 ns/op, 2200 B/op, 14 allocs/op. After is identical to baseline because the
-default client performs no network or queue I/O beyond the in-memory egress gate
-and a single lifecycle write; terminal queue disposition is exactly one row per
-claim (skipped_policy on deny, dead_letter/provider-disabled on allow). The
-claim loop is lease-fenced and bounded by `MaxClaimsPerPass` per scope, so a
-single scope cannot starve the loop. No serialization workaround was introduced:
-the postgres `ClaimNext` query uses `FOR UPDATE SKIP LOCKED` so concurrent
-workers claim disjoint rows.
-
-No-Regression Evidence: `go test ./internal/coordinator/semantic -run 'TestSemanticWorker|TestLoadSemanticProviderWorkerConfig' -race -count=1`
-proves denied-egress fail-closed skip, missing-egress-policy fail-closed skip,
-allowed-egress + default-disabled-client no-network termination, the disabled
-client never dispatching even when the execution flag is on, allowed-egress +
-enabled test client dispatching only after the gate, default-OFF worker no-op,
-config defaults-off parsing, and a race-tested concurrent claim loop that
-processes each job exactly once. Storage proof:
-`go test ./internal/storage/postgres -run 'TestSemanticExtractionQueueStore(Claim|SkipByPolicy)' -count=1`
-proves the lease-fenced claim returns provider profile/source class for the
-egress re-check and the policy-skip transition is terminal behind the fence.
-
-Observability Evidence: the worker emits the
-`eshu_dp_workflow_coordinator_semantic_provider_claim_total` counter dimensioned
-by bounded `outcome` (`egress_denied`, `egress_policy_missing`,
-`provider_disabled`, `dispatched`, `provider_unavailable`), `provider_kind`,
-`provider_profile_class`, and `source_class`; redacted structured logs
-distinguishing the egress-skip and provider-disabled outcomes; and the redacted
-`EventTypeSemanticPolicyDecision` governance audit event for every egress
-decision. No provider host, endpoint, URL, credential, raw prompt, or raw
-response appears in any metric label, log field, or audit field.
+The worker moved to `semantic/` under #6781. Its runtime contract, the
+default-OFF flags, the egress gate and its benchmark and regression evidence
+are in [semantic/README.md](semantic/README.md).
 
 ## Extension points
 
@@ -505,34 +460,7 @@ advisory payloads.
 
 ## Evidence
 
-No-Regression Evidence (#6781): `cd go && go test ./internal/coordinator/... ./cmd/workflow-coordinator/... -count=1`
-passes after the root split from 49 to 35 non-test files. The split is a file
-and symbol relocation, so the proof a refactor owes is that the contract did
-not move with the files: the discovered test-name set is byte-identical to
-`origin/main` at 279 names, compared with
-`go test -list '.*' ./internal/coordinator/... ./cmd/workflow-coordinator/...`
-on both trees and an empty `comm` diff in both directions. That check exists
-because a moved test file can compile clean and register nothing. `go vet
-./...` is clean module-wide and caught eight test-compilation breaks that
-`go build ./...` reported clean, since build ignores `_test.go` entirely.
-
-The semantic-provider worker moved to `semantic/` unchanged apart from
-identifier renames. Its claim loop, lease fencing, `MaxClaimsPerPass` bound,
-egress re-check order, and `FOR UPDATE SKIP LOCKED` claim query are untouched,
-so `BenchmarkSemanticWorkerEgressGatedClaimLoop` measures the same work it did
-before the move; the benchmark now lives at `./internal/coordinator/semantic`.
-No worker count, lease duration, batch size, queue ordering, or retry
-behavior changed. `minInt` was replaced by the `min` builtin at two capacity
-hints, which is the same function.
-
-No-Observability-Change (#6781): the split adds or renames no metric, span,
-log field, status field, queue, worker, lease, or runtime setting. The
-`ESHU_SEMANTIC_PROVIDER_*` environment variable strings are unchanged; only
-their Go constant names dropped the `Semantic` prefix.
-`eshu_dp_workflow_coordinator_semantic_provider_claim_total` keeps its name and
-dimensions. `MetricPrefix` is now exported so `cmd/workflow-coordinator` can
-pass it to `semantic.NewProviderWorkerMetrics`, which keeps the instrument in
-the same namespace without the subpackage importing this one.
+The #6781 package-split evidence lives in [package-split.md](package-split.md).
 
 No-Regression Evidence: `go test ./internal/coordinator/planner/aws/scheduled ./internal/coordinator -run 'TestAWSScheduledWorkPlanner|TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun' -count=1`
 covers scheduled AWS target planning, invalid `aws-global` pair filtering, and
