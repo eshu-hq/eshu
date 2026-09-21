@@ -61,7 +61,7 @@ func (d *drainCommitter) CommitScopeGeneration(
 // measured by the dedicated parse/build benchmarks where the input is already
 // credential-free and local — BenchmarkParseStream_LargeState
 // (collector/terraformstate), the SBOM document parser bench
-// (collector/sbomdocument), and the git snapshot benches
+// (collector/sbom/document), and the git snapshot benches
 // (git_snapshot_delta_bench_test.go, git_selection_scale_bench_test.go) — not by
 // this service-path table.
 func BenchmarkEmit(b *testing.B) {

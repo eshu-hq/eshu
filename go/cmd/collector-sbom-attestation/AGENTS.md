@@ -3,7 +3,7 @@
 ## Read First
 
 1. `README.md` for the hosted runtime contract.
-2. `go/internal/collector/sbomruntime/README.md` for parser and OCI boundaries.
+2. `go/internal/collector/sbom/runtime/README.md` for parser and OCI boundaries.
 3. `go/internal/workflow/README.md` before changing claim fields.
 
 ## Invariants
@@ -20,5 +20,5 @@
 Run:
 
 ```bash
-go test ./cmd/collector-sbom-attestation ./internal/collector/sbomruntime -count=1
+go test ./cmd/collector-sbom-attestation ./internal/collector/sbom/runtime -count=1
 ```

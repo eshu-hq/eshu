@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
@@ -65,23 +65,23 @@ func TestRuntimeSBOMFactsPreserveSubjectMismatchEvidence(t *testing.T) {
 func runtimeSBOMFacts(t *testing.T) []facts.Envelope {
 	t.Helper()
 
-	raw, err := os.ReadFile("../../collector/sbomdocument/testdata/cyclonedx_image_subject.json")
+	raw, err := os.ReadFile("../../collector/sbom/document/testdata/cyclonedx_image_subject.json")
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}
-	provider := runtimeAttachmentProvider{doc: sbomruntime.Document{
+	provider := runtimeAttachmentProvider{doc: runtime.Document{
 		Body:           raw,
 		SourceURI:      "https://sbom.example.com/image.cdx.json",
 		SourceRecordID: "referrer-runtime",
 		ObservedAt:     time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC),
 	}}
-	source, err := sbomruntime.NewClaimedSource(sbomruntime.SourceConfig{
+	source, err := runtime.NewClaimedSource(runtime.SourceConfig{
 		CollectorInstanceID: "sbom-attestation-test",
-		Targets: []sbomruntime.TargetConfig{{
+		Targets: []runtime.TargetConfig{{
 			ScopeID:        "sbom://runtime/attachment",
-			SourceType:     sbomruntime.SourceTypeConfigured,
-			ArtifactKind:   sbomruntime.ArtifactKindSBOM,
-			DocumentFormat: sbomruntime.DocumentFormatCycloneDX,
+			SourceType:     runtime.SourceTypeConfigured,
+			ArtifactKind:   runtime.ArtifactKindSBOM,
+			DocumentFormat: runtime.DocumentFormatCycloneDX,
 			DocumentURL:    "https://sbom.example.com/image.cdx.json",
 		}},
 		Provider: provider,
@@ -159,9 +159,9 @@ func ociImageReferrerFact(
 }
 
 type runtimeAttachmentProvider struct {
-	doc sbomruntime.Document
+	doc runtime.Document
 }
 
-func (p runtimeAttachmentProvider) FetchDocument(context.Context, sbomruntime.TargetConfig) (sbomruntime.Document, error) {
+func (p runtimeAttachmentProvider) FetchDocument(context.Context, runtime.TargetConfig) (runtime.Document, error) {
 	return p.doc, nil
 }

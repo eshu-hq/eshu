@@ -862,7 +862,7 @@ linters:
       - path: 'internal/collector/cicdrun/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/sbomruntime/'
+      - path: 'internal/collector/sbom/runtime/'
         linters:
           - wrapcheck
       - path: 'internal/collector/awscloud/awsruntime/'

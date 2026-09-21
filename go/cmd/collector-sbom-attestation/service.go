@@ -20,7 +20,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/ecr"
-	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
+	"github.com/eshu-hq/eshu/go/internal/collector/sbom/runtime"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -69,7 +69,7 @@ func buildClaimedService(
 		return collector.ClaimedService{}, err
 	}
 	config.Source.Provider = newDocumentProvider(logger)
-	source, err := sbomruntime.NewClaimedSource(config.Source)
+	source, err := runtime.NewClaimedSource(config.Source)
 	if err != nil {
 		return collector.ClaimedService{}, err
 	}
@@ -99,9 +99,9 @@ func buildClaimedService(
 // short-lived Distribution credentials from the AWS GetAuthorizationToken
 // exchange using the AWS default credential chain; every other provider stays on
 // the static-credential path.
-func newDocumentProvider(logger *slog.Logger) sbomruntime.HTTPProvider {
-	return sbomruntime.HTTPProvider{
-		ClientFactory: sbomruntime.ECRReferrerClientFactory{
+func newDocumentProvider(logger *slog.Logger) runtime.HTTPProvider {
+	return runtime.HTTPProvider{
+		ClientFactory: runtime.ECRReferrerClientFactory{
 			AuthorizationClient: ecrAuthorizationClient,
 			Logger:              logger,
 		},
@@ -113,7 +113,7 @@ func newDocumentProvider(logger *slog.Logger) sbomruntime.HTTPProvider {
 // mirrors the OCI registry collector's ECR wiring so both collectors authenticate
 // to ECR the same way. Region and profile come from the target when set;
 // otherwise the AWS default chain resolves them.
-func ecrAuthorizationClient(ctx context.Context, target sbomruntime.TargetConfig) (ecr.AuthorizationTokenAPI, error) {
+func ecrAuthorizationClient(ctx context.Context, target runtime.TargetConfig) (ecr.AuthorizationTokenAPI, error) {
 	options := make([]func(*awsconfig.LoadOptions) error, 0, 2)
 	if target.Region != "" {
 		options = append(options, awsconfig.WithRegion(target.Region))

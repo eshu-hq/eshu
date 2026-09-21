@@ -107,15 +107,15 @@ surfaces:
   - category: collector
     name: sbom_attestation
     readiness: implemented
-    owner: internal/collector/sbomdocument
+    owner: internal/collector/sbom/document
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
     collector_contract:
       fact_kinds: [attestation.signature_verification, attestation.slsa_provenance, attestation.statement, sbom.component, sbom.dependency_relationship, sbom.document, sbom.external_reference, sbom.warning]
       projection_surfaces: [sbom_attestation_attachment, supply_chain_impact]
       read_surfaces: [GET /api/v0/supply-chain/sbom-attestations/attachments, GET /api/v0/supply-chain/sbom-attestations/attachments/count, GET /api/v0/supply-chain/sbom-attestations/attachments/inventory, list_sbom_attestation_attachments, count_sbom_attestation_attachments, get_sbom_attestation_attachment_inventory]
-      proof_gates: [cd go && go test ./cmd/collector-sbom-attestation ./internal/collector/sbomdocument ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/sbomdocument/testdata, docs/public/reference/security-intelligence.md#sbom-and-attestation-collection]
+      proof_gates: [cd go && go test ./cmd/collector-sbom-attestation ./internal/collector/sbom/document ./internal/reducer ./internal/query ./internal/mcp -count=1]
+      fixture_refs: [go/internal/collector/sbom/document/testdata, docs/public/reference/security-intelligence.md#sbom-and-attestation-collection]
       truth_profile: provider_gated
   - category: collector
     name: vulnerability_intelligence

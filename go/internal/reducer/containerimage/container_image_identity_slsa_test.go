@@ -12,7 +12,7 @@ import (
 // slsaConfigSourceProvenanceFact builds an attestation.slsa_provenance
 // envelope whose config_source names the given git repository URL and
 // commit, mirroring the wire shape the SBOM runtime collector emits
-// (go/internal/collector/sbomruntime/attestation.go) for #5456.
+// (go/internal/collector/sbom/runtime/attestation.go) for #5456.
 func slsaConfigSourceProvenanceFact(factID, statementID, repoURL, commit string) facts.Envelope {
 	return attestationSLSAProvenanceFactWithMaterials(
 		factID, statementID, "https://slsa.dev/provenance/v1", "",
@@ -470,7 +470,7 @@ func TestApplySLSADigestRevisionUnverifiedDoesNotConferBuildProvenance(t *testin
 
 // attestationSLSAProvenanceFactWithMaterials extends attestationSLSAProvenanceFact
 // with the #5456 materials/config_source fields, using the same raw wire-shape
-// keys the SBOM runtime collector emits (go/internal/collector/sbomruntime/attestation.go).
+// keys the SBOM runtime collector emits (go/internal/collector/sbom/runtime/attestation.go).
 func attestationSLSAProvenanceFactWithMaterials(
 	factID string,
 	statementID string,
