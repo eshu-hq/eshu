@@ -172,6 +172,16 @@ func (g *Gate) retractChunk(
 		return 0, err
 	}
 	if err := tx.Commit(); err != nil {
+		// The graph delete above already succeeded while the deferred
+		// rollback restores the ledger row: a ledger ghost that blocks
+		// re-admission until it is reconciled. Log the uid set so the 3 AM
+		// operator can reconcile ledger-vs-graph instead of seeing
+		// "nothing to do".
+		slog.WarnContext(ctx, "graph node owner retract commit failed after graph delete",
+			slog.String("family", family),
+			slog.Any("uids", dead),
+			log.Component("graphowner"),
+		)
 		return 0, fmt.Errorf("graphowner: commit retract transaction: %w", err)
 	}
 	committed = true
