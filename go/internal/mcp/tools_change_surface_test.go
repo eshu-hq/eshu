@@ -50,15 +50,15 @@ func TestResolveRouteMapsChangeSurfaceInvestigationToBoundedBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/impact/change-surface/investigate"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/impact/change-surface/investigate"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	for key, want := range map[string]any{
 		"service_name": "orders-api",
@@ -134,15 +134,15 @@ func TestResolveRouteMapsPreChangeImpactToBoundedBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/impact/pre-change"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/impact/pre-change"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	for key, want := range map[string]any{
 		"repo_id":     "repo-1",
@@ -206,13 +206,13 @@ func TestResolveRouteMapsDeveloperChangePlanToBoundedBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/impact/developer-change-plan"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/impact/developer-change-plan"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body := route.body.(map[string]any)
+	body := route.Body.(map[string]any)
 	if got, want := body["developer_intent"], "rename helper safely"; got != want {
 		t.Fatalf("body.developer_intent = %#v, want %#v", got, want)
 	}
@@ -278,15 +278,15 @@ func TestResolveRouteMapsContractImpactToBoundedBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/impact/contracts"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/impact/contracts"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	for key, want := range map[string]any{
 		"family":           "http",
@@ -378,15 +378,15 @@ func TestResolveRouteMapsResourceInvestigationToBoundedBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/impact/resource-investigation"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/impact/resource-investigation"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	for key, want := range map[string]any{
 		"query":         "orders-db",
@@ -414,15 +414,15 @@ func TestResolveRouteMapsDeploymentConfigInfluenceToBoundedBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/impact/deployment-config-influence"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/impact/deployment-config-influence"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	for key, want := range map[string]any{
 		"service_name": "eshu-hqgraph-resolution-engine",

@@ -36,13 +36,13 @@ func TestResolveRouteMapsGetFileContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/content/files/read"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/content/files/read"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, _ := route.body.(map[string]any)
+	body, _ := route.Body.(map[string]any)
 	if got, want := body["repo_id"], "repo-1"; got != want {
 		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
 	}
@@ -59,11 +59,11 @@ func TestResolveRouteMapsSearchFileContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/content/files/search"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/content/files/search"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -79,10 +79,10 @@ func TestResolveRouteMapsBuildEvidenceCitationPacket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/evidence/citations"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/evidence/citations"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }

@@ -39,6 +39,6 @@ func awsRuntimeDriftFindingsBody(args map[string]any) map[string]any {
 // owned the two switch arms this delegation replaces, matching the
 // infraInventoryRoute precedent of reusing an existing file to keep the
 // root non-test file count unchanged.
-func replatformingRoute(toolName string, args map[string]any) (*route, bool) {
+func replatformingRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(replatformingtools.Route(toolName, routecontract.Arguments(args)))
 }

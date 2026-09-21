@@ -12,11 +12,11 @@ func TestListCollectorsRuntimeToolRoutesToStatusCollectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/status/collectors"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/status/collectors"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -27,11 +27,11 @@ func TestListIngestersRuntimeToolRoutesToStatusIngesters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/status/ingesters"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/status/ingesters"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -61,11 +61,11 @@ func TestGetIngesterStatusRuntimeToolRoutesToRepositoryStatus(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolveRoute() error = %v, want nil", err)
 			}
-			if got, want := route.method, "GET"; got != want {
-				t.Fatalf("route.method = %q, want %q", got, want)
+			if got, want := route.Method, "GET"; got != want {
+				t.Fatalf("route.Method = %q, want %q", got, want)
 			}
-			if got := route.path; got != tc.want {
-				t.Fatalf("route.path = %q, want %q", got, tc.want)
+			if got := route.Path; got != tc.want {
+				t.Fatalf("route.Path = %q, want %q", got, tc.want)
 			}
 		})
 	}
@@ -78,11 +78,11 @@ func TestSemanticCapabilityRuntimeToolRoutesToStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/status/semantic-extraction"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/status/semantic-extraction"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -93,11 +93,11 @@ func TestHostedReadinessRuntimeToolRoutesToStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/status/hosted-readiness"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/status/hosted-readiness"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -108,11 +108,11 @@ func TestHostedGovernanceRuntimeToolRoutesToStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/status/governance"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/status/governance"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -128,16 +128,16 @@ func TestCapabilityCatalogRuntimeToolRoutesToCapabilities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/capabilities"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/capabilities"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["maturity"], "gated"; got != want {
+	if got, want := route.Query["maturity"], "gated"; got != want {
 		t.Fatalf("query maturity = %q, want %q", got, want)
 	}
-	if got, want := route.query["limit"], "50"; got != want {
+	if got, want := route.Query["limit"], "50"; got != want {
 		t.Fatalf("query limit = %q, want %q", got, want)
 	}
 }
@@ -183,13 +183,13 @@ func TestCapabilityCatalogRuntimeToolOmitsEmptyFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if _, ok := route.query["maturity"]; ok {
+	if _, ok := route.Query["maturity"]; ok {
 		t.Fatal("empty maturity must not be forwarded")
 	}
-	if _, ok := route.query["owner"]; ok {
+	if _, ok := route.Query["owner"]; ok {
 		t.Fatal("empty owner must not be forwarded")
 	}
-	if got, want := route.query["limit"], "12"; got != want {
+	if got, want := route.Query["limit"], "12"; got != want {
 		t.Fatalf("default limit = %q, want %q", got, want)
 	}
 }

@@ -19,7 +19,7 @@ import (
 	codeinteltools "github.com/eshu-hq/eshu/go/internal/mcp/code/intel"
 	codequalitytools "github.com/eshu-hq/eshu/go/internal/mcp/code/quality"
 	contenttools "github.com/eshu-hq/eshu/go/internal/mcp/content"
-	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+	routecontract "github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 	entityresolutiontools "github.com/eshu-hq/eshu/go/internal/mcp/entity/resolution"
 	iacmanagementtools "github.com/eshu-hq/eshu/go/internal/mcp/iac/management"
 )
@@ -53,18 +53,18 @@ func dispatchToolWithOptions(
 	dispatchCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	logger.Debug("dispatch tool", "tool", toolName, "method", route.method, "path", route.path)
+	logger.Debug("dispatch tool", "tool", toolName, "method", route.Method, "path", route.Path)
 
 	var body io.Reader
-	if route.body != nil {
-		encoded, err := json.Marshal(route.body)
+	if route.Body != nil {
+		encoded, err := json.Marshal(route.Body)
 		if err != nil {
 			return nil, fmt.Errorf("encode request body: %w", err)
 		}
 		body = bytes.NewReader(encoded)
 	}
 
-	req, err := http.NewRequestWithContext(dispatchCtx, route.method, route.path, body)
+	req, err := http.NewRequestWithContext(dispatchCtx, route.Method, route.Path, body)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
@@ -76,9 +76,9 @@ func dispatchToolWithOptions(
 		req.Header.Set("Authorization", authHeader)
 	}
 	// Set query parameters
-	if len(route.query) > 0 {
+	if len(route.Query) > 0 {
 		q := req.URL.Query()
-		for k, v := range route.query {
+		for k, v := range route.Query {
 			q.Set(k, v)
 		}
 		req.URL.RawQuery = q.Encode()
@@ -112,15 +112,8 @@ func dispatchToolWithOptions(
 	return applyResponseBudget(&dispatchResult{Value: result}, toolName, options.responseByteBudget, logger), nil
 }
 
-type route struct {
-	method string
-	path   string
-	body   any
-	query  map[string]string
-}
-
 // resolveRoute maps a tool name and its arguments to an internal HTTP route.
-func resolveRoute(toolName string, args map[string]any) (*route, error) {
+func resolveRoute(toolName string, args map[string]any) (*routecontract.Request, error) {
 	if route, ok := documentationRoute(toolName, args); ok {
 		return route, nil
 	}
@@ -214,7 +207,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	switch toolName {
 	// ── Code ──
 	case "investigate_import_dependencies":
-		return &route{method: "POST", path: "/api/v0/code/imports/investigate", body: map[string]any{
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/imports/investigate", Body: map[string]any{
 			"query_type":    str(args, "query_type"),
 			"repo_id":       str(args, "repo_id"),
 			"language":      str(args, "language"),
@@ -226,7 +219,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"offset":        intOr(args, "offset", 0),
 		}}, nil
 	case "investigate_hardcoded_secrets":
-		return &route{method: "POST", path: "/api/v0/code/security/secrets/investigate", body: map[string]any{
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/security/secrets/investigate", Body: map[string]any{
 			"repo_id":            str(args, "repo_id"),
 			"language":           str(args, "language"),
 			"finding_kinds":      stringSlice(args, "finding_kinds"),
@@ -235,19 +228,19 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"offset":             intOr(args, "offset", 0),
 		}}, nil
 	case "list_aws_runtime_drift_findings":
-		return &route{method: "POST", path: "/api/v0/aws/runtime-drift/findings", body: awsRuntimeDriftFindingsBody(args)}, nil
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/aws/runtime-drift/findings", Body: awsRuntimeDriftFindingsBody(args)}, nil
 	case "execute_cypher_query":
-		return &route{method: "POST", path: "/api/v0/code/cypher", body: map[string]any{
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/cypher", Body: map[string]any{
 			"cypher_query": str(args, "cypher_query"),
 			"limit":        intOr(args, "limit", 100),
 		}}, nil
 	case "visualize_graph_query":
-		return &route{method: "POST", path: "/api/v0/code/visualize", body: map[string]any{
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/visualize", Body: map[string]any{
 			"cypher_query": str(args, "cypher_query"),
 			"limit":        intOr(args, "limit", 100),
 		}}, nil
 	case "search_registry_bundles":
-		return &route{method: "POST", path: "/api/v0/code/bundles", body: map[string]any{
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/code/bundles", Body: map[string]any{
 			"query":       str(args, "query"),
 			"ecosystem":   str(args, "ecosystem"),
 			"unique_only": boolOr(args, "unique_only", false),
@@ -260,19 +253,19 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		if env := str(args, "environment"); env != "" {
 			q["environment"] = env
 		}
-		return &route{method: "GET", path: "/api/v0/workloads/" + url.PathEscape(str(args, "workload_id")) + "/context", query: q}, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/workloads/" + url.PathEscape(str(args, "workload_id")) + "/context", Query: q}, nil
 	case "get_workload_story":
 		q := map[string]string{}
 		if env := str(args, "environment"); env != "" {
 			q["environment"] = env
 		}
-		return &route{method: "GET", path: "/api/v0/workloads/" + url.PathEscape(str(args, "workload_id")) + "/story", query: q}, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/workloads/" + url.PathEscape(str(args, "workload_id")) + "/story", Query: q}, nil
 	case "get_incident_context":
 		incidentID := str(args, "provider_incident_id")
 		if incidentID == "" {
 			incidentID = str(args, "incident_id")
 		}
-		return &route{method: "GET", path: "/api/v0/incidents/" + url.PathEscape(incidentID) + "/context", query: map[string]string{
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/incidents/" + url.PathEscape(incidentID) + "/context", Query: map[string]string{
 			"provider":   str(args, "provider"),
 			"scope_id":   str(args, "scope_id"),
 			"service_id": str(args, "service_id"),
@@ -281,7 +274,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"limit":      intString(args, "limit", 25),
 		}}, nil
 	case "list_work_item_evidence":
-		return &route{method: "GET", path: "/api/v0/work-items/evidence", query: map[string]string{
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/work-items/evidence", Query: map[string]string{
 			"scope_id":              str(args, "scope_id"),
 			"project_key":           str(args, "project_key"),
 			"work_item_key":         str(args, "work_item_key"),
@@ -313,7 +306,7 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 // exactly and no other arm claims these three. The adapter lives here rather
 // than in a new dispatch_dead_code.go so the root non-test file set stays at
 // its dirgate pin.
-func deadCodeRoute(toolName string, args map[string]any) (*route, bool) {
+func deadCodeRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(deadcodetools.Route(toolName, routecontract.Arguments(args)))
 }
 
@@ -325,7 +318,7 @@ func deadCodeRoute(toolName string, args map[string]any) (*route, bool) {
 // names exactly and no other arm claims these three. The adapter lives here
 // rather than in a new dispatch file so the root non-test file set stays at
 // its dirgate pin.
-func codeQualityRoute(toolName string, args map[string]any) (*route, bool) {
+func codeQualityRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(codequalitytools.Route(toolName, routecontract.Arguments(args)))
 }
 
@@ -335,7 +328,7 @@ func codeQualityRoute(toolName string, args map[string]any) (*route, bool) {
 // discipline (family-grouped, after quality), same dirgate reason for
 // living in this file. The adapter claims tool names exactly and no other
 // arm claims these two.
-func codeDivergenceRoute(toolName string, args map[string]any) (*route, bool) {
+func codeDivergenceRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(codedivergencetools.Route(toolName, routecontract.Arguments(args)))
 }
 
@@ -347,7 +340,7 @@ func codeDivergenceRoute(toolName string, args map[string]any) (*route, bool) {
 // entirely from contentSearchBody, shared with search_file_content, and that
 // pair now lives together in the content child reached through
 // contentRoute below.
-func entityResolutionRoute(toolName string, args map[string]any) (*route, bool) {
+func entityResolutionRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(entityresolutiontools.Route(toolName, routecontract.Arguments(args)))
 }
 
@@ -358,7 +351,7 @@ func entityResolutionRoute(toolName string, args map[string]any) (*route, bool) 
 // reason for living in this file. search_entity_content is not part of this
 // family either; see the codeintel package doc for why, and contentRoute
 // below for where it lives now.
-func codeIntelRoute(toolName string, args map[string]any) (*route, bool) {
+func codeIntelRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(codeinteltools.Route(toolName, routecontract.Arguments(args)))
 }
 
@@ -373,7 +366,7 @@ func codeIntelRoute(toolName string, args map[string]any) (*route, bool) {
 // entityResolutionRoute above rather than joining this family — its
 // registration is grouped with these five in tools_content.go, but its
 // routing shares no helper with them.
-func contentRoute(toolName string, args map[string]any) (*route, bool) {
+func contentRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(contenttools.Route(toolName, routecontract.Arguments(args)))
 }
 
@@ -387,22 +380,16 @@ func contentRoute(toolName string, args map[string]any) (*route, bool) {
 // list_aws_runtime_drift_findings stays in the switch below rather than
 // joining either family — it builds its body from its own root helper in
 // dispatch_iac.go that no tool in either child package shares.
-func iacManagementRoute(toolName string, args map[string]any) (*route, bool) {
+func iacManagementRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(iacmanagementtools.Route(toolName, routecontract.Arguments(args)))
 }
 
 // adaptChildRoute converts a child selector's dependency-neutral request and
-// handled flag into the root dispatcher's transport route, copying method,
-// path, body, and query verbatim so the in-file adapters above cannot
+// handled flag into the root dispatcher's transport route, passing the shared contract value through so the in-file adapters above cannot
 // drift from one another.
-func adaptChildRoute(request routecontract.Request, handled bool) (*route, bool) {
+func adaptChildRoute(request routecontract.Request, handled bool) (*routecontract.Request, bool) {
 	if !handled {
 		return nil, false
 	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true
+	return &request, true
 }

@@ -36,13 +36,13 @@ func TestResolveRouteMapsFindCrossRepoDeadCodeToolRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/code/dead-code/cross-repo"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/dead-code/cross-repo"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, _ := route.body.(map[string]any)
+	body, _ := route.Body.(map[string]any)
 	if got, want := body["repo_id"], "repo-producer"; got != want {
 		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
 	}

@@ -18,8 +18,8 @@ func TestListDocumentationFindingsRouteIncludesTargetFilters(t *testing.T) {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
 	for _, key := range []string{"repo", "target_kind", "target_id", "service_id"} {
-		if got := route.query[key]; got == "" {
-			t.Fatalf("route.query[%q] = empty, want routed filter", key)
+		if got := route.Query[key]; got == "" {
+			t.Fatalf("route.Query[%q] = empty, want routed filter", key)
 		}
 	}
 }
@@ -36,8 +36,8 @@ func TestListDocumentationFactsRouteIncludesTargetFilters(t *testing.T) {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
 	for _, key := range []string{"fact_kind", "repo", "service_id"} {
-		if got := route.query[key]; got == "" {
-			t.Fatalf("route.query[%q] = empty, want routed filter", key)
+		if got := route.Query[key]; got == "" {
+			t.Fatalf("route.Query[%q] = empty, want routed filter", key)
 		}
 	}
 }

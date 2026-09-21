@@ -12,15 +12,15 @@ import (
 // into the root dispatcher's transport route. It is consulted from
 // resolveRoute's default case, the same point in the chain the family's own
 // switch occupied before the extraction.
-func impactRoute(toolName string, args map[string]any) (*route, bool) {
+func impactRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	request, handled := impacttools.Route(toolName, routecontract.Arguments(args))
 	if !handled {
 		return nil, false
 	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
+	return &routecontract.Request{
+		Method: request.Method,
+		Path:   request.Path,
+		Body:   request.Body,
+		Query:  request.Query,
 	}, true
 }

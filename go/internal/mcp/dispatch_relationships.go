@@ -10,16 +10,16 @@ import (
 
 // codeRelationshipRoute adapts the child package's code-relationship request
 // into the root dispatcher's transport route.
-func codeRelationshipRoute(toolName string, args map[string]any) (*route, bool, error) {
+func codeRelationshipRoute(toolName string, args map[string]any) (*routecontract.Request, bool, error) {
 	request, handled, err := codeRelationshipRequest(toolName, routecontract.Arguments(args))
 	if !handled || err != nil {
 		return nil, handled, err
 	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
+	return &routecontract.Request{
+		Method: request.Method,
+		Path:   request.Path,
+		Body:   request.Body,
+		Query:  request.Query,
 	}, true, nil
 }
 

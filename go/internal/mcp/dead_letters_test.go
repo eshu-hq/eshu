@@ -21,13 +21,13 @@ func TestDeadLetterWorkItemsToolResolvesToAdminQueryRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(list_dead_letter_work_items) error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
+	if got, want := route.Method, "POST"; got != want {
 		t.Fatalf("method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/admin/dead-letters/query"; got != want {
+	if got, want := route.Path, "/api/v0/admin/dead-letters/query"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	body := route.body.(map[string]any)
+	body := route.Body.(map[string]any)
 	for _, key := range []string{
 		"failure_class",
 		"domain",

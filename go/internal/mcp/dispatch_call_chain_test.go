@@ -19,8 +19,8 @@ func TestResolveRouteMapsFindFunctionCallChainExactSelectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/code/call-chain"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/call-chain"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["start"], "wrapper"; got != want {
@@ -55,8 +55,8 @@ func TestResolveRouteMapsFindFunctionCallChainExactSelectorsWithoutNames(t *test
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/code/call-chain"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/call-chain"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["start"], ""; got != want {
@@ -93,8 +93,8 @@ func TestResolveRouteMapsFindFunctionCallChainCrossRepoSelectors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/code/call-chain"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/call-chain"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	body := requireRouteBody(t, route)
 	for key, want := range map[string]any{

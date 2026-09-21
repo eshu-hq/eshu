@@ -71,11 +71,11 @@ func TestResolveRouteUsesExactAdmissionDecisionsChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -117,20 +117,20 @@ func TestAdmissionDecisionsDispatchKeepsEveryQueryKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got.method != "GET" {
-		t.Errorf("method = %q, want GET", got.method)
+	if got.Method != "GET" {
+		t.Errorf("method = %q, want GET", got.Method)
 	}
-	if got.path != "/api/v0/evidence/admission-decisions" {
-		t.Errorf("path = %q, want the admission-decisions path", got.path)
+	if got.Path != "/api/v0/evidence/admission-decisions" {
+		t.Errorf("path = %q, want the admission-decisions path", got.Path)
 	}
-	if got.body != nil {
-		t.Errorf("body = %#v, want nil", got.body)
+	if got.Body != nil {
+		t.Errorf("body = %#v, want nil", got.Body)
 	}
-	if n, wantN := len(got.query), len(admissionDecisionsQueryKeys); n != wantN {
-		t.Fatalf("query carries %d keys (%#v), want %d", n, got.query, wantN)
+	if n, wantN := len(got.Query), len(admissionDecisionsQueryKeys); n != wantN {
+		t.Fatalf("query carries %d keys (%#v), want %d", n, got.Query, wantN)
 	}
 	for _, key := range admissionDecisionsQueryKeys {
-		value, present := got.query[key]
+		value, present := got.Query[key]
 		if !present {
 			t.Errorf("dispatch dropped %q entirely", key)
 			continue
@@ -140,7 +140,7 @@ func TestAdmissionDecisionsDispatchKeepsEveryQueryKey(t *testing.T) {
 		}
 	}
 	for _, key := range []string{"offset", "group_by", "cursor", "repository_id"} {
-		if value, present := got.query[key]; present {
+		if value, present := got.Query[key]; present {
 			t.Errorf("query carries %q = %q, want the key absent", key, value)
 		}
 	}
@@ -155,10 +155,10 @@ func TestAdmissionDecisionsDispatchKeepsEveryQueryKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(required only) error = %v, want nil", err)
 	}
-	if value := bare.query["limit"]; value != "50" {
+	if value := bare.Query["limit"]; value != "50" {
 		t.Errorf("absent limit -> %q, want the default 50", value)
 	}
-	if value := bare.query["include_evidence"]; value != "false" {
+	if value := bare.Query["include_evidence"]; value != "false" {
 		t.Errorf("absent include_evidence -> %q, want an explicit false", value)
 	}
 }

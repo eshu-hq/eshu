@@ -70,11 +70,11 @@ func TestResolveRouteUsesExactSupplyChainEvidenceChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -183,11 +183,11 @@ func TestSupplyChainEvidenceAttachmentCountStaysUnpagedThroughDispatch(t *testin
 	if err != nil {
 		t.Fatalf("resolveRoute error = %v, want nil", err)
 	}
-	if got.path != "/api/v0/supply-chain/sbom-attestations/attachments/count" {
-		t.Errorf("path = %q, want the attachments count path", got.path)
+	if got.Path != "/api/v0/supply-chain/sbom-attestations/attachments/count" {
+		t.Errorf("path = %q, want the attachments count path", got.Path)
 	}
 	for _, key := range []string{"limit", "offset", "group_by"} {
-		if value, present := got.query[key]; present {
+		if value, present := got.Query[key]; present {
 			t.Errorf("query carries %q = %q, want the key absent", key, value)
 		}
 	}

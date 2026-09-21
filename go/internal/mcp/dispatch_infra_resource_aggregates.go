@@ -21,6 +21,6 @@ import (
 // the sibling infra/search family reached through infraResourceSearchRoute
 // in dispatch.go -- searching resources and counting/investigating them are
 // different families that happen to share the infra/resources namespace.
-func infraInventoryRoute(toolName string, args map[string]any) (*route, bool) {
+func infraInventoryRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(infrainventorytools.Route(toolName, routecontract.Arguments(args)))
 }

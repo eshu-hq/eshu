@@ -3,20 +3,24 @@
 
 package mcp
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+)
+
 // ecosystemRoute maps ecosystem-summary tools to their bounded internal HTTP
 // endpoints. It is split out of resolveRoute's main switch so dispatch.go stays
 // under the file-size cap and ecosystem-summary routing stays cohesive.
-func ecosystemRoute(toolName string, args map[string]any) (*route, bool) {
+func ecosystemRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	switch toolName {
 	case "get_ecosystem_overview":
-		return &route{method: "GET", path: "/api/v0/ecosystem/overview"}, true
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/ecosystem/overview"}, true
 	case "get_graph_summary_packet":
-		return &route{method: "POST", path: "/api/v0/ecosystem/graph-summary", body: map[string]any{
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/ecosystem/graph-summary", Body: map[string]any{
 			"repo_id": str(args, "repo_id"),
 			"limit":   intOr(args, "limit", 10),
 		}}, true
 	case "analyze_pre_change_impact":
-		return &route{method: "POST", path: "/api/v0/impact/pre-change", body: map[string]any{
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/impact/pre-change", Body: map[string]any{
 			"target":        str(args, "target"),
 			"target_type":   str(args, "target_type"),
 			"service_name":  str(args, "service_name"),
@@ -35,7 +39,7 @@ func ecosystemRoute(toolName string, args map[string]any) (*route, bool) {
 			"offset":        intOr(args, "offset", 0),
 		}}, true
 	case "plan_developer_change":
-		return &route{method: "POST", path: "/api/v0/impact/developer-change-plan", body: map[string]any{
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/impact/developer-change-plan", Body: map[string]any{
 			"developer_intent": str(args, "developer_intent"),
 			"target":           str(args, "target"),
 			"target_type":      str(args, "target_type"),
@@ -62,10 +66,10 @@ func ecosystemRoute(toolName string, args map[string]any) (*route, bool) {
 // compareRoute maps environment-comparison tools to their bounded internal HTTP
 // endpoints. Split out of resolveRoute's main switch to keep dispatch.go under
 // the file-size cap.
-func compareRoute(toolName string, args map[string]any) (*route, bool) {
+func compareRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	switch toolName {
 	case "compare_environments":
-		return &route{method: "POST", path: "/api/v0/compare/environments", body: map[string]any{
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/compare/environments", Body: map[string]any{
 			"workload_id": str(args, "workload_id"),
 			"left":        str(args, "left"),
 			"right":       str(args, "right"),

@@ -59,11 +59,11 @@ func TestResolveRouteUsesExactCodeownersChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -164,7 +164,7 @@ func TestCodeownersRouteKeepsTheAbsentCursorLegEmptyThroughDispatch(t *testing.T
 		if err != nil {
 			t.Fatalf("%s: resolveRoute error = %v, want nil", tt.name, err)
 		}
-		if value, present := got.query["after_order_index"]; !present || value != tt.want {
+		if value, present := got.Query["after_order_index"]; !present || value != tt.want {
 			t.Errorf("%s: after_order_index = (%q, present=%v), want (%q, present=true)", tt.name, value, present, tt.want)
 		}
 	}

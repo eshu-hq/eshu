@@ -123,9 +123,9 @@ func TestNoCachePromptRoutesPassBounds(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolveRoute() error = %v, want nil", err)
 			}
-			body, ok := route.body.(map[string]any)
+			body, ok := route.Body.(map[string]any)
 			if !ok {
-				t.Fatalf("route.body type = %T, want map[string]any", route.body)
+				t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 			}
 			if got, want := body["limit"], 25; got != want {
 				t.Fatalf("body[limit] = %#v, want %#v", got, want)

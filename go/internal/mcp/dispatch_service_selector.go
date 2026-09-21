@@ -16,15 +16,15 @@ import (
 // supplied no usable selector. This mirrors relationshipEdgesRoute in
 // dispatch_relationship_edges.go, the other adapter that must forward a
 // handled=true, err!=nil result rather than only checking handled.
-func serviceContextRoute(toolName string, args map[string]any) (*route, bool, error) {
+func serviceContextRoute(toolName string, args map[string]any) (*routecontract.Request, bool, error) {
 	request, handled, err := servicecontexttools.Route(toolName, routecontract.Arguments(args))
 	if !handled || err != nil {
 		return nil, handled, err
 	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
+	return &routecontract.Request{
+		Method: request.Method,
+		Path:   request.Path,
+		Body:   request.Body,
+		Query:  request.Query,
 	}, true, nil
 }

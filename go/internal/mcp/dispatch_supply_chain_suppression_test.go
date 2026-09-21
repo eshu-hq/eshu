@@ -17,11 +17,11 @@ func TestSupplyChainImpactFindingsRouteIncludesSuppressionFilters(t *testing.T) 
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v", err)
 	}
-	if got, want := route.query["include_suppressed"], "true"; got != want {
-		t.Fatalf("route.query[include_suppressed] = %q, want %q", got, want)
+	if got, want := route.Query["include_suppressed"], "true"; got != want {
+		t.Fatalf("route.Query[include_suppressed] = %q, want %q", got, want)
 	}
-	if got, want := route.query["suppression_state"], "not_affected"; got != want {
-		t.Fatalf("route.query[suppression_state] = %q, want %q", got, want)
+	if got, want := route.Query["suppression_state"], "not_affected"; got != want {
+		t.Fatalf("route.Query[suppression_state] = %q, want %q", got, want)
 	}
 }
 
@@ -35,8 +35,8 @@ func TestSupplyChainImpactFindingsRouteOmitsUnsetIncludeSuppressed(t *testing.T)
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v", err)
 	}
-	if _, set := route.query["include_suppressed"]; set {
-		t.Fatalf("route.query[include_suppressed] set unexpectedly: %#v", route.query["include_suppressed"])
+	if _, set := route.Query["include_suppressed"]; set {
+		t.Fatalf("route.Query[include_suppressed] set unexpectedly: %#v", route.Query["include_suppressed"])
 	}
 }
 

@@ -6,32 +6,34 @@ package mcp
 import (
 	"net/url"
 	"strconv"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
-func documentationRoute(toolName string, args map[string]any) (*route, bool) {
+func documentationRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	switch toolName {
 	case "list_documentation_findings":
-		return &route{method: "GET", path: "/api/v0/documentation/findings", query: documentationFindingsQuery(args)}, true
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/documentation/findings", Query: documentationFindingsQuery(args)}, true
 	case "count_documentation_findings":
 		return documentationFindingAggregateCountRoute(args), true
 	case "get_documentation_finding_inventory":
 		return documentationFindingAggregateInventoryRoute(args), true
 	case "list_documentation_facts":
-		return &route{method: "GET", path: "/api/v0/documentation/facts", query: documentationFactsQuery(args)}, true
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/documentation/facts", Query: documentationFactsQuery(args)}, true
 	case "get_documentation_evidence_packet":
-		return &route{
-			method: "GET",
-			path:   "/api/v0/documentation/findings/" + url.PathEscape(str(args, "finding_id")) + "/evidence-packet",
+		return &routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/documentation/findings/" + url.PathEscape(str(args, "finding_id")) + "/evidence-packet",
 		}, true
 	case "check_documentation_evidence_packet_freshness":
 		query := map[string]string{}
 		if version := str(args, "packet_version"); version != "" {
 			query["packet_version"] = version
 		}
-		return &route{
-			method: "GET",
-			path:   "/api/v0/documentation/evidence-packets/" + url.PathEscape(str(args, "packet_id")) + "/freshness",
-			query:  query,
+		return &routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/documentation/evidence-packets/" + url.PathEscape(str(args, "packet_id")) + "/freshness",
+			Query:  query,
 		}, true
 	default:
 		return nil, false

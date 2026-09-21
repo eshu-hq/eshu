@@ -3,21 +3,25 @@
 
 package mcp
 
-import "strconv"
+import (
+	"strconv"
 
-func semanticEvidenceRoute(toolName string, args map[string]any) (*route, bool) {
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+)
+
+func semanticEvidenceRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	switch toolName {
 	case "list_semantic_documentation_observations":
-		return &route{
-			method: "GET",
-			path:   "/api/v0/semantic/documentation-observations",
-			query:  semanticEvidenceQuery(args, "admission_state", "observation_type", "document_id", "section_id"),
+		return &routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/semantic/documentation-observations",
+			Query:  semanticEvidenceQuery(args, "admission_state", "observation_type", "document_id", "section_id"),
 		}, true
 	case "list_semantic_code_hints":
-		return &route{
-			method: "GET",
-			path:   "/api/v0/semantic/code-hints",
-			query: semanticEvidenceQuery(
+		return &routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/semantic/code-hints",
+			Query: semanticEvidenceQuery(
 				args,
 				"relative_path",
 				"entity_id",

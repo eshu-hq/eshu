@@ -18,13 +18,13 @@ func TestResolveRouteMapsSupplyChainImpactPriorityFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.query["priority_bucket"], "high"; got != want {
+	if got, want := route.Query["priority_bucket"], "high"; got != want {
 		t.Fatalf("priority_bucket query = %q, want %q", got, want)
 	}
-	if got, want := route.query["min_priority_score"], "60"; got != want {
+	if got, want := route.Query["min_priority_score"], "60"; got != want {
 		t.Fatalf("min_priority_score query = %q, want %q", got, want)
 	}
-	if got, want := route.query["sort"], "priority_score_desc"; got != want {
+	if got, want := route.Query["sort"], "priority_score_desc"; got != want {
 		t.Fatalf("sort query = %q, want %q", got, want)
 	}
 }

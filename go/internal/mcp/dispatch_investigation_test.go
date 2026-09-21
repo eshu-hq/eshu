@@ -18,22 +18,22 @@ func TestResolveRouteMapsInvestigateService(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
+	if got, want := route.Method, "GET"; got != want {
 		t.Fatalf("method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/investigations/services/payments-api"; got != want {
+	if got, want := route.Path, "/api/v0/investigations/services/payments-api"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := route.query["environment"], "prod"; got != want {
+	if got, want := route.Query["environment"], "prod"; got != want {
 		t.Fatalf("environment query = %q, want %q", got, want)
 	}
-	if got, want := route.query["repo"], "payments-repo"; got != want {
+	if got, want := route.Query["repo"], "payments-repo"; got != want {
 		t.Fatalf("repo query = %q, want %q", got, want)
 	}
-	if got, want := route.query["intent"], "runbook"; got != want {
+	if got, want := route.Query["intent"], "runbook"; got != want {
 		t.Fatalf("intent query = %q, want %q", got, want)
 	}
-	if got, want := route.query["question"], "explain owners"; got != want {
+	if got, want := route.Query["question"], "explain owners"; got != want {
 		t.Fatalf("question query = %q, want %q", got, want)
 	}
 }
@@ -47,10 +47,10 @@ func TestResolveRouteMapsQualifiedInvestigateServiceSelector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/investigations/services/payments-api"; got != want {
+	if got, want := route.Path, "/api/v0/investigations/services/payments-api"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := route.query["service_id"], "workload:payments-api"; got != want {
+	if got, want := route.Query["service_id"], "workload:payments-api"; got != want {
 		t.Fatalf("service_id query = %q, want %q", got, want)
 	}
 }

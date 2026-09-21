@@ -10,15 +10,15 @@ import (
 
 // observabilityCoverageRoute adapts the child package's observability-coverage
 // request into the root dispatcher's transport route.
-func observabilityCoverageRoute(toolName string, args map[string]any) (*route, bool) {
+func observabilityCoverageRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	request, handled := observabilitycoveragetools.Route(toolName, routecontract.Arguments(args))
 	if !handled {
 		return nil, false
 	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
+	return &routecontract.Request{
+		Method: request.Method,
+		Path:   request.Path,
+		Body:   request.Body,
+		Query:  request.Query,
 	}, true
 }

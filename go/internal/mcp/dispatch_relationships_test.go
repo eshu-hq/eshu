@@ -6,6 +6,8 @@ package mcp
 import (
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 func TestCodeRelationshipRouteClaimsOnlyFamilyTools(t *testing.T) {
@@ -124,15 +126,15 @@ func TestCodeRelationshipRouteClaimsOnlyFamilyTools(t *testing.T) {
 				}
 				return
 			}
-			if got, want := gotRoute.method, "POST"; got != want {
-				t.Fatalf("route.method = %q, want %q", got, want)
+			if got, want := gotRoute.Method, "POST"; got != want {
+				t.Fatalf("route.Method = %q, want %q", got, want)
 			}
-			if gotRoute.path != tt.wantPath {
-				t.Fatalf("route.path = %q, want %q", gotRoute.path, tt.wantPath)
+			if gotRoute.Path != tt.wantPath {
+				t.Fatalf("route.Path = %q, want %q", gotRoute.Path, tt.wantPath)
 			}
 			gotBody := requireRouteBody(t, gotRoute)
 			if !reflect.DeepEqual(gotBody, tt.wantBody) {
-				t.Fatalf("route.body = %#v, want %#v", gotBody, tt.wantBody)
+				t.Fatalf("route.Body = %#v, want %#v", gotBody, tt.wantBody)
 			}
 		})
 	}
@@ -150,8 +152,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsCallersToStory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/relationships/story" {
-		t.Fatalf("route.path = %q, want /api/v0/code/relationships/story", route.path)
+	if route.Path != "/api/v0/code/relationships/story" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/relationships/story", route.Path)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["target"], "helper"; got != want {
@@ -182,8 +184,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsAllCallersToStory(t *testing.T)
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/relationships/story" {
-		t.Fatalf("route.path = %q, want /api/v0/code/relationships/story", route.path)
+	if route.Path != "/api/v0/code/relationships/story" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/relationships/story", route.Path)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["target"], "helper"; got != want {
@@ -217,8 +219,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsAllCalleesToStory(t *testing.T)
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/relationships/story" {
-		t.Fatalf("route.path = %q, want /api/v0/code/relationships/story", route.path)
+	if route.Path != "/api/v0/code/relationships/story" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/relationships/story", route.Path)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["target"], "wrapper"; got != want {
@@ -248,8 +250,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsImportersToStory(t *testing.T) 
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/relationships/story" {
-		t.Fatalf("route.path = %q, want /api/v0/code/relationships/story", route.path)
+	if route.Path != "/api/v0/code/relationships/story" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/relationships/story", route.Path)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["target"], "payments"; got != want {
@@ -276,8 +278,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsClassHierarchyToStory(t *testin
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/code/relationships/story"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/relationships/story"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["target"], "PaymentProcessor"; got != want {
@@ -308,8 +310,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsOverridesToStory(t *testing.T) 
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/code/relationships/story"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/relationships/story"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["query_type"], "overrides"; got != want {
@@ -337,8 +339,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsCallChain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/call-chain" {
-		t.Fatalf("route.path = %q, want /api/v0/code/call-chain", route.path)
+	if route.Path != "/api/v0/code/call-chain" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/call-chain", route.Path)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["start"], "wrapper"; got != want {
@@ -366,8 +368,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsCallChainExactSelectors(t *test
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/call-chain" {
-		t.Fatalf("route.path = %q, want /api/v0/code/call-chain", route.path)
+	if route.Path != "/api/v0/code/call-chain" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/call-chain", route.Path)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["start"], "wrapper"; got != want {
@@ -403,8 +405,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsCallChainExactSelectorsWithoutT
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/call-chain" {
-		t.Fatalf("route.path = %q, want /api/v0/code/call-chain", route.path)
+	if route.Path != "/api/v0/code/call-chain" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/call-chain", route.Path)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["start"], ""; got != want {
@@ -427,12 +429,12 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsCallChainExactSelectorsWithoutT
 	}
 }
 
-func requireRouteBody(t *testing.T, route *route) map[string]any {
+func requireRouteBody(t *testing.T, route *routecontract.Request) map[string]any {
 	t.Helper()
 
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	return body
 }

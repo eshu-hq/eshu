@@ -3,10 +3,14 @@
 
 package mcp
 
-import "strconv"
+import (
+	"strconv"
 
-func serviceCatalogCorrelationsRoute(args map[string]any) *route {
-	return &route{method: "GET", path: "/api/v0/service-catalog/correlations", query: map[string]string{
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+)
+
+func serviceCatalogCorrelationsRoute(args map[string]any) *routecontract.Request {
+	return &routecontract.Request{Method: "GET", Path: "/api/v0/service-catalog/correlations", Query: map[string]string{
 		"after_correlation_id": str(args, "after_correlation_id"),
 		"drift_status":         str(args, "drift_status"),
 		"entity_ref":           str(args, "entity_ref"),

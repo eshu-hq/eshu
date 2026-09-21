@@ -17,6 +17,6 @@ import (
 // dispatch_sbom_attachment_aggregates.go is removed, rather than adding a new
 // dispatch file, so the root non-test file count moves by exactly the one
 // file this extraction actually removes.
-func supplyChainEvidenceRoute(toolName string, args map[string]any) (*route, bool) {
+func supplyChainEvidenceRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	return adaptChildRoute(supplychainevidencetools.Route(toolName, routecontract.Arguments(args)))
 }

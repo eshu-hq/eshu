@@ -32,10 +32,10 @@ func TestResolveRouteMapsQueryPlaybookToolsToCatalogRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve list route: %v", err)
 	}
-	if got, want := listRoute.method, "GET"; got != want {
+	if got, want := listRoute.Method, "GET"; got != want {
 		t.Fatalf("list method = %q, want %q", got, want)
 	}
-	if got, want := listRoute.path, "/api/v0/query-playbooks"; got != want {
+	if got, want := listRoute.Path, "/api/v0/query-playbooks"; got != want {
 		t.Fatalf("list path = %q, want %q", got, want)
 	}
 
@@ -49,15 +49,15 @@ func TestResolveRouteMapsQueryPlaybookToolsToCatalogRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve resolver route: %v", err)
 	}
-	if got, want := resolveRoute.method, "POST"; got != want {
+	if got, want := resolveRoute.Method, "POST"; got != want {
 		t.Fatalf("resolve method = %q, want %q", got, want)
 	}
-	if got, want := resolveRoute.path, "/api/v0/query-playbooks/resolve"; got != want {
+	if got, want := resolveRoute.Path, "/api/v0/query-playbooks/resolve"; got != want {
 		t.Fatalf("resolve path = %q, want %q", got, want)
 	}
-	body, ok := resolveRoute.body.(map[string]any)
+	body, ok := resolveRoute.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("resolve body type = %T, want map", resolveRoute.body)
+		t.Fatalf("resolve body type = %T, want map", resolveRoute.Body)
 	}
 	if got, want := body["playbook_id"], "service_story_citation"; got != want {
 		t.Fatalf("playbook_id = %#v, want %#v", got, want)

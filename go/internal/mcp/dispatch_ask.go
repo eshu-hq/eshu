@@ -15,15 +15,15 @@ import (
 // 503 with state "unavailable" rather than running the engine. The
 // MCP dispatch surface treats that as a non-error envelope response so
 // callers see a clean tool result rather than a transport error.
-func askRoute(toolName string, args map[string]any) (*route, bool) {
+func askRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	request, handled := asktools.Route(toolName, routecontract.Arguments(args))
 	if !handled {
 		return nil, false
 	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
+	return &routecontract.Request{
+		Method: request.Method,
+		Path:   request.Path,
+		Body:   request.Body,
+		Query:  request.Query,
 	}, true
 }

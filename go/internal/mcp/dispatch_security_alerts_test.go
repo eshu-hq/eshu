@@ -24,20 +24,20 @@ func TestResolveRouteMapsSecurityAlertReconciliationsToBoundedQuery(t *testing.T
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/security-alerts/reconciliations"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/security-alerts/reconciliations"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["repository_id"], "repo://github/eshu-hq/eshu"; got != want {
-		t.Fatalf("route.query[repository_id] = %q, want %q", got, want)
+	if got, want := route.Query["repository_id"], "repo://github/eshu-hq/eshu"; got != want {
+		t.Fatalf("route.Query[repository_id] = %q, want %q", got, want)
 	}
-	if got, want := route.query["reconciliation_status"], "matched"; got != want {
-		t.Fatalf("route.query[reconciliation_status] = %q, want %q", got, want)
+	if got, want := route.Query["reconciliation_status"], "matched"; got != want {
+		t.Fatalf("route.Query[reconciliation_status] = %q, want %q", got, want)
 	}
-	if got, want := route.query["limit"], "25"; got != want {
-		t.Fatalf("route.query[limit] = %q, want %q", got, want)
+	if got, want := route.Query["limit"], "25"; got != want {
+		t.Fatalf("route.Query[limit] = %q, want %q", got, want)
 	}
 }
 

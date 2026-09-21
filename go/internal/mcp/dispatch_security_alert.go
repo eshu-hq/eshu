@@ -11,15 +11,15 @@ import (
 // securityAlertRoute adapts the child package's security-alert
 // reconciliation request selection into the root dispatcher's transport
 // route.
-func securityAlertRoute(toolName string, args map[string]any) (*route, bool) {
+func securityAlertRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	request, handled := alerttools.Route(toolName, routecontract.Arguments(args))
 	if !handled {
 		return nil, false
 	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
+	return &routecontract.Request{
+		Method: request.Method,
+		Path:   request.Path,
+		Body:   request.Body,
+		Query:  request.Query,
 	}, true
 }

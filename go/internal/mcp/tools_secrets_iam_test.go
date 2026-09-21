@@ -32,8 +32,8 @@ func TestSecretsIAMToolsRegisteredAndRoutable(t *testing.T) {
 			t.Errorf("tool %q does not resolve to a dispatch route: %v", name, err)
 			continue
 		}
-		if route.method != "GET" {
-			t.Errorf("tool %q route method = %q, want GET", name, route.method)
+		if route.Method != "GET" {
+			t.Errorf("tool %q route method = %q, want GET", name, route.Method)
 		}
 	}
 }

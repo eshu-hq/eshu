@@ -12,13 +12,13 @@ func TestCollectorExtractionReadinessToolsResolveToQueryRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(list_collector_extraction_readiness) error = %v, want nil", err)
 	}
-	if got, want := list.method, "GET"; got != want {
+	if got, want := list.Method, "GET"; got != want {
 		t.Fatalf("list method = %q, want %q", got, want)
 	}
-	if got, want := list.path, "/api/v0/collector-extraction-readiness"; got != want {
+	if got, want := list.Path, "/api/v0/collector-extraction-readiness"; got != want {
 		t.Fatalf("list path = %q, want %q", got, want)
 	}
-	if got, want := list.query["limit"], "100"; got != want {
+	if got, want := list.Query["limit"], "100"; got != want {
 		t.Fatalf("list default limit = %q, want %q", got, want)
 	}
 
@@ -26,7 +26,7 @@ func TestCollectorExtractionReadinessToolsResolveToQueryRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(list bounded) error = %v, want nil", err)
 	}
-	if got, want := bounded.query["limit"], "2"; got != want {
+	if got, want := bounded.Query["limit"], "2"; got != want {
 		t.Fatalf("bounded limit = %q, want %q", got, want)
 	}
 
@@ -34,7 +34,7 @@ func TestCollectorExtractionReadinessToolsResolveToQueryRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(get_collector_extraction_readiness) error = %v, want nil", err)
 	}
-	if got, want := family.path, "/api/v0/collector-extraction-readiness/pagerduty"; got != want {
+	if got, want := family.Path, "/api/v0/collector-extraction-readiness/pagerduty"; got != want {
 		t.Fatalf("family path = %q, want %q", got, want)
 	}
 

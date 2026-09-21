@@ -68,11 +68,11 @@ func TestResolveRouteUsesExactImpactChildRequests(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -174,18 +174,18 @@ func TestImpactDispatchKeepsEveryBodyKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveRoute(%s) error = %v, want nil", tool, err)
 		}
-		if got.method != "POST" {
-			t.Errorf("%s method = %q, want POST", tool, got.method)
+		if got.Method != "POST" {
+			t.Errorf("%s method = %q, want POST", tool, got.Method)
 		}
-		if got.path != wantPaths[tool] {
-			t.Errorf("%s path = %q, want %q", tool, got.path, wantPaths[tool])
+		if got.Path != wantPaths[tool] {
+			t.Errorf("%s path = %q, want %q", tool, got.Path, wantPaths[tool])
 		}
-		if got.query != nil {
-			t.Errorf("%s query = %#v, want nil", tool, got.query)
+		if got.Query != nil {
+			t.Errorf("%s query = %#v, want nil", tool, got.Query)
 		}
-		body, ok := got.body.(map[string]any)
+		body, ok := got.Body.(map[string]any)
 		if !ok {
-			t.Fatalf("%s body type = %T, want map[string]any", tool, got.body)
+			t.Fatalf("%s body type = %T, want map[string]any", tool, got.Body)
 		}
 		if n, wantN := len(body), len(wantBody); n != wantN {
 			t.Fatalf("%s body carries %d keys (%#v), want %d", tool, n, body, wantN)
@@ -209,12 +209,12 @@ func TestImpactDispatchKeepsEveryBodyKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(explain_dependency_path) error = %v, want nil", err)
 	}
-	if got.path != wantPaths["explain_dependency_path"] {
-		t.Errorf("explain_dependency_path path = %q, want %q", got.path, wantPaths["explain_dependency_path"])
+	if got.Path != wantPaths["explain_dependency_path"] {
+		t.Errorf("explain_dependency_path path = %q, want %q", got.Path, wantPaths["explain_dependency_path"])
 	}
-	passBody, ok := got.body.(map[string]any)
+	passBody, ok := got.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("explain_dependency_path body type = %T, want map[string]any", got.body)
+		t.Fatalf("explain_dependency_path body type = %T, want map[string]any", got.Body)
 	}
 	if !reflect.DeepEqual(passBody, args) {
 		t.Fatalf("explain_dependency_path body = %#v, want the argument map unchanged", passBody)

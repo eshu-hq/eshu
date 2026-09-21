@@ -30,11 +30,11 @@ func TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/ci-cd/run-correlations"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/ci-cd/run-correlations"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"after_correlation_id": "correlation-1",
@@ -47,8 +47,8 @@ func TestResolveRouteMapsCICDRunCorrelationsToBoundedQuery(t *testing.T) {
 		"outcome":              "exact",
 		"limit":                "25",
 	} {
-		if got := route.query[key]; got != want {
-			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+		if got := route.Query[key]; got != want {
+			t.Fatalf("route.Query[%s] = %#v, want %#v", key, got, want)
 		}
 	}
 }
@@ -71,8 +71,8 @@ func TestResolveRouteMapsCICDRunCorrelationAggregatesToImageRefFilter(t *testing
 			if err != nil {
 				t.Fatalf("resolveRoute() error = %v, want nil", err)
 			}
-			if got, want := route.query["image_ref"], "registry.example.com/team/api:prod"; got != want {
-				t.Fatalf("route.query[image_ref] = %#v, want %#v", got, want)
+			if got, want := route.Query["image_ref"], "registry.example.com/team/api:prod"; got != want {
+				t.Fatalf("route.Query[image_ref] = %#v, want %#v", got, want)
 			}
 		})
 	}

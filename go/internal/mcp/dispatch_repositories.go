@@ -6,6 +6,8 @@ package mcp
 import (
 	"fmt"
 	"net/url"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // repositorySummarySelector resolves the repository selector for
@@ -31,7 +33,7 @@ func repositorySummarySelector(args map[string]any) (string, error) {
 	return selector, nil
 }
 
-func repositoryRoute(toolName string, args map[string]any) (*route, bool, error) {
+func repositoryRoute(toolName string, args map[string]any) (*routecontract.Request, bool, error) {
 	// Families extracted under #6058 answer first. Their tool names are
 	// disjoint from the arms below, so this keeps repositoryRoute's own
 	// position in resolveRoute and each family's resolution unchanged.
@@ -70,45 +72,45 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool, error)
 	}
 	switch toolName {
 	case "list_indexed_repositories":
-		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories", Query: paginationQuery(args, 100)}, true, nil
 	case "count_repositories_by_language":
-		return &route{method: "GET", path: "/api/v0/repositories/by-language", query: map[string]string{
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/by-language", Query: map[string]string{
 			"language": str(args, "language"),
 			"limit":    "0",
 			"offset":   "0",
 		}}, true, nil
 	case "list_repositories_by_language":
-		return &route{method: "GET", path: "/api/v0/repositories/by-language", query: map[string]string{
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/by-language", Query: map[string]string{
 			"language": str(args, "language"),
 			"limit":    intString(args, "limit", 100),
 			"offset":   intString(args, "offset", 0),
 		}}, true, nil
 	case "get_repository_language_inventory":
-		return &route{method: "GET", path: "/api/v0/repositories/language-inventory", query: paginationQuery(args, 100)}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/language-inventory", Query: paginationQuery(args, 100)}, true, nil
 	case "get_repository_stats":
 		repoID := str(args, "repo_id")
 		if repoID == "" {
-			return &route{method: "GET", path: "/api/v0/repositories"}, true, nil
+			return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories"}, true, nil
 		}
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(repoID) + "/stats"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(repoID) + "/stats"}, true, nil
 	case "get_repo_context":
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/context"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/context"}, true, nil
 	case "get_relationship_evidence":
-		return &route{method: "GET", path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, true, nil
 	case "list_service_catalog_correlations":
 		return serviceCatalogCorrelationsRoute(args), true, nil
 	case "get_repo_story":
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, true, nil
 	case "get_repo_summary":
 		selector, err := repositorySummarySelector(args)
 		if err != nil {
 			return nil, true, err
 		}
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(selector) + "/stats"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(selector) + "/stats"}, true, nil
 	case "get_repository_coverage":
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/coverage"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/coverage"}, true, nil
 	case "get_repository_freshness":
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/freshness", query: map[string]string{
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/freshness", Query: map[string]string{
 			"expected_commit": str(args, "expected_commit"),
 		}}, true, nil
 	default:

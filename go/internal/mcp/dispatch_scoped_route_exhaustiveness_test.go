@@ -75,7 +75,7 @@ func TestEveryMCPReachableRouteIsScopedOrAnnotated(t *testing.T) {
 			t.Fatalf("tool %q is registered but has no dispatch route: %v", tool.Name, err)
 		}
 
-		req := httptest.NewRequest(route.method, route.path, nil)
+		req := httptest.NewRequest(route.Method, route.Path, nil)
 		if !mcpReachableRouteTenantScopeCovered(req) {
 			t.Errorf(
 				"tool %q dispatches to %s %s, which is neither scoped-token allowlisted, "+
@@ -84,10 +84,10 @@ func TestEveryMCPReachableRouteIsScopedOrAnnotated(t *testing.T) {
 					"\"x-scoped-token-support\" marker if the handler already grant-filters, "+
 					"or an explicit annotation (sharedKeyOnlyRoutes / pendingRowFilteringRoutes "+
 					"in go/internal/query) otherwise",
-				tool.Name, route.method, route.path,
+				tool.Name, route.Method, route.Path,
 			)
 		}
-		reachable[route.method+" "+route.path] = true
+		reachable[route.Method+" "+route.Path] = true
 	}
 
 	assertLedgerNotStale(t, "sharedKeyOnlyRoutes", query.SharedKeyOnlyRouteSurfaces(), reachable)

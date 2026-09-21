@@ -70,11 +70,11 @@ func TestResolveRouteUsesExactSecretsIAMChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -182,17 +182,17 @@ func TestSecretsIAMPostureSummaryStaysScopeOnlyThroughDispatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: resolveRoute error = %v, want nil", tt.name, err)
 		}
-		if got.path != "/api/v0/secrets-iam/posture-summary" {
-			t.Errorf("%s: path = %q, want the posture-summary path", tt.name, got.path)
+		if got.Path != "/api/v0/secrets-iam/posture-summary" {
+			t.Errorf("%s: path = %q, want the posture-summary path", tt.name, got.Path)
 		}
-		if len(got.query) != 1 {
-			t.Errorf("%s: query = %#v, want scope_id alone", tt.name, got.query)
+		if len(got.Query) != 1 {
+			t.Errorf("%s: query = %#v, want scope_id alone", tt.name, got.Query)
 		}
-		if _, present := got.query["scope_id"]; !present {
+		if _, present := got.Query["scope_id"]; !present {
 			t.Errorf("%s: query dropped scope_id entirely", tt.name)
 		}
 		for _, key := range []string{"limit", "offset", "state", "severity", "group_by"} {
-			if value, present := got.query[key]; present {
+			if value, present := got.Query[key]; present {
 				t.Errorf("%s: query carries %q = %q, want the key absent", tt.name, key, value)
 			}
 		}
@@ -205,7 +205,7 @@ func TestSecretsIAMPostureSummaryStaysScopeOnlyThroughDispatch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveRoute(%s) error = %v, want nil", tool, err)
 		}
-		if value := got.query["limit"]; value != "50" {
+		if value := got.Query["limit"]; value != "50" {
 			t.Errorf("resolveRoute(%s) limit = %q, want the default 50", tool, value)
 		}
 	}

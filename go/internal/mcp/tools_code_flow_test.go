@@ -63,13 +63,13 @@ func TestResolveRouteMapsCodeFlowToolsToBoundedEndpoints(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveRoute(%s) error = %v, want nil", toolName, err)
 		}
-		if got, want := route.method, http.MethodPost; got != want {
+		if got, want := route.Method, http.MethodPost; got != want {
 			t.Fatalf("%s method = %q, want %q", toolName, got, want)
 		}
-		if route.path != wantPath {
-			t.Fatalf("%s path = %q, want %q", toolName, route.path, wantPath)
+		if route.Path != wantPath {
+			t.Fatalf("%s path = %q, want %q", toolName, route.Path, wantPath)
 		}
-		body := route.body.(map[string]any)
+		body := route.Body.(map[string]any)
 		if got, want := body["repo_id"], "repo-1"; got != want {
 			t.Fatalf("%s repo_id = %#v, want %#v", toolName, got, want)
 		}

@@ -35,13 +35,13 @@ func TestResolveRouteMapsGetIncidentContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/incidents/inc-123/context"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/incidents/inc-123/context"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["provider"], "pagerduty"; got != want {
-		t.Fatalf("route.query[provider] = %#v, want %#v", got, want)
+	if got, want := route.Query["provider"], "pagerduty"; got != want {
+		t.Fatalf("route.Query[provider] = %#v, want %#v", got, want)
 	}
 }

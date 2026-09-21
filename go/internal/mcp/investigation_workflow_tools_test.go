@@ -36,10 +36,10 @@ func TestResolveRouteMapsInvestigationWorkflowTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve list route: %v", err)
 	}
-	if got, want := listRoute.method, "GET"; got != want {
+	if got, want := listRoute.Method, "GET"; got != want {
 		t.Fatalf("list method = %q, want %q", got, want)
 	}
-	if got, want := listRoute.path, "/api/v0/investigation-workflows"; got != want {
+	if got, want := listRoute.Path, "/api/v0/investigation-workflows"; got != want {
 		t.Fatalf("list path = %q, want %q", got, want)
 	}
 
@@ -53,15 +53,15 @@ func TestResolveRouteMapsInvestigationWorkflowTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve workflow route: %v", err)
 	}
-	if got, want := resolveRoute.method, "POST"; got != want {
+	if got, want := resolveRoute.Method, "POST"; got != want {
 		t.Fatalf("resolve method = %q, want %q", got, want)
 	}
-	if got, want := resolveRoute.path, "/api/v0/investigation-workflows/resolve"; got != want {
+	if got, want := resolveRoute.Path, "/api/v0/investigation-workflows/resolve"; got != want {
 		t.Fatalf("resolve path = %q, want %q", got, want)
 	}
-	body, ok := resolveRoute.body.(map[string]any)
+	body, ok := resolveRoute.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("resolve body type = %T, want map", resolveRoute.body)
+		t.Fatalf("resolve body type = %T, want map", resolveRoute.Body)
 	}
 	if got, want := body["workflow_id"], "guided_incident_context"; got != want {
 		t.Fatalf("workflow_id = %#v, want %#v", got, want)
@@ -125,15 +125,15 @@ func TestResolveRouteMapsInvestigationWorkflowChildPayloads(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolve workflow route: %v", err)
 			}
-			if got, want := route.method, "POST"; got != want {
+			if got, want := route.Method, "POST"; got != want {
 				t.Fatalf("method = %q, want %q", got, want)
 			}
-			if got, want := route.path, "/api/v0/investigation-workflows/resolve"; got != want {
+			if got, want := route.Path, "/api/v0/investigation-workflows/resolve"; got != want {
 				t.Fatalf("path = %q, want %q", got, want)
 			}
-			body, ok := route.body.(map[string]any)
+			body, ok := route.Body.(map[string]any)
 			if !ok {
-				t.Fatalf("body type = %T, want map", route.body)
+				t.Fatalf("body type = %T, want map", route.Body)
 			}
 			if got := body["workflow_id"]; got != tt.workflowID {
 				t.Fatalf("workflow_id = %#v, want %#v", got, tt.workflowID)

@@ -31,32 +31,32 @@ func TestResolveRouteMapsSBOMAttestationAttachmentsToBoundedQuery(t *testing.T) 
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/sbom-attestations/attachments"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/sbom-attestations/attachments"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["subject_digest"], "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
-		t.Fatalf("route.query[subject_digest] = %#v, want %#v", got, want)
+	if got, want := route.Query["subject_digest"], "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("route.Query[subject_digest] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["digest"], "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; got != want {
-		t.Fatalf("route.query[digest] = %#v, want %#v", got, want)
+	if got, want := route.Query["digest"], "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; got != want {
+		t.Fatalf("route.Query[digest] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["repository_id"], "repo://example/api"; got != want {
-		t.Fatalf("route.query[repository_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["repository_id"], "repo://example/api"; got != want {
+		t.Fatalf("route.Query[repository_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["workload_id"], "workload:example-api"; got != want {
-		t.Fatalf("route.query[workload_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["workload_id"], "workload:example-api"; got != want {
+		t.Fatalf("route.Query[workload_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["service_id"], "service:example-api"; got != want {
-		t.Fatalf("route.query[service_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["service_id"], "service:example-api"; got != want {
+		t.Fatalf("route.Query[service_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["attachment_status"], "attached_verified"; got != want {
-		t.Fatalf("route.query[attachment_status] = %#v, want %#v", got, want)
+	if got, want := route.Query["attachment_status"], "attached_verified"; got != want {
+		t.Fatalf("route.Query[attachment_status] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["limit"], "25"; got != want {
-		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	if got, want := route.Query["limit"], "25"; got != want {
+		t.Fatalf("route.Query[limit] = %#v, want %#v", got, want)
 	}
 }
 
@@ -88,8 +88,8 @@ func TestResolveRouteForwardsSBOMRepositoryScopeToHTTPContract(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolveRoute() error = %v, want nil", err)
 			}
-			if got, want := route.query["repository_id"], "repo://example/api"; got != want {
-				t.Fatalf("route.query[repository_id] = %#v, want %#v", got, want)
+			if got, want := route.Query["repository_id"], "repo://example/api"; got != want {
+				t.Fatalf("route.Query[repository_id] = %#v, want %#v", got, want)
 			}
 		})
 	}
@@ -383,26 +383,26 @@ func TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/container-images/identities"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/container-images/identities"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["digest"], "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
-		t.Fatalf("route.query[digest] = %#v, want %#v", got, want)
+	if got, want := route.Query["digest"], "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("route.Query[digest] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["outcome"], "tag_resolved"; got != want {
-		t.Fatalf("route.query[outcome] = %#v, want %#v", got, want)
+	if got, want := route.Query["outcome"], "tag_resolved"; got != want {
+		t.Fatalf("route.Query[outcome] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["source_repository_id"], "repo://example/api"; got != want {
-		t.Fatalf("route.query[source_repository_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["source_repository_id"], "repo://example/api"; got != want {
+		t.Fatalf("route.Query[source_repository_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["after_identity_id"], "identity-1"; got != want {
-		t.Fatalf("route.query[after_identity_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["after_identity_id"], "identity-1"; got != want {
+		t.Fatalf("route.Query[after_identity_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["limit"], "25"; got != want {
-		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	if got, want := route.Query["limit"], "25"; got != want {
+		t.Fatalf("route.Query[limit] = %#v, want %#v", got, want)
 	}
 }
 

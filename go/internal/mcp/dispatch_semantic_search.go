@@ -3,14 +3,18 @@
 
 package mcp
 
-func semanticSearchRoute(toolName string, args map[string]any) (*route, bool) {
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+)
+
+func semanticSearchRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	if toolName != "search_semantic_context" {
 		return nil, false
 	}
-	return &route{
-		method: "POST",
-		path:   "/api/v0/search/semantic",
-		body: map[string]any{
+	return &routecontract.Request{
+		Method: "POST",
+		Path:   "/api/v0/search/semantic",
+		Body: map[string]any{
 			"repo_id":      str(args, "repo_id"),
 			"query":        str(args, "query"),
 			"mode":         str(args, "mode"),

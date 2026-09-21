@@ -50,10 +50,10 @@ func TestDocumentationToolsAreRegisteredAndRouted(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolveRoute() error = %v, want nil", err)
 			}
-			if got := route.method; got != tc.wantMethod {
+			if got := route.Method; got != tc.wantMethod {
 				t.Fatalf("method = %q, want %q", got, tc.wantMethod)
 			}
-			if got := route.path; got != tc.wantPath {
+			if got := route.Path; got != tc.wantPath {
 				t.Fatalf("path = %q, want %q", got, tc.wantPath)
 			}
 		})
@@ -88,8 +88,8 @@ func TestListDocumentationFactsRouteIncludesScopeAndSearchFilters(t *testing.T) 
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
 	for _, key := range []string{"fact_kind", "scope_id", "document_id", "section_id", "q", "limit"} {
-		if got := route.query[key]; got == "" {
-			t.Fatalf("route.query[%q] = empty, want routed filter", key)
+		if got := route.Query[key]; got == "" {
+			t.Fatalf("route.Query[%q] = empty, want routed filter", key)
 		}
 	}
 }
@@ -108,10 +108,10 @@ func TestListDocumentationFactsRouteIncludesDiagramReadbackFilters(t *testing.T)
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
+	if got, want := route.Method, "GET"; got != want {
 		t.Fatalf("method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/documentation/facts"; got != want {
+	if got, want := route.Path, "/api/v0/documentation/facts"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
@@ -122,8 +122,8 @@ func TestListDocumentationFactsRouteIncludesDiagramReadbackFilters(t *testing.T)
 		"q":           "Documentation API",
 		"limit":       "10",
 	} {
-		if got := route.query[key]; got != want {
-			t.Fatalf("route.query[%q] = %#v, want %#v", key, got, want)
+		if got := route.Query[key]; got != want {
+			t.Fatalf("route.Query[%q] = %#v, want %#v", key, got, want)
 		}
 	}
 }
@@ -153,8 +153,8 @@ func TestListDocumentationFindingsRouteIncludesPersistedScopeFilters(t *testing.
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
 	for _, key := range []string{"scope_id", "generation_id", "repo"} {
-		if got := route.query[key]; got == "" {
-			t.Fatalf("route.query[%q] = empty, want routed filter", key)
+		if got := route.Query[key]; got == "" {
+			t.Fatalf("route.Query[%q] = empty, want routed filter", key)
 		}
 	}
 }

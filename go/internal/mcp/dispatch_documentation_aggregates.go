@@ -3,10 +3,14 @@
 
 package mcp
 
-import "strconv"
+import (
+	"strconv"
 
-func documentationFindingAggregateCountRoute(args map[string]any) *route {
-	return &route{method: "GET", path: "/api/v0/documentation/findings/count", query: map[string]string{
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+)
+
+func documentationFindingAggregateCountRoute(args map[string]any) *routecontract.Request {
+	return &routecontract.Request{Method: "GET", Path: "/api/v0/documentation/findings/count", Query: map[string]string{
 		"scope_id":        str(args, "scope_id"),
 		"finding_type":    str(args, "finding_type"),
 		"source_id":       str(args, "source_id"),
@@ -17,12 +21,12 @@ func documentationFindingAggregateCountRoute(args map[string]any) *route {
 	}}
 }
 
-func documentationFindingAggregateInventoryRoute(args map[string]any) *route {
+func documentationFindingAggregateInventoryRoute(args map[string]any) *routecontract.Request {
 	groupBy := str(args, "group_by")
 	if groupBy == "" {
 		groupBy = "status"
 	}
-	return &route{method: "GET", path: "/api/v0/documentation/findings/inventory", query: map[string]string{
+	return &routecontract.Request{Method: "GET", Path: "/api/v0/documentation/findings/inventory", Query: map[string]string{
 		"group_by":        groupBy,
 		"scope_id":        str(args, "scope_id"),
 		"finding_type":    str(args, "finding_type"),

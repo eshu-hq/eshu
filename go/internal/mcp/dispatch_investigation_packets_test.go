@@ -87,15 +87,15 @@ func TestResolveRouteMapsInvestigationPacketTools(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolveRoute() error = %v, want nil", err)
 			}
-			if got, want := route.method, "GET"; got != want {
-				t.Fatalf("route.method = %q, want %q", got, want)
+			if got, want := route.Method, "GET"; got != want {
+				t.Fatalf("route.Method = %q, want %q", got, want)
 			}
-			if got := route.path; got != tt.wantPath {
-				t.Fatalf("route.path = %q, want %q", got, tt.wantPath)
+			if got := route.Path; got != tt.wantPath {
+				t.Fatalf("route.Path = %q, want %q", got, tt.wantPath)
 			}
 			for key, want := range tt.wantQuery {
-				if got := route.query[key]; got != want {
-					t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+				if got := route.Query[key]; got != want {
+					t.Fatalf("route.Query[%s] = %#v, want %#v", key, got, want)
 				}
 			}
 		})

@@ -16,12 +16,12 @@ func TestResolveRouteMapsFindDeadCodeExclusions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/dead-code" {
-		t.Fatalf("route.path = %q, want /api/v0/code/dead-code", route.path)
+	if route.Path != "/api/v0/code/dead-code" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/dead-code", route.Path)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["repo_id"], "repo-1"; got != want {
 		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
@@ -51,12 +51,12 @@ func TestResolveRouteMapsInvestigateDeadCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/dead-code/investigate" {
-		t.Fatalf("route.path = %q, want /api/v0/code/dead-code/investigate", route.path)
+	if route.Path != "/api/v0/code/dead-code/investigate" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/dead-code/investigate", route.Path)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["repo_id"], "repo-1"; got != want {
 		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
@@ -92,12 +92,12 @@ func TestResolveRouteMapsFindDeadIaC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/iac/dead" {
-		t.Fatalf("route.path = %q, want /api/v0/iac/dead", route.path)
+	if route.Path != "/api/v0/iac/dead" {
+		t.Fatalf("route.Path = %q, want /api/v0/iac/dead", route.Path)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["limit"], 25; got != want {
 		t.Fatalf("body[limit] = %#v, want %#v", got, want)
@@ -131,12 +131,12 @@ func TestResolveRouteMapsFindUnmanagedResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/iac/unmanaged-resources" {
-		t.Fatalf("route.path = %q, want /api/v0/iac/unmanaged-resources", route.path)
+	if route.Path != "/api/v0/iac/unmanaged-resources" {
+		t.Fatalf("route.Path = %q, want /api/v0/iac/unmanaged-resources", route.Path)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["account_id"], "123456789012"; got != want {
 		t.Fatalf("body[account_id] = %#v, want %#v", got, want)
@@ -175,12 +175,12 @@ func TestResolveRouteMapsIaCManagementStatusTools(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolveRoute() error = %v, want nil", err)
 			}
-			if route.path != tc.path {
-				t.Fatalf("route.path = %q, want %q", route.path, tc.path)
+			if route.Path != tc.path {
+				t.Fatalf("route.Path = %q, want %q", route.Path, tc.path)
 			}
-			body, ok := route.body.(map[string]any)
+			body, ok := route.Body.(map[string]any)
 			if !ok {
-				t.Fatalf("route.body type = %T, want map[string]any", route.body)
+				t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 			}
 			if got, want := body["resource_id"], "arn:aws:lambda:us-east-1:123456789012:function:payments-api"; got != want {
 				t.Fatalf("body[resource_id] = %#v, want %#v", got, want)
@@ -203,12 +203,12 @@ func TestResolveRouteMapsAnalyzeDeadCodeLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/dead-code" {
-		t.Fatalf("route.path = %q, want /api/v0/code/dead-code", route.path)
+	if route.Path != "/api/v0/code/dead-code" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/dead-code", route.Path)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["limit"], 12; got != want {
 		t.Fatalf("body[limit] = %#v, want %#v", got, want)
@@ -227,12 +227,12 @@ func TestResolveRouteMapsTraceDeploymentChain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/impact/trace-deployment-chain" {
-		t.Fatalf("route.path = %q, want /api/v0/impact/trace-deployment-chain", route.path)
+	if route.Path != "/api/v0/impact/trace-deployment-chain" {
+		t.Fatalf("route.Path = %q, want /api/v0/impact/trace-deployment-chain", route.Path)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["service_name"], "payments-api"; got != want {
 		t.Fatalf("body[service_name] = %#v, want %#v", got, want)
@@ -269,9 +269,9 @@ func TestResolveRouteMapsTraceDeploymentChainOmittedMaxDepthMatchesAdvertisedDef
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["max_depth"], 0; got != want {
 		t.Fatalf(

@@ -67,20 +67,20 @@ func TestResolveRouteMapsCodeownersOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/codeowners/ownership"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/codeowners/ownership"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["repository_id"], "repo-1"; got != want {
-		t.Fatalf("route.query[repository_id] = %q, want %q", got, want)
+	if got, want := route.Query["repository_id"], "repo-1"; got != want {
+		t.Fatalf("route.Query[repository_id] = %q, want %q", got, want)
 	}
-	if got, want := route.query["limit"], "25"; got != want {
-		t.Fatalf("route.query[limit] = %q, want %q", got, want)
+	if got, want := route.Query["limit"], "25"; got != want {
+		t.Fatalf("route.Query[limit] = %q, want %q", got, want)
 	}
-	if got, want := route.query["after_order_index"], ""; got != want {
-		t.Fatalf("route.query[after_order_index] = %q, want %q (absent cursor must stay empty, not coerce to 0)", got, want)
+	if got, want := route.Query["after_order_index"], ""; got != want {
+		t.Fatalf("route.Query[after_order_index] = %q, want %q (absent cursor must stay empty, not coerce to 0)", got, want)
 	}
 }
 
@@ -96,13 +96,13 @@ func TestResolveRouteMapsCodeownersOwnershipCursor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.query["after_order_index"], "3"; got != want {
-		t.Fatalf("route.query[after_order_index] = %q, want %q", got, want)
+	if got, want := route.Query["after_order_index"], "3"; got != want {
+		t.Fatalf("route.Query[after_order_index] = %q, want %q", got, want)
 	}
-	if got, want := route.query["after_pattern"], "*.go"; got != want {
-		t.Fatalf("route.query[after_pattern] = %q, want %q", got, want)
+	if got, want := route.Query["after_pattern"], "*.go"; got != want {
+		t.Fatalf("route.Query[after_pattern] = %q, want %q", got, want)
 	}
-	if got, want := route.query["after_ref"], "@org/team-a"; got != want {
-		t.Fatalf("route.query[after_ref] = %q, want %q", got, want)
+	if got, want := route.Query["after_ref"], "@org/team-a"; got != want {
+		t.Fatalf("route.Query[after_ref] = %q, want %q", got, want)
 	}
 }
