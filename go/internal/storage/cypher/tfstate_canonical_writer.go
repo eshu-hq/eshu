@@ -209,14 +209,20 @@ SET o.id = row.uid,
 //     batch to TerraformStateResource. Must run before every other phase so
 //     the phases below only ever see the current label.
 //  2. REMOVE-before-upsert (terraformStateResourceAttributeRemoveStatements,
-//     #5441 review round 9, P0): ordering here is load-bearing, not
-//     cosmetic. It unconditionally clears each allowlisted type's FULL
-//     closed set of possible tf_attr_* properties for every UID in this
-//     batch, and the upsert's additive `r += row.attrs` merge re-establishes
-//     only the subset the current row promotes. If the upsert ran first, the
-//     REMOVE that follows it would immediately strip every tf_attr_*
-//     property the upsert just wrote -- corrupting every write, not only
-//     refreshes. REMOVE-then-SET is correct; SET-then-REMOVE is not.
+//     #5441 review round 9, P0, plus
+//     terraformStateResourceStaleContentPropRemoveStatements, #6843):
+//     ordering here is load-bearing, not cosmetic. The attribute REMOVE
+//     unconditionally clears each allowlisted type's FULL closed set of
+//     possible tf_attr_* properties for every UID in this batch, and the
+//     upsert's additive `r += row.attrs` merge re-establishes only the
+//     subset the current row promotes. The stale-content-prop REMOVE clears
+//     the six content properties the upsert never overwrites (environment,
+//     kind, data_type, resource_service, resource_category, service_kind) so
+//     migrated pre-#5443 nodes cannot leak them into bucket reads. If the
+//     upsert ran first, the REMOVE that follows it would immediately strip
+//     every tf_attr_* property the upsert just wrote -- corrupting every
+//     write, not only refreshes. REMOVE-then-SET is correct; SET-then-REMOVE
+//     is not.
 //  3. Resource upsert: refreshes every resource this batch actually saw,
 //     including its generation_id.
 //  4. Retraction (terraformStateResourceRetractStatements, #5443):
@@ -264,6 +270,7 @@ func (w *CanonicalNodeWriter) buildTerraformStateStatements(mat projector.Canoni
 	var statements []Statement
 	statements = append(statements, w.terraformStateResourceMigrationStatements(mat)...)
 	statements = append(statements, w.terraformStateResourceAttributeRemoveStatements(mat)...)
+	statements = append(statements, w.terraformStateResourceStaleContentPropRemoveStatements(mat)...)
 	statements = append(
 		statements,
 		tfstateBatchedStatements(

@@ -6,11 +6,60 @@ package cypher
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
+
+// TestTerraformStateStaleContentPropsRemoved pins #6843's writer-side parity
+// fix: every materialization strips the six content properties the resource
+// upsert never overwrites (environment, kind, data_type, resource_service,
+// resource_category, service_kind) from every batch uid, so migrated
+// pre-#5443 nodes cannot leak stale content values into bucket reads. The
+// statement is a standalone MATCH..REMOVE (never fused with the upsert),
+// batches like migration, and is a no-op for fresh nodes and empty batches.
+func TestTerraformStateStaleContentPropsRemoved(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 1, nil)
+	mat := baseTerraformStateResourceMat(nil)
+	mat.TerraformStateResources = append(mat.TerraformStateResources,
+		projector.TerraformStateResourceRow{UID: "tf-resource-stale-2"})
+
+	statements := writer.terraformStateResourceStaleContentPropRemoveStatements(mat)
+	if len(statements) != 2 {
+		t.Fatalf("stale content prop statements = %d, want 2 (batchSize 1 over 2 uids)", len(statements))
+	}
+	for i, stmt := range statements {
+		if stmt.Operation != OperationCanonicalRetract {
+			t.Fatalf("statement %d operation = %q, want canonical_retract", i, stmt.Operation)
+		}
+		if stmt.Cypher != terraformStateResourceStaleContentPropRemoveCypher {
+			t.Fatalf("statement %d Cypher = %q, want the shared REMOVE shape", i, stmt.Cypher)
+		}
+		for _, prop := range []string{"environment", "kind", "data_type", "resource_service", "resource_category", "service_kind"} {
+			if !strings.Contains(stmt.Cypher, "r."+prop) {
+				t.Fatalf("statement %d Cypher = %q, want REMOVE r.%s", i, stmt.Cypher, prop)
+			}
+		}
+		for _, banned := range []string{"SET", "MERGE", "UNWIND"} {
+			if strings.Contains(stmt.Cypher, banned) {
+				t.Fatalf("statement %d Cypher = %q, must not combine %s with REMOVE", i, stmt.Cypher, banned)
+			}
+		}
+		uids, ok := stmt.Parameters["uids"].([]string)
+		if !ok || len(uids) != 1 {
+			t.Fatalf("statement %d uids = %#v, want one uid per batch", i, stmt.Parameters["uids"])
+		}
+	}
+
+	empty := writer.terraformStateResourceStaleContentPropRemoveStatements(projector.CanonicalMaterialization{})
+	if len(empty) != 0 {
+		t.Fatalf("empty materialization statements = %d, want none", len(empty))
+	}
+}
 
 // fakeTerraformResourceGraph is a minimal in-memory node-property fixture
 // scoped to the TerraformResource writer's own known statement shapes: a

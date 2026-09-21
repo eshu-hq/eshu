@@ -72,16 +72,32 @@ const (
 
 // CountBuckets returns the (label, provider, environment) groups for filter.
 // The count route derives its total and all three rollups from these rows in
-// one table scan.
+// one statement: the entities aggregate for content-derived labels UNION ALL
+// the fact aggregates for graph-only labels (#6843). The label sets are
+// disjoint, so rows never overlap and no outer grouping is needed.
 func CountBuckets(ctx context.Context, queryer db.Queryer, filter Filter) ([]CountBucket, error) {
-	if len(filter.Labels) == 0 {
+	entityLabels, factsLabels := partitionReadLabels(filter.Labels)
+	if len(entityLabels)+len(factsLabels) == 0 {
 		return nil, nil
 	}
-	where, args := filter.whereClause()
-	query := `SELECT label, ` + providerBucketSQL + `, ` + environmentBucketSQL + `, count(*)
+	var parts []string
+	var args []any
+	if len(entityLabels) > 0 {
+		entityFilter := filter
+		entityFilter.Labels = entityLabels
+		where, whereArgs := entityFilter.whereClause()
+		args = append(args, whereArgs...)
+		parts = append(parts, `SELECT label, `+providerBucketSQL+`, `+environmentBucketSQL+`, count(*)
 FROM infra_resource_entities
-WHERE ` + where + `
-GROUP BY 1, 2, 3`
+WHERE `+where+`
+GROUP BY 1, 2, 3`)
+	}
+	for _, label := range factsLabels {
+		var branch string
+		branch, args = graphOnlyCountBranch(label, filter, args)
+		parts = append(parts, branch)
+	}
+	query := graphOnlyCTEs(factsLabels) + strings.Join(parts, "\nUNION ALL\n")
 	rows, err := queryer.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("count infra inventory buckets: %w", err)
@@ -108,14 +124,28 @@ func DimensionBuckets(ctx context.Context, queryer db.Queryer, filter Filter, di
 		return nil, err
 	}
 	out := map[string]int64{}
-	if len(filter.Labels) == 0 {
+	entityLabels, factsLabels := partitionReadLabels(filter.Labels)
+	if len(entityLabels)+len(factsLabels) == 0 {
 		return out, nil
 	}
-	where, args := filter.whereClause()
-	query := `SELECT ` + bucketSQL + `, count(*)
+	var parts []string
+	var args []any
+	if len(entityLabels) > 0 {
+		entityFilter := filter
+		entityFilter.Labels = entityLabels
+		where, whereArgs := entityFilter.whereClause()
+		args = append(args, whereArgs...)
+		parts = append(parts, `SELECT `+bucketSQL+`, count(*)
 FROM infra_resource_entities
-WHERE ` + where + `
-GROUP BY 1`
+WHERE `+where+`
+GROUP BY 1`)
+	}
+	for _, label := range factsLabels {
+		var branch string
+		branch, args = graphOnlyDimensionBranch(label, filter, dimension, args)
+		parts = append(parts, branch)
+	}
+	query := graphOnlyCTEs(factsLabels) + strings.Join(parts, "\nUNION ALL\n")
 	rows, err := queryer.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("group infra inventory by %s: %w", dimension, err)

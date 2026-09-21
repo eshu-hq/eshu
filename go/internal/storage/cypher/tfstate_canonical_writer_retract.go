@@ -86,6 +86,54 @@ const canonicalTerraformStateResourceRetractLegacyLabelCypher = `MATCH (r:Terraf
 WHERE r.scope_id = $scope_id AND r.evidence_source = 'projector/tfstate' AND r.generation_id <> $generation_id
 DETACH DELETE r`
 
+// terraformStateResourceStaleContentPropRemoveCypher strips the content
+// properties a migrated pre-#5443 TerraformResource node keeps that the
+// resource upsert never overwrites: environment, kind, data_type,
+// resource_service, resource_category, and service_kind. The upsert SETs
+// provider, name, resource_type, and every other aggregate-observed property
+// unconditionally, so only these six can leak stale content values into
+// bucket reads. A standalone MATCH..REMOVE (never fused with the upsert)
+// batched like migration; REMOVE of an absent property is a no-op, so fresh
+// nodes and reruns are unaffected. Runs every materialization over every
+// batch uid, converging already-migrated nodes without a one-time backfill.
+const terraformStateResourceStaleContentPropRemoveCypher = `MATCH (r:TerraformStateResource)
+WHERE r.uid IN $uids
+REMOVE r.environment, r.kind, r.data_type, r.resource_service, r.resource_category, r.service_kind`
+
+// terraformStateResourceStaleContentPropRemoveStatements builds one
+// standalone REMOVE per w.batchSize UIDs over the whole batch (not only
+// allowlisted types: stale content props predate the tf_attr_* scheme).
+func (w *CanonicalNodeWriter) terraformStateResourceStaleContentPropRemoveStatements(mat projector.CanonicalMaterialization) []Statement {
+	if len(mat.TerraformStateResources) == 0 {
+		return nil
+	}
+	uids := make([]string, 0, len(mat.TerraformStateResources))
+	for _, row := range mat.TerraformStateResources {
+		uids = append(uids, row.UID)
+	}
+
+	var statements []Statement
+	for start := 0; start < len(uids); start += w.batchSize {
+		end := start + w.batchSize
+		if end > len(uids) {
+			end = len(uids)
+		}
+		statements = append(statements, Statement{
+			Operation: OperationCanonicalRetract,
+			Cypher:    terraformStateResourceStaleContentPropRemoveCypher,
+			Parameters: map[string]any{
+				"uids":                           uids[start:end],
+				StatementMetadataPhaseKey:        canonicalPhaseTerraformState,
+				StatementMetadataEntityLabelKey:  "TerraformStateResource",
+				StatementMetadataScopeIDKey:      mat.ScopeID,
+				StatementMetadataGenerationIDKey: mat.GenerationID,
+				StatementMetadataSummaryKey:      "remove_stale_content_props",
+			},
+		})
+	}
+	return statements
+}
+
 // terraformStateResourceMigrationStatements batches the migration relabel by
 // w.batchSize UIDs, mirroring terraformStateResourceAttributeRemoveStatements's
 // batching. Skipped on the scope's first generation (mat.FirstGeneration):

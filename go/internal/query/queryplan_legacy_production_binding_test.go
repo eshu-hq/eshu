@@ -229,8 +229,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 			"RETURN head(labels(n)) AS bucket, count(n) AS bucket_count",
 			"RETURN bucket, bucket_count",
 		),
-		"QP-INFRA-RESOURCE-AGGREGATE-GRAPH": infraGraphOnlyCountCypher(
-			[]string{"CloudResource", "TerraformStateResource"},
+		"QP-INFRA-RESOURCE-AGGREGATE-GRAPH": infraMixedWriterCountCypher(
 			[]string{"TerraformModule", "TerraformOutput"},
 			InfraResourceAggregateFilter{},
 		),

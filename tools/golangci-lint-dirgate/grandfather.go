@@ -30,7 +30,7 @@ var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/parser/golang":      {FileCount: 42, Digest: "a27d65bfc9ffe3085e35e66aab932d0c361bea10ac34e407dd3300205379e039"},
 	"internal/parser/javascript":  {FileCount: 48, Digest: "b6aaa1628818f74382a4b7eee937f476f991d613f624a325b930fd89aa7e437c"},
 	"internal/projector":          {FileCount: 47, Digest: "90bc68bb690013862bc225b94c15ff4d758882a9c4cfb57363b8af52c45e123d"},
-	"internal/query":              {FileCount: 276, Digest: "31a76beb6dfd8b14189ef4091c092fca641e0d380d892eb2fc485783e40face7"},
+	"internal/query":              {FileCount: 277, Digest: "9c52f08bbe86185263d306745269f3df99b31608126c77a9184125f6b67ee005"},
 	"internal/reducer":            {FileCount: 127, Digest: "bec0e44a64897b9d4e93831d3f9823ab57d1c6424426857b70c951abc13df55b"},
 	"internal/status":             {FileCount: 45, Digest: "c7dfe62bb4c04da7f242ba8d2a8fb744865937c103df10c5374f05df25ce9261"},
 	"internal/storage/cypher":     {FileCount: 110, Digest: "a8e7f5307d4d7f26fdcdc2f0b09d957165373df81da137a0a0d1a1adea1999ad"},

@@ -99,8 +99,20 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 	// TestTerraformStateStatementsEmitRemoveBeforeUpsert
 	// (tfstate_canonical_writer_stale_attrs_test.go) for the REMOVE/upsert
 	// ordering contract; this test asserts each statement's own shape.
-	if got, want := len(statements), 7; got != want {
+	if got, want := len(statements), 8; got != want {
 		t.Fatalf("buildTerraformStateStatements() count = %d, want %d:\n%#v", got, want, statements)
+	}
+
+	staleProps := statements[2]
+	if staleProps.Cypher != terraformStateResourceStaleContentPropRemoveCypher {
+		t.Fatalf("stale content prop statement Cypher = %q, want the shared REMOVE shape", staleProps.Cypher)
+	}
+	if staleProps.Operation != OperationCanonicalRetract {
+		t.Fatalf("stale content prop statement operation = %q, want canonical_retract", staleProps.Operation)
+	}
+	staleUIDs, ok := staleProps.Parameters["uids"].([]string)
+	if !ok || len(staleUIDs) != 1 || staleUIDs[0] != "tf-resource-uid-1" {
+		t.Fatalf("stale content prop statement uids = %#v, want [tf-resource-uid-1]", staleProps.Parameters["uids"])
 	}
 
 	migration := statements[0]
@@ -132,7 +144,7 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		t.Fatalf("REMOVE statement uids = %#v, want [tf-resource-uid-1]", remove.Parameters["uids"])
 	}
 
-	resource := statements[2]
+	resource := statements[3]
 	if !strings.Contains(resource.Cypher, "MERGE (r:TerraformStateResource {uid: row.uid})") {
 		t.Fatalf("resource Cypher = %q, want TerraformStateResource uid merge (#5443)", resource.Cypher)
 	}
@@ -187,7 +199,7 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		t.Fatalf("config_repo_id = %#v, want nil (no ownership resolver wired)", got)
 	}
 
-	retractCurrent := statements[3]
+	retractCurrent := statements[4]
 	if !strings.Contains(retractCurrent.Cypher, "MATCH (r:TerraformStateResource)") || !strings.Contains(retractCurrent.Cypher, "DETACH DELETE r") {
 		t.Fatalf("retract-current-label Cypher = %q, want a generation-gated TerraformStateResource DETACH DELETE", retractCurrent.Cypher)
 	}
@@ -195,16 +207,16 @@ func TestCanonicalNodeWriterBuildsTerraformStateStatements(t *testing.T) {
 		t.Fatalf("retract-current-label scope_id = %#v, want %q", got, want)
 	}
 
-	retractLegacy := statements[4]
+	retractLegacy := statements[5]
 	if !strings.Contains(retractLegacy.Cypher, "MATCH (r:TerraformResource)") || !strings.Contains(retractLegacy.Cypher, "DETACH DELETE r") {
 		t.Fatalf("retract-legacy-label Cypher = %q, want a generation-gated TerraformResource DETACH DELETE", retractLegacy.Cypher)
 	}
 
-	if !strings.Contains(statements[5].Cypher, "MERGE (m:TerraformModule {uid: row.uid})") {
-		t.Fatalf("module Cypher = %q, want TerraformModule uid merge", statements[5].Cypher)
+	if !strings.Contains(statements[6].Cypher, "MERGE (m:TerraformModule {uid: row.uid})") {
+		t.Fatalf("module statements[6] Cypher = %q, want TerraformModule uid merge", statements[5].Cypher)
 	}
-	if !strings.Contains(statements[6].Cypher, "MERGE (o:TerraformOutput {uid: row.uid})") {
-		t.Fatalf("output Cypher = %q, want TerraformOutput uid merge", statements[6].Cypher)
+	if !strings.Contains(statements[7].Cypher, "MERGE (o:TerraformOutput {uid: row.uid})") {
+		t.Fatalf("output statements[7] Cypher = %q, want TerraformOutput uid merge", statements[6].Cypher)
 	}
 
 	// No MATCHES_STATE edge retract or MERGE statement: this fixture's row
