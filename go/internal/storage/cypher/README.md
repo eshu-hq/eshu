@@ -1603,7 +1603,12 @@ committed zero nodes.
   commit-UNIQUE loser retry; the full N=1/2/4 matrix reaches zero terminal queue
   residual and the same graph digest at every worker count. The compatibility
   path still requires the commit-failure prefix, `constraint violation`,
-  `UNIQUE on`, `already exists`, and MERGE-shaped Cypher. Its no-contention path
+  `UNIQUE on`, `already exists`, and MERGE-shaped Cypher, plus the #6922
+  short-form exception: `commit failed: constraint violation: UNIQUE on
+  Platform.[id]` with no `already exists` tail retries when the Cypher is
+  MERGE-shaped, because the commit-failed prefix plus the exact Platform id
+  constraint address already proves a commit-time race on the Platform key.
+  Short forms naming any other label or property stay terminal. Its no-contention path
   is unchanged; only a losing concurrent MERGE pays the existing bounded retry
   backoff, with no worker, batch, query, or conflict-key setting change.
 - Observability Evidence (#6003 follow-up): the compatibility path reuses
