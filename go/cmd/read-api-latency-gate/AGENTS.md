@@ -88,6 +88,20 @@ LLM-assistant companion to `README.md`. Read this before editing any file in
   run); never edit a number by hand. `scripts/test-refresh-read-api-work-budgets.sh`
   pins the formulas (`calls = ceil(max*1.25)+5`, `blks = ceil(max*3.0)`,
   `rows = ceil(max*2.0)`).
+- **The renderer ratchets.** It refuses a per-route counter (`calls`, `blks`,
+  or `rows`) above 1.5x the committed row unless you pass
+  `--accept-regression 'ROUTE=#ISSUE'` — one flag covers all three counters
+  for the named route — and it prints what it accepted rather than hiding it. This exists because a
+  GREEN-derived budget regenerated from an already-regressed run is not a guard:
+  #6843 raised `/infra/resources/{count,inventory}` from 74739 to 663066 blks in
+  the same PR that caused the 8.9x increase, so the work gate kept passing while
+  the route went from 145ms to 2.1s and only the latency ceiling fired, looking
+  like runner flakiness. If the ratchet fires, fix the regression first; reach
+  for the flag only when the new cost is intended, and say why in the PR.
+  It also refuses a COLLAPSE past 20x below the committed row
+  (`--accept-drop 'ROUTE=#ISSUE'`). A budget that falls off a cliff usually
+  means the corpus shrank, not that the route got faster, and it disarms that
+  route's guard without failing anything at the time it lands.
 - **The default work row is tight on purpose.** A work breach on a route with no
   named row prints how to name it (latency table row, GREEN `-work-report`,
   `scripts/refresh-read-api-work-budgets.sh`); `TestReportWorkResultsTellsADeveloper...`
