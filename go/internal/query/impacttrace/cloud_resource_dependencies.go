@@ -23,6 +23,13 @@ const ServiceCloudResourceDependencyLimit = querycontract.ServiceStoryItemLimit
 // NornicDB and Neo4j runs (#6782 entry 57). Keep the key list in lockstep
 // with the RETURN list; TestLoadMaterializedServiceCloudResourceDependenciesOrderByIsTotalKey
 // enforces it.
+//
+// NULL placement is deliberately implicit: `name` is nullable and no single
+// explicit form parses on both backends (Neo4j rejects per-key NULLS LAST;
+// NornicDB places ORDER BY coalesce() differently than Neo4j, so bare keys
+// stay). Both pinned backends place NULL names last, verified by scratch
+// probe; a backend or version change that moves NULLs surfaces as a
+// differential-oracle divergence rather than a silent reorder.
 func LoadMaterializedServiceCloudResourceDependencies(
 	ctx context.Context,
 	graph querycontract.GraphQuery,

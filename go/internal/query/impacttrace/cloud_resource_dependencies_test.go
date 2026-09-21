@@ -42,6 +42,10 @@ func TestLoadMaterializedServiceCloudResourceDependenciesOrderByIsTotalKey(t *te
 	if len(missing) > 0 {
 		t.Errorf("ORDER BY misses projected aliases %q (keys %s)", missing, sortedKeys(keys))
 	}
+	ordered := orderKeyList(t, captured)
+	if len(ordered) < 2 || ordered[0] != "name" || ordered[1] != "id" {
+		t.Errorf("ORDER BY must lead with name, id to preserve existing order, got %q", ordered)
+	}
 }
 
 // sortedKeys renders the ORDER BY key set compactly for failure messages.
@@ -79,6 +83,35 @@ func returnAliases(t *testing.T, cypher string) []string {
 		aliases = append(aliases, alias)
 	}
 	return aliases
+}
+
+// orderKeyList extracts the ORDER BY keys in order, the ordered sibling of
+// orderKeys, so the test can pin the leading keys that preserve existing
+// page order.
+func orderKeyList(t *testing.T, cypher string) []string {
+	t.Helper()
+
+	upper := strings.ToUpper(cypher)
+	ord := strings.Index(upper, "ORDER BY")
+	if ord < 0 {
+		t.Fatalf("statement lacks ORDER BY: %q", cypher)
+	}
+	rest := cypher[ord+len("ORDER BY"):]
+	if i := strings.Index(strings.ToUpper(rest), "LIMIT"); i >= 0 {
+		rest = rest[:i]
+	}
+	var ordered []string
+	for _, key := range splitTopLevel(rest, ',') {
+		key = strings.TrimSpace(key)
+		key = strings.TrimSuffix(key, " DESC")
+		key = strings.TrimSuffix(key, " ASC")
+		key = strings.TrimSpace(key)
+		if key == "" {
+			t.Fatalf("empty ORDER BY key in %q", cypher)
+		}
+		ordered = append(ordered, key)
+	}
+	return ordered
 }
 
 // orderKeys extracts the ORDER BY key set between ORDER BY and the closing

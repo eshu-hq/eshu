@@ -238,4 +238,15 @@ anchors and `$limit` (QP-SVC-CLOUD-DEPS plan operators unchanged:
 NodeIndexSeek, Expand, Distinct; no AllNodesScan or CartesianProduct).
 In-repo guard:
 `TestLoadMaterializedServiceCloudResourceDependenciesOrderByIsTotalKey`
-fails if any projected alias leaves the sort key.
+fails if any projected alias leaves the sort key, and pins the `name, id`
+lead.
+
+NULL-placement follow-up (review threads on #6932): no single explicit
+NULL form works on both backends. Per-key `NULLS LAST` parses on NornicDB
+but Neo4j 2026-community rejects it with a syntax error; `ORDER BY
+coalesce(name, '')` instead diverges (Neo4j sorts the NULL rows first,
+NornicDB still last on the same 3-row seed — NornicDB ORDER BY expression
+semantics differ, treat as observed behavior pending a dedicated probe).
+Bare keys stay; both pinned backends place NULL names last (probed), and a
+backend or version change that moves NULLs surfaces as an unexcused
+differential-oracle divergence since entry 57 is retired.
