@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package coordinator //nolint:dirgate // Governance-audit appender wiring and its root Service dependencies stay in the root; the event shape and identity helpers moved to the governance/audit subpackage (#6781).
 
 import (
 	"context"

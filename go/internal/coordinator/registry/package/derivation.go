@@ -14,13 +14,13 @@ import (
 // package-registry collector instance's configuration. The configuration is
 // validated against the collector contract first, so a malformed instance
 // fails here rather than silently deriving no targets.
-func DerivationFromConfig(raw string) (packageRegistryDerivationConfiguration, error) {
+func DerivationFromConfig(raw string) (DerivationConfiguration, error) {
 	if err := workflow.ValidatePackageRegistryCollectorConfiguration(raw); err != nil {
-		return packageRegistryDerivationConfiguration{}, err
+		return DerivationConfiguration{}, err
 	}
 	var decoded packageRegistryRuntimeConfiguration
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
-		return packageRegistryDerivationConfiguration{}, fmt.Errorf("decode package registry derivation config: %w", err)
+		return DerivationConfiguration{}, fmt.Errorf("decode package registry derivation config: %w", err)
 	}
 	return decoded.DeriveFromOwnedPackages, nil
 }

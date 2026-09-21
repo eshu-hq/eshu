@@ -52,7 +52,8 @@
 
 ## Verification
 
-Run the two emitters' tests, since this package's behavior is observable only
-through them: `go test ./internal/coordinator ./internal/coordinator/semantic
--count=1`. Build and vet the whole module, because the coordinator root and
-`cmd/workflow-coordinator` own the concrete wiring.
+Run the emitters' tests, since this package's behavior is observable only
+through them. The recursive path covers both the coordinator root and the
+`semantic` child: `go test ./internal/coordinator/... -count=1`. Build and vet
+the whole module, because the coordinator root and `cmd/workflow-coordinator`
+own the concrete wiring.

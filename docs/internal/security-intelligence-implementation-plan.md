@@ -219,7 +219,7 @@ No-Regression Evidence:
 - `go test ./internal/parser/json -run 'TestParsePackageLockJSON(PreservesDependencyChainRows|EmitsExactDependencyRows)' -count=1`
 - `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain|TestPostgresPackageWriterPersistsOwnershipAndConsumptionFacts|TestBuildSupplyChainImpactFindingsExposesDependencyChain' -count=1`
 - `go test ./internal/collector/packageregistry/packageruntime -run TestHTTPMetadataProviderRequestsAbbreviatedNPMPackument -count=1 -v`
-- `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`
+- `go test ./internal/coordinator/... ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`
 
 Remote proof `pr573-anchored-impact-20260523T162055Z` completed a 45-repository
 smoke corpus with `435/435` queue rows succeeded, zero pending, retrying,

@@ -97,7 +97,7 @@ outbound provider traffic by default**:
 - `ESHU_SEMANTIC_PROVIDER_EXECUTION_ENABLED` (default `false`) is the explicit,
   documented flag that permits real outbound provider traffic. It only takes
   effect when a concrete, security-reviewed provider client is also wired. The
-  shipped build wires the no-network `DisabledSemanticProviderClient`, so even
+  shipped build wires the no-network `semantic.DisabledProviderClient`, so even
   with this flag set, an egress-allowed claim terminates as
   `provider_execution_not_enabled` and no provider is contacted.
 - `ESHU_SEMANTIC_PROVIDER_WORKER_SCOPE_IDS_JSON` is a JSON array of queue scope

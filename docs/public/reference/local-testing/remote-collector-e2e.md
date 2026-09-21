@@ -484,7 +484,7 @@ go test ./internal/collector ./internal/collector/awscloud/awsruntime \
 Run package tests before spending remote runtime. AWS throttle changes use
 `cd go && go test ./internal/collector/awscloud/... -count=1`; scheduled AWS
 planning and Terraform-state readiness use
-`cd go && go test ./internal/coordinator ./internal/storage/postgres -count=1`.
+`cd go && go test ./internal/coordinator/... ./internal/storage/postgres -count=1`.
 Throttle proof must show AWS API-call/throttle counters, `aws_warning`, and
 `aws_scan_status.status=partial` with `failure_class=throttled`. The remote
 Compose coordinator keeps a 30-second reconcile interval for derived package and

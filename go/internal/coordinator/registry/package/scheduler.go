@@ -32,8 +32,8 @@ type PlanRequest struct {
 type WorkPlanner struct{}
 
 type packageRegistryRuntimeConfiguration struct {
-	Targets                 []packageRegistryTargetConfiguration   `json:"targets"`
-	DeriveFromOwnedPackages packageRegistryDerivationConfiguration `json:"derive_from_owned_packages"`
+	Targets                 []packageRegistryTargetConfiguration `json:"targets"`
+	DeriveFromOwnedPackages DerivationConfiguration              `json:"derive_from_owned_packages"`
 }
 
 type packageRegistryTargetConfiguration struct {
@@ -53,7 +53,12 @@ type packageRegistryTargetConfiguration struct {
 	TargetClass  string   `json:"-"`
 }
 
-type packageRegistryDerivationConfiguration struct {
+// DerivationConfiguration controls owned-package target derivation: whether
+// it is on, which registry ecosystems it covers, and how many targets one
+// plan may carry. An empty Ecosystems list means npm; see
+// [DerivationEcosystems]. It is returned by [DerivationFromConfig] and
+// decoded from a collector instance's derive_from_owned_packages settings.
+type DerivationConfiguration struct {
 	Enabled      bool     `json:"enabled"`
 	Ecosystems   []string `json:"ecosystems"`
 	PlanningMode string   `json:"planning_mode"`
@@ -258,7 +263,7 @@ func appendPackageRegistryDerivedTargets(
 
 func derivePackageRegistryTargets(
 	configured []packageRegistryTargetConfiguration,
-	derivation packageRegistryDerivationConfiguration,
+	derivation DerivationConfiguration,
 	owned []workflow.OwnedPackageDependencyTarget,
 ) packageRegistryDerivationResult {
 	if !derivation.Enabled {
