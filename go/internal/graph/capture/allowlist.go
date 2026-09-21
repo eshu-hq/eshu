@@ -133,7 +133,11 @@ func entryMatches(entry AllowlistEntry, diff backendconformance.DifferentialDiff
 	if entry.Statement != diff.Fingerprint.Statement {
 		return false
 	}
-	if kind, ok := allowlistTiers[strings.TrimSpace(entry.Tier)]; ok && kind != "" && kind != diff.Kind {
+	kind, ok := allowlistTiers[strings.TrimSpace(entry.Tier)]
+	if !ok {
+		return false
+	}
+	if kind != "" && kind != diff.Kind {
 		return false
 	}
 	return entry.Parameters == "" || entry.Parameters == diff.Fingerprint.Parameters
