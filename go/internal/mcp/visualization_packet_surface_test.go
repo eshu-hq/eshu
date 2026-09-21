@@ -41,12 +41,12 @@ func TestVisualizationPacketToolRegisteredAndRoutesToDeriveSurface(t *testing.T)
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.method != http.MethodPost || route.path != "/api/v0/visualizations/derive" {
-		t.Fatalf("route = %s %s, want POST /api/v0/visualizations/derive", route.method, route.path)
+	if route.Method != http.MethodPost || route.Path != "/api/v0/visualizations/derive" {
+		t.Fatalf("route = %s %s, want POST /api/v0/visualizations/derive", route.Method, route.Path)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route body type = %T, want map[string]any", route.body)
+		t.Fatalf("route body type = %T, want map[string]any", route.Body)
 	}
 	if body["view"] != "service_story" {
 		t.Fatalf("body view = %#v, want service_story", body["view"])

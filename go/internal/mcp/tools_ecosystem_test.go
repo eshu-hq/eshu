@@ -126,11 +126,11 @@ func TestEcosystemResolveRouteGetEcosystemOverview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/ecosystem/overview"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/ecosystem/overview"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -143,11 +143,11 @@ func TestEcosystemResolveRouteTraceDeploymentChain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/impact/trace-deployment-chain"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/impact/trace-deployment-chain"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -160,11 +160,11 @@ func TestEcosystemResolveRouteCompareEnvironments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/compare/environments"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/compare/environments"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -177,11 +177,11 @@ func TestEcosystemResolveRouteGetRepoSummary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/repositories/repo-1/stats"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/repositories/repo-1/stats"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -194,11 +194,11 @@ func TestEcosystemResolveRouteGetRepositoryCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/repositories/repo-1/coverage"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/repositories/repo-1/coverage"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -236,11 +236,11 @@ func TestEcosystemResolveRouteAnalyzeInfraRelationshipsWhatRunsLambdaImage(t *te
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/infra/relationships"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/infra/relationships"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["relationship_type"], "what_runs_lambda_image"; got != want {

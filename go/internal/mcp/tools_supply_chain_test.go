@@ -78,11 +78,11 @@ func TestSupplyChainResolveRouteGetVulnerabilityScannerReadContract(t *testing.T
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/vulnerability-scanner/contract"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/vulnerability-scanner/contract"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -96,11 +96,11 @@ func TestSupplyChainResolveRouteListContainerImageIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/container-images/identities"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/container-images/identities"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -114,11 +114,11 @@ func TestSupplyChainResolveRouteListSupplyChainImpactFindings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/impact/findings"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/impact/findings"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -131,11 +131,11 @@ func TestSupplyChainResolveRouteExplainSupplyChainImpact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/impact/explain"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/impact/explain"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -149,11 +149,11 @@ func TestSupplyChainResolveRouteListSecurityAlertReconciliations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/security-alerts/reconciliations"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/security-alerts/reconciliations"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -167,10 +167,10 @@ func TestSupplyChainResolveRouteListSBOMAttestationAttachments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/sbom-attestations/attachments"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/sbom-attestations/attachments"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }

@@ -73,11 +73,11 @@ func TestResolveRouteUsesExactKubernetesChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -123,20 +123,20 @@ func TestKubernetesDispatchKeepsEveryQueryKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got.method != "GET" {
-		t.Errorf("method = %q, want GET", got.method)
+	if got.Method != "GET" {
+		t.Errorf("method = %q, want GET", got.Method)
 	}
-	if got.path != "/api/v0/kubernetes/correlations" {
-		t.Errorf("path = %q, want the kubernetes correlations path", got.path)
+	if got.Path != "/api/v0/kubernetes/correlations" {
+		t.Errorf("path = %q, want the kubernetes correlations path", got.Path)
 	}
-	if got.body != nil {
-		t.Errorf("body = %#v, want nil", got.body)
+	if got.Body != nil {
+		t.Errorf("body = %#v, want nil", got.Body)
 	}
-	if n, wantN := len(got.query), len(kubernetesQueryKeys); n != wantN {
-		t.Fatalf("query carries %d keys (%#v), want %d", n, got.query, wantN)
+	if n, wantN := len(got.Query), len(kubernetesQueryKeys); n != wantN {
+		t.Fatalf("query carries %d keys (%#v), want %d", n, got.Query, wantN)
 	}
 	for _, key := range kubernetesQueryKeys {
-		value, present := got.query[key]
+		value, present := got.Query[key]
 		if !present {
 			t.Errorf("dispatch dropped %q entirely", key)
 			continue
@@ -146,7 +146,7 @@ func TestKubernetesDispatchKeepsEveryQueryKey(t *testing.T) {
 		}
 	}
 	for _, key := range []string{"offset", "group_by", "cursor", "repository_id", "workload_id"} {
-		if value, present := got.query[key]; present {
+		if value, present := got.Query[key]; present {
 			t.Errorf("query carries %q = %q, want the key absent", key, value)
 		}
 	}
@@ -159,14 +159,14 @@ func TestKubernetesDispatchKeepsEveryQueryKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(single anchor) error = %v, want nil", err)
 	}
-	if value := bare.query["limit"]; value != "50" {
+	if value := bare.Query["limit"]; value != "50" {
 		t.Errorf("absent limit -> %q, want the default 50", value)
 	}
 	for _, key := range kubernetesQueryKeys {
 		if key == "limit" || key == "cluster_id" {
 			continue
 		}
-		if value, present := bare.query[key]; !present || value != "" {
+		if value, present := bare.Query[key]; !present || value != "" {
 			t.Errorf("absent %s -> (%q, %v), want an explicit empty string", key, value, present)
 		}
 	}

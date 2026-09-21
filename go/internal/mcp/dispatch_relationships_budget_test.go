@@ -42,8 +42,8 @@ func TestResolveRouteMapsAnalyzeCallersTokenBudgetAndTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/relationships/story" {
-		t.Fatalf("route.path = %q, want /api/v0/code/relationships/story", route.path)
+	if route.Path != "/api/v0/code/relationships/story" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/relationships/story", route.Path)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["token_budget"], 256; got != want {
@@ -86,8 +86,8 @@ func TestResolveRouteMapsAnalyzeCallersMinConfidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/code/relationships/story" {
-		t.Fatalf("route.path = %q, want /api/v0/code/relationships/story", route.path)
+	if route.Path != "/api/v0/code/relationships/story" {
+		t.Fatalf("route.Path = %q, want /api/v0/code/relationships/story", route.Path)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["min_confidence"], 0.6; got != want {

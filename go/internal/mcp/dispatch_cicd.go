@@ -10,15 +10,6 @@ import (
 
 // cicdRoute adapts the child package's CI/CD run-correlation request into the
 // root dispatcher's transport route.
-func cicdRoute(toolName string, args map[string]any) (*route, bool) {
-	request, handled := cicdtools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true
+func cicdRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
+	return adaptChildRoute(cicdtools.Route(toolName, routecontract.Arguments(args)))
 }

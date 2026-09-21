@@ -22,11 +22,11 @@ func TestSurfaceInventoryToolResolvesToAPIRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/surface-inventory"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/surface-inventory"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"category":  "collector",
@@ -34,8 +34,8 @@ func TestSurfaceInventoryToolResolvesToAPIRoute(t *testing.T) {
 		"limit":     "50",
 		"offset":    "10",
 	} {
-		if got := route.query[key]; got != want {
-			t.Fatalf("route.query[%s] = %q, want %q", key, got, want)
+		if got := route.Query[key]; got != want {
+			t.Fatalf("route.Query[%s] = %q, want %q", key, got, want)
 		}
 	}
 }

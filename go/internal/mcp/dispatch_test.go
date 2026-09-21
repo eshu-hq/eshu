@@ -20,12 +20,12 @@ func TestResolveRouteMapsResolveEntityQueryToName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/entities/resolve" {
-		t.Fatalf("route.path = %q, want /api/v0/entities/resolve", route.path)
+	if route.Path != "/api/v0/entities/resolve" {
+		t.Fatalf("route.Path = %q, want /api/v0/entities/resolve", route.Path)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["name"], "sample-service-api"; got != want {
 		t.Fatalf("body[name] = %#v, want %#v", got, want)
@@ -54,17 +54,17 @@ func TestResolveRouteMapsListIndexedRepositoriesToBoundedQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/repositories"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/repositories"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["limit"], "25"; got != want {
-		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	if got, want := route.Query["limit"], "25"; got != want {
+		t.Fatalf("route.Query[limit] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["offset"], "50"; got != want {
-		t.Fatalf("route.query[offset] = %#v, want %#v", got, want)
+	if got, want := route.Query["offset"], "50"; got != want {
+		t.Fatalf("route.Query[offset] = %#v, want %#v", got, want)
 	}
 }
 
@@ -104,16 +104,16 @@ func TestResolveRouteMapsRepositoryLanguageToolsToBoundedQueries(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveRoute(%q) error = %v, want nil", tt.name, err)
 		}
-		if got, want := route.method, "GET"; got != want {
+		if got, want := route.Method, "GET"; got != want {
 			t.Fatalf("%s method = %q, want %q", tt.name, got, want)
 		}
-		if got := route.path; got != tt.wantPath {
+		if got := route.Path; got != tt.wantPath {
 			t.Fatalf("%s path = %q, want %q", tt.name, got, tt.wantPath)
 		}
-		if got := route.query["limit"]; got != tt.wantLimit {
+		if got := route.Query["limit"]; got != tt.wantLimit {
 			t.Fatalf("%s limit = %#v, want %#v", tt.name, got, tt.wantLimit)
 		}
-		if got := route.query["offset"]; got != tt.wantOffset {
+		if got := route.Query["offset"]; got != tt.wantOffset {
 			t.Fatalf("%s offset = %#v, want %#v", tt.name, got, tt.wantOffset)
 		}
 	}
@@ -128,11 +128,11 @@ func TestResolveRouteMapsRelationshipEvidenceToDrilldownPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/evidence/relationships/resolved%2Fexample%20id"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/evidence/relationships/resolved%2Fexample%20id"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -157,15 +157,15 @@ func TestResolveRouteMapsEvidenceCitationPacketToBoundedBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/evidence/citations"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/evidence/citations"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["question"], "Show source and docs proof"; got != want {
 		t.Fatalf("body[question] = %#v, want %#v", got, want)
@@ -190,11 +190,11 @@ func TestResolveRouteMapsPackageRegistryPackagesToBoundedQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/package-registry/packages"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/package-registry/packages"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"package_id": "package:npm:@eshu/core-api",
@@ -202,8 +202,8 @@ func TestResolveRouteMapsPackageRegistryPackagesToBoundedQuery(t *testing.T) {
 		"name":       "core-api",
 		"limit":      "25",
 	} {
-		if got := route.query[key]; got != want {
-			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+		if got := route.Query[key]; got != want {
+			t.Fatalf("route.Query[%s] = %#v, want %#v", key, got, want)
 		}
 	}
 }
@@ -221,11 +221,11 @@ func TestResolveRouteMapsPackageRegistryDependenciesToBoundedQuery(t *testing.T)
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/package-registry/dependencies"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/package-registry/dependencies"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"after_dependency_id": "dep-1",
@@ -234,8 +234,8 @@ func TestResolveRouteMapsPackageRegistryDependenciesToBoundedQuery(t *testing.T)
 		"version_id":          "package:npm:@eshu/core-api@1.0.0",
 		"limit":               "25",
 	} {
-		if got := route.query[key]; got != want {
-			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+		if got := route.Query[key]; got != want {
+			t.Fatalf("route.Query[%s] = %#v, want %#v", key, got, want)
 		}
 	}
 }
@@ -256,15 +256,15 @@ func TestResolveRouteMapsCodeRelationshipStoryToBoundedBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/code/relationships/story"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/relationships/story"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	for key, want := range map[string]any{
 		"target":             "process_payment",
@@ -292,18 +292,18 @@ func TestResolveRouteMapsPackageRegistryVersionsToPackageScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/package-registry/versions"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/package-registry/versions"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"package_id": "package:npm:@eshu/core-api",
 		"limit":      "50",
 	} {
-		if got := route.query[key]; got != want {
-			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+		if got := route.Query[key]; got != want {
+			t.Fatalf("route.Query[%s] = %#v, want %#v", key, got, want)
 		}
 	}
 }
@@ -320,12 +320,12 @@ func TestResolveRouteMapsSearchFileContentPatternAndRepoIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/content/files/search"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/content/files/search"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["query"], "sample-service-api"; got != want {
 		t.Fatalf("body[query] = %#v, want %#v", got, want)
@@ -359,9 +359,9 @@ func TestResolveRouteMapsSearchEntityContentSingleRepoID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["query"], "sample-service-api"; got != want {
 		t.Fatalf("body[query] = %#v, want %#v", got, want)
@@ -413,12 +413,12 @@ func TestResolveRouteMapsCalculateCyclomaticComplexityToFunctionName(t *testing.
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/code/complexity"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/complexity"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["function_name"], "search"; got != want {
 		t.Fatalf("body[function_name] = %#v, want %#v", got, want)
@@ -441,12 +441,12 @@ func TestResolveRouteMapsFindMostComplexFunctionsWithoutEntitySelector(t *testin
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/code/complexity"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/complexity"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["repo_id"], "repo-1"; got != want {
 		t.Fatalf("body[repo_id] = %#v, want %#v", got, want)
@@ -473,9 +473,9 @@ func TestResolveRouteMapsSearchRegistryBundlesLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["limit"], 25; got != want {
 		t.Fatalf("body[limit] = %#v, want %#v", got, want)

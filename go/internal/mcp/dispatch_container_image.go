@@ -10,15 +10,6 @@ import (
 
 // containerImageRoute adapts the child package's container-image identity
 // request into the root dispatcher's transport route.
-func containerImageRoute(toolName string, args map[string]any) (*route, bool) {
-	request, handled := containerimagetools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true
+func containerImageRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
+	return adaptChildRoute(containerimagetools.Route(toolName, routecontract.Arguments(args)))
 }

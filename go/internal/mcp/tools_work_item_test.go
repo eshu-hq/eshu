@@ -36,13 +36,13 @@ func TestResolveRouteMapsListWorkItemEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/work-items/evidence"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/work-items/evidence"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["scope_id"], "scope-1"; got != want {
-		t.Fatalf("route.query[scope_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["scope_id"], "scope-1"; got != want {
+		t.Fatalf("route.Query[scope_id] = %#v, want %#v", got, want)
 	}
 }

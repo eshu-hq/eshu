@@ -7,26 +7,28 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
-func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
+func statusRoute(toolName string, args map[string]any) (*routecontract.Request, bool, error) {
 	switch toolName {
 	case "list_collectors":
-		return &route{method: "GET", path: "/api/v0/status/collectors"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/collectors"}, true, nil
 	case "list_ingesters":
-		return &route{method: "GET", path: "/api/v0/status/ingesters"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/ingesters"}, true, nil
 	case "get_ingester_status":
 		ingester := str(args, "ingester")
 		if ingester == "" {
 			ingester = "repository"
 		}
-		return &route{method: "GET", path: "/api/v0/status/ingesters/" + url.PathEscape(ingester)}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/ingesters/" + url.PathEscape(ingester)}, true, nil
 	case "get_index_status":
-		return &route{method: "GET", path: "/api/v0/index-status"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/index-status"}, true, nil
 	case "get_hosted_readiness":
-		return &route{method: "GET", path: "/api/v0/status/hosted-readiness"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/hosted-readiness"}, true, nil
 	case "get_operator_control_plane":
-		return &route{method: "GET", path: "/api/v0/status/operator-control-plane"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/operator-control-plane"}, true, nil
 	case "list_dead_letter_work_items":
 		limit := intOr(args, "limit", 0)
 		if limit <= 0 {
@@ -52,19 +54,19 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 				body[key] = value
 			}
 		}
-		return &route{method: "POST", path: "/api/v0/admin/dead-letters/query", body: body}, true, nil
+		return &routecontract.Request{Method: "POST", Path: "/api/v0/admin/dead-letters/query", Body: body}, true, nil
 	case "list_reducer_input_invalid_facts":
 		return reducerInputInvalidFactsRoute(args)
 	case "get_freshness_causality":
-		return &route{method: "GET", path: "/api/v0/status/freshness-causality"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/freshness-causality"}, true, nil
 	case "get_collector_readiness":
-		return &route{method: "GET", path: "/api/v0/status/collector-readiness"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/collector-readiness"}, true, nil
 	case "get_hosted_governance_status":
-		return &route{method: "GET", path: "/api/v0/status/governance"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/governance"}, true, nil
 	case "get_semantic_capability_status":
-		return &route{method: "GET", path: "/api/v0/status/semantic-extraction"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/semantic-extraction"}, true, nil
 	case "get_answer_narration_status":
-		return &route{method: "GET", path: "/api/v0/status/answer-narration"}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/status/answer-narration"}, true, nil
 	case "get_capability_catalog":
 		query := map[string]string{
 			"limit":  intString(args, "limit", 12),
@@ -82,7 +84,7 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		if boolOr(args, "include_authorization", false) {
 			query["include_authorization"] = "true"
 		}
-		return &route{method: "GET", path: "/api/v0/capabilities", query: query}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/capabilities", Query: query}, true, nil
 	case "get_surface_inventory":
 		query := map[string]string{
 			"limit":  intString(args, "limit", 200),
@@ -94,9 +96,9 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		if readiness := str(args, "readiness"); readiness != "" {
 			query["readiness"] = readiness
 		}
-		return &route{method: "GET", path: "/api/v0/surface-inventory", query: query}, true, nil
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/surface-inventory", Query: query}, true, nil
 	case "list_component_extensions":
-		return &route{method: "GET", path: "/api/v0/component-extensions", query: map[string]string{
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/component-extensions", Query: map[string]string{
 			"limit": intString(args, "limit", 100),
 		}}, true, nil
 	case "get_component_extension_diagnostics":
@@ -104,12 +106,12 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		if componentID == "" {
 			return nil, true, fmt.Errorf("component_id is required")
 		}
-		return &route{
-			method: "GET",
-			path:   "/api/v0/component-extensions/" + url.PathEscape(componentID) + "/diagnostics",
+		return &routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/component-extensions/" + url.PathEscape(componentID) + "/diagnostics",
 		}, true, nil
 	case "list_collector_extraction_readiness":
-		return &route{method: "GET", path: "/api/v0/collector-extraction-readiness", query: map[string]string{
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/collector-extraction-readiness", Query: map[string]string{
 			"limit": intString(args, "limit", 100),
 		}}, true, nil
 	case "get_collector_extraction_readiness":
@@ -117,12 +119,12 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		if family == "" {
 			return nil, true, fmt.Errorf("family is required")
 		}
-		return &route{
-			method: "GET",
-			path:   "/api/v0/collector-extraction-readiness/" + url.PathEscape(family),
+		return &routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/collector-extraction-readiness/" + url.PathEscape(family),
 		}, true, nil
 	case "list_fact_schema_versions":
-		return &route{method: "GET", path: "/api/v0/fact-schema-versions", query: map[string]string{
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/fact-schema-versions", Query: map[string]string{
 			"limit": intString(args, "limit", 200),
 		}}, true, nil
 	case "get_fact_schema_version":
@@ -130,14 +132,14 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 		if factKind == "" {
 			return nil, true, fmt.Errorf("fact_kind is required")
 		}
-		factRoute := &route{
-			method: "GET",
-			path:   "/api/v0/fact-schema-versions/" + url.PathEscape(factKind),
+		factRoute := routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/fact-schema-versions/" + url.PathEscape(factKind),
 		}
 		if candidate := strings.TrimSpace(str(args, "candidate")); candidate != "" {
-			factRoute.query = map[string]string{"candidate": candidate}
+			factRoute.Query = map[string]string{"candidate": candidate}
 		}
-		return factRoute, true, nil
+		return &factRoute, true, nil
 	default:
 		return nil, false, nil
 	}
@@ -149,7 +151,7 @@ func statusRoute(toolName string, args map[string]any) (*route, bool, error) {
 // timeout_ms are required; domain and fact_kind are optional passthrough
 // filters. Extracted from statusRoute to keep that switch under the funlen
 // cap.
-func reducerInputInvalidFactsRoute(args map[string]any) (*route, bool, error) {
+func reducerInputInvalidFactsRoute(args map[string]any) (*routecontract.Request, bool, error) {
 	scopeID := strings.TrimSpace(str(args, "scope_id"))
 	if scopeID == "" {
 		return nil, true, fmt.Errorf("scope_id is required")
@@ -177,5 +179,5 @@ func reducerInputInvalidFactsRoute(args map[string]any) (*route, bool, error) {
 			body[key] = value
 		}
 	}
-	return &route{method: "POST", path: "/api/v0/admin/input-invalid-facts/query", body: body}, true, nil
+	return &routecontract.Request{Method: "POST", Path: "/api/v0/admin/input-invalid-facts/query", Body: body}, true, nil
 }

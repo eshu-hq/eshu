@@ -12,15 +12,11 @@ import (
 // into the root dispatcher's transport route. The child validates source_tool
 // against the canonical vocabulary before forwarding; an empty value leaves the
 // filter unset.
-func relationshipEdgesRoute(toolName string, args map[string]any) (*route, bool, error) {
+func relationshipEdgesRoute(toolName string, args map[string]any) (*routecontract.Request, bool, error) {
 	request, handled, err := relationshiptools.EdgeRoute(toolName, routecontract.Arguments(args))
 	if !handled || err != nil {
 		return nil, handled, err
 	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true, nil
+	adapted, handled := adaptChildRoute(request, handled)
+	return adapted, handled, nil
 }

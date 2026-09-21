@@ -21,12 +21,12 @@ func TestResolveRouteMapsReplatformingRollups(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/replatforming/rollups" {
-		t.Fatalf("route.path = %q, want /api/v0/replatforming/rollups", route.path)
+	if route.Path != "/api/v0/replatforming/rollups" {
+		t.Fatalf("route.Path = %q, want /api/v0/replatforming/rollups", route.Path)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["account_id"], "123456789012"; got != want {
 		t.Fatalf("body[account_id] = %#v, want %#v", got, want)

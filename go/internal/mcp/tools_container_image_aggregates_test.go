@@ -36,14 +36,14 @@ func TestResolveRouteMapsCountContainerImageIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/container-images/identities/count"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/container-images/identities/count"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["source_repository_id"], "repo-1"; got != want {
-		t.Fatalf("route.query[source_repository_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["source_repository_id"], "repo-1"; got != want {
+		t.Fatalf("route.Query[source_repository_id] = %#v, want %#v", got, want)
 	}
 }
 
@@ -58,13 +58,13 @@ func TestResolveRouteMapsGetContainerImageIdentityInventory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/container-images/identities/inventory"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/container-images/identities/inventory"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["group_by"], "outcome"; got != want {
-		t.Fatalf("route.query[group_by] = %#v, want %#v", got, want)
+	if got, want := route.Query["group_by"], "outcome"; got != want {
+		t.Fatalf("route.Query[group_by] = %#v, want %#v", got, want)
 	}
 }

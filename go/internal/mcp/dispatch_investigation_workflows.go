@@ -3,7 +3,11 @@
 
 package mcp
 
-func investigationWorkflowRoute(toolName string, args map[string]any) (*route, bool) {
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+)
+
+func investigationWorkflowRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	switch toolName {
 	case "list_investigation_workflows":
 		query := map[string]string{
@@ -13,12 +17,12 @@ func investigationWorkflowRoute(toolName string, args map[string]any) (*route, b
 		if view := str(args, "view"); view != "" {
 			query["view"] = view
 		}
-		return &route{method: "GET", path: "/api/v0/investigation-workflows", query: query}, true
+		return &routecontract.Request{Method: "GET", Path: "/api/v0/investigation-workflows", Query: query}, true
 	case "resolve_investigation_workflow":
-		return &route{
-			method: "POST",
-			path:   "/api/v0/investigation-workflows/resolve",
-			body: map[string]any{
+		return &routecontract.Request{
+			Method: "POST",
+			Path:   "/api/v0/investigation-workflows/resolve",
+			Body: map[string]any{
 				"workflow_id":      str(args, "workflow_id"),
 				"inputs":           mapStringAny(args, "inputs"),
 				"missing_evidence": stringValues(args, "missing_evidence"),

@@ -6,6 +6,8 @@ package mcp
 import (
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 func TestResolveRouteUsesExactVisualizationChildRequest(t *testing.T) {
@@ -21,10 +23,10 @@ func TestResolveRouteUsesExactVisualizationChildRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	want := &route{
-		method: "POST",
-		path:   "/api/v0/visualizations/derive",
-		body: map[string]any{
+	want := &routecontract.Request{
+		Method: "POST",
+		Path:   "/api/v0/visualizations/derive",
+		Body: map[string]any{
 			"view":            "service_story",
 			"source_response": sourceResponse,
 			"source_truth":    sourceTruth,

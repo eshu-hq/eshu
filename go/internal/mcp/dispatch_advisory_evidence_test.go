@@ -21,35 +21,35 @@ func TestResolveRouteMapsAdvisoryEvidenceToBoundedQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/advisories/evidence"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/advisories/evidence"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["advisory_id"], "GHSA-aaaa-bbbb-cccc"; got != want {
-		t.Fatalf("route.query[advisory_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["advisory_id"], "GHSA-aaaa-bbbb-cccc"; got != want {
+		t.Fatalf("route.Query[advisory_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["package_id"], "pkg:npm/example"; got != want {
-		t.Fatalf("route.query[package_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["package_id"], "pkg:npm/example"; got != want {
+		t.Fatalf("route.Query[package_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["repository_id"], "repo://example/api"; got != want {
-		t.Fatalf("route.query[repository_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["repository_id"], "repo://example/api"; got != want {
+		t.Fatalf("route.Query[repository_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["service_id"], "service:payments-api"; got != want {
-		t.Fatalf("route.query[service_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["service_id"], "service:payments-api"; got != want {
+		t.Fatalf("route.Query[service_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["workload_id"], "workload:payments-api"; got != want {
-		t.Fatalf("route.query[workload_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["workload_id"], "workload:payments-api"; got != want {
+		t.Fatalf("route.Query[workload_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["source"], "osv"; got != want {
-		t.Fatalf("route.query[source] = %#v, want %#v", got, want)
+	if got, want := route.Query["source"], "osv"; got != want {
+		t.Fatalf("route.Query[source] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["after_advisory_key"], "CVE-2026-0001"; got != want {
-		t.Fatalf("route.query[after_advisory_key] = %#v, want %#v", got, want)
+	if got, want := route.Query["after_advisory_key"], "CVE-2026-0001"; got != want {
+		t.Fatalf("route.Query[after_advisory_key] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["limit"], "25"; got != want {
-		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	if got, want := route.Query["limit"], "25"; got != want {
+		t.Fatalf("route.Query[limit] = %#v, want %#v", got, want)
 	}
 }
 

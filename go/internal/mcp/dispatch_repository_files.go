@@ -6,6 +6,8 @@ package mcp
 import (
 	"fmt"
 	"net/url"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 // repositoryFilesRoute maps a list_repository_files call to the bounded
@@ -14,7 +16,7 @@ import (
 // (e.g. typescript also matches tsx) and returns an empty listing for an
 // unrecognised token rather than an error, which is the correct bounded
 // behaviour for an open-token language filter.
-func repositoryFilesRoute(toolName string, args map[string]any) (*route, bool, error) {
+func repositoryFilesRoute(toolName string, args map[string]any) (*routecontract.Request, bool, error) {
 	if toolName != "list_repository_files" {
 		return nil, false, nil
 	}
@@ -38,9 +40,9 @@ func repositoryFilesRoute(toolName string, args map[string]any) (*route, bool, e
 		q["ref"] = ref
 	}
 
-	return &route{
-		method: "GET",
-		path:   "/api/v0/repositories/" + url.PathEscape(repoID) + "/tree",
-		query:  q,
+	return &routecontract.Request{
+		Method: "GET",
+		Path:   "/api/v0/repositories/" + url.PathEscape(repoID) + "/tree",
+		Query:  q,
 	}, true, nil
 }

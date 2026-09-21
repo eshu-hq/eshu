@@ -50,13 +50,13 @@ func TestResolveRouteMapsContextResolveEntity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/entities/resolve"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/entities/resolve"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, _ := route.body.(map[string]any)
+	body, _ := route.Body.(map[string]any)
 	if body["name"] != "my-service-api" || body["type"] != "function" {
 		t.Fatalf("route body = %#v, want exact typed global resolve", body)
 	}
@@ -72,11 +72,11 @@ func TestResolveRouteMapsGetEntityContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/entities/ent-1/context"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/entities/ent-1/context"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -89,11 +89,11 @@ func TestResolveRouteMapsGetWorkloadContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/workloads/wl-1/context"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/workloads/wl-1/context"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -106,11 +106,11 @@ func TestResolveRouteMapsGetWorkloadStory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/workloads/wl-1/story"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/workloads/wl-1/story"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -123,11 +123,11 @@ func TestResolveRouteMapsGetServiceContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/services/svc-1/context"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/services/svc-1/context"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -140,11 +140,11 @@ func TestResolveRouteMapsGetServiceStory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/services/svc-1/story"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/services/svc-1/story"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -159,10 +159,10 @@ func TestResolveRouteMapsInvestigateServiceContextTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/investigations/services/my-svc"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/investigations/services/my-svc"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }

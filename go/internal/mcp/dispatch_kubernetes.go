@@ -10,15 +10,6 @@ import (
 
 // kubernetesCorrelationsRoute adapts the child package's Kubernetes-correlation
 // request selection into the root dispatcher's transport route.
-func kubernetesCorrelationsRoute(toolName string, args map[string]any) (*route, bool) {
-	request, handled := kubernetestools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true
+func kubernetesCorrelationsRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
+	return adaptChildRoute(kubernetestools.Route(toolName, routecontract.Arguments(args)))
 }

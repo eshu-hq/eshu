@@ -25,11 +25,11 @@ func TestResolveRouteMapsQualifiedServiceIDToServicePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/services/sample-service-api/context"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/services/sample-service-api/context"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["environment"], "prod"; got != want {
-		t.Fatalf("route.query[environment] = %#v, want %#v", got, want)
+	if got, want := route.Query["environment"], "prod"; got != want {
+		t.Fatalf("route.Query[environment] = %#v, want %#v", got, want)
 	}
 }
 
@@ -43,14 +43,14 @@ func TestResolveRouteMapsServiceStoryQualifiedIDToExactSelector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/services/sample-service-api/story"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/services/sample-service-api/story"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["service_id"], "workload:sample-service-api"; got != want {
-		t.Fatalf("route.query[service_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["service_id"], "workload:sample-service-api"; got != want {
+		t.Fatalf("route.Query[service_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["environment"], "prod"; got != want {
-		t.Fatalf("route.query[environment] = %#v, want %#v", got, want)
+	if got, want := route.Query["environment"], "prod"; got != want {
+		t.Fatalf("route.Query[environment] = %#v, want %#v", got, want)
 	}
 }
 
@@ -63,11 +63,11 @@ func TestResolveRouteMapsServiceStoryCatalogIDAsNameSelector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/services/sample-service-api/story"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/services/sample-service-api/story"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got := route.query["service_id"]; got != "" {
-		t.Fatalf("route.query[service_id] = %#v, want empty for catalog service id", got)
+	if got := route.Query["service_id"]; got != "" {
+		t.Fatalf("route.Query[service_id] = %#v, want empty for catalog service id", got)
 	}
 }
 
@@ -82,17 +82,17 @@ func TestResolveRouteMapsServiceStoryRepositoryScopedServiceName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/services/sample-service-api/story"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/services/sample-service-api/story"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["repo"], "repository:r_sample"; got != want {
-		t.Fatalf("route.query[repo] = %#v, want %#v", got, want)
+	if got, want := route.Query["repo"], "repository:r_sample"; got != want {
+		t.Fatalf("route.Query[repo] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["environment"], "prod"; got != want {
-		t.Fatalf("route.query[environment] = %#v, want %#v", got, want)
+	if got, want := route.Query["environment"], "prod"; got != want {
+		t.Fatalf("route.Query[environment] = %#v, want %#v", got, want)
 	}
-	if got := route.query["service_id"]; got != "" {
-		t.Fatalf("route.query[service_id] = %#v, want empty for service-name selector", got)
+	if got := route.Query["service_id"]; got != "" {
+		t.Fatalf("route.Query[service_id] = %#v, want empty for service-name selector", got)
 	}
 }
 

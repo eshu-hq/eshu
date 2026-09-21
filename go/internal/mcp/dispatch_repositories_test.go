@@ -21,11 +21,11 @@ func TestResolveRouteGetRepoSummaryRoutesToStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, wantMethod := route.method, "GET"; got != wantMethod {
-		t.Fatalf("route.method = %q, want %q", got, wantMethod)
+	if got, wantMethod := route.Method, "GET"; got != wantMethod {
+		t.Fatalf("route.Method = %q, want %q", got, wantMethod)
 	}
-	if got, wantPath := route.path, "/api/v0/repositories/repo-abc/stats"; got != wantPath {
-		t.Fatalf("route.path = %q, want %q (get_repo_summary must route to /stats, not /context)", got, wantPath)
+	if got, wantPath := route.Path, "/api/v0/repositories/repo-abc/stats"; got != wantPath {
+		t.Fatalf("route.Path = %q, want %q (get_repo_summary must route to /stats, not /context)", got, wantPath)
 	}
 }
 
@@ -44,8 +44,8 @@ func TestResolveRouteGetRepoSummaryFallsBackToRepoName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, wantPath := route.path, "/api/v0/repositories/legacy-service/stats"; got != wantPath {
-		t.Fatalf("route.path = %q, want %q (repo_name must resolve, not build an empty selector)", got, wantPath)
+	if got, wantPath := route.Path, "/api/v0/repositories/legacy-service/stats"; got != wantPath {
+		t.Fatalf("route.Path = %q, want %q (repo_name must resolve, not build an empty selector)", got, wantPath)
 	}
 }
 
@@ -62,8 +62,8 @@ func TestResolveRouteGetRepoSummaryPrefersRepoIDOverRepoName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, wantPath := route.path, "/api/v0/repositories/repo-canonical/stats"; got != wantPath {
-		t.Fatalf("route.path = %q, want %q (repo_id must take priority over repo_name)", got, wantPath)
+	if got, wantPath := route.Path, "/api/v0/repositories/repo-canonical/stats"; got != wantPath {
+		t.Fatalf("route.Path = %q, want %q (repo_id must take priority over repo_name)", got, wantPath)
 	}
 }
 
@@ -101,11 +101,11 @@ func TestResolveRouteGetRepoContextRoutesToContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, wantMethod := route.method, "GET"; got != wantMethod {
-		t.Fatalf("route.method = %q, want %q", got, wantMethod)
+	if got, wantMethod := route.Method, "GET"; got != wantMethod {
+		t.Fatalf("route.Method = %q, want %q", got, wantMethod)
 	}
-	if got, wantPath := route.path, "/api/v0/repositories/repo-abc/context"; got != wantPath {
-		t.Fatalf("route.path = %q, want %q", got, wantPath)
+	if got, wantPath := route.Path, "/api/v0/repositories/repo-abc/context"; got != wantPath {
+		t.Fatalf("route.Path = %q, want %q", got, wantPath)
 	}
 }
 

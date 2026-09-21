@@ -10,15 +10,6 @@ import (
 
 // infraResourceSearchRoute adapts the child package's infrastructure-search
 // request selection into the root dispatcher's transport route.
-func infraResourceSearchRoute(toolName string, args map[string]any) (*route, bool) {
-	request, handled := infrasearchtools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true
+func infraResourceSearchRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
+	return adaptChildRoute(infrasearchtools.Route(toolName, routecontract.Arguments(args)))
 }

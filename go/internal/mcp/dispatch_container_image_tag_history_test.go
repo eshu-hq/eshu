@@ -70,23 +70,23 @@ func TestResolveRouteMapsContainerImageTagHistoryToBoundedQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/images/tag-history"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/images/tag-history"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["repository_id"], "oci-registry://ghcr.io/eshu-hq/demo"; got != want {
-		t.Fatalf("route.query[repository_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["repository_id"], "oci-registry://ghcr.io/eshu-hq/demo"; got != want {
+		t.Fatalf("route.Query[repository_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["tag"], "1.0.0"; got != want {
-		t.Fatalf("route.query[tag] = %#v, want %#v", got, want)
+	if got, want := route.Query["tag"], "1.0.0"; got != want {
+		t.Fatalf("route.Query[tag] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["limit"], "25"; got != want {
-		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	if got, want := route.Query["limit"], "25"; got != want {
+		t.Fatalf("route.Query[limit] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["offset"], "5"; got != want {
-		t.Fatalf("route.query[offset] = %#v, want %#v", got, want)
+	if got, want := route.Query["offset"], "5"; got != want {
+		t.Fatalf("route.Query[offset] = %#v, want %#v", got, want)
 	}
 }
 

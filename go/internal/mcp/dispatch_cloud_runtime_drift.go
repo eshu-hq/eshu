@@ -3,18 +3,22 @@
 
 package mcp
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+)
+
 // cloudRuntimeDriftRoute maps the provider-neutral runtime drift readback tool to
 // its internal POST route. It forwards only the bounded, non-sensitive filter
 // parameters; the handler validates provider and finding_kinds against closed
 // sets, requires a canonical scope, and gates the capability by runtime profile.
-func cloudRuntimeDriftRoute(toolName string, args map[string]any) (*route, bool) {
+func cloudRuntimeDriftRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	if toolName != "list_cloud_runtime_drift_findings" {
 		return nil, false
 	}
-	return &route{
-		method: "POST",
-		path:   "/api/v0/cloud/runtime-drift/findings",
-		body:   cloudRuntimeDriftBody(args),
+	return &routecontract.Request{
+		Method: "POST",
+		Path:   "/api/v0/cloud/runtime-drift/findings",
+		Body:   cloudRuntimeDriftBody(args),
 	}, true
 }
 

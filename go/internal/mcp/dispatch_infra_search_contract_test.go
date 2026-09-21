@@ -69,11 +69,11 @@ func TestResolveRouteUsesExactInfraSearchChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -115,18 +115,18 @@ func TestInfraSearchDispatchKeepsEveryBodyKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got.method != "POST" {
-		t.Errorf("method = %q, want POST", got.method)
+	if got.Method != "POST" {
+		t.Errorf("method = %q, want POST", got.Method)
 	}
-	if got.path != "/api/v0/infra/resources/search" {
-		t.Errorf("path = %q, want the infra resource search path", got.path)
+	if got.Path != "/api/v0/infra/resources/search" {
+		t.Errorf("path = %q, want the infra resource search path", got.Path)
 	}
-	if got.query != nil {
-		t.Errorf("query = %#v, want nil", got.query)
+	if got.Query != nil {
+		t.Errorf("query = %#v, want nil", got.Query)
 	}
-	body, ok := got.body.(map[string]any)
+	body, ok := got.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("body type = %T, want map[string]any", got.body)
+		t.Fatalf("body type = %T, want map[string]any", got.Body)
 	}
 	if n, wantN := len(body), len(infraSearchBodyKeys); n != wantN {
 		t.Fatalf("body carries %d keys (%#v), want %d", n, body, wantN)
@@ -155,7 +155,7 @@ func TestInfraSearchDispatchKeepsEveryBodyKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(structured only) error = %v, want nil", err)
 	}
-	bareBody := bare.body.(map[string]any)
+	bareBody := bare.Body.(map[string]any)
 	if value := bareBody["limit"]; value != 50 {
 		t.Errorf("absent limit -> %#v, want the default 50", value)
 	}

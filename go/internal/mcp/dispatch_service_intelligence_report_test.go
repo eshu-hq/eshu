@@ -32,17 +32,17 @@ func TestResolveRouteServiceIntelligenceReport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v", err)
 	}
-	if route.method != "GET" {
-		t.Fatalf("method = %q, want GET", route.method)
+	if route.Method != "GET" {
+		t.Fatalf("method = %q, want GET", route.Method)
 	}
-	if route.path != "/api/v0/services/sample-service-api/intelligence-report" {
-		t.Fatalf("path = %q", route.path)
+	if route.Path != "/api/v0/services/sample-service-api/intelligence-report" {
+		t.Fatalf("path = %q", route.Path)
 	}
-	if route.query["environment"] != "prod" {
-		t.Fatalf("environment query lost: %#v", route.query)
+	if route.Query["environment"] != "prod" {
+		t.Fatalf("environment query lost: %#v", route.Query)
 	}
-	if route.query["service_id"] != "workload:sample-service-api" {
-		t.Fatalf("service_id query = %q, want workload:sample-service-api", route.query["service_id"])
+	if route.Query["service_id"] != "workload:sample-service-api" {
+		t.Fatalf("service_id query = %q, want workload:sample-service-api", route.Query["service_id"])
 	}
 }
 

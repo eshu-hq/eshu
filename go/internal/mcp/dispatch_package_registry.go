@@ -10,15 +10,6 @@ import (
 
 // packageRegistryRoute adapts the child package's package-registry request into
 // the root dispatcher's transport route.
-func packageRegistryRoute(toolName string, args map[string]any) (*route, bool) {
-	request, handled := packageregistrytools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true
+func packageRegistryRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
+	return adaptChildRoute(packageregistrytools.Route(toolName, routecontract.Arguments(args)))
 }

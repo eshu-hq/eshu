@@ -43,8 +43,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsCrossRepoCallersToOptInStory(t 
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/code/relationships/story"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/relationships/story"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	body := requireRouteBody(t, route)
 	if got, want := body["cross_repo"], true; got != want {
@@ -106,8 +106,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsCrossRepoImportersAndInheritanc
 				t.Fatalf("resolveRoute() error = %v, want nil", err)
 			}
 			body := requireRouteBody(t, route)
-			if got, want := route.path, "/api/v0/code/relationships/story"; got != want {
-				t.Fatalf("route.path = %q, want %q", got, want)
+			if got, want := route.Path, "/api/v0/code/relationships/story"; got != want {
+				t.Fatalf("route.Path = %q, want %q", got, want)
 			}
 			if got, want := body["cross_repo"], true; got != want {
 				t.Fatalf("body[cross_repo] = %#v, want %#v", got, want)
@@ -141,8 +141,8 @@ func TestResolveRouteMapsAnalyzeCodeRelationshipsCrossRepoCallChain(t *testing.T
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/code/call-chain"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/code/call-chain"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	body := requireRouteBody(t, route)
 	for key, want := range map[string]any{

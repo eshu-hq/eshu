@@ -69,11 +69,11 @@ func TestResolveRouteUsesExactEntityResolutionChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -99,15 +99,15 @@ func TestEntityResolutionDispatchKeepsEveryWireShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(resolve_entity) error = %v, want nil", err)
 	}
-	if resolve.method != "POST" || resolve.path != "/api/v0/entities/resolve" {
-		t.Errorf("resolve_entity route = %s %s, want POST /api/v0/entities/resolve", resolve.method, resolve.path)
+	if resolve.Method != "POST" || resolve.Path != "/api/v0/entities/resolve" {
+		t.Errorf("resolve_entity route = %s %s, want POST /api/v0/entities/resolve", resolve.Method, resolve.Path)
 	}
-	if resolve.query != nil {
-		t.Errorf("resolve_entity query = %#v, want nil", resolve.query)
+	if resolve.Query != nil {
+		t.Errorf("resolve_entity query = %#v, want nil", resolve.Query)
 	}
 	wantResolveBody := map[string]any{"name": "exactName", "type": "function", "repo_id": "repo-1", "limit": 5}
-	if !reflect.DeepEqual(resolve.body, wantResolveBody) {
-		t.Errorf("resolve_entity body = %#v, want %#v", resolve.body, wantResolveBody)
+	if !reflect.DeepEqual(resolve.Body, wantResolveBody) {
+		t.Errorf("resolve_entity body = %#v, want %#v", resolve.Body, wantResolveBody)
 	}
 
 	// The bare call keeps every conditional key absent and the handler-matching
@@ -118,8 +118,8 @@ func TestEntityResolutionDispatchKeepsEveryWireShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(resolve_entity bare) error = %v, want nil", err)
 	}
-	if want := map[string]any{"limit": 10}; !reflect.DeepEqual(bare.body, want) {
-		t.Errorf("resolve_entity bare body = %#v, want %#v", bare.body, want)
+	if want := map[string]any{"limit": 10}; !reflect.DeepEqual(bare.Body, want) {
+		t.Errorf("resolve_entity bare body = %#v, want %#v", bare.Body, want)
 	}
 
 	// The advertised query argument still maps onto the wire name key, and the
@@ -132,8 +132,8 @@ func TestEntityResolutionDispatchKeepsEveryWireShape(t *testing.T) {
 		t.Fatalf("resolveRoute(resolve_entity aliased) error = %v, want nil", err)
 	}
 	wantAliased := map[string]any{"name": "svc-api", "type": "workload", "limit": 10}
-	if !reflect.DeepEqual(aliased.body, wantAliased) {
-		t.Errorf("resolve_entity aliased body = %#v, want %#v", aliased.body, wantAliased)
+	if !reflect.DeepEqual(aliased.Body, wantAliased) {
+		t.Errorf("resolve_entity aliased body = %#v, want %#v", aliased.Body, wantAliased)
 	}
 
 	// get_entity_context path-escapes the entity id and forwards environment
@@ -146,21 +146,21 @@ func TestEntityResolutionDispatchKeepsEveryWireShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(get_entity_context) error = %v, want nil", err)
 	}
-	if want := "/api/v0/entities/content-entity:abc%2Fdef%20path/context"; context.path != want {
-		t.Errorf("get_entity_context path = %q, want %q", context.path, want)
+	if want := "/api/v0/entities/content-entity:abc%2Fdef%20path/context"; context.Path != want {
+		t.Errorf("get_entity_context path = %q, want %q", context.Path, want)
 	}
-	if context.method != "GET" || context.body != nil {
-		t.Errorf("get_entity_context method/body = %s %#v, want GET with nil body", context.method, context.body)
+	if context.Method != "GET" || context.Body != nil {
+		t.Errorf("get_entity_context method/body = %s %#v, want GET with nil body", context.Method, context.Body)
 	}
-	if want := map[string]string{"environment": "prod"}; !reflect.DeepEqual(context.query, want) {
-		t.Errorf("get_entity_context query = %#v, want %#v", context.query, want)
+	if want := map[string]string{"environment": "prod"}; !reflect.DeepEqual(context.Query, want) {
+		t.Errorf("get_entity_context query = %#v, want %#v", context.Query, want)
 	}
 	bareContext, err := resolveRoute("get_entity_context", map[string]any{"entity_id": "e1", "environment": ""})
 	if err != nil {
 		t.Fatalf("resolveRoute(get_entity_context bare) error = %v, want nil", err)
 	}
-	if bareContext.query == nil || len(bareContext.query) != 0 {
-		t.Errorf("get_entity_context blank environment query = %#v, want a non-nil empty map", bareContext.query)
+	if bareContext.Query == nil || len(bareContext.Query) != 0 {
+		t.Errorf("get_entity_context blank environment query = %#v, want a non-nil empty map", bareContext.Query)
 	}
 
 	// get_entity_content always sends entity_id, as an explicit empty string
@@ -169,11 +169,11 @@ func TestEntityResolutionDispatchKeepsEveryWireShape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(get_entity_content) error = %v, want nil", err)
 	}
-	if want := map[string]any{"entity_id": ""}; !reflect.DeepEqual(content.body, want) {
-		t.Errorf("get_entity_content bare body = %#v, want %#v", content.body, want)
+	if want := map[string]any{"entity_id": ""}; !reflect.DeepEqual(content.Body, want) {
+		t.Errorf("get_entity_content bare body = %#v, want %#v", content.Body, want)
 	}
-	if content.query != nil {
-		t.Errorf("get_entity_content query = %#v, want nil", content.query)
+	if content.Query != nil {
+		t.Errorf("get_entity_content query = %#v, want nil", content.Query)
 	}
 }
 
@@ -235,12 +235,12 @@ func TestResolveRouteStillOwnsItsArmsAfterEntityResolution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(search_entity_content) error = %v, want nil", err)
 	}
-	if want := "/api/v0/content/entities/search"; staying.path != want {
-		t.Errorf("search_entity_content path = %q, want %q", staying.path, want)
+	if want := "/api/v0/content/entities/search"; staying.Path != want {
+		t.Errorf("search_entity_content path = %q, want %q", staying.Path, want)
 	}
 	wantStaying := map[string]any{"query": "needle", "repo_id": "r1", "limit": 10, "offset": 0}
-	if !reflect.DeepEqual(staying.body, wantStaying) {
-		t.Errorf("search_entity_content body = %#v, want %#v", staying.body, wantStaying)
+	if !reflect.DeepEqual(staying.Body, wantStaying) {
+		t.Errorf("search_entity_content body = %#v, want %#v", staying.Body, wantStaying)
 	}
 
 	// resolveRoute still reports an unknown tool as an error, not a nil route.

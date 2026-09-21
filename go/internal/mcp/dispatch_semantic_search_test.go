@@ -36,15 +36,15 @@ func TestSemanticSearchToolRoutesToBoundedHTTPRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(search_semantic_context) error = %v, want nil", err)
 	}
-	if got, want := route.method, "POST"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "POST"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/search/semantic"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/search/semantic"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	for key, want := range map[string]any{
 		"repo_id":    "repo-payments",
@@ -78,7 +78,7 @@ func TestSemanticSearchToolPassesRerankFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute error = %v, want nil", err)
 	}
-	if got, want := route.body.(map[string]any)["rerank"], true; got != want {
+	if got, want := route.Body.(map[string]any)["rerank"], true; got != want {
 		t.Fatalf("body[rerank] = %#v, want %#v", got, want)
 	}
 
@@ -93,7 +93,7 @@ func TestSemanticSearchToolPassesRerankFlag(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(default) error = %v, want nil", err)
 	}
-	if got, want := defaultRoute.body.(map[string]any)["rerank"], false; got != want {
+	if got, want := defaultRoute.Body.(map[string]any)["rerank"], false; got != want {
 		t.Fatalf("default body[rerank] = %#v, want %#v", got, want)
 	}
 }
@@ -112,9 +112,9 @@ func TestSemanticSearchToolPassesLanguagesFilter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute error = %v, want nil", err)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	langs, ok := body["languages"].([]any)
 	if !ok {
@@ -141,7 +141,7 @@ func TestSemanticSearchToolPassesLanguagesFilter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(default) error = %v, want nil", err)
 	}
-	defaultLangs := defaultRoute.body.(map[string]any)["languages"]
+	defaultLangs := defaultRoute.Body.(map[string]any)["languages"]
 	if asSlice, ok := defaultLangs.([]any); ok && len(asSlice) > 0 {
 		t.Fatalf("default body[languages] = %#v, want nil or empty", defaultLangs)
 	}

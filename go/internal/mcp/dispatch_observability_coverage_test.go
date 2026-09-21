@@ -25,11 +25,11 @@ func TestResolveRouteMapsObservabilityCoverageCorrelationsToBoundedQuery(t *test
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/observability/coverage/correlations"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/observability/coverage/correlations"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"after_correlation_id":     "observability-coverage-1",
@@ -45,8 +45,8 @@ func TestResolveRouteMapsObservabilityCoverageCorrelationsToBoundedQuery(t *test
 		"coverage_status":          "covered",
 		"limit":                    "25",
 	} {
-		if got := route.query[key]; got != want {
-			t.Fatalf("route.query[%s] = %#v, want %#v", key, got, want)
+		if got := route.Query[key]; got != want {
+			t.Fatalf("route.Query[%s] = %#v, want %#v", key, got, want)
 		}
 	}
 }

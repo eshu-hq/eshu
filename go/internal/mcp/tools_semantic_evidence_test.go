@@ -36,11 +36,11 @@ func TestSemanticEvidenceToolsRouteToBoundedHTTPReads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(list_semantic_documentation_observations) error = %v, want nil", err)
 	}
-	if got, want := observations.method, "GET"; got != want {
-		t.Fatalf("observations.method = %q, want %q", got, want)
+	if got, want := observations.Method, "GET"; got != want {
+		t.Fatalf("observations.Method = %q, want %q", got, want)
 	}
-	if got, want := observations.path, "/api/v0/semantic/documentation-observations"; got != want {
-		t.Fatalf("observations.path = %q, want %q", got, want)
+	if got, want := observations.Path, "/api/v0/semantic/documentation-observations"; got != want {
+		t.Fatalf("observations.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"repo":                "repo:payments",
@@ -50,8 +50,8 @@ func TestSemanticEvidenceToolsRouteToBoundedHTTPReads(t *testing.T) {
 		"limit":               "25",
 		"cursor":              "25",
 	} {
-		if got := observations.query[key]; got != want {
-			t.Fatalf("observations.query[%q] = %q, want %q", key, got, want)
+		if got := observations.Query[key]; got != want {
+			t.Fatalf("observations.Query[%q] = %q, want %q", key, got, want)
 		}
 	}
 
@@ -66,8 +66,8 @@ func TestSemanticEvidenceToolsRouteToBoundedHTTPReads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(list_semantic_code_hints) error = %v, want nil", err)
 	}
-	if got, want := hints.path, "/api/v0/semantic/code-hints"; got != want {
-		t.Fatalf("hints.path = %q, want %q", got, want)
+	if got, want := hints.Path, "/api/v0/semantic/code-hints"; got != want {
+		t.Fatalf("hints.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"repo":                "repo:payments",
@@ -77,8 +77,8 @@ func TestSemanticEvidenceToolsRouteToBoundedHTTPReads(t *testing.T) {
 		"corroboration_state": "uncorroborated",
 		"limit":               "10",
 	} {
-		if got := hints.query[key]; got != want {
-			t.Fatalf("hints.query[%q] = %q, want %q", key, got, want)
+		if got := hints.Query[key]; got != want {
+			t.Fatalf("hints.Query[%q] = %q, want %q", key, got, want)
 		}
 	}
 }

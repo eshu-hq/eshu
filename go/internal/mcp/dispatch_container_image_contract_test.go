@@ -116,11 +116,11 @@ func TestResolveRouteUsesExactContainerImageChildRequest(t *testing.T) {
 			// body, and query faithfully. It cannot prove the child selected
 			// the right values -- both sides come from the same selector -- so
 			// the literal path and key assertions below carry that claim.
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -168,21 +168,21 @@ func TestContainerImageDispatchKeepsEveryQueryKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveRoute(%s) error = %v, want nil", tool, err)
 		}
-		if got.method != "GET" {
-			t.Errorf("%s: method = %q, want GET", tool, got.method)
+		if got.Method != "GET" {
+			t.Errorf("%s: method = %q, want GET", tool, got.Method)
 		}
-		if wantPath := containerImageDispatchPaths[tool]; got.path != wantPath {
-			t.Errorf("%s: path = %q, want %q", tool, got.path, wantPath)
+		if wantPath := containerImageDispatchPaths[tool]; got.Path != wantPath {
+			t.Errorf("%s: path = %q, want %q", tool, got.Path, wantPath)
 		}
-		if got.body != nil {
-			t.Errorf("%s: body = %#v, want nil", tool, got.body)
+		if got.Body != nil {
+			t.Errorf("%s: body = %#v, want nil", tool, got.Body)
 		}
 		keys := containerImageDispatchQueryKeys[tool]
-		if n, wantN := len(got.query), len(keys); n != wantN {
-			t.Fatalf("%s: query carries %d keys (%#v), want %d", tool, n, got.query, wantN)
+		if n, wantN := len(got.Query), len(keys); n != wantN {
+			t.Fatalf("%s: query carries %d keys (%#v), want %d", tool, n, got.Query, wantN)
 		}
 		for _, key := range keys {
-			value, present := got.query[key]
+			value, present := got.Query[key]
 			if !present {
 				t.Errorf("%s: dispatch dropped %q entirely", tool, key)
 				continue
@@ -210,13 +210,13 @@ func TestContainerImageDispatchKeepsEveryQueryKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveRoute(%s, empty) error = %v, want nil", tt.tool, err)
 		}
-		if got := bare.query["limit"]; got != tt.wantLimit {
+		if got := bare.Query["limit"]; got != tt.wantLimit {
 			t.Errorf("%s: absent limit -> %q, want %q", tt.tool, got, tt.wantLimit)
 		}
-		if got := bare.query["offset"]; got != tt.wantOffset {
+		if got := bare.Query["offset"]; got != tt.wantOffset {
 			t.Errorf("%s: absent offset -> %q, want %q", tt.tool, got, tt.wantOffset)
 		}
-		if got := bare.query["group_by"]; got != tt.wantGroup {
+		if got := bare.Query["group_by"]; got != tt.wantGroup {
 			t.Errorf("%s: absent group_by -> %q, want %q", tt.tool, got, tt.wantGroup)
 		}
 	}
@@ -238,8 +238,8 @@ func TestContainerImageTagHistoryKeepsItsOwnPathPrefixThroughDispatch(t *testing
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got.path != "/api/v0/images/tag-history" {
-		t.Fatalf("tag history path = %q, want /api/v0/images/tag-history", got.path)
+	if got.Path != "/api/v0/images/tag-history" {
+		t.Fatalf("tag history path = %q, want /api/v0/images/tag-history", got.Path)
 	}
 	for _, tool := range []string{
 		"list_container_image_identities",
@@ -250,8 +250,8 @@ func TestContainerImageTagHistoryKeepsItsOwnPathPrefixThroughDispatch(t *testing
 		if err != nil {
 			t.Fatalf("resolveRoute(%s) error = %v, want nil", tool, err)
 		}
-		if sibling.path == got.path {
-			t.Fatalf("%s resolved to the tag-history path %q", tool, got.path)
+		if sibling.Path == got.Path {
+			t.Fatalf("%s resolved to the tag-history path %q", tool, got.Path)
 		}
 	}
 }
@@ -363,11 +363,11 @@ func TestResolveRouteMapsContainerImageAggregatesForwardSourceRepositoryScope(t 
 			if err != nil {
 				t.Fatalf("resolveRoute() error = %v, want nil", err)
 			}
-			if got, want := route.query["source_repository_id"], "repo://example/api"; got != want {
-				t.Fatalf("route.query[source_repository_id] = %#v, want %#v", got, want)
+			if got, want := route.Query["source_repository_id"], "repo://example/api"; got != want {
+				t.Fatalf("route.Query[source_repository_id] = %#v, want %#v", got, want)
 			}
-			if got, want := route.query["repository_id"], ""; got != want {
-				t.Fatalf("route.query[repository_id] = %#v, want empty OCI scope", got)
+			if got, want := route.Query["repository_id"], ""; got != want {
+				t.Fatalf("route.Query[repository_id] = %#v, want empty OCI scope", got)
 			}
 		})
 	}

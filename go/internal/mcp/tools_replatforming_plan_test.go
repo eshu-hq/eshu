@@ -20,15 +20,15 @@ func TestResolveRouteMapsComposeReplatformingPlan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if route.path != "/api/v0/replatforming/plans" {
-		t.Fatalf("route.path = %q, want /api/v0/replatforming/plans", route.path)
+	if route.Path != "/api/v0/replatforming/plans" {
+		t.Fatalf("route.Path = %q, want /api/v0/replatforming/plans", route.Path)
 	}
-	if route.method != "POST" {
-		t.Fatalf("route.method = %q, want POST", route.method)
+	if route.Method != "POST" {
+		t.Fatalf("route.Method = %q, want POST", route.Method)
 	}
-	body, ok := route.body.(map[string]any)
+	body, ok := route.Body.(map[string]any)
 	if !ok {
-		t.Fatalf("route.body type = %T, want map[string]any", route.body)
+		t.Fatalf("route.Body type = %T, want map[string]any", route.Body)
 	}
 	if got, want := body["scope_kind"], "account"; got != want {
 		t.Fatalf("body[scope_kind] = %#v, want %#v", got, want)

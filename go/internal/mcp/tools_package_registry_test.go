@@ -34,11 +34,11 @@ func TestResolveRouteMapsListPackageRegistryDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/package-registry/dependencies"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/package-registry/dependencies"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }
 
@@ -53,10 +53,10 @@ func TestResolveRouteMapsListPackageRegistryCorrelations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/package-registry/correlations"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/package-registry/correlations"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 }

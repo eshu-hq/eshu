@@ -25,10 +25,10 @@ func TestComponentExtensionToolsResolveToQueryRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(list_component_extensions) error = %v, want nil", err)
 	}
-	if got, want := inventory.method, "GET"; got != want {
+	if got, want := inventory.Method, "GET"; got != want {
 		t.Fatalf("inventory method = %q, want %q", got, want)
 	}
-	if got, want := inventory.path, "/api/v0/component-extensions"; got != want {
+	if got, want := inventory.Path, "/api/v0/component-extensions"; got != want {
 		t.Fatalf("inventory path = %q, want %q", got, want)
 	}
 
@@ -38,10 +38,10 @@ func TestComponentExtensionToolsResolveToQueryRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(list_component_extensions limit) error = %v, want nil", err)
 	}
-	if got, want := boundedInventory.path, "/api/v0/component-extensions"; got != want {
+	if got, want := boundedInventory.Path, "/api/v0/component-extensions"; got != want {
 		t.Fatalf("bounded inventory path = %q, want %q", got, want)
 	}
-	if got, want := boundedInventory.query["limit"], "1"; got != want {
+	if got, want := boundedInventory.Query["limit"], "1"; got != want {
 		t.Fatalf("bounded inventory limit query = %q, want %q", got, want)
 	}
 
@@ -51,10 +51,10 @@ func TestComponentExtensionToolsResolveToQueryRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(get_component_extension_diagnostics) error = %v, want nil", err)
 	}
-	if got, want := diagnostics.method, "GET"; got != want {
+	if got, want := diagnostics.Method, "GET"; got != want {
 		t.Fatalf("diagnostics method = %q, want %q", got, want)
 	}
-	if got, want := diagnostics.path, "/api/v0/component-extensions/dev.eshu.collector.aws/diagnostics"; got != want {
+	if got, want := diagnostics.Path, "/api/v0/component-extensions/dev.eshu.collector.aws/diagnostics"; got != want {
 		t.Fatalf("diagnostics path = %q, want %q", got, want)
 	}
 }

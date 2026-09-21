@@ -79,7 +79,7 @@ func TestFailClosedToolsDocumentScopedRefusal(t *testing.T) {
 			t.Fatalf("tool %q is registered but has no dispatch route: %v", tool.Name, err)
 		}
 
-		req := httptest.NewRequest(route.method, route.path, nil)
+		req := httptest.NewRequest(route.Method, route.Path, nil)
 		failClosed := query.IsPendingRowFilteringRoute(req) || query.IsSharedKeyOnlyRoute(req)
 		if !failClosed {
 			continue
@@ -89,7 +89,7 @@ func TestFailClosedToolsDocumentScopedRefusal(t *testing.T) {
 			t.Errorf(
 				"tool %q dispatches to %s %s, which refuses scoped-token callers, "+
 					"but its description documents no scoped-token refusal: %q",
-				tool.Name, route.method, route.path, tool.Description,
+				tool.Name, route.Method, route.Path, tool.Description,
 			)
 		}
 	}

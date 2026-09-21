@@ -69,11 +69,11 @@ func TestResolveRouteUsesExactDeadCodeChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -112,18 +112,18 @@ func TestDeadCodeDispatchKeepsEveryBodyKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveRoute(%s) error = %v, want nil", tool, err)
 		}
-		if got.method != "POST" {
-			t.Errorf("%s method = %q, want POST", tool, got.method)
+		if got.Method != "POST" {
+			t.Errorf("%s method = %q, want POST", tool, got.Method)
 		}
-		if got.path != wantPath {
-			t.Errorf("%s path = %q, want %q", tool, got.path, wantPath)
+		if got.Path != wantPath {
+			t.Errorf("%s path = %q, want %q", tool, got.Path, wantPath)
 		}
-		if got.query != nil {
-			t.Errorf("%s query = %#v, want nil", tool, got.query)
+		if got.Query != nil {
+			t.Errorf("%s query = %#v, want nil", tool, got.Query)
 		}
-		body, ok := got.body.(map[string]any)
+		body, ok := got.Body.(map[string]any)
 		if !ok {
-			t.Fatalf("%s body type = %T, want map[string]any", tool, got.body)
+			t.Fatalf("%s body type = %T, want map[string]any", tool, got.Body)
 		}
 		keys := deadCodeBodyKeys[tool]
 		if n, wantN := len(body), len(keys); n != wantN {
@@ -149,7 +149,7 @@ func TestDeadCodeDispatchKeepsEveryBodyKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(bare) error = %v, want nil", err)
 	}
-	bareBody := bare.body.(map[string]any)
+	bareBody := bare.Body.(map[string]any)
 	if value := bareBody["limit"]; value != 100 {
 		t.Errorf("absent limit -> %#v, want the default 100", value)
 	}
@@ -173,7 +173,7 @@ func TestDeadCodeDispatchKeepsEveryBodyKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute(cross bare) error = %v, want nil", err)
 	}
-	crossBody := cross.body.(map[string]any)
+	crossBody := cross.Body.(map[string]any)
 	consumers, ok := crossBody["consumer_repo_ids"].([]string)
 	if !ok || consumers == nil || len(consumers) != 0 {
 		t.Errorf("absent consumer_repo_ids -> %#v (%T), want a non-nil empty []string",

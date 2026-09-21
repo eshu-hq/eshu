@@ -10,15 +10,6 @@ import (
 
 // supplyChainImpactRoute adapts the child package's supply-chain-impact
 // request selection into the root dispatcher's transport route.
-func supplyChainImpactRoute(toolName string, args map[string]any) (*route, bool) {
-	request, handled := supplychainimpacttools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true
+func supplyChainImpactRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
+	return adaptChildRoute(supplychainimpacttools.Route(toolName, routecontract.Arguments(args)))
 }

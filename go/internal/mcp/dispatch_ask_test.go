@@ -6,6 +6,8 @@ package mcp
 import (
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
 )
 
 func TestReadOnlyToolsKeepsAskRegistrationPosition(t *testing.T) {
@@ -43,10 +45,10 @@ func TestResolveRouteMapsAsk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	want := &route{
-		method: "POST",
-		path:   "/api/v0/ask",
-		body: map[string]any{
+	want := &routecontract.Request{
+		Method: "POST",
+		Path:   "/api/v0/ask",
+		Body: map[string]any{
 			"question": "what is the deployment story for service X?",
 			"format":   "markdown",
 		},

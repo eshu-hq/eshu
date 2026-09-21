@@ -95,26 +95,26 @@ func TestResolveRouteMapsSupplyChainImpactFindingsToBoundedQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/supply-chain/impact/findings"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/supply-chain/impact/findings"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
-	if got, want := route.query["cve_id"], "CVE-2026-0001"; got != want {
-		t.Fatalf("route.query[cve_id] = %#v, want %#v", got, want)
+	if got, want := route.Query["cve_id"], "CVE-2026-0001"; got != want {
+		t.Fatalf("route.Query[cve_id] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["impact_status"], "affected_exact"; got != want {
-		t.Fatalf("route.query[impact_status] = %#v, want %#v", got, want)
+	if got, want := route.Query["impact_status"], "affected_exact"; got != want {
+		t.Fatalf("route.Query[impact_status] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["image_ref"], "registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
-		t.Fatalf("route.query[image_ref] = %#v, want %#v", got, want)
+	if got, want := route.Query["image_ref"], "registry.example.com/team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("route.Query[image_ref] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["limit"], "25"; got != want {
-		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	if got, want := route.Query["limit"], "25"; got != want {
+		t.Fatalf("route.Query[limit] = %#v, want %#v", got, want)
 	}
-	if got, want := route.query["profile"], "comprehensive"; got != want {
-		t.Fatalf("route.query[profile] = %#v, want %#v", got, want)
+	if got, want := route.Query["profile"], "comprehensive"; got != want {
+		t.Fatalf("route.Query[profile] = %#v, want %#v", got, want)
 	}
 }
 

@@ -69,11 +69,11 @@ func TestResolveRouteUsesExactPackageRegistryChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)

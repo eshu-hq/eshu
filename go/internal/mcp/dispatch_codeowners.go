@@ -10,15 +10,6 @@ import (
 
 // codeownersRoute adapts the child package's CODEOWNERS ownership request into
 // the root dispatcher's transport route.
-func codeownersRoute(toolName string, args map[string]any) (*route, bool) {
-	request, handled := codeownerstools.Route(toolName, routecontract.Arguments(args))
-	if !handled {
-		return nil, false
-	}
-	return &route{
-		method: request.Method,
-		path:   request.Path,
-		body:   request.Body,
-		query:  request.Query,
-	}, true
+func codeownersRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
+	return adaptChildRoute(codeownerstools.Route(toolName, routecontract.Arguments(args)))
 }

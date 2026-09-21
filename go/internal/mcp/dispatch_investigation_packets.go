@@ -3,29 +3,33 @@
 
 package mcp
 
-import "strconv"
+import (
+	"strconv"
 
-func investigationPacketRoute(toolName string, args map[string]any) (*route, bool) {
+	"github.com/eshu-hq/eshu/go/internal/mcp/contract/route"
+)
+
+func investigationPacketRoute(toolName string, args map[string]any) (*routecontract.Request, bool) {
 	switch toolName {
 	case "export_supply_chain_impact_packet":
-		return &route{
-			method: "GET",
-			path:   "/api/v0/investigations/supply-chain/impact/packet",
-			query: investigationPacketQuery(args,
+		return &routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/investigations/supply-chain/impact/packet",
+			Query: investigationPacketQuery(args,
 				"finding_id", "advisory_id", "cve_id", "package_id", "repository_id",
 				"subject_digest", "image_ref", "workload_id", "service_id"),
 		}, true
 	case "export_deployable_unit_packet":
-		return &route{
-			method: "GET",
-			path:   "/api/v0/investigations/deployable-unit/packet",
-			query:  investigationPacketQuery(args, "scope_id", "generation_id", "repository_id", "repo_id"),
+		return &routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/investigations/deployable-unit/packet",
+			Query:  investigationPacketQuery(args, "scope_id", "generation_id", "repository_id", "repo_id"),
 		}, true
 	case "export_cloud_runtime_drift_packet":
-		return &route{
-			method: "GET",
-			path:   "/api/v0/investigations/drift/packet",
-			query: investigationPacketQuery(args,
+		return &routecontract.Request{
+			Method: "GET",
+			Path:   "/api/v0/investigations/drift/packet",
+			Query: investigationPacketQuery(args,
 				"scope_id", "account_id", "project_id", "subscription_id",
 				"provider", "cloud_resource_uid"),
 		}, true

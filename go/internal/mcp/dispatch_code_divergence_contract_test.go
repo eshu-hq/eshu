@@ -67,11 +67,11 @@ func TestResolveRouteUsesExactCodeDivergenceChildRequest(t *testing.T) {
 			if !handled {
 				t.Fatalf("child Route(%s) handled = false, want true", tool)
 			}
-			want := &route{
-				method: request.Method,
-				path:   request.Path,
-				body:   request.Body,
-				query:  request.Query,
+			want := &routecontract.Request{
+				Method: request.Method,
+				Path:   request.Path,
+				Body:   request.Body,
+				Query:  request.Query,
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("resolveRoute(%s, %s) = %#v, want child request %#v", tool, tt.name, got, want)
@@ -108,18 +108,18 @@ func TestCodeDivergenceDispatchKeepsEveryBodyKey(t *testing.T) {
 		if err != nil {
 			t.Fatalf("resolveRoute(%s) error = %v, want nil", tool, err)
 		}
-		if got.method != "POST" {
-			t.Errorf("%s method = %q, want POST", tool, got.method)
+		if got.Method != "POST" {
+			t.Errorf("%s method = %q, want POST", tool, got.Method)
 		}
-		if got.path != wantPath {
-			t.Errorf("%s path = %q, want %q", tool, got.path, wantPath)
+		if got.Path != wantPath {
+			t.Errorf("%s path = %q, want %q", tool, got.Path, wantPath)
 		}
-		if got.query != nil {
-			t.Errorf("%s query = %#v, want nil", tool, got.query)
+		if got.Query != nil {
+			t.Errorf("%s query = %#v, want nil", tool, got.Query)
 		}
-		body, ok := got.body.(map[string]any)
+		body, ok := got.Body.(map[string]any)
 		if !ok {
-			t.Fatalf("%s body type = %T, want map[string]any", tool, got.body)
+			t.Fatalf("%s body type = %T, want map[string]any", tool, got.Body)
 		}
 		keys := codeDivergenceBodyKeys[tool]
 		if n, wantN := len(body), len(keys); n != wantN {
@@ -146,7 +146,7 @@ func TestCodeDivergenceDispatchKeepsEveryBodyKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute defaults error = %v, want nil", err)
 	}
-	emptyBody := empty.body.(map[string]any)
+	emptyBody := empty.Body.(map[string]any)
 	for key, wantValue := range map[string]any{
 		"limit": 25, "offset": 0, "kind": "", "include_tests": false,
 	} {

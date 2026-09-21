@@ -20,11 +20,11 @@ func TestResolveRouteMapsGenerationLifecycleToBoundedQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.method, "GET"; got != want {
-		t.Fatalf("route.method = %q, want %q", got, want)
+	if got, want := route.Method, "GET"; got != want {
+		t.Fatalf("route.Method = %q, want %q", got, want)
 	}
-	if got, want := route.path, "/api/v0/freshness/generations"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/freshness/generations"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"scope_id":       "git-repository-scope:acme/app",
@@ -35,8 +35,8 @@ func TestResolveRouteMapsGenerationLifecycleToBoundedQuery(t *testing.T) {
 		"status":         "active",
 		"limit":          "75",
 	} {
-		if got := route.query[key]; got != want {
-			t.Fatalf("route.query[%s] = %q, want %q", key, got, want)
+		if got := route.Query[key]; got != want {
+			t.Fatalf("route.Query[%s] = %q, want %q", key, got, want)
 		}
 	}
 }
@@ -50,7 +50,7 @@ func TestResolveRouteGenerationLifecycleDefaultLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.query["limit"], "50"; got != want {
+	if got, want := route.Query["limit"], "50"; got != want {
 		t.Fatalf("default limit = %q, want %q", got, want)
 	}
 }
@@ -68,8 +68,8 @@ func TestResolveRouteMapsChangedSinceToBoundedQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.path, "/api/v0/freshness/changed-since"; got != want {
-		t.Fatalf("route.path = %q, want %q", got, want)
+	if got, want := route.Path, "/api/v0/freshness/changed-since"; got != want {
+		t.Fatalf("route.Path = %q, want %q", got, want)
 	}
 	for key, want := range map[string]string{
 		"scope_id":            "git-repository-scope:acme/app",
@@ -78,8 +78,8 @@ func TestResolveRouteMapsChangedSinceToBoundedQuery(t *testing.T) {
 		"since_observed_at":   "2026-06-09T10:00:00Z",
 		"sample_limit":        "40",
 	} {
-		if got := route.query[key]; got != want {
-			t.Fatalf("route.query[%s] = %q, want %q", key, got, want)
+		if got := route.Query[key]; got != want {
+			t.Fatalf("route.Query[%s] = %q, want %q", key, got, want)
 		}
 	}
 }
@@ -94,7 +94,7 @@ func TestResolveRouteChangedSinceDefaultSampleLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolveRoute() error = %v, want nil", err)
 	}
-	if got, want := route.query["sample_limit"], "25"; got != want {
+	if got, want := route.Query["sample_limit"], "25"; got != want {
 		t.Fatalf("default sample_limit = %q, want %q", got, want)
 	}
 }
