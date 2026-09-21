@@ -59,8 +59,15 @@ put exactly those stale values back into bucket reads.
 
 The #6843 parity battery itself is removed: it proves the Postgres fact
 path buckets identically to the graph scan, and its Postgres side no
-longer exists. Only that cross-store comparison goes; graph bucket truth
-for both labels keeps three independent proofs:
+longer exists.
+
+What that costs, stated precisely rather than waved at: the battery was
+added BY #6843 to prove its new Postgres path matched the graph, so with
+that path gone the comparison has no second side. No coverage that
+predated #6843 is lost. There is no live route-level bucket test for
+`TerraformStateResource` specifically -- but there was none before #6843
+either, so that gap is pre-existing rather than opened by this change.
+Graph bucket truth keeps three proofs:
 
 - `TestLiveInfraProviderInventoryBucketsNonNull` (#5283), a live
   backend-required test that runs the shipped
@@ -68,8 +75,14 @@ for both labels keeps three independent proofs:
   read over `CloudResource` and asserts no null bucket, the
   `source_system` fallback, and no collapse of a real provider.
 - The B-7 golden corpus snapshot
-  (`testdata/golden/e2e-20repo-snapshot.json`), which holds node-count
-  floors for both `CloudResource` and `TerraformStateResource`.
+  (`testdata/golden/e2e-20repo-snapshot.json`). Its floors are asymmetric
+  and worth stating exactly: `CloudResource` is min 118 / max 124, a real
+  count floor; `TerraformStateResource` is min 1 / max 30, which alone
+  would not catch a collapse from 30 nodes to 1. TSR's protection is the
+  snapshot's #5446 non-vacuous guard instead -- at least one
+  `TerraformStateResource` node carrying `provider='aws'`, with row tokens
+  on `provider` and `tf_attr_instance_type` -- which fails if the provider
+  binding stops reaching the node.
 - `tfstate_canonical_writer_stale_attrs_test.go`, which the battery
   itself named as the owner of the TSR stale-scalar behavior.
 
@@ -132,7 +145,7 @@ and this file, so both built an identical gate binary.
 | `/infra/resources/inventory` p95 | 1.22s | 90ms | 76ms | 2000ms |
 | `/infra/resources/count` blks | 221,025 | **24,913** | **24,913** | 74,739 |
 | `/infra/resources/inventory` blks | 221,025 | **24,913** | **24,913** | 74,739 |
-| `/cloud/inventory` blks | 48,617 | 48,622 | 48,622 | 145,866 |
+| `/cloud/inventory` blks | 48,617* | 48,622 | 48,622 | 145,866 |
 | `/iac/resources` blks | 24,976 | 24,977 | 24,977 | 74,931 |
 
 24,913 is the pre-#6843 figure exactly, not an approximation of it. The
@@ -147,6 +160,11 @@ the same property that refutes the #6909 variance diagnosis below.
 
 `/cloud/inventory` and `/iac/resources` are listed because they read the
 same corpus and must not move. They did not.
+
+\* The `/cloud/inventory` before-figure is back-derived, not measured by
+this drive: main's committed budget is 145,851 and the renderer's formula
+is `ceil(max * 3.0)`, which divides exactly to 48,617. No gate run on main
+was taken for it here. The after-figures are measured.
 
 Work budgets were regenerated from both runs' reports with
 `scripts/refresh-read-api-work-budgets.sh`, never edited by hand:

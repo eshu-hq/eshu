@@ -144,7 +144,15 @@ func TestLatencyExemptionsIsEmptyUnlessExplicitlyGranted(t *testing.T) {
 }
 
 // TestLatencyExemptionsShipsNoGrants pins the shipped grant set: it is
-// empty, so every route's latency ceiling blocks. #6909's two infra grants
+// empty, so every route's latency ceiling blocks.
+//
+// This reads the real package-level table, NOT a substitute, which is what
+// makes it a guard rather than a restatement. withExemption swaps that
+// table and restores it in t.Cleanup, so this test is only meaningful
+// while the tests in this package run sequentially. No test here calls
+// t.Parallel(). If you add one to a withExemption test, this guard can
+// read the substituted table and pass vacuously -- give it a pristine
+// copy first, or it stops guarding anything. #6909's two infra grants
 // were removed with #6912 -- their premise was runner-speed variance, and the
 // work counter showed a deterministic 8.9x regression instead. A silent
 // addition still fails this test rather than drifting unnoticed. Update it
