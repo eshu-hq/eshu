@@ -26,7 +26,7 @@ const Divergence = `
                 "properties": {
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
                   "kind": {"type": "string", "enum": ["", "exact", "renamed", "drifted", "wrapper_bypass"], "default": "", "description": "Family; blank reads all four. wrapper_bypass nominates from wrapper-family exact groups and qualifies one target at a time over one-hop graph rows; its fingerprint carries the target entity id"},
-                  "limit": {"type": "integer", "default": 25, "maximum": 100},
+                  "limit": {"type": "integer", "default": 25, "maximum": 100, "description": "Caps nominating groups per kind, not emitted findings: one wrapper family can qualify several targets, so a page may carry more findings than this limit"},
                   "offset": {"type": "integer", "default": 0, "maximum": 10000},
                   "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set (exact and renamed families; test files suppress by default). Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings"}
                 }

@@ -463,3 +463,26 @@ func TestCodeHandlerWrapperBypassInvestigate(t *testing.T) {
 		t.Errorf("unknown target status = %d, want 404 body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestWinnerStatsForFallsBackToOnDemandRead pins the P2 fix: when the
+// fan-in winner is a direct caller but not a nominated wrapper, its ids
+// are absent from batched evidence, so winnerStatsFor fetches them with
+// the same single-target read the investigate path uses instead of
+// reporting empty thinness inputs.
+func TestWinnerStatsForFallsBackToOnDemandRead(t *testing.T) {
+	t.Parallel()
+
+	graph := wrapperGraphFixture{
+		callees: map[string][]string{"outsider": {"target-t", "other-fn"}},
+	}
+	handler := wrapperHandler(graph, map[string]codedivergence.Member{}, GraphBackendNornicDB)
+	evidence := &wrapperGraphEvidence{callees: map[string][]string{"w-a": {"target-t"}}}
+	stats, err := handler.winnerStatsFor(context.Background(), "repo-x", "target-t", evidence)(
+		WrapperCallerRow{EntityID: "outsider", Complexity: 7})
+	if err != nil {
+		t.Fatalf("winnerStatsFor = %v, want on-demand stats", err)
+	}
+	if stats.CalleeCount != 2 || stats.TargetCalls != 1 || stats.Complexity != 7 {
+		t.Errorf("stats = %+v, want {CalleeCount:2 TargetCalls:1 Complexity:7}", stats)
+	}
+}

@@ -387,6 +387,10 @@ func (h *CodeHandler) divergenceFindingsData(
 		mergeCounts(counts)
 		assembled = append(assembled, page...)
 	}
+	// Wrapper families expand 1:N: one nominated group can qualify several
+	// targets, so the page may carry more findings than the requested
+	// limit. Limit bounds nominating groups; cursors advance by groups
+	// consumed, so nothing is lost or duplicated, only overshot.
 	wrapperEmitted := false
 	if len(wrapperNominations) > 0 {
 		nominated := make([]string, 0, len(wrapperNominations))

@@ -166,12 +166,36 @@ func (h *CodeHandler) collectWrapperGraphEvidence(
 // winnerStatsFor closes over batched evidence into the thinness inputs
 // Slice A reads for the fan-in winner: complexity rides the caller row,
 // distinct-callee and target-call counts derive from the winner's batched
-// outgoing ids.
-func (evidence *wrapperGraphEvidence) winnerStatsFor(targetID string) func(WrapperCallerRow) (WrapperCandidateStats, error) {
+// outgoing ids. When the winner is a direct caller but not a nominated
+// wrapper, its ids are absent from evidence, so they are fetched on demand
+// with the same single-target read the investigate path uses — otherwise
+// the target would suppress on empty thinness inputs while investigate
+// qualifies it.
+func (h *CodeHandler) winnerStatsFor(
+	ctx context.Context,
+	repoID, targetID string,
+	evidence *wrapperGraphEvidence,
+) func(WrapperCallerRow) (WrapperCandidateStats, error) {
+	backend := h.graphBackend()
+	access := codeGrantAccessFilter(ctx)
 	return func(winner WrapperCallerRow) (WrapperCandidateStats, error) {
+		ids, ok := evidence.callees[winner.EntityID]
+		if !ok {
+			calleesCypher, calleesParams := BuildWrapperCalleesCypher(winner.EntityID, targetID, repoID, backend, access)
+			rows, err := h.runWrapperGraphRows(ctx, calleesCypher, calleesParams)
+			if err != nil {
+				return WrapperCandidateStats{}, err
+			}
+			ids = make([]string, 0, len(rows))
+			for _, row := range rows {
+				if id := StringVal(row, "id"); id != "" {
+					ids = append(ids, id)
+				}
+			}
+		}
 		seen := map[string]struct{}{}
 		targetCalls := 0
-		for _, callee := range evidence.callees[winner.EntityID] {
+		for _, callee := range ids {
 			seen[callee] = struct{}{}
 			if callee == targetID {
 				targetCalls++
@@ -226,13 +250,15 @@ func (h *CodeHandler) assembleWrapperTrack(
 		}
 		canonical, bypassers, sel, err := qualifyWrapperTarget(
 			target, evidence.names[target], direct, evidence.fanIn,
-			evidence.winnerStatsFor(target),
+			h.winnerStatsFor(ctx, repoID, target, evidence),
 		)
 		if err != nil {
 			return nil, nil, err
 		}
 		if !sel.Qualified {
-			suppressions[codedivergence.RuleWrapperUnqualified] += len(direct)
+			// Per target, matching the no-caller count above: the rule
+			// counts unqualified target selections, not their callers.
+			suppressions[codedivergence.RuleWrapperUnqualified]++
 			continue
 		}
 		memberIDs := make([]string, 0, len(bypassers)+1)
