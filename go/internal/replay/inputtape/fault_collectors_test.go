@@ -46,11 +46,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/grafana"
 	"github.com/eshu-hq/eshu/go/internal/collector/jira"
 	"github.com/eshu-hq/eshu/go/internal/collector/loki"
+	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/collector/observability/tempo"
 	"github.com/eshu-hq/eshu/go/internal/collector/ociregistry/distribution"
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry/packageruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/pagerduty"
-	"github.com/eshu-hq/eshu/go/internal/collector/prometheusmimir"
 	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/securityalerts"
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
@@ -148,17 +148,17 @@ func collectorFaultCases() []collectorFaultCase {
 		{
 			surface: "collector:prometheus_mimir",
 			collect: func() error {
-				client, err := prometheusmimir.NewHTTPClient(prometheusmimir.HTTPClientConfig{
+				client, err := prometheus.NewHTTPClient(prometheus.HTTPClientConfig{
 					BaseURL: "https://prometheus.invalid",
 					Client:  timeoutFaultClient(),
 				})
 				if err != nil {
 					return err
 				}
-				_, err = client.CollectObservedMetadata(context.Background(), prometheusmimir.TargetConfig{
+				_, err = client.CollectObservedMetadata(context.Background(), prometheus.TargetConfig{
 					ScopeID:       "prom:cluster:prod",
 					InstanceID:    "prom-prod",
-					Provider:      prometheusmimir.ProviderPrometheus,
+					Provider:      prometheus.ProviderPrometheus,
 					BaseURL:       "https://prometheus.invalid",
 					Token:         "prom-token",
 					ResourceLimit: 50,

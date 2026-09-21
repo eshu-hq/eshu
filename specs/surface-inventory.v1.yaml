@@ -215,15 +215,15 @@ surfaces:
   - category: collector
     name: prometheus_mimir
     readiness: implemented
-    owner: internal/collector/prometheusmimir
+    owner: internal/collector/observability/prometheus
     proof: reference/collector-reducer-readiness.md#promotion-proof
     docs: [reference/collector-reducer-readiness.md]
     collector_contract:
       fact_kinds: *observability_fact_kinds
       projection_surfaces: [observability_coverage_correlation]
       read_surfaces: [GET /api/v0/observability/coverage/correlations, list_observability_coverage]
-      proof_gates: [cd go && go test ./cmd/collector-prometheus-mimir ./internal/collector/prometheusmimir ./internal/reducer ./internal/query ./internal/mcp -count=1]
-      fixture_refs: [go/internal/collector/prometheusmimir/testdata, docs/public/reference/observability-evidence.md]
+      proof_gates: [cd go && go test ./cmd/collector-prometheus-mimir ./internal/collector/observability/prometheus ./internal/reducer ./internal/query ./internal/mcp -count=1]
+      fixture_refs: [go/internal/collector/observability/prometheus/testdata, docs/public/reference/observability-evidence.md]
       truth_profile: provider_gated
   - category: collector
     name: tempo

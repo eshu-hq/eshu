@@ -203,7 +203,7 @@ export ESHU_PROMETHEUS_MIMIR_TENANT_ID="${ESHU_PROMETHEUS_MIMIR_TENANT_ID:-}"
 export ESHU_PROMETHEUS_MIMIR_RESOURCE_LIMIT="${ESHU_PROMETHEUS_MIMIR_RESOURCE_LIMIT:-5}"
 
 cd go
-go test ./internal/collector/prometheusmimir \
+go test ./internal/collector/observability/prometheus \
   -run TestLivePrometheusMimirObservedMetricEvidence -count=1 -v
 ```
 
@@ -253,7 +253,7 @@ To run all four against a prepared environment:
 ```bash
 cd go
 go test ./internal/collector/grafana \
-  ./internal/collector/prometheusmimir \
+  ./internal/collector/observability/prometheus \
   ./internal/collector/loki \
   ./internal/collector/observability/tempo \
   -run 'TestLive.*Observed.*Evidence' -count=1 -v

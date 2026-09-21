@@ -1043,12 +1043,12 @@ linters:
       - path: 'internal/parser/'
         linters:
           - wrapcheck
-      # Remaining collector families: tempo, prometheusmimir,
+      # Remaining collector families: tempo, prometheus,
       # pagerduty, loki, jira, grafana, documentation export.
       - path: 'internal/collector/observability/tempo/'
         linters:
           - wrapcheck
-      - path: 'internal/collector/prometheusmimir/'
+      - path: 'internal/collector/observability/prometheus/'
         linters:
           - wrapcheck
       - path: 'internal/collector/pagerduty/'

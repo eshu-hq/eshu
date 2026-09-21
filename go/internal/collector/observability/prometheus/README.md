@@ -2,10 +2,10 @@
 
 ## Purpose
 
-`internal/collector/prometheusmimir` collects bounded live Prometheus and
-Grafana Mimir metadata for observability evidence. It gives Eshu no-IaC
-fallback, drift candidates, and freshness validation without treating provider
-state as declared GitOps truth.
+`internal/collector/observability/prometheus` collects bounded live
+Prometheus and Grafana Mimir metadata for observability evidence. It gives
+Eshu no-IaC fallback, drift candidates, and freshness validation without
+treating provider state as declared GitOps truth.
 
 ## Ownership boundary
 
@@ -89,7 +89,7 @@ through `prometheus_mimir.observe` / `prometheus_mimir.fetch`, provider request
 counts, fetch duration, facts emitted by fact kind, stale counts, rate-limit
 counts, retry counts, and metadata redaction counts.
 
-No-Regression Evidence (#2361): `go test ./internal/collector/prometheusmimir
+No-Regression Evidence (#2361): `go test ./internal/collector/observability/prometheus
 -count=1` covers SDK-backed base URL validation, bounded HTTP retries, SDK
 `HTTPError` wrapping for hard provider failures, partial coverage warnings,
 Prometheus-compatible API-status errors, tenant redaction, source failure class

@@ -44,7 +44,7 @@ func TestContractEncodeAdoptionRatchet(t *testing.T) {
 			},
 		},
 		{
-			path: "prometheusmimir/envelope.go",
+			path: "observability/prometheus/envelope.go",
 			calls: []string{
 				"EncodeObservabilitySourceInstance",
 				"EncodeObservabilityObservedTarget",

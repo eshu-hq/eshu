@@ -99,7 +99,7 @@ deletions, a net reduction of 102 lines while preserving provider-owned API
 status handling and Loki YAML decoding.
 
 No-Regression Evidence (#2361): `go test ./internal/collector/sdk
-./internal/collector/prometheusmimir ./internal/collector/loki -count=1` covers
+./internal/collector/observability/prometheus ./internal/collector/loki -count=1` covers
 the SDK custom decoder hook, bounded SDK `HTTPError` return path, retry counts
 on hard provider failures, Prometheus/Mimir API-status failures, Loki YAML rule
 decoding, partial warnings, and terminal versus retryable workflow failure
@@ -305,9 +305,9 @@ intentional owner-boundary files:
 - `go/internal/collector/loki/http_client.go` remains the Loki endpoint
   traversal wrapper. Request execution and bounded status failures use
   `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
-- `go/internal/collector/prometheusmimir/http_client.go` remains the
-  Prometheus/Mimir endpoint traversal wrapper. Request execution and bounded
-  status failures use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
+- `go/internal/collector/observability/prometheus/http_client.go` remains
+  the Prometheus/Mimir endpoint traversal wrapper. Request execution and
+  bounded status failures use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
 
 The broader HTTP/client audit also reviewed
 `go/internal/collector/repo/git/selection_github.go`. That file stays outside this

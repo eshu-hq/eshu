@@ -1,8 +1,8 @@
-# AGENTS.md - internal/collector/prometheusmimir guidance
+# AGENTS.md - internal/collector/observability/prometheus guidance
 
 ## Read first
 
-1. `go/internal/collector/prometheusmimir/README.md`
+1. `go/internal/collector/observability/prometheus/README.md`
 2. `docs/public/reference/observability-evidence.md`
 3. `docs/public/guides/collector-authoring.md`
 4. `go/internal/facts/observability.go`

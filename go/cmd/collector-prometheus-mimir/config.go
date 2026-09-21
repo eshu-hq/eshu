@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/prometheusmimir"
+	"github.com/eshu-hq/eshu/go/internal/collector/observability/prometheus"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -29,7 +29,7 @@ type claimedRuntimeConfig struct {
 	PollInterval      time.Duration
 	ClaimLeaseTTL     time.Duration
 	HeartbeatInterval time.Duration
-	Source            prometheusmimir.SourceConfig
+	Source            prometheus.SourceConfig
 }
 
 type metricRuntimeConfiguration struct {
@@ -100,7 +100,7 @@ func selectPrometheusMimirInstance(
 	requestedInstanceID = strings.TrimSpace(requestedInstanceID)
 	var matches []workflow.DesiredCollectorInstance
 	for _, instance := range instances {
-		if instance.CollectorKind != scope.CollectorKind(prometheusmimir.CollectorKind) {
+		if instance.CollectorKind != scope.CollectorKind(prometheus.CollectorKind) {
 			continue
 		}
 		if requestedInstanceID != "" && instance.InstanceID != requestedInstanceID {
@@ -125,8 +125,8 @@ func validatePrometheusMimirInstance(instance workflow.DesiredCollectorInstance)
 	if err := instance.Validate(); err != nil {
 		return fmt.Errorf("prometheus/mimir collector instance: %w", err)
 	}
-	if instance.CollectorKind != scope.CollectorKind(prometheusmimir.CollectorKind) {
-		return fmt.Errorf("prometheus/mimir collector requires collector_kind %q", prometheusmimir.CollectorKind)
+	if instance.CollectorKind != scope.CollectorKind(prometheus.CollectorKind) {
+		return fmt.Errorf("prometheus/mimir collector requires collector_kind %q", prometheus.CollectorKind)
 	}
 	if !instance.Enabled {
 		return fmt.Errorf("prometheus/mimir collector requires enabled collector instance")
@@ -140,39 +140,39 @@ func validatePrometheusMimirInstance(instance workflow.DesiredCollectorInstance)
 func parsePrometheusMimirRuntimeConfiguration(
 	instance workflow.DesiredCollectorInstance,
 	getenv func(string) string,
-) (prometheusmimir.SourceConfig, error) {
+) (prometheus.SourceConfig, error) {
 	var decoded metricRuntimeConfiguration
 	if err := json.Unmarshal([]byte(instance.Configuration), &decoded); err != nil {
-		return prometheusmimir.SourceConfig{}, fmt.Errorf("decode prometheus/mimir collector configuration: %w", err)
+		return prometheus.SourceConfig{}, fmt.Errorf("decode prometheus/mimir collector configuration: %w", err)
 	}
-	targets := make([]prometheusmimir.TargetConfig, 0, len(decoded.Targets))
+	targets := make([]prometheus.TargetConfig, 0, len(decoded.Targets))
 	for i, target := range decoded.Targets {
 		mapped, err := mapTarget(target, getenv)
 		if err != nil {
-			return prometheusmimir.SourceConfig{}, fmt.Errorf("targets[%d]: %w", i, err)
+			return prometheus.SourceConfig{}, fmt.Errorf("targets[%d]: %w", i, err)
 		}
 		targets = append(targets, mapped)
 	}
-	return prometheusmimir.SourceConfig{
+	return prometheus.SourceConfig{
 		CollectorInstanceID: instance.InstanceID,
 		Targets:             targets,
 	}, nil
 }
 
-func mapTarget(target targetJSON, getenv func(string) string) (prometheusmimir.TargetConfig, error) {
+func mapTarget(target targetJSON, getenv func(string) string) (prometheus.TargetConfig, error) {
 	token, err := optionalEnvValue(target.TokenEnv, getenv, "token_env")
 	if err != nil {
-		return prometheusmimir.TargetConfig{}, err
+		return prometheus.TargetConfig{}, err
 	}
 	tenantID, err := optionalEnvOverride(target.TenantID, target.TenantIDEnv, getenv, "tenant_id_env")
 	if err != nil {
-		return prometheusmimir.TargetConfig{}, err
+		return prometheus.TargetConfig{}, err
 	}
 	staleAfter, err := parseOptionalDuration(target.StaleAfter, "stale_after")
 	if err != nil {
-		return prometheusmimir.TargetConfig{}, err
+		return prometheus.TargetConfig{}, err
 	}
-	return prometheusmimir.TargetConfig{
+	return prometheus.TargetConfig{
 		Provider:         strings.TrimSpace(target.Provider),
 		ScopeID:          strings.TrimSpace(target.ScopeID),
 		InstanceID:       strings.TrimSpace(target.InstanceID),
