@@ -1298,14 +1298,10 @@
           "status": "unsupported",
           "max_truth_level": "unsupported",
           "required_runtime": "deployed_services",
-          "max_scope_size": "multi_repo_platform"
+          "max_scope_size": "none"
         }
       },
       "proof_signals": [
-        {
-          "kind": "compose_e2e",
-          "ref": "compare-paths-pending"
-        },
         {
           "kind": "go_test",
           "ref": "./internal/mcp/code/intel"
@@ -1317,10 +1313,6 @@
         {
           "kind": "integration_test",
           "ref": "local-lightweight-unsupported-compare-paths"
-        },
-        {
-          "kind": "remote_validation",
-          "ref": "prod-compare-paths-pending"
         }
       ],
       "console": false,
