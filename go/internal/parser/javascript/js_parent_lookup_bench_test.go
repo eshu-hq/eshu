@@ -18,7 +18,7 @@ import (
 // deep under export_statement and namespace wrappers. The JS/TS dead-code and
 // export-surface helpers walk node.Parent() per declaration to recover ancestor
 // context (is-exported, enclosing class, CommonJS plugin object). Before the
-// per-parse javaScriptParentLookup landed, each Parent() crossed cgo into
+// per-parse syntax.ParentLookup landed, each Parent() crossed cgo into
 // ts_node_parent and the pattern scaled as O(n_declarations * depth) cgo
 // crossings per file, making runtime.cgocall ~48% of all parse CPU on a
 // full-corpus profile (see #3586). This benchmark is the focused regression
@@ -158,7 +158,7 @@ func isExportedViaCgoParent(node *tree_sitter.Node) bool {
 }
 
 // benchParentLookup is a local benchmark scaffold that mirrors the shape of
-// the production javaScriptParentLookup in go/internal/parser/javascript. It
+// the production syntax.ParentLookup in go/internal/parser/javascript/syntax. It
 // is used only by BenchmarkJavaScriptIsExportedParentLookup to measure the
 // speedup story independently of the parser integration path. The mechanism
 // regression gate (TestJavaScriptParentLookupEliminatesCgoCrossings) lives in

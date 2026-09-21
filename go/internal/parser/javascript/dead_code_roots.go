@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -23,7 +24,7 @@ type javaScriptDeadCodeEvidence struct {
 	// parents amortizes ancestor traversal so dead-code helpers consult a Go
 	// map instead of re-entering cgo via ts_node_parent per declaration node
 	// (see #3586). It is built once per Parse() over the file's own tree.
-	parents *javaScriptParentLookup
+	parents *syntax.ParentLookup
 }
 
 func javaScriptDeadCodeRootEvidence(
@@ -32,7 +33,7 @@ func javaScriptDeadCodeRootEvidence(
 	root *tree_sitter.Node,
 	source []byte,
 	siblingParser *javaScriptSiblingParser,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 	fastifyBases map[string]struct{},
 	expressBases map[string]struct{},
 	koaBases map[string]struct{},
@@ -119,7 +120,7 @@ func javaScriptRegisteredDeadCodeRootKinds(
 			return
 		}
 		functionNode := node.ChildByFieldName("function")
-		base, property, ok := javaScriptMemberBaseAndProperty(functionNode, source)
+		base, property, ok := syntax.MemberBaseAndProperty(functionNode, source)
 		if !ok {
 			return
 		}
@@ -140,11 +141,11 @@ func javaScriptRegisteredDeadCodeRootKinds(
 		}
 
 		handlerStart := 1
-		if javaScriptIsExpressRouteChain(functionNode, source) {
+		if syntax.IsExpressRouteChain(functionNode, source) {
 			handlerStart = 0
 		}
 		for i := handlerStart; i < len(args); i++ {
-			for _, handlerName := range javaScriptExpressHandlerNames(&args[i], source) {
+			for _, handlerName := range syntax.ExpressHandlerNames(&args[i], source) {
 				key := strings.ToLower(handlerName)
 				registered[key] = shared.AppendUniqueString(registered[key], "javascript.express_route_registration")
 			}
@@ -265,11 +266,11 @@ func appendRegisteredJavaScriptRootKinds(rootKinds []string, name string, eviden
 	return rootKinds
 }
 
-func javaScriptConstructorClass(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) (*tree_sitter.Node, string) {
+func javaScriptConstructorClass(node *tree_sitter.Node, name string, source []byte, parents *syntax.ParentLookup) (*tree_sitter.Node, string) {
 	if node == nil || node.Kind() != "method_definition" || strings.TrimSpace(name) != "constructor" {
 		return nil, ""
 	}
-	for current := parents.parent(node); current != nil; current = parents.parent(current) {
+	for current := parents.Parent(node); current != nil; current = parents.Parent(current) {
 		switch current.Kind() {
 		case "class_declaration", "abstract_class_declaration":
 			className := nodeText(current.ChildByFieldName("name"), source)
@@ -303,7 +304,7 @@ func javaScriptIsHapiControllerFile(repoRoot string, path string) bool {
 	return strings.Contains(relativePath, "/server/controllers/") || strings.HasPrefix(relativePath, "server/controllers/")
 }
 
-func javaScriptIsHapiPluginRegister(node *tree_sitter.Node, name string, source []byte, hapiPluginFile bool, parents *javaScriptParentLookup) bool {
+func javaScriptIsHapiPluginRegister(node *tree_sitter.Node, name string, source []byte, hapiPluginFile bool, parents *syntax.ParentLookup) bool {
 	if strings.ToLower(strings.TrimSpace(name)) != "register" || node == nil {
 		return false
 	}
@@ -322,7 +323,7 @@ func javaScriptIsHapiPluginRegister(node *tree_sitter.Node, name string, source 
 	if !hapiPluginFile {
 		return false
 	}
-	for current := parents.parent(node); current != nil; current = parents.parent(current) {
+	for current := parents.Parent(node); current != nil; current = parents.Parent(current) {
 		switch current.Kind() {
 		case "object":
 			return true
@@ -333,7 +334,7 @@ func javaScriptIsHapiPluginRegister(node *tree_sitter.Node, name string, source 
 	return false
 }
 
-func javaScriptIsNextJSRouteExport(path string, node *tree_sitter.Node, name string, parents *javaScriptParentLookup) bool {
+func javaScriptIsNextJSRouteExport(path string, node *tree_sitter.Node, name string, parents *syntax.ParentLookup) bool {
 	if !javaScriptIsNextJSRouteModule(path) {
 		return false
 	}
@@ -369,7 +370,7 @@ func javaScriptIsNextJSRouteModule(path string) bool {
 	}
 }
 
-func javaScriptIsNodeSeedExecute(path string, node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptIsNodeSeedExecute(path string, node *tree_sitter.Node, name string, source []byte, parents *syntax.ParentLookup) bool {
 	relativePath := filepath.ToSlash(path)
 	if !strings.Contains(relativePath, "/seed/") && !strings.HasPrefix(relativePath, "seed/") &&
 		!strings.Contains(relativePath, "/seeds/") && !strings.HasPrefix(relativePath, "seeds/") {
@@ -378,7 +379,7 @@ func javaScriptIsNodeSeedExecute(path string, node *tree_sitter.Node, name strin
 	return strings.TrimSpace(name) == "execute" && javaScriptIsCommonJSExport(node, name, source, parents)
 }
 
-func javaScriptIsHapiAMQPConsumer(path string, node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptIsHapiAMQPConsumer(path string, node *tree_sitter.Node, name string, source []byte, parents *syntax.ParentLookup) bool {
 	relativePath := filepath.ToSlash(path)
 	if !strings.Contains(relativePath, "/server/resources/consumers/") &&
 		!strings.HasPrefix(relativePath, "server/resources/consumers/") {
@@ -387,8 +388,8 @@ func javaScriptIsHapiAMQPConsumer(path string, node *tree_sitter.Node, name stri
 	return strings.TrimSpace(name) == "consume" && javaScriptIsCommonJSExport(node, name, source, parents)
 }
 
-func javaScriptIsExported(node *tree_sitter.Node, parents *javaScriptParentLookup) bool {
-	for current := node; current != nil; current = parents.parent(current) {
+func javaScriptIsExported(node *tree_sitter.Node, parents *syntax.ParentLookup) bool {
+	for current := node; current != nil; current = parents.Parent(current) {
 		switch current.Kind() {
 		case "export_statement":
 			return true
@@ -426,8 +427,8 @@ func javaScriptIsNodeScriptFunctionName(name string) bool {
 	}
 }
 
-// Express member-expression helpers (javaScriptMemberBaseAndProperty,
-// javaScriptMemberExpressionBase, javaScriptIsExpressRouteChain,
-// javaScriptExpressHandlerNames, javaScriptIdentifierName) live in
-// javascript_member_expression.go to keep this file under the package size
-// limit.
+// Express member-expression helpers (syntax.MemberBaseAndProperty,
+// the unexported memberExpressionBase, syntax.IsExpressRouteChain,
+// syntax.ExpressHandlerNames, syntax.IdentifierName) live in
+// internal/parser/javascript/syntax/member_expression.go to keep this file
+// under the package size limit.

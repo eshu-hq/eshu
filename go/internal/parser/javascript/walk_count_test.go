@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
 )
@@ -53,7 +54,7 @@ function healthHandler(req, res) { res.send("ok"); }
 	defer tree.Close()
 
 	root := tree.RootNode()
-	parents := buildJavaScriptParentLookup(root)
+	parents := syntax.BuildParentLookup(root)
 	sourceText := fixture
 
 	// Count the walkNamed calls that happen through Parse's call tree by
@@ -82,7 +83,7 @@ function healthHandler(req, res) { res.send("ok"); }
 			_ = cloneNode(node)
 		}
 	})
-	appendJavaScriptTypeReferenceCalls(nil, root, source, "javascript")
+	syntax.AppendTypeReferenceCalls(nil, root, source, "javascript")
 	buildJavaScriptFrameworkSemantics("server.js", root, source, nil, parents, nil, nil, nil, nil, nil)
 
 	countAfterOptimization := count
@@ -93,7 +94,7 @@ function healthHandler(req, res) { res.send("ok"); }
 	_ = buildJavaScriptRootIndexes(root, source, sourceText, "javascript")
 	_ = javaScriptDeadCodeRootEvidencePreGather(root, source)
 	origWalkNamed(root, func(node *tree_sitter.Node) {}) // main walk (no gathering)
-	appendJavaScriptTypeReferenceCalls(nil, root, source, "javascript")
+	syntax.AppendTypeReferenceCalls(nil, root, source, "javascript")
 	_ = buildJavaScriptFrameworkSemanticsPreGather(root, source, parents)
 
 	countBeforeOptimization := count
@@ -145,7 +146,7 @@ func javaScriptFrameworkRegisteredDeadCodeRootKindsPreGather(
 			return
 		}
 		functionNode := node.ChildByFieldName("function")
-		base, property, ok := javaScriptMemberBaseAndProperty(functionNode, source)
+		base, property, ok := syntax.MemberBaseAndProperty(functionNode, source)
 		if !ok {
 			return
 		}
@@ -173,7 +174,7 @@ func javaScriptFrameworkRegisteredDeadCodeRootKindsPreGather(
 
 // buildJavaScriptFrameworkSemanticsPreGather simulates the pre-gather
 // framework semantics path that re-walks the tree per framework.
-func buildJavaScriptFrameworkSemanticsPreGather(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) map[string]any {
+func buildJavaScriptFrameworkSemanticsPreGather(root *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) map[string]any {
 	semantics := map[string]any{"frameworks": []string{}}
 	frameworks := make([]string, 0, 9)
 	if express, ok := detectExpressSemantics(root, source); ok {
@@ -242,7 +243,7 @@ function healthHandler(req, res) { res.send("ok"); }
 	defer tree.Close()
 
 	root := tree.RootNode()
-	parents := buildJavaScriptParentLookup(root)
+	parents := syntax.BuildParentLookup(root)
 	sourceText := fixture
 	ri := buildJavaScriptRootIndexes(root, source, sourceText, "javascript")
 
@@ -259,7 +260,7 @@ function healthHandler(req, res) { res.send("ok"); }
 			gatheredMethods = append(gatheredMethods, cloneNode(node))
 		}
 	})
-	appendJavaScriptTypeReferenceCalls(nil, root, source, "javascript")
+	syntax.AppendTypeReferenceCalls(nil, root, source, "javascript")
 	buildJavaScriptFrameworkSemantics("server.js", root, source, nil, parents, ri.fastifyBases, ri.expressBases, ri.koaBases, gatheredCalls, gatheredMethods)
 
 	t.Logf("optimized Parse walkNamed count: %d", count)
@@ -318,7 +319,7 @@ function h(req, res) { res.send("ok"); }
 	defer tree.Close()
 
 	root := tree.RootNode()
-	parents := buildJavaScriptParentLookup(root)
+	parents := syntax.BuildParentLookup(root)
 	sourceText := fixture
 
 	count = 0
@@ -335,7 +336,7 @@ function h(req, res) { res.send("ok"); }
 			gatheredMethods = append(gatheredMethods, cloneNode(node))
 		}
 	})
-	appendJavaScriptTypeReferenceCalls(payload, root, source, "javascript")
+	syntax.AppendTypeReferenceCalls(payload, root, source, "javascript")
 	buildJavaScriptFrameworkSemantics("server.js", root, source, payload, parents, ri.fastifyBases, ri.expressBases, ri.koaBases, gatheredCalls, gatheredMethods)
 
 	t.Logf("optimized walkNamed count: %d", count)

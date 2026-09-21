@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -136,7 +137,7 @@ func javaScriptKoaRouteEntriesFromGathered(
 		if node.Kind() != "call_expression" {
 			continue
 		}
-		base, property, ok := javaScriptMemberBaseAndProperty(node.ChildByFieldName("function"), source)
+		base, property, ok := syntax.MemberBaseAndProperty(node.ChildByFieldName("function"), source)
 		if !ok || !javaScriptNameSetContains(bases, base) {
 			continue
 		}
@@ -166,7 +167,7 @@ func javaScriptFastifyRouteEntriesFromGathered(
 		if node.Kind() != "call_expression" {
 			continue
 		}
-		base, property, ok := javaScriptMemberBaseAndProperty(node.ChildByFieldName("function"), source)
+		base, property, ok := syntax.MemberBaseAndProperty(node.ChildByFieldName("function"), source)
 		if !ok || !javaScriptNameSetContains(bases, base) {
 			continue
 		}
@@ -186,9 +187,9 @@ func javaScriptFastifyRouteEntriesFromGathered(
 		handler := ""
 		switch len(args) {
 		case 2:
-			handler = javaScriptIdentifierName(&args[1], source)
+			handler = syntax.IdentifierName(&args[1], source)
 		case 3:
-			handler = javaScriptIdentifierName(&args[2], source)
+			handler = syntax.IdentifierName(&args[2], source)
 		}
 		entries = append(entries, routeEntry(method, path, handler))
 	}
@@ -200,7 +201,7 @@ func javaScriptFastifyRouteEntriesFromGathered(
 func javaScriptNestJSRouteEntriesFromGathered(
 	gathered []*tree_sitter.Node,
 	source []byte,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 ) []map[string]string {
 	entries := make([]map[string]string, 0)
 	for _, node := range gathered {
@@ -216,7 +217,7 @@ func javaScriptNestJSRouteEntriesFromGathered(
 		if !ok {
 			continue
 		}
-		handler := javaScriptIdentifierName(node.ChildByFieldName("name"), source)
+		handler := syntax.IdentifierName(node.ChildByFieldName("name"), source)
 		if handler == "" {
 			continue
 		}

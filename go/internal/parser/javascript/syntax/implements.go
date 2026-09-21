@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package syntax
 
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-// javaScriptImplementedInterfaces returns the simple names of the interfaces a
+// ImplementedInterfaces returns the simple names of the interfaces a
 // TypeScript class declares with an `implements` clause (issue #2229). Generic
 // type arguments are ignored and qualified names are reduced to their last
 // segment so a downstream name-resolution index can match the interface entity.
 // JavaScript has no interfaces, so callers only invoke this for TypeScript.
-func javaScriptImplementedInterfaces(node *tree_sitter.Node, source []byte) []string {
+func ImplementedInterfaces(node *tree_sitter.Node, source []byte) []string {
 	names := make([]string, 0)
 	seen := make(map[string]struct{})
 	add := func(raw string) {
-		name := javaScriptLastTypeSegment(strings.TrimSpace(raw))
+		name := lastTypeSegment(strings.TrimSpace(raw))
 		if name == "" {
 			return
 		}
@@ -41,7 +42,7 @@ func javaScriptImplementedInterfaces(node *tree_sitter.Node, source []byte) []st
 		heritageCursor.Close()
 		for j := range heritageChildren {
 			if heritageChildren[j].Kind() == "implements_clause" {
-				collectJavaScriptTypeNames(&heritageChildren[j], source, add)
+				collectTypeNames(&heritageChildren[j], source, add)
 			}
 		}
 	}
@@ -52,7 +53,7 @@ func javaScriptImplementedInterfaces(node *tree_sitter.Node, source []byte) []st
 	return names
 }
 
-func collectJavaScriptTypeNames(n *tree_sitter.Node, source []byte, add func(string)) {
+func collectTypeNames(n *tree_sitter.Node, source []byte, add func(string)) {
 	if n == nil {
 		return
 	}
@@ -61,18 +62,18 @@ func collectJavaScriptTypeNames(n *tree_sitter.Node, source []byte, add func(str
 		// Generic arguments are not implemented interfaces.
 		return
 	case "type_identifier", "nested_type_identifier":
-		add(nodeText(n, source))
+		add(shared.NodeText(n, source))
 		return
 	}
 	cursor := n.Walk()
 	children := n.NamedChildren(cursor)
 	cursor.Close()
 	for i := range children {
-		collectJavaScriptTypeNames(&children[i], source, add)
+		collectTypeNames(&children[i], source, add)
 	}
 }
 
-func javaScriptLastTypeSegment(name string) string {
+func lastTypeSegment(name string) string {
 	if idx := strings.LastIndex(name, "."); idx >= 0 {
 		return name[idx+1:]
 	}

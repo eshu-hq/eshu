@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -66,7 +67,7 @@ func javaScriptFrameworkRegisteredDeadCodeRootKinds(
 			return
 		}
 		functionNode := node.ChildByFieldName("function")
-		base, property, ok := javaScriptMemberBaseAndProperty(functionNode, source)
+		base, property, ok := syntax.MemberBaseAndProperty(functionNode, source)
 		if !ok {
 			return
 		}
@@ -274,7 +275,7 @@ func javaScriptVariableDeclaratorNameValue(node *tree_sitter.Node, source []byte
 	if node == nil || node.Kind() != "variable_declarator" {
 		return "", nil
 	}
-	name := javaScriptIdentifierName(node.ChildByFieldName("name"), source)
+	name := syntax.IdentifierName(node.ChildByFieldName("name"), source)
 	return name, node.ChildByFieldName("value")
 }
 
@@ -330,7 +331,7 @@ func javaScriptRegisterHandlerArgs(
 		if javaScriptArgumentIsStringLiteral(&args[i]) {
 			continue
 		}
-		for _, handlerName := range javaScriptExpressHandlerNames(&args[i], source) {
+		for _, handlerName := range syntax.ExpressHandlerNames(&args[i], source) {
 			key := strings.ToLower(handlerName)
 			registered[key] = shared.AppendUniqueString(registered[key], rootKind)
 		}
@@ -396,7 +397,7 @@ func javaScriptAddName(names map[string]struct{}, name string) {
 	}
 }
 
-func javaScriptIsNestJSControllerMethod(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptIsNestJSControllerMethod(node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
 	if node == nil || node.Kind() != "method_definition" || !javaScriptHasNestJSCommonImport(string(source)) {
 		return false
 	}
@@ -440,12 +441,12 @@ func javaScriptDecoratorsInclude(decorators []string, allowed map[string]struct{
 	return false
 }
 
-func javaScriptNestJSRouteDecorators(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) []string {
+func javaScriptNestJSRouteDecorators(node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) []string {
 	decorators := javaScriptDecorators(node, source, parents)
 	if len(decorators) > 0 || node == nil {
 		return decorators
 	}
-	if parent := parents.parent(node); parent != nil && parent.Kind() == "decorated_definition" {
+	if parent := parents.Parent(node); parent != nil && parent.Kind() == "decorated_definition" {
 		decorators = javaScriptDecorators(parent, source, parents)
 	}
 	if len(decorators) > 0 {
@@ -478,8 +479,8 @@ func javaScriptContiguousLeadingDecorators(node *tree_sitter.Node, source []byte
 	return decorators
 }
 
-func javaScriptEnclosingClassNode(node *tree_sitter.Node, parents *javaScriptParentLookup) *tree_sitter.Node {
-	for current := parents.parent(node); current != nil; current = parents.parent(current) {
+func javaScriptEnclosingClassNode(node *tree_sitter.Node, parents *syntax.ParentLookup) *tree_sitter.Node {
+	for current := parents.Parent(node); current != nil; current = parents.Parent(current) {
 		switch current.Kind() {
 		case "class_declaration", "abstract_class_declaration":
 			return current

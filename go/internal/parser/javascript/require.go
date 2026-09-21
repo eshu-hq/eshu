@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -80,7 +81,7 @@ func javaScriptRequireMemberModuleSource(node *tree_sitter.Node, source []byte) 
 	if !ok {
 		return "", "", false
 	}
-	propertyName := javaScriptIdentifierName(propertyNode, source)
+	propertyName := syntax.IdentifierName(propertyNode, source)
 	if propertyName == "" {
 		return "", "", false
 	}
@@ -111,7 +112,7 @@ func javaScriptRequireModuleSource(node *tree_sitter.Node, source []byte) (strin
 		return "", false
 	}
 
-	if unquoted, ok := trimJavaScriptQuotes(argument); ok {
+	if unquoted, ok := syntax.TrimQuotes(argument); ok {
 		return unquoted, true
 	}
 	return "", false

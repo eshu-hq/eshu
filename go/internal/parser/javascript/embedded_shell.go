@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -352,7 +353,7 @@ func jsStringLiteralValue(node *tree_sitter.Node, source []byte) string {
 		}
 	}
 	text := strings.TrimSpace(nodeText(node, source))
-	if unquoted, ok := trimJavaScriptQuotes(text); ok {
+	if unquoted, ok := syntax.TrimQuotes(text); ok {
 		return unquoted
 	}
 	return text

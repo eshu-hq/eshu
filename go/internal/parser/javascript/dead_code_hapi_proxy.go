@@ -6,30 +6,31 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func javaScriptIsHapiProxyCallback(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptIsHapiProxyCallback(node *tree_sitter.Node, name string, source []byte, parents *syntax.ParentLookup) bool {
 	if node == nil || node.Kind() != "pair" || !javaScriptIsHapiProxyCallbackName(name) {
 		return false
 	}
 	if !isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
 		return false
 	}
-	objectNode := parents.parent(node)
+	objectNode := parents.Parent(node)
 	if objectNode == nil || objectNode.Kind() != "object" {
 		return false
 	}
-	argumentsNode := parents.parent(objectNode)
+	argumentsNode := parents.Parent(objectNode)
 	if argumentsNode == nil || argumentsNode.Kind() != "arguments" {
 		return false
 	}
-	callNode := parents.parent(argumentsNode)
+	callNode := parents.Parent(argumentsNode)
 	if callNode == nil || callNode.Kind() != "call_expression" {
 		return false
 	}
 	functionNode := callNode.ChildByFieldName("function")
-	_, property, ok := javaScriptMemberBaseAndProperty(functionNode, source)
+	_, property, ok := syntax.MemberBaseAndProperty(functionNode, source)
 	return ok && strings.EqualFold(property, "proxy")
 }
 

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -22,8 +23,8 @@ func isJavaScriptFunctionValue(node *tree_sitter.Node) bool {
 	}
 }
 
-func javaScriptInsideFunction(node *tree_sitter.Node, parents *javaScriptParentLookup) bool {
-	for current := parents.parent(node); current != nil; current = parents.parent(current) {
+func javaScriptInsideFunction(node *tree_sitter.Node, parents *syntax.ParentLookup) bool {
+	for current := parents.Parent(node); current != nil; current = parents.Parent(current) {
 		switch current.Kind() {
 		case "function_declaration", "function_expression", "arrow_function", "method_definition":
 			return true
@@ -32,9 +33,9 @@ func javaScriptInsideFunction(node *tree_sitter.Node, parents *javaScriptParentL
 	return false
 }
 
-func javaScriptDecorators(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) []string {
+func javaScriptDecorators(node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) []string {
 	decorators := make([]string, 0)
-	for current := node; current != nil; current = parents.parent(current) {
+	for current := node; current != nil; current = parents.Parent(current) {
 		cursor := current.Walk()
 		for _, child := range current.NamedChildren(cursor) {
 			child := child
@@ -51,7 +52,7 @@ func javaScriptDecorators(node *tree_sitter.Node, source []byte, parents *javaSc
 		if current.Kind() == "decorated_definition" {
 			return decorators
 		}
-		if parents.parent(current) == nil || parents.parent(current).Kind() != "decorated_definition" {
+		if parents.Parent(current) == nil || parents.Parent(current).Kind() != "decorated_definition" {
 			break
 		}
 	}
@@ -66,7 +67,7 @@ func javaScriptTypeParameters(node *tree_sitter.Node, source []byte) []string {
 	if typeParametersNode == nil {
 		return []string{}
 	}
-	return javaScriptTypeParameterNames(nodeText(typeParametersNode, source))
+	return syntax.TypeParameterNames(nodeText(typeParametersNode, source))
 }
 
 func javaScriptCallName(node *tree_sitter.Node, source []byte) string {

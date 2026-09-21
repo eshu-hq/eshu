@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -174,7 +175,7 @@ func buildJavaScriptFrameworkSemantics(
 	root *tree_sitter.Node,
 	source []byte,
 	payload map[string]any,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 	fastifyBases map[string]struct{},
 	expressBases map[string]struct{},
 	koaBases map[string]struct{},

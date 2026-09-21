@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -55,7 +56,7 @@ func detectFastifySemanticsFromGathered(root *tree_sitter.Node, source []byte, f
 	return javaScriptFrameworkRouteSemantics(entries, javaScriptSortedNameSet(fastifyBases)), true
 }
 
-func detectNestJSSemantics(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) (map[string]any, bool) {
+func detectNestJSSemantics(root *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) (map[string]any, bool) {
 	if !javaScriptHasNestJSCommonImport(string(source)) {
 		return nil, false
 	}
@@ -66,7 +67,7 @@ func detectNestJSSemantics(root *tree_sitter.Node, source []byte, parents *javaS
 	return javaScriptFrameworkRouteSemantics(entries, nil), true
 }
 
-func detectNestJSSemanticsFromGathered(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup, gatheredMethodDefinitions []*tree_sitter.Node) (map[string]any, bool) {
+func detectNestJSSemanticsFromGathered(root *tree_sitter.Node, source []byte, parents *syntax.ParentLookup, gatheredMethodDefinitions []*tree_sitter.Node) (map[string]any, bool) {
 	if !javaScriptHasNestJSCommonImport(string(source)) {
 		return nil, false
 	}
@@ -87,7 +88,7 @@ func javaScriptKoaRouteEntries(
 		if node.Kind() != "call_expression" {
 			return
 		}
-		base, property, ok := javaScriptMemberBaseAndProperty(node.ChildByFieldName("function"), source)
+		base, property, ok := syntax.MemberBaseAndProperty(node.ChildByFieldName("function"), source)
 		if !ok || !javaScriptNameSetContains(bases, base) {
 			return
 		}
@@ -121,7 +122,7 @@ func javaScriptKoaRoutePathAndHandler(args []tree_sitter.Node, source []byte) (s
 	}
 	handler := ""
 	if len(args) == handlerIndex+1 {
-		handler = javaScriptIdentifierName(&args[handlerIndex], source)
+		handler = syntax.IdentifierName(&args[handlerIndex], source)
 	}
 	return path, handler, true
 }
@@ -136,7 +137,7 @@ func javaScriptFastifyRouteEntries(
 		if node.Kind() != "call_expression" {
 			return
 		}
-		base, property, ok := javaScriptMemberBaseAndProperty(node.ChildByFieldName("function"), source)
+		base, property, ok := syntax.MemberBaseAndProperty(node.ChildByFieldName("function"), source)
 		if !ok || !javaScriptNameSetContains(bases, base) {
 			return
 		}
@@ -156,9 +157,9 @@ func javaScriptFastifyRouteEntries(
 		handler := ""
 		switch len(args) {
 		case 2:
-			handler = javaScriptIdentifierName(&args[1], source)
+			handler = syntax.IdentifierName(&args[1], source)
 		case 3:
-			handler = javaScriptIdentifierName(&args[2], source)
+			handler = syntax.IdentifierName(&args[2], source)
 		}
 		entries = append(entries, routeEntry(method, path, handler))
 	})
@@ -206,7 +207,7 @@ func javaScriptFastifyRouteObjectEntry(
 				path = jsStringLiteralValue(valueNode, source)
 			}
 		case "handler":
-			handler = javaScriptIdentifierName(valueNode, source)
+			handler = syntax.IdentifierName(valueNode, source)
 		}
 	}
 	method = strings.ToLower(strings.TrimSpace(method))
@@ -219,7 +220,7 @@ func javaScriptFastifyRouteObjectEntry(
 func javaScriptNestJSRouteEntries(
 	root *tree_sitter.Node,
 	source []byte,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 ) []map[string]string {
 	entries := make([]map[string]string, 0)
 	walkNamed(root, func(node *tree_sitter.Node) {
@@ -235,7 +236,7 @@ func javaScriptNestJSRouteEntries(
 		if !ok {
 			return
 		}
-		handler := javaScriptIdentifierName(node.ChildByFieldName("name"), source)
+		handler := syntax.IdentifierName(node.ChildByFieldName("name"), source)
 		if handler == "" {
 			return
 		}
@@ -247,7 +248,7 @@ func javaScriptNestJSRouteEntries(
 func javaScriptNestJSControllerPrefix(
 	classNode *tree_sitter.Node,
 	source []byte,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 ) (string, bool) {
 	if classNode == nil {
 		return "", false
@@ -265,7 +266,7 @@ func javaScriptNestJSControllerPrefix(
 func javaScriptNestJSMethodRoute(
 	methodNode *tree_sitter.Node,
 	source []byte,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 ) (string, string, bool) {
 	for _, decorator := range javaScriptNestJSRouteDecorators(methodNode, source, parents) {
 		name, value, ok := javaScriptDecoratorNameAndStringArg(decorator)
@@ -302,7 +303,7 @@ func javaScriptDecoratorNameAndStringArg(decorator string) (string, string, bool
 	if arg == "" {
 		return name, "", true
 	}
-	if value, ok := trimJavaScriptQuotes(arg); ok {
+	if value, ok := syntax.TrimQuotes(arg); ok {
 		return name, value, true
 	}
 	return "", "", false

@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -67,7 +68,7 @@ func javaScriptCommonJSDefaultExportAliasRootKinds(
 			return
 		}
 		rightNode := node.ChildByFieldName("right")
-		exportedName := javaScriptIdentifierName(rightNode, source)
+		exportedName := syntax.IdentifierName(rightNode, source)
 		if exportedName == "" {
 			return
 		}
@@ -90,14 +91,14 @@ func javaScriptCollectCommonJSModuleExportAlias(node *tree_sitter.Node, source [
 	if strings.TrimSpace(nodeText(valueNode, source)) != "module.exports" {
 		return
 	}
-	name := javaScriptIdentifierName(node.ChildByFieldName("name"), source)
+	name := syntax.IdentifierName(node.ChildByFieldName("name"), source)
 	if name == "" {
 		return
 	}
 	dst[name] = struct{}{}
 }
 
-func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
 	if node == nil || node.Kind() != "method_definition" {
 		return false
 	}
@@ -105,7 +106,7 @@ func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source 
 	if classNode == nil {
 		return false
 	}
-	for current := parents.parent(classNode); current != nil; current = parents.parent(current) {
+	for current := parents.Parent(classNode); current != nil; current = parents.Parent(current) {
 		if current.Kind() == "program" {
 			return false
 		}
@@ -122,8 +123,8 @@ func javaScriptMethodInsideCommonJSDefaultExport(node *tree_sitter.Node, source 
 	return false
 }
 
-func javaScriptNearestClassNode(node *tree_sitter.Node, parents *javaScriptParentLookup) *tree_sitter.Node {
-	for current := parents.parent(node); current != nil; current = parents.parent(current) {
+func javaScriptNearestClassNode(node *tree_sitter.Node, parents *syntax.ParentLookup) *tree_sitter.Node {
+	for current := parents.Parent(node); current != nil; current = parents.Parent(current) {
 		switch current.Kind() {
 		case "class", "class_declaration", "abstract_class_declaration":
 			return current
@@ -158,11 +159,11 @@ func rewriteJavaScriptCommonJSModuleExportAliasFullName(fullName string, aliases
 	return fullName
 }
 
-func javaScriptIsCommonJSExport(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptIsCommonJSExport(node *tree_sitter.Node, name string, source []byte, parents *syntax.ParentLookup) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
 	}
-	for current := node; current != nil; current = parents.parent(current) {
+	for current := node; current != nil; current = parents.Parent(current) {
 		if current.Kind() != "assignment_expression" {
 			continue
 		}
@@ -173,11 +174,11 @@ func javaScriptIsCommonJSExport(node *tree_sitter.Node, name string, source []by
 	return false
 }
 
-func javaScriptIsCommonJSMixinExport(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptIsCommonJSMixinExport(node *tree_sitter.Node, name string, source []byte, parents *syntax.ParentLookup) bool {
 	if strings.TrimSpace(name) == "" {
 		return false
 	}
-	for current := node; current != nil; current = parents.parent(current) {
+	for current := node; current != nil; current = parents.Parent(current) {
 		if current.Kind() != "assignment_expression" {
 			continue
 		}
@@ -203,9 +204,9 @@ func javaScriptCommonJSExportName(node *tree_sitter.Node, source []byte) string 
 	objectText := strings.TrimSpace(nodeText(objectNode, source))
 	switch {
 	case objectText == "module.exports" || strings.HasPrefix(objectText, "module.exports."):
-		return javaScriptFunctionName(propertyNode, source)
+		return syntax.FunctionName(propertyNode, source)
 	case objectText == "exports" || strings.HasPrefix(objectText, "exports."):
-		return javaScriptFunctionName(propertyNode, source)
+		return syntax.FunctionName(propertyNode, source)
 	default:
 		return ""
 	}
@@ -223,7 +224,7 @@ func javaScriptCommonJSExportTargetNodes(node *tree_sitter.Node) (*tree_sitter.N
 }
 
 func javaScriptCommonJSAliasTargetName(node *tree_sitter.Node, source []byte) string {
-	if name := javaScriptIdentifierName(node, source); name != "" {
+	if name := syntax.IdentifierName(node, source); name != "" {
 		return name
 	}
 	if node == nil || node.Kind() != "member_expression" {
@@ -237,7 +238,7 @@ func javaScriptCommonJSAliasTargetName(node *tree_sitter.Node, source []byte) st
 	if strings.TrimSpace(nodeText(objectNode, source)) != "module.exports" {
 		return ""
 	}
-	return javaScriptFunctionName(propertyNode, source)
+	return syntax.FunctionName(propertyNode, source)
 }
 
 func javaScriptExportAssignmentNameNode(node *tree_sitter.Node, source []byte) *tree_sitter.Node {

@@ -1,17 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package syntax
 
 import "strings"
 
-func javaScriptTypeParameterNames(declaration string) []string {
-	section, ok := javaScriptDelimitedSection(declaration, '<', '>')
+// TypeParameterNames returns the declared type-parameter names from a
+// TypeScript generic declaration's source text, in declaration order. It
+// looks for the first top-level `<...>` section and takes the leading
+// identifier of each comma-separated part (ignoring constraints and
+// defaults). An empty slice, never nil, is returned when declaration has no
+// type-parameter section.
+func TypeParameterNames(declaration string) []string {
+	section, ok := delimitedSection(declaration, '<', '>')
 	if !ok {
 		return []string{}
 	}
 
-	parts := javaScriptSplitTopLevelSections(section)
+	parts := splitTopLevelSections(section)
 	typeParameters := make([]string, 0, len(parts))
 	for _, part := range parts {
 		normalized := strings.TrimSpace(part)
@@ -27,7 +33,11 @@ func javaScriptTypeParameterNames(declaration string) []string {
 	return typeParameters
 }
 
-func javaScriptDelimitedSection(text string, open, close byte) (string, bool) {
+// delimitedSection returns the text strictly between the first top-level
+// open/close delimiter pair in text, honoring nesting so an inner `<...>`
+// inside a constraint does not close the outer section early. ok is false
+// when the delimiters are absent or unbalanced.
+func delimitedSection(text string, open, close byte) (string, bool) {
 	start := strings.IndexByte(text, open)
 	if start < 0 {
 		return "", false
@@ -51,7 +61,11 @@ func javaScriptDelimitedSection(text string, open, close byte) (string, bool) {
 	return "", false
 }
 
-func javaScriptSplitTopLevelSections(text string) []string {
+// splitTopLevelSections splits text on commas that are not nested inside
+// angle brackets, parens, braces, or square brackets, so a generic
+// constraint's own commas (e.g. `T extends Record<string, number>`) do not
+// fragment the enclosing type-parameter list.
+func splitTopLevelSections(text string) []string {
 	sections := make([]string, 0)
 	start := 0
 	depthAngles := 0

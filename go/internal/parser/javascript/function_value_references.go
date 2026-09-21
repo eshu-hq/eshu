@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -16,7 +17,7 @@ func javaScriptFunctionValueReferenceCalls(
 	lang string,
 	commonJSModuleAliases map[string]struct{},
 	fastifyBases map[string]struct{},
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 ) []map[string]any {
 	if node == nil || node.Kind() != "call_expression" {
 		return nil
@@ -38,7 +39,7 @@ func javaScriptFunctionValueReferenceCallsFromArguments(
 	lang string,
 	commonJSModuleAliases map[string]struct{},
 	allowDirectHandlerValues bool,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 ) []map[string]any {
 	if argumentsNode == nil {
 		return nil
@@ -57,7 +58,7 @@ func javaScriptFunctionValueReferenceCallsFromArguments(
 			) {
 			return
 		}
-		if parent := parents.parent(child); parent != nil && parent.Kind() == "member_expression" {
+		if parent := parents.Parent(child); parent != nil && parent.Kind() == "member_expression" {
 			return
 		}
 		item := javaScriptFunctionValueReferenceCall(child, source, lang, commonJSModuleAliases)
@@ -121,7 +122,7 @@ func javaScriptFunctionValueReferenceShouldSkipHandlerValue(
 	argumentsNode *tree_sitter.Node,
 	source []byte,
 	allowDirectHandlerValues bool,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 ) bool {
 	if !javaScriptFunctionValueReferenceIsHandlerValue(node, source, parents) {
 		return false
@@ -130,11 +131,11 @@ func javaScriptFunctionValueReferenceShouldSkipHandlerValue(
 		!javaScriptFunctionValueReferenceIsDirectArgumentObjectValue(node, argumentsNode, parents)
 }
 
-func javaScriptFunctionValueReferenceIsHandlerValue(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptFunctionValueReferenceIsHandlerValue(node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
 	if node == nil {
 		return false
 	}
-	parent := parents.parent(node)
+	parent := parents.Parent(node)
 	if parent == nil || parent.Kind() != "pair" {
 		return false
 	}
@@ -150,13 +151,13 @@ func javaScriptFunctionValueReferenceIsHandlerValue(node *tree_sitter.Node, sour
 func javaScriptFunctionValueReferenceIsDirectArgumentObjectValue(
 	node *tree_sitter.Node,
 	argumentsNode *tree_sitter.Node,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 ) bool {
-	parent := parents.parent(node)
+	parent := parents.Parent(node)
 	if parent == nil {
 		return false
 	}
-	objectNode := parents.parent(parent)
+	objectNode := parents.Parent(parent)
 	if objectNode == nil || objectNode.Kind() != "object" || argumentsNode == nil {
 		return false
 	}
@@ -179,7 +180,7 @@ func javaScriptFunctionValueReferenceIsFastifyRouteCall(
 	if len(fastifyBases) == 0 || node == nil || node.Kind() != "call_expression" {
 		return false
 	}
-	base, property, ok := javaScriptMemberBaseAndProperty(node.ChildByFieldName("function"), source)
+	base, property, ok := syntax.MemberBaseAndProperty(node.ChildByFieldName("function"), source)
 	if !ok || strings.ToLower(property) != "route" {
 		return false
 	}
@@ -198,11 +199,11 @@ func javaScriptFunctionValueReferenceNode(node *tree_sitter.Node) bool {
 	}
 }
 
-func javaScriptFunctionValueReferenceIsCallCallee(node *tree_sitter.Node, parents *javaScriptParentLookup) bool {
+func javaScriptFunctionValueReferenceIsCallCallee(node *tree_sitter.Node, parents *syntax.ParentLookup) bool {
 	if node == nil {
 		return false
 	}
-	parent := parents.parent(node)
+	parent := parents.Parent(node)
 	if parent == nil || parent.Kind() != "call_expression" {
 		return false
 	}

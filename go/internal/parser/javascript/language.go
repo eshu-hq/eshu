@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -67,7 +68,7 @@ func Parse(
 	// for collector-side telemetry via payload[fingerprint.StatsKey].
 	fpStats := &fingerprint.Stats{}
 	fpHasError := root.HasError()
-	parents := buildJavaScriptParentLookup(root)
+	parents := syntax.BuildParentLookup(root)
 	sourceText := string(source)
 	payload["embedded_shell_commands"] = embeddedShellCommandPayloads(root, source, outputLanguage)
 	rootIndexes := buildJavaScriptRootIndexes(root, source, sourceText, outputLanguage)
@@ -131,7 +132,7 @@ func Parse(
 			if outputLanguage != "javascript" {
 				classItem["decorators"] = javaScriptDecorators(node, source, parents)
 				classItem["type_parameters"] = javaScriptTypeParameters(node, source)
-				if interfaces := javaScriptImplementedInterfaces(node, source); len(interfaces) > 0 {
+				if interfaces := syntax.ImplementedInterfaces(node, source); len(interfaces) > 0 {
 					classItem["implemented_interfaces"] = interfaces
 				}
 			}
@@ -356,7 +357,7 @@ func Parse(
 		}
 	})
 
-	appendJavaScriptTypeReferenceCalls(payload, root, source, outputLanguage)
+	syntax.AppendTypeReferenceCalls(payload, root, source, outputLanguage)
 	annotateTypeScriptDeclarationMerges(payload, outputLanguage)
 	sortNamedBucket(payload, "functions")
 	payload[fingerprint.StatsKey] = fpStats.Map()
@@ -407,7 +408,7 @@ func appendFunctionDeclaration(
 	fpHasError bool,
 	fpStats *fingerprint.Stats,
 ) {
-	name := javaScriptFunctionName(nameNode, source)
+	name := syntax.FunctionName(nameNode, source)
 	if strings.TrimSpace(name) == "" {
 		return
 	}
@@ -440,19 +441,19 @@ func appendFunctionDeclaration(
 		"end_line":        nodeEndLine(declarationNode),
 		"decorators":      javaScriptDecorators(declarationNode, source, deadCodeRoots.parents),
 		"type_parameters": javaScriptTypeParameters(declarationNode, source),
-		"parameter_count": javaScriptParameterCount(declarationNode.ChildByFieldName("parameters"), source),
+		"parameter_count": syntax.ParameterCount(declarationNode.ChildByFieldName("parameters"), source),
 		"lang":            lang,
 	}
 	if rootKinds := javaScriptDeadCodeRootKinds(path, node, name, source, deadCodeRoots); len(rootKinds) > 0 {
 		item["dead_code_root_kinds"] = rootKinds
 	}
-	if functionType := javaScriptFunctionKind(declarationNode, source); functionType != "" {
+	if functionType := syntax.FunctionKind(declarationNode, source); functionType != "" {
 		item["type"] = functionType
 		if functionType == "generator" {
 			item["semantic_kind"] = "generator"
 		}
 	}
-	if docstring := javaScriptDocstring(declarationNode, source); docstring != "" {
+	if docstring := syntax.Docstring(declarationNode, source); docstring != "" {
 		item["docstring"] = docstring
 	}
 	for key, value := range javaScriptFunctionSemantics(declarationNode, source, lang, deadCodeRoots.parents) {

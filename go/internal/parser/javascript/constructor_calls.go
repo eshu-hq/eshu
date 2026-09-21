@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -141,7 +142,7 @@ func javaScriptDeclaredTypeName(node *tree_sitter.Node, source []byte) string {
 	}
 	typeNode := node.ChildByFieldName("type")
 	if typeNode != nil {
-		return javaScriptTypeReferenceLeafName(nodeText(typeNode, source))
+		return syntax.TypeReferenceLeafName(nodeText(typeNode, source))
 	}
 	cursor := node.Walk()
 	children := node.NamedChildren(cursor)
@@ -149,7 +150,7 @@ func javaScriptDeclaredTypeName(node *tree_sitter.Node, source []byte) string {
 	for i := range children {
 		child := children[i]
 		if child.Kind() == "type_annotation" {
-			return javaScriptTypeReferenceLeafName(nodeText(&child, source))
+			return syntax.TypeReferenceLeafName(nodeText(&child, source))
 		}
 	}
 	return ""

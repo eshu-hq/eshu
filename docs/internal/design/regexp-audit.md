@@ -102,7 +102,7 @@ The C package already migrated its `cTypedefAliasPattern` from `parser.go` to AS
 | 29 | `javaScriptAWSClientServiceRe` | Extract AWS service slug from `@aws-sdk/client-<slug>` import specifier strings | **keep** | Within-string-content exception per `javascript/AGENTS.md`. Runs only against string values already isolated by `javaScriptImportModuleSpecifiers` (AST walk). The grammar has no sub-node for the slug portion of a scoped npm package name. |
 | 34 | `javaScriptGCPServiceRe` | Extract GCP service slug from `@google-cloud/<slug>` import specifier strings | **keep** | Same justification category as the AWS regex. Input is AST-isolated string literal content. |
 
-### 11. go/internal/parser/javascript/names.go (1 site)
+### 11. go/internal/parser/javascript/syntax/names.go (1 site)
 
 | Line | Pattern | Purpose | Classification | Rationale |
 |------|---------|---------|----------------|-----------|
@@ -389,7 +389,7 @@ These files are for programming language parsers whose primary symbol extraction
 | `golang/embedded_sql.go` | Behavioral evidence | No migration. Bounded SQL-literal table-name extraction from Go source. |
 | `haskell/helpers.go` | Behavioral evidence | No migration. Documented permanent exception per `haskell/AGENTS.md`. Call-token extraction over AST-bounded RHS text. |
 | `javascript/semantics_ast.go` | Within-string | No migration. Both sites are within-string-content regex over AST-isolated import specifiers. Audit per issue #3590. |
-| `javascript/names.go` | Within-string | No migration. Content classification over already-AST-isolated node text. Audit per issue #3590. |
+| `javascript/syntax/names.go` | Within-string | No migration. Content classification over already-AST-isolated node text. Audit per issue #3590. |
 
 ---
 

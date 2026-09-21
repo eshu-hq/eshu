@@ -6,18 +6,19 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
-func javaScriptIsHapiRouteConfigHandler(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptIsHapiRouteConfigHandler(node *tree_sitter.Node, name string, source []byte, parents *syntax.ParentLookup) bool {
 	if node == nil || node.Kind() != "pair" || strings.TrimSpace(name) != "handler" {
 		return false
 	}
 	if !isJavaScriptFunctionValue(node.ChildByFieldName("value")) {
 		return false
 	}
-	routeConfigObject := parents.parent(node)
+	routeConfigObject := parents.Parent(node)
 	if routeConfigObject == nil || routeConfigObject.Kind() != "object" {
 		return false
 	}
@@ -43,7 +44,7 @@ func javaScriptHapiRouteHandlerReferenceCall(
 	if !javaScriptRouteHandlerReferenceValue(valueNode) {
 		return nil
 	}
-	routeConfigObject := evidence.parents.parent(node)
+	routeConfigObject := evidence.parents.Parent(node)
 	if routeConfigObject == nil || routeConfigObject.Kind() != "object" {
 		return nil
 	}
@@ -55,7 +56,7 @@ func javaScriptHapiRouteHandlerReferenceCall(
 	fullName := strings.TrimSpace(nodeText(valueNode, source))
 	name := javaScriptCallName(valueNode, source)
 	if name == "" {
-		name = javaScriptIdentifierName(valueNode, source)
+		name = syntax.IdentifierName(valueNode, source)
 	}
 	if name == "" || fullName == "" {
 		return nil
@@ -81,28 +82,28 @@ func javaScriptRouteHandlerReferenceValue(node *tree_sitter.Node) bool {
 	}
 }
 
-func javaScriptObjectIsInHapiServerRoute(objectNode *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptObjectIsInHapiServerRoute(objectNode *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
 	routeObject := javaScriptHapiRouteObject(objectNode, source, parents)
 	if routeObject == nil {
 		return false
 	}
-	for current := routeObject; current != nil; current = parents.parent(current) {
+	for current := routeObject; current != nil; current = parents.Parent(current) {
 		if current.Kind() != "call_expression" {
 			continue
 		}
 		functionNode := current.ChildByFieldName("function")
-		_, property, ok := javaScriptMemberBaseAndProperty(functionNode, source)
+		_, property, ok := syntax.MemberBaseAndProperty(functionNode, source)
 		return ok && strings.EqualFold(property, "route")
 	}
 	return false
 }
 
-func javaScriptObjectIsInCommonJSExportedHapiRouteCollection(objectNode *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptObjectIsInCommonJSExportedHapiRouteCollection(objectNode *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
 	routeObject := javaScriptHapiRouteObject(objectNode, source, parents)
 	if routeObject == nil {
 		return false
 	}
-	collection := parents.parent(routeObject)
+	collection := parents.Parent(routeObject)
 	if collection == nil || collection.Kind() != "array" {
 		return false
 	}
@@ -116,11 +117,11 @@ func javaScriptObjectIsInCommonJSExportedHapiRouteCollection(objectNode *tree_si
 	return javaScriptRootExportsIdentifier(collection, collectionName, source, parents)
 }
 
-func javaScriptNodeIsCommonJSExportedValue(valueNode *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptNodeIsCommonJSExportedValue(valueNode *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
 	if valueNode == nil {
 		return false
 	}
-	parent := parents.parent(valueNode)
+	parent := parents.Parent(valueNode)
 	if parent == nil || parent.Kind() != "assignment_expression" {
 		return false
 	}
@@ -130,28 +131,28 @@ func javaScriptNodeIsCommonJSExportedValue(valueNode *tree_sitter.Node, source [
 	return javaScriptCommonJSAssignmentTarget(parent.ChildByFieldName("left"), source)
 }
 
-func javaScriptVariableNameForValue(valueNode *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) string {
+func javaScriptVariableNameForValue(valueNode *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) string {
 	if valueNode == nil {
 		return ""
 	}
-	parent := parents.parent(valueNode)
+	parent := parents.Parent(valueNode)
 	if parent == nil || parent.Kind() != "variable_declarator" {
 		return ""
 	}
 	if !javaScriptNodeSameRange(parent.ChildByFieldName("value"), valueNode) {
 		return ""
 	}
-	return javaScriptIdentifierName(parent.ChildByFieldName("name"), source)
+	return syntax.IdentifierName(parent.ChildByFieldName("name"), source)
 }
 
-func javaScriptRootExportsIdentifier(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptRootExportsIdentifier(node *tree_sitter.Node, name string, source []byte, parents *syntax.ParentLookup) bool {
 	name = strings.TrimSpace(name)
 	if node == nil || name == "" {
 		return false
 	}
 	root := node
-	for parents.parent(root) != nil {
-		root = parents.parent(root)
+	for parents.Parent(root) != nil {
+		root = parents.Parent(root)
 	}
 	found := false
 	walkNamed(root, func(candidate *tree_sitter.Node) {
@@ -159,7 +160,7 @@ func javaScriptRootExportsIdentifier(node *tree_sitter.Node, name string, source
 			return
 		}
 		rightNode := candidate.ChildByFieldName("right")
-		if javaScriptIdentifierName(rightNode, source) != name {
+		if syntax.IdentifierName(rightNode, source) != name {
 			return
 		}
 		if javaScriptCommonJSAssignmentTarget(candidate.ChildByFieldName("left"), source) {
@@ -169,14 +170,14 @@ func javaScriptRootExportsIdentifier(node *tree_sitter.Node, name string, source
 	return found
 }
 
-func javaScriptHapiRouteObject(objectNode *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) *tree_sitter.Node {
+func javaScriptHapiRouteObject(objectNode *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) *tree_sitter.Node {
 	if objectNode == nil || objectNode.Kind() != "object" {
 		return nil
 	}
 	if javaScriptObjectHasPairKey(objectNode, source, "method") && javaScriptObjectHasPairKey(objectNode, source, "path") {
 		return objectNode
 	}
-	parent := parents.parent(objectNode)
+	parent := parents.Parent(objectNode)
 	if parent == nil || parent.Kind() != "pair" {
 		return nil
 	}
@@ -185,7 +186,7 @@ func javaScriptHapiRouteObject(objectNode *tree_sitter.Node, source []byte, pare
 	default:
 		return nil
 	}
-	routeObject := parents.parent(parent)
+	routeObject := parents.Parent(parent)
 	if routeObject == nil || routeObject.Kind() != "object" {
 		return nil
 	}
@@ -213,12 +214,12 @@ func javaScriptObjectHasPairKey(objectNode *tree_sitter.Node, source []byte, key
 	return false
 }
 
-func javaScriptObjectIsCommonJSExported(objectNode *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
-	for current := objectNode; current != nil; current = parents.parent(current) {
+func javaScriptObjectIsCommonJSExported(objectNode *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
+	for current := objectNode; current != nil; current = parents.Parent(current) {
 		if current.Kind() != "object" {
 			continue
 		}
-		parent := parents.parent(current)
+		parent := parents.Parent(current)
 		if parent == nil {
 			continue
 		}
@@ -278,7 +279,7 @@ func javaScriptHapiPluginRegisterAliasNames(objectNode *tree_sitter.Node, source
 				continue
 			}
 			valueNode := child.ChildByFieldName("value")
-			if name := javaScriptIdentifierName(valueNode, source); name != "" {
+			if name := syntax.IdentifierName(valueNode, source); name != "" {
 				names = shared.AppendUniqueString(names, name)
 			}
 		case "shorthand_property_identifier", "identifier", "property_identifier":
@@ -350,7 +351,7 @@ func javaScriptObjectAliasNames(objectNode *tree_sitter.Node, source []byte, key
 				continue
 			}
 			valueNode := child.ChildByFieldName("value")
-			if name := javaScriptIdentifierName(valueNode, source); name != "" {
+			if name := syntax.IdentifierName(valueNode, source); name != "" {
 				names = shared.AppendUniqueString(names, name)
 			}
 		case "shorthand_property_identifier", "identifier", "property_identifier":
@@ -382,15 +383,15 @@ func javaScriptFirstNamedDescendantOfKind(node *tree_sitter.Node, kind string) *
 	return nil
 }
 
-func javaScriptPairInsideCommonJSPluginObject(node *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptPairInsideCommonJSPluginObject(node *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
 	if node == nil || node.Kind() != "pair" {
 		return false
 	}
-	objectNode := parents.parent(node)
+	objectNode := parents.Parent(node)
 	if objectNode == nil || objectNode.Kind() != "object" {
 		return false
 	}
-	parent := parents.parent(objectNode)
+	parent := parents.Parent(objectNode)
 	if parent == nil || parent.Kind() != "assignment_expression" ||
 		!javaScriptNodeSameRange(parent.ChildByFieldName("right"), objectNode) {
 		return false

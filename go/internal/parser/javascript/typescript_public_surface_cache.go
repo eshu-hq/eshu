@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -150,7 +151,7 @@ func javaScriptTypeScriptPublicDeclarationMentionsByName(
 	if len(importsByLocalName) == 0 {
 		return mentions
 	}
-	parents := buildJavaScriptParentLookup(root)
+	parents := syntax.BuildParentLookup(root)
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if !javaScriptIsExported(node, parents) {
 			return

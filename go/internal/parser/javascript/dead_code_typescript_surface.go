@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -39,7 +40,7 @@ func javaScriptTypeScriptSurfaceRootKinds(
 	root *tree_sitter.Node,
 	source []byte,
 	siblingParser *javaScriptSiblingParser,
-	parents *javaScriptParentLookup,
+	parents *syntax.ParentLookup,
 ) map[string][]string {
 	rootKinds := make(map[string][]string)
 	if root == nil || !javaScriptIsTypeScriptSourcePath(path) {
@@ -205,7 +206,7 @@ func cloneJavaScriptTypeScriptSurfaceNames(names map[string]struct{}) map[string
 	return clone
 }
 
-func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node, name string, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node, name string, source []byte, parents *syntax.ParentLookup) bool {
 	if node == nil || node.Kind() != "method_definition" {
 		return false
 	}
@@ -216,7 +217,7 @@ func javaScriptIsTypeScriptInterfaceImplementationMethod(node *tree_sitter.Node,
 	if strings.HasPrefix(methodSource, "private ") || strings.HasPrefix(methodSource, "protected ") {
 		return false
 	}
-	for current := parents.parent(node); current != nil; current = parents.parent(current) {
+	for current := parents.Parent(node); current != nil; current = parents.Parent(current) {
 		switch current.Kind() {
 		case "class_declaration", "abstract_class_declaration":
 			return javaScriptClassHasImplementsClause(current)
@@ -234,7 +235,7 @@ func javaScriptClassHasImplementsClause(node *tree_sitter.Node) bool {
 	return javaScriptNodeContainsKind(node, "implements_clause")
 }
 
-func javaScriptTypeScriptExportedDeclarationNames(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) map[string]struct{} {
+func javaScriptTypeScriptExportedDeclarationNames(root *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) map[string]struct{} {
 	names := make(map[string]struct{})
 	walkNamed(root, func(node *tree_sitter.Node) {
 		if !javaScriptIsExported(node, parents) {
@@ -259,7 +260,7 @@ func javaScriptTypeScriptDeclarationName(node *tree_sitter.Node, source []byte) 
 	default:
 		return ""
 	}
-	return strings.TrimSpace(javaScriptFunctionName(node.ChildByFieldName("name"), source))
+	return strings.TrimSpace(syntax.FunctionName(node.ChildByFieldName("name"), source))
 }
 
 func javaScriptPackagePublicSourcePaths(repoRoot string, path string) []string {
@@ -358,7 +359,7 @@ func javaScriptTypeScriptPublicTypeReferences(
 			default:
 				return
 			}
-			typeName := javaScriptTypeReferenceLeafName(nodeText(child, source))
+			typeName := syntax.TypeReferenceLeafName(nodeText(child, source))
 			if _, ok := exportedNames[typeName]; ok {
 				references[typeName] = struct{}{}
 			}
@@ -367,7 +368,7 @@ func javaScriptTypeScriptPublicTypeReferences(
 	return references
 }
 
-func javaScriptTypeScriptStaticRegistryMemberNames(root *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) map[string]struct{} {
+func javaScriptTypeScriptStaticRegistryMemberNames(root *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) map[string]struct{} {
 	members := make(map[string]struct{})
 	if root == nil {
 		return members
@@ -394,7 +395,7 @@ func javaScriptTypeScriptFunctionNames(root *tree_sitter.Node, source []byte) ma
 	walkNamed(root, func(node *tree_sitter.Node) {
 		switch node.Kind() {
 		case "function_declaration", "generator_function_declaration":
-			name := strings.TrimSpace(javaScriptFunctionName(node.ChildByFieldName("name"), source))
+			name := strings.TrimSpace(syntax.FunctionName(node.ChildByFieldName("name"), source))
 			if name != "" {
 				names[name] = struct{}{}
 			}
@@ -402,7 +403,7 @@ func javaScriptTypeScriptFunctionNames(root *tree_sitter.Node, source []byte) ma
 			if !javaScriptVariableDeclaratorHasFunctionValue(node) {
 				return
 			}
-			name := strings.TrimSpace(javaScriptFunctionName(node.ChildByFieldName("name"), source))
+			name := strings.TrimSpace(syntax.FunctionName(node.ChildByFieldName("name"), source))
 			if name != "" {
 				names[name] = struct{}{}
 			}
@@ -427,11 +428,11 @@ func javaScriptVariableDeclaratorHasFunctionValue(node *tree_sitter.Node) bool {
 	}
 }
 
-func javaScriptObjectLiteralIsExportedRegistry(objectNode *tree_sitter.Node, source []byte, parents *javaScriptParentLookup) bool {
+func javaScriptObjectLiteralIsExportedRegistry(objectNode *tree_sitter.Node, source []byte, parents *syntax.ParentLookup) bool {
 	if objectNode == nil || objectNode.Kind() != "object" {
 		return false
 	}
-	parent := parents.parent(objectNode)
+	parent := parents.Parent(objectNode)
 	if parent == nil || parent.Kind() != "variable_declarator" {
 		return false
 	}

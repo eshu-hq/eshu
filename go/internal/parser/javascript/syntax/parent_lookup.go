@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package syntax
 
 import tree_sitter "github.com/tree-sitter/go-tree-sitter"
 
-// javaScriptParentLookup amortizes ancestor traversal cost from O(depth) per
+// ParentLookup amortizes ancestor traversal cost from O(depth) per
 // tree-sitter Parent() call to O(1) per lookup after a one-time O(n) build.
 //
 // Tree-sitter's Node.Parent() does not consult a stored parent pointer; the
@@ -23,19 +23,19 @@ import tree_sitter "github.com/tree-sitter/go-tree-sitter"
 // construction and safe to share for the lifetime of the underlying tree. It is
 // not safe to share across trees or concurrent parses; each Parse() owns its
 // own lookup, so concurrent parser workers never contend on it.
-type javaScriptParentLookup struct {
+type ParentLookup struct {
 	parents map[uintptr]*tree_sitter.Node
 }
 
-// buildJavaScriptParentLookup records every child->parent edge in one
-// tree-sitter pass so subsequent ancestor walks consult a Go map rather than
-// re-entering cgo via ts_node_parent. It indexes all children, named and
-// unnamed, because Parent() chains traverse unnamed intermediate nodes such as
+// BuildParentLookup records every child->parent edge in one tree-sitter pass
+// so subsequent ancestor walks consult a Go map rather than re-entering cgo
+// via ts_node_parent. It indexes all children, named and unnamed, because
+// Parent() chains traverse unnamed intermediate nodes such as
 // export_statement wrappers. The DFS is iterative with an explicit slice stack
 // so very deep trees (large generated bundles, deeply chained member
 // expressions) cannot blow the goroutine stack.
-func buildJavaScriptParentLookup(root *tree_sitter.Node) *javaScriptParentLookup {
-	lookup := &javaScriptParentLookup{parents: make(map[uintptr]*tree_sitter.Node)}
+func BuildParentLookup(root *tree_sitter.Node) *ParentLookup {
+	lookup := &ParentLookup{parents: make(map[uintptr]*tree_sitter.Node)}
 	if root == nil {
 		return lookup
 	}
@@ -56,10 +56,10 @@ func buildJavaScriptParentLookup(root *tree_sitter.Node) *javaScriptParentLookup
 	return lookup
 }
 
-// parent returns the recorded parent of node, or nil if node is the tree root
+// Parent returns the recorded parent of node, or nil if node is the tree root
 // or the lookup was not built. A nil receiver is treated as an empty lookup so
 // callers can safely thread an optional pointer.
-func (l *javaScriptParentLookup) parent(node *tree_sitter.Node) *tree_sitter.Node {
+func (l *ParentLookup) Parent(node *tree_sitter.Node) *tree_sitter.Node {
 	if l == nil || node == nil {
 		return nil
 	}

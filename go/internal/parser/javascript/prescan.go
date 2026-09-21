@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -84,7 +85,7 @@ func javaScriptPreScanNames(root *tree_sitter.Node, source []byte, outputLanguag
 }
 
 func appendPreScanName(names []string, node *tree_sitter.Node, source []byte) []string {
-	name := strings.TrimSpace(javaScriptFunctionName(node, source))
+	name := strings.TrimSpace(syntax.FunctionName(node, source))
 	if name == "" {
 		return names
 	}

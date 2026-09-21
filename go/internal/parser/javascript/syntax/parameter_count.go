@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package syntax
 
 import tree_sitter "github.com/tree-sitter/go-tree-sitter"
 
-func javaScriptParameterCount(parametersNode *tree_sitter.Node, _ []byte) int {
+// ParameterCount returns the number of named children of a parameters node
+// (a function/method's formal parameter list), or 0 for a nil node.
+func ParameterCount(parametersNode *tree_sitter.Node, _ []byte) int {
 	if parametersNode == nil {
 		return 0
 	}

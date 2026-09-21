@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/syntax"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -83,7 +84,7 @@ func isExportedViaCgoParent(node *tree_sitter.Node) bool {
 
 // TestJavaScriptParentLookupEliminatesCgoCrossings is the mechanism regression
 // gate for #3586. It exercises the PRODUCTION parent lookup that Parse builds
-// (buildJavaScriptParentLookup) and the PRODUCTION is-exported helper
+// (syntax.BuildParentLookup) and the PRODUCTION is-exported helper
 // (javaScriptIsExported), so the gate fails if production code ever drops a
 // parent edge or reintroduces a Node.Parent() cgo crossing.
 //
@@ -114,17 +115,17 @@ func TestJavaScriptParentLookupEliminatesCgoCrossings(t *testing.T) {
 
 	// Build the production lookup the same way Parse does, outside both
 	// measurement windows so its one-time cost is not attributed to a walk.
-	lookup := buildJavaScriptParentLookup(root)
+	lookup := syntax.BuildParentLookup(root)
 
 	// Walk every node to the root via the production lookup and confirm each
 	// edge matches the real Node.Parent() chain. A dropped or corrupted edge
-	// (the realistic regression in buildJavaScriptParentLookup) diverges here.
+	// (the realistic regression in syntax.BuildParentLookup) diverges here.
 	ancestorVisits := 0
 	for _, node := range methods {
-		for current := node; current != nil; current = lookup.parent(current) {
+		for current := node; current != nil; current = lookup.Parent(current) {
 			ancestorVisits++
 			want := current.Parent()
-			got := lookup.parent(current)
+			got := lookup.Parent(current)
 			if (want == nil) != (got == nil) || (want != nil && got != nil && want.Id() != got.Id()) {
 				t.Fatalf("production lookup parent edge mismatch at kind %q: lookup=%v Parent()=%v",
 					current.Kind(), nodeID(got), nodeID(want))
