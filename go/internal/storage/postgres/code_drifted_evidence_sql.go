@@ -58,14 +58,19 @@ ORDER BY shared DESC, e1 ASC, e2 ASC
 // entity IDs the pairs query kept: fingerprint columns plus the
 // content_entities identity both the suppression rules and the finding
 // payload read. $1 is the repo_id, $2 the entity ID set. It reads narrow
-// fingerprint columns and entity rows only — never source_cache.
+// fingerprint columns and entity rows only — never source_cache. The
+// shingles predicate matches the pairs gate: a nominated entity whose
+// fingerprint row lost its shingle set between the two reads (exact-only
+// tiers NULL shingles and fp_renamed together) simply does not return, so
+// the pair drops with a no_shingles count instead of failing the scan and
+// the whole load.
 const listCodeDriftedMembersQuery = `
 SELECT f.entity_id, f.fp_exact, f.fp_renamed, f.shingles, f.token_count,
        e.entity_name, e.entity_type, e.relative_path, coalesce(e.language, ''),
        e.start_line, e.end_line
 FROM code_function_fingerprint AS f
 JOIN content_entities AS e ON e.entity_id = f.entity_id AND e.repo_id = f.repo_id
-WHERE f.repo_id = $1 AND f.entity_id = ANY($2::text[])
+WHERE f.repo_id = $1 AND f.entity_id = ANY($2::text[]) AND f.shingles IS NOT NULL
 ORDER BY f.entity_id ASC
 `
 

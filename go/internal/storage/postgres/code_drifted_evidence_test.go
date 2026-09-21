@@ -108,6 +108,7 @@ func TestCodeDriftedQueriesCarryLoadBearingClauses(t *testing.T) {
 		"code_function_fingerprint",
 		"content_entities",
 		"= ANY(",
+		"f.shingles IS NOT NULL",
 	} {
 		if !strings.Contains(listCodeDriftedMembersQuery, want) {
 			t.Fatalf("members query missing load-bearing clause %q", want)

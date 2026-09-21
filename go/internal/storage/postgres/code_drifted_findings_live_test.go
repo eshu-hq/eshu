@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
 	codedivergence "github.com/eshu-hq/eshu/go/internal/reducer/codedivergence"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -68,9 +69,12 @@ func openDriftedLiveDB(t *testing.T) (context.Context, *sql.DB) {
 	}
 
 	required := map[string]bool{
-		"ingestion_scopes":  true,
-		"scope_generations": true,
-		"fact_records":      true,
+		"ingestion_scopes":                   true,
+		"scope_generations":                  true,
+		"fact_records":                       true,
+		"content_store":                      true,
+		"code_function_fingerprint":          true,
+		"code_function_fingerprint_shingles": true,
 	}
 	var definitions []Definition
 	for _, definition := range BootstrapDefinitions() {
@@ -276,4 +280,43 @@ func TestDriftedPassRetireConvergesLive(t *testing.T) {
 	assertSurvivors(wantSet(p2, p3))
 	pass(p1, p2)
 	assertSurvivors(wantSet(p1, p2))
+}
+
+// TestDriftedMembersExcludeNullShinglesLive proves the members query honors
+// the loader's drop contract at the SQL level: a nominated entity whose
+// fingerprint row lost its shingle set between the pairs read and the
+// members read (exact-only-tier re-fingerprint NULLs shingles and
+// fp_renamed together) must simply not return, so the pair drops with a
+// no_shingles count. Without the predicate the NULL scan fails the whole
+// load into queue retry.
+func TestDriftedMembersExcludeNullShinglesLive(t *testing.T) {
+	ctx, db := openDriftedLiveDB(t)
+	const repoID = "repo-null"
+
+	for _, ent := range []struct{ id, path string }{{"n1", "a.go"}, {"n2", "b.go"}} {
+		if _, err := db.ExecContext(ctx, `
+INSERT INTO content_entities (entity_id, repo_id, relative_path, entity_type, entity_name, start_line, end_line, language, source_cache, indexed_at)
+VALUES ($1, $2, $3, 'Function', 'big', 10, 40, 'go', 'x', now())`, ent.id, repoID, ent.path); err != nil {
+			t.Fatalf("seed entity %s: %v", ent.id, err)
+		}
+	}
+	shinglesHex := fingerprint.EncodeShingles([]uint64{1, 2, 3, 4, 5, 6, 7, 8, 9})
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO code_function_fingerprint (entity_id, repo_id, fp_exact, fp_renamed, shingles, token_count, indexed_at)
+VALUES ('n1', $1, 'exact-n1', 'renamed-n1', $2, 64, now()),
+       ('n2', $1, 'exact-n2', NULL, NULL, 66, now())`, repoID, shinglesHex); err != nil {
+		t.Fatalf("seed fingerprints: %v", err)
+	}
+
+	loader := PostgresCodeDriftedEvidenceLoader{DB: SQLDB{DB: db}}
+	members, _, err := loader.loadMembers(ctx, repoID, []driftedPairRow{{e1: "n1", e2: "n2"}})
+	if err != nil {
+		t.Fatalf("loadMembers() error = %v, want nil (NULL-shingle row must not fail the load)", err)
+	}
+	if _, ok := members["n1"]; !ok {
+		t.Fatal("loadMembers() dropped n1, want the shingled member present")
+	}
+	if _, ok := members["n2"]; ok {
+		t.Fatal("loadMembers() returned n2, want the NULL-shingle row excluded so the pair drops per contract")
+	}
 }
