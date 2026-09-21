@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/fingerprint"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
@@ -78,7 +79,7 @@ func Parse(
 		payload["dead_code_file_root_kinds"] = append([]string(nil), deadCodeRoots.fileRootKinds...)
 	}
 	commonJSModuleAliases := rootIndexes.commonJSModuleAliases
-	tsConfigImports := NewTSConfigImportResolver(repoRoot, path)
+	tsConfigImports := project.NewTSConfigImportResolver(repoRoot, path)
 	newExpressionTypes := rootIndexes.newExpressionTypes
 	fastifyBases := rootIndexes.fastifyBases
 

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package project
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 // TSConfigImportResolver resolves TypeScript baseUrl and paths aliases for one
@@ -28,8 +30,8 @@ type tsConfigOptions struct {
 // owned by path. It accepts JSONC syntax and rejects absolute or out-of-repo
 // baseUrl values so imports cannot resolve outside the indexed repository.
 func NewTSConfigImportResolver(repoRoot string, path string) TSConfigImportResolver {
-	repoRoot = cleanPath(repoRoot)
-	path = cleanPath(path)
+	repoRoot = CleanPath(repoRoot)
+	path = CleanPath(path)
 	if repoRoot == "" || path == "" {
 		return TSConfigImportResolver{}
 	}
@@ -48,8 +50,8 @@ func NewTSConfigImportResolver(repoRoot string, path string) TSConfigImportResol
 		return TSConfigImportResolver{}
 	}
 
-	baseDir := cleanPath(filepath.Join(filepath.Dir(configPath), filepath.FromSlash(baseURL)))
-	if !pathWithin(repoRoot, baseDir) {
+	baseDir := CleanPath(filepath.Join(filepath.Dir(configPath), filepath.FromSlash(baseURL)))
+	if !PathWithin(repoRoot, baseDir) {
 		return TSConfigImportResolver{}
 	}
 	return TSConfigImportResolver{
@@ -78,9 +80,9 @@ func (r TSConfigImportResolver) ResolveSource(source string) string {
 }
 
 func (r TSConfigImportResolver) resolveBaseRelativeSource(source string) string {
-	basePath := cleanPath(filepath.Join(r.baseDir, filepath.FromSlash(source)))
+	basePath := CleanPath(filepath.Join(r.baseDir, filepath.FromSlash(source)))
 	for _, candidate := range TSConfigSourceCandidates(basePath) {
-		if !pathWithin(r.repoRoot, candidate) {
+		if !PathWithin(r.repoRoot, candidate) {
 			continue
 		}
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
@@ -96,7 +98,7 @@ func (r TSConfigImportResolver) resolveBaseRelativeSource(source string) string 
 
 func nearestTSConfig(repoRoot string, path string) (string, bool) {
 	dir := filepath.Dir(path)
-	for pathWithin(repoRoot, dir) {
+	for PathWithin(repoRoot, dir) {
 		candidate := filepath.Join(dir, "tsconfig.json")
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate, true
@@ -140,7 +142,7 @@ func (r TSConfigImportResolver) resolvePathMappedSources(source string) []string
 				if target == "" || filepath.IsAbs(target) {
 					continue
 				}
-				mapped = appendUniqueString(mapped, strings.ReplaceAll(target, "*", match))
+				mapped = shared.AppendUniqueString(mapped, strings.ReplaceAll(target, "*", match))
 			}
 		}
 	}
@@ -266,11 +268,11 @@ func stripJSONCTrailingCommas(raw []byte) []byte {
 func TSConfigSourceCandidates(basePath string) []string {
 	candidates := make([]string, 0, 16)
 	appendCandidate := func(path string) {
-		path = cleanPath(path)
+		path = CleanPath(path)
 		if path == "" {
 			return
 		}
-		candidates = appendUniqueString(candidates, path)
+		candidates = shared.AppendUniqueString(candidates, path)
 	}
 
 	appendCandidate(basePath)
@@ -284,38 +286,4 @@ func TSConfigSourceCandidates(basePath string) []string {
 		}
 	}
 	return candidates
-}
-
-func cleanPath(path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return ""
-	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return ""
-	}
-	return filepath.Clean(abs)
-}
-
-func pathWithin(root string, path string) bool {
-	root = cleanPath(root)
-	path = cleanPath(path)
-	if root == "" || path == "" {
-		return false
-	}
-	rel, err := filepath.Rel(root, path)
-	if err != nil {
-		return false
-	}
-	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
-}
-
-func appendUniqueString(values []string, value string) []string {
-	for _, existing := range values {
-		if existing == value {
-			return values
-		}
-	}
-	return append(values, value)
 }

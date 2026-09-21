@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -57,31 +59,31 @@ func javaScriptTypeScriptSurfaceRootKinds(
 	// entries for files that share no package.json at all -- those files
 	// also have no javaScriptPackagePublicSourcePaths, so this loop body
 	// never runs for them.
-	packageRoot, _ := NearestPackageRoot(repoRoot, path)
+	packageRoot, _ := project.NearestPackageRoot(repoRoot, path)
 
 	publicNames := make(map[string]struct{})
 	for _, publicPath := range javaScriptPackagePublicSourcePaths(repoRoot, path) {
 		if sameJavaScriptPath(publicPath, path) {
 			for name := range exportedNames {
 				publicNames[name] = struct{}{}
-				rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPIExportRoot)
+				rootKinds[name] = shared.AppendUniqueString(rootKinds[name], typeScriptPublicAPIExportRoot)
 			}
 			continue
 		}
 		for name := range javaScriptTypeScriptPublicReexportNames(repoRoot, packageRoot, publicPath, path, exportedNames, siblingParser) {
 			publicNames[name] = struct{}{}
-			rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPIReexportRoot)
+			rootKinds[name] = shared.AppendUniqueString(rootKinds[name], typeScriptPublicAPIReexportRoot)
 		}
 		for name := range javaScriptTypeScriptPublicImportedTypeReferenceNames(repoRoot, packageRoot, publicPath, path, exportedNames, siblingParser) {
-			rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPITypeReferenceRoot)
+			rootKinds[name] = shared.AppendUniqueString(rootKinds[name], typeScriptPublicAPITypeReferenceRoot)
 		}
 	}
 
 	for name := range javaScriptTypeScriptPublicTypeReferences(root, source, publicNames, exportedNames) {
-		rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptPublicAPITypeReferenceRoot)
+		rootKinds[name] = shared.AppendUniqueString(rootKinds[name], typeScriptPublicAPITypeReferenceRoot)
 	}
 	for name := range javaScriptTypeScriptStaticRegistryMemberNames(root, source, parents) {
-		rootKinds[name] = appendUniqueString(rootKinds[name], typeScriptStaticRegistryMemberRoot)
+		rootKinds[name] = shared.AppendUniqueString(rootKinds[name], typeScriptStaticRegistryMemberRoot)
 	}
 	return rootKinds
 }
@@ -183,7 +185,7 @@ func javaScriptTypeScriptMarkPublicNames(
 }
 
 func javaScriptTypeScriptSurfaceWalkKey(item javaScriptTypeScriptSurfaceWalkItem) string {
-	path := cleanJavaScriptPath(item.path)
+	path := project.CleanPath(item.path)
 	if item.star {
 		return path + "|*"
 	}
@@ -261,7 +263,7 @@ func javaScriptTypeScriptDeclarationName(node *tree_sitter.Node, source []byte) 
 }
 
 func javaScriptPackagePublicSourcePaths(repoRoot string, path string) []string {
-	return PackagePublicSourcePaths(repoRoot, path)
+	return project.PackagePublicSourcePaths(repoRoot, path)
 }
 
 // javaScriptTypeScriptStaticReexportsFromRoot extracts every static re-export
@@ -309,15 +311,15 @@ func javaScriptTypeScriptReexportSourceCandidates(repoRoot string, fromPath stri
 	}
 	candidates := make([]string, 0, 8)
 	appendCandidate := func(path string) {
-		path = cleanJavaScriptPath(path)
+		path = project.CleanPath(path)
 		if path != "" {
-			candidates = appendUniqueString(candidates, path)
+			candidates = shared.AppendUniqueString(candidates, path)
 		}
 	}
 	if strings.HasPrefix(source, ".") {
 		basePath := filepath.Join(filepath.Dir(fromPath), filepath.FromSlash(source))
-		for _, candidate := range TSConfigSourceCandidates(basePath) {
-			if !pathWithin(repoRoot, candidate) {
+		for _, candidate := range project.TSConfigSourceCandidates(basePath) {
+			if !project.PathWithin(repoRoot, candidate) {
 				continue
 			}
 			appendCandidate(candidate)
@@ -325,7 +327,7 @@ func javaScriptTypeScriptReexportSourceCandidates(repoRoot string, fromPath stri
 		return candidates
 	}
 
-	resolver := NewTSConfigImportResolver(repoRoot, fromPath)
+	resolver := project.NewTSConfigImportResolver(repoRoot, fromPath)
 	if resolved := resolver.ResolveSource(source); resolved != "" {
 		appendCandidate(filepath.Join(repoRoot, filepath.FromSlash(resolved)))
 	}
@@ -449,7 +451,7 @@ func javaScriptIsTypeScriptSourcePath(path string) bool {
 }
 
 func sameJavaScriptPath(left string, right string) bool {
-	left = cleanJavaScriptPath(left)
-	right = cleanJavaScriptPath(right)
+	left = project.CleanPath(left)
+	right = project.CleanPath(right)
 	return left != "" && right != "" && left == right
 }

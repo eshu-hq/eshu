@@ -5,9 +5,11 @@ package javascript
 
 import (
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
 )
 
-func annotateJavaScriptResolvedImport(item map[string]any, resolver TSConfigImportResolver) {
+func annotateJavaScriptResolvedImport(item map[string]any, resolver project.TSConfigImportResolver) {
 	if item == nil {
 		return
 	}

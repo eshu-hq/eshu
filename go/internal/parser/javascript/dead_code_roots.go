@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -144,7 +146,7 @@ func javaScriptRegisteredDeadCodeRootKinds(
 		for i := handlerStart; i < len(args); i++ {
 			for _, handlerName := range javaScriptExpressHandlerNames(&args[i], source) {
 				key := strings.ToLower(handlerName)
-				registered[key] = appendUniqueString(registered[key], "javascript.express_route_registration")
+				registered[key] = shared.AppendUniqueString(registered[key], "javascript.express_route_registration")
 			}
 		}
 	})
@@ -183,74 +185,74 @@ func javaScriptDeadCodeRootKinds(
 		for _, rootKind := range evidence.fileRootKinds {
 			if rootKind == "javascript.node_package_export" &&
 				(javaScriptIsExported(classNode, evidence.parents) || javaScriptIsCommonJSExport(classNode, className, source, evidence.parents)) {
-				rootKinds = appendUniqueString(rootKinds, rootKind)
+				rootKinds = shared.AppendUniqueString(rootKinds, rootKind)
 			}
 		}
 	}
 	if javaScriptIsNextJSRouteExport(path, node, name, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.nextjs_route_export")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.nextjs_route_export")
 	}
 	if javaScriptIsNextJSAppExport(path, node, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.nextjs_app_export")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.nextjs_app_export")
 	}
 	for _, rootKind := range evidence.fileRootKinds {
 		switch rootKind {
 		case "javascript.node_package_entrypoint":
 			if javaScriptIsNodeEntrypointFunctionName(name) {
-				rootKinds = appendUniqueString(rootKinds, rootKind)
+				rootKinds = shared.AppendUniqueString(rootKinds, rootKind)
 			}
 		case "javascript.node_package_bin":
 			if javaScriptIsNodeBinFunctionName(name) {
-				rootKinds = appendUniqueString(rootKinds, rootKind)
+				rootKinds = shared.AppendUniqueString(rootKinds, rootKind)
 			}
 		case "javascript.node_package_script":
 			if javaScriptIsNodeScriptFunctionName(name) {
-				rootKinds = appendUniqueString(rootKinds, rootKind)
+				rootKinds = shared.AppendUniqueString(rootKinds, rootKind)
 			}
 		case "javascript.node_package_export":
 			if javaScriptIsExported(node, evidence.parents) || javaScriptIsCommonJSExport(node, name, source, evidence.parents) {
-				rootKinds = appendUniqueString(rootKinds, rootKind)
+				rootKinds = shared.AppendUniqueString(rootKinds, rootKind)
 			}
 		}
 	}
 	if evidence.hapiHandlerFile && (javaScriptIsExported(node, evidence.parents) || javaScriptIsCommonJSExport(node, name, source, evidence.parents)) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_handler_export")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.hapi_handler_export")
 	}
 	if javaScriptIsCommonJSMixinExport(node, name, source, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.commonjs_mixin_export")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.commonjs_mixin_export")
 	}
 	if javaScriptMethodInsideCommonJSDefaultExport(node, source, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.commonjs_default_export")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.commonjs_default_export")
 	}
 	if javaScriptIsHapiPluginRegister(node, name, source, evidence.hapiPluginFile, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_plugin_register")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.hapi_plugin_register")
 	}
 	if javaScriptIsHapiRouteConfigHandler(node, name, source, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_route_config_handler")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.hapi_route_config_handler")
 	}
 	if javaScriptIsNodeSeedExecute(path, node, name, source, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.node_seed_execute")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.node_seed_execute")
 	}
 	if javaScriptIsNodeMigrationExport(path, node, name, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.node_migration_export")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.node_migration_export")
 	}
 	if javaScriptIsHapiAMQPConsumer(path, node, name, source, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_amqp_consumer")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.hapi_amqp_consumer")
 	}
 	if javaScriptIsHapiProxyCallback(node, name, source, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.hapi_proxy_callback")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.hapi_proxy_callback")
 	}
 	if javaScriptIsTypeScriptInterfaceImplementationMethod(node, name, source, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "typescript.interface_method_implementation")
+		rootKinds = shared.AppendUniqueString(rootKinds, "typescript.interface_method_implementation")
 	}
 	if javaScriptIsTypeScriptModuleContractExport(node, name, source, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "typescript.module_contract_export")
+		rootKinds = shared.AppendUniqueString(rootKinds, "typescript.module_contract_export")
 	}
 	for _, rootKind := range evidence.typeScriptRootKinds[strings.TrimSpace(name)] {
-		rootKinds = appendUniqueString(rootKinds, rootKind)
+		rootKinds = shared.AppendUniqueString(rootKinds, rootKind)
 	}
 	if javaScriptIsNestJSControllerMethod(node, source, evidence.parents) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.nestjs_controller_method")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.nestjs_controller_method")
 	}
 	slices.Sort(rootKinds)
 	return rootKinds
@@ -258,7 +260,7 @@ func javaScriptDeadCodeRootKinds(
 
 func appendRegisteredJavaScriptRootKinds(rootKinds []string, name string, evidence javaScriptDeadCodeEvidence) []string {
 	for _, rootKind := range evidence.registeredRootKinds[strings.ToLower(strings.TrimSpace(name))] {
-		rootKinds = appendUniqueString(rootKinds, rootKind)
+		rootKinds = shared.AppendUniqueString(rootKinds, rootKind)
 	}
 	return rootKinds
 }
@@ -283,7 +285,7 @@ func javaScriptConstructorClass(node *tree_sitter.Node, name string, source []by
 }
 
 func javaScriptIsHapiPluginFile(repoRoot string, path string) bool {
-	relativePath, ok := relativeSlashPath(repoRoot, path)
+	relativePath, ok := project.RelativeSlashPath(repoRoot, path)
 	if !ok {
 		relativePath = filepath.ToSlash(path)
 	}
@@ -294,7 +296,7 @@ func javaScriptIsHapiPluginFile(repoRoot string, path string) bool {
 }
 
 func javaScriptIsHapiControllerFile(repoRoot string, path string) bool {
-	relativePath, ok := relativeSlashPath(repoRoot, path)
+	relativePath, ok := project.RelativeSlashPath(repoRoot, path)
 	if !ok {
 		relativePath = filepath.ToSlash(path)
 	}

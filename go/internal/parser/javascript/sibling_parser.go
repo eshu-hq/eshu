@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -65,7 +66,7 @@ func (p *javaScriptSiblingParser) rootForFile(path string) (*tree_sitter.Node, [
 	if p == nil || p.factory == nil {
 		return nil, nil, false
 	}
-	cleaned := cleanJavaScriptPath(path)
+	cleaned := project.CleanPath(path)
 	if cleaned == "" {
 		return nil, nil, false
 	}

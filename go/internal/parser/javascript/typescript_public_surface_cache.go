@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -42,13 +43,12 @@ type typeScriptPublicSurfaceNodeFacts struct {
 // (package root, file path) so the identical closure is computed once per
 // package and reused across every file in that package instead of being
 // re-walked (and every node re-parsed) once per file (issue #4765). It reuses
-// configScopeCache's generation-safe single-flight-coalesced bounded-LRU
-// implementation (see config_scope_cache.go) instead of hand-rolling a second
-// unbounded cache: entries are invalidated by the file's own (mtime, size)
-// generation, and the shared configScopeCacheCapacity bound keeps a
-// long-running scan across many repositories from growing this cache
-// forever.
-var packageSurfaceCache = newConfigScopeCache[typeScriptPublicSurfaceNodeFacts]()
+// project.ScopeCache's generation-safe single-flight-coalesced bounded-LRU
+// implementation (see project/scope_cache.go) instead of hand-rolling a
+// second unbounded cache: entries are invalidated by the file's own (mtime,
+// size) generation, and the shared bounded-LRU capacity keeps a long-running
+// scan across many repositories from growing this cache forever.
+var packageSurfaceCache = project.NewScopeCache[typeScriptPublicSurfaceNodeFacts]()
 
 // SetPackageSurfaceComputeHookForTest installs a process-global hook invoked
 // on every real sibling-file parse performed by the package-root public
@@ -58,16 +58,16 @@ var packageSurfaceCache = newConfigScopeCache[typeScriptPublicSurfaceNodeFacts](
 // test's temp-dir paths happened to populate. Test-only: callers MUST NOT run
 // this test in parallel with any other test that also installs this hook or
 // exercises the package surface cache (mirrors the constraint documented on
-// SetConfigScopeComputeHooksForTest).
+// project.SetConfigScopeComputeHooksForTest).
 func SetPackageSurfaceComputeHookForTest(hook func(path string)) func() {
-	restore := packageSurfaceCache.setComputeHookForTest(func(key string) {
+	restore := packageSurfaceCache.SetComputeHookForTest(func(key string) {
 		if hook != nil {
 			hook(packageSurfaceHookPathFromKey(key))
 		}
 	})
 	return func() {
 		restore()
-		packageSurfaceCache.clearForTest()
+		packageSurfaceCache.ClearForTest()
 	}
 }
 
@@ -81,8 +81,8 @@ func packageSurfaceHookPathFromKey(key string) string {
 }
 
 // packageSurfaceCacheEncode joins (packageRoot, path) into the single string
-// key configScopeCache's compute hook reports, using a NUL separator since it
-// cannot legally appear in a filesystem path.
+// key project.ScopeCache's compute hook reports, using a NUL separator since
+// it cannot legally appear in a filesystem path.
 func packageSurfaceCacheEncode(packageRoot string, path string) string {
 	return packageRoot + "\x00" + path
 }
@@ -92,23 +92,23 @@ func packageSurfaceCacheEncode(packageRoot string, path string) string {
 // once per distinct (packageRoot, path, mtime, size) generation. Concurrent
 // callers for the SAME key coalesce onto the one in-flight computation;
 // callers for a different key (a different package, path, or changed
-// generation) get their own slot, per configScopeCache's single-flight
+// generation) get their own slot, per project.ScopeCache's single-flight
 // discipline.
 func packageSurfaceFacts(
 	packageRoot string,
 	path string,
 	siblingParser *javaScriptSiblingParser,
 ) typeScriptPublicSurfaceNodeFacts {
-	cleaned := cleanJavaScriptPath(path)
-	encodedKey := packageSurfaceCacheEncode(cleanJavaScriptPath(packageRoot), cleaned)
-	stat, statOK := statForConfigScopeCache(cleaned)
+	cleaned := project.CleanPath(path)
+	encodedKey := packageSurfaceCacheEncode(project.CleanPath(packageRoot), cleaned)
+	stat, statOK := project.StatFor(cleaned)
 	if !statOK {
 		// Stat failed (missing/unreadable file): fall back to the uncached
 		// path so callers see the same not-found behavior as before this
 		// cache existed, without polluting the cache with an unstable key.
 		return computePackageSurfaceFacts(cleaned, siblingParser)
 	}
-	return packageSurfaceCache.get(encodedKey, stat, func() typeScriptPublicSurfaceNodeFacts {
+	return packageSurfaceCache.Get(encodedKey, stat, func() typeScriptPublicSurfaceNodeFacts {
 		return computePackageSurfaceFacts(cleaned, siblingParser)
 	})
 }

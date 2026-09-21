@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package project
 
 import (
 	"fmt"
@@ -224,10 +224,10 @@ func TestConfigScopeCacheConcurrentAccessIsRaceFree(t *testing.T) {
 // observe correct values for their OWN generation, never each other's or
 // empty. Run with -race.
 func TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange(t *testing.T) {
-	cache := newConfigScopeCache[string]()
+	cache := NewScopeCache[string]()
 	const path = "/repo/tsconfig.json"
-	statA := configScopeCacheStat{modTimeUnixNano: 1, size: 10}
-	statB := configScopeCacheStat{modTimeUnixNano: 2, size: 20}
+	statA := Stat{modTimeUnixNano: 1, size: 10}
+	statB := Stat{modTimeUnixNano: 2, size: 20}
 
 	// aStarted signals that goroutine A's compute has begun (so B can start
 	// its own, different-generation compute); aProceed holds A inside its
@@ -240,7 +240,7 @@ func TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange(t *testi
 	var hookFired atomic.Bool
 	aStarted := make(chan struct{})
 	aProceed := make(chan struct{})
-	restore := cache.setComputeHookForTest(func(string) {
+	restore := cache.SetComputeHookForTest(func(string) {
 		if hookFired.CompareAndSwap(false, true) {
 			close(aStarted)
 			<-aProceed
@@ -253,11 +253,11 @@ func TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange(t *testi
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		aValue = cache.get(path, statA, func() string { return "generation-A" })
+		aValue = cache.Get(path, statA, func() string { return "generation-A" })
 	}()
 
 	<-aStarted
-	bValue = cache.get(path, statB, func() string { return "generation-B" })
+	bValue = cache.Get(path, statB, func() string { return "generation-B" })
 	close(aProceed)
 	wg.Wait()
 
@@ -274,29 +274,29 @@ func TestConfigScopeCacheSingleFlightSurvivesConcurrentGenerationChange(t *testi
 // but scheduler timing must not decide whether the generated coverage report
 // counts it as covered.
 func TestConfigScopeCacheReturnsSettledSingleFlightValue(t *testing.T) {
-	cache := newConfigScopeCache[string]()
-	key := configScopeCacheKey{
+	cache := NewScopeCache[string]()
+	key := scopeCacheKey{
 		path: "/repo/tsconfig.json",
-		stat: configScopeCacheStat{modTimeUnixNano: 1, size: 10},
+		stat: Stat{modTimeUnixNano: 1, size: 10},
 	}
 	ready := &sync.WaitGroup{}
 	ready.Add(1)
 	ready.Done()
-	node := &configScopeCacheLRUNode[string]{
+	node := &scopeCacheLRUNode[string]{
 		key: key,
-		entry: &configScopeCacheEntry[string]{
+		entry: &scopeCacheEntry[string]{
 			value: "settled-value",
 			ready: ready,
 		},
 	}
 	cache.entries[key] = cache.order.PushFront(node)
 
-	got := cache.get(key.path, key.stat, func() string {
+	got := cache.Get(key.path, key.stat, func() string {
 		t.Fatal("compute called for an existing single-flight entry")
 		return ""
 	})
 	if got != "settled-value" {
-		t.Fatalf("cache.get() = %q, want %q", got, "settled-value")
+		t.Fatalf("cache.Get() = %q, want %q", got, "settled-value")
 	}
 }
 
@@ -307,13 +307,13 @@ func TestConfigScopeCacheReturnsSettledSingleFlightValue(t *testing.T) {
 // global cache also never collide, coalesce, or block on each other. Run
 // with -race.
 func TestConfigScopeCacheDistinctPathsNeverShareSingleFlightWaitGroup(t *testing.T) {
-	cache := newConfigScopeCache[string]()
-	stat := configScopeCacheStat{modTimeUnixNano: 1, size: 10}
+	cache := NewScopeCache[string]()
+	stat := Stat{modTimeUnixNano: 1, size: 10}
 
 	var hookFired atomic.Bool
 	aStarted := make(chan struct{})
 	aProceed := make(chan struct{})
-	restore := cache.setComputeHookForTest(func(string) {
+	restore := cache.SetComputeHookForTest(func(string) {
 		if hookFired.CompareAndSwap(false, true) {
 			close(aStarted)
 			<-aProceed
@@ -326,11 +326,11 @@ func TestConfigScopeCacheDistinctPathsNeverShareSingleFlightWaitGroup(t *testing
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		aValue = cache.get("/repo-a/tsconfig.json", stat, func() string { return "repo-a" })
+		aValue = cache.Get("/repo-a/tsconfig.json", stat, func() string { return "repo-a" })
 	}()
 
 	<-aStarted
-	bValue = cache.get("/repo-b/tsconfig.json", stat, func() string { return "repo-b" })
+	bValue = cache.Get("/repo-b/tsconfig.json", stat, func() string { return "repo-b" })
 	close(aProceed)
 	wg.Wait()
 
@@ -345,26 +345,26 @@ func TestConfigScopeCacheDistinctPathsNeverShareSingleFlightWaitGroup(t *testing
 // TestConfigScopeCacheEvictsLeastRecentlyUsedAtCapacity guards the bounded-
 // memory fix: a process-global cache used by a long-running ingester scanning
 // many repositories over time must not grow without bound. The cache MUST
-// stay at or under configScopeCacheCapacity entries, evicting the least-
+// stay at or under scopeCacheCapacity entries, evicting the least-
 // recently-used key rather than accumulating forever. Eviction never affects
 // correctness -- an evicted key just recomputes on its next access.
 func TestConfigScopeCacheEvictsLeastRecentlyUsedAtCapacity(t *testing.T) {
-	cache := newConfigScopeCache[int]()
-	stat := configScopeCacheStat{modTimeUnixNano: 1, size: 1}
+	cache := NewScopeCache[int]()
+	stat := Stat{modTimeUnixNano: 1, size: 1}
 
-	for i := range configScopeCacheCapacity + 500 {
+	for i := range scopeCacheCapacity + 500 {
 		path := fmt.Sprintf("/repo-%d/tsconfig.json", i)
-		got := cache.get(path, stat, func() int { return i })
+		got := cache.Get(path, stat, func() int { return i })
 		if got != i {
-			t.Fatalf("cache.get(%q) = %d, want %d", path, got, i)
+			t.Fatalf("cache.Get(%q) = %d, want %d", path, got, i)
 		}
 	}
 
 	cache.mu.Lock()
 	size := len(cache.entries)
 	cache.mu.Unlock()
-	if size > configScopeCacheCapacity {
-		t.Fatalf("cache size = %d after inserting %d entries, want <= %d (configScopeCacheCapacity)", size, configScopeCacheCapacity+500, configScopeCacheCapacity)
+	if size > scopeCacheCapacity {
+		t.Fatalf("cache size = %d after inserting %d entries, want <= %d (scopeCacheCapacity)", size, scopeCacheCapacity+500, scopeCacheCapacity)
 	}
 
 	// The earliest keys (least recently used, and never touched again) must
@@ -372,24 +372,24 @@ func TestConfigScopeCacheEvictsLeastRecentlyUsedAtCapacity(t *testing.T) {
 	// cache past the cap.
 	evictedPath := "/repo-0/tsconfig.json"
 	computedAgain := false
-	got := cache.get(evictedPath, stat, func() int {
+	got := cache.Get(evictedPath, stat, func() int {
 		computedAgain = true
 		return -1
 	})
 	if !computedAgain || got != -1 {
-		t.Fatalf("cache.get(%q) after eviction = %d (computedAgain=%v), want a fresh recompute returning -1", evictedPath, got, computedAgain)
+		t.Fatalf("cache.Get(%q) after eviction = %d (computedAgain=%v), want a fresh recompute returning -1", evictedPath, got, computedAgain)
 	}
 
 	cache.mu.Lock()
 	sizeAfter := len(cache.entries)
 	cache.mu.Unlock()
-	if sizeAfter > configScopeCacheCapacity {
-		t.Fatalf("cache size = %d after post-eviction recompute, want <= %d", sizeAfter, configScopeCacheCapacity)
+	if sizeAfter > scopeCacheCapacity {
+		t.Fatalf("cache size = %d after post-eviction recompute, want <= %d", sizeAfter, scopeCacheCapacity)
 	}
 }
 
 func setTSConfigComputeHookForTest(hook func(configPath string)) func() {
-	restore := tsConfigCache.setComputeHookForTest(hook)
+	restore := tsConfigCache.SetComputeHookForTest(hook)
 	return func() {
 		restore()
 		clearConfigScopeCachesForTest()
@@ -397,7 +397,7 @@ func setTSConfigComputeHookForTest(hook func(configPath string)) func() {
 }
 
 func setPackageManifestComputeHookForTest(hook func(manifestPath string)) func() {
-	restore := packageManifestCache.setComputeHookForTest(hook)
+	restore := packageManifestCache.SetComputeHookForTest(hook)
 	return func() {
 		restore()
 		clearConfigScopeCachesForTest()

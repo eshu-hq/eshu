@@ -3,10 +3,12 @@
 
 package javascript
 
+import "github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+
 func javaScriptPackageFileRootKinds(repoRoot string, path string) []string {
-	return PackageFileRootKinds(repoRoot, path)
+	return project.PackageFileRootKinds(repoRoot, path)
 }
 
 func nearestJavaScriptPackageRoot(repoRoot string, path string) (string, bool) {
-	return NearestPackageRoot(repoRoot, path)
+	return project.NearestPackageRoot(repoRoot, path)
 }

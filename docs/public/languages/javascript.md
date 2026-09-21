@@ -70,9 +70,9 @@ Modeled roots and evidence include:
   CommonJS property require aliases, and bounded constructor receiver evidence.
 
 Focused coverage lives in
-`go/internal/parser/javascript/javascript_dead_code_node_roots_test.go`,
-`go/internal/parser/javascript/javascript_dead_code_hapi_alias_test.go`,
-`go/internal/parser/javascript/javascript_dead_code_commonjs_class_test.go`,
+`go/internal/parser/javascript/dead_code_node_roots_test.go`,
+`go/internal/parser/javascript/dead_code_hapi_alias_test.go`,
+`go/internal/parser/javascript/dead_code_commonjs_class_test.go`,
 `go/internal/query/codequery/deadcode/javascript_roots_test.go`, and
 `go/internal/query/codequery/deadcode/node_typescript_matrix_test.go`.
 
@@ -112,7 +112,7 @@ Supported today:
 - AWS/GCP SDK evidence (`framework_semantics.{aws,gcp}.services` and
   `.client_symbols`) is parsed as framework evidence only. It is not modeled
   as a dead-code root kind (`javaScriptDeadCodeRootKinds` in
-  `go/internal/parser/javascript/javascript_dead_code_roots.go` never reacts
+  `go/internal/parser/javascript/dead_code_roots.go` never reacts
   to it) and has no dedicated query surface today.
 
 Not claimed today:

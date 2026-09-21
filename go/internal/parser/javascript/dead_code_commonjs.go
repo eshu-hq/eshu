@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -16,7 +17,7 @@ func mergeJavaScriptRegisteredRootKinds(dst map[string][]string, src map[string]
 			continue
 		}
 		for _, rootKind := range rootKinds {
-			dst[key] = appendUniqueString(dst[key], rootKind)
+			dst[key] = shared.AppendUniqueString(dst[key], rootKind)
 		}
 	}
 }
@@ -44,7 +45,7 @@ func javaScriptCommonJSExportAliasRootKinds(
 			return
 		}
 		key := strings.ToLower(exportedName)
-		registered[key] = appendUniqueString(registered[key], rootKind)
+		registered[key] = shared.AppendUniqueString(registered[key], rootKind)
 	})
 	return registered
 }
@@ -71,7 +72,7 @@ func javaScriptCommonJSDefaultExportAliasRootKinds(
 			return
 		}
 		key := strings.ToLower(exportedName)
-		registered[key] = appendUniqueString(registered[key], "javascript.commonjs_default_export")
+		registered[key] = shared.AppendUniqueString(registered[key], "javascript.commonjs_default_export")
 	})
 	return registered
 }

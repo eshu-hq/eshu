@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package project
 
 import (
 	"container/list"
@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-// configScopeCache memoizes the parsed content of one repository config file
+// ScopeCache memoizes the parsed content of one repository config file
 // (tsconfig.json or package.json) keyed by its resolved absolute path, so
 // every source file that shares the same nearest config reuses one read and
 // one parse instead of repeating both per file (issue #4515 P2a).
@@ -49,72 +49,77 @@ import (
 // Memory bound: the cache is process-global and this package is used by a
 // long-running ingester that scans many repositories over its lifetime, so
 // an unbounded map would grow forever. Entries are held in a bounded LRU
-// (configScopeCacheCapacity keys); the least-recently-used entry is evicted
-// once the cache is full. Evicting a config just means the next file under
-// it recomputes -- eviction never affects correctness, only how often a
-// config is recomputed after a long period without access.
-const configScopeCacheCapacity = 4096
+// (scopeCacheCapacity keys); the least-recently-used entry is evicted once
+// the cache is full. Evicting a config just means the next file under it
+// recomputes -- eviction never affects correctness, only how often a config
+// is recomputed after a long period without access.
+const scopeCacheCapacity = 4096
 
-// configScopeCacheStat is the (mtime, size) generation fingerprint used both
-// to detect a stale cached value and, combined with the config path, to key
-// a single-flight slot so two generations of the same path never collide.
-type configScopeCacheStat struct {
+// Stat is the (mtime, size) generation fingerprint used both to detect a
+// stale cached value and, combined with the config path, to key a
+// single-flight slot so two generations of the same path never collide.
+type Stat struct {
 	modTimeUnixNano int64
 	size            int64
 }
 
-func statForConfigScopeCache(path string) (configScopeCacheStat, bool) {
+// StatFor returns the (mtime, size) generation fingerprint for path, or
+// ok=false when the file cannot be stat'd (e.g. removed between discovery
+// and read).
+func StatFor(path string) (Stat, bool) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return configScopeCacheStat{}, false
+		return Stat{}, false
 	}
-	return configScopeCacheStat{modTimeUnixNano: info.ModTime().UnixNano(), size: info.Size()}, true
+	return Stat{modTimeUnixNano: info.ModTime().UnixNano(), size: info.Size()}, true
 }
 
-// configScopeCacheKey identifies one (config path, generation) slot. Two
-// different generations of the same path never share a key, so an in-flight
+// scopeCacheKey identifies one (config path, generation) slot. Two different
+// generations of the same path never share a key, so an in-flight
 // computation for one generation can never be overwritten by a computation
 // for another.
-type configScopeCacheKey struct {
+type scopeCacheKey struct {
 	path string
-	stat configScopeCacheStat
+	stat Stat
 }
 
-// configScopeCacheEntry holds one generation's settled value plus, while the
-// value is still being computed, the WaitGroup other callers for the SAME
-// key wait on instead of racing a duplicate read+parse.
-type configScopeCacheEntry[V any] struct {
+// scopeCacheEntry holds one generation's settled value plus, while the value
+// is still being computed, the WaitGroup other callers for the SAME key wait
+// on instead of racing a duplicate read+parse.
+type scopeCacheEntry[V any] struct {
 	value V
 	ready *sync.WaitGroup
 }
 
-// configScopeCache is a bounded, single-flight-coalesced, generation-safe
-// cache shared by the tsconfig.json and package.json memoizers. See the
+// ScopeCache is a bounded, single-flight-coalesced, generation-safe cache
+// shared by the tsconfig.json and package.json memoizers, and reused by the
+// javascript package's own TypeScript public-surface cache. See the
 // package-level doc comment above for the concurrency and eviction argument;
-// this type only implements it once so both call sites stay in lockstep.
-type configScopeCache[V any] struct {
+// this type only implements it once so every call site stays in lockstep.
+type ScopeCache[V any] struct {
 	mu            sync.Mutex
-	entries       map[configScopeCacheKey]*list.Element // list.Element.Value is *configScopeCacheLRUNode[V]
-	order         *list.List                            // front = most recently used
+	entries       map[scopeCacheKey]*list.Element // list.Element.Value is *scopeCacheLRUNode[V]
+	order         *list.List                      // front = most recently used
 	computeHook   func(path string)
 	computeHookMu sync.Mutex
 }
 
-type configScopeCacheLRUNode[V any] struct {
-	key   configScopeCacheKey
-	entry *configScopeCacheEntry[V]
+type scopeCacheLRUNode[V any] struct {
+	key   scopeCacheKey
+	entry *scopeCacheEntry[V]
 }
 
-func newConfigScopeCache[V any]() *configScopeCache[V] {
-	return &configScopeCache[V]{
-		entries: make(map[configScopeCacheKey]*list.Element),
+// NewScopeCache constructs an empty ScopeCache for one value type V.
+func NewScopeCache[V any]() *ScopeCache[V] {
+	return &ScopeCache[V]{
+		entries: make(map[scopeCacheKey]*list.Element),
 		order:   list.New(),
 	}
 }
 
-// setComputeHookForTest installs a hook invoked on every real (cache-miss)
+// SetComputeHookForTest installs a hook invoked on every real (cache-miss)
 // computation. Test-only; see SetConfigScopeComputeHooksForTest.
-func (c *configScopeCache[V]) setComputeHookForTest(hook func(path string)) func() {
+func (c *ScopeCache[V]) SetComputeHookForTest(hook func(path string)) func() {
 	c.computeHookMu.Lock()
 	previous := c.computeHook
 	c.computeHook = hook
@@ -126,7 +131,7 @@ func (c *configScopeCache[V]) setComputeHookForTest(hook func(path string)) func
 	}
 }
 
-func (c *configScopeCache[V]) invokeComputeHookForTest(path string) {
+func (c *ScopeCache[V]) invokeComputeHookForTest(path string) {
 	c.computeHookMu.Lock()
 	hook := c.computeHook
 	c.computeHookMu.Unlock()
@@ -135,27 +140,27 @@ func (c *configScopeCache[V]) invokeComputeHookForTest(path string) {
 	}
 }
 
-// clearForTest empties the cache. Test-only.
-func (c *configScopeCache[V]) clearForTest() {
+// ClearForTest empties the cache. Test-only.
+func (c *ScopeCache[V]) ClearForTest() {
 	c.mu.Lock()
-	c.entries = make(map[configScopeCacheKey]*list.Element)
+	c.entries = make(map[scopeCacheKey]*list.Element)
 	c.order.Init()
 	c.mu.Unlock()
 }
 
-// get returns the cached value for (path, stat), computing it via compute at
+// Get returns the cached value for (path, stat), computing it via compute at
 // most once per distinct (path, stat) generation. Concurrent callers for the
 // SAME (path, stat) key coalesce onto the one in-flight computation via that
 // key's WaitGroup; callers for a DIFFERENT key (a different path, or a
 // changed generation of the same path) never observe or wait on another
 // key's WaitGroup, so they cannot receive another generation's value and
 // cannot be blocked by another generation's I/O.
-func (c *configScopeCache[V]) get(path string, stat configScopeCacheStat, compute func() V) V {
-	key := configScopeCacheKey{path: path, stat: stat}
+func (c *ScopeCache[V]) Get(path string, stat Stat, compute func() V) V {
+	key := scopeCacheKey{path: path, stat: stat}
 
 	c.mu.Lock()
 	if element, ok := c.entries[key]; ok {
-		node := element.Value.(*configScopeCacheLRUNode[V])
+		node := element.Value.(*scopeCacheLRUNode[V])
 		c.order.MoveToFront(element)
 		ready := node.entry.ready
 		c.mu.Unlock()
@@ -177,7 +182,7 @@ func (c *configScopeCache[V]) get(path string, stat configScopeCacheStat, comput
 	// overwrite this one.
 	ready := &sync.WaitGroup{}
 	ready.Add(1)
-	node := &configScopeCacheLRUNode[V]{key: key, entry: &configScopeCacheEntry[V]{ready: ready}}
+	node := &scopeCacheLRUNode[V]{key: key, entry: &scopeCacheEntry[V]{ready: ready}}
 	element := c.order.PushFront(node)
 	c.entries[key] = element
 	c.evictLocked()
@@ -192,10 +197,10 @@ func (c *configScopeCache[V]) get(path string, stat configScopeCacheStat, comput
 	// still present, and always move it to the front so a value that just
 	// finished computing is not immediately the next eviction candidate.
 	if element, ok := c.entries[key]; ok {
-		node = element.Value.(*configScopeCacheLRUNode[V])
+		node = element.Value.(*scopeCacheLRUNode[V])
 		c.order.MoveToFront(element)
 	}
-	node.entry = &configScopeCacheEntry[V]{value: value}
+	node.entry = &scopeCacheEntry[V]{value: value}
 	c.mu.Unlock()
 
 	ready.Done()
@@ -204,17 +209,17 @@ func (c *configScopeCache[V]) get(path string, stat configScopeCacheStat, comput
 
 // evictLocked removes the least-recently-used entry once the cache exceeds
 // its bounded capacity. Callers must hold c.mu. Evicting an in-flight entry
-// is safe: the owning goroutine in get still holds its own *sync.WaitGroup
-// and *configScopeCacheEntry reference via node/ready, so it settles and
-// signals waiters exactly as if eviction had not happened; only the map/list
+// is safe: the owning goroutine in Get still holds its own *sync.WaitGroup
+// and *scopeCacheEntry reference via node/ready, so it settles and signals
+// waiters exactly as if eviction had not happened; only the map/list
 // bookkeeping is removed, not the in-flight computation itself.
-func (c *configScopeCache[V]) evictLocked() {
-	for len(c.entries) > configScopeCacheCapacity {
+func (c *ScopeCache[V]) evictLocked() {
+	for len(c.entries) > scopeCacheCapacity {
 		oldest := c.order.Back()
 		if oldest == nil {
 			return
 		}
-		node := oldest.Value.(*configScopeCacheLRUNode[V])
+		node := oldest.Value.(*scopeCacheLRUNode[V])
 		delete(c.entries, node.key)
 		c.order.Remove(oldest)
 	}
@@ -222,28 +227,28 @@ func (c *configScopeCache[V]) evictLocked() {
 
 // tsConfigCache is the config-scope cache for parsed tsconfig.json compiler
 // options.
-var tsConfigCache = newConfigScopeCache[tsConfigOptions]()
+var tsConfigCache = NewScopeCache[tsConfigOptions]()
 
 // cachedTSConfigCompilerOptions returns the parsed compilerOptions for the
 // tsconfig.json at configPath, computing and caching them at most once per
 // distinct (path, mtime, size) generation, with concurrent same-generation
-// callers coalesced onto the one in-flight computation (see the package doc
-// comment on configScopeCache).
+// callers coalesced onto the one in-flight computation (see the ScopeCache
+// doc comment).
 func cachedTSConfigCompilerOptions(configPath string) tsConfigOptions {
-	stat, ok := statForConfigScopeCache(configPath)
+	stat, ok := StatFor(configPath)
 	if !ok {
 		// Stat failed (e.g. removed between discovery and read); fall back to
 		// the uncached path so callers see the same not-found behavior as
 		// before this cache existed.
 		return tsConfigCompilerOptions(configPath)
 	}
-	return tsConfigCache.get(configPath, stat, func() tsConfigOptions {
+	return tsConfigCache.Get(configPath, stat, func() tsConfigOptions {
 		return tsConfigCompilerOptions(configPath)
 	})
 }
 
 // packageManifestResult wraps the two-value packageManifest lookup result so
-// it fits the single-value configScopeCache[V] generic slot.
+// it fits the single-value ScopeCache[V] generic slot.
 type packageManifestResult struct {
 	manifest packageManifest
 	found    bool
@@ -251,18 +256,18 @@ type packageManifestResult struct {
 
 // packageManifestCache is the config-scope cache for parsed package.json
 // manifests.
-var packageManifestCache = newConfigScopeCache[packageManifestResult]()
+var packageManifestCache = NewScopeCache[packageManifestResult]()
 
 // cachedPackageManifest returns the parsed package.json at manifestPath,
 // computing and caching it at most once per distinct (path, mtime, size)
 // generation, with concurrent same-generation callers coalesced onto the one
-// in-flight computation (see the package doc comment on configScopeCache).
+// in-flight computation (see the ScopeCache doc comment).
 func cachedPackageManifest(manifestPath string) (packageManifest, bool) {
-	stat, ok := statForConfigScopeCache(manifestPath)
+	stat, ok := StatFor(manifestPath)
 	if !ok {
 		return packageManifest{}, false
 	}
-	result := packageManifestCache.get(manifestPath, stat, func() packageManifestResult {
+	result := packageManifestCache.Get(manifestPath, stat, func() packageManifestResult {
 		manifest, found := readPackageManifest(manifestPath)
 		return packageManifestResult{manifest: manifest, found: found}
 	})
@@ -286,8 +291,8 @@ func readPackageManifest(manifestPath string) (packageManifest, bool) {
 // keeps hook-installing tests isolated from cache entries a prior subtest may
 // have populated for a reused temp-dir path.
 func clearConfigScopeCachesForTest() {
-	tsConfigCache.clearForTest()
-	packageManifestCache.clearForTest()
+	tsConfigCache.ClearForTest()
+	packageManifestCache.ClearForTest()
 }
 
 // SetConfigScopeComputeHooksForTest installs process-global hooks that
@@ -301,8 +306,8 @@ func clearConfigScopeCachesForTest() {
 // hooks and the caches are process-global (mirrors the constraint documented
 // on shared.SetReadSourceHookForTest).
 func SetConfigScopeComputeHooksForTest(onTSConfig, onPackageManifest func(configPath string)) func() {
-	restoreTSConfig := tsConfigCache.setComputeHookForTest(onTSConfig)
-	restorePackageManifest := packageManifestCache.setComputeHookForTest(onPackageManifest)
+	restoreTSConfig := tsConfigCache.SetComputeHookForTest(onTSConfig)
+	restorePackageManifest := packageManifestCache.SetComputeHookForTest(onPackageManifest)
 	return func() {
 		restoreTSConfig()
 		restorePackageManifest()

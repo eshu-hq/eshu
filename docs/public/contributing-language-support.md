@@ -323,7 +323,7 @@ repositories (#4766). Normal hand-written source is tens of KB, so 1 MiB is
 generous headroom above any legitimate single file.
 
 The cap lives in each language family's `Parse` entry point
-(`go/internal/parser/javascript/javascript_language.go`'s `jsParseByteCap`,
+(`go/internal/parser/javascript/language.go`'s `jsParseByteCap`,
 `go/internal/parser/php/parser.go`'s `phpParseByteCap`), covering TypeScript
 and TSX through the shared javascript-family parser. A bounded file returns an
 otherwise-empty payload with no extracted entities; the bound is recorded in

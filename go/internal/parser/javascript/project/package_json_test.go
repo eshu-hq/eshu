@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package project
 
 import (
 	"os"
@@ -49,7 +49,7 @@ func TestPackagePublicSourcePathsMapExportsAndTypesToSource(t *testing.T) {
 	writePackageJSONTestFile(t, indexPath, `export function main() {}`)
 
 	got := PackagePublicSourcePaths(repoRoot, indexPath)
-	want := cleanPath(indexPath)
+	want := CleanPath(indexPath)
 	if len(got) != 1 || got[0] != want {
 		t.Fatalf("PackagePublicSourcePaths() = %#v, want [%q]", got, want)
 	}
@@ -66,7 +66,7 @@ func TestPackagePublicSourcePathsMapDeclarationTypesToSource(t *testing.T) {
 	writePackageJSONTestFile(t, indexPath, `export function main() {}`)
 
 	got := PackagePublicSourcePaths(repoRoot, indexPath)
-	want := cleanPath(indexPath)
+	want := CleanPath(indexPath)
 	if len(got) != 1 || got[0] != want {
 		t.Fatalf("PackagePublicSourcePaths() = %#v, want [%q]", got, want)
 	}

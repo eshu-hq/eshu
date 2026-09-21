@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -90,7 +91,7 @@ func javaScriptExpressHandlerNames(node *tree_sitter.Node, source []byte) []stri
 	cursor.Close()
 	for i := range children {
 		for _, name := range javaScriptExpressHandlerNames(&children[i], source) {
-			names = appendUniqueString(names, name)
+			names = shared.AppendUniqueString(names, name)
 		}
 	}
 	return names

@@ -38,7 +38,7 @@ A theory resting on one sample is marked unproven — none below is.
 Language-generic tree-sitter leaf walk over the function **body** node, using
 the repo's own grammar bindings (`go/internal/parser/runtime.go` loaders).
 Function nodes mirror production emission exactly (verified against
-`javascript_language.go`, `python/language.go` + `lambda_support.go`,
+`javascript/language.go`, `python/language.go` + `lambda_support.go`,
 `golang/language.go`, `java/parser.go`): Go `function_declaration`/
 `method_declaration`; Python `function_definition` plus assignment-bound
 `lambda` (named) and bare `lambda` (anonymous, skipped when it is an

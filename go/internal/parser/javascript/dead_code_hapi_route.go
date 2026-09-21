@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -255,7 +256,7 @@ func javaScriptHapiPluginRegisterAliasRootKinds(
 			return
 		}
 		for _, name := range javaScriptHapiPluginRegisterAliasNames(objectNode, source) {
-			registered[strings.ToLower(name)] = appendUniqueString(
+			registered[strings.ToLower(name)] = shared.AppendUniqueString(
 				registered[strings.ToLower(name)],
 				"javascript.hapi_plugin_register",
 			)
@@ -278,12 +279,12 @@ func javaScriptHapiPluginRegisterAliasNames(objectNode *tree_sitter.Node, source
 			}
 			valueNode := child.ChildByFieldName("value")
 			if name := javaScriptIdentifierName(valueNode, source); name != "" {
-				names = appendUniqueString(names, name)
+				names = shared.AppendUniqueString(names, name)
 			}
 		case "shorthand_property_identifier", "identifier", "property_identifier":
 			name := strings.TrimSpace(nodeText(&child, source))
 			if name == "register" {
-				names = appendUniqueString(names, name)
+				names = shared.AppendUniqueString(names, name)
 			}
 		}
 	}
@@ -330,7 +331,7 @@ func javaScriptObjectExportAliasRootKinds(
 			return
 		}
 		for _, name := range javaScriptObjectAliasNames(objectNode, source, key) {
-			registered[strings.ToLower(name)] = appendUniqueString(registered[strings.ToLower(name)], rootKind)
+			registered[strings.ToLower(name)] = shared.AppendUniqueString(registered[strings.ToLower(name)], rootKind)
 		}
 	})
 	return registered
@@ -350,14 +351,14 @@ func javaScriptObjectAliasNames(objectNode *tree_sitter.Node, source []byte, key
 			}
 			valueNode := child.ChildByFieldName("value")
 			if name := javaScriptIdentifierName(valueNode, source); name != "" {
-				names = appendUniqueString(names, name)
+				names = shared.AppendUniqueString(names, name)
 			}
 		case "shorthand_property_identifier", "identifier", "property_identifier":
 			name := strings.TrimSpace(nodeText(&child, source))
 			if keyFilter != "" && name != keyFilter {
 				continue
 			}
-			names = appendUniqueString(names, name)
+			names = shared.AppendUniqueString(names, name)
 		}
 	}
 	return names

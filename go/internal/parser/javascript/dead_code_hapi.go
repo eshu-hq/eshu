@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -16,7 +18,7 @@ func javaScriptIsHapiHandlerFile(repoRoot string, path string, siblingParser *ja
 	if strings.TrimSpace(repoRoot) == "" || strings.TrimSpace(path) == "" {
 		return false
 	}
-	relativePath, ok := relativeSlashPath(repoRoot, path)
+	relativePath, ok := project.RelativeSlashPath(repoRoot, path)
 	if !ok || !strings.Contains(relativePath, "/handlers/") {
 		return false
 	}
@@ -31,7 +33,7 @@ func javaScriptIsHapiHandlerFile(repoRoot string, path string, siblingParser *ja
 func javaScriptHapiHandlerDirs(repoRoot string, path string, siblingParser *javaScriptSiblingParser) []string {
 	serviceRoots := []string{repoRoot}
 	if packageRoot, ok := nearestJavaScriptPackageRoot(repoRoot, path); ok {
-		serviceRoots = appendUniqueString(serviceRoots, packageRoot)
+		serviceRoots = shared.AppendUniqueString(serviceRoots, packageRoot)
 	}
 
 	candidates := []string{}
@@ -56,7 +58,7 @@ func javaScriptHapiHandlerDirs(repoRoot string, path string, siblingParser *java
 		}
 		for _, relative := range javaScriptHapiHandlerSpecDirs(root, source) {
 			resolved := filepath.Clean(filepath.Join(filepath.Dir(candidate), relative))
-			dirs = appendUniqueString(dirs, resolved)
+			dirs = shared.AppendUniqueString(dirs, resolved)
 		}
 	}
 	return dirs

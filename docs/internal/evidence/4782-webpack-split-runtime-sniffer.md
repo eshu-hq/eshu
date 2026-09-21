@@ -23,7 +23,7 @@ the sniff and went to a full tree-sitter parse.
 #4782 is motivated by a ~2.7MB WordPress/Gutenberg bundle parsing in ~15.9s,
 about 224x a normal file. That hazard was already closed by **#4766**.
 
-`go/internal/parser/javascript/javascript_language.go` carries
+`go/internal/parser/javascript/language.go` carries
 `jsParseByteCap = 1 << 20`. Any JavaScript-family file over 1 MiB is never
 handed to tree-sitter — it returns a payload carrying a `js_parse_bounded` row
 and nothing else. `go/internal/parser/parse_bytecap_test.go` cites that same

@@ -6,6 +6,7 @@ package javascript
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 )
 
@@ -331,7 +332,7 @@ func javaScriptRegisterHandlerArgs(
 		}
 		for _, handlerName := range javaScriptExpressHandlerNames(&args[i], source) {
 			key := strings.ToLower(handlerName)
-			registered[key] = appendUniqueString(registered[key], rootKind)
+			registered[key] = shared.AppendUniqueString(registered[key], rootKind)
 		}
 	}
 }

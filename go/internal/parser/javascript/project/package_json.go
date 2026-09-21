@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package javascript
+package project
 
 import (
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
 type packageManifest struct {
@@ -27,7 +29,7 @@ func PackageFileRootKinds(repoRoot string, path string) []string {
 	if !ok {
 		return nil
 	}
-	relativePath, ok := relativeSlashPath(packageRoot, path)
+	relativePath, ok := RelativeSlashPath(packageRoot, path)
 	if !ok {
 		return nil
 	}
@@ -35,26 +37,26 @@ func PackageFileRootKinds(repoRoot string, path string) []string {
 	rootKinds := []string{}
 	for _, target := range []string{manifest.Main, manifest.Module} {
 		if packageTargetMatchesSource(target, relativePath) {
-			rootKinds = appendUniqueString(rootKinds, "javascript.node_package_entrypoint")
+			rootKinds = shared.AppendUniqueString(rootKinds, "javascript.node_package_entrypoint")
 		}
 	}
 	for _, target := range packageBinTargets(manifest.Bin) {
 		if packageTargetMatchesSource(target, relativePath) {
-			rootKinds = appendUniqueString(rootKinds, "javascript.node_package_bin")
+			rootKinds = shared.AppendUniqueString(rootKinds, "javascript.node_package_bin")
 		}
 	}
 	for _, target := range packageScriptTargets(manifest.Scripts) {
 		if packageTargetMatchesSource(target, relativePath) {
-			rootKinds = appendUniqueString(rootKinds, "javascript.node_package_script")
+			rootKinds = shared.AppendUniqueString(rootKinds, "javascript.node_package_script")
 		}
 	}
 	for _, target := range packageExportTargets(manifest.Exports) {
 		if packageTargetMatchesSource(target, relativePath) {
-			rootKinds = appendUniqueString(rootKinds, "javascript.node_package_export")
+			rootKinds = shared.AppendUniqueString(rootKinds, "javascript.node_package_export")
 		}
 	}
 	if manifest.Types != "" && packageTargetMatchesSource(manifest.Types, relativePath) {
-		rootKinds = appendUniqueString(rootKinds, "javascript.node_package_export")
+		rootKinds = shared.AppendUniqueString(rootKinds, "javascript.node_package_export")
 	}
 	return rootKinds
 }
@@ -82,7 +84,7 @@ func PackagePublicSourcePaths(repoRoot string, path string) []string {
 		for _, candidate := range packageSourceCandidates(target) {
 			candidatePath := filepath.Join(packageRoot, filepath.FromSlash(candidate))
 			if info, err := os.Stat(candidatePath); err == nil && !info.IsDir() {
-				paths = appendUniqueString(paths, cleanPath(candidatePath))
+				paths = shared.AppendUniqueString(paths, CleanPath(candidatePath))
 			}
 		}
 	}
@@ -102,8 +104,8 @@ func nearestPackageManifest(repoRoot string, path string) (packageManifest, stri
 }
 
 func nearestPackageJSON(repoRoot string, path string) (string, string, bool) {
-	repoRoot = cleanPath(repoRoot)
-	path = cleanPath(path)
+	repoRoot = CleanPath(repoRoot)
+	path = CleanPath(path)
 	if repoRoot == "" || path == "" {
 		return "", "", false
 	}
@@ -111,7 +113,7 @@ func nearestPackageJSON(repoRoot string, path string) (string, string, bool) {
 	if info, err := os.Stat(path); err != nil || !info.IsDir() {
 		dir = filepath.Dir(path)
 	}
-	for pathWithin(repoRoot, dir) {
+	for PathWithin(repoRoot, dir) {
 		candidate := filepath.Join(dir, "package.json")
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate, dir, true
@@ -241,18 +243,18 @@ func packageSourceCandidates(target string) []string {
 	for _, prefix := range []string{"dist/", "build/", "lib/"} {
 		withoutBuildDir = strings.TrimPrefix(withoutBuildDir, prefix)
 	}
-	candidates = appendUniqueString(candidates, withoutBuildDir)
+	candidates = shared.AppendUniqueString(candidates, withoutBuildDir)
 	if !strings.HasPrefix(withoutBuildDir, "src/") {
-		candidates = appendUniqueString(candidates, "src/"+withoutBuildDir)
+		candidates = shared.AppendUniqueString(candidates, "src/"+withoutBuildDir)
 	}
 	withoutExtension := strings.TrimSuffix(withoutBuildDir, filepath.Ext(withoutBuildDir))
 	if strings.HasSuffix(withoutBuildDir, ".d.ts") {
 		withoutExtension = strings.TrimSuffix(withoutBuildDir, ".d.ts")
 	}
 	for _, extension := range []string{".ts", ".tsx", ".d.ts", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"} {
-		candidates = appendUniqueString(candidates, withoutExtension+extension)
+		candidates = shared.AppendUniqueString(candidates, withoutExtension+extension)
 		if !strings.HasPrefix(withoutExtension, "src/") {
-			candidates = appendUniqueString(candidates, "src/"+withoutExtension+extension)
+			candidates = shared.AppendUniqueString(candidates, "src/"+withoutExtension+extension)
 		}
 	}
 	return candidates

@@ -10,11 +10,11 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
-	jsparser "github.com/eshu-hq/eshu/go/internal/parser/javascript"
+	"github.com/eshu-hq/eshu/go/internal/parser/javascript/project"
 )
 
 // Not t.Parallel(): installs the process-global config-scope compute hooks
-// via jsparser.SetConfigScopeComputeHooksForTest.
+// via project.SetConfigScopeComputeHooksForTest.
 //
 // TestEngineParsePathComputesRepoConfigMetadataOnceForSharedManifests is the
 // engine-level regression seed for issue #4515 P2a: before the config-scope
@@ -47,7 +47,7 @@ export function use%d() { return helper(); }
 `)
 
 	var tsConfigComputes, packageManifestComputes int
-	restore := jsparser.SetConfigScopeComputeHooksForTest(
+	restore := project.SetConfigScopeComputeHooksForTest(
 		func(string) { tsConfigComputes++ },
 		func(string) { packageManifestComputes++ },
 	)
@@ -98,7 +98,7 @@ func TestEngineParsePathConcurrentJavaScriptFilesShareConfigComputationOnce(t *t
 
 	var mu sync.Mutex
 	var tsConfigComputes, packageManifestComputes int
-	restore := jsparser.SetConfigScopeComputeHooksForTest(
+	restore := project.SetConfigScopeComputeHooksForTest(
 		func(string) {
 			mu.Lock()
 			tsConfigComputes++
