@@ -31,11 +31,11 @@ var errDivergenceFindingsUnavailable = errors.New("divergence findings content i
 // DivergenceFindingsRequest is the POST /api/v0/code/divergence/findings
 // body. RepoID is required and resolved against the caller's grant (an
 // ungranted repo rejects with 400 before any read); Kind selects the family
-// ("" reads all four: exact, renamed, drifted, and wrapper_bypass); IncludeTests opts
-// test-file copies back into the member set for the exact and renamed
-// families. It has no effect on drifted: pairs touching test files are
-// dropped at write, so no drifted fact ever carries a test member to
-// resurrect.
+// ("" reads all five: exact, renamed, drifted, wrapper_bypass, and
+// convention_outlier); IncludeTests opts test-file copies back into the
+// member set for the exact, renamed, and convention_outlier families. It
+// has no effect on drifted: pairs touching test files are dropped at write,
+// so no drifted fact ever carries a test member to resurrect.
 type DivergenceFindingsRequest struct {
 	RepoID       string `json:"repo_id"`
 	Kind         string `json:"kind"`
@@ -64,11 +64,12 @@ func (r DivergenceFindingsRequest) validate() error {
 		return fmt.Errorf("repo_id is required")
 	}
 	switch r.Kind {
-	case "", "exact", "renamed", "drifted", "wrapper_bypass",
+	case "", "exact", "renamed", "drifted", "wrapper_bypass", "convention_outlier",
 		string(codedivergence.KindExact), string(codedivergence.KindRenamed),
-		string(codedivergence.KindDrifted), string(codedivergence.KindWrapperBypass):
+		string(codedivergence.KindDrifted), string(codedivergence.KindWrapperBypass),
+		string(codedivergence.KindConventionOutlier):
 	default:
-		return fmt.Errorf("kind must be one of: \"\", \"exact\", \"renamed\", \"drifted\", \"wrapper_bypass\" (qualified \"parallel_implementation.*\" spellings accepted)")
+		return fmt.Errorf("kind must be one of: \"\", \"exact\", \"renamed\", \"drifted\", \"wrapper_bypass\", \"convention_outlier\" (qualified \"parallel_implementation.*\" spellings accepted)")
 	}
 	if r.Limit > divergenceFindingsMaxLimit {
 		return fmt.Errorf("limit must be <= 100")
@@ -92,8 +93,10 @@ func (r DivergenceFindingsRequest) kinds() []codedivergence.Kind {
 		return []codedivergence.Kind{codedivergence.KindDrifted}
 	case "wrapper_bypass", string(codedivergence.KindWrapperBypass):
 		return []codedivergence.Kind{codedivergence.KindWrapperBypass}
+	case "convention_outlier", string(codedivergence.KindConventionOutlier):
+		return []codedivergence.Kind{codedivergence.KindConventionOutlier}
 	default:
-		return []codedivergence.Kind{codedivergence.KindExact, codedivergence.KindRenamed, codedivergence.KindDrifted, codedivergence.KindWrapperBypass}
+		return []codedivergence.Kind{codedivergence.KindExact, codedivergence.KindRenamed, codedivergence.KindDrifted, codedivergence.KindWrapperBypass, codedivergence.KindConventionOutlier}
 	}
 }
 
@@ -165,8 +168,14 @@ func (h *CodeHandler) handleDivergenceFindings(w http.ResponseWriter, r *http.Re
 			break
 		}
 	}
+	for _, kind := range req.kinds() {
+		if kind == codedivergence.KindConventionOutlier {
+			basis += " with cohort-bounded outlier selection"
+			break
+		}
+	}
 	sourceBackend := "postgres_content_store"
-	if data.wrapperEmitted {
+	if data.wrapperEmitted || data.outlierEmitted {
 		sourceBackend = "postgres_content_store+graph"
 	}
 	WriteSuccess(
@@ -201,6 +210,9 @@ type divergenceFindingsData struct {
 	// wrapperEmitted reports a wrapper_bypass finding on the page, so the
 	// response names the graph backend beside the content store.
 	wrapperEmitted bool
+	// outlierEmitted reports a convention_outlier finding on the page: the
+	// cohort sweep is graph-driven like the wrapper track.
+	outlierEmitted bool
 }
 
 // kindsContainDivergenceKind reports whether a resolved kind list selects
@@ -212,55 +224,6 @@ func kindsContainDivergenceKind(kinds []codedivergence.Kind, kind codedivergence
 		}
 	}
 	return false
-}
-
-// divergencePhaseOneStats ranks every multi-member group in the repo
-// (narrow stat rows, cheap at corpus scale) across the requested kinds.
-// Wrapper-bypass nominates from exact groups, re-stamped when the exact
-// kind itself is not requested, so one family never double-reports.
-func divergencePhaseOneStats(
-	ctx context.Context,
-	reader divergenceStore,
-	req DivergenceFindingsRequest,
-	kinds []codedivergence.Kind,
-	wrapperRequested, exactRequested bool,
-) ([]codedivergence.GroupStat, error) {
-	stats := make([]codedivergence.GroupStat, 0, 64)
-	for _, kind := range kinds {
-		if kind == codedivergence.KindDrifted {
-			driftedStats, err := reader.DriftedFindingStats(ctx, req.RepoID)
-			if err != nil {
-				return nil, err
-			}
-			stats = append(stats, driftedStats...)
-			continue
-		}
-		if kind == codedivergence.KindWrapperBypass {
-			// Wrapper-bypass nominates from exact groups (phase two
-			// partitions them); it never stats the store itself, so a
-			// wrapper family cannot double-report as both exact and
-			// wrapper_bypass.
-			continue
-		}
-		kindStats, err := reader.DivergenceGroupStats(ctx, req.RepoID, kind, codedivergence.TokenFloor)
-		if err != nil {
-			return nil, err
-		}
-		stats = append(stats, kindStats...)
-	}
-	if wrapperRequested && !exactRequested {
-		// Wrapper-only page: the exact stats still nominate, re-stamped
-		// so finding ids derive from the wrapper kind.
-		nominators, err := reader.DivergenceGroupStats(ctx, req.RepoID, codedivergence.KindExact, codedivergence.TokenFloor)
-		if err != nil {
-			return nil, err
-		}
-		for _, stat := range nominators {
-			stat.Kind = codedivergence.KindWrapperBypass
-			stats = append(stats, stat)
-		}
-	}
-	return stats, nil
 }
 
 func (h *CodeHandler) divergenceFindingsData(
@@ -293,7 +256,7 @@ func (h *CodeHandler) divergenceFindingsData(
 	kinds := req.kinds()
 	wrapperRequested := kindsContainDivergenceKind(kinds, codedivergence.KindWrapperBypass)
 	exactRequested := kindsContainDivergenceKind(kinds, codedivergence.KindExact)
-	stats, err := divergencePhaseOneStats(ctx, reader, req, kinds, wrapperRequested, exactRequested)
+	stats, err := codedivergence.PhaseOneStats(ctx, reader, req.RepoID, kinds, wrapperRequested, exactRequested)
 	if err != nil {
 		return divergenceFindingsData{}, err
 	}
@@ -414,6 +377,11 @@ func (h *CodeHandler) divergenceFindingsData(
 			assembled = append(assembled, track...)
 		}
 	}
+	var outlierEmitted bool
+	assembled, outlierEmitted, err = h.appendOutlierTrack(ctx, req, kinds, assembled, suppressions)
+	if err != nil {
+		return divergenceFindingsData{}, err
+	}
 	// Drifted rows assemble from their fact payloads (similarity, threshold,
 	// band evidence ride the row, not a fingerprint group). A windowed row
 	// missing from hydration drops out silently: the stat ranked it, but
@@ -436,58 +404,41 @@ func (h *CodeHandler) divergenceFindingsData(
 	codedivergence.SortFindings(assembled)
 	findings := make([]map[string]any, 0, len(assembled))
 	for _, finding := range assembled {
-		findings = append(findings, divergenceFindingResult(finding))
+		findings = append(findings, codedivergence.ResultMap(finding))
 	}
-	return divergenceFindingsData{findings: findings, suppressions: suppressions, truncated: truncated, consumed: len(window), wrapperEmitted: wrapperEmitted}, nil
+	return divergenceFindingsData{findings: findings, suppressions: suppressions, truncated: truncated, consumed: len(window), wrapperEmitted: wrapperEmitted, outlierEmitted: outlierEmitted}, nil
 }
 
-func divergenceFindingResult(finding codedivergence.Finding) map[string]any {
-	members := make([]map[string]any, 0, len(finding.Members))
-	for _, member := range finding.Members {
-		members = append(members, map[string]any{
-			"entity_id":     member.EntityID,
-			"entity_name":   member.EntityName,
-			"entity_type":   member.EntityType,
-			"file_path":     member.RelativePath,
-			"relative_path": member.RelativePath,
-			"repo_id":       finding.RepoID,
-			"language":      member.Language,
-			"package":       codedivergence.PackageOf(member.RelativePath),
-			"start_line":    member.StartLine,
-			"end_line":      member.EndLine,
-			"token_count":   member.TokenCount,
-			"source_handle": map[string]any{
-				"repo_id":        finding.RepoID,
-				"file_path":      member.RelativePath,
-				"relative_path":  member.RelativePath,
-				"start_line":     member.StartLine,
-				"end_line":       member.EndLine,
-				"entity_id":      member.EntityID,
-				"content_tool":   "get_file_lines",
-				"drilldown_tool": "get_entity_context",
-			},
-		})
+// appendOutlierTrack runs the convention-outlier cohort sweep when the
+// requested kinds select it and appends the qualified findings. Like the
+// wrapper track it expands graph-side: the sweep qualifies majority callees
+// per cohort, so the page may carry more findings than the requested limit.
+// Limit bounds nominating groups; the sweep is deterministic (trust-ranked
+// cohorts, id-ordered members), so pages are stable. A degraded graph
+// backend counts one outlier_unavailable suppression instead of failing the
+// page; any other error propagates.
+func (h *CodeHandler) appendOutlierTrack(
+	ctx context.Context,
+	req DivergenceFindingsRequest,
+	kinds []codedivergence.Kind,
+	assembled []codedivergence.Finding,
+	suppressions map[string]int,
+) ([]codedivergence.Finding, bool, error) {
+	if !kindsContainDivergenceKind(kinds, codedivergence.KindConventionOutlier) {
+		return assembled, false, nil
 	}
-	reasons := make([]map[string]any, 0, len(finding.Reasons))
-	for _, reason := range finding.Reasons {
-		reasons = append(reasons, map[string]any{
-			"code":     reason.Code,
-			"sentence": reason.Sentence,
-			"value":    reason.Value,
-		})
+	track, counts, err := h.assembleOutlierTrack(ctx, req.RepoID, req.IncludeTests)
+	if err != nil {
+		if errors.Is(err, querycontract.ErrGraphUnavailable) {
+			suppressions[codedivergence.RuleOutlierGraphUnavailable]++
+			return assembled, false, nil
+		}
+		return assembled, false, err
 	}
-	result := map[string]any{
-		"finding_id":  finding.ID,
-		"kind":        string(finding.Kind),
-		"fingerprint": finding.Fingerprint,
-		"score":       finding.Score,
-		"members":     members,
-		"reasons":     reasons,
+	for rule, count := range counts {
+		suppressions[rule] += count
 	}
-	if finding.Confidence > 0 {
-		result["confidence"] = finding.Confidence
-	}
-	return result
+	return append(assembled, track...), len(track) > 0, nil
 }
 
 func nextDivergenceOffset(offset, consumed int, truncated bool) any {

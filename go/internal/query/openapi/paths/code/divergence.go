@@ -13,7 +13,7 @@ const Divergence = `
       "post": {
         "tags": ["code"],
         "summary": "Find parallel implementations",
-        "description": "Reports repo-scoped parallel_implementation findings: functions with identical token streams (exact), identical streams up to renaming (renamed), reducer-verified near-duplicate pairs (drifted), or call-graph-qualified wrapper families (wrapper_bypass; see kind), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
+        "description": "Reports repo-scoped parallel_implementation findings: functions with identical token streams (exact), identical streams up to renaming (renamed), reducer-verified near-duplicate pairs (drifted), call-graph-qualified wrapper families (wrapper_bypass; see kind), or cohort members missing a call the cohort majority makes (convention_outlier; see kind), ranked members x tokens with reasons that sum to the score. Suppressions are counted per rule, never silent; truth level is derived. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
         "operationId": "findCodeDivergence",
         "x-scoped-token-support": true,
         "requestBody": {
@@ -25,7 +25,7 @@ const Divergence = `
                 "required": ["repo_id"],
                 "properties": {
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
-                  "kind": {"type": "string", "enum": ["", "exact", "renamed", "drifted", "wrapper_bypass"], "default": "", "description": "Family; blank reads all four. wrapper_bypass nominates from wrapper-family exact groups and qualifies one target at a time over one-hop graph rows; its fingerprint carries the target entity id"},
+                  "kind": {"type": "string", "enum": ["", "exact", "renamed", "drifted", "wrapper_bypass", "convention_outlier"], "default": "", "description": "Family; blank reads all five. wrapper_bypass nominates from wrapper-family exact groups and qualifies one target at a time over one-hop graph rows; its fingerprint carries the target entity id. convention_outlier sweeps same-role cohorts (interface implementers, router handlers, package siblings) over cohort-bounded graph rows; its fingerprint carries the cohort address plus the majority callee"},
                   "limit": {"type": "integer", "default": 25, "maximum": 100, "description": "Caps nominating groups per kind, not emitted findings: one wrapper family can qualify several targets, so a page may carry more findings than this limit"},
                   "offset": {"type": "integer", "default": 0, "maximum": 10000},
                   "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set (exact and renamed families; test files suppress by default). Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings"}
@@ -66,8 +66,8 @@ const Divergence = `
                 "required": ["repo_id", "kind", "fingerprint"],
                 "properties": {
                   "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
-                  "kind": {"type": "string", "enum": ["exact", "renamed", "drifted", "wrapper_bypass", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted", "parallel_implementation.wrapper_bypass"]},
-                  "fingerprint": {"type": "string", "description": "Finding fingerprint from a findings report entry (for wrapper_bypass, the target entity id)"},
+                  "kind": {"type": "string", "enum": ["exact", "renamed", "drifted", "wrapper_bypass", "convention_outlier", "parallel_implementation.exact", "parallel_implementation.renamed", "parallel_implementation.drifted", "parallel_implementation.wrapper_bypass", "parallel_implementation.convention_outlier"]},
+                  "fingerprint": {"type": "string", "description": "Finding fingerprint from a findings report entry (for wrapper_bypass, the target entity id; for convention_outlier, the cohort address plus the majority callee)"},
                   "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set (exact and renamed families; test files suppress by default). Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings"}
                 }
               }

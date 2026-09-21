@@ -29,11 +29,13 @@ const WrapperFamilyMinMembers = 5
 const LargeBodyTokens = 200
 
 // Kind is a finding kind: exact token-stream equality, alpha-renamed
-// equality, reducer-verified Jaccard drift, or graph-qualified wrapper
-// bypass. Drifted findings assemble in drifted.go from
-// reducer_code_drifted_finding facts, never from fingerprint groups;
-// wrapper-bypass findings assemble in wrapper_bypass.go from one qualified
-// target per nominated wrapper family.
+// equality, reducer-verified Jaccard drift, graph-qualified wrapper bypass,
+// or graph-selected convention outlier. Drifted findings assemble in
+// drifted.go from reducer_code_drifted_finding facts, never from fingerprint
+// groups; wrapper-bypass findings assemble in wrapper_bypass.go from one
+// qualified target per nominated wrapper family; convention-outlier findings
+// assemble in outlier.go from one majority callee per same-role cohort,
+// carrying weakest-edge confidence and the cohort evidence.
 type Kind string
 
 const (
@@ -89,8 +91,9 @@ type Reason struct {
 
 // Finding is one parallel-implementation group that survived suppression.
 // Confidence carries the weakest contributing CALLS-edge confidence for
-// graph-derived kinds (wrapper_bypass); it is zero and omitted for the
-// content-index kinds, which have no edge evidence.
+// graph-derived kinds (wrapper_bypass, convention_outlier); it is zero and
+// omitted for the content-index kinds, which have no edge evidence. Outlier
+// carries the cohort evidence for the convention_outlier kind only.
 type Finding struct {
 	ID           string         `json:"finding_id"`
 	RepoID       string         `json:"repo_id"`
@@ -101,6 +104,7 @@ type Finding struct {
 	Score        int            `json:"score"`
 	Confidence   float64        `json:"confidence,omitempty"`
 	Suppressions map[string]int `json:"suppressions"`
+	Outlier      *OutlierDetail `json:"outlier,omitempty"`
 }
 
 // findingID derives a stable id from (repo_id, kind, fingerprint) so a

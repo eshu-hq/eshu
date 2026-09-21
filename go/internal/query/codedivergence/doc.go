@@ -6,7 +6,10 @@
 // and parallel_implementation.renamed (identical alpha-renamed streams),
 // plus parallel_implementation.wrapper_bypass (one thin wrapper fronting a
 // target with cross-package direct callers, qualified over one-hop graph
-// rows and carrying weakest-edge confidence).
+// rows and carrying weakest-edge confidence) and
+// parallel_implementation.convention_outlier (cohort members missing a call
+// the cohort majority makes, selected over cohort-bounded graph rows and
+// carrying weakest-edge confidence with the cohort evidence).
 //
 // A finding's score is members × token count, decomposed without remainder
 // into reasons[]: one identical/renamed-stream reason plus one additional-copy
