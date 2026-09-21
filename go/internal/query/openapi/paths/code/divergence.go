@@ -4,8 +4,9 @@
 package code
 
 // Divergence is the OpenAPI path fragment documenting the
-// `/api/v0/code/divergence/findings` and
-// `/api/v0/code/divergence/investigate` routes. openapi.Spec concatenates it
+// `/api/v0/code/divergence/findings`,
+// `/api/v0/code/divergence/investigate`, and
+// `/api/v0/code/divergence/report` routes. openapi.Spec concatenates it
 // into the published document; keep it in lockstep with the handlers and
 // docs/public/reference/http-api.md.
 const Divergence = `
@@ -79,6 +80,45 @@ const Divergence = `
           "404": {"description": "Finding not found"},
           "200": {
             "description": "Finding investigation",
+            "content": {
+              "application/json": {
+                "schema": {"type": "object", "additionalProperties": true}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
+    "/api/v0/code/divergence/report": {
+      "post": {
+        "tags": ["code"],
+        "summary": "Divergence rollup report",
+        "description": "One-call rollup over all five divergence families for one repository: counts of assembled post-suppression findings by kind, the total, and the top top_per_kind findings per kind in final score order, with per-rule suppression counts and per-kind truncation flags. Content families scan every nominated group up to a 500-group hydration cap; wrapper_bypass qualifies nominated families up to a 200-family graph cap; convention_outlier always runs the whole cohort sweep. A capped window marks its kind truncated so a quiet count is distinguishable from a complete one. A graph track the bounded read budget cuts short degrades to a counted wrapper_graph_timeout or outlier_graph_timeout suppression with its kind truncated instead of failing the call. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected with HTTP 400.",
+        "operationId": "reportCodeDivergence",
+        "x-scoped-token-support": true,
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["repo_id"],
+                "properties": {
+                  "repo_id": {"type": "string", "description": "Canonical repository identifier; required and resolved against the caller's grant"},
+                  "top_per_kind": {"type": "integer", "default": 3, "minimum": 1, "maximum": 10, "description": "Top findings carried per kind; counts still cover the whole scanned window"},
+                  "include_tests": {"type": "boolean", "default": false, "description": "Opt test-file copies back into the member set (exact, renamed, and convention_outlier families; test files suppress by default). Drifted pairs touching test files are dropped at write, so include_tests has no effect on drifted findings"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "200": {
+            "description": "Divergence rollup report",
             "content": {
               "application/json": {
                 "schema": {"type": "object", "additionalProperties": true}

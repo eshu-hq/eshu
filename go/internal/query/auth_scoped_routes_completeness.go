@@ -247,6 +247,7 @@ var scopedTokenAdvertisedRoutes = map[string]scopedRouteClass{
 	"POST /api/v0/code/quality/inspect":                                             scopedRouteGrantBound,
 	"POST /api/v0/code/divergence/findings":                                         scopedRouteGrantBound,
 	"POST /api/v0/code/divergence/investigate":                                      scopedRouteGrantBound,
+	"POST /api/v0/code/divergence/report":                                           scopedRouteGrantBound,
 	"POST /api/v0/code/call-graph/metrics":                                          scopedRouteGrantBound,
 	"POST /api/v0/code/dead-code":                                                   scopedRouteGrantBound,
 	"POST /api/v0/code/dead-code/cross-repo":                                        scopedRouteGrantBound,

@@ -10,7 +10,8 @@
 // global route fanout, the private adapter, HTTP dispatch, authorization,
 // timeouts, response budgets, envelopes, summaries, and telemetry. The query
 // package owns the bounded reads behind
-// POST /api/v0/code/divergence/findings and
+// POST /api/v0/code/divergence/findings,
+// POST /api/v0/code/divergence/report, and
 // POST /api/v0/code/divergence/investigate. This
 // package runs no query and must keep every tool name, request path, and
 // body key stable.
@@ -20,7 +21,10 @@
 // down to 100, so the dispatcher's default is indistinguishable from an
 // omitted limit. A negative offset rejects with HTTP 400, as does anything
 // above 10000. kind travels
-// blank for the all-families read; investigate_code_divergence requires an
+// blank for the all-families read; report_code_divergence defaults
+// top_per_kind to 3, the handler's substitute for a zero top, while a
+// negative top or anything above 10 rejects with HTTP 400;
+// investigate_code_divergence requires an
 // explicit kind (exact, renamed, drifted, wrapper_bypass, or
 // convention_outlier, short or qualified) because a fingerprint is only
 // unique within its family.

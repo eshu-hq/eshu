@@ -66,8 +66,11 @@ cohorts-package 235us, 9-id callee-edges fan-out 232us. Shapes are three
 repo-wide one-hop enumeration reads plus the 50-key-chunked UNWIND
 callee-edges read through the pinned `runWrapperGraphRows` runner.
 Identical canonical findings on NornicDB and Neo4j community 2026.05.0.
-Full-corpus PROFILE stays remote-gated under #6840
-(docs/internal/evidence/6834-code-divergence-theory.md §11/§13).
+Full-corpus PROFILE was remote-gated under #6840
+(docs/internal/evidence/6834-code-divergence-theory.md §11/§13); the
+remote-validation run is still pending, so the production tier stays
+unclaimed until `docs/internal/remote-validation/code-divergence.md`
+exists.
 
 ## Convention outliers (#6839)
 
@@ -90,11 +93,11 @@ Score stays members × tokens with reasons summing exactly.
 
 ## Observability Evidence:
 
-Both handlers start span `query.code_divergence_findings`
-(go/internal/telemetry/contract.go); the store reads carry
-db.system/db.operation/db.sql.table attributes and record errors on
-the span; every response carries a derived truth envelope naming its
-basis. The outlier track adds no new span (sibling graph-track parity);
+All three handlers (findings, report, investigate) start span
+`query.code_divergence_findings` (go/internal/telemetry/contract.go); the
+store reads carry db.system/db.operation/db.sql.table attributes and record
+errors on the span; every response carries a derived truth envelope naming
+its basis. The outlier track adds no new span (sibling graph-track parity);
 cohort enumeration, callee fan-out, and mediation reuse the anchored
 one-hop read shape pinned in
 go/internal/queryplan/testdata/query-source-coverage.yaml. No new metrics

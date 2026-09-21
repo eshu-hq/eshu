@@ -64,6 +64,7 @@ func (h *CodeHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/code/complexity", h.handleComplexity)
 	mux.HandleFunc("POST /api/v0/code/divergence/findings", h.handleDivergenceFindings)
 	mux.HandleFunc("POST /api/v0/code/divergence/investigate", h.handleDivergenceInvestigate)
+	mux.HandleFunc("POST /api/v0/code/divergence/report", h.handleDivergenceReport)
 	mux.HandleFunc("POST /api/v0/code/quality/inspect", h.handleCodeQualityInspection)
 	mux.HandleFunc("POST /api/v0/code/call-chain", h.handleCallChain)
 	mux.HandleFunc("POST /api/v0/code/call-chain/compare", h.handleCompareCodePaths)

@@ -27,7 +27,7 @@ capabilities:
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 500, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded content-index symbol definition lookup}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 800, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-symbol-lookup}], notes: bounded content-index symbol definition lookup}
   - capability: code_divergence.findings
-    tools: [find_code_divergence, investigate_code_divergence]
+    tools: [find_code_divergence, report_code_divergence, investigate_code_divergence]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: bounded fingerprint equality groups with reasons that sum to the score and counted suppressions}
       local_authoritative: {status: supported, max_truth_level: derived, required_runtime: local_host_plus_graph, p95_latency_ms: 800, max_scope_size: active_repo, verification: [{go_test: ./internal/query}], notes: single-repo equality grouping over narrow fingerprint columns, never source_cache}

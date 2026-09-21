@@ -343,3 +343,59 @@ func TestRunAnalyzeDivergencePostsCanonicalRequest(t *testing.T) {
 		}
 	}
 }
+
+func TestRunAnalyzeDivergenceReportPostsReportRequest(t *testing.T) {
+	t.Parallel()
+
+	var gotPath string
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		if r.URL.Path == "/api/v0/repositories" {
+			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-1","name":"repo-1","path":"","local_path":"","remote_url":"","repo_slug":"","has_remote":false}]}`))
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("json.Decode() error = %v, want nil", err)
+		}
+		_, _ = w.Write([]byte(`{"counts":{},"total":0}`))
+	}))
+	defer server.Close()
+
+	cmd := &cobra.Command{}
+	addRemoteFlags(cmd)
+	cmd.Flags().String("repo", "", "Optional repository selector")
+	cmd.Flags().String("repo-id", "", "Optional repository ID")
+	cmd.Flags().String("kind", "", "Family")
+	cmd.Flags().Int("limit", 25, "Maximum divergence findings to return")
+	cmd.Flags().Int("offset", 0, "Zero-based findings offset for paging")
+	cmd.Flags().Bool("include-tests", false, "Opt test-file copies back into the member set")
+	cmd.Flags().Bool("report", false, "One-call rollup")
+	cmd.Flags().Int("top", 3, "Top findings carried per kind with --report")
+	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
+		t.Fatalf("Set(service-url) error = %v, want nil", err)
+	}
+	if err := cmd.Flags().Set("repo-id", "repo-1"); err != nil {
+		t.Fatalf("Set(repo-id) error = %v, want nil", err)
+	}
+	if err := cmd.Flags().Set("report", "true"); err != nil {
+		t.Fatalf("Set(report) error = %v, want nil", err)
+	}
+	if err := cmd.Flags().Set("top", "2"); err != nil {
+		t.Fatalf("Set(top) error = %v, want nil", err)
+	}
+
+	if err := runAnalyzeDivergence(cmd, nil); err != nil {
+		t.Fatalf("runAnalyzeDivergence() error = %v, want nil", err)
+	}
+	if got, want := gotPath, "/api/v0/code/divergence/report"; got != want {
+		t.Fatalf("request path = %q, want %q", got, want)
+	}
+	for key, want := range map[string]any{
+		"repo_id": "repo-1", "top_per_kind": float64(2), "include_tests": false,
+	} {
+		if gotBody[key] != want {
+			t.Fatalf("body[%s] = %#v, want %#v", key, gotBody[key], want)
+		}
+	}
+}

@@ -34,6 +34,25 @@ func TestRouteMapsDivergenceTools(t *testing.T) {
 		}
 	}
 
+	report, ok := Route("report_code_divergence", routecontract.Arguments{
+		"repo_id": "repo-x", "top_per_kind": 2, "include_tests": true,
+	})
+	if !ok {
+		t.Fatal("report_code_divergence must route")
+	}
+	if report.Method != "POST" || report.Path != "/api/v0/code/divergence/report" {
+		t.Fatalf("report route = %s %s, want POST /api/v0/code/divergence/report", report.Method, report.Path)
+	}
+	reportBody, ok := report.Body.(map[string]any)
+	if !ok {
+		t.Fatalf("report body type = %T, want map[string]any", report.Body)
+	}
+	for _, key := range []string{"repo_id", "top_per_kind", "include_tests"} {
+		if _, present := reportBody[key]; !present {
+			t.Fatalf("report body must carry %q, got %v", key, reportBody)
+		}
+	}
+
 	investigate, ok := Route("investigate_code_divergence", routecontract.Arguments{
 		"repo_id": "repo-x", "kind": "renamed", "fingerprint": "fp-x",
 	})
@@ -52,20 +71,25 @@ func TestRouteMapsDivergenceTools(t *testing.T) {
 	}
 }
 
-// TestToolsPinsRegistrationShape pins the two-tool registration: names,
+// TestToolsPinsRegistrationShape pins the three-tool registration: names,
 // required args, and the limit default the handler agrees with.
 func TestToolsPinsRegistrationShape(t *testing.T) {
 	t.Parallel()
 
 	defs := Tools()
-	if len(defs) != 2 {
-		t.Fatalf("tools = %d, want 2", len(defs))
+	if len(defs) != 3 {
+		t.Fatalf("tools = %d, want 3", len(defs))
 	}
 	byName := map[string]int{}
 	for _, def := range defs {
 		byName[def.Name]++
 	}
-	if byName["find_code_divergence"] != 1 || byName["investigate_code_divergence"] != 1 {
+	if byName["find_code_divergence"] != 1 || byName["investigate_code_divergence"] != 1 || byName["report_code_divergence"] != 1 {
 		t.Fatalf("tool names = %v, want one of each", byName)
+	}
+	for i, want := range []string{"find_code_divergence", "investigate_code_divergence", "report_code_divergence"} {
+		if defs[i].Name != want {
+			t.Fatalf("tools[%d] = %q, want %q (find/investigate adjacency is pinned)", i, defs[i].Name, want)
+		}
 	}
 }

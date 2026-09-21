@@ -58,6 +58,12 @@ const (
 	RuleOutlierUnqualified      = "outlier_unqualified"
 	RuleCohortTruncated         = "cohort_truncated"
 	RuleOutlierGraphUnavailable = "outlier_graph_unavailable"
+	// RuleOutlierGraphTimeout counts a cohort sweep the bounded graph-read
+	// budget cut short. Only the divergence report uses it: the rollup
+	// degrades one slow family to a counted timeout instead of failing the
+	// other four kinds with it. The findings page keeps the loud deadline
+	// so a slow sweep stays visible as a defect, not a quiet zero.
+	RuleOutlierGraphTimeout = "outlier_graph_timeout"
 )
 
 // OutlierParams tunes convention-outlier selection. The defaults are

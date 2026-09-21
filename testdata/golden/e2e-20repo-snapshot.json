@@ -2456,6 +2456,25 @@
           "fingerprint": "e2e-20repo-snapshot-covers-no-such-fingerprint"
         }
       },
+      "report_code_divergence": {
+        "description": "MCP tool coverage shape for report_code_divergence; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools(). Zero floor: the corpus repos carry no guaranteed duplicate-function families, so no minimum_results; the counts-by-kind plus top-findings-per-kind rollup, the per-rule suppression counts, and the per-kind truncation flags carry the assertion that all five families ran. Timeout degradation is covered by handler contract tests, not by this fixture shape.",
+        "required_response_fields": [
+          "repo_id",
+          "counts",
+          "total",
+          "top",
+          "top_per_kind",
+          "truncated",
+          "suppressions",
+          "source_backend"
+        ],
+        "required_json_values": {
+          "repo_id": "repository:r_3eddcea1"
+        },
+        "arguments": {
+          "repo_id": "repository:r_3eddcea1"
+        }
+      },
       "investigate_code_topic": {
         "description": "MCP tool coverage shape for investigate_code_topic; asserted live through the MCP tool layer and kept in lockstep with ReadOnlyTools().",
         "required_response_fields": [

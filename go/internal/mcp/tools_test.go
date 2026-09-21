@@ -11,7 +11,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 165
+	expectedCount := 166
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -285,8 +285,8 @@ func stringSliceContains(values []string, want string) bool {
 
 func TestCodebaseTools(t *testing.T) {
 	tools := codebaseTools()
-	if len(tools) != 36 {
-		t.Errorf("Expected 36 codebase tools, got %d", len(tools))
+	if len(tools) != 37 {
+		t.Errorf("Expected 37 codebase tools, got %d", len(tools))
 	}
 }
 

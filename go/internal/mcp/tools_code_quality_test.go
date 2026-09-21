@@ -23,7 +23,8 @@ func TestCodebaseToolsSplicePreservesQualityOrder(t *testing.T) {
 		25: "inspect_code_quality",
 		26: "find_code_divergence",
 		27: "investigate_code_divergence",
-		28: "execute_cypher_query",
+		28: "report_code_divergence",
+		29: "execute_cypher_query",
 	}
 	for index, name := range want {
 		if index >= len(codebase) {
