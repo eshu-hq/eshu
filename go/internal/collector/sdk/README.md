@@ -305,9 +305,9 @@ intentional owner-boundary files:
 - `go/internal/collector/loki/http_client.go` remains the Loki endpoint
   traversal wrapper. Request execution and bounded status failures use
   `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
-- `go/internal/collector/prometheusmimir/http_client.go` remains the
-  Prometheus/Mimir endpoint traversal wrapper. Request execution and bounded
-  status failures use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
+- `go/internal/collector/observability/prometheus/http_client.go` remains
+  the Prometheus/Mimir endpoint traversal wrapper. Request execution and
+  bounded status failures use `sdk.DefaultHTTPClient` and `sdk.DoJSON`.
 
 The broader HTTP/client audit also reviewed
 `go/internal/collector/repo/git/selection_github.go`. That file stays outside this
