@@ -136,6 +136,7 @@ func askRouteAnnotations() map[string]Annotation {
 		"POST /api/v0/terraform/config-state-drift/findings": {Backend: BackendPostgres, Cost: CostModerate},
 		"POST /api/v0/code/bundles":                          {Backend: BackendNornicDB, Cost: CostLow},
 		"POST /api/v0/code/call-chain":                       {Backend: BackendNornicDB, Cost: CostModerate},
+		"POST /api/v0/code/call-chain/compare":               {Backend: BackendNornicDB, Cost: CostModerate},
 		"POST /api/v0/code/call-graph/metrics":               {Backend: BackendNornicDB, Cost: CostModerate},
 		"POST /api/v0/code/complexity":                       {Backend: BackendNornicDB, Cost: CostModerate},
 		"POST /api/v0/code/cypher":                           {Backend: BackendNornicDB, Cost: CostModerate},
